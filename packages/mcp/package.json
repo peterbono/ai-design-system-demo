@@ -1,0 +1,46 @@
+{
+  "name": "@bridge/mcp",
+  "version": "0.1.0",
+  "description": "Bridge MCP server: lets Claude (Claude Code, Claude Desktop or any MCP client) read, check and propose changes to a DTCG design system repo through pull requests.",
+  "license": "MIT",
+  "author": "Florian Gouloubi",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/peterbono/ai-design-system-demo.git",
+    "directory": "packages/mcp"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "bin": {
+    "bridge-mcp": "dist/index.js"
+  },
+  "main": "./dist/lib.js",
+  "types": "./src/lib.ts",
+  "exports": {
+    ".": {
+      "types": "./src/lib.ts",
+      "import": "./dist/lib.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && vitest run --config vitest.config.ts",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@bridge/core": "*",
+    "@modelcontextprotocol/sdk": "1.31.0",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.9",
+    "esbuild": "0.27.7"
+  }
+}

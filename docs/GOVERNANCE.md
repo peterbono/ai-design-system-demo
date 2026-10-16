@@ -7,11 +7,12 @@ through the same gates; agent PRs are additionally labelled and never self-merge
 
 | Tier | Examples | PR state | Required approvals | Changeset |
 | ---- | -------- | -------- | ------------------ | --------- |
-| 1, low | Docs, story fixes, a11y fixes with no visual change, lint fixes | Ready for review | 1 code owner | `patch` or none (docs only) |
+| 1, low | Docs, story fixes, a11y fixes with no visual change, lint fixes, a token description edit (no value change) | Ready for review | 1 code owner | `patch` or none (docs only) |
 | 2, medium | New component, new variant or prop, visual tweak using existing tokens | Draft until design review | Design owner + tech owner | `minor` |
-| 3, high | Token added, changed or removed; breaking prop change; guardrail or `AGENTS.md` change | Draft, labelled `tokens` or `breaking` | Design owner **and** tech owner, mandatory | `minor` (additive token) or `major` |
+| 3, high | Token added, changed, renamed or removed; breaking prop change; guardrail or `AGENTS.md` change | Draft, labelled `tokens` or `breaking` | Design owner **and** tech owner, mandatory | `minor` (added or changed token) or `major` (renamed or removed token) |
 
-If a PR spans tiers, the highest tier applies.
+If a PR spans tiers, the highest tier applies. The DS Bridge plugin, the docs site editor and Reviews, the CLI
+and the MCP server compute the tier with the same classifier (`classifyRisk` in `@bridge/core`).
 
 ## Review gates
 
@@ -41,7 +42,8 @@ DS Bridge (`apps/figma-plugin`) turns Figma variable edits into pull requests:
 
 - Branches are named `tokens/<slug>-<yyyymmdd-hhmm>`, with a single commit that only touches the
   changed token files plus a changeset (`minor`, or `major` when a token is renamed or removed).
-- These PRs are always **Tier 3** (token change): opened as draft, labelled `tokens`, and they need
+- Value, type, rename and removal changes are **Tier 3** (token change); a change that only edits
+  descriptions is Tier 1 (`patch`). Tier 3 PRs are opened as draft, labelled `tokens`, and they need
   **design owner and tech owner** approval, like any other token change.
 - The plugin refuses to open the PR while its guardrails fail (aliases, cycles, scopes, type changes,
   WCAG contrast on `packages/tokens/src/contrast.checks.json`). That is a convenience, not a gate:

@@ -40,7 +40,14 @@ import {
   type Guardrails,
 } from '../lib/editor-model';
 import { currentScope } from './shell';
-import { esc, getToken, initGitHubConnect } from './github-session';
+import { esc, getToken, initGitHubConnect, readRepo } from './github-session';
+
+/** The config's repository, or the one this site documents when the config names none. */
+function repoOf(config: BridgeConfig): { owner: string; name: string; defaultBranch: string } {
+  if (config.repo) return config.repo;
+  const r = readRepo();
+  return { owner: r.owner, name: r.repo, defaultBranch: r.defaultBranch };
+}
 
 const DRAFT_KEY = 'bridge.draft.v1';
 const MODE_LABEL: Record<string, string> = { light: 'Light', dark: 'Dark', bridge: 'Bridge', ocean: 'Ocean', comfortable: 'Comfortable', compact: 'Compact' };
@@ -369,7 +376,7 @@ function downloadDraft() {
   if (!S?.applied) return;
   const payload = {
     $comment: 'Bridge token draft. Apply the files to the token root, or open a pull request with them.',
-    repo: `${S.config.repo.owner}/${S.config.repo.name}`,
+    repo: `${repoOf(S.config).owner}/${repoOf(S.config).name}`,
     tokensRoot: S.config.tokens.root,
     edits: S.draft.edits,
     files: S.applied.files,
@@ -386,7 +393,7 @@ async function propose(title: string, notes: string): Promise<number> {
   if (!S) throw new Error('Editor not ready');
   const token = getToken();
   if (!token) throw new Error('Connect GitHub first.');
-  const { owner, name, defaultBranch } = S.config.repo;
+  const { owner, name, defaultBranch } = repoOf(S.config);
   const client = new GitHubClient(`${owner}/${name}`, token);
   const mainSha = await client.getBranchSha(defaultBranch);
   if (!mainSha) throw new Error(`Branch ${defaultBranch} not found.`);

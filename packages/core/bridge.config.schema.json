@@ -1,70 +1,409 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/peterbono/ai-design-system-demo/packages/core/bridge.config.schema.json",
+  "$id": "https://raw.githubusercontent.com/peterbono/ai-design-system-demo/main/packages/core/bridge.config.schema.json",
   "title": "Bridge config",
-  "description": "Where a design system repository keeps its DTCG tokens and which brands, themes and densities it has. Read by @bridge/core, the DS Bridge Figma plugin, the CLI and the MCP server.",
+  "description": "bridge.config.json at the root of a design system repository: where its DTCG tokens live, how they layer per mode, the contrast gate, components, docs, changesets and the governance rules Bridge enforces. One schema for @bridge/core, the DS Bridge Figma plugin, the docs site, the CLI and the MCP server. The older flat form (tokens.primitives and friends, modes.brands/themes/densities) is still accepted.",
   "type": "object",
-  "required": ["repo"],
   "additionalProperties": false,
   "properties": {
-    "$schema": { "type": "string" },
+    "$schema": {
+      "type": "string"
+    },
+    "version": {
+      "const": 1,
+      "description": "Config format version."
+    },
     "repo": {
-      "type": "object",
-      "required": ["owner", "name"],
-      "additionalProperties": false,
-      "properties": {
-        "owner": { "type": "string", "minLength": 1, "description": "GitHub owner (user or organization)." },
-        "name": { "type": "string", "minLength": 1, "description": "Repository name." },
-        "defaultBranch": { "type": "string", "minLength": 1, "default": "main", "description": "Branch that pulls read from and pull requests target." }
-      }
+      "description": "GitHub repository. Pull requests target defaultBranch; Bridge never writes to it.",
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^[\\w.-]+/[\\w.-]+$"
+        },
+        {
+          "type": "object",
+          "required": [
+            "owner",
+            "name"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "type": "string",
+              "description": "GitHub owner (user or organization).",
+              "minLength": 1
+            },
+            "name": {
+              "type": "string",
+              "description": "Repository name.",
+              "minLength": 1
+            },
+            "defaultBranch": {
+              "type": "string",
+              "description": "Base branch.",
+              "minLength": 1,
+              "default": "main"
+            }
+          }
+        }
+      ]
+    },
+    "branch": {
+      "type": "string",
+      "description": "Flat form: base branch (use repo.defaultBranch).",
+      "minLength": 1
     },
     "tokens": {
       "type": "object",
       "additionalProperties": false,
-      "description": "Token locations. root is relative to the repository root; every other path is relative to root.",
+      "description": "Token locations. root is repo-relative; every other path is relative to root.",
       "properties": {
-        "root": { "type": "string", "default": "tokens", "description": "Directory holding every tier." },
-        "primitives": { "type": "string", "default": "primitives", "description": "Primitive tier: *.tokens.json, one value each." },
-        "brands": { "type": "string", "default": "brands", "description": "Brand tier: <brand>.tokens.json (palette, radius and font roles), plus optional <brand>.<theme>.tokens.json semantic overrides." },
-        "semantic": { "type": "string", "default": "semantic", "description": "Semantic tier: <theme>.tokens.json, plus the theme-independent base file." },
-        "base": { "type": "string", "default": "base", "description": "Stem of the theme-independent semantic file in the semantic directory." },
-        "density": { "type": "string", "default": "density", "description": "Density tier: <density>.tokens.json." },
-        "components": { "type": "string", "default": "components", "description": "Component tier: *.tokens.json aliasing semantic tokens." },
-        "contrastChecks": { "type": "string", "default": "contrast.checks.json", "description": "Contrast pairs: { \"pairs\": [[foreground, background, minimum ratio], ...] }." }
-      }
-    },
-    "components": {
-      "type": "object",
-      "required": ["dir"],
-      "additionalProperties": false,
-      "properties": {
-        "dir": { "type": "string", "minLength": 1, "description": "Code components directory, relative to the repository root." }
+        "root": {
+          "type": "string",
+          "description": "Directory holding every token file.",
+          "default": "tokens"
+        },
+        "include": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Token file globs, relative to root.",
+          "default": [
+            "**/*.tokens.json"
+          ]
+        },
+        "exclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Globs to skip, relative to root.",
+          "default": []
+        },
+        "tiers": {
+          "type": "object",
+          "description": "Tier name -> directories or files relative to root (primitive, brand, base, semantic, density, component). First match wins.",
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          }
+        },
+        "layers": {
+          "type": "array",
+          "minItems": 1,
+          "description": "Resolution order, lowest first; later layers override earlier ones. {mode} placeholders pick the file per mode value.",
+          "items": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "files"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "files": {
+                    "type": "string",
+                    "description": "Glob relative to root, e.g. semantic/{theme}.tokens.json.",
+                    "minLength": 1
+                  },
+                  "optional": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "A missing file is fine (brand overrides only some brands have)."
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "primitives": {
+          "type": "string",
+          "description": "Flat form: primitive tier directory."
+        },
+        "brands": {
+          "type": "string",
+          "description": "Flat form: brand tier directory."
+        },
+        "semantic": {
+          "type": "string",
+          "description": "Flat form: semantic tier directory."
+        },
+        "base": {
+          "type": "string",
+          "description": "Flat form: stem of the theme-independent semantic file."
+        },
+        "density": {
+          "type": "string",
+          "description": "Flat form: density tier directory."
+        },
+        "components": {
+          "type": "string",
+          "description": "Flat form: component tier directory."
+        },
+        "contrastChecks": {
+          "type": "string",
+          "description": "Flat form: contrast checks file relative to root (use contrast.path)."
+        }
       }
     },
     "modes": {
       "type": "object",
-      "additionalProperties": false,
+      "description": "Mode name -> values. Names match the {placeholders} in tokens.layers. brand, theme and density drive the Figma collections.",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "values"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "values": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string"
+            }
+          },
+          "default": {
+            "type": "string",
+            "description": "Defaults to the first value."
+          },
+          "parity": {
+            "type": "boolean",
+            "default": false,
+            "description": "Every token defined for one value must be defined for the others."
+          }
+        }
+      },
       "properties": {
-        "brands": { "type": "array", "items": { "type": "string" }, "description": "Brand modes, default first." },
-        "themes": { "type": "array", "items": { "type": "string" }, "description": "Theme modes, default first." },
-        "densities": { "type": "array", "items": { "type": "string" }, "description": "Density modes, default first." },
+        "brands": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Flat form."
+        },
+        "themes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Flat form."
+        },
+        "densities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Flat form."
+        },
         "defaults": {
           "type": "object",
+          "description": "Flat form.",
           "additionalProperties": false,
           "properties": {
-            "brand": { "type": "string" },
-            "theme": { "type": "string" },
-            "density": { "type": "string" }
+            "brand": {
+              "type": "string"
+            },
+            "theme": {
+              "type": "string"
+            },
+            "density": {
+              "type": "string"
+            }
           }
+        }
+      }
+    },
+    "contrast": {
+      "type": "object",
+      "required": [
+        "path"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Repo-relative JSON file with pairs: [[foreground, background, minimum ratio], ...]."
+        },
+        "modes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Modes the gate iterates over; the others stay at their default. All modes when omitted."
+        }
+      }
+    },
+    "components": {
+      "type": "object",
+      "required": [
+        "dir"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "dir": {
+          "type": "string",
+          "description": "Code components directory, repo-relative.",
+          "minLength": 1
+        },
+        "docsSuffix": {
+          "type": "string",
+          "description": "Usage docs file suffix.",
+          "default": ".docs.json"
+        },
+        "styleSuffix": {
+          "type": "string",
+          "description": "Stylesheet suffix.",
+          "default": ".module.css"
+        },
+        "reference": {
+          "type": "string",
+          "description": "Component whose docs.json keys new components copy."
+        },
+        "index": {
+          "type": "string",
+          "description": "Barrel file new components are exported from."
+        }
+      }
+    },
+    "docs": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "designLanguage": {
+          "type": "string",
+          "description": "Design language document."
+        },
+        "guidelines": {
+          "type": "string",
+          "description": "Agent rules (AGENTS.md)."
+        },
+        "governance": {
+          "type": "string",
+          "description": "Governance document with the risk tiers."
+        }
+      }
+    },
+    "changesets": {
+      "type": "object",
+      "required": [
+        "package"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "dir": {
+          "type": "string",
+          "description": "Changeset directory.",
+          "default": ".changeset"
+        },
+        "package": {
+          "type": "string",
+          "description": "Package a token changeset bumps.",
+          "minLength": 1
         }
       }
     },
     "changeset": {
       "type": "object",
-      "required": ["package"],
+      "required": [
+        "package"
+      ],
+      "additionalProperties": false,
+      "description": "Older name of changesets.",
+      "properties": {
+        "package": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "cssVar": {
+      "type": "object",
       "additionalProperties": false,
       "properties": {
-        "package": { "type": "string", "minLength": 1, "description": "Package a changeset bumps when tokens change. Without it, no changeset is written." }
+        "prefix": {
+          "type": "string",
+          "description": "CSS variable prefix.",
+          "default": "--"
+        },
+        "separator": {
+          "type": "string",
+          "description": "Joins token path segments.",
+          "default": "-"
+        }
+      }
+    },
+    "governance": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "protectedBranches": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Branches no Bridge surface writes to. The default branch is always protected.",
+          "default": [
+            "main",
+            "master"
+          ]
+        },
+        "branchPrefix": {
+          "type": "string",
+          "description": "Prefix of branches agents create.",
+          "default": "bridge/"
+        },
+        "labels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Labels on pull requests opened by an agent.",
+          "default": [
+            "source: mcp"
+          ]
+        },
+        "guardrails": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Repo-relative files whose change is Tier 3 on its own; a trailing / matches a directory."
+        },
+        "owners": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "GitHub logins that count as design and tech owners for Tier 3 approvals. Empty: two distinct approvers stand in.",
+          "properties": {
+            "design": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Design owners."
+            },
+            "tech": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Tech owners."
+            }
+          }
+        }
       }
     }
   }

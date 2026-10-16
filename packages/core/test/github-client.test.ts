@@ -147,7 +147,7 @@ test('bridge.config.json at the repo root decides the tokens root and the checks
   assert.equal(files.tokensPath, 'design/tokens');
   assert.deepEqual(Object.keys(files.files), ['primitives/color.tokens.json']);
   assert.equal(files.contrastChecks, '{"pairs":[]}');
-  assert.equal(files.config?.repo.defaultBranch, 'main');
+  assert.equal(files.config?.repo?.defaultBranch, 'main');
 });
 
 test('contents API, reviews, check runs and PR files', async () => {
@@ -172,4 +172,48 @@ test('contents API, reviews, check runs and PR files', async () => {
   const run = await gh.createCheckRun({ name: 'bridge', headSha: 'abc', status: 'completed', conclusion: 'neutral' });
   assert.equal(run.id, 8);
   assert.deepEqual(calls.at(-1)!.body, { name: 'bridge', head_sha: 'abc', status: 'completed', conclusion: 'neutral' });
+});
+
+test('writes refuse protected branches before any request; agents need their prefix', async () => {
+  const calls: string[] = [];
+  const fetchImpl: FetchLike = async (url, init) => {
+    calls.push(`${init?.method ?? 'GET'} ${url}`);
+    return { ok: true, status: 200, json: async () => ({}), text: async () => '' };
+  };
+  const c = new GitHubClient('o/r', 't', fetchImpl, undefined, { protectedBranches: ['main', 'release'], branchPrefix: 'bridge/' });
+  await assert.rejects(c.createBranch('main', 'x'), /protected branch "main"/);
+  await assert.rejects(c.updateBranch('release', 'x'), /protected/);
+  await assert.rejects(c.putFile({ path: 'a', content: 'b', branch: 'main', message: 'm' }), /protected/);
+  await assert.rejects(c.commitToNewBranch({ base: 'develop', branch: 'develop', message: 'm', files: [] }), /protected/);
+  await assert.rejects(c.createBranch('feature/x', 'x'), /must start with "bridge\/"/);
+  await assert.rejects(c.createPullRequest({ title: 't', head: 'main', base: 'main', body: '', draft: true }), /protected/);
+  // Default list protects main and master for every client.
+  await assert.rejects(new GitHubClient('o/r', 't', fetchImpl).createBranch('master', 'x'), /protected/);
+  assert.deepEqual(calls, []);
+});
+
+test('token-less reads use the raw host; commitToNewBranch creates a branch, never moves one', async () => {
+  const calls: { url: string; method: string; body?: any }[] = [];
+  const fetchImpl: FetchLike = async (url, init) => {
+    const method = init?.method ?? 'GET';
+    calls.push({ url, method, body: init?.body ? JSON.parse(init.body) : undefined });
+    const json = (b: unknown) => ({ ok: true, status: 200, json: async () => b, text: async () => JSON.stringify(b) });
+    if (url.startsWith('https://raw.githubusercontent.com/')) return { ok: true, status: 200, json: async () => ({}), text: async () => 'raw text' };
+    if (url.endsWith('/git/ref/heads/main')) return json({ object: { sha: 'base1' } });
+    if (url.endsWith('/git/commits/base1')) return json({ tree: { sha: 'tree1' } });
+    if (url.endsWith('/git/trees')) return json({ sha: 'tree2' });
+    if (url.endsWith('/git/commits')) return json({ sha: 'c2' });
+    if (url.endsWith('/git/refs')) return json({});
+    return { ok: false, status: 404, json: async () => ({}), text: async () => '' };
+  };
+  assert.equal(await new GitHubClient('o/r', '', fetchImpl).readFile('a/b.json', 'main'), 'raw text');
+  assert.equal(calls[0]!.url, 'https://raw.githubusercontent.com/o/r/main/a/b.json');
+  await assert.rejects(new GitHubClient('o/r', '', fetchImpl).commitToNewBranch({ base: 'main', branch: 'bridge/x', message: 'm', files: [] }), /needs a GitHub token/);
+  const c = new GitHubClient('o/r', 't', fetchImpl);
+  const r = await c.commitToNewBranch({ base: 'main', branch: 'bridge/x', message: 'm', files: [{ path: 'a', content: 'A' }, { path: 'gone', content: null }] });
+  assert.deepEqual(r, { sha: 'c2', branch: 'bridge/x' });
+  const tree = calls.find((x) => x.url.endsWith('/git/trees'))!.body;
+  assert.deepEqual(tree.tree, [{ path: 'a', mode: '100644', type: 'blob', content: 'A' }, { path: 'gone', mode: '100644', type: 'blob', sha: null }]);
+  assert.ok(!calls.some((x) => x.method === 'PATCH'));
+  assert.deepEqual(parseRepo('https://github.com/acme/ds.git'), { owner: 'acme', name: 'ds' });
 });

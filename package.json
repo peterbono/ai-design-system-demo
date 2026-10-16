@@ -13,12 +13,14 @@
     "packages/tokens",
     "packages/core",
     "packages/react",
+    "packages/mcp",
+    "packages/cli",
     "apps/docs-site",
     "apps/figma-plugin"
   ],
   "scripts": {
     "tokens:build": "npm run build -w @demo-ds/tokens",
-    "typecheck": "npm run tokens:build && npm run typecheck -w @bridge/core && npm run typecheck -w @demo-ds/react && npm run typecheck -w @demo-ds/docs-site && npm run plugin:typecheck",
+    "typecheck": "npm run tokens:build && npm run typecheck -w @bridge/core && npm run typecheck -w @demo-ds/react && npm run typecheck -w @demo-ds/docs-site && npm run plugin:typecheck && npm run typecheck -w @bridge/mcp && npm run typecheck -w @bridge/cli",
     "lint:css": "stylelint \"packages/react/src/**/*.css\" \"apps/docs-site/src/**/*.css\"",
     "test": "npm run tokens:build && vitest run",
     "test:watch": "vitest",
@@ -30,9 +32,12 @@
     "docs:dev": "npm run tokens:build && npm run dev -w @demo-ds/docs-site",
     "docs:build": "npm run tokens:build && npm run build -w @demo-ds/docs-site",
     "docs:preview": "npm run preview -w @demo-ds/docs-site",
-    "ci": "npm run tokens:build && npm run typecheck && npm run lint:css && npm run test && npm run plugin:test && npm run build-storybook && npm run docs:build",
+    "ci": "npm run tokens:build && npm run typecheck && npm run lint:css && npm run test && npm run plugin:test && npm run build-storybook && npm run docs:build && npm run mcp:test",
     "changeset": "changeset",
-    "version-packages": "changeset version"
+    "version-packages": "changeset version",
+    "mcp:build": "npm run build -w @bridge/mcp && npm run build -w @bridge/cli",
+    "mcp:test": "npm run mcp:build && vitest run --config packages/mcp/vitest.config.ts",
+    "bridge": "node packages/cli/dist/index.js"
   },
   "devDependencies": {
     "@changesets/cli": "2.31.1",

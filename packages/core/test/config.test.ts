@@ -6,7 +6,7 @@ import { realConfig, realFiles } from './helpers';
 
 test('the repo config loads and describes the real token layout', () => {
   const c = realConfig();
-  assert.equal(`${c.repo.owner}/${c.repo.name}`, 'peterbono/ai-design-system-demo');
+  assert.equal(`${c.repo!.owner}/${c.repo!.name}`, 'peterbono/ai-design-system-demo');
   assert.equal(c.tokens.root, 'packages/tokens/src');
   assert.deepEqual(c.modes.defaults, { brand: 'bridge', theme: 'light', density: 'comfortable' });
   const set = buildTokenSet(realFiles(), layoutOptions(c));
@@ -21,7 +21,7 @@ test('the repo config loads and describes the real token layout', () => {
 
 test('defineConfig fills defaults; loadConfig lists every problem', () => {
   const c = defineConfig({ repo: { owner: 'acme', name: 'ds' } });
-  assert.equal(c.repo.defaultBranch, 'main');
+  assert.equal(c.repo!.defaultBranch, 'main');
   assert.equal(c.tokens.root, 'tokens');
   assert.equal(c.tokens.contrastChecks, 'contrast.checks.json');
   assert.equal(c.changeset, undefined);
