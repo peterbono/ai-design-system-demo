@@ -1,5 +1,6 @@
 ---
 import '../../styles/component.css';
+import '../../styles/library.css';
 import Layout from '../../layouts/Layout.astro';
 import Example from '../../components/Example.tsx';
 import Icon from '../../components/Icon.astro';
@@ -8,6 +9,8 @@ import Updated from '../../components/Updated.astro';
 import { loadComponents, playgroundSpec, type ComponentInfo } from '../../lib/components';
 import { lastUpdated, sourceUrl, STORYBOOK_URL } from '../../lib/repo';
 import { MODES } from '../../lib/tokens';
+import { releases } from '../../lib/changelog';
+import { humanDate } from '../../lib/stats';
 
 export function getStaticPaths() {
   return loadComponents().map((c) => ({ params: { slug: c.slug }, props: { c } }));
@@ -32,29 +35,29 @@ const fileLinks = [
   { label: `${c.name}.module.css`, href: sourceUrl(c.files.css) },
   ...(d ? [{ label: `${c.name}.docs.json`, href: sourceUrl(c.files.docs) }] : []),
 ];
-const toc = [
-  ...(d
-    ? [
-        { id: 'usage', label: 'When to use' },
-        { id: 'do-dont', label: "Do and don't" },
-        { id: 'accessibility', label: 'Accessibility' },
-      ]
-    : []),
-  { id: 'anatomy', label: 'Anatomy and tokens' },
-  { id: 'props', label: 'Props' },
-  { id: 'playground', label: 'Playground' },
-  { id: 'live', label: 'Workbench' },
+// Release notes that mention this component by name (title or package), newest first.
+const nameRe = new RegExp(`\\b${c.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+const notes = releases().flatMap((r) =>
+  r.entries.filter((e) => nameRe.test(e.title) || e.packages.some((p) => nameRe.test(p))).map((e) => ({ ...e, release: r.name, date: e.date ?? r.date })),
+);
+const tabs = [
+  { id: 'usage', label: 'Usage' },
+  { id: 'tokens', label: 'Tokens' },
+  { id: 'code', label: 'Code' },
+  { id: 'changelog', label: 'Changelog' },
 ];
 ---
 
-<Layout title={c.name} description={d?.summary ?? c.description} sources={sources} updated={updated}>
-  <nav class="crumbs" aria-label="Breadcrumb">
-    <a href="/components/">Components</a><span aria-hidden="true">/</span><span aria-current="page">{c.name}</span>
-  </nav>
+<Layout title={c.name} description={d?.summary ?? c.description} sources={sources} updated={updated} crumbs={[{ label: 'Catalog', href: '/components/' }, { label: c.name }]} toc={false}>
   <div class="cp-head">
-    <div class="cp-title">
-      <h1>{c.name}</h1>
-      <span class:list={['pill', statusTone]}>{status === 'stable' ? 'Stable' : status === 'beta' ? 'Beta' : 'Deprecated'}</span>
+    <div class="page-head">
+      <div class="cp-title">
+        <h1>{c.name}</h1>
+        <span class:list={['pill', statusTone]}>{status === 'stable' ? 'Stable' : status === 'beta' ? 'Beta' : 'Deprecated'}</span>
+      </div>
+      <div class="page-head-actions">
+        <a class="btn btn-secondary" href={`/studio/components/?c=${c.slug}`}><Icon name="edit" size={16} />Edit in Studio</a>
+      </div>
     </div>
     {d?.summary && <p class="lead">{d.summary}</p>}
     <div class="cp-meta">
@@ -68,15 +71,6 @@ const toc = [
               </a>
             </li>
           )
-        }
-        {
-          fileLinks.map((f) => (
-            <li>
-              <a class="cp-link mono" href={f.href}>
-                <Icon name="github" size={16} /> {f.label}
-              </a>
-            </li>
-          ))
         }
       </ul>
     </div>
@@ -124,8 +118,20 @@ const toc = [
     )
   }
 
+  <nav class="page-tabs" role="tablist" aria-label={`${c.name} documentation`} data-cp-tabs>
+    {
+      tabs.map((t, i) => (
+        <a role="tab" id={`tab-${t.id}-btn`} href={`#${t.id}`} aria-controls={`tab-${t.id}`} aria-selected={i === 0 ? 'true' : 'false'} tabindex={i === 0 ? 0 : -1} data-tab={t.id}>
+          {t.label}
+          {t.id === 'changelog' && notes.length > 0 && <span class="muted num"> {notes.length}</span>}
+        </a>
+      ))
+    }
+  </nav>
+
   <div class="cp-layout">
     <div class="cp-body">
+      <div class="cp-panel" role="tabpanel" id="tab-usage" aria-labelledby="tab-usage-btn" data-panel="usage">
       {
         d && (
           <>
@@ -209,6 +215,16 @@ const toc = [
         )
       }
 
+      {
+        !d && (
+          <p class="muted">
+            No usage guidance yet. Add <code>{c.files.docs}</code> to fill this tab.
+          </p>
+        )
+      }
+      </div>
+
+      <div class="cp-panel" role="tabpanel" id="tab-tokens" aria-labelledby="tab-tokens-btn" data-panel="tokens">
       <section aria-labelledby="anatomy">
         <h2 id="anatomy">Anatomy and tokens</h2>
         <p>
@@ -257,6 +273,20 @@ const toc = [
         </ul>
       </section>
 
+      </div>
+
+      <div class="cp-panel" role="tabpanel" id="tab-code" aria-labelledby="tab-code-btn" data-panel="code">
+      <ul class="cp-files" aria-label="Source files">
+        {
+          fileLinks.map((f) => (
+            <li>
+              <a class="cp-link mono" href={f.href}>
+                <Icon name="github" size={16} /> {f.label}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
       <section aria-labelledby="props">
         <h2 id="props">Props</h2>
         <p>
@@ -364,19 +394,39 @@ const toc = [
           )
         }
       </section>
+      </div>
+
+      <div class="cp-panel" role="tabpanel" id="tab-changelog" aria-labelledby="tab-changelog-btn" data-panel="changelog">
+        <section aria-labelledby="changes">
+          <h2 id="changes">Changelog</h2>
+          {
+            notes.length ? (
+              <ul class="cp-changes">
+                {notes.map((e) => (
+                  <li>
+                    <span class="pill">{e.kind}</span>
+                    <div>
+                      <p>{e.title}</p>
+                      <p class="small muted">
+                        {e.release}
+                        {e.date && <>, {humanDate(e.date)}</>}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p class="muted">No release note mentions {c.name} yet.</p>
+            )
+          }
+          <p class="small"><a href="/changelog/">All release notes</a></p>
+        </section>
+      </div>
     </div>
 
     <aside class="cp-toc" aria-label="On this page">
       <p class="cp-toc-title">On this page</p>
-      <ul>
-        {
-          toc.map((t) => (
-            <li>
-              <a href={`#${t.id}`}>{t.label}</a>
-            </li>
-          ))
-        }
-      </ul>
+      <ul data-cp-toc></ul>
     </aside>
   </div>
 
@@ -390,10 +440,29 @@ const toc = [
         }),
       );
     });
-    const links = [...document.querySelectorAll<HTMLAnchorElement>('.cp-toc a')];
-    const targets = links.map((a) => document.getElementById(a.hash.slice(1))).filter((x): x is HTMLElement => !!x);
-    if ('IntersectionObserver' in window && targets.length) {
-      const io = new IntersectionObserver(
+    // Page tabs: hash-driven (#usage, #tokens, #code, #changelog). Old section anchors open the tab that holds them.
+    const tablist = document.querySelector<HTMLElement>('[data-cp-tabs]');
+    const tabs = [...document.querySelectorAll<HTMLAnchorElement>('[data-cp-tabs] [role="tab"]')];
+    const panels = [...document.querySelectorAll<HTMLElement>('[data-panel]')];
+    const tocList = document.querySelector<HTMLUListElement>('[data-cp-toc]');
+    const LEGACY: Record<string, string> = { anatomy: 'tokens', props: 'code', playground: 'code', live: 'code', 'do-dont': 'usage', accessibility: 'usage', changes: 'changelog' };
+    let io: IntersectionObserver | null = null;
+    const paintToc = (panel: HTMLElement) => {
+      if (!tocList) return;
+      tocList.textContent = '';
+      io?.disconnect();
+      const heads = [...panel.querySelectorAll<HTMLElement>('h2[id]')];
+      const links = heads.map((h) => {
+        const li = document.createElement('li');
+        const a = document.createElement('a');
+        a.href = `#${h.id}`;
+        a.textContent = h.textContent?.trim() ?? '';
+        li.appendChild(a);
+        tocList.appendChild(li);
+        return a;
+      });
+      if (!('IntersectionObserver' in window) || !heads.length) return;
+      io = new IntersectionObserver(
         (entries) => {
           for (const e of entries) {
             if (!e.isIntersecting) continue;
@@ -402,7 +471,45 @@ const toc = [
         },
         { rootMargin: '-15% 0px -75% 0px' },
       );
-      targets.forEach((t) => io.observe(t));
-    }
+      heads.forEach((h) => io!.observe(h));
+    };
+    const select = (id: string, focus = false) => {
+      const tab = tabs.find((t) => t.dataset.tab === id) ?? tabs[0]!;
+      tabs.forEach((t) => {
+        const on = t === tab;
+        t.setAttribute('aria-selected', String(on));
+        t.tabIndex = on ? 0 : -1;
+      });
+      panels.forEach((p) => (p.hidden = p.dataset.panel !== tab.dataset.tab));
+      const panel = panels.find((p) => p.dataset.panel === tab.dataset.tab);
+      if (panel) paintToc(panel);
+      if (focus) tab.focus();
+    };
+    const fromHash = () => {
+      const h = decodeURIComponent(location.hash.slice(1));
+      if (!h) return select('usage');
+      if (tabs.some((t) => t.dataset.tab === h)) return select(h);
+      const owner = LEGACY[h] ?? document.getElementById(h)?.closest<HTMLElement>('[data-panel]')?.dataset.panel;
+      select(owner ?? 'usage');
+      document.getElementById(h)?.scrollIntoView();
+    };
+    tabs.forEach((t) =>
+      t.addEventListener('click', (e) => {
+        e.preventDefault();
+        history.replaceState(null, '', `#${t.dataset.tab}`);
+        select(t.dataset.tab!);
+      }),
+    );
+    tablist?.addEventListener('keydown', (e) => {
+      const i = tabs.findIndex((t) => t.getAttribute('aria-selected') === 'true');
+      const next = e.key === 'ArrowRight' ? i + 1 : e.key === 'ArrowLeft' ? i - 1 : e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : null;
+      if (next === null) return;
+      e.preventDefault();
+      const t = tabs[(next + tabs.length) % tabs.length]!;
+      history.replaceState(null, '', `#${t.dataset.tab}`);
+      select(t.dataset.tab!, true);
+    });
+    window.addEventListener('hashchange', fromHash);
+    fromHash();
   </script>
 </Layout>

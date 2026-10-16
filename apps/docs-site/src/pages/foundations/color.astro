@@ -1,6 +1,7 @@
 ---
 import '../../styles/foundations.css';
 import Layout from '../../layouts/Layout.astro';
+import Icon from '../../components/Icon.astro';
 import TokenNames from '../../components/TokenNames.astro';
 import Updated from '../../components/Updated.astro';
 import { componentsUsing } from '../../lib/components';
@@ -21,12 +22,19 @@ const semanticUsing = (primitivePath: string) =>
 ---
 
 <Layout title="Color" description="Primitive palette and semantic color tokens in light and dark." sources={PAGE_SOURCES.color} updated={updated}>
-  <h1>Color</h1>
-  <p class="lead">
-    Two layers. <strong>Primitives</strong> are the raw palette. <strong>Semantic tokens</strong> give each color a job (action, feedback,
-    surface) and point to a different primitive in each theme. Design and build with semantic tokens only.
-  </p>
-  <Updated date={updated} />
+  <header class="page-head">
+    <div>
+      <h1>Color</h1>
+      <p class="lead">
+        Two layers. <strong>Primitives</strong> are the raw palette. <strong>Semantic tokens</strong> give each color a job (action, feedback,
+        surface) and point to a different primitive in each theme. Design and build with semantic tokens only.
+      </p>
+      <Updated date={updated} />
+    </div>
+    <div class="page-head-actions">
+      <a class="btn btn-secondary" href="/studio/tokens/?q=color"><Icon name="edit" size={16} />Edit in Studio</a>
+    </div>
+  </header>
 
   <h2 id="semantic">Semantic tokens</h2>
   <p>
@@ -119,5 +127,5 @@ const semanticUsing = (primitivePath: string) =>
       </section>
     ))
   }
-  <p>Want to know exactly who uses a value? Try the <a href="/foundations/lookup/">token lookup</a>.</p>
+  <p>Want to know exactly who uses a value? Paste a hex in search (<kbd class="kbd">⌘K</kbd>) or in the <a href="/tokens/">token explorer</a>.</p>
 </Layout>

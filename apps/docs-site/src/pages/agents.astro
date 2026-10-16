@@ -1,14 +1,34 @@
 ---
-import Layout from '../../layouts/Layout.astro';
-import Icon from '../../components/Icon.astro';
-import Updated from '../../components/Updated.astro';
-import { GITHUB_URL, sourceUrl } from '../../lib/repo';
-import { PAGE_SOURCES, freshness } from '../../lib/sources';
-import { AI_DOC, mcpPrompts, mcpTools, safetyModel } from '../../lib/mcp';
-import '../../styles/process.css';
-import '../../styles/connect.css';
+import Layout from '../layouts/Layout.astro';
+import Icon from '../components/Icon.astro';
+import Updated from '../components/Updated.astro';
+import { GITHUB_URL, sourceUrl } from '../lib/repo';
+import { PAGE_SOURCES, freshness } from '../lib/sources';
+import { AI_DOC, mcpPrompts, mcpTools, safetyModel } from '../lib/mcp';
+import { buildLlmsTxt } from '../lib/llms';
+import '../styles/process.css';
+import '../styles/connect.css';
+import '../styles/library.css';
 
-const updated = freshness(PAGE_SOURCES.mcp);
+const sources = [...new Set([...PAGE_SOURCES.mcp, ...PAGE_SOURCES.agents])];
+const updated = freshness(sources);
+
+// llms.txt, counted from the generated text itself so the numbers describe exactly what an agent receives.
+const text = buildLlmsTxt();
+const lines = text.split('\n');
+const sectionOf = (title: string) => {
+  const start = lines.findIndex((l) => l === `## ${title}`);
+  if (start < 0) return [];
+  const end = lines.findIndex((l, i) => i > start && l.startsWith('## '));
+  return lines.slice(start + 1, end < 0 ? undefined : end);
+};
+const stats = [
+  { value: lines.length, label: 'lines' },
+  { value: sectionOf('Rules for agents (from AGENTS.md)').filter((l) => l.startsWith('- ')).length, label: 'agent rules' },
+  { value: sectionOf('Semantic tokens').filter((l) => l.startsWith('- `var(')).length, label: 'semantic tokens' },
+  { value: sectionOf('Components').filter((l) => l.startsWith('### ')).length, label: 'components' },
+  { value: Math.round(new TextEncoder().encode(text).length / 1024), label: 'KB of plain text' },
+];
 const tools = mcpTools();
 const prompts = mcpPrompts();
 const safety = safetyModel();
@@ -48,18 +68,22 @@ const asks = [
 ---
 
 <Layout
-  title="AI / MCP"
-  description="Connect your own Claude to this design system with the Bridge MCP server: tokens, contrast, components and reviewed pull requests."
-  sources={PAGE_SOURCES.mcp}
+  title="Agents"
+  description="Three ways for AI agents to read and change this design system: the Bridge MCP server, the bridge CLI and llms.txt."
+  sources={sources}
   updated={updated}
 >
-  <h1>Connect your Claude</h1>
-  <p class="lead">
-    The Bridge MCP server gives Claude Code, Claude Desktop or any MCP client a structured view of your design system: tokens resolved in every
-    brand, theme and density, the contrast gate, components with their props and usage docs, and the agent rules. Claude builds UI with real
-    tokens and proposes token changes as pull requests your design and tech owners review.
-  </p>
-  <Updated date={updated} />
+  <header class="page-head">
+    <div>
+      <h1>Agents</h1>
+      <p class="lead">
+        Three ways in, all generated from the same token files, components and rules. <a href="#mcp">The MCP server</a> gives Claude Code, Claude
+        Desktop or any MCP client a structured view and proposes changes as pull requests. <a href="#cli">The bridge CLI</a> does the same from a
+        terminal or CI. <a href="#llms">llms.txt</a> is the whole documentation as plain text, for any agent that can read a URL.
+      </p>
+      <Updated date={updated} />
+    </div>
+  </header>
 
   <ul class="cx-facts" aria-label="At a glance">
     <li><Icon name="check" size={16} /> Free and open source, MIT</li>
@@ -68,6 +92,55 @@ const asks = [
     <li><Icon name="check" size={16} /> Any DTCG token repo</li>
   </ul>
 
+  <h2 id="llms">llms.txt</h2>
+  <p>
+    One source, two outputs. The pages you read and the file an agent reads come from the same build, so they cannot disagree.
+    <a href="/llms.txt">/llms.txt</a> holds the agent rules from <code>AGENTS.md</code>, every semantic token with its light and dark value, the
+    scales, failing contrast pairs, and each component's props and usage rules.
+  </p>
+  <dl class="stat-strip" aria-label="What /llms.txt contains, counted from the generated file">
+    {
+      stats.map((s) => (
+        <div>
+          <dt>{s.label}</dt>
+          <dd class="num">{s.value}</dd>
+        </div>
+      ))
+    }
+  </dl>
+  <ul class="why-list">
+    <li>
+      <span class="why-icon" aria-hidden="true"><Icon name="layers" size={18} /></span>
+      <p>Agents follow short, structured context better than long prose style guides. Values come from the token files, not from a copy.</p>
+    </li>
+    <li>
+      <span class="why-icon" aria-hidden="true"><Icon name="shield" size={18} /></span>
+      <p>The hard rules are not only in this text: CI blocks raw colors and shadows, so an agent that ignores the file still cannot merge.</p>
+    </li>
+  </ul>
+  <details class="llms-preview">
+    <summary>Preview llms.txt ({lines.length} lines)</summary>
+    <div class="terminal">
+      <div class="terminal-bar">
+        <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span class="terminal-title"><Icon name="terminal" size={15} /> <span>GET /llms.txt</span></span>
+        <span class="terminal-actions">
+          <a class="terminal-link" href="/llms.txt">Open raw</a>
+          <button type="button" class="copy copy-ui" data-copy="" data-copy-from="llms">
+            <Icon name="copy" size={15} />
+            <span data-copy-label>Copy llms.txt</span>
+          </button>
+        </span>
+      </div>
+      <pre id="llms" class="terminal-body" tabindex="0" aria-label="Contents of llms.txt">{text}</pre>
+    </div>
+  </details>
+
+  <h2 id="mcp">MCP server</h2>
+  <p>
+    Tokens resolved in every brand, theme and density, the contrast gate, components with their props and usage docs, and the agent rules. Claude
+    builds UI with real tokens and proposes token changes as pull requests your design and tech owners review.
+  </p>
   <div class="callout is-warn" role="note">
     <Icon name="info" size={20} />
     <p>
@@ -76,7 +149,7 @@ const asks = [
     </p>
   </div>
 
-  <h2 id="build">1. Build once</h2>
+  <h3 id="build">1. Build once</h3>
   <div class="terminal">
     <div class="terminal-bar">
       <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
@@ -89,7 +162,7 @@ const asks = [
   </div>
   <p class="small muted">The server is then at <code>packages/mcp/dist/index.js</code> and the CLI at <code>packages/cli/dist/index.js</code>.</p>
 
-  <h2 id="claude-code">2. Claude Code</h2>
+  <h3 id="claude-code">2. Claude Code</h3>
   <p>Add the server for your user, pointing it at your design system folder:</p>
   <div class="terminal">
     <div class="terminal-bar">
@@ -116,7 +189,7 @@ const asks = [
     <pre class="terminal-body cx-pre" tabindex="0" aria-label="Project .mcp.json">{projectJson}</pre>
   </div>
 
-  <h2 id="claude-desktop">3. Claude Desktop</h2>
+  <h3 id="claude-desktop">3. Claude Desktop</h3>
   <p>In Settings, Developer, Edit config, add this to <code>claude_desktop_config.json</code>, then restart Claude Desktop:</p>
   <div class="terminal">
     <div class="terminal-bar">
@@ -141,32 +214,7 @@ const asks = [
     Options can also come from <code>BRIDGE_ROOT</code>, <code>BRIDGE_REPO</code>, <code>BRIDGE_REF</code> and <code>GITHUB_TOKEN</code>.
   </p>
 
-  <h2 id="cli">4. The bridge CLI</h2>
-  <p>Run it in your design system repository, starting with <code>init</code>:</p>
-  <div class="terminal">
-    <div class="terminal-bar">
-      <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
-      <span class="terminal-title"><Icon name="terminal" size={15} /> <span>Terminal</span></span>
-      <span class="terminal-actions">
-        <button type="button" class="copy copy-ui" data-copy={cliRun}><Icon name="copy" size={15} /><span data-copy-label>Copy</span></button>
-      </span>
-    </div>
-    <pre class="terminal-body cx-pre" tabindex="0" aria-label="Run bridge init">{cliRun}</pre>
-  </div>
-  <dl class="cx-cli">
-    {
-      cli.map((c) => (
-        <div>
-          <dt>
-            <code>{c.cmd}</code>
-          </dt>
-          <dd>{c.text}</dd>
-        </div>
-      ))
-    }
-  </dl>
-
-  <h2 id="tools">What Claude can do: {tools.length} tools</h2>
+  <h3 id="tools">What Claude can do: {tools.length} tools</h3>
   <div class="table-wrap">
     <table class="cx-tools">
       <thead>
@@ -203,6 +251,31 @@ const asks = [
   }
   <h3>Things to ask</h3>
   <ul class="cx-list">{asks.map((a) => <li>{a}</li>)}</ul>
+
+  <h2 id="cli">bridge CLI</h2>
+  <p>The same checks and proposals from a terminal or CI. Build it once (see the MCP server steps), then run it in your design system repository, starting with <code>init</code>:</p>
+  <div class="terminal">
+    <div class="terminal-bar">
+      <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span class="terminal-title"><Icon name="terminal" size={15} /> <span>Terminal</span></span>
+      <span class="terminal-actions">
+        <button type="button" class="copy copy-ui" data-copy={cliRun}><Icon name="copy" size={15} /><span data-copy-label>Copy</span></button>
+      </span>
+    </div>
+    <pre class="terminal-body cx-pre" tabindex="0" aria-label="Run bridge init">{cliRun}</pre>
+  </div>
+  <dl class="cx-cli">
+    {
+      cli.map((c) => (
+        <div>
+          <dt>
+            <code>{c.cmd}</code>
+          </dt>
+          <dd>{c.text}</dd>
+        </div>
+      ))
+    }
+  </dl>
 
   <h2 id="safety">Safety model</h2>
   <ul class="why-list">

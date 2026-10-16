@@ -1,0 +1,149 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Icon from '../components/Icon.astro';
+import Updated from '../components/Updated.astro';
+import { GITHUB_URL, PLUGIN_URL, readJson, sourceUrl } from '../lib/repo';
+import { freshness } from '../lib/sources';
+import '../styles/process.css';
+import '../styles/connect.css';
+import '../styles/library.css';
+
+const sources = ['README.md', 'packages/tokens/package.json', 'packages/react/package.json', 'packages/core/package.json', 'apps/figma-plugin/README.md'];
+const updated = freshness(sources);
+
+const pkg = (dir: string) => readJson<{ name: string; version: string; description: string }>(`packages/${dir}/package.json`);
+const packages = [
+  { ...pkg('tokens'), use: 'Every token as CSS variables (tokens.css) and TypeScript, plus the self-hosted fonts (fonts.css).' },
+  { ...pkg('react'), use: 'The React components. Behavior from Base UI, styling only through tokens.' },
+  { ...pkg('core'), use: 'For tools, not for product UI: config, token loading, alias resolution, contrast, diffs and the GitHub client.' },
+];
+const tgz = (name: string, version: string) => `${name.replace('@', '').replace('/', '-')}-${version}.tgz`;
+const [tokens, react, core] = packages;
+
+const clone = ['git clone https://github.com/peterbono/ai-design-system-demo', 'cd ai-design-system-demo', 'npm install', 'npm run pack:packages'].join('\n');
+const add = `npm install ${[tokens!, react!].map((p) => `/abs/path/ai-design-system-demo/.packs/${tgz(p.name, p.version)}`).join(' \\\n  ')}`;
+const app = `import '@bridge-ds/tokens/fonts.css';   // IBM Plex Sans + Mono, self-hosted
+import '@bridge-ds/tokens/tokens.css';  // every token as a CSS variable
+import '@bridge-ds/react/styles.css';   // base styles
+
+import { Button, Field, Input, ThemeProvider } from '@bridge-ds/react';
+
+export function App() {
+  return (
+    <ThemeProvider asRoot theme="light" brand="bridge" density="comfortable">
+      <Field label="Repository" description="Owner and name, like acme/design-tokens.">
+        <Input placeholder="acme/design-tokens" />
+      </Field>
+      <Button>Connect repository</Button>
+    </ThemeProvider>
+  );
+}`;
+const html = `<html data-theme="light" data-brand="bridge" data-density="comfortable">`;
+const plugin = ['npm install', 'npm run plugin:build'].join('\n');
+---
+
+<Layout title="Install" description="Install the Bridge packages in a product, or the DS Bridge Figma plugin." sources={sources} updated={updated}>
+  <header class="page-head">
+    <div>
+      <h1>Install</h1>
+      <p class="lead">
+        Two ways to use the system: the packages in a product codebase, and the DS Bridge plugin in Figma. Both read the same token files, so code
+        and Figma never drift. For AI agents, see <a href="/agents/">Agents</a>.
+      </p>
+      <Updated date={updated} />
+    </div>
+  </header>
+
+  <div class="callout is-warn" role="note">
+    <Icon name="info" size={20} />
+    <p>
+      <strong>Not published on npm yet.</strong> The packages are built and checked, and the release workflow publishes them under the
+      <code>@bridge-ds</code> scope once an npm token is set. Until then, install them from a clone of the repository, as shown below.
+    </p>
+  </div>
+
+  <h2 id="packages">Packages</h2>
+  <ul class="pkg-list">
+    {
+      packages.map((p) => (
+        <li>
+          <code>{p.name}</code> <span class="muted small num">{p.version}</span>
+          <p>{p.use}</p>
+        </li>
+      ))
+    }
+  </ul>
+
+  <h2 id="from-a-clone">Install from a clone</h2>
+  <ol class="lib-steps">
+    <li>
+      <p>Build the packages and pack them as tarballs in <code>.packs/</code>:</p>
+      <div class="terminal">
+        <div class="terminal-bar">
+          <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span class="terminal-title"><Icon name="terminal" size={15} /> <span>Terminal</span></span>
+          <span class="terminal-actions">
+            <button type="button" class="copy copy-ui" data-copy={clone}><Icon name="copy" size={15} /><span data-copy-label>Copy</span></button>
+          </span>
+        </div>
+        <pre class="terminal-body cx-pre" tabindex="0" aria-label="Build and pack commands">{clone}</pre>
+      </div>
+    </li>
+    <li>
+      <p>In your product, install the tarballs. <code>{react!.name}</code> needs React 18 or later.</p>
+      <div class="terminal">
+        <div class="terminal-bar">
+          <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span class="terminal-title"><Icon name="terminal" size={15} /> <span>Terminal</span></span>
+          <span class="terminal-actions">
+            <button type="button" class="copy copy-ui" data-copy={add}><Icon name="copy" size={15} /><span data-copy-label>Copy</span></button>
+          </span>
+        </div>
+        <pre class="terminal-body cx-pre" tabindex="0" aria-label="Install the tarballs">{add}</pre>
+      </div>
+      <p class="small muted">Add <code>.packs/{tgz(core!.name, core!.version)}</code> only if you build tools on top of Bridge.</p>
+    </li>
+  </ol>
+
+  <h2 id="use">Use the components</h2>
+  <p>Import the fonts, the tokens and the base styles once, then wrap the app in <code>ThemeProvider</code>:</p>
+  <div class="terminal">
+    <div class="terminal-bar">
+      <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span class="terminal-title"><Icon name="file" size={15} /> <span>App.tsx</span></span>
+      <span class="terminal-actions">
+        <button type="button" class="copy copy-ui" data-copy={app}><Icon name="copy" size={15} /><span data-copy-label>Copy</span></button>
+      </span>
+    </div>
+    <pre class="terminal-body cx-pre" tabindex="0" aria-label="App setup">{app}</pre>
+  </div>
+
+  <h2 id="theming">Theme, brand and density</h2>
+  <p>
+    <code>ThemeProvider</code> sets <code>data-theme</code>, <code>data-brand</code> and <code>data-density</code> together and passes them to portaled
+    overlays. Without React, or for plain CSS, set the three attributes yourself and read the tokens as CSS variables:
+  </p>
+  <pre class="cx-code" tabindex="0" aria-label="Scope attributes">{html}</pre>
+  <p class="small muted">
+    Themes: light, dark. Brands: bridge, ocean. Densities: comfortable, compact. See every combination in the <a href="/playground/">theme playground</a>.
+  </p>
+
+  <h2 id="figma">Figma plugin</h2>
+  <p>
+    DS Bridge connects Figma Variables to the repository. <strong>Pull</strong> brings the latest tokens from main into Figma Variables.
+    <strong>Push</strong> sends your Figma edits back as a pull request for review, with a three-way diff and the contrast gate. It works on the free
+    Figma plan and never writes to main.
+  </p>
+  <ol class="lib-steps">
+    <li>
+      <p>From the repository root, build the plugin:</p>
+      <pre class="cx-code" tabindex="0" aria-label="Build the plugin">{plugin}</pre>
+    </li>
+    <li><p>In the Figma desktop app: Plugins, Development, Import plugin from manifest, and pick <code>apps/figma-plugin/manifest.json</code>.</p></li>
+    <li><p>Run it from Plugins, Development, DS Bridge, and paste a fine-grained GitHub token in its Settings tab.</p></li>
+  </ol>
+  <p class="small muted">
+    Not in Figma Community yet: publishing needs a plugin id issued by Figma. Full guide in
+    <a href={PLUGIN_URL}>apps/figma-plugin</a>, source on <a href={GITHUB_URL}>GitHub</a>, details in <a href={sourceUrl('apps/figma-plugin/README.md')}>the plugin README</a>.
+  </p>
+</Layout>

@@ -1,7 +1,9 @@
 ---
 import '../../styles/component.css';
+import '../../styles/library.css';
 import Layout from '../../layouts/Layout.astro';
 import Example from '../../components/Example.tsx';
+import Icon from '../../components/Icon.astro';
 import Updated from '../../components/Updated.astro';
 import { loadComponents, type ComponentInfo } from '../../lib/components';
 import { freshness, PAGE_SOURCES } from '../../lib/sources';
@@ -18,16 +20,24 @@ const documented = components.filter((c) => c.docs).length;
 const statusOf = (c: ComponentInfo) => c.docs?.status ?? 'stable';
 const toneOf = (s: string) => (s === 'stable' ? 'is-pass' : s === 'beta' ? 'is-info' : 'is-warn');
 const label = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
+const famSlug = (label: string) => label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const plural = (n: number, w: string, many = `${w}s`) => `${n} ${n === 1 ? w : many}`;
 ---
 
 <Layout title="Components" description="Every component, with usage guidance, accessibility notes and the tokens it reads." sources={PAGE_SOURCES.components} updated={updated}>
-  <h1>Components</h1>
-  <p class="lead">
-    Each page follows the same order: when to use it, do and don't, accessibility, the tokens it reads, its props and a playground. Guidance
-    first, specs second.
-  </p>
-  <Updated date={updated} />
+  <header class="page-head">
+    <div>
+      <h1>Components</h1>
+      <p class="lead">
+        {plural(components.length, 'component')} in {plural(groups.size, 'family', 'families')}. Each page has the same tabs: Usage (when to use it,
+        do and don't, accessibility), Tokens, Code (props and a playground) and Changelog. Guidance first, specs second.
+      </p>
+      <Updated date={updated} />
+    </div>
+    <div class="page-head-actions">
+      <a class="btn btn-secondary" href="/studio/components/"><Icon name="edit" size={16} />Open in Studio</a>
+    </div>
+  </header>
   <p class="gallery-stats">
     <span class="pill">{plural(components.length, 'component')}</span>
     <span class="pill is-pass">{documented} with usage guidance</span>
@@ -36,13 +46,11 @@ const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
 
   {
     [...groups.entries()].map(([cat, list]) => (
-      <section class="gallery-group" aria-labelledby={`cat-${cat}`}>
-        {groups.size > 1 && <h2 id={`cat-${cat}`}>{cat}</h2>}
-        {groups.size === 1 && (
-          <h2 id={`cat-${cat}`} class="sr-only">
-            {cat}
-          </h2>
-        )}
+      <details class="gallery-group family" id={`fam-${famSlug(cat)}`} open>
+        <summary>
+          <h2>{cat}</h2>
+          <span class="family-count">{list.length}</span>
+        </summary>
         <ul class="gallery">
           {list.map((c) => (
             <li class="gcard">
@@ -75,7 +83,19 @@ const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
             </li>
           ))}
         </ul>
-      </section>
+      </details>
     ))
   }
+  <script>
+    // A link to /components/#fam-forms opens that family even if it was collapsed.
+    const open = () => {
+      const el = location.hash ? document.getElementById(decodeURIComponent(location.hash.slice(1))) : null;
+      if (el instanceof HTMLDetailsElement) {
+        el.open = true;
+        el.scrollIntoView();
+      }
+    };
+    window.addEventListener('hashchange', open);
+    open();
+  </script>
 </Layout>
