@@ -139,3 +139,11 @@ export function isForeground(path: string): boolean {
 const MODE_NAMES: Record<string, string> = { value: 'Value' };
 /** "light" -> "Light"; the single-mode key reads "Value", like the Figma collections. */
 export const modeName = (mode: string) => MODE_NAMES[mode] ?? mode.charAt(0).toUpperCase() + mode.slice(1);
+
+/** SVG path of a cubic-bezier easing curve in a size x size box (y up), for the easing preview. */
+export function bezierPath(points: unknown, size = 24): string | undefined {
+  if (!Array.isArray(points) || points.length !== 4 || !points.every((n) => typeof n === 'number')) return undefined;
+  const [x1, y1, x2, y2] = points as number[];
+  const p = (x: number, y: number) => `${Math.round(x * size * 100) / 100} ${Math.round((1 - y) * size * 100) / 100}`;
+  return `M${p(0, 0)} C${p(x1!, y1!)} ${p(x2!, y2!)} ${p(1, 1)}`;
+}

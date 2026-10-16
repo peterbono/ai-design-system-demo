@@ -187,6 +187,7 @@ export function contrastFor(path: string, results: ContrastResult[], before: Con
 /** "Introduced in v1.2.0": the version of the change that added the token (renames followed), when known. */
 export function introducedIn(items: { kind: string; version?: string | undefined; date: string }[]): string | undefined {
   const added = items.filter((i) => i.kind === 'added').sort((a, b) => Date.parse(a.date) - Date.parse(b.date))[0];
-  if (!added?.version) return undefined;
+  // Only released versions: "Unreleased" or a missing version means the token is newer than the last release.
+  if (!added?.version || !/^v?\d+\.\d+/.test(added.version)) return undefined;
   return added.version.replace(/^v/, '');
 }

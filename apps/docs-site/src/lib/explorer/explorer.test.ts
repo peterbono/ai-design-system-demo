@@ -247,6 +247,25 @@ describe('history', () => {
   it('reads the version that added a token, else nothing', () => {
     expect(introducedIn([{ kind: 'changed', version: '1.3.0', date: '2026-05-01' }, { kind: 'added', version: 'v1.1.0', date: '2026-03-01' }])).toBe('1.1.0');
     expect(introducedIn([{ kind: 'added', date: '2026-03-01' }])).toBeUndefined();
+    expect(introducedIn([{ kind: 'added', version: 'Unreleased', date: '2026-03-01' }])).toBeUndefined();
     expect(introducedIn([])).toBeUndefined();
+  });
+});
+
+describe('previews', () => {
+  it('draws an easing curve', async () => {
+    const { bezierPath } = await import('./format');
+    expect(bezierPath([0.2, 0, 0, 1], 24)).toBe('M0 24 C4.8 24 0 0 24 0');
+    expect(bezierPath('linear')).toBeUndefined();
+  });
+
+  it('shows a foreground on its pair, its sibling background, or the canvas', async () => {
+    const { pairedBackground } = await import('./model');
+    const has = (p: string) => set.byPath.has(p);
+    const ps = pairs.map((p) => ({ foreground: p.foreground, background: p.background }));
+    expect(pairedBackground('color.text.default', has, ps)).toBe(ps.find((p) => p.foreground === 'color.text.default')!.background);
+    expect(pairedBackground('button.primary.text', has, ps)).toBe('button.primary.bg');
+    expect(pairedBackground('tag.signal-text', has, ps)).toBe('tag.signal-bg');
+    expect(pairedBackground('nope.thing', has, ps)).toBe('color.bg.default');
   });
 });

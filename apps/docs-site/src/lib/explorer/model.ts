@@ -355,3 +355,19 @@ export function matchesFilters(t: XToken, f: Filters): boolean {
 export function applyFilters(tokens: XToken[], f: Filters): XToken[] {
   return tokens.filter((t) => matchesFilters(t, f));
 }
+
+/**
+ * The background a foreground color is shown on: its first contrast pair, else a sibling "bg" token of the same
+ * component (button.primary.text -> button.primary.bg), else the canvas.
+ */
+export function pairedBackground(path: string, has: (p: string) => boolean, pairs: { foreground: string; background: string }[], canvas = 'color.bg.default'): string {
+  const pair = pairs.find((p) => p.foreground === path);
+  if (pair) return pair.background;
+  const segs = path.split('.');
+  const last = segs[segs.length - 1] ?? '';
+  for (const swap of [last.replace(/(^|-)(text|fg|icon)(-|$)/, '$1bg$3'), 'bg']) {
+    const sibling = [...segs.slice(0, -1), swap].join('.');
+    if (swap !== last && has(sibling)) return sibling;
+  }
+  return canvas;
+}
