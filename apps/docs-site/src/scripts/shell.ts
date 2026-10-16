@@ -2,6 +2,7 @@
 // theme toggle, copy buttons, the mobile navigation sheet, the Cmd+K command palette, header menus, the "On this
 // page" rail and, in the Studio, the branch scope, the nav counts and the GitHub connection.
 import { ghGet, initGitHubConnect, readRepo } from './github-session';
+import { openPulls } from '../lib/review-rules';
 
 interface SearchItem {
   kind: 'page' | 'component' | 'token';
@@ -437,6 +438,8 @@ interface Pull {
   number: number;
   title: string;
   draft?: boolean;
+  state?: string;
+  merged_at?: string | null;
   head: { ref: string };
 }
 
@@ -469,10 +472,11 @@ function initStudio() {
   }
   ghGet<Pull[]>(`/repos/${repo.owner}/${repo.repo}/pulls?state=open&per_page=100`)
     .then((f) => {
-      setCount('reviews', f.data.length);
+      const open = openPulls(f.data);
+      setCount('reviews', open.length);
       if (!list) return;
       const seen = new Set<string>();
-      for (const p of f.data) {
+      for (const p of open) {
         if (seen.has(p.head.ref) || p.head.ref === repo.defaultBranch) continue;
         seen.add(p.head.ref);
         const li = document.createElement('li');

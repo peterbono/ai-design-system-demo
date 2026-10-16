@@ -4,11 +4,14 @@ import {
   canOverride,
   canWrite,
   mergeGate,
+  openPulls,
   OVERRIDE_HEADING,
   overrideComment,
   overrideReasonProblem,
   overrideRefusedComment,
   parseOverrideComment,
+  PULL_STATE_PILL,
+  pullState,
   summarizeApprovals,
   summarizeCi,
   type OverridePolicy,
@@ -142,5 +145,37 @@ describe('repo permissions and merge methods', () => {
     expect(allowedMergeMethods({ allow_squash_merge: true, allow_merge_commit: true, allow_rebase_merge: true })).toEqual(['squash', 'merge', 'rebase']);
     expect(allowedMergeMethods({ allow_squash_merge: false, allow_merge_commit: true, allow_rebase_merge: false })).toEqual(['merge']);
     expect(allowedMergeMethods(undefined)).toEqual(['squash', 'merge', 'rebase']);
+  });
+});
+
+describe('pullState', () => {
+  it('reads a merged pull request as Merged, even though GitHub reports it closed', () => {
+    const merged = { state: 'closed', draft: false, merged_at: '2026-10-10T09:00:00Z' };
+    expect(pullState(merged)).toBe('merged');
+    expect(PULL_STATE_PILL[pullState(merged)].label).toBe('Merged');
+    expect(pullState({ state: 'closed', merged: true })).toBe('merged');
+  });
+
+  it('tells closed, draft and open apart', () => {
+    expect(pullState({ state: 'closed', draft: false, merged_at: null })).toBe('closed');
+    expect(pullState({ state: 'closed', draft: true, merged_at: null })).toBe('closed');
+    expect(pullState({ state: 'open', draft: true, merged_at: null })).toBe('draft');
+    expect(pullState({ state: 'open', draft: false, merged_at: null })).toBe('open');
+    expect(PULL_STATE_PILL.open.label).toBe('Open');
+  });
+
+  it('counts only open and draft pull requests as open reviews', () => {
+    const pulls = [
+      { number: 1, state: 'open', draft: false, merged_at: null },
+      { number: 2, state: 'open', draft: true, merged_at: null },
+      { number: 3, state: 'closed', draft: false, merged_at: null },
+      { number: 4, state: 'closed', draft: false, merged_at: '2026-10-10T09:00:00Z' },
+    ];
+    expect(openPulls(pulls).map((p) => p.number)).toEqual([1, 2]);
+  });
+
+  it('blocks merging a pull request that is already merged or closed', () => {
+    expect(gate({ state: 'closed', merged_at: '2026-10-10T09:00:00Z' }).reasons[0]).toBe('This pull request is already merged.');
+    expect(gate({ state: 'closed', merged_at: null }).reasons[0]).toBe('This pull request is closed.');
   });
 });

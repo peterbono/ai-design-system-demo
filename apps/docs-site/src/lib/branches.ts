@@ -16,6 +16,8 @@ export interface PullLike {
   title: string;
   html_url: string;
   draft: boolean;
+  state?: string;
+  merged_at?: string | null;
   user: { login: string } | null;
   head: { ref: string; sha: string; repo: { full_name: string } | null };
   updated_at: string;

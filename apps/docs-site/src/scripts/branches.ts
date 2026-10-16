@@ -2,7 +2,7 @@
 // product: deploy previews, a snapshot install command, the tokens.css override URL, CI and visual impact.
 // Reads the public GitHub REST API without a token (60 requests an hour); a connected token lifts the limit.
 import { branchChecks, branchEntry, orphanBranches, pullEntry, type BranchEntry, type BranchesConfig, type PullLike } from '../lib/branches';
-import type { CheckRunLike, CiState } from '../lib/review-rules';
+import { openPulls, type CheckRunLike, type CiState } from '../lib/review-rules';
 import { esc, ghGet, initGitHubConnect, RateLimitError, relativeTime, type Fetched } from './github-session';
 
 /** Check runs are one request per row: cap them so an anonymous visitor keeps most of the hourly budget. */
@@ -114,7 +114,7 @@ async function load(cfg: BranchesConfig) {
   try {
     const f = await ghGet<PullLike[]>(`/repos/${cfg.owner}/${cfg.repo}/pulls?state=open&per_page=50&sort=updated&direction=desc`);
     staleNotice(f);
-    const pulls = f.data;
+    const pulls = openPulls(f.data);
     $('br-count').textContent = String(pulls.length);
     const entries = pulls.map((p) => pullEntry(p, cfg));
     list.innerHTML = entries.length

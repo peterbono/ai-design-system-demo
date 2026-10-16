@@ -3,12 +3,15 @@
 import { visualBase, type VisualManifest } from '../lib/visual-impact';
 import { esc, ghGet, GitHubError, RateLimitError, readRepo, relativeTime } from './github-session';
 import { manifestPublished } from './reviews/visual-impact';
+import { openPulls } from '../lib/review-rules';
 import { currentBranch } from './shell';
 
 interface Pull {
   number: number;
   title: string;
   draft?: boolean;
+  state?: string;
+  merged_at?: string | null;
   updated_at: string;
   user: { login: string };
   head: { ref: string; sha: string };
@@ -59,7 +62,7 @@ export async function initVisualList() {
   const branch = currentBranch();
   try {
     const f = await ghGet<Pull[]>(`/repos/${owner}/${repo}/pulls?state=open&per_page=100`);
-    let pulls = [...f.data].sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+    let pulls = openPulls(f.data).sort((a, b) => b.updated_at.localeCompare(a.updated_at));
     if (branch) {
       pulls = pulls.filter((p) => p.head.ref === branch);
       if (scope) {
