@@ -1,16 +1,16 @@
 ---
-import '../../styles/github.css';
-import '../../styles/reviews.css';
-import '../../styles/process.css';
-import '../../styles/history.css';
-import Layout from '../../layouts/Layout.astro';
-import GitHubConnect from '../../components/GitHubConnect.astro';
-import GitHubDialog from '../../components/GitHubDialog.astro';
-import HistoryPlanner from '../../components/HistoryPlanner.astro';
-import Icon from '../../components/Icon.astro';
-import { historyData } from '../../lib/history';
-import { realSummary } from '../../lib/history-view';
-import { siteRepo } from '../../lib/config';
+import '../../../styles/github.css';
+import '../../../styles/reviews.css';
+import '../../../styles/process.css';
+import '../../../styles/history.css';
+import Layout from '../../../layouts/Layout.astro';
+import HistoryPlanner from '../../../components/HistoryPlanner.astro';
+import Icon from '../../../components/Icon.astro';
+import { historyData } from '../../../lib/history';
+import { realSummary } from '../../../lib/history-view';
+import { siteRepo } from '../../../lib/config';
+import { releases, versionInfo } from '../../../lib/changelog';
+import { humanDate } from '../../../lib/stats';
 
 const r = siteRepo();
 const data = await historyData();
@@ -18,11 +18,15 @@ const s = realSummary(data.real);
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const foundLine = `Bridge found ${plural(s.total, 'change')} to the token files in the history it can read: ${plural(s.reviewable, 'reviewable change')} and ${plural(s.imports, 'import')}.`;
 const updated = data.real?.entries[0]?.date.slice(0, 10) ?? null;
+const version = versionInfo();
+const rels = releases();
+const relSlug = (n: string) => n.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const countBy = (entries: { kind: string }[], kind: string) => entries.filter((e) => e.kind === kind).length;
 ---
 
 <Layout
-  title="History"
-  description="Every merged change to the design tokens: versions, who changed what and why, the diff with swatches and contrast, and a safe way to undo a change or restore a value."
+  title="Versions"
+  description="Releases and every merged change to the design tokens: who changed what and why, the diff with swatches and contrast, and a safe way to undo a change or restore a value."
   sources={['packages/tokens/src', '.changeset']}
   updated={updated}
   wide
@@ -30,14 +34,37 @@ const updated = data.real?.entries[0]?.date.slice(0, 10) ?? null;
   <div class="rv hs">
     <header class="rv-page-head">
       <div>
-        <h1>History</h1>
+        <h1>Versions</h1>
         <p class="lead">
-          Every merged change to the tokens of <code>{r.owner}/{r.repo}</code>, grouped by design system version. Open a change to see its values and
-          contrast before and after, or undo it: Bridge plans the opposite edits against main as it is now and opens them as a pull request.
+          Releases of <code>{r.owner}/{r.repo}</code> and every merged change to its tokens. Open a change to see its values and contrast before and
+          after, or undo it: Bridge plans the opposite edits against main as it is now and opens them as a pull request. Release notes for readers live
+          in the <a href="/changelog/">Library changelog</a>.
         </p>
       </div>
-      <GitHubConnect />
     </header>
+
+    <section class="vs-releases" aria-labelledby="vs-rel-h">
+      <h2 id="vs-rel-h" class="rv-sub">Releases</h2>
+      <ol class="vs-rel-list">
+        {
+          rels.map((x) => (
+            <li class:list={['vs-rel', { 'is-pending': x.pending }]}>
+              <span class:list={['pill', x.pending ? 'is-warn' : 'is-pass']}>{x.pending ? 'Not released' : 'Released'}</span>
+              <div class="vs-rel-main">
+                <a class="vs-rel-name" href={`/changelog/#r-${relSlug(x.name)}`}>{x.pending ? `Next release after ${version.current}` : x.name}</a>
+                <span class="small muted">
+                  {x.entries.length} changes{countBy(x.entries, 'Breaking') > 0 && `, ${countBy(x.entries, 'Breaking')} breaking`}
+                  {x.date && <>, {x.pending ? 'latest' : 'released'} {humanDate(x.date)}</>}
+                </span>
+              </div>
+            </li>
+          ))
+        }
+      </ol>
+      {rels.every((x) => x.pending) && <p class="small muted">No release is tagged yet: the package is at {version.current} and every change so far waits for the first release.</p>}
+    </section>
+
+    <h2 class="rv-sub vs-changes-h">Merged token changes</h2>
 
     <div class="hs-bar">
       <button type="button" class="hs-switch" id="hs-demo" role="switch" aria-checked="false">
@@ -73,8 +100,8 @@ const updated = data.real?.entries[0]?.date.slice(0, 10) ?? null;
             )
           }
           <p class="small muted">
-            History grows with every merged pull request that touches tokens. Change a value in the <a href="/tokens/?edit=1">token explorer</a>, review open proposals in
-            <a href="/reviews/">Reviews</a>, and they show up here once merged. To see a longer history and a revert with a conflict, turn on demo history.
+            History grows with every merged pull request that touches tokens. Change a value in the <a href="/studio/tokens/">Studio Tokens</a>, review open proposals in
+            <a href="/studio/reviews/">Reviews</a>, and they show up here once merged. To see a longer history and a revert with a conflict, turn on demo history.
           </p>
         </div>
       </section>
@@ -88,9 +115,8 @@ const updated = data.real?.entries[0]?.date.slice(0, 10) ?? null;
   </div>
 
   <HistoryPlanner />
-  <GitHubDialog />
   <script>
-    import { initHistoryPage } from '../../scripts/history/page';
+    import { initHistoryPage } from '../../../scripts/history/page';
     initHistoryPage();
   </script>
 </Layout>

@@ -1,10 +1,10 @@
 ---
-import Layout from '../layouts/Layout.astro';
-import Updated from '../components/Updated.astro';
-import { adoptionTone, categoryRows, componentBreakdown, formatDelta, formatPct, loadAudits, trendPoints } from '../lib/audits';
-import { PAGE_SOURCES, freshness } from '../lib/sources';
-import '../styles/process.css';
-import '../styles/adoption.css';
+import Layout from '../../layouts/Layout.astro';
+import Updated from '../../components/Updated.astro';
+import { adoptionTone, categoryRows, componentBreakdown, formatDelta, formatPct, loadAudits, trendPoints } from '../../lib/audits';
+import { PAGE_SOURCES, freshness } from '../../lib/sources';
+import '../../styles/process.css';
+import '../../styles/adoption.css';
 
 const updated = freshness(PAGE_SOURCES.adoption);
 const entries = loadAudits();

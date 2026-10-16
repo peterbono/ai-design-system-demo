@@ -2,8 +2,6 @@
 import '../../styles/github.css';
 import '../../styles/reviews.css';
 import Layout from '../../layouts/Layout.astro';
-import GitHubConnect from '../../components/GitHubConnect.astro';
-import GitHubDialog from '../../components/GitHubDialog.astro';
 import Icon from '../../components/Icon.astro';
 import { siteRepo } from '../../lib/config';
 import { lastUpdated, readText } from '../../lib/repo';
@@ -31,7 +29,6 @@ const checks = readText(CONTRAST_FILE).replace(/</g, '\\u003c');
             way designers think about them: values, swatches and contrast before and after. Approve, comment or merge from here once GitHub is connected.
           </p>
         </div>
-        <GitHubConnect />
       </header>
       <ul class="rv-list" id="rv-list" aria-label="Open pull requests" aria-busy="true">
         <li class="rv-skel" aria-hidden="true"></li>
@@ -42,14 +39,13 @@ const checks = readText(CONTRAST_FILE).replace(/</g, '\\u003c');
         <Icon name="shield" />
         <p>
           The same gates apply here as on GitHub: Tier 3 changes merge only with a design and a tech approval, and nothing merges while CI fails. A listed owner can merge past missing approvals only, with a reason posted on the pull request.
-          <a href="/governance/">How review works</a>
+          <a href="/studio/settings/governance/">How review works</a>
         </p>
       </aside>
     </div>
     <div id="rv-detail" class="rv-detail" hidden></div>
   </div>
 
-  <GitHubDialog />
   <script type="application/json" id="bridge-contrast" set:html={checks} />
   <script>
     import { initReviews } from '../../scripts/reviews';

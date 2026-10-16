@@ -389,3 +389,44 @@
     width: calc(100vw - 1rem);
   }
 }
+
+/* Versions: the release list above the merged token changes. */
+.vs-releases {
+  margin: 0 0 2rem;
+}
+
+.vs-rel-list {
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--br-border);
+  list-style: none;
+}
+
+.vs-rel {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  margin: 0;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--br-border);
+}
+
+.vs-rel + .vs-rel {
+  margin: 0;
+}
+
+.vs-rel-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.75rem;
+  min-width: 0;
+}
+
+.vs-rel-name {
+  font-weight: 600;
+}
+
+.vs-changes-h {
+  margin-bottom: 0.75rem;
+}

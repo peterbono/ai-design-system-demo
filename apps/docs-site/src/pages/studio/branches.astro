@@ -3,8 +3,6 @@ import '../../styles/github.css';
 import '../../styles/reviews.css';
 import '../../styles/branches.css';
 import Layout from '../../layouts/Layout.astro';
-import GitHubConnect from '../../components/GitHubConnect.astro';
-import GitHubDialog from '../../components/GitHubDialog.astro';
 import Icon from '../../components/Icon.astro';
 import { setupGaps, type BranchesConfig } from '../../lib/branches';
 import { siteRepo } from '../../lib/config';
@@ -36,7 +34,6 @@ const sources = ['docs/PREVIEWS.md', 'bridge.config.json', '.github/workflows/pr
           deploy, and a package snapshot a product can install on staging. Main and production stay untouched.
         </p>
       </div>
-      <GitHubConnect />
     </header>
 
     {
@@ -84,7 +81,6 @@ const sources = ['docs/PREVIEWS.md', 'bridge.config.json', '.github/workflows/pr
     </aside>
   </div>
 
-  <GitHubDialog />
   <script type="application/json" id="bridge-branches" set:html={cfgJson} />
   <script>
     import { initBranches } from '../../scripts/branches';

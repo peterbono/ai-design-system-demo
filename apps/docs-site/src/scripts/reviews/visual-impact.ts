@@ -11,7 +11,7 @@ type TreeEntry = { path: string; type: string; sha: string };
  * Whether the workflow published a manifest for this PR commit, asked without a 404: the branch ref (an empty
  * list when it does not exist), then one level of tree per folder (pr-<n>/<sha>/manifest.json).
  */
-async function manifestPublished(owner: string, repo: string, pr: number, sha: string): Promise<boolean> {
+export async function manifestPublished(owner: string, repo: string, pr: number, sha: string): Promise<boolean> {
   const refs = await ghGet<{ ref: string; object: { sha: string } }[]>(`/repos/${owner}/${repo}/git/matching-refs/heads/${VISUAL_BRANCH}`);
   const ref = refs.data.find((r) => r.ref === `refs/heads/${VISUAL_BRANCH}`);
   if (!ref) return false;

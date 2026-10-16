@@ -1,12 +1,12 @@
 ---
-import Layout from '../layouts/Layout.astro';
-import Icon from '../components/Icon.astro';
-import Updated from '../components/Updated.astro';
-import type { IconName } from '../brand/icons';
-import { agentRules, approvals, reviewGates, reviewingAgentPrs, riskTiers } from '../lib/governance';
-import { inline } from '../lib/markdown';
-import { PAGE_SOURCES, freshness } from '../lib/sources';
-import '../styles/process.css';
+import Layout from '../../../layouts/Layout.astro';
+import Icon from '../../../components/Icon.astro';
+import Updated from '../../../components/Updated.astro';
+import type { IconName } from '../../../brand/icons';
+import { agentRules, approvals, reviewGates, reviewingAgentPrs, riskTiers } from '../../../lib/governance';
+import { inline } from '../../../lib/markdown';
+import { PAGE_SOURCES, freshness } from '../../../lib/sources';
+import '../../../styles/process.css';
 
 const updated = freshness(PAGE_SOURCES.governance);
 const tiers = riskTiers();
