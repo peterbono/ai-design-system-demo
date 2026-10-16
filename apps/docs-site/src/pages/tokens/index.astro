@@ -2,6 +2,8 @@
 import '../../styles/github.css';
 import '../../styles/editor.css';
 import '../../styles/explorer.css';
+import '../../styles/reviews.css';
+import '../../styles/history.css';
 import Layout from '../../layouts/Layout.astro';
 import Icon from '../../components/Icon.astro';
 import Updated from '../../components/Updated.astro';
@@ -9,6 +11,7 @@ import { explorerTokens, previewKind, type ExplorerToken } from '../../lib/explo
 import { PAGE_SOURCES, freshness } from '../../lib/sources';
 import GitHubConnect from '../../components/GitHubConnect.astro';
 import GitHubDialog from '../../components/GitHubDialog.astro';
+import HistoryPlanner from '../../components/HistoryPlanner.astro';
 import EditorPreview from '../../components/EditorPreview.tsx';
 import { listDir, readText, exists } from '../../lib/repo';
 import { CONTRAST_FILE } from '../../lib/contrast';
@@ -248,6 +251,7 @@ const checksJson = readText(CONTRAST_FILE).replace(/</g, '\\u003c');
     </form>
   </dialog>
   <GitHubDialog />
+  <HistoryPlanner />
 
   <dialog class="tx-drawer" id="tx-drawer" aria-labelledby="tx-d-title">
     <div class="tx-d-inner">
@@ -266,7 +270,9 @@ const checksJson = readText(CONTRAST_FILE).replace(/</g, '\\u003c');
   <script>
     import { initExplorer } from '../../scripts/explorer';
     import { initTokenEditor } from '../../scripts/token-editor';
+    import { initTokenHistoryPanel } from '../../scripts/history/token-panel';
     initTokenEditor();
+    initTokenHistoryPanel();
     initExplorer();
   </script>
 </Layout>
