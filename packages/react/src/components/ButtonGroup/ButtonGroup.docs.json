@@ -36,7 +36,7 @@
   "accessibility": [
     "Renders role=\"group\". Pass aria-label when the buttons are related choices so the group is announced.",
     "Each button stays in the tab order; the focused button lifts above its neighbors so the ring is never clipped.",
-    "Vertical groups set aria-orientation."
+    "Vertical groups stack the same buttons; the tab order follows the visual order."
   ],
   "contentGuidelines": [
     "Labels in one group share a grammatical form: all verbs, or all nouns for view choices.",

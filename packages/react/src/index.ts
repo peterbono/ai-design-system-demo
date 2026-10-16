@@ -1,4 +1,7 @@
 // Bridge design system: React components on Base UI, styled only with tokens.
+// Grouped by family (docs/DESIGN-LANGUAGE.md). Import the CSS once in your app:
+//   import '@demo-ds/tokens/fonts.css'; import '@demo-ds/tokens/tokens.css'; import '@demo-ds/react/styles.css';
+
 // Foundations
 export * from './theme';
 export * from './components/Icon';

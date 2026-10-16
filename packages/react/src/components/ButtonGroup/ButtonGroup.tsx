@@ -21,7 +21,6 @@ export const ButtonGroup = forwardRef<HTMLDivElement, ButtonGroupProps>(function
     <div
       ref={ref}
       role="group"
-      aria-orientation={orientation === 'vertical' ? 'vertical' : undefined}
       className={cx(styles.group, styles[appearance], styles[orientation], styles[`align-${align}`], className)}
       {...rest}
     />
