@@ -1,0 +1,21 @@
+---
+// The token explorer's detail panel on its own, as a drawer: alias chain per mode, values, contrast pairs, usage,
+// names and history, in read mode with "Edit in Studio". Used by the Library foundation pages, which list tokens
+// without the explorer grid. Open it with a click on any [data-fd-open="<token path>"] (scripts/explorer/drawer.ts).
+// Deep link: ?t=<token path> opens it on load. Mount it once per page, never next to TokenExplorer.
+import '../../styles/reviews.css';
+import '../../styles/history.css';
+import '../../styles/token-explorer.css';
+import ExplorerData from './ExplorerData.astro';
+---
+
+<div class="fd-drawer-root" data-fd-drawer>
+  <div class="xp-scrim fd-scrim" data-fd-scrim hidden></div>
+  <aside class="xp-detail fd-drawer" role="dialog" aria-modal="true" aria-labelledby="xp-d-title" data-fd-detail hidden></aside>
+</div>
+<ExplorerData />
+
+<script>
+  import { initTokenDrawer } from '../../scripts/explorer/drawer';
+  initTokenDrawer();
+</script>
