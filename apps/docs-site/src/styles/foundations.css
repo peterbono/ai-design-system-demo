@@ -1,0 +1,310 @@
+/* Foundations pages: tables that hold up at 390px, continuous color ramps, and the contrast summary.
+   Chrome uses --br-*; tiles with data-theme render the documented system's tokens. */
+
+/* Tables: token names never break one character per line. */
+
+.fd-table th[scope="row"] {
+  min-width: 15rem;
+}
+
+.fd-table .copy {
+  overflow-wrap: normal;
+  white-space: nowrap;
+}
+
+.fd-table td.chain {
+  min-width: 9rem;
+}
+
+.fd-gap {
+  margin-top: 1.5rem;
+}
+
+/* Color ramps: one continuous strip per hue, like a paint card. */
+
+.ramp-strip {
+  display: grid;
+  grid-auto-columns: minmax(4.75rem, 1fr);
+  grid-auto-flow: column;
+  margin-bottom: 1.5rem;
+  overflow-x: auto;
+  border: 1px solid var(--br-border);
+  border-radius: var(--br-radius-card);
+  background-color: var(--br-surface);
+  box-shadow: var(--br-shadow-1);
+  scrollbar-width: thin;
+}
+
+.ramp-step {
+  display: grid;
+  grid-template-rows: 5.5rem auto;
+  min-width: 0;
+}
+
+.ramp-step + .ramp-step {
+  border-left: 1px solid var(--br-border);
+}
+
+.ramp-color {
+  display: flex;
+  align-items: flex-end;
+  padding: 0.5rem 0.625rem;
+  font-size: var(--br-text-sm);
+}
+
+.ramp-color strong {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.ramp-meta {
+  display: grid;
+  gap: 0.125rem;
+  padding: 0.5rem 0.625rem 0.625rem;
+}
+
+.ramp-copy {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background-color: transparent;
+  color: var(--br-text);
+  font-family: var(--br-font-mono);
+  font-size: var(--br-text-xs);
+  text-decoration: underline;
+  text-decoration-color: var(--br-border-strong);
+  text-underline-offset: 0.25em;
+  cursor: pointer;
+}
+
+.ramp-copy:hover {
+  text-decoration-color: currentcolor;
+}
+
+.ramp-copy[data-copied] {
+  color: var(--br-pass);
+}
+
+.ramp-n {
+  color: var(--br-text-muted);
+  font-size: 0.6875rem;
+}
+
+.ramp-n.is-unused {
+  color: var(--br-warn);
+}
+
+.ramp-step:target {
+  outline: 2px solid var(--br-focus);
+  outline-offset: -2px;
+}
+
+/* Contrast summary */
+
+.ct-summary {
+  display: grid;
+  grid-template-columns: minmax(16rem, 22rem) 1fr;
+  gap: 1px;
+  overflow: hidden;
+  margin-bottom: 2rem;
+  border: 1px solid var(--br-border);
+  border-radius: var(--br-radius-stage);
+  background-color: var(--br-border);
+  box-shadow: var(--br-shadow-1);
+}
+
+.ct-score,
+.ct-rules {
+  padding: 1.5rem;
+  background-color: var(--br-surface);
+}
+
+.ct-big {
+  margin: 0;
+  font-size: var(--br-text-5xl);
+  line-height: 1;
+}
+
+.ct-score-label {
+  margin: 0.5rem 0 0.75rem;
+  color: var(--br-text-muted);
+}
+
+.ct-meter {
+  height: 0.5rem;
+  overflow: hidden;
+  border-radius: var(--br-radius-pill);
+  background-color: var(--br-fail-soft);
+}
+
+.ct-meter span {
+  display: block;
+  height: 100%;
+  border-radius: var(--br-radius-pill);
+  background-color: var(--br-pass);
+}
+
+.ct-modes {
+  display: flex;
+  gap: 1.5rem;
+  margin: 1rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--br-text-sm);
+}
+
+.ct-modes li + li {
+  margin-top: 0;
+}
+
+.ct-modes li {
+  display: grid;
+  color: var(--br-text-muted);
+}
+
+.ct-modes strong {
+  color: var(--br-text);
+  font-size: var(--br-text-lg);
+}
+
+.ct-rules {
+  display: grid;
+  align-content: center;
+  gap: 0.5rem;
+}
+
+.ct-rules p {
+  max-width: 64ch;
+  margin: 0;
+}
+
+.ct-failing {
+  margin-bottom: 1rem;
+}
+
+.ct-fail-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 1rem;
+  color: var(--br-fail);
+  font-size: var(--br-text-xl);
+}
+
+.ct-fail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(22rem, 1fr));
+  gap: 1rem;
+}
+
+.ct-fail-card {
+  padding: 1.25rem;
+  border: 1px solid var(--br-border);
+  border-top: 3px solid var(--br-fail);
+  border-radius: var(--br-radius-card);
+  background-color: var(--br-surface);
+  box-shadow: var(--br-shadow-1);
+}
+
+.ct-fail-pair {
+  margin: 0 0 1rem;
+  font-family: var(--br-font-mono);
+  font-size: var(--br-text-sm);
+}
+
+.ct-fail-modes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.ct-fail-mode {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.ct-fail-mode p {
+  margin: 0;
+}
+
+.ct-ratio {
+  font-family: var(--br-font-display);
+  font-size: var(--br-text-xl);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* Contrast tiles: the real pair, rendered in the given theme. */
+
+.ct-tile {
+  display: grid;
+  place-items: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  flex-shrink: 0;
+  border: 1px solid var(--br-border);
+  border-radius: var(--br-radius-control);
+  font-family: var(--font-family-sans);
+  font-size: var(--br-text-xl);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.ct-tile i {
+  display: block;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-width: 2px;
+  border-style: solid;
+  border-radius: 6px;
+}
+
+.ct-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 15rem;
+}
+
+.ct-cell-meta {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.ct-cell-meta strong {
+  font-size: var(--br-text-md);
+}
+
+.ct-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+@media (max-width: 640px) {
+  .ct-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .ct-fail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ct-fail-modes {
+    grid-template-columns: 1fr;
+  }
+
+  .fd-table th[scope="row"] {
+    min-width: 12rem;
+  }
+
+  .fd-table table {
+    min-width: 38rem;
+  }
+
+  .fd-table .names {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

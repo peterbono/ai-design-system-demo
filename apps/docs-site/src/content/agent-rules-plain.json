@@ -1,0 +1,27 @@
+{
+  "Always": [
+    { "match": "Work on a branch named", "plain": "Works on its own branch, one topic at a time, so every change can be reviewed on its own." },
+    { "match": "Use semantic tokens for color, elevation and focus", "plain": "Uses the named color, shadow and focus tokens (like action/primary/bg), never a raw color value." },
+    { "match": "Use the spacing, radius and type scales", "plain": "Uses the existing spacing, corner and type steps. If the value it needs is not in the scale, it stops and asks." },
+    { "match": "Keep components accessible by default", "plain": "Keeps components accessible: real HTML buttons and inputs, a visible keyboard focus ring, labels linked to fields, and never color as the only signal." },
+    { "match": "Add or update stories", "plain": "Shows every new state in Storybook and checks it in both light and dark." },
+    { "match": "Add a changeset", "plain": "Writes a changelog entry and says how big the change is (patch, minor, major)." },
+    { "match": "Fill the PR template", "plain": "Fills in the review form: risk tier and what reviewers should look at." },
+    { "match": "agent-authored", "plain": "Says clearly that the change was written by an AI agent." }
+  ],
+  "Ask before": [
+    { "match": "Adding, renaming or removing any token", "plain": "Adding, renaming or removing a token. Design and tech owners both have to approve." },
+    { "match": "Adding a new component or a new variant", "plain": "Adding a component, a variant or an option. It opens as a draft for design review first." },
+    { "match": "Changing a public prop name", "plain": "Changing how an existing component is used in code. That can break product screens, so it is a major release." },
+    { "match": "Adding a dependency", "plain": "Adding a third-party library." },
+    { "match": "Touching `.stylelintrc.json`", "plain": "Changing the safety checks, the CI setup, its own instructions or the governance rules." }
+  ],
+  "Never": [
+    { "match": "Never write hex", "plain": "Types a raw color or shadow value into a component. The CI check rejects it anyway." },
+    { "match": "Never disable or loosen a lint rule", "plain": "Switches off or weakens a check to make it pass." },
+    { "match": "Never delete or skip tests or stories", "plain": "Deletes or skips a test or a story to make a check pass." },
+    { "match": "Never edit `packages/tokens/dist/`", "plain": "Edits the generated token files by hand. They are rebuilt from the source." },
+    { "match": "Never treat a Figma file as the source of truth", "plain": "Copies values from Figma into code. Figma is for exploring; the token files decide." },
+    { "match": "Never merge, push to `main`, or publish", "plain": "Merges, ships or publishes. A human always makes that call." }
+  ]
+}

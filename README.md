@@ -94,7 +94,42 @@ packages/react    components on Base UI, CSS Modules reading var(--*) only, stor
 .github           CI guardrails, CODEOWNERS, PR template with design review checklist
 AGENTS.md         instructions and component checklist for AI agents (CLAUDE.md just imports it)
 docs/             DESIGN-LANGUAGE, ARCHITECTURE, GOVERNANCE, SOURCES, pr-drafts/
+apps/docs-site    Astro documentation site generated from all of the above, plus /llms.txt
+apps/figma-plugin DS Bridge Figma plugin: pull/push variables, 3-way diff, opens PRs
 ```
+
+## Documentation site
+
+`apps/docs-site` is a static [Astro](https://astro.build) site for designers and product teams. Every page is
+generated from the repo at build time, so nothing is typed twice:
+
+| Page | Generated from |
+| ---- | -------------- |
+| Foundations: color, contrast, type, spacing, radius, elevation, token lookup | `packages/tokens/src/**` (DTCG JSON), `contrast-pairs.json` |
+| Components: usage, do/don't, a11y, anatomy and tokens, props, live preview | `<Name>.docs.json` (guidance), `<Name>.tsx` (props), `<Name>.module.css` (tokens), `<Name>.stories.tsx` (stories) |
+| Governance | `docs/GOVERNANCE.md`, `AGENTS.md` (+ plain-language rewrites in `apps/docs-site/src/content/agent-rules-plain.json`) |
+| Changelog | `.changeset/*.md` and git log (conventional commits) |
+| `/llms.txt` and For AI agents | the same sources, as plain text |
+
+Each page shows a "last updated" date from the git history of its source files. The site is presented as **Bridge**,
+the web side of the DS Bridge Figma plugin: an overview dashboard computed from the repo (token counts, contrast
+pass rate, health issues, recent changes), a theme playground with the real components in light and dark, a token
+explorer, a Cmd+K palette and component pages with a props playground. The app chrome has its own brand tokens
+(`apps/docs-site/src/brand/tokens.ts`, emitted as `--br-*`); the design system is only shown inside preview surfaces
+with its own `@demo-ds/tokens` variables. `npm run lint:css` checks both. Design decisions: `apps/docs-site/DESIGN.md`.
+
+Props are parsed from the TypeScript types so the table cannot drift from the code; usage guidance lives in a small
+`<Name>.docs.json` next to each component because a parser cannot know when to use a button.
+
+```sh
+npm run docs:dev         # tokens:build, then Astro dev server on :4321
+npm run docs:build       # tokens:build, then static build to apps/docs-site/dist
+STORYBOOK_URL=https://storybook.example.com npm run docs:build   # where component pages embed stories (default http://localhost:6006)
+```
+
+Deploy (not done yet): `apps/docs-site/vercel.json` builds from the repo root with `npm run docs:build` and serves
+`apps/docs-site/dist`. On Vercel, set the project root directory to `apps/docs-site`. Any static host works:
+upload `apps/docs-site/dist`. Set `SITE_URL` for absolute URLs.
 
 ## The operating model
 

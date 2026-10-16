@@ -5,3 +5,6 @@ storybook-static/
 .DS_Store
 .env*
 qa-screens/
+.astro/
+apps/docs-site/qa-screens/
+qa-screens-integration/

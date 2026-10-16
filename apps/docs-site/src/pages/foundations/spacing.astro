@@ -1,0 +1,45 @@
+---
+import '../../styles/foundations.css';
+import Layout from '../../layouts/Layout.astro';
+import CopyName from '../../components/CopyName.astro';
+import Updated from '../../components/Updated.astro';
+import { componentsUsing } from '../../lib/components';
+import { PAGE_SOURCES, freshness } from '../../lib/sources';
+import { anchorOf, primitivesOf } from '../../lib/tokens';
+
+const updated = freshness(PAGE_SOURCES.spacing);
+const steps = primitivesOf('space');
+---
+
+<Layout title="Spacing" description="The 4px spacing scale, shown as bars." sources={PAGE_SOURCES.spacing} updated={updated}>
+  <h1>Spacing</h1>
+  <p class="lead">
+    A 4px base scale: step n is n &times; 4px. Use it for padding, gaps and control heights. Steps are not continuous on purpose (no 7, 9 or 11):
+    fewer choices means more consistent screens.
+  </p>
+  <Updated date={updated} />
+  <div class="table-wrap fd-table">
+    <table>
+      <thead><tr><th scope="col">Token</th><th scope="col">Value</th><th scope="col" style="width: 40%">Size</th><th scope="col">Used by</th></tr></thead>
+      <tbody>
+        {
+          steps.map((s) => (
+            <tr id={anchorOf(s.cssVar)}>
+              <th scope="row"><CopyName value={`var(${s.cssVar})`} kind="CSS variable" /></th>
+              <td class="chain">{s.css}</td>
+              <td><div class="bar" style={`width: var(${s.cssVar})`} role="img" aria-label={`${s.css} bar`} /></td>
+              <td class="small">{componentsUsing(s.cssVar).join(', ') || <span class="muted">Not used by a component yet</span>}</td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </div>
+  <h2>Rules of thumb</h2>
+  <ul>
+    <li>Inside a control (button, input): space-2 to space-4.</li>
+    <li>Between related items (label and field, badge and title): space-1 to space-3.</li>
+    <li>Inside a card or panel: space-4 to space-5.</li>
+    <li>Between sections: space-8 and up.</li>
+  </ul>
+</Layout>

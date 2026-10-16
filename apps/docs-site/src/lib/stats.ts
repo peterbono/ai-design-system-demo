@@ -1,0 +1,189 @@
+// Everything the Overview dashboard shows, computed from the repo at build time. No sample data:
+// if a number is on screen, it is derived here from token files, component sources, contrast pairs or git.
+import { loadComponents } from './components';
+import { contrastPairs } from './contrast';
+import { git } from './repo';
+import { loadTokens, MODES, hrefForVar, type Primitive, type Semantic } from './tokens';
+
+export interface Slice {
+  key: string;
+  label: string;
+  value: number;
+}
+
+const TYPE_LABEL: Record<string, string> = {
+  color: 'Color',
+  dimension: 'Dimension',
+  shadow: 'Shadow',
+  fontFamily: 'Font family',
+  fontWeight: 'Font weight',
+  number: 'Number',
+};
+
+const CATEGORY: { key: string; label: string; match: (segments: string[]) => boolean }[] = [
+  { key: 'color', label: 'Color', match: (s) => s[0] === 'color' },
+  { key: 'type', label: 'Typography', match: (s) => s[0] === 'font' },
+  { key: 'space', label: 'Spacing', match: (s) => s[0] === 'space' },
+  { key: 'shape', label: 'Radius and borders', match: (s) => s[0] === 'radius' || s[0] === 'border' },
+  { key: 'depth', label: 'Elevation', match: (s) => s[0] === 'shadow' || s[0] === 'elevation' },
+  { key: 'focus', label: 'Focus', match: (s) => s[0] === 'focus' },
+];
+
+export const categoryOf = (segments: string[]) => CATEGORY.find((c) => c.match(segments))?.key ?? 'other';
+export const typeLabel = (t: string) => TYPE_LABEL[t] ?? t;
+
+export interface Issue {
+  severity: 'fail' | 'warn' | 'info';
+  title: string;
+  detail: string;
+  href: string;
+}
+
+let cache: ReturnType<typeof compute> | null = null;
+export const dashboard = () => (cache ??= compute());
+
+function compute() {
+  const { primitives, semantic } = loadTokens();
+  const components = loadComponents();
+  const pairs = contrastPairs();
+  const total = primitives.length + semantic.length;
+
+  // Donut: every token by DTCG $type.
+  const typeCounts = new Map<string, number>();
+  for (const t of [...primitives, ...semantic]) typeCounts.set(t.type, (typeCounts.get(t.type) ?? 0) + 1);
+  const byType: Slice[] = [...typeCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([key, value]) => ({ key, label: typeLabel(key), value }));
+
+  // Stacked bars: category x layer.
+  const byCategory = CATEGORY.map((c) => ({
+    key: c.key,
+    label: c.label,
+    primitive: primitives.filter((p) => c.match(p.segments)).length,
+    semantic: semantic.filter((s) => c.match(s.segments)).length,
+  })).filter((c) => c.primitive + c.semantic > 0);
+
+  // Contrast: one check per pair per theme.
+  const checks = pairs.flatMap((p) => MODES.map((m) => ({ pair: p, mode: m, result: p.modes[m] })));
+  const failing = checks.filter((c) => !c.result.aa);
+  const aaa = checks.filter((c) => c.result.aaa === true).length;
+  const contrast = {
+    total: checks.length,
+    pass: checks.length - failing.length,
+    fail: failing.length,
+    aaa,
+    rate: checks.length ? (checks.length - failing.length) / checks.length : 1,
+    failing,
+    byMode: MODES.map((m) => ({
+      mode: m,
+      pass: checks.filter((c) => c.mode === m && c.result.aa).length,
+      total: checks.filter((c) => c.mode === m).length,
+    })),
+  };
+
+  // Usage: which tokens no component CSS reads.
+  const usedVars = new Set(components.flatMap((c) => c.tokensUsed.map((t) => t.name)));
+  const reachedPrimitives = new Set(semantic.flatMap((s) => MODES.flatMap((m) => s.modes[m].chain)));
+  const unusedSemantic: Semantic[] = semantic.filter((s) => !usedVars.has(s.cssVar));
+  const orphanPrimitives: Primitive[] = primitives.filter((p) => !reachedPrimitives.has(p.path) && !usedVars.has(p.cssVar));
+  const deprecated = [...primitives, ...semantic].filter((t) => t.deprecated);
+  const unknownRefs = components.flatMap((c) => c.tokensUsed.filter((t) => !t.known).map((t) => ({ component: c, name: t.name })));
+  const undocumented = components.filter((c) => !c.docs);
+
+  const issues: Issue[] = [
+    ...pairs
+      .filter((p) => MODES.some((m) => !p.modes[m].aa))
+      .map((p) => {
+        const bad = MODES.filter((m) => !p.modes[m].aa);
+        const need = p.usage === 'text' ? '4.5' : '3';
+        return {
+          severity: 'fail' as const,
+          title: `${p.fg} on ${p.bg}`,
+          detail: `${bad.map((m) => `${p.modes[m].ratio.toFixed(2)}:1 in ${m}`).join(', ')}. Needs ${need}:1 (${p.usage === 'text' ? 'text' : 'UI'}).`,
+          href: '/foundations/contrast/',
+        };
+      }),
+    ...unknownRefs.map((u) => ({
+      severity: 'fail' as const,
+      title: `${u.component.name} reads ${u.name}`,
+      detail: 'This variable is not defined in the token sources and renders as nothing.',
+      href: `/components/${u.component.slug}/#anatomy`,
+    })),
+    ...deprecated.map((t) => ({
+      severity: 'warn' as const,
+      title: `${t.path} is deprecated`,
+      detail: typeof t.deprecated === 'string' ? t.deprecated : 'Marked $deprecated in the token sources.',
+      href: hrefForVar(t.cssVar, t.type),
+    })),
+    ...undocumented.map((c) => ({
+      severity: 'warn' as const,
+      title: `${c.name} has no usage guidance`,
+      detail: `Add ${c.files.docs} to fill its page.`,
+      href: `/components/${c.slug}/`,
+    })),
+    ...(unusedSemantic.length
+      ? [
+          {
+            severity: 'info' as const,
+            title: `${unusedSemantic.length} semantic tokens not read by any component`,
+            detail: unusedSemantic
+              .slice(0, 6)
+              .map((s) => s.path)
+              .join(', ') + (unusedSemantic.length > 6 ? ` and ${unusedSemantic.length - 6} more` : ''),
+            href: '/tokens/?layer=semantic&usage=unused',
+          },
+        ]
+      : []),
+    ...(orphanPrimitives.length
+      ? [
+          {
+            severity: 'info' as const,
+            title: `${orphanPrimitives.length} primitives with no semantic alias and no direct use`,
+            detail: 'Candidates for cleanup, or values waiting for a job.',
+            href: '/tokens/?layer=primitive&usage=unused',
+          },
+        ]
+      : []),
+  ];
+
+  return {
+    total,
+    primitives: primitives.length,
+    semantic: semantic.length,
+    themes: MODES.length,
+    themeNames: MODES,
+    components: components.length,
+    documented: components.length - undocumented.length,
+    byType,
+    byCategory,
+    contrast,
+    unusedSemantic,
+    orphanPrimitives,
+    deprecated,
+    issues,
+    usedVars,
+  };
+}
+
+export interface RepoStatus {
+  branch: string;
+  sha: string;
+  lastChange: string | null;
+  commits: number;
+}
+
+export function repoStatus(): RepoStatus {
+  const branch = process.env.VERCEL_GIT_COMMIT_REF || git(['rev-parse', '--abbrev-ref', 'HEAD']) || 'unknown';
+  const sha = (process.env.VERCEL_GIT_COMMIT_SHA || git(['rev-parse', 'HEAD'])).slice(0, 7) || 'unknown';
+  const lastChange = git(['log', '-1', '--format=%cs']) || null;
+  const commits = Number(git(['rev-list', '--count', 'HEAD'])) || 0;
+  return { branch, sha, lastChange, commits };
+}
+
+/** Format a YYYY-MM-DD date for humans, in English, without timezone surprises. */
+export function humanDate(iso: string | null | undefined): string {
+  if (!iso) return 'unknown';
+  const d = new Date(`${iso.slice(0, 10)}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return iso;
+  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(d);
+}

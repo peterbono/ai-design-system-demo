@@ -56,6 +56,55 @@ jobs:
       - name: Vitest (keyboard, ARIA and axe-core checks)
         run: npm test
 
+  docs:
+    name: Docs site
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history: pages show "last updated" dates and the changelog reads git log.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build docs site (tokens:build, then Astro static build)
+        run: npm run docs:build
+
+      - name: Typecheck docs data layer
+        run: npm run typecheck -w @demo-ds/docs-site
+
+  plugin:
+    name: Figma plugin (DS Bridge)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build tokens (the plugin tests read contrast.checks.json and resolved tokens)
+        run: npm run tokens:build
+
+      - name: Typecheck plugin
+        run: npm run plugin:typecheck
+
+      - name: Test plugin (codec round trip, resolver, diff, WCAG, validators)
+        run: npm run plugin:test
+
+      - name: Build plugin
+        run: npm run plugin:build
+
   changeset:
     name: Changeset present
     if: github.event_name == 'pull_request'

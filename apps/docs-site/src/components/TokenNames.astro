@@ -1,0 +1,16 @@
+---
+import CopyName from './CopyName.astro';
+
+interface Props {
+  cssVar: string;
+  path: string;
+  figma: string;
+}
+const { cssVar, path, figma } = Astro.props;
+---
+
+<div class="names">
+  <CopyName value={`var(${cssVar})`} kind="CSS variable" />
+  <CopyName value={path} kind="token path" />
+  <CopyName value={figma} kind="Figma variable" />
+</div>

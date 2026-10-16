@@ -1,0 +1,99 @@
+---
+// A small, realistic product screen built only with the real components from @demo-ds/react.
+// Every part carries data-inspect: the tokens its CSS reads, so the playground can show them on hover.
+import { Badge, Button, Card, CardBody, CardFooter, CardHeader, Input } from '@demo-ds/react';
+import { inspectComponent, inspectVars, type Inspect } from '../lib/inspect';
+
+interface Props {
+  theme: 'light' | 'dark';
+}
+const { theme } = Astro.props;
+const id = (s: string) => `${theme}-${s}`;
+const j = (x: Inspect) => JSON.stringify(x);
+
+const page = inspectVars('Page', ['--color-bg-subtle', '--color-text-default', '--font-family-sans']);
+const title = inspectVars('Page title', ['--color-text-default', '--font-size-500', '--font-weight-semibold']);
+const muted = inspectVars('Secondary text', ['--color-text-muted', '--font-size-200']);
+const row = inspectVars('Divider', ['--color-border-default', '--border-width-1']);
+---
+
+<div class="sample" data-inspect={j(page)}>
+  <header class="sample-head">
+    <div>
+      <p class="sample-crumb" data-inspect={j(muted)}>Settings / Billing</p>
+      <h3 class="sample-title" data-inspect={j(title)}>Billing</h3>
+    </div>
+    <span class="pg-t" data-inspect={j(inspectComponent('Badge', { tone: 'info' }))}><Badge tone="info">Pro plan</Badge></span>
+  </header>
+
+  <div class="sample-grid">
+    <span class="pg-t" data-inspect={j(inspectComponent('Card', {}, ['card']))}>
+      <Card aria-labelledby={id('pm')}>
+        <span class="pg-t" data-inspect={j(inspectComponent('CardHeader', {}, ['header']))}>
+          <CardHeader id={id('pm')}>Payment method</CardHeader>
+        </span>
+        <span class="pg-t" data-inspect={j(inspectComponent('CardBody', {}, ['body']))}>
+          <CardBody>
+            <div class="sample-fields">
+              <span class="pg-t" data-inspect={j(inspectComponent('Input', {}, ['field', 'label', 'input']))}>
+                <Input id={id('name')} label="Cardholder name" defaultValue="Ada Lovelace" />
+              </span>
+              <span class="pg-t" data-inspect={j(inspectComponent('Input', {}, ['field', 'label', 'input', 'hint']))}>
+                <Input id={id('card')} label="Card number" defaultValue="4242 4242 4242 4242" hint="We only keep the last four digits." inputMode="numeric" />
+              </span>
+              <span class="pg-t" data-inspect={j(inspectComponent('Input', { state: 'invalid' }, ['field', 'label', 'input', 'invalid', 'error']))}>
+                <Input id={id('mail')} label="Billing email" defaultValue="ada@" error="Enter a full email address, like ada@example.com." />
+              </span>
+            </div>
+          </CardBody>
+        </span>
+        <span class="pg-t" data-inspect={j(inspectComponent('CardFooter', {}, ['footer']))}>
+          <CardFooter>
+            <span class="pg-t" data-inspect={j(inspectComponent('Button', { variant: 'secondary', size: 'md' }))}>
+              <Button variant="secondary">Cancel</Button>
+            </span>
+            <span class="pg-t" data-inspect={j(inspectComponent('Button', { variant: 'primary', size: 'md' }))}>
+              <Button variant="primary">Save changes</Button>
+            </span>
+          </CardFooter>
+        </span>
+      </Card>
+    </span>
+
+    <span class="pg-t" data-inspect={j(inspectComponent('Card', {}, ['card']))}>
+      <Card aria-labelledby={id('usage')}>
+        <span class="pg-t" data-inspect={j(inspectComponent('CardHeader', {}, ['header']))}>
+          <CardHeader id={id('usage')}>This month</CardHeader>
+        </span>
+        <span class="pg-t" data-inspect={j(inspectComponent('CardBody', {}, ['body']))}>
+          <CardBody>
+            <dl class="sample-list">
+              <div data-inspect={j(row)}>
+                <dt>API requests</dt>
+                <dd><span class="pg-t" data-inspect={j(inspectComponent('Badge', { tone: 'success' }))}><Badge tone="success">Healthy</Badge></span></dd>
+              </div>
+              <div data-inspect={j(row)}>
+                <dt>Storage</dt>
+                <dd><span class="pg-t" data-inspect={j(inspectComponent('Badge', { tone: 'warning' }))}><Badge tone="warning">84% used</Badge></span></dd>
+              </div>
+              <div data-inspect={j(row)}>
+                <dt>Last invoice</dt>
+                <dd><span class="pg-t" data-inspect={j(inspectComponent('Badge', { tone: 'danger' }))}><Badge tone="danger">Payment failed</Badge></span></dd>
+              </div>
+            </dl>
+          </CardBody>
+        </span>
+        <span class="pg-t" data-inspect={j(inspectComponent('CardFooter', {}, ['footer']))}>
+          <CardFooter>
+            <span class="pg-t" data-inspect={j(inspectComponent('Button', { variant: 'ghost', size: 'sm' }))}>
+              <Button variant="ghost" size="sm">View invoices</Button>
+            </span>
+            <span class="pg-t" data-inspect={j(inspectComponent('Button', { variant: 'primary', size: 'sm' }))}>
+              <Button variant="primary" size="sm">Retry payment</Button>
+            </span>
+          </CardFooter>
+        </span>
+      </Card>
+    </span>
+  </div>
+</div>

@@ -1,0 +1,81 @@
+---
+import '../../styles/component.css';
+import Layout from '../../layouts/Layout.astro';
+import Example from '../../components/Example.tsx';
+import Updated from '../../components/Updated.astro';
+import { loadComponents, type ComponentInfo } from '../../lib/components';
+import { freshness, PAGE_SOURCES } from '../../lib/sources';
+
+const components = loadComponents();
+const updated = freshness(PAGE_SOURCES.components);
+const groups = new Map<string, ComponentInfo[]>();
+for (const c of components) {
+  const cat = c.docs?.category ?? 'Core';
+  if (!groups.has(cat)) groups.set(cat, []);
+  groups.get(cat)!.push(c);
+}
+const documented = components.filter((c) => c.docs).length;
+const statusOf = (c: ComponentInfo) => c.docs?.status ?? 'stable';
+const toneOf = (s: string) => (s === 'stable' ? 'is-pass' : s === 'beta' ? 'is-info' : 'is-warn');
+const label = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
+---
+
+<Layout title="Components" description="Every component, with usage guidance, accessibility notes and the tokens it reads." sources={PAGE_SOURCES.components} updated={updated}>
+  <h1>Components</h1>
+  <p class="lead">
+    Each page follows the same order: when to use it, do and don't, accessibility, the tokens it reads, its props and a playground. Guidance
+    first, specs second.
+  </p>
+  <Updated date={updated} />
+  <p class="gallery-stats">
+    <span class="pill">{plural(components.length, 'component')}</span>
+    <span class="pill is-pass">{documented} with usage guidance</span>
+    {components.length - documented > 0 && <span class="pill is-warn">{components.length - documented} missing guidance</span>}
+  </p>
+
+  {
+    [...groups.entries()].map(([cat, list]) => (
+      <section class="gallery-group" aria-labelledby={`cat-${cat}`}>
+        {groups.size > 1 && <h2 id={`cat-${cat}`}>{cat}</h2>}
+        {groups.size === 1 && (
+          <h2 id={`cat-${cat}`} class="sr-only">
+            {cat}
+          </h2>
+        )}
+        <ul class="gallery">
+          {list.map((c) => (
+            <li class="gcard">
+              <div class="gcard-stage stage-checker" data-theme="light" aria-hidden="true" inert>
+                {c.docs?.preview ? <Example node={c.docs.preview} /> : <span class="gcard-empty">No preview yet</span>}
+              </div>
+              <div class="gcard-body">
+                <div class="gcard-title">
+                  <h3>
+                    <a href={`/components/${c.slug}/`}>{c.name}</a>
+                  </h3>
+                  <span class:list={['pill', toneOf(statusOf(c))]}>{label(statusOf(c))}</span>
+                </div>
+                <p>{c.docs?.summary ?? c.description ?? 'No usage guidance yet.'}</p>
+                <dl class="gcard-stats">
+                  <div>
+                    <dt>Props</dt>
+                    <dd class="num">{c.props.length}</dd>
+                  </div>
+                  <div>
+                    <dt>Tokens</dt>
+                    <dd class="num">{c.tokensUsed.length}</dd>
+                  </div>
+                  <div>
+                    <dt>Stories</dt>
+                    <dd class="num">{c.stories.length}</dd>
+                  </div>
+                </dl>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </section>
+    ))
+  }
+</Layout>
