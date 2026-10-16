@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { ListBase, useGetList, useGetMany, useListContext, useNotify, useTranslate, useUnselectAll, useUpdateMany } from 'ra-core';
+import { ListBase, useGetList, useGetMany, useListContext, useNotify, useTranslate, useUnselectAll, useRefresh, useUpdateMany } from 'ra-core';
 import { Avatar, Button, Tab, Tabs, TabsList } from '@demo-ds/react';
 import { Ban, PackageCheck, ShoppingBag } from 'lucide-react';
 import { ConfirmButton, DataTable, DateFilter, FilterBar, Page, SearchFilter, type Column } from '../../ra-bridge';
@@ -142,6 +142,7 @@ function OrderBulkActions() {
   const notify = useNotify();
   const { selectedIds, resource } = useListContext();
   const unselectAll = useUnselectAll(resource);
+  const refresh = useRefresh();
   const [updateMany, { isPending }] = useUpdateMany();
   const run = (status: OrderStatus) =>
     updateMany(
@@ -151,6 +152,7 @@ function OrderBulkActions() {
         onSuccess: () => {
           notify(`orders.bulk.${status}_done`, { type: 'success', messageArgs: { smart_count: selectedIds.length } });
           unselectAll();
+          refresh();
         },
         onError: () => notify('orders.bulk.failed', { type: 'error' }),
       },

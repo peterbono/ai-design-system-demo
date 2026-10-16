@@ -15,6 +15,7 @@ export function GlobalSearch() {
   const [query, setQuery] = useState('');
   const [options, setOptions] = useState<ComboboxOption[]>([]);
   const [loading, setLoading] = useState(false);
+  const narrow = useNarrow();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -64,7 +65,7 @@ export function GlobalSearch() {
       label={translate('shell.search')}
       hideLabel
       size="sm"
-      placeholder={translate('shell.search_placeholder')}
+      placeholder={translate(narrow ? 'shell.search' : 'shell.search_placeholder')}
       prefix={<Icon icon={Search} size="sm" />}
       options={options}
       filter={null}
@@ -85,4 +86,17 @@ export function GlobalSearch() {
       aria-keyshortcuts="Meta+K Control+K"
     />
   );
+}
+
+function useNarrow() {
+  const query = '(max-width: 640px)';
+  const [narrow, setNarrow] = useState(() => window.matchMedia?.(query).matches ?? false);
+  useEffect(() => {
+    const mq = window.matchMedia?.(query);
+    if (!mq) return;
+    const on = () => setNarrow(mq.matches);
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
+  return narrow;
 }

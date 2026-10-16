@@ -12,7 +12,7 @@ import {
   useNavigate,
   useNotify,
   useTranslate,
-  useUnselectAll,
+  useUnselectAll, useRefresh,
   useUpdate,
   useUpdateMany,
   LinkBase,
@@ -158,6 +158,7 @@ function ReviewBulkActions() {
   const notify = useNotify();
   const { selectedIds, resource } = useListContext();
   const unselectAll = useUnselectAll(resource);
+  const refresh = useRefresh();
   const [updateMany, { isPending }] = useUpdateMany();
   const count = selectedIds.length;
   const run = (status: ReviewStatus) =>
@@ -168,6 +169,7 @@ function ReviewBulkActions() {
         onSuccess: () => {
           notify(`reviews.bulk.${status}_done`, { type: 'success', messageArgs: { smart_count: count } });
           unselectAll();
+          refresh();
         },
         onError: () => notify('reviews.bulk.failed', { type: 'error' }),
       },
@@ -209,6 +211,7 @@ function ReviewDetail({ onDone }: { onDone: () => void }) {
   const { data: customer } = useGetOne<Customer>('customers', { id: record?.customer_id }, { enabled: record != null });
   const { data: product } = useGetOne<Product>('products', { id: record?.product_id }, { enabled: record != null });
   const [update, { isPending: updating }] = useUpdate();
+  const refresh = useRefresh();
   if (isPending || !record) return <Skeleton lines={6} />;
   const decide = (status: ReviewStatus) =>
     update(
@@ -217,6 +220,7 @@ function ReviewDetail({ onDone }: { onDone: () => void }) {
       {
         onSuccess: () => {
           notify(`reviews.bulk.${status}_done`, { type: 'success', messageArgs: { smart_count: 1 } });
+          refresh();
           onDone();
         },
       },

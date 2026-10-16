@@ -88,6 +88,7 @@ export function AppShell({ children }: { children?: ReactNode }) {
 
 function TenantBlock({ compact = false }: { compact?: boolean }) {
   const { tenant } = usePreferences();
+  const translate = useTranslate();
   return (
     <div className={compact ? styles.tenantCompact : styles.tenant}>
       <span className={styles.mark} aria-hidden="true">
@@ -95,7 +96,7 @@ function TenantBlock({ compact = false }: { compact?: boolean }) {
       </span>
       <span className={styles.tenantText}>
         <span className={styles.tenantName}>{tenant.name}</span>
-        {!compact && <span className={styles.tenantTagline}>{tenant.tagline}</span>}
+        {!compact && <span className={styles.tenantTagline}>{translate(`shell.tagline_${tenant.id}`, { _: tenant.tagline })}</span>}
       </span>
     </div>
   );

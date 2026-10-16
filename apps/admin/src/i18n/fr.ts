@@ -73,6 +73,8 @@ export const fr: Messages = {
     search_hint: 'Saisissez au moins 2 caractères',
     search_empty: 'Aucun résultat. Essayez un nom, une référence de commande ou un produit.',
     shop: 'Boutique',
+    tagline_northwind: 'Affiches d’art, boutique de démo',
+    tagline_harbor: 'Déco côtière, boutique de démo',
     brand_bridge: 'Marque : Bridge',
     brand_ocean: 'Marque : Ocean',
     compact_density: 'Densité compacte',

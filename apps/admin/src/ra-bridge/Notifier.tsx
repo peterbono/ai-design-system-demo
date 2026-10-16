@@ -12,14 +12,14 @@ export function Notifier() {
 
   useEffect(() => {
     if (notifications.length === 0) return;
-    let next = takeNotification();
-    while (next) {
+    // takeNotification reads the list from its closure: take one per run, the effect re-runs for the rest.
+    const next = takeNotification();
+    if (next) {
       const { message, type, notificationOptions } = next;
       const args = (notificationOptions?.messageArgs ?? {}) as Record<string, unknown>;
       const title = typeof message === 'string' ? translate(message, { _: message, ...args }) : message;
       const autoHide = notificationOptions?.autoHideDuration;
       toast.add({ title, tone: TONE[type] ?? 'neutral', ...(typeof autoHide === 'number' ? { timeout: autoHide } : {}) });
-      next = takeNotification();
     }
   }, [notifications, takeNotification, toast, translate]);
 

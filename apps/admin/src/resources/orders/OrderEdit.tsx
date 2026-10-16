@@ -90,7 +90,7 @@ function Basket() {
                       <span className={styles.productText}>
                         <span className={styles.productName}>{p.reference}</span>
                         <Muted>
-                          {p.width} x {p.height} cm
+                          {fmt.number(p.width)} x {fmt.number(p.height)} cm
                         </Muted>
                       </span>
                     </LinkBase>
