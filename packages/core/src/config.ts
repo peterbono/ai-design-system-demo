@@ -98,6 +98,18 @@ export interface GovernanceConfig {
   owners: Owners;
 }
 
+/** `bridge audit` settings: how product code that consumes the design system is measured. */
+export interface AuditConfig {
+  /** Packages the DS components are imported from. Default: the package that holds components.dir, plus @bridge/react. */
+  packages?: string[] | undefined;
+  /** Extra import prefixes counted as foreign UI libraries (MUI, antd, Chakra, Radix... are built in). */
+  foreignLibraries?: string[] | undefined;
+  /** Native elements that should be DS components. Default: button, input, select, textarea, dialog, table. */
+  nativeElements?: string[] | undefined;
+  /** Path globs (relative to the audited folder) to skip. */
+  exclude?: string[] | undefined;
+}
+
 export interface BridgeConfig {
   /** GitHub repository. Undefined only for a detected config of a repo with no known remote. */
   repo: RepoRef | undefined;
@@ -115,6 +127,7 @@ export interface BridgeConfig {
   changeset?: { package: string } | undefined;
   cssVar: { prefix: string; separator: string };
   governance: GovernanceConfig;
+  audit?: AuditConfig | undefined;
 }
 
 type Partialish<T> = { [K in keyof T]?: T[K] | undefined };
@@ -142,6 +155,7 @@ export interface BridgeConfigInput {
   changeset?: { package: string };
   cssVar?: Partial<BridgeConfig['cssVar']>;
   governance?: Partial<Omit<GovernanceConfig, 'owners'>> & { owners?: Partial<Owners> };
+  audit?: AuditConfig;
 }
 
 export const DEFAULT_TOKEN_PATHS: TokenPaths = {
@@ -287,6 +301,7 @@ export function defineConfig(input: BridgeConfigInput): BridgeConfig {
       guardrails: g.guardrails ?? [...DEFAULT_GOVERNANCE.guardrails, contrastFile],
       owners: { design: g.owners?.design ?? [], tech: g.owners?.tech ?? [] },
     },
+    ...(input.audit ? { audit: { ...input.audit } } : {}),
   };
 }
 
@@ -397,6 +412,11 @@ export function loadConfig(source: string | unknown): BridgeConfig {
         problems.push('"governance.owners" must be { "design": [logins], "tech": [logins] }');
     }
   }
+  const audit = d.audit;
+  if (audit !== undefined) {
+    if (!isObj(audit)) problems.push('"audit" must be an object');
+    else for (const k of ['packages', 'foreignLibraries', 'nativeElements', 'exclude']) if (audit[k] !== undefined && !isStrList(audit[k])) problems.push(`"audit.${k}" must be a list of strings`);
+  }
   if (problems.length) throw new ConfigError(problems);
   return defineConfig(d as unknown as BridgeConfigInput);
 }
@@ -424,5 +444,6 @@ export function toConfigJson(config: BridgeConfig, schema = './packages/core/bri
     ...(config.changesets ? { changesets: config.changesets } : {}),
     cssVar: config.cssVar,
     governance: config.governance,
+    ...(config.audit ? { audit: config.audit } : {}),
   };
 }

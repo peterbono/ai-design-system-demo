@@ -255,3 +255,40 @@ loadRepoFiles(client, commitSha, fallbackTokensPath): Promise<{ files; contrastC
 
 Reads and content-addressed writes retry on network errors, 5xx and secondary rate limits; errors
 become `GitHubError { status, message, detail }` with plain-language messages.
+
+## audit (`@bridge/core/audit`)
+
+Design system adoption and drift in a product codebase that consumes the DS. Pure (file texts in, report
+out); it reads TSX/JSX with the TypeScript compiler API (syntax only), which is why it is its own entry and the
+Figma plugin never loads it. `@bridge/core/node` adds the disk side.
+
+```ts
+import { DesignSystemIndex, buildAuditReport, compareWithBaseline, auditMarkdown, planCssFixes, auditFile } from '@bridge/core/audit';
+import { loadDesignSystem, runAudit, collectAuditFiles, fixCss, findDesignSystemRoot } from '@bridge/core/node';
+
+const ds = loadDesignSystem('/path/to/ds-repo');               // bridge.config.json: tokens in every mode, components, packages
+const report = runAudit('apps/admin/src', { ds: ds.root, label: 'admin', baseline });  // AuditReport, schemaVersion 1
+```
+
+- **Scanned**: CSS, SCSS, Less, CSS modules; `style`, MUI `sx`, `styled()`, `makeStyles`, `createTheme` and theme
+  objects, styled-components / emotion templates; Tailwind class strings (`className`, `cn()`, `clsx()`, `cva()`,
+  `@apply`); any color literal in code.
+- **Hardcoded values**: colors (hex, rgb, hsl, named, bare HSL channels), spacing, sizes, radii, border widths,
+  shadows, durations, easings, z-index, font family, size, weight and line height. Each gets the closest token:
+  colors by deltaE in OKLab across every mode (semantic tokens and tokens that fit the property win near-ties),
+  lengths by nearest scale step, with a confidence (`exact`, `high`, `medium`, `low`).
+- **Token references**: `var(--x)` of a DS token (also in Tailwind arbitrary values). Other variables, MUI palette
+  paths, `theme.spacing()` and Tailwind scale classes count as references to another theme, not as hardcoded.
+- **Components**: JSX instances imported from the DS packages (`audit.packages`, default: the package that holds
+  `components.dir`, plus `@bridge/react`) versus foreign UI libraries (MUI, react-admin, antd, Chakra, Radix,
+  Headless UI, Mantine, shadcn/ui local components...), native elements that should be DS components
+  (`button`, `input`, `select`, `textarea`, `dialog`, `table`) and local components named like a DS component.
+- **Metrics**: token adoption = token references / (token references + hardcoded values); component adoption =
+  DS instances / all UI instances. By category, top files, top fixes, per-file findings with line numbers.
+- **Baseline**: `compareWithBaseline(report, previous)` adds deltas per metric, category and file, and carries the
+  history. `auditMarkdown(report)` renders the summary. `planCssFixes(text, lang, ds)` is the safe autofix: only
+  CSS values equal to a token become `var(--token)`.
+
+The report schema is `packages/core/audit-report.schema.json` (also exported as
+`@bridge/core/audit-report.schema.json`). `bridge.config.json` takes an optional `audit` section:
+`packages`, `foreignLibraries`, `nativeElements`, `exclude`.
