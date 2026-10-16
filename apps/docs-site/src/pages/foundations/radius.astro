@@ -1,88 +1,86 @@
 ---
-import '../../styles/foundations.css';
 import Layout from '../../layouts/Layout.astro';
 import Icon from '../../components/Icon.astro';
-import CopyName from '../../components/CopyName.astro';
-import TokenNames from '../../components/TokenNames.astro';
 import Updated from '../../components/Updated.astro';
-import { componentsUsing } from '../../lib/components';
+import CopyAs from '../../components/foundations/CopyAs.astro';
+import LibraryKit from '../../components/foundations/LibraryKit.astro';
+import TokenList from '../../components/foundations/TokenList.astro';
+import { RadiusSpecimen } from '../../components/foundations/Specimens.tsx';
+import { groupRows, primitiveRows } from '../../lib/foundations';
 import { PAGE_SOURCES, freshness } from '../../lib/sources';
-import { anchorOf, loadTokens, primitivesOf } from '../../lib/tokens';
 
 const updated = freshness(PAGE_SOURCES.radius);
-const radii = primitivesOf('radius');
-const borders = primitivesOf('border.width');
-const focusWidth = loadTokens().semantic.filter((s) => s.type === 'dimension');
-const used = (v: string) => componentsUsing(v).join(', ') || 'Not used by a component yet';
+const roles = groupRows('radius');
+const radii = primitiveRows('radius');
+const widths = [...groupRows('border-width'), ...primitiveRows('border.width')];
+const focus = groupRows('focus').filter((r) => r.type !== 'color');
 ---
 
-<Layout title="Radius and borders" description="Corner radius scale, border widths and focus ring width." sources={PAGE_SOURCES.radius} updated={updated}>
-  <header class="page-head">
-    <div>
-      <h1>Radius and borders</h1>
-      <p class="lead">Small radii for small things, larger for containers, full for pills. Two border widths: 1px for edges, 2px for emphasis and focus.</p>
-      <Updated date={updated} />
+<Layout title="Radius and borders" description="Radius roles by rank, the radius scale, border widths and the focus ring width." sources={PAGE_SOURCES.radius} updated={updated}>
+  <div data-fd-page>
+    <header class="page-head">
+      <div>
+        <h1>Radius and borders</h1>
+        <p class="lead">
+          Radius tells you what kind of object you are looking at: small parts inside controls get the smallest, controls a little more, containers and
+          overlays more again, pills are round. Design with the roles; brands set their values.
+        </p>
+        <Updated date={updated} />
+      </div>
+      <div class="page-head-actions">
+        <a class="btn btn-secondary" href="/studio/tokens/?focus=radius"><Icon name="edit" size={16} />Edit in Studio</a>
+      </div>
+    </header>
+    <div class="fd-toolbar">
+      <p class="fd-hint">Select a token to see where it is used and its history. Click a name to copy it.</p>
+      <CopyAs />
     </div>
-    <div class="page-head-actions">
-      <a class="btn btn-secondary" href="/studio/tokens/?focus=radius"><Icon name="edit" size={16} />Edit in Studio</a>
-    </div>
-  </header>
 
-  <h2>Radius</h2>
-  <div class="table-wrap fd-table">
-    <table>
-      <thead><tr><th scope="col">Token</th><th scope="col">Value</th><th scope="col">Preview</th><th scope="col">Used by</th></tr></thead>
-      <tbody>
-        {
-          radii.map((r) => (
-            <tr id={anchorOf(r.cssVar)}>
-              <th scope="row"><CopyName value={`var(${r.cssVar})`} kind="CSS variable" /></th>
-              <td class="chain">{r.css}</td>
-              <td><div class="radius-demo" style={`border-radius: var(${r.cssVar})`} aria-hidden="true" /></td>
-              <td class="small">{used(r.cssVar)}</td>
-            </tr>
-          ))
-        }
-      </tbody>
-    </table>
-  </div>
+    <section class="fd-group" aria-labelledby="roles">
+      <header class="fd-group-head">
+        <h2 id="roles">Radius roles</h2>
+        <code class="fd-group-path">radius</code>
+        <span class="fd-group-n">{roles.length} tokens</span>
+      </header>
+      <p class="fd-group-note">Each role on the components that use it, in the brand the top bar previews. Nested corners stay concentric: outer = inner + padding.</p>
+      <div class="fd-stage" inert>
+        <RadiusSpecimen />
+      </div>
+      <TokenList rows={roles} preview="radius" label="Radius role tokens" />
+    </section>
 
-  <h2>Border widths</h2>
-  <div class="table-wrap fd-table">
-    <table>
-      <thead><tr><th scope="col">Token</th><th scope="col">Value</th><th scope="col">Preview</th><th scope="col">Used by</th></tr></thead>
-      <tbody>
-        {
-          borders.map((b) => (
-            <tr id={anchorOf(b.cssVar)}>
-              <th scope="row"><CopyName value={`var(${b.cssVar})`} kind="CSS variable" /></th>
-              <td class="chain">{b.css}</td>
-              <td><div class="radius-demo" style={`border-width: var(${b.cssVar}); border-radius: var(--radius-md)`} aria-hidden="true" /></td>
-              <td class="small">{used(b.cssVar)}</td>
-            </tr>
-          ))
-        }
-      </tbody>
-    </table>
-  </div>
+    <section class="fd-group" aria-labelledby="scale">
+      <header class="fd-group-head">
+        <h2 id="scale">Radius scale</h2>
+        <code class="fd-group-path">radius</code>
+        <span class="fd-group-n">{radii.length} tokens</span>
+      </header>
+      <p class="fd-group-note">The raw values the roles point to. Reach for a role first; use the scale when you propose a new one.</p>
+      <TokenList rows={radii} preview="radius" label="Radius scale tokens" />
+    </section>
 
-  <h2>Focus ring</h2>
-  <p>Every focusable component draws the same ring, so keyboard users always know where they are. Its color lives on the <a href="/foundations/color/#focus-ring-color">color page</a>.</p>
-  <div class="table-wrap fd-table">
-    <table>
-      <thead><tr><th scope="col">Token</th><th scope="col">Light</th><th scope="col">Dark</th><th scope="col">Used by</th></tr></thead>
-      <tbody>
-        {
-          focusWidth.map((s) => (
-            <tr id={anchorOf(s.cssVar)}>
-              <th scope="row"><TokenNames cssVar={s.cssVar} path={s.path} figma={s.figma} /></th>
-              <td class="chain">{s.modes.light.chain.join(' → ')} &rarr; {s.modes.light.css}</td>
-              <td class="chain">{s.modes.dark.chain.join(' → ')} &rarr; {s.modes.dark.css}</td>
-              <td class="small">{used(s.cssVar)}</td>
-            </tr>
-          ))
-        }
-      </tbody>
-    </table>
+    <section class="fd-group" aria-labelledby="borders">
+      <header class="fd-group-head">
+        <h2 id="borders">Border widths</h2>
+        <code class="fd-group-path">border-width</code>
+        <span class="fd-group-n">{widths.length} tokens</span>
+      </header>
+      <p class="fd-group-note">1 px for edges, 2 px for emphasis, selected states and active indicators.</p>
+      <TokenList rows={widths} preview="stroke" label="Border width tokens" />
+    </section>
+
+    <section class="fd-group" aria-labelledby="focus-ring">
+      <header class="fd-group-head">
+        <h2 id="focus-ring">Focus ring</h2>
+        <code class="fd-group-path">focus.ring</code>
+        <span class="fd-group-n">{focus.length} tokens</span>
+      </header>
+      <p class="fd-group-note">
+        Every focusable component draws the same ring, so keyboard users always know where they are. Its color is on the
+        <a href="/foundations/color/#focus-ring-color">Color page</a>.
+      </p>
+      <TokenList rows={focus} preview="stroke" label="Focus ring tokens" />
+    </section>
   </div>
+  <LibraryKit />
 </Layout>

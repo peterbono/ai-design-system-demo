@@ -1,0 +1,14 @@
+---
+// Everything a Library foundation page needs once: the token detail drawer (the explorer's panel in read mode), the
+// copy toast and the page script (Copy as switch, copy on names, open a row).
+import '../../styles/foundations.css';
+import TokenDetailDrawer from '../explorer/TokenDetailDrawer.astro';
+---
+
+<div class="fd-toast" id="fd-toast" role="status" aria-live="polite" hidden></div>
+<TokenDetailDrawer />
+
+<script>
+  import { initFoundations } from '../../scripts/foundations';
+  initFoundations();
+</script>

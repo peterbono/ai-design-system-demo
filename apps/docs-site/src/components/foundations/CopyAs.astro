@@ -1,0 +1,18 @@
+---
+// Page-level "Copy as" switch of the Library foundation pages: what a click on a token name copies. Remembered per
+// browser (scripts/foundations.ts).
+import { COPY_FORMATS, COPY_LABEL } from '../../lib/library-rows';
+---
+
+<div class="fd-copyas">
+  <span class="fd-copyas-label" id="fd-copyas-label">Copy names as</span>
+  <div class="fd-seg" role="radiogroup" aria-labelledby="fd-copyas-label" data-fd-formats>
+    {
+      COPY_FORMATS.map((f, i) => (
+        <button type="button" role="radio" aria-checked={i === 0 ? 'true' : 'false'} tabindex={i === 0 ? 0 : -1} data-fd-format={f}>
+          {COPY_LABEL[f]}
+        </button>
+      ))
+    }
+  </div>
+</div>

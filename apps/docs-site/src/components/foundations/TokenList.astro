@@ -1,0 +1,125 @@
+---
+// The light token list of a Library foundation page: one row per token with a preview (a dual light and dark swatch
+// for colors and shadows, a shape, bar or sample otherwise), the name once (copies in the page's "Copy as" format),
+// a one-line role, a muted alias line and a neutral usage chip. A click on the row opens the explorer's detail panel.
+import Icon from '../Icon.astro';
+import type { FoundationRow } from '../../lib/foundations';
+import { anchorOf, MODES } from '../../lib/tokens';
+
+export type Preview = 'color' | 'shadow' | 'space' | 'radius' | 'stroke' | 'size' | 'weight' | 'line-height' | 'tracking' | 'family' | 'none';
+
+interface Props {
+  rows: FoundationRow[];
+  preview: Preview;
+  /** Accessible name of the list, like "Background tokens". */
+  label: string;
+}
+const { rows, preview, label } = Astro.props;
+
+type ColorKind = 'fill' | 'text' | 'border' | 'ring';
+const colorKind = (path: string): ColorKind => {
+  if (path === 'focus.ring.color') return 'ring';
+  if (/^color\.border\./.test(path) || /\.border$/.test(path)) return 'border';
+  if (/^color\.text\./.test(path) || /\.(text|fg|icon)$/.test(path)) return 'text';
+  return 'fill';
+};
+const v = (path: string) => `var(--${path.replace(/\./g, '-')})`;
+/** Background a foreground token is meant to sit on, so "Aa" reads as it does in a product. */
+const onFor = (path: string): string => {
+  if (path === 'color.text.inverse') return v('color.surface.inverse');
+  if (path === 'color.text.on-solid') return v('color.feedback.info.solid');
+  if (path === 'color.control.checked.fg') return v('color.control.checked.bg');
+  const action = path.match(/^color\.action\.(\w+)\.text$/);
+  if (action && action[1] !== 'ghost' && action[1] !== 'disabled') return v(`color.action.${action[1]}.bg`);
+  if (path === 'color.action.disabled.text') return v('color.action.disabled.bg');
+  const fb = path.match(/^color\.feedback\.(\w+)\.(text|icon)$/);
+  if (fb) return v(`color.feedback.${fb[1]}.bg`);
+  return v('color.bg.default');
+};
+const dual = (r: FoundationRow) => r.tier !== 'primitive' && (r.type === 'color' || r.type === 'shadow');
+const valueText = (r: FoundationRow) => (r.type === 'color' ? '' : r.values.light === r.values.dark ? r.values.light : `${r.values.light} · ${r.values.dark}`);
+const short = (r: FoundationRow) => r.type === 'shadow';
+---
+
+<ul class={`fd-list is-${preview}`} aria-label={label}>
+  {
+    rows.map((r) => {
+      const kind = r.type === 'color' ? colorKind(r.path) : null;
+      const value = short(r) ? '' : valueText(r);
+      return (
+        <li class="fd-row" id={anchorOf(r.cssVar)} data-fd-row={r.path}>
+          <span class={`fd-pv is-${preview}${kind ? ` is-${kind}` : ''}`} aria-hidden="true">
+            {dual(r) ? (
+              MODES.map((m) => (
+                <span class="fd-pv-half" data-theme={m} style={`--pv: ${v(r.path)}; --on: ${kind ? onFor(r.path) : v('color.bg.default')}`}>
+                  {kind === 'text' ? <span class="fd-pv-aa">Aa</span> : <span class="fd-pv-chip" />}
+                </span>
+              ))
+            ) : preview === 'shadow' ? (
+              <span class="fd-pv-half" style={`--pv: ${v(r.path)}; --on: ${v('color.bg.default')}`}>
+                <span class="fd-pv-chip" />
+              </span>
+            ) : preview === 'size' || preview === 'weight' || preview === 'family' || preview === 'tracking' ? (
+              <span class="fd-pv-type" style={`--pv: ${v(r.path)}`}>{preview === 'tracking' ? 'Tokens' : 'Aa'}</span>
+            ) : preview === 'line-height' ? (
+              <span class="fd-pv-lines" style={`--pv: ${v(r.path)}`}>
+                <span />
+                <span />
+                <span />
+              </span>
+            ) : preview === 'none' ? null : (
+              <span class="fd-pv-shape" style={`--pv: ${v(r.path)}`} />
+            )}
+          </span>
+          <span class="fd-main">
+            <button type="button" class="fd-name" data-fd-copy data-copy-css={r.copy.css} data-copy-js={r.copy.js} data-copy-figma={r.copy.figma} title={`Copy CSS variable ${r.copy.css}`}>
+              {r.path}
+            </button>
+            {r.role && <span class="fd-role">{r.role}</span>}
+          </span>
+          <span class="fd-ref">
+            {value && <span class="fd-value">{value}</span>}
+            {r.alias && <span class="fd-alias">{r.alias}</span>}
+          </span>
+          <span class="fd-use">
+            {r.chip.kind === 'unused' ? (
+              <span class="fd-chip is-unused">{r.chip.label}</span>
+            ) : (
+              <details class="fd-uses" data-menu>
+                <summary class="fd-chip" aria-label={`${r.chip.label}, see who uses ${r.path}`}>
+                  {r.chip.label}
+                </summary>
+                <div class="fd-pop">
+                  {r.components.length > 0 && (
+                    <>
+                      <p class="fd-pop-title">Components</p>
+                      <ul class="fd-pop-list">
+                        {r.components.map((c) => (
+                          <li>
+                            <a href={c.href}>{c.name}</a>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                  {r.base.length > 0 && (
+                    <>
+                      <p class="fd-pop-title">Base styles</p>
+                      <p class="fd-pop-note">
+                        Read by {r.base.map((f) => <code>{f}</code>)}, the global stylesheet apps import once with <code>@bridge-ds/react/styles.css</code>.
+                      </p>
+                    </>
+                  )}
+                  {r.components.length === 0 && r.base.length === 0 && <p class="fd-pop-note">In use through a token that aliases it. Open the details to follow the chain.</p>}
+                </div>
+              </details>
+            )}
+          </span>
+          <button type="button" class="fd-open" data-fd-open={r.path} aria-label={`Open details for ${r.path}`} title="Open details">
+            <Icon name="chevron" size={16} />
+          </button>
+        </li>
+      );
+    })
+  }
+</ul>

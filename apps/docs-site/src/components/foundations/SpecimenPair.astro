@@ -1,0 +1,31 @@
+---
+// A token group in context, once per theme side by side (stacked on narrow screens). Each panel sets data-theme, so
+// the documented system's real tokens resolve inside it; the shell adds the preview brand and density. The panels
+// illustrate the list below them: they are inert, the list and the detail drawer carry every value.
+import Icon from '../Icon.astro';
+import Specimen, { type SpecimenGroup } from './Specimens.tsx';
+import { MODES } from '../../lib/tokens';
+
+interface Props {
+  group: SpecimenGroup;
+  /** Accessible summary of what the panels show. */
+  label: string;
+}
+const { group, label } = Astro.props;
+---
+
+<div class="fd-spec" role="group" aria-label={label}>
+  {
+    MODES.map((m) => (
+      <figure class="fd-spec-panel" data-theme={m}>
+        <figcaption class="fd-spec-mode">
+          <Icon name={m === 'light' ? 'sun' : 'moon'} size={14} />
+          {m === 'light' ? 'Light' : 'Dark'}
+        </figcaption>
+        <div class="fd-spec-body" inert>
+          <Specimen group={group} mode={m} />
+        </div>
+      </figure>
+    ))
+  }
+</div>
