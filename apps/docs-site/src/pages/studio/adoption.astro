@@ -1,6 +1,6 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import Updated from '../../components/Updated.astro';
+import StudioHeader from '../../components/StudioHeader.astro';
 import { adoptionTone, categoryRows, componentBreakdown, formatDelta, formatPct, loadAudits, trendPoints } from '../../lib/audits';
 import { PAGE_SOURCES, freshness } from '../../lib/sources';
 import '../../styles/process.css';
@@ -30,15 +30,17 @@ const line = (key: 'tokenAdoption' | 'componentAdoption') =>
 ---
 
 <Layout title="Adoption" description="How much of a product codebase uses the design system: tokens instead of hardcoded values, DS components instead of other UI libraries." sources={PAGE_SOURCES.adoption} updated={updated}>
-  <h1>Adoption</h1>
-  <p class="lead">
-    How much of a product codebase uses the design system. <strong>Token adoption</strong> is token usages divided by token usages plus hardcoded
-    values (colors, lengths, radii, shadows, durations, z-index, fonts). <strong>Component adoption</strong> is DS component instances divided by
-    every UI component instance: DS components, components from other UI libraries, native elements that should be DS components
-    (<code>&lt;button&gt;</code>, <code>&lt;input&gt;</code>, <code>&lt;select&gt;</code>, <code>&lt;dialog&gt;</code>, <code>&lt;table&gt;</code>, links, images),
-    router links outside a DS component, charts, and local components that re-create a DS component. Providers do not count.
-  </p>
-  <Updated date={updated} />
+  <StudioHeader title="Adoption" subtitle="How much of a product codebase uses the design system tokens and components." />
+  <details class="ad-howto">
+    <summary>How adoption is measured</summary>
+    <p>
+      <strong>Token adoption</strong> is token usages divided by token usages plus hardcoded values (colors, lengths, radii, shadows, durations,
+      z-index, fonts). <strong>Component adoption</strong> is DS component instances divided by every UI component instance: DS components,
+      components from other UI libraries, native elements that should be DS components (<code>&lt;button&gt;</code>, <code>&lt;input&gt;</code>,
+      <code>&lt;select&gt;</code>, <code>&lt;dialog&gt;</code>, <code>&lt;table&gt;</code>, links, images), router links outside a DS component,
+      charts, and local components that re-create a DS component. Providers do not count.
+    </p>
+  </details>
 
   {
     entries.length === 0 && (

@@ -1,12 +1,13 @@
 ---
 import Layout from '../../../layouts/Layout.astro';
+import StudioHeader from '../../../components/StudioHeader.astro';
 import Icon from '../../../components/Icon.astro';
-import Updated from '../../../components/Updated.astro';
 import type { IconName } from '../../../brand/icons';
 import { agentRules, approvals, reviewGates, reviewingAgentPrs, riskTiers } from '../../../lib/governance';
 import { inline } from '../../../lib/markdown';
 import { PAGE_SOURCES, freshness } from '../../../lib/sources';
 import '../../../styles/process.css';
+import '../../../styles/studio.css';
 
 const updated = freshness(PAGE_SOURCES.governance);
 const tiers = riskTiers();
@@ -37,16 +38,11 @@ const ruleMeta = {
 ---
 
 <Layout title="Governance" description="Who approves what, how a token change travels, and how the AI agent is constrained." sources={PAGE_SOURCES.governance} updated={updated}>
-  <h1>Governance</h1>
-  <p class="lead">
-    Every change goes through the same gates, whoever writes it: a designer, an engineer or the AI agent. How much review a change gets depends on
-    how risky it is.
-  </p>
-  <Updated date={updated} />
+  <StudioHeader title="Governance" subtitle="Same gates for every change, whoever writes it. The riskier the change, the more review it gets." />
 
   <div class="section-head" id="tiers">
     <div>
-      <h2>Who approves what</h2>
+      <h2 class="st-h2">Who approves what</h2>
       <p>Risk tiers, from <code>docs/GOVERNANCE.md</code>. If a change spans tiers, the highest one applies.</p>
     </div>
   </div>
@@ -118,7 +114,7 @@ const ruleMeta = {
 
   <div class="section-head" id="journey">
     <div>
-      <h2>How a token change travels</h2>
+      <h2 class="st-h2">How a token change travels</h2>
       <p>From an idea in Figma to updated docs, in eight steps. Nothing skips a step.</p>
     </div>
   </div>
@@ -157,7 +153,7 @@ const ruleMeta = {
 
   <div class="section-head" id="agent">
     <div>
-      <h2>How the AI agent is constrained</h2>
+      <h2 class="st-h2">How the AI agent is constrained</h2>
       <p>
         The agent reads <code>AGENTS.md</code> before every task. Here are its rules in plain language; expand a rule to see the exact wording it
         follows. Rules marked "original wording" changed recently and have no plain-language version yet.

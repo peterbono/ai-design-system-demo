@@ -1,5 +1,5 @@
 /* Two spaces, one shell: the Library | Studio switch, the scope chip (version or branch), header menus, the
-   Studio read-only notice, the page header, and the reading template (breadcrumb + right "On this page" rail). */
+   page header, and the reading template (breadcrumb + right "On this page" rail). */
 
 /* Space switch: a two-way segmented link pair. Ink marks the space you are in; orange stays for focus. */
 .space-switch {
@@ -253,28 +253,6 @@ a.menu-item:hover {
   color: var(--br-text-muted);
 }
 
-/* Studio: GitHub status in the header, and a quiet read-only notice until a token is connected. */
-.topbar-gh .gh-connect {
-  margin-right: 0.25rem;
-}
-
-.topbar-gh .gh-status {
-  display: none;
-}
-
-.topbar-gh .gh-connect[data-state="connected"] .gh-status {
-  display: inline-flex;
-}
-
-.topbar-gh .gh-connect[data-state="connected"] .btn {
-  display: none;
-}
-
-/* Read only: the notice in the page carries the Connect action, so the header stays quiet. */
-.topbar-gh .gh-connect:not([data-state="connected"]) {
-  display: none;
-}
-
 /* Component families sit under the Catalog entry: indent them past its icon. */
 .rail-group .rail-sub {
   margin-left: 2.375rem;
@@ -284,32 +262,6 @@ a.menu-item:hover {
 .cp-panel > :first-child,
 .cp-panel > section:first-child > h2:first-child {
   margin-top: 0;
-}
-
-.studio-access {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem 0.75rem;
-  margin: -0.5rem 0 1.5rem;
-  padding: 0.625rem 0.75rem 0.625rem 0.875rem;
-  border: 1px solid var(--br-border);
-  border-radius: var(--br-radius-card);
-  background-color: var(--br-surface);
-  font-size: var(--br-text-sm);
-}
-
-.studio-access > .icon {
-  color: var(--br-info);
-}
-
-.studio-access > span:not(.icon) {
-  flex: 1 1 18rem;
-}
-
-.studio-access[data-state="connected"],
-.studio-access[data-state="checking"] {
-  display: none;
 }
 
 /* Page header: title block on the left, actions on the right. */
@@ -486,10 +438,6 @@ a.menu-item:hover {
     display: none;
   }
 
-  .topbar-gh {
-    display: none;
-  }
-
   .rail-switch {
     display: grid;
     margin: 0 0 1.25rem;
@@ -517,9 +465,5 @@ a.menu-item:hover {
     right: 0.75rem;
     left: 0.75rem;
     width: auto;
-  }
-
-  .studio-access {
-    margin-top: 0;
   }
 }

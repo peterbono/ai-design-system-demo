@@ -18,16 +18,16 @@ import {
   pullState,
   summarizeApprovals,
   summarizeCi,
-  type CheckRunLike,
   type MergeMethod,
   type OverridePolicy,
   type ReviewLike,
-  type StatusLike,
   type Tier,
 } from '../lib/review-rules';
 import { currentViewer, esc, getToken, ghGet, ghWrite, initGitHubConnect, RateLimitError, readRepo, relativeTime, type Fetched } from './github-session';
 import { analyzeTokenFiles, isTokenFile, type TokenReview } from './reviews/token-review';
 import { loadVisualImpact } from './reviews/visual-impact';
+import { ciFor, loadStatuses, statusChip } from './pr-status';
+import { mdTitleHtml } from '../lib/markdown';
 import { touchesVisuals } from '../lib/visual-impact';
 
 interface User {
@@ -165,10 +165,11 @@ async function loadList(): Promise<Pull[]> {
   const el = listEl();
   el.setAttribute('aria-busy', 'true');
   try {
-    const f = await ghGet<Pull[]>(`${R}/pulls?state=open&per_page=50&sort=updated&direction=desc`);
+    // Same request as the header's open count, so one page load reads the list once.
+    const f = await ghGet<Pull[]>(`${R}/pulls?state=open&per_page=100`);
     staleNotice(f);
     // state=open already excludes merged and closed ones; filter again so a cached list never counts them.
-    const pulls = openPulls(f.data);
+    const pulls = openPulls(f.data).sort((a, b) => b.updated_at.localeCompare(a.updated_at));
     $('rv-count').textContent = String(pulls.length);
     try {
       localStorage.setItem('bridge.reviews.open', JSON.stringify({ n: pulls.length, at: new Date().toISOString() }));
@@ -186,7 +187,7 @@ async function loadList(): Promise<Pull[]> {
         return `<li class="rv-row" data-pr="${p.number}">
           <a class="rv-row-link" href="?pr=${p.number}" data-open-pr="${p.number}">
             <span class="rv-row-main">
-              <span class="rv-row-title">${esc(p.title)}</span>
+              <span class="rv-row-title">${mdTitleHtml(p.title)}</span>
               <span class="rv-row-meta">
                 <span class="mono">#${p.number}</span>
                 ${avatar(p.user, 18)}<span>${esc(p.user.login)}</span>
@@ -197,27 +198,20 @@ async function loadList(): Promise<Pull[]> {
               </span>
             </span>
             <span class="rv-row-pills">
-              ${pullState(p) === 'draft' ? statePill(p) : ''}
               ${tokens ? '<span class="pill is-accent">Tokens</span>' : ''}
               ${tierPill(tier)}
-              <span data-ci-slot="${p.number}">${ciPill('', true)}</span>
+              <span data-status-slot="${p.number}">${statusChip(null)}</span>
             </span>
           </a>
         </li>`;
       })
       .join('');
-    // CI per row, in the background; a rate limit here only leaves the pill neutral.
-    for (const p of pulls) {
-      ciFor(p.head.sha)
-        .then((ci) => {
-          const slot = el.querySelector(`[data-ci-slot="${p.number}"]`);
-          if (slot) slot.innerHTML = ciPill(ci.state);
-        })
-        .catch(() => {
-          const slot = el.querySelector(`[data-ci-slot="${p.number}"]`);
-          if (slot) slot.innerHTML = ciPill('none');
-        });
-    }
+    // Status per row (CI and reviews), in the background, within the request budget (lib/status-budget): every
+    // row with a token, the 3 most recent without. A failed read shows "Status unknown", never "Ready".
+    void loadStatuses(pulls, (p, st, skipped) => {
+      const slot = el.querySelector(`[data-status-slot="${p.number}"]`);
+      if (slot) slot.innerHTML = statusChip(st, { skipped });
+    });
     return pulls;
   } catch (err) {
     el.innerHTML = '';
@@ -232,13 +226,6 @@ async function loadList(): Promise<Pull[]> {
   return [];
 }
 
-async function ciFor(sha: string) {
-  const [runs, statuses] = await Promise.all([
-    ghGet<{ check_runs: CheckRunLike[] }>(`${R}/commits/${sha}/check-runs?per_page=100`),
-    ghGet<{ statuses: StatusLike[] }>(`${R}/commits/${sha}/status`).catch(() => ({ data: { statuses: [] as StatusLike[] }, stale: false })),
-  ]);
-  return summarizeCi(runs.data.check_runs, statuses.data.statuses);
-}
 
 // ---------------------------------------------------------------------------------------------------------------
 // Detail
@@ -464,12 +451,11 @@ function renderDetail(
           }
         </div>
         <div data-no-token>
-          <p class="small">Connect a GitHub token to review from here. Until then, every action opens GitHub.</p>
-          <div class="rv-btns">
-            <button type="button" class="btn btn-primary btn-sm" data-gh-open>Connect GitHub</button>
-            <a class="btn btn-secondary btn-sm" href="${esc(pull.html_url)}/files#submit-review" target="_blank" rel="noopener">Review on GitHub</a>
-            <a class="btn btn-secondary btn-sm" href="${esc(pull.html_url)}#issuecomment-new" target="_blank" rel="noopener">Comment on GitHub</a>
-          </div>
+          <p class="small rv-connect-line">
+            <span>Connect GitHub to approve, comment or merge.</span>
+            <button type="button" class="btn btn-secondary btn-sm" data-gh-open>Connect GitHub</button>
+          </p>
+          <p class="small muted rv-connect-alt">Or <a href="${esc(pull.html_url)}/files#submit-review" target="_blank" rel="noopener">review on GitHub</a>.</p>
         </div>
         <p class="rv-act-status" id="rv-act-status" role="status" aria-live="polite"></p>
       </section>

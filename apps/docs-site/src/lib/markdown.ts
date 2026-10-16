@@ -67,3 +67,44 @@ export function paragraphs(lines: string[]): string[] {
 }
 
 export const stripMd = (s: string) => s.replace(/`([^`]+)`/g, '$1').replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+
+// Titles: changeset summaries, commit subjects and PR titles are written in Markdown, but lists of changes show them
+// as one line. These helpers keep the words and drop the syntax: links become their text, bold and italic markers go,
+// inline code keeps its text (mdTitleText) or renders as <code> (mdTitleHtml, where rich text is allowed).
+
+const LINK = /\[([^\]]*)\]\((?:[^()\s]|\([^()]*\))*\)/g;
+const plainOutsideCode = (s: string) =>
+  s
+    .replace(LINK, '$1')
+    .replace(/\*\*([^*]+)\*\*|__([^_]+)__/g, (_m, a: string | undefined, b: string | undefined) => a ?? b ?? '')
+    .replace(/(^|[\s(])\*([^*\s][^*]*?)\*(?=[\s).,;:!?]|$)/g, '$1$2')
+    .replace(/(^|[\s(])_([^_\s][^_]*?)_(?=[\s).,;:!?]|$)/g, '$1$2');
+
+/** Splits on inline code spans: even indexes are prose, odd indexes are code. Links around code keep their text. */
+function codeSplit(md: string): string[] {
+  const oneLine = md.replace(/\s+/g, ' ').trim();
+  // A link whose text is code, like [`Button`](url): keep the code, drop the link first.
+  const unlinked = oneLine.replace(/\[(`[^`]+`)\]\((?:[^()\s]|\([^()]*\))*\)/g, '$1');
+  return unlinked.split(/`([^`]+)`/);
+}
+
+/** One-line plain text of a Markdown title: no backticks, no ** or _, links reduced to their text. */
+export function mdTitleText(md: string | null | undefined): string {
+  if (!md) return '';
+  return codeSplit(md)
+    .map((part, i) => (i % 2 ? part : plainOutsideCode(part)))
+    .join('')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Escaped HTML of a Markdown title: inline code as <code>, everything else as plain text. Safe for set:html. */
+export function mdTitleHtml(md: string | null | undefined): string {
+  if (!md) return '';
+  const esc = (s: string) => escape(s).replace(/"/g, '&quot;');
+  return codeSplit(md)
+    .map((part, i) => (i % 2 ? `<code>${esc(part)}</code>` : esc(plainOutsideCode(part))))
+    .join('')
+    .replace(/\s+/g, ' ')
+    .trim();
+}

@@ -274,3 +274,389 @@
     align-items: flex-start;
   }
 }
+
+/* Overview, as an app home: KPI strip, "Needs you", recent activity and health, charts last. */
+.ov-kpis {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin-bottom: 1rem;
+  overflow: hidden;
+  border: 1px solid var(--br-border);
+  border-radius: var(--br-radius-control);
+  background-color: var(--br-surface);
+}
+
+.ov-kpi {
+  display: grid;
+  align-content: center;
+  gap: 0.0625rem;
+  min-width: 0;
+  min-height: 4rem;
+  padding: 0.5rem 1rem;
+  color: var(--br-text);
+  text-decoration: none;
+}
+
+.ov-kpi + .ov-kpi {
+  border-left: 1px solid var(--br-border);
+}
+
+@media (hover: hover) {
+  .ov-kpi:hover {
+    background-color: var(--br-surface-2);
+  }
+}
+
+.ov-kpi:focus-visible {
+  outline: 2px solid var(--br-focus);
+  outline-offset: -2px;
+}
+
+.ov-kpi-label {
+  color: var(--br-text-muted);
+  font-size: var(--br-text-xs);
+  font-weight: 500;
+}
+
+.ov-kpi-value {
+  font-size: 1.375rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.ov-kpi-sub {
+  overflow: hidden;
+  color: var(--br-text-muted);
+  font-size: var(--br-text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ov-kpi-sub.is-fail {
+  color: var(--br-fail);
+  font-weight: 600;
+}
+
+.ov-panel {
+  min-width: 0;
+  margin-bottom: 1rem;
+  border: 1px solid var(--br-border);
+  border-radius: var(--br-radius-control);
+  background-color: var(--br-surface);
+}
+
+.ov-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 2.5rem;
+  padding: 0.375rem 1rem;
+  border-bottom: 1px solid var(--br-border);
+}
+
+.ov-panel-link,
+.ov-panel-meta {
+  color: var(--br-text-muted);
+  font-size: var(--br-text-xs);
+  font-weight: 500;
+}
+
+.ov-panel-link:hover {
+  color: var(--br-text);
+}
+
+.ov-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ov-list > li + li {
+  margin: 0;
+  border-top: 1px solid var(--br-border);
+}
+
+.ov-pr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 3rem;
+  padding: 0.375rem 1rem;
+  color: var(--br-text);
+  text-decoration: none;
+}
+
+@media (hover: hover) {
+  .ov-pr:hover {
+    background-color: var(--br-surface-2);
+  }
+}
+
+.ov-pr:focus-visible {
+  outline: 2px solid var(--br-focus);
+  outline-offset: -2px;
+}
+
+.ov-pr-main {
+  display: grid;
+  gap: 0.0625rem;
+  min-width: 0;
+}
+
+.ov-pr-title {
+  overflow: hidden;
+  font-size: var(--br-text-sm);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ov-pr-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.125rem 0.625rem;
+  color: var(--br-text-muted);
+  font-size: var(--br-text-xs);
+}
+
+.ov-pr-meta .mono {
+  font-family: var(--br-font-mono);
+  font-size: 0.6875rem;
+}
+
+.ov-pr-pills {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.375rem;
+}
+
+.ov-pr-pills .pill {
+  height: 1.25rem;
+  font-size: 0.6875rem;
+}
+
+.ov-skel {
+  height: 3rem;
+  background-image: linear-gradient(90deg, var(--br-surface) 0%, var(--br-surface-2) 50%, var(--br-surface) 100%);
+  background-size: 200% 100%;
+}
+
+.ov-empty,
+.ov-more {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.75rem 1rem;
+  color: var(--br-text-muted);
+  font-size: var(--br-text-sm);
+}
+
+.ov-empty.is-fail {
+  background-color: var(--br-fail-soft);
+  color: var(--br-fail);
+}
+
+.ov-drafts {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin: 0;
+  padding: 0.5rem 1rem;
+  border-top: 1px solid var(--br-border);
+  color: var(--br-text-muted);
+  font-size: var(--br-text-xs);
+}
+
+.ov-drafts[hidden] {
+  display: none;
+}
+
+.ov-duo {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0 1rem;
+}
+
+@media (min-width: 1100px) {
+  .ov-duo {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
+.ov-act {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 2.5rem;
+  padding: 0.25rem 1rem;
+  font-size: var(--br-text-sm);
+}
+
+.ov-act .pill {
+  justify-self: start;
+  height: 1.25rem;
+  font-size: 0.6875rem;
+}
+
+.ov-act-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ov-act-ref {
+  max-width: 10rem;
+  overflow: hidden;
+  color: var(--br-text-muted);
+  font-size: 0.6875rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ov-act-date {
+  color: var(--br-text-muted);
+  font-size: var(--br-text-xs);
+  white-space: nowrap;
+}
+
+.ov-issue {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+  padding: 0.5rem 1rem;
+  font-size: var(--br-text-sm);
+}
+
+.ov-issue-icon {
+  display: inline-flex;
+  padding-top: 0.125rem;
+  color: var(--br-info);
+}
+
+.ov-issue.is-fail .ov-issue-icon {
+  color: var(--br-fail);
+}
+
+.ov-issue.is-warn .ov-issue-icon {
+  color: var(--br-warn);
+}
+
+.ov-issue-body {
+  display: grid;
+  gap: 0.0625rem;
+  min-width: 0;
+}
+
+.ov-issue-title {
+  color: var(--br-text);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.ov-issue-title:hover {
+  text-decoration: underline;
+}
+
+.ov-issue-detail {
+  color: var(--br-text-muted);
+  font-size: var(--br-text-xs);
+}
+
+.ov-charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: 0 1rem;
+}
+
+.ov-charts .chart-panel > :not(.ov-panel-head) {
+  margin: 1rem;
+}
+
+@media (max-width: 900px) {
+  .ov-kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .ov-kpi:nth-child(4) {
+    border-left: 0;
+  }
+
+  .ov-kpi:nth-child(n + 4) {
+    border-top: 1px solid var(--br-border);
+  }
+}
+
+@media (max-width: 640px) {
+  .ov-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ov-kpi:nth-child(4) {
+    border-left: 1px solid var(--br-border);
+  }
+
+  .ov-kpi:nth-child(odd) {
+    border-left: 0;
+  }
+
+  .ov-kpi:nth-child(n + 3) {
+    border-top: 1px solid var(--br-border);
+  }
+
+  .ov-pr {
+    flex-wrap: wrap;
+    gap: 0.375rem;
+    padding: 0.5rem 0.875rem;
+  }
+
+  .ov-pr-pills {
+    justify-content: flex-start;
+  }
+
+  .ov-act {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .ov-act-ref {
+    display: none;
+  }
+}
+
+/* Section titles on Studio pages: UI type at 15px, not the display headings of the Library. */
+.st-h2 {
+  margin: 2rem 0 0.75rem;
+  font-family: var(--br-font-ui);
+  font-size: var(--br-text-md);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  line-height: 1.35;
+}
+
+.section-head:has(.st-h2) {
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+}
+
+.section-head .st-h2 {
+  margin: 0;
+}
+
+.section-head:has(.st-h2) p {
+  font-size: var(--br-text-sm);
+}
+
+/* Checks: the gate numbers sit at KPI size. */
+.st-gate-value {
+  font-family: var(--br-font-ui);
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}

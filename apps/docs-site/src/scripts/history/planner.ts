@@ -22,6 +22,7 @@ import { reviewTokenChange } from '../../lib/token-review';
 import { humanAuthored, laterThan, shortDate } from '../../lib/history-view';
 import { renderTokenReview } from '../reviews';
 import { esc, getToken, readRepo } from '../github-session';
+import { mdTitleHtml } from '../../lib/markdown';
 import { loadHistory, type Loaded } from './state';
 
 type Request =
@@ -115,7 +116,7 @@ function paint() {
   const p = plan;
   const intro =
     req.kind === 'revert'
-      ? `<p class="hp-lead">Undo <strong>${req.entry.pr ? `#${req.entry.pr.number} ` : ''}${esc(req.entry.title)}</strong>, merged ${esc(shortDate(req.entry.date))} by ${esc(req.entry.author)}. Bridge computes the opposite token edits against main as it is now, not a blind git revert.</p>`
+      ? `<p class="hp-lead">Undo <strong>${req.entry.pr ? `#${req.entry.pr.number} ` : ''}${mdTitleHtml(req.entry.title)}</strong>, merged ${esc(shortDate(req.entry.date))} by ${esc(req.entry.author)}. Bridge computes the opposite token edits against main as it is now, not a blind git revert.</p>`
       : `<p class="hp-lead">Put <span class="mono">${esc(req.path)}</span> in ${esc(modeLabel(req.item.modes))} back to ${valueChip(req.item.after, req.item.afterCss)}, the value it had after ${req.item.pr ? `#${req.item.pr.number} ` : ''}<strong>${esc(req.item.title)}</strong> (${esc(shortDate(req.item.date))}).</p>`;
   const conflicts = p.conflicts.length
     ? `<section class="hp-sec"><h3 class="rv-sub">Conflicts <span class="tx-d-n">${p.conflicts.length}</span></h3>
@@ -174,7 +175,7 @@ function syncFoot() {
     status.textContent = req?.demo
       ? 'Demo plans cannot be proposed: the change they undo never happened in this repository. Downloads are labelled demo.'
       : !token
-        ? 'Read only: connect GitHub to open this as a pull request, or download the patch and the PR text.'
+        ? 'Connect GitHub to open this as a pull request, or download the patch and the PR text.'
         : base && !base.live
           ? 'Could not read main from GitHub; this plan uses the files the site was built from. Bridge re-reads main when you propose.'
           : '';

@@ -4,6 +4,7 @@ import '../../../styles/reviews.css';
 import '../../../styles/process.css';
 import '../../../styles/history.css';
 import Layout from '../../../layouts/Layout.astro';
+import StudioHeader from '../../../components/StudioHeader.astro';
 import HistoryPlanner from '../../../components/HistoryPlanner.astro';
 import Icon from '../../../components/Icon.astro';
 import { historyData } from '../../../lib/history';
@@ -32,16 +33,9 @@ const countBy = (entries: { kind: string }[], kind: string) => entries.filter((e
   wide
 >
   <div class="rv hs">
-    <header class="rv-page-head">
-      <div>
-        <h1>Versions</h1>
-        <p class="lead">
-          Releases of <code>{r.owner}/{r.repo}</code> and every merged change to its tokens. Open a change to see its values and contrast before and
-          after, or undo it: Bridge plans the opposite edits against main as it is now and opens them as a pull request. Release notes for readers live
-          in the <a href="/changelog/">Library changelog</a>.
-        </p>
-      </div>
-    </header>
+    <StudioHeader title="Versions" subtitle="Releases and every merged token change, with a safe undo as a pull request.">
+      <a slot="actions" class="btn btn-secondary btn-sm" href="/changelog/">Library changelog</a>
+    </StudioHeader>
 
     <section class="vs-releases" aria-labelledby="vs-rel-h">
       <h2 id="vs-rel-h" class="rv-sub">Releases</h2>

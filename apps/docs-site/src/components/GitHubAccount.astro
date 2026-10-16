@@ -1,0 +1,40 @@
+---
+// GitHub status for the whole Studio, in the global header and nowhere else: "Connect GitHub" until a token is
+// checked, then the connected login and avatar with a menu (repository, permissions, change token, disconnect).
+// Painted by scripts/github-session.ts (every [data-gh-connect] block gets data-state readonly|checking|connected).
+import Icon from './Icon.astro';
+import { siteRepo } from '../lib/config';
+
+const r = siteRepo();
+---
+
+<div class="gh-acct" data-gh-connect data-gh-acct data-state="checking">
+  <button type="button" class="hd-btn gh-acct-connect" data-gh-open aria-label="Connect GitHub">
+    <Icon name="github" size={16} />
+    <span class="hd-label">Connect GitHub</span>
+  </button>
+  <details class="menu gh-acct-menu" data-menu>
+    <summary class="hd-btn" aria-label="GitHub account">
+      <img class="gh-acct-avatar" data-gh-avatar alt="" width="20" height="20" hidden />
+      <span class="gh-acct-login" data-gh-login></span>
+      <span class="scope-pick-chev" aria-hidden="true"><Icon name="chevron" size={12} /></span>
+    </summary>
+    <div class="menu-panel" role="group" aria-label="GitHub account">
+      <p class="menu-title">GitHub</p>
+      <dl class="gh-facts">
+        <dt>Signed in</dt>
+        <dd data-gh-login-full></dd>
+        <dt>Repository</dt>
+        <dd><a href={`https://github.com/${r.owner}/${r.repo}`} class="mono">{r.owner}/{r.repo}</a></dd>
+        <dt>Access</dt>
+        <dd><span class="gh-perm" data-gh-perm>Checking</span></dd>
+      </dl>
+      <p class="menu-help" data-gh-perm-help hidden>This token can read but not write. Reviews and token proposals need Contents and Pull requests write access.</p>
+      <div class="menu-actions">
+        <button type="button" class="menu-action" data-gh-open><Icon name="edit" size={16} />Change token</button>
+        <a class="menu-action" href="/studio/settings/integrations/" data-keep-branch><Icon name="settings" size={16} />Integrations</a>
+        <button type="button" class="menu-action is-danger" data-gh-forget><Icon name="close" size={16} />Disconnect</button>
+      </div>
+    </div>
+  </details>
+</div>

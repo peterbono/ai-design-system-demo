@@ -5,6 +5,7 @@ import Layout from '../layouts/Layout.astro';
 import HeroBridge from '../components/HeroBridge.astro';
 import Icon from '../components/Icon.astro';
 import { releases, versionInfo } from '../lib/changelog';
+import { mdTitleHtml } from '../lib/markdown';
 import { FOUNDATIONS, LIBRARY_USE, componentFamilies } from '../lib/nav';
 import { GITHUB_URL, PLUGIN_URL } from '../lib/repo';
 import { PAGE_SOURCES, freshness } from '../lib/sources';
@@ -70,7 +71,7 @@ const starts: { icon: IconName; title: string; text: string; href: string; cta: 
               <li class="news-item">
                 <span class={`pill ${kindTone[e.kind] ?? ''}`}>{e.kind}</span>
                 <div>
-                  <p class="news-title">{e.title}</p>
+                  <p class="news-title" set:html={mdTitleHtml(e.title)} />
                   <p class="news-meta">
                     {e.date ? humanDate(e.date) : 'Not released yet'}
                     {e.pending && <span class="news-pending">Next release</span>}

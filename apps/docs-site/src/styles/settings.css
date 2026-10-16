@@ -89,3 +89,17 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Studio density: section and card titles in UI type. */
+.set-section {
+  margin-top: 1.75rem;
+}
+
+.set-section h2,
+.set-card h2 {
+  font-family: var(--br-font-ui);
+  font-size: var(--br-text-md);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  line-height: 1.35;
+}

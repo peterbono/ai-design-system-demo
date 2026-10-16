@@ -4,6 +4,7 @@
 import { branchChecks, branchEntry, orphanBranches, pullEntry, type BranchEntry, type BranchesConfig, type PullLike } from '../lib/branches';
 import { openPulls, type CheckRunLike, type CiState } from '../lib/review-rules';
 import { esc, ghGet, initGitHubConnect, RateLimitError, relativeTime, type Fetched } from './github-session';
+import { mdTitleHtml } from '../lib/markdown';
 
 /** Check runs are one request per row: cap them so an anonymous visitor keeps most of the hourly budget. */
 const MAX_CHECKED = 12;
@@ -70,7 +71,7 @@ function row(e: BranchEntry, cfg: BranchesConfig): string {
   return `<li class="br-row">
     <div class="br-row-head">
       <div class="rv-row-main">
-        <span class="rv-row-title">${e.pr ? `<a href="${esc(e.url)}">${esc(e.title)}</a>` : esc(e.title)}</span>
+        <span class="rv-row-title">${e.pr ? `<a href="${esc(e.url)}">${mdTitleHtml(e.title)}</a>` : mdTitleHtml(e.title)}</span>
         <span class="rv-row-meta">${meta.join('<span class="rv-sep" aria-hidden="true"></span>')}</span>
       </div>
       <span class="rv-row-pills">

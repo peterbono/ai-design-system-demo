@@ -1911,3 +1911,417 @@
   border: 2px solid transparent;
   border-radius: 4px;
 }
+
+/* ---------------------------------------------------------------------------------------------------------------
+   Studio surface (data-surface="app", Studio Tokens): the explorer is the page. Full bleed under the header, one
+   compact page header, one toolbar row, compact rows, quieter cells. The Library (data-surface="page") is untouched. */
+
+.xp[data-surface="app"] {
+  --xp-left: 13rem;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: calc(100dvh - var(--br-topbar-height));
+  min-height: 30rem;
+  margin: -1.25rem -1.75rem 0;
+  border: 0;
+  border-radius: 0;
+}
+
+/* Room for the draft bar when it shows. */
+body:has(#ed-tray:not([hidden]):not([data-sheet="true"])) .xp[data-surface="app"] {
+  height: calc(100dvh - var(--br-topbar-height) - 3.25rem);
+}
+
+.xp[data-surface="app"][data-rows="compact"] {
+  --xp-row: 40px;
+}
+
+.xp[data-surface="app"][data-rows="comfortable"] {
+  --xp-row: 48px;
+}
+
+.xp[data-surface="app"] > .xp-left,
+.xp[data-surface="app"] > .xp-main,
+.xp[data-surface="app"] > .xp-detail {
+  grid-row: 2;
+}
+
+.xp-apphead {
+  grid-column: 1 / -1;
+  min-height: 3rem;
+  margin: 0;
+  padding: 0.5rem 1rem 0.5rem 1.25rem;
+  border-bottom: 1px solid var(--br-border);
+  background-color: var(--br-bg);
+}
+
+.xp-apphead .st-sub {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.xp-crumb {
+  overflow: hidden;
+  color: var(--br-text);
+  font-weight: 500;
+  text-overflow: ellipsis;
+}
+
+.xp-apphead .xp-count {
+  font-size: var(--br-text-sm);
+}
+
+/* Left: slim collections tree */
+.xp[data-surface="app"] .xp-left {
+  gap: 0.5rem;
+  padding: 0.5rem;
+}
+
+.xp[data-surface="app"] .xp-lens button {
+  min-height: 1.75rem;
+  font-size: var(--br-text-xs);
+}
+
+.xp[data-surface="app"] .xp-tree-btn {
+  min-height: 1.75rem;
+  padding: 0.125rem 0.5rem;
+}
+
+.xp[data-surface="app"] .depth-1 > .xp-tree-btn,
+.xp[data-surface="app"] .depth-2 > .xp-tree-btn {
+  min-height: 1.625rem;
+  font-family: var(--br-font-ui);
+  font-size: var(--br-text-sm);
+}
+
+.xp[data-surface="app"] .depth-1 > .xp-tree-btn {
+  padding-left: 1.375rem;
+}
+
+.xp[data-surface="app"] .xp-tree-twist {
+  top: 0.1875rem;
+}
+
+/* Toolbar: one row */
+.xp[data-surface="app"] .xp-main {
+  container-type: inline-size;
+}
+
+.xp[data-surface="app"] .xp-toolbar {
+  padding: 0.5rem 0.75rem;
+}
+
+.xp[data-surface="app"] .xp-tools {
+  flex-wrap: nowrap;
+  gap: 0.375rem;
+}
+
+.xp[data-surface="app"] .xp-search {
+  flex: 1 1 auto;
+  min-width: 8rem;
+  height: 2rem;
+}
+
+.xp[data-surface="app"] .xp-tools .btn {
+  flex: none;
+  gap: 0.375rem;
+  min-height: 2rem;
+  padding: 0 0.625rem;
+  font-size: var(--br-text-sm);
+}
+
+.xp[data-surface="app"] .xp-new {
+  margin-left: 0.25rem;
+}
+
+.xp-menu {
+  position: relative;
+  flex: none;
+}
+
+.xp-menu[hidden] {
+  display: none;
+}
+
+.xp-menu > summary {
+  list-style: none;
+}
+
+.xp-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.xp-menu > summary [data-xp-modes-label] {
+  max-width: 11rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.xp-menu-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  display: grid;
+  gap: 0.875rem;
+  width: max-content;
+  min-width: 15rem;
+  max-width: 20rem;
+  padding: 0.75rem;
+  border: 1px solid var(--br-border);
+  border-radius: var(--br-radius-card);
+  background-color: var(--br-surface);
+  box-shadow: var(--br-shadow-3);
+}
+
+.xp-menu-panel .xp-modebar {
+  display: grid;
+  gap: 0.875rem;
+}
+
+.xp-menu-field {
+  display: grid;
+  gap: 0.375rem;
+  font-size: var(--br-text-sm);
+}
+
+.xp-menu-field > span:first-child {
+  color: var(--br-text-muted);
+  font-size: var(--br-text-xs);
+  font-weight: 600;
+}
+
+.xp-menu-field select {
+  height: 2rem;
+  padding: 0 0.5rem;
+  border: 1px solid var(--br-border-strong);
+  border-radius: var(--br-radius-sm);
+  background-color: var(--br-surface);
+  color: var(--br-text);
+  font: inherit;
+  font-size: var(--br-text-sm);
+}
+
+.xp-menu-field .xp-seg {
+  display: grid;
+  grid-auto-columns: 1fr;
+  grid-auto-flow: column;
+}
+
+.xp-menu-panel .xp-switch {
+  justify-content: flex-start;
+  padding: 0;
+}
+
+.xp-menu-keys {
+  margin: 0;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--br-border);
+  line-height: 2;
+}
+
+.xp-menu-keys .kbd {
+  margin-left: 0.25rem;
+}
+
+.xp-menu-keys .kbd + .kbd {
+  margin-left: 0;
+}
+
+/* Grid: compact, sticky header, quieter cells. Monospace only for token names and the code column. */
+.xp[data-surface="app"] .xp-th {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: flex-start;
+  gap: 0 0.375rem;
+  min-height: 2rem;
+  padding: 0.25rem 0.625rem;
+}
+
+.xp[data-surface="app"] .xp-th.is-mode .xp-th-label {
+  font-size: var(--br-text-xs);
+}
+
+.xp[data-surface="app"] .xp-th-sub {
+  color: var(--br-text-faint);
+}
+
+.xp[data-surface="app"] .xp-tr.is-section {
+  min-height: 2rem;
+}
+
+.xp[data-surface="app"] .xp-sec {
+  min-height: 1.5rem;
+  color: var(--br-text-muted);
+  font-family: var(--br-font-ui);
+  font-size: var(--br-text-xs);
+}
+
+.xp[data-surface="app"] .xp-td {
+  gap: 0.375rem;
+  padding: 0 0.625rem;
+}
+
+.xp[data-surface="app"] .xp-name-main {
+  font-size: 0.78125rem;
+}
+
+.xp[data-surface="app"] .xp-cv {
+  gap: 0.5rem;
+}
+
+.xp[data-surface="app"] .xp-grid .xp-stage {
+  width: 1.75rem;
+  height: 1.375rem;
+  border-radius: 5px;
+}
+
+.xp[data-surface="app"] .xp-grid .xp-stage:has(> .xp-sw),
+.xp[data-surface="app"] .xp-grid .xp-stage.is-aa {
+  width: 20px;
+  height: 20px;
+}
+
+.xp[data-surface="app"] .xp-grid .xp-stage > .xp-sw {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.xp[data-surface="app"] .xp-grid .xp-stage.is-aa {
+  font-size: 0.625rem;
+}
+
+.xp[data-surface="app"] .xp-grid .xp-stage.is-type {
+  font-size: 0.75rem;
+}
+
+.xp[data-surface="app"] .xp-grid .xp-line:not(.is-error) {
+  display: none;
+}
+
+.xp[data-surface="app"] .xp-grid .xp-chip {
+  min-height: 1.25rem;
+  margin-left: -0.25rem;
+  padding: 0 0.25rem;
+  border-color: transparent;
+  background-color: transparent;
+  color: var(--br-text-muted);
+  font-family: var(--br-font-ui);
+  font-size: var(--br-text-xs);
+}
+
+.xp[data-surface="app"] .xp-grid .xp-chip:hover {
+  border-color: transparent;
+  background-color: var(--br-bg-sunken);
+  color: var(--br-text);
+}
+
+.xp[data-surface="app"] .xp-grid .xp-literal.mono {
+  font-family: var(--br-font-ui);
+  font-variant-numeric: tabular-nums;
+}
+
+.xp[data-surface="app"] .xp-code {
+  font-size: 0.71875rem;
+}
+
+.xp[data-surface="app"] .xp-td.is-desc {
+  display: -webkit-box;
+  padding-top: 0.375rem;
+  overflow: hidden;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.xp[data-surface="app"] .xp-grid .xp-copy {
+  width: 1.375rem;
+  height: 1.375rem;
+}
+
+.xp[data-surface="app"] .xp-tr[aria-selected="true"] .xp-td.is-name::before {
+  top: 0.375rem;
+  bottom: 0.375rem;
+}
+
+.xp[data-surface="app"] .xp-empty {
+  padding-top: 3rem;
+}
+
+/* Not enough room for one row (detail panel open on a laptop): labels give way before the row wraps. */
+@media (min-width: 861px) {
+  @container (max-width: 720px) {
+    .xp-tools .xp-menu > summary > span:not(.icon),
+    .xp-tools .xp-new > span:not(.icon),
+    .xp-tools .xp-slash {
+      display: none;
+    }
+  }
+}
+
+@media (max-width: 860px) {
+  .xp[data-surface="app"],
+  .xp[data-surface="app"].has-detail {
+    grid-template-rows: auto auto minmax(0, 1fr);
+  }
+
+  .xp[data-surface="app"] > .xp-left {
+    grid-row: 2;
+  }
+
+  .xp[data-surface="app"] > .xp-main {
+    grid-row: 3;
+  }
+
+  .xp[data-surface="app"] .xp-tools {
+    flex-wrap: wrap;
+  }
+
+  .xp[data-surface="app"] .xp-search {
+    flex-basis: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .xp[data-surface="app"] {
+    height: auto;
+    margin: -1rem -1rem 0;
+  }
+
+  body:has(#ed-tray:not([hidden]):not([data-sheet="true"])) .xp[data-surface="app"] {
+    height: auto;
+    padding-bottom: 4rem;
+  }
+
+  .xp-apphead {
+    padding: 0.5rem 1rem;
+  }
+
+  .xp-tools .xp-new > span:not(.icon) {
+    display: none;
+  }
+
+  .xp[data-surface="app"] .xp-td.is-name {
+    padding-top: 0.5rem;
+  }
+
+  .xp[data-surface="app"] .xp-td.is-mode {
+    padding-top: 0.25rem;
+    padding-bottom: 0.5rem;
+  }
+
+  .xp-menu-panel {
+    position: fixed;
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: auto;
+    max-width: none;
+    border-radius: var(--br-radius-card) var(--br-radius-card) 0 0;
+  }
+}

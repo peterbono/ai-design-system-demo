@@ -1,0 +1,27 @@
+---
+// Compact page header for every Studio and Settings page: a 20px title, an optional count, an optional one-line
+// muted subtitle, and actions on the right. No hero, no lede: content starts right under it.
+//   title     the page name (the h1)
+//   subtitle  one short line, only when the title alone does not say what the page holds
+//   countId   id of a live count next to the title, filled by the page script (open pull requests, branches)
+// Slots: "actions" (buttons on the right), default (extra inline meta after the subtitle).
+interface Props {
+  title: string;
+  subtitle?: string;
+  countId?: string;
+  countLabel?: string;
+}
+const { title, subtitle, countId, countLabel } = Astro.props;
+---
+
+<header class="st-head">
+  <div class="st-head-main">
+    <h1 class="st-title">
+      {title}
+      {countId && <span class="st-count num" id={countId} aria-label={countLabel}></span>}
+    </h1>
+    {subtitle && <p class="st-sub">{subtitle}</p>}
+    <slot />
+  </div>
+  {Astro.slots.has('actions') && <div class="st-head-actions"><slot name="actions" /></div>}
+</header>

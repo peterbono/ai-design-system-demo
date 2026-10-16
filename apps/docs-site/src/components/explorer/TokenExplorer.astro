@@ -10,9 +10,9 @@ import '../../styles/reviews.css';
 import '../../styles/history.css';
 import '../../styles/token-explorer.css';
 import Icon from '../Icon.astro';
-import GitHubConnect from '../GitHubConnect.astro';
 import TokenEditorKit from './TokenEditorKit.astro';
 import ExplorerData from './ExplorerData.astro';
+import XpKeys from './XpKeys.astro';
 import { CATEGORY_LABEL, CATEGORY_ORDER, SYNTAX_LABEL } from '../../lib/explorer/format';
 import { TIER_NAMES, TIER_ORDER } from '@bridge-ds/core';
 
@@ -21,9 +21,25 @@ interface Props {
   focus?: string;
 }
 const { mode, focus } = Astro.props;
+// Studio (mode "edit") renders the explorer as the page itself: full bleed, one compact header, one toolbar row,
+// compact rows. The Library (mode "read") keeps its card, heading and inline controls.
+const app = mode === 'edit';
 ---
 
-<div class="xp" data-xp data-mode={mode} data-focus={focus ?? ''}>
+<div class="xp" data-xp data-mode={mode} data-surface={app ? 'app' : 'page'} data-rows={app ? 'compact' : undefined} data-focus={focus ?? ''}>
+  {
+    app && (
+      <header class="xp-apphead st-head">
+        <div class="st-head-main">
+          <h1 class="st-title">Tokens</h1>
+          <p class="st-sub">
+            <span class="xp-crumb" id="xp-title" data-xp-title>Tokens</span>
+            <span class="xp-count num" data-xp-count aria-live="polite"></span>
+          </p>
+        </div>
+      </header>
+    )
+  }
   <aside class="xp-left" aria-label="Browse tokens">
     <div class="xp-lens" role="radiogroup" aria-label="Browse by" data-xp-lens>
       <button type="button" role="radio" aria-checked="true" data-lens="collections">Collections <span class="xp-lens-n" data-lens-n></span></button>
@@ -34,18 +50,14 @@ const { mode, focus } = Astro.props;
 
   <section class="xp-main" aria-labelledby="xp-title" data-xp-main>
     <div class="xp-toolbar">
-      <div class="xp-heading">
-        <h2 class="xp-title" id="xp-title" data-xp-title>Tokens</h2>
-        <span class="xp-count num" data-xp-count aria-live="polite"></span>
-        {
-          mode === 'edit' && (
-            <div class="xp-edit-tools">
-              <GitHubConnect />
-              <button type="button" class="btn btn-secondary btn-sm" id="ed-add"><Icon name="plus" size={16} />New semantic token</button>
-            </div>
-          )
-        }
-      </div>
+      {
+        !app && (
+          <div class="xp-heading">
+            <h2 class="xp-title" id="xp-title" data-xp-title>Tokens</h2>
+            <span class="xp-count num" data-xp-count aria-live="polite"></span>
+          </div>
+        )
+      }
       <div class="xp-tools">
         <div class="xp-search" role="search">
           <Icon name="search" size={16} />
@@ -74,15 +86,56 @@ const { mode, focus } = Astro.props;
             <button type="button" class="btn btn-secondary btn-sm" data-xp-clear-filters>Clear filters</button>
           </div>
         </details>
-        <div class="xp-modebar" data-xp-modebar hidden></div>
-        <div class="xp-view">
-          <label class="xp-select"><span class="sr-only">Code syntax</span>
-            <select data-xp-syntax>
-              {Object.entries(SYNTAX_LABEL).map(([k, v]) => <option value={k}>{v}</option>)}
-            </select>
-          </label>
-          <button type="button" class="btn btn-secondary btn-sm xp-toggle" aria-pressed="false" data-xp-desc>Description</button>
-        </div>
+        {
+          app ? (
+            <>
+              <details class="xp-menu" data-xp-modes-menu hidden>
+                <summary class="btn btn-secondary btn-sm" title="Brand, density and combinations shown in the value columns">
+                  <Icon name="layers" size={16} /><span data-xp-modes-label>Modes</span>
+                </summary>
+                <div class="xp-menu-panel">
+                  <div class="xp-modebar" data-xp-modebar></div>
+                </div>
+              </details>
+              <details class="xp-menu" data-xp-view-menu>
+                <summary class="btn btn-secondary btn-sm" aria-label="View options"><Icon name="eye" size={16} /><span>View</span></summary>
+                <div class="xp-menu-panel xp-view-panel">
+                  <label class="xp-menu-field">
+                    <span>Code column</span>
+                    <select data-xp-syntax>
+                      {Object.entries(SYNTAX_LABEL).map(([k, v]) => <option value={k}>{v}</option>)}
+                    </select>
+                  </label>
+                  <button type="button" class="xp-switch" role="switch" aria-checked="false" data-xp-desc>
+                    <span class="xp-switch-track" aria-hidden="true"><span class="xp-switch-thumb"></span></span>
+                    <span>Description column</span>
+                  </button>
+                  <div class="xp-menu-field">
+                    <span id="xp-rows-label">Rows</span>
+                    <div class="xp-seg" role="radiogroup" aria-labelledby="xp-rows-label" data-xp-rows>
+                      <button type="button" role="radio" aria-checked="true" data-rows="compact">Compact</button>
+                      <button type="button" role="radio" aria-checked="false" tabindex="-1" data-rows="comfortable">Comfortable</button>
+                    </div>
+                  </div>
+                  <p class="xp-menu-keys small muted" aria-hidden="true"><XpKeys /></p>
+                </div>
+              </details>
+              <button type="button" class="btn btn-primary btn-sm xp-new has-tip" id="ed-add" data-tip="Adds a draft in this browser. No GitHub needed." aria-label="New token"><Icon name="plus" size={16} /><span>New token</span></button>
+            </>
+          ) : (
+            <>
+              <div class="xp-modebar" data-xp-modebar hidden></div>
+              <div class="xp-view">
+                <label class="xp-select"><span class="sr-only">Code syntax</span>
+                  <select data-xp-syntax>
+                    {Object.entries(SYNTAX_LABEL).map(([k, v]) => <option value={k}>{v}</option>)}
+                  </select>
+                </label>
+                <button type="button" class="btn btn-secondary btn-sm xp-toggle" aria-pressed="false" data-xp-desc>Description</button>
+              </div>
+            </>
+          )
+        }
       </div>
     </div>
 
@@ -94,7 +147,7 @@ const { mode, focus } = Astro.props;
         <button type="button" class="btn btn-secondary btn-sm" data-xp-clear>Clear search and filters</button>
       </div>
     </div>
-    <p class="xp-keys small muted" aria-hidden="true"><kbd class="kbd">F</kbd> search tokens <kbd class="kbd">/</kbd> search the site <kbd class="kbd">↑</kbd><kbd class="kbd">↓</kbd><kbd class="kbd">←</kbd><kbd class="kbd">→</kbd> move <kbd class="kbd">Enter</kbd> open <span class="xp-edit-only">or edit</span> <kbd class="kbd">C</kbd> copy <kbd class="kbd">Esc</kbd> close</p>
+    {!app && <p class="xp-keys small muted" aria-hidden="true"><XpKeys /></p>}
   </section>
 
   <div class="xp-scrim" data-xp-scrim hidden></div>
