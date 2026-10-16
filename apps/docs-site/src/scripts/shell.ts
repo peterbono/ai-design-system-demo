@@ -1,5 +1,7 @@
 // App shell behaviour, shipped on every page (small, no framework):
-// theme toggle, copy buttons, the mobile navigation sheet and the Cmd+K command palette.
+// theme toggle, copy buttons, the mobile navigation sheet, the Cmd+K command palette, header menus, the "On this
+// page" rail and, in the Studio, the branch scope, the nav counts and the GitHub connection.
+import { ghGet, initGitHubConnect, readRepo } from './github-session';
 
 interface SearchItem {
   kind: 'page' | 'component' | 'token';
@@ -346,8 +348,166 @@ function initPalette() {
   dialog.addEventListener('close', () => trigger.focus());
 }
 
+/** Header menus (<details data-menu>): close on outside click and on Escape, one open at a time. */
+function initMenus() {
+  const menus = [...document.querySelectorAll<HTMLDetailsElement>('details[data-menu]')];
+  if (!menus.length) return;
+  document.addEventListener('click', (e) => {
+    for (const m of menus) if (m.open && !m.contains(e.target as Node)) m.open = false;
+  });
+  for (const m of menus) {
+    m.addEventListener('toggle', () => {
+      if (m.open) for (const o of menus) if (o !== m) o.open = false;
+    });
+    m.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && m.open) {
+        m.open = false;
+        m.querySelector('summary')?.focus();
+      }
+    });
+  }
+}
+
+/** Right rail of reading pages: one link per h2, the current section marked while scrolling. */
+function initToc() {
+  const aside = document.querySelector<HTMLElement>('[data-auto-toc]');
+  const list = aside?.querySelector('ul');
+  if (!aside || !list) return;
+  const heads = [...document.querySelectorAll<HTMLElement>('.page-body h2')].filter((h) => !h.closest('[hidden], dialog, .sr-only') && !h.classList.contains('sr-only'));
+  if (heads.length < 2) return;
+  const slug = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  for (const h of heads) {
+    if (!h.id) h.id = slug(h.textContent ?? '') || `section-${heads.indexOf(h)}`;
+    const li = document.createElement('li');
+    const a = document.createElement('a');
+    a.href = `#${h.id}`;
+    a.textContent = (h.textContent ?? '').trim();
+    li.appendChild(a);
+    list.appendChild(li);
+  }
+  aside.hidden = false;
+  const links = [...list.querySelectorAll('a')];
+  if (!('IntersectionObserver' in window)) return;
+  const io = new IntersectionObserver(
+    (entries) => {
+      for (const e of entries) {
+        if (!e.isIntersecting) continue;
+        links.forEach((a) => (a.hash === `#${e.target.id}` ? a.setAttribute('aria-current', 'true') : a.removeAttribute('aria-current')));
+      }
+    },
+    { rootMargin: '-10% 0px -75% 0px' },
+  );
+  heads.forEach((h) => io.observe(h));
+}
+
+const DRAFT_KEY = 'bridge.draft.v1';
+
+/** Draft edits kept in this browser by the token editor. */
+export function draftCount(): number {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    return raw ? ((JSON.parse(raw) as { edits?: unknown[] }).edits?.length ?? 0) : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function setCount(kind: 'drafts' | 'reviews', n: number | null) {
+  document.querySelectorAll<HTMLElement>(`[data-nav-count="${kind}"]`).forEach((el) => {
+    el.hidden = !n;
+    const v = el.querySelector('[data-nav-count-value]');
+    if (v) v.textContent = n ? String(n) : '';
+  });
+}
+
+/** The branch this Studio view reads, from ?branch=. Empty: the default branch. */
+export function currentBranch(): string {
+  return new URLSearchParams(location.search).get('branch') ?? '';
+}
+
+function withBranch(href: string, branch: string): string {
+  const url = new URL(href, location.href);
+  if (url.origin !== location.origin) return href;
+  if (branch) url.searchParams.set('branch', branch);
+  else url.searchParams.delete('branch');
+  return url.pathname + url.search + url.hash;
+}
+
+interface Pull {
+  number: number;
+  title: string;
+  draft?: boolean;
+  head: { ref: string };
+}
+
+function initStudio() {
+  if (document.documentElement.dataset.space === 'library') return;
+  initGitHubConnect();
+  const branch = currentBranch();
+  const repo = readRepo();
+
+  // Keep the chosen branch while moving around the Studio.
+  if (branch) document.querySelectorAll<HTMLAnchorElement>('a[data-keep-branch]').forEach((a) => (a.href = withBranch(a.getAttribute('href') ?? '', branch)));
+
+  const label = document.querySelector<HTMLElement>('[data-branch-label]');
+  if (label && branch) {
+    label.textContent = branch;
+    label.closest('summary')?.setAttribute('aria-label', `Branch: ${branch}. Change branch`);
+  }
+
+  setCount('drafts', draftCount());
+  document.addEventListener('bridge:draft', () => setCount('drafts', draftCount()));
+  window.addEventListener('storage', (e) => {
+    if (e.key === DRAFT_KEY) setCount('drafts', draftCount());
+  });
+
+  const list = document.querySelector<HTMLUListElement>('[data-branch-list]');
+  const first = list?.querySelector<HTMLAnchorElement>('[data-branch=""]');
+  if (first) {
+    first.href = withBranch(location.pathname + location.search, '');
+    if (!branch) first.setAttribute('aria-current', 'true');
+  }
+  ghGet<Pull[]>(`/repos/${repo.owner}/${repo.repo}/pulls?state=open&per_page=100`)
+    .then((f) => {
+      setCount('reviews', f.data.length);
+      if (!list) return;
+      const seen = new Set<string>();
+      for (const p of f.data) {
+        if (seen.has(p.head.ref) || p.head.ref === repo.defaultBranch) continue;
+        seen.add(p.head.ref);
+        const li = document.createElement('li');
+        const a = document.createElement('a');
+        a.className = 'menu-item';
+        a.href = withBranch(location.pathname + location.search, p.head.ref);
+        a.dataset.branch = p.head.ref;
+        if (p.head.ref === branch) a.setAttribute('aria-current', 'true');
+        const name = document.createElement('span');
+        name.className = 'mono';
+        name.textContent = p.head.ref;
+        const note = document.createElement('span');
+        note.className = 'menu-note';
+        note.textContent = `#${p.number} ${p.title}`;
+        a.append(name, note);
+        li.appendChild(a);
+        list.appendChild(li);
+      }
+      if (branch && !seen.has(branch)) {
+        const note = document.querySelector('[data-branch-note]');
+        if (note) note.textContent = `${branch} has no open pull request. Pick another branch or go back to main.`;
+      }
+    })
+    .catch(() => {
+      const note = document.querySelector('[data-branch-note]');
+      if (note) note.textContent = 'GitHub could not be reached, so only main is listed. Connect GitHub or try again in a minute.';
+    })
+    .finally(() => list?.removeAttribute('aria-busy'));
+}
+
 export function initShell() {
   initTheme();
+  initMenus();
+  initToc();
+  initStudio();
   initScope();
   initCopy();
   initRail();

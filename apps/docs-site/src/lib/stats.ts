@@ -117,7 +117,7 @@ function compute() {
           severity: 'fail' as const,
           title: `${p.fg} on ${p.bg}`,
           detail: `${bad.map(({ b, m }) => `${p.brands[b][m].ratio.toFixed(2)}:1 in ${b} ${m}`).join(', ')}. Needs ${p.min}:1 (${p.usage === 'text' ? 'text' : 'UI'}).`,
-          href: '/foundations/contrast/',
+          href: '/studio/checks/',
         };
       }),
     ...unknownRefs.map((u) => ({
