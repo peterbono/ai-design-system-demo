@@ -1,0 +1,84 @@
+.listStack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.amount {
+  font-weight: var(--font-weight-semibold);
+}
+
+.basket {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.product {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  border-radius: var(--radius-inset);
+  color: inherit;
+  text-decoration: none;
+}
+
+.product:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+@media (hover: hover) {
+  .product:hover .productName {
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+  }
+}
+
+.productText {
+  display: flex;
+  flex-direction: column;
+  font-size: var(--font-size-100);
+}
+
+.productName {
+  color: var(--color-text-default);
+  font-size: var(--font-size-200);
+  font-weight: var(--font-weight-medium);
+}
+
+.totals {
+  align-self: flex-end;
+  width: 100%;
+  max-width: var(--size-80);
+}
+
+.grandTotal {
+  display: flex;
+  justify-content: space-between;
+  color: var(--color-text-default);
+  font-size: var(--font-size-300);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.switchCell {
+  display: flex;
+  align-items: center;
+}
+
+.asideStack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.address {
+  color: var(--color-text-default);
+  font-style: normal;
+  line-height: var(--font-line-height-relaxed);
+}

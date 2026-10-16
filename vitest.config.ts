@@ -4,6 +4,7 @@ import { defineConfig } from 'vitest/config';
 //   react  keyboard and ARIA behavior of the React components (jsdom + Testing Library + axe-core)
 //   core   @bridge/core, pure token logic (node)
 //   docs   docs-site data layer: token review, review rules, token editor model (node)
+//   admin  back-office demo data layer: browser persistence of the demo dataset (node)
 export default defineConfig({
   esbuild: { jsx: 'automatic' },
   test: {
@@ -35,6 +36,14 @@ export default defineConfig({
           name: 'docs',
           environment: 'node',
           include: ['apps/docs-site/src/**/*.test.ts'],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: 'admin',
+          environment: 'node',
+          include: ['apps/admin/src/**/*.test.ts'],
         },
       },
     ],

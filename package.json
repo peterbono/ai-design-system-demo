@@ -14,7 +14,8 @@
     "packages/core",
     "packages/react",
     "apps/docs-site",
-    "apps/figma-plugin"
+    "apps/figma-plugin",
+    "apps/admin"
   ],
   "scripts": {
     "tokens:build": "npm run build -w @demo-ds/tokens",
@@ -30,6 +31,10 @@
     "docs:dev": "npm run tokens:build && npm run dev -w @demo-ds/docs-site",
     "docs:build": "npm run tokens:build && npm run build -w @demo-ds/docs-site",
     "docs:preview": "npm run preview -w @demo-ds/docs-site",
+    "admin:dev": "npm run tokens:build && npm run dev -w @demo-ds/admin",
+    "admin:build": "npm run tokens:build && npm run build -w @demo-ds/admin",
+    "admin:typecheck": "npm run tokens:build && npm run typecheck -w @demo-ds/admin",
+    "admin:lint:css": "stylelint \"apps/admin/src/**/*.css\"",
     "ci": "npm run tokens:build && npm run typecheck && npm run lint:css && npm run test && npm run plugin:test && npm run build-storybook && npm run docs:build",
     "changeset": "changeset",
     "version-packages": "changeset version"
