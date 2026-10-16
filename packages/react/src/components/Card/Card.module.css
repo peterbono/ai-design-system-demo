@@ -8,6 +8,18 @@
   color: var(--color-text-default);
   font-family: var(--font-family-sans);
   overflow: hidden;
+  transition: box-shadow 150ms ease, transform 150ms ease;
+}
+
+.interactive:hover {
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.12);
+  transform: translateY(-1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .interactive:hover {
+    transform: none;
+  }
 }
 
 .header {
