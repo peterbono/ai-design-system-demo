@@ -6,7 +6,15 @@ const config: StorybookConfig = {
   framework: { name: '@storybook/react-vite', options: {} },
   core: { disableTelemetry: true },
   // Use the automatic JSX runtime so components do not need to import React.
-  viteFinal: async (cfg) => ({ ...cfg, esbuild: { ...(cfg.esbuild || {}), jsx: 'automatic' } }),
+  // Resolve workspace packages to their TypeScript sources (`source` export condition), not their built files.
+  viteFinal: async (cfg) => {
+    const { defaultClientConditions } = await import('vite');
+    return {
+      ...cfg,
+      esbuild: { ...(cfg.esbuild || {}), jsx: 'automatic' },
+      resolve: { ...cfg.resolve, conditions: ['source', ...(cfg.resolve?.conditions ?? defaultClientConditions)] },
+    };
+  },
 };
 
 export default config;

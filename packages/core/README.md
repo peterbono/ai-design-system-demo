@@ -12,8 +12,9 @@ too. Nothing here hardcodes a repository: callers pass a `BridgeConfig` (usually
 import { loadConfig, buildTokenSet, layoutOptions, validateSet, parseContrastChecks } from '@bridge-ds/core';
 ```
 
-The package ships TypeScript sources (`exports: "./src/index.ts"`), like `@bridge-ds/react`; bundlers
-(esbuild, Vite) compile it. Tests: `npx vitest run --project core` (part of the root `npm test`).
+Published builds ship ES modules and type declarations from `dist/` (`npm run build:packages`). Inside this
+monorepo the `source` export condition resolves to the TypeScript sources instead, so nothing needs building
+first. Tests: `npx vitest run --project core` (part of the root `npm test`).
 Typecheck: `npx tsc --noEmit -p packages/core`.
 
 ## Tiers

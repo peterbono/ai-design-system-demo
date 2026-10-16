@@ -14,6 +14,7 @@ await rm(out, { recursive: true, force: true });
 await esbuild.build({
   entryPoints: tests.map((f) => join(root, 'test', f)),
   bundle: true,
+  conditions: ['source'],
   platform: 'node',
   format: 'esm',
   target: 'node20',

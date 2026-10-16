@@ -18,3 +18,4 @@ export * from './risk';
 export * from './pr-composer';
 export * from './changeset';
 export * from './github-client';
+export * from './previews';

@@ -11,7 +11,12 @@ export default defineConfig({
   build: { format: 'directory' },
   devToolbar: { enabled: false },
   vite: {
-    // Workspace packages are TypeScript sources; let Vite transform them instead of treating them as prebuilt deps.
-    ssr: { noExternal: ['@bridge-ds/react', '@bridge-ds/tokens', '@bridge-ds/core'] },
+    // Workspace packages export TypeScript sources under the `source` condition; resolve those (not the built
+    // dist) and let Vite transform them instead of treating them as prebuilt deps.
+    resolve: { conditions: ['source', 'module', 'browser', 'development|production'] },
+    ssr: {
+      noExternal: ['@bridge-ds/react', '@bridge-ds/tokens', '@bridge-ds/core'],
+      resolve: { conditions: ['source', 'module', 'node', 'development|production'] },
+    },
   },
 });

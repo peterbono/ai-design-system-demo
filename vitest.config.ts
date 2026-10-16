@@ -1,3 +1,4 @@
+import { defaultClientConditions, defaultServerConditions } from 'vite';
 import { defineConfig } from 'vitest/config';
 
 // Two projects:
@@ -7,6 +8,9 @@ import { defineConfig } from 'vitest/config';
 //   admin  back-office demo data layer: browser persistence of the demo dataset (node)
 export default defineConfig({
   esbuild: { jsx: 'automatic' },
+  // Workspace packages export their TypeScript sources under the `source` condition (built files otherwise).
+  resolve: { conditions: ['source', ...defaultClientConditions] },
+  ssr: { resolve: { conditions: ['source', ...defaultServerConditions] } },
   test: {
     pool: 'threads',
     maxWorkers: 2,

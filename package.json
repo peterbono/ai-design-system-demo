@@ -36,8 +36,11 @@
     "admin:typecheck": "npm run tokens:build && npm run typecheck -w @bridge-ds/admin",
     "admin:lint:css": "stylelint \"apps/admin/src/**/*.css\"",
     "ci": "npm run tokens:build && npm run typecheck && npm run lint:css && npm run test && npm run plugin:test && npm run build-storybook && npm run docs:build",
+    "build:packages": "node scripts/build-packages.mjs",
+    "pack:packages": "npm run build:packages && npm pack -w @bridge-ds/tokens -w @bridge-ds/core -w @bridge-ds/react --pack-destination .packs",
     "changeset": "changeset",
-    "version-packages": "changeset version"
+    "version-packages": "changeset version",
+    "release": "npm run build:packages && changeset publish"
   },
   "devDependencies": {
     "@changesets/cli": "2.31.1",

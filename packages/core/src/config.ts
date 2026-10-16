@@ -11,6 +11,8 @@
 //   <tokens.root>/<components>/*.tokens.json       component tier
 //   <tokens.root>/<contrastChecks>                 contrast pairs: { "pairs": [[fg, bg, min], ...] }
 
+import { PREVIEW_APP_LABELS, type PreviewApps, type PreviewsConfig } from './previews';
+
 /** File name Bridge looks for at the repository root. */
 export const CONFIG_FILE = 'bridge.config.json';
 
@@ -50,6 +52,8 @@ export interface BridgeConfig {
   modes: ModeConfig;
   /** Package a changeset bumps for a token change; no changeset is written when absent. */
   changeset?: { package: string } | undefined;
+  /** Branch previews: snapshot packages and per-branch deploy URL templates (see previews.ts). */
+  previews?: PreviewsConfig | undefined;
 }
 
 /** What a config file may contain: everything but `repo` is optional. */
@@ -60,6 +64,7 @@ export interface BridgeConfigInput {
   components?: { dir: string };
   modes?: Partial<Omit<ModeConfig, 'defaults'>> & { defaults?: ModeConfig['defaults'] };
   changeset?: { package: string };
+  previews?: { packages?: string[]; apps?: PreviewApps };
 }
 
 export const DEFAULT_TOKEN_PATHS: TokenPaths = {
@@ -100,6 +105,7 @@ export function defineConfig(input: BridgeConfigInput): BridgeConfig {
     components: input.components ? { dir: trimSlashes(input.components.dir) } : undefined,
     modes: { brands, themes, densities, defaults },
     changeset: input.changeset,
+    previews: input.previews ? { packages: input.previews.packages ?? [], apps: { ...input.previews.apps } } : undefined,
   };
 }
 
@@ -152,6 +158,21 @@ export function loadConfig(source: string | unknown): BridgeConfig {
   if (comps !== undefined && !isStr(comps?.dir)) problems.push('"components.dir" must be a non-empty string');
   const cs = d.changeset as Record<string, unknown> | undefined;
   if (cs !== undefined && !isStr(cs?.package)) problems.push('"changeset.package" must be a non-empty string');
+  const pv = d.previews as Record<string, unknown> | undefined;
+  if (pv !== undefined) {
+    if (!pv || typeof pv !== 'object' || Array.isArray(pv)) problems.push('"previews" must be an object');
+    else {
+      if (pv.packages !== undefined && !isStrList(pv.packages)) problems.push('"previews.packages" must be a list of package names');
+      const apps = pv.apps as Record<string, unknown> | undefined;
+      if (apps !== undefined) {
+        if (!apps || typeof apps !== 'object' || Array.isArray(apps)) problems.push('"previews.apps" must be an object');
+        else for (const [k, v] of Object.entries(apps)) {
+          if (!(k in PREVIEW_APP_LABELS)) problems.push(`"previews.apps.${k}" is not a known app (${Object.keys(PREVIEW_APP_LABELS).join(', ')})`);
+          else if (!isStr(v) || !/^https?:\/\//.test(v)) problems.push(`"previews.apps.${k}" must be an http(s) URL template`);
+        }
+      }
+    }
+  }
   if (problems.length) throw new ConfigError(problems);
   return defineConfig(d as unknown as BridgeConfigInput);
 }
