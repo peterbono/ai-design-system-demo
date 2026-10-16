@@ -1,0 +1,63 @@
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.amount {
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.document {
+  max-width: var(--size-240);
+}
+
+.docHead {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-6);
+}
+
+.docParty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.docLabel {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-100);
+  font-weight: var(--font-weight-medium);
+}
+
+.link {
+  color: var(--color-text-link);
+}
+
+.totals {
+  width: 100%;
+  max-width: var(--size-80);
+  margin: var(--space-5) 0 0 auto;
+}
+
+.grandTotal {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--font-size-400);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.footnote {
+  margin-top: var(--space-6);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-100);
+}
+
+@media (max-width: 768px) {
+  .docHead {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-4);
+  }
+}

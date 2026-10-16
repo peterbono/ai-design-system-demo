@@ -1,0 +1,69 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--size-72), 1fr));
+  gap: var(--layout-gap);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.link {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-container);
+  color: inherit;
+  text-decoration: none;
+}
+
+.link:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  height: 100%;
+  padding: var(--layout-inset);
+  box-sizing: border-box;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.icon {
+  display: inline-grid;
+  place-items: center;
+  width: var(--size-8);
+  height: var(--size-8);
+  border-radius: var(--radius-control);
+  background-color: var(--color-bg-subtle);
+  color: var(--color-text-muted);
+}
+
+.name {
+  font-size: var(--font-size-300);
+  font-weight: var(--font-weight-semibold);
+}
+
+.description {
+  flex: 1 1 auto;
+  color: var(--color-text-muted);
+}
+
+.numbers {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.count {
+  font-size: var(--font-size-500);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}

@@ -128,6 +128,7 @@ export function NumberInput({
       step={step}
       format={numberFormat}
       suffix={suffix}
+      hideSteppers={readOnly}
       required={isRequired}
       disabled={disabled}
       readOnly={readOnly}

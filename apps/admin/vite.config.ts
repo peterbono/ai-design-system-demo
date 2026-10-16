@@ -15,6 +15,8 @@ export default defineConfig({
       { find: '@demo-ds/tokens/tokens.css', replacement: root('../../packages/tokens/dist/tokens.css') },
       { find: '@demo-ds/tokens/fonts.css', replacement: root('../../packages/tokens/fonts.css') },
       { find: /^@demo-ds\/tokens$/, replacement: root('../../packages/tokens/dist/tokens.ts') },
+      // The data generator imports the full faker build (every locale, about 2 MB). English is enough.
+      { find: /^@faker-js\/faker$/, replacement: '@faker-js/faker/locale/en' },
     ],
     dedupe: ['react', 'react-dom'],
   },
@@ -25,12 +27,12 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    chunkSizeWarningLimit: 1200,
+    chunkSizeWarningLimit: 900,
     rollupOptions: {
       output: {
         manualChunks: {
           ra: ['ra-core', 'react-hook-form', '@tanstack/react-query', 'react-router', 'react-router-dom'],
-          data: ['data-generator-retail', 'ra-data-fakerest', '@faker-js/faker'],
+          data: ['data-generator-retail', 'ra-data-fakerest'],
           charts: ['recharts'],
         },
       },
