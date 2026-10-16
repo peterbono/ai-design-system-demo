@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
-import { buildTokenSet } from '@bridge/core';
-import type { LogicalToken } from '@bridge/core';
+import { buildTokenSet } from '@bridge-ds/core';
+import type { LogicalToken } from '@bridge-ds/core';
 
 export const TOKENS_DIR = join(process.cwd(), '../../packages/tokens/src');
 /** bridge.config.json at the repo root (the fake GitHub serves it like the real repo). */

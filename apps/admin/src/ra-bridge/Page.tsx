@@ -1,5 +1,5 @@
 import type { HTMLAttributes, ReactNode } from 'react';
-import { Breadcrumb, type BreadcrumbItemData } from '@demo-ds/react';
+import { Breadcrumb, type BreadcrumbItemData } from '@bridge-ds/react';
 import { cx } from './cx';
 import styles from './layout.module.css';
 

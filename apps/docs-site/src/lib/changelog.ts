@@ -1,6 +1,6 @@
 // Human changelog built from two sources that already exist:
 //   1. .changeset/*.md: pending entries, written by the PR author (person or agent), with the semver bump.
-//   2. git log: conventional commits, grouped by release tag (v1.2.0 or @demo-ds/react@1.2.0).
+//   2. git log: conventional commits, grouped by release tag (v1.2.0 or @bridge-ds/react@1.2.0).
 // Each entry gets a one-line "what changes for you" and each release a ready-to-post announcement.
 import { git, listDir, readJson, readText } from './repo';
 
@@ -131,7 +131,7 @@ export function releases(): Release[] {
     .filter(Boolean)
     .map((c) => {
       const [sha = '', date = '', subject = '', body = '', refs = ''] = c.split(SEP);
-      const tag = refs.match(/tag: ((?:v|@demo-ds\/[\w-]+@)\d+\.\d+\.\d+[^,]*)/)?.[1];
+      const tag = refs.match(/tag: ((?:v|@bridge-ds\/[\w-]+@)\d+\.\d+\.\d+[^,]*)/)?.[1];
       return { sha, date, subject, body, tag };
     });
 
@@ -142,7 +142,7 @@ export function releases(): Release[] {
   groups.push(current);
   for (const c of commits) {
     if (c.tag) {
-      current = { name: c.tag.replace(/^@demo-ds\/[\w-]+@/, 'v'), pending: false, entries: [], date: c.date };
+      current = { name: c.tag.replace(/^@bridge-ds\/[\w-]+@/, 'v'), pending: false, entries: [], date: c.date };
       groups.push(current);
     }
     current.entries.push(commitEntry(c.sha, c.date, c.subject, c.body));

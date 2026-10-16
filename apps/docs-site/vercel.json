@@ -3,5 +3,15 @@
   "framework": "astro",
   "installCommand": "cd ../.. && npm ci",
   "buildCommand": "cd ../.. && npm run docs:build",
-  "outputDirectory": "dist"
+  "outputDirectory": "dist",
+  "ignoreCommand": "node ../../scripts/vercel-ignore.mjs docs",
+  "headers": [
+    {
+      "source": "/tokens.css",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Cache-Control", "value": "public, max-age=60" }
+      ]
+    }
+  ]
 }

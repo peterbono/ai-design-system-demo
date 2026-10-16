@@ -1,5 +1,5 @@
 {
-  "name": "@demo-ds/docs-site",
+  "name": "@bridge-ds/docs-site",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -12,9 +12,9 @@
   },
   "dependencies": {
     "@astrojs/react": "4.4.2",
-    "@bridge/core": "*",
-    "@demo-ds/react": "*",
-    "@demo-ds/tokens": "*",
+    "@bridge-ds/core": "*",
+    "@bridge-ds/react": "*",
+    "@bridge-ds/tokens": "*",
     "astro": "5.18.1",
     "lucide-react": "1.58.0"
   },

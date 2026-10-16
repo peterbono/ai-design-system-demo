@@ -3,17 +3,17 @@
 // Layout: tabs on top, scrolling content, and an action bar pinned to the bottom that always shows
 // what the primary button will do (or why it is disabled).
 
-import type { ConflictChoice, DiffEntry } from '@bridge/core';
+import type { ConflictChoice, DiffEntry } from '@bridge-ds/core';
 import { type Analysis, type PullProposal, type PushProposal, type PushResult, analyze, buildPull, buildPush, openPullRequest } from '../sync/flows';
-import { GitHubClient, type PullRequest, parseRepo } from '@bridge/core';
-import type { RenameSuggestion } from '@bridge/core';
-import { affectedContrast, defaultTitle } from '@bridge/core';
-import { type PathIndex, type ResolveContext, resolve } from '@bridge/core';
-import { contextFor, modesOf } from '@bridge/core';
-import { type LogicalToken, SINGLE_MODE } from '@bridge/core';
-import type { Issue } from '@bridge/core';
-import { formatValue, isAlias, parseColor, rgbaToHex } from '@bridge/core';
-import { type ContrastResult, contextLabel, pairKey } from '@bridge/core';
+import { GitHubClient, type PullRequest, parseRepo } from '@bridge-ds/core';
+import type { RenameSuggestion } from '@bridge-ds/core';
+import { affectedContrast, defaultTitle } from '@bridge-ds/core';
+import { type PathIndex, type ResolveContext, resolve } from '@bridge-ds/core';
+import { contextFor, modesOf } from '@bridge-ds/core';
+import { type LogicalToken, SINGLE_MODE } from '@bridge-ds/core';
+import type { Issue } from '@bridge-ds/core';
+import { formatValue, isAlias, parseColor, rgbaToHex } from '@bridge-ds/core';
+import { type ContrastResult, contextLabel, pairKey } from '@bridge-ds/core';
 import { type ApplyReport, type FigmaSnapshot, type InitPayload, type RepoSettings, modeDisplayName } from '../shared/messages';
 import { onProgress, request } from './bridge';
 import { type Child, h } from './dom';

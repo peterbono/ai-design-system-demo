@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useCreatePath, useDataProvider, useNavigate, useTranslate } from 'ra-core';
-import { Combobox, Icon, type ComboboxOption } from '@demo-ds/react';
+import { Combobox, Icon, type ComboboxOption } from '@bridge-ds/react';
 import { Search } from 'lucide-react';
 import type { Customer, Order, Product } from '../types';
 import styles from './AppShell.module.css';

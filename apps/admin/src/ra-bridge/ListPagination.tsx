@@ -1,5 +1,5 @@
 import { useListContext, useTranslate } from 'ra-core';
-import { Pagination, Select } from '@demo-ds/react';
+import { Pagination, Select } from '@bridge-ds/react';
 import styles from './list.module.css';
 
 const PER_PAGE = [10, 25, 50, 100];

@@ -1,4 +1,4 @@
-# @bridge/core
+# @bridge-ds/core
 
 Pure design-token logic for Bridge: load DTCG 2025.10 tokens across tiers, resolve aliases per brand,
 theme and density, check WCAG contrast, diff three versions of a token set, edit `*.tokens.json` files
@@ -9,11 +9,12 @@ server. The DS Bridge Figma plugin (`apps/figma-plugin`) is built on it; a CLI a
 too. Nothing here hardcodes a repository: callers pass a `BridgeConfig` (usually `bridge.config.json`).
 
 ```ts
-import { loadConfig, buildTokenSet, layoutOptions, validateSet, parseContrastChecks } from '@bridge/core';
+import { loadConfig, buildTokenSet, layoutOptions, validateSet, parseContrastChecks } from '@bridge-ds/core';
 ```
 
-The package ships TypeScript sources (`exports: "./src/index.ts"`), like `@demo-ds/react`; bundlers
-(esbuild, Vite) compile it. Tests: `npx vitest run --project core` (part of the root `npm test`).
+Published builds ship ES modules and type declarations from `dist/` (`npm run build:packages`). Inside this
+monorepo the `source` export condition resolves to the TypeScript sources instead, so nothing needs building
+first. Tests: `npx vitest run --project core` (part of the root `npm test`).
 Typecheck: `npx tsc --noEmit -p packages/core`.
 
 ## Tiers

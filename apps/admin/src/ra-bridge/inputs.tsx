@@ -17,7 +17,7 @@ import {
   Textarea,
   type ComboboxOption,
   type SelectOption,
-} from '@demo-ds/react';
+} from '@bridge-ds/react';
 
 /**
  * Bridge form controls bound to ra-core with useInput: value, change, blur, validation and the

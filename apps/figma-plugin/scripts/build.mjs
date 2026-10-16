@@ -13,6 +13,7 @@ const watch = process.argv.includes('--watch');
 const mainOptions = {
   entryPoints: [join(root, 'src/main/index.ts')],
   bundle: true,
+  conditions: ['source'],
   format: 'iife',
   target: 'es2017',
   outfile: join(dist, 'code.js'),
@@ -23,6 +24,7 @@ async function buildUi() {
   const js = await esbuild.build({
     entryPoints: [join(root, 'src/ui/index.ts')],
     bundle: true,
+    conditions: ['source'],
     format: 'iife',
     target: 'es2020',
     minify: !watch,
@@ -31,6 +33,7 @@ async function buildUi() {
   const css = await esbuild.build({
     entryPoints: [join(root, 'src/ui/styles.css')],
     bundle: true,
+    conditions: ['source'],
     minify: !watch,
     write: false,
   });
@@ -50,6 +53,7 @@ if (watch) {
   const uiCtx = await esbuild.context({
     entryPoints: [join(root, 'src/ui/index.ts'), join(root, 'src/ui/styles.css')],
     bundle: true,
+    conditions: ['source'],
     write: false,
     outdir: join(dist, '.ui-watch'),
     plugins: [{ name: 'inline-ui', setup: (b) => b.onEnd(() => buildUi().catch((e) => console.error(e))) }],

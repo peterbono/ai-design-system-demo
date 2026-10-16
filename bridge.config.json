@@ -61,5 +61,9 @@
       "packages/tokens/src/contrast.checks.json"
     ],
     "owners": { "design": [], "tech": [] }
+  },
+  "previews": {
+    "packages": ["@bridge-ds/tokens", "@bridge-ds/core", "@bridge-ds/react"],
+    "apps": {}
   }
 }

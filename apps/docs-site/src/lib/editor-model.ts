@@ -21,7 +21,7 @@ import {
   type LogicalToken,
   type ResolveContext,
   type TokenSet,
-} from '@bridge/core';
+} from '@bridge-ds/core';
 
 /** One pending edit. Values are raw DTCG `$value`s: an alias string like "{palette.primary.600}" or a literal. */
 export type DraftEdit =

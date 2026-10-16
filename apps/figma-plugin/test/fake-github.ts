@@ -1,6 +1,6 @@
 // In-memory GitHub used by the flow tests. Implements only what DS Bridge calls.
 
-import type { GitHubClient, PullRequest, TreeEntry } from '@bridge/core';
+import type { GitHubClient, PullRequest, TreeEntry } from '@bridge-ds/core';
 
 export class FakeGitHub {
   commits = new Map<string, { files: Record<string, string>; parents: string[]; message: string }>();

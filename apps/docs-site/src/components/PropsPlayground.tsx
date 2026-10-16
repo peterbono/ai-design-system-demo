@@ -1,5 +1,5 @@
 // Props playground: the one React island of the component pages. It renders the REAL component from
-// @demo-ds/react with controls generated from the props parsed out of its TypeScript source (see playgroundSpec).
+// @bridge-ds/react with controls generated from the props parsed out of its TypeScript source (see playgroundSpec).
 // Generic: any component in registry.tsx with string-literal, boolean or string props gets a playground.
 import { Component, useId, useMemo, useState, type ReactNode } from 'react';
 import type { Control, PlaygroundSpec } from '../lib/components';

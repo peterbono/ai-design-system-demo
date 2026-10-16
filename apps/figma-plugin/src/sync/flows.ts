@@ -1,17 +1,17 @@
-// Pull and push orchestration for the Figma plugin: @bridge/core logic plus the Figma mapping.
+// Pull and push orchestration for the Figma plugin: @bridge-ds/core logic plus the Figma mapping.
 // Independent of the DOM and of figma.* (the UI wires it to both).
 
 import type { FigmaSnapshot, PullPlan, RepoSettings, SyncState, VariableTag } from '../shared/messages';
-import { type AcceptedChange, composeFiles } from '@bridge/core';
-import { type ConflictChoice, type DiffEntry, type ThreeWayResult, threeWayDiff, toMap } from '@bridge/core';
-import { type CompareResult, GitHubClient, GitHubError, type PullRequest, type RepoFiles, loadRepoFiles } from '@bridge/core';
-import { type RenameSuggestion, applyConfirmedRenames, reconcileIds } from '@bridge/core';
+import { type AcceptedChange, composeFiles } from '@bridge-ds/core';
+import { type ConflictChoice, type DiffEntry, type ThreeWayResult, threeWayDiff, toMap } from '@bridge-ds/core';
+import { type CompareResult, GitHubClient, GitHubError, type PullRequest, type RepoFiles, loadRepoFiles } from '@bridge-ds/core';
+import { type RenameSuggestion, applyConfirmedRenames, reconcileIds } from '@bridge-ds/core';
 import { type FigmaReadResult, type Unmappable, buildPullPlan, isUnmappable, snapshotToTokens, tokenToPlanned } from './mapping';
-import { branchName, changedModes, commitMessage, composeChangeset, composePrBody, defaultTitle } from '@bridge/core';
-import { type TokenSet, buildTokenSet, layoutOptions } from '@bridge/core';
-import { type LogicalToken, SINGLE_MODE, type ThemeOverride, type TokenMap, isMultiMode } from '@bridge/core';
-import { type ProposalValidation, type TypeChange, shadowedEdits, validateProposal } from '@bridge/core';
-import { CONTRAST_CHECKS_FILE, type ContrastPair, parseContrastChecks } from '@bridge/core';
+import { branchName, changedModes, commitMessage, composeChangeset, composePrBody, defaultTitle } from '@bridge-ds/core';
+import { type TokenSet, buildTokenSet, layoutOptions } from '@bridge-ds/core';
+import { type LogicalToken, SINGLE_MODE, type ThemeOverride, type TokenMap, isMultiMode } from '@bridge-ds/core';
+import { type ProposalValidation, type TypeChange, shadowedEdits, validateProposal } from '@bridge-ds/core';
+import { CONTRAST_CHECKS_FILE, type ContrastPair, parseContrastChecks } from '@bridge-ds/core';
 
 export interface Analysis {
   settings: RepoSettings;

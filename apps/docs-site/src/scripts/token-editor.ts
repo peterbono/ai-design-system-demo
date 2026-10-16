@@ -24,7 +24,7 @@ import {
   type BridgeConfig,
   type LogicalToken,
   type TokenSet,
-} from '@bridge/core';
+} from '@bridge-ds/core';
 import {
   aliasCandidates,
   applyDraft,

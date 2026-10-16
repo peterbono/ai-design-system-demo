@@ -1,5 +1,5 @@
 {
-  "name": "@demo-ds/figma-plugin",
+  "name": "@bridge-ds/figma-plugin",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -17,6 +17,6 @@
     "typescript": "5.9.3"
   },
   "dependencies": {
-    "@bridge/core": "*"
+    "@bridge-ds/core": "*"
   }
 }

@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import type { CSSProperties } from 'react';
-import { cssVar } from '@demo-ds/tokens';
+import { cssVar } from '@bridge-ds/tokens';
 import styles from './Foundations.module.css';
 
 const meta = { title: 'Foundations/Tokens', tags: ['!autodocs'], parameters: { layout: 'padded' } } satisfies Meta;

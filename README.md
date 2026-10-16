@@ -30,11 +30,11 @@ npm run ci               # tokens:build, typecheck, lint:css, test, build-storyb
 
 ```tsx
 // main.tsx: import the CSS once, in this order
-import '@demo-ds/tokens/fonts.css';   // IBM Plex Sans + Mono, self-hosted (@fontsource)
-import '@demo-ds/tokens/tokens.css';  // every token as a CSS variable
-import '@demo-ds/react/styles.css';   // base: body font, selection, focus, scrollbars
+import '@bridge-ds/tokens/fonts.css';   // IBM Plex Sans + Mono, self-hosted (@fontsource)
+import '@bridge-ds/tokens/tokens.css';  // every token as a CSS variable
+import '@bridge-ds/react/styles.css';   // base: body font, selection, focus, scrollbars
 
-import { Button, Field, Input, ThemeProvider, ToastProvider } from '@demo-ds/react';
+import { Button, Field, Input, ThemeProvider, ToastProvider } from '@bridge-ds/react';
 
 export function App() {
   return (
@@ -60,8 +60,8 @@ export function App() {
 
 `ThemeProvider` sets all three together (on `<html>` with `asRoot`, or on a wrapper `div` for a nested
 scope) and passes the scope to portaled overlays. Without React, set the three attributes yourself on the
-same element. Values for tooling live in `@demo-ds/tokens` (`cssVar`, `primitives`, `brands`, `themes`,
-`densities`, `breakpoints`) and `@demo-ds/tokens/resolved.json` (every value per brand and theme, plus contrast ratios).
+same element. Values for tooling live in `@bridge-ds/tokens` (`cssVar`, `primitives`, `brands`, `themes`,
+`densities`, `breakpoints`) and `@bridge-ds/tokens/resolved.json` (every value per brand and theme, plus contrast ratios).
 
 To add a brand: add `packages/tokens/src/brands/<name>.tokens.json` mapping palette, radius and font roles,
 optionally `<name>.<theme>.tokens.json` overrides, add the name to `BRANDS` in `build.mjs`, and let the
@@ -116,7 +116,7 @@ the web side of the DS Bridge Figma plugin: an overview dashboard computed from 
 pass rate, health issues, recent changes), a theme playground with the real components in light and dark, a token
 explorer, a Cmd+K palette and component pages with a props playground. The app chrome has its own brand tokens
 (`apps/docs-site/src/brand/tokens.ts`, emitted as `--br-*`); the design system is only shown inside preview surfaces
-with its own `@demo-ds/tokens` variables. `npm run lint:css` checks both. Design decisions: `apps/docs-site/DESIGN.md`.
+with its own `@bridge-ds/tokens` variables. `npm run lint:css` checks both. Design decisions: `apps/docs-site/DESIGN.md`.
 
 Props are parsed from the TypeScript types so the table cannot drift from the code; usage guidance lives in a small
 `<Name>.docs.json` next to each component because a parser cannot know when to use a button.
@@ -130,6 +130,16 @@ STORYBOOK_URL=https://storybook.example.com npm run docs:build   # where compone
 Deploy (not done yet): `apps/docs-site/vercel.json` builds from the repo root with `npm run docs:build` and serves
 `apps/docs-site/dist`. On Vercel, set the project root directory to `apps/docs-site`. Any static host works:
 upload `apps/docs-site/dist`. Set `SITE_URL` for absolute URLs.
+
+## Try a branch in a product (previews)
+
+Every pull request publishes snapshot packages (`npm i https://pkg.pr.new/...@<sha>`), deploys the docs, Storybook
+and admin demo per branch, and posts one "Try this DS branch in your product" comment. A product staging can also
+preview a branch's tokens without reinstalling (`?bridge-tokens=`, allowlisted, off by default). The docs site
+lists open branches under Process > Branches. Setup and security notes: `docs/PREVIEWS.md`.
+
+Packages publish under the `@bridge-ds` npm scope with Changesets (`.github/workflows/release.yml`, inert until
+an `NPM_TOKEN` secret exists). `npm run build:packages` builds and checks the publishable `dist/` folders.
 
 ## The operating model
 
@@ -188,7 +198,7 @@ and Ocean modes; Base; Semantic with Light and Dark; Density with Comfortable an
 current `main`, conflicts resolved side by side, guardrails (tier order, scopes, every pair in
 `contrast.checks.json` in every brand and theme) checked before the button is enabled. The PR then goes
 through the same CI and CODEOWNERS review as any other Tier 3 change. Works on the free Figma plan
-(Plugin API only). The logic lives in `@bridge/core` (`packages/core`) and repo paths in
+(Plugin API only). The logic lives in `@bridge-ds/core` (`packages/core`) and repo paths in
 `bridge.config.json`. See [`apps/figma-plugin/README.md`](apps/figma-plugin/README.md).
 
 ```sh

@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { CoreAdmin, CustomRoutes, Resource, memoryStore } from 'ra-core';
 import { Route } from 'react-router';
-import { ThemeProvider, ToastProvider, TooltipProvider } from '@demo-ds/react';
+import { ThemeProvider, ToastProvider, TooltipProvider } from '@bridge-ds/react';
 import { PreferencesProvider, usePreferences } from './preferences';
 import { createDataProvider } from './data/dataProvider';
 import { createI18nProvider } from './i18n/i18nProvider';
@@ -34,6 +34,7 @@ function Admin() {
             layout={AppShell}
             dashboard={Dashboard}
             title={tenant.name}
+            basename={import.meta.env.BASE_URL.replace(/\/$/, '')}
             disableTelemetry
           >
             <CustomRoutes>

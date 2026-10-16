@@ -1,5 +1,5 @@
 /* Self-hosted fonts for the Bridge design system (docs/DESIGN-LANGUAGE.md, section 5).
-   Import once in the app entry: import '@demo-ds/tokens/fonts.css'; */
+   Import once in the app entry: import '@bridge-ds/tokens/fonts.css'; */
 @import '@fontsource-variable/ibm-plex-sans/wght.css';
 @import '@fontsource-variable/ibm-plex-sans/wght-italic.css';
 @import '@fontsource/ibm-plex-mono/400.css';

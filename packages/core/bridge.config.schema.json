@@ -448,6 +448,42 @@
           "description": "Path globs, relative to the audited folder, to skip."
         }
       }
+    },
+    "previews": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Branch previews: packages published as snapshots per PR commit, and per-branch deploy URL templates. See docs/PREVIEWS.md.",
+      "properties": {
+        "packages": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Packages published to pkg.pr.new (or as release tarballs) for every PR commit."
+        },
+        "apps": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "docs": {
+              "type": "string",
+              "pattern": "^https?://",
+              "description": "Docs site preview. URL template. Placeholders: {branch} (Vercel-style slug), {rawBranch}, {pr}, {sha}, {sha7}."
+            },
+            "storybook": {
+              "type": "string",
+              "pattern": "^https?://",
+              "description": "Storybook preview. URL template. Placeholders: {branch} (Vercel-style slug), {rawBranch}, {pr}, {sha}, {sha7}."
+            },
+            "admin": {
+              "type": "string",
+              "pattern": "^https?://",
+              "description": "Admin demo preview. URL template. Placeholders: {branch} (Vercel-style slug), {rawBranch}, {pr}, {sha}, {sha7}."
+            }
+          }
+        }
+      }
     }
   }
 }

@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { ListBase, useGetList, useGetMany, useListContext, useNotify, useTranslate, useUnselectAll, useRefresh, useUpdateMany } from 'ra-core';
-import { Avatar, Button, Tab, Tabs, TabsList } from '@demo-ds/react';
+import { Avatar, Button, Tab, Tabs, TabsList } from '@bridge-ds/react';
 import { Ban, PackageCheck, ShoppingBag } from 'lucide-react';
 import { ConfirmButton, DataTable, DateFilter, FilterBar, Page, SearchFilter, type Column } from '../../ra-bridge';
 import { CustomerCell, MobileRow, Mono, Muted, fullName } from '../../ui';

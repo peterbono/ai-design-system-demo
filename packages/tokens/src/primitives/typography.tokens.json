@@ -12,7 +12,7 @@
           "Roboto",
           "sans-serif"
         ],
-        "$description": "Self-hosted via @fontsource-variable/ibm-plex-sans (import @demo-ds/tokens/fonts.css)."
+        "$description": "Self-hosted via @fontsource-variable/ibm-plex-sans (import @bridge-ds/tokens/fonts.css)."
       },
       "plex-mono": {
         "$value": [

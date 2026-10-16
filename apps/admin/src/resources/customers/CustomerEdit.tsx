@@ -1,5 +1,5 @@
 import { LinkBase, email, required, useGetList, useRecordContext, useTranslate } from 'ra-core';
-import { Avatar, Card, CardBody, CardHeader, EmptyState, Skeleton } from '@demo-ds/react';
+import { Avatar, Card, CardBody, CardHeader, EmptyState, Skeleton } from '@bridge-ds/react';
 import { ShoppingBag } from 'lucide-react';
 import { BooleanInput, DateInput, EditPage, FormSection, MultiChoiceInput, TextInput } from '../../ra-bridge';
 import { Mono, Muted, OrderStatusBadge, Properties, Stars, fullName } from '../../ui';

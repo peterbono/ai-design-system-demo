@@ -1,5 +1,5 @@
 /* Global base for apps using the Bridge design system: the browser surfaces no component owns.
-   Import once: import '@demo-ds/react/styles.css'; (after @demo-ds/tokens/tokens.css and fonts.css). */
+   Import once: import '@bridge-ds/react/styles.css'; (after @bridge-ds/tokens/tokens.css and fonts.css). */
 
 :where(html) {
   background-color: var(--color-bg-default);

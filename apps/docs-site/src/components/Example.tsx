@@ -1,4 +1,4 @@
-// Renders the declarative examples from <Name>.docs.json with the real components from @demo-ds/react.
+// Renders the declarative examples from <Name>.docs.json with the real components from @bridge-ds/react.
 // Rendered to static HTML at build time; no client JavaScript.
 import type { ReactNode } from 'react';
 import type { ExampleNode } from '../lib/components';

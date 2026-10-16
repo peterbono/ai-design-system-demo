@@ -2,7 +2,7 @@
 // Base, Semantic, Density, Component), then literal values (pass 1), then aliases (pass 2, once
 // every target exists, across collections), then orphan flags. Nothing is ever deleted.
 
-import type { Tier } from '@bridge/core';
+import type { Tier } from '@bridge-ds/core';
 import {
   type ApplyReport,
   PRIMITIVE_MODE_NAME,

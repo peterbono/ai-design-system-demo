@@ -15,6 +15,8 @@
 // modes.brands/themes/densities/defaults) is still read, so commits from before the merge load too.
 // loadConfig normalizes both into one BridgeConfig.
 
+import { PREVIEW_APP_LABELS, type PreviewApps, type PreviewsConfig } from './previews';
+
 /** File name Bridge looks for at the repository root. */
 export const CONFIG_FILE = 'bridge.config.json';
 
@@ -128,6 +130,8 @@ export interface BridgeConfig {
   cssVar: { prefix: string; separator: string };
   governance: GovernanceConfig;
   audit?: AuditConfig | undefined;
+  /** Branch previews: snapshot packages and per-branch deploy URL templates (see previews.ts). */
+  previews?: PreviewsConfig | undefined;
 }
 
 type Partialish<T> = { [K in keyof T]?: T[K] | undefined };
@@ -156,6 +160,7 @@ export interface BridgeConfigInput {
   cssVar?: Partial<BridgeConfig['cssVar']>;
   governance?: Partial<Omit<GovernanceConfig, 'owners'>> & { owners?: Partial<Owners> };
   audit?: AuditConfig;
+  previews?: { packages?: string[]; apps?: PreviewApps };
 }
 
 export const DEFAULT_TOKEN_PATHS: TokenPaths = {
@@ -302,6 +307,7 @@ export function defineConfig(input: BridgeConfigInput): BridgeConfig {
       owners: { design: g.owners?.design ?? [], tech: g.owners?.tech ?? [] },
     },
     ...(input.audit ? { audit: { ...input.audit } } : {}),
+    ...(input.previews ? { previews: { packages: input.previews.packages ?? [], apps: { ...input.previews.apps } } } : {}),
   };
 }
 
@@ -417,6 +423,22 @@ export function loadConfig(source: string | unknown): BridgeConfig {
     if (!isObj(audit)) problems.push('"audit" must be an object');
     else for (const k of ['packages', 'foreignLibraries', 'nativeElements', 'exclude']) if (audit[k] !== undefined && !isStrList(audit[k])) problems.push(`"audit.${k}" must be a list of strings`);
   }
+  const pv = d.previews;
+  if (pv !== undefined) {
+    if (!isObj(pv)) problems.push('"previews" must be an object');
+    else {
+      if (pv.packages !== undefined && !isStrList(pv.packages)) problems.push('"previews.packages" must be a list of package names');
+      const apps = pv.apps;
+      if (apps !== undefined) {
+        if (!isObj(apps)) problems.push('"previews.apps" must be an object');
+        else
+          for (const [k, v] of Object.entries(apps)) {
+            if (!(k in PREVIEW_APP_LABELS)) problems.push(`"previews.apps.${k}" is not a known app (${Object.keys(PREVIEW_APP_LABELS).join(', ')})`);
+            else if (!isStr(v) || !/^https?:\/\//.test(v)) problems.push(`"previews.apps.${k}" must be an http(s) URL template`);
+          }
+      }
+    }
+  }
   if (problems.length) throw new ConfigError(problems);
   return defineConfig(d as unknown as BridgeConfigInput);
 }
@@ -445,5 +467,6 @@ export function toConfigJson(config: BridgeConfig, schema = './packages/core/bri
     cssVar: config.cssVar,
     governance: config.governance,
     ...(config.audit ? { audit: config.audit } : {}),
+    ...(config.previews ? { previews: config.previews } : {}),
   };
 }

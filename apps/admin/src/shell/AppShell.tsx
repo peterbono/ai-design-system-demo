@@ -22,7 +22,7 @@ import {
   SidebarNavSection,
   Tooltip,
   useToast,
-} from '@demo-ds/react';
+} from '@bridge-ds/react';
 import {
   ChartPie,
   FileText,

@@ -1,5 +1,5 @@
 // Designer-friendly diff of two token sets (base and head of a pull request, or main and a draft), built on
-// @bridge/core so the Reviews page, the token editor and the Figma plugin agree on values and contrast.
+// @bridge-ds/core so the Reviews page, the token editor and the Figma plugin agree on values and contrast.
 // Pure: no fetch, no DOM. Unit tested in token-review.test.ts.
 import {
   buildTokenSet,
@@ -20,7 +20,7 @@ import {
   type LayoutOptions,
   type LogicalToken,
   type TokenSet,
-} from '@bridge/core';
+} from '@bridge-ds/core';
 
 export interface ShownValue {
   /** Alias target when the raw value is an alias. */

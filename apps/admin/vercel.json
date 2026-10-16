@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
+  "installCommand": "cd ../.. && npm ci",
+  "buildCommand": "cd ../.. && npm run admin:build",
+  "outputDirectory": "dist",
+  "ignoreCommand": "node ../../scripts/vercel-ignore.mjs admin",
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+}

@@ -1,0 +1,8 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "cd ../.. && npm ci",
+  "buildCommand": "cd ../.. && npm run tokens:build && npx storybook build -o deploy/storybook/dist --quiet",
+  "outputDirectory": "dist",
+  "ignoreCommand": "node ../../scripts/vercel-ignore.mjs storybook"
+}
