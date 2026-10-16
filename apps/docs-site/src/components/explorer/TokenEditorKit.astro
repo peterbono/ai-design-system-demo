@@ -1,0 +1,90 @@
+---
+// Everything token editing needs besides the explorer itself: the draft tray, the add and propose dialogs, the full
+// editor drawer (live component preview, rename, delete), the GitHub and revert dialogs. TokenExplorer includes it in
+// mode="edit"; a page that switches the explorer into edit mode at runtime (the token explorer page) includes it once.
+import Icon from '../Icon.astro';
+import GitHubDialog from '../GitHubDialog.astro';
+import HistoryPlanner from '../HistoryPlanner.astro';
+import EditorPreview from '../EditorPreview.tsx';
+import { explorerTokens } from '../../lib/explorer';
+
+const palette = explorerTokens()
+  .filter((t) => t.layer === 'brand' && t.type === 'color')
+  .map((t) => t.path);
+---
+
+<div class="xp-kit" data-xp-kit>
+  <template id="ed-preview-tpl"><EditorPreview theme="light" /></template>
+
+  <section class="ed-tray" id="ed-tray" data-open="false" aria-label="Draft changes" hidden>
+    <div class="ed-tray-bar">
+      <button type="button" class="ed-tray-toggle" id="ed-tray-toggle" aria-expanded="false" aria-controls="ed-tray-panel">
+        <span class="ed-tray-count" id="ed-tray-count">No draft changes yet</span>
+        <span class="ed-tray-status" id="ed-tray-status"></span>
+        <Icon name="chevron" size={14} />
+      </button>
+      <div class="ed-tray-actions">
+        <button type="button" class="btn btn-secondary btn-sm" id="ed-export">Export JSON</button>
+        <button type="button" class="btn btn-primary btn-sm" id="ed-propose" disabled>Propose change</button>
+      </div>
+    </div>
+    <div class="ed-tray-panel" id="ed-tray-panel">
+      <ul class="ed-tray-list" id="ed-tray-list"></ul>
+      <div class="ed-tray-foot">
+        <p class="small muted">Saved in this browser only. Proposing opens a Tier 3 pull request labeled <code>source: bridge-web</code>.</p>
+        <button type="button" class="btn btn-secondary btn-sm ed-danger" id="ed-discard">Discard draft</button>
+      </div>
+    </div>
+  </section>
+
+  <dialog class="gh-dialog" id="ed-add-dialog" aria-labelledby="ed-add-title">
+    <form method="dialog" class="gh-dialog-box">
+      <header class="gh-dialog-head">
+        <h2 id="ed-add-title">New semantic color</h2>
+        <button type="submit" value="cancel" class="icon-btn" aria-label="Close"><Icon name="close" /></button>
+      </header>
+      <p>A semantic token names a job, like <code>color.bg.canvas</code>. Point each theme at a palette role so brands can re-theme it. Adding a token is Tier 3.</p>
+      <label class="gh-field"><span>Name</span><input id="ed-add-path" placeholder="color.bg.canvas" spellcheck="false" autocomplete="off" /></label>
+      <label class="gh-field"><span>Light points to</span><input id="ed-add-light" list="ed-palette" placeholder="palette.neutral.50" spellcheck="false" autocomplete="off" /></label>
+      <label class="gh-field"><span>Dark points to</span><input id="ed-add-dark" list="ed-palette" placeholder="palette.neutral.950" spellcheck="false" autocomplete="off" /></label>
+      <datalist id="ed-palette">{palette.map((p) => <option value={p} />)}</datalist>
+      <p class="gh-error" id="ed-add-error" role="alert" hidden></p>
+      <footer class="gh-dialog-foot">
+        <span class="gh-spacer"></span>
+        <button type="submit" value="cancel" class="btn btn-secondary btn-sm">Cancel</button>
+        <button type="button" class="btn btn-primary btn-sm" id="ed-add-save">Add to draft</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog class="gh-dialog" id="ed-propose-dialog" aria-labelledby="ed-propose-h">
+    <form method="dialog" class="gh-dialog-box">
+      <header class="gh-dialog-head">
+        <h2 id="ed-propose-h">Propose change</h2>
+        <button type="submit" value="cancel" class="icon-btn" aria-label="Close"><Icon name="close" /></button>
+      </header>
+      <p>Bridge creates a <code>tokens/*</code> branch, commits the edited token files with minimal diffs and a changeset, and opens a pull request for design and tech review.</p>
+      <label class="gh-field"><span>Title</span><input id="ed-propose-title" placeholder="tokens: soften the page background" /></label>
+      <label class="gh-field"><span>Why</span><textarea id="ed-propose-notes" rows="3" placeholder="What problem this solves, and where reviewers should look."></textarea></label>
+      <p class="small" id="ed-propose-status" role="status" aria-live="polite"></p>
+      <footer class="gh-dialog-foot">
+        <span class="gh-spacer"></span>
+        <button type="submit" value="cancel" class="btn btn-secondary btn-sm">Cancel</button>
+        <button type="button" class="btn btn-primary btn-sm" id="ed-propose-go">Open pull request</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog class="gh-dialog xp-full-editor" id="xp-full-editor" aria-labelledby="xp-full-title">
+    <div class="gh-dialog-box">
+      <header class="gh-dialog-head">
+        <h2 id="xp-full-title" class="mono" data-xp-full-title>Edit token</h2>
+        <form method="dialog"><button type="submit" class="icon-btn" aria-label="Close the full editor"><Icon name="close" /></button></form>
+      </header>
+      <div data-xp-full-slot></div>
+    </div>
+  </dialog>
+
+  <GitHubDialog />
+  <HistoryPlanner />
+</div>
