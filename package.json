@@ -11,13 +11,14 @@
   },
   "workspaces": [
     "packages/tokens",
+    "packages/core",
     "packages/react",
     "apps/docs-site",
     "apps/figma-plugin"
   ],
   "scripts": {
     "tokens:build": "npm run build -w @demo-ds/tokens",
-    "typecheck": "npm run tokens:build && npm run typecheck -w @demo-ds/react && npm run typecheck -w @demo-ds/docs-site && npm run plugin:typecheck",
+    "typecheck": "npm run tokens:build && npm run typecheck -w @bridge/core && npm run typecheck -w @demo-ds/react && npm run typecheck -w @demo-ds/docs-site && npm run plugin:typecheck",
     "lint:css": "stylelint \"packages/react/src/**/*.css\" \"apps/docs-site/src/**/*.css\"",
     "test": "npm run tokens:build && vitest run",
     "test:watch": "vitest",

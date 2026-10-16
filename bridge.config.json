@@ -1,0 +1,34 @@
+{
+  "$schema": "./packages/core/bridge.config.schema.json",
+  "repo": {
+    "owner": "peterbono",
+    "name": "ai-design-system-demo",
+    "defaultBranch": "main"
+  },
+  "tokens": {
+    "root": "packages/tokens/src",
+    "primitives": "primitives",
+    "brands": "brands",
+    "semantic": "semantic",
+    "base": "base",
+    "density": "density",
+    "components": "components",
+    "contrastChecks": "contrast.checks.json"
+  },
+  "components": {
+    "dir": "packages/react/src/components"
+  },
+  "modes": {
+    "brands": ["bridge", "ocean"],
+    "themes": ["light", "dark"],
+    "densities": ["comfortable", "compact"],
+    "defaults": {
+      "brand": "bridge",
+      "theme": "light",
+      "density": "comfortable"
+    }
+  },
+  "changeset": {
+    "package": "@demo-ds/tokens"
+  }
+}

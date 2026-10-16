@@ -1,0 +1,20 @@
+{
+  "name": "@bridge/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Bridge core: DTCG token loading across tiers, alias resolution, WCAG contrast checks, three-way diff, minimal-diff JSON edits, PR body, risk tier, changesets and a fetch-based GitHub client. No Figma API, no DOM.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./bridge.config.schema.json": "./bridge.config.schema.json"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.9"
+  }
+}

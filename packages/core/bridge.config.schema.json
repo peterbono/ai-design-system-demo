@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/peterbono/ai-design-system-demo/packages/core/bridge.config.schema.json",
+  "title": "Bridge config",
+  "description": "Where a design system repository keeps its DTCG tokens and which brands, themes and densities it has. Read by @bridge/core, the DS Bridge Figma plugin, the CLI and the MCP server.",
+  "type": "object",
+  "required": ["repo"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "repo": {
+      "type": "object",
+      "required": ["owner", "name"],
+      "additionalProperties": false,
+      "properties": {
+        "owner": { "type": "string", "minLength": 1, "description": "GitHub owner (user or organization)." },
+        "name": { "type": "string", "minLength": 1, "description": "Repository name." },
+        "defaultBranch": { "type": "string", "minLength": 1, "default": "main", "description": "Branch that pulls read from and pull requests target." }
+      }
+    },
+    "tokens": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Token locations. root is relative to the repository root; every other path is relative to root.",
+      "properties": {
+        "root": { "type": "string", "default": "tokens", "description": "Directory holding every tier." },
+        "primitives": { "type": "string", "default": "primitives", "description": "Primitive tier: *.tokens.json, one value each." },
+        "brands": { "type": "string", "default": "brands", "description": "Brand tier: <brand>.tokens.json (palette, radius and font roles), plus optional <brand>.<theme>.tokens.json semantic overrides." },
+        "semantic": { "type": "string", "default": "semantic", "description": "Semantic tier: <theme>.tokens.json, plus the theme-independent base file." },
+        "base": { "type": "string", "default": "base", "description": "Stem of the theme-independent semantic file in the semantic directory." },
+        "density": { "type": "string", "default": "density", "description": "Density tier: <density>.tokens.json." },
+        "components": { "type": "string", "default": "components", "description": "Component tier: *.tokens.json aliasing semantic tokens." },
+        "contrastChecks": { "type": "string", "default": "contrast.checks.json", "description": "Contrast pairs: { \"pairs\": [[foreground, background, minimum ratio], ...] }." }
+      }
+    },
+    "components": {
+      "type": "object",
+      "required": ["dir"],
+      "additionalProperties": false,
+      "properties": {
+        "dir": { "type": "string", "minLength": 1, "description": "Code components directory, relative to the repository root." }
+      }
+    },
+    "modes": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "brands": { "type": "array", "items": { "type": "string" }, "description": "Brand modes, default first." },
+        "themes": { "type": "array", "items": { "type": "string" }, "description": "Theme modes, default first." },
+        "densities": { "type": "array", "items": { "type": "string" }, "description": "Density modes, default first." },
+        "defaults": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "brand": { "type": "string" },
+            "theme": { "type": "string" },
+            "density": { "type": "string" }
+          }
+        }
+      }
+    },
+    "changeset": {
+      "type": "object",
+      "required": ["package"],
+      "additionalProperties": false,
+      "properties": {
+        "package": { "type": "string", "minLength": 1, "description": "Package a changeset bumps when tokens change. Without it, no changeset is written." }
+      }
+    }
+  }
+}
