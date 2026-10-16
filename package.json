@@ -15,12 +15,14 @@
     "packages/react",
     "packages/mcp",
     "packages/cli",
+    "packages/stylelint-plugin",
+    "packages/eslint-plugin",
     "apps/docs-site",
     "apps/figma-plugin"
   ],
   "scripts": {
     "tokens:build": "npm run build -w @demo-ds/tokens",
-    "typecheck": "npm run tokens:build && npm run typecheck -w @bridge/core && npm run typecheck -w @demo-ds/react && npm run typecheck -w @demo-ds/docs-site && npm run plugin:typecheck && npm run typecheck -w @bridge/mcp && npm run typecheck -w @bridge/cli",
+    "typecheck": "npm run tokens:build && npm run typecheck -w @bridge/core && npm run typecheck -w @demo-ds/react && npm run typecheck -w @demo-ds/docs-site && npm run plugin:typecheck && npm run typecheck -w @bridge/mcp && npm run typecheck -w @bridge/cli && npm run typecheck -w @bridge/stylelint-plugin && npm run typecheck -w @bridge/eslint-plugin",
     "lint:css": "stylelint \"packages/react/src/**/*.css\" \"apps/docs-site/src/**/*.css\"",
     "test": "npm run tokens:build && vitest run",
     "test:watch": "vitest",
@@ -36,6 +38,7 @@
     "changeset": "changeset",
     "version-packages": "changeset version",
     "mcp:build": "npm run build -w @bridge/mcp && npm run build -w @bridge/cli",
+    "plugins:build": "npm run build -w @bridge/stylelint-plugin && npm run build -w @bridge/eslint-plugin",
     "mcp:test": "npm run mcp:build && vitest run --config packages/mcp/vitest.config.ts",
     "bridge": "node packages/cli/dist/index.js"
   },
