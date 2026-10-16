@@ -66,8 +66,8 @@ const checksJson = safe(readText(CONTRAST_FILE));
         <div class="xp-search" role="search">
           <Icon name="search" size={16} />
           <label class="sr-only" for="xp-q">Search tokens</label>
-          <input id="xp-q" type="search" placeholder="Name, CSS variable or hex" autocomplete="off" spellcheck="false" data-xp-q />
-          <kbd class="kbd xp-slash" aria-hidden="true">/</kbd>
+          <input id="xp-q" type="search" placeholder="Name, CSS variable or hex" autocomplete="off" spellcheck="false" aria-keyshortcuts="F" data-xp-q />
+          <kbd class="kbd xp-slash" aria-hidden="true">F</kbd>
           <button type="button" class="xp-exact" aria-pressed="false" data-xp-exact title="Match the whole name, variable or hex">Exact</button>
         </div>
         <details class="xp-filters" data-xp-filters>
@@ -110,7 +110,7 @@ const checksJson = safe(readText(CONTRAST_FILE));
         <button type="button" class="btn btn-secondary btn-sm" data-xp-clear>Clear search and filters</button>
       </div>
     </div>
-    <p class="xp-keys small muted" aria-hidden="true"><kbd class="kbd">/</kbd> search <kbd class="kbd">↑</kbd><kbd class="kbd">↓</kbd><kbd class="kbd">←</kbd><kbd class="kbd">→</kbd> move <kbd class="kbd">Enter</kbd> open <span class="xp-edit-only">or edit</span> <kbd class="kbd">C</kbd> copy <kbd class="kbd">Esc</kbd> close</p>
+    <p class="xp-keys small muted" aria-hidden="true"><kbd class="kbd">F</kbd> search tokens <kbd class="kbd">/</kbd> search the site <kbd class="kbd">↑</kbd><kbd class="kbd">↓</kbd><kbd class="kbd">←</kbd><kbd class="kbd">→</kbd> move <kbd class="kbd">Enter</kbd> open <span class="xp-edit-only">or edit</span> <kbd class="kbd">C</kbd> copy <kbd class="kbd">Esc</kbd> close</p>
   </section>
 
   <div class="xp-scrim" data-xp-scrim hidden></div>

@@ -648,20 +648,16 @@ export function initTokenExplorer() {
     dlg.addEventListener('close', () => slot.dispatchEvent(new Event('ed:dispose')), { once: true });
   }
 
-  // ---- global keys: "/" focuses this search (captured before the site-wide "/" palette; Cmd+K still opens it),
-  // Esc closes the inline editor, then the panel.
-  window.addEventListener(
-    'keydown',
-    (e) => {
-      const el = e.target as HTMLElement;
-      if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey || el.closest('input, textarea, select, [contenteditable]') || document.querySelector('dialog[open]')) return;
-      e.preventDefault();
-      e.stopPropagation();
-      q.focus();
-      q.select();
-    },
-    true,
-  );
+  // ---- global keys: "/" stays the site-wide search palette everywhere. "F" focuses this explorer's search (from the
+  // table, the tree or the page); Esc closes the inline editor, then the panel.
+  document.addEventListener('keydown', (e) => {
+    const el = e.target as HTMLElement;
+    if (e.key.toLowerCase() !== 'f' || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey || e.defaultPrevented) return;
+    if (el.closest('input, textarea, select, [contenteditable]') || document.querySelector('dialog[open]') || inlineEditorOpen()) return;
+    e.preventDefault();
+    q.focus();
+    q.select();
+  });
   document.addEventListener('keydown', (e) => {
     const el = e.target as HTMLElement;
     const typing = el.closest('input, textarea, select, [contenteditable="true"]');
