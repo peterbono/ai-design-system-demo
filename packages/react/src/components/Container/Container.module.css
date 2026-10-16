@@ -1,0 +1,49 @@
+.container {
+  box-sizing: border-box;
+  width: 100%;
+  margin-inline: auto;
+}
+
+.sm {
+  max-width: var(--size-160);
+}
+
+.md {
+  max-width: var(--size-180);
+}
+
+.lg {
+  max-width: var(--size-240);
+}
+
+.xl {
+  max-width: var(--size-300);
+}
+
+.full {
+  max-width: none;
+}
+
+.padding-none {
+  padding-inline: 0;
+}
+
+.padding-sm {
+  padding-inline: var(--space-4);
+}
+
+.padding-md {
+  padding-inline: var(--space-6);
+}
+
+.padding-lg {
+  padding-inline: var(--space-8);
+}
+
+/* Phones get the 16px gutter whatever the padding prop says. */
+@media (max-width: 640px) {
+  .padding-md,
+  .padding-lg {
+    padding-inline: var(--space-4);
+  }
+}

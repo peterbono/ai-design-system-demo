@@ -1,0 +1,17 @@
+.grid {
+  display: grid;
+  gap: var(--_gap, var(--layout-gap));
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fixed {
+  grid-template-columns: repeat(var(--_columns, 1), minmax(0, 1fr));
+}
+
+/* min() keeps a single column when the container is narrower than the minimum width. */
+.auto {
+  grid-template-columns: repeat(auto-fit, minmax(min(var(--_min), 100%), 1fr));
+}

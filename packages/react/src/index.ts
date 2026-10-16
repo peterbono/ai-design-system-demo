@@ -55,3 +55,9 @@ export * from './components/Accordion';
 export * from './components/Tag';
 export * from './components/Divider';
 export * from './components/Kbd';
+
+// Layout
+export * from './components/Stack';
+export * from './components/Inline';
+export * from './components/Grid';
+export * from './components/Container';
