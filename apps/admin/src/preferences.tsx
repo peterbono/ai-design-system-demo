@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import type { Density, Theme } from '@demo-ds/react';
+import type { Density, Theme } from '@bridge-ds/react';
 import { TENANTS, isTenantId, type Tenant, type TenantId } from './tenants';
 import type { Locale } from './i18n/i18nProvider';
 

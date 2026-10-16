@@ -1,4 +1,4 @@
-import type { Brand } from '@demo-ds/react';
+import type { Brand } from '@bridge-ds/react';
 
 /**
  * Two fictional shops share one back office. Each tenant picks a Bridge brand, so the same components

@@ -1,13 +1,13 @@
 import type { Decorator, Preview } from '@storybook/react-vite';
 import { useEffect } from 'react';
-import '@demo-ds/tokens/fonts.css';
-import '@demo-ds/tokens/tokens.css';
+import '@bridge-ds/tokens/fonts.css';
+import '@bridge-ds/tokens/tokens.css';
 import '../packages/react/src/styles/base.css';
 import './preview.css';
 import { ThemeProvider } from '../packages/react/src/theme';
 import { ToastProvider } from '../packages/react/src/components/Toast';
 import { TooltipProvider } from '../packages/react/src/components/Tooltip';
-import type { Brand, Density, Theme } from '@demo-ds/tokens';
+import type { Brand, Density, Theme } from '@bridge-ds/tokens';
 
 // Applies the scope the way a product does: all three attributes on <html> (for portaled overlays and the
 // page background) and a ThemeProvider around the story.

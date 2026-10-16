@@ -3,7 +3,7 @@
   "changelog": "@changesets/cli/changelog",
   "commit": false,
   "fixed": [],
-  "linked": [["@demo-ds/tokens", "@demo-ds/react"]],
+  "linked": [["@bridge-ds/tokens", "@bridge-ds/react"]],
   "access": "restricted",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",

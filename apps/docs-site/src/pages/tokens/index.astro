@@ -34,7 +34,7 @@ const searchText = (t: ExplorerToken) =>
 const shortValue = (t: ExplorerToken) =>
   t.modes ? (t.modes.light.css === t.modes.dark.css ? t.modes.light.css : `${t.modes.light.hex ?? t.modes.light.css} / ${t.modes.dark.hex ?? t.modes.dark.css}`) : (t.hex ?? t.value);
 const json = JSON.stringify(tokens).replace(/</g, '\\u003c');
-// Token files and config for the editor: it rebuilds the token set in the browser with @bridge/core.
+// Token files and config for the editor: it rebuilds the token set in the browser with @bridge-ds/core.
 const tokenFiles: Record<string, string> = {};
 for (const dir of listDir(TOKENS_SRC).filter((d) => !d.includes('.'))) {
   for (const f of listDir(`${TOKENS_SRC}/${dir}`)) if (f.endsWith('.tokens.json')) tokenFiles[`${dir}/${f}`] = readText(`${TOKENS_SRC}/${dir}/${f}`);

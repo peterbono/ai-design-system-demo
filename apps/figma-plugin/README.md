@@ -11,7 +11,7 @@ GitHub main  --Pull-->  Figma Variables  --edit-->  Push  --PR-->  CI + design/t
 
 The plugin has three tabs: **Pull** (code to Figma, "Bring the latest tokens from main into Figma"),
 **Push** (Figma to code, "Send your Figma edits to the repo as a pull request for review") and
-**Settings**. The token logic is `@bridge/core` (`packages/core`); this package is the Figma glue.
+**Settings**. The token logic is `@bridge-ds/core` (`packages/core`); this package is the Figma glue.
 
 It works on the free Figma plan: it only uses the Plugin API (`figma.variables`) and the GitHub REST
 API. Nothing is synced live and nothing is written to `main` directly.
@@ -246,21 +246,21 @@ these defaults.
 ## Development
 
 ```sh
-npm run build -w @demo-ds/figma-plugin       # dist/code.js + dist/ui.html (JS and CSS inlined)
-npm run watch -w @demo-ds/figma-plugin       # rebuild on change
-npm run test -w @demo-ds/figma-plugin        # node:test, compiled with esbuild
-npm run typecheck -w @demo-ds/figma-plugin   # tsc, strict, against @figma/plugin-typings
+npm run build -w @bridge-ds/figma-plugin       # dist/code.js + dist/ui.html (JS and CSS inlined)
+npm run watch -w @bridge-ds/figma-plugin       # rebuild on change
+npm run test -w @bridge-ds/figma-plugin        # node:test, compiled with esbuild
+npm run typecheck -w @bridge-ds/figma-plugin   # tsc, strict, against @figma/plugin-typings
 npm run plugin:build                         # same build, from the repo root
 ```
 
 ```
 apps/figma-plugin/
   manifest.json          name, editorType, dynamic-page access, network allowlist (api.github.com only)
-  scripts/               esbuild build and test runner (both bundle @bridge/core from source)
+  scripts/               esbuild build and test runner (both bundle @bridge-ds/core from source)
   src/main/              main thread: figma.variables, clientStorage, plugin data (no network)
   src/ui/                UI iframe: Pull, Push and Settings tabs, rendering, GitHub calls
   src/shared/messages.ts typed message protocol between the two, collection names, default settings
-  src/sync/              Figma glue on top of @bridge/core:
+  src/sync/              Figma glue on top of @bridge-ds/core:
     mapping.ts           tiers <-> Figma collections and modes, pull plan, snapshot back to tokens
     flows.ts             pull and push orchestration (analyze, buildPull, buildPush, openPullRequest)
   test/                  end-to-end pull/edit/push flows against an in-memory GitHub and a simulated

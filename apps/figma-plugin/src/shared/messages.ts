@@ -1,7 +1,7 @@
 // Typed message protocol between the UI iframe (network + logic) and the main thread (figma.*).
 // The main thread never talks to the network; the UI never touches figma.variables.
 
-import { TIER_NAMES, type Tier, defineConfig } from '@bridge/core';
+import { TIER_NAMES, type Tier, defineConfig } from '@bridge-ds/core';
 // The repo's own bridge.config.json prefills the settings; every file can point elsewhere in Settings.
 import rootConfig from '../../../../bridge.config.json';
 
@@ -184,15 +184,15 @@ export const DEFAULT_SETTINGS: RepoSettings = {
 };
 
 /** Figma collection of each tier. */
-/** Figma collection of each tier (same names as the tiers in @bridge/core). */
+/** Figma collection of each tier (same names as the tiers in @bridge-ds/core). */
 export const COLLECTIONS: Record<Tier, string> = TIER_NAMES;
 export const COLLECTION_PRIMITIVES = COLLECTIONS.primitive;
 export const COLLECTION_SEMANTIC = COLLECTIONS.semantic;
 /** Mode name of single-mode collections (Primitives, Base, Component). */
 export const PRIMITIVE_MODE_NAME = 'Value';
 
-export { modeDisplayName } from '@bridge/core';
-import { modeDisplayName } from '@bridge/core';
+export { modeDisplayName } from '@bridge-ds/core';
+import { modeDisplayName } from '@bridge-ds/core';
 /** Free-plan fallback: one collection per mode, "Semantic/Light", "Brand/Ocean"... */
 export const splitCollectionName = (collection: string, mode: string) => `${collection}/${modeDisplayName(mode)}`;
 

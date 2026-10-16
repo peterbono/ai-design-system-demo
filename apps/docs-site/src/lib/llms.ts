@@ -71,7 +71,7 @@ export function buildLlmsTxt(): string {
   for (const c of components) {
     push(`### ${c.name}`, '');
     if (c.docs?.summary) push(c.docs.summary, '');
-    push(`Import: \`import { ${[c.name, ...c.subcomponents].join(', ')} } from '@demo-ds/react'\``);
+    push(`Import: \`import { ${[c.name, ...c.subcomponents].join(', ')} } from '@bridge-ds/react'\``);
     if (c.inherits) push(`Accepts all native <${c.inherits}> attributes${c.omitted.length ? ` except ${c.omitted.join(', ')}` : ''}.`);
     if (c.props.length) {
       push('Props:');

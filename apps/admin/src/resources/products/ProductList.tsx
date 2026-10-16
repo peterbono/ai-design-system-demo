@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { LinkBase, ListBase, useCreatePath, useGetList, useListContext, useTranslate } from 'ra-core';
-import { Badge, Button, Card, EmptyState, Skeleton, Tab, Tabs, TabsList } from '@demo-ds/react';
+import { Badge, Button, Card, EmptyState, Skeleton, Tab, Tabs, TabsList } from '@bridge-ds/react';
 import { Image, LayoutGrid, List, Plus, SearchX } from 'lucide-react';
 import { DataTable, FilterBar, ListPagination, Page, SearchFilter, SelectFilter, type Column } from '../../ra-bridge';
 import { MobileRow, Muted, Thumbnail } from '../../ui';

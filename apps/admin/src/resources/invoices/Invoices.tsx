@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { LinkBase, ListBase, ShowBase, useGetMany, useGetOne, useListContext, useShowContext, useTranslate } from 'ra-core';
-import { Button, Card, CardBody, Divider, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@demo-ds/react';
+import { Button, Card, CardBody, Divider, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@bridge-ds/react';
 import { FileText, Printer } from 'lucide-react';
 import { DataTable, DateFilter, FilterBar, Page, RecordSkeleton, type Column } from '../../ra-bridge';
 import { CustomerCell, MobileRow, Mono, Muted, Properties, fullName } from '../../ui';

@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { LinkBase, useGetMany, useGetOne, useRecordContext, useTranslate } from 'ra-core';
 import { useWatch } from 'react-hook-form';
-import { Card, CardBody, CardHeader, Divider, Link, Skeleton, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@demo-ds/react';
+import { Card, CardBody, CardHeader, Divider, Link, Skeleton, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@bridge-ds/react';
 import { BooleanInput, EditPage, FormSection, SelectInput } from '../../ra-bridge';
 import { CustomerCell, Muted, OrderStatusBadge, Properties, Thumbnail } from '../../ui';
 import { useFormat } from '../../format';

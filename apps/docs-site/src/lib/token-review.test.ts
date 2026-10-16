@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseContrastChecks } from '@bridge/core';
+import { parseContrastChecks } from '@bridge-ds/core';
 import { reviewTokenChange } from './token-review';
 import { mergeGate, parseChangeset, parseTier, summarizeApprovals, summarizeCi } from './review-rules';
 
@@ -156,6 +156,6 @@ describe('review rules', () => {
   });
 
   it('reads changeset bumps', () => {
-    expect(parseChangeset("---\n'@demo-ds/tokens': minor\n---\n\nNew bg.").bumps).toEqual([{ pkg: '@demo-ds/tokens', bump: 'minor' }]);
+    expect(parseChangeset("---\n'@bridge-ds/tokens': minor\n---\n\nNew bg.").bumps).toEqual([{ pkg: '@bridge-ds/tokens', bump: 'minor' }]);
   });
 });

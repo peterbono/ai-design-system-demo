@@ -2,7 +2,7 @@ import { defineConfig } from 'vitest/config';
 
 // Two projects:
 //   react  keyboard and ARIA behavior of the React components (jsdom + Testing Library + axe-core)
-//   core   @bridge/core, pure token logic (node)
+//   core   @bridge-ds/core, pure token logic (node)
 //   docs   docs-site data layer: token review, review rules, token editor model (node)
 //   admin  back-office demo data layer: browser persistence of the demo dataset (node)
 export default defineConfig({

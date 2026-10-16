@@ -1,7 +1,7 @@
 import { LinkBase, useGetList, useTranslate } from 'ra-core';
-import { Card, Progress, Skeleton } from '@demo-ds/react';
+import { Card, Progress, Skeleton } from '@bridge-ds/react';
 import { Award, Gem, MessageSquareText, Repeat, RotateCcw, ShoppingCart, type LucideIcon } from 'lucide-react';
-import { Icon } from '@demo-ds/react';
+import { Icon } from '@bridge-ds/react';
 import { Page } from '../../ra-bridge';
 import { Muted } from '../../ui';
 import { useFormat } from '../../format';

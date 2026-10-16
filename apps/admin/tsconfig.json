@@ -4,8 +4,8 @@
     "noEmit": true,
     "types": ["vite/client"],
     "paths": {
-      "@demo-ds/react": ["../../packages/react/src/index.ts"],
-      "@demo-ds/tokens": ["../../packages/tokens/dist/tokens.ts"]
+      "@bridge-ds/react": ["../../packages/react/src/index.ts"],
+      "@bridge-ds/tokens": ["../../packages/tokens/dist/tokens.ts"]
     }
   },
   "include": ["src"],

@@ -19,7 +19,7 @@ await esbuild.build({
   target: 'node20',
   outdir: out,
   outExtension: { '.js': '.mjs' },
-  // @bridge/core ships TypeScript sources: bundle it (Node builtins stay external on platform node).
+  // @bridge-ds/core ships TypeScript sources: bundle it (Node builtins stay external on platform node).
   logLevel: 'warning',
 });
 const files = tests.map((f) => join(out, f.replace(/\.ts$/, '.mjs')));

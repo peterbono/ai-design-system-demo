@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, type HTMLAttributes, type ReactNode } from 'react';
-import type { Brand, Density, Theme } from '@demo-ds/tokens';
+import type { Brand, Density, Theme } from '@bridge-ds/tokens';
 
 export type { Brand, Density, Theme };
 

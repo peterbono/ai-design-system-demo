@@ -14,7 +14,7 @@ import {
   TableRow,
   VisuallyHidden,
   type LucideIcon,
-} from '@demo-ds/react';
+} from '@bridge-ds/react';
 import { SearchX } from 'lucide-react';
 import { cx } from './cx';
 import { ListPagination } from './ListPagination';

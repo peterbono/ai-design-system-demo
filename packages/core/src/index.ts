@@ -1,4 +1,4 @@
-// @bridge/core: pure design-token logic shared by the DS Bridge Figma plugin, the CLI and the MCP
+// @bridge-ds/core: pure design-token logic shared by the DS Bridge Figma plugin, the CLI and the MCP
 // server. No Figma API, no DOM, no Node-only API: everything runs in a browser, a plugin sandbox or Node.
 
 export * from './types';

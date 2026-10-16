@@ -1,5 +1,5 @@
 {
-  "name": "@demo-ds/admin",
+  "name": "@bridge-ds/admin",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -12,8 +12,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@demo-ds/react": "*",
-    "@demo-ds/tokens": "*",
+    "@bridge-ds/react": "*",
+    "@bridge-ds/tokens": "*",
     "@faker-js/faker": "10.6.0",
     "@tanstack/react-query": "5.103.3",
     "data-generator-retail": "5.15.4",

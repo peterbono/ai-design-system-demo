@@ -1,5 +1,5 @@
 import { Form, LinkBase, ListBase, required, useGetList, useListContext, useRecordContext, useTranslate } from 'ra-core';
-import { Card, CardBody, CardHeader, Skeleton } from '@demo-ds/react';
+import { Card, CardBody, CardHeader, Skeleton } from '@bridge-ds/react';
 import { FolderTree, Image } from 'lucide-react';
 import { DataTable, EditPage, FormSection, FormToolbar, Page, TextInput, type Column } from '../../ra-bridge';
 import { MobileRow, Muted, Thumbnail } from '../../ui';

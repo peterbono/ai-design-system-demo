@@ -1,5 +1,5 @@
 import { ListBase, useListContext, useTranslate } from 'ra-core';
-import { Avatar, Badge, Inline } from '@demo-ds/react';
+import { Avatar, Badge, Inline } from '@bridge-ds/react';
 import { Mail, Users } from 'lucide-react';
 import { DataTable, FilterBar, Page, SearchFilter, SelectFilter, type Column } from '../../ra-bridge';
 import { CustomerCell, MobileRow, Muted, fullName } from '../../ui';

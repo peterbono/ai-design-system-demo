@@ -1,6 +1,6 @@
 import { LinkBase, minValue, number, required, useGetList, useGetMany, useRecordContext, useTranslate } from 'ra-core';
 import { useWatch } from 'react-hook-form';
-import { Card, CardBody, EmptyState, Tab, Tabs, TabsList, TabsPanel } from '@demo-ds/react';
+import { Card, CardBody, EmptyState, Tab, Tabs, TabsList, TabsPanel } from '@bridge-ds/react';
 import { MessageSquareText } from 'lucide-react';
 import { CreatePage, EditPage, FormSection, NumberInput, SelectInput, TextInput, TextareaInput } from '../../ra-bridge';
 import { CustomerCell, ReviewStatusBadge, Stars } from '../../ui';

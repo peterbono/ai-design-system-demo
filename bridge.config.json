@@ -29,6 +29,6 @@
     }
   },
   "changeset": {
-    "package": "@demo-ds/tokens"
+    "package": "@bridge-ds/tokens"
   }
 }

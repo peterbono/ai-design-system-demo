@@ -1,8 +1,8 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import '@demo-ds/tokens/fonts.css';
-import '@demo-ds/tokens/tokens.css';
-import '@demo-ds/react/styles.css';
+import '@bridge-ds/tokens/fonts.css';
+import '@bridge-ds/tokens/tokens.css';
+import '@bridge-ds/react/styles.css';
 import './styles/app.css';
 import { App } from './App';
 

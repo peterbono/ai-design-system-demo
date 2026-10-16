@@ -10,11 +10,11 @@ export default defineConfig({
   esbuild: { jsx: 'automatic' },
   resolve: {
     alias: [
-      { find: '@demo-ds/react/styles.css', replacement: root('../../packages/react/src/styles/base.css') },
-      { find: /^@demo-ds\/react$/, replacement: root('../../packages/react/src/index.ts') },
-      { find: '@demo-ds/tokens/tokens.css', replacement: root('../../packages/tokens/dist/tokens.css') },
-      { find: '@demo-ds/tokens/fonts.css', replacement: root('../../packages/tokens/fonts.css') },
-      { find: /^@demo-ds\/tokens$/, replacement: root('../../packages/tokens/dist/tokens.ts') },
+      { find: '@bridge-ds/react/styles.css', replacement: root('../../packages/react/src/styles/base.css') },
+      { find: /^@bridge-ds\/react$/, replacement: root('../../packages/react/src/index.ts') },
+      { find: '@bridge-ds/tokens/tokens.css', replacement: root('../../packages/tokens/dist/tokens.css') },
+      { find: '@bridge-ds/tokens/fonts.css', replacement: root('../../packages/tokens/fonts.css') },
+      { find: /^@bridge-ds\/tokens$/, replacement: root('../../packages/tokens/dist/tokens.ts') },
       // The data generator imports the full faker build (every locale, about 2 MB). English is enough.
       { find: /^@faker-js\/faker$/, replacement: '@faker-js/faker/locale/en' },
     ],

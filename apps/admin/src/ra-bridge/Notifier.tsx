@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useNotificationContext, useTranslate } from 'ra-core';
-import { useToast, type ToastTone } from '@demo-ds/react';
+import { useToast, type ToastTone } from '@bridge-ds/react';
 
 const TONE: Record<string, ToastTone> = { success: 'success', info: 'info', warning: 'warning', error: 'danger' };
 

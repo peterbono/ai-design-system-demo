@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useListContext, useTranslate } from 'ra-core';
-import { Icon, IconButton, Input, Select, type SelectOption } from '@demo-ds/react';
+import { Icon, IconButton, Input, Select, type SelectOption } from '@bridge-ds/react';
 import { Search, X } from 'lucide-react';
 import styles from './list.module.css';
 

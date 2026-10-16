@@ -17,7 +17,7 @@ import {
   useUpdateMany,
   LinkBase,
 } from 'ra-core';
-import { Button, Card, CardBody, Drawer, DrawerContent, Skeleton, Tab, Tabs, TabsList } from '@demo-ds/react';
+import { Button, Card, CardBody, Drawer, DrawerContent, Skeleton, Tab, Tabs, TabsList } from '@bridge-ds/react';
 import { Check, MessageSquareText, X } from 'lucide-react';
 import { ConfirmButton, DataTable, DateFilter, FilterBar, FormToolbar, Page, SearchFilter, SelectFilter, SelectInput, TextareaInput, type Column } from '../../ra-bridge';
 import { CustomerCell, MobileRow, Muted, Properties, ReviewStatusBadge, Stars, Thumbnail, fullName } from '../../ui';

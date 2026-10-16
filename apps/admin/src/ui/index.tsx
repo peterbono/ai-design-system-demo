@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { LinkBase, useTranslate } from 'ra-core';
-import { Avatar, Badge, Card, Icon, type BadgeTone, type LucideIcon } from '@demo-ds/react';
+import { Avatar, Badge, Card, Icon, type BadgeTone, type LucideIcon } from '@bridge-ds/react';
 import { ArrowDownRight, ArrowUpRight, Ban, CircleCheck, Clock, Star } from 'lucide-react';
 import type { Customer, OrderStatus, ReviewStatus } from '../types';
 import { cx } from '../ra-bridge';

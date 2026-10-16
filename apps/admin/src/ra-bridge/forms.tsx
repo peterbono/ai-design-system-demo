@@ -16,7 +16,7 @@ import {
   type TransformData,
 } from 'ra-core';
 import { useFormState } from 'react-hook-form';
-import { AlertDialog, AlertDialogContent, Button, Card, Skeleton, type BreadcrumbItemData } from '@demo-ds/react';
+import { AlertDialog, AlertDialogContent, Button, Card, Skeleton, type BreadcrumbItemData } from '@bridge-ds/react';
 import { Save, Trash2 } from 'lucide-react';
 import { Page } from './Page';
 import { cx } from './cx';

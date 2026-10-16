@@ -1,9 +1,9 @@
 // End-to-end: GitHub (fake) -> pull -> Figma (simulated) -> edits -> push -> PR, without Figma.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { parseTokenFile, readTokenAt, removeToken, serializeTokenFile, upsertToken } from '@bridge/core';
+import { parseTokenFile, readTokenAt, removeToken, serializeTokenFile, upsertToken } from '@bridge-ds/core';
 import { analyze, buildPull, buildPush, openPullRequest } from '../src/sync/flows';
-import type { RenameSuggestion } from '@bridge/core';
+import type { RenameSuggestion } from '@bridge-ds/core';
 import { DEFAULT_SETTINGS, type FigmaSnapshot } from '../src/shared/messages';
 import { FakeGitHub } from './fake-github';
 import { applyPlanToSnapshot, findIn, modeId } from './figma-sim';
@@ -160,7 +160,7 @@ test('push: edits in Figma become a minimal PR with only the changed files', asy
   assert.equal(changed.length, 6);
   assert.ok(changed.some((f) => /^\.changeset\/ds-bridge-.*\.md$/.test(f)));
   const changeset = commit.files[changed.find((f) => f.startsWith('.changeset/'))!]!;
-  assert.match(changeset, /"@demo-ds\/tokens": major/, 'a rename is a breaking change');
+  assert.match(changeset, /"@bridge-ds\/tokens": major/, 'a rename is a breaking change');
   // Variables learn their ids so the next diff matches by id.
   assert.ok(result.tags.some((t) => t.variableId === 'new1' && t.pluginData.id === 'path:space.32' && t.pluginData.file === 'primitives/space.tokens.json'));
 });
@@ -309,7 +309,7 @@ test('bridge.config.json in the repo decides the tokens root, even when the sett
   const gh = new FakeGitHub(repoFiles());
   const a = await analyze(gh.client(), { ...DEFAULT_SETTINGS, tokensPath: 'somewhere/else' }, {}, { fileName: 'Test', collections: [], variables: [] });
   assert.equal(a.headFiles.tokensPath, 'packages/tokens/src');
-  assert.equal(a.headFiles.config?.changeset?.package, '@demo-ds/tokens');
+  assert.equal(a.headFiles.config?.changeset?.package, '@bridge-ds/tokens');
   assert.ok(a.pairs.length > 0);
   // Without a config the settings path is used, and no changeset package is known.
   const files = repoFiles();

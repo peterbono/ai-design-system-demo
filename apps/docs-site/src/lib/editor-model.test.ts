@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { buildTokenSet, layoutOptions, loadConfig, parseContrastChecks } from '@bridge/core';
+import { buildTokenSet, layoutOptions, loadConfig, parseContrastChecks } from '@bridge-ds/core';
 import { aliasCandidates, applyDraft, guardrails, previewOverrides, trayRows, type Draft } from './editor-model';
 
 // The real token files of this repo: the editor works on them in the browser.

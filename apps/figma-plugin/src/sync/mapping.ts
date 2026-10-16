@@ -25,11 +25,11 @@ import {
   type SnapshotVariable,
   type VariablePluginData,
 } from '../shared/messages';
-import { resolve } from '@bridge/core';
-import { effectiveScopes } from '@bridge/core';
-import { type TokenSet, contextFor, defaultFile, modeFile, modesOf, pathId } from '@bridge/core';
-import { type LogicalToken, type RepoLayout, SINGLE_MODE, TIER_ORDER, type Tier, isMultiMode } from '@bridge/core';
-import { aliasTarget, isAlias, parseColor, parseDimension, rgbaToDtcg, toAlias } from '@bridge/core';
+import { resolve } from '@bridge-ds/core';
+import { effectiveScopes } from '@bridge-ds/core';
+import { type TokenSet, contextFor, defaultFile, modeFile, modesOf, pathId } from '@bridge-ds/core';
+import { type LogicalToken, type RepoLayout, SINGLE_MODE, TIER_ORDER, type Tier, isMultiMode } from '@bridge-ds/core';
+import { aliasTarget, isAlias, parseColor, parseDimension, rgbaToDtcg, toAlias } from '@bridge-ds/core';
 
 export const pathToName = (path: string) => path.split('.').join('/');
 export const nameToPath = (name: string) =>

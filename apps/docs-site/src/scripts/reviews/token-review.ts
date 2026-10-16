@@ -1,7 +1,7 @@
 // Fetches the token files of a pull request at its base and head commits and hands them to the pure review
 // (lib/token-review.ts). One git-trees API call per commit; file contents come from raw.githubusercontent.com,
 // which does not count against the API rate limit.
-import { DEFAULT_TOKEN_PATHS, layoutOptions, loadConfig, parseContrastChecks, type BridgeConfig } from '@bridge/core';
+import { DEFAULT_TOKEN_PATHS, layoutOptions, loadConfig, parseContrastChecks, type BridgeConfig } from '@bridge-ds/core';
 import { reviewTokenChange, type TokenReview } from '../../lib/token-review';
 import { ghGet } from '../github-session';
 

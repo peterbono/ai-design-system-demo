@@ -38,7 +38,7 @@ Plain-text version:
 primitives --> brands (palette roles) --> semantic light/dark --> component tier
                                                    density --/
 all of it --> Style Dictionary (build.mjs) --> tokens.css + tokens.ts + resolved.json, fails on contrast
-@base-ui/react (behavior) + tokens.css (look) --> @demo-ds/react components --> Storybook, Vitest
+@base-ui/react (behavior) + tokens.css (look) --> @bridge-ds/react components --> Storybook, Vitest
 
 tokens JSON (main) --pull (DS Bridge)--> Figma variables (Primitives, Brand, Base, Semantic, Density, Component)
 Figma variables --DS Bridge: three-way diff + guardrails--> branch tokens/* + draft PR
@@ -106,7 +106,7 @@ component tier, density modes, motion, layers, focus offset, icon sizes and brea
 ## Where Figma fits
 
 Figma is where designers explore and edit. It is not the source of truth and there is no live sync.
-The bridge is DS Bridge, the plugin in `apps/figma-plugin`, built on `@bridge/core` (`packages/core`,
+The bridge is DS Bridge, the plugin in `apps/figma-plugin`, built on `@bridge-ds/core` (`packages/core`,
 the same token logic a CLI or an MCP server can use). Repo paths come from `bridge.config.json`.
 
 1. **Pull** (code to Figma). The plugin reads the DTCG files on `main` through the GitHub API and writes
@@ -162,4 +162,4 @@ Rules live in CI, not in prompts. A prompt can be ignored; a failing Stylelint c
 | Changeset check | Package changes with no semver bump or changelog entry |
 | CODEOWNERS | Token and guardrail changes without design + tech approval |
 | DS Bridge (in Figma, before the PR) | Tier order (brand and density alias primitives, semantic colors alias Brand palette roles, component tokens alias semantic tokens and never a palette role or raw color), raw values where an alias is required, broken references, alias cycles, values missing in a mode of their tier, orphan brand overrides, `ALL_SCOPES` variables, type changes, pairs in `contrast.checks.json` below their minimum in any brand x theme |
-| Plugin and core tests | `@bridge/core` (Vitest, in `npm test`): lossless DTCG round trip, tier resolution, contrast parity with `dist/resolved.json`, diff, validators, PR body, risk tier, GitHub client. Plugin (`plugin:test`): pull/edit/push flow against an in-memory GitHub and a simulated Figma. Plus typecheck and build |
+| Plugin and core tests | `@bridge-ds/core` (Vitest, in `npm test`): lossless DTCG round trip, tier resolution, contrast parity with `dist/resolved.json`, diff, validators, PR body, risk tier, GitHub client. Plugin (`plugin:test`): pull/edit/push flow against an in-memory GitHub and a simulated Figma. Plus typecheck and build |

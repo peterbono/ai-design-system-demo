@@ -1,6 +1,6 @@
-// Live preview for the token editor: real components from @demo-ds/react, rendered to static HTML at build time.
+// Live preview for the token editor: real components from @bridge-ds/react, rendered to static HTML at build time.
 // The editor sets the draft as CSS variable overrides on each frame, so the preview repaints without React.
-import { Alert, Badge, Button, Card, CardBody, CardFooter, CardHeader, Input, Tab, Tabs, TabsList, TabsPanel } from '@demo-ds/react';
+import { Alert, Badge, Button, Card, CardBody, CardFooter, CardHeader, Input, Tab, Tabs, TabsList, TabsPanel } from '@bridge-ds/react';
 
 export default function EditorPreview({ theme }: { theme: 'light' | 'dark' }) {
   return (

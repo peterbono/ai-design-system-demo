@@ -77,7 +77,7 @@ jobs:
         run: npm run docs:build
 
       - name: Typecheck docs data layer
-        run: npm run typecheck -w @demo-ds/docs-site
+        run: npm run typecheck -w @bridge-ds/docs-site
 
   plugin:
     name: Figma plugin (DS Bridge)

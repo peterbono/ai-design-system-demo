@@ -1,6 +1,6 @@
 import { lazy, Suspense, useMemo } from 'react';
 import { LinkBase, useGetList, useGetMany, useTranslate } from 'ra-core';
-import { Card, CardBody, CardHeader, EmptyState, Link, Skeleton } from '@demo-ds/react';
+import { Card, CardBody, CardHeader, EmptyState, Link, Skeleton } from '@bridge-ds/react';
 import { DollarSign, MessageSquareText, ShoppingBag, UserPlus } from 'lucide-react';
 import { startOfDay, subDays } from 'date-fns';
 import { Page } from '../../ra-bridge';

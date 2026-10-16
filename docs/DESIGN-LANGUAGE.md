@@ -98,7 +98,7 @@ collides with the blue primary) and rounder radii. Components do not change.
 
 **IBM Plex Sans** (UI and text) and **IBM Plex Mono** (code, token names, values, keyboard keys).
 Self-hosted with `@fontsource-variable/ibm-plex-sans` and `@fontsource/ibm-plex-mono`, imported once through
-`@demo-ds/tokens/fonts.css`.
+`@bridge-ds/tokens/fonts.css`.
 
 Why Plex:
 

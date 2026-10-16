@@ -12,6 +12,6 @@ export default defineConfig({
   devToolbar: { enabled: false },
   vite: {
     // Workspace packages are TypeScript sources; let Vite transform them instead of treating them as prebuilt deps.
-    ssr: { noExternal: ['@demo-ds/react', '@demo-ds/tokens', '@bridge/core'] },
+    ssr: { noExternal: ['@bridge-ds/react', '@bridge-ds/tokens', '@bridge-ds/core'] },
   },
 });

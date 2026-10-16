@@ -8,7 +8,7 @@ The app has two visual layers that must never blur:
 
 1. **The Bridge chrome** (navigation, dashboards, charts, cards): its own brand, defined in
    `src/brand/tokens.ts` and emitted as `--br-*` CSS variables.
-2. **The design system being documented** (`@demo-ds/tokens`, `@demo-ds/react`): only ever shown inside
+2. **The design system being documented** (`@bridge-ds/tokens`, `@bridge-ds/react`): only ever shown inside
    *preview surfaces* (stages, the theme playground, do/don't cards). Its indigo brand is the client's color, not ours.
 
 ## Subject and mode

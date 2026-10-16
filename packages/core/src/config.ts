@@ -1,5 +1,5 @@
 // bridge.config.json: where a design system repo keeps its tokens, and which modes it has.
-// Schema: packages/core/bridge.config.schema.json. Nothing in @bridge/core assumes a repo; callers
+// Schema: packages/core/bridge.config.schema.json. Nothing in @bridge-ds/core assumes a repo; callers
 // pass a config (or let the defaults describe the conventional layout below).
 //
 //   <tokens.root>/<primitives>/*.tokens.json       primitive tier

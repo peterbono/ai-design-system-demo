@@ -1,5 +1,5 @@
 {
-  "name": "@demo-ds/react",
+  "name": "@bridge-ds/react",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@base-ui/react": "1.9.0",
-    "@demo-ds/tokens": "*",
+    "@bridge-ds/tokens": "*",
     "lucide-react": "1.58.0"
   },
   "peerDependencies": {

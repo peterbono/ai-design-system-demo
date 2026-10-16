@@ -1,8 +1,8 @@
 // One registry of renderable components, shared by the static examples (Example.tsx) and the props playground.
-// Every export of @demo-ds/react that is a component is registered automatically, so a new component shows up in
+// Every export of @bridge-ds/react that is a component is registered automatically, so a new component shows up in
 // the docs as soon as it is exported. A few layout helpers used only by the docs examples are added by hand.
 import type { ComponentType, CSSProperties, ReactNode } from 'react';
-import * as DS from '@demo-ds/react';
+import * as DS from '@bridge-ds/react';
 import { Copy, Ellipsis, GitPullRequest, Pencil, Trash2, type LucideIcon } from 'lucide-react';
 
 const layout = (style: CSSProperties) =>

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/peterbono/ai-design-system-demo/packages/core/bridge.config.schema.json",
   "title": "Bridge config",
-  "description": "Where a design system repository keeps its DTCG tokens and which brands, themes and densities it has. Read by @bridge/core, the DS Bridge Figma plugin, the CLI and the MCP server.",
+  "description": "Where a design system repository keeps its DTCG tokens and which brands, themes and densities it has. Read by @bridge-ds/core, the DS Bridge Figma plugin, the CLI and the MCP server.",
   "type": "object",
   "required": ["repo"],
   "additionalProperties": false,
