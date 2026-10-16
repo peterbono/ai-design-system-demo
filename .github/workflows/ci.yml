@@ -36,7 +36,7 @@ jobs:
       - name: Package scope (no @demo-ds or @bridge names left, only @bridge-ds)
         run: node scripts/rename-scope.mjs --check
 
-      - name: Lint CSS (tokens only: no raw colors, shadows, lengths or durations)
+      - name: "Lint CSS (tokens only: no raw colors, shadows, lengths or durations)"
         run: npm run lint:css && npm run admin:lint:css
 
       - name: Build Storybook
