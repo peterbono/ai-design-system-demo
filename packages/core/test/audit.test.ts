@@ -209,6 +209,7 @@ describe('what counts as a UI component instance', () => {
     '    <Button>Save</Button>',
     '    <SidebarNavItem render={<LinkBase to="/orders" />}>Orders</SidebarNavItem>',
     '    <Link render={<RouterLink to="/" />}>Home</Link>',
+    '    <Button render={<a href="/tokens" />}>Tokens</Button>',
     '    <LinkBase to="/customers/1" className="row">Ada</LinkBase>',
     '    <a href="#main">Skip</a>',
     '    <a id="top" />',
@@ -218,9 +219,9 @@ describe('what counts as a UI component instance', () => {
     ');',
   ].join('\n');
 
-  test('providers do not count; router links in a render prop do not; standalone links, anchors, images and charts do', () => {
+  test('providers do not count; router links and anchors in a render prop do not; standalone links, anchors, images and charts do', () => {
     const f = auditFile('app.tsx', app, ds());
-    assert.equal(f.dsComponents, 3);
+    assert.equal(f.dsComponents, 4);
     const other = f.components.map((c) => `${c.kind}:${c.library}:${c.name}${c.suggestion ? `>${c.suggestion}` : ''}`);
     assert.deepEqual(other, [
       'foreign:ra-core:LinkBase>Link',

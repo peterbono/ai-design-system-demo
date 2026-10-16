@@ -33,7 +33,7 @@ function kindFor(path: string): ts.ScriptKind {
 }
 
 const RENDER_PROPS = new Set(['render', 'component', 'as', 'linkComponent', 'LinkComponent']);
-/** `<Comp render={<Link to="/x" />} />` or `{ render: <Link /> }`: the element only gives a DS component its router. */
+/** `<Comp render={<Link to="/x" />} />`, `render={<a href="/x" />}` or `{ render: <Link /> }`: the element only gives a component its tag or router. */
 function isRenderElement(node: ts.JsxOpeningElement | ts.JsxSelfClosingElement): boolean {
   let p: ts.Node = ts.isJsxOpeningElement(node) ? node.parent.parent : node.parent;
   while (ts.isParenthesizedExpression(p)) p = p.parent;
@@ -177,6 +177,8 @@ export function scanCode(path: string, text: string, ds: DesignSystemIndex): Cod
       if (name === 'input' && type === 'hidden') return;
       // An anchor without href is not a link (named anchor, placeholder).
       if (name === 'a' && !node.attributes.properties.some((p) => ts.isJsxAttribute(p) && p.name.getText(sf) === 'href')) return;
+      // `<Button render={<a href="/x" />}>`: the element only gives the DS component its tag; the DS component is the UI.
+      if (isRenderElement(node)) return;
       const suggestion = nativeEquivalent(name, type, ds.components);
       out.components.push({ ...at, name, kind: 'native', library: 'native', ...(suggestion ? { suggestion } : {}) });
       return;
