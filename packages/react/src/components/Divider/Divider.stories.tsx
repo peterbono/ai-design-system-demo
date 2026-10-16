@@ -5,7 +5,6 @@ import { Divider } from './Divider';
 const meta = {
   title: 'Data display/Divider',
   component: Divider,
-  tags: ['autodocs'],
   args: { orientation: 'horizontal', spacing: 'md' },
   argTypes: {
     orientation: { control: 'inline-radio', options: ['horizontal', 'vertical'] },

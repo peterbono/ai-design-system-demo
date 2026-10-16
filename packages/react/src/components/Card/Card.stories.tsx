@@ -7,7 +7,6 @@ import { Card, CardBody, CardFooter, CardHeader } from './Card';
 const meta = {
   title: 'Data display/Card',
   component: Card,
-  tags: ['autodocs'],
   args: { padding: 'default', interactive: false },
   argTypes: { padding: { control: 'inline-radio', options: ['none', 'compact', 'default'] } },
 } satisfies Meta<typeof Card>;

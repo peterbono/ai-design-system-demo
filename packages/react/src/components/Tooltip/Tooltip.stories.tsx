@@ -7,7 +7,6 @@ import { Tooltip, TooltipProvider } from './Tooltip';
 const meta = {
   title: 'Overlays/Tooltip',
   component: Tooltip,
-  tags: ['autodocs'],
   args: { content: 'Copy token name', side: 'top', children: <IconButton icon={Copy} label="Copy token name" /> },
   argTypes: { side: { control: 'inline-radio', options: ['top', 'bottom', 'left', 'right'] }, children: { control: false } },
   parameters: { layout: 'centered' },

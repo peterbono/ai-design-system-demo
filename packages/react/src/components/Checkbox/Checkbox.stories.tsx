@@ -5,7 +5,6 @@ import { Checkbox } from './Checkbox';
 const meta = {
   title: 'Forms/Checkbox',
   component: Checkbox,
-  tags: ['autodocs'],
   args: { label: 'Notify reviewers when I open a pull request' },
 } satisfies Meta<typeof Checkbox>;
 

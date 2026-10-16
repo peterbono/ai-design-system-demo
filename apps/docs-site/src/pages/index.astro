@@ -36,7 +36,7 @@ const principles = [
   { title: 'Meaning before value', text: 'Designs use semantic tokens (action, feedback, surface), never raw colors. Themes swap values, not decisions.' },
   { title: 'Accessible by default', text: 'Native elements, visible keyboard focus, labels wired to fields, and color is never the only signal.' },
   { title: 'Guardrails over good intentions', text: 'Rules that matter are checked by CI on every change, for people and AI agents alike.' },
-  { title: 'Written once, shown everywhere', text: 'These pages, Storybook and the agent context are generated from the same files. Nothing is typed twice.' },
+  { title: 'Written once, shown everywhere', text: 'These pages, llms.txt and the MCP server read the same files. Nothing is typed twice.' },
 ];
 ---
 
@@ -55,8 +55,8 @@ const principles = [
         merge, so what you read here is what ships.
       </p>
       <div class="hero-ctas">
-        <a class="btn btn-primary" href={STORYBOOK_URL}><Icon name="storybook" size={18} />Open Storybook</a>
-        <a class="btn btn-secondary" href={PLUGIN_URL}><Icon name="figma" size={18} />Install DS Bridge plugin</a>
+        <a class="btn btn-primary" href={PLUGIN_URL}><Icon name="figma" size={18} />Install DS Bridge plugin</a>
+        <a class="btn btn-secondary" href="/connect/mcp/"><Icon name="agent" size={18} />Connect your Claude</a>
         <a class="btn btn-secondary" href={GITHUB_URL}><Icon name="github" size={18} />View on GitHub</a>
       </div>
       <p class="hero-note">
@@ -271,9 +271,16 @@ const principles = [
         </li>
       </ul>
       <p class="elsewhere small">
-        Also: <a href={STORYBOOK_URL}>Storybook</a> for every state with the accessibility panel, the <a href={GITHUB_URL}>GitHub repository</a> for
-        sources and pull requests, and <a href="/llms.txt">llms.txt</a> for agents.
+        Also: the <a href={GITHUB_URL}>GitHub repository</a> for sources and pull requests, <a href="/connect/mcp/">the MCP server</a> for your own
+        Claude, and <a href="/llms.txt">llms.txt</a> for agents.
       </p>
+      <div class="contribute small" aria-labelledby="contribute-title">
+        <h3 id="contribute-title">Contribute</h3>
+        <p>
+          Building or fixing a component? The <a href={STORYBOOK_URL}>component workbench (Storybook)</a> renders every state with the
+          accessibility panel. It is a development tool and the source of visual test fixtures; user docs live here.
+        </p>
+      </div>
     </div>
   </section>
   <script>

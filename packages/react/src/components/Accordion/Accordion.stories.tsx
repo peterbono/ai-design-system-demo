@@ -6,7 +6,6 @@ import { Accordion, AccordionItem } from './Accordion';
 const meta = {
   title: 'Data display/Accordion',
   component: Accordion,
-  tags: ['autodocs'],
   args: { multiple: false, headingLevel: 3, appearance: 'contained', children: null },
   argTypes: {
     appearance: { control: 'inline-radio', options: ['contained', 'flush'] },

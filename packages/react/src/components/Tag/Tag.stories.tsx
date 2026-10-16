@@ -7,7 +7,6 @@ import { Tag } from './Tag';
 const meta = {
   title: 'Data display/Tag',
   component: Tag,
-  tags: ['autodocs'],
   args: { children: 'color.action', tone: 'neutral', size: 'md' },
   argTypes: {
     tone: { control: 'inline-radio', options: ['neutral', 'signal'] },

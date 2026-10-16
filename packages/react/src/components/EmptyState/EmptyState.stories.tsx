@@ -8,7 +8,6 @@ import { EmptyState } from './EmptyState';
 const meta = {
   title: 'Feedback/EmptyState',
   component: EmptyState,
-  tags: ['autodocs'],
   args: {
     icon: GitPullRequest,
     title: 'No pull requests yet',

@@ -6,7 +6,6 @@ import { Button, type ButtonVariant } from './Button';
 const meta = {
   title: 'Actions/Button',
   component: Button,
-  tags: ['autodocs'],
   args: { children: 'Publish tokens', variant: 'primary', size: 'md' },
   argTypes: {
     variant: { control: 'inline-radio', options: ['primary', 'secondary', 'ghost', 'danger'] },

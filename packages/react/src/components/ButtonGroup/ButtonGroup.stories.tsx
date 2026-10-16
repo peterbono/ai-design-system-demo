@@ -8,7 +8,6 @@ import { ButtonGroup } from './ButtonGroup';
 const meta = {
   title: 'Actions/ButtonGroup',
   component: ButtonGroup,
-  tags: ['autodocs'],
   args: { appearance: 'spaced', orientation: 'horizontal', align: 'start' },
   argTypes: {
     appearance: { control: 'inline-radio', options: ['spaced', 'attached'] },

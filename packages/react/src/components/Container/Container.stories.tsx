@@ -6,7 +6,6 @@ import { Container, type ContainerSize } from './Container';
 const meta = {
   title: 'Layout/Container',
   component: Container,
-  tags: ['autodocs'],
   args: { size: 'lg', padding: 'md' },
   argTypes: {
     size: { control: 'inline-radio', options: ['sm', 'md', 'lg', 'xl', 'full'] },

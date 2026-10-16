@@ -8,7 +8,6 @@ const GAPS = ['0', '0-5', '1', '1-5', '2', '3', '4', '5', '6', '8', '10', '12', 
 const meta = {
   title: 'Layout/Stack',
   component: Stack,
-  tags: ['autodocs'],
   args: { gap: '3', align: 'stretch', justify: 'start' },
   argTypes: {
     gap: { control: 'select', options: GAPS },

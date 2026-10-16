@@ -5,7 +5,6 @@ import { Kbd } from './Kbd';
 const meta = {
   title: 'Data display/Kbd',
   component: Kbd,
-  tags: ['autodocs'],
   args: { keys: ['Cmd', 'K'], size: 'md' },
   argTypes: { size: { control: 'inline-radio', options: ['sm', 'md'] } },
 } satisfies Meta<typeof Kbd>;

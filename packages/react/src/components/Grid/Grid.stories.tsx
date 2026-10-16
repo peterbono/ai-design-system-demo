@@ -6,7 +6,6 @@ import { Grid } from './Grid';
 const meta = {
   title: 'Layout/Grid',
   component: Grid,
-  tags: ['autodocs'],
   args: { columns: 3, gap: '4' },
   argTypes: {
     gap: { control: 'select', options: ['0', '1', '2', '3', '4', '5', '6', '8'] },

@@ -43,7 +43,7 @@ const toc = [
   { id: 'anatomy', label: 'Anatomy and tokens' },
   { id: 'props', label: 'Props' },
   { id: 'playground', label: 'Playground' },
-  { id: 'live', label: 'Storybook' },
+  { id: 'live', label: 'Workbench' },
 ];
 ---
 
@@ -64,7 +64,7 @@ const toc = [
           mainStory && (
             <li>
               <a class="cp-link" href={`${STORYBOOK_URL}/?path=/story/${mainStory.id}`}>
-                <Icon name="storybook" size={16} /> Storybook
+                <Icon name="storybook" size={16} /> Workbench
               </a>
             </li>
           )
@@ -335,9 +335,10 @@ const toc = [
       </section>
 
       <section aria-labelledby="live">
-        <h2 id="live">Storybook</h2>
+        <h2 id="live">Workbench</h2>
         <p>
-          For every state and the accessibility panel, open the stories in Storybook
+          For contributors: every state with the accessibility panel, in the component workbench (Storybook). The stories double as visual test
+          fixtures; the guidance on this page is the user documentation
           {mainStory && (
             <>
               {' '}(<a href={`${STORYBOOK_URL}/?path=/story/${mainStory.id}`}>open {c.name} in Storybook</a>)

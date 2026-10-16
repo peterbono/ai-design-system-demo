@@ -285,7 +285,6 @@ import { ${name} } from './${name}';
 const meta = {
   title: '${input.family}/${name}',
   component: ${name},
-  tags: ['autodocs'],
 } satisfies Meta<typeof ${name}>;
 
 export default meta;

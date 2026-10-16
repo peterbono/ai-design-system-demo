@@ -5,7 +5,6 @@ import { Link, type LinkVariant } from './Link';
 const meta = {
   title: 'Actions/Link',
   component: Link,
-  tags: ['autodocs'],
   args: { href: '#tokens', children: 'Read the token guidelines', variant: 'inline' },
   argTypes: {
     variant: { control: 'inline-radio', options: ['inline', 'standalone', 'subtle'] },

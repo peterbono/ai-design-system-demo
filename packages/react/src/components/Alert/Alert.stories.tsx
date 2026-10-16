@@ -8,7 +8,6 @@ import { Alert, type AlertTone } from './Alert';
 const meta = {
   title: 'Feedback/Alert',
   component: Alert,
-  tags: ['autodocs'],
   args: {
     tone: 'info',
     title: 'Figma sync is running',

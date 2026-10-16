@@ -6,7 +6,6 @@ import { Tab, Tabs, TabsList, TabsPanel, type TabsVariant } from './Tabs';
 const meta = {
   title: 'Navigation/Tabs',
   component: Tabs,
-  tags: ['autodocs'],
   args: { variant: 'underline', size: 'md', defaultValue: 'tokens' },
   argTypes: {
     variant: { control: 'inline-radio', options: ['underline', 'contained'] },

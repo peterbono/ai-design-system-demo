@@ -18,7 +18,6 @@ import {
 const meta = {
   title: 'Overlays/Menu',
   component: Menu,
-  tags: ['autodocs'],
 } satisfies Meta<typeof Menu>;
 
 export default meta;

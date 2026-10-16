@@ -5,7 +5,6 @@ import { Switch } from './Switch';
 const meta = {
   title: 'Forms/Switch',
   component: Switch,
-  tags: ['autodocs'],
   args: { label: 'Auto-publish approved tokens' },
   argTypes: { labelPlacement: { control: 'inline-radio', options: ['end', 'start'] }, size: { control: 'inline-radio', options: ['sm', 'md'] } },
 } satisfies Meta<typeof Switch>;

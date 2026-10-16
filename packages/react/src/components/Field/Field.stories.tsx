@@ -5,7 +5,6 @@ import { Field } from './Field';
 const meta = {
   title: 'Forms/Field',
   component: Field,
-  tags: ['autodocs'],
   args: { label: 'Repository', description: 'Owner and name, like acme/design-tokens.', children: null },
   decorators: [(Story) => <div style={{ maxWidth: 360 }}><Story /></div>],
 } satisfies Meta<typeof Field>;

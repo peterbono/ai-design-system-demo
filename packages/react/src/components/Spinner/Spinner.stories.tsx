@@ -6,7 +6,6 @@ import { Spinner } from './Spinner';
 const meta = {
   title: 'Feedback/Spinner',
   component: Spinner,
-  tags: ['autodocs'],
   args: { size: 'md', tone: 'signal', label: 'Loading tokens' },
   argTypes: {
     size: { control: 'inline-radio', options: ['xs', 'sm', 'md', 'lg'] },

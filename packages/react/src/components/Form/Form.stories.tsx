@@ -12,7 +12,6 @@ import { Form, FormActions, type FormErrors } from './Form';
 const meta = {
   title: 'Forms/Form',
   component: Form,
-  tags: ['autodocs'],
   decorators: [(S) => <div style={{ maxWidth: 480 }}><S /></div>],
 } satisfies Meta<typeof Form>;
 

@@ -77,7 +77,6 @@ function Visible() {
 const meta = {
   title: 'Feedback/Toast',
   component: ToastProvider,
-  tags: ['autodocs'],
   parameters: { layout: 'padded' },
 } satisfies Meta<typeof ToastProvider>;
 

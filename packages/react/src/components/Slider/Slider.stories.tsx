@@ -5,7 +5,6 @@ import { Slider } from './Slider';
 const meta = {
   title: 'Forms/Slider',
   component: Slider,
-  tags: ['autodocs'],
   args: { label: 'Minimum contrast', defaultValue: 4.5, min: 3, max: 7, step: 0.5, hint: 'Pairs below this ratio fail the token build.' },
 } satisfies Meta<typeof Slider>;
 
