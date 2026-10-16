@@ -3,17 +3,22 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Bridge core: bridge.config.json, DTCG token loading (tiers and layered modes), alias resolution, WCAG contrast, diffs, minimal-diff edits, PR body, the shared risk tier classifier, changesets and a fetch-based GitHub client. No Figma API, no DOM; Node-only git helpers under @bridge/core/node.",
+  "description": "Bridge core: bridge.config.json, DTCG token loading (tiers and layered modes), alias resolution, WCAG contrast, diffs, minimal-diff edits, PR body, the shared risk tier classifier, changesets and a fetch-based GitHub client. No Figma API, no DOM; Node-only helpers (git, reading a product folder) under @bridge/core/node; the adoption audit under @bridge/core/audit.",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "sideEffects": false,
   "exports": {
     ".": "./src/index.ts",
+    "./audit": "./src/audit/index.ts",
     "./node": "./src/node/index.ts",
-    "./bridge.config.schema.json": "./bridge.config.schema.json"
+    "./bridge.config.schema.json": "./bridge.config.schema.json",
+    "./audit-report.schema.json": "./audit-report.schema.json"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "typescript": "5.9.3"
   },
   "devDependencies": {
     "@types/node": "20.19.9"

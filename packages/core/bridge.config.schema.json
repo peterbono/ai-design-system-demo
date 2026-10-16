@@ -405,6 +405,49 @@
           }
         }
       }
+    },
+    "audit": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "bridge audit: how product code that consumes this design system is measured (token and component adoption).",
+      "properties": {
+        "packages": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Packages the DS components are imported from. Default: the package that holds components.dir, plus @bridge/react."
+        },
+        "foreignLibraries": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Extra import prefixes counted as foreign UI libraries (MUI, antd, Chakra, Radix, Headless UI, Mantine, react-admin... are built in)."
+        },
+        "nativeElements": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Native elements that should be DS components.",
+          "default": [
+            "button",
+            "input",
+            "select",
+            "textarea",
+            "dialog",
+            "table"
+          ]
+        },
+        "exclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Path globs, relative to the audited folder, to skip."
+        }
+      }
     }
   }
 }

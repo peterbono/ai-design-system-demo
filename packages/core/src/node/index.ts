@@ -2,3 +2,4 @@
 // sandbox and the browser never load them.
 export * from './git-local';
 export * from './git-history';
+export * from './audit';

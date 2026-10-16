@@ -25,7 +25,8 @@
   },
   "dependencies": {
     "@bridge/mcp": "0.1.0",
-    "@bridge/visual": "0.1.0"
+    "@bridge/visual": "0.1.0",
+    "typescript": "5.9.3"
   },
   "devDependencies": {
     "@types/node": "20.19.9",

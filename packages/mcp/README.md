@@ -62,9 +62,11 @@ and the full guide: [docs/AI.md](../../docs/AI.md).
 | `bridge_get_token_history` | Every change of one token, before and after per mode |
 | `bridge_plan_revert` | Dry run of a revert (or a one-token restore) against the current base, conflicts shown |
 | `bridge_propose_revert` | The revert as a local bridge/* branch or a draft PR labelled revert |
+| `bridge_audit` | Adoption in a product folder or file (local): token and component adoption, hardcoded values with the closest token, foreign components with the DS one to use, top files and fixes |
 
 Resources: `bridge://tokens/resolved`, `bridge://design-language`, `bridge://guidelines`,
-`bridge://components/{name}`. Prompts: `review-token-pr`, `add-component`, `audit-ui-for-tokens`.
+`bridge://components/{name}`. Prompts: `review-token-pr`, `add-component`, `audit-ui-for-tokens`,
+`migrate-file-to-ds`.
 
 ## Configuration
 

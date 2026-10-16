@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { MCP_DIST, REPO } from './helpers.js';
 
 const TOOLS = [
+  'bridge_audit',
   'bridge_check_contrast',
   'bridge_get_component',
   'bridge_get_config',
@@ -46,7 +47,7 @@ describe('MCP over stdio', () => {
     expect(client.getInstructions()).toMatch(/never writes to main/);
   });
 
-  it('lists the 20 tools with JSON schemas and read-only hints', async () => {
+  it('lists the 21 tools with JSON schemas and read-only hints', async () => {
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual(TOOLS);
     const getToken = tools.find((t) => t.name === 'bridge_get_token')!;
@@ -88,12 +89,37 @@ describe('MCP over stdio', () => {
     expect(button.name).toBe('Button');
   });
 
-  it('serves the three prompts; audit embeds token suggestions', async () => {
+  it('serves the four prompts; audit embeds token suggestions', async () => {
     const { prompts } = await client.listPrompts();
-    expect(prompts.map((p) => p.name).sort()).toEqual(['add-component', 'audit-ui-for-tokens', 'review-token-pr']);
+    expect(prompts.map((p) => p.name).sort()).toEqual(['add-component', 'audit-ui-for-tokens', 'migrate-file-to-ds', 'review-token-pr']);
     const p = await client.getPrompt({ name: 'audit-ui-for-tokens', arguments: { code: '.card { background: #ffffff; padding: 16px; }' } });
     const body = (p.messages[0]!.content as { text: string }).text;
     expect(body).toContain('var(--color-surface-default)');
     expect(body).toContain('var(--space-4)');
+  });
+
+  it('calls bridge_audit on a product folder: adoption, top files, top fixes', async () => {
+    const r = await client.callTool({ name: 'bridge_audit', arguments: { path: 'packages/core/test/fixtures/audit/mui-app', limit: 5 } });
+    expect(r.isError).toBeFalsy();
+    const data = JSON.parse(text(r));
+    expect(data.metrics.componentAdoption).toBe(0);
+    expect(data.metrics.hardcoded).toBeGreaterThan(10);
+    expect(data.components.foreign['@mui/material'].instances).toBeGreaterThan(5);
+    expect(data.topFiles.length).toBeLessThanOrEqual(5);
+    expect(data.topFixes.some((f: { use: string }) => f.use === 'var(--color-text-default)')).toBe(true);
+    expect(data.findings).toBeUndefined();
+    const clean = JSON.parse(text(await client.callTool({ name: 'bridge_audit', arguments: { path: 'packages/core/test/fixtures/audit/clean-app' } })));
+    expect(clean.metrics).toMatchObject({ tokenAdoption: 100, componentAdoption: 100 });
+    const missing = await client.callTool({ name: 'bridge_audit', arguments: { path: 'nope/nothing' } });
+    expect(missing.isError).toBe(true);
+  });
+
+  it('migrate-file-to-ds embeds the audit of one file with line numbers and DS components', async () => {
+    const p = await client.getPrompt({ name: 'migrate-file-to-ds', arguments: { path: 'packages/core/test/fixtures/audit/mui-app/src/App.tsx' } });
+    const body = (p.messages[0]!.content as { text: string }).text;
+    expect(body).toContain('"use": "var(--color-text-default)"');
+    expect(body).toMatch(/"name": "TextField",\s*"kind": "foreign",\s*"library": "@mui\/material",\s*"use": "Input"/);
+    expect(body).toContain('bridge_get_component');
+    expect(body).not.toMatch(/\u2014/);
   });
 });

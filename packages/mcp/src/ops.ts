@@ -1,11 +1,13 @@
 // Every Bridge operation as a plain async function. The MCP server and the CLI are thin wrappers over these.
+import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, writeFile, access } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
+import { buildAuditReport, compareWithBaseline, DesignSystemIndex, type AuditReport } from '@bridge/core/audit';
 import { auditSnippet } from './audit.js';
-import { getComponent, listComponents, scaffoldComponent, type ScaffoldInput } from './components.js';
+import { getComponent, listComponentNames, listComponents, scaffoldComponent, type ScaffoldInput } from './components.js';
 import type { BridgeContext } from './context.js';
 import { baseBranchOf, protectedBranchesOf } from '@bridge/core';
-import { branchExists, commitToNewLocalBranch, currentBranch, git } from '@bridge/core/node';
+import { branchExists, collectAuditFiles, commitToNewLocalBranch, currentBranch, git } from '@bridge/core/node';
 import { core, type Combo, type Issue, type PairInput, type TokenEdit, type TokenSet } from './core-adapter.js';
 import { bullets, findSection, toc } from './markdown.js';
 import { GitHubSource, GitRefSource, type RepoSource } from './source.js';
@@ -546,5 +548,74 @@ export async function visualImpact(
       : changed.length
         ? 'Open the composite images (before | after | diff) to review; manifest.json has every shot with bounding boxes.'
         : 'No visual change in the captured stories and screens.',
+// --- adoption audit -------------------------------------------------------------------------------------
+
+/** The design system the audit measures against: tokens of this repo, its components and package names. */
+async function designSystemIndex(ctx: BridgeContext): Promise<DesignSystemIndex> {
+  const { config } = await ctx.config();
+  const set = await ctx.tokens();
+  const components = (await listComponentNames(ctx.source, config)).map((c) => c.name).filter((n) => /^[A-Z]/.test(n));
+  let packages = config.audit?.packages;
+  if (!packages) {
+    packages = ['@bridge/react'];
+    const parts = (config.components?.dir ?? '').split('/').filter(Boolean);
+    for (let i = parts.length; i > 0; i--) {
+      const text = await ctx.source.read(`${parts.slice(0, i).join('/')}/package.json`);
+      if (!text) continue;
+      const name = (JSON.parse(text) as { name?: string }).name;
+      if (name && !packages.includes(name)) packages.unshift(name);
+      break;
+    }
+  }
+  return new DesignSystemIndex(set, {
+    packages,
+    components,
+    ...(config.audit?.foreignLibraries ? { foreignLibraries: config.audit.foreignLibraries } : {}),
+    ...(config.audit?.nativeElements ? { nativeElements: config.audit.nativeElements } : {}),
+  });
+}
+
+/** Audit a product folder or file (local only): adoption metrics, top files, top fixes, and findings for one file. */
+export async function auditOp(ctx: BridgeContext, a: { path: string; baseline?: string; label?: string; limit?: number; findings?: boolean }) {
+  if (ctx.mode !== 'local' || !ctx.root) throw new Error('bridge_audit reads product code from disk: start the server on a local design system repo (--root).');
+  const { config } = await ctx.config();
+  const target = isAbsolute(a.path) ? a.path : resolve(ctx.root, a.path);
+  if (!existsSync(target)) throw new Error(`No such file or folder: ${target}`);
+  const ds = await designSystemIndex(ctx);
+  const { files, skipped } = collectAuditFiles(target, config.audit?.exclude ?? []);
+  let report = buildAuditReport({ files, skipped, target: a.path, ...(a.label ? { label: a.label } : {}) }, ds);
+  if (a.baseline) report = compareWithBaseline(report, JSON.parse(readFileSync(isAbsolute(a.baseline) ? a.baseline : resolve(ctx.root, a.baseline), 'utf8')) as AuditReport);
+  const limit = a.limit ?? 10;
+  const single = files.length === 1;
+  const withFindings = a.findings ?? single;
+  return {
+    target: a.path,
+    files: report.target.files,
+    metrics: report.metrics,
+    ...(report.baseline ? { sinceBaseline: { tokenAdoption: report.baseline.tokenAdoption, componentAdoption: report.baseline.componentAdoption, hardcoded: report.baseline.hardcoded, improved: report.baseline.improved.length, regressed: report.baseline.regressed.slice(0, limit) } } : {}),
+    byCategory: report.byCategory,
+    components: {
+      ds: report.components.ds,
+      foreign: Object.fromEntries(Object.entries(report.components.foreign).map(([lib, x]) => [lib, { instances: x.instances, top: Object.entries(x.components).sort((p, q) => q[1] - p[1]).slice(0, 8).map(([n, k]) => `${n} ${k}`) }])),
+      native: report.components.native,
+      recreated: report.components.recreated,
+    },
+    topFiles: report.topFiles.slice(0, limit),
+    topFixes: report.topFixes.slice(0, limit).map((f) => ({ value: f.value, category: f.category, count: f.count, ...(f.suggestion ? { use: `var(${f.suggestion.cssVar})`, token: f.suggestion.token, tokenValue: f.suggestion.value, ...(f.suggestion.mode ? { mode: f.suggestion.mode } : {}), confidence: f.suggestion.level } : { use: null }) })),
+    ...(withFindings
+      ? {
+          findings: report.files
+            .filter((f) => f.findings.length || f.components.length)
+            .slice(0, single ? 1 : limit)
+            .map((f) => ({
+              file: f.path,
+              values: f.findings.map((x) => ({ line: x.line, value: x.value, category: x.category, ...(x.property ? { property: x.property } : {}), ...(x.suggestion ? { use: `var(${x.suggestion.cssVar})`, confidence: x.suggestion.level } : {}) })),
+              components: f.components.map((c) => ({ line: c.line, name: c.name, kind: c.kind, library: c.library, ...(c.suggestion ? { use: c.suggestion } : {}) })),
+            })),
+        }
+      : {}),
+    next: single
+      ? 'Rewrite the file with the DS components and tokens listed (bridge_get_component for props). Keep behavior; when no token fits, say which one is missing.'
+      : 'Start with the top files; the migrate-file-to-ds prompt rewrites one file. `bridge audit <path> --fix` replaces exact CSS matches; `--json` writes the full report.',
   };
 }

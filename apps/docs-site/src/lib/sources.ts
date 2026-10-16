@@ -18,6 +18,7 @@ export const PAGE_SOURCES = {
   components: ['packages/react/src/components'],
   governance: [GOVERNANCE_FILE, AGENTS_FILE, PLAIN_RULES_FILE],
   changelog: ['.changeset'],
+  adoption: ['apps/docs-site/src/data/audits', 'packages/core/src/audit'],
   agents: [...TOKEN_SOURCE_FILES(), 'packages/react/src/components', AGENTS_FILE, CONTRAST_FILE],
   mcp: ['docs/AI.md', 'packages/mcp/README.md', 'packages/cli/src/index.ts'],
 } as const;
