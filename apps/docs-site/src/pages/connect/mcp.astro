@@ -1,0 +1,223 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Icon from '../../components/Icon.astro';
+import Updated from '../../components/Updated.astro';
+import { GITHUB_URL, sourceUrl } from '../../lib/repo';
+import { PAGE_SOURCES, freshness } from '../../lib/sources';
+import { AI_DOC, mcpPrompts, mcpTools, safetyModel } from '../../lib/mcp';
+import '../../styles/process.css';
+import '../../styles/connect.css';
+
+const updated = freshness(PAGE_SOURCES.mcp);
+const tools = mcpTools();
+const prompts = mcpPrompts();
+const safety = safetyModel();
+
+const build = ['git clone https://github.com/peterbono/ai-design-system-demo', 'cd ai-design-system-demo', 'npm install', 'npm run mcp:build'].join('\n');
+const claudeCode = 'claude mcp add bridge -- node /abs/path/ai-design-system-demo/packages/mcp/dist/index.js --root /abs/path/to/your-ds';
+const projectJson = JSON.stringify({ mcpServers: { bridge: { command: 'node', args: ['packages/mcp/dist/index.js', '--root', '.'] } } }, null, 2);
+const desktopJson = JSON.stringify(
+  { mcpServers: { bridge: { command: 'node', args: ['/abs/path/ai-design-system-demo/packages/mcp/dist/index.js', '--root', '/abs/path/to/your-ds'] } } },
+  null,
+  2,
+);
+const desktopRemote = JSON.stringify(
+  { mcpServers: { bridge: { command: 'node', args: ['/abs/path/packages/mcp/dist/index.js', '--repo', 'owner/name'], env: { GITHUB_TOKEN: 'github_pat_...' } } } },
+  null,
+  2,
+);
+const cli = [
+  { cmd: 'bridge init', text: 'Detects your token folder, tiers and modes, writes bridge.config.json and .mcp.json, prints the Claude Desktop snippet.' },
+  { cmd: 'bridge check', text: 'Validates tokens and runs the contrast gate. Use it in CI: exit 0 ok, 1 failures, 2 setup error.' },
+  { cmd: 'bridge tokens <query>', text: 'Searches tokens by words, CSS variable or value.' },
+  { cmd: 'bridge diff <base>', text: 'Designer-readable token diff against a git ref, with alias impact, contrast and the risk tier.' },
+  { cmd: 'bridge propose --title "..." --set path=value', text: 'Turns token edits into a commit on a new local bridge/* branch. Blocked when a check fails.' },
+  { cmd: 'bridge mcp', text: 'Starts the MCP server on stdio, same as node packages/mcp/dist/index.js.' },
+];
+const cliRun = 'node /abs/path/ai-design-system-demo/packages/cli/dist/index.js init';
+const asks = [
+  'Which token should this card background use in dark mode?',
+  'Darken muted text in the light theme and show me the contrast impact first.',
+  'Review PR 42 for the design owner.',
+  "Audit this component's CSS for hardcoded values.",
+];
+---
+
+<Layout
+  title="AI / MCP"
+  description="Connect your own Claude to this design system with the Bridge MCP server: tokens, contrast, components and reviewed pull requests."
+  sources={PAGE_SOURCES.mcp}
+  updated={updated}
+>
+  <h1>Connect your Claude</h1>
+  <p class="lead">
+    The Bridge MCP server gives Claude Code, Claude Desktop or any MCP client a structured view of your design system: tokens resolved in every
+    brand, theme and density, the contrast gate, components with their props and usage docs, and the agent rules. Claude builds UI with real
+    tokens and proposes token changes as pull requests your design and tech owners review.
+  </p>
+  <Updated date={updated} />
+
+  <ul class="cx-facts" aria-label="At a glance">
+    <li><Icon name="check" size={16} /> Free and open source, MIT</li>
+    <li><Icon name="check" size={16} /> Local: no account, no backend</li>
+    <li><Icon name="check" size={16} /> Your repo, your Claude, your GitHub token</li>
+    <li><Icon name="check" size={16} /> Any DTCG token repo</li>
+  </ul>
+
+  <div class="callout is-warn" role="note">
+    <Icon name="info" size={20} />
+    <p>
+      <strong>Not published on npm yet.</strong> <code>@bridge/mcp</code> and <code>@bridge/cli</code> run from a local build of this repository, as
+      shown below. The <code>npx</code> form works once they are published.
+    </p>
+  </div>
+
+  <h2 id="build">1. Build once</h2>
+  <div class="terminal">
+    <div class="terminal-bar">
+      <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span class="terminal-title"><Icon name="terminal" size={15} /> <span>Terminal</span></span>
+      <span class="terminal-actions">
+        <button type="button" class="copy copy-ui" data-copy={build}><Icon name="copy" size={15} /><span data-copy-label>Copy</span></button>
+      </span>
+    </div>
+    <pre class="terminal-body cx-pre" tabindex="0" aria-label="Build commands">{build}</pre>
+  </div>
+  <p class="small muted">The server is then at <code>packages/mcp/dist/index.js</code> and the CLI at <code>packages/cli/dist/index.js</code>.</p>
+
+  <h2 id="claude-code">2. Claude Code</h2>
+  <p>Add the server for your user, pointing it at your design system folder:</p>
+  <div class="terminal">
+    <div class="terminal-bar">
+      <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span class="terminal-title"><Icon name="terminal" size={15} /> <span>Terminal</span></span>
+      <span class="terminal-actions">
+        <button type="button" class="copy copy-ui" data-copy={claudeCode}><Icon name="copy" size={15} /><span data-copy-label>Copy</span></button>
+      </span>
+    </div>
+    <pre class="terminal-body cx-pre" tabindex="0" aria-label="Claude Code command">{claudeCode}</pre>
+  </div>
+  <p>
+    Or share it with your team through git: a project <code>.mcp.json</code> at the repository root. This repository ships one, and Claude Code asks
+    you to approve project servers the first time.
+  </p>
+  <div class="terminal">
+    <div class="terminal-bar">
+      <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span class="terminal-title"><Icon name="file" size={15} /> <span>.mcp.json</span></span>
+      <span class="terminal-actions">
+        <button type="button" class="copy copy-ui" data-copy={projectJson}><Icon name="copy" size={15} /><span data-copy-label>Copy</span></button>
+      </span>
+    </div>
+    <pre class="terminal-body cx-pre" tabindex="0" aria-label="Project .mcp.json">{projectJson}</pre>
+  </div>
+
+  <h2 id="claude-desktop">3. Claude Desktop</h2>
+  <p>In Settings, Developer, Edit config, add this to <code>claude_desktop_config.json</code>, then restart Claude Desktop:</p>
+  <div class="terminal">
+    <div class="terminal-bar">
+      <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span class="terminal-title"><Icon name="file" size={15} /> <span>claude_desktop_config.json</span></span>
+      <span class="terminal-actions">
+        <button type="button" class="copy copy-ui" data-copy={desktopJson}><Icon name="copy" size={15} /><span data-copy-label>Copy</span></button>
+      </span>
+    </div>
+    <pre class="terminal-body cx-pre" tabindex="0" aria-label="Claude Desktop configuration">{desktopJson}</pre>
+  </div>
+  <details class="cx-details">
+    <summary>Work on a GitHub repository instead of a local folder</summary>
+    <p>
+      Pass <code>--repo owner/name</code>. Without a token Bridge is read-only. Add <code>GITHUB_TOKEN</code> only if you want Claude to open pull
+      requests: a fine-grained token limited to that one repository, with contents and pull requests read and write.
+    </p>
+    <pre class="cx-code" tabindex="0" aria-label="Claude Desktop configuration for a GitHub repository">{desktopRemote}</pre>
+  </details>
+  <p class="small muted">
+    Other MCP clients work the same way over stdio: <code>node packages/mcp/dist/index.js --root &lt;dir&gt;</code> or <code>--repo owner/name</code>.
+    Options can also come from <code>BRIDGE_ROOT</code>, <code>BRIDGE_REPO</code>, <code>BRIDGE_REF</code> and <code>GITHUB_TOKEN</code>.
+  </p>
+
+  <h2 id="cli">4. The bridge CLI</h2>
+  <p>Run it in your design system repository, starting with <code>init</code>:</p>
+  <div class="terminal">
+    <div class="terminal-bar">
+      <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span class="terminal-title"><Icon name="terminal" size={15} /> <span>Terminal</span></span>
+      <span class="terminal-actions">
+        <button type="button" class="copy copy-ui" data-copy={cliRun}><Icon name="copy" size={15} /><span data-copy-label>Copy</span></button>
+      </span>
+    </div>
+    <pre class="terminal-body cx-pre" tabindex="0" aria-label="Run bridge init">{cliRun}</pre>
+  </div>
+  <dl class="cx-cli">
+    {
+      cli.map((c) => (
+        <div>
+          <dt>
+            <code>{c.cmd}</code>
+          </dt>
+          <dd>{c.text}</dd>
+        </div>
+      ))
+    }
+  </dl>
+
+  <h2 id="tools">What Claude can do: {tools.length} tools</h2>
+  <div class="table-wrap">
+    <table class="cx-tools">
+      <thead>
+        <tr><th scope="col">Tool</th><th scope="col">Use it to</th></tr>
+      </thead>
+      <tbody>
+        {
+          tools.map((t) => (
+            <tr>
+              <th scope="row">
+                <code>{t.name}</code>
+              </th>
+              <td set:html={t.use} />
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </div>
+  {
+    prompts.length > 0 && (
+      <>
+        <h3>Prompts</h3>
+        <p class="small">Slash commands in Claude Code, for example <code>/mcp__bridge__audit-ui-for-tokens</code>.</p>
+        <ul class="cx-list">
+          {prompts.map((p) => (
+            <li>
+              <code>{p.name}</code>: <span set:html={p.text} />
+            </li>
+          ))}
+        </ul>
+      </>
+    )
+  }
+  <h3>Things to ask</h3>
+  <ul class="cx-list">{asks.map((a) => <li>{a}</li>)}</ul>
+
+  <h2 id="safety">Safety model</h2>
+  <ul class="why-list">
+    {
+      safety.map((s) => (
+        <li>
+          <span class="why-icon" aria-hidden="true">
+            <Icon name="shield" size={18} />
+          </span>
+          <p>
+            {s.title && <strong>{s.title}. </strong>}
+            <span set:html={s.text} />
+          </p>
+        </li>
+      ))
+    }
+  </ul>
+
+  <p class="small muted">
+    Full guide: <a href={sourceUrl(AI_DOC)}>{AI_DOC}</a>. Source and license: <a href={GITHUB_URL}>GitHub</a>, MIT.
+  </p>
+</Layout>
