@@ -153,6 +153,11 @@
       "width": {
         "$type": "dimension",
         "$value": "{border.width.2}"
+      },
+      "offset": {
+        "$type": "dimension",
+        "$value": "{border.width.2}",
+        "$description": "Gap between the element edge and the focus ring. Keeps the ring visible on filled controls."
       }
     }
   },
