@@ -28,7 +28,7 @@
 
 .input:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
-  outline-offset: var(--border-width-2);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .input:disabled {
