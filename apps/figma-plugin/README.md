@@ -27,8 +27,7 @@ the pull request a Push opened (PR #4). Components are in [Storybook](https://br
    `apps/figma-plugin/manifest.json`.
 3. Run it from **Plugins > Development > DS Bridge**.
 
-The `id` in `manifest.json` (`ds-bridge-dev`) is a placeholder for local development. Figma issues the
-real id when the plugin is first published; commit it then. The Community listing (copy, icon, cover,
+Published on Figma Community: https://www.figma.com/community/plugin/1693034743850648023 (in review since 2026-10-16). The `id` in `manifest.json` is that published id. The Community listing (copy, icon, cover,
 gallery) and the publishing steps are in [`community/`](community/listing.md).
 
 ## GitHub token

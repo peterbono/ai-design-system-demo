@@ -29,8 +29,7 @@ Pull: code to Figma
 
 Push: Figma to pull request
 - A three-way diff (last pull, Figma now, main now) lists what you changed, with color swatches before and after. Changes on both sides are shown side by side for you to decide.
-- Contrast check in the pull request: every pair from your contrast file, in every brand and theme, with AA and AAA badges. A change that breaks contrast cannot be pushed.
-- Guardrails before the button turns on: tier rules, no raw values where an alias is expected, no broken references.
+- Contrast in the pull request: every pair from your contrast file, in every brand and theme, with AA and AAA badges. Failing pairs are flagged before you push, and the token build in CI fails on them.
 - Opens a branch with one commit, a changeset and a draft pull request with a change table, contrast before and after, and the risk tier. Nothing is ever written to main. CI and your code owners decide.
 
 Works with any DTCG repository
@@ -90,7 +89,7 @@ must be on for that account (Figma requires it to publish).
 3. Open any design file, then **Plugins > Development > DS Bridge** and run it once to check it opens.
 4. **Plugins > Development > Manage plugins in development**, find DS Bridge, open its **...** menu and choose
    **Publish** (on some versions the entry sits directly under **Plugins > Development > DS Bridge > Publish**).
-5. Plugin id. `manifest.json` has the placeholder `ds-bridge-dev`. The publish dialog gives the plugin a real id
+5. Plugin id. Done: `manifest.json` holds the published id `1693034743850648023`. For a fork, the publish dialog gives a new id
    (a long number) and asks you to put it in `manifest.json`. Do it, run `npm run plugin:build` again, and
    continue. Then commit the new id on a branch and open a PR (`fix(figma-plugin): published plugin id`), so
    every later build publishes as the same plugin.

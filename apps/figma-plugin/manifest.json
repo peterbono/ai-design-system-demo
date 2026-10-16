@@ -1,6 +1,6 @@
 {
   "name": "DS Bridge",
-  "id": "ds-bridge-dev",
+  "id": "1693034743850648023",
   "api": "1.0.0",
   "main": "dist/code.js",
   "ui": "dist/ui.html",
