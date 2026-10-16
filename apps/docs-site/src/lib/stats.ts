@@ -2,7 +2,8 @@
 // if a number is on screen, it is derived here from token files, component sources, contrast pairs or git.
 import { loadComponents } from './components';
 import { contrastPairs } from './contrast';
-import { git } from './repo';
+import { cssVarsIn, tokenUsage, type TokenUsage } from '@bridge-ds/core';
+import { git, listDir, readText } from './repo';
 import { BRANDS, DENSITIES, loadTokens, MODES, hrefForVar, type Primitive, type Semantic } from './tokens';
 
 export interface Slice {
@@ -42,6 +43,28 @@ export interface Issue {
   title: string;
   detail: string;
   href: string;
+}
+
+/** Library stylesheets outside the component folders that ship with it: base styles and theme (stories excluded). */
+const GLOBAL_STYLE_DIRS = ['packages/react/src/styles', 'packages/react/src/theme'];
+
+let usageCache: TokenUsage | null = null;
+/** Which tokens are in use: read by component CSS or the library's global stylesheets, or aliased by a token in use. */
+export function libraryTokenUsage(): TokenUsage {
+  if (usageCache) return usageCache;
+  const { primitives, all } = loadTokens();
+  const byVar: Record<string, string[]> = {};
+  for (const c of loadComponents()) for (const t of c.tokensUsed) (byVar[t.name] ??= []).push(c.name);
+  const globalVars: Record<string, string[]> = {};
+  for (const dir of GLOBAL_STYLE_DIRS)
+    for (const f of listDir(dir).filter((n) => n.endsWith('.css'))) globalVars[`${dir}/${f}`] = cssVarsIn(readText(`${dir}/${f}`));
+  const refs = (t: Semantic) =>
+    BRANDS.flatMap((b) => MODES.flatMap((m) => t.brands[b][m].chain)).concat(t.densities ? Object.values(t.densities).flatMap((d) => d.chain) : []);
+  usageCache = tokenUsage(
+    [...primitives.map((p) => ({ path: p.path, cssVar: p.cssVar, refs: [] })), ...all.map((t) => ({ path: t.path, cssVar: t.cssVar, refs: refs(t) }))],
+    { byVar, globalVars },
+  );
+  return usageCache;
 }
 
 let cache: ReturnType<typeof compute> | null = null;
@@ -94,16 +117,12 @@ function compute() {
     ),
   };
 
-  // Usage: which tokens no component CSS reads.
+  // Usage: one definition with the token explorer (@bridge-ds/core tokenUsage). A token is in use when a component
+  // stylesheet or a global stylesheet of the library (base styles) reads it, or when a token in use aliases it.
   const usedVars = new Set(components.flatMap((c) => c.tokensUsed.map((t) => t.name)));
-  // A token is in use when a component reads it directly or reads a token whose alias chain passes through it.
-  const chains = (t: Semantic) =>
-    BRANDS.flatMap((b) => MODES.flatMap((m) => t.brands[b][m].chain)).concat(t.densities ? Object.values(t.densities).flatMap((d) => d.chain) : []);
-  const readByComponents = all.filter((t) => usedVars.has(t.cssVar));
-  const reachedByUse = new Set(readByComponents.flatMap(chains));
-  const reachedPrimitives = new Set(all.flatMap(chains));
-  const unusedSemantic: Semantic[] = semantic.filter((s) => !usedVars.has(s.cssVar) && !reachedByUse.has(s.path));
-  const orphanPrimitives: Primitive[] = primitives.filter((p) => !reachedPrimitives.has(p.path) && !usedVars.has(p.cssVar));
+  const usage = libraryTokenUsage();
+  const unusedSemantic: Semantic[] = semantic.filter((s) => !usage.used.has(s.path));
+  const orphanPrimitives: Primitive[] = primitives.filter((p) => !usage.used.has(p.path));
   const deprecated = [...primitives, ...all].filter((t) => t.deprecated);
   const unknownRefs = components.flatMap((c) => c.tokensUsed.filter((t) => !t.known).map((t) => ({ component: c, name: t.name })));
   const undocumented = components.filter((c) => !c.docs);
@@ -142,7 +161,7 @@ function compute() {
       ? [
           {
             severity: 'info' as const,
-            title: `${unusedSemantic.length} semantic tokens not read by any component`,
+            title: `${unusedSemantic.length} semantic tokens not in use`,
             detail: unusedSemantic
               .slice(0, 6)
               .map((s) => s.path)
@@ -155,8 +174,8 @@ function compute() {
       ? [
           {
             severity: 'info' as const,
-            title: `${orphanPrimitives.length} primitives with no semantic alias and no direct use`,
-            detail: 'Candidates for cleanup, or values waiting for a job.',
+            title: `${orphanPrimitives.length} primitives not in use`,
+            detail: 'No stylesheet reads them, directly or through an alias. Candidates for cleanup, or values waiting for a job.',
             href: '/tokens/?layer=primitive&usage=unused',
           },
         ]
