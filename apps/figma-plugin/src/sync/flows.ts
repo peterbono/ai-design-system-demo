@@ -1,16 +1,17 @@
-// Pull and push orchestration, independent of the DOM and of figma.* (the UI wires it to both).
+// Pull and push orchestration for the Figma plugin: @bridge/core logic plus the Figma mapping.
+// Independent of the DOM and of figma.* (the UI wires it to both).
 
 import type { FigmaSnapshot, PullPlan, RepoSettings, SyncState, VariableTag } from '../shared/messages';
-import { type AcceptedChange, composeFiles } from './compose';
-import { type ConflictChoice, type DiffEntry, type ThreeWayResult, threeWayDiff, toMap } from './diff-engine';
-import { type CompareResult, GitHubClient, GitHubError, type PullRequest, type RepoFiles, loadRepoFiles } from './github-client';
-import { type RenameSuggestion, applyConfirmedRenames, reconcileIds } from './id-map';
+import { type AcceptedChange, composeFiles } from '@bridge/core';
+import { type ConflictChoice, type DiffEntry, type ThreeWayResult, threeWayDiff, toMap } from '@bridge/core';
+import { type CompareResult, GitHubClient, GitHubError, type PullRequest, type RepoFiles, loadRepoFiles } from '@bridge/core';
+import { type RenameSuggestion, applyConfirmedRenames, reconcileIds } from '@bridge/core';
 import { type FigmaReadResult, type Unmappable, buildPullPlan, isUnmappable, snapshotToTokens, tokenToPlanned } from './mapping';
-import { branchName, commitMessage, composeChangeset, composePrBody, defaultTitle } from './pr-composer';
-import { type TokenSet, buildTokenSet } from './token-set';
-import type { LogicalToken, TokenMap } from './types';
-import { type ProposalValidation, type TypeChange, validateProposal } from './validators';
-import { type ContrastPair, parseContrastPairs } from './wcag';
+import { branchName, changedModes, commitMessage, composeChangeset, composePrBody, defaultTitle } from '@bridge/core';
+import { type TokenSet, buildTokenSet, layoutOptions } from '@bridge/core';
+import { type LogicalToken, SINGLE_MODE, type ThemeOverride, type TokenMap, isMultiMode } from '@bridge/core';
+import { type ProposalValidation, type TypeChange, shadowedEdits, validateProposal } from '@bridge/core';
+import { CONTRAST_CHECKS_FILE, type ContrastPair, parseContrastChecks } from '@bridge/core';
 
 export interface Analysis {
   settings: RepoSettings;
@@ -27,6 +28,8 @@ export interface Analysis {
   pairs: ContrastPair[];
   /** Git tokens Figma variables cannot represent (shadows...). They are never touched. */
   codeOnly: Unmappable[];
+  /** Brand x theme overrides of semantic tokens. Figma has no brand x theme mode: they stay code-only. */
+  overrides: ThemeOverride[];
   warnings: string[];
 }
 
@@ -52,8 +55,11 @@ export async function analyze(
   const warnings: string[] = [];
   const headSha = await client.getBranchSha(settings.branch);
   if (!headSha) throw new Error(`Branch "${settings.branch}" was not found in ${settings.repo}.`);
+  // bridge.config.json in the repo (when present) decides the tokens root, tier folders and mode order.
   const headFiles = await loadRepoFiles(client, headSha, settings.tokensPath);
-  const head = buildTokenSet(headFiles.files);
+  warnings.push(...headFiles.warnings);
+  const layout = headFiles.config ? layoutOptions(headFiles.config) : {};
+  const head = buildTokenSet(headFiles.files, layout);
 
   let base: TokenSet | undefined;
   let compare: CompareResult | undefined;
@@ -62,7 +68,7 @@ export async function analyze(
     base = head;
   } else if (baseSha) {
     try {
-      base = buildTokenSet((await loadRepoFiles(client, baseSha, settings.tokensPath)).files);
+      base = buildTokenSet((await loadRepoFiles(client, baseSha, settings.tokensPath)).files, layout);
       compare = await client.compare(baseSha, headSha).catch(() => undefined);
     } catch (err) {
       if (!(err instanceof GitHubError && (err.status === 404 || err.status === 422))) throw err;
@@ -92,6 +98,17 @@ export async function analyze(
   const suggestions = reconciled.suggestions.filter((s) => !confirmedIds.has(s.figmaId));
 
   const diff = threeWayDiff(baseMappable?.map, toMap(figmaTokens), headMappable.map);
+  const pairs = parseContrastChecks(headFiles.contrastChecks);
+  if (!pairs.length) {
+    const checks = headFiles.config?.tokens.contrastChecks ?? CONTRAST_CHECKS_FILE;
+    warnings.push(`${checks} is missing from ${headFiles.tokensPath} or lists no pairs, so contrast is not checked.`);
+  }
+  if (head.overrides.length) {
+    const files = [...new Set(head.overrides.map((o) => o.file))].join(', ');
+    warnings.push(
+      `${head.overrides.length} brand theme override(s) (${files}) stay code-only: Figma shows the shared semantic value for every brand. Contrast checks still use them.`,
+    );
+  }
   return {
     settings,
     headSha,
@@ -104,8 +121,9 @@ export async function analyze(
     figmaTokens,
     suggestions,
     diff,
-    pairs: parseContrastPairs(headFiles.contrastPairs),
+    pairs,
     codeOnly: headMappable.codeOnly,
+    overrides: head.overrides,
     warnings: [...warnings, ...figma.warnings, ...head.problems],
   };
 }
@@ -143,8 +161,12 @@ export function buildPush(a: Analysis, choices: Map<string, ConflictChoice>): Pu
     }
   }
   const { files, allFiles } = composeFiles(a.head, a.headFiles.files, changes);
-  const proposed = buildTokenSet(allFiles);
+  const proposed = buildTokenSet(allFiles, a.head.options);
   const validation = validateProposal(proposed, a.head, a.pairs, typeChanges);
+  const edits = changes
+    .filter((c) => c.target)
+    .map((c) => ({ path: c.target!.path, tier: c.target!.tier, modes: [...(changedModes(c) ?? Object.keys(c.target!.values))] }));
+  validation.warnings.push(...shadowedEdits(proposed, edits));
   return { changes, files, proposed, validation, unresolvedConflicts, resolvedConflicts };
 }
 
@@ -171,14 +193,13 @@ export async function openPullRequest(client: GitHubClient, a: Analysis, p: Push
   if (p.validation.blocking.length) throw new Error('Fix the blocking problems before opening a pull request.');
   if (!Object.keys(p.files).length) throw new Error('Nothing to send: the Figma variables match main.');
   const title = opts.title.trim() || defaultTitle(p.changes);
-  const prefix = a.settings.tokensPath.replace(/^\/+|\/+$/g, '');
+  const prefix = a.headFiles.tokensPath;
   const appended = !!opts.appendTo;
   const branch = opts.appendTo?.headRef ?? branchName(title, opts.now ?? new Date());
-  const changeset = composeChangeset(p.changes, title, branch);
-  const repoFiles = [
-    ...Object.entries(p.files).map(([rel, content]) => ({ path: `${prefix}/${rel}`, content })),
-    changeset,
-  ];
+  // A changeset only when the repo's bridge.config.json names the package to bump.
+  const pkg = a.headFiles.config?.changeset?.package;
+  const changeset = pkg ? composeChangeset(p.changes, { title, branch, packageName: pkg, source: 'from Figma via DS Bridge' }) : undefined;
+  const repoFiles = [...Object.entries(p.files).map(([rel, content]) => ({ path: `${prefix}/${rel}`, content })), ...(changeset ? [changeset] : [])];
 
   const parent = appended ? await client.getBranchSha(branch) : a.headSha;
   if (!parent) throw new Error(`Branch ${branch} no longer exists.`);
@@ -186,7 +207,7 @@ export async function openPullRequest(client: GitHubClient, a: Analysis, p: Push
   const blobs = [];
   for (const f of repoFiles) blobs.push({ path: f.path, sha: await client.createBlob(f.content) });
   const tree = await client.createTree(baseTree, blobs);
-  const commitSha = await client.createCommit(commitMessage(title, p.changes), tree, [parent]);
+  const commitSha = await client.createCommit(commitMessage(title, p.changes, 'Exported from Figma with DS Bridge.'), tree, [parent]);
 
   let pr: PullRequest;
   if (appended) {
@@ -203,7 +224,12 @@ export async function openPullRequest(client: GitHubClient, a: Analysis, p: Push
       baseBranch: a.settings.branch,
       headSha: a.headSha,
       baseSha: a.baseSha,
-      figmaFileName: opts.fileName,
+      origin: {
+        tool: 'the DS Bridge Figma plugin',
+        surface: 'Figma',
+        location: opts.fileName,
+        authoredBy: 'Human designer in Figma, via the DS Bridge plugin (no AI involved in the values)',
+      },
       title,
       notes: opts.notes,
       upstreamPaths: a.diff.remote.map((e) => e.path),
@@ -224,7 +250,7 @@ export async function openPullRequest(client: GitHubClient, a: Analysis, p: Push
   for (const c of p.changes) {
     if (!c.target) continue;
     for (const variableId of a.figma.variableIds.get(c.target.id) ?? []) {
-      tags.push({ variableId, pluginData: { id: c.target.id, dtcgType: c.target.type, file: c.target.tier === 'primitive' ? c.target.files.value : undefined } });
+      tags.push({ variableId, pluginData: { id: c.target.id, dtcgType: c.target.type, file: isMultiMode(c.target.tier) ? undefined : c.target.files[SINGLE_MODE] } });
     }
   }
   return { pr, branch, commitSha, appended, tags };

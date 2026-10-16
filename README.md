@@ -164,13 +164,15 @@ git switch agent/card-elevation-hardcoded && npm run lint:css   # see the guardr
 
 ## Figma
 
-Designers edit tokens as Figma Variables with **DS Bridge**, the plugin in `apps/figma-plugin`. It pulls
-the DTCG files from `main` into Variables (Primitives; Brand with Bridge and Ocean modes; Semantic with Light and Dark; Density with
-Comfortable and Compact; Component), and turns
-variable edits into a draft PR: a three-way diff against the last pulled commit and current `main`,
-conflicts resolved side by side, guardrails (aliases, scopes, WCAG contrast) checked before the PR
-button is enabled. The PR then goes through the same CI and CODEOWNERS review as any other Tier 3
-change. Works on the free Figma plan (Plugin API only). See [`apps/figma-plugin/README.md`](apps/figma-plugin/README.md).
+Designers edit tokens as Figma Variables with **DS Bridge**, the plugin in `apps/figma-plugin`. **Pull**
+brings the DTCG files from `main` into Variables, one collection per tier: Primitives; Brand with Bridge
+and Ocean modes; Base; Semantic with Light and Dark; Density with Comfortable and Compact; Component.
+**Push** turns variable edits into a draft PR: a three-way diff against the last pulled commit and
+current `main`, conflicts resolved side by side, guardrails (tier order, scopes, every pair in
+`contrast.checks.json` in every brand and theme) checked before the button is enabled. The PR then goes
+through the same CI and CODEOWNERS review as any other Tier 3 change. Works on the free Figma plan
+(Plugin API only). The logic lives in `@bridge/core` (`packages/core`) and repo paths in
+`bridge.config.json`. See [`apps/figma-plugin/README.md`](apps/figma-plugin/README.md).
 
 ```sh
 npm run plugin:build    # then Figma desktop: Plugins > Development > Import plugin from manifest

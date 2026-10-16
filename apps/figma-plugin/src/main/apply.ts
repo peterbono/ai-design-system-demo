@@ -1,11 +1,12 @@
-// Apply a pull plan to Figma variables: collections and modes, then literal values (pass 1), then
-// aliases (pass 2, once every target exists), then orphan flags. Nothing is ever deleted.
+// Apply a pull plan to Figma variables: one collection per tier with its modes (Primitives, Brand,
+// Base, Semantic, Density, Component), then literal values (pass 1), then aliases (pass 2, once
+// every target exists, across collections), then orphan flags. Nothing is ever deleted.
 
+import type { Tier } from '@bridge/core';
 import {
   type ApplyReport,
-  COLLECTION_PRIMITIVES,
-  COLLECTION_SEMANTIC,
   PRIMITIVE_MODE_NAME,
+  type PlannedCollection,
   type PlannedValue,
   type PlannedVariable,
   type PullPlan,
@@ -48,10 +49,18 @@ function findMode(collection: VariableCollection, modeKey: string): string | und
   return collection.modes.find((m) => m.name.trim().toLowerCase() === modeKey)?.modeId;
 }
 
-/** Resolve the Figma layout for semantic tokens, creating collections and modes as needed. */
-async function semanticSlots(modes: string[], local: VariableCollection[], errors: string[]): Promise<{ slots: Slot[]; layout: ApplyReport['layout'] }> {
-  const single = local.find((c) => c.name === COLLECTION_SEMANTIC && !c.remote);
-  const hasSplit = local.some((c) => !c.remote && c.name.startsWith(`${COLLECTION_SEMANTIC}/`));
+/**
+ * Resolve the Figma layout of a multi-mode tier (Brand, Semantic, Density), creating the collection
+ * and its modes as needed. Files that cannot add modes (free plans) get one collection per mode.
+ */
+async function multiModeSlots(
+  name: string,
+  modes: string[],
+  local: VariableCollection[],
+  errors: string[],
+): Promise<{ slots: Slot[]; layout: ApplyReport['layout'] }> {
+  const single = local.find((c) => c.name === name && !c.remote);
+  const hasSplit = local.some((c) => !c.remote && c.name.startsWith(`${name}/`));
 
   const fillModes = (collection: VariableCollection, fresh: boolean): Map<string, string> => {
     const map = new Map<string, string>();
@@ -68,12 +77,12 @@ async function semanticSlots(modes: string[], local: VariableCollection[], error
   };
 
   if (single || !hasSplit) {
-    const { collection, created } = single ? { collection: single, created: false } : await ensureCollection(COLLECTION_SEMANTIC, local);
+    const { collection, created } = single ? { collection: single, created: false } : await ensureCollection(name, local);
     try {
       return { slots: [{ collection, modes: fillModes(collection, created) }], layout: 'single-collection' };
     } catch (err) {
       if (!created) {
-        errors.push(`Could not add theme modes to "${COLLECTION_SEMANTIC}" (${errorText(err)}). Values for missing modes were not written.`);
+        errors.push(`Could not add modes to "${name}" (${errorText(err)}). Values for missing modes were not written.`);
         const map = new Map<string, string>();
         for (const mode of modes) {
           const id = findMode(collection, mode);
@@ -81,7 +90,7 @@ async function semanticSlots(modes: string[], local: VariableCollection[], error
         }
         return { slots: [{ collection, modes: map }], layout: 'single-collection' };
       }
-      // This file cannot have several modes per collection (free plan): use one collection per theme.
+      // This file cannot have several modes per collection (free plan): use one collection per mode.
       collection.remove();
       local.splice(local.indexOf(collection), 1);
     }
@@ -89,11 +98,20 @@ async function semanticSlots(modes: string[], local: VariableCollection[], error
 
   const slots: Slot[] = [];
   for (const mode of modes) {
-    const { collection, created } = await ensureCollection(splitCollectionName(mode), local);
+    const { collection, created } = await ensureCollection(splitCollectionName(name, mode), local);
     if (created) collection.renameMode(collection.defaultModeId, modeDisplayName(mode));
     slots.push({ collection, modes: new Map([[mode, collection.defaultModeId]]) });
   }
   return { slots, layout: 'split-collections' };
+}
+
+async function tierSlots(c: PlannedCollection, local: VariableCollection[], errors: string[]): Promise<{ slots: Slot[]; layout: ApplyReport['layout'] }> {
+  if (c.modes.length === 1 && c.modes[0] === PRIMITIVE_MODE) {
+    const { collection, created } = await ensureCollection(c.name, local);
+    if (created) collection.renameMode(collection.defaultModeId, PRIMITIVE_MODE_NAME);
+    return { slots: [{ collection, modes: new Map([[PRIMITIVE_MODE, collection.defaultModeId]]) }], layout: 'single-collection' };
+  }
+  return multiModeSlots(c.name, c.modes, local, errors);
 }
 
 function toVariableValue(v: Exclude<PlannedValue, { kind: 'alias-token' }>): VariableValue {
@@ -113,12 +131,16 @@ export async function applyPullPlan(plan: PullPlan, progress: (message: string) 
   const all = await figma.variables.getLocalVariablesAsync();
   const byId = new Map(all.map((v) => [v.id, v]));
 
-  const prim = await ensureCollection(COLLECTION_PRIMITIVES, local);
-  if (prim.created) prim.collection.renameMode(prim.collection.defaultModeId, PRIMITIVE_MODE_NAME);
-  const primSlot: Slot = { collection: prim.collection, modes: new Map([[PRIMITIVE_MODE, prim.collection.defaultModeId]]) };
-
-  const needsSemantic = plan.variables.some((v) => v.tier === 'semantic');
-  const semantic = needsSemantic ? await semanticSlots(plan.modes, local, errors) : { slots: [] as Slot[], layout: 'single-collection' as const };
+  // Only tiers that have variables in the plan get a collection.
+  const slotsByTier = new Map<Tier, Slot[]>();
+  let layout: ApplyReport['layout'] = 'single-collection';
+  for (const c of plan.collections) {
+    if (!plan.variables.some((v) => v.tier === c.tier)) continue;
+    const r = await tierSlots(c, local, errors);
+    slotsByTier.set(c.tier, r.slots);
+    if (r.layout === 'split-collections') layout = 'split-collections';
+  }
+  const managedIds = [...slotsByTier.values()].flatMap((slots) => slots.map((x) => x.collection.id));
 
   // Index existing variables per collection by token id and by name.
   const registry: Registry = { byToken: new Map(), byName: new Map() };
@@ -131,15 +153,15 @@ export async function applyPullPlan(plan: PullPlan, progress: (message: string) 
   let created = 0;
   let updated = 0;
   let ops = 0;
-  const deferred: { variable: Variable; modeId: string; ref: { path: string; tokenId?: string | undefined }; owner: string; collectionId: string }[] = [];
+  const deferred: { variable: Variable; modeId: string; ref: { path: string; tokenId?: string | undefined; tier?: Tier | undefined }; owner: string; collectionId: string }[] = [];
 
   for (const planned of plan.variables) {
-    const slots = planned.tier === 'primitive' ? [primSlot] : semantic.slots;
+    const slots = slotsByTier.get(planned.tier) ?? [];
     let touched = false;
     let isNew = false;
     for (const slot of slots) {
       const modeKeys = [...slot.modes.keys()].filter((m) => planned.values[m] !== undefined);
-      if (semantic.layout === 'split-collections' && planned.tier === 'semantic' && modeKeys.length === 0) continue;
+      if (slots.length > 1 && modeKeys.length === 0) continue; // split layout: token absent in this mode
       const fallbackValue = Object.values(planned.values)[0];
       try {
         const variable = await upsertVariable(planned, slot, registry, byId, errors);
@@ -169,11 +191,16 @@ export async function applyPullPlan(plan: PullPlan, progress: (message: string) 
   // Pass 2: aliases, now that every target exists.
   progress(`Linking ${deferred.length} aliases`);
   for (const d of deferred) {
-    const target =
-      (d.ref.tokenId && registry.byToken.get(registryKey(prim.collection.id, d.ref.tokenId))) ||
-      registry.byName.get(registryKey(prim.collection.id, d.ref.path.split('.').join('/'))) ||
-      (d.ref.tokenId && registry.byToken.get(registryKey(d.collectionId, d.ref.tokenId))) ||
-      registry.byName.get(registryKey(d.collectionId, d.ref.path.split('.').join('/')));
+    // Look in the target's tier first (its first slot in the split layout), then in every synced collection.
+    const name = d.ref.path.split('.').join('/');
+    const preferred = d.ref.tier ? slotsByTier.get(d.ref.tier)?.[0]?.collection.id : undefined;
+    const order = [...new Set([preferred, d.collectionId, ...managedIds].filter((x): x is string => !!x))];
+    let target: Variable | undefined;
+    for (const cid of order) {
+      target = (d.ref.tokenId ? registry.byToken.get(registryKey(cid, d.ref.tokenId)) : undefined) ?? registry.byName.get(registryKey(cid, name));
+      if (target && target.id !== d.variable.id) break;
+      target = undefined;
+    }
     if (!target) {
       errors.push(`${d.owner} points to ${d.ref.path}, which has no variable in Figma (it may be a code-only token). The alias was not set.`);
       continue;
@@ -201,7 +228,7 @@ export async function applyPullPlan(plan: PullPlan, progress: (message: string) 
     if (++ops % BATCH === 0) await tick();
   }
 
-  return { created, updated, orphaned, layout: semantic.layout, errors };
+  return { created, updated, orphaned, layout, errors };
 }
 
 async function upsertVariable(

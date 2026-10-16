@@ -1,15 +1,20 @@
 // Mapping between logical DTCG tokens and Figma variables.
 //
-// Layout in Figma:
-//   "Primitives"  one mode ("Value"), one variable per primitive token.
-//   "Semantic"    one collection with one mode per theme (Light, Dark) when the file allows it,
-//                 otherwise "Semantic/Light" and "Semantic/Dark" with identical variable names
-//                 (free plans limit collections to one mode). Both layouts read back the same way.
+// Layout in Figma: one collection per tier (COLLECTIONS in shared/messages.ts).
+//   "Primitives"  one mode ("Value")                      primitives/*.tokens.json
+//   "Brand"       one mode per brand (Bridge, Ocean)      brands/<brand>.tokens.json
+//   "Base"        one mode ("Value")                      semantic/base.tokens.json
+//   "Semantic"    one mode per theme (Light, Dark)        semantic/<theme>.tokens.json
+//   "Density"     one mode per density                    density/<density>.tokens.json
+//   "Component"   one mode ("Value")                      components/*.tokens.json
+// Multi-mode collections fall back to one collection per mode ("Semantic/Light", "Brand/Ocean")
+// when the file cannot add modes (free plans); both layouts read back the same way.
+// Brand x theme overrides (brands/<brand>.<theme>.tokens.json) have no Figma equivalent: they stay
+// code-only and are never written by a push.
 // Variable names use "/" where token paths use ".": color.action.primary.bg <-> color/action/primary/bg.
 
 import {
-  COLLECTION_PRIMITIVES,
-  COLLECTION_SEMANTIC,
+  COLLECTIONS,
   type FigmaResolvedType,
   type FigmaSnapshot,
   type FigmaValue,
@@ -20,11 +25,11 @@ import {
   type SnapshotVariable,
   type VariablePluginData,
 } from '../shared/messages';
-import { resolve } from './resolver';
-import { effectiveScopes } from './scopes';
-import { type TokenSet, pathId } from './token-set';
-import { type LogicalToken, PRIMITIVE_MODE, type RepoLayout, type Tier } from './types';
-import { aliasTarget, isAlias, parseColor, parseDimension, rgbaToDtcg, toAlias } from './values';
+import { resolve } from '@bridge/core';
+import { effectiveScopes } from '@bridge/core';
+import { type TokenSet, contextFor, defaultFile, modeFile, modesOf, pathId } from '@bridge/core';
+import { type LogicalToken, type RepoLayout, SINGLE_MODE, TIER_ORDER, type Tier, isMultiMode } from '@bridge/core';
+import { aliasTarget, isAlias, parseColor, parseDimension, rgbaToDtcg, toAlias } from '@bridge/core';
 
 export const pathToName = (path: string) => path.split('.').join('/');
 export const nameToPath = (name: string) =>
@@ -101,22 +106,20 @@ export function tokenToPlanned(t: LogicalToken, set: TokenSet): Omit<PlannedVari
   const resolvedType = figmaTypeFor(t);
   if (typeof resolvedType !== 'string') return resolvedType;
   const pluginData: VariablePluginData = { id: t.id, dtcgType: t.type };
-  if (t.tier === 'primitive') pluginData.file = t.files[PRIMITIVE_MODE];
-  const modes = t.tier === 'primitive' ? [PRIMITIVE_MODE] : set.layout.themes.map((th) => th.mode);
+  if (!isMultiMode(t.tier)) pluginData.file = t.files[SINGLE_MODE];
+  const modes = modesOf(set.layout, t.tier);
   const values: Record<string, PlannedValue> = {};
   for (const mode of modes) {
     const v = t.values[mode];
     if (v === undefined) continue;
     if (isAlias(v)) {
-      values[mode] = { kind: 'alias-token', path: aliasTarget(v), tokenId: set.byPath.get(aliasTarget(v))?.id };
-      if (t.type === 'dimension') {
-        const r = resolve(set.byPath, t.path, mode);
-        const d = r.value === undefined ? undefined : parseDimension(r.value);
+      const target = set.byPath.get(aliasTarget(v));
+      values[mode] = { kind: 'alias-token', path: aliasTarget(v), tokenId: target?.id, tier: target?.tier };
+      if (t.type === 'dimension' || t.type === 'fontFamily') {
+        const r = resolve(set.byPath, t.path, contextFor(set, t.tier, mode));
+        const d = t.type === 'dimension' && r.value !== undefined ? parseDimension(r.value) : undefined;
         if (d) pluginData.unit = d.unit;
-      }
-      if (t.type === 'fontFamily') {
-        const r = resolve(set.byPath, t.path, mode);
-        if (Array.isArray(r.value)) pluginData.shape = 'array';
+        if (t.type === 'fontFamily' && Array.isArray(r.value)) pluginData.shape = 'array';
       }
       continue;
     }
@@ -124,7 +127,7 @@ export function tokenToPlanned(t: LogicalToken, set: TokenSet): Omit<PlannedVari
     if (typeof converted === 'string') return { path: t.path, reason: converted };
     values[mode] = converted;
   }
-  if (t.tier === 'semantic') {
+  if (isMultiMode(t.tier)) {
     const absent = modes.filter((m) => t.values[m] === undefined);
     if (absent.length) pluginData.absentModes = absent;
   }
@@ -139,6 +142,15 @@ export function tokenToPlanned(t: LogicalToken, set: TokenSet): Omit<PlannedVari
     values,
     pluginData,
   };
+}
+
+/** Figma collection and modes of every tier the repo has (single-mode tiers always have "value"). */
+export function plannedCollections(layout: RepoLayout): PullPlan['collections'] {
+  return TIER_ORDER.filter((tier) => !isMultiMode(tier) || modesOf(layout, tier).length > 0).map((tier) => ({
+    tier,
+    name: COLLECTIONS[tier],
+    modes: modesOf(layout, tier),
+  }));
 }
 
 export const isUnmappable = (x: unknown): x is Unmappable => !!x && typeof x === 'object' && 'reason' in x;
@@ -168,8 +180,8 @@ export function buildPullPlan(input: PullPlanInput): { plan: PullPlan; skipped: 
     }
     variables.push({ ...planned, existingVariableIds: input.variableIds.get(id) ?? [] });
   }
-  // Primitives first so alias targets exist before semantic tokens point at them.
-  variables.sort((a, b) => (a.tier === b.tier ? 0 : a.tier === 'primitive' ? -1 : 1));
+  // Lower tiers first so alias targets exist before the tokens that point at them.
+  variables.sort((a, b) => TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier));
   const orphans: PullPlan['orphans'] = [];
   for (const id of input.orphans) {
     for (const variableId of input.variableIds.get(id) ?? []) {
@@ -177,7 +189,7 @@ export function buildPullPlan(input: PullPlanInput): { plan: PullPlan; skipped: 
     }
   }
   return {
-    plan: { modes: input.head.layout.themes.map((th) => th.mode), variables, orphans, headSha: input.headSha },
+    plan: { collections: plannedCollections(input.head.layout), variables, orphans, headSha: input.headSha },
     skipped,
   };
 }
@@ -187,7 +199,7 @@ export function buildPullPlan(input: PullPlanInput): { plan: PullPlan; skipped: 
 
 export interface FigmaReadResult {
   tokens: LogicalToken[];
-  /** token id -> variable ids holding it (one, or one per theme in the split layout). */
+  /** token id -> variable ids holding it (one, or one per mode in the split layout). */
   variableIds: Map<string, string[]>;
   variableNames: Map<string, string>;
   /** Variables without a stored id (created in Figma since the last pull). */
@@ -196,23 +208,25 @@ export interface FigmaReadResult {
   warnings: string[];
 }
 
-interface ManagedCollections {
-  primitives?: SnapshotCollection | undefined;
-  semantic?: SnapshotCollection | undefined;
+/** Managed collections of one tier: a single collection, or one collection per mode (split layout). */
+export interface TierCollections {
+  single?: SnapshotCollection | undefined;
+  /** mode key -> "<Collection>/<Mode>" collection. */
   split: Map<string, SnapshotCollection>;
 }
 
-export function findManagedCollections(snapshot: FigmaSnapshot): ManagedCollections {
+export function findManagedCollections(snapshot: FigmaSnapshot): Map<Tier, TierCollections> {
   const local = snapshot.collections.filter((c) => !c.remote);
-  const split = new Map<string, SnapshotCollection>();
-  for (const c of local) {
-    if (c.name.startsWith(`${COLLECTION_SEMANTIC}/`)) split.set(c.name.slice(COLLECTION_SEMANTIC.length + 1).trim().toLowerCase(), c);
+  const out = new Map<Tier, TierCollections>();
+  for (const tier of TIER_ORDER) {
+    const name = COLLECTIONS[tier];
+    const split = new Map<string, SnapshotCollection>();
+    if (isMultiMode(tier)) {
+      for (const c of local) if (c.name.startsWith(`${name}/`)) split.set(c.name.slice(name.length + 1).trim().toLowerCase(), c);
+    }
+    out.set(tier, { single: local.find((c) => c.name === name), split });
   }
-  return {
-    primitives: local.find((c) => c.name === COLLECTION_PRIMITIVES),
-    semantic: local.find((c) => c.name === COLLECTION_SEMANTIC),
-    split,
-  };
+  return out;
 }
 
 /** Guess the DTCG type of a variable created in Figma, from its closest neighbour in Git. */
@@ -246,11 +260,15 @@ export function closestToken(path: string, context: TokenSet | undefined, filter
   return best;
 }
 
-/** File a new primitive created in Figma should be written to. */
-export function inferPrimitiveFile(path: string, context: TokenSet | undefined): string {
-  const neighbour = closestToken(path, context, (t) => t.tier === 'primitive');
-  return neighbour?.files[PRIMITIVE_MODE] ?? `primitives/${path.split('.')[0]}.tokens.json`;
+/** File a new single-mode token (primitive, base, component) created in Figma should be written to. */
+export function inferFile(path: string, tier: Tier, context: TokenSet | undefined): string {
+  if (tier === 'base') return context?.layout.baseFiles[0] ?? defaultFile(tier, path, context?.options.dirs);
+  const neighbour = closestToken(path, context, (t) => t.tier === tier);
+  return neighbour?.files[SINGLE_MODE] ?? defaultFile(tier, path, context?.options.dirs);
 }
+
+/** File a new primitive created in Figma should be written to. */
+export const inferPrimitiveFile = (path: string, context: TokenSet | undefined) => inferFile(path, 'primitive', context);
 
 function figmaToDtcg(type: string, v: FigmaValue, pd: VariablePluginData, aliasPath: (id: string, name?: string) => string | undefined): unknown {
   switch (v.kind) {
@@ -289,9 +307,11 @@ export function snapshotToTokens(snapshot: FigmaSnapshot, repoLayout: RepoLayout
   const variableIds = new Map<string, string[]>();
   const variableNames = new Map(snapshot.variables.map((v) => [v.id, v.name]));
   const untagged = new Set<string>();
-  const themeModes = repoLayout.themes.map((t) => t.mode);
-  const themeFile = new Map(repoLayout.themes.map((t) => [t.mode, t.file]));
-  const managedIds = new Set([managed.primitives?.id, managed.semantic?.id, ...[...managed.split.values()].map((c) => c.id)].filter(Boolean));
+  const managedIds = new Set<string>();
+  for (const m of managed.values()) {
+    if (m.single) managedIds.add(m.single.id);
+    for (const c of m.split.values()) managedIds.add(c.id);
+  }
 
   const aliasPath = (id: string, name?: string) => {
     const target = byId.get(id);
@@ -322,7 +342,7 @@ export function snapshotToTokens(snapshot: FigmaSnapshot, repoLayout: RepoLayout
         values: {},
         description,
         scopes: v.scopes,
-        files: tier === 'primitive' ? { [PRIMITIVE_MODE]: pd.file ?? inferPrimitiveFile(path, context) } : {},
+        files: isMultiMode(tier) ? {} : { [SINGLE_MODE]: pd.file ?? inferFile(path, tier, context) },
       };
       if (tokens.has(t.id)) {
         warnings.push(`"${v.name}" carries the same DS Bridge id as "${tokens.get(t.id)!.path}"; it is treated as a new token.`);
@@ -331,7 +351,7 @@ export function snapshotToTokens(snapshot: FigmaSnapshot, repoLayout: RepoLayout
       tokens.set(t.id, t);
       tokenByPath.set(path, t);
     } else if (t.tier !== tier) {
-      warnings.push(`"${v.name}" exists in both Primitives and Semantic; the Semantic copy is ignored.`);
+      warnings.push(`"${v.name}" exists in both ${COLLECTIONS[t.tier]} and ${COLLECTIONS[tier]}; the ${COLLECTIONS[tier]} copy is ignored.`);
       return;
     }
     const ids = variableIds.get(t.id) ?? [];
@@ -342,39 +362,47 @@ export function snapshotToTokens(snapshot: FigmaSnapshot, repoLayout: RepoLayout
     const value = figmaToDtcg(t.type, figmaValue, pd, aliasPath);
     if (value === undefined) return;
     t.values[mode] = value;
-    if (tier === 'semantic') {
-      const f = themeFile.get(mode);
+    if (isMultiMode(tier)) {
+      const f = modeFile(repoLayout, tier, mode);
       if (f) t.files[mode] = f;
     }
   };
 
-  if (managed.primitives) {
-    const modeId = managed.primitives.defaultModeId;
-    for (const v of snapshot.variables) if (v.collectionId === managed.primitives.id) take(v, 'primitive', PRIMITIVE_MODE, v.valuesByMode[modeId]);
-  }
-
-  let layout: FigmaReadResult['layout'] = 'none';
-  if (managed.semantic) {
-    layout = 'single-collection';
-    const modeKeyOf = new Map(managed.semantic.modes.map((m) => [m.modeId, m.name.trim().toLowerCase()]));
-    for (const [, key] of modeKeyOf) if (!themeModes.includes(key)) warnings.push(`Mode "${key}" in the Semantic collection has no theme file in Git and is ignored.`);
-    for (const v of snapshot.variables) {
-      if (v.collectionId !== managed.semantic.id) continue;
-      for (const m of managed.semantic.modes) {
-        const key = modeKeyOf.get(m.modeId)!;
-        if (themeModes.includes(key)) take(v, 'semantic', key, v.valuesByMode[m.modeId]);
+  let sawSingle = false;
+  let sawSplit = false;
+  for (const tier of TIER_ORDER) {
+    const m = managed.get(tier)!;
+    const name = COLLECTIONS[tier];
+    if (!isMultiMode(tier)) {
+      if (!m.single) continue;
+      const modeId = m.single.defaultModeId;
+      for (const v of snapshot.variables) if (v.collectionId === m.single.id) take(v, tier, SINGLE_MODE, v.valuesByMode[modeId]);
+      continue;
+    }
+    const modes = modesOf(repoLayout, tier);
+    if (m.single) {
+      sawSingle = true;
+      const modeKeyOf = new Map(m.single.modes.map((x) => [x.modeId, x.name.trim().toLowerCase()]));
+      for (const [, key] of modeKeyOf) if (!modes.includes(key)) warnings.push(`Mode "${key}" in the ${name} collection has no file in Git and is ignored.`);
+      for (const v of snapshot.variables) {
+        if (v.collectionId !== m.single.id) continue;
+        for (const x of m.single.modes) {
+          const key = modeKeyOf.get(x.modeId)!;
+          if (modes.includes(key)) take(v, tier, key, v.valuesByMode[x.modeId]);
+        }
+      }
+    } else if (m.split.size) {
+      sawSplit = true;
+      for (const [mode, c] of m.split) {
+        if (!modes.includes(mode)) {
+          warnings.push(`Collection "${c.name}" has no file in Git and is ignored.`);
+          continue;
+        }
+        for (const v of snapshot.variables) if (v.collectionId === c.id) take(v, tier, mode, v.valuesByMode[c.defaultModeId]);
       }
     }
-  } else if (managed.split.size) {
-    layout = 'split-collections';
-    for (const [mode, c] of managed.split) {
-      if (!themeModes.includes(mode)) {
-        warnings.push(`Collection "${c.name}" has no theme file in Git and is ignored.`);
-        continue;
-      }
-      for (const v of snapshot.variables) if (v.collectionId === c.id) take(v, 'semantic', mode, v.valuesByMode[c.defaultModeId]);
-    }
   }
+  const layout: FigmaReadResult['layout'] = sawSplit ? 'split-collections' : sawSingle ? 'single-collection' : 'none';
 
   const otherCount = snapshot.variables.filter((v) => !managedIds.has(v.collectionId)).length;
   if (otherCount) warnings.push(`${otherCount} variable(s) in other collections are not synced.`);

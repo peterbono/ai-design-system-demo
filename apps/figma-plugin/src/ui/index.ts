@@ -1,27 +1,28 @@
-// DS Bridge UI: three tabs (Pull, Review changes, Settings). Plain TypeScript and DOM, no framework.
+// DS Bridge UI: three tabs (Pull: code -> Figma, Push: Figma -> code, Settings). Plain TypeScript and DOM, no framework.
 // The UI owns network calls and logic; figma.* access goes through request() to the main thread.
 // Layout: tabs on top, scrolling content, and an action bar pinned to the bottom that always shows
 // what the primary button will do (or why it is disabled).
 
-import type { ConflictChoice, DiffEntry } from '../core/diff-engine';
-import { type Analysis, type PullProposal, type PushProposal, type PushResult, analyze, buildPull, buildPush, openPullRequest } from '../core/flows';
-import { GitHubClient, type PullRequest, parseRepo } from '../core/github-client';
-import type { RenameSuggestion } from '../core/id-map';
-import { defaultTitle } from '../core/pr-composer';
-import { type PathIndex, resolve } from '../core/resolver';
-import { type LogicalToken, PRIMITIVE_MODE } from '../core/types';
-import type { Issue } from '../core/validators';
-import { formatValue, isAlias, parseColor, rgbaToHex } from '../core/values';
-import { type ContrastResult, pairKey } from '../core/wcag';
+import type { ConflictChoice, DiffEntry } from '@bridge/core';
+import { type Analysis, type PullProposal, type PushProposal, type PushResult, analyze, buildPull, buildPush, openPullRequest } from '../sync/flows';
+import { GitHubClient, type PullRequest, parseRepo } from '@bridge/core';
+import type { RenameSuggestion } from '@bridge/core';
+import { affectedContrast, defaultTitle } from '@bridge/core';
+import { type PathIndex, type ResolveContext, resolve } from '@bridge/core';
+import { contextFor, modesOf } from '@bridge/core';
+import { type LogicalToken, SINGLE_MODE } from '@bridge/core';
+import type { Issue } from '@bridge/core';
+import { formatValue, isAlias, parseColor, rgbaToHex } from '@bridge/core';
+import { type ContrastResult, contextLabel, pairKey } from '@bridge/core';
 import { type ApplyReport, type FigmaSnapshot, type InitPayload, type RepoSettings, modeDisplayName } from '../shared/messages';
 import { onProgress, request } from './bridge';
 import { type Child, h } from './dom';
 import { icon } from './icons';
 
-type Tab = 'pull' | 'review' | 'settings';
+type Tab = 'pull' | 'push' | 'settings';
 const TABS: { id: Tab; label: string }[] = [
   { id: 'pull', label: 'Pull' },
-  { id: 'review', label: 'Review changes' },
+  { id: 'push', label: 'Push' },
   { id: 'settings', label: 'Settings' },
 ];
 /** Rows rendered per list before "Show all": keeps large token sets responsive. */
@@ -34,7 +35,7 @@ interface PullState {
   report?: ApplyReport | undefined;
 }
 
-interface ReviewState {
+interface PushState {
   analysis: Analysis;
   snapshot: FigmaSnapshot;
   choices: Map<string, ConflictChoice>;
@@ -54,7 +55,7 @@ interface State {
   busy?: string | undefined;
   error?: { message: string; retry?: (() => void) | undefined } | undefined;
   pull?: PullState | undefined;
-  review?: ReviewState | undefined;
+  push?: PushState | undefined;
   settingsDraft: RepoSettings;
   tokenDraft: string;
   settingsMessage?: { kind: 'ok' | 'error'; text: string } | undefined;
@@ -111,7 +112,13 @@ const when = (iso: string) => {
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
 };
 const plural = (n: number, word: string, many = `${word}s`) => `${n} ${n === 1 ? word : many}`;
-const modeLabel = (mode: string) => (mode === PRIMITIVE_MODE ? 'Value' : modeDisplayName(mode));
+const modeLabel = (mode: string) => (mode === SINGLE_MODE ? 'Value' : modeDisplayName(mode));
+
+/** Context to resolve a token's value in one mode of its tier (other axes at their default). */
+function ctxFor(t: LogicalToken, mode: string): ResolveContext {
+  const head = (state.push?.analysis ?? state.pull?.analysis)?.head;
+  return head ? contextFor(head, t.tier, mode) : { brand: mode, theme: mode, density: mode };
+}
 
 /** Index used to resolve aliases of Figma-side tokens: Git tokens overlaid with Figma's. */
 function figmaIndex(a: Analysis): PathIndex {
@@ -122,7 +129,7 @@ function figmaIndex(a: Analysis): PathIndex {
 
 function swatch(index: PathIndex, t: LogicalToken | undefined, mode: string): Child {
   if (!t || t.type !== 'color') return null;
-  const r = resolve(index, t.path, mode);
+  const r = resolve(index, t.path, ctxFor(t, mode));
   const c = r.value === undefined ? undefined : parseColor(r.value);
   if (!c) return h('span', { class: 'swatch missing', title: 'This alias does not resolve' });
   const css = `rgba(${Math.round(c.r * 255)}, ${Math.round(c.g * 255)}, ${Math.round(c.b * 255)}, ${c.a})`;
@@ -134,7 +141,7 @@ function valueParts(index: PathIndex, t: LogicalToken | undefined, mode: string)
   const v = t.values[mode];
   if (v === undefined) return { name: 'none' };
   if (!isAlias(v)) return { name: formatValue(t.type, v) };
-  const r = resolve(index, t.path, mode);
+  const r = resolve(index, t.path, ctxFor(t, mode));
   return { name: formatValue(t.type, v), resolved: r.value === undefined ? 'does not resolve' : formatValue(t.type, r.value) };
 }
 
@@ -158,31 +165,34 @@ function valueChip(index: PathIndex, t: LogicalToken | undefined, mode: string, 
 }
 
 function modesFor(a: Analysis, t: LogicalToken): string[] {
-  return t.tier === 'primitive' ? [PRIMITIVE_MODE] : a.head.layout.themes.map((th) => th.mode);
+  return modesOf(a.head.layout, t.tier);
 }
 
-function contrastPills(path: string, after: ContrastResult[] | undefined, before?: ContrastResult[]): Child {
+const PILLS_MAX = 8;
+
+/** Contrast pairs a change moves, directly or through aliases, in every brand x theme. */
+function contrastPills(current: LogicalToken | undefined, target: LogicalToken | undefined, after: ContrastResult[] | undefined, before: ContrastResult[] = []): Child {
   if (!after) return null;
-  const prev = new Map((before ?? []).map((r) => [pairKey(r), r]));
-  const mine = after.filter((r) => r.ratio !== undefined && (r.pair.foreground === path || r.pair.background === path));
-  if (!mine.length) return null;
+  const rows = affectedContrast({ current, target }, before, after).filter((x) => x.after?.ratio !== undefined);
+  if (!rows.length) return null;
+  rows.sort((x, y) => Number(y.after!.level === 'fail') - Number(x.after!.level === 'fail') || x.after!.ratio! - y.after!.ratio!);
   return h(
     'div',
     { class: 'pills' },
-    mine.map((r) => {
-      const other = r.pair.foreground === path ? r.pair.background : r.pair.foreground;
-      const was = prev.get(pairKey(r))?.ratio;
-      const level = r.level === 'fail' ? 'Fails AA' : r.level;
+    rows.slice(0, PILLS_MAX).map(({ before: b, after: r }) => {
+      const was = b?.ratio;
+      const level = r!.level === 'fail' ? 'Fails' : r!.level;
       return h(
         'span',
         {
-          class: `pill ${r.level}`,
-          title: `${r.pair.foreground} on ${r.pair.background}, ${modeDisplayName(r.mode)}${was !== undefined && was !== r.ratio ? `. Was ${was}:1` : ''}`,
+          class: `pill ${r!.level}`,
+          title: `${r!.pair.foreground} on ${r!.pair.background}, ${contextLabel(r!)}, needs ${r!.pair.min}:1${was !== undefined && was !== r!.ratio ? `. Was ${was}:1` : ''}`,
         },
         h('strong', null, level ?? ''),
-        ` ${r.ratio}:1 ${modeDisplayName(r.mode)}, ${r.pair.foreground === path ? 'on' : 'under'} ${other.replace(/^color\./, '')}`,
+        ` ${r!.ratio}:1 ${contextLabel(r!)}, ${r!.pair.foreground.replace(/^color\./, '')} on ${r!.pair.background.replace(/^color\./, '')}`,
       );
     }),
+    rows.length > PILLS_MAX ? h('span', { class: 'pill' }, `${rows.length - PILLS_MAX} more pairs in Contrast below`) : null,
   );
 }
 
@@ -323,7 +333,7 @@ function conflictSection(a: Analysis, choices: Map<string, ConflictChoice>): Chi
 
 function refreshProposals(): void {
   if (state.pull) state.pull.proposal = buildPull(state.pull.analysis, state.pull.choices);
-  if (state.review) state.review.proposal = buildPush(state.review.analysis, state.review.choices);
+  if (state.push) state.push.proposal = buildPush(state.push.analysis, state.push.choices);
   render();
 }
 
@@ -372,14 +382,14 @@ function applyPull(): void {
       const report = await request('apply-pull', { plan: p.proposal.plan });
       p.report = report;
       await loadInit();
-      state.review = undefined;
+      state.push = undefined;
       void request('notify', { message: `Pulled ${state.init!.settings.branch}: ${report.created} created, ${report.updated} updated.` });
     },
     applyPull,
   );
 }
 
-function scanReview(keep?: ReviewState): void {
+function scanPush(keep?: PushState): void {
   void run(
     'Comparing your variables with main',
     async () => {
@@ -390,7 +400,7 @@ function scanReview(keep?: ReviewState): void {
       const choices = keep?.choices ?? new Map<string, ConflictChoice>();
       const lastBranch = state.init!.sync.lastPrBranch;
       const openPr = lastBranch ? await c.findOpenPullRequest(lastBranch).catch(() => undefined) : undefined;
-      state.review = {
+      state.push = {
         analysis,
         snapshot,
         choices,
@@ -404,12 +414,12 @@ function scanReview(keep?: ReviewState): void {
       };
       state.expanded.clear();
     },
-    () => scanReview(keep),
+    () => scanPush(keep),
   );
 }
 
 function submitPr(): void {
-  const r = state.review;
+  const r = state.push;
   if (!r) return;
   void run(
     r.appendToOpen && r.openPr ? 'Adding a commit to the pull request' : 'Opening the pull request',
@@ -460,7 +470,7 @@ function saveSettings(): void {
       await request('save-settings', { settings: draft });
       await loadInit();
       state.pull = undefined;
-      state.review = undefined;
+      state.push = undefined;
       state.settingsMessage = { kind: 'ok', text: message };
     } catch (err) {
       state.settingsMessage = { kind: 'error', text: err instanceof Error ? err.message : String(err) };
@@ -473,7 +483,7 @@ function removeToken(): void {
     await request('clear-token', {});
     await loadInit();
     state.pull = undefined;
-    state.review = undefined;
+    state.push = undefined;
     state.settingsMessage = { kind: 'ok', text: 'Token removed from this computer.' };
   });
 }
@@ -505,10 +515,10 @@ function viewPull(): View {
   const where = h(
     'p',
     { class: 'lede' },
-    `Bring ${init.settings.branch} from ${init.settings.repo} into this file. `,
+    `Bring the latest tokens from ${init.settings.branch} into Figma. `,
     init.sync.baseSha
-      ? `Last pulled ${short(init.sync.baseSha)}${init.sync.lastPullAt ? ` on ${when(init.sync.lastPullAt)}` : ''}.`
-      : 'First pull: the Primitives and Semantic collections are created for you.',
+      ? `Last pulled ${short(init.sync.baseSha)} from ${init.settings.repo}${init.sync.lastPullAt ? ` on ${when(init.sync.lastPullAt)}` : ''}.`
+      : 'First pull: the Primitives, Brand, Base, Semantic, Density and Component collections are created for you.',
   );
   if (!p) {
     return {
@@ -539,9 +549,9 @@ function viewPull(): View {
           ),
           r.errors.length ? h('ul', null, r.errors.map((e) => h('li', null, e))) : null,
         ),
-        prop.kept.length ? h('p', { class: 'muted' }, `${plural(prop.kept.length, 'unpublished edit')} kept. Send them from Review changes.`) : null,
+        prop.kept.length ? h('p', { class: 'muted' }, `${plural(prop.kept.length, 'unpublished edit')} kept. Send them from Push.`) : null,
       ],
-      bar: { label: 'Check again', onClick: checkPull, secondary: prop.kept.length ? { label: 'Review my edits', onClick: () => { state.tab = 'review'; scanReview(); } } : undefined },
+      bar: { label: 'Check again', onClick: checkPull, secondary: prop.kept.length ? { label: 'Push my edits', onClick: () => { state.tab = 'push'; scanPush(); } } : undefined },
     };
   }
 
@@ -577,7 +587,7 @@ function viewPull(): View {
         'section',
         null,
         h('h2', null, `Your edits, kept (${prop.kept.length})`),
-        h('p', { class: 'lede' }, 'Not on main yet. A pull leaves them alone; send them from Review changes.'),
+        h('p', { class: 'lede' }, 'Not on main yet. A pull leaves them alone; send them from Push.'),
         rowList('pull-kept', prop.kept.map((e) => diffRow(a, e.local!.kind, { before: e.base, after: e.figma, beforeIndex: a.base?.byPath ?? a.head.byPath, afterIndex: fi }))),
       ),
     );
@@ -600,20 +610,20 @@ function viewPull(): View {
   };
 }
 
-function viewReview(): View {
+function viewPush(): View {
   const init = state.init!;
   if (!init.hasToken) return needToken();
-  const r = state.review;
+  const r = state.push;
   if (!r) {
     return {
       body: h(
         'section',
         null,
-        h('h2', null, 'Propose your edits'),
-        h('p', { class: 'lede' }, `Compare the variables in this file with ${init.settings.branch} and send the differences as a pull request. Design and tech owners review it before anything ships.`),
-        h('p', { class: 'muted' }, 'Edit values, aliases, names or descriptions in the Primitives and Semantic collections, then scan.'),
+        h('h2', null, 'Push your edits'),
+        h('p', { class: 'lede' }, 'Send your Figma edits to the repo as a pull request for review.'),
+        h('p', { class: 'muted' }, `DS Bridge compares the variables in this file with ${init.settings.branch}. Edit values, aliases, names or descriptions in any synced collection (Primitives, Brand, Base, Semantic, Density, Component), then scan. Design and tech owners review the pull request before anything ships.`),
       ),
-      bar: { label: 'Scan for changes', onClick: () => scanReview() },
+      bar: { label: 'Scan for changes', onClick: () => scanPush() },
     };
   }
   const a = r.analysis;
@@ -633,7 +643,7 @@ function viewReview(): View {
       bar: {
         label: 'Open on GitHub',
         onClick: () => void request('open-url', { url: res.pr.url }),
-        secondary: { label: 'Scan again', onClick: () => scanReview() },
+        secondary: { label: 'Scan again', onClick: () => scanPush() },
       },
     };
   }
@@ -648,7 +658,7 @@ function viewReview(): View {
   const changedContrast = after
     .filter((x) => beforeByKey.get(pairKey(x))?.ratio !== x.ratio)
     .sort((x, y) => Number(y.level === 'fail') - Number(x.level === 'fail') || delta(y) - delta(x));
-  const contrastKey = 'review-contrast';
+  const contrastKey = 'push-contrast';
   const contrastShown = state.expanded.has(contrastKey) ? changedContrast : changedContrast.slice(0, 8);
 
   const body: Child[] = [];
@@ -670,7 +680,7 @@ function viewReview(): View {
               h(
                 'div',
                 { class: 'inline-actions' },
-                h('button', { class: 'btn', onClick: () => scanReview({ ...r, confirmed: [...r.confirmed, s] }) }, 'It is a rename'),
+                h('button', { class: 'btn', onClick: () => scanPush({ ...r, confirmed: [...r.confirmed, s] }) }, 'It is a rename'),
                 h('button', { class: 'btn ghost', onClick: () => { r.dismissed.add(s.figmaId); render(); } }, 'Different tokens'),
               ),
             ),
@@ -689,8 +699,8 @@ function viewReview(): View {
         null,
         h('h2', null, `Your changes (${a.diff.local.length})`),
         rowList(
-          'review-local',
-          a.diff.local.map((e) => diffRow(a, e.local!.kind, { before: e.head ?? e.base, after: e.figma, beforeIndex: a.head.byPath, afterIndex: fi }, e.figma ? contrastPills(e.figma.path, after, before) : null)),
+          'push-local',
+          a.diff.local.map((e) => diffRow(a, e.local!.kind, { before: e.head ?? e.base, after: e.figma, beforeIndex: a.head.byPath, afterIndex: fi }, contrastPills(e.head, e.figma, after, before))),
         ),
       ),
     );
@@ -705,11 +715,11 @@ function viewReview(): View {
         'section',
         null,
         h('h2', null, 'Contrast'),
-        h('p', { class: 'lede' }, 'Declared text and background pairs whose ratio moves with this change.'),
+        h('p', { class: 'lede' }, 'Pairs from contrast.checks.json whose ratio moves with this change, in every brand and theme.'),
         h(
           'table',
           { class: 'contrast' },
-          h('thead', null, h('tr', null, h('th', null, 'Pair'), h('th', null, 'Theme'), h('th', { class: 'num' }, 'Before'), h('th', { class: 'num' }, 'After'), h('th', null, 'WCAG'))),
+          h('thead', null, h('tr', null, h('th', null, 'Pair'), h('th', null, 'Brand and theme'), h('th', { class: 'num' }, 'Before'), h('th', { class: 'num' }, 'After'), h('th', null, 'WCAG'))),
           h(
             'tbody',
             null,
@@ -718,10 +728,10 @@ function viewReview(): View {
                 'tr',
                 null,
                 h('td', { class: 'pair' }, breakable(x.pair.foreground.replace(/^color\./, '')), ' on ', breakable(x.pair.background.replace(/^color\./, ''))),
-                h('td', null, modeDisplayName(x.mode)),
+                h('td', null, contextLabel(x)),
                 h('td', { class: 'num' }, String(beforeByKey.get(pairKey(x))?.ratio ?? 'n/a')),
                 h('td', { class: 'num' }, String(x.ratio ?? 'n/a')),
-                h('td', null, h('span', { class: `pill ${x.level}` }, h('strong', null, x.level === 'fail' ? 'Fails AA' : (x.level ?? 'n/a')))),
+                h('td', null, h('span', { class: `pill ${x.level}`, title: `Needs ${x.pair.min}:1` }, h('strong', null, x.level === 'fail' ? 'Fails' : (x.level ?? 'n/a')))),
               ),
             ),
           ),
@@ -733,7 +743,7 @@ function viewReview(): View {
     );
   }
   body.push(issueList('error', 'Fix before sending', prop.validation.blocking));
-  body.push(issueList('warn', 'Already on main (not blocking)', prop.validation.warnings));
+  body.push(issueList('warn', 'Warnings (not blocking)', prop.validation.warnings));
   if (!nothing) {
     body.push(
       h(
@@ -779,13 +789,13 @@ function viewReview(): View {
   return {
     body,
     bar: nothing
-      ? { label: 'Scan again', onClick: () => scanReview(r) }
+      ? { label: 'Scan again', onClick: () => scanPush(r) }
       : {
-          label: r.appendToOpen && r.openPr ? 'Add to pull request' : 'Open pull request',
+          label: r.appendToOpen && r.openPr ? `Push to pull request #${r.openPr.number}` : 'Push and open pull request',
           onClick: submitPr,
           disabled: !!open || !!blocked || noFiles,
           hint,
-          secondary: { label: 'Scan again', onClick: () => scanReview(r) },
+          secondary: { label: 'Scan again', onClick: () => scanPush(r) },
         },
   };
 }
@@ -883,8 +893,8 @@ function render(): void {
     );
     return;
   }
-  const reviewCount = state.review && !state.review.result ? state.review.analysis.diff.local.length + state.review.analysis.diff.conflicts.length : 0;
-  const view = state.tab === 'pull' ? viewPull() : state.tab === 'review' ? viewReview() : viewSettings();
+  const pushCount = state.push && !state.push.result ? state.push.analysis.diff.local.length + state.push.analysis.diff.conflicts.length : 0;
+  const view = state.tab === 'pull' ? viewPull() : state.tab === 'push' ? viewPush() : viewSettings();
 
   const tabs = h(
     'nav',
@@ -914,7 +924,7 @@ function render(): void {
           },
         },
         t.label,
-        t.id === 'review' && reviewCount ? h('span', { class: 'count', 'aria-label': `${reviewCount} changes` }, String(reviewCount)) : null,
+        t.id === 'push' && pushCount ? h('span', { class: 'count', 'aria-label': `${pushCount} changes` }, String(pushCount)) : null,
       ),
     ),
     h('span', { class: 'repo', title: `${state.init.settings.repo}, branch ${state.init.settings.branch}` }, icon('branch'), state.init.settings.branch),

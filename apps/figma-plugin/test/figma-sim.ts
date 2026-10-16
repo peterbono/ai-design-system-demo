@@ -14,16 +14,23 @@ export function applyPlanToSnapshot(plan: PullPlan, layout: 'single' | 'split' =
     }
     return c;
   };
-  const prim = coll('Primitives', ['value']);
-  const slots =
-    layout === 'single'
-      ? [{ c: coll('Semantic', plan.modes), modes: plan.modes }]
-      : plan.modes.map((m) => ({ c: coll(splitCollectionName(m), [m]), modes: [m] }));
+  // Like apply.ts: one collection per tier; multi-mode tiers split into "<Name>/<Mode>" on free plans.
+  const slotsByTier = new Map<string, { c: ReturnType<typeof coll>; modes: string[] }[]>();
+  for (const pc of plan.collections) {
+    if (!plan.variables.some((v) => v.tier === pc.tier)) continue;
+    const single = pc.modes.length === 1 && pc.modes[0] === 'value';
+    slotsByTier.set(
+      pc.tier,
+      single || layout === 'single' ? [{ c: coll(pc.name, pc.modes), modes: pc.modes }] : pc.modes.map((m) => ({ c: coll(splitCollectionName(pc.name, m), [m]), modes: [m] })),
+    );
+  }
+  const managed = [...slotsByTier.values()].flatMap((x) => x.map((s) => s.c.id));
   const deferred: { v: SnapshotVariable; modeId: string; value: Extract<PlannedValue, { kind: 'alias-token' }> }[] = [];
   let n = snap.variables.length;
   for (const p of plan.variables) {
-    const targets = p.tier === 'primitive' ? [{ c: prim, modes: ['value'] }] : slots;
+    const targets = slotsByTier.get(p.tier)!;
     for (const t of targets) {
+      if (targets.length > 1 && t.modes.every((m) => p.values[m] === undefined)) continue;
       let v = snap.variables.find((x) => x.collectionId === t.c.id && (x.pluginData.id === p.tokenId || x.name === p.name));
       if (!v) {
         v = { id: `v${++n}`, name: p.name, collectionId: t.c.id, resolvedType: p.resolvedType, description: '', scopes: ['ALL_SCOPES'], valuesByMode: {}, pluginData: {} };
@@ -44,9 +51,11 @@ export function applyPlanToSnapshot(plan: PullPlan, layout: 'single' | 'split' =
     }
   }
   for (const d of deferred) {
-    const target =
-      snap.variables.find((x) => x.collectionId === prim.id && x.pluginData.id === d.value.tokenId) ??
-      snap.variables.find((x) => x.name === d.value.path.split('.').join('/'));
+    const preferred = d.value.tier ? slotsByTier.get(d.value.tier)?.[0]?.c.id : undefined;
+    const name = d.value.path.split('.').join('/');
+    const inColl = (cid: string | undefined) =>
+      cid ? snap.variables.find((x) => x.collectionId === cid && (x.pluginData.id === d.value.tokenId || x.name === name)) : undefined;
+    const target = inColl(preferred) ?? managed.map(inColl).find(Boolean);
     if (!target) throw new Error(`alias target ${d.value.path} missing`);
     d.v.valuesByMode[d.modeId] = { kind: 'alias', id: target.id };
   }
@@ -56,6 +65,22 @@ export function applyPlanToSnapshot(plan: PullPlan, layout: 'single' | 'split' =
     v.description = `[orphan] ${v.description}`;
   }
   return snap;
+}
+
+/** Mode id of `mode` ("Light", "Ocean"...) in collection `collection`, single or split layout. */
+export function modeId(snap: FigmaSnapshot, collection: string, mode: string): string {
+  const c = snap.collections.find((x) => x.name === collection) ?? snap.collections.find((x) => x.name === `${collection}/${mode}`);
+  const m = c?.modes.find((x) => x.name === mode);
+  if (!m) throw new Error(`no mode ${mode} in ${collection}`);
+  return m.modeId;
+}
+
+/** Variable `name` in collection `collection` (names repeat across collections, e.g. Semantic vs overrides). */
+export function findIn(snap: FigmaSnapshot, collection: string, name: string): SnapshotVariable {
+  const ids = new Set(snap.collections.filter((c) => c.name === collection || c.name.startsWith(`${collection}/`)).map((c) => c.id));
+  const v = snap.variables.find((x) => ids.has(x.collectionId) && x.name === name);
+  if (!v) throw new Error(`no variable ${name} in ${collection}`);
+  return v;
 }
 
 export function findVar(snap: FigmaSnapshot, name: string): SnapshotVariable {

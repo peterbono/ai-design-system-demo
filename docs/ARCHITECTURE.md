@@ -104,23 +104,38 @@ component tier, density modes, motion, layers, focus offset, icon sizes and brea
 ## Where Figma fits
 
 Figma is where designers explore and edit. It is not the source of truth and there is no live sync.
-The bridge is DS Bridge, the plugin in `apps/figma-plugin`:
+The bridge is DS Bridge, the plugin in `apps/figma-plugin`, built on `@bridge/core` (`packages/core`,
+the same token logic a CLI or an MCP server can use). Repo paths come from `bridge.config.json`.
 
-1. **Pull.** The plugin reads the DTCG files on `main` through the GitHub API and writes them into Figma
-   variables: a Primitives collection, and Semantic with Light and Dark modes (or one collection per
-   theme on plans limited to one mode). The pulled commit is stored in the file as the base.
+1. **Pull** (code to Figma). The plugin reads the DTCG files on `main` through the GitHub API and writes
+   them into Figma variables, one collection per tier: Primitives, Brand (modes Bridge and Ocean), Base,
+   Semantic (Light and Dark), Density (Comfortable and Compact) and Component. Semantic variables alias
+   Brand palette variables, component variables alias Semantic ones, so switching a frame's Brand or
+   Semantic mode re-resolves everything below it. On plans limited to one mode per collection, each
+   multi-mode tier gets one collection per mode (`Semantic/Light`, `Brand/Ocean`). The pulled commit is
+   stored in the file as the base.
 2. **Edit.** Designers change variables in Figma like any other variable.
-3. **Review and push.** The plugin diffs three versions per token (base, Figma, current `main`), shows
-   conflicts side by side, runs the guardrails (semantic tokens alias primitives, no cycles or broken
-   references, no `ALL_SCOPES`, WCAG contrast on declared pairs) and opens a draft PR from a
-   `tokens/*` branch with a single commit and a changeset.
+3. **Push** (Figma to code). The plugin diffs three versions per token (base, Figma, current `main`),
+   shows conflicts side by side, runs the guardrails below, and opens a draft PR from a `tokens/*`
+   branch with a single commit and a changeset. Each edited value goes back to the file of its tier and
+   mode (`brands/ocean.tokens.json`, `semantic/dark.tokens.json`, `density/compact.tokens.json`...).
 4. **Review gates.** The PR goes through CI and CODEOWNERS like any Tier 3 change (`docs/GOVERNANCE.md`).
    A human merges it; the next pull brings Figma back in line with what shipped.
+
+Brand theme overrides (`brands/ocean.{light,dark}.tokens.json`) have no Figma equivalent, since a
+variable has one value per mode of one collection and an override depends on brand and theme at once.
+They stay code-only: never written by a pull or a push, listed as a warning, and still used for
+contrast. Editing a semantic token that a brand overrides warns that the edit does not reach that brand.
+
+Contrast in the plugin uses `contrast.checks.json`, the same file as the token build, resolved for
+every brand x theme. The PR shows, for each changed token, every pair whose foreground or background
+resolves through it: directly, or through an alias (a palette role or a primitive that a semantic
+token points to), in the brand and theme where the changed mode is used.
 
 Why not a live two-way sync: it makes it unclear which side won a conflict, and it lets an unreviewed
 canvas edit reach production. Edits flow both ways, but only through a reviewed PR, so every change has
 a diff, a reviewer and a changelog. Tokens removed on `main` are flagged as orphans in Figma, never
-deleted silently. Composite tokens such as shadows stay code-only.
+deleted silently. Composite tokens such as shadows, durations and easings stay code-only.
 
 ## Where the AI agent fits
 
@@ -144,5 +159,5 @@ Rules live in CI, not in prompts. A prompt can be ignored; a failing Stylelint c
 | `build-storybook` | Stories that do not compile or render |
 | Changeset check | Package changes with no semver bump or changelog entry |
 | CODEOWNERS | Token and guardrail changes without design + tech approval |
-| DS Bridge (in Figma, before the PR) | Semantic tokens not aliasing a primitive, raw values in semantic tokens, broken references, alias cycles, missing theme values, `ALL_SCOPES` variables, type changes, WCAG AA failures on `contrast-pairs.json` |
-| Plugin CI job | DS Bridge typecheck, unit tests (lossless DTCG round trip, diff, resolver, WCAG, validators), build |
+| DS Bridge (in Figma, before the PR) | Tier order (brand and density alias primitives, semantic colors alias Brand palette roles, component tokens alias semantic tokens and never a palette role or raw color), raw values where an alias is required, broken references, alias cycles, values missing in a mode of their tier, orphan brand overrides, `ALL_SCOPES` variables, type changes, pairs in `contrast.checks.json` below their minimum in any brand x theme |
+| Plugin and core tests | `@bridge/core` (Vitest, in `npm test`): lossless DTCG round trip, tier resolution, contrast parity with `dist/resolved.json`, diff, validators, PR body, risk tier, GitHub client. Plugin (`plugin:test`): pull/edit/push flow against an in-memory GitHub and a simulated Figma. Plus typecheck and build |

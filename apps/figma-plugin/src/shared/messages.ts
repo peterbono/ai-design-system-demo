@@ -1,6 +1,10 @@
 // Typed message protocol between the UI iframe (network + logic) and the main thread (figma.*).
 // The main thread never talks to the network; the UI never touches figma.variables.
 
+import { TIER_NAMES, type Tier, defineConfig } from '@bridge/core';
+// The repo's own bridge.config.json prefills the settings; every file can point elsewhere in Settings.
+import rootConfig from '../../../../bridge.config.json';
+
 export type FigmaResolvedType = 'COLOR' | 'FLOAT' | 'STRING' | 'BOOLEAN';
 
 export type FigmaValue =
@@ -17,7 +21,7 @@ export interface VariablePluginData {
   id?: string | undefined;
   /** DTCG `$type` (Figma only knows COLOR/FLOAT/STRING/BOOLEAN). */
   dtcgType?: string | undefined;
-  /** Primitive file the token lives in, relative to the tokens path. */
+  /** File a single-mode token (primitive, base, component) lives in, relative to the tokens path. */
   file?: string | undefined;
   /** Unit of a dimension token (px, rem). */
   unit?: string | undefined;
@@ -25,7 +29,7 @@ export interface VariablePluginData {
   shape?: string | undefined;
   /** Set when the token was removed on main: kept in Figma, never deleted silently. */
   orphan?: boolean | undefined;
-  /** Theme modes in which the token does not exist in Git (single-collection layout only). */
+  /** Modes in which the token does not exist in Git (single-collection layout only). */
   absentModes?: string[] | undefined;
 }
 
@@ -60,27 +64,34 @@ export interface FigmaSnapshot {
 export type PlannedValue =
   | Exclude<FigmaValue, { kind: 'alias' }>
   /** Alias to the variable of another token, found by token id first, then by path. */
-  | { kind: 'alias-token'; path: string; tokenId?: string | undefined };
+  | { kind: 'alias-token'; path: string; tokenId?: string | undefined; tier?: Tier | undefined };
 
 export interface PlannedVariable {
   tokenId: string;
   path: string;
   /** Figma variable name ("color/action/primary/bg"). */
   name: string;
-  tier: 'primitive' | 'semantic';
+  tier: Tier;
   resolvedType: FigmaResolvedType;
   description: string;
   scopes: string[];
-  /** Theme mode key ("light", "dark") or "value" for primitives. */
+  /** Mode key of the token's tier ("light", "bridge", "compact"...) or "value" for single-mode tiers. */
   values: Record<string, PlannedValue>;
-  /** Existing variables for this token (several in the split "Semantic/<Mode>" layout). */
+  /** Existing variables for this token (several in the split "<Collection>/<Mode>" layout). */
   existingVariableIds: string[];
   pluginData: VariablePluginData;
 }
 
-export interface PullPlan {
-  /** Theme mode keys in order, for example ["light", "dark"]. */
+/** One Figma collection per tier, with the tier's mode keys in order. */
+export interface PlannedCollection {
+  tier: Tier;
+  name: string;
+  /** ["value"] for single-mode tiers, ["bridge", "ocean"] for Brand, ["light", "dark"] for Semantic... */
   modes: string[];
+}
+
+export interface PullPlan {
+  collections: PlannedCollection[];
   variables: PlannedVariable[];
   orphans: { variableId: string; name: string }[];
   /** Commit the plan was built from; stored as the new base after a successful apply. */
@@ -161,18 +172,29 @@ export function isProgress(msg: unknown): msg is ProgressEnvelope {
   return !!msg && typeof msg === 'object' && (msg as { kind?: unknown }).kind === 'progress';
 }
 
+const defaults = defineConfig(rootConfig);
+/**
+ * Prefilled settings, from bridge.config.json at the root of this repo. At scan time the plugin also
+ * reads bridge.config.json from the configured repository, which decides the token paths there.
+ */
 export const DEFAULT_SETTINGS: RepoSettings = {
-  repo: 'peterbono/ai-design-system-demo',
-  branch: 'main',
-  tokensPath: 'packages/tokens/src',
+  repo: `${defaults.repo.owner}/${defaults.repo.name}`,
+  branch: defaults.repo.defaultBranch,
+  tokensPath: defaults.tokens.root,
 };
 
-export const COLLECTION_PRIMITIVES = 'Primitives';
-export const COLLECTION_SEMANTIC = 'Semantic';
+/** Figma collection of each tier. */
+/** Figma collection of each tier (same names as the tiers in @bridge/core). */
+export const COLLECTIONS: Record<Tier, string> = TIER_NAMES;
+export const COLLECTION_PRIMITIVES = COLLECTIONS.primitive;
+export const COLLECTION_SEMANTIC = COLLECTIONS.semantic;
+/** Mode name of single-mode collections (Primitives, Base, Component). */
 export const PRIMITIVE_MODE_NAME = 'Value';
 
-export const modeDisplayName = (mode: string) => mode.charAt(0).toUpperCase() + mode.slice(1);
-export const splitCollectionName = (mode: string) => `${COLLECTION_SEMANTIC}/${modeDisplayName(mode)}`;
+export { modeDisplayName } from '@bridge/core';
+import { modeDisplayName } from '@bridge/core';
+/** Free-plan fallback: one collection per mode, "Semantic/Light", "Brand/Ocean"... */
+export const splitCollectionName = (collection: string, mode: string) => `${collection}/${modeDisplayName(mode)}`;
 
 export function isRequest(msg: unknown): msg is RequestEnvelope {
   return !!msg && typeof msg === 'object' && (msg as { kind?: unknown }).kind === 'request';

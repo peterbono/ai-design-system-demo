@@ -1,9 +1,11 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
-import { buildTokenSet } from '../src/core/token-set';
-import type { LogicalToken } from '../src/core/types';
+import { buildTokenSet } from '@bridge/core';
+import type { LogicalToken } from '@bridge/core';
 
 export const TOKENS_DIR = join(process.cwd(), '../../packages/tokens/src');
+/** bridge.config.json at the repo root (the fake GitHub serves it like the real repo). */
+export const realConfigText = () => readFileSync(join(process.cwd(), '../../bridge.config.json'), 'utf8');
 
 /** Every *.tokens.json under packages/tokens/src, keyed by path relative to it. */
 export function realFiles(): Record<string, string> {
@@ -19,7 +21,8 @@ export function realFiles(): Record<string, string> {
   return out;
 }
 
-export const realPairsText = () => readFileSync(join(TOKENS_DIR, 'contrast-pairs.json'), 'utf8');
+/** packages/tokens/src/contrast.checks.json: the one source of contrast pairs. */
+export const realChecksText = () => readFileSync(join(TOKENS_DIR, 'contrast.checks.json'), 'utf8');
 
 export const realSet = () => buildTokenSet(realFiles());
 
