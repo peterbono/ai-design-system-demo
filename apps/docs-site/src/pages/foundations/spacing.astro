@@ -1,6 +1,8 @@
 ---
+import { PageHeader } from '@bridge-ds/react';
 import Layout from '../../layouts/Layout.astro';
-import Icon from '../../components/Icon.astro';
+import ButtonLink from '../../components/ds/ButtonLink';
+import { Pencil } from 'lucide-react';
 import Updated from '../../components/Updated.astro';
 import CopyAs from '../../components/foundations/CopyAs.astro';
 import LibraryKit from '../../components/foundations/LibraryKit.astro';
@@ -18,19 +20,13 @@ const density = DENSITY.map((p) => foundationRow(p));
 
 <Layout title="Spacing" description="The 4 px spacing scale and the density tokens built on it, shown in a real layout." sources={PAGE_SOURCES.spacing} updated={updated}>
   <div data-fd-page>
-    <header class="page-head">
-      <div>
-        <h1>Spacing</h1>
-        <p class="lead">
-          A 4 px base scale: step n is n &times; 4 px, with half steps where controls need them. Tight inside groups, generous between them. Fewer
-          choices means more consistent screens.
-        </p>
-        <Updated date={updated} />
-      </div>
-      <div class="page-head-actions">
-        <a class="btn btn-secondary" href="/studio/tokens/?focus=space"><Icon name="edit" size={16} />Edit in Studio</a>
-      </div>
-    </header>
+    <PageHeader className="lib-page-header" title="Spacing">
+      A 4 px base scale: step n is n &times; 4 px, with half steps where controls need them. Tight inside groups, generous between them. Fewer choices means more consistent screens.
+      <Updated slot="meta" date={updated} />
+      <Fragment slot="actions">
+        <ButtonLink variant="secondary" iconStart={Pencil} href="/studio/tokens/?focus=space">Edit in Studio</ButtonLink>
+      </Fragment>
+    </PageHeader>
     <div class="fd-toolbar">
       <p class="fd-hint">Select a token to see where it is used and its history. Click a name to copy it.</p>
       <CopyAs />

@@ -4,6 +4,7 @@ import '../../styles/reviews.css';
 import '../../styles/studio.css';
 import Layout from '../../layouts/Layout.astro';
 import Icon from '../../components/Icon.astro';
+import { Badge, type BadgeTone } from '@bridge-ds/react';
 import StudioHeader from '../../components/StudioHeader.astro';
 import Donut from '../../components/charts/Donut.astro';
 import StackedBars from '../../components/charts/StackedBars.astro';
@@ -22,7 +23,7 @@ const ratePct = Math.round(s.contrast.rate * 1000) / 10;
 const recent = releases()
   .flatMap((r) => r.entries.map((e) => ({ ...e, release: r.name, pending: r.pending, date: e.date ?? r.date })))
   .slice(0, 8);
-const kindTone: Record<string, string> = { Breaking: 'is-fail', New: 'is-info', Fix: 'is-pass', Docs: 'is-accent' };
+const kindTone: Record<string, BadgeTone> = { Breaking: 'danger', New: 'info', Fix: 'success', Docs: 'neutral' };
 
 
 ---
@@ -94,7 +95,7 @@ const kindTone: Record<string, string> = { Breaking: 'is-fail', New: 'is-info', 
           <ul class="ov-list">
             {recent.map((e) => (
               <li class="ov-act">
-                <span class={`pill ${kindTone[e.kind] ?? ''}`}>{e.kind}</span>
+                <Badge size="sm" tone={kindTone[e.kind] ?? 'neutral'} className="st-act-kind">{e.kind}</Badge>
                 <span class="ov-act-title" title={mdTitleText(e.title)} set:html={mdTitleHtml(e.title)} />
                 {e.source === 'commit' && e.ref ? (
                   <a href={`${GITHUB_URL}/commit/${e.ref}`} class="mono ov-act-ref">{e.ref}</a>

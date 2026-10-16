@@ -3,8 +3,10 @@ import '../../styles/component.css';
 import '../../styles/library.css';
 import Layout from '../../layouts/Layout.astro';
 import Example from '../../components/Example.tsx';
-import Icon from '../../components/Icon.astro';
 import Updated from '../../components/Updated.astro';
+import ButtonLink from '../../components/ds/ButtonLink';
+import { Badge, PageHeader } from '@bridge-ds/react';
+import { Pencil } from 'lucide-react';
 import { loadComponents, type ComponentInfo } from '../../lib/components';
 import { freshness, PAGE_SOURCES } from '../../lib/sources';
 
@@ -18,30 +20,24 @@ for (const c of components) {
 }
 const documented = components.filter((c) => c.docs).length;
 const statusOf = (c: ComponentInfo) => c.docs?.status ?? 'stable';
-const toneOf = (s: string) => (s === 'stable' ? 'is-pass' : s === 'beta' ? 'is-info' : 'is-warn');
+const toneOf = (s: string) => (s === 'stable' ? 'success' : s === 'beta' ? 'info' : 'warning');
 const label = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const famSlug = (label: string) => label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 const plural = (n: number, w: string, many = `${w}s`) => `${n} ${n === 1 ? w : many}`;
 ---
 
 <Layout title="Components" description="Every component, with usage guidance, accessibility notes and the tokens it reads." sources={PAGE_SOURCES.components} updated={updated}>
-  <header class="page-head">
-    <div>
-      <h1>Components</h1>
-      <p class="lead">
-        {plural(components.length, 'component')} in {plural(groups.size, 'family', 'families')}. Each page has the same tabs: Usage (when to use it,
-        do and don't, accessibility), Tokens, Code (props and a playground) and Changelog. Guidance first, specs second.
-      </p>
-      <Updated date={updated} />
-    </div>
-    <div class="page-head-actions">
-      <a class="btn btn-secondary" href="/studio/components/"><Icon name="edit" size={16} />Open in Studio</a>
-    </div>
-  </header>
+  <PageHeader className="lib-page-header" title="Components">
+    {plural(components.length, 'component')} in {plural(groups.size, 'family', 'families')}. Each page has the same tabs: Usage (when to use it, do and don't, accessibility), Tokens, Code (props and a playground) and Changelog. Guidance first, specs second.
+    <Updated slot="meta" date={updated} />
+    <Fragment slot="actions">
+      <ButtonLink variant="secondary" href="/studio/components/" iconStart={Pencil}>Open in Studio</ButtonLink>
+    </Fragment>
+  </PageHeader>
   <p class="gallery-stats">
-    <span class="pill">{plural(components.length, 'component')}</span>
-    <span class="pill is-pass">{documented} with usage guidance</span>
-    {components.length - documented > 0 && <span class="pill is-warn">{components.length - documented} missing guidance</span>}
+    <Badge>{plural(components.length, 'component')}</Badge>
+    <Badge tone="success">{documented} with usage guidance</Badge>
+    {components.length - documented > 0 && <Badge tone="warning">{components.length - documented} missing guidance</Badge>}
   </p>
 
   {
@@ -62,7 +58,7 @@ const plural = (n: number, w: string, many = `${w}s`) => `${n} ${n === 1 ? w : m
                   <h3>
                     <a href={`/components/${c.slug}/`}>{c.name}</a>
                   </h3>
-                  <span class:list={['pill', toneOf(statusOf(c))]}>{label(statusOf(c))}</span>
+                  <Badge tone={toneOf(statusOf(c))} size="sm">{label(statusOf(c))}</Badge>
                 </div>
                 <p>{c.docs?.summary ?? c.description ?? 'No usage guidance yet.'}</p>
                 <dl class="gcard-stats">

@@ -6,6 +6,10 @@ import '../../styles/studio.css';
 import Layout from '../../layouts/Layout.astro';
 import StudioHeader from '../../components/StudioHeader.astro';
 import Icon from '../../components/Icon.astro';
+import ButtonLink from '../../components/ds/ButtonLink';
+import ContrastFailTable from '../../components/ds/studio/ContrastFailTable';
+import { Badge, type BadgeTone } from '@bridge-ds/react';
+import { Contrast } from 'lucide-react';
 import { CONTRAST_FILE, contrastPairs } from '../../lib/contrast';
 import { PAGE_SOURCES, freshness } from '../../lib/sources';
 import { dashboard } from '../../lib/stats';
@@ -24,7 +28,17 @@ const passing = total - failures.length;
 const rate = total ? Math.floor((passing / total) * 1000) / 10 : 100;
 const perCombo = COMBOS.map((c) => ({ c, pass: pairs.filter((p) => res(p, c).aa).length }));
 const validation = s.issues.filter((i) => !i.href.startsWith('/studio/checks/'));
-const tone = (sev: string) => (sev === 'fail' ? 'is-fail' : sev === 'warn' ? 'is-warn' : 'is-info');
+const tone = (sev: string): BadgeTone => (sev === 'fail' ? 'danger' : sev === 'warn' ? 'warning' : 'info');
+const failRows = failures.map(({ p, c, r }) => ({
+  id: `fail-${p.fg}-${p.bg}-${c.b}-${c.m}`.replace(/[^a-z0-9-]+/gi, '-'),
+  fg: p.fg,
+  bg: p.bg,
+  where: comboLabel(c),
+  ratio: `${r.ratio.toFixed(2)}:1`,
+  hexes: `${r.fgHex} / ${r.bgHex}`,
+  needs: `${p.min}:1 (${p.usage === 'text' ? 'text' : 'UI'})`,
+}));
+const validationTone: BadgeTone = validation.some((i) => i.severity === 'fail') ? 'danger' : validation.length ? 'warning' : 'success';
 const sevLabel = (sev: string) => (sev === 'fail' ? 'Fix' : sev === 'warn' ? 'Review' : 'Note');
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
 ---
@@ -37,7 +51,7 @@ const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
   wide
 >
   <StudioHeader title="Checks" subtitle="Contrast blocks the token build; validation findings do not block, but reviewers read them.">
-    <a slot="actions" class="btn btn-secondary btn-sm" href="/foundations/accessibility/"><Icon name="contrast" size={16} />Full contrast grid</a>
+    <Fragment slot="actions"><ButtonLink variant="secondary" size="sm" iconStart={Contrast} href="/foundations/accessibility/">Full contrast grid</ButtonLink></Fragment>
   </StudioHeader>
 
   <section class="st-gates" aria-label="Gate status">
@@ -45,7 +59,7 @@ const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
       <p class="st-gate-label">Contrast gate</p>
       <p class="st-gate-value num">{rate}%</p>
       <p class="st-gate-sub">
-        <span class:list={['pill', failures.length ? 'is-fail' : 'is-pass']}>{failures.length ? 'Blocking' : 'Passing'}</span>
+        <Badge size="sm" tone={failures.length ? 'danger' : 'success'}>{failures.length ? 'Blocking' : 'Passing'}</Badge>
         <span class="muted small num">{passing} of {total} checks, {pairs.length} pairs in {COMBOS.length} brand and theme combinations</span>
       </p>
     </article>
@@ -53,9 +67,7 @@ const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
       <p class="st-gate-label">Token validation</p>
       <p class="st-gate-value num">{validation.length}</p>
       <p class="st-gate-sub">
-        <span class:list={['pill', validation.some((i) => i.severity === 'fail') ? 'is-fail' : validation.length ? 'is-warn' : 'is-pass']}>
-          {validation.length ? plural(validation.length, 'finding') : 'Clean'}
-        </span>
+        <Badge size="sm" tone={validationTone}>{validation.length ? plural(validation.length, 'finding') : 'Clean'}</Badge>
         <span class="muted small">Unknown references, deprecated and unused tokens, missing guidance</span>
       </p>
     </article>
@@ -74,7 +86,7 @@ const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
             <strong class="num">
               {x.pass}/{pairs.length}
             </strong>
-            <span class:list={['pill', x.pass === pairs.length ? 'is-pass' : 'is-fail']}>{x.pass === pairs.length ? 'Pass' : 'Fail'}</span>
+            <Badge size="sm" tone={x.pass === pairs.length ? 'success' : 'danger'}>{x.pass === pairs.length ? 'Pass' : 'Fail'}</Badge>
           </li>
         ))
       }
@@ -85,33 +97,7 @@ const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
           <Icon name="check" /> Every pair passes AA in every brand and theme.
         </p>
       ) : (
-        <div class="table-wrap">
-          <table>
-            <caption class="sr-only">Failing contrast checks</caption>
-            <thead>
-              <tr>
-                <th scope="col">Pair</th>
-                <th scope="col">Where</th>
-                <th scope="col">Ratio</th>
-                <th scope="col">Needs</th>
-              </tr>
-            </thead>
-            <tbody>
-              {failures.map(({ p, c, r }) => (
-                <tr id={`fail-${p.fg}-${p.bg}-${c.b}-${c.m}`.replace(/[^a-z0-9-]+/gi, '-')}>
-                  <th scope="row">
-                    <a href={`/studio/tokens/?focus=${encodeURIComponent(p.fg)}`} data-keep-branch>{p.fg}</a>
-                    <span class="muted small"> on </span>
-                    <a href={`/studio/tokens/?focus=${encodeURIComponent(p.bg)}`} data-keep-branch>{p.bg}</a>
-                  </th>
-                  <td>{comboLabel(c)}</td>
-                  <td class="num"><strong>{r.ratio.toFixed(2)}:1</strong> <span class="chain">{r.fgHex} / {r.bgHex}</span></td>
-                  <td class="num">{p.min}:1 ({p.usage === 'text' ? 'text' : 'UI'})</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <ContrastFailTable rows={failRows} />
       )
     }
   </section>
@@ -137,7 +123,7 @@ const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
                 </a>
                 <span class="issue-detail">{i.detail}</span>
               </span>
-              <span class={`pill ${tone(i.severity)}`}>{sevLabel(i.severity)}</span>
+              <Badge size="sm" tone={tone(i.severity)}>{sevLabel(i.severity)}</Badge>
             </li>
           ))}
         </ul>

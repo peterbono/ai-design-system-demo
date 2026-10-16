@@ -4,6 +4,9 @@ import Layout from '../../../layouts/Layout.astro';
 import StudioHeader from '../../../components/StudioHeader.astro';
 import GitHubConnect from '../../../components/GitHubConnect.astro';
 import Icon from '../../../components/Icon.astro';
+import ButtonLink from '../../../components/ds/ButtonLink';
+import { FigmaMark } from '../../../components/ds/studio/brand-icons';
+import { Bot } from 'lucide-react';
 import { siteRepo } from '../../../lib/config';
 import { mcpTools } from '../../../lib/mcp';
 import { PLUGIN_URL, sourceUrl } from '../../../lib/repo';
@@ -40,7 +43,7 @@ const tokenUrl = `https://github.com/settings/personal-access-tokens/new?descrip
         the free Figma plan. Not published to Figma Community yet: import it from a local build of this repository.
       </p>
       <div class="set-actions">
-        <a class="btn btn-secondary btn-sm" href={PLUGIN_URL}><Icon name="figma" size={16} />Get the plugin</a>
+        <ButtonLink variant="secondary" size="sm" iconStart={FigmaMark} href={PLUGIN_URL}>Get the plugin</ButtonLink>
         <a class="small" href="/install/#figma-plugin">How to install it</a>
       </div>
     </div>
@@ -55,7 +58,7 @@ const tokenUrl = `https://github.com/settings/personal-access-tokens/new?descrip
         changes proposed on a branch for review. It never writes to <code>{r.defaultBranch}</code>.
       </p>
       <div class="set-actions">
-        <a class="btn btn-secondary btn-sm" href="/agents/"><Icon name="agent" size={16} />Set up an agent</a>
+        <ButtonLink variant="secondary" size="sm" iconStart={Bot} href="/agents/">Set up an agent</ButtonLink>
         <a class="small" href={sourceUrl('docs/AI.md')}>docs/AI.md</a>
       </div>
     </div>

@@ -1,6 +1,8 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import StudioHeader from '../../components/StudioHeader.astro';
+import { TopFilesTable, TopFixesTable, TrendTable } from '../../components/ds/studio/AdoptionTables';
+import { Badge } from '@bridge-ds/react';
 import { adoptionTone, categoryRows, componentBreakdown, formatDelta, formatPct, loadAudits, trendPoints } from '../../lib/audits';
 import { PAGE_SOURCES, freshness } from '../../lib/sources';
 import '../../styles/process.css';
@@ -66,7 +68,7 @@ const line = (key: 'tokenAdoption' | 'componentAdoption') =>
             <li>
               <a href={`#${e.id}`}>
                 {e.report.label ?? e.id}
-                {i === 0 && <span class="pill is-info">Latest</span>}
+                {i === 0 && <Badge size="sm" tone="info">Latest</Badge>}
               </a>
             </li>
           ))}
@@ -282,32 +284,7 @@ const line = (key: 'tokenAdoption' | 'componentAdoption') =>
           {r.topFiles.length === 0 ? (
             <p class="muted">Nothing to fix.</p>
           ) : (
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th scope="col">File</th>
-                    <th scope="col" class="num">Hardcoded</th>
-                    <th scope="col" class="num">Non-DS components</th>
-                    <th scope="col" class="num">Token usages</th>
-                    <th scope="col" class="num">DS components</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {r.topFiles.slice(0, 12).map((f) => (
-                    <tr>
-                      <th scope="row" class="ad-path">
-                        <code>{f.path}</code>
-                      </th>
-                      <td class="num">{f.hardcoded}</td>
-                      <td class="num">{f.otherComponents}</td>
-                      <td class="num">{f.tokenUsages}</td>
-                      <td class="num">{f.dsComponents}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <TopFilesTable rows={r.topFiles.slice(0, 12)} />
           )}
 
           <div class="section-head">
@@ -319,46 +296,7 @@ const line = (key: 'tokenAdoption' | 'componentAdoption') =>
           {r.topFixes.length === 0 ? (
             <p class="muted">No repeated literal.</p>
           ) : (
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th scope="col">Value</th>
-                    <th scope="col">Token</th>
-                    <th scope="col">Confidence</th>
-                    <th scope="col" class="num">Uses</th>
-                    <th scope="col" class="num">Files</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {r.topFixes.slice(0, 15).map((f) => (
-                    <tr>
-                      <th scope="row">
-                        <code>{f.value}</code> <span class="muted small">{f.category}</span>
-                      </th>
-                      <td>
-                        {f.suggestion ? (
-                          <span>
-                            <code>{`var(${f.suggestion.cssVar})`}</code> <span class="muted small">{f.suggestion.value}</span>
-                          </span>
-                        ) : (
-                          <span class="muted">No token fits</span>
-                        )}
-                      </td>
-                      <td>
-                        {f.suggestion ? (
-                          <span class={`pill ${f.suggestion.level === 'exact' ? 'is-pass' : f.suggestion.level === 'high' ? 'is-info' : f.suggestion.level === 'medium' ? 'is-warn' : ''}`}>{f.suggestion.level}</span>
-                        ) : (
-                          <span class="pill is-fail">missing</span>
-                        )}
-                      </td>
-                      <td class="num">{f.count}</td>
-                      <td class="num">{f.files}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <TopFixesTable rows={r.topFixes.slice(0, 15)} />
           )}
 
           {r.baseline && (
@@ -408,29 +346,8 @@ const line = (key: 'tokenAdoption' | 'componentAdoption') =>
                 </g>
               ))}
             </svg>
-            <figcaption class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th scope="col">Run</th>
-                    <th scope="col" class="num">Token adoption</th>
-                    <th scope="col" class="num">Component adoption</th>
-                    <th scope="col" class="num">Hardcoded</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {trend.map((p) => (
-                    <tr>
-                      <th scope="row">
-                        {p.label} <span class="muted small">{date(p.generatedAt)}</span>
-                      </th>
-                      <td class="num">{formatPct(p.tokenAdoption)}</td>
-                      <td class="num">{formatPct(p.componentAdoption)}</td>
-                      <td class="num">{p.hardcoded}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <figcaption>
+              <TrendTable rows={trend.map((p) => ({ label: p.label, date: date(p.generatedAt), tokenAdoption: formatPct(p.tokenAdoption), componentAdoption: formatPct(p.componentAdoption), hardcoded: p.hardcoded }))} />
             </figcaption>
           </figure>
         )}

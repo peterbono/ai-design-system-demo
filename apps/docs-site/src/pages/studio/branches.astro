@@ -4,6 +4,7 @@ import '../../styles/reviews.css';
 import '../../styles/branches.css';
 import Layout from '../../layouts/Layout.astro';
 import StudioHeader from '../../components/StudioHeader.astro';
+import { Alert } from '@bridge-ds/react';
 import { setupGaps, type BranchesConfig } from '../../lib/branches';
 import { siteRepo } from '../../lib/config';
 import { lastUpdated, PREVIEW_APPS, PREVIEW_PACKAGES, sourceUrl } from '../../lib/repo';
@@ -29,8 +30,7 @@ const sources = ['docs/PREVIEWS.md', 'bridge.config.json', '.github/workflows/pr
 
     {
       gaps.length > 0 && (
-        <aside class="callout br-setup" aria-labelledby="br-setup-title">
-          <h2 id="br-setup-title" class="st-section-title">Finish the setup</h2>
+        <Alert tone="warning" announce="off" title="Finish the setup" className="st-br-setup">
           <ul>
             {gaps.includes('apps') && (
               <li>
@@ -47,7 +47,7 @@ const sources = ['docs/PREVIEWS.md', 'bridge.config.json', '.github/workflows/pr
             )}
           </ul>
           <p><a href={previewsDoc}>Five-minute setup in docs/PREVIEWS.md</a></p>
-        </aside>
+        </Alert>
       )
     }
 

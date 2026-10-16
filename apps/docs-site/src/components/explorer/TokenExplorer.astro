@@ -10,6 +10,9 @@ import '../../styles/reviews.css';
 import '../../styles/history.css';
 import '../../styles/token-explorer.css';
 import Icon from '../Icon.astro';
+import SummaryButton from '../ds/studio/SummaryButton';
+import { Button, EmptyState, Kbd } from '@bridge-ds/react';
+import { Eye, Layers, Plus, Search, SlidersHorizontal } from 'lucide-react';
 import TokenEditorKit from './TokenEditorKit.astro';
 import ExplorerData from './ExplorerData.astro';
 import XpKeys from './XpKeys.astro';
@@ -63,11 +66,11 @@ const app = mode === 'edit';
           <Icon name="search" size={16} />
           <label class="sr-only" for="xp-q">Search tokens</label>
           <input id="xp-q" type="search" placeholder="Name, CSS variable or hex" autocomplete="off" spellcheck="false" aria-keyshortcuts="F" data-xp-q />
-          <kbd class="kbd xp-slash" aria-hidden="true">F</kbd>
+          <Kbd keys="F" size="sm" className="xp-slash" aria-hidden="true" />
           <button type="button" class="xp-exact" aria-pressed="false" data-xp-exact title="Match the whole name, variable or hex">Exact</button>
         </div>
         <details class="xp-filters" data-xp-filters>
-          <summary class="btn btn-secondary btn-sm"><Icon name="sliders" size={16} />Filters <span class="xp-filter-n num" data-xp-filter-n hidden>0</span></summary>
+          <SummaryButton variant="secondary" size="sm" iconStart={SlidersHorizontal}>Filters <span class="xp-filter-n num" data-xp-filter-n hidden>0</span></SummaryButton>
           <div class="xp-filters-panel">
             <fieldset>
               <legend>Collection</legend>
@@ -83,22 +86,22 @@ const app = mode === 'edit';
               <label><input type="radio" name="xp-usage" value="used" />In use</label>
               <label><input type="radio" name="xp-usage" value="unused" />Unused</label>
             </fieldset>
-            <button type="button" class="btn btn-secondary btn-sm" data-xp-clear-filters>Clear filters</button>
+            <Button variant="secondary" size="sm" className="st-xp-clear-filters" data-xp-clear-filters>Clear filters</Button>
           </div>
         </details>
         {
           app ? (
             <>
               <details class="xp-menu" data-xp-modes-menu hidden>
-                <summary class="btn btn-secondary btn-sm" title="Brand, density and combinations shown in the value columns">
-                  <Icon name="layers" size={16} /><span data-xp-modes-label>Modes</span>
-                </summary>
+                <SummaryButton variant="secondary" size="sm" iconStart={Layers} title="Brand, density and combinations shown in the value columns">
+                  <span data-xp-modes-label>Modes</span>
+                </SummaryButton>
                 <div class="xp-menu-panel">
                   <div class="xp-modebar" data-xp-modebar></div>
                 </div>
               </details>
               <details class="xp-menu" data-xp-view-menu>
-                <summary class="btn btn-secondary btn-sm" aria-label="View options"><Icon name="eye" size={16} /><span>View</span></summary>
+                <SummaryButton variant="secondary" size="sm" iconStart={Eye} aria-label="View options">View</SummaryButton>
                 <div class="xp-menu-panel xp-view-panel">
                   <label class="xp-menu-field">
                     <span>Code column</span>
@@ -120,7 +123,7 @@ const app = mode === 'edit';
                   <p class="xp-menu-keys small muted" aria-hidden="true"><XpKeys /></p>
                 </div>
               </details>
-              <button type="button" class="btn btn-primary btn-sm xp-new has-tip" id="ed-add" data-tip="Adds a draft in this browser. No GitHub needed." aria-label="New token"><Icon name="plus" size={16} /><span>New token</span></button>
+              <Button variant="primary" size="sm" iconStart={Plus} className="xp-new has-tip" id="ed-add" data-tip="Adds a draft in this browser. No GitHub needed." aria-label="New token">New token</Button>
             </>
           ) : (
             <>
@@ -141,11 +144,9 @@ const app = mode === 'edit';
 
     <div class="xp-scroll" data-xp-scroll>
       <div class="xp-grid" role="grid" aria-labelledby="xp-title" aria-readonly="true" data-xp-grid></div>
-      <div class="xp-empty" data-xp-empty hidden>
-        <Icon name="search" size={24} />
-        <p><strong>No token matches.</strong> Try a shorter name, a hex like <code>#1c2735</code>, or clear the filters.</p>
-        <button type="button" class="btn btn-secondary btn-sm" data-xp-clear>Clear search and filters</button>
-      </div>
+      <EmptyState icon={Search} title="No token matches." description="Try a shorter name, a hex like #1c2735, or clear the filters." className="st-hideable st-xp-empty" data-xp-empty hidden>
+        <Fragment slot="actions"><Button variant="secondary" size="sm" data-xp-clear>Clear search and filters</Button></Fragment>
+      </EmptyState>
     </div>
     {!app && <p class="xp-keys small muted" aria-hidden="true"><XpKeys /></p>}
   </section>

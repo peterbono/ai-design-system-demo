@@ -1,6 +1,7 @@
 ---
 // Connect GitHub: paste a fine-grained token once, kept in this browser only. Shared by Reviews and token editing.
-import Icon from './Icon.astro';
+import { Button } from '@bridge-ds/react';
+import { GitHubMark } from './ds/studio/brand-icons';
 ---
 
 <div class="gh-connect" data-gh-connect>
@@ -8,5 +9,5 @@ import Icon from './Icon.astro';
     <span class="gh-dot" aria-hidden="true"></span>
     <span data-gh-status-text>Read only</span>
   </span>
-  <button type="button" class="btn btn-secondary btn-sm" data-gh-open><Icon name="github" size={16} /><span data-gh-open-label>Connect GitHub</span></button>
+  <Button variant="secondary" size="sm" iconStart={GitHubMark} data-gh-open><span data-gh-open-label>Connect GitHub</span></Button>
 </div>

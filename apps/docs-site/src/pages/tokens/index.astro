@@ -1,6 +1,8 @@
 ---
+import { PageHeader } from '@bridge-ds/react';
 import Layout from '../../layouts/Layout.astro';
-import Icon from '../../components/Icon.astro';
+import ButtonLink from '../../components/ds/ButtonLink';
+import { Pencil } from 'lucide-react';
 import TokenExplorerSlot from '../../components/TokenExplorerSlot.astro';
 import Updated from '../../components/Updated.astro';
 import { explorerTokens } from '../../lib/explorer';
@@ -18,19 +20,12 @@ const total = explorerTokens().length;
       if (p.get('edit') === '1') { p.delete('edit'); var q = p.toString(); location.replace('/studio/tokens/' + (q ? '?' + q : '') + location.hash); }
     })();
   </script>
-  <header class="page-head">
-    <div>
-      <h1>Token explorer</h1>
-      <p class="lead">
-        All {total} tokens from the token files of the latest release, in the same collections the Figma plugin creates, one column per mode.
-        Search by name, CSS variable or a hex from a mockup, then select a token to follow its alias chain, check its contrast pairs and see
-        which components use it.
-      </p>
-      <Updated date={updated} />
-    </div>
-    <div class="page-head-actions">
-      <a class="btn btn-secondary" href="/studio/tokens/" data-xp-studio-link><Icon name="edit" size={16} />Edit in Studio</a>
-    </div>
-  </header>
+  <PageHeader className="lib-page-header" title="Token explorer">
+    All {total} tokens from the token files of the latest release, in the same collections the Figma plugin creates, one column per mode. Search by name, CSS variable or a hex from a mockup, then select a token to follow its alias chain, check its contrast pairs and see which components use it.
+    <Updated slot="meta" date={updated} />
+    <Fragment slot="actions">
+      <ButtonLink variant="secondary" iconStart={Pencil} href="/studio/tokens/" data-xp-studio-link>Edit in Studio</ButtonLink>
+    </Fragment>
+  </PageHeader>
   <TokenExplorerSlot mode="read" />
 </Layout>

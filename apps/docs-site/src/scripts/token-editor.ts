@@ -40,7 +40,7 @@ import {
   type Guardrails,
 } from '../lib/editor-model';
 import { currentScope } from './shell';
-import { esc, getToken, initGitHubConnect, paintGates, readRepo } from './github-session';
+import { esc, getToken, initGitHubConnect, paintGates, readRepo, setButtonDisabled } from './github-session';
 
 /** The config's repository, or the one this site documents when the config names none. */
 function repoOf(config: BridgeConfig): { owner: string; name: string; defaultBranch: string } {
@@ -75,6 +75,8 @@ interface State {
 
 let S: State | null = null;
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T | null;
+/** Fields of the add and propose dialogs, by data-ed-field: DS Input and Textarea do not keep a custom id. */
+const field = <T extends HTMLElement>(name: string) => document.querySelector<T>(`[data-ed-field="${name}"]`);
 
 function loadDraft(): Draft {
   try {
@@ -347,7 +349,7 @@ function paintTray() {
   // Drafts never need GitHub: adding, editing and exporting stay in this browser. Only proposing opens a pull
   // request, so it is the one gated action (data-gh-gate): without a connection a click opens Connect GitHub.
   const propose = $<HTMLButtonElement>('ed-propose')!;
-  propose.disabled = !n || fails > 0;
+  setButtonDisabled(propose, !n || fails > 0);
   paintGates(propose.parentElement ?? document);
   const sw = (hex: string | null) => (hex ? `<span class="ed-sw sm" style="background-color:${hex}"></span>` : '');
   const moves = contrastMoves({ contrastBefore: S.contrastBefore, contrastAfter: S.contrastAfter });
@@ -607,10 +609,10 @@ export function initTokenEditor() {
   $('ed-add')?.addEventListener('click', () => ($<HTMLDialogElement>('ed-add-dialog') as HTMLDialogElement | null)?.showModal());
   $('ed-add-save')?.addEventListener('click', () => {
     if (!S) return;
-    const path = ($<HTMLInputElement>('ed-add-path')?.value ?? '').trim();
-    const light = ($<HTMLInputElement>('ed-add-light')?.value ?? '').trim();
-    const dark = ($<HTMLInputElement>('ed-add-dark')?.value ?? '').trim();
-    const err = $('ed-add-error')!;
+    const path = (field<HTMLInputElement>('add-path')?.value ?? '').trim();
+    const light = (field<HTMLInputElement>('add-light')?.value ?? '').trim();
+    const dark = (field<HTMLInputElement>('add-dark')?.value ?? '').trim();
+    const err = field('add-error')!;
     const problem = !/^color(\.[a-z0-9-]+)+$/.test(path)
       ? 'Name it like color.bg.canvas: dot-separated, lowercase, starting with color.'
       : S.head.byPath.has(path)
@@ -618,7 +620,7 @@ export function initTokenEditor() {
         : !S.head.byPath.has(light) || !S.head.byPath.has(dark)
           ? 'Point both themes at existing palette roles, like palette.neutral.50.'
           : '';
-    err.textContent = problem;
+    (err.querySelector('[data-ed-error-text]') ?? err).textContent = problem;
     err.hidden = !problem;
     if (problem) return;
     S.draft.edits.push({ kind: 'add', id: uid(), path, type: 'color', tier: 'semantic', values: { light: `{${light}}`, dark: `{${dark}}` } });
@@ -634,16 +636,16 @@ export function initTokenEditor() {
   $('ed-propose-go')?.addEventListener('click', async () => {
     const go = $<HTMLButtonElement>('ed-propose-go')!;
     const out = $('ed-propose-status')!;
-    go.disabled = true;
+    setButtonDisabled(go, true);
     out.textContent = 'Creating a branch, committing the token files and a changeset, opening the pull request';
     try {
-      const n = await propose($<HTMLInputElement>('ed-propose-title')?.value ?? '', $<HTMLTextAreaElement>('ed-propose-notes')?.value ?? '');
+      const n = await propose(field<HTMLInputElement>('propose-title')?.value ?? '', field<HTMLTextAreaElement>('propose-notes')?.value ?? '');
       S!.draft = emptyDraft();
       saveDraft();
       location.href = `/studio/reviews/?pr=${n}`;
     } catch (err) {
       out.textContent = `Not proposed: ${(err as Error).message}`;
-      go.disabled = false;
+      setButtonDisabled(go, false);
     }
   });
 }

@@ -1,5 +1,6 @@
 // Theme playground: view switch, token inspector tooltip, and the tactile scale controls.
 // The controls only set CSS variables on the preview stage. Nothing is saved, nothing leaves the browser.
+import { selectSegment } from './shell';
 
 interface InspectToken {
   name: string;
@@ -30,25 +31,31 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: 
   return n;
 };
 
+/** The three toolbar SegmentedControls are rendered statically and driven by shell.ts (data-vanilla). */
 function initView(stage: HTMLElement) {
-  const buttons = [...document.querySelectorAll<HTMLButtonElement>('[data-view]')].filter((b) => b.tagName === 'BUTTON');
-  const set = (view: string) => {
-    stage.dataset.view = view;
-    buttons.forEach((b) => b.setAttribute('aria-checked', String(b.dataset.view === view)));
+  const view = document.querySelector<HTMLElement>('[data-pg-view]');
+  const set = (value: string) => {
+    stage.dataset.view = value;
+    if (view) selectSegment(view, value);
   };
-  buttons.forEach((b, i) => {
-    b.addEventListener('click', () => set(b.dataset.view!));
-    b.addEventListener('keydown', (e) => {
-      const d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
-      if (!d) return;
-      e.preventDefault();
-      const next = buttons[(i + d + buttons.length) % buttons.length]!;
-      next.focus();
-      set(next.dataset.view!);
-    });
-  });
+  view?.addEventListener('bridge:segment', (e) => set((e as CustomEvent<{ value: string }>).detail.value));
   // On narrow screens two stacked frames make the page very long: start with one theme.
   if (matchMedia('(max-width: 1100px)').matches) set('light');
+
+  // Brand and density follow the site-wide preview scope (shell.ts owns it).
+  const scopes = [...document.querySelectorAll<HTMLElement>('[data-pg-scope]')];
+  const paint = () => {
+    const root = document.documentElement.dataset;
+    for (const el of scopes) selectSegment(el, (el.dataset.pgScope === 'brand' ? root.previewBrand : root.previewDensity) ?? '');
+  };
+  for (const el of scopes)
+    el.addEventListener('bridge:segment', (e) => {
+      const value = (e as CustomEvent<{ value: string }>).detail.value;
+      document.dispatchEvent(new CustomEvent('bridge:set-scope', { detail: { [el.dataset.pgScope ?? '']: value } }));
+    });
+  document.addEventListener('bridge:scope', paint);
+  paint();
+
   const outline = document.getElementById('pg-outline') as HTMLInputElement | null;
   outline?.addEventListener('change', () => stage.classList.toggle('show-outlines', outline.checked));
 }

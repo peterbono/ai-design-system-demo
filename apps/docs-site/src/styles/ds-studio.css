@@ -1,1 +1,47 @@
 /* Studio-side layout glue around @bridge-ds/react components (wrappers, placement only). Tokens only. */
+
+/* DS components set their own display (inline-flex, grid), which beats the UA [hidden] rule. Studio scripts
+   toggle `hidden` on these ones, so keep the attribute meaningful. */
+.st-hideable[hidden] {
+  display: none;
+}
+
+/* Overview, recent activity: the kind badge sits in a grid column without stretching. */
+.st-act-kind {
+  justify-self: start;
+}
+
+/* Versions: the demo history banner above the filters. */
+.st-hs-banner {
+  margin-block-end: var(--space-4);
+}
+
+/* Branches: the "Finish the setup" alert above the list. */
+.st-br-setup {
+  margin-block-end: var(--space-5);
+}
+
+.st-br-setup ul {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  padding-inline-start: var(--space-5);
+}
+
+/* Token explorer: the filters panel's clear button spans the panel grid. */
+.st-xp-clear-filters {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+
+/* Token explorer: the no-match empty state, centred in the grid area. */
+.st-xp-empty {
+  margin-block: var(--space-12);
+}
+
+/* Draft tray on a phone: the actions share the row. */
+@media (max-width: 640px) {
+  .ed-tray-actions > button:not([aria-label]) {
+    flex: 1;
+  }
+}

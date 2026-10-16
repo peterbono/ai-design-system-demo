@@ -60,3 +60,47 @@ chart. That is why component adoption is 90%, not 100%: closing the Image, ListI
 - **Toast and undo**: ra-core can run mutations in undoable mode (toast with Undo). The Bridge `Toast`
   supports an action, but there is no documented "undoable" pattern (timeout bound to commit). The admin
   uses pessimistic saves instead.
+
+## Found while dogfooding the Bridge docs app
+
+The Bridge docs app (`apps/docs-site`) now renders its own controls with `@bridge-ds/react`. Most of it is static
+Astro HTML driven by small vanilla scripts, with a few React islands. That setup surfaced gaps the admin did not.
+
+### Closed on this branch
+
+- **Data visualization tokens**: `color.chart.series.1..6`, `color.chart.grid`, `color.chart.axis` and
+  `color.chart.track`. Still open from the admin list: `color.chart.area` (a fill with alpha).
+- **Layout tokens for app shells**: `layout.sidebar.width`, `layout.header.height`, `layout.content.max-width`.
+- **Size scale gap**: `size.40` (160px) fills the step between `size.20` and `size.60`.
+- **SegmentedControl**: new component (Forms). Base UI RadioGroup with native button radios, an `items` array
+  so it renders from Astro, and a static contract (`data-segmented-control`, `data-segment`, `data-value`,
+  `aria-checked`) a script can drive. Replaces the role=radiogroup button rows in the top bar, the theme
+  playground, the props playground and the Copy as picker.
+- **PageHeader**: new component (Layout). Title, lead, meta and actions, which wrap under the text on narrow
+  screens. Used by every Library page. Breadcrumb and media slots from the admin proposal are not in it yet.
+
+### Still open
+
+| Need | Used instead | Proposal |
+| --- | --- | --- |
+| **Static mode for interactive parts** (Tabs, Accordion, Popover, Menu, Switch, Slider) | Native `details`, hash-link tabs and vanilla scripts; React islands for the two top bar menus | A documented static contract like SegmentedControl's: HTML that works without hydration (`details` for Accordion, hash links for Tabs) plus data attributes a script can drive. |
+| **IconButton as a link** | `Button` ghost with `iconStart` and `aria-label` inside `render={<a />}`: not square | A `render` prop on `IconButton`, like `Button`. |
+| **Stat / KPI tile** | App markup (`.stat-strip` on Agents, `.ov-kpi` in the Studio overview) | Same proposal as the admin: label, value, delta with an arrow and text. Only two surfaces in the docs app so far, so not built yet. |
+| **Menu item as a link** | `Popover` with a list and a `Link` (version menu) | `MenuItem` with `href` or `render`, for navigation menus. |
+| **Tag as a link** | App token chips (`.tchip`) | `Tag` with `href` for clickable labels. |
+| **Copyable value** (token name or hex, click to copy, with feedback) | App buttons with `data-copy` | A `CopyButton` or `Copyable` with the copied state and live announcement built in. |
+| **Search trigger** (field look, opens a command palette, shows a shortcut) | `Button` secondary with `Kbd` inside | A `SearchTrigger`, or a `Kbd` slot on `Button`. |
+| **Command palette** | Native `dialog` with a vanilla listbox | A `CommandPalette` on Base UI Dialog and Combobox. |
+| **Inverse-surface button** (terminal bars) | `Button` secondary | An inverse appearance for actions on `color.surface.inverse`. |
+| **Brand tone on Badge** | `Badge` neutral plus icon | A `brand` (accent) tone. |
+| **Stacked Table on phones** | `Table` scrolls sideways | A stacked layout option on `Table`. |
+| **Radio cards** (visual option picks) | App radio cards in the theme playground | A `RadioCard` option for `RadioGroup`. |
+| **Field label in mono** (prop names in the props playground) | Sans labels | A `mono` option on Field labels, for code names. |
+| **Charts** (donut, stacked bars, waffle) | App SVG with the new chart tokens | Chart primitives once the token set includes `color.chart.area`. |
+
+### Notes for app authors
+
+- Astro wraps the children of a React component in `astro-static-slot`. Inside a `table` the parser moves it out,
+  so compose DS `Table` parts in one `.tsx` component, never across `.astro` markup.
+- Pass `className`, not `class`, to DS components from Astro.
+- Global element rules in app CSS (`kbd`, `table`, `th`, `td`) restyle DS components. Scope them to app classes.

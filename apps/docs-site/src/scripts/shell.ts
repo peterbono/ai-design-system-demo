@@ -91,6 +91,8 @@ function initScope() {
     announce(`Previews: ${LABELS[next.brand]}, ${LABELS[next.density]}`);
     document.dispatchEvent(new CustomEvent('bridge:scope', { detail: next }));
   };
+  // React islands (scope menu, props playground) ask for a change with an event; see components/ds/scope.ts.
+  document.addEventListener('bridge:set-scope', (e) => set((e as CustomEvent<Partial<Scope>>).detail ?? {}));
   document.addEventListener('click', (e) => {
     const t = (e.target as HTMLElement).closest<HTMLElement>('[data-set-brand], [data-set-density]');
     if (!t) return;
@@ -119,6 +121,65 @@ function initScope() {
       }
     });
   }
+}
+
+/**
+ * Statically rendered DS SegmentedControls (Astro, no hydration) opt in with `data-vanilla`. Base UI renders every
+ * segment with tabindex -1 on the server, so this restores the roving tab stop, selects on click and moves the
+ * selection with arrow keys, Home and End, like the hydrated control. A change dispatches `bridge:segment`
+ * ({ value }) on the group root, bubbling. Other scripts select programmatically with selectSegment().
+ */
+const SEG_ROOT = '[data-segmented-control][data-vanilla]';
+const segmentsOf = (root: Element) => [...root.querySelectorAll<HTMLButtonElement>('[data-segment]')];
+const segDisabled = (b: HTMLButtonElement) => b.disabled || b.hasAttribute('data-disabled');
+
+function paintSegments(root: Element, value: string | null) {
+  const segs = segmentsOf(root);
+  const current = segs.find((b) => b.dataset.value === value) ?? null;
+  const stop = current ?? segs.find((b) => !segDisabled(b)) ?? null;
+  for (const b of segs) {
+    const on = b === current;
+    b.setAttribute('aria-checked', String(on));
+    b.toggleAttribute('data-checked', on);
+    b.toggleAttribute('data-unchecked', !on);
+    b.tabIndex = b === stop ? 0 : -1;
+  }
+}
+
+/** Select a segment of a static SegmentedControl. `emit` dispatches bridge:segment as a user change would. */
+export function selectSegment(root: Element, value: string, emit = false) {
+  paintSegments(root, value);
+  if (emit) root.dispatchEvent(new CustomEvent('bridge:segment', { detail: { value }, bubbles: true }));
+}
+
+function initSegmented() {
+  document.querySelectorAll(SEG_ROOT).forEach((root) => {
+    const checked = root.querySelector<HTMLElement>('[data-segment][aria-checked="true"]');
+    paintSegments(root, checked?.dataset.value ?? null);
+  });
+  document.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>(`${SEG_ROOT} [data-segment]`);
+    const root = b?.closest(SEG_ROOT);
+    if (!b || !root || segDisabled(b) || b.getAttribute('aria-checked') === 'true') return;
+    selectSegment(root, b.dataset.value ?? '', true);
+  });
+  document.addEventListener('keydown', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>(`${SEG_ROOT} [data-segment]`);
+    const root = b?.closest(SEG_ROOT);
+    if (!b || !root) return;
+    const segs = segmentsOf(root).filter((x) => !segDisabled(x));
+    const i = segs.indexOf(b);
+    const rtl = getComputedStyle(root).direction === 'rtl';
+    const step: Record<string, number> = { ArrowRight: rtl ? -1 : 1, ArrowDown: 1, ArrowLeft: rtl ? 1 : -1, ArrowUp: -1 };
+    let next: HTMLButtonElement | undefined;
+    if (e.key in step) next = segs[(i + step[e.key] + segs.length) % segs.length];
+    else if (e.key === 'Home') next = segs[0];
+    else if (e.key === 'End') next = segs[segs.length - 1];
+    if (!next) return;
+    e.preventDefault();
+    next.focus();
+    if (next !== b) selectSegment(root, next.dataset.value ?? '', true);
+  });
 }
 
 function initCopy() {
@@ -520,6 +581,7 @@ function initStudio() {
 
 export function initShell() {
   initTheme();
+  initSegmented();
   initMenus();
   initToc();
   initStudio();

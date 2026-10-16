@@ -7,6 +7,8 @@ import Layout from '../../../layouts/Layout.astro';
 import StudioHeader from '../../../components/StudioHeader.astro';
 import HistoryPlanner from '../../../components/HistoryPlanner.astro';
 import Icon from '../../../components/Icon.astro';
+import ButtonLink from '../../../components/ds/ButtonLink';
+import { Alert, Badge, Button } from '@bridge-ds/react';
 import { historyData } from '../../../lib/history';
 import { realSummary } from '../../../lib/history-view';
 import { siteRepo } from '../../../lib/config';
@@ -34,7 +36,7 @@ const countBy = (entries: { kind: string }[], kind: string) => entries.filter((e
 >
   <div class="rv hs">
     <StudioHeader title="Versions" subtitle="Releases and every merged token change, with a safe undo as a pull request.">
-      <a slot="actions" class="btn btn-secondary btn-sm" href="/changelog/">Library changelog</a>
+      <Fragment slot="actions"><ButtonLink variant="secondary" size="sm" href="/changelog/">Library changelog</ButtonLink></Fragment>
     </StudioHeader>
 
     <section class="vs-releases" aria-labelledby="vs-rel-h">
@@ -43,7 +45,7 @@ const countBy = (entries: { kind: string }[], kind: string) => entries.filter((e
         {
           rels.map((x) => (
             <li class:list={['vs-rel', { 'is-pending': x.pending }]}>
-              <span class:list={['pill', x.pending ? 'is-warn' : 'is-pass']}>{x.pending ? 'Not released' : 'Released'}</span>
+              <Badge size="sm" tone={x.pending ? 'warning' : 'success'}>{x.pending ? 'Not released' : 'Released'}</Badge>
               <div class="vs-rel-main">
                 <a class="vs-rel-name" href={`/changelog/#r-${relSlug(x.name)}`}>{x.pending ? `Next release after ${version.current}` : x.name}</a>
                 <span class="small muted">
@@ -67,7 +69,7 @@ const countBy = (entries: { kind: string }[], kind: string) => entries.filter((e
       </button>
       <span class="small muted">Fixture changes built over the current tokens, to try the timeline and the revert planner. Off by default.</span>
     </div>
-    <p class="hs-banner" id="hs-banner" role="note" hidden><Icon name="info" size={16} /> <strong>Demo data: fixture changes, not this repository's history.</strong> Nothing here can be proposed.</p>
+    <Alert tone="warning" announce="off" title="Demo data: fixture changes, not this repository's history." className="st-hideable st-hs-banner" id="hs-banner" hidden>Nothing here can be proposed.</Alert>
 
     <div id="hs-list-view">
       <form class="hs-filters" id="hs-filters" role="search" aria-label="Filter history">
@@ -75,7 +77,7 @@ const countBy = (entries: { kind: string }[], kind: string) => entries.filter((e
         <datalist id="hs-paths"></datalist>
         <label class="gh-field"><span>Author</span><select id="hs-author"><option value="">Anyone</option></select></label>
         <label class="gh-field"><span>Tier</span><select id="hs-tier"><option value="">Any tier</option><option value="3">Tier 3</option><option value="2">Tier 2</option><option value="1">Tier 1</option></select></label>
-        <button type="reset" class="btn btn-secondary btn-sm" id="hs-clear">Clear filters</button>
+        <Button type="reset" variant="secondary" size="sm" id="hs-clear">Clear filters</Button>
       </form>
 
       <section class="hs-sparse" id="hs-sparse" aria-label="About this history" data-total={s.total} data-reviewable={s.reviewable} data-imports={s.imports}>
@@ -103,7 +105,7 @@ const countBy = (entries: { kind: string }[], kind: string) => entries.filter((e
       <ol class="timeline hs-timeline" id="hs-timeline" aria-busy="true">
         <li class="rv-skel" aria-hidden="true"></li>
       </ol>
-      <p class="hs-none" id="hs-none" hidden>No change matches these filters. <button type="button" class="tx-inline-link" data-hs-clear>Clear filters</button></p>
+      <p class="hs-none" id="hs-none" hidden>No change matches these filters. <Button variant="ghost" size="sm" data-hs-clear>Clear filters</Button></p>
     </div>
     <div id="hs-detail" class="hs-detail" hidden></div>
   </div>
