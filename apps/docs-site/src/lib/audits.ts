@@ -52,6 +52,60 @@ export function loadAudits(): AuditEntry[] {
   return parseAudits(modules);
 }
 
+/** An audited app: its reports share a file prefix under AUDITS_DIR (`admin-before.json`, `admin-after.json`). */
+export interface AuditApp {
+  id: string;
+  title: string;
+  /** One line under the title: what was audited and what changed. */
+  summary: string;
+  /** What the audit does not see for this app, said plainly. */
+  note?: string;
+  prefix: string;
+}
+
+/** Apps shown side by side on the Adoption page, in order. Reports matching no app are listed after them. */
+export const AUDIT_APPS: AuditApp[] = [
+  {
+    id: 'admin',
+    title: 'Admin demo (react-admin, migrated from MUI)',
+    summary: 'A real back office moved from Material UI to Bridge tokens and components.',
+    prefix: 'admin-',
+  },
+  {
+    id: 'bridge-site',
+    title: 'Bridge itself (dogfooding)',
+    summary: 'This docs app, rebuilt on the design system it documents: chrome on the bridge brand tokens, controls from @bridge-ds/react.',
+    note: 'The audit reads CSS, TS and TSX. Astro templates and HTML strings built by scripts are not scanned: native disclosures, the search dialog, a few range and checkbox inputs and script-built rows in Reviews, History and the token explorer still live there. They are listed in apps/admin/DS-GAPS.md.',
+    prefix: 'bridge-site-',
+  },
+];
+
+export interface AppAudits {
+  app: AuditApp;
+  /** Reports of the app, oldest first. */
+  reports: AuditEntry[];
+  /** The `-before` report, else the oldest. */
+  before?: AuditEntry;
+  /** The `-after` report, else the newest (undefined when the app has a single report). */
+  after?: AuditEntry;
+}
+
+/** Groups reports by app (file prefix). Apps without any report are left out. */
+export function groupByApp(entries: AuditEntry[], apps: AuditApp[] = AUDIT_APPS): { apps: AppAudits[]; other: AuditEntry[] } {
+  const used = new Set<AuditEntry>();
+  const out: AppAudits[] = [];
+  for (const app of apps) {
+    const reports = entries.filter((e) => e.file.startsWith(app.prefix)).sort((a, b) => a.report.generatedAt.localeCompare(b.report.generatedAt));
+    if (!reports.length) continue;
+    reports.forEach((e) => used.add(e));
+    const before = reports.find((e) => e.id.endsWith('-before')) ?? reports[0];
+    const afterNamed = reports.find((e) => e.id.endsWith('-after'));
+    const after = afterNamed ?? (reports.length > 1 ? reports[reports.length - 1] : undefined);
+    out.push({ app, reports, before, after: after === before ? undefined : after });
+  }
+  return { apps: out, other: entries.filter((e) => !used.has(e)) };
+}
+
 const fromHistory = (h: HistoryPoint): TrendPoint => ({
   label: h.label ?? h.generatedAt.slice(0, 10),
   generatedAt: h.generatedAt,
