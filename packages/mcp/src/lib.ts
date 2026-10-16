@@ -10,6 +10,7 @@ export { core } from './core-adapter.js';
 export { LocalSource, GitRefSource, GitHubSource, type RepoSource } from './source.js';
 export { auditSnippet } from './audit.js';
 export * as ops from './ops.js';
+export * as history from './history.js';
 
 export interface ServeOptions extends ContextOptions {}
 

@@ -5,7 +5,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join, relative, resolve } from 'node:path';
 import { originRepo } from '@bridge/core/node';
 import { fileURLToPath } from 'node:url';
-import { BridgeContext, CONFIG_FILE, core, detectConfig, GitRefSource, LocalSource, ops, optionsFromArgv, serveStdio, toConfigJson, VERSION, type BridgeConfig } from '@bridge/mcp';
+import { BridgeContext, CONFIG_FILE, core, detectConfig, GitRefSource, history as hist, LocalSource, ops, optionsFromArgv, serveStdio, toConfigJson, VERSION, type BridgeConfig } from '@bridge/mcp';
 
 const HELP = `bridge ${VERSION}: design system as code, for you and your Claude
 
@@ -17,6 +17,11 @@ Usage:
   bridge propose --title "..." --set path=value [--set ...] [--file f | --mode theme=dark]
                  [--edits edits.json] [--summary "..."] [--dry-run]
                                       validate + contrast + new local bridge/* branch (never pushes)
+  bridge history [token] [--json] [--limit n] [--author a] [--tier n] [--version v]
+                                      token history: versions, merged changes, who, when, why
+  bridge revert <pr|commit|id> [--dry-run] [--restore-conflicts] [--use-before path@file] [--json]
+                                      undo a merged token change against HEAD: conflicts shown,
+                                      new local bridge/* branch (never pushes, never main)
   bridge mcp [--root dir | --repo owner/name]   start the MCP server on stdio
 
 Options:
@@ -34,7 +39,7 @@ function parse(argv: string[]): Args {
     const a = argv[i]!;
     if (a.startsWith('--')) {
       const [k, inline] = a.slice(2).split(/=(.*)/s, 2) as [string, string | undefined];
-      const takesValue = inline === undefined && argv[i + 1] !== undefined && !argv[i + 1]!.startsWith('--') && !['force', 'json', 'md', 'strict', 'dry-run', 'help'].includes(k);
+      const takesValue = inline === undefined && argv[i + 1] !== undefined && !argv[i + 1]!.startsWith('--') && !['force', 'json', 'md', 'strict', 'dry-run', 'help', 'restore-conflicts', 'breaking'].includes(k);
       (out.flags[k] ??= []).push(inline ?? (takesValue ? argv[++i]! : 'true'));
     } else out._.push(a);
   }
@@ -181,6 +186,68 @@ async function propose(a: Args, root: string): Promise<number> {
   return r.status === 'blocked' ? 1 : 0;
 }
 
+const day = (iso: string) => iso.slice(0, 10);
+
+async function historyCmd(a: Args, root: string): Promise<number> {
+  const ctx = await BridgeContext.create({ root });
+  const token = a._[1];
+  const limit = Number(flag(a, 'limit') ?? 20);
+  if (token) {
+    const r = await hist.getTokenHistory(ctx, { path: token, limit });
+    if (has(a, 'json')) return print(JSON.stringify(r, null, 2)), 0;
+    if (!r.total) return print(`No recorded change of ${r.path} in ${r.source}.`), 0;
+    print(`${r.path}: ${r.total} change(s)  (${r.source})\n`);
+    for (const c of r.changes) {
+      const vals = c.kind === 'changed' ? `${c.beforeCss ?? ''} -> ${c.afterCss ?? ''}` : c.kind === 'added' ? `added ${c.afterCss ?? ''}` : c.kind === 'removed' ? `removed (was ${c.beforeCss ?? ''})` : `renamed from ${c.from}`;
+      print(`  ${day(c.date)}  ${(c.pr ? `#${c.pr}` : c.entry).padEnd(8)} ${c.mode.padEnd(11)} ${vals}`);
+      print(`              ${c.title} (${c.author})${c.version ? `  [${c.version}]` : ''}`);
+    }
+    return 0;
+  }
+  const tier = flag(a, 'tier');
+  const r = await hist.getHistory(ctx, { limit, ...(flag(a, 'author') ? { author: flag(a, 'author')! } : {}), ...(tier ? { tier: Number(tier) as 1 | 2 | 3 } : {}), ...(flag(a, 'version') ? { version: flag(a, 'version')! } : {}), ...(has(a, 'breaking') ? { breaking: true } : {}) });
+  if (has(a, 'json')) return print(JSON.stringify(r, null, 2)), 0;
+  print(`${r.source}${r.currentVersion ? `, package version ${r.currentVersion}` : ''}`);
+  if (!r.total) return print(r.note ?? 'No token change matches.'), 0;
+  for (const v of r.versions) print(`  ${v.version.padEnd(11)} ${day(v.date)}  ${v.entries} change(s), ${v.tokenChanges} token edit(s)${v.breaking ? ', breaking' : ''}`);
+  print('');
+  for (const e of r.entries) {
+    const n = e.counts;
+    const counts = [n.changed && `${n.changed} changed`, n.added && `${n.added} added`, n.removed && `${n.removed} removed`, n.renamed && `${n.renamed} renamed`].filter(Boolean).join(', ');
+    print(`  ${day(e.date)}  ${e.id.padEnd(9)} T${e.tier} ${e.bump.padEnd(5)}${e.breaking ? ' !' : '  '} ${e.title}`);
+    print(`              ${e.author}, ${counts}${e.bulk ? ' (bulk import)' : ''}${e.version ? `  [${e.version}]` : ''}`);
+  }
+  if (r.truncated) print(`\n${r.truncated}`);
+  return 0;
+}
+
+async function revertCmd(a: Args, root: string): Promise<number> {
+  const target = a._[1];
+  if (!target) throw new UsageError('bridge revert <pr|commit|id> [--dry-run]   (ids from `bridge history`)');
+  const ctx = await BridgeContext.create({ root });
+  const resolutions = Object.fromEntries((a.flags['use-before'] ?? []).map((k) => [k, 'use-before' as const]));
+  const r = (await hist.proposeRevert(ctx, { target, resolutions, restoreConflicts: has(a, 'restore-conflicts'), dryRun: has(a, 'dry-run') })) as Record<string, any>;
+  if (has(a, 'json')) {
+    print(JSON.stringify(r, null, 2));
+    return r.status === 'blocked' ? 1 : 0;
+  }
+  print(`status: ${r.status}${r.why ? ` (${r.why})` : ''}`);
+  if (r.reverts) print(`reverts: ${r.reverts.pr ? `#${r.reverts.pr} ` : ''}${r.reverts.title} (${day(r.reverts.date)}, ${r.reverts.author})`);
+  if (r.tier) print(`tier ${r.tier}, ${r.bump}`);
+  for (const e of r.edits ?? []) print(`  edit      ${e}`);
+  for (const c of r.conflicts ?? []) {
+    print(`  conflict  ${c.path} (${c.file}): ${c.message}`);
+    if (c.later.length) print(`            changed later in ${c.later.join('; ')}`);
+    print(`            ${c.resolution === 'use-before' ? 'restoring the old value' : `kept as it is. To restore it: --use-before ${c.key}`}`);
+  }
+  for (const s of r.skipped ?? []) print(`  skipped   ${s}`);
+  if (r.contrast?.moved) print(`contrast: ${r.contrast.moved} pair(s) move, ${r.contrast.newFailures.length} new failure(s)`);
+  if (r.branch) print(`branch: ${r.branch}`);
+  if (r.next) print(String(r.next));
+  if (r.status === 'dry-run') print(`\n${r.prBody}`);
+  return r.status === 'blocked' ? 1 : 0;
+}
+
 class UsageError extends Error {}
 
 async function main(): Promise<number> {
@@ -206,6 +273,10 @@ async function main(): Promise<number> {
       return diff(a, root);
     case 'propose':
       return propose(a, root);
+    case 'history':
+      return historyCmd(a, root);
+    case 'revert':
+      return revertCmd(a, root);
     case 'mcp':
       await serveStdio(optionsFromArgv(argv.slice(1)));
       return -1;

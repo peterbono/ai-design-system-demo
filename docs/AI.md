@@ -103,6 +103,10 @@ Any client that speaks MCP over stdio works: run `node packages/mcp/dist/index.j
 | `bridge_get_review` | Review a token PR: diff table, contrast before and after, downstream impact, tier, CI, approvals |
 | `bridge_review_pr` | Comment, approve or request changes on a PR, as you |
 | `bridge_scaffold_component` | Generate a component folder that follows the repo checklist |
+| `bridge_get_history` | See what changed in the tokens: versions, merged PRs and commits, who, when, why, tier, breaking |
+| `bridge_get_token_history` | Every change of one token: value before and after per mode, the PR and why, renames followed |
+| `bridge_plan_revert` | Dry run of undoing a change (or restoring one token) against today's base branch, conflicts shown |
+| `bridge_propose_revert` | Turn that plan into a branch (local) or a draft PR labelled `revert` (GitHub), never `main` |
 
 Resources: `bridge://tokens/resolved`, `bridge://design-language`, `bridge://guidelines`,
 `bridge://components/{name}`.
@@ -120,6 +124,34 @@ Things to ask:
 - "Darken muted text in the light theme and show me the contrast impact first."
 - "Review PR 42 for the design owner."
 - "Audit this component's CSS for hardcoded values."
+- "When did muted text change, and why?"
+- "Undo PR 12, but show me what changed since first."
+
+## History and rollback
+
+`bridge_get_history` reads the token history Bridge can see: locally the first-parent commits of `HEAD`
+that touched the tokens (a merged branch is one entry), on GitHub each commit's pull request (a PR is one
+entry, diffed as it merged). Each entry has the token diff, who, when, why (the changeset summary, else the
+PR or commit description), its risk tier and semver bump, and the version it shipped in (CHANGELOG sections
+and tags; changes after the last release are `Unreleased`). Imports of more than 60 tokens are flagged as
+bulk.
+
+Undoing a change is not a blind `git revert`. `bridge_plan_revert` computes the inverse token edits against
+the base branch as it is now. A token that changed again later, was removed, came back or is now aliased by
+other tokens is a conflict: Bridge shows the later change that explains it and keeps the current value
+unless you choose to restore the old one (`resolutions`, or `--use-before path@file` in the CLI). Changes
+already undone are skipped. The rest goes through the same edits, validation, contrast gate, tier and
+changeset as any proposal, and the PR body starts with "Reverts #n". To put a single token back to an older
+value, pass `restore: { path, entry, mode }`.
+
+From a terminal:
+
+```sh
+bridge history                       # versions and merged token changes
+bridge history color.text.muted      # every change of one token
+bridge revert 12 --dry-run           # plan: edits, conflicts, contrast, PR body
+bridge revert 12                     # new local bridge/revert-... branch, nothing pushed
+```
 
 ## Safety model
 
@@ -131,6 +163,8 @@ Things to ask:
 - **Pull requests, not pushes.** Remote proposals open a **draft** PR labelled `source: mcp` and `tier: N`.
   Local proposals commit to a local branch through git plumbing: your checkout, index and working tree are
   untouched, and nothing is pushed.
+- **Reverts are planned, not blind.** A revert is computed against today's base branch; tokens that
+  changed again since are shown as conflicts and kept unless you choose otherwise.
 - **Gates before writes.** A proposal that adds a validation error or makes a contrast pair fail is
   blocked and nothing is written.
 - **Tiers.** Any token added, changed, renamed or removed is Tier 3 (design and tech owner approval), as in
