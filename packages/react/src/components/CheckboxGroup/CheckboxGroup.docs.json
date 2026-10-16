@@ -1,0 +1,54 @@
+{
+  "summary": "Several independent choices under one question, in a fieldset with a legend. An optional parent checkbox selects or clears the whole group and shows a mixed state.",
+  "preview": { "c": "CheckboxGroup", "p": { "label": "Notify me about", "defaultValue": ["reviews"] }, "children": [
+    { "c": "Checkbox", "p": { "value": "reviews", "label": "Review requests" } },
+    { "c": "Checkbox", "p": { "value": "merges", "label": "Merged pull requests" } },
+    { "c": "Checkbox", "p": { "value": "releases", "label": "Releases" } }
+  ] },
+  "whenToUse": [
+    "Users may pick zero, one or several options from a short visible list (up to about seven).",
+    "Use allValues plus <Checkbox parent /> for a Select all at the top of a long list."
+  ],
+  "whenNotToUse": [
+    "Only one option can be picked: use RadioGroup.",
+    "More than about seven options or a searchable list: use Combobox with multiple selection."
+  ],
+  "dos": [
+    {
+      "title": "Ask the question in the legend",
+      "text": "The legend is read before each option, so it gives every label its context.",
+      "example": { "c": "CheckboxGroup", "p": { "label": "Notify me about" }, "children": [
+        { "c": "Checkbox", "p": { "value": "reviews", "label": "Review requests" } },
+        { "c": "Checkbox", "p": { "value": "releases", "label": "Releases" } }
+      ] }
+    }
+  ],
+  "donts": [
+    {
+      "title": "A group without a legend",
+      "text": "Screen reader users hear \"Light, checkbox\" with no idea what it is for.",
+      "example": { "c": "Stack", "children": [
+        { "c": "Checkbox", "p": { "label": "Light" } },
+        { "c": "Checkbox", "p": { "label": "Dark" } }
+      ] }
+    }
+  ],
+  "accessibility": [
+    "Native fieldset and legend: the legend names the group; disabled on the fieldset disables every item.",
+    "description and error are linked to the fieldset with aria-describedby; the error carries an icon and text.",
+    "The parent checkbox is checked, unchecked or mixed (aria-checked) based on the children, driven by Base UI.",
+    "Each item keeps its own label and description, so items can be reached and understood one by one."
+  ],
+  "contentGuidelines": [
+    "Legend as a short question or noun phrase: \"Notify me about\", \"Platforms\".",
+    "Options in a logical order (frequency, then alphabetical), parallel in grammar.",
+    "Errors say what to pick: \"Pick at least one reviewer group.\""
+  ],
+  "anatomy": {
+    "fieldset": "Fieldset container",
+    "legend": "Legend (group label)",
+    "description": "Description",
+    "group": "Item list",
+    "error": "Error message"
+  }
+}

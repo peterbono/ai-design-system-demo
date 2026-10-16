@@ -1,0 +1,90 @@
+{
+  "summary": "A text input that filters a list of options as the user types, then selects one or several of them. Built for long lists and async search (people, repositories, tokens).",
+  "preview": { "c": "Stack", "children": [
+    { "c": "Combobox", "p": { "label": "Reviewer", "placeholder": "Search people", "options": [
+      { "value": "ada", "label": "Ada Moreau", "description": "Design owner" },
+      { "value": "bao", "label": "Bao Tran", "description": "Tech owner" },
+      { "value": "chloe", "label": "Chloe Martin" }
+    ] } }
+  ] },
+  "whenToUse": [
+    "Choosing from a long or growing list where typing is faster than scrolling: reviewers, repositories, components, tokens.",
+    "Results come from a server: control inputValue, fetch, pass the results as options with filter={null} and loading while waiting.",
+    "Several values from a long list (multiple): selected values become removable chips inside the field."
+  ],
+  "whenNotToUse": [
+    "Short known lists (under about ten): use Select, which needs no typing.",
+    "Free text with suggestions (a search box): the value must be one of the options here, so use Input or an autocomplete pattern.",
+    "Two or three options: use RadioGroup."
+  ],
+  "dos": [
+    {
+      "title": "Add a second line when names are ambiguous",
+      "text": "A role or an email under the name helps pick the right Ada, and is matched by screen readers too.",
+      "example": { "c": "Stack", "children": [
+        { "c": "Combobox", "p": { "label": "Reviewer", "options": [
+          { "value": "ada", "label": "Ada Moreau", "description": "Design owner" },
+          { "value": "ada2", "label": "Ada Moreau", "description": "Contractor, Lyon" }
+        ] } }
+      ] }
+    },
+    {
+      "title": "Write an empty message that says what to try",
+      "text": "\"No one matches. Check the spelling or invite them.\" turns a dead end into a next step.",
+      "example": { "c": "Stack", "children": [
+        { "c": "Combobox", "p": { "label": "Reviewer", "emptyMessage": "No one matches. Check the spelling or invite them.", "options": [] } }
+      ] }
+    }
+  ],
+  "donts": [
+    {
+      "title": "Spinner with no words",
+      "text": "While loading, say what is happening (\"Searching people\"). The message is also announced to screen readers.",
+      "example": { "c": "Stack", "children": [
+        { "c": "Combobox", "p": { "label": "Reviewer", "loading": true, "loadingMessage": "", "options": [] } }
+      ] }
+    },
+    {
+      "title": "Combobox for a handful of fixed options",
+      "text": "Typing to find one of three themes is slower than seeing them. Use Select or RadioGroup.",
+      "example": { "c": "Stack", "children": [
+        { "c": "Combobox", "p": { "label": "Theme", "options": [
+          { "value": "light", "label": "Light" },
+          { "value": "dark", "label": "Dark" }
+        ] } }
+      ] }
+    }
+  ],
+  "accessibility": [
+    "Base UI Combobox: the input has role combobox with aria-expanded, aria-controls and aria-activedescendant; the popup is a listbox.",
+    "Keyboard: typing filters; Down Arrow opens and moves; Enter selects; Escape closes, then clears; with multiple, Left Arrow from the start of the input moves through the chips and Backspace removes one.",
+    "loading renders the message in a live status region and sets aria-busy on the popup; the empty message is announced the same way.",
+    "The clear and toggle buttons inside the field have accessible names (\"Clear selection\", \"Show options\"); each chip remove button says \"Remove <name>\".",
+    "The Field label names the input; hint and error are linked through aria-describedby.",
+    "The popup is portaled and re-applies the theme, brand and density of its field."
+  ],
+  "contentGuidelines": [
+    "Placeholder hints at what to type: \"Search people\", \"Type a component name\".",
+    "Empty message: say there is no match and what to try next, in one sentence.",
+    "Loading message is a present participle phrase: \"Searching people\", \"Loading repositories\".",
+    "Option labels are the names users know (people's display names, component names), not ids."
+  ],
+  "anatomy": {
+    "control": "Field box holding prefix, chips, input and actions",
+    "input": "Text input (combobox)",
+    "affix": "Prefix icon",
+    "iconAction": "Clear and toggle buttons",
+    "trigger": "Toggle button (chevron)",
+    "chips": "Chip row (multiple)",
+    "chip": "Selected value chip",
+    "chipRemove": "Chip remove button",
+    "popup": "Popup surface (popup.* tokens)",
+    "status": "Loading status row",
+    "empty": "Empty message",
+    "list": "Scrollable list",
+    "item": "Option",
+    "itemDescription": "Option description",
+    "indicator": "Check mark on selected options",
+    "groupLabel": "Group heading"
+  }
+}

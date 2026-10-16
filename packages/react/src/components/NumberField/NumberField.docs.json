@@ -1,0 +1,45 @@
+{
+  "summary": "Numeric input with decrease and increase buttons, arrow-key stepping, min and max, and locale-aware formatting.",
+  "preview": { "c": "Stack", "children": [
+    { "c": "NumberField", "p": { "label": "Required approvals", "defaultValue": 2, "min": 1, "max": 5 } }
+  ] },
+  "whenToUse": [
+    "Exact numbers within known bounds: approvals, columns, spacing steps, retry counts.",
+    "suffix for the unit (px, ms, %), format for currency or percent."
+  ],
+  "whenNotToUse": [
+    "Identifiers that only look like numbers (zip codes, ids, phone numbers): use Input with inputMode numeric.",
+    "Rough values where position matters: use Slider."
+  ],
+  "dos": [
+    {
+      "title": "Set min and max",
+      "text": "Bounds disable the buttons at the edges and stop impossible values.",
+      "example": { "c": "Stack", "children": [ { "c": "NumberField", "p": { "label": "Required approvals", "defaultValue": 1, "min": 1, "max": 5 } } ] }
+    }
+  ],
+  "donts": [
+    {
+      "title": "Unit in the label and in the value",
+      "text": "Say it once, in the suffix: \"Base spacing\" with px, not \"Base spacing (px)\" plus px.",
+      "example": { "c": "Stack", "children": [ { "c": "NumberField", "p": { "label": "Base spacing (px)", "defaultValue": 4, "suffix": "px" } } ] }
+    }
+  ],
+  "accessibility": [
+    "Base UI NumberField: a text input with role textbox and aria-roledescription Number field; Arrow Up and Down step, Shift uses largeStep.",
+    "The decrease and increase buttons are named and disabled at min and max.",
+    "Inherits label, description and error from Field; invalid sets aria-invalid and a danger edge.",
+    "Values use tabular figures so digits do not jump while stepping."
+  ],
+  "contentGuidelines": [
+    "Label names the quantity, the suffix names the unit.",
+    "Errors give the allowed range: \"Use 1 to 5.\""
+  ],
+  "anatomy": {
+    "root": "Container",
+    "group": "Bordered box",
+    "stepper": "Decrease or increase button",
+    "input": "Value input",
+    "suffix": "Unit"
+  }
+}

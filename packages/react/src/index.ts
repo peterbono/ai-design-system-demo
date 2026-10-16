@@ -1,7 +1,4 @@
 // Bridge design system: React components on Base UI, styled only with tokens.
-// Grouped by family (docs/DESIGN-LANGUAGE.md). Import the CSS once in your app:
-//   import '@demo-ds/tokens/fonts.css'; import '@demo-ds/tokens/tokens.css'; import '@demo-ds/react/styles.css';
-
 // Foundations
 export * from './theme';
 export * from './components/Icon';
@@ -16,10 +13,13 @@ export * from './components/Link';
 // Forms
 export * from './components/Field';
 export * from './components/Input';
-
-// Feedback
-export * from './components/Spinner';
-
-// Data display
-export * from './components/Badge';
-export * from './components/Card';
+export * from './components/Textarea';
+export * from './components/Select';
+export * from './components/Combobox';
+export * from './components/Checkbox';
+export * from './components/CheckboxGroup';
+export * from './components/RadioGroup';
+export * from './components/Switch';
+export * from './components/Slider';
+export * from './components/NumberField';
+export * from './components/Form';

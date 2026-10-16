@@ -1,0 +1,102 @@
+.root {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  width: 100%;
+  font-family: var(--font-family-sans);
+}
+
+.control {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-width: var(--size-20);
+  height: var(--size-6);
+  touch-action: none;
+  user-select: none;
+  cursor: pointer;
+}
+
+.track {
+  position: relative;
+  width: 100%;
+  height: var(--space-1);
+  border-radius: var(--radius-pill);
+  background-color: var(--slider-track);
+}
+
+.indicator {
+  border-radius: var(--radius-pill);
+  background-color: var(--slider-range);
+}
+
+.thumb {
+  box-sizing: border-box;
+  width: var(--size-4);
+  height: var(--size-4);
+  border: var(--border-width-strong) solid var(--slider-range);
+  border-radius: var(--radius-pill);
+  background-color: var(--slider-thumb);
+  box-shadow: var(--elevation-raised);
+  transition-property: transform, box-shadow;
+  transition-duration: var(--motion-duration-instant);
+  transition-timing-function: var(--motion-easing-standard);
+}
+
+@media (hover: hover) {
+  .control:hover .thumb:not([data-disabled]) {
+    transform: scale(1.125);
+  }
+}
+
+.thumb[data-dragging] {
+  transform: scale(1.125);
+}
+
+.thumb:has(:focus-visible) {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.value {
+  flex: none;
+  min-width: 4ch;
+  color: var(--color-text-default);
+  font-size: var(--font-size-200);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+
+/* Invalid (inside a Field with an error) */
+.root[data-invalid] .indicator {
+  background-color: var(--input-border-invalid);
+}
+
+.root[data-invalid] .thumb {
+  border-color: var(--input-border-invalid);
+}
+
+/* Disabled */
+.root[data-disabled] .control {
+  cursor: not-allowed;
+}
+
+.root[data-disabled] .indicator {
+  background-color: var(--color-border-strong);
+}
+
+.root[data-disabled] .thumb {
+  border-color: var(--color-border-strong);
+  box-shadow: none;
+}
+
+.root[data-disabled] .value {
+  color: var(--color-text-disabled);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thumb,
+  .thumb[data-dragging] {
+    transform: none;
+  }
+}

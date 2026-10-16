@@ -1,0 +1,57 @@
+{
+  "summary": "One choice among a few visible, mutually exclusive options. Arrow keys move the selection; the group has a legend and optional per-option descriptions.",
+  "preview": { "c": "RadioGroup", "p": { "label": "Merge strategy", "defaultValue": "squash" }, "children": [
+    { "c": "Radio", "p": { "value": "merge", "label": "Merge commit" } },
+    { "c": "Radio", "p": { "value": "squash", "label": "Squash and merge", "description": "One commit per pull request." } },
+    { "c": "Radio", "p": { "value": "rebase", "label": "Rebase and merge" } }
+  ] },
+  "whenToUse": [
+    "Two to about six exclusive options that benefit from being compared side by side.",
+    "Options that need a description to choose well.",
+    "horizontal only for two or three short options, like Light, Dark, System."
+  ],
+  "whenNotToUse": [
+    "More than about six options, or options users know by name: use Select.",
+    "A single on or off: use Switch or Checkbox.",
+    "Switching views of content: use Tabs."
+  ],
+  "dos": [
+    {
+      "title": "Preselect the safest or most common option",
+      "text": "A default saves a decision; pick the one most teams want.",
+      "example": { "c": "RadioGroup", "p": { "label": "Theme", "defaultValue": "system", "orientation": "horizontal" }, "children": [
+        { "c": "Radio", "p": { "value": "light", "label": "Light" } },
+        { "c": "Radio", "p": { "value": "dark", "label": "Dark" } },
+        { "c": "Radio", "p": { "value": "system", "label": "System" } }
+      ] }
+    }
+  ],
+  "donts": [
+    {
+      "title": "A single radio button",
+      "text": "One radio cannot be unselected. Use a Checkbox.",
+      "example": { "c": "RadioGroup", "p": { "label": "Terms" }, "children": [ { "c": "Radio", "p": { "value": "agree", "label": "I agree" } } ] }
+    }
+  ],
+  "accessibility": [
+    "Base UI RadioGroup: role radiogroup named by the legend; one tab stop, arrow keys move and select.",
+    "Each radio is labelled by its text (aria-labelledby) and described by its description.",
+    "The group error is linked with aria-describedby and sets aria-invalid; it shows an icon and text.",
+    "Selected uses the ink fill with a light dot; the unselected edge is color.border.strong (3:1)."
+  ],
+  "contentGuidelines": [
+    "Legend asks the question; options answer it in parallel form.",
+    "Keep option labels to a few words; move detail to the description.",
+    "Errors say what to do: \"Pick a merge strategy before you publish.\""
+  ],
+  "anatomy": {
+    "fieldset": "Fieldset container",
+    "legend": "Legend (group label)",
+    "group": "Radio list",
+    "item": "Option row (click target)",
+    "radio": "Radio circle",
+    "dot": "Selected dot",
+    "itemDescription": "Option description",
+    "error": "Error message"
+  }
+}

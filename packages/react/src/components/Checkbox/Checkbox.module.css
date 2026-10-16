@@ -1,0 +1,123 @@
+.item {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-height: var(--size-6);
+  padding-block: var(--space-0-5);
+  color: var(--color-text-default);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-200);
+  line-height: var(--font-line-height-normal);
+  cursor: pointer;
+  user-select: none;
+}
+
+.box {
+  box-sizing: border-box;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-4);
+  height: var(--size-4);
+  margin-block-start: calc((1lh - var(--size-4)) / 2);
+  padding: 0;
+  border: var(--border-width-default) solid var(--checkbox-border);
+  border-radius: var(--checkbox-radius);
+  background-color: var(--checkbox-bg);
+  color: var(--checkbox-fg-checked);
+  cursor: inherit;
+  transition-property: background-color, border-color;
+  transition-duration: var(--motion-duration-instant);
+  transition-timing-function: var(--motion-easing-standard);
+}
+
+@media (hover: hover) {
+  .item:hover .box:not([data-disabled], [data-checked], [data-indeterminate]) {
+    border-color: var(--color-border-hover);
+  }
+
+  .item:hover .box[data-checked]:not([data-disabled]),
+  .item:hover .box[data-indeterminate]:not([data-disabled]) {
+    border-color: var(--color-control-checked-bg-hover);
+    background-color: var(--color-control-checked-bg-hover);
+  }
+}
+
+.box:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.box[data-checked],
+.box[data-indeterminate] {
+  border-color: var(--checkbox-bg-checked);
+  background-color: var(--checkbox-bg-checked);
+}
+
+.box[aria-invalid="true"],
+.box[data-invalid] {
+  border-color: var(--input-border-invalid);
+}
+
+.indicator {
+  display: flex;
+  transform: scale(0.6);
+  opacity: 0;
+  transition-property: transform, opacity;
+  transition-duration: var(--motion-duration-fast);
+  transition-timing-function: var(--motion-easing-enter);
+}
+
+.indicator[data-checked],
+.indicator[data-indeterminate] {
+  transform: none;
+  opacity: 1;
+}
+
+.glyph {
+  stroke-width: 3;
+}
+
+.indicator[data-indeterminate] .checkGlyph,
+.indicator:not([data-indeterminate]) .mixedGlyph {
+  display: none;
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
+}
+
+.label {
+  font-weight: var(--font-weight-regular);
+}
+
+.description {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-100);
+  letter-spacing: var(--font-tracking-wide);
+}
+
+/* Disabled */
+.item:has([data-disabled]) {
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+}
+
+.item:has([data-disabled]) .description {
+  color: var(--color-text-disabled);
+}
+
+.box[data-disabled] {
+  border-color: var(--color-border-default);
+  background-color: var(--color-action-disabled-bg);
+  color: var(--color-action-disabled-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .indicator {
+    transform: none;
+  }
+}

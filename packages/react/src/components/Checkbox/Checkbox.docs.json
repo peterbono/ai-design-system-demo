@@ -1,0 +1,60 @@
+{
+  "summary": "A single on or off choice with its label next to the box, submitted with a form. Supports a mixed state for a parent that controls a partly checked group.",
+  "preview": { "c": "Stack", "children": [
+    { "c": "Checkbox", "p": { "label": "Notify reviewers when I open a pull request", "defaultChecked": true } },
+    { "c": "Checkbox", "p": { "label": "Require two approvals", "description": "Token changes merge only after a designer and an engineer approve." } }
+  ] },
+  "whenToUse": [
+    "An independent yes or no that takes effect when the form is saved: agree, include, require.",
+    "Several independent options under one question: put them in a CheckboxGroup.",
+    "Selecting rows in a Table (with a parent checkbox in the header for select all)."
+  ],
+  "whenNotToUse": [
+    "A setting that applies immediately: use Switch.",
+    "One choice among exclusive options: use RadioGroup.",
+    "A command (Delete, Publish): use Button."
+  ],
+  "dos": [
+    {
+      "title": "Phrase the label as the positive case",
+      "text": "Checked means the label is true. \"Notify reviewers\" reads cleanly; a negative label makes users double-check.",
+      "example": { "c": "Stack", "children": [ { "c": "Checkbox", "p": { "label": "Notify reviewers", "defaultChecked": true } } ] }
+    },
+    {
+      "title": "Use the description for consequences",
+      "text": "Keep the label short and explain the effect underneath.",
+      "example": { "c": "Stack", "children": [ { "c": "Checkbox", "p": { "label": "Require two approvals", "description": "Token changes merge only after a designer and an engineer approve." } } ] }
+    }
+  ],
+  "donts": [
+    {
+      "title": "Negative labels",
+      "text": "\"Do not send notifications\" checked means off. Users have to think twice.",
+      "example": { "c": "Stack", "children": [ { "c": "Checkbox", "p": { "label": "Do not send notifications" } } ] }
+    },
+    {
+      "title": "A checkbox that acts immediately",
+      "text": "If ticking it changes something right away, it is a Switch.",
+      "example": { "c": "Stack", "children": [ { "c": "Checkbox", "p": { "label": "Dark theme" } } ] }
+    }
+  ],
+  "accessibility": [
+    "Base UI Checkbox: role checkbox, Space toggles, aria-checked is true, false or mixed (indeterminate).",
+    "The whole label row is the click target; the label text is the accessible name (aria-labelledby) and the description is linked with aria-describedby.",
+    "The box edge uses color.border.strong (3:1 against surfaces); checked uses the ink fill with a white check (4.5:1 or more).",
+    "Indeterminate shows a dash, so mixed is not conveyed by color.",
+    "invalid adds a danger edge; always pair it with an error message in the group or form."
+  ],
+  "contentGuidelines": [
+    "Sentence case, no trailing period on the label.",
+    "Describe the result of checking it, not the control: \"Notify reviewers\", not \"Check to notify\".",
+    "Descriptions are one short sentence."
+  ],
+  "anatomy": {
+    "item": "Label row (click target)",
+    "box": "Checkbox box",
+    "indicator": "Check or dash indicator",
+    "label": "Label text",
+    "description": "Description"
+  }
+}

@@ -1,0 +1,127 @@
+.item {
+  --_track-w: var(--size-9);
+  --_track-h: var(--size-5);
+  --_thumb: var(--size-4);
+  --_inset: var(--space-0-5);
+
+  display: inline-flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-height: var(--size-6);
+  padding-block: var(--space-0-5);
+  color: var(--color-text-default);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-200);
+  line-height: var(--font-line-height-normal);
+  cursor: pointer;
+  user-select: none;
+}
+
+.sm {
+  --_track-w: var(--size-7);
+  --_track-h: var(--size-4);
+  --_thumb: var(--size-3);
+}
+
+/* Label first, switch pushed to the end of the row: settings lists. */
+.start {
+  display: flex;
+  flex-direction: row-reverse;
+  justify-content: space-between;
+}
+
+.track {
+  position: relative;
+  box-sizing: border-box;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  width: var(--_track-w);
+  height: var(--_track-h);
+  margin-block-start: calc((1lh - var(--_track-h)) / 2);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background-color: var(--switch-track-off);
+  cursor: inherit;
+  transition-property: background-color;
+  transition-duration: var(--motion-duration-fast);
+  transition-timing-function: var(--motion-easing-standard);
+}
+
+.track[data-checked] {
+  background-color: var(--switch-track-on);
+}
+
+@media (hover: hover) {
+  .item:hover .track[data-unchecked]:not([data-disabled]) {
+    background-color: var(--color-border-hover);
+  }
+
+  .item:hover .track[data-checked]:not([data-disabled]) {
+    background-color: var(--color-control-checked-bg-hover);
+  }
+}
+
+.track:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.thumb {
+  width: var(--_thumb);
+  height: var(--_thumb);
+  border-radius: var(--radius-pill);
+  background-color: var(--switch-thumb);
+  box-shadow: var(--elevation-raised);
+  transform: translateX(var(--_inset));
+  transition-property: transform, background-color;
+  transition-duration: var(--motion-duration-fast);
+  transition-timing-function: var(--motion-easing-standard);
+}
+
+.thumb[data-checked] {
+  background-color: var(--switch-thumb-on);
+  transform: translateX(calc(var(--_track-w) - var(--_thumb) - var(--_inset)));
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
+}
+
+.description {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-100);
+  letter-spacing: var(--font-tracking-wide);
+}
+
+.item:has([data-disabled]) {
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+}
+
+.item:has([data-disabled]) .description {
+  color: var(--color-text-disabled);
+}
+
+.track[data-disabled] {
+  background-color: var(--color-bg-muted);
+}
+
+.track[data-disabled][data-checked] {
+  background-color: var(--color-border-strong);
+}
+
+.thumb[data-disabled] {
+  box-shadow: none;
+}
+
+[dir="rtl"] .thumb {
+  transform: translateX(calc(var(--_inset) * -1));
+}
+
+[dir="rtl"] .thumb[data-checked] {
+  transform: translateX(calc((var(--_track-w) - var(--_thumb) - var(--_inset)) * -1));
+}

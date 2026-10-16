@@ -1,0 +1,179 @@
+.fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-family: var(--font-family-sans);
+}
+
+.legend {
+  margin-block-end: var(--space-1);
+  padding: 0;
+  color: var(--color-text-default);
+  font-size: var(--font-size-200);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--font-line-height-snug);
+}
+
+.fieldset:disabled .legend {
+  color: var(--color-text-disabled);
+}
+
+.hiddenLegend {
+  position: absolute;
+  width: var(--border-width-1);
+  height: var(--border-width-1);
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.required {
+  margin-inline-start: var(--space-0-5);
+  color: var(--color-feedback-danger-text);
+}
+
+.description,
+.error {
+  margin: 0;
+  font-size: var(--font-size-100);
+  line-height: var(--font-line-height-normal);
+  letter-spacing: var(--font-tracking-wide);
+}
+
+.description {
+  margin-block-start: calc(var(--space-2) * -1);
+  color: var(--color-text-muted);
+}
+
+.error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-1-5);
+  color: var(--color-feedback-danger-text);
+  font-weight: var(--font-weight-medium);
+}
+
+.errorIcon {
+  margin-block-start: var(--space-0-5);
+  color: var(--color-feedback-danger-icon);
+}
+
+.group {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.vertical {
+  flex-direction: column;
+}
+
+.horizontal {
+  flex-flow: row wrap;
+  column-gap: var(--space-6);
+}
+
+.item {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-height: var(--size-6);
+  padding-block: var(--space-0-5);
+  color: var(--color-text-default);
+  font-size: var(--font-size-200);
+  line-height: var(--font-line-height-normal);
+  cursor: pointer;
+  user-select: none;
+}
+
+.radio {
+  box-sizing: border-box;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-4);
+  height: var(--size-4);
+  margin-block-start: calc((1lh - var(--size-4)) / 2);
+  padding: 0;
+  border: var(--border-width-default) solid var(--checkbox-border);
+  border-radius: var(--radius-pill);
+  background-color: var(--checkbox-bg);
+  cursor: inherit;
+  transition-property: background-color, border-color;
+  transition-duration: var(--motion-duration-instant);
+  transition-timing-function: var(--motion-easing-standard);
+}
+
+@media (hover: hover) {
+  .item:hover .radio:not([data-disabled], [data-checked]) {
+    border-color: var(--color-border-hover);
+  }
+
+  .item:hover .radio[data-checked]:not([data-disabled]) {
+    border-color: var(--color-control-checked-bg-hover);
+    background-color: var(--color-control-checked-bg-hover);
+  }
+}
+
+.radio:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.radio[data-checked] {
+  border-color: var(--checkbox-bg-checked);
+  background-color: var(--checkbox-bg-checked);
+}
+
+.fieldset[data-invalid] .radio:not([data-checked]) {
+  border-color: var(--input-border-invalid);
+}
+
+.dot {
+  width: var(--space-1-5);
+  height: var(--space-1-5);
+  border-radius: var(--radius-pill);
+  background-color: var(--checkbox-fg-checked);
+  transform: scale(0);
+  transition-property: transform;
+  transition-duration: var(--motion-duration-fast);
+  transition-timing-function: var(--motion-easing-enter);
+}
+
+.dot[data-checked] {
+  transform: scale(1);
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
+}
+
+.itemDescription {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-100);
+  letter-spacing: var(--font-tracking-wide);
+}
+
+.item:has([data-disabled]) {
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+}
+
+.item:has([data-disabled]) .itemDescription {
+  color: var(--color-text-disabled);
+}
+
+.radio[data-disabled] {
+  border-color: var(--color-border-default);
+  background-color: var(--color-action-disabled-bg);
+}
+
+.dot[data-disabled] {
+  background-color: var(--color-action-disabled-text);
+}

@@ -19,7 +19,7 @@ export interface StateGridProps<Row> {
 
 const PSEUDO_CLASSES: Record<PseudoState, string[]> = {
   hover: ['pseudo-hover'],
-  'focus-visible': ['pseudo-focus-visible', 'pseudo-focus', 'pseudo-focus-within'],
+  'focus-visible': ['pseudo-focus-visible', 'pseudo-focus'],
   active: ['pseudo-active', 'pseudo-hover'],
 };
 
@@ -31,9 +31,15 @@ function Cell({ pseudo, children }: { pseudo?: PseudoState; children: ReactNode 
   useEffect(() => {
     const target = pseudo ? ref.current?.querySelector(INTERACTIVE) : null;
     if (!target || !pseudo) return;
-    const els = [target, target.closest('[data-pseudo-root]')].filter(Boolean) as Element[];
-    els.forEach((el) => el.classList.add(...PSEUDO_CLASSES[pseudo]));
-    return () => els.forEach((el) => el.classList.remove(...PSEUDO_CLASSES[pseudo]));
+    const root = target.closest('[data-pseudo-root]');
+    // The control gets the pseudo-class itself; its root only gets the inherited states (hover, focus-within).
+    const rootClasses = pseudo === 'focus-visible' ? ['pseudo-focus-within'] : PSEUDO_CLASSES[pseudo];
+    target.classList.add(...PSEUDO_CLASSES[pseudo]);
+    root?.classList.add(...rootClasses);
+    return () => {
+      target.classList.remove(...PSEUDO_CLASSES[pseudo]);
+      root?.classList.remove(...rootClasses);
+    };
   });
   return (
     <td ref={ref} className={styles.cell}>

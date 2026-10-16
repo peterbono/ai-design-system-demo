@@ -1,0 +1,47 @@
+{
+  "summary": "Picks a value or a range by position on a continuous scale, with the formatted value shown at the end of the track.",
+  "preview": { "c": "Stack", "children": [
+    { "c": "Slider", "p": { "label": "Minimum contrast", "defaultValue": 4.5, "min": 3, "max": 7, "step": 0.5 } }
+  ] },
+  "whenToUse": [
+    "Approximate values where the position matters more than the exact number: opacity, threshold, zoom.",
+    "A range with two thumbs: pass an array of two numbers.",
+    "Live previews: update on onValueChange, save on onValueCommitted."
+  ],
+  "whenNotToUse": [
+    "An exact number the user knows: use NumberField.",
+    "Very large ranges where one step is tiny: pair it with a NumberField or use NumberField alone."
+  ],
+  "dos": [
+    {
+      "title": "Show the value and its unit",
+      "text": "format makes the value readable: 48%, 4.5, 16 px.",
+      "example": { "c": "Stack", "children": [ { "c": "Slider", "p": { "label": "Scrim opacity", "defaultValue": 0.48, "min": 0, "max": 1, "step": 0.01, "format": { "style": "percent" } } } ] }
+    }
+  ],
+  "donts": [
+    {
+      "title": "A slider for precise input",
+      "text": "Dragging to exactly 37 is frustrating. Use NumberField when the exact number matters.",
+      "example": { "c": "Stack", "children": [ { "c": "Slider", "p": { "label": "Port", "defaultValue": 8080, "min": 1, "max": 65535 } } ] }
+    }
+  ],
+  "accessibility": [
+    "Base UI Slider: each thumb is a native range input with role slider, aria-valuenow and aria-valuetext from format.",
+    "Arrow keys step, Page Up and Page Down or Shift+arrow use largeStep, Home and End jump to min and max.",
+    "Range thumbs are named \"<label> minimum\" and \"<label> maximum\"; override with thumbLabels.",
+    "The filled range uses the signal color (3:1 on the muted track); focus rings the thumb."
+  ],
+  "contentGuidelines": [
+    "Label names the quantity: \"Minimum contrast\", not \"Slide to adjust\".",
+    "Use the hint for what the value affects."
+  ],
+  "anatomy": {
+    "root": "Container",
+    "control": "Hit area",
+    "track": "Track",
+    "indicator": "Filled range",
+    "thumb": "Thumb",
+    "value": "Formatted value"
+  }
+}

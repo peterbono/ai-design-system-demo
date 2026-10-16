@@ -34,7 +34,7 @@
 }
 
 @media (hover: hover) {
-  .control:hover:not(:has(input[data-disabled])) {
+  .control:hover:not(:has(input[data-disabled], input[data-invalid], input[aria-invalid="true"])) {
     border-color: var(--input-border-hover);
   }
 }
