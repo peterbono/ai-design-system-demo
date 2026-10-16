@@ -1,0 +1,47 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Updated from '../components/Updated.astro';
+import { buildLlmsTxt } from '../lib/llms';
+import { PAGE_SOURCES, freshness } from '../lib/sources';
+
+const text = buildLlmsTxt();
+const updated = freshness(PAGE_SOURCES.agents);
+const lines = text.split('\n').length;
+---
+
+<Layout title="For AI agents" description="The same documentation as plain text for AI agents, at /llms.txt." sources={PAGE_SOURCES.agents} updated={updated}>
+  <h1>For AI agents</h1>
+  <p class="lead">
+    One source, two outputs. The pages you read and the file an agent reads are generated from the same token files, component code and rules,
+    in the same build. They cannot disagree.
+  </p>
+  <Updated date={updated} />
+
+  <div class="grid">
+    <div class="panel">
+      <h3>For people</h3>
+      <p>HTML pages with swatches in both themes, do and don't examples, contrast badges and plain-language rules.</p>
+    </div>
+    <div class="panel">
+      <h3>For agents</h3>
+      <p>
+        <a href="/llms.txt">/llms.txt</a> ({lines} lines): the agent rules from <code>AGENTS.md</code>, every semantic token with its light and dark
+        value, the scales, failing contrast pairs, and each component's props and usage rules.
+      </p>
+    </div>
+  </div>
+
+  <h2>Why this matters</h2>
+  <ul>
+    <li>Agents follow structured, short context better than long prose style guides. Values come from the token files, not from a copy.</li>
+    <li>When a designer changes a token through DS Bridge and it merges, the next build updates both this site and llms.txt. Nobody re-types the docs.</li>
+    <li>The hard rules are not only in this text: CI blocks raw colors and shadows, so an agent that ignores the file still cannot merge.</li>
+  </ul>
+
+  <h2>Preview</h2>
+  <div class="snippet-head">
+    <p class="muted small" style="margin: 0">Exactly what is served at <code>/llms.txt</code>.</p>
+    <button type="button" class="copy" data-copy="" data-copy-from="llms">Copy llms.txt</button>
+  </div>
+  <pre id="llms" style="max-height: 32rem; overflow: auto">{text}</pre>
+</Layout>

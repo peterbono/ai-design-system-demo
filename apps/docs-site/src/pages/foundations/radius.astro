@@ -1,0 +1,79 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CopyName from '../../components/CopyName.astro';
+import TokenNames from '../../components/TokenNames.astro';
+import Updated from '../../components/Updated.astro';
+import { componentsUsing } from '../../lib/components';
+import { PAGE_SOURCES, freshness } from '../../lib/sources';
+import { anchorOf, loadTokens, primitivesOf } from '../../lib/tokens';
+
+const updated = freshness(PAGE_SOURCES.radius);
+const radii = primitivesOf('radius');
+const borders = primitivesOf('border.width');
+const focusWidth = loadTokens().semantic.filter((s) => s.type === 'dimension');
+const used = (v: string) => componentsUsing(v).join(', ') || 'Not used by a component yet';
+---
+
+<Layout title="Radius and borders" description="Corner radius scale, border widths and focus ring width." sources={PAGE_SOURCES.radius} updated={updated}>
+  <h1>Radius and borders</h1>
+  <p class="lead">Small radii for small things, larger for containers, full for pills. Two border widths: 1px for edges, 2px for emphasis and focus.</p>
+  <Updated date={updated} />
+
+  <h2>Radius</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th scope="col">Token</th><th scope="col">Value</th><th scope="col">Preview</th><th scope="col">Used by</th></tr></thead>
+      <tbody>
+        {
+          radii.map((r) => (
+            <tr id={anchorOf(r.cssVar)}>
+              <th scope="row"><CopyName value={`var(${r.cssVar})`} kind="CSS variable" /></th>
+              <td class="chain">{r.css}</td>
+              <td><div class="radius-demo" style={`border-radius: var(${r.cssVar})`} aria-hidden="true" /></td>
+              <td class="small">{used(r.cssVar)}</td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Border widths</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th scope="col">Token</th><th scope="col">Value</th><th scope="col">Preview</th><th scope="col">Used by</th></tr></thead>
+      <tbody>
+        {
+          borders.map((b) => (
+            <tr id={anchorOf(b.cssVar)}>
+              <th scope="row"><CopyName value={`var(${b.cssVar})`} kind="CSS variable" /></th>
+              <td class="chain">{b.css}</td>
+              <td><div class="radius-demo" style={`border-width: var(${b.cssVar}); border-radius: var(--radius-md)`} aria-hidden="true" /></td>
+              <td class="small">{used(b.cssVar)}</td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Focus ring</h2>
+  <p>Every focusable component draws the same ring, so keyboard users always know where they are. Its color lives on the <a href="/foundations/color/#focus-ring-color">color page</a>.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th scope="col">Token</th><th scope="col">Light</th><th scope="col">Dark</th><th scope="col">Used by</th></tr></thead>
+      <tbody>
+        {
+          focusWidth.map((s) => (
+            <tr id={anchorOf(s.cssVar)}>
+              <th scope="row"><TokenNames cssVar={s.cssVar} path={s.path} figma={s.figma} /></th>
+              <td class="chain">{s.modes.light.chain.join(' → ')} &rarr; {s.modes.light.css}</td>
+              <td class="chain">{s.modes.dark.chain.join(' → ')} &rarr; {s.modes.dark.css}</td>
+              <td class="small">{used(s.cssVar)}</td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </div>
+</Layout>

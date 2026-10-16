@@ -1,0 +1,8 @@
+---
+interface Props {
+  date: string | null;
+}
+const { date } = Astro.props;
+---
+
+<p class="muted small">Last updated {date ?? 'unknown'} (from git history of the source files).</p>

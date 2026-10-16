@@ -1,0 +1,91 @@
+{
+  "summary": "Triggers an action on the current screen: save, submit, create, open a dialog. If it takes the user somewhere else, it is a link, not a button.",
+  "preview": {
+    "c": "Row",
+    "children": [
+      { "c": "Button", "p": { "variant": "primary" }, "children": ["Save changes"] },
+      { "c": "Button", "p": { "variant": "secondary" }, "children": ["Cancel"] },
+      { "c": "Button", "p": { "variant": "ghost" }, "children": ["View diff"] }
+    ]
+  },
+  "whenToUse": [
+    "The user commits an action on this screen: Save, Submit, Create project, Approve.",
+    "Primary: the one action you most want the user to take in this view. One per form, dialog or page section.",
+    "Secondary: the alternatives sitting next to the primary, like Cancel or Save as draft.",
+    "Ghost: low-emphasis actions repeated in lists, tables or toolbars (Edit, View diff), where a row of filled buttons would fight for attention.",
+    "Size sm in dense places: table rows, card footers, toolbars. Size md everywhere else."
+  ],
+  "whenNotToUse": [
+    "Going to another page or URL: use a text link. Links and buttons are announced differently and users expect Cmd+click to open links in a new tab.",
+    "Turning a setting on or off: use a switch or a checkbox (not in the system yet, open an issue).",
+    "More than three actions in one row: keep the main ones and move the rest to an overflow menu."
+  ],
+  "dos": [
+    {
+      "title": "Start the label with a verb that says what happens",
+      "text": "\"Save changes\" and \"Publish release\" tell the user the outcome before they click.",
+      "example": { "c": "Row", "children": [
+        { "c": "Button", "p": { "variant": "primary" }, "children": ["Save changes"] },
+        { "c": "Button", "p": { "variant": "secondary" }, "children": ["Cancel"] }
+      ] }
+    },
+    {
+      "title": "One primary per view, the others step down",
+      "text": "Hierarchy tells users where to look first. Secondary and ghost carry the alternatives.",
+      "example": { "c": "Row", "children": [
+        { "c": "Button", "p": { "variant": "ghost" }, "children": ["Preview"] },
+        { "c": "Button", "p": { "variant": "secondary" }, "children": ["Save as draft"] },
+        { "c": "Button", "p": { "variant": "primary" }, "children": ["Publish"] }
+      ] }
+    },
+    {
+      "title": "Show progress with loading, keep the label",
+      "text": "The button stays in place and focusable, so keyboard users do not lose their position.",
+      "example": { "c": "Row", "children": [
+        { "c": "Button", "p": { "variant": "primary", "loading": true }, "children": ["Saving"] }
+      ] }
+    }
+  ],
+  "donts": [
+    {
+      "title": "Two primary buttons side by side",
+      "text": "When everything is primary, nothing is. Users hesitate and pick at random.",
+      "example": { "c": "Row", "children": [
+        { "c": "Button", "p": { "variant": "primary" }, "children": ["Save"] },
+        { "c": "Button", "p": { "variant": "primary" }, "children": ["Publish"] }
+      ] }
+    },
+    {
+      "title": "Vague labels",
+      "text": "\"OK\" and \"Click here\" say nothing out of context, and screen reader users often list buttons out of context.",
+      "example": { "c": "Row", "children": [
+        { "c": "Button", "p": { "variant": "primary" }, "children": ["OK"] },
+        { "c": "Button", "p": { "variant": "secondary" }, "children": ["Click here"] }
+      ] }
+    },
+    {
+      "title": "Ghost for the main action of a form",
+      "text": "Without a container it reads as optional. Users scroll past it looking for the real button.",
+      "example": { "c": "Row", "children": [
+        { "c": "Button", "p": { "variant": "ghost" }, "children": ["Create project"] }
+      ] }
+    }
+  ],
+  "accessibility": [
+    "It is a native button: Enter and Space work, it is in the tab order, and no extra ARIA is needed.",
+    "The focus ring (focus.ring.color, focus.ring.width) only appears for keyboard focus, never on mouse click.",
+    "Loading sets aria-busy and ignores clicks, but keeps the button focusable so keyboard users keep their place.",
+    "Disabled removes the button from the tab order and is not explained to anyone. Prefer an enabled button plus a message saying what is missing.",
+    "Icon-only buttons need an aria-label: the visible text is the accessible name, so without text there is no name.",
+    "Height is 40px (md) and 32px (sm). Both pass the WCAG 2.2 minimum target size of 24px; prefer md on touch screens."
+  ],
+  "anatomy": {
+    "button": "Container, all variants",
+    "md": "Size md (default)",
+    "sm": "Size sm",
+    "primary": "Primary variant",
+    "secondary": "Secondary variant",
+    "ghost": "Ghost variant",
+    "spinner": "Loading spinner"
+  }
+}

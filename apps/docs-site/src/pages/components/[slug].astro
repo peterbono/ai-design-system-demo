@@ -1,0 +1,192 @@
+---
+import { Badge } from '@demo-ds/react';
+import Layout from '../../layouts/Layout.astro';
+import Example from '../../components/Example.tsx';
+import Updated from '../../components/Updated.astro';
+import { loadComponents, type ComponentInfo } from '../../lib/components';
+import { lastUpdated, sourceUrl, STORYBOOK_URL } from '../../lib/repo';
+import { MODES } from '../../lib/tokens';
+
+export function getStaticPaths() {
+  return loadComponents().map((c) => ({ params: { slug: c.slug }, props: { c } }));
+}
+
+const { c } = Astro.props as { c: ComponentInfo };
+const sources = Object.values(c.files);
+const updated = lastUpdated(sources);
+const d = c.docs;
+const mainStory = c.stories[0];
+const storyUrl = (id: string) => `${STORYBOOK_URL}/iframe.html?id=${id}&viewMode=story`;
+const unknownTokens = c.tokensUsed.filter((t) => !t.known);
+---
+
+<Layout title={c.name} description={d?.summary ?? c.description} sources={sources} updated={updated}>
+  <p class="muted small" style="margin-bottom: var(--space-1)"><a href="/components/">Components</a></p>
+  <h1>{c.name}</h1>
+  {d?.summary && <p class="lead">{d.summary}</p>}
+  <Updated date={updated} />
+
+  {
+    d?.preview && (
+      <div class="preview" aria-label="Preview in light and dark" role="group">
+        {MODES.map((m) => (
+          <div class="themed" data-theme={m}>
+            <span class="mode-label">{m === 'light' ? 'Light' : 'Dark'}</span>
+            <Example node={d.preview!} />
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  {
+    !d && (
+      <div class="callout">
+        <p>
+          No usage guidance yet. Add <code>{c.files.docs}</code> to fill this page. Props and tokens below are generated from the code.
+        </p>
+      </div>
+    )
+  }
+
+  {
+    d && (
+      <>
+        <h2 id="usage">When to use</h2>
+        <ul>{d.whenToUse.map((x) => <li>{x}</li>)}</ul>
+        <h3>When not to use</h3>
+        <ul>{d.whenNotToUse.map((x) => <li>{x}</li>)}</ul>
+
+        <h2 id="do-dont">Do and don't</h2>
+        <p class="muted">Examples are rendered with the real component, so they always match what ships.</p>
+        <div class="guidance">
+          {d.dos.map((g) => (
+            <figure class="verdict do" style="margin: 0">
+              {g.example && (
+                <div class="verdict-stage">
+                  <Example node={g.example} />
+                </div>
+              )}
+              <figcaption class="verdict-body">
+                <h4>
+                  <Badge tone="success">Do</Badge> {g.title}
+                </h4>
+                <p>{g.text}</p>
+              </figcaption>
+            </figure>
+          ))}
+          {d.donts.map((g) => (
+            <figure class="verdict dont" style="margin: 0">
+              {g.example && (
+                <div class="verdict-stage" inert>
+                  <Example node={g.example} />
+                </div>
+              )}
+              <figcaption class="verdict-body">
+                <h4>
+                  <Badge tone="danger">Don't</Badge> {g.title}
+                </h4>
+                <p>{g.text}</p>
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+
+        <h2 id="accessibility">Accessibility</h2>
+        <ul>{d.accessibility.map((x) => <li>{x}</li>)}</ul>
+      </>
+    )
+  }
+
+  <h2 id="anatomy">Anatomy and tokens</h2>
+  <p>
+    Read from <a href={sourceUrl(c.files.css)}><code>{c.files.css}</code></a> at build time. Every value is a token: click one to see it in both themes.
+  </p>
+  {
+    unknownTokens.length > 0 && (
+      <div class="callout">
+        <p>
+          <strong>Unknown tokens:</strong> {unknownTokens.map((t) => t.name).join(', ')}. They are not defined in the token sources and will render as nothing.
+        </p>
+      </div>
+    )
+  }
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th scope="col">Part or state</th><th scope="col">Selector</th><th scope="col">Tokens</th></tr></thead>
+      <tbody>
+        {
+          c.rules.map((r) => (
+            <tr>
+              <th scope="row">{r.label}</th>
+              <td><code>{r.selector}</code></td>
+              <td>
+                <div class="names">
+                  {r.vars.map((v) => (v.href ? <a href={v.href}><code>{v.name}</code></a> : <code>{v.name}</code>))}
+                </div>
+              </td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </div>
+  <p class="small muted">
+    {c.tokensUsed.length} tokens in total: {c.tokensUsed.filter((t) => t.kind === 'semantic').length} semantic (change with the theme),
+    {c.tokensUsed.filter((t) => t.kind === 'primitive').length} from the shared scales.
+  </p>
+
+  <h2 id="props">Props</h2>
+  <p>
+    Parsed from the TypeScript types in <a href={sourceUrl(c.files.tsx)}><code>{c.files.tsx}</code></a>, so this table cannot drift from the code.
+    {c.inherits && <> It also accepts every native <code>{`<${c.inherits}>`}</code> attribute{c.omitted.length > 0 && <> except <code>{c.omitted.join(', ')}</code></>}.</>}
+  </p>
+  {
+    c.props.length > 0 ? (
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th scope="col">Prop</th><th scope="col">Type</th><th scope="col">Default</th><th scope="col">Description</th></tr></thead>
+          <tbody>
+            {c.props.map((p) => (
+              <tr>
+                <th scope="row"><code>{p.name}</code>{p.required && <> <Badge tone="neutral">required</Badge></>}</th>
+                <td><code>{p.type}</code></td>
+                <td>{p.defaultValue ? <code>{p.defaultValue}</code> : <span class="muted">none</span>}</td>
+                <td>{p.description ?? <span class="muted">No description in the code yet.</span>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    ) : (
+      <p class="muted">No props of its own.{c.description && <> {c.description}</>}</p>
+    )
+  }
+  {
+    c.subcomponents.length > 0 && (
+      <p>
+        Comes with {c.subcomponents.map((s, i) => <>{i > 0 && ', '}<code>{s}</code></>)}, each accepting native <code>&lt;div&gt;</code> attributes.
+      </p>
+    )
+  }
+
+  <h2 id="live">Live preview</h2>
+  <p>
+    The examples above are static HTML. For every state and the accessibility panel, open the stories in Storybook
+    {mainStory && <>(<a href={`${STORYBOOK_URL}/?path=/story/${mainStory.id}`}>open {c.name} in Storybook</a>)</>}.
+  </p>
+  {
+    mainStory && (
+      <details>
+        <summary>Embed Storybook stories here ({c.stories.length})</summary>
+        <p class="small muted">Loads from <code>{STORYBOOK_URL}</code> (set <code>STORYBOOK_URL</code> at build time). If Storybook is not running, the frames stay empty.</p>
+        {c.stories.map((s) => (
+          <>
+            <h4>{s.name}</h4>
+            <iframe class="story-frame" src={storyUrl(s.id)} title={`${c.name} story: ${s.name}`} loading="lazy" />
+          </>
+        ))}
+      </details>
+    )
+  }
+</Layout>

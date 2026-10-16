@@ -1,0 +1,66 @@
+---
+import { Badge } from '@demo-ds/react';
+import Layout from '../layouts/Layout.astro';
+import Updated from '../components/Updated.astro';
+import { releases } from '../lib/changelog';
+import { GITHUB_URL } from '../lib/repo';
+import { PAGE_SOURCES, freshness } from '../lib/sources';
+
+const all = releases();
+const updated = all[0]?.date ?? freshness(PAGE_SOURCES.changelog);
+const tone = (kind: string) =>
+  kind === 'Breaking' ? 'danger' : kind === 'New' ? 'info' : kind === 'Fix' ? 'success' : 'neutral';
+const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+---
+
+<Layout title="Changelog" description="What changed in the design system, what it means for you, and a message ready to post." sources={['.changeset', 'git log']} updated={updated}>
+  <h1>Changelog</h1>
+  <p class="lead">
+    Built from the changelog entries written in each pull request and from the commit history. Each change says what it means for you; each
+    release has an announcement you can paste into Slack or an email.
+  </p>
+  <Updated date={updated} />
+  <p class="small muted">
+    Labels: <Badge tone="danger">Breaking</Badge> needs action, <Badge tone="info">New</Badge> adds an option,
+    <Badge tone="success">Fix</Badge> matches the spec again, <Badge tone="neutral">Internal</Badge> changes nothing you see.
+  </p>
+
+  {
+    all.map((r) => (
+      <section class="release" aria-labelledby={`r-${slug(r.name)}`}>
+        <h2 id={`r-${slug(r.name)}`}>{r.name}</h2>
+        {r.date && <p class="muted small">{r.pending ? `Latest change ${r.date}` : `Released ${r.date}`}</p>}
+        <div class="panel">
+          {r.entries.map((e) => (
+            <div class="entry">
+              <div class="entry-head">
+                <Badge tone={tone(e.kind)}>{e.kind}</Badge>
+                <strong>{e.title}</strong>
+                {e.source === 'changeset' ? (
+                  <span class="muted small">
+                    changelog entry{e.bump && `, ${e.bump}`}{e.packages.length > 0 && ` (${e.packages.join(', ')})`}
+                  </span>
+                ) : (
+                  <a class="small" href={`${GITHUB_URL}/commit/${e.ref}`}>
+                    <code>{e.ref}</code>
+                  </a>
+                )}
+              </div>
+              <p>
+                <strong>What changes for you:</strong> {e.forYou}
+              </p>
+            </div>
+          ))}
+        </div>
+        <div class="snippet-head">
+          <h3 style="margin: 0" id={`a-${slug(r.name)}`}>Announcement</h3>
+          <button type="button" class="copy" data-copy="" data-copy-from={`s-${slug(r.name)}`} aria-describedby={`a-${slug(r.name)}`}>
+            Copy for Slack or email
+          </button>
+        </div>
+        <pre id={`s-${slug(r.name)}`}>{r.announcement}</pre>
+      </section>
+    ))
+  }
+  {all.length === 0 && <p>No changes recorded yet.</p>}
+</Layout>

@@ -11,14 +11,18 @@
   },
   "workspaces": [
     "packages/tokens",
-    "packages/react"
+    "packages/react",
+    "apps/docs-site"
   ],
   "scripts": {
     "tokens:build": "npm run build -w @demo-ds/tokens",
     "typecheck": "npm run typecheck -w @demo-ds/react",
-    "lint:css": "stylelint \"packages/react/src/**/*.css\"",
+    "lint:css": "stylelint \"packages/react/src/**/*.css\" \"apps/docs-site/src/**/*.css\"",
     "storybook": "npm run tokens:build && storybook dev -p 6006",
     "build-storybook": "npm run tokens:build && storybook build -o storybook-static --quiet",
+    "docs:dev": "npm run tokens:build && npm run dev -w @demo-ds/docs-site",
+    "docs:build": "npm run tokens:build && npm run build -w @demo-ds/docs-site",
+    "docs:preview": "npm run preview -w @demo-ds/docs-site",
     "ci": "npm run tokens:build && npm run typecheck && npm run lint:css && npm run build-storybook",
     "changeset": "changeset",
     "version-packages": "changeset version"

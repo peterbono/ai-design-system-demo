@@ -1,0 +1,64 @@
+{
+  "summary": "Single-line text field with a visible label, an optional hint and an error message that screen readers announce.",
+  "preview": { "c": "Stack", "children": [
+    { "c": "Input", "p": { "label": "Work email", "placeholder": "name@company.com", "type": "email", "hint": "We only use it for sign-in links." } }
+  ] },
+  "whenToUse": [
+    "Short free-text answers: a name, an email, a search query, an amount.",
+    "When the answer cannot be picked from a short, known list.",
+    "Use hint for format or privacy notes the user needs before typing, not after."
+  ],
+  "whenNotToUse": [
+    "Picking one of fewer than about seven known options: use radio buttons or a select.",
+    "Several lines of text: use a textarea (not in the system yet).",
+    "Dates: a date picker avoids format errors (not in the system yet)."
+  ],
+  "dos": [
+    {
+      "title": "Label above, format help in the hint",
+      "text": "The label stays visible while typing; the hint answers the question before it is asked.",
+      "example": { "c": "Stack", "children": [
+        { "c": "Input", "p": { "label": "Work email", "placeholder": "name@company.com", "type": "email", "hint": "We only use it for sign-in links." } }
+      ] }
+    },
+    {
+      "title": "Errors say how to fix it",
+      "text": "Name the expected format with an example. Keep the user's value so they can correct it.",
+      "example": { "c": "Stack", "children": [
+        { "c": "Input", "p": { "label": "Work email", "type": "email", "defaultValue": "florian@", "error": "Enter an email address like name@company.com." } }
+      ] }
+    }
+  ],
+  "donts": [
+    {
+      "title": "Placeholder used as the label",
+      "text": "The placeholder disappears on the first keystroke, has low contrast and is not a reliable accessible name.",
+      "example": { "c": "Stack", "children": [
+        { "c": "Input", "p": { "label": "", "placeholder": "Email", "type": "email" } }
+      ] }
+    },
+    {
+      "title": "Errors that blame or say nothing",
+      "text": "\"Invalid input\" tells the user something is wrong but not what to do next.",
+      "example": { "c": "Stack", "children": [
+        { "c": "Input", "p": { "label": "Work email", "type": "email", "defaultValue": "florian@", "error": "Invalid input." } }
+      ] }
+    }
+  ],
+  "accessibility": [
+    "The label is required by the component's type and is wired with htmlFor: clicking it focuses the field and screen readers read it.",
+    "Hint and error are linked with aria-describedby. An error also sets aria-invalid, so it is announced with the field.",
+    "The error state uses a red border and a text message: color is never the only signal.",
+    "Disabled fields are skipped by keyboard and often not read. For a value the user must see but not change, use read-only.",
+    "Set the right type (email, tel, number) and autocomplete so mobile keyboards and autofill do the work.",
+    "Known gap: the field border (color.border.strong) is below the 3:1 contrast WCAG asks for input boundaries. It is listed in the contrast matrix and needs a token proposal, not a local override."
+  ],
+  "anatomy": {
+    "field": "Wrapper (label, field, messages)",
+    "label": "Label",
+    "input": "Text field",
+    "invalid": "Error state",
+    "hint": "Hint text",
+    "error": "Error message"
+  }
+}

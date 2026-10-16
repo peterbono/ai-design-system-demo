@@ -1,0 +1,92 @@
+---
+import { Badge } from '@demo-ds/react';
+import Layout from '../../layouts/Layout.astro';
+import Updated from '../../components/Updated.astro';
+import { contrastPairs, THRESHOLDS } from '../../lib/contrast';
+import { PAGE_SOURCES, freshness } from '../../lib/sources';
+import { anchorOf, MODES } from '../../lib/tokens';
+
+const pairs = contrastPairs();
+const updated = freshness(PAGE_SOURCES.contrast);
+const failures = pairs.flatMap((p) => MODES.filter((m) => !p.modes[m].aa).map((m) => ({ p, m })));
+const total = pairs.length * MODES.length;
+---
+
+<Layout title="Contrast" description="WCAG contrast of real foreground and background token pairs, in light and dark." sources={PAGE_SOURCES.contrast} updated={updated}>
+  <h1>Contrast matrix</h1>
+  <p class="lead">
+    The color pairs our components actually use, checked against WCAG 2.2 in both themes. Ratios are computed at build time from the token
+    values, so a token change updates this page automatically.
+  </p>
+  <Updated date={updated} />
+
+  <div class="callout">
+    <p>
+      <strong>{total - failures.length} of {total}</strong> checks pass AA.
+      {failures.length > 0 && <> {failures.length} need attention; they are listed first below.</>}
+      Text needs {THRESHOLDS.text.aa}:1 for AA and {THRESHOLDS.text.aaa}:1 for AAA. Control edges, icons and focus rings (marked UI) need
+      {THRESHOLDS.ui.aa}:1 (WCAG 1.4.11; there is no AAA level for UI).
+    </p>
+  </div>
+
+  <p>
+    To check a new combination, add it to <code>packages/tokens/src/contrast-pairs.json</code> as
+    <code>{'{ "fg": "<token path>", "bg": "<token path>", "usage": "text" | "ui" }'}</code>.
+  </p>
+
+  <div class="table-wrap">
+    <table>
+      <caption class="sr-only">Contrast ratio per token pair and theme</caption>
+      <thead>
+        <tr>
+          <th scope="col">Foreground on background</th>
+          <th scope="col">Use</th>
+          {MODES.map((m) => <th scope="col">{m === 'light' ? 'Light' : 'Dark'}</th>)}
+        </tr>
+      </thead>
+      <tbody>
+        {
+          [...pairs]
+            .sort((a, b) => Number(MODES.every((m) => a.modes[m].aa)) - Number(MODES.every((m) => b.modes[m].aa)))
+            .map((p) => (
+              <tr>
+                <th scope="row">
+                  <a href={`/foundations/color/#${anchorOf(p.fgToken.cssVar)}`}>{p.fg}</a>
+                  <br />
+                  <span class="muted small">on</span> <a href={`/foundations/color/#${anchorOf(p.bgToken.cssVar)}`}>{p.bg}</a>
+                </th>
+                <td>{p.usage === 'text' ? 'Text' : 'UI'}</td>
+                {MODES.map((m) => {
+                  const r = p.modes[m];
+                  return (
+                    <td>
+                      <div data-theme={m} class="swatch-cell" style={`background-color: var(${p.bgToken.cssVar})`}>
+                        {p.usage === 'text' ? (
+                          <span style={`color: var(${p.fgToken.cssVar}); font-weight: var(--font-weight-medium)`}>Aa</span>
+                        ) : (
+                          <span class="swatch" style={`background-color: transparent; border: var(--border-width-2) solid var(${p.fgToken.cssVar})`} aria-hidden="true" />
+                        )}
+                        <span class="chain" style={p.usage === 'text' ? `color: var(${p.fgToken.cssVar})` : undefined}>{r.fgHex} / {r.bgHex}</span>
+                      </div>
+                      <p style="margin: var(--space-2) 0 0; display: flex; gap: var(--space-1); align-items: center; flex-wrap: wrap;">
+                        <strong>{r.ratio.toFixed(2)}:1</strong>
+                        <Badge tone={r.aa ? 'success' : 'danger'}>{r.aa ? 'AA pass' : 'AA fail'}</Badge>
+                        {r.aaa !== null && <Badge tone={r.aaa ? 'success' : 'neutral'}>{r.aaa ? 'AAA pass' : 'Not AAA'}</Badge>}
+                      </p>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <h2>What to do with a failing pair</h2>
+  <ul>
+    <li>Do not fix it locally in a screen or a component. That hides the problem and the next team hits it again.</li>
+    <li>Open an issue or a DS Bridge proposal with the pair, the ratio and where it shows up. A token change is Tier 3: design and tech owners both approve it.</li>
+    <li>Until it ships, avoid using that pair in new places.</li>
+  </ul>
+</Layout>

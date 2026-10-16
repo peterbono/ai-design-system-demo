@@ -1,0 +1,34 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Example from '../../components/Example.tsx';
+import Updated from '../../components/Updated.astro';
+import { loadComponents } from '../../lib/components';
+import { freshness, PAGE_SOURCES } from '../../lib/sources';
+
+const components = loadComponents();
+const updated = freshness(PAGE_SOURCES.components);
+---
+
+<Layout title="Components" description="Every component, with usage guidance, accessibility notes and the tokens it reads." sources={PAGE_SOURCES.components} updated={updated}>
+  <h1>Components</h1>
+  <p class="lead">
+    Each page follows the same order: when to use it, do and don't, accessibility, the tokens it reads, its options, then a live preview. Guidance
+    first, specs second.
+  </p>
+  <Updated date={updated} />
+  <div class="cards">
+    {
+      components.map((c) => (
+        <div class="panel">
+          <h3><a href={`/components/${c.slug}/`}>{c.name}</a></h3>
+          {c.docs?.preview && (
+            <div class="verdict-stage" style="min-height: 5rem; margin-bottom: var(--space-3); border-radius: var(--radius-md)" aria-hidden="true" inert>
+              <Example node={c.docs.preview} />
+            </div>
+          )}
+          <p class="small">{c.docs?.summary ?? c.description ?? 'No usage guidance yet.'}</p>
+        </div>
+      ))
+    }
+  </div>
+</Layout>

@@ -39,6 +39,29 @@ jobs:
       - name: Build Storybook
         run: npm run build-storybook
 
+  docs:
+    name: Docs site
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history: pages show "last updated" dates and the changelog reads git log.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build docs site (tokens:build, then Astro static build)
+        run: npm run docs:build
+
+      - name: Typecheck docs data layer
+        run: npm run typecheck -w @demo-ds/docs-site
+
   changeset:
     name: Changeset present
     if: github.event_name == 'pull_request'

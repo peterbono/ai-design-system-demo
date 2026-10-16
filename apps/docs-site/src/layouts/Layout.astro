@@ -1,0 +1,151 @@
+---
+import '@demo-ds/tokens/tokens.css';
+import '../styles/site.css';
+import { loadComponents } from '../lib/components';
+import { GITHUB_URL, STORYBOOK_URL, sourceUrl } from '../lib/repo';
+
+interface Props {
+  title: string;
+  description?: string;
+  /** Repo-relative files that feed this page. */
+  sources?: readonly string[];
+  updated?: string | null;
+}
+
+const { title, description, sources = [], updated } = Astro.props;
+const path = Astro.url.pathname.replace(/\/?$/, '/');
+const components = loadComponents();
+
+const nav = [
+  { label: 'Overview', items: [{ href: '/', label: 'Home' }] },
+  {
+    label: 'Foundations',
+    items: [
+      { href: '/foundations/color/', label: 'Color' },
+      { href: '/foundations/contrast/', label: 'Contrast' },
+      { href: '/foundations/typography/', label: 'Typography' },
+      { href: '/foundations/spacing/', label: 'Spacing' },
+      { href: '/foundations/radius/', label: 'Radius and borders' },
+      { href: '/foundations/elevation/', label: 'Elevation' },
+      { href: '/foundations/lookup/', label: 'Token lookup' },
+    ],
+  },
+  { label: 'Components', items: [{ href: '/components/', label: 'All components' }, ...components.map((c) => ({ href: `/components/${c.slug}/`, label: c.name }))] },
+  {
+    label: 'Process',
+    items: [
+      { href: '/governance/', label: 'Governance' },
+      { href: '/changelog/', label: 'Changelog' },
+      { href: '/for-ai-agents/', label: 'For AI agents' },
+    ],
+  },
+];
+---
+
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title === 'Home' ? 'Design system docs' : `${title} | Design system docs`}</title>
+    {description && <meta name="description" content={description} />}
+    <link rel="alternate" type="text/plain" href="/llms.txt" title="llms.txt" />
+    <script is:inline>
+      (function () {
+        var t = null;
+        try { t = localStorage.getItem('ds-theme'); } catch (e) {}
+        if (t !== 'light' && t !== 'dark') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', t);
+      })();
+    </script>
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    <header class="topbar">
+      <a class="brand" href="/">Design system <span>docs</span></a>
+      <div class="topbar-actions">
+        <a href={STORYBOOK_URL}>Storybook</a>
+        <a href={GITHUB_URL}>GitHub</a>
+        <button type="button" class="theme-toggle" id="theme-toggle" aria-pressed="false">Dark theme</button>
+      </div>
+    </header>
+    <div class="shell">
+      <nav class="sidebar" aria-label="Documentation">
+        {
+          nav.map((group) => (
+            <div class="nav-group">
+              <p class="nav-label">{group.label}</p>
+              <ul>
+                {group.items.map((item) => (
+                  <li>
+                    <a href={item.href} aria-current={path === item.href ? 'page' : undefined}>
+                      {item.label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))
+        }
+      </nav>
+      <main id="main" tabindex="-1">
+        <slot />
+        <footer class="page-footer">
+          <p>
+            Last updated <strong>{updated ?? 'unknown'}</strong>, from the latest commit touching this page's sources.
+            {
+              sources.length > 0 && (
+                <>
+                  {' '}Generated from{' '}
+                  {sources.map((s, i) => (
+                    <>
+                      {i > 0 && ', '}
+                      <a href={sourceUrl(s)}>
+                        <code>{s}</code>
+                      </a>
+                    </>
+                  ))}
+                  .
+                </>
+              )
+            }
+          </p>
+        </footer>
+      </main>
+    </div>
+    <p class="sr-only" role="status" aria-live="polite" id="live"></p>
+    <script is:inline>
+      (function () {
+        var root = document.documentElement;
+        var btn = document.getElementById('theme-toggle');
+        var live = document.getElementById('live');
+        function sync() {
+          var dark = root.getAttribute('data-theme') === 'dark';
+          btn.setAttribute('aria-pressed', String(dark));
+        }
+        sync();
+        btn.addEventListener('click', function () {
+          var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+          root.setAttribute('data-theme', next);
+          try { localStorage.setItem('ds-theme', next); } catch (e) {}
+          sync();
+        });
+        document.addEventListener('click', function (e) {
+          var b = e.target.closest && e.target.closest('[data-copy]');
+          if (!b) return;
+          var text = b.getAttribute('data-copy');
+          var target = b.getAttribute('data-copy-from');
+          if (target) text = document.getElementById(target).textContent;
+          var done = function () {
+            var old = b.getAttribute('data-label') || b.textContent;
+            b.setAttribute('data-label', old);
+            b.textContent = 'Copied';
+            live.textContent = 'Copied to clipboard';
+            setTimeout(function () { b.textContent = old; live.textContent = ''; }, 1500);
+          };
+          if (navigator.clipboard) navigator.clipboard.writeText(text).then(done, function () {});
+        });
+      })();
+    </script>
+  </body>
+</html>

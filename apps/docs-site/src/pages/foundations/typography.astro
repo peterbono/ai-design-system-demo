@@ -1,0 +1,103 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CopyName from '../../components/CopyName.astro';
+import Updated from '../../components/Updated.astro';
+import { componentsUsing } from '../../lib/components';
+import { PAGE_SOURCES, freshness } from '../../lib/sources';
+import { anchorOf, primitivesOf } from '../../lib/tokens';
+
+const updated = freshness(PAGE_SOURCES.typography);
+const families = primitivesOf('font.family');
+const sizes = primitivesOf('font.size');
+const weights = primitivesOf('font.weight');
+const lineHeights = primitivesOf('font.line-height');
+const used = (v: string) => componentsUsing(v).join(', ') || 'Not used by a component yet';
+---
+
+<Layout title="Typography" description="Font families, type scale, weights and line heights." sources={PAGE_SOURCES.typography} updated={updated}>
+  <h1>Typography</h1>
+  <p class="lead">
+    One sans family for interface text, one mono family for code. Six sizes, three weights, two line heights. If a design needs a step that is not
+    here, propose a token instead of picking a value by eye.
+  </p>
+  <Updated date={updated} />
+
+  <h2>Families</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th scope="col">Token</th><th scope="col">Sample</th><th scope="col">Stack</th></tr></thead>
+      <tbody>
+        {
+          families.map((f) => (
+            <tr id={anchorOf(f.cssVar)}>
+              <th scope="row"><CopyName value={`var(${f.cssVar})`} kind="CSS variable" /></th>
+              <td style={`font-family: var(${f.cssVar}); font-size: var(--font-size-500)`}>Ship the system, not the slides</td>
+              <td class="chain">{f.css}</td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </div>
+  <p class="muted small">
+    Inter and JetBrains Mono are listed first but not bundled; without them the system font of each platform is used. That is a deliberate
+    choice for this demo: no font download, no layout shift.
+  </p>
+
+  <h2>Size scale</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th scope="col">Token</th><th scope="col">Size</th><th scope="col">Sample</th><th scope="col">Used by</th></tr></thead>
+      <tbody>
+        {
+          [...sizes].reverse().map((s) => (
+            <tr id={anchorOf(s.cssVar)}>
+              <th scope="row"><CopyName value={`var(${s.cssVar})`} kind="CSS variable" /></th>
+              <td class="chain">{s.css}</td>
+              <td style={`font-size: var(${s.cssVar}); line-height: var(--font-line-height-tight)`}>Review the token change</td>
+              <td class="small">{used(s.cssVar)}</td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Weights</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th scope="col">Token</th><th scope="col">Value</th><th scope="col">Sample</th><th scope="col">Used by</th></tr></thead>
+      <tbody>
+        {
+          weights.map((w) => (
+            <tr id={anchorOf(w.cssVar)}>
+              <th scope="row"><CopyName value={`var(${w.cssVar})`} kind="CSS variable" /></th>
+              <td class="chain">{w.css}</td>
+              <td style={`font-weight: var(${w.cssVar}); font-size: var(--font-size-400)`}>Approve and merge</td>
+              <td class="small">{used(w.cssVar)}</td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Line heights</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th scope="col">Token</th><th scope="col">Value</th><th scope="col">Use for</th><th scope="col">Used by</th></tr></thead>
+      <tbody>
+        {
+          lineHeights.map((l) => (
+            <tr id={anchorOf(l.cssVar)}>
+              <th scope="row"><CopyName value={`var(${l.cssVar})`} kind="CSS variable" /></th>
+              <td class="chain">{l.css}</td>
+              <td>{l.path.endsWith('tight') ? 'Single-line labels, buttons, headings' : 'Paragraphs, hints, anything that wraps'}</td>
+              <td class="small">{used(l.cssVar)}</td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </div>
+</Layout>

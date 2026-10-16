@@ -1,0 +1,82 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CopyName from '../../components/CopyName.astro';
+import TokenNames from '../../components/TokenNames.astro';
+import Updated from '../../components/Updated.astro';
+import { componentsUsing } from '../../lib/components';
+import { PAGE_SOURCES, freshness, groupUsage } from '../../lib/sources';
+import { anchorOf, loadTokens, MODES, primitivesOf } from '../../lib/tokens';
+
+const updated = freshness(PAGE_SOURCES.elevation);
+const elevation = loadTokens().semantic.filter((s) => s.type === 'shadow');
+const shadows = primitivesOf('shadow');
+---
+
+<Layout title="Elevation" description="Semantic elevation tokens and the shadow primitives behind them, rendered in both themes." sources={PAGE_SOURCES.elevation} updated={updated}>
+  <h1>Elevation</h1>
+  <p class="lead">{groupUsage('elevation')}</p>
+  <Updated date={updated} />
+
+  <h2>Semantic elevation</h2>
+  <p>Use these in designs and components. Each theme points to a different shadow, so the same card reads as lifted in both.</p>
+  <div class="preview">
+    {
+      MODES.map((m) => (
+        <div class="themed" data-theme={m}>
+          <span class="mode-label">{m === 'light' ? 'Light' : 'Dark'}</span>
+          <div class="shadow-stage">
+            {elevation.map((s) => (
+              <div class="shadow-demo" style={`box-shadow: var(${s.cssVar})`}>
+                {s.path}
+              </div>
+            ))}
+          </div>
+        </div>
+      ))
+    }
+  </div>
+  <div class="table-wrap" style="margin-top: var(--space-6)">
+    <table>
+      <thead><tr><th scope="col">Token</th><th scope="col">Light</th><th scope="col">Dark</th><th scope="col">Used by</th></tr></thead>
+      <tbody>
+        {
+          elevation.map((s) => (
+            <tr id={anchorOf(s.cssVar)}>
+              <th scope="row"><TokenNames cssVar={s.cssVar} path={s.path} figma={s.figma} /></th>
+              {MODES.map((m) => (
+                <td class="chain">
+                  <a href={`#${anchorOf('--' + s.modes[m].chain[0]!.replaceAll('.', '-'))}`}>{s.modes[m].chain[0]}</a>
+                  <br />
+                  {s.modes[m].css}
+                </td>
+              ))}
+              <td class="small">{componentsUsing(s.cssVar).join(', ') || <span class="muted">Not used by a component yet</span>}</td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Shadow primitives</h2>
+  <p>The raw shadows. The strong variants exist because a light shadow disappears on a dark surface.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th scope="col">Token</th><th scope="col">Value</th><th scope="col">Preview</th></tr></thead>
+      <tbody>
+        {
+          shadows.map((p) => (
+            <tr id={anchorOf(p.cssVar)}>
+              <th scope="row">
+                <CopyName value={`var(${p.cssVar})`} kind="CSS variable" />
+                {p.description && <p class="muted small" style="margin: var(--space-1) 0 0">{p.description}</p>}
+              </th>
+              <td class="chain">{p.css}</td>
+              <td><div class="shadow-demo" style={`box-shadow: var(${p.cssVar}); width: 8rem; height: 4rem`} aria-hidden="true" /></td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </div>
+</Layout>
