@@ -1,24 +1,6 @@
 /* Token explorer (components/explorer/TokenExplorer.astro). Chrome uses the design system tokens (bridge brand); swatches, stages and samples are
    painted inline with the documented system's resolved values, per mode. Layout: lens + tree | grid | detail. */
 
-.xp-page-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: var(--space-4) var(--space-8);
-  margin-bottom: var(--space-5);
-}
-
-.xp-page-head .lead {
-  max-width: 68ch;
-  margin-bottom: var(--space-3);
-}
-
-.xp-page .ed-banner {
-  margin-bottom: var(--space-4);
-}
-
 /* Frame */
 
 .xp {
@@ -48,7 +30,6 @@
   display: inline;
 }
 
-.xp[data-mode="read"] .xp-edit-tools,
 .xp[data-mode="read"] [data-hs-restore] {
   display: none;
 }
@@ -65,39 +46,6 @@
   border-right: var(--border-width-default) solid var(--color-border-default);
   background-color: var(--color-bg-default);
   scrollbar-width: thin;
-}
-
-.xp-lens {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-0-5);
-  padding: var(--space-0-5);
-  border: var(--border-width-default) solid var(--color-border-default);
-  border-radius: var(--radius-control);
-  background-color: var(--color-bg-subtle);
-}
-
-.xp-lens button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-1-5);
-  min-height: var(--size-8);
-  padding: 0 var(--space-2);
-  border: 0;
-  border-radius: var(--radius-control);
-  background-color: transparent;
-  color: var(--color-text-muted);
-  font: inherit;
-  font-size: var(--font-size-200);
-  font-weight: var(--font-weight-medium);
-  cursor: pointer;
-}
-
-.xp-lens button[aria-checked="true"] {
-  background-color: var(--color-surface-default);
-  color: var(--color-text-default);
-  box-shadow: var(--elevation-raised);
 }
 
 .xp-lens-n,
@@ -415,35 +363,10 @@
   gap: var(--space-2);
 }
 
-.xp-modebar[hidden] {
+.xp-modebar[hidden],
+.xp-modebar [data-xp-mode-field][hidden],
+.xp-modebar .xp-switch[hidden] {
   display: none;
-}
-
-.xp-seg {
-  display: inline-flex;
-  gap: var(--space-0-5);
-  padding: var(--space-0-5);
-  border: var(--border-width-default) solid var(--color-border-default);
-  border-radius: var(--radius-control);
-  background-color: var(--color-bg-subtle);
-}
-
-.xp-seg button {
-  min-height: var(--size-7);
-  padding: 0 var(--space-2);
-  border: 0;
-  border-radius: var(--radius-control);
-  background-color: transparent;
-  color: var(--color-text-muted);
-  font: inherit;
-  font-size: var(--font-size-200);
-  font-weight: var(--font-weight-medium);
-  cursor: pointer;
-}
-
-.xp-seg button[aria-checked="true"] {
-  background-color: var(--color-action-primary-bg);
-  color: var(--color-action-primary-text);
 }
 
 .xp-switch {
@@ -511,15 +434,6 @@
   border-color: var(--color-action-primary-bg);
   background-color: var(--color-action-primary-bg);
   color: var(--color-action-primary-text);
-}
-
-.xp-edit-tools {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--space-2);
-  margin-left: auto;
 }
 
 .xp-heading {
@@ -1065,21 +979,6 @@
   .xp[data-mode="edit"] .xp-td.is-mode:hover {
     box-shadow: inset 0 0 0 var(--border-width-default) var(--color-border-emphasis);
   }
-}
-
-.xp-empty {
-  display: grid;
-  justify-items: center;
-  gap: var(--space-3);
-  max-width: calc(var(--size-120) - var(--size-8));
-  margin: var(--space-16) auto;
-  padding: 0 var(--space-4);
-  color: var(--color-text-muted);
-  text-align: center;
-}
-
-.xp-empty[hidden] {
-  display: none;
 }
 
 /* Inline editor */
@@ -1801,10 +1700,6 @@
 }
 
 @media (max-width: 640px) {
-  .xp-page-head {
-    align-items: stretch;
-  }
-
   .xp {
     height: auto;
     min-height: 0;
@@ -1977,11 +1872,6 @@ body:has(#ed-tray:not([hidden]):not([data-sheet="true"])) .xp[data-surface="app"
   padding: var(--space-2);
 }
 
-.xp[data-surface="app"] .xp-lens button {
-  min-height: var(--size-7);
-  font-size: var(--font-size-100);
-}
-
 .xp[data-surface="app"] .xp-tree-btn {
   min-height: var(--size-7);
   padding: var(--space-0-5) var(--space-2);
@@ -2101,12 +1991,6 @@ body:has(#ed-tray:not([hidden]):not([data-sheet="true"])) .xp[data-surface="app"
   color: var(--color-text-default);
   font: inherit;
   font-size: var(--font-size-200);
-}
-
-.xp-menu-field .xp-seg {
-  display: grid;
-  grid-auto-columns: 1fr;
-  grid-auto-flow: column;
 }
 
 .xp-menu-panel .xp-switch {
@@ -2246,10 +2130,6 @@ body:has(#ed-tray:not([hidden]):not([data-sheet="true"])) .xp[data-surface="app"
 .xp[data-surface="app"] .xp-tr[aria-selected="true"] .xp-td.is-name::before {
   top: var(--space-1-5);
   bottom: var(--space-1-5);
-}
-
-.xp[data-surface="app"] .xp-empty {
-  padding-top: var(--space-12);
 }
 
 /* Not enough room for one row (detail panel open on a laptop): labels give way before the row wraps. */

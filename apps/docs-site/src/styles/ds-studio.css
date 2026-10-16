@@ -45,3 +45,83 @@
     flex: 1;
   }
 }
+
+/* Adoption: the two audited apps side by side, before and after. */
+.ad-compare {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--size-96)), 1fr));
+  gap: var(--layout-gap);
+  margin-block: var(--space-6);
+}
+
+.ad-app-title {
+  margin: 0;
+  font-size: var(--font-size-400);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--font-line-height-snug);
+}
+
+.ad-app-summary {
+  margin: 0 0 var(--space-4);
+  color: var(--color-text-muted);
+}
+
+.ad-app-rows {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-4);
+}
+
+.ad-app-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-2);
+  align-items: baseline;
+  padding-block-end: var(--space-3);
+  border-block-end: var(--border-width-default) solid var(--color-border-default);
+}
+
+.ad-app-row dt {
+  color: var(--color-text-muted);
+}
+
+.ad-app-row dd {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: baseline;
+  margin: 0;
+}
+
+.ad-app-before {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-300);
+}
+
+.ad-app-arrow {
+  align-self: center;
+  color: var(--color-text-muted);
+}
+
+.ad-app-after {
+  font-size: var(--font-size-600);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--font-line-height-tight);
+}
+
+.ad-app-after.is-pass {
+  color: var(--color-feedback-success-text);
+}
+
+.ad-app-after.is-warn {
+  color: var(--color-feedback-warning-text);
+}
+
+.ad-app-after.is-fail {
+  color: var(--color-feedback-danger-text);
+}
+
+/* Token editor: the mode SegmentedControl above the value field. */
+[data-ed-modes] {
+  margin-block-end: var(--space-3);
+}

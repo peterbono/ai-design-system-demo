@@ -193,23 +193,6 @@
   color: var(--color-text-default);
 }
 
-.st-components th[scope="row"] a {
-  font-weight: var(--font-weight-semibold);
-}
-
-.st-components td,
-.st-components th {
-  vertical-align: middle;
-}
-
-.st-components tr.is-focus {
-  background-color: var(--color-signal-subtle);
-}
-
-.st-components tr.is-focus th[scope="row"] a {
-  color: var(--color-text-signal);
-}
-
 .st-links {
   display: flex;
   flex-wrap: wrap;
@@ -222,14 +205,6 @@
   align-items: center;
   gap: var(--space-1);
   font-size: var(--font-size-200);
-}
-
-@media (max-width: 640px) {
-  .st-components th[scope="row"] {
-    position: sticky;
-    left: 0;
-    background-color: var(--color-surface-default);
-  }
 }
 
 /* Visual impact list */
@@ -498,12 +473,6 @@
   min-height: var(--size-10);
   padding: var(--space-1) var(--space-4);
   font-size: var(--font-size-200);
-}
-
-.ov-act .pill {
-  justify-self: start;
-  height: var(--size-5);
-  font-size: var(--font-size-100);
 }
 
 .ov-act-title {

@@ -1,21 +1,6 @@
 /* Foundations pages: tables that hold up at 390px, continuous color ramps, and the contrast summary.
    Chrome uses the design system tokens (bridge brand); tiles with data-theme render the documented system's tokens. */
 
-/* Tables: token names never break one character per line. */
-
-.fd-table th[scope="row"] {
-  min-width: var(--size-60);
-}
-
-.fd-table .copy {
-  overflow-wrap: normal;
-  white-space: nowrap;
-}
-
-.fd-table td.chain {
-  min-width: calc(var(--size-40) - var(--space-4));
-}
-
 .fd-gap {
   margin-top: var(--space-6);
 }
@@ -294,19 +279,6 @@
   .ct-fail-modes {
     grid-template-columns: 1fr;
   }
-
-  .fd-table th[scope="row"] {
-    min-width: calc(var(--size-40) + var(--size-8));
-  }
-
-  .fd-table table {
-    min-width: calc(var(--size-160) - var(--space-8));
-  }
-
-  .fd-table .names {
-    flex-direction: column;
-    align-items: flex-start;
-  }
 }
 
 /* ------------------------------------------------------------------------------------------------------------
@@ -343,40 +315,6 @@
 .fd-copyas-label {
   color: var(--color-text-muted);
   font-size: var(--font-size-200);
-}
-
-.fd-seg {
-  display: inline-flex;
-  padding: var(--space-0-5);
-  border: var(--border-width-default) solid var(--color-border-default);
-  border-radius: var(--radius-control);
-  background-color: var(--color-bg-subtle);
-}
-
-.fd-seg button {
-  min-width: calc(var(--size-12) + var(--space-1));
-  min-height: calc(var(--size-7) + var(--space-0-5));
-  padding: 0 var(--space-3);
-  border: 0;
-  border-radius: calc(var(--radius-control) - var(--space-0-5));
-  background-color: transparent;
-  color: var(--color-text-muted);
-  font: inherit;
-  font-size: var(--font-size-200);
-  font-weight: var(--font-weight-semibold);
-  cursor: pointer;
-}
-
-.fd-seg button[aria-checked="true"] {
-  background-color: var(--color-surface-default);
-  color: var(--color-text-default);
-  box-shadow: var(--elevation-raised);
-}
-
-@media (hover: hover) {
-  .fd-seg button[aria-checked="false"]:hover {
-    color: var(--color-text-default);
-  }
 }
 
 /* Group: heading, note, specimen, list */
@@ -1273,28 +1211,6 @@ summary.fd-chip::-webkit-details-marker {
   line-height: var(--font-line-height-normal);
 }
 
-.fd-open {
-  grid-area: open;
-  display: inline-grid;
-  place-items: center;
-  width: var(--size-8);
-  height: var(--size-8);
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-control);
-  background-color: transparent;
-  color: var(--color-text-muted);
-  cursor: pointer;
-}
-
-@media (hover: hover) {
-  .fd-open:hover,
-  .fd-row:hover .fd-open {
-    background-color: var(--color-bg-subtle);
-    color: var(--color-text-default);
-  }
-}
-
 /* Copy toast */
 
 .fd-toast {
@@ -1373,10 +1289,6 @@ summary.fd-chip::-webkit-details-marker {
 
   .fd-use {
     justify-self: end;
-  }
-
-  .fd-open {
-    align-self: center;
   }
 
   .fd-group-n {

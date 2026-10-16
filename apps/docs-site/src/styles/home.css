@@ -41,10 +41,6 @@
   margin: 0;
 }
 
-.news-item .pill {
-  justify-self: start;
-}
-
 .news-title {
   margin: 0;
   font-weight: var(--font-weight-medium);
@@ -62,11 +58,6 @@
 
 .news-meta a {
   color: var(--color-text-muted);
-}
-
-.news-pending {
-  color: var(--color-feedback-warning-text);
-  font-weight: var(--font-weight-semibold);
 }
 
 .index-cols {

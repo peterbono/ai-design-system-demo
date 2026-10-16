@@ -254,10 +254,6 @@
   margin: 0;
 }
 
-.announce-head .copy {
-  margin-left: auto;
-}
-
 .announce-avatar {
   display: grid;
   place-items: center;
@@ -353,27 +349,6 @@
 .tier-fields dd {
   margin: var(--space-0-5) 0 0;
   font-size: var(--font-size-200);
-}
-
-.matrix td,
-.matrix th {
-  vertical-align: middle;
-}
-
-.mark {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1-5);
-  color: var(--color-text-muted);
-}
-
-.mark.is-approve {
-  color: var(--color-text-default);
-  font-weight: var(--font-weight-semibold);
-}
-
-.mark.is-approve .icon {
-  color: var(--color-feedback-success-text);
 }
 
 /* Governance: stepper (a real sequence, so it is numbered) */
@@ -926,10 +901,6 @@
   }
 
   .announce-body {
-    margin-left: 0;
-  }
-
-  .announce-head .copy {
     margin-left: 0;
   }
 

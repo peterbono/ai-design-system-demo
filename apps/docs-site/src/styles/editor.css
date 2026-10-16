@@ -96,34 +96,6 @@ body.is-editing main {
   background-color: var(--color-feedback-warning-bg);
 }
 
-.ed-modes {
-  display: inline-flex;
-  margin-bottom: var(--space-3);
-  padding: var(--space-0-5);
-  border: var(--border-width-default) solid var(--color-border-default);
-  border-radius: var(--radius-control);
-  background-color: var(--color-bg-subtle);
-}
-
-.ed-modes button {
-  min-height: var(--size-8);
-  padding: 0 var(--space-3);
-  border: 0;
-  border-radius: var(--radius-control);
-  background-color: transparent;
-  color: var(--color-text-muted);
-  font: inherit;
-  font-size: var(--font-size-200);
-  font-weight: var(--font-weight-medium);
-  cursor: pointer;
-}
-
-.ed-modes button[aria-checked="true"] {
-  background-color: var(--color-surface-default);
-  color: var(--color-text-default);
-  box-shadow: var(--elevation-raised);
-}
-
 .ed-field {
   display: grid;
   gap: var(--space-1-5);
@@ -353,10 +325,6 @@ body.is-editing main {
   min-height: var(--size-9);
 }
 
-.ed-tray:not(.is-page) .ed-tray-actions .btn {
-  min-height: var(--size-8);
-}
-
 /* Side sheet: the header's Drafts button opens the tray on the right, at any count. */
 .ed-tray[data-sheet="true"] {
   top: var(--layout-header-height);
@@ -576,17 +544,12 @@ body.is-editing main {
 }
 
 @media (max-width: 640px) {
-
   .ed-tray-bar {
     flex-wrap: wrap;
   }
 
   .ed-tray-actions {
     width: 100%;
-  }
-
-  .ed-tray-actions .btn {
-    flex: 1;
   }
 
   .ed-tray-row {
@@ -611,7 +574,6 @@ body.is-editing main {
   }
 }
 
-.ed-tray-actions .btn[hidden],
 .ed-tray[hidden] {
   display: none;
 }

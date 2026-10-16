@@ -256,19 +256,6 @@
   overflow-y: auto;
 }
 
-.hp-demo-flag {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin: 0;
-  padding: var(--space-2) var(--space-3);
-  border: var(--border-width-default) dashed var(--color-feedback-warning-text);
-  border-radius: var(--radius-control);
-  background-color: var(--color-feedback-warning-bg);
-  font-size: var(--font-size-200);
-  font-weight: var(--font-weight-semibold);
-}
-
 .hp-body {
   display: grid;
   gap: var(--space-3);

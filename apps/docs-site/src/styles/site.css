@@ -37,15 +37,17 @@ body.no-scroll {
   color: var(--color-text-default);
 }
 
-/* Links are ink with a quiet underline. Orange is the signal (focus, current page, active tab), never a link color. */
-a {
+/* Links are ink with a quiet underline. Orange is the signal (focus, current page, active tab), never a link color.
+   Zero specificity so DS components that render <a> (Button, Link, SidebarNav) always win; the DS Breadcrumb in the
+   shell sets its own underline, so it is left out. */
+:where(a:not(.shell-crumbs a)) {
   color: var(--color-text-default);
   text-decoration-color: var(--color-border-emphasis);
   text-decoration-thickness: var(--border-width-default);
   text-underline-offset: 0.22em;
 }
 
-a:hover {
+:where(a:not(.shell-crumbs a)):hover {
   text-decoration-color: currentcolor;
 }
 
@@ -157,7 +159,7 @@ strong {
 .mono,
 code,
 pre,
-kbd {
+:where(kbd:not([class])) {
   font-family: var(--font-family-mono);
   font-variant-ligatures: none;
 }
@@ -195,8 +197,8 @@ pre code {
   background-color: transparent;
 }
 
-kbd,
-.kbd {
+/* Bare <kbd> in app copy only: the DS Kbd component (always classed) styles itself. */
+:where(kbd:not([class])) {
   display: inline-grid;
   place-items: center;
   min-width: calc(var(--size-5) + var(--space-0-5));
@@ -344,15 +346,6 @@ kbd,
   color: var(--color-text-default);
 }
 
-.theme-toggle .when-dark,
-:root[data-theme="dark"] .theme-toggle .when-light {
-  display: none;
-}
-
-:root[data-theme="dark"] .theme-toggle .when-dark {
-  display: inline-flex;
-}
-
 /* Copy buttons (token names, snippets) */
 
 .copy {
@@ -416,36 +409,6 @@ kbd,
 
 .rail-toggle {
   display: none;
-}
-
-.search-trigger {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex: 0 1 var(--size-120);
-  min-width: 0;
-  height: var(--size-10);
-  padding: 0 var(--space-2) 0 var(--space-3);
-  border: var(--border-width-default) solid var(--color-border-default);
-  border-radius: var(--radius-control);
-  background-color: var(--color-surface-default);
-  color: var(--color-text-muted);
-  font: inherit;
-  font-size: var(--font-size-200);
-  cursor: pointer;
-  box-shadow: var(--elevation-raised);
-}
-
-.search-trigger:hover {
-  border-color: var(--color-border-emphasis);
-}
-
-.search-label {
-  flex: 1;
-  overflow: hidden;
-  text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .topbar-actions {
@@ -661,8 +624,7 @@ main:focus {
   outline: none;
 }
 
-main > h1:first-child,
-main > .crumbs + h1 {
+main > h1:first-child {
   margin-top: 0;
 }
 
@@ -686,47 +648,6 @@ main > .crumbs + h1 {
 }
 
 /* Page header helpers */
-
-.crumbs {
-  margin: 0 0 var(--space-3);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-200);
-}
-
-.crumbs ol {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1-5);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.crumbs li + li {
-  margin: 0;
-}
-
-.crumbs li + li::before {
-  margin-right: var(--space-1-5);
-  color: var(--color-border-emphasis);
-  content: "/";
-}
-
-.crumbs [aria-current="page"] {
-  color: var(--color-text-default);
-  font-weight: var(--font-weight-medium);
-}
-
-.crumbs a {
-  color: var(--color-text-muted);
-  text-decoration: none;
-}
-
-.crumbs a:hover {
-  color: var(--color-text-default);
-  text-decoration: underline;
-}
 
 .updated {
   display: inline-flex;
@@ -858,22 +779,23 @@ main > .crumbs + h1 {
   box-shadow: var(--elevation-raised);
 }
 
-table {
+/* App-rendered data tables only (charts, reviews, adoption). The DS Table component styles itself. */
+table:where(.stacked-table, .rv-table, .ad-cats) {
   width: 100%;
   border-collapse: collapse;
   font-size: var(--font-size-200);
   font-variant-numeric: tabular-nums;
 }
 
-th,
-td {
+:where(.stacked-table, .rv-table, .ad-cats) th,
+:where(.stacked-table, .rv-table, .ad-cats) td {
   padding: var(--space-3) var(--space-4);
   border-bottom: var(--border-width-default) solid var(--color-border-default);
   text-align: left;
   vertical-align: top;
 }
 
-thead th {
+:where(.stacked-table, .rv-table, .ad-cats) thead th {
   background-color: var(--color-bg-default);
   color: var(--color-text-muted);
   font-size: var(--font-size-100);
@@ -881,12 +803,12 @@ thead th {
   white-space: nowrap;
 }
 
-tbody tr:last-child td,
-tbody tr:last-child th {
+:where(.stacked-table, .rv-table, .ad-cats) tbody tr:last-child td,
+:where(.stacked-table, .rv-table, .ad-cats) tbody tr:last-child th {
   border-bottom: 0;
 }
 
-tbody th {
+:where(.stacked-table, .rv-table, .ad-cats) tbody th {
   font-weight: var(--font-weight-medium);
 }
 
@@ -1248,11 +1170,6 @@ tr:target {
     width: auto;
   }
 
-  .search-trigger {
-    flex: 1 1 auto;
-    margin-left: var(--space-2);
-  }
-
   .rail {
     position: fixed;
     inset: 0 auto 0 0;
@@ -1295,21 +1212,8 @@ tr:target {
 }
 
 @media (max-width: 640px) {
-  .topbar-brand .logo-word,
-  .search-label,
-  .search-trigger .kbd,
-  .topbar-actions > a.icon-btn {
+  .topbar-brand .logo-word {
     display: none;
-  }
-
-  .search-trigger {
-    flex: 0 0 var(--size-10);
-    justify-content: center;
-    margin-left: auto;
-    padding: 0;
-    border-color: transparent;
-    background-color: transparent;
-    box-shadow: none;
   }
 
   .topbar-actions {
@@ -1328,8 +1232,8 @@ tr:target {
     margin-top: var(--space-12);
   }
 
-  th,
-  td {
+  :where(.stacked-table, .rv-table, .ad-cats) th,
+  :where(.stacked-table, .rv-table, .ad-cats) td {
     padding: var(--space-2) var(--space-3);
   }
 }
@@ -1387,45 +1291,6 @@ label {
 }
 
 /* Design system preview scope: brand and density menu in the top bar */
-.scope-menu {
-  position: relative;
-}
-
-.scope-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  height: var(--size-8);
-  margin-right: var(--space-1);
-  padding: 0 var(--space-2) 0 var(--space-2);
-  border: var(--border-width-default) solid var(--color-border-default);
-  border-radius: var(--radius-pill);
-  background-color: var(--color-surface-default);
-  color: var(--color-text-default);
-  font-size: var(--font-size-100);
-  font-weight: var(--font-weight-medium);
-  white-space: nowrap;
-  list-style: none;
-  cursor: pointer;
-}
-
-.scope-trigger::-webkit-details-marker {
-  display: none;
-}
-
-.scope-trigger:hover {
-  border-color: var(--color-border-emphasis);
-}
-
-.scope-trigger svg {
-  color: var(--color-text-muted);
-  transform: rotate(90deg);
-  transition: transform var(--motion-duration-fast) var(--motion-easing-enter);
-}
-
-.scope-menu[open] .scope-trigger svg {
-  transform: rotate(-90deg);
-}
 
 .scope-swatch {
   width: var(--size-4);
@@ -1448,76 +1313,6 @@ label {
   background-color: var(--color-text-muted);
 }
 
-.scope-panel {
-  position: absolute;
-  top: calc(100% + var(--space-2));
-  right: 0;
-  z-index: var(--layer-dropdown);
-  width: var(--size-72);
-  padding: var(--space-4);
-  border: var(--border-width-default) solid var(--color-border-default);
-  border-radius: var(--radius-container);
-  background-color: var(--color-surface-default);
-  box-shadow: var(--elevation-modal);
-}
-
-.scope-title {
-  margin: 0;
-  font-size: var(--font-size-200);
-  font-weight: var(--font-weight-semibold);
-}
-
-.scope-help {
-  margin: var(--space-1) 0 var(--space-3);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-100);
-  line-height: var(--font-line-height-normal);
-}
-
-.scope-group-label {
-  margin: var(--space-3) 0 var(--space-1-5);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-100);
-  font-weight: var(--font-weight-semibold);
-}
-
-.scope-seg {
-  display: grid;
-  grid-auto-columns: 1fr;
-  grid-auto-flow: column;
-  padding: var(--space-0-5);
-  border: var(--border-width-default) solid var(--color-border-default);
-  border-radius: var(--radius-control);
-  background-color: var(--color-bg-subtle);
-}
-
-.scope-seg button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-1-5);
-  min-height: var(--size-8);
-  padding: 0 var(--space-2);
-  border: 0;
-  border-radius: var(--radius-control);
-  background-color: transparent;
-  color: var(--color-text-muted);
-  font: inherit;
-  font-size: var(--font-size-200);
-  font-weight: var(--font-weight-medium);
-  cursor: pointer;
-}
-
-.scope-seg button:hover {
-  color: var(--color-text-default);
-}
-
-.scope-seg button[aria-checked="true"] {
-  background-color: var(--color-surface-default);
-  color: var(--color-text-default);
-  box-shadow: var(--elevation-raised);
-}
-
 .scope-chip {
   width: var(--size-3);
   height: var(--size-3);
@@ -1529,18 +1324,6 @@ label {
 @media (max-width: 640px) {
   .scope-label {
     display: none;
-  }
-
-  .scope-trigger {
-    padding: 0 var(--space-2);
-  }
-
-  .scope-panel {
-    position: fixed;
-    top: calc(var(--layout-header-height) + var(--space-1));
-    right: var(--space-3);
-    left: var(--space-3);
-    width: auto;
   }
 }
 
