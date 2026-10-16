@@ -1383,6 +1383,28 @@
   font-weight: 600;
 }
 
+/* Detail cards have room: the alias reads in full ("neutral / 600") and wraps instead of ending in an ellipsis. */
+.xp-d-value .xp-cv {
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.xp-d-value .xp-cv-text {
+  flex: 1 1 8rem;
+}
+
+.xp-d-value .xp-chip,
+.xp-d-value .xp-line {
+  overflow: visible;
+  text-align: start;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.xp-d-value .xp-chip {
+  padding-block: 0.125rem;
+}
+
 .xp-d-value .xp-cv > .xp-copy {
   position: static;
   border-color: transparent;

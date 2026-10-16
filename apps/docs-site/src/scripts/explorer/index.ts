@@ -315,6 +315,23 @@ export function initTokenExplorer() {
     const cell = cells[Math.min(s.active.col, cells.length - 1)];
     if (cell) cell.tabIndex = 0;
   }
+  // Scroll the grid scroller only, never the page: the page header and toolbar stay put on a ?focus= or ?t= load.
+  function reveal(el: HTMLElement, align: 'nearest' | 'center') {
+    if (scroller.scrollHeight <= scroller.clientHeight && scroller.scrollWidth <= scroller.clientWidth) return;
+    const box = scroller.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    const headH = scroller.querySelector<HTMLElement>('.xp-head')?.offsetHeight ?? 0;
+    // The visible part of the scroller: it may run past the window, and the draft tray floats over its bottom.
+    const tray = document.getElementById('ed-tray')?.getBoundingClientRect();
+    const viewTop = Math.max(box.top, 0) + headH;
+    const viewBottom = Math.min(box.bottom, window.innerHeight, tray && tray.height > 0 ? tray.top : Infinity);
+    const viewH = Math.max(viewBottom - viewTop, r.height);
+    if (align === 'center') scroller.scrollTop += r.top - viewTop - (viewH - r.height) / 2;
+    else if (r.top < viewTop) scroller.scrollTop -= viewTop - r.top;
+    else if (r.bottom > viewBottom) scroller.scrollTop += r.bottom - viewBottom;
+    if (r.left < box.left) scroller.scrollLeft -= box.left - r.left;
+    else if (r.right > box.right) scroller.scrollLeft += Math.min(r.right - box.right, r.left - box.left);
+  }
   function focusCell(row: HTMLElement, col: number) {
     const cells = cellsOf(row);
     const c = Math.max(0, Math.min(col, cells.length - 1));
@@ -323,7 +340,7 @@ export function initTokenExplorer() {
     const cell = cells[row.classList.contains('is-section') ? 0 : c]!;
     cell.tabIndex = 0;
     cell.focus({ preventScroll: true });
-    cell.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    reveal(cell, 'nearest');
   }
 
   // ---- detail panel
@@ -380,7 +397,7 @@ export function initTokenExplorer() {
     if (row) {
       s.active = { row: path, col: 0 };
       focusCell(row, 0);
-      row.scrollIntoView({ block: 'center' });
+      reveal(row, 'center');
     }
     openDetail(path);
   }
@@ -728,7 +745,11 @@ export function initTokenExplorer() {
   render({ sync: Boolean(s.selected) });
   if (s.selected) {
     const row = findRow(s.selected);
-    row?.scrollIntoView({ block: 'center' });
+    if (row) {
+      reveal(row, 'center');
+      // The draft tray settles after the first frame; center again so it does not cover the row.
+      requestAnimationFrame(() => requestAnimationFrame(() => reveal(row, 'center')));
+    }
     openDetail(s.selected);
   }
   root.dataset.buildMs = buildMs.toFixed(1);
