@@ -1003,3 +1003,10 @@ button.tx-node:hover {
 .tx-section[hidden] {
   display: none;
 }
+
+/* The door from a Library token to the Studio editor. */
+.tx-d-door {
+  flex: none;
+  align-self: flex-start;
+  margin-left: auto;
+}

@@ -36,6 +36,7 @@ const BRAND_LABEL: Record<string, string> = { bridge: 'Bridge', ocean: 'Ocean' }
 const isAlias = (t: Token) => t.layer !== 'primitive';
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const ICON = {
+  edit: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="m13.5 6.5 4 4"/></svg>',
   copy: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V6a1.5 1.5 0 0 0-1.5-1.5H6A1.5 1.5 0 0 0 4.5 6v8A1.5 1.5 0 0 0 6 15.5h2.5"/></svg>',
 };
 
@@ -174,6 +175,7 @@ function render(t: Token, byPath: Map<string, Token>): string {
         <h2 id="tx-d-title" class="tx-d-title" tabindex="-1">${esc(t.path)}</h2>
         <div class="tx-d-pills">${pills}</div>
       </div>
+      ${explorerMode() === 'read' ? `<a class="btn btn-secondary btn-sm tx-d-door" href="${studioHref(t.path)}">${ICON.edit}Edit in Studio</a>` : ''}
     </header>
     ${desc}${dep}
     <section class="tx-d-sec" aria-label="Names">
@@ -183,8 +185,18 @@ function render(t: Token, byPath: Map<string, Token>): string {
     <section class="tx-d-sec"><h3>Values</h3>${values}</section>
     <section class="tx-d-sec"><h3>Contrast pairs <span class="tx-d-n">${t.contrast.length}</span></h3>${contrast}</section>
     <section class="tx-d-sec"><h3>Used by <span class="tx-d-n">${t.usedBy.length}</span></h3>${users}</section>
-    <p class="tx-d-foot"><a href="${esc(t.href)}">See it on its foundations page</a> <span class="muted">or</span> <a href="/foundations/lookup/?q=${encodeURIComponent(t.path)}">look up its blast radius</a></p>`;
+    <p class="tx-d-foot">${
+      explorerMode() === 'edit'
+        ? `<a href="/tokens/?t=${encodeURIComponent(t.path)}">See it in the Library</a> <span class="muted">or</span> <a href="${esc(t.href)}">on its foundations page</a>`
+        : `<a href="${esc(t.href)}">See it on its foundations page</a> <span class="muted">or</span> <a href="/studio/versions/?token=${encodeURIComponent(t.path)}">its history</a>`
+    }</p>`;
 }
+
+/** Read in the Library, edit in the Studio. Set by TokenExplorerSlot. */
+const explorerMode = () => document.querySelector<HTMLElement>('[data-explorer-mode]')?.dataset.explorerMode ?? 'read';
+
+/** The door: from a Library token to the Studio editor, focused on that token, with a draft started. */
+const studioHref = (path: string) => `/studio/tokens/?t=${encodeURIComponent(path)}`;
 
 export function initExplorer() {
   const dataEl = document.getElementById('tx-data');
@@ -325,7 +337,7 @@ export function initExplorer() {
   });
 
   apply();
-  const initial = params.get('t');
+  const initial = params.get('t') ?? document.querySelector<HTMLElement>('[data-explorer-focus]')?.dataset.explorerFocus ?? null;
   if (initial && byPath.has(initial)) {
     const card = document.querySelector<HTMLElement>(`[data-open="${CSS.escape(initial)}"]`);
     open(initial, card);

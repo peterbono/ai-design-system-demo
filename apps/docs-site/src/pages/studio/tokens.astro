@@ -1,0 +1,35 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import DraftTray from '../../components/DraftTray.astro';
+import HistoryPlanner from '../../components/HistoryPlanner.astro';
+import Icon from '../../components/Icon.astro';
+import TokenEditorData from '../../components/TokenEditorData.astro';
+import TokenExplorerSlot from '../../components/TokenExplorerSlot.astro';
+import { PAGE_SOURCES, freshness } from '../../lib/sources';
+
+const updated = freshness(PAGE_SOURCES.explorer);
+---
+
+<Layout title="Tokens" description="Edit tokens into a draft: live preview of real components, the same guardrails as CI, and a pull request when it is ready." sources={PAGE_SOURCES.explorer} updated={updated} wide>
+  <header class="page-head">
+    <div>
+      <h1>Tokens</h1>
+      <p class="lead">
+        Open a token and change it. Every edit lands in a draft kept in this browser, the preview and the guardrails update as you go, and nothing
+        reaches the repository until you propose it as a pull request and it is reviewed.
+      </p>
+    </div>
+    <div class="page-head-actions">
+      <a class="btn btn-secondary" href="/studio/drafts/" data-keep-branch><Icon name="draft" size={16} />Drafts</a>
+      <button type="button" class="btn btn-primary" id="ed-add"><Icon name="plus" size={16} />New semantic token</button>
+    </div>
+  </header>
+  <TokenExplorerSlot mode="edit" />
+  <DraftTray />
+  <HistoryPlanner />
+  <TokenEditorData />
+  <script>
+    import { initTokenEditor } from '../../scripts/token-editor';
+    initTokenEditor();
+  </script>
+</Layout>

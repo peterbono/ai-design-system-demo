@@ -537,3 +537,28 @@ body.is-editing main {
 .ed-tray[hidden] {
   display: none;
 }
+
+/* Drafts page: the same tray, as a page section instead of a floating bar. */
+.ed-tray.is-page {
+  position: static;
+  max-width: none;
+  margin: 0 0 2rem;
+  border-color: var(--br-border);
+  box-shadow: none;
+}
+
+.ed-tray.is-page .ed-tray-toggle {
+  cursor: default;
+}
+
+.ed-tray.is-page .ed-tray-toggle:hover {
+  background-color: transparent;
+}
+
+.ed-tray.is-page .ed-tray-toggle .icon {
+  display: none;
+}
+
+.ed-tray.is-page .ed-tray-panel {
+  max-height: none;
+}

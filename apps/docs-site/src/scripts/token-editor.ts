@@ -332,7 +332,11 @@ function paintTray() {
   if (!tray || !S?.applied || !S.checks) return;
   const rows = trayRows(S.head, S.applied.proposed, S.draft);
   const n = rows.length;
-  tray.hidden = n === 0 && !document.body.classList.contains('is-editing');
+  // The Drafts page shows the tray as a page section, always visible; elsewhere it is a bar that appears while editing.
+  const asPage = tray.dataset.variant === 'page';
+  tray.hidden = !asPage && n === 0 && !document.body.classList.contains('is-editing');
+  const empty = $('ed-drafts-empty');
+  if (empty) empty.hidden = n > 0;
   $('ed-tray-count')!.textContent = n ? `${n} draft change${n > 1 ? 's' : ''}` : 'No draft changes yet';
   const fails = S.checks.blocking.length;
   const status = $('ed-tray-status')!;
@@ -369,7 +373,7 @@ function paintTray() {
             .map((i) => `<li>${esc(i.message)}</li>`)
             .join('')}</ul></div></li>`
         : '')
-    : '<li class="ed-tray-empty">Edits you make show up here, with before and after values and their contrast impact.</li>';
+    : `<li class="ed-tray-empty">${asPage ? 'No draft yet. Open a token in Studio Tokens and change a value: it lands here.' : 'Edits you make show up here, with before and after values and their contrast impact.'}</li>`;
 }
 
 function downloadDraft() {
@@ -475,18 +479,21 @@ export function initTokenEditor() {
   } catch {
     /* ignore */
   }
-  recompute();
-  if (startEditing || S.draft.edits.length) setEditing(true);
-
-  // The explorer drawer asks for an editor when edit mode is on.
+  // The explorer drawer asks for an editor when edit mode is on. Listen before edit mode starts: turning it on
+  // re-renders an open drawer.
   document.addEventListener('bridge:token-open', (e) => {
     const { path, slot } = (e as CustomEvent<{ path: string; slot: HTMLElement }>).detail;
     if (document.body.classList.contains('is-editing')) renderEditor(path, slot);
   });
+  recompute();
+  // The Studio editor is always in edit mode; elsewhere (the Drafts page) only the tray is shown.
+  const studioEditor = document.querySelector('[data-explorer-mode="edit"]') !== null;
+  if (studioEditor || startEditing || (S.draft.edits.length && !$('ed-tray')?.dataset.variant)) setEditing(true);
   document.addEventListener('bridge:scope', () => paintPreview());
 
   const tray = $('ed-tray');
   $('ed-tray-toggle')?.addEventListener('click', () => {
+    if (tray?.dataset.variant === 'page') return;
     const open = tray?.dataset.open !== 'true';
     if (tray) tray.dataset.open = String(open);
     $('ed-tray-toggle')?.setAttribute('aria-expanded', String(open));
@@ -541,7 +548,7 @@ export function initTokenEditor() {
       const n = await propose($<HTMLInputElement>('ed-propose-title')?.value ?? '', $<HTMLTextAreaElement>('ed-propose-notes')?.value ?? '');
       S!.draft = emptyDraft();
       saveDraft();
-      location.href = `/reviews/?pr=${n}`;
+      location.href = `/studio/reviews/?pr=${n}`;
     } catch (err) {
       out.textContent = `Not proposed: ${(err as Error).message}`;
       go.disabled = false;

@@ -1,0 +1,15 @@
+---
+// The single mount point for the token explorer, in the Library (mode "read") and in Studio Tokens (mode "edit").
+// To switch implementations, change the import below: both take { mode: 'read' | 'edit', focus?: string }.
+import Explorer from './LegacyTokenExplorer.astro';
+
+interface Props {
+  mode: 'read' | 'edit';
+  /** Token path to open on load. A ?t= in the URL wins. */
+  focus?: string;
+}
+
+const { mode, focus } = Astro.props;
+---
+
+<Explorer mode={mode} focus={focus} />
