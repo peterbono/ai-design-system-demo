@@ -144,7 +144,7 @@ export interface BridgeConfig {
   cssVar: { prefix: string; separator: string };
   governance: GovernanceConfig;
   audit?: AuditConfig | undefined;
-  /** Branch previews: snapshot packages and per-branch deploy URL templates (see previews.ts). */
+  /** Branch previews: snapshot packages, per-branch deploy URL templates and production URLs (see previews.ts). */
   previews?: PreviewsConfig | undefined;
 }
 
@@ -174,7 +174,7 @@ export interface BridgeConfigInput {
   cssVar?: Partial<BridgeConfig['cssVar']>;
   governance?: Partial<Omit<GovernanceConfig, 'owners' | 'override'>> & { owners?: Partial<Owners>; override?: Partial<OverridePolicy> };
   audit?: AuditConfig;
-  previews?: { packages?: string[]; apps?: PreviewApps };
+  previews?: { packages?: string[]; apps?: PreviewApps; production?: PreviewApps };
 }
 
 export const DEFAULT_TOKEN_PATHS: TokenPaths = {
@@ -330,7 +330,15 @@ export function defineConfig(input: BridgeConfigInput): BridgeConfig {
         : {}),
     },
     ...(input.audit ? { audit: { ...input.audit } } : {}),
-    ...(input.previews ? { previews: { packages: input.previews.packages ?? [], apps: { ...input.previews.apps } } } : {}),
+    ...(input.previews
+      ? {
+          previews: {
+            packages: input.previews.packages ?? [],
+            apps: { ...input.previews.apps },
+            ...(input.previews.production ? { production: { ...input.previews.production } } : {}),
+          },
+        }
+      : {}),
   };
 }
 
@@ -460,14 +468,18 @@ export function loadConfig(source: string | unknown): BridgeConfig {
     if (!isObj(pv)) problems.push('"previews" must be an object');
     else {
       if (pv.packages !== undefined && !isStrList(pv.packages)) problems.push('"previews.packages" must be a list of package names');
-      const apps = pv.apps;
-      if (apps !== undefined) {
-        if (!isObj(apps)) problems.push('"previews.apps" must be an object');
-        else
-          for (const [k, v] of Object.entries(apps)) {
-            if (!(k in PREVIEW_APP_LABELS)) problems.push(`"previews.apps.${k}" is not a known app (${Object.keys(PREVIEW_APP_LABELS).join(', ')})`);
-            else if (!isStr(v) || !/^https?:\/\//.test(v)) problems.push(`"previews.apps.${k}" must be an http(s) URL template`);
-          }
+      for (const field of ['apps', 'production'] as const) {
+        const apps = pv[field];
+        if (apps === undefined) continue;
+        if (!isObj(apps)) {
+          problems.push(`"previews.${field}" must be an object`);
+          continue;
+        }
+        for (const [k, v] of Object.entries(apps)) {
+          if (!(k in PREVIEW_APP_LABELS)) problems.push(`"previews.${field}.${k}" is not a known app (${Object.keys(PREVIEW_APP_LABELS).join(', ')})`);
+          else if (!isStr(v) || !/^https?:\/\//.test(v)) problems.push(`"previews.${field}.${k}" must be an http(s) URL${field === 'apps' ? ' template' : ''}`);
+          else if (field === 'production' && /\{\w+\}/.test(v)) problems.push(`"previews.production.${k}" is a fixed URL: placeholders such as {branch} belong in "previews.apps"`);
+        }
       }
     }
   }

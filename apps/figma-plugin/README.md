@@ -16,6 +16,10 @@ The plugin has three tabs: **Pull** (code to Figma, "Bring the latest tokens fro
 It works on the free Figma plan: it only uses the Plugin API (`figma.variables`) and the GitHub REST
 API. Nothing is synced live and nothing is written to `main` directly.
 
+See it with real data on the live Bridge site: the [token explorer](https://bridge.floriangouloubi.com/studio/tokens/)
+shows what a Pull brings into Figma, and [Reviews](https://bridge.floriangouloubi.com/studio/reviews/?pr=4) shows
+the pull request a Push opened (PR #4). Components are in [Storybook](https://bridge-storybook.floriangouloubi.com).
+
 ## Install (Figma desktop)
 
 1. From the repo root: `npm install`, then `npm run plugin:build` (writes `apps/figma-plugin/dist/`).
@@ -23,8 +27,9 @@ API. Nothing is synced live and nothing is written to `main` directly.
    `apps/figma-plugin/manifest.json`.
 3. Run it from **Plugins > Development > DS Bridge**.
 
-The `id` in `manifest.json` (`ds-bridge-dev`) is a placeholder for local development. Publishing the
-plugin would need an id issued by Figma.
+The `id` in `manifest.json` (`ds-bridge-dev`) is a placeholder for local development. Figma issues the
+real id when the plugin is first published; commit it then. The Community listing (copy, icon, cover,
+gallery) and the publishing steps are in [`community/`](community/listing.md).
 
 ## GitHub token
 

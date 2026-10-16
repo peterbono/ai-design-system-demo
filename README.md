@@ -30,12 +30,23 @@ to it as pull requests that people review.
 
 Maintained by Florian Gouloubi. Licensed MIT.
 
+## Live
+
+| App | URL | What it is |
+| --- | --- | --- |
+| Bridge | <https://bridge.floriangouloubi.com> | Docs and Studio: token explorer, component docs, Reviews, History, Branches |
+| Admin demo | <https://bridge-demo.floriangouloubi.com> | The react-admin e-commerce back office, migrated from MUI to Bridge |
+| Storybook | <https://bridge-storybook.floriangouloubi.com> | Component workbench and visual test fixtures |
+
+All three deploy from `main` on Vercel. Every pull request also gets a per-branch deploy of each, linked in the PR
+comment and on the [Branches](https://bridge.floriangouloubi.com/studio/branches/) page.
+
 ## Status
 
 Working and tested end to end in this repository, **not published yet**. The packages are ready for npm under
 the `@bridge-ds` scope (`npm run build:packages` builds and checks every `dist/`), and the release workflow is
-inert until an `NPM_TOKEN` secret exists. Until then, use Bridge from a clone. Preview deploys need the hosting
-and pkg.pr.new setup described in [`docs/PREVIEWS.md`](docs/PREVIEWS.md).
+inert until an `NPM_TOKEN` secret exists. Until then, use Bridge from a clone. The apps above and their branch
+previews run on Vercel; snapshot packages need the pkg.pr.new setup in [`docs/PREVIEWS.md`](docs/PREVIEWS.md).
 
 ## Quickstart
 

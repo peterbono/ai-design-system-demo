@@ -14,6 +14,8 @@ export interface PreviewsConfig {
   packages: string[];
   /** Per-branch deploy URL templates. Missing entries mean "not set up". */
   apps: PreviewApps;
+  /** Production URL of each app (the default branch's deploy), fixed URLs without placeholders. */
+  production?: PreviewApps | undefined;
 }
 
 export const PREVIEW_APP_LABELS: Record<keyof PreviewApps, string> = { docs: 'Docs', storybook: 'Storybook', admin: 'Admin demo' };
@@ -77,6 +79,25 @@ export function previewLinks(apps: PreviewApps, ctx: PreviewContext): { app: key
     if (url) out.push({ app, label: PREVIEW_APP_LABELS[app], url });
   }
   return out;
+}
+
+/**
+ * Where an app lives for a build: its branch preview on any branch other than the default one, its production URL
+ * on the default branch or when the branch is unknown (local builds). Falls back to the other one when only one is
+ * set up, and returns null when neither is. Trailing slash removed, for joining paths.
+ */
+export function appUrl(
+  previews: Pick<PreviewsConfig, 'apps' | 'production'> | undefined,
+  app: keyof PreviewApps,
+  ctx: { branch?: string | undefined; defaultBranch?: string | undefined } = {},
+): string | null {
+  const main = ctx.defaultBranch ?? 'main';
+  const production = previewUrl(previews?.production?.[app], { branch: main });
+  const onPreview = !!ctx.branch && ctx.branch !== main;
+  const url = onPreview
+    ? (previewUrl(previews?.apps[app], { branch: ctx.branch! }) ?? production)
+    : (production ?? previewUrl(previews?.apps[app], { branch: main }));
+  return url ? url.replace(/\/$/, '') : null;
 }
 
 /**
