@@ -1,0 +1,65 @@
+{
+  "summary": "The top of a page: the page title, a one-line lead that says what the page is for, an optional meta line (freshness, counts) and up to three page actions.",
+  "preview": {
+    "c": "PageHeader",
+    "p": { "title": "Spacing", "meta": "Updated 3 days ago" },
+    "children": ["A 4 px base scale: step n is n times 4 px. Tight inside groups, generous between them."]
+  },
+  "whenToUse": [
+    "Once at the top of every page, so titles, leads and actions sit in the same place across the product.",
+    "lead: one or two sentences on what the page is for, not how to use it.",
+    "meta: a quiet line for facts that build trust, like when the page was last updated or where its data comes from.",
+    "actions: the page-level actions (Edit in Studio, Create token). Keep the primary one last.",
+    "headingLevel 2 when the header tops a section inside a page that already has an h1."
+  ],
+  "whenNotToUse": [
+    "Section titles inside a page: use a plain h2 heading.",
+    "Dialogs and drawers: they have their own title slot.",
+    "Promotional heroes with art and several calls to action: build them in the page, outside the system."
+  ],
+  "dos": [
+    {
+      "title": "Name the page as the navigation does",
+      "text": "The title repeats the sidebar label, so users know they landed where they clicked.",
+      "example": { "c": "PageHeader", "p": { "title": "Typography" }, "children": ["Plex Sans for UI and body text, Plex Mono for token names and values."] }
+    },
+    {
+      "title": "Keep the lead to one idea",
+      "text": "One or two sentences that say what the page is for. Details belong in the content.",
+      "example": { "c": "PageHeader", "p": { "title": "Install", "meta": "Updated today" }, "children": ["Use the packages in a product, or the Figma plugin. Both read the same token files."] }
+    }
+  ],
+  "donts": [
+    {
+      "title": "A paragraph as the lead",
+      "text": "A long lead pushes the content below the fold and nobody reads it.",
+      "example": { "c": "PageHeader", "p": { "title": "Color" }, "children": ["Color tokens are organized in tiers. Primitives hold raw values. Semantic tokens point at primitives. Component tokens point at semantic tokens. Each tier has rules, and each rule has exceptions, which are listed below in the order they were added, with the reasoning for each one."] }
+    },
+    {
+      "title": "Title in all caps or title case",
+      "text": "Sentence case reads faster and matches the rest of the interface.",
+      "example": { "c": "PageHeader", "p": { "title": "DESIGN TOKENS OVERVIEW" } }
+    }
+  ],
+  "accessibility": [
+    "Renders a header element with a real heading (h1 by default), so the page outline and screen reader heading navigation start here.",
+    "One h1 per page: use headingLevel 2 when the page already has one.",
+    "Actions keep their own roles: a Button for actions on this page, a link (Button with render={<a />}) for navigation.",
+    "The meta line is plain text in the muted color, which passes AA on every surface."
+  ],
+  "contentGuidelines": [
+    "Title: the page name in sentence case, one to three words, no trailing period.",
+    "Lead: one or two sentences, present tense, says what the page is for.",
+    "Meta: facts, not marketing: \"Updated 3 days ago\", \"38 components\".",
+    "Actions: verb plus object (\"Edit in Studio\", \"Create token\")."
+  ],
+  "anatomy": {
+    "pageHeader": "Container",
+    "text": "Title, lead and meta column",
+    "title": "Page title (h1 by default)",
+    "titleSm": "Title at heading level 2",
+    "lead": "Lead text",
+    "meta": "Meta line",
+    "actions": "Page actions"
+  }
+}

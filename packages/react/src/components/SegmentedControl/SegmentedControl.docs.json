@@ -1,0 +1,121 @@
+{
+  "summary": "Picks one of two to five views or modes, shown side by side as attached buttons: the brand of a preview, the density, light or dark. The choice applies at once, on the current screen.",
+  "preview": {
+    "c": "SegmentedControl",
+    "p": {
+      "label": "Density",
+      "defaultValue": "comfortable",
+      "items": [
+        { "value": "comfortable", "label": "Comfortable" },
+        { "value": "compact", "label": "Compact" }
+      ]
+    }
+  },
+  "whenToUse": [
+    "Switching how the same content is shown: Light or Dark, Comfortable or Compact, Grid or List.",
+    "Two to five short options that fit on one line, where seeing every option at once helps the choice.",
+    "The change applies immediately, with no Save button.",
+    "Size sm in toolbars, menus and dense panels; md everywhere else. Heights follow the density setting.",
+    "fullWidth inside a narrow panel or menu, so the segments share the width equally."
+  ],
+  "whenNotToUse": [
+    "Switching between panels of different content: use Tabs, which link each tab to its panel.",
+    "A setting in a form that is saved later: use RadioGroup, which shows a label and help per option.",
+    "More than five options or long labels: use Select.",
+    "Turning one thing on or off: use Switch.",
+    "Triggering actions (Export, Delete): use Button or an attached ButtonGroup."
+  ],
+  "dos": [
+    {
+      "title": "Short, parallel labels",
+      "text": "One or two words per segment, same grammatical form, so the set reads as one choice.",
+      "example": {
+        "c": "SegmentedControl",
+        "p": {
+          "label": "Theme",
+          "defaultValue": "light",
+          "items": [
+            { "value": "light", "label": "Light" },
+            { "value": "dark", "label": "Dark" },
+            { "value": "both", "label": "Both" }
+          ]
+        }
+      }
+    },
+    {
+      "title": "Always start with a selection",
+      "text": "A segmented control shows the current mode. Pass value or defaultValue so one segment is always selected.",
+      "example": {
+        "c": "SegmentedControl",
+        "p": {
+          "label": "Brand",
+          "defaultValue": "bridge",
+          "size": "sm",
+          "items": [
+            { "value": "bridge", "label": "Bridge" },
+            { "value": "ocean", "label": "Ocean" }
+          ]
+        }
+      }
+    }
+  ],
+  "donts": [
+    {
+      "title": "Actions dressed as segments",
+      "text": "Segments select a mode; they never run a command. \"Export\" and \"Share\" belong on buttons.",
+      "example": {
+        "c": "SegmentedControl",
+        "p": {
+          "label": "Actions",
+          "items": [
+            { "value": "export", "label": "Export" },
+            { "value": "share", "label": "Share" },
+            { "value": "delete", "label": "Delete" }
+          ]
+        }
+      }
+    },
+    {
+      "title": "Too many or too long options",
+      "text": "Past five segments or two words each, the row wraps or truncates and stops reading as one control. Use Select.",
+      "example": {
+        "c": "SegmentedControl",
+        "p": {
+          "label": "Token type",
+          "defaultValue": "color",
+          "size": "sm",
+          "items": [
+            { "value": "color", "label": "Color tokens" },
+            { "value": "space", "label": "Spacing tokens" },
+            { "value": "type", "label": "Typography tokens" },
+            { "value": "radius", "label": "Radius tokens" },
+            { "value": "motion", "label": "Motion tokens" },
+            { "value": "shadow", "label": "Shadow tokens" }
+          ]
+        }
+      }
+    }
+  ],
+  "accessibility": [
+    "Base UI RadioGroup with native button radios: role radiogroup on the row, role radio and aria-checked on each segment.",
+    "Tab enters the group on the selected segment and leaves it; arrow keys move the selection, Home and End jump to the ends.",
+    "Give the group a name: label, or aria-labelledby pointing at a visible heading.",
+    "The selected segment is marked by a raised plate and a darker text color, not by color alone.",
+    "The focus ring (focus.ring.color) shows on keyboard focus only.",
+    "Rendered without JavaScript, the HTML keeps role, aria-checked and data-value, so a small script can drive it: flip aria-checked and tabindex, and handle arrow keys."
+  ],
+  "contentGuidelines": [
+    "Sentence case nouns or adjectives: \"Compact\", \"Dark\", \"Grid\". No verbs: segments are states, not actions.",
+    "One or two words. Drop the shared word: \"Light, Dark\", not \"Light theme, Dark theme\".",
+    "Name the group with what is being chosen: \"Density\", \"Brand\", \"Themes shown\"."
+  ],
+  "anatomy": {
+    "root": "Track holding the segments",
+    "sm": "Size sm",
+    "fullWidth": "Full-width track, equal segments",
+    "segment": "One option (native button, role radio)",
+    "leading": "Decoration before the label, for example a color swatch",
+    "icon": "Leading Lucide icon",
+    "label": "Label"
+  }
+}
