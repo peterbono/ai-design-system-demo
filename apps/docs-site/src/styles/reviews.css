@@ -540,6 +540,70 @@
   overflow-wrap: anywhere;
 }
 
+.rv-kind.is-warn {
+  color: var(--br-warn);
+}
+
+.rv-override {
+  display: grid;
+  gap: 0.625rem;
+  margin-top: 0.875rem;
+  padding-top: 0.875rem;
+  border-top: 1px solid var(--br-border);
+}
+
+.rv-override p {
+  margin: 0;
+  color: var(--br-text-muted);
+  line-height: 1.5;
+}
+
+.rv-override .btn {
+  justify-self: start;
+}
+
+.rv-ov-dialog #rv-ov-desc {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.rv-ov-missing {
+  margin: 0;
+  padding: 0.625rem 0.75rem 0.625rem 1.75rem;
+  border-radius: var(--br-radius-control);
+  background-color: var(--br-warn-soft);
+  font-size: var(--br-text-sm);
+}
+
+.rv-ov-dialog textarea {
+  resize: vertical;
+}
+
+.rv-ov-dialog textarea[aria-invalid="true"] {
+  border-color: var(--br-fail);
+}
+
+.rv-ov-dialog select {
+  width: 100%;
+  min-height: 2.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--br-border-strong);
+  border-radius: var(--br-radius-control);
+  background-color: var(--br-surface);
+  color: var(--br-text);
+  font: inherit;
+  font-size: var(--br-text-sm);
+}
+
+.rv-ov-dialog select:focus-visible {
+  outline: 2px solid var(--br-focus);
+  outline-offset: 1px;
+}
+
+#rv-ov-count {
+  margin-top: -0.375rem;
+}
+
 .rv-actions h2 {
   margin-bottom: 0.75rem;
 }

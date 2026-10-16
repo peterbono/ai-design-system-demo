@@ -8,17 +8,22 @@ export interface SiteRepo {
   defaultBranch: string;
   /** GitHub logins that count as design and tech owners for Tier 3 approvals. Empty: any two distinct approvers. */
   owners: { design: string[]; tech: string[] };
+  /** Who may merge past missing approvals from Reviews, with a reason. `allowed` empty: no override. */
+  override: { allowed: string[]; requireReason: boolean; minReasonLength: number };
   /** Token root in the repo, for commits that predate bridge.config.json. */
   tokensRoot: string;
 }
 
-const DEFAULT: SiteRepo = { owner: 'peterbono', repo: 'ai-design-system-demo', defaultBranch: 'main', owners: { design: [], tech: [] }, tokensRoot: 'packages/tokens/src' };
+const DEFAULT: SiteRepo = { owner: 'peterbono', repo: 'ai-design-system-demo', defaultBranch: 'main', owners: { design: [], tech: [] }, override: { allowed: [], requireReason: true, minReasonLength: 20 }, tokensRoot: 'packages/tokens/src' };
 
 interface RawConfig {
   repo?: string | { owner?: string; name?: string; repo?: string; defaultBranch?: string; branch?: string };
   owner?: string;
   defaultBranch?: string;
-  governance?: { owners?: { design?: string[]; tech?: string[] } };
+  governance?: {
+    owners?: { design?: string[]; tech?: string[] };
+    override?: { allowed?: string[]; requireReason?: boolean; minReasonLength?: number };
+  };
   tokens?: { root?: string };
   owners?: { design?: string[]; tech?: string[] };
 }
@@ -46,6 +51,13 @@ export function siteRepo(): SiteRepo {
     const owners = c.governance?.owners ?? c.owners;
     if (c.tokens?.root) out.tokensRoot = c.tokens.root;
     if (owners) out.owners = { design: owners.design ?? [], tech: owners.tech ?? [] };
+    const ov = c.governance?.override;
+    if (ov)
+      out.override = {
+        allowed: ov.allowed ?? [],
+        requireReason: ov.requireReason ?? true,
+        minReasonLength: ov.minReasonLength ?? 20,
+      };
   }
   cache = out;
   return out;

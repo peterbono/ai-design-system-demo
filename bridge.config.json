@@ -60,7 +60,8 @@
       "bridge.config.json",
       "packages/tokens/src/contrast.checks.json"
     ],
-    "owners": { "design": [], "tech": [] }
+    "owners": { "design": ["peterbono"], "tech": ["peterbono"] },
+    "override": { "allowed": ["peterbono"], "requireReason": true, "minReasonLength": 20 }
   },
   "previews": {
     "packages": ["@bridge-ds/tokens", "@bridge-ds/core", "@bridge-ds/react"],

@@ -113,12 +113,39 @@ export function summarizeApprovals(reviews: ReviewLike[], owners: { design: stri
   return { approvers, changesRequested, design, tech };
 }
 
+export interface OverridePolicy {
+  /** GitHub logins allowed to merge as owner override. Empty: nobody. */
+  allowed: string[];
+  requireReason: boolean;
+  minReasonLength: number;
+}
+
+export const NO_OVERRIDE: OverridePolicy = { allowed: [], requireReason: true, minReasonLength: 20 };
+
+export type MissingApproval = 'design approval' | 'tech approval' | 'approval';
+
 export interface MergeGate {
   allowed: boolean;
   reasons: string[];
+  /** True when the only failing reasons are missing approvals and the viewer is in `governance.override.allowed`. */
+  overridable: boolean;
+  /** Approvals still missing, in the words the override comment uses. */
+  missing: MissingApproval[];
 }
 
-/** Whether the Merge button is enabled, and why not. Mirrors docs/GOVERNANCE.md. */
+const normLogin = (x: string) => x.trim().toLowerCase().replace(/^@/, '');
+
+/** Whether `login` may use the owner override. Case-insensitive, a leading @ is ignored. */
+export function canOverride(login: string | null | undefined, policy: OverridePolicy | null | undefined): boolean {
+  if (!login || !policy?.allowed.length) return false;
+  return policy.allowed.map(normLogin).includes(normLogin(login));
+}
+
+/**
+ * Whether the Merge button is enabled, and why not. Mirrors docs/GOVERNANCE.md.
+ * The owner override only ever covers missing approvals: CI failing or running, changes requested, a draft,
+ * a closed pull request or a merge conflict always block, for everyone.
+ */
 export function mergeGate(input: {
   tier: Tier | null;
   ci: CiSummary;
@@ -126,22 +153,95 @@ export function mergeGate(input: {
   draft: boolean;
   mergeable?: boolean | null;
   state: string;
+  /** Login of the connected viewer (GitHub /user). */
+  viewer?: string | null;
+  override?: OverridePolicy | null;
 }): MergeGate {
-  const reasons: string[] = [];
-  if (input.state !== 'open') reasons.push('This pull request is not open.');
-  if (input.draft) reasons.push('It is a draft. Mark it ready for review on GitHub first.');
-  if (input.ci.state === 'fail') reasons.push(`CI fails: ${input.ci.failed.map((f) => f.name).join(', ')}.`);
-  if (input.ci.state === 'pending') reasons.push('CI is still running.');
-  if (input.approvals.changesRequested.length) reasons.push(`Changes requested by @${input.approvals.changesRequested.join(', @')}.`);
+  const blocking: string[] = [];
+  const missing: MissingApproval[] = [];
+  const approvalReasons: string[] = [];
+  if (input.state !== 'open') blocking.push('This pull request is not open.');
+  if (input.draft) blocking.push('It is a draft. Mark it ready for review on GitHub first.');
+  if (input.ci.state === 'fail') blocking.push(`CI fails: ${input.ci.failed.map((f) => f.name).join(', ')}.`);
+  if (input.ci.state === 'pending') blocking.push('CI is still running.');
+  if (input.approvals.changesRequested.length) blocking.push(`Changes requested by @${input.approvals.changesRequested.join(', @')}.`);
   const tier = input.tier ?? 3;
   if (tier === 3) {
-    if (!input.approvals.design) reasons.push('Tier 3 needs a design owner approval.');
-    if (!input.approvals.tech) reasons.push('Tier 3 needs a tech owner approval.');
+    if (!input.approvals.design) {
+      approvalReasons.push('Tier 3 needs a design owner approval.');
+      missing.push('design approval');
+    }
+    if (!input.approvals.tech) {
+      approvalReasons.push('Tier 3 needs a tech owner approval.');
+      missing.push('tech approval');
+    }
   } else if (!input.approvals.approvers.length) {
-    reasons.push(`Tier ${tier} needs one approval.`);
+    approvalReasons.push(`Tier ${tier} needs one approval.`);
+    missing.push('approval');
   }
-  if (input.mergeable === false) reasons.push('GitHub reports a merge conflict.');
-  return { allowed: reasons.length === 0, reasons };
+  const conflict = input.mergeable === false ? ['GitHub reports a merge conflict.'] : [];
+  // Order: state, draft, CI, changes requested, approvals, conflict.
+  const reasons = [...blocking, ...approvalReasons, ...conflict];
+  const allowed = reasons.length === 0;
+  const overridable = !allowed && blocking.length + conflict.length === 0 && missing.length > 0 && canOverride(input.viewer, input.override);
+  return { allowed, reasons, overridable, missing };
+}
+
+export const OVERRIDE_HEADING = '**Bridge owner override**';
+
+/** Problem with an override reason, or null when it is accepted. */
+export function overrideReasonProblem(reason: string, policy: OverridePolicy): string | null {
+  if (!policy.requireReason) return null;
+  const n = reason.trim().length;
+  if (n === 0) return 'Write why this merges without the missing approvals.';
+  if (n < policy.minReasonLength) return `Write at least ${policy.minReasonLength} characters (${n} so far), so the history says why.`;
+  return null;
+}
+
+/**
+ * The audit comment posted on the pull request before an override merge. Stable format: History and the PR
+ * timeline find it by its first line, `**Bridge owner override**`, and read it back with parseOverrideComment.
+ */
+export function overrideComment(login: string, reason: string, missing: MissingApproval[]): string {
+  const why = reason.trim().replace(/\s+/g, ' ').replace(/[.\s]+$/, '');
+  return `${OVERRIDE_HEADING}\n\nOwner override by @${normLogin(login)}: ${why || 'no reason given'}. Missing: ${missing.join(', ')}. Merged from Bridge.`;
+}
+
+/** The comment body after GitHub refused the merge, so the audit trail does not claim a merge that never happened. */
+export function overrideRefusedComment(body: string, message: string): string {
+  return body.replace(/ Merged from Bridge\.$/, ` Merge refused by GitHub: ${message.trim().replace(/[.\s]+$/, '')}. Not merged.`);
+}
+
+export interface OverrideRecord {
+  login: string;
+  reason: string;
+  missing: string[];
+  merged: boolean;
+}
+
+/** Reads an override comment back; null for any other comment. */
+export function parseOverrideComment(body: string | null | undefined): OverrideRecord | null {
+  const text = (body ?? '').trim();
+  if (!text.startsWith(OVERRIDE_HEADING)) return null;
+  const m = text.match(/Owner override by @([\w-]+): ([\s\S]*?)\. Missing: ([^.]*)\. (Merged from Bridge\.|Merge refused by GitHub)/);
+  if (!m) return null;
+  return { login: m[1]!, reason: m[2]!, missing: m[3]!.split(/,\s*/).filter(Boolean), merged: m[4]!.startsWith('Merged') };
+}
+
+export type MergeMethod = 'squash' | 'merge' | 'rebase';
+
+/** Merge methods the repo allows, squash first. Unknown settings (no push access) count as allowed. */
+export function allowedMergeMethods(repo: { allow_squash_merge?: boolean; allow_merge_commit?: boolean; allow_rebase_merge?: boolean } | null | undefined): MergeMethod[] {
+  const out: MergeMethod[] = [];
+  if (repo?.allow_squash_merge !== false) out.push('squash');
+  if (repo?.allow_merge_commit !== false) out.push('merge');
+  if (repo?.allow_rebase_merge !== false) out.push('rebase');
+  return out;
+}
+
+/** Whether the viewer can write to the repo, from `permissions` on GET /repos/{owner}/{repo} with their token. */
+export function canWrite(perms: { admin?: boolean; maintain?: boolean; push?: boolean } | null | undefined): boolean {
+  return Boolean(perms && (perms.admin || perms.maintain || perms.push));
 }
 
 /** Changeset files in a PR (`.changeset/*.md`, not the README) with their bump lines. */

@@ -22,7 +22,8 @@ test('the canonical config: tiers, ordered layers, modes with parity, governance
   assert.equal(c.tokens.layers[4]!.optional, true);
   assert.equal(c.tokens.contrastChecks, 'contrast.checks.json');
   assert.equal(c.contrast?.path, 'packages/tokens/src/contrast.checks.json');
-  assert.deepEqual(c.governance.owners, { design: [], tech: [] });
+  assert.deepEqual(c.governance.owners, { design: ['peterbono'], tech: ['peterbono'] });
+  assert.deepEqual(c.governance.override, { allowed: ['peterbono'], requireReason: true, minReasonLength: 20 });
   assert.equal(c.changesets?.package, '@bridge-ds/tokens');
   assert.equal(c.changeset?.package, '@bridge-ds/tokens');
 });
@@ -35,6 +36,10 @@ test('the flat form still loads and gets conventional layers', () => {
   assert.equal(loadConfig({ repo: 'acme/ds', branch: 'trunk' }).repo?.defaultBranch, 'trunk');
   assert.throws(() => loadConfig({ tokens: { layers: [{ files: 'x/{brand}.json' }] }, modes: { theme: { values: ['l'] } } }), /modes\.brand/);
   assert.throws(() => loadConfig({ governance: { owners: { design: 'me' } } }), /owners/);
+  assert.equal(loadConfig({ repo: 'acme/ds' }).governance.override, undefined);
+  assert.deepEqual(loadConfig({ repo: 'acme/ds', governance: { override: { allowed: ['me'] } } }).governance.override, { allowed: ['me'], requireReason: true, minReasonLength: 20 });
+  assert.throws(() => loadConfig({ governance: { override: { allowed: 'me' } } } as never), /override\.allowed/);
+  assert.throws(() => loadConfig({ governance: { override: { minReasonLength: -1 } } }), /minReasonLength/);
 });
 
 test('globs and token file selection', () => {

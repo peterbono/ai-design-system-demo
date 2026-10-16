@@ -403,6 +403,32 @@
               "description": "Tech owners."
             }
           }
+        },
+        "override": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Owner override: lets the listed logins merge from Bridge when the only thing missing is approvals (solo maintainers, small teams). Never applies while CI fails or runs, when changes are requested, or to a draft. Bridge posts a pull request comment starting with **Bridge owner override** with the login, the reason and the missing approvals before it merges. Absent: no override.",
+          "properties": {
+            "allowed": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "GitHub logins allowed to merge as owner override. They still need write access to the repo.",
+              "default": []
+            },
+            "requireReason": {
+              "type": "boolean",
+              "description": "Ask for a written reason, posted on the pull request as the audit trail.",
+              "default": true
+            },
+            "minReasonLength": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Shortest accepted reason, in characters.",
+              "default": 20
+            }
+          }
         }
       }
     },

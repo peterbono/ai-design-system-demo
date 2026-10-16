@@ -87,6 +87,18 @@ export interface Owners {
   tech: string[];
 }
 
+/** Who may merge past missing approvals, from Bridge, with a written reason. Absent: nobody. */
+export interface OverridePolicy {
+  /** GitHub logins allowed to merge as owner override. */
+  allowed: string[];
+  /** Ask for a written reason, posted on the pull request before the merge. Default true. */
+  requireReason: boolean;
+  /** Shortest accepted reason, in characters. Default 20. */
+  minReasonLength: number;
+}
+
+export const DEFAULT_OVERRIDE: OverridePolicy = { allowed: [], requireReason: true, minReasonLength: 20 };
+
 export interface GovernanceConfig {
   /** Branches no Bridge surface writes to (the default branch is always added). */
   protectedBranches: string[];
@@ -98,6 +110,8 @@ export interface GovernanceConfig {
   guardrails: string[];
   /** GitHub logins that count as design and tech owners. Empty: two distinct approvers stand in. */
   owners: Owners;
+  /** Owner override for missing approvals only (never CI, changes requested or drafts). Absent: no override. */
+  override?: OverridePolicy | undefined;
 }
 
 /** `bridge audit` settings: how product code that consumes the design system is measured. */
@@ -158,7 +172,7 @@ export interface BridgeConfigInput {
   changesets?: { dir?: string; package: string };
   changeset?: { package: string };
   cssVar?: Partial<BridgeConfig['cssVar']>;
-  governance?: Partial<Omit<GovernanceConfig, 'owners'>> & { owners?: Partial<Owners> };
+  governance?: Partial<Omit<GovernanceConfig, 'owners' | 'override'>> & { owners?: Partial<Owners>; override?: Partial<OverridePolicy> };
   audit?: AuditConfig;
   previews?: { packages?: string[]; apps?: PreviewApps };
 }
@@ -305,6 +319,15 @@ export function defineConfig(input: BridgeConfigInput): BridgeConfig {
       labels: g.labels ?? DEFAULT_GOVERNANCE.labels,
       guardrails: g.guardrails ?? [...DEFAULT_GOVERNANCE.guardrails, contrastFile],
       owners: { design: g.owners?.design ?? [], tech: g.owners?.tech ?? [] },
+      ...(g.override
+        ? {
+            override: {
+              allowed: g.override.allowed ?? DEFAULT_OVERRIDE.allowed,
+              requireReason: g.override.requireReason ?? DEFAULT_OVERRIDE.requireReason,
+              minReasonLength: g.override.minReasonLength ?? DEFAULT_OVERRIDE.minReasonLength,
+            },
+          }
+        : {}),
     },
     ...(input.audit ? { audit: { ...input.audit } } : {}),
     ...(input.previews ? { previews: { packages: input.previews.packages ?? [], apps: { ...input.previews.apps } } } : {}),
@@ -416,6 +439,15 @@ export function loadConfig(source: string | unknown): BridgeConfig {
       const o = gov.owners;
       if (o !== undefined && (!isObj(o) || ['design', 'tech'].some((k) => o[k] !== undefined && !(Array.isArray(o[k]) && (o[k] as unknown[]).every((x) => typeof x === 'string')))))
         problems.push('"governance.owners" must be { "design": [logins], "tech": [logins] }');
+      const ov = gov.override;
+      if (ov !== undefined) {
+        if (!isObj(ov)) problems.push('"governance.override" must be an object');
+        else {
+          if (ov.allowed !== undefined && !isStrList(ov.allowed)) problems.push('"governance.override.allowed" must be a list of GitHub logins');
+          if (ov.requireReason !== undefined && typeof ov.requireReason !== 'boolean') problems.push('"governance.override.requireReason" must be true or false');
+          if (ov.minReasonLength !== undefined && !(Number.isInteger(ov.minReasonLength) && (ov.minReasonLength as number) >= 0)) problems.push('"governance.override.minReasonLength" must be a whole number, 0 or more');
+        }
+      }
     }
   }
   const audit = d.audit;

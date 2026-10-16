@@ -1,7 +1,27 @@
 // Reviews: open pull requests of the configured repo, read client-side from the GitHub REST API, with a
 // designer-friendly token diff and governance-aware actions. Without a token every action deep-links to GitHub.
 import { classifyRisk } from '@bridge-ds/core';
-import { mergeGate, parseChangeset, parseTier, summarizeApprovals, summarizeCi, type CheckRunLike, type ReviewLike, type StatusLike, type Tier } from '../lib/review-rules';
+import {
+  allowedMergeMethods,
+  canWrite,
+  mergeGate,
+  NO_OVERRIDE,
+  OVERRIDE_HEADING,
+  overrideComment,
+  overrideReasonProblem,
+  overrideRefusedComment,
+  parseChangeset,
+  parseOverrideComment,
+  parseTier,
+  summarizeApprovals,
+  summarizeCi,
+  type CheckRunLike,
+  type MergeMethod,
+  type OverridePolicy,
+  type ReviewLike,
+  type StatusLike,
+  type Tier,
+} from '../lib/review-rules';
 import { currentViewer, esc, getToken, ghGet, ghWrite, initGitHubConnect, RateLimitError, readRepo, relativeTime, type Fetched } from './github-session';
 import { analyzeTokenFiles, isTokenFile, type TokenReview } from './reviews/token-review';
 import { loadVisualImpact } from './reviews/visual-impact';
@@ -52,14 +72,41 @@ interface Review extends ReviewLike {
 
 const repo = readRepo();
 const R = `/repos/${repo.owner}/${repo.repo}`;
-const OWNERS = (() => {
+const SITE = (() => {
   try {
-    const raw = JSON.parse(document.getElementById('bridge-repo')?.textContent || '{}') as { owners?: { design: string[]; tech: string[] } };
-    return raw.owners ?? { design: [], tech: [] };
+    return JSON.parse(document.getElementById('bridge-repo')?.textContent || '{}') as { owners?: { design: string[]; tech: string[] }; override?: OverridePolicy };
   } catch {
-    return { design: [], tech: [] };
+    return {};
   }
 })();
+const OWNERS = SITE.owners ?? { design: [], tech: [] };
+const OVERRIDE: OverridePolicy = SITE.override ?? NO_OVERRIDE;
+
+interface RepoInfo {
+  permissions?: { admin?: boolean; maintain?: boolean; push?: boolean };
+  allow_squash_merge?: boolean;
+  allow_merge_commit?: boolean;
+  allow_rebase_merge?: boolean;
+}
+/** What the connected token may do on this repo; null without a token. */
+interface Access {
+  login: string;
+  write: boolean;
+  methods: MergeMethod[];
+}
+
+async function readAccess(): Promise<Access | null> {
+  const v = currentViewer();
+  if (!getToken() || !v) return null;
+  try {
+    const info = (await ghGet<RepoInfo>(R)).data;
+    return { login: v.login, write: canWrite(info.permissions), methods: allowedMergeMethods(info) };
+  } catch {
+    return { login: v.login, write: false, methods: ['squash'] };
+  }
+}
+
+const METHOD_LABEL: Record<MergeMethod, string> = { squash: 'Squash and merge', merge: 'Create a merge commit', rebase: 'Rebase and merge' };
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const listEl = () => $('rv-list');
@@ -185,8 +232,10 @@ async function ciFor(sha: string) {
 // Detail
 
 let current: { pull: Pull; tier: Tier | null } | null = null;
+let openSeq = 0;
 
 async function openPr(n: number, push = true) {
+  const seq = ++openSeq;
   if (push) history.pushState({ pr: n }, '', `?pr=${n}`);
   $('rv-list-view').hidden = true;
   const d = detailEl();
@@ -197,12 +246,15 @@ async function openPr(n: number, push = true) {
     const pf = await ghGet<Pull>(`${R}/pulls/${n}`);
     staleNotice(pf);
     const pull = pf.data;
-    const [files, reviews, comments, ci] = await Promise.all([
+    const [files, reviews, comments, ci, access] = await Promise.all([
       ghGet<PrFile[]>(`${R}/pulls/${n}/files?per_page=100`).then((f) => f.data),
       ghGet<Review[]>(`${R}/pulls/${n}/reviews?per_page=100`).then((f) => f.data).catch(() => [] as Review[]),
       ghGet<Comment[]>(`${R}/issues/${n}/comments?per_page=100`).then((f) => f.data).catch(() => [] as Comment[]),
       ciFor(pull.head.sha).catch(() => summarizeCi([])),
+      readAccess(),
     ]);
+    // A newer openPr (other PR, or the viewer changed) owns the page now.
+    if (seq !== openSeq) return;
     // Highest tier wins: the label or checkbox the author set, or what the shared classifier (the one the
     // plugin, the editor and the MCP server use) computes from the changed files.
     const labelled = parseTier(pull.labels, pull.body);
@@ -210,13 +262,13 @@ async function openPr(n: number, push = true) {
     const tier = Math.max(labelled ?? 0, computed) as Tier;
     current = { pull, tier };
     const approvals = summarizeApprovals(reviews, OWNERS, pull.user.login);
-    const gate = mergeGate({ tier, ci, approvals, draft: pull.draft, mergeable: pull.mergeable, state: pull.state });
+    const gate = mergeGate({ tier, ci, approvals, draft: pull.draft, mergeable: pull.mergeable, state: pull.state, viewer: access?.login, override: OVERRIDE });
     const tokenFiles = files.filter((f) => isTokenFile(f.filename));
     const changesets = files.filter((f) => /^\.changeset\/(?!README).+\.md$/.test(f.filename) && f.status !== 'removed');
 
     const visual = touchesVisuals(files.map((f) => f.filename));
-    d.innerHTML = renderDetail(pull, tier, files, reviews, comments, ci, approvals, gate, tokenFiles.length, changesets.length, visual);
-    wireActions(pull, gate);
+    d.innerHTML = renderDetail(pull, tier, files, reviews, comments, ci, approvals, gate, tokenFiles.length, changesets.length, visual, access);
+    wireActions(pull, gate, access);
 
     if (visual) {
       loadVisualImpact($('rv-visual'), {
@@ -272,14 +324,20 @@ function renderDetail(
   tokenCount: number,
   changesetCount: number,
   visual = false,
+  access: Access | null = null,
 ) {
+  const write = Boolean(access?.write);
+  const showOverride = gate.overridable && write;
   const owners = OWNERS.design.length || OWNERS.tech.length;
   const check = (ok: boolean, label: string) => `<li class="${ok ? 'is-pass' : 'is-pending'}"><span class="rv-check" aria-hidden="true"></span>${label}</li>`;
   const conversation = [
     ...reviews
       .filter((r) => r.state !== 'PENDING')
       .map((r) => ({ at: r.submitted_at ?? '', user: r.user, kind: r.state, body: r.body ?? '', url: r.html_url })),
-    ...comments.map((c) => ({ at: c.created_at, user: c.user, kind: 'COMMENT', body: c.body, url: c.html_url })),
+    ...comments.map((c) => {
+      const ov = parseOverrideComment(c.body);
+      return { at: c.created_at, user: c.user, kind: ov ? (ov.merged ? 'OVERRIDE' : 'OVERRIDE_REFUSED') : 'COMMENT', body: ov ? c.body.replace(OVERRIDE_HEADING, '').trim() : c.body, url: c.html_url };
+    }),
   ].sort((a, b) => a.at.localeCompare(b.at));
   const kindLabel: Record<string, [string, string]> = {
     APPROVED: ['is-pass', 'approved'],
@@ -287,6 +345,8 @@ function renderDetail(
     COMMENTED: ['', 'reviewed'],
     DISMISSED: ['', 'review dismissed'],
     COMMENT: ['', 'commented'],
+    OVERRIDE: ['is-warn', 'merged as owner override'],
+    OVERRIDE_REFUSED: ['is-fail', 'tried an owner override'],
   };
   return `
   <nav class="rv-crumbs"><a href="./" data-back>Reviews</a><span aria-hidden="true">/</span><span class="mono">#${pull.number}</span></nav>
@@ -360,6 +420,14 @@ function renderDetail(
         </ul>
         ${approvals.approvers.length ? `<p class="small muted">Approved by @${approvals.approvers.map(esc).join(', @')}</p>` : ''}
         ${gate.allowed ? '' : `<ul class="rv-reasons">${gate.reasons.map((r) => `<li>${esc(r)}</li>`).join('')}</ul>`}
+        ${
+          showOverride
+            ? `<div class="rv-override" data-needs-token>
+                <p class="small">Only approvals are missing. As a listed owner (<span class="mono">governance.override</span>), you can merge without them. Your reason goes on the pull request first.</p>
+                <button type="button" class="btn btn-secondary btn-sm" data-override-open>Merge as owner override</button>
+              </div>`
+            : ''
+        }
       </section>
       <section class="rv-card rv-actions" id="rv-actions">
         <h2>Your review</h2>
@@ -371,11 +439,17 @@ function renderDetail(
             <button type="button" class="btn btn-secondary btn-sm" data-act="REQUEST_CHANGES">Request changes</button>
             <button type="button" class="btn btn-secondary btn-sm" data-act="COMMENT">Comment</button>
           </div>
-          <div class="rv-btns rv-btns-end">
+          ${
+            write
+              ? `<div class="rv-btns rv-btns-end">
             <button type="button" class="btn btn-secondary btn-sm rv-danger" data-act="CLOSE">Close pull request</button>
             <button type="button" class="btn btn-primary btn-sm" data-act="MERGE" ${gate.allowed ? '' : 'disabled aria-describedby="rv-merge-why"'}>Merge</button>
           </div>
-          ${gate.allowed ? '' : `<p class="small muted" id="rv-merge-why">Merge unlocks when the checks above pass.</p>`}
+          ${gate.allowed ? '' : `<p class="small muted" id="rv-merge-why">Merge unlocks when the checks above pass${showOverride ? ', or use the owner override above' : ''}.</p>`}`
+              : access
+                ? `<p class="small rv-warnline">@${esc(access.login)} cannot write to ${esc(repo.owner)}/${esc(repo.repo)}, so merge and close are off. Ask a maintainer for write access, or use a token with Contents and Pull requests set to read and write.</p>`
+                : ''
+          }
         </div>
         <div data-no-token>
           <p class="small">Connect a GitHub token to review from here. Until then, every action opens GitHub.</p>
@@ -388,7 +462,38 @@ function renderDetail(
         <p class="rv-act-status" id="rv-act-status" role="status" aria-live="polite"></p>
       </section>
     </aside>
-  </div>`;
+  </div>
+  ${showOverride ? overrideDialog(pull, gate, access!) : ''}`;
+}
+
+function overrideDialog(pull: Pull, gate: ReturnType<typeof mergeGate>, access: Access) {
+  const min = OVERRIDE.requireReason ? OVERRIDE.minReasonLength : 0;
+  return `<dialog class="gh-dialog rv-ov-dialog" id="rv-ov" role="alertdialog" aria-modal="true" aria-labelledby="rv-ov-title" aria-describedby="rv-ov-desc">
+    <form method="dialog" class="gh-dialog-box" novalidate>
+      <header class="gh-dialog-head"><h2 id="rv-ov-title">Merge #${pull.number} as owner override?</h2></header>
+      <div id="rv-ov-desc">
+        <p>This merges into <span class="mono">${esc(pull.base.ref)}</span> without:</p>
+        <ul class="rv-ov-missing">${gate.missing.map((m) => `<li>${esc(m[0]!.toUpperCase() + m.slice(1))}</li>`).join('')}</ul>
+        <p>CI passes and nobody requested changes. Bridge posts your reason on the pull request as <strong>Bridge owner override</strong>, then merges, so History and the timeline show who skipped the approvals and why.</p>
+      </div>
+      <label class="gh-field" for="rv-ov-reason">
+        <span>Reason${OVERRIDE.requireReason ? '' : ' (optional)'}</span>
+        <textarea id="rv-ov-reason" rows="3" ${min ? `minlength="${min}" required aria-required="true"` : ''} aria-describedby="rv-ov-count" placeholder="Solo maintainer, CI green, I reviewed the token diff and contrast."></textarea>
+      </label>
+      <p class="small muted" id="rv-ov-count">${min ? `At least ${min} characters.` : 'Shown on the pull request.'}</p>
+      ${
+        access.methods.length > 1
+          ? `<label class="gh-field" for="rv-ov-method"><span>Merge method</span><select id="rv-ov-method">${access.methods.map((m) => `<option value="${m}">${METHOD_LABEL[m]}</option>`).join('')}</select></label>`
+          : `<input type="hidden" id="rv-ov-method" value="${access.methods[0] ?? 'squash'}" />`
+      }
+      <p class="gh-error" id="rv-ov-error" role="alert" hidden></p>
+      <footer class="gh-dialog-foot">
+        <span class="gh-spacer"></span>
+        <button type="submit" value="cancel" class="btn btn-secondary btn-sm" autofocus>Cancel</button>
+        <button type="button" class="btn btn-primary btn-sm" id="rv-ov-go">Post reason and merge</button>
+      </footer>
+    </form>
+  </dialog>`;
 }
 
 function syncAuthViews() {
@@ -397,8 +502,76 @@ function syncAuthViews() {
   document.querySelectorAll<HTMLElement>('[data-no-token]').forEach((el) => (el.hidden = has));
 }
 
-function wireActions(pull: Pull, gate: ReturnType<typeof mergeGate>) {
+function wireOverride(pull: Pull, access: Access, gate: ReturnType<typeof mergeGate>) {
+  const dialog = document.getElementById('rv-ov') as HTMLDialogElement | null;
+  if (!dialog) return;
+  const reason = $<HTMLTextAreaElement>('rv-ov-reason');
+  const count = $('rv-ov-count');
+  const error = $('rv-ov-error');
+  const go = $<HTMLButtonElement>('rv-ov-go');
+  const method = () => (document.getElementById('rv-ov-method') as HTMLSelectElement | HTMLInputElement).value as MergeMethod;
+  const min = OVERRIDE.requireReason ? OVERRIDE.minReasonLength : 0;
+  const fail = (text: string) => {
+    error.textContent = text;
+    error.hidden = false;
+  };
+  document.querySelector('[data-override-open]')?.addEventListener('click', () => {
+    error.hidden = true;
+    dialog.showModal();
+  });
+  reason.addEventListener('input', () => {
+    const n = reason.value.trim().length;
+    count.textContent = min ? (n >= min ? `${n} characters.` : `${n} of at least ${min} characters.`) : 'Shown on the pull request.';
+    reason.removeAttribute('aria-invalid');
+    error.hidden = true;
+  });
+  go.addEventListener('click', async () => {
+    const problem = overrideReasonProblem(reason.value, OVERRIDE);
+    if (problem) {
+      reason.setAttribute('aria-invalid', 'true');
+      fail(problem);
+      reason.focus();
+      return;
+    }
+    error.hidden = true;
+    go.disabled = true;
+    go.textContent = 'Posting reason';
+    const body = overrideComment(access.login, reason.value, gate.missing);
+    let comment: { id: number } | null = null;
+    try {
+      comment = await ghWrite<{ id: number }>('POST', `${R}/issues/${pull.number}/comments`, { body });
+    } catch (err) {
+      fail(`GitHub did not take the comment, so nothing was merged: ${(err as Error).message}`);
+      go.disabled = false;
+      go.textContent = 'Post reason and merge';
+      return;
+    }
+    go.textContent = 'Merging';
+    const m = method();
+    try {
+      await ghWrite('PUT', `${R}/pulls/${pull.number}/merge`, {
+        merge_method: m,
+        sha: pull.head.sha,
+        ...(m === 'rebase' ? {} : { commit_message: body.replace(OVERRIDE_HEADING, '').trim() }),
+      });
+    } catch (err) {
+      const msg = (err as Error).message.trim().replace(/[.\s]+$/, '');
+      await ghWrite('PATCH', `${R}/issues/comments/${comment.id}`, { body: overrideRefusedComment(body, msg) }).catch(() => undefined);
+      fail(`GitHub refused the merge: ${msg}. Your reason stays on the pull request, marked not merged. Branch protection may need an approving review or an admin bypass.`);
+      go.disabled = false;
+      go.textContent = 'Post reason and merge';
+      return;
+    }
+    dialog.close();
+    await openPr(pull.number, false);
+    const done = document.getElementById('rv-act-status');
+    if (done) done.textContent = `Merged as owner override. The reason is on #${pull.number}.`;
+  });
+}
+
+function wireActions(pull: Pull, gate: ReturnType<typeof mergeGate>, access: Access | null) {
   syncAuthViews();
+  if (access && gate.overridable && access.write) wireOverride(pull, access, gate);
   const status = $('rv-act-status');
   const body = $<HTMLTextAreaElement>('rv-body');
   document.querySelectorAll<HTMLButtonElement>('#rv-actions [data-act]').forEach((b) =>
@@ -483,8 +656,14 @@ export function renderTokenReview(review: TokenReview): string {
 // ---------------------------------------------------------------------------------------------------------------
 
 export function initReviews() {
-  initGitHubConnect(() => {
+  let lastLogin: string | null | undefined;
+  initGitHubConnect((v) => {
     syncAuthViews();
+    // The gate depends on who is connected (owner override, write access): repaint an open pull request.
+    const login = v?.login ?? null;
+    const n = Number(new URLSearchParams(location.search).get('pr'));
+    if (n && login !== (lastLogin ?? null)) openPr(n, false);
+    lastLogin = login;
   });
   document.addEventListener('click', (e) => {
     const a = (e.target as HTMLElement).closest<HTMLAnchorElement>('[data-open-pr]');
