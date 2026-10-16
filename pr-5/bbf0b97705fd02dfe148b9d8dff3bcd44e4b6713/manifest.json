@@ -1,15 +1,15 @@
 {
   "version": 1,
   "tool": "@bridge-ds/visual",
-  "createdAt": "2026-10-16T18:15:17.007Z",
-  "durationMs": 290719,
+  "createdAt": "2026-10-16T20:05:13.280Z",
+  "durationMs": 294357,
   "base": {
-    "ref": "743f5fefead7cc9a46a50635e53dc25ac4c49947",
-    "sha": "743f5fefead7cc9a46a50635e53dc25ac4c49947"
+    "ref": "f437ca03840160035c138219bbef0902aec4de61",
+    "sha": "f437ca03840160035c138219bbef0902aec4de61"
   },
   "head": {
-    "ref": "f103729f4add3e725a5c2779c61be73d198ff525",
-    "sha": "f103729f4add3e725a5c2779c61be73d198ff525"
+    "ref": "bbf0b97705fd02dfe148b9d8dff3bcd44e4b6713",
+    "sha": "bbf0b97705fd02dfe148b9d8dff3bcd44e4b6713"
   },
   "options": {
     "only": [
@@ -8433,6 +8433,7 @@
       ".changeset/bridge-visual-impact.md",
       ".changeset/config.json",
       ".changeset/docs-site-metadata.md",
+      ".changeset/ds-bridge-test-change-bg-20261016-1437.md",
       ".changeset/initial-foundation.md",
       ".changeset/publishable-tools.md",
       ".github/workflows/ci.yml",
