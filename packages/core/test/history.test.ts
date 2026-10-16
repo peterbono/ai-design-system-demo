@@ -104,7 +104,7 @@ test('revert with a conflict: the token changed again later, kept unless asked',
   assert.ok(forced.contrast.length > 0, 'contrast before and after');
   assert.deepEqual(forced.files.map((f) => f.path), [`packages/tokens/src/${LIGHT}`, '.changeset/bridge-revert-feat-tokens-darken-muted-text-3.md']);
   assert.ok(forced.branch.startsWith('bridge/revert-'));
-  assert.doesNotMatch(forced.prBody, /—/);
+  assert.doesNotMatch(forced.prBody, /\u2014/);
   // Minimal diff: one line changes in the token file.
   const before = fx.head.get(LIGHT)!.split('\n');
   const after = forced.files[0]!.content.split('\n');

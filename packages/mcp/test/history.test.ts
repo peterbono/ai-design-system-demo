@@ -61,7 +61,7 @@ describe('history tools', () => {
     expect(forced.status).toBe('ready');
     expect(forced.title).toBe('Revert: feat(tokens): darken muted text (#3)');
     expect(forced.prBody).toContain('Reverts [#3](https://github.com/peterbono/ai-design-system-demo/pull/3)');
-    expect(forced.prBody).not.toMatch(/—/);
+    expect(forced.prBody).not.toMatch(/\u2014/);
     expect(forced.contrast.moved).toBeGreaterThan(0);
     const clean = (await history.planRevertOp(ctx, { target: '7' })) as any;
     expect(clean).toMatchObject({ status: 'ready', tier: 3, conflicts: [] });
