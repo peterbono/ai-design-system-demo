@@ -12,7 +12,7 @@ await build({
   format: 'esm',
   platform: 'node',
   target: 'node20',
-  external: ['@modelcontextprotocol/sdk', '@modelcontextprotocol/sdk/*', 'zod', 'zod/*'],
+  external: ['playwright-core', 'pixelmatch', 'pngjs', '@modelcontextprotocol/sdk', '@modelcontextprotocol/sdk/*', 'zod', 'zod/*'],
   logLevel: 'warning',
   absWorkingDir: new URL('.', import.meta.url).pathname,
 });

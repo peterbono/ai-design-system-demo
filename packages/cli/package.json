@@ -24,7 +24,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@bridge/mcp": "0.1.0"
+    "@bridge/mcp": "0.1.0",
+    "@bridge/visual": "0.1.0"
   },
   "devDependencies": {
     "@types/node": "20.19.9",

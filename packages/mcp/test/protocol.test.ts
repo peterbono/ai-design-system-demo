@@ -21,6 +21,7 @@ const TOOLS = [
   'bridge_scaffold_component',
   'bridge_search_tokens',
   'bridge_validate_tokens',
+  'bridge_visual_impact',
 ];
 
 let client: Client;
@@ -41,7 +42,7 @@ describe('MCP over stdio', () => {
     expect(client.getInstructions()).toMatch(/never writes to main/);
   });
 
-  it('lists the 15 tools with JSON schemas and read-only hints', async () => {
+  it('lists the 16 tools with JSON schemas and read-only hints', async () => {
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual(TOOLS);
     const getToken = tools.find((t) => t.name === 'bridge_get_token')!;

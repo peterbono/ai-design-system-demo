@@ -11,7 +11,7 @@ await build({
   format: 'esm',
   platform: 'node',
   target: 'node20',
-  external: ['@bridge/mcp', '@modelcontextprotocol/sdk', '@modelcontextprotocol/sdk/*', 'zod', 'zod/*'],
+  external: ['@bridge/mcp', 'playwright-core', 'pixelmatch', 'pngjs', '@modelcontextprotocol/sdk', '@modelcontextprotocol/sdk/*', 'zod', 'zod/*'],
   logLevel: 'warning',
   absWorkingDir: new URL('.', import.meta.url).pathname,
 });

@@ -1,6 +1,6 @@
 // Every Bridge operation as a plain async function. The MCP server and the CLI are thin wrappers over these.
 import { mkdir, writeFile, access } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { auditSnippet } from './audit.js';
 import { getComponent, listComponents, scaffoldComponent, type ScaffoldInput } from './components.js';
 import type { BridgeContext } from './context.js';
@@ -486,4 +486,65 @@ export async function scaffoldComponentOp(ctx: BridgeContext, a: ScaffoldInput &
 export async function auditUi(ctx: BridgeContext, code: string) {
   const set = await ctx.tokens();
   return auditSnippet(set, code);
+}
+
+// --- visual impact ----------------------------------------------------------------------------------------
+
+/**
+ * Visual impact of a change: screenshots of the stories and app screens it touches at both refs, pixel-diffed.
+ * Local repos only (it builds Storybook and the app). `plan` returns the selection without building.
+ */
+export async function visualImpact(
+  ctx: BridgeContext,
+  a: { base?: string; head?: string; out?: string; only?: ('stories' | 'app')[]; plan?: boolean; threshold?: number; maxStoriesPerComponent?: number },
+  run?: typeof import('@bridge/visual').runImpact,
+) {
+  if (ctx.mode !== 'local' || !ctx.root) throw new Error('Visual impact needs a local checkout (start Bridge with --root): it builds Storybook and the app at both refs.');
+  if (!ctx.isGit) throw new Error(`${ctx.root} is not a git repository.`);
+  const out = a.out ? resolve(ctx.root, a.out) : join(ctx.root, 'visual-impact');
+  // Loaded on demand: the capture stack (playwright-core, pngjs) is not needed by any other tool.
+  const runImpact = run ?? (await import('@bridge/visual')).runImpact;
+  const r = await runImpact({
+    root: ctx.root,
+    base: a.base ?? 'main',
+    head: a.head ?? 'HEAD',
+    out,
+    ...(a.only?.length ? { only: a.only } : {}),
+    ...(a.plan ? { plan: true } : {}),
+    ...(a.threshold !== undefined ? { threshold: a.threshold } : {}),
+    ...(a.maxStoriesPerComponent ? { maxStoriesPerComponent: a.maxStoriesPerComponent } : {}),
+    log: () => undefined,
+  });
+  const m = r.manifest;
+  const changed = m.shots.filter((s) => s.status !== 'unchanged').sort((x, y) => y.percent - x.percent);
+  return {
+    summary: r.summary,
+    base: m.base,
+    head: m.head,
+    counts: m.summary,
+    selection: {
+      tokens: m.selection.tokens.length,
+      directTokens: m.selection.tokens.filter((t) => t.kind === 'direct').map((t) => t.path),
+      components: m.selection.components.map((c) => ({ id: c.id, why: c.reasons[0] })),
+      stories: m.selection.stories.length,
+      fallback: m.selection.fallback,
+      app: m.selection.app,
+    },
+    changed: changed.slice(0, 25).map((s) => ({
+      label: s.label,
+      mode: `${s.tenant ? `${s.tenant}/` : ''}${s.brand}/${s.theme}`,
+      status: s.status,
+      percent: s.percent,
+      boxes: s.boxes.length,
+      ...(s.images.composite ? { composite: join(r.outDir, s.images.composite) } : {}),
+      ...(s.error ? { error: s.error } : {}),
+    })),
+    outDir: r.outDir,
+    manifest: r.manifestPath,
+    next: a.plan
+      ? 'Plan only. Run again without plan to build both refs and capture (takes minutes, needs Chrome).'
+      : changed.length
+        ? 'Open the composite images (before | after | diff) to review; manifest.json has every shot with bounding boxes.'
+        : 'No visual change in the captured stories and screens.',
+  };
 }

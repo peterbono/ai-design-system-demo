@@ -103,6 +103,7 @@ Any client that speaks MCP over stdio works: run `node packages/mcp/dist/index.j
 | `bridge_get_review` | Review a token PR: diff table, contrast before and after, downstream impact, tier, CI, approvals |
 | `bridge_review_pr` | Comment, approve or request changes on a PR, as you |
 | `bridge_scaffold_component` | Generate a component folder that follows the repo checklist |
+| `bridge_visual_impact` | See what a change does on screen: before/after/diff of the impacted stories and app screens |
 
 Resources: `bridge://tokens/resolved`, `bridge://design-language`, `bridge://guidelines`,
 `bridge://components/{name}`.
@@ -116,10 +117,51 @@ Prompts (slash commands in Claude Code, for example `/mcp__bridge__audit-ui-for-
 
 Things to ask:
 
+- "What does darkening the danger palette change on screen? Plan first, then run it."
+
 - "Which token should this card background use in dark mode?"
 - "Darken muted text in the light theme and show me the contrast impact first."
 - "Review PR 42 for the design owner."
 - "Audit this component's CSS for hardcoded values."
+
+## Visual impact
+
+Token diffs and contrast ratios say what changed; screenshots say what it looks like. `bridge impact` (and the
+`bridge_visual_impact` tool) compares two refs:
+
+```sh
+npm run mcp:build
+node packages/cli/dist/index.js impact --base main --head HEAD            # full run, a few minutes
+node packages/cli/dist/index.js impact --base main --head HEAD --plan     # what would be captured, in seconds
+node packages/cli/dist/index.js impact --only stories --out /tmp/vi       # Storybook only
+```
+
+1. **Selection.** Tokens whose resolved value differs (in any brand, theme or density, through aliases) become
+   CSS variables. The usage index in `@bridge/core` knows which variables each component's CSS reads and which
+   components it renders, so a change reaches the components that read it, then the components that render
+   those. Changed component files map to their own stories. Each directly impacted component gets up to 4
+   stories (`AllStates` first); one reached only through what it renders gets its `AllStates` story. Shared
+   library code, global styles reading a changed token, the Storybook config or the token build fall back to
+   every `AllStates` story. Docs, tests and `*.docs.json` are ignored.
+2. **Builds.** The merge base and the head are checked out as git worktrees in a temp folder, reusing the
+   installed `node_modules` (workspace packages point at each worktree), then tokens, Storybook and the admin
+   app are built. Builds are cached by commit under `node_modules/.cache/bridge-visual`; worktrees are removed.
+3. **Capture.** One headless Chrome (playwright-core, the installed Chrome, no download): stories in
+   bridge/ocean x light/dark at 1024 px; the admin dashboard, orders list, a cancelled order, a rejected review
+   with the drawer open, customers and products per tenant x theme at 1280 x 800. Deterministic: fixed clock and
+   `Math.random`, reduced motion, animations, transitions and caret off, fonts and images loaded, a DOM that
+   stopped changing, remote requests stubbed, `[data-visual-mask]` painted over.
+4. **Diff.** pixelmatch (threshold 0.03, anti-aliasing ignored; one step of a color ramp is about 0.1),
+   bounding boxes of changed regions, and a before | after | diff composite with a zoom on the largest change.
+
+Output: `visual-impact/manifest.json` (every shot: status, changed %, boxes, image paths) and `before/`,
+`after/`, `diff/`, `composite/` PNGs for changed shots. Diffs never fail the command.
+
+On pull requests, `.github/workflows/visual-impact.yml` runs it when tokens, components, the admin or the
+Storybook config change, publishes the images to the orphan branch `bridge-visual` under
+`pr-<number>/<head sha>/`, and keeps one sticky comment up to date with the table and the composites. It labels
+the PR `visual-change` and never fails it. Reviews in the Bridge docs site reads the same manifest: before/after
+slider, diff toggle, brand and theme filters.
 
 ## Safety model
 

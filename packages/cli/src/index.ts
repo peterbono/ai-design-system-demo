@@ -5,6 +5,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join, relative, resolve } from 'node:path';
 import { originRepo } from '@bridge/core/node';
 import { fileURLToPath } from 'node:url';
+import { runImpact, type Only } from '@bridge/visual';
 import { BridgeContext, CONFIG_FILE, core, detectConfig, GitRefSource, LocalSource, ops, optionsFromArgv, serveStdio, toConfigJson, VERSION, type BridgeConfig } from '@bridge/mcp';
 
 const HELP = `bridge ${VERSION}: design system as code, for you and your Claude
@@ -17,6 +18,11 @@ Usage:
   bridge propose --title "..." --set path=value [--set ...] [--file f | --mode theme=dark]
                  [--edits edits.json] [--summary "..."] [--dry-run]
                                       validate + contrast + new local bridge/* branch (never pushes)
+  bridge impact [--base main] [--head HEAD] [--out dir] [--only stories|app] [--threshold 0.03]
+                 [--plan] [--json] [--image-base url] [--artifact-url url] [--keep-unchanged]
+                                      visual impact: build Storybook and the app at both refs, screenshot
+                                      what the change touches, pixel-diff, write manifest.json + images.
+                                      Exit 0 even with diffs (2 on setup errors). Needs Chrome installed.
   bridge mcp [--root dir | --repo owner/name]   start the MCP server on stdio
 
 Options:
@@ -34,7 +40,7 @@ function parse(argv: string[]): Args {
     const a = argv[i]!;
     if (a.startsWith('--')) {
       const [k, inline] = a.slice(2).split(/=(.*)/s, 2) as [string, string | undefined];
-      const takesValue = inline === undefined && argv[i + 1] !== undefined && !argv[i + 1]!.startsWith('--') && !['force', 'json', 'md', 'strict', 'dry-run', 'help'].includes(k);
+      const takesValue = inline === undefined && argv[i + 1] !== undefined && !argv[i + 1]!.startsWith('--') && !['force', 'json', 'md', 'strict', 'dry-run', 'help', 'plan', 'keep-unchanged'].includes(k);
       (out.flags[k] ??= []).push(inline ?? (takesValue ? argv[++i]! : 'true'));
     } else out._.push(a);
   }
@@ -181,6 +187,51 @@ async function propose(a: Args, root: string): Promise<number> {
   return r.status === 'blocked' ? 1 : 0;
 }
 
+async function impact(a: Args, root: string): Promise<number> {
+  const only = (flag(a, 'only') ?? '').split(',').filter(Boolean) as Only[];
+  for (const x of only) if (x !== 'stories' && x !== 'app') throw new UsageError(`--only takes stories or app, got "${x}"`);
+  const num = (k: string) => (flag(a, k) !== undefined ? Number(flag(a, k)) : undefined);
+  const threshold = num('threshold');
+  if (threshold !== undefined && !(threshold >= 0 && threshold <= 1)) throw new UsageError('--threshold is between 0 and 1 (pixelmatch color distance)');
+  const imageBase = flag(a, 'image-base');
+  const artifactUrl = flag(a, 'artifact-url');
+  const out = flag(a, 'out');
+  const cacheDir = flag(a, 'cache');
+  const maxStories = num('max-stories');
+  const r = await runImpact({
+    root,
+    base: flag(a, 'base') ?? 'main',
+    head: flag(a, 'head') ?? 'HEAD',
+    ...(out ? { out: resolve(out) } : {}),
+    ...(only.length ? { only } : {}),
+    ...(threshold !== undefined ? { threshold } : {}),
+    ...(cacheDir ? { cacheDir: resolve(cacheDir) } : {}),
+    ...(maxStories ? { maxStoriesPerComponent: maxStories } : {}),
+    ...(imageBase !== undefined ? { imageBase } : {}),
+    ...(artifactUrl ? { artifactUrl } : {}),
+    plan: has(a, 'plan'),
+    keepUnchanged: has(a, 'keep-unchanged'),
+  });
+  if (has(a, 'json')) {
+    print(JSON.stringify({ summary: r.summary, manifest: r.manifestPath, comment: r.commentPath ?? null, ...r.manifest.summary, selection: r.manifest.selection }, null, 2));
+    return 0;
+  }
+  const sel = r.manifest.selection;
+  if (has(a, 'plan')) {
+    print(`Plan ${r.manifest.base.ref} (${r.manifest.base.sha.slice(0, 7)}) -> ${r.manifest.head.ref} (${r.manifest.head.sha.slice(0, 7)})`);
+    print(`  tokens changing value: ${sel.tokens.length}${sel.tokens.length ? ` (${sel.tokens.filter((t) => t.kind === 'direct').map((t) => t.path).slice(0, 6).join(', ')})` : ''}`);
+    print(`  components: ${sel.components.map((c) => c.id).join(', ') || 'none'}`);
+    print(`  stories: ${sel.stories.length}${sel.fallback ? ` (${sel.fallback})` : ''}`);
+    print(`  app screens: ${sel.app.include ? 'yes' : 'no'} (${sel.app.reason})`);
+    return 0;
+  }
+  print(r.summary);
+  for (const s of r.manifest.shots.filter((x) => x.status !== 'unchanged').slice(0, 30)) print(`  ${s.status.padEnd(9)} ${s.percent.toFixed(2).padStart(6)}%  ${s.label}  [${s.tenant ? `${s.tenant} ` : ''}${s.brand}/${s.theme}]${s.images.composite ? `  ${s.images.composite}` : ''}`);
+  print(`manifest: ${r.manifestPath}`);
+  if (r.commentPath) print(`comment:  ${r.commentPath}`);
+  return 0;
+}
+
 class UsageError extends Error {}
 
 async function main(): Promise<number> {
@@ -206,6 +257,8 @@ async function main(): Promise<number> {
       return diff(a, root);
     case 'propose':
       return propose(a, root);
+    case 'impact':
+      return impact(a, root);
     case 'mcp':
       await serveStdio(optionsFromArgv(argv.slice(1)));
       return -1;

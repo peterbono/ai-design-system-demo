@@ -240,6 +240,26 @@ export function createServer(ctx: BridgeContext): McpServer {
     run((a) => ops.scaffoldComponentOp(ctx, a)),
   );
 
+  server.registerTool(
+    'bridge_visual_impact',
+    {
+      title: 'Visual impact of a change',
+      description:
+        'Screenshots what a design system change touches, before and after, and pixel-diffs them. Picks the impacted stories from the changed token values (CSS variables each component reads) and changed component files, plus the app screens (admin back office, both tenants), in every brand and theme. Builds Storybook and the app at both refs, so a full run takes minutes and needs Chrome; plan: true answers in seconds with the selection only. Returns counts, the largest changes with paths to before | after | diff composites, and the manifest path. Local repos only.',
+      inputSchema: {
+        base: z.string().optional().describe('Base git ref (default main). The merge base with head is used, like a pull request.'),
+        head: z.string().optional().describe('Head git ref (default HEAD). Commits only: uncommitted edits are not captured.'),
+        out: z.string().optional().describe('Output folder, relative to the repo (default visual-impact/).'),
+        only: z.array(z.enum(['stories', 'app'])).optional().describe('Limit to Storybook stories or app screens.'),
+        plan: z.boolean().optional().describe('Only compute what would be captured and why. No build, no browser.'),
+        threshold: z.number().min(0).max(1).optional().describe('Per-pixel color distance that counts as a change (pixelmatch YIQ distance, default 0.03; one step of a color ramp is about 0.1).'),
+        maxStoriesPerComponent: z.number().int().min(1).max(50).optional().describe('Stories per directly impacted component (default 4, AllStates first).'),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+    },
+    run((a) => ops.visualImpact(ctx, a)),
+  );
+
   // --- resources ---
   server.registerResource('resolved-tokens', 'bridge://tokens/resolved', { title: 'Resolved tokens', description: 'Every token resolved in the default mode, plus only the values that differ in each other mode combination.', mimeType: 'application/json' }, async (uri) => {
     const set = await ctx.tokens();
