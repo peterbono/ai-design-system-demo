@@ -79,6 +79,8 @@
   .shot { position: absolute; background: var(--deck); border: 2px solid var(--steel-300); overflow: hidden; }
   .shot img { display: block; width: 100%; }
   .browser { left: 640px; top: 96px; width: 1360px; height: 1100px; border-radius: 18px 0 0 0; border-right: 0; border-bottom: 0; }
+  /* Fitted frame: the whole page width stays inside the canvas (no bleed on the right). */
+  .browser.fit { width: 1220px; border-right: 2px solid var(--steel-300); border-radius: 18px 18px 0 0; }
   .browser .bar { height: 46px; display: flex; align-items: center; gap: 10px; padding: 0 20px; border-bottom: 2px solid var(--steel-200); background: var(--steel-100); }
   .browser .page { height: calc(100% - 46px); overflow: hidden; }
   .browser .bar i { width: 12px; height: 12px; border-radius: 99px; background: var(--steel-300); }
@@ -187,7 +189,7 @@
     <p class="lead">Primitives, Brand, Base, Semantic, Density and Component, with aliases kept across collections. Point <span class="mono" style="font-size:22px">bridge.config.json</span> at your own token files.</p>
   </div>
   <p class="foot">The same tokens in the Bridge Studio token explorer.<br><span class="mono">bridge.floriangouloubi.com/studio/tokens</span></p>
-  <div class="shot browser"><div class="bar"><i></i><i></i><i></i><span class="url">bridge.floriangouloubi.com/studio/tokens/</span></div><div class="page"><img data-shot="web-tokens-full.png" alt="" style="margin-top:-190px"></div></div>
+  <div class="shot browser fit"><div class="bar"><i></i><i></i><i></i><span class="url">bridge.floriangouloubi.com/studio/tokens/</span></div><div class="page"><img data-shot="web-tokens-full.png" alt="" style="margin-top:-170px"></div></div>
 </div>
 
 <script>
