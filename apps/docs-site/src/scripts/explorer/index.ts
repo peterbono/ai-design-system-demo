@@ -517,8 +517,10 @@ export function initTokenExplorer() {
     }
     const cell = target.closest<HTMLElement>('[data-col]');
     if (cell) focusCell(row, Number(cell.dataset.col));
-    if (row.dataset.path) openDetail(row.dataset.path);
-    if (cell) openEditorFor(row, cell);
+    const editing = s.mode === 'edit' && cell?.classList.contains('is-mode');
+    // Editing a cell on a narrow screen opens the editor sheet only, not the detail drawer on top of it.
+    if (row.dataset.path && !(editing && narrow.matches)) openDetail(row.dataset.path);
+    if (cell && editing) openEditorFor(row, cell);
   });
 
   function toggleSection(row: HTMLElement) {
