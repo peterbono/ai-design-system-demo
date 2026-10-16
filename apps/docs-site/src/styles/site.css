@@ -1033,7 +1033,8 @@ tr:target {
 .lookup-form {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
+  /* Align the button with the input, not with the input + hint block. */
+  align-items: flex-start;
   gap: 0.75rem;
   margin-bottom: 1.5rem;
   padding: 1.25rem;
@@ -1045,6 +1046,11 @@ tr:target {
 
 .lookup-form > div {
   flex: 1 1 18rem;
+}
+
+/* Offset equals the field label height plus its gap, so the button sits on the input row. */
+.lookup-form > button {
+  margin-top: calc(1lh + 0.525rem);
 }
 
 .result {
