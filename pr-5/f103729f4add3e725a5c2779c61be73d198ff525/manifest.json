@@ -1,15 +1,15 @@
 {
   "version": 1,
   "tool": "@bridge-ds/visual",
-  "createdAt": "2026-10-16T18:07:30.348Z",
-  "durationMs": 380944,
+  "createdAt": "2026-10-16T18:15:17.007Z",
+  "durationMs": 290719,
   "base": {
     "ref": "743f5fefead7cc9a46a50635e53dc25ac4c49947",
     "sha": "743f5fefead7cc9a46a50635e53dc25ac4c49947"
   },
   "head": {
-    "ref": "7ca755298798e7616cf8457f7f4b7ef3cf516295",
-    "sha": "7ca755298798e7616cf8457f7f4b7ef3cf516295"
+    "ref": "f103729f4add3e725a5c2779c61be73d198ff525",
+    "sha": "f103729f4add3e725a5c2779c61be73d198ff525"
   },
   "options": {
     "only": [
@@ -8420,6 +8420,7 @@
       ".changeset/bridge-core-shared-config.md",
       ".changeset/bridge-history.md",
       ".changeset/bridge-mcp-v0.md",
+      ".changeset/bridge-owner-override.md",
       ".changeset/bridge-react-v1-actions.md",
       ".changeset/bridge-react-v1-data-display.md",
       ".changeset/bridge-react-v1-feedback.md",
@@ -8672,6 +8673,7 @@
       "apps/docs-site/src/lib/mcp.ts",
       "apps/docs-site/src/lib/nav.ts",
       "apps/docs-site/src/lib/repo.ts",
+      "apps/docs-site/src/lib/review-rules.test.ts",
       "apps/docs-site/src/lib/review-rules.ts",
       "apps/docs-site/src/lib/search.ts",
       "apps/docs-site/src/lib/sources.ts",
