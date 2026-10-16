@@ -60,8 +60,8 @@ const principles = [
         <a class="btn btn-secondary" href={GITHUB_URL}><Icon name="github" size={18} />View on GitHub</a>
       </div>
       <p class="hero-note">
-        Open source demo by Florian Gouloubi. It shows an operating model, not a production library: one brand, {s.themes} themes,
-        {s.components} components.
+        Free and open source, by Florian Gouloubi. This workspace runs on the demo design system: {s.brands} brands, {s.themes} themes,
+        {s.densities} densities, {s.components} components.
       </p>
     </div>
     <HeroBridge />
@@ -71,12 +71,12 @@ const principles = [
     <a class="kpi" href="/tokens/">
       <span class="kpi-label">Tokens</span>
       <strong class="kpi-value num">{s.total}</strong>
-      <span class="kpi-sub num">{s.primitives} primitive, {s.semantic} semantic</span>
+      <span class="kpi-sub num">{s.primitives} primitive, {s.brandTokens} brand, {s.semantic} semantic, {s.componentTokens} component</span>
     </a>
     <a class="kpi" href="/playground/">
-      <span class="kpi-label">Themes</span>
-      <strong class="kpi-value num">{s.themes}</strong>
-      <span class="kpi-sub">{s.themeNames.map((t) => t[0]!.toUpperCase() + t.slice(1)).join(' and ')}</span>
+      <span class="kpi-label">Modes</span>
+      <strong class="kpi-value num">{s.brands * s.themes * s.densities}</strong>
+      <span class="kpi-sub num">{s.brands} brands x {s.themes} themes x {s.densities} densities</span>
     </a>
     <a class="kpi" href="/components/">
       <span class="kpi-label">Components</span>

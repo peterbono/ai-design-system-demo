@@ -133,27 +133,45 @@ const inSection = (href: string) => href !== '/' && href !== '/components/' && p
                   </li>
                 ))}
               </ul>
-              {section.groups?.map((g) => (
-                <div class="rail-group">
-                  {section.groups!.length > 1 && <p class="rail-sublabel">{g.label}</p>}
-                  <ul class="rail-sub">
-                    {g.items.map((item) => (
-                      <li>
-                        <a href={item.href} aria-current={isCurrent(item.href) ? 'page' : undefined}>
-                          <span>{item.label}</span>
-                          {item.badge && <span class="rail-badge">{item.badge}</span>}
-                        </a>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
+              {section.groups?.map((g) =>
+                section.groups!.length > 1 ? (
+                  <details class="rail-group" open={g.items.some((item) => isCurrent(item.href)) || undefined}>
+                    <summary class="rail-sublabel">
+                      <span>{g.label}</span>
+                      <span class="rail-count num">{g.items.length}</span>
+                    </summary>
+                    <ul class="rail-sub">
+                      {g.items.map((item) => (
+                        <li>
+                          <a href={item.href} aria-current={isCurrent(item.href) ? 'page' : undefined}>
+                            <span>{item.label}</span>
+                            {item.badge && <span class="rail-badge">{item.badge}</span>}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                ) : (
+                  <div class="rail-group">
+                    <ul class="rail-sub">
+                      {g.items.map((item) => (
+                        <li>
+                          <a href={item.href} aria-current={isCurrent(item.href) ? 'page' : undefined}>
+                            <span>{item.label}</span>
+                            {item.badge && <span class="rail-badge">{item.badge}</span>}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ),
+              )}
             </div>
           ))
         }
         <div class="rail-foot">
           <a href="/llms.txt" class="rail-foot-link"><Icon name="file" size={16} /> llms.txt</a>
-          <p>Bridge by Florian Gouloubi. Open source demo.</p>
+          <p>Bridge by Florian Gouloubi. Free and open source.</p>
         </div>
       </nav>
       <div class="scrim" id="scrim" hidden></div>

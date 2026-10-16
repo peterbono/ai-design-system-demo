@@ -691,6 +691,7 @@
 .issue-detail {
   color: var(--br-text-muted);
   font-size: var(--br-text-sm);
+  overflow-wrap: anywhere;
 }
 
 .health-foot {

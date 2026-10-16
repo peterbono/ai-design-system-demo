@@ -65,6 +65,9 @@
 
 .tx-seg {
   display: inline-flex;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
   padding: 0.1875rem;
   border-radius: var(--br-radius-control);
   background-color: var(--br-bg-sunken);
@@ -73,6 +76,7 @@
 .tx-seg button,
 .tx-types button {
   display: inline-flex;
+  flex: none;
   align-items: center;
   gap: 0.375rem;
   min-height: 2.25rem;
