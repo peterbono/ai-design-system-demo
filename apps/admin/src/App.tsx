@@ -34,6 +34,7 @@ function Admin() {
             layout={AppShell}
             dashboard={Dashboard}
             title={tenant.name}
+            basename={import.meta.env.BASE_URL.replace(/\/$/, '')}
             disableTelemetry
           >
             <CustomRoutes>

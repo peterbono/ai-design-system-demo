@@ -3,6 +3,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
+import { previewUrl, type PreviewApps } from '@bridge-ds/core';
 
 function findRoot(start: string): string {
   let dir = resolve(start);
@@ -24,10 +25,18 @@ export const listDir = (rel: string) => (exists(rel) ? readdirSync(repoPath(rel)
 export const toRel = (abs: string) => relative(ROOT, abs);
 
 /** Repo this workspace documents, from bridge.config.json (see lib/config.ts). Read lazily to avoid an import cycle. */
+function rawConfig(): Record<string, any> {
+  try {
+    return existsSync(join(ROOT, 'bridge.config.json')) ? JSON.parse(readFileSync(join(ROOT, 'bridge.config.json'), 'utf8')) : {};
+  } catch {
+    return {};
+  }
+}
+
 function configuredRepo(): { owner: string; repo: string; defaultBranch: string } {
   const fallback = { owner: 'peterbono', repo: 'ai-design-system-demo', defaultBranch: 'main' };
   try {
-    const raw = existsSync(join(ROOT, 'bridge.config.json')) ? JSON.parse(readFileSync(join(ROOT, 'bridge.config.json'), 'utf8')) : {};
+    const raw = rawConfig();
     const r = raw.repo;
     if (typeof r === 'string' && r.includes('/')) return { ...fallback, owner: r.split('/')[0], repo: r.split('/')[1], defaultBranch: raw.defaultBranch ?? fallback.defaultBranch };
     if (r && typeof r === 'object') return { owner: r.owner ?? fallback.owner, repo: r.name ?? r.repo ?? fallback.repo, defaultBranch: r.defaultBranch ?? r.branch ?? fallback.defaultBranch };
@@ -40,7 +49,21 @@ function configuredRepo(): { owner: string; repo: string; defaultBranch: string 
 const REPO = configuredRepo();
 export const GITHUB_URL = `https://github.com/${REPO.owner}/${REPO.repo}`;
 export const DEFAULT_BRANCH = REPO.defaultBranch;
-export const STORYBOOK_URL = (process.env.STORYBOOK_URL || 'http://localhost:6006').replace(/\/$/, '');
+
+/** Per-branch deploy URL templates from bridge.config.json (`previews.apps`), read by the Branches page too. */
+export const PREVIEW_APPS: PreviewApps = (rawConfig().previews?.apps as PreviewApps | undefined) ?? {};
+export const PREVIEW_PACKAGES: string[] = (rawConfig().previews?.packages as string[] | undefined) ?? [];
+
+/** Branch being built on a preview host (Vercel, Cloudflare Pages, Netlify), or undefined for a local build. */
+export const BUILD_BRANCH: string | undefined =
+  process.env.VERCEL_GIT_COMMIT_REF || process.env.CF_PAGES_BRANCH || (process.env.NETLIFY === 'true' ? process.env.BRANCH : undefined) || undefined;
+
+/** Storybook to link and embed: STORYBOOK_URL, else this branch's Storybook preview, else a local Storybook. */
+export const STORYBOOK_URL = (
+  process.env.STORYBOOK_URL ||
+  (BUILD_BRANCH ? previewUrl(PREVIEW_APPS.storybook, { branch: BUILD_BRANCH }) : null) ||
+  'http://localhost:6006'
+).replace(/\/$/, '');
 
 /** DS Bridge Figma plugin (apps/figma-plugin). Override with PLUGIN_URL once it is published to Figma Community. */
 export const PLUGIN_URL = process.env.PLUGIN_URL || `${GITHUB_URL}/tree/${DEFAULT_BRANCH}/apps/figma-plugin`;

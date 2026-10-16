@@ -1,0 +1,75 @@
+# Release: versions and publishes the @bridge-ds packages with Changesets.
+#
+# On every push to main, changesets/action either
+#   - opens or updates a "Version packages" PR that applies pending .changeset/*.md files (bumps versions,
+#     writes CHANGELOG.md), or
+#   - when that PR has been merged (no pending changesets left), builds and publishes to npm.
+#
+# Inert until set up: without the NPM_TOKEN repository secret every step after the guard is skipped, so merging
+# this file publishes nothing. One-time setup: docs/PREVIEWS.md, "Releases to npm".
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write # version commits and tags
+  pull-requests: write # the "Version packages" PR
+  id-token: write # npm provenance
+
+jobs:
+  release:
+    name: Version or publish
+    # Never from forks.
+    if: github.repository == 'peterbono/ai-design-system-demo'
+    runs-on: ubuntu-latest
+    env:
+      HAS_NPM_TOKEN: ${{ secrets.NPM_TOKEN != '' }}
+    steps:
+      - name: Skip without NPM_TOKEN
+        if: env.HAS_NPM_TOKEN != 'true'
+        run: echo "::notice title=Release skipped::Add the NPM_TOKEN repository secret to enable releases (docs/PREVIEWS.md)."
+
+      - uses: actions/checkout@v4
+        if: env.HAS_NPM_TOKEN == 'true'
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        if: env.HAS_NPM_TOKEN == 'true'
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install
+        if: env.HAS_NPM_TOKEN == 'true'
+        run: npm ci
+
+      - name: Checks before publishing
+        if: env.HAS_NPM_TOKEN == 'true'
+        run: |
+          npm run typecheck
+          npm test
+
+      - name: Version PR or publish
+        if: env.HAS_NPM_TOKEN == 'true'
+        uses: changesets/action@v1
+        with:
+          version: npm run version-packages
+          # build:packages then changeset publish (only packages whose version is not on npm yet).
+          publish: npm run release
+          title: 'chore: version packages'
+          commit: 'chore: version packages'
+          createGithubReleases: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: 'true'

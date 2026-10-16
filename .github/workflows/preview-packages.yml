@@ -1,0 +1,142 @@
+# Branch snapshots: every commit on a pull request publishes the design system packages so a product can install
+# exactly that branch on its staging, without a release and without touching main or production.
+#
+#   1. pkg.pr.new (free for open source): `npm i https://pkg.pr.new/<owner>/<repo>/@bridge-ds/react@<sha>`.
+#      Needs the pkg.pr.new GitHub App installed on this repository (docs/PREVIEWS.md, step 1).
+#   2. Fallback when pkg.pr.new fails or is not installed: `npm pack` tarballs, uploaded as a workflow artifact and
+#      attached to a `preview-pr-<n>` GitHub prerelease (latest commit only), installable by URL.
+#
+# Then one sticky PR comment, "Try this DS branch in your product", with the install commands and the per-branch
+# preview links configured in bridge.config.json (`previews.apps`). Closing the PR deletes the prerelease.
+# Nothing here publishes to the npm registry.
+name: Preview packages
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, closed]
+
+concurrency:
+  group: preview-packages-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write # fallback prerelease
+  pull-requests: write # sticky comment
+
+env:
+  PACKAGE_DIRS: ./packages/tokens ./packages/core ./packages/react
+
+jobs:
+  snapshot:
+    name: Snapshot packages
+    # Fork PRs get a read-only token: they cannot comment or create releases.
+    if: github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The branch head, not the merge commit: the snapshot is what the branch contains.
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build packages (dist, then check every export target exists)
+        run: npm run build:packages
+
+      - name: Publish to pkg.pr.new
+        id: pkgprnew
+        continue-on-error: true
+        # --comment=off: our own sticky comment below also carries the preview links.
+        run: npx --yes pkg-pr-new@0.0.88 publish $PACKAGE_DIRS --comment=off --json=pkg-pr-new.json
+
+      - name: Fallback, pack tarballs
+        id: pack
+        if: steps.pkgprnew.outcome != 'success'
+        env:
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          mkdir -p .packs
+          for dir in $PACKAGE_DIRS; do npm pack "$dir" --pack-destination .packs --silent; done
+          cd .packs
+          for f in *.tgz; do mv "$f" "$(echo "$f" | sed -E "s/-[0-9]+\.[0-9]+\.[0-9]+([-.][^/]*)?\.tgz$/-${SHA:0:7}.tgz/")"; done
+          ls -l
+
+      - name: Fallback, upload artifact
+        if: steps.pack.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: bridge-packages-pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+          path: .packs/*.tgz
+          retention-days: 14
+
+      - name: Fallback, attach to the preview-pr prerelease
+        id: release
+        if: steps.pack.outcome == 'success'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: preview-pr-${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          gh release delete "$TAG" --cleanup-tag --yes 2>/dev/null || true
+          gh release create "$TAG" .packs/*.tgz --prerelease --target "$SHA" \
+            --title "Preview of PR #$PR (${SHA:0:7})" \
+            --notes "Snapshot tarballs of the design system packages for PR #$PR. Not a release: replaced on every push, deleted when the PR closes."
+
+      - name: Sticky comment
+        if: always()
+        uses: actions/github-script@v7
+        env:
+          PKG_PR_NEW: ${{ steps.pkgprnew.outcome }}
+          RELEASE: ${{ steps.release.outcome }}
+        with:
+          script: |
+            const fs = require('node:fs');
+            const path = require('node:path');
+            const ws = process.env.GITHUB_WORKSPACE;
+            // Same URL and text builders as the docs Branches page (packages/core/src/previews.ts).
+            const core_ = await import(path.join(ws, 'packages/core/dist/index.js'));
+            const config = JSON.parse(fs.readFileSync(path.join(ws, 'bridge.config.json'), 'utf8'));
+            const pr = context.payload.pull_request;
+            const { owner, repo } = context.repo;
+            const sha = pr.head.sha;
+            const names = config.previews?.packages ?? [];
+
+            let packages = [];
+            let source = 'none';
+            if (process.env.PKG_PR_NEW === 'success' && fs.existsSync('pkg-pr-new.json')) {
+              const out = JSON.parse(fs.readFileSync('pkg-pr-new.json', 'utf8'));
+              packages = (out.packages ?? []).map((p) => ({ name: p.name, url: p.url }));
+              source = 'pkg.pr.new';
+            } else if (process.env.RELEASE === 'success') {
+              packages = names.map((name) => ({ name, url: core_.tarballUrl(owner, repo, pr.number, name, sha) }));
+              source = 'release';
+            }
+
+            const body = core_.previewComment({
+              owner, repo, pr: pr.number, branch: pr.head.ref, sha, packages, source,
+              apps: config.previews?.apps ?? {},
+            });
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number: pr.number, per_page: 100 });
+            const mine = comments.find((c) => c.user?.type === 'Bot' && c.body?.startsWith(core_.PREVIEW_COMMENT_MARKER));
+            if (mine) await github.rest.issues.updateComment({ owner, repo, comment_id: mine.id, body });
+            else await github.rest.issues.createComment({ owner, repo, issue_number: pr.number, body });
+            core.summary.addRaw(body).write();
+
+  cleanup:
+    name: Remove the preview prerelease
+    if: github.event.action == 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: preview-pr-${{ github.event.pull_request.number }}
+        run: gh release delete "$TAG" --cleanup-tag --yes || echo "No $TAG prerelease to remove."

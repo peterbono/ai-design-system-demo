@@ -7,6 +7,9 @@ const root = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 // The admin consumes the design system from source, like Storybook does, so a token or component change
 // shows up here without a publish step. Aliases point at this checkout's packages.
 export default defineConfig({
+  // Served from the domain root on preview hosts (Vercel, Netlify, Cloudflare Pages). For a sub-path host
+  // (GitHub Pages: /<repo>/admin/), build with BASE_PATH=/<repo>/admin/; the router follows import.meta.env.BASE_URL.
+  base: process.env.BASE_PATH || '/',
   esbuild: { jsx: 'automatic' },
   resolve: {
     alias: [

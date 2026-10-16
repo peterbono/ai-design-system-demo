@@ -131,6 +131,16 @@ Deploy (not done yet): `apps/docs-site/vercel.json` builds from the repo root wi
 `apps/docs-site/dist`. On Vercel, set the project root directory to `apps/docs-site`. Any static host works:
 upload `apps/docs-site/dist`. Set `SITE_URL` for absolute URLs.
 
+## Try a branch in a product (previews)
+
+Every pull request publishes snapshot packages (`npm i https://pkg.pr.new/...@<sha>`), deploys the docs, Storybook
+and admin demo per branch, and posts one "Try this DS branch in your product" comment. A product staging can also
+preview a branch's tokens without reinstalling (`?bridge-tokens=`, allowlisted, off by default). The docs site
+lists open branches under Process > Branches. Setup and security notes: `docs/PREVIEWS.md`.
+
+Packages publish under the `@bridge-ds` npm scope with Changesets (`.github/workflows/release.yml`, inert until
+an `NPM_TOKEN` secret exists). `npm run build:packages` builds and checks the publishable `dist/` folders.
+
 ## The operating model
 
 - **The repo is the source of truth.** Tokens live as W3C DTCG JSON. Figma receives what shipped, and

@@ -6,6 +6,7 @@ import { defineConfig } from 'vitest/config';
 //   core   @bridge-ds/core, pure token logic (node)
 //   docs   docs-site data layer: token review, review rules, token editor model (node)
 //   admin  back-office demo data layer: browser persistence of the demo dataset (node)
+//   scripts repo scripts with logic (Vercel ignored build step)
 export default defineConfig({
   esbuild: { jsx: 'automatic' },
   // Workspace packages export their TypeScript sources under the `source` condition (built files otherwise).
@@ -40,6 +41,14 @@ export default defineConfig({
           name: 'docs',
           environment: 'node',
           include: ['apps/docs-site/src/**/*.test.ts'],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: 'scripts',
+          environment: 'node',
+          include: ['scripts/**/*.test.mjs'],
         },
       },
       {
