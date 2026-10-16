@@ -86,6 +86,9 @@ Any client that speaks MCP over stdio works: run `node packages/mcp/dist/index.j
 
 ## What Claude can do
 
+21 tools: 6 for tokens (config, browse, read, search, contrast, validation), 5 for components and guidance,
+5 for proposals and reviews (visual impact included), 4 for history and revert, 1 for adoption audits.
+
 | Tool | Use it to |
 | --- | --- |
 | `bridge_get_config` | See where the design system is, which modes exist, and what Bridge may write |
@@ -96,13 +99,13 @@ Any client that speaks MCP over stdio works: run `node packages/mcp/dist/index.j
 | `bridge_validate_tokens` | Check DTCG shapes, aliases (broken, circular), type mismatches, light and dark parity |
 | `bridge_list_components` | Pick an existing component before writing new markup |
 | `bridge_get_component` | Read props (types, defaults, allowed values), when to use, dos and donts, accessibility, anatomy |
+| `bridge_scaffold_component` | Generate a component folder that follows the repo checklist |
 | `bridge_get_design_language` | Read the relevant section of the design language |
 | `bridge_get_guidelines` | Read the agent rules (always, ask before, never) and the risk tiers |
 | `bridge_propose_token_change` | Turn token edits into a branch (local) or a draft PR (GitHub), with a designer-friendly body |
 | `bridge_list_reviews` | List open PRs and local proposal branches |
 | `bridge_get_review` | Review a token PR: diff table, contrast before and after, downstream impact, tier, CI, approvals |
 | `bridge_review_pr` | Comment, approve or request changes on a PR, as you |
-| `bridge_scaffold_component` | Generate a component folder that follows the repo checklist |
 | `bridge_visual_impact` | See what a change does on screen: before/after/diff of the impacted stories and app screens |
 | `bridge_get_history` | See what changed in the tokens: versions, merged PRs and commits, who, when, why, tier, breaking |
 | `bridge_get_token_history` | Every change of one token: value before and after per mode, the PR and why, renames followed |

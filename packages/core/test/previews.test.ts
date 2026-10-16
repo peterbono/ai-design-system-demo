@@ -61,7 +61,7 @@ test('previewComment lists installs, previews and the tokens-only override', () 
   assert.match(md, /\| Docs \| https:\/\/docs-feat-x\.example\.com\/ \|/);
   assert.match(md, /\| Storybook \| https:\/\/sb-feat-x\.example\.com\/ \|/);
   assert.match(md, /\?bridge-tokens=https:\/\/docs-feat-x\.example\.com\/tokens\.css/);
-  assert.doesNotMatch(md, /—/, 'no em dash');
+  assert.doesNotMatch(md, /\u2014/, 'no em dash');
 });
 
 test('previewComment explains missing snapshots and missing deploy config', () => {

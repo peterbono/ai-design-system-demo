@@ -1,215 +1,193 @@
-# Bridge design system
+# Bridge
 
-The design system behind **Bridge** (provisional name), run as code and evolved with an AI agent (Claude)
-through branches and pull requests that humans review. Figma is used for exploration; the tokens and
-components in this repo are the source of truth.
+**Bridge is a free, open-source design system as code.** Tokens and components live in this repository and are
+the source of truth. Figma, your AI assistant and your product teams all read from it and propose changes back
+to it as pull requests that people review.
 
-- **Tokens**: W3C DTCG 2025.10 in three tiers (primitive, semantic, component) plus a brand mapping layer,
-  two brands (`bridge`, `ocean`), light and dark themes, comfortable and compact density, built by
-  Style Dictionary 4 with a WCAG contrast gate.
-- **Components**: React on [Base UI](https://base-ui.com) (`@base-ui/react` 1.9) for behavior and accessibility,
-  CSS Modules that only read `var(--*)` tokens, Lucide icons, IBM Plex Sans and Mono.
-- **Quality gates in CI**: token build and contrast, TypeScript, Stylelint (tokens only), Vitest with
-  Testing Library and axe-core, Storybook build with the a11y addon in error mode.
+- **Tokens**: W3C DTCG 2025.10 in tiers (primitives, brands, semantic, density, component), two brands
+  (`bridge`, `ocean`), light and dark themes, comfortable and compact density, built by Style Dictionary with a
+  WCAG contrast gate (220 pairs checked in every brand and theme).
+- **46 React components** on [Base UI](https://base-ui.com) for behavior and accessibility, styled with CSS
+  Modules that only read tokens. Keyboard, ARIA and axe-core tests; an "All states" story for each.
+- **Bridge web platform** (`apps/docs-site`): token explorer, foundations, component docs with a props
+  playground, theme playground, and the process pages: Reviews, History, Branches, Adoption, Governance, Changelog.
+- **DS Bridge Figma plugin** (`apps/figma-plugin`): **Pull** tokens into Figma Variables, **Push** variable edits
+  back as a draft pull request with a three-way diff and the contrast gate. Free Figma plan, Plugin API only.
+- **MCP server and CLI for your own Claude**: 21 MCP tools and the `bridge` command. Claude reads tokens and
+  components, checks contrast, proposes changes on a branch or a draft PR, reviews PRs, audits product code.
+  It never writes to `main`.
+- **Reviews**: token PRs reviewed from Bridge with a diff table, contrast before and after, downstream impact,
+  risk tier, CI status and approvals.
+- **History and revert**: every merged token change with who, when, why and the version it shipped in; a revert
+  planner that shows conflicts with later changes instead of a blind `git revert`.
+- **Visual impact**: `bridge impact` screenshots the stories and app screens a change touches at both refs and
+  pixel-diffs them. On PRs, a sticky comment and a before/after slider in Reviews.
+- **Adoption audit**: `bridge audit <path>` measures token and component adoption in product code, lists
+  hardcoded values with the closest token and foreign components with the DS one to use. Stylelint and ESLint
+  plugins give the same feedback in the editor.
+- **Branch previews**: every PR publishes snapshot packages and per-branch deploys of the docs, Storybook and the
+  admin demo, listed on the Branches page. A product staging can preview a branch's tokens without reinstalling.
 
-Design rationale: [`docs/DESIGN-LANGUAGE.md`](docs/DESIGN-LANGUAGE.md). Architecture: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
-Maintained by Florian Gouloubi, Senior Product Designer. Packages are private and unpublished.
+Maintained by Florian Gouloubi. Licensed MIT.
 
-## Quick start (this repo)
+## Status
+
+Working and tested end to end in this repository, **not published yet**. The packages are ready for npm under
+the `@bridge-ds` scope (`npm run build:packages` builds and checks every `dist/`), and the release workflow is
+inert until an `NPM_TOKEN` secret exists. Until then, use Bridge from a clone. Preview deploys need the hosting
+and pkg.pr.new setup described in [`docs/PREVIEWS.md`](docs/PREVIEWS.md).
+
+## Quickstart
 
 Requires Node 20.19+ (see `.nvmrc`).
 
 ```sh
+git clone https://github.com/peterbono/ai-design-system-demo.git bridge && cd bridge
 npm install
-npm run storybook        # builds tokens, opens Storybook on :6006 (toolbar: Theme, Brand, Density)
-npm test                 # Vitest: keyboard, ARIA and axe-core checks
-npm run ci               # tokens:build, typecheck, lint:css, test, build-storybook
+npm run docs:dev          # Bridge web platform on http://localhost:4321
+npm run storybook         # component workbench on http://localhost:6006
+npm run admin:dev         # the back-office demo built on Bridge
 ```
 
-## Use it in an app
-
-```tsx
-// main.tsx: import the CSS once, in this order
-import '@bridge-ds/tokens/fonts.css';   // IBM Plex Sans + Mono, self-hosted (@fontsource)
-import '@bridge-ds/tokens/tokens.css';  // every token as a CSS variable
-import '@bridge-ds/react/styles.css';   // base: body font, selection, focus, scrollbars
-
-import { Button, Field, Input, ThemeProvider, ToastProvider } from '@bridge-ds/react';
-
-export function App() {
-  return (
-    <ThemeProvider asRoot theme="light" brand="bridge" density="comfortable">
-      <ToastProvider>
-        <Field label="Repository" description="Owner and name, like acme/design-tokens.">
-          <Input placeholder="acme/design-tokens" />
-        </Field>
-        <Button>Connect repository</Button>
-      </ToastProvider>
-    </ThemeProvider>
-  );
-}
-```
-
-### Theming
-
-| Attribute | Values | What it switches |
-| --------- | ------ | ---------------- |
-| `data-theme` | `light` (default), `dark` | Semantic color and elevation tokens |
-| `data-brand` | `bridge` (default), `ocean` | Palette roles, radius roles, font roles, a few semantic overrides |
-| `data-density` | `comfortable` (default), `compact` | Control heights, paddings, row heights, layout gaps |
-
-`ThemeProvider` sets all three together (on `<html>` with `asRoot`, or on a wrapper `div` for a nested
-scope) and passes the scope to portaled overlays. Without React, set the three attributes yourself on the
-same element. Values for tooling live in `@bridge-ds/tokens` (`cssVar`, `primitives`, `brands`, `themes`,
-`densities`, `breakpoints`) and `@bridge-ds/tokens/resolved.json` (every value per brand and theme, plus contrast ratios).
-
-To add a brand: add `packages/tokens/src/brands/<name>.tokens.json` mapping palette, radius and font roles,
-optionally `<name>.<theme>.tokens.json` overrides, add the name to `BRANDS` in `build.mjs`, and let the
-contrast gate tell you which pairs need work.
-
-## Components (v1)
-
-| Family | Components |
-| ------ | ---------- |
-| Foundations | ThemeProvider, Icon, VisuallyHidden |
-| Actions | Button, IconButton, ButtonGroup, Link |
-| Forms | Field, Input, Textarea, Select, Combobox, Checkbox, CheckboxGroup, RadioGroup, Switch, Slider, NumberField, Form |
-| Feedback | Alert, Toast (ToastProvider, useToast), Progress (linear, circular), Spinner, Skeleton, EmptyState |
-| Overlays | Dialog, AlertDialog, Drawer, Popover, Tooltip, Menu (submenus, checkbox and radio items) |
-| Navigation | Tabs, Breadcrumb, Pagination, SidebarNav |
-| Data display | Card, Badge, Avatar (AvatarGroup), Table, Accordion, Tag, Divider, Kbd |
-| Layout | Stack, Inline, Grid, Container |
-
-Every component ships with: a CSS module that only reads tokens, Storybook stories including an
-**All states** story, a `<Name>.docs.json` with usage guidance (when to use, do and don't, accessibility,
-content guidelines) for the docs site, and unit tests for interactive behavior.
-
-## What is inside
-
-```
-packages/tokens   DTCG token JSON (primitives, brands, semantic, density, component tier), build.mjs, contrast gate
-packages/react    components on Base UI, CSS Modules reading var(--*) only, stories, docs.json, tests
-.storybook        react-vite, addon-docs, addon-a11y, pseudo-states; theme, brand and density toolbars
-.changeset        semver bumps and changelog entries
-.github           CI guardrails, CODEOWNERS, PR template with design review checklist
-AGENTS.md         instructions and component checklist for AI agents (CLAUDE.md just imports it)
-docs/             DESIGN-LANGUAGE, ARCHITECTURE, GOVERNANCE, SOURCES, pr-drafts/
-apps/docs-site    Astro documentation site generated from all of the above, plus /llms.txt
-apps/figma-plugin DS Bridge Figma plugin: pull/push variables, 3-way diff, opens PRs
-```
-
-## Documentation site
-
-`apps/docs-site` is a static [Astro](https://astro.build) site for designers and product teams. Every page is
-generated from the repo at build time, so nothing is typed twice:
-
-| Page | Generated from |
-| ---- | -------------- |
-| Foundations: color, contrast, type, spacing, radius, elevation, token lookup | `packages/tokens/src/**` (DTCG JSON), `contrast.checks.json` |
-| Components: usage, do/don't, a11y, anatomy and tokens, props, live preview | `<Name>.docs.json` (guidance), `<Name>.tsx` (props), `<Name>.module.css` (tokens), `<Name>.stories.tsx` (stories) |
-| Governance | `docs/GOVERNANCE.md`, `AGENTS.md` (+ plain-language rewrites in `apps/docs-site/src/content/agent-rules-plain.json`) |
-| Changelog | `.changeset/*.md` and git log (conventional commits) |
-| `/llms.txt` and For AI agents | the same sources, as plain text |
-
-Each page shows a "last updated" date from the git history of its source files. The site is presented as **Bridge**,
-the web side of the DS Bridge Figma plugin: an overview dashboard computed from the repo (token counts, contrast
-pass rate, health issues, recent changes), a theme playground with the real components in light and dark, a token
-explorer, a Cmd+K palette and component pages with a props playground. The app chrome has its own brand tokens
-(`apps/docs-site/src/brand/tokens.ts`, emitted as `--br-*`); the design system is only shown inside preview surfaces
-with its own `@bridge-ds/tokens` variables. `npm run lint:css` checks both. Design decisions: `apps/docs-site/DESIGN.md`.
-
-Props are parsed from the TypeScript types so the table cannot drift from the code; usage guidance lives in a small
-`<Name>.docs.json` next to each component because a parser cannot know when to use a button.
-
-```sh
-npm run docs:dev         # tokens:build, then Astro dev server on :4321
-npm run docs:build       # tokens:build, then static build to apps/docs-site/dist
-STORYBOOK_URL=https://storybook.example.com npm run docs:build   # where component pages embed stories (default http://localhost:6006)
-```
-
-Deploy (not done yet): `apps/docs-site/vercel.json` builds from the repo root with `npm run docs:build` and serves
-`apps/docs-site/dist`. On Vercel, set the project root directory to `apps/docs-site`. Any static host works:
-upload `apps/docs-site/dist`. Set `SITE_URL` for absolute URLs.
-
-## Try a branch in a product (previews)
-
-Every pull request publishes snapshot packages (`npm i https://pkg.pr.new/...@<sha>`), deploys the docs, Storybook
-and admin demo per branch, and posts one "Try this DS branch in your product" comment. A product staging can also
-preview a branch's tokens without reinstalling (`?bridge-tokens=`, allowlisted, off by default). The docs site
-lists open branches under Process > Branches. Setup and security notes: `docs/PREVIEWS.md`.
-
-Packages publish under the `@bridge-ds` npm scope with Changesets (`.github/workflows/release.yml`, inert until
-an `NPM_TOKEN` secret exists). `npm run build:packages` builds and checks the publishable `dist/` folders.
-
-## The operating model
-
-- **The repo is the source of truth.** Tokens live as W3C DTCG JSON. Figma receives what shipped, and
-  Figma edits come back only as reviewed pull requests (DS Bridge), never as a direct write or a live sync.
-- **Tiers keep decisions in one place.** Primitives hold raw scales; brands map them to roles; semantic
-  tokens give them meaning per theme; component tokens give components stable hooks.
-- **Guardrails live in CI, not in prompts.** Stylelint rejects raw values, the token build rejects
-  contrast failures, tests check keyboard and ARIA. The agent cannot talk its way past a failing check.
-- **The agent is a contributor, not a maintainer.** It works on `agent/*` branches, opens PRs, adds a
-  changeset and fills the template. It never merges.
-- **Review effort scales with risk.** Docs and lint fixes are Tier 1; new variants are Tier 2 drafts;
-  token or breaking changes are Tier 3 and need design and tech owner approval (`docs/GOVERNANCE.md`).
-
-## How an AI-authored change flows
-
-```
-issue  ->  agent branch  ->  PR + changeset  ->  CI guardrails  ->  design + tech review  ->  merge  ->  release
-```
-
-Three local branches simulate agent PRs, each with a draft description in `docs/pr-drafts/`:
-
-| Branch | Tier | Expected outcome |
-| ------ | ---- | ---------------- |
-| `agent/badge-subtle-variant` | 2, medium | Approve after design review |
-| `agent/focus-ring-token` | 3, high | Needs design + tech owner approval |
-| `agent/card-elevation-hardcoded` | 2, but CI fails | Request changes: use the elevation token |
-
-```sh
-git switch agent/card-elevation-hardcoded && npm run lint:css   # see the guardrail fail
-```
-
-## Connect your Claude (MCP)
-
-`packages/mcp` is an MCP server that gives Claude Code, Claude Desktop or any MCP client a structured view of
-this design system: tokens resolved per brand, theme and density, the contrast gate, components and their docs,
-the agent rules. Claude can propose token changes as reviewable branches or draft pull requests; it never writes
-to `main`. `packages/cli` adds `bridge init`, `check`, `tokens`, `diff`, `propose` and `mcp`. Free and open
-source (MIT), not published to npm yet:
+Connect your Claude (Claude Code shown; Claude Desktop and other MCP clients in [`docs/AI.md`](docs/AI.md)):
 
 ```sh
 npm run mcp:build
 claude mcp add bridge -- node "$PWD/packages/mcp/dist/index.js" --root "$PWD"
 ```
 
-This repo also ships a project `.mcp.json`. Full guide: [docs/AI.md](docs/AI.md), or the "AI / MCP" page of the
-docs site. Everything (plugin, docs site, CLI, MCP server) reads the same `bridge.config.json`
-(schema: `packages/core/bridge.config.schema.json`).
+Then ask: "Which token should I use for danger text?", "Darken muted text in light and show me the contrast
+impact first", "Audit apps/admin/src for hardcoded values", "Undo PR 12, but show me what changed since".
 
-## Figma
-
-Designers edit tokens as Figma Variables with **DS Bridge**, the plugin in `apps/figma-plugin`. **Pull**
-brings the DTCG files from `main` into Variables, one collection per tier: Primitives; Brand with Bridge
-and Ocean modes; Base; Semantic with Light and Dark; Density with Comfortable and Compact; Component.
-**Push** turns variable edits into a draft PR: a three-way diff against the last pulled commit and
-current `main`, conflicts resolved side by side, guardrails (tier order, scopes, every pair in
-`contrast.checks.json` in every brand and theme) checked before the button is enabled. The PR then goes
-through the same CI and CODEOWNERS review as any other Tier 3 change. Works on the free Figma plan
-(Plugin API only). The logic lives in `@bridge-ds/core` (`packages/core`) and repo paths in
-`bridge.config.json`. See [`apps/figma-plugin/README.md`](apps/figma-plugin/README.md).
+The CLI does the same from a terminal or CI:
 
 ```sh
-npm run plugin:build    # then Figma desktop: Plugins > Development > Import plugin from manifest
+npm run bridge -- check                       # config, token validation, contrast gate
+npm run bridge -- audit apps/admin/src        # adoption in product code
+npm run bridge -- history color.text.muted    # every change of one token
+npm run bridge -- impact --plan               # what a change would capture, in seconds
 ```
 
-## Placeholders
+### Use the components in an app
 
-`@design-owner` and `@tech-owner` in `.github/CODEOWNERS` are placeholder handles. Replace them with real
-users or teams and enable "Require review from Code Owners" in branch protection.
+```tsx
+import '@bridge-ds/tokens/fonts.css';   // IBM Plex Sans + Mono, self-hosted
+import '@bridge-ds/tokens/tokens.css';  // every token as a CSS variable
+import '@bridge-ds/react/styles.css';   // base styles
 
-## References
+import { Button, Field, Input, ThemeProvider } from '@bridge-ds/react';
 
-See `docs/SOURCES.md`.
+export function App() {
+  return (
+    <ThemeProvider asRoot theme="light" brand="bridge" density="comfortable">
+      <Field label="Repository" description="Owner and name, like acme/design-tokens.">
+        <Input placeholder="acme/design-tokens" />
+      </Field>
+      <Button>Connect repository</Button>
+    </ThemeProvider>
+  );
+}
+```
+
+`ThemeProvider` sets `data-theme`, `data-brand` and `data-density` together and passes them to portaled overlays.
+Without React, set the three attributes yourself.
+
+## Architecture
+
+```mermaid
+flowchart LR
+  subgraph repo["Git repository (source of truth)"]
+    tokens["packages/tokens<br/>DTCG JSON, contrast gate"]
+    react["packages/react<br/>46 components on Base UI"]
+    config["bridge.config.json"]
+  end
+
+  core["@bridge-ds/core<br/>config, tokens, contrast, diffs,<br/>risk tiers, history, audit, previews"]
+
+  tokens --> core
+  config --> core
+
+  core --> docs["Bridge web platform<br/>apps/docs-site"]
+  core --> plugin["DS Bridge Figma plugin<br/>Pull / Push"]
+  core --> mcp["MCP server<br/>21 tools"]
+  core --> cli["bridge CLI"]
+  core --> lint["Stylelint and ESLint plugins"]
+  visual["@bridge-ds/visual<br/>screenshots, pixel diff"] --> cli
+  visual --> mcp
+
+  claude["Your Claude"] <--> mcp
+  figma["Figma Variables"] <--> plugin
+  product["Product code<br/>apps/admin"] --> react
+  product -. audited by .-> cli
+
+  plugin -- draft PR --> gh["GitHub PRs<br/>CI, reviews, previews"]
+  mcp -- branch or draft PR --> gh
+  docs -- review, propose, revert --> gh
+  gh -- merge by a person --> repo
+```
+
+Everything reads one `bridge.config.json` (schema: `packages/core/bridge.config.schema.json`). Nothing writes to
+`main`: Figma pushes, Claude's proposals, token edits from the web platform and reverts all arrive as branches or
+draft pull requests, and go through the same CI and review.
+
+## Repository map
+
+```
+packages/tokens           DTCG tokens, Style Dictionary build, contrast gate
+packages/react            46 components: Base UI, CSS Modules on tokens, stories, docs.json, tests
+packages/core             shared logic: config, token loading, contrast, diffs, edits, risk tiers, GitHub client,
+                          history and revert planner, usage index, adoption audit, previews
+packages/visual           visual impact: selection, deterministic capture, pixel diff, manifest
+packages/mcp              MCP server (stdio), 21 tools, resources and prompts
+packages/cli              bridge CLI: init, check, tokens, diff, propose, history, revert, impact, audit, mcp
+packages/stylelint-plugin bridge/use-tokens for product CSS
+packages/eslint-plugin    bridge/no-hardcoded-style-values and bridge/prefer-ds-components
+apps/docs-site            Bridge web platform (Astro), generated from the repo
+apps/figma-plugin         DS Bridge Figma plugin
+apps/admin                back-office demo: the react-admin e-commerce demo migrated from MUI to Bridge
+apps/admin/_original      the untouched react-admin demo source, the "before" of the adoption audit
+docs/                     AI.md (MCP and CLI), PREVIEWS.md, GOVERNANCE.md, DESIGN-LANGUAGE.md, ARCHITECTURE.md
+scripts/                  build-packages, rename-scope, vercel-ignore
+.github/workflows         ci, visual-impact, preview-packages, release
+AGENTS.md                 rules and component checklist for AI agents (CLAUDE.md imports it)
+```
+
+## Checks
+
+CI runs the same commands you can run locally:
+
+```sh
+npm run tokens:build      # DTCG to CSS variables and TS, fails on contrast
+npm run typecheck         # every package and app, strict
+npm run lint:css          # tokens only in component and docs CSS (admin: npm run admin:lint:css)
+npm test                  # Vitest: components (jsdom, axe-core), core, docs, admin, visual, lint plugins
+npm run mcp:test          # MCP server and CLI, including a stdio smoke test
+npm run plugin:test       # Figma plugin flows against a fake GitHub
+npm run build-storybook   # must build with no errors
+npm run docs:build        # the web platform
+npm run build:packages    # publishable dist/ for every @bridge-ds package
+node scripts/rename-scope.mjs --check   # only @bridge-ds package names
+```
+
+## How changes flow
+
+- **The repo is the source of truth.** Figma explores; tokens decide. Figma edits come back as reviewed PRs.
+- **Guardrails live in CI, not in prompts.** Stylelint rejects raw values, the token build rejects contrast
+  failures, tests check keyboard and ARIA. An agent cannot talk its way past a failing check.
+- **Agents are contributors, not maintainers.** They work on branches, add a changeset, fill the PR template and
+  never merge (`AGENTS.md`).
+- **Review effort scales with risk.** Docs fixes are Tier 1, new variants Tier 2, token and breaking changes
+  Tier 3 with design and tech owner approval (`docs/GOVERNANCE.md`).
+
+## Credits
+
+`apps/admin` starts from the [react-admin e-commerce demo](https://github.com/marmelab/react-admin/tree/master/examples/demo)
+by Marmelab (MIT, see `apps/admin/_original/LICENSE`). The original source is kept in `apps/admin/_original` as the
+baseline of the adoption audit; the migrated app keeps react-admin's headless `ra-core` and replaces MUI with
+Bridge components. Component behavior comes from [Base UI](https://base-ui.com), icons from
+[Lucide](https://lucide.dev), type from IBM Plex.
+
+## License
+
+MIT, Copyright (c) 2026 Florian Gouloubi. See [`LICENSE`](LICENSE). Third-party code keeps its own license
+(`apps/admin/_original/LICENSE`).
