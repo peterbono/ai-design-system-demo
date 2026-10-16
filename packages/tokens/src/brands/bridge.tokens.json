@@ -1,5 +1,5 @@
 {
-  "$description": "Bridge (default brand): steel ink structure, International Orange signal, engineered radii.",
+  "$description": "Bridge (default brand), direction \"Field Guide\": ink text on white, Harbor zones, Deep Harbor as the one strong color, Fraunces headings over Instrument Sans, rounded radii.",
   "palette": {
     "$type": "color",
     "$description": "Palette roles. Semantic tokens only reference palette.*; a brand re-points these to primitive ramps.",
@@ -8,107 +8,107 @@
         "$value": "{color.white}"
       },
       "50": {
-        "$value": "{color.steel.50}"
+        "$value": "{color.ink.50}"
       },
       "100": {
-        "$value": "{color.steel.100}"
+        "$value": "{color.ink.100}"
       },
       "200": {
-        "$value": "{color.steel.200}"
+        "$value": "{color.ink.200}"
       },
       "300": {
-        "$value": "{color.steel.300}"
+        "$value": "{color.ink.300}"
       },
       "400": {
-        "$value": "{color.steel.400}"
+        "$value": "{color.ink.400}"
       },
       "500": {
-        "$value": "{color.steel.500}"
+        "$value": "{color.ink.500}"
       },
       "600": {
-        "$value": "{color.steel.600}"
+        "$value": "{color.ink.600}"
       },
       "700": {
-        "$value": "{color.steel.700}"
+        "$value": "{color.ink.700}"
       },
       "800": {
-        "$value": "{color.steel.800}"
+        "$value": "{color.ink.800}"
       },
       "900": {
-        "$value": "{color.steel.900}"
+        "$value": "{color.ink.900}"
       },
       "950": {
-        "$value": "{color.steel.950}"
+        "$value": "{color.ink.950}"
       }
     },
     "primary": {
       "50": {
-        "$value": "{color.steel.50}"
+        "$value": "{color.harbor.50}"
       },
       "100": {
-        "$value": "{color.steel.100}"
+        "$value": "{color.harbor.100}"
       },
       "200": {
-        "$value": "{color.steel.200}"
+        "$value": "{color.harbor.200}"
       },
       "300": {
-        "$value": "{color.steel.300}"
+        "$value": "{color.harbor.300}"
       },
       "400": {
-        "$value": "{color.steel.400}"
+        "$value": "{color.harbor.400}"
       },
       "500": {
-        "$value": "{color.steel.500}"
+        "$value": "{color.harbor.500}"
       },
       "600": {
-        "$value": "{color.steel.600}"
+        "$value": "{color.harbor.600}"
       },
       "700": {
-        "$value": "{color.steel.700}"
+        "$value": "{color.harbor.700}"
       },
       "800": {
-        "$value": "{color.steel.800}"
+        "$value": "{color.harbor.800}"
       },
       "900": {
-        "$value": "{color.steel.900}"
+        "$value": "{color.harbor.900}"
       },
       "950": {
-        "$value": "{color.steel.950}"
+        "$value": "{color.harbor.950}"
       }
     },
     "accent": {
       "50": {
-        "$value": "{color.orange.50}"
+        "$value": "{color.harbor.50}"
       },
       "100": {
-        "$value": "{color.orange.100}"
+        "$value": "{color.harbor.100}"
       },
       "200": {
-        "$value": "{color.orange.200}"
+        "$value": "{color.harbor.200}"
       },
       "300": {
-        "$value": "{color.orange.300}"
+        "$value": "{color.harbor.300}"
       },
       "400": {
-        "$value": "{color.orange.400}"
+        "$value": "{color.harbor.400}"
       },
       "500": {
-        "$value": "{color.orange.500}"
+        "$value": "{color.harbor.500}"
       },
       "600": {
-        "$value": "{color.orange.600}"
+        "$value": "{color.harbor.600}"
       },
       "700": {
-        "$value": "{color.orange.700}"
+        "$value": "{color.harbor.700}"
       },
       "800": {
-        "$value": "{color.orange.800}"
+        "$value": "{color.harbor.800}"
       },
       "900": {
-        "$value": "{color.orange.900}"
+        "$value": "{color.harbor.900}"
       },
       "950": {
-        "$value": "{color.orange.950}"
+        "$value": "{color.harbor.950}"
       }
     },
     "success": {
@@ -218,77 +218,6 @@
     },
     "info": {
       "50": {
-        "$value": "{color.cable.50}"
-      },
-      "100": {
-        "$value": "{color.cable.100}"
-      },
-      "200": {
-        "$value": "{color.cable.200}"
-      },
-      "300": {
-        "$value": "{color.cable.300}"
-      },
-      "400": {
-        "$value": "{color.cable.400}"
-      },
-      "500": {
-        "$value": "{color.cable.500}"
-      },
-      "600": {
-        "$value": "{color.cable.600}"
-      },
-      "700": {
-        "$value": "{color.cable.700}"
-      },
-      "800": {
-        "$value": "{color.cable.800}"
-      },
-      "900": {
-        "$value": "{color.cable.900}"
-      },
-      "950": {
-        "$value": "{color.cable.950}"
-      }
-    },
-    "link": {
-      "50": {
-        "$value": "{color.cable.50}"
-      },
-      "100": {
-        "$value": "{color.cable.100}"
-      },
-      "200": {
-        "$value": "{color.cable.200}"
-      },
-      "300": {
-        "$value": "{color.cable.300}"
-      },
-      "400": {
-        "$value": "{color.cable.400}"
-      },
-      "500": {
-        "$value": "{color.cable.500}"
-      },
-      "600": {
-        "$value": "{color.cable.600}"
-      },
-      "700": {
-        "$value": "{color.cable.700}"
-      },
-      "800": {
-        "$value": "{color.cable.800}"
-      },
-      "900": {
-        "$value": "{color.cable.900}"
-      },
-      "950": {
-        "$value": "{color.cable.950}"
-      }
-    },
-    "categorical": {
-      "$description": "Extra categorical hue for data visualization only (chart series 5). Chosen far from the accent and info hues of the brand.",
-      "50": {
         "$value": "{color.plum.50}"
       },
       "100": {
@@ -321,25 +250,96 @@
       "950": {
         "$value": "{color.plum.950}"
       }
+    },
+    "link": {
+      "50": {
+        "$value": "{color.harbor.50}"
+      },
+      "100": {
+        "$value": "{color.harbor.100}"
+      },
+      "200": {
+        "$value": "{color.harbor.200}"
+      },
+      "300": {
+        "$value": "{color.harbor.300}"
+      },
+      "400": {
+        "$value": "{color.harbor.400}"
+      },
+      "500": {
+        "$value": "{color.harbor.500}"
+      },
+      "600": {
+        "$value": "{color.harbor.600}"
+      },
+      "700": {
+        "$value": "{color.harbor.700}"
+      },
+      "800": {
+        "$value": "{color.harbor.800}"
+      },
+      "900": {
+        "$value": "{color.harbor.900}"
+      },
+      "950": {
+        "$value": "{color.harbor.950}"
+      }
+    },
+    "categorical": {
+      "$description": "Extra categorical hue for data visualization only (chart series 5). Chosen far from the accent and info hues of the brand.",
+      "50": {
+        "$value": "{color.orange.50}"
+      },
+      "100": {
+        "$value": "{color.orange.100}"
+      },
+      "200": {
+        "$value": "{color.orange.200}"
+      },
+      "300": {
+        "$value": "{color.orange.300}"
+      },
+      "400": {
+        "$value": "{color.orange.400}"
+      },
+      "500": {
+        "$value": "{color.orange.500}"
+      },
+      "600": {
+        "$value": "{color.orange.600}"
+      },
+      "700": {
+        "$value": "{color.orange.700}"
+      },
+      "800": {
+        "$value": "{color.orange.800}"
+      },
+      "900": {
+        "$value": "{color.orange.900}"
+      },
+      "950": {
+        "$value": "{color.orange.950}"
+      }
     }
   },
   "radius": {
     "$type": "dimension",
     "$description": "Radius roles by hierarchy (docs/DESIGN-LANGUAGE.md, section 6).",
     "inset": {
-      "$value": "{radius.xs}",
+      "$value": "{radius.md}",
       "$description": "Small parts inside controls: checkbox box, tag, kbd, menu item highlight."
     },
     "control": {
-      "$value": "{radius.md}",
+      "$value": "{radius.xl}",
       "$description": "Buttons, inputs, selects, tabs."
     },
     "container": {
-      "$value": "{radius.lg}",
-      "$description": "Cards, alerts, popovers, menus, tables."
+      "$value": "{radius.3xl}",
+      "$description": "Cards, zone blocks, alerts, popovers, menus, tables."
     },
     "overlay": {
-      "$value": "{radius.xl}",
+      "$value": "{radius.3xl}",
       "$description": "Dialogs, drawers, toasts."
     },
     "pill": {
@@ -351,10 +351,177 @@
     "family": {
       "$type": "fontFamily",
       "sans": {
-        "$value": "{font.family.plex-sans}"
+        "$value": "{font.family.instrument-sans}"
       },
       "mono": {
         "$value": "{font.family.plex-mono}"
+      },
+      "display": {
+        "$value": "{font.family.fraunces}"
+      }
+    }
+  },
+  "typography": {
+    "$description": "Typography roles: size, line height, weight, family and tracking per text role. Four sizes per screen at most.",
+    "display": {
+      "$description": "Home hero and onboarding only. One per screen.",
+      "size": {
+        "$type": "dimension",
+        "$value": "{font.size.1000}"
+      },
+      "line-height": {
+        "$type": "dimension",
+        "$value": "{font.leading.68}"
+      },
+      "weight": {
+        "$type": "fontWeight",
+        "$value": "{font.weight.medium}"
+      },
+      "family": {
+        "$type": "fontFamily",
+        "$value": "{font.family.fraunces}"
+      },
+      "tracking": {
+        "$type": "number",
+        "$value": "{font.tracking.tighter}"
+      }
+    },
+    "h1": {
+      "$description": "Page titles.",
+      "size": {
+        "$type": "dimension",
+        "$value": "{font.size.800}"
+      },
+      "line-height": {
+        "$type": "dimension",
+        "$value": "{font.leading.50}"
+      },
+      "weight": {
+        "$type": "fontWeight",
+        "$value": "{font.weight.medium}"
+      },
+      "family": {
+        "$type": "fontFamily",
+        "$value": "{font.family.fraunces}"
+      },
+      "tracking": {
+        "$type": "number",
+        "$value": "{font.tracking.tight}"
+      }
+    },
+    "h2": {
+      "$description": "Section titles.",
+      "size": {
+        "$type": "dimension",
+        "$value": "{font.size.600}"
+      },
+      "line-height": {
+        "$type": "dimension",
+        "$value": "{font.leading.38}"
+      },
+      "weight": {
+        "$type": "fontWeight",
+        "$value": "{font.weight.semibold}"
+      },
+      "family": {
+        "$type": "fontFamily",
+        "$value": "{font.family.fraunces}"
+      },
+      "tracking": {
+        "$type": "number",
+        "$value": "{font.tracking.snug}"
+      }
+    },
+    "h3": {
+      "$description": "Card, dialog and group titles.",
+      "size": {
+        "$type": "dimension",
+        "$value": "{font.size.400}"
+      },
+      "line-height": {
+        "$type": "dimension",
+        "$value": "{font.leading.28}"
+      },
+      "weight": {
+        "$type": "fontWeight",
+        "$value": "{font.weight.semibold}"
+      },
+      "family": {
+        "$type": "fontFamily",
+        "$value": "{font.family.instrument-sans}"
+      },
+      "tracking": {
+        "$type": "number",
+        "$value": "{font.tracking.snug}"
+      }
+    },
+    "body": {
+      "$description": "Reading text and leads. Measure 65ch or less.",
+      "size": {
+        "$type": "dimension",
+        "$value": "{font.size.300}"
+      },
+      "line-height": {
+        "$type": "dimension",
+        "$value": "{font.leading.26}"
+      },
+      "weight": {
+        "$type": "fontWeight",
+        "$value": "{font.weight.regular}"
+      },
+      "family": {
+        "$type": "fontFamily",
+        "$value": "{font.family.instrument-sans}"
+      },
+      "tracking": {
+        "$type": "number",
+        "$value": "{font.tracking.normal}"
+      }
+    },
+    "ui": {
+      "$description": "Controls, labels, table cells, navigation.",
+      "size": {
+        "$type": "dimension",
+        "$value": "{font.size.200}"
+      },
+      "line-height": {
+        "$type": "dimension",
+        "$value": "{font.leading.20}"
+      },
+      "weight": {
+        "$type": "fontWeight",
+        "$value": "{font.weight.regular}"
+      },
+      "family": {
+        "$type": "fontFamily",
+        "$value": "{font.family.instrument-sans}"
+      },
+      "tracking": {
+        "$type": "number",
+        "$value": "{font.tracking.normal}"
+      }
+    },
+    "caption": {
+      "$description": "Meta, badges, footnotes.",
+      "size": {
+        "$type": "dimension",
+        "$value": "{font.size.100}"
+      },
+      "line-height": {
+        "$type": "dimension",
+        "$value": "{font.leading.16}"
+      },
+      "weight": {
+        "$type": "fontWeight",
+        "$value": "{font.weight.regular}"
+      },
+      "family": {
+        "$type": "fontFamily",
+        "$value": "{font.family.instrument-sans}"
+      },
+      "tracking": {
+        "$type": "number",
+        "$value": "{font.tracking.normal}"
       }
     }
   }

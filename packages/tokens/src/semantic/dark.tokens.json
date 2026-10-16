@@ -15,6 +15,10 @@
         "$type": "color",
         "$value": "{palette.neutral.800}",
         "$description": "Tracks, skeletons, neutral fills."
+      },
+      "zone": {
+        "$value": "{palette.primary.900}",
+        "$description": "Large flat color blocks that open a space. A muted deep blue in dark."
       }
     },
     "surface": {
@@ -124,7 +128,7 @@
       "primary": {
         "bg": {
           "$type": "color",
-          "$value": "{palette.primary.50}",
+          "$value": "{palette.primary.300}",
           "$description": "Primary action fill (steel ink in the bridge brand)."
         },
         "bg-hover": {
@@ -133,7 +137,7 @@
         },
         "bg-active": {
           "$type": "color",
-          "$value": "{palette.primary.300}"
+          "$value": "{palette.primary.100}"
         },
         "text": {
           "$type": "color",
@@ -214,7 +218,7 @@
       "checked": {
         "bg": {
           "$type": "color",
-          "$value": "{palette.primary.50}",
+          "$value": "{palette.primary.300}",
           "$description": "Checked checkbox, radio, switch track. Selection is ink."
         },
         "bg-hover": {

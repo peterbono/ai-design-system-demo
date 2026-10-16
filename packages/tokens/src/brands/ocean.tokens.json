@@ -355,6 +355,173 @@
       },
       "mono": {
         "$value": "{font.family.plex-mono}"
+      },
+      "display": {
+        "$value": "{font.family.plex-sans}"
+      }
+    }
+  },
+  "typography": {
+    "$description": "Typography roles: size, line height, weight, family and tracking per text role. Four sizes per screen at most.",
+    "display": {
+      "$description": "Home hero and onboarding only. One per screen.",
+      "size": {
+        "$type": "dimension",
+        "$value": "{font.size.1000}"
+      },
+      "line-height": {
+        "$type": "dimension",
+        "$value": "{font.leading.68}"
+      },
+      "weight": {
+        "$type": "fontWeight",
+        "$value": "{font.weight.semibold}"
+      },
+      "family": {
+        "$type": "fontFamily",
+        "$value": "{font.family.plex-sans}"
+      },
+      "tracking": {
+        "$type": "number",
+        "$value": "{font.tracking.tighter}"
+      }
+    },
+    "h1": {
+      "$description": "Page titles.",
+      "size": {
+        "$type": "dimension",
+        "$value": "{font.size.800}"
+      },
+      "line-height": {
+        "$type": "dimension",
+        "$value": "{font.leading.50}"
+      },
+      "weight": {
+        "$type": "fontWeight",
+        "$value": "{font.weight.semibold}"
+      },
+      "family": {
+        "$type": "fontFamily",
+        "$value": "{font.family.plex-sans}"
+      },
+      "tracking": {
+        "$type": "number",
+        "$value": "{font.tracking.tight}"
+      }
+    },
+    "h2": {
+      "$description": "Section titles.",
+      "size": {
+        "$type": "dimension",
+        "$value": "{font.size.600}"
+      },
+      "line-height": {
+        "$type": "dimension",
+        "$value": "{font.leading.38}"
+      },
+      "weight": {
+        "$type": "fontWeight",
+        "$value": "{font.weight.semibold}"
+      },
+      "family": {
+        "$type": "fontFamily",
+        "$value": "{font.family.plex-sans}"
+      },
+      "tracking": {
+        "$type": "number",
+        "$value": "{font.tracking.snug}"
+      }
+    },
+    "h3": {
+      "$description": "Card, dialog and group titles.",
+      "size": {
+        "$type": "dimension",
+        "$value": "{font.size.400}"
+      },
+      "line-height": {
+        "$type": "dimension",
+        "$value": "{font.leading.28}"
+      },
+      "weight": {
+        "$type": "fontWeight",
+        "$value": "{font.weight.semibold}"
+      },
+      "family": {
+        "$type": "fontFamily",
+        "$value": "{font.family.plex-sans}"
+      },
+      "tracking": {
+        "$type": "number",
+        "$value": "{font.tracking.snug}"
+      }
+    },
+    "body": {
+      "$description": "Reading text and leads. Measure 65ch or less.",
+      "size": {
+        "$type": "dimension",
+        "$value": "{font.size.300}"
+      },
+      "line-height": {
+        "$type": "dimension",
+        "$value": "{font.leading.26}"
+      },
+      "weight": {
+        "$type": "fontWeight",
+        "$value": "{font.weight.regular}"
+      },
+      "family": {
+        "$type": "fontFamily",
+        "$value": "{font.family.plex-sans}"
+      },
+      "tracking": {
+        "$type": "number",
+        "$value": "{font.tracking.normal}"
+      }
+    },
+    "ui": {
+      "$description": "Controls, labels, table cells, navigation.",
+      "size": {
+        "$type": "dimension",
+        "$value": "{font.size.200}"
+      },
+      "line-height": {
+        "$type": "dimension",
+        "$value": "{font.leading.20}"
+      },
+      "weight": {
+        "$type": "fontWeight",
+        "$value": "{font.weight.regular}"
+      },
+      "family": {
+        "$type": "fontFamily",
+        "$value": "{font.family.plex-sans}"
+      },
+      "tracking": {
+        "$type": "number",
+        "$value": "{font.tracking.normal}"
+      }
+    },
+    "caption": {
+      "$description": "Meta, badges, footnotes.",
+      "size": {
+        "$type": "dimension",
+        "$value": "{font.size.100}"
+      },
+      "line-height": {
+        "$type": "dimension",
+        "$value": "{font.leading.16}"
+      },
+      "weight": {
+        "$type": "fontWeight",
+        "$value": "{font.weight.regular}"
+      },
+      "family": {
+        "$type": "fontFamily",
+        "$value": "{font.family.plex-sans}"
+      },
+      "tracking": {
+        "$type": "number",
+        "$value": "{font.tracking.normal}"
       }
     }
   }

@@ -17,7 +17,16 @@ const RAMPS = {
   cable: [236, (s) => 0.1 * BELL[s], () => 0, 'Links and info in the bridge brand.'],
   slate: [248, (s) => (s <= 100 ? 0.006 : 0.012 + 0.03 * (s / 950)), () => 0, 'Ocean brand neutral.'],
   sea: [228, (s) => 0.15 * BELL[s], () => 0, 'Ocean brand primary and signal.'],
-  plum: [305, (s) => 0.14 * BELL[s], () => 0, 'Ocean brand info tone.'],
+  plum: [305, (s) => 0.14 * BELL[s], () => 0, 'Info tone (both brands) and the ocean categorical hue.'],
+  ink: [250, (s) => (s <= 100 ? 0.004 : 0.01 + 0.022 * (s / 950)), () => 0, 'Bridge neutral (Field Guide). Ink navy text, quiet blue-grey lines, deep navy at the dark end.'],
+  harbor: [251, (s) => 0.14 * BELL[s], () => 0, 'Bridge primary (Field Guide). Harbor 200 is the zone blue, Harbor 700 (Deep Harbor) the one strong color.'],
+};
+
+// Brand anchors: steps pinned to the exact brand hex, so the named brand colors survive the generator.
+// Every pin sits within 0.04 OKLCH lightness of its ladder step, so the ramp stays monotonic.
+const PINS = {
+  ink: { 200: '#E3E8EE', 600: '#5B6672', 900: '#15202B' },
+  harbor: { 200: '#CFE8FF', 700: '#0B4A8B' },
 };
 
 function oklchToLinear(L, C, h) {
@@ -47,6 +56,7 @@ function oklch(L, C, h) {
   }
   return lin.map(encode);
 }
+const fromHex = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
 const round = (x) => Math.round(x * 1000) / 1000;
 const toHex = (rgb) => '#' + rgb.map((x) => Math.round(x * 255).toString(16).padStart(2, '0')).join('');
 const color = (rgb, alpha) => {
@@ -65,7 +75,10 @@ const out = {
 };
 for (const [name, [hue, chroma, offset, description]] of Object.entries(RAMPS)) {
   out.color[name] = { $description: description };
-  for (const s of STEPS) out.color[name][s] = color(oklch(LIGHTNESS[s] + offset(s), chroma(s), hue));
+  for (const s of STEPS) {
+    const pin = PINS[name]?.[s];
+    out.color[name][s] = color(pin ? fromHex(pin) : oklch(LIGHTNESS[s] + offset(s), chroma(s), hue));
+  }
 }
 // Translucent primitives for scrims and shadows (steel 950 and black).
 const steel950 = out.color.steel[950].$value.components;

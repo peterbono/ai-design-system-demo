@@ -1,6 +1,18 @@
 {
-  "$description": "Ocean overrides on top of semantic/light: the primary action is a filled sea blue instead of ink.",
+  "$description": "Ocean overrides on top of semantic/light: the Fog canvas behind white surfaces, a filled sea-blue primary, sea links.",
   "color": {
+    "bg": {
+      "default": {
+        "$type": "color",
+        "$value": "{palette.neutral.50}",
+        "$description": "Ocean keeps a tinted canvas behind white surfaces."
+      },
+      "zone": {
+        "$type": "color",
+        "$value": "{palette.primary.50}",
+        "$description": "Sea 200 is too saturated for muted text and links; ocean zones use the palest sea step."
+      }
+    },
     "action": {
       "primary": {
         "bg": {
@@ -42,6 +54,16 @@
         "$type": "color",
         "$value": "{palette.accent.600}",
         "$description": "Sea 500 is too light for 3:1 on muted tracks."
+      }
+    },
+    "text": {
+      "link": {
+        "$type": "color",
+        "$value": "{palette.link.600}"
+      },
+      "link-hover": {
+        "$type": "color",
+        "$value": "{palette.link.700}"
       }
     }
   },

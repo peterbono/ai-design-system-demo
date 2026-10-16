@@ -1138,7 +1138,255 @@
           "hex": "#1f0c30"
         }
       },
-      "$description": "Ocean brand info tone."
+      "$description": "Info tone (both brands) and the ocean categorical hue."
+    },
+    "ink": {
+      "50": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.96,
+            0.968,
+            0.978
+          ],
+          "hex": "#f5f7f9"
+        }
+      },
+      "100": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.93,
+            0.938,
+            0.948
+          ],
+          "hex": "#edeff2"
+        }
+      },
+      "200": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.89,
+            0.91,
+            0.933
+          ],
+          "hex": "#e3e8ee"
+        }
+      },
+      "300": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.775,
+            0.811,
+            0.85
+          ],
+          "hex": "#c6cfd9"
+        }
+      },
+      "400": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.629,
+            0.669,
+            0.711
+          ],
+          "hex": "#a0aab5"
+        }
+      },
+      "500": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.501,
+            0.543,
+            0.589
+          ],
+          "hex": "#808a96"
+        }
+      },
+      "600": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.357,
+            0.4,
+            0.447
+          ],
+          "hex": "#5b6672"
+        }
+      },
+      "700": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.287,
+            0.334,
+            0.385
+          ],
+          "hex": "#495562"
+        }
+      },
+      "800": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.196,
+            0.245,
+            0.297
+          ],
+          "hex": "#323e4c"
+        }
+      },
+      "900": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.082,
+            0.125,
+            0.169
+          ],
+          "hex": "#15202b"
+        }
+      },
+      "950": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.044,
+            0.095,
+            0.146
+          ],
+          "hex": "#0b1825"
+        }
+      },
+      "$description": "Bridge neutral (Field Guide). Ink navy text, quiet blue-grey lines, deep navy at the dark end."
+    },
+    "harbor": {
+      "50": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.946,
+            0.971,
+            0.999
+          ],
+          "hex": "#f1f8ff"
+        }
+      },
+      "100": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.896,
+            0.944,
+            0.997
+          ],
+          "hex": "#e4f1fe"
+        }
+      },
+      "200": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.812,
+            0.91,
+            1
+          ],
+          "hex": "#cfe8ff"
+        }
+      },
+      "300": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.667,
+            0.823,
+            0.994
+          ],
+          "hex": "#aad2fe"
+        }
+      },
+      "400": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.431,
+            0.682,
+            0.948
+          ],
+          "hex": "#6eaef2"
+        }
+      },
+      "500": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.246,
+            0.551,
+            0.856
+          ],
+          "hex": "#3f8dda"
+        }
+      },
+      "600": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.106,
+            0.431,
+            0.726
+          ],
+          "hex": "#1b6eb9"
+        }
+      },
+      "700": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.043,
+            0.29,
+            0.545
+          ],
+          "hex": "#0b4a8b"
+        }
+      },
+      "800": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.017,
+            0.244,
+            0.438
+          ],
+          "hex": "#043e70"
+        }
+      },
+      "900": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0,
+            0.153,
+            0.293
+          ],
+          "hex": "#00274b"
+        }
+      },
+      "950": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0,
+            0.092,
+            0.198
+          ],
+          "hex": "#001732"
+        }
+      },
+      "$description": "Bridge primary (Field Guide). Harbor 200 is the zone blue, Harbor 700 (Deep Harbor) the one strong color."
     },
     "alpha": {
       "$description": "Translucent colors for scrims and shadows.",

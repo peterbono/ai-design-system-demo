@@ -69,6 +69,11 @@
     ["color.chart.series.6", "color.surface.default", 3],
     ["color.chart.series.6", "color.bg.default", 3],
     ["color.chart.axis", "color.surface.default", 4.5],
-    ["color.chart.axis", "color.bg.default", 4.5]
+    ["color.chart.axis", "color.bg.default", 4.5],
+    ["color.text.default", "color.bg.zone", 4.5],
+    ["color.text.muted", "color.bg.zone", 4.5],
+    ["color.text.link", "color.bg.zone", 4.5],
+    ["focus.ring.color", "color.bg.zone", 3],
+    ["color.action.primary.bg", "color.bg.zone", 3]
   ]
 }
