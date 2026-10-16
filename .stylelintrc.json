@@ -101,42 +101,5 @@
     "declaration-no-important": true,
     "length-zero-no-unit": true
   },
-  "overrides": [
-    {
-      "files": [
-        "apps/docs-site/**/*.css"
-      ],
-      "rules": {
-        "unit-disallowed-list": null,
-        "function-disallowed-list": [
-          "rgb",
-          "rgba",
-          "hsl",
-          "hsla",
-          "hwb",
-          "lab",
-          "lch",
-          "oklab",
-          "oklch",
-          "color",
-          "color-mix"
-        ],
-        "declaration-property-value-allowed-list": {
-          "/^(color|background-color|border-color|border-top-color|border-right-color|border-bottom-color|border-left-color|outline-color|fill|stroke|caret-color|text-decoration-color|accent-color)$/": [
-            "/^var\\(--/",
-            "transparent",
-            "currentcolor",
-            "inherit"
-          ],
-          "box-shadow": [
-            "/^var\\(--/",
-            "none",
-            "/^(inset )?0 0 0 [\\d.]+px var\\(--[^)]+\\)$/"
-          ]
-        },
-        "declaration-property-value-disallowed-list": null
-      }
-    }
-  ],
-  "$comment_docs": "apps/docs-site styles the Bridge app chrome with its own --br-* brand tokens (apps/docs-site/src/brand/tokens.ts). There, only colors and shadows must come from var(--*); layout lengths stay free."
+  "$comment_docs": "apps/docs-site (the Bridge app) is built with the design system it documents: its CSS follows the same token-only rules as component CSS."
 }

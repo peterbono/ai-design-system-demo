@@ -5,7 +5,6 @@ import '../styles/site.css';
 import '../styles/github.css';
 import '../styles/spaces.css';
 import '../styles/studio-app.css';
-import { brandCss } from '../brand/tokens';
 import GitHubAccount from '../components/GitHubAccount.astro';
 import GitHubDialog from '../components/GitHubDialog.astro';
 import Icon from '../components/Icon.astro';
@@ -64,18 +63,17 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
 ---
 
 <!doctype html>
-<html lang="en" data-theme="light" data-space={space}>
+<html lang="en" data-theme="light" data-brand="bridge" data-density="comfortable" data-space={space}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{pageTitle}</title>
     {description && <meta name="description" content={description} />}
     <meta name="author" content="Florian Gouloubi" />
-    <meta name="theme-color" content="#f2f3f1" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#0f141c" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f4f7fa" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0d1826" media="(prefers-color-scheme: dark)" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="alternate" type="text/plain" href="/llms.txt" title="llms.txt" />
-    <style is:inline set:html={brandCss()}></style>
     <script is:inline>
       (function () {
         var t = null;
@@ -84,8 +82,10 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
         document.documentElement.setAttribute('data-theme', t);
         var b = null, d = null;
         try { b = localStorage.getItem('ds-brand'); d = localStorage.getItem('ds-density'); } catch (e) {}
-        document.documentElement.setAttribute('data-brand', b === 'ocean' ? 'ocean' : 'bridge');
-        document.documentElement.setAttribute('data-density', d === 'compact' ? 'compact' : 'comfortable');
+        // The chrome stays on the bridge brand and comfortable density (attributes above); the picked brand and
+        // density only reach the design system previews (scripts/shell.ts copies them onto every data-theme scope).
+        document.documentElement.setAttribute('data-preview-brand', b === 'ocean' ? 'ocean' : 'bridge');
+        document.documentElement.setAttribute('data-preview-density', d === 'compact' ? 'compact' : 'comfortable');
       })();
     </script>
   </head>

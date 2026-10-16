@@ -3,24 +3,24 @@
 .cx-facts {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem 1.25rem;
-  margin: 0 0 1.5rem;
+  gap: var(--space-2) var(--space-5);
+  margin: 0 0 var(--space-6);
   padding: 0;
   list-style: none;
-  font-size: var(--br-text-sm);
-  font-weight: 600;
+  font-size: var(--font-size-200);
+  font-weight: var(--font-weight-semibold);
 }
 
 .cx-facts li {
   display: inline-flex;
   align-items: center;
-  gap: 0.375rem;
+  gap: var(--space-1-5);
   margin: 0;
-  color: var(--br-text);
+  color: var(--color-text-default);
 }
 
 .cx-facts .icon {
-  color: var(--br-pass);
+  color: var(--color-feedback-success-text);
 }
 
 .callout p {
@@ -29,16 +29,16 @@
 
 .callout .icon {
   flex-shrink: 0;
-  margin-top: 0.125rem;
+  margin-top: var(--space-0-5);
 }
 
 .terminal + p,
 .terminal + .small {
-  margin-top: 0.75rem;
+  margin-top: var(--space-3);
 }
 
 .terminal {
-  margin-bottom: 1rem;
+  margin-bottom: var(--space-4);
 }
 
 .cx-pre {
@@ -48,21 +48,21 @@
 }
 
 .cx-details {
-  margin: 0 0 1rem;
-  padding: 0.75rem 1rem;
-  border: 1px solid var(--br-border);
-  border-radius: var(--br-radius-card);
-  background-color: var(--br-surface);
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-container);
+  background-color: var(--color-surface-default);
 }
 
 .cx-details summary {
   cursor: pointer;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 .cx-details p {
-  margin: 0.75rem 0;
-  font-size: var(--br-text-sm);
+  margin: var(--space-3) 0;
+  font-size: var(--font-size-200);
 }
 
 .cx-code {
@@ -74,18 +74,18 @@
 .cx-cli {
   display: grid;
   gap: 0;
-  margin: 0 0 1.5rem;
-  border: 1px solid var(--br-border);
-  border-radius: var(--br-radius-card);
-  background-color: var(--br-surface);
+  margin: 0 0 var(--space-6);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-container);
+  background-color: var(--color-surface-default);
 }
 
 .cx-cli > div {
   display: grid;
   grid-template-columns: minmax(0, 18rem) minmax(0, 1fr);
-  gap: 0.25rem 1rem;
-  padding: 0.75rem 1rem;
-  border-top: 1px solid var(--br-border);
+  gap: var(--space-1) var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-top: var(--border-width-default) solid var(--color-border-default);
 }
 
 .cx-cli > div:first-child {
@@ -99,22 +99,22 @@
 
 .cx-cli dd {
   margin: 0;
-  font-size: var(--br-text-sm);
-  color: var(--br-text-muted);
+  font-size: var(--font-size-200);
+  color: var(--color-text-muted);
 }
 
 .cx-tools th[scope='row'] {
   white-space: nowrap;
-  font-weight: 400;
+  font-weight: var(--font-weight-regular);
 }
 
 .cx-list {
-  margin: 0 0 1.5rem;
-  padding-left: 1.25rem;
+  margin: 0 0 var(--space-6);
+  padding-left: var(--space-5);
 }
 
 .cx-list li {
-  margin-bottom: 0.375rem;
+  margin-bottom: var(--space-1-5);
 }
 
 @media (max-width: 40rem) {
@@ -128,8 +128,8 @@
 
   .cx-tools tr {
     display: block;
-    padding: 0.75rem 1rem;
-    border-bottom: 1px solid var(--br-border);
+    padding: var(--space-3) var(--space-4);
+    border-bottom: var(--border-width-default) solid var(--color-border-default);
   }
 
   .cx-tools tbody tr:last-child {
@@ -146,6 +146,6 @@
   }
 
   .cx-tools td {
-    margin-top: 0.25rem;
+    margin-top: var(--space-1);
   }
 }

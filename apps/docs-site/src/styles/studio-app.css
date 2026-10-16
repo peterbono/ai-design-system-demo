@@ -4,11 +4,11 @@
 
 :root:is([data-space="studio"], [data-space="settings"]) main {
   max-width: none;
-  padding: 1.25rem 1.75rem 2rem;
+  padding: var(--space-5) var(--space-7) var(--space-8);
 }
 
 :root:is([data-space="studio"], [data-space="settings"]) .page-footer {
-  margin-top: 3rem;
+  margin-top: var(--space-12);
 }
 
 /* Compact page header (components/StudioHeader.astro). */
@@ -17,9 +17,9 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem 1rem;
-  min-height: 2.25rem;
-  margin-bottom: 1rem;
+  gap: var(--space-2) var(--space-4);
+  min-height: var(--size-9);
+  margin-bottom: var(--space-4);
 }
 
 .st-head-main {
@@ -27,26 +27,26 @@
   flex: 1 1 20rem;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 0.25rem 0.75rem;
+  gap: var(--space-1) var(--space-3);
   min-width: 0;
 }
 
 .st-title {
   display: inline-flex;
   align-items: baseline;
-  gap: 0.5rem;
+  gap: var(--space-2);
   margin: 0;
-  font-family: var(--br-font-ui);
-  font-size: 1.25rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  line-height: 1.3;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-400);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--font-tracking-snug);
+  line-height: var(--font-line-height-snug);
 }
 
 .st-count {
-  color: var(--br-text-muted);
-  font-size: var(--br-text-md);
-  font-weight: 500;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-200);
+  font-weight: var(--font-weight-medium);
 }
 
 .st-count:empty {
@@ -57,8 +57,8 @@
   min-width: 0;
   margin: 0;
   overflow: hidden;
-  color: var(--br-text-muted);
-  font-size: var(--br-text-sm);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-200);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -67,41 +67,41 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-2);
 }
 
 /* Section titles inside Studio pages: UI type, not display. */
 .st-section-title {
   margin: 0;
-  font-family: var(--br-font-ui);
-  font-size: var(--br-text-md);
-  font-weight: 600;
-  letter-spacing: -0.005em;
-  line-height: 1.35;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-200);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--font-tracking-snug);
+  line-height: var(--font-line-height-snug);
 }
 
 /* Section heads inside Studio pages: UI type, one short line under it. */
 :root:is([data-space="studio"], [data-space="settings"]) main .section-head h2 {
-  margin-top: 2rem;
-  margin-bottom: 0.25rem;
-  font-family: var(--br-font-ui);
-  font-size: var(--br-text-md);
-  font-weight: 600;
-  letter-spacing: -0.005em;
-  line-height: 1.35;
+  margin-top: var(--space-8);
+  margin-bottom: var(--space-1);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-200);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--font-tracking-snug);
+  line-height: var(--font-line-height-snug);
 }
 
 :root:is([data-space="studio"], [data-space="settings"]) main .section-head p {
   max-width: 80ch;
-  color: var(--br-text-muted);
-  font-size: var(--br-text-sm);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-200);
 }
 
 /* Studio pages share smaller controls. */
 :root:is([data-space="studio"], [data-space="settings"]) main .btn:not(.btn-lg) {
-  min-height: 2rem;
-  padding: 0 0.75rem;
-  font-size: var(--br-text-sm);
+  min-height: var(--size-8);
+  padding: 0 var(--space-3);
+  font-size: var(--font-size-200);
 }
 
 /* ---- Global header: Drafts counter and GitHub account (Studio only) */
@@ -109,23 +109,23 @@
 .topbar-studio {
   display: flex;
   align-items: center;
-  gap: 0.375rem;
-  margin-right: 0.25rem;
+  gap: var(--space-1-5);
+  margin-right: var(--space-1);
 }
 
 .hd-btn {
   display: inline-flex;
   align-items: center;
-  gap: 0.375rem;
-  height: 2rem;
-  padding: 0 0.625rem;
-  border: 1px solid var(--br-border);
-  border-radius: var(--br-radius-control);
-  background-color: var(--br-surface);
-  color: var(--br-text);
+  gap: var(--space-1-5);
+  height: var(--size-8);
+  padding: 0 var(--space-2);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-control);
+  background-color: var(--color-surface-default);
+  color: var(--color-text-default);
   font: inherit;
-  font-size: var(--br-text-sm);
-  font-weight: 500;
+  font-size: var(--font-size-200);
+  font-weight: var(--font-weight-medium);
   text-decoration: none;
   white-space: nowrap;
   cursor: pointer;
@@ -137,35 +137,35 @@
 }
 
 .hd-btn:hover {
-  border-color: var(--br-border-strong);
+  border-color: var(--color-border-emphasis);
 }
 
 .hd-btn .icon {
-  color: var(--br-text-muted);
+  color: var(--color-text-muted);
 }
 
 .hd-n {
-  min-width: 1.25rem;
-  padding: 0 0.3125rem;
-  border-radius: var(--br-radius-pill);
-  background-color: var(--br-bg-sunken);
-  color: var(--br-text-muted);
-  font-size: 0.6875rem;
-  font-weight: 600;
+  min-width: var(--size-5);
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-bg-subtle);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-100);
+  font-weight: var(--font-weight-semibold);
   font-variant-numeric: tabular-nums;
   line-height: 1.25rem;
   text-align: center;
 }
 
 .hd-drafts[data-count]:not([data-count="0"]) .hd-n {
-  background-color: var(--br-accent-soft);
-  color: var(--br-accent-text);
+  background-color: var(--color-signal-subtle);
+  color: var(--color-text-signal);
 }
 
 .hd-btn.is-primary {
-  border-color: var(--br-primary);
-  background-color: var(--br-primary);
-  color: var(--br-on-primary);
+  border-color: var(--color-action-primary-bg);
+  background-color: var(--color-action-primary-bg);
+  color: var(--color-action-primary-text);
 }
 
 .hd-btn.is-primary .icon {
@@ -173,7 +173,7 @@
 }
 
 .hd-btn.is-primary:hover {
-  background-color: var(--br-primary-hover);
+  background-color: var(--color-action-primary-bg-hover);
 }
 
 .gh-acct {
@@ -190,10 +190,10 @@
 }
 
 .gh-acct-avatar {
-  width: 1.25rem;
-  height: 1.25rem;
+  width: var(--size-5);
+  height: var(--size-5);
   border-radius: 50%;
-  background-color: var(--br-bg-sunken);
+  background-color: var(--color-bg-subtle);
 }
 
 .gh-acct-login {
@@ -205,19 +205,19 @@
 .gh-acct .menu-panel {
   right: 0;
   left: auto;
-  width: 18rem;
+  width: var(--size-72);
 }
 
 .gh-facts {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  gap: 0.375rem 0.75rem;
-  margin: 0.25rem 0.5rem 0.5rem;
-  font-size: var(--br-text-sm);
+  gap: var(--space-1-5) var(--space-3);
+  margin: var(--space-1) var(--space-2) var(--space-2);
+  font-size: var(--font-size-200);
 }
 
 .gh-facts dt {
-  color: var(--br-text-muted);
+  color: var(--color-text-muted);
 }
 
 .gh-facts dd {
@@ -229,44 +229,44 @@
 }
 
 .gh-perm.is-write {
-  color: var(--br-pass);
+  color: var(--color-feedback-success-text);
 }
 
 .gh-perm.is-read {
-  color: var(--br-warn);
+  color: var(--color-feedback-warning-text);
 }
 
 .menu-actions {
   display: grid;
-  gap: 2px;
-  margin-top: 0.25rem;
-  padding-top: 0.375rem;
-  border-top: 1px solid var(--br-border);
+  gap: var(--space-0-5);
+  margin-top: var(--space-1);
+  padding-top: var(--space-1-5);
+  border-top: var(--border-width-default) solid var(--color-border-default);
 }
 
 .menu-action {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-2);
   width: 100%;
-  padding: 0.5rem;
+  padding: var(--space-2);
   border: 0;
-  border-radius: var(--br-radius-control);
+  border-radius: var(--radius-control);
   background-color: transparent;
-  color: var(--br-text);
+  color: var(--color-text-default);
   font: inherit;
-  font-size: var(--br-text-sm);
+  font-size: var(--font-size-200);
   text-align: left;
   text-decoration: none;
   cursor: pointer;
 }
 
 .menu-action:hover {
-  background-color: var(--br-bg-sunken);
+  background-color: var(--color-bg-subtle);
 }
 
 .menu-action.is-danger {
-  color: var(--br-fail);
+  color: var(--color-feedback-danger-text);
 }
 
 /* ---- Actions that need GitHub: aria-disabled, with a tooltip that says how to unlock them. */
@@ -283,18 +283,18 @@
 .has-tip[data-tip]:is(:hover, :focus-visible)::after {
   content: attr(data-tip);
   position: absolute;
-  top: calc(100% + 0.375rem);
+  top: calc(100% + var(--space-1-5));
   right: 0;
   z-index: 70;
   width: max-content;
-  max-width: 16rem;
-  padding: 0.375rem 0.5rem;
-  border-radius: var(--br-radius-sm);
-  background-color: var(--br-text);
-  color: var(--br-bg);
-  font-size: var(--br-text-xs);
-  font-weight: 500;
-  line-height: 1.35;
+  max-width: var(--size-64);
+  padding: var(--space-1-5) var(--space-2);
+  border-radius: var(--radius-control);
+  background-color: var(--color-text-default);
+  color: var(--color-bg-default);
+  font-size: var(--font-size-100);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--font-line-height-snug);
   white-space: normal;
   pointer-events: none;
 }
@@ -308,7 +308,7 @@
 
 @media (max-width: 640px) {
   :root:is([data-space="studio"], [data-space="settings"]) main {
-    padding: 1rem 1rem 2rem;
+    padding: var(--space-4) var(--space-4) var(--space-8);
   }
 
   .topbar-studio .hd-drafts {

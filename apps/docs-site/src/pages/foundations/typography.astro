@@ -13,6 +13,8 @@ const updated = freshness(PAGE_SOURCES.typography);
 // Roles, line heights and tracking per step come from docs/DESIGN-LANGUAGE.md (section 5), mapped to the
 // nearest token of the scale.
 const STEPS: Record<string, { role: string; leading: string; tracking: string }> = {
+  '1000': { role: 'Landing hero only', leading: 'none', tracking: 'tighter' },
+  '900': { role: 'Landing display, KPI numbers', leading: 'none', tracking: 'tighter' },
   '800': { role: 'Rare display moments', leading: 'tight', tracking: 'tighter' },
   '700': { role: 'Empty states, onboarding', leading: 'tight', tracking: 'tighter' },
   '600': { role: 'Page titles', leading: 'tight', tracking: 'tight' },
@@ -53,7 +55,7 @@ const lh = (name: string) => primitiveRows('font.line-height').find((r) => r.pat
       <div>
         <h1>Typography</h1>
         <p class="lead">
-          IBM Plex Sans for interface text, IBM Plex Mono for code and token names. Eight sizes on a 1.2 ratio from a 14 px base. If a design needs a
+          IBM Plex Sans for interface text, IBM Plex Mono for code and token names. Ten sizes on a 1.2 ratio from a 14 px base; the two largest are for landing heroes only. If a design needs a
           step that is not here, propose a token instead of picking a value by eye.
         </p>
         <Updated date={updated} />

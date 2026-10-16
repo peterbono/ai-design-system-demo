@@ -2,25 +2,25 @@
 
 .a11y-floor {
   display: grid;
-  gap: 0.75rem;
+  gap: var(--space-3);
   max-width: 72ch;
-  margin: 0 0 2rem;
+  margin: 0 0 var(--space-8);
   padding: 0;
   list-style: none;
 }
 
 .a11y-floor li {
   margin: 0;
-  padding: 0.75rem 1rem;
-  border: 1px solid var(--br-border);
-  border-radius: var(--br-radius-control);
-  background-color: var(--br-surface);
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-control);
+  background-color: var(--color-surface-default);
 }
 
 .lib-steps {
   display: grid;
-  gap: 1rem;
-  margin: 1rem 0 2rem;
+  gap: var(--space-4);
+  margin: var(--space-4) 0 var(--space-8);
   padding: 0;
   list-style: none;
   counter-reset: step;
@@ -29,7 +29,7 @@
 .lib-steps > li {
   position: relative;
   margin: 0;
-  padding-left: 2.5rem;
+  padding-left: var(--space-10);
   counter-increment: step;
 }
 
@@ -39,14 +39,14 @@
   left: 0;
   display: grid;
   place-items: center;
-  width: 1.75rem;
-  height: 1.75rem;
-  border: 1px solid var(--br-border);
-  border-radius: var(--br-radius-pill);
-  background-color: var(--br-surface);
-  color: var(--br-text);
-  font-size: var(--br-text-xs);
-  font-weight: 600;
+  width: var(--size-7);
+  height: var(--size-7);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface-default);
+  color: var(--color-text-default);
+  font-size: var(--font-size-100);
+  font-weight: var(--font-weight-semibold);
   font-variant-numeric: tabular-nums;
   content: counter(step);
 }
@@ -54,40 +54,40 @@
 .pkg-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
-  gap: 1rem;
-  margin: 1rem 0 2rem;
+  gap: var(--space-4);
+  margin: var(--space-4) 0 var(--space-8);
   padding: 0;
   list-style: none;
 }
 
 .pkg-list li {
   margin: 0;
-  padding: 1rem;
-  border: 1px solid var(--br-border);
-  border-radius: var(--br-radius-card);
-  background-color: var(--br-surface);
+  padding: var(--space-4);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-container);
+  background-color: var(--color-surface-default);
 }
 
 .pkg-list code {
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 .pkg-list p {
-  margin: 0.5rem 0 0;
-  color: var(--br-text-faint);
-  font-size: var(--br-text-sm);
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-200);
 }
 
 .llms-preview {
-  margin: 1rem 0 2rem;
+  margin: var(--space-4) 0 var(--space-8);
 }
 
 .llms-preview > summary {
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 .llms-preview[open] > summary {
-  margin-bottom: 1rem;
+  margin-bottom: var(--space-4);
 }
 
 /* Component page tabs */
@@ -102,8 +102,8 @@
 .cp-files {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  margin: 0 0 1.5rem;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-6);
   padding: 0;
   list-style: none;
 }
@@ -121,10 +121,10 @@
 .cp-changes li {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  gap: 0.25rem 0.75rem;
+  gap: var(--space-1) var(--space-3);
   margin: 0;
-  padding: 0.75rem 0;
-  border-bottom: 1px solid var(--br-border);
+  padding: var(--space-3) 0;
+  border-bottom: var(--border-width-default) solid var(--color-border-default);
 }
 
 .cp-changes p {
@@ -133,14 +133,14 @@
 
 /* Catalog families */
 .family {
-  margin-top: 2rem;
+  margin-top: var(--space-8);
 }
 
 .family > summary {
   display: flex;
   align-items: baseline;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
   list-style: none;
   cursor: pointer;
 }
@@ -152,12 +152,12 @@
 .family > summary::before {
   width: 0.45rem;
   height: 0.45rem;
-  margin-right: 0.25rem;
+  margin-right: var(--space-1);
   border-right: 1.5px solid currentcolor;
   border-bottom: 1.5px solid currentcolor;
   content: "";
   transform: rotate(-45deg) translateY(-0.1rem);
-  transition: transform 160ms var(--br-ease-out);
+  transition: transform var(--motion-duration-fast) var(--motion-easing-enter);
 }
 
 .family[open] > summary::before {
@@ -169,7 +169,7 @@
 }
 
 .family-count {
-  color: var(--br-text-muted);
-  font-size: var(--br-text-sm);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-200);
   font-variant-numeric: tabular-nums;
 }

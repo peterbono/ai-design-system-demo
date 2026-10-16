@@ -45,9 +45,11 @@ function initTheme() {
 }
 
 /**
- * Brand and density of the design system previews. Stored per browser, applied to <html> and to every element
- * that sets data-theme (preview frames, islands): tokens.css resolves brand x theme overrides only when the
- * attributes sit on the same element, so each themed scope carries all three.
+ * Brand and density of the design system previews. Stored per browser, kept on <html> as data-preview-brand and
+ * data-preview-density, and applied to every element below <html> that sets data-theme (preview frames, islands):
+ * tokens.css resolves brand x theme overrides only when the attributes sit on the same element, so each themed
+ * scope carries all three. <html> itself keeps data-brand="bridge" and comfortable density: the Bridge chrome is
+ * built with the design system and does not change with the preview scope.
  */
 type Scope = { brand: string; density: string };
 const SCOPE_DEFAULT: Scope = { brand: 'bridge', density: 'comfortable' };
@@ -55,15 +57,15 @@ const LABELS: Record<string, string> = { bridge: 'Bridge', ocean: 'Ocean', comfo
 
 export function currentScope(): Scope {
   const root = document.documentElement;
-  return { brand: root.dataset.brand ?? SCOPE_DEFAULT.brand, density: root.dataset.density ?? SCOPE_DEFAULT.density };
+  return { brand: root.dataset.previewBrand ?? SCOPE_DEFAULT.brand, density: root.dataset.previewDensity ?? SCOPE_DEFAULT.density };
 }
 
 function applyScope(scope: Scope, within: ParentNode = document) {
   const root = document.documentElement;
-  root.dataset.brand = scope.brand;
-  root.dataset.density = scope.density;
+  root.dataset.previewBrand = scope.brand;
+  root.dataset.previewDensity = scope.density;
   within.querySelectorAll<HTMLElement>('[data-theme]').forEach((el) => {
-    if (el.hasAttribute('data-scope-fixed')) return;
+    if (el === root || el.hasAttribute('data-scope-fixed')) return;
     if (el.dataset.brand !== scope.brand) el.dataset.brand = scope.brand;
     if (el.dataset.density !== scope.density) el.dataset.density = scope.density;
   });
