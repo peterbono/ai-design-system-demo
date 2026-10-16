@@ -1,0 +1,103 @@
+{
+  "summary": "Triggers an action on the current screen: save, publish, approve, open a dialog. If it takes the user somewhere else, it is a Link, not a Button.",
+  "preview": {
+    "c": "Row",
+    "children": [
+      { "c": "Button", "p": { "variant": "primary" }, "children": ["Publish tokens"] },
+      { "c": "Button", "p": { "variant": "secondary" }, "children": ["Save as draft"] },
+      { "c": "Button", "p": { "variant": "ghost" }, "children": ["View diff"] }
+    ]
+  },
+  "whenToUse": [
+    "The user commits an action on this screen: Publish, Approve, Create token, Open pull request.",
+    "Primary: the one action you most want the user to take in this view. One per form, dialog or page section.",
+    "Secondary: the alternatives next to the primary, like Save as draft or Request changes.",
+    "Ghost: low-emphasis actions repeated in lists, tables or toolbars (Edit, View diff), where filled buttons would fight for attention.",
+    "Danger: destructive actions (Delete, Revoke access). Usually inside a confirmation dialog.",
+    "Size sm in dense rows and toolbars, md everywhere else, lg only for a single call to action on an empty or onboarding screen. Heights follow the density setting."
+  ],
+  "whenNotToUse": [
+    "Going to another page or URL: use Link. Links and buttons are announced differently and users expect Cmd+click to open links in a new tab.",
+    "Turning a setting on or off: use Switch or Checkbox.",
+    "Picking one of several views: use Tabs or an attached ButtonGroup.",
+    "More than three actions in one row: keep the main ones and move the rest to a Menu behind an IconButton."
+  ],
+  "dos": [
+    {
+      "title": "Start the label with a verb that names the outcome",
+      "text": "\"Publish tokens\" and \"Approve change\" tell the user what happens before they click.",
+      "example": { "c": "Row", "children": [
+        { "c": "Button", "p": { "variant": "primary" }, "children": ["Publish tokens"] },
+        { "c": "Button", "p": { "variant": "secondary" }, "children": ["Cancel"] }
+      ] }
+    },
+    {
+      "title": "One primary per view, the others step down",
+      "text": "Hierarchy tells users where to look first. Secondary and ghost carry the alternatives.",
+      "example": { "c": "Row", "children": [
+        { "c": "Button", "p": { "variant": "ghost" }, "children": ["Preview"] },
+        { "c": "Button", "p": { "variant": "secondary" }, "children": ["Save as draft"] },
+        { "c": "Button", "p": { "variant": "primary" }, "children": ["Publish"] }
+      ] }
+    },
+    {
+      "title": "Show progress with loading, keep the label",
+      "text": "The button stays in place and focusable, so keyboard users do not lose their position. Change the label to the present participle.",
+      "example": { "c": "Row", "children": [
+        { "c": "Button", "p": { "variant": "primary", "loading": true }, "children": ["Publishing"] }
+      ] }
+    }
+  ],
+  "donts": [
+    {
+      "title": "Two primary buttons side by side",
+      "text": "When everything is primary, nothing is. Users hesitate and pick at random.",
+      "example": { "c": "Row", "children": [
+        { "c": "Button", "p": { "variant": "primary" }, "children": ["Save"] },
+        { "c": "Button", "p": { "variant": "primary" }, "children": ["Publish"] }
+      ] }
+    },
+    {
+      "title": "Vague labels",
+      "text": "\"OK\" and \"Click here\" say nothing out of context, and screen reader users often list buttons out of context.",
+      "example": { "c": "Row", "children": [
+        { "c": "Button", "p": { "variant": "primary" }, "children": ["OK"] },
+        { "c": "Button", "p": { "variant": "secondary" }, "children": ["Click here"] }
+      ] }
+    },
+    {
+      "title": "Danger for actions that are not destructive",
+      "text": "Red trains people to ignore red. Keep danger for actions that remove or revoke something.",
+      "example": { "c": "Row", "children": [
+        { "c": "Button", "p": { "variant": "danger" }, "children": ["Export"] }
+      ] }
+    }
+  ],
+  "accessibility": [
+    "Native button through Base UI: Enter and Space activate it, it is in the tab order, no extra ARIA needed.",
+    "The focus ring (focus.ring.color, 2px, offset 2px) shows on keyboard focus only, never on mouse click.",
+    "Loading sets aria-busy and aria-disabled, ignores clicks, and keeps the button focusable so keyboard users keep their place.",
+    "Disabled removes the button from the tab order and explains nothing. Prefer an enabled button plus a message saying what is missing.",
+    "With render={<a href />} the element stays a link (role link), which is right for navigation styled as a button.",
+    "Heights are 32/40/48px comfortable and 28/32/40px compact: all above the WCAG 2.2 minimum target of 24px."
+  ],
+  "contentGuidelines": [
+    "Sentence case, no trailing period: \"Open pull request\", not \"Open Pull Request.\"",
+    "Verb plus object, two to four words. Drop the object only when context makes it obvious (Save, Cancel).",
+    "The same verb follows through the flow: Publish, Publishing, Published.",
+    "Name the count on bulk actions: \"Delete 3 tokens\".",
+    "Never \"OK\", \"Submit\", \"Yes\" or \"Click here\"."
+  ],
+  "anatomy": {
+    "button": "Container, all variants",
+    "primary": "Primary variant (steel ink in the bridge brand)",
+    "secondary": "Secondary variant",
+    "ghost": "Ghost variant",
+    "danger": "Danger variant",
+    "sm": "Size sm",
+    "md": "Size md (default)",
+    "lg": "Size lg",
+    "icon": "Leading or trailing icon, or the loading spinner",
+    "label": "Label"
+  }
+}

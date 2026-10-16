@@ -1,0 +1,732 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/peterbono/ai-design-system-demo/main/packages/core/audit-report.schema.json",
+  "title": "Bridge audit report",
+  "description": "Output of `bridge audit --json`: design system adoption and drift in a product codebase. Versioned by schemaVersion.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "tool",
+    "generatedAt",
+    "target",
+    "designSystem",
+    "metrics",
+    "byCategory",
+    "components",
+    "topFiles",
+    "topFixes",
+    "files",
+    "history"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "tool": {
+      "type": "object",
+      "required": [
+        "name",
+        "version"
+      ],
+      "properties": {
+        "name": {
+          "const": "bridge"
+        },
+        "version": {
+          "type": "string"
+        }
+      }
+    },
+    "label": {
+      "type": "string"
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "target": {
+      "type": "object",
+      "required": [
+        "path",
+        "files",
+        "skipped"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "files": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "skipped": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "designSystem": {
+      "type": "object",
+      "required": [
+        "packages",
+        "components",
+        "tokens",
+        "modes"
+      ],
+      "properties": {
+        "packages": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "components": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "modes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "required": [
+        "tokenAdoption",
+        "componentAdoption",
+        "tokenUsages",
+        "hardcoded",
+        "themeRefs",
+        "dsComponentInstances",
+        "uiComponentInstances"
+      ],
+      "properties": {
+        "tokenAdoption": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 100,
+          "description": "token usages / (token usages + hardcoded values), percent."
+        },
+        "componentAdoption": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 100,
+          "description": "DS component instances / all UI component instances (DS, foreign libraries, native elements that should be DS components, re-created DS components), percent."
+        },
+        "tokenUsages": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "hardcoded": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "themeRefs": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "References to another theme (MUI theme, Tailwind scale, local CSS variables): neither hardcoded nor the DS."
+        },
+        "dsComponentInstances": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "uiComponentInstances": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "byCategory": {
+      "type": "object",
+      "propertyNames": {
+        "enum": [
+          "color",
+          "spacing",
+          "size",
+          "radius",
+          "border-width",
+          "shadow",
+          "duration",
+          "easing",
+          "z-index",
+          "font-family",
+          "font-size",
+          "font-weight",
+          "line-height"
+        ]
+      },
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "hardcoded",
+          "exact",
+          "suggested"
+        ],
+        "properties": {
+          "hardcoded": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "exact": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "suggested": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "components": {
+      "type": "object",
+      "required": [
+        "ds",
+        "foreign",
+        "native",
+        "recreated"
+      ],
+      "properties": {
+        "ds": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "foreign": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": [
+              "instances",
+              "components"
+            ],
+            "properties": {
+              "instances": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "components": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          }
+        },
+        "native": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "recreated": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "file",
+              "line",
+              "instances"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "file": {
+                "type": "string"
+              },
+              "line": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "instances": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    "topFiles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "path",
+          "hardcoded",
+          "otherComponents",
+          "tokenUsages",
+          "dsComponents"
+        ],
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "hardcoded": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "otherComponents": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "tokenUsages": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "dsComponents": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "topFixes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "category",
+          "value",
+          "count",
+          "files"
+        ],
+        "properties": {
+          "category": {
+            "enum": [
+              "color",
+              "spacing",
+              "size",
+              "radius",
+              "border-width",
+              "shadow",
+              "duration",
+              "easing",
+              "z-index",
+              "font-family",
+              "font-size",
+              "font-weight",
+              "line-height"
+            ]
+          },
+          "value": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "files": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "suggestion": {
+            "$ref": "#/$defs/suggestion"
+          }
+        }
+      }
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/file"
+      }
+    },
+    "baseline": {
+      "$ref": "#/$defs/baseline"
+    },
+    "history": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/point"
+      }
+    }
+  },
+  "$defs": {
+    "suggestion": {
+      "type": "object",
+      "required": [
+        "token",
+        "cssVar",
+        "value",
+        "distance",
+        "confidence",
+        "level"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "token": {
+          "type": "string",
+          "description": "Token path, e.g. color.text.muted."
+        },
+        "cssVar": {
+          "type": "string",
+          "description": "CSS variable, e.g. --color-text-muted."
+        },
+        "value": {
+          "type": "string",
+          "description": "Resolved token value in the mode it matched."
+        },
+        "mode": {
+          "type": "string",
+          "description": "Mode combination the value matched in, when not the default, e.g. theme=dark."
+        },
+        "distance": {
+          "type": "number",
+          "description": "deltaE OK x100 for colors, px for lengths, ms for durations, steps otherwise. 0 is exact."
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "level": {
+          "enum": [
+            "exact",
+            "high",
+            "medium",
+            "low"
+          ]
+        }
+      }
+    },
+    "file": {
+      "type": "object",
+      "required": [
+        "path",
+        "lang",
+        "tokenUsages",
+        "themeRefs",
+        "hardcoded",
+        "dsComponents",
+        "otherComponents",
+        "findings",
+        "components"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "lang": {
+          "enum": [
+            "css",
+            "scss",
+            "less",
+            "tsx",
+            "jsx",
+            "ts",
+            "js"
+          ]
+        },
+        "tokenUsages": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "themeRefs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "hardcoded": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "dsComponents": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "otherComponents": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "findings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "line",
+              "column",
+              "category",
+              "value",
+              "source"
+            ],
+            "properties": {
+              "line": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "column": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "category": {
+                "enum": [
+                  "color",
+                  "spacing",
+                  "size",
+                  "radius",
+                  "border-width",
+                  "shadow",
+                  "duration",
+                  "easing",
+                  "z-index",
+                  "font-family",
+                  "font-size",
+                  "font-weight",
+                  "line-height"
+                ]
+              },
+              "property": {
+                "type": "string"
+              },
+              "value": {
+                "type": "string"
+              },
+              "source": {
+                "enum": [
+                  "css",
+                  "style",
+                  "sx",
+                  "styled",
+                  "theme",
+                  "tailwind",
+                  "jsx-attr",
+                  "js"
+                ]
+              },
+              "suggestion": {
+                "$ref": "#/$defs/suggestion"
+              },
+              "autofix": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        "components": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "line",
+              "column",
+              "name",
+              "kind",
+              "library"
+            ],
+            "properties": {
+              "line": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "column": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "name": {
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "foreign",
+                  "native",
+                  "recreated"
+                ]
+              },
+              "library": {
+                "type": "string"
+              },
+              "suggestion": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "point": {
+      "type": "object",
+      "required": [
+        "generatedAt",
+        "tokenAdoption",
+        "componentAdoption",
+        "hardcoded",
+        "uiComponentInstances",
+        "dsComponentInstances"
+      ],
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "generatedAt": {
+          "type": "string"
+        },
+        "tokenAdoption": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 100
+        },
+        "componentAdoption": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 100
+        },
+        "hardcoded": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "uiComponentInstances": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "dsComponentInstances": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "baseline": {
+      "type": "object",
+      "required": [
+        "generatedAt",
+        "tokenAdoption",
+        "componentAdoption",
+        "hardcoded",
+        "byCategory",
+        "improved",
+        "regressed",
+        "newFiles",
+        "removedFiles"
+      ],
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "generatedAt": {
+          "type": "string"
+        },
+        "tokenAdoption": {
+          "$ref": "#/$defs/delta"
+        },
+        "componentAdoption": {
+          "$ref": "#/$defs/delta"
+        },
+        "hardcoded": {
+          "type": "object",
+          "properties": {
+            "before": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "after": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "delta": {
+              "type": "integer"
+            }
+          }
+        },
+        "byCategory": {
+          "type": "object"
+        },
+        "improved": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/fileDelta"
+          }
+        },
+        "regressed": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/fileDelta"
+          }
+        },
+        "newFiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "removedFiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "delta": {
+      "type": "object",
+      "properties": {
+        "before": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "after": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "delta": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      }
+    },
+    "fileDelta": {
+      "type": "object",
+      "required": [
+        "path",
+        "before",
+        "after"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "before": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "after": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,58 @@
+import { describe, expect, it } from 'vitest';
+import { LayeredTokenSet, composeProposalBody, demoHistory, planRevert } from '@bridge-ds/core';
+import { authorsOf, countsLabel, demoBeforeFiles, humanAuthored, laterThan, realSummary, viewTimeline } from './history-view';
+import { currentTokenFiles, siteConfig } from './history';
+
+const config = siteConfig();
+const files = currentTokenFiles(config);
+const demo = demoHistory(config, new Map(Object.entries(files)));
+const muted = (f: Record<string, string>) => new LayeredTokenSet(config, new Map(Object.entries(f))).defs.find((d) => d.path === 'color.text.muted' && d.file === 'semantic/light.tokens.json')!.value;
+
+describe('history view', () => {
+  it('rebuilds demo states newest first: before #106 muted text was neutral.700, before #101 neutral.500', () => {
+    let after = files;
+    const states: Record<string, unknown> = {};
+    for (const e of demo.entries) {
+      const before = demoBeforeFiles(config, after, e);
+      states[e.id] = muted(before);
+      after = before;
+    }
+    expect(states['pr-106']).toBe('{palette.neutral.700}');
+    expect(states['pr-101']).toBe('{palette.neutral.500}');
+    // A description-only entry leaves values alone.
+    expect(states['pr-104']).toBe('{palette.neutral.700}');
+  });
+
+  it('timeline groups by version and drops versions the filter empties', () => {
+    expect(viewTimeline(demo).map((g) => [g.version, g.items.map((e) => e.id)])).toEqual([
+      ['Unreleased', ['pr-106']],
+      ['1.2.0', ['pr-104']],
+      ['1.1.0', ['pr-102', 'pr-101']],
+    ]);
+    expect(viewTimeline(demo, { token: 'color.text.muted' }).map((g) => g.version)).toEqual(['Unreleased', '1.1.0']);
+    expect(viewTimeline(demo, { tier: 1 }).flatMap((g) => g.items.map((e) => e.id))).toEqual(['pr-104']);
+    expect(authorsOf(demo.entries)).toEqual(['demo-designer', 'demo-engineer']);
+  });
+
+  it('labels counts, later entries and the sparse summary', () => {
+    expect(countsLabel({ added: 1, changed: 3, removed: 0, renamed: 0, total: 4 })).toBe('3 changed, 1 added');
+    const first = demo.entries.find((e) => e.id === 'pr-101')!;
+    expect(laterThan(demo.entries, first).map((e) => e.id)).toEqual(['pr-106', 'pr-104', 'pr-102']);
+    expect(realSummary(null)).toEqual({ total: 0, reviewable: 0, imports: 0, tokenChanges: 0 });
+    expect(realSummary(demo)).toMatchObject({ total: 4, reviewable: 4, imports: 0 });
+  });
+
+  it('the demo revert of #101 meets the #106 conflict on the built files', () => {
+    const plan = planRevert({ current: new LayeredTokenSet(config, new Map(Object.entries(files))), entry: demo.entries.find((e) => e.id === 'pr-101')!, later: demo.entries });
+    expect(plan.conflicts.map((c) => [c.reason, c.later.map((l) => l.pr)])).toEqual([['changed-later', [106]]]);
+  });
+
+  it('marks web proposals as human-authored', () => {
+    const body = composeProposalBody({ summary: 'x', changes: [], contrast: [], impact: { total: 0, entries: [] }, tier: { tier: 1, bump: 'patch', reasons: [], label: '' }, validationErrors: 0, tool: 'Bridge' });
+    const out = humanAuthored(body);
+    expect(out).toContain('- [x] Human');
+    expect(out).toContain('- [ ] AI agent');
+    expect(out).not.toContain('Agent-authored');
+    expect(out).not.toMatch(/\u2014/);
+  });
+});

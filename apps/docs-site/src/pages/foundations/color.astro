@@ -1,0 +1,123 @@
+---
+import '../../styles/foundations.css';
+import Layout from '../../layouts/Layout.astro';
+import TokenNames from '../../components/TokenNames.astro';
+import Updated from '../../components/Updated.astro';
+import { componentsUsing } from '../../lib/components';
+import { PAGE_SOURCES, freshness, groupUsage } from '../../lib/sources';
+import { luminance } from '../../lib/contrast';
+import { anchorOf, colorRamps, loadTokens, MODES } from '../../lib/tokens';
+
+const { semantic } = loadTokens();
+const colors = semantic.filter((s) => s.type === 'color');
+const groups = [...new Set(colors.map((s) => s.group))];
+const ramps = colorRamps();
+const updated = freshness(PAGE_SOURCES.color);
+
+// Step label color: whichever of the system's own extremes reads better on the swatch.
+const labelOn = (hex?: string) => (hex && luminance(hex) > 0.36 ? 'var(--color-neutral-950)' : 'var(--color-neutral-0)');
+const semanticUsing = (primitivePath: string) =>
+  colors.filter((s) => MODES.some((m) => s.modes[m].chain.includes(primitivePath))).map((s) => s.path);
+---
+
+<Layout title="Color" description="Primitive palette and semantic color tokens in light and dark." sources={PAGE_SOURCES.color} updated={updated}>
+  <h1>Color</h1>
+  <p class="lead">
+    Two layers. <strong>Primitives</strong> are the raw palette. <strong>Semantic tokens</strong> give each color a job (action, feedback,
+    surface) and point to a different primitive in each theme. Design and build with semantic tokens only.
+  </p>
+  <Updated date={updated} />
+
+  <h2 id="semantic">Semantic tokens</h2>
+  <p>
+    Each row shows the token in both themes side by side, whatever theme this page is in. The chain reads
+    <span class="chain">semantic token &rarr; primitive &rarr; value</span>. Click a name to copy it as a CSS variable, a token path or a Figma variable.
+  </p>
+  {
+    groups.map((group) => (
+      <section aria-labelledby={`g-${group}`}>
+        <h3 id={`g-${group}`}>{group}</h3>
+        {groupUsage(group) && <p class="muted">{groupUsage(group)}</p>}
+        <div class="table-wrap fd-table">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Token</th>
+                <th scope="col">Light</th>
+                <th scope="col">Dark</th>
+                <th scope="col">Used by</th>
+              </tr>
+            </thead>
+            <tbody>
+              {colors
+                .filter((s) => s.group === group)
+                .map((s) => (
+                  <tr id={anchorOf(s.cssVar)}>
+                    <th scope="row">
+                      <TokenNames cssVar={s.cssVar} path={s.path} figma={s.figma} />
+                    </th>
+                    {MODES.map((m) => (
+                      <td>
+                        <div class="swatch-cell" data-theme={m}>
+                          <span class="swatch" style={`background-color: var(${s.cssVar})`} aria-hidden="true" />
+                          <span class="chain">
+                            {s.modes[m].chain.map((hop) => (
+                              <>
+                                <a href={`#${anchorOf('--' + hop.replaceAll('.', '-'))}`}>{hop}</a> &rarr;{' '}
+                              </>
+                            ))}
+                            {s.modes[m].css}
+                          </span>
+                        </div>
+                      </td>
+                    ))}
+                    <td class="small">
+                      {componentsUsing(s.cssVar).map((c, i) => (
+                        <>
+                          {i > 0 && ', '}
+                          <a href={`/components/${c.toLowerCase()}/`}>{c}</a>
+                        </>
+                      ))}
+                      {componentsUsing(s.cssVar).length === 0 && <span class="muted">Not used by a component yet</span>}
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    ))
+  }
+
+  <h2 id="primitives">Primitive palette</h2>
+  <p>
+    Raw values. Components never use these directly; semantic tokens point to them. Use them when you are proposing a new semantic token, not
+    when designing a screen.
+  </p>
+  {
+    ramps.map(({ hue, steps }) => (
+      <section aria-labelledby={`ramp-${hue}`}>
+        <h3 id={`ramp-${hue}`}>{hue}</h3>
+        <div class="ramp-strip" role="list">
+          {steps.map((p) => {
+            const n = semanticUsing(p.path).length;
+            return (
+              <div class="ramp-step" id={anchorOf(p.cssVar)} role="listitem">
+                <span class="ramp-color" style={`background-color: var(${p.cssVar}); color: ${labelOn(p.hex)}`}>
+                  <strong>{p.segments.slice(2).join('.') || p.segments.slice(1).join('.')}</strong>
+                </span>
+                <span class="ramp-meta">
+                  <button type="button" class="ramp-copy" data-copy={`var(${p.cssVar})`} aria-label={`Copy CSS variable var(${p.cssVar})`} title={`Copy var(${p.cssVar})`}>
+                    {p.hex}
+                  </button>
+                  <span class={n ? 'ramp-n' : 'ramp-n is-unused'}>{n > 0 ? `${n} semantic` : 'unused'}</span>
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+    ))
+  }
+  <p>Want to know exactly who uses a value? Try the <a href="/foundations/lookup/">token lookup</a>.</p>
+</Layout>

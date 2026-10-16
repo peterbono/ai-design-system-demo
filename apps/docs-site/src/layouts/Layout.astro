@@ -1,0 +1,252 @@
+---
+import '@bridge-ds/tokens/fonts.css';
+import '@bridge-ds/tokens/tokens.css';
+import '../styles/site.css';
+import { brandCss } from '../brand/tokens';
+import Icon from '../components/Icon.astro';
+import Logo from '../components/Logo.astro';
+import { navigation } from '../lib/nav';
+import { siteRepoJson } from '../lib/config';
+import { BRANDS, BRAND_LABEL, DENSITIES, DENSITY_LABEL } from '../lib/tokens';
+import { GITHUB_URL, STORYBOOK_URL, sourceUrl } from '../lib/repo';
+import { dashboard, humanDate, repoStatus } from '../lib/stats';
+
+interface Props {
+  title: string;
+  description?: string;
+  /** Repo-relative files that feed this page. */
+  sources?: readonly string[];
+  updated?: string | null;
+  /** Full-bleed pages (dashboard, playground) manage their own width. */
+  wide?: boolean;
+}
+
+const { title, description, sources = [], updated, wide = false } = Astro.props;
+const path = Astro.url.pathname.replace(/\/?$/, '/');
+const nav = navigation();
+const repo = repoStatus();
+const stats = dashboard();
+const isCurrent = (href: string) => path === href;
+const inSection = (href: string) => href !== '/' && href !== '/components/' && path.startsWith(href);
+---
+
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title === 'Home' ? 'Bridge: your design system, one source of truth' : `${title} | Bridge`}</title>
+    {description && <meta name="description" content={description} />}
+    <meta name="author" content="Florian Gouloubi" />
+    <meta name="theme-color" content="#f2f3f1" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0f141c" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="alternate" type="text/plain" href="/llms.txt" title="llms.txt" />
+    <style is:inline set:html={brandCss()}></style>
+    <script is:inline>
+      (function () {
+        var t = null;
+        try { t = localStorage.getItem('ds-theme'); } catch (e) {}
+        if (t !== 'light' && t !== 'dark') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', t);
+        var b = null, d = null;
+        try { b = localStorage.getItem('ds-brand'); d = localStorage.getItem('ds-density'); } catch (e) {}
+        document.documentElement.setAttribute('data-brand', b === 'ocean' ? 'ocean' : 'bridge');
+        document.documentElement.setAttribute('data-density', d === 'compact' ? 'compact' : 'comfortable');
+      })();
+    </script>
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    <header class="topbar">
+      <button type="button" class="icon-btn rail-toggle" id="rail-toggle" aria-controls="rail" aria-expanded="false" aria-label="Open navigation">
+        <Icon name="menu" />
+      </button>
+      <a class="topbar-brand" href="/" aria-label="Bridge, overview"><Logo /></a>
+      <button type="button" class="search-trigger" id="search-open" aria-haspopup="dialog" aria-controls="palette">
+        <Icon name="search" size={18} />
+        <span class="search-label">Search tokens, components, pages</span>
+        <kbd class="kbd" aria-hidden="true">⌘K</kbd>
+      </button>
+      <div class="topbar-actions">
+        <a
+          class="repo-chip"
+          href={`${GITHUB_URL}/commits`}
+          title={`Built from ${repo.branch} at ${repo.sha}. Last commit ${humanDate(repo.lastChange)}.`}
+        >
+          <span class="repo-dot" aria-hidden="true"></span>
+          <span class="mono">{repo.branch}</span>
+          <span class="repo-sep" aria-hidden="true">@</span>
+          <span class="mono">{repo.sha}</span>
+          <span class="repo-count">{stats.total} tokens</span>
+        </a>
+        <a class="icon-btn" href={STORYBOOK_URL} aria-label="Component workbench (Storybook)" title="Component workbench (Storybook), for contributors"><Icon name="storybook" /></a>
+        <a class="icon-btn" href={GITHUB_URL} aria-label="View the repository on GitHub" title="GitHub"><Icon name="github" /></a>
+        <details class="scope-menu" id="scope-menu">
+          <summary class="scope-trigger" aria-label="Design system preview: brand and density" title="Brand and density of the design system previews">
+            <span class="scope-swatch" aria-hidden="true"></span>
+            <span class="scope-label"><span data-scope-label="brand">Bridge</span><span class="scope-dot" aria-hidden="true"></span><span data-scope-label="density">Comfortable</span></span>
+            <Icon name="chevron" size={14} />
+          </summary>
+          <div class="scope-panel">
+            <p class="scope-title">Previews use</p>
+            <p class="scope-help">Applies to every design system preview on the site. The Bridge app chrome stays the same.</p>
+            <p class="scope-group-label" id="scope-brand-label">Brand</p>
+            <div class="scope-seg" role="radiogroup" aria-labelledby="scope-brand-label">
+              {BRANDS.map((b) => (
+                <button type="button" role="radio" aria-checked={b === 'bridge' ? 'true' : 'false'} data-set-brand={b}>
+                  <span class="scope-chip" data-theme="light" data-brand={b} data-scope-fixed aria-hidden="true"></span>{BRAND_LABEL[b]}
+                </button>
+              ))}
+            </div>
+            <p class="scope-group-label" id="scope-density-label">Density</p>
+            <div class="scope-seg" role="radiogroup" aria-labelledby="scope-density-label">
+              {DENSITIES.map((d) => (
+                <button type="button" role="radio" aria-checked={d === 'comfortable' ? 'true' : 'false'} data-set-density={d}>{DENSITY_LABEL[d]}</button>
+              ))}
+            </div>
+          </div>
+        </details>
+        <button type="button" class="icon-btn theme-toggle" id="theme-toggle" aria-label="Dark theme" aria-pressed="false" title="Toggle dark theme">
+          <span class="when-light"><Icon name="moon" /></span>
+          <span class="when-dark"><Icon name="sun" /></span>
+        </button>
+      </div>
+    </header>
+
+    <div class="shell">
+      <nav class="rail" id="rail" aria-label="Main">
+        <div class="rail-head">
+          <Logo />
+          <button type="button" class="icon-btn" id="rail-close" aria-label="Close navigation"><Icon name="close" /></button>
+        </div>
+        {
+          nav.map((section) => (
+            <div class="rail-section">
+              <p class="rail-label">{section.label}</p>
+              <ul>
+                {section.items.map((item) => (
+                  <li>
+                    <a href={item.href} aria-current={isCurrent(item.href) ? 'page' : undefined} data-active={inSection(item.href) || undefined}>
+                      {item.icon && <Icon name={item.icon} size={18} />}
+                      <span>{item.label}</span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+              {section.groups?.map((g) =>
+                section.groups!.length > 1 ? (
+                  <details class="rail-group" open={g.items.some((item) => isCurrent(item.href)) || undefined}>
+                    <summary class="rail-sublabel">
+                      <span>{g.label}</span>
+                      <span class="rail-count num">{g.items.length}</span>
+                    </summary>
+                    <ul class="rail-sub">
+                      {g.items.map((item) => (
+                        <li>
+                          <a href={item.href} aria-current={isCurrent(item.href) ? 'page' : undefined}>
+                            <span>{item.label}</span>
+                            {item.badge && <span class="rail-badge">{item.badge}</span>}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                ) : (
+                  <div class="rail-group">
+                    <ul class="rail-sub">
+                      {g.items.map((item) => (
+                        <li>
+                          <a href={item.href} aria-current={isCurrent(item.href) ? 'page' : undefined}>
+                            <span>{item.label}</span>
+                            {item.badge && <span class="rail-badge">{item.badge}</span>}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ),
+              )}
+            </div>
+          ))
+        }
+        <div class="rail-foot">
+          <a href="/llms.txt" class="rail-foot-link"><Icon name="file" size={16} /> llms.txt</a>
+          <p>Bridge by Florian Gouloubi. Free and open source.</p>
+        </div>
+      </nav>
+      <div class="scrim" id="scrim" hidden></div>
+
+      <main id="main" tabindex="-1" class:list={[{ wide }]}>
+        <slot />
+        <footer class="page-footer">
+          <p>
+            <Icon name="clock" size={16} />
+            <span>
+              Updated <strong>{humanDate(updated ?? null)}</strong>, from the latest commit touching this page's sources.
+              {
+                sources.length > 0 && (
+                  <>
+                    {' '}Generated from{' '}
+                    {sources.slice(0, 3).map((s, i) => (
+                      <>
+                        {i > 0 && ', '}
+                        {s === 'git log' ? <code>git log</code> : <a href={sourceUrl(s)}><code>{s}</code></a>}
+                      </>
+                    ))}
+                    {sources.length > 3 ? (
+                      <details class="footer-more">
+                        <summary>and {sources.length - 3} more files</summary>
+                        <ul>
+                          {sources.slice(3).map((s) => (
+                            <li>{s === 'git log' ? <code>git log</code> : <a href={sourceUrl(s)}><code>{s}</code></a>}</li>
+                          ))}
+                        </ul>
+                      </details>
+                    ) : (
+                      '.'
+                    )}
+                  </>
+                )
+              }
+            </span>
+          </p>
+        </footer>
+      </main>
+    </div>
+
+    <dialog class="palette" id="palette" aria-label="Search">
+      <form method="dialog" class="palette-box" role="search">
+        <div class="palette-input">
+          <Icon name="search" />
+          <input
+            id="palette-q"
+            type="search"
+            placeholder="Search tokens, components, pages"
+            autocomplete="off"
+            spellcheck="false"
+            role="combobox"
+            aria-expanded="true"
+            aria-controls="palette-list"
+            aria-autocomplete="list"
+            aria-label="Search"
+          />
+          <kbd class="kbd">esc</kbd>
+        </div>
+        <ul id="palette-list" class="palette-list" role="listbox" aria-label="Results"></ul>
+        <p class="palette-foot">
+          <span><kbd class="kbd">↑</kbd><kbd class="kbd">↓</kbd> to move</span>
+          <span><kbd class="kbd">enter</kbd> to open</span>
+          <span id="palette-count" aria-live="polite"></span>
+        </p>
+      </form>
+    </dialog>
+
+    <p class="sr-only" role="status" aria-live="polite" id="live"></p>
+    <script type="application/json" id="bridge-repo" set:html={siteRepoJson()} />
+    <script>
+      import { initShell } from '../scripts/shell';
+      initShell();
+    </script>
+  </body>
+</html>

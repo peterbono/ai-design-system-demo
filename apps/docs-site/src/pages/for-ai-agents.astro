@@ -1,0 +1,102 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Icon from '../components/Icon.astro';
+import Updated from '../components/Updated.astro';
+import { buildLlmsTxt } from '../lib/llms';
+import { PAGE_SOURCES, freshness } from '../lib/sources';
+import '../styles/process.css';
+
+const text = buildLlmsTxt();
+const updated = freshness(PAGE_SOURCES.agents);
+const lines = text.split('\n');
+
+// Stats read back from the generated text itself, so they describe exactly what an agent receives.
+const sectionOf = (title: string) => {
+  const start = lines.findIndex((l) => l === `## ${title}`);
+  if (start < 0) return [];
+  const end = lines.findIndex((l, i) => i > start && l.startsWith('## '));
+  return lines.slice(start + 1, end < 0 ? undefined : end);
+};
+const stats = [
+  { value: lines.length, label: 'lines' },
+  { value: lines.filter((l) => l.startsWith('## ')).length, label: 'sections' },
+  { value: sectionOf('Rules for agents (from AGENTS.md)').filter((l) => l.startsWith('- ')).length, label: 'agent rules' },
+  { value: sectionOf('Semantic tokens').filter((l) => l.startsWith('- `var(')).length, label: 'semantic tokens' },
+  { value: sectionOf('Components').filter((l) => l.startsWith('### ')).length, label: 'components' },
+  { value: Math.round(new TextEncoder().encode(text).length / 1024), label: 'KB of plain text' },
+];
+---
+
+<Layout title="For AI agents" description="The same documentation as plain text for AI agents, at /llms.txt." sources={PAGE_SOURCES.agents} updated={updated}>
+  <h1>For AI agents</h1>
+  <p class="lead">
+    One source, two outputs. The pages you read and the file an agent reads are generated from the same token files, component code and rules,
+    in the same build. They cannot disagree.
+  </p>
+  <Updated date={updated} />
+
+  <div class="two-up">
+    <article class="audience">
+      <span class="audience-icon" aria-hidden="true"><Icon name="user" size={22} /></span>
+      <h2>For people</h2>
+      <p>HTML pages with swatches in both themes, do and don't examples, contrast badges and plain-language rules.</p>
+      <p class="audience-foot"><a href="/">Open the overview</a></p>
+    </article>
+    <div class="two-up-bridge" aria-hidden="true">
+      <span>same build</span>
+    </div>
+    <article class="audience is-agent">
+      <span class="audience-icon" aria-hidden="true"><Icon name="agent" size={22} /></span>
+      <h2>For agents</h2>
+      <p>
+        <a href="/llms.txt">/llms.txt</a> ({lines.length} lines): the agent rules from <code>AGENTS.md</code>, every semantic token with its light and
+        dark value, the scales, failing contrast pairs, and each component's props and usage rules.
+      </p>
+      <p class="audience-foot"><a href="/llms.txt">Open llms.txt</a></p>
+    </article>
+  </div>
+
+  <dl class="stat-strip" aria-label="What /llms.txt contains, counted from the generated file">
+    {
+      stats.map((s) => (
+        <div>
+          <dt>{s.label}</dt>
+          <dd class="num">{s.value}</dd>
+        </div>
+      ))
+    }
+  </dl>
+
+  <h2>Why this matters</h2>
+  <ul class="why-list">
+    <li>
+      <span class="why-icon" aria-hidden="true"><Icon name="layers" size={18} /></span>
+      <p>Agents follow structured, short context better than long prose style guides. Values come from the token files, not from a copy.</p>
+    </li>
+    <li>
+      <span class="why-icon" aria-hidden="true"><Icon name="link" size={18} /></span>
+      <p>When a designer changes a token through DS Bridge and it merges, the next build updates both this site and llms.txt. Nobody re-types the docs.</p>
+    </li>
+    <li>
+      <span class="why-icon" aria-hidden="true"><Icon name="shield" size={18} /></span>
+      <p>The hard rules are not only in this text: CI blocks raw colors and shadows, so an agent that ignores the file still cannot merge.</p>
+    </li>
+  </ul>
+
+  <h2>Preview</h2>
+  <div class="terminal">
+    <div class="terminal-bar">
+      <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span class="terminal-title"><Icon name="terminal" size={15} /> <span>GET /llms.txt</span></span>
+      <span class="terminal-actions">
+        <a class="terminal-link" href="/llms.txt">Open raw</a>
+        <button type="button" class="copy copy-ui" data-copy="" data-copy-from="llms">
+          <Icon name="copy" size={15} />
+          <span data-copy-label>Copy llms.txt</span>
+        </button>
+      </span>
+    </div>
+    <p class="sr-only">Exactly what is served at /llms.txt.</p>
+    <pre id="llms" class="terminal-body" tabindex="0" aria-label="Contents of llms.txt">{text}</pre>
+  </div>
+</Layout>

@@ -1,0 +1,5 @@
+.root {
+  color: var(--color-text-default);
+  gap: var(--space-2);
+  border-radius: var(--radius-container);
+}

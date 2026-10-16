@@ -1,0 +1,47 @@
+{
+  "summary": "A small non-modal panel anchored to a trigger, for extra detail or a quick choice that does not deserve a dialog: who must review, what a check does, branch info.",
+  "preview": { "c": "Row", "children": [ { "c": "Button", "p": { "variant": "secondary" }, "children": ["Reviewers"] } ] },
+  "whenToUse": [
+    "Explaining something next to the control it is about, when the text is too long for a tooltip or contains a link.",
+    "A small form or a couple of actions tied to one control.",
+    "Info icons: Popover (click or openOnHover) instead of Tooltip, so touch and screen reader users can reach it."
+  ],
+  "whenNotToUse": [
+    "A list of actions: use Menu, which has the right keyboard model.",
+    "A label for an icon button: use Tooltip.",
+    "A task that must be completed or cancelled: use Dialog."
+  ],
+  "dos": [
+    {
+      "title": "Keep it short and anchored",
+      "text": "A title, two sentences, at most one or two actions. The arrow shows what it belongs to.",
+      "example": { "c": "Row", "children": [ { "c": "Button", "p": { "variant": "secondary" }, "children": ["Contrast checks"] } ] }
+    }
+  ],
+  "donts": [
+    {
+      "title": "Forms that span several sections",
+      "text": "A popover closes on an outside click, so long input gets lost. Use a Dialog or a Drawer.",
+      "example": { "c": "Row", "children": [ { "c": "Button", "p": { "variant": "secondary" }, "children": ["Edit all settings"] } ] }
+    }
+  ],
+  "accessibility": [
+    "Base UI Popover: the trigger exposes aria-expanded and aria-controls; the popup is a dialog named by its title.",
+    "Focus moves into the popup when it opens and back to the trigger when it closes. Escape and outside clicks close it.",
+    "Non-modal by default: the page stays usable. Set modal when the popover holds a small form.",
+    "It flips and shifts to stay in the viewport; the arrow follows the anchor."
+  ],
+  "contentGuidelines": [
+    "Title in sentence case, no period. Body in one or two plain sentences.",
+    "Links inside say where they go."
+  ],
+  "anatomy": {
+    "positioner": "Positioning layer (layer.popover)",
+    "popup": "Surface (popup.bg, popup.border, popup.radius, popup.shadow)",
+    "arrow": "Arrow",
+    "header": "Header",
+    "title": "Title",
+    "description": "Description",
+    "close": "Close button"
+  }
+}

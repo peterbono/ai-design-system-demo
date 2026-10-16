@@ -1,0 +1,66 @@
+{
+  "table": {
+    "header": {
+      "bg": {
+        "$type": "color",
+        "$value": "{color.bg.subtle}"
+      },
+      "text": {
+        "$type": "color",
+        "$value": "{color.text.muted}"
+      }
+    },
+    "row": {
+      "bg-hover": {
+        "$type": "color",
+        "$value": "{color.surface.hover}"
+      },
+      "bg-selected": {
+        "$type": "color",
+        "$value": "{color.surface.selected}"
+      }
+    },
+    "border": {
+      "$type": "color",
+      "$value": "{color.border.subtle}"
+    }
+  },
+  "tabs": {
+    "indicator": {
+      "$type": "color",
+      "$value": "{color.signal.default}"
+    },
+    "text-active": {
+      "$type": "color",
+      "$value": "{color.text.default}"
+    },
+    "text": {
+      "$type": "color",
+      "$value": "{color.text.muted}"
+    }
+  },
+  "progress": {
+    "track": {
+      "$type": "color",
+      "$value": "{color.bg.muted}"
+    },
+    "fill": {
+      "$type": "color",
+      "$value": "{color.signal.default}"
+    }
+  },
+  "nav": {
+    "item-bg-hover": {
+      "$type": "color",
+      "$value": "{color.surface.hover}"
+    },
+    "item-bg-active": {
+      "$type": "color",
+      "$value": "{color.surface.pressed}"
+    },
+    "indicator": {
+      "$type": "color",
+      "$value": "{color.signal.default}"
+    }
+  }
+}

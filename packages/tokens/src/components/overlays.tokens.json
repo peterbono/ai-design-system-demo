@@ -1,0 +1,20 @@
+{
+  "menu": {
+    "$type": "color",
+    "item": {
+      "bg-highlight": { "$value": "{color.surface.hover-raised}", "$description": "Keyboard or pointer highlight on a menu item." },
+      "text": { "$value": "{color.text.default}" },
+      "text-muted": { "$value": "{color.text.muted}", "$description": "Group labels, shortcuts, submenu chevrons." },
+      "text-danger": { "$value": "{color.feedback.danger.text}" },
+      "text-disabled": { "$value": "{color.text.disabled}" },
+      "indicator": { "$value": "{color.control.checked.bg}", "$description": "Check and radio marks: selection is ink." }
+    },
+    "separator": { "$value": "{color.border.default}" }
+  },
+  "drawer": {
+    "bg": { "$type": "color", "$value": "{color.surface.raised}" },
+    "border": { "$type": "color", "$value": "{color.border.default}" },
+    "radius": { "$type": "dimension", "$value": "{radius.overlay}" },
+    "shadow": { "$type": "shadow", "$value": "{elevation.modal}" }
+  }
+}

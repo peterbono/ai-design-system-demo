@@ -1,0 +1,214 @@
+.shell {
+  display: grid;
+  grid-template-columns: var(--size-60) minmax(0, 1fr);
+  min-height: 100vh;
+  background-color: var(--color-bg-default);
+}
+
+.skip {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  z-index: var(--layer-toast);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-control);
+  background-color: var(--color-surface-default);
+  color: var(--color-text-default);
+  transform: translateY(-200%);
+}
+
+.skip:focus-visible {
+  transform: none;
+}
+
+.sidebar {
+  border-inline-end: var(--border-width-default) solid var(--color-border-subtle);
+  background-color: var(--color-surface-default);
+}
+
+.sidebarInner {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  height: 100vh;
+  padding: var(--space-4) var(--space-3);
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.nav {
+  flex: 1 1 auto;
+}
+
+.tenant,
+.tenantCompact {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-1) var(--space-2);
+  min-width: 0;
+}
+
+.mark {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: var(--size-8);
+  height: var(--size-8);
+  border-radius: var(--radius-control);
+  background-color: var(--color-action-primary-bg);
+  color: var(--color-action-primary-text);
+  font-size: var(--font-size-100);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--font-tracking-wide);
+}
+
+.tenantText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.tenantName {
+  overflow: hidden;
+  color: var(--color-text-default);
+  font-size: var(--font-size-200);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.tenantTagline {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-100);
+}
+
+.demoNote {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: var(--border-width-default) solid var(--color-border-subtle);
+  border-radius: var(--radius-container);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-100);
+  line-height: var(--font-line-height-snug);
+}
+
+.demoNote p {
+  margin: 0;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.header {
+  position: sticky;
+  top: 0;
+  z-index: var(--layer-sticky);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: var(--size-14);
+  padding: 0 var(--space-8);
+  border-bottom: var(--border-width-default) solid var(--color-border-subtle);
+  background-color: var(--color-surface-default);
+  box-sizing: border-box;
+}
+
+.menuButton {
+  display: none;
+}
+
+.search {
+  flex: 0 1 var(--size-96);
+  min-width: 0;
+}
+
+.searchBox {
+  width: 100%;
+}
+
+.headerEnd {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-inline-start: auto;
+}
+
+.tenantSwitch {
+  width: calc(var(--size-20) * 2);
+  margin-inline-end: var(--space-2);
+}
+
+.account {
+  display: inline-flex;
+  margin-inline-start: var(--space-2);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  cursor: pointer;
+}
+
+.account:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.content {
+  width: 100%;
+  max-width: calc(var(--size-300) + var(--size-16));
+  padding: var(--space-8);
+  box-sizing: border-box;
+}
+
+.content:focus {
+  outline: none;
+}
+
+@media (max-width: 1024px) {
+  .shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sidebar {
+    display: none;
+  }
+
+  .menuButton {
+    display: inline-flex;
+  }
+
+  .header {
+    padding: 0 var(--space-4);
+  }
+
+  .content {
+    padding: var(--space-6) var(--space-4);
+  }
+}
+
+@media (max-width: 640px) {
+  .header {
+    gap: var(--space-2);
+  }
+
+  .search {
+    flex: 1 1 auto;
+  }
+
+  .tenantSwitch {
+    display: none;
+  }
+}
+
+.drawerTenant {
+  margin-bottom: var(--space-5);
+}

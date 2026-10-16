@@ -1,0 +1,24 @@
+{
+  "name": "@bridge-ds/docs-site",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Human-facing documentation site. Every page is generated at build time from the tokens, components and docs in this repo.",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@astrojs/react": "4.4.2",
+    "@bridge-ds/core": "*",
+    "@bridge-ds/react": "*",
+    "@bridge-ds/tokens": "*",
+    "astro": "5.18.1",
+    "lucide-react": "1.58.0"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.9"
+  }
+}

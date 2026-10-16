@@ -1,0 +1,70 @@
+{
+  "$schema": "./packages/core/bridge.config.schema.json",
+  "version": 1,
+  "repo": {
+    "owner": "peterbono",
+    "name": "ai-design-system-demo",
+    "defaultBranch": "main"
+  },
+  "tokens": {
+    "root": "packages/tokens/src",
+    "include": ["**/*.tokens.json"],
+    "tiers": {
+      "primitive": ["primitives"],
+      "brand": ["brands"],
+      "base": ["semantic/base.tokens.json"],
+      "semantic": ["semantic"],
+      "density": ["density"],
+      "component": ["components"]
+    },
+    "layers": [
+      { "files": "primitives/*.tokens.json" },
+      { "files": "semantic/base.tokens.json" },
+      { "files": "brands/{brand}.tokens.json" },
+      { "files": "semantic/{theme}.tokens.json" },
+      { "files": "brands/{brand}.{theme}.tokens.json", "optional": true },
+      { "files": "density/{density}.tokens.json" },
+      { "files": "components/*.tokens.json" }
+    ]
+  },
+  "modes": {
+    "brand": { "values": ["bridge", "ocean"], "default": "bridge" },
+    "theme": { "values": ["light", "dark"], "default": "light", "parity": true },
+    "density": { "values": ["comfortable", "compact"], "default": "comfortable" }
+  },
+  "contrast": { "path": "packages/tokens/src/contrast.checks.json", "modes": ["brand", "theme"] },
+  "components": {
+    "dir": "packages/react/src/components",
+    "docsSuffix": ".docs.json",
+    "styleSuffix": ".module.css",
+    "reference": "Button",
+    "index": "packages/react/src/index.ts"
+  },
+  "docs": {
+    "designLanguage": "docs/DESIGN-LANGUAGE.md",
+    "guidelines": "AGENTS.md",
+    "governance": "docs/GOVERNANCE.md"
+  },
+  "changesets": { "dir": ".changeset", "package": "@bridge-ds/tokens" },
+  "cssVar": { "prefix": "--", "separator": "-" },
+  "governance": {
+    "protectedBranches": ["main", "master"],
+    "branchPrefix": "bridge/",
+    "labels": ["source: mcp"],
+    "guardrails": [
+      "AGENTS.md",
+      "CLAUDE.md",
+      ".github/",
+      ".stylelintrc.json",
+      "docs/GOVERNANCE.md",
+      "bridge.config.json",
+      "packages/tokens/src/contrast.checks.json"
+    ],
+    "owners": { "design": ["peterbono"], "tech": ["peterbono"] },
+    "override": { "allowed": ["peterbono"], "requireReason": true, "minReasonLength": 20 }
+  },
+  "previews": {
+    "packages": ["@bridge-ds/tokens", "@bridge-ds/core", "@bridge-ds/react"],
+    "apps": {}
+  }
+}

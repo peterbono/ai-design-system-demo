@@ -1,0 +1,55 @@
+{
+  "control": {
+    "$type": "dimension",
+    "height": {
+      "sm": {
+        "$value": "{size.8}"
+      },
+      "md": {
+        "$value": "{size.10}"
+      },
+      "lg": {
+        "$value": "{size.12}"
+      }
+    },
+    "padding-x": {
+      "sm": {
+        "$value": "{space.3}"
+      },
+      "md": {
+        "$value": "{space.4}"
+      },
+      "lg": {
+        "$value": "{space.5}"
+      }
+    },
+    "gap": {
+      "$value": "{space.2}"
+    }
+  },
+  "layout": {
+    "$type": "dimension",
+    "gap": {
+      "$value": "{space.4}"
+    },
+    "inset": {
+      "$value": "{space.5}",
+      "$description": "Padding inside cards, dialogs, popovers."
+    }
+  },
+  "table": {
+    "$type": "dimension",
+    "row-height": {
+      "$value": "{size.12}"
+    },
+    "cell-padding-x": {
+      "$value": "{space.4}"
+    }
+  },
+  "menu": {
+    "$type": "dimension",
+    "item-height": {
+      "$value": "{size.9}"
+    }
+  }
+}

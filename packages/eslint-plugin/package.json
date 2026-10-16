@@ -1,0 +1,64 @@
+{
+  "name": "@bridge-ds/eslint-plugin",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "ESLint rules for product code that uses a Bridge design system: bridge/no-hardcoded-style-values (raw values in style, sx, styled and theme objects, with the token to use) and bridge/prefer-ds-components (native elements and foreign UI libraries). Reads the tokens through @bridge-ds/core and bridge.config.json.",
+  "license": "MIT",
+  "author": "Florian Gouloubi",
+  "homepage": "https://github.com/peterbono/ai-design-system-demo/tree/main/packages/eslint-plugin#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/peterbono/ai-design-system-demo.git",
+    "directory": "packages/eslint-plugin"
+  },
+  "bugs": {
+    "url": "https://github.com/peterbono/ai-design-system-demo/issues"
+  },
+  "keywords": [
+    "eslint",
+    "eslintplugin",
+    "eslint-plugin",
+    "design-system",
+    "bridge"
+  ],
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build:package": "node ../../scripts/build-packages.mjs eslint-plugin"
+  },
+  "peerDependencies": {
+    "eslint": ">=9.0.0"
+  },
+  "peerDependenciesMeta": {
+    "eslint": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@babel/parser": "7.29.9",
+    "@bridge-ds/core": "*",
+    "@types/node": "20.19.9",
+    "esbuild": "0.27.7"
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "summary": "Stacked sections that expand in place. Lets users scan headings and open only what they need.",
+  "preview": { "c": "Box", "children": [ { "c": "Accordion", "p": { "defaultValue": ["color"] }, "children": [
+    { "c": "AccordionItem", "p": { "value": "color", "title": "Color tokens", "meta": "48" }, "children": ["Semantic color tokens alias the palette roles of the active brand."] },
+    { "c": "AccordionItem", "p": { "value": "space", "title": "Spacing tokens", "meta": "16" }, "children": ["A 4px scale from 2px to 96px."] }
+  ] } ] },
+  "whenToUse": [
+    "Long reference content where users look for one section: token groups, FAQ, advanced settings.",
+    "multiple when users compare sections; single (default) when sections are alternatives.",
+    "flush inside a card or a side panel, contained on a page."
+  ],
+  "whenNotToUse": [
+    "Content everyone needs: do not hide it behind a click.",
+    "Switching between views of the same data: use Tabs.",
+    "Steps in a sequence: use a stepped layout with headings."
+  ],
+  "dos": [
+    {
+      "title": "Headings that work as a table of contents",
+      "text": "Users scan the closed state. Name each section by its content, and show a count in meta when it helps.",
+      "example": { "c": "Box", "children": [ { "c": "Accordion", "children": [
+        { "c": "AccordionItem", "p": { "value": "a", "title": "Motion tokens", "meta": "10" }, "children": ["Durations and easings."] }
+      ] } ] }
+    }
+  ],
+  "donts": [
+    {
+      "title": "Nesting accordions",
+      "text": "A collapsible inside a collapsible hides content twice. Flatten the structure or split the page.",
+      "example": { "c": "Box", "children": [ { "c": "Accordion", "children": [
+        { "c": "AccordionItem", "p": { "value": "a", "title": "More" }, "children": ["More options"] }
+      ] } ] }
+    }
+  ],
+  "accessibility": [
+    "Base UI Accordion: each trigger is a button inside a heading (headingLevel, default h3) with aria-expanded and aria-controls.",
+    "Panels are regions labelled by their trigger. Enter and Space toggle; Tab moves between triggers.",
+    "Disabled items stay visible but cannot open.",
+    "The height animation uses motion tokens and collapses to 0ms with reduced motion."
+  ],
+  "contentGuidelines": [
+    "Titles are short nouns in sentence case, no ending punctuation.",
+    "Meta is a number or a one-word status, never a sentence."
+  ],
+  "anatomy": {
+    "accordion": "Container",
+    "contained": "Contained appearance",
+    "flush": "Flush appearance",
+    "item": "Item",
+    "trigger": "Trigger button",
+    "title": "Title",
+    "meta": "Meta",
+    "chevron": "Chevron",
+    "panel": "Panel",
+    "content": "Panel content"
+  }
+}

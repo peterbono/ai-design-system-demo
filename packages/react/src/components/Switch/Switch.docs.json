@@ -1,0 +1,54 @@
+{
+  "summary": "Turns a setting on or off with immediate effect, like a light switch. No save button needed.",
+  "preview": { "c": "Stack", "children": [
+    { "c": "Switch", "p": { "label": "Auto-publish approved tokens", "defaultChecked": true } },
+    { "c": "Switch", "p": { "label": "Weekly digest", "description": "A summary of token changes every Monday." } }
+  ] },
+  "whenToUse": [
+    "Settings that apply as soon as they are flipped: notifications, auto-publish, preview mode.",
+    "labelPlacement start in settings lists, so labels align left and switches align right."
+  ],
+  "whenNotToUse": [
+    "A choice saved later with a form button: use Checkbox.",
+    "More than two states: use RadioGroup or Select.",
+    "Starting an action (Publish, Sync): use Button."
+  ],
+  "dos": [
+    {
+      "title": "Name the setting, not the state",
+      "text": "The switch shows on or off; the label says what is on or off.",
+      "example": { "c": "Stack", "children": [ { "c": "Switch", "p": { "label": "Email notifications", "defaultChecked": true } } ] }
+    }
+  ],
+  "donts": [
+    {
+      "title": "Labels that change with the state",
+      "text": "\"On\" and \"Off\" labels repeat what the control already shows and hide what it controls.",
+      "example": { "c": "Stack", "children": [ { "c": "Switch", "p": { "label": "On", "defaultChecked": true } } ] }
+    },
+    {
+      "title": "A switch that waits for Save",
+      "text": "Users expect a switch to act at once. Inside a form that saves later, use a Checkbox.",
+      "example": { "c": "Stack", "children": [ { "c": "Switch", "p": { "label": "Accept the terms" } } ] }
+    }
+  ],
+  "accessibility": [
+    "Base UI Switch: role switch with aria-checked; Space and Enter toggle it; the label row is the click target.",
+    "The off track uses control.track (3:1 against surfaces) and the thumb keeps 3:1 against the track, so the state is visible without color.",
+    "The thumb position carries the state, not only the track color.",
+    "If flipping it fails (network), revert it and say why next to it."
+  ],
+  "contentGuidelines": [
+    "Noun phrase in sentence case: \"Review requests\", \"Auto-publish approved tokens\".",
+    "Put consequences in the description, one short sentence."
+  ],
+  "anatomy": {
+    "item": "Label row (click target)",
+    "track": "Track",
+    "thumb": "Thumb",
+    "label": "Label text",
+    "description": "Description",
+    "sm": "Size sm",
+    "start": "Label placed first"
+  }
+}

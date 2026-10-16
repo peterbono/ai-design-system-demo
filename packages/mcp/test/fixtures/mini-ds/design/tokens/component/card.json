@@ -1,0 +1,7 @@
+{
+  "card": {
+    "bg": { "$type": "color", "$value": "{bg.card}" },
+    "text": { "$type": "color", "$value": "{fg.default}" },
+    "padding": { "$type": "dimension", "$value": "{space.4}" }
+  }
+}

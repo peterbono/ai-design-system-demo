@@ -1,0 +1,408 @@
+---
+import '../../styles/component.css';
+import Layout from '../../layouts/Layout.astro';
+import Example from '../../components/Example.tsx';
+import Icon from '../../components/Icon.astro';
+import PropsPlayground from '../../components/PropsPlayground.tsx';
+import Updated from '../../components/Updated.astro';
+import { loadComponents, playgroundSpec, type ComponentInfo } from '../../lib/components';
+import { lastUpdated, sourceUrl, STORYBOOK_URL } from '../../lib/repo';
+import { MODES } from '../../lib/tokens';
+
+export function getStaticPaths() {
+  return loadComponents().map((c) => ({ params: { slug: c.slug }, props: { c } }));
+}
+
+const { c } = Astro.props as { c: ComponentInfo };
+const sources = Object.values(c.files);
+const updated = lastUpdated(sources);
+const d = c.docs;
+const status = d?.status ?? 'stable';
+const statusTone = status === 'stable' ? 'is-pass' : status === 'beta' ? 'is-info' : 'is-warn';
+const mainStory = c.stories[0];
+const storyUrl = (id: string) => `${STORYBOOK_URL}/iframe.html?id=${id}&viewMode=story`;
+const unknownTokens = c.tokensUsed.filter((t) => !t.known);
+const spec = playgroundSpec(c);
+const semanticCount = c.tokensUsed.filter((t) => t.kind === 'semantic' || t.kind === 'component').length;
+const densityCount = c.tokensUsed.filter((t) => t.kind === 'density').length;
+const primitiveCount = c.tokensUsed.filter((t) => t.kind === 'primitive' || t.kind === 'brand').length;
+const tokenHref = (v: { path?: string; href?: string }) => (v.path ? `/tokens/?t=${encodeURIComponent(v.path)}` : v.href);
+const fileLinks = [
+  { label: `${c.name}.tsx`, href: sourceUrl(c.files.tsx) },
+  { label: `${c.name}.module.css`, href: sourceUrl(c.files.css) },
+  ...(d ? [{ label: `${c.name}.docs.json`, href: sourceUrl(c.files.docs) }] : []),
+];
+const toc = [
+  ...(d
+    ? [
+        { id: 'usage', label: 'When to use' },
+        { id: 'do-dont', label: "Do and don't" },
+        { id: 'accessibility', label: 'Accessibility' },
+      ]
+    : []),
+  { id: 'anatomy', label: 'Anatomy and tokens' },
+  { id: 'props', label: 'Props' },
+  { id: 'playground', label: 'Playground' },
+  { id: 'live', label: 'Workbench' },
+];
+---
+
+<Layout title={c.name} description={d?.summary ?? c.description} sources={sources} updated={updated}>
+  <nav class="crumbs" aria-label="Breadcrumb">
+    <a href="/components/">Components</a><span aria-hidden="true">/</span><span aria-current="page">{c.name}</span>
+  </nav>
+  <div class="cp-head">
+    <div class="cp-title">
+      <h1>{c.name}</h1>
+      <span class:list={['pill', statusTone]}>{status === 'stable' ? 'Stable' : status === 'beta' ? 'Beta' : 'Deprecated'}</span>
+    </div>
+    {d?.summary && <p class="lead">{d.summary}</p>}
+    <div class="cp-meta">
+      <Updated date={updated} />
+      <ul class="cp-links" aria-label="Resources">
+        {
+          mainStory && (
+            <li>
+              <a class="cp-link" href={`${STORYBOOK_URL}/?path=/story/${mainStory.id}`}>
+                <Icon name="storybook" size={16} /> Workbench
+              </a>
+            </li>
+          )
+        }
+        {
+          fileLinks.map((f) => (
+            <li>
+              <a class="cp-link mono" href={f.href}>
+                <Icon name="github" size={16} /> {f.label}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+  </div>
+
+  {
+    d?.preview && (
+      <section class="hero-stage" data-view="split" aria-label={`${c.name} preview`}>
+        <div class="hero-stage-bar">
+          <div class="cp-seg" role="group" aria-label="Preview theme">
+            <button type="button" data-view-btn="light" aria-pressed="false">
+              <Icon name="sun" size={16} /> Light
+            </button>
+            <button type="button" data-view-btn="dark" aria-pressed="false">
+              <Icon name="moon" size={16} /> Dark
+            </button>
+            <button type="button" data-view-btn="split" aria-pressed="true">
+              <Icon name="contrast" size={16} /> Side by side
+            </button>
+          </div>
+          <span class="hero-stage-note">Rendered with the real component</span>
+        </div>
+        <div class="hero-stage-panes">
+          {MODES.map((m) => (
+            <div class="hero-pane stage-checker" data-theme={m} data-pane={m}>
+              <span class="pane-label">{m === 'light' ? 'Light' : 'Dark'}</span>
+              <div class="hero-pane-inner">
+                <Example node={d.preview!} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    )
+  }
+
+  {
+    !d && (
+      <div class="callout is-warn">
+        <Icon name="info" />
+        <p>
+          No usage guidance yet. Add <code>{c.files.docs}</code> to fill this page. Props and tokens below are generated from the code.
+        </p>
+      </div>
+    )
+  }
+
+  <div class="cp-layout">
+    <div class="cp-body">
+      {
+        d && (
+          <>
+            <section aria-labelledby="usage">
+              <h2 id="usage">When to use</h2>
+              <div class="usage-grid">
+                <div class="usage-col is-use">
+                  <h3>
+                    <Icon name="check" size={18} /> Use it for
+                  </h3>
+                  <ul>
+                    {d.whenToUse.map((x) => (
+                      <li>{x}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div class="usage-col is-avoid">
+                  <h3>
+                    <Icon name="x" size={18} /> Not for
+                  </h3>
+                  <ul>
+                    {d.whenNotToUse.map((x) => (
+                      <li>{x}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </section>
+
+            <section aria-labelledby="do-dont">
+              <h2 id="do-dont">Do and don't</h2>
+              <p class="muted">Every example is rendered with the real component, so it always matches what ships.</p>
+              <div class="guidance">
+                {d.dos.map((g) => (
+                  <figure class="verdict do">
+                    {g.example && (
+                      <div class="verdict-stage" data-theme="light">
+                        <Example node={g.example} />
+                      </div>
+                    )}
+                    <figcaption class="verdict-body">
+                      <span class="pill is-pass">
+                        <Icon name="check" size={14} /> Do
+                      </span>
+                      <h4>{g.title}</h4>
+                      <p>{g.text}</p>
+                    </figcaption>
+                  </figure>
+                ))}
+                {d.donts.map((g) => (
+                  <figure class="verdict dont">
+                    {g.example && (
+                      <div class="verdict-stage" data-theme="light" inert>
+                        <Example node={g.example} />
+                      </div>
+                    )}
+                    <figcaption class="verdict-body">
+                      <span class="pill is-fail">
+                        <Icon name="close" size={14} /> Don't
+                      </span>
+                      <h4>{g.title}</h4>
+                      <p>{g.text}</p>
+                    </figcaption>
+                  </figure>
+                ))}
+              </div>
+            </section>
+
+            <section aria-labelledby="accessibility">
+              <h2 id="accessibility">Accessibility</h2>
+              <ul class="a11y-list">
+                {d.accessibility.map((x) => (
+                  <li>
+                    <Icon name="check" size={16} />
+                    <span>{x}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          </>
+        )
+      }
+
+      <section aria-labelledby="anatomy">
+        <h2 id="anatomy">Anatomy and tokens</h2>
+        <p>
+          Read from <a href={sourceUrl(c.files.css)}><code>{c.files.css}</code></a> at build time. Every value is a token: open one to see its
+          alias chain in both themes.
+        </p>
+        <div class="token-summary">
+          <span class="pill">{c.tokensUsed.length} tokens</span>
+          <span class="pill is-accent">{semanticCount} semantic or component, change with theme and brand</span>
+          {densityCount > 0 && <span class="pill">{densityCount} density, change with comfortable or compact</span>}
+          <span class="pill is-info">{primitiveCount} from the shared scales</span>
+        </div>
+        {
+          unknownTokens.length > 0 && (
+            <div class="callout is-warn">
+              <Icon name="alert" />
+              <p>
+                <strong>Unknown tokens:</strong> {unknownTokens.map((t) => t.name).join(', ')}. They are not defined in the token sources and will
+                render as nothing.
+              </p>
+            </div>
+          )
+        }
+        <ul class="anatomy">
+          {
+            c.rules.map((r) => (
+              <li class="anatomy-row">
+                <div class="anatomy-part">
+                  <strong>{r.label}</strong>
+                  <code class="anatomy-sel">{r.selector}</code>
+                </div>
+                <div class="anatomy-tokens">
+                  {r.vars.map((v) =>
+                    tokenHref(v) ? (
+                      <a class:list={['tchip', v.kind === 'primitive' || v.kind === 'brand' ? 'is-primitive' : 'is-semantic']} href={tokenHref(v)}>
+                        {v.name}
+                      </a>
+                    ) : (
+                      <span class="tchip is-unknown">{v.name}</span>
+                    ),
+                  )}
+                </div>
+              </li>
+            ))
+          }
+        </ul>
+      </section>
+
+      <section aria-labelledby="props">
+        <h2 id="props">Props</h2>
+        <p>
+          Parsed from the TypeScript types in <a href={sourceUrl(c.files.tsx)}><code>{c.files.tsx}</code></a>, so this table cannot drift from the
+          code.
+          {c.inherits && <> It also accepts every native <code>{`<${c.inherits}>`}</code> attribute{c.omitted.length > 0 ? <> except <code>{c.omitted.join(', ')}</code>.</> : '.'}</>}
+        </p>
+        {
+          c.props.length > 0 ? (
+            <div class="table-wrap">
+              <table class="props-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Prop</th>
+                    <th scope="col">Type</th>
+                    <th scope="col">Default</th>
+                    <th scope="col">Description</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {c.props.map((p) => (
+                    <tr>
+                      <th scope="row">
+                        <code class="prop-name">{p.name}</code>
+                        {p.required && <span class="pill is-accent">required</span>}
+                      </th>
+                      <td>
+                        <code class="prop-type">{p.type}</code>
+                      </td>
+                      <td class="prop-default">{p.defaultValue ? <code>{p.defaultValue}</code> : <span class="muted">none</span>}</td>
+                      <td>{p.description ?? <span class="muted">No description in the code yet.</span>}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p class="muted">No props of its own.{c.description && ` ${c.description}`}</p>
+          )
+        }
+        {
+          c.subcomponents.length > 0 && (
+            <p>Comes with {c.subcomponents.map((s, i) => <>{i > 0 && ', '}<code>{s}</code></>)}, each accepting native <code>&lt;div&gt;</code> attributes.</p>
+          )
+        }
+      </section>
+
+      <section aria-labelledby="playground">
+        <h2 id="playground">Playground</h2>
+        {
+          spec ? (
+            <>
+              <p class="muted">
+                Change the props and see the real {c.name} update. Controls are generated from the TypeScript props; nothing here changes the system.
+              </p>
+              <PropsPlayground client:visible spec={spec} />
+            </>
+          ) : (
+            <>
+              <p class="muted">{c.name} has no typed options to play with: it is a container. Compose it with {c.subcomponents.length > 0 ? c.subcomponents.map((s, i) => <>{i > 0 && ', '}<code>{s}</code></>) : 'other components'} and any native attribute. Here it is in both themes.</p>
+              {d?.preview && (
+                <div class="pg-fallback">
+                  {MODES.map((m) => (
+                    <div class="pg-stage stage-checker" data-theme={m}>
+                      <span class="pane-label">{m === 'light' ? 'Light' : 'Dark'}</span>
+                      <div class="pg-stage-inner">
+                        <Example node={d.preview!} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )
+        }
+      </section>
+
+      <section aria-labelledby="live">
+        <h2 id="live">Workbench</h2>
+        <p>
+          For contributors: every state with the accessibility panel, in the component workbench (Storybook). The stories double as visual test
+          fixtures; the guidance on this page is the user documentation
+          {mainStory && (
+            <>
+              {' '}(<a href={`${STORYBOOK_URL}/?path=/story/${mainStory.id}`}>open {c.name} in Storybook</a>)
+            </>
+          )}
+          .
+        </p>
+        {
+          mainStory && (
+            <details class="stories">
+              <summary>Embed Storybook stories here ({c.stories.length})</summary>
+              <p class="small muted">
+                Loads from <code>{STORYBOOK_URL}</code> (set <code>STORYBOOK_URL</code> at build time). If Storybook is not running, the frames stay
+                empty.
+              </p>
+              {c.stories.map((s) => (
+                <>
+                  <h4>{s.name}</h4>
+                  <iframe class="story-frame" src={storyUrl(s.id)} title={`${c.name} story: ${s.name}`} loading="lazy" />
+                </>
+              ))}
+            </details>
+          )
+        }
+      </section>
+    </div>
+
+    <aside class="cp-toc" aria-label="On this page">
+      <p class="cp-toc-title">On this page</p>
+      <ul>
+        {
+          toc.map((t) => (
+            <li>
+              <a href={`#${t.id}`}>{t.label}</a>
+            </li>
+          ))
+        }
+      </ul>
+    </aside>
+  </div>
+
+  <script>
+    document.querySelectorAll<HTMLElement>('.hero-stage').forEach((stage) => {
+      const buttons = stage.querySelectorAll<HTMLButtonElement>('[data-view-btn]');
+      buttons.forEach((b) =>
+        b.addEventListener('click', () => {
+          stage.dataset.view = b.dataset.viewBtn;
+          buttons.forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+        }),
+      );
+    });
+    const links = [...document.querySelectorAll<HTMLAnchorElement>('.cp-toc a')];
+    const targets = links.map((a) => document.getElementById(a.hash.slice(1))).filter((x): x is HTMLElement => !!x);
+    if ('IntersectionObserver' in window && targets.length) {
+      const io = new IntersectionObserver(
+        (entries) => {
+          for (const e of entries) {
+            if (!e.isIntersecting) continue;
+            links.forEach((a) => (a.hash === `#${e.target.id}` ? a.setAttribute('aria-current', 'true') : a.removeAttribute('aria-current')));
+          }
+        },
+        { rootMargin: '-15% 0px -75% 0px' },
+      );
+      targets.forEach((t) => io.observe(t));
+    }
+  </script>
+</Layout>

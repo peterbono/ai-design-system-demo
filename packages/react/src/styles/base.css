@@ -1,0 +1,42 @@
+/* Global base for apps using the Bridge design system: the browser surfaces no component owns.
+   Import once: import '@bridge-ds/react/styles.css'; (after @bridge-ds/tokens/tokens.css and fonts.css). */
+
+:where(html) {
+  background-color: var(--color-bg-default);
+  color: var(--color-text-default);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-200);
+  line-height: var(--font-line-height-normal);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizelegibility;
+  accent-color: var(--color-control-checked-bg);
+  scrollbar-color: var(--color-border-strong) transparent;
+}
+
+:where(body) {
+  margin: 0;
+}
+
+::selection {
+  background-color: var(--color-selection-bg);
+  color: var(--color-text-default);
+}
+
+:where(code, kbd, samp, pre) {
+  font-family: var(--font-family-mono);
+}
+
+:where(a) {
+  color: var(--color-text-link);
+  text-underline-offset: 0.2em;
+}
+
+:where(:focus-visible) {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+:where(table, td, th) {
+  font-variant-numeric: tabular-nums;
+}

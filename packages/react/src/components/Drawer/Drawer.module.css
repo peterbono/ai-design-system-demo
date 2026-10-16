@@ -1,0 +1,187 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--layer-overlay);
+  min-height: 100dvh;
+  background-color: var(--dialog-scrim);
+  opacity: calc(1 - var(--drawer-swipe-progress, 0));
+  transition-property: opacity;
+  transition-duration: var(--motion-duration-slow);
+  transition-timing-function: var(--motion-easing-enter);
+}
+
+.backdrop[data-starting-style],
+.backdrop[data-ending-style] {
+  opacity: 0;
+}
+
+.backdrop[data-swiping] {
+  transition-duration: var(--motion-duration-instant);
+}
+
+.viewport {
+  position: fixed;
+  inset: 0;
+  z-index: var(--layer-modal);
+  display: flex;
+  pointer-events: none;
+}
+
+.viewport-end {
+  justify-content: flex-end;
+}
+
+.viewport-start {
+  justify-content: flex-start;
+}
+
+.viewport-bottom {
+  align-items: flex-end;
+}
+
+.popup {
+  --_size: var(--size-120);
+
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  border: 0 solid var(--drawer-border);
+  background-color: var(--drawer-bg);
+  box-shadow: var(--drawer-shadow);
+  color: var(--color-text-default);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-200);
+  line-height: var(--font-line-height-normal);
+  outline: none;
+  pointer-events: auto;
+  overscroll-behavior: contain;
+  touch-action: auto;
+  transition-property: transform;
+  transition-duration: var(--motion-duration-slow);
+  transition-timing-function: var(--motion-easing-enter);
+  will-change: transform;
+}
+
+.popup[data-swiping] {
+  transition-duration: var(--motion-duration-instant);
+}
+
+.popup[data-ending-style] {
+  transition-duration: var(--motion-duration-moderate);
+  transition-timing-function: var(--motion-easing-exit);
+}
+
+.sm {
+  --_size: var(--size-80);
+}
+
+.md {
+  --_size: var(--size-120);
+}
+
+.lg {
+  --_size: var(--size-160);
+}
+
+/* Side sheets: full height, rounded only on the inner edge. */
+.end,
+.start {
+  width: min(var(--_size), calc(100vw - var(--space-12)));
+  height: 100%;
+  transform: translateX(var(--drawer-swipe-movement-x, 0));
+}
+
+.end {
+  border-inline-start-width: var(--border-width-default);
+  border-start-start-radius: var(--drawer-radius);
+  border-end-start-radius: var(--drawer-radius);
+}
+
+.start {
+  border-inline-end-width: var(--border-width-default);
+  border-start-end-radius: var(--drawer-radius);
+  border-end-end-radius: var(--drawer-radius);
+}
+
+.end[data-starting-style],
+.end[data-ending-style] {
+  transform: translateX(100%);
+}
+
+.start[data-starting-style],
+.start[data-ending-style] {
+  transform: translateX(-100%);
+}
+
+/* Bottom sheet: full width, capped height, rounded top. */
+.bottom {
+  width: 100%;
+  max-height: min(calc(var(--_size) + var(--space-24)), calc(100dvh - var(--space-12)));
+  border-top-width: var(--border-width-default);
+  border-start-start-radius: var(--drawer-radius);
+  border-start-end-radius: var(--drawer-radius);
+  transform: translateY(var(--drawer-swipe-movement-y, 0));
+}
+
+.bottom[data-starting-style],
+.bottom[data-ending-style] {
+  transform: translateY(100%);
+}
+
+.handle {
+  flex: none;
+  width: var(--size-10);
+  height: var(--space-1);
+  margin: var(--space-2) auto 0;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-border-strong);
+}
+
+.header {
+  display: flex;
+  flex: none;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--layout-inset) var(--layout-inset) var(--space-3);
+  border-bottom: var(--border-width-default) solid var(--color-border-default);
+}
+
+.heading {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-400);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--font-line-height-snug);
+  letter-spacing: var(--font-tracking-snug);
+}
+
+.description {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.close {
+  margin-block-start: calc(var(--space-1) * -1);
+  margin-inline-end: calc(var(--space-2) * -1);
+}
+
+.body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: var(--layout-inset);
+  overflow-y: auto;
+}
+
+.footer {
+  flex: none;
+  padding: var(--space-3) var(--layout-inset);
+  border-top: var(--border-width-default) solid var(--color-border-default);
+  background-color: var(--color-bg-subtle);
+}

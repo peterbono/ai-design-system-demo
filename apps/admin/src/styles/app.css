@@ -1,0 +1,9 @@
+/* Global surfaces the Bridge base stylesheet does not own. Tokens only. */
+:where(body) {
+  min-height: 100vh;
+  background-color: var(--color-bg-default);
+}
+
+:where(h1, h2, h3, p) {
+  margin: 0;
+}

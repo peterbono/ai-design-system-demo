@@ -1,4 +1,66 @@
+// Bridge design system: React components on Base UI, styled only with tokens.
+// Grouped by family (docs/DESIGN-LANGUAGE.md). Import the CSS once in your app:
+//   import '@bridge-ds/tokens/fonts.css'; import '@bridge-ds/tokens/tokens.css'; import '@bridge-ds/react/styles.css';
+
+// Foundations
+export * from './theme';
+export * from './components/Icon';
+export * from './components/VisuallyHidden';
+
+// Actions
 export * from './components/Button';
+export * from './components/IconButton';
+export * from './components/ButtonGroup';
+export * from './components/Link';
+
+// Forms
+export * from './components/Field';
 export * from './components/Input';
-export * from './components/Badge';
+export * from './components/Textarea';
+export * from './components/Select';
+export * from './components/Combobox';
+export * from './components/Checkbox';
+export * from './components/CheckboxGroup';
+export * from './components/RadioGroup';
+export * from './components/Switch';
+export * from './components/Slider';
+export * from './components/NumberField';
+export * from './components/Form';
+
+// Feedback
+export * from './components/Alert';
+export * from './components/Toast';
+export * from './components/Progress';
+export * from './components/Spinner';
+export * from './components/Skeleton';
+export * from './components/EmptyState';
+
+// Overlays
+export * from './components/Dialog';
+export * from './components/AlertDialog';
+export * from './components/Drawer';
+export * from './components/Popover';
+export * from './components/Tooltip';
+export * from './components/Menu';
+
+// Navigation
+export * from './components/Tabs';
+export * from './components/Breadcrumb';
+export * from './components/Pagination';
+export * from './components/SidebarNav';
+
+// Data display
 export * from './components/Card';
+export * from './components/Badge';
+export * from './components/Avatar';
+export * from './components/Table';
+export * from './components/Accordion';
+export * from './components/Tag';
+export * from './components/Divider';
+export * from './components/Kbd';
+
+// Layout
+export * from './components/Stack';
+export * from './components/Inline';
+export * from './components/Grid';
+export * from './components/Container';

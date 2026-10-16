@@ -1,17 +1,83 @@
 {
   "radius": {
     "$type": "dimension",
-    "none": { "$value": { "value": 0, "unit": "px" } },
-    "sm": { "$value": { "value": 4, "unit": "px" } },
-    "md": { "$value": { "value": 6, "unit": "px" } },
-    "lg": { "$value": { "value": 10, "unit": "px" } },
-    "full": { "$value": { "value": 9999, "unit": "px" } }
+    "$description": "Raw radius scale. Components use the role tokens (radius.inset, control, container, overlay, pill) that brands map onto this scale.",
+    "none": {
+      "$value": {
+        "value": 0,
+        "unit": "px"
+      }
+    },
+    "xs": {
+      "$value": {
+        "value": 2,
+        "unit": "px"
+      }
+    },
+    "sm": {
+      "$value": {
+        "value": 4,
+        "unit": "px"
+      }
+    },
+    "md": {
+      "$value": {
+        "value": 6,
+        "unit": "px"
+      }
+    },
+    "lg": {
+      "$value": {
+        "value": 10,
+        "unit": "px"
+      }
+    },
+    "xl": {
+      "$value": {
+        "value": 14,
+        "unit": "px"
+      }
+    },
+    "2xl": {
+      "$value": {
+        "value": 16,
+        "unit": "px"
+      }
+    },
+    "3xl": {
+      "$value": {
+        "value": 20,
+        "unit": "px"
+      }
+    },
+    "full": {
+      "$value": {
+        "value": 9999,
+        "unit": "px"
+      }
+    }
   },
   "border": {
     "width": {
-      "$type": "dimension",
-      "1": { "$value": { "value": 1, "unit": "px" } },
-      "2": { "$value": { "value": 2, "unit": "px" } }
+      "1": {
+        "$value": {
+          "value": 1,
+          "unit": "px"
+        }
+      },
+      "2": {
+        "$value": {
+          "value": 2,
+          "unit": "px"
+        }
+      },
+      "3": {
+        "$value": {
+          "value": 3,
+          "unit": "px"
+        }
+      },
+      "$type": "dimension"
     }
   }
 }

@@ -1,0 +1,45 @@
+{
+  "summary": "Multi-line text that grows with its content up to a maximum, with an optional character count. Give it a label prop or place it inside a Field.",
+  "preview": { "c": "Stack", "children": [
+    { "c": "Textarea", "p": { "label": "Change summary", "hint": "Reviewers read this first. Say what changed and why.", "rows": 3 } }
+  ] },
+  "whenToUse": [
+    "Free text longer than one line: pull request summaries, release notes, review comments.",
+    "showCount with maxLength when there is a hard limit."
+  ],
+  "whenNotToUse": [
+    "A short single value: use Input.",
+    "Structured content (lists of tokens, key-value pairs): use dedicated fields."
+  ],
+  "dos": [
+    {
+      "title": "Size it for the expected answer",
+      "text": "rows sets the starting height; autosize grows it, so short boxes do not hide long answers.",
+      "example": { "c": "Stack", "children": [ { "c": "Textarea", "p": { "label": "Release notes", "rows": 4 } } ] }
+    }
+  ],
+  "donts": [
+    {
+      "title": "Hiding the limit until it is hit",
+      "text": "Show the count while typing so users can edit before the error.",
+      "example": { "c": "Stack", "children": [ { "c": "Textarea", "p": { "label": "Summary", "error": "Too long." } } ] }
+    }
+  ],
+  "accessibility": [
+    "Native textarea through Base UI Field: label, description and error are wired for you.",
+    "Focus shows a 2px signal edge; invalid sets aria-invalid and a danger edge with a text error.",
+    "The visual counter is hidden from screen readers to avoid announcing every keystroke; maxLength is enforced natively.",
+    "On touch screens the text is 17px so iOS does not zoom on focus."
+  ],
+  "contentGuidelines": [
+    "Placeholder shows an example answer, not instructions.",
+    "Use the hint for what makes a good answer."
+  ],
+  "anatomy": {
+    "wrapper": "Container",
+    "textarea": "Native textarea",
+    "autosize": "Autosize mode",
+    "resizable": "Manual resize mode",
+    "count": "Character count"
+  }
+}

@@ -1,0 +1,7867 @@
+{
+  "$schema": "https://raw.githubusercontent.com/peterbono/ai-design-system-demo/main/packages/core/audit-report.schema.json",
+  "schemaVersion": 1,
+  "tool": {
+    "name": "bridge",
+    "version": "0.1.0"
+  },
+  "label": "react-admin demo, original MUI source",
+  "generatedAt": "2026-10-16T17:25:13.187Z",
+  "target": {
+    "path": "apps/admin/_original",
+    "files": 97,
+    "skipped": 0
+  },
+  "designSystem": {
+    "packages": [
+      "@bridge-ds/react"
+    ],
+    "components": 46,
+    "tokens": 535,
+    "modes": [
+      "brand=bridge,theme=light,density=comfortable",
+      "brand=bridge,theme=light,density=compact",
+      "brand=bridge,theme=dark,density=comfortable",
+      "brand=bridge,theme=dark,density=compact",
+      "brand=ocean,theme=light,density=comfortable",
+      "brand=ocean,theme=light,density=compact",
+      "brand=ocean,theme=dark,density=comfortable",
+      "brand=ocean,theme=dark,density=compact"
+    ]
+  },
+  "metrics": {
+    "tokenAdoption": 0,
+    "componentAdoption": 0,
+    "tokenUsages": 0,
+    "hardcoded": 131,
+    "themeRefs": 84,
+    "dsComponentInstances": 0,
+    "uiComponentInstances": 526
+  },
+  "byCategory": {
+    "color": {
+      "hardcoded": 38,
+      "exact": 11,
+      "suggested": 35
+    },
+    "spacing": {
+      "hardcoded": 24,
+      "exact": 7,
+      "suggested": 23
+    },
+    "size": {
+      "hardcoded": 50,
+      "exact": 7,
+      "suggested": 45
+    },
+    "radius": {
+      "hardcoded": 1,
+      "exact": 1,
+      "suggested": 1
+    },
+    "border-width": {
+      "hardcoded": 9,
+      "exact": 5,
+      "suggested": 9
+    },
+    "duration": {
+      "hardcoded": 1,
+      "exact": 0,
+      "suggested": 1
+    },
+    "easing": {
+      "hardcoded": 1,
+      "exact": 0,
+      "suggested": 1
+    },
+    "z-index": {
+      "hardcoded": 1,
+      "exact": 1,
+      "suggested": 1
+    },
+    "font-family": {
+      "hardcoded": 1,
+      "exact": 0,
+      "suggested": 1
+    },
+    "font-size": {
+      "hardcoded": 1,
+      "exact": 0,
+      "suggested": 1
+    },
+    "font-weight": {
+      "hardcoded": 3,
+      "exact": 0,
+      "suggested": 3
+    },
+    "line-height": {
+      "hardcoded": 1,
+      "exact": 0,
+      "suggested": 1
+    }
+  },
+  "components": {
+    "ds": {},
+    "foreign": {
+      "react-admin": {
+        "instances": 255,
+        "components": {
+          "Edit": 4,
+          "SimpleForm": 5,
+          "TextInput": 22,
+          "Labeled": 7,
+          "ReferenceManyField": 2,
+          "DataTable": 5,
+          "EditButton": 5,
+          "List": 5,
+          "ListBase": 2,
+          "SimpleList": 1,
+          "ReferenceField": 15,
+          "FunctionField": 2,
+          "DateInput": 10,
+          "ReferenceInput": 9,
+          "TopToolbar": 5,
+          "FilterButton": 4,
+          "ColumnsButton": 4,
+          "ExportButton": 5,
+          "TextField": 7,
+          "AppBar": 1,
+          "TitlePortal": 1,
+          "LocalesMenuButton": 1,
+          "LoadingIndicator": 1,
+          "Layout": 1,
+          "Login": 1,
+          "LoginForm": 1,
+          "DashboardMenuItem": 1,
+          "MenuItemLink": 7,
+          "Link": 7,
+          "DateField": 8,
+          "NumberField": 6,
+          "BooleanField": 1,
+          "Form": 1,
+          "PrevNextButtons": 1,
+          "SelectInput": 5,
+          "BooleanInput": 1,
+          "Toolbar": 1,
+          "SearchInput": 4,
+          "AutocompleteInput": 5,
+          "NumberInput": 10,
+          "NullableBooleanInput": 4,
+          "Count": 1,
+          "FilterLiveSearch": 2,
+          "SavedQueriesList": 2,
+          "FilterList": 7,
+          "FilterListItem": 20,
+          "CreateButton": 4,
+          "Create": 3,
+          "TabbedForm": 2,
+          "TabbedForm.Tab": 7,
+          "ReferenceManyCount": 1,
+          "Pagination": 2,
+          "FilterForm": 1,
+          "Title": 2,
+          "SortButton": 1,
+          "Button": 2,
+          "EditBase": 1,
+          "SaveButton": 1,
+          "DeleteButton": 1,
+          "BulkDeleteButton": 1,
+          "ToggleThemeButton": 1,
+          "SelectArrayInput": 1,
+          "PasswordInput": 4
+        }
+      },
+      "@mui/material": {
+        "instances": 269,
+        "components": {
+          "Grid": 41,
+          "Card": 15,
+          "CardMedia": 2,
+          "CardContent": 11,
+          "Typography": 45,
+          "CardActions": 2,
+          "Button": 8,
+          "Box": 60,
+          "Divider": 2,
+          "CardHeader": 5,
+          "Skeleton": 2,
+          "Avatar": 5,
+          "ListItem": 3,
+          "ListItemButton": 3,
+          "ListItemAvatar": 3,
+          "ListItemText": 3,
+          "List": 4,
+          "MenuItem": 2,
+          "ListItemIcon": 1,
+          "Tooltip": 2,
+          "Table": 3,
+          "TableHead": 2,
+          "TableRow": 8,
+          "TableCell": 10,
+          "TableBody": 3,
+          "Link": 1,
+          "Tabs": 1,
+          "Tab": 1,
+          "ImageList": 2,
+          "ImageListItem": 2,
+          "ImageListItemBar": 1,
+          "InputAdornment": 3,
+          "Chip": 2,
+          "Stack": 2,
+          "IconButton": 2,
+          "Toolbar": 1,
+          "Drawer": 1,
+          "Menu": 1,
+          "Stepper": 1,
+          "Step": 1,
+          "StepLabel": 1,
+          "StepContent": 1
+        }
+      },
+      "react-router-dom": {
+        "instances": 1,
+        "components": {
+          "Link": 1
+        }
+      }
+    },
+    "native": {
+      "img": 1
+    },
+    "recreated": [
+      {
+        "name": "Menu",
+        "file": "src/layout/Menu.tsx",
+        "line": 24,
+        "instances": 0
+      }
+    ]
+  },
+  "topFiles": [
+    {
+      "path": "src/orders/OrderEdit.tsx",
+      "hardcoded": 1,
+      "otherComponents": 37,
+      "tokenUsages": 0,
+      "dsComponents": 0
+    },
+    {
+      "path": "src/visitors/VisitorEdit.tsx",
+      "hardcoded": 3,
+      "otherComponents": 35,
+      "tokenUsages": 0,
+      "dsComponents": 0
+    },
+    {
+      "path": "src/visitors/Aside.tsx",
+      "hardcoded": 1,
+      "otherComponents": 31,
+      "tokenUsages": 0,
+      "dsComponents": 0
+    },
+    {
+      "path": "src/themes/softTheme.ts",
+      "hardcoded": 27,
+      "otherComponents": 0,
+      "tokenUsages": 0,
+      "dsComponents": 0
+    },
+    {
+      "path": "src/visitors/VisitorCreate.tsx",
+      "hardcoded": 2,
+      "otherComponents": 24,
+      "tokenUsages": 0,
+      "dsComponents": 0
+    },
+    {
+      "path": "src/invoices/InvoiceShow.tsx",
+      "hardcoded": 3,
+      "otherComponents": 22,
+      "tokenUsages": 0,
+      "dsComponents": 0
+    },
+    {
+      "path": "src/orders/OrderList.tsx",
+      "hardcoded": 2,
+      "otherComponents": 19,
+      "tokenUsages": 0,
+      "dsComponents": 0
+    },
+    {
+      "path": "src/products/ProductEdit.tsx",
+      "hardcoded": 8,
+      "otherComponents": 13,
+      "tokenUsages": 0,
+      "dsComponents": 0
+    },
+    {
+      "path": "src/products/ProductList.tsx",
+      "hardcoded": 1,
+      "otherComponents": 20,
+      "tokenUsages": 0,
+      "dsComponents": 0
+    },
+    {
+      "path": "src/products/ProductEditDetails.tsx",
+      "hardcoded": 0,
+      "otherComponents": 20,
+      "tokenUsages": 0,
+      "dsComponents": 0
+    },
+    {
+      "path": "src/visitors/VisitorListAside.tsx",
+      "hardcoded": 0,
+      "otherComponents": 19,
+      "tokenUsages": 0,
+      "dsComponents": 0
+    },
+    {
+      "path": "src/products/Aside.tsx",
+      "hardcoded": 1,
+      "otherComponents": 16,
+      "tokenUsages": 0,
+      "dsComponents": 0
+    },
+    {
+      "path": "src/reviews/ReviewEdit.tsx",
+      "hardcoded": 0,
+      "otherComponents": 17,
+      "tokenUsages": 0,
+      "dsComponents": 0
+    },
+    {
+      "path": "src/orders/MobileGrid.tsx",
+      "hardcoded": 2,
+      "otherComponents": 14,
+      "tokenUsages": 0,
+      "dsComponents": 0
+    },
+    {
+      "path": "src/dashboard/Welcome.tsx",
+      "hardcoded": 5,
+      "otherComponents": 10,
+      "tokenUsages": 0,
+      "dsComponents": 0
+    }
+  ],
+  "topFixes": [
+    {
+      "category": "spacing",
+      "value": "0.5em",
+      "count": 7,
+      "files": 6,
+      "suggestion": {
+        "token": "space.2",
+        "cssVar": "--space-2",
+        "value": "8px",
+        "distance": 0,
+        "confidence": 0.55,
+        "level": "medium"
+      }
+    },
+    {
+      "category": "spacing",
+      "value": "1em",
+      "count": 7,
+      "files": 5,
+      "suggestion": {
+        "token": "space.4",
+        "cssVar": "--space-4",
+        "value": "16px",
+        "distance": 0,
+        "confidence": 0.55,
+        "level": "medium"
+      }
+    },
+    {
+      "category": "size",
+      "value": "40em",
+      "count": 6,
+      "files": 3,
+      "suggestion": {
+        "token": "size.160",
+        "cssVar": "--size-160",
+        "value": "640px",
+        "distance": 0,
+        "confidence": 0.55,
+        "level": "medium"
+      }
+    },
+    {
+      "category": "size",
+      "value": "200",
+      "count": 5,
+      "files": 4,
+      "suggestion": {
+        "token": "size.60",
+        "cssVar": "--size-60",
+        "value": "240px",
+        "distance": 40,
+        "confidence": 0.3,
+        "level": "low"
+      }
+    },
+    {
+      "category": "size",
+      "value": "48",
+      "count": 4,
+      "files": 1,
+      "suggestion": {
+        "token": "size.12",
+        "cssVar": "--size-12",
+        "value": "48px",
+        "distance": 0,
+        "confidence": 1,
+        "level": "exact"
+      }
+    },
+    {
+      "category": "border-width",
+      "value": "3px",
+      "count": 4,
+      "files": 1,
+      "suggestion": {
+        "token": "border.width.3",
+        "cssVar": "--border-width-3",
+        "value": "3px",
+        "distance": 0,
+        "confidence": 1,
+        "level": "exact"
+      }
+    },
+    {
+      "category": "size",
+      "value": "25",
+      "count": 4,
+      "files": 2,
+      "suggestion": {
+        "token": "icon.size.lg",
+        "cssVar": "--icon-size-lg",
+        "value": "24px",
+        "distance": 1,
+        "confidence": 0.8,
+        "level": "high"
+      }
+    },
+    {
+      "category": "border-width",
+      "value": "5",
+      "count": 4,
+      "files": 2,
+      "suggestion": {
+        "token": "border.width.3",
+        "cssVar": "--border-width-3",
+        "value": "3px",
+        "distance": 2,
+        "confidence": 0.3,
+        "level": "low"
+      }
+    },
+    {
+      "category": "size",
+      "value": "20",
+      "count": 3,
+      "files": 2,
+      "suggestion": {
+        "token": "icon.size.md",
+        "cssVar": "--icon-size-md",
+        "value": "20px",
+        "distance": 0,
+        "confidence": 1,
+        "level": "exact"
+      }
+    },
+    {
+      "category": "color",
+      "value": "#000",
+      "count": 3,
+      "files": 2,
+      "suggestion": {
+        "token": "color.black",
+        "cssVar": "--color-black",
+        "value": "#000000",
+        "distance": 0,
+        "confidence": 1,
+        "level": "exact"
+      }
+    },
+    {
+      "category": "font-weight",
+      "value": "bold",
+      "count": 3,
+      "files": 2,
+      "suggestion": {
+        "token": "font.weight.bold",
+        "cssVar": "--font-weight-bold",
+        "value": "700",
+        "distance": 0,
+        "confidence": 0.9,
+        "level": "high"
+      }
+    },
+    {
+      "category": "spacing",
+      "value": "0.5rem",
+      "count": 2,
+      "files": 2,
+      "suggestion": {
+        "token": "space.2",
+        "cssVar": "--space-2",
+        "value": "8px",
+        "distance": 0,
+        "confidence": 1,
+        "level": "exact"
+      }
+    },
+    {
+      "category": "color",
+      "value": "black",
+      "count": 2,
+      "files": 1,
+      "suggestion": {
+        "token": "color.black",
+        "cssVar": "--color-black",
+        "value": "#000000",
+        "distance": 0,
+        "confidence": 1,
+        "level": "exact"
+      }
+    },
+    {
+      "category": "color",
+      "value": "white",
+      "count": 2,
+      "files": 1,
+      "suggestion": {
+        "token": "color.surface.default",
+        "cssVar": "--color-surface-default",
+        "value": "#ffffff",
+        "distance": 0,
+        "confidence": 1,
+        "level": "exact"
+      }
+    },
+    {
+      "category": "color",
+      "value": "#fff",
+      "count": 2,
+      "files": 1,
+      "suggestion": {
+        "token": "color.surface.default",
+        "cssVar": "--color-surface-default",
+        "value": "#ffffff",
+        "distance": 0,
+        "confidence": 1,
+        "level": "exact"
+      }
+    },
+    {
+      "category": "size",
+      "value": "15",
+      "count": 2,
+      "files": 1,
+      "suggestion": {
+        "token": "icon.size.sm",
+        "cssVar": "--icon-size-sm",
+        "value": "16px",
+        "distance": 1,
+        "confidence": 0.8,
+        "level": "high"
+      }
+    },
+    {
+      "category": "color",
+      "value": "#90caf9",
+      "count": 2,
+      "files": 1,
+      "suggestion": {
+        "token": "color.text.link",
+        "cssVar": "--color-text-link",
+        "value": "#8adafe",
+        "mode": "brand=ocean,theme=dark",
+        "distance": 4.14,
+        "confidence": 0.6,
+        "level": "medium"
+      }
+    },
+    {
+      "category": "size",
+      "value": "1em",
+      "count": 2,
+      "files": 1,
+      "suggestion": {
+        "token": "icon.size.sm",
+        "cssVar": "--icon-size-sm",
+        "value": "16px",
+        "distance": 0,
+        "confidence": 0.55,
+        "level": "medium"
+      }
+    },
+    {
+      "category": "size",
+      "value": "16em",
+      "count": 2,
+      "files": 2,
+      "suggestion": {
+        "token": "size.60",
+        "cssVar": "--size-60",
+        "value": "240px",
+        "distance": 16,
+        "confidence": 0.55,
+        "level": "medium"
+      }
+    },
+    {
+      "category": "size",
+      "value": "15em",
+      "count": 2,
+      "files": 2,
+      "suggestion": {
+        "token": "size.60",
+        "cssVar": "--size-60",
+        "value": "240px",
+        "distance": 0,
+        "confidence": 0.55,
+        "level": "medium"
+      }
+    },
+    {
+      "category": "color",
+      "value": "#4f3cc9",
+      "count": 2,
+      "files": 1,
+      "suggestion": {
+        "token": "color.feedback.info.text",
+        "cssVar": "--color-feedback-info-text",
+        "value": "#653d8c",
+        "mode": "brand=ocean",
+        "distance": 10.65,
+        "confidence": 0.3,
+        "level": "low"
+      }
+    },
+    {
+      "category": "color",
+      "value": "red",
+      "count": 2,
+      "files": 2,
+      "suggestion": {
+        "token": "color.signal.default",
+        "cssVar": "--color-signal-default",
+        "value": "#e64611",
+        "distance": 6.05,
+        "confidence": 0.3,
+        "level": "low"
+      }
+    },
+    {
+      "category": "size",
+      "value": "8",
+      "count": 2,
+      "files": 1
+    },
+    {
+      "category": "spacing",
+      "value": "16px",
+      "count": 1,
+      "files": 1,
+      "suggestion": {
+        "token": "space.4",
+        "cssVar": "--space-4",
+        "value": "16px",
+        "distance": 0,
+        "confidence": 1,
+        "level": "exact"
+      }
+    },
+    {
+      "category": "spacing",
+      "value": "20px",
+      "count": 1,
+      "files": 1,
+      "suggestion": {
+        "token": "space.5",
+        "cssVar": "--space-5",
+        "value": "20px",
+        "distance": 0,
+        "confidence": 1,
+        "level": "exact"
+      }
+    }
+  ],
+  "files": [
+    {
+      "path": "src/App.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "src/authProvider.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "src/categories/CategoryEdit.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 1,
+      "hardcoded": 1,
+      "dsComponents": 0,
+      "otherComponents": 7,
+      "findings": [
+        {
+          "line": 33,
+          "column": 42,
+          "category": "size",
+          "property": "width",
+          "value": "25",
+          "source": "sx",
+          "suggestion": {
+            "token": "icon.size.lg",
+            "cssVar": "--icon-size-lg",
+            "value": "24px",
+            "distance": 1,
+            "confidence": 0.8,
+            "level": "high"
+          }
+        }
+      ],
+      "components": [
+        {
+          "line": 22,
+          "column": 5,
+          "name": "Edit",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 23,
+          "column": 9,
+          "name": "SimpleForm",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Form"
+        },
+        {
+          "line": 24,
+          "column": 13,
+          "name": "TextInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        },
+        {
+          "line": 25,
+          "column": 13,
+          "name": "Labeled",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Field"
+        },
+        {
+          "line": 26,
+          "column": 17,
+          "name": "ReferenceManyField",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 31,
+          "column": 21,
+          "name": "DataTable",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Table"
+        },
+        {
+          "line": 53,
+          "column": 29,
+          "name": "EditButton",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Button"
+        }
+      ]
+    },
+    {
+      "path": "src/categories/CategoryList.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 2,
+      "hardcoded": 2,
+      "dsComponents": 0,
+      "otherComponents": 9,
+      "findings": [
+        {
+          "line": 65,
+          "column": 47,
+          "category": "size",
+          "property": "height",
+          "value": "140",
+          "source": "sx"
+        },
+        {
+          "line": 67,
+          "column": 64,
+          "category": "spacing",
+          "property": "padding-bottom",
+          "value": "0.5em",
+          "source": "sx",
+          "suggestion": {
+            "token": "space.2",
+            "cssVar": "--space-2",
+            "value": "8px",
+            "distance": 0,
+            "confidence": 0.55,
+            "level": "medium"
+          }
+        }
+      ],
+      "components": [
+        {
+          "line": 34,
+          "column": 5,
+          "name": "List",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 55,
+          "column": 9,
+          "name": "Grid",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Grid"
+        },
+        {
+          "line": 58,
+          "column": 21,
+          "name": "Grid",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Grid"
+        },
+        {
+          "line": 62,
+          "column": 25,
+          "name": "Card",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Card"
+        },
+        {
+          "line": 63,
+          "column": 29,
+          "name": "CardMedia",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Card"
+        },
+        {
+          "line": 67,
+          "column": 29,
+          "name": "CardContent",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Card"
+        },
+        {
+          "line": 68,
+          "column": 33,
+          "name": "Typography",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 76,
+          "column": 29,
+          "name": "CardActions",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Card"
+        },
+        {
+          "line": 85,
+          "column": 33,
+          "name": "EditButton",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Button"
+        }
+      ]
+    },
+    {
+      "path": "src/categories/index.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "src/categories/LinkToRelatedProducts.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 1,
+      "dsComponents": 0,
+      "otherComponents": 1,
+      "findings": [
+        {
+          "line": 27,
+          "column": 49,
+          "category": "spacing",
+          "property": "padding-right",
+          "value": "0.5em",
+          "source": "sx",
+          "suggestion": {
+            "token": "space.2",
+            "cssVar": "--space-2",
+            "value": "8px",
+            "distance": 0,
+            "confidence": 0.55,
+            "level": "medium"
+          }
+        }
+      ],
+      "components": [
+        {
+          "line": 15,
+          "column": 9,
+          "name": "Button",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Button"
+        }
+      ]
+    },
+    {
+      "path": "src/dashboard/CardWithIcon.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 2,
+      "hardcoded": 3,
+      "dsComponents": 0,
+      "otherComponents": 8,
+      "findings": [
+        {
+          "line": 17,
+          "column": 24,
+          "category": "size",
+          "property": "min-height",
+          "value": "52",
+          "source": "sx",
+          "suggestion": {
+            "token": "size.12",
+            "cssVar": "--size-12",
+            "value": "48px",
+            "distance": 4,
+            "confidence": 0.55,
+            "level": "medium"
+          }
+        },
+        {
+          "line": 32,
+          "column": 31,
+          "category": "spacing",
+          "property": "padding",
+          "value": "16px",
+          "source": "sx",
+          "suggestion": {
+            "token": "space.4",
+            "cssVar": "--space-4",
+            "value": "16px",
+            "distance": 0,
+            "confidence": 1,
+            "level": "exact"
+          }
+        },
+        {
+          "line": 57,
+          "column": 33,
+          "category": "size",
+          "property": "width",
+          "value": "3em",
+          "source": "sx",
+          "suggestion": {
+            "token": "size.12",
+            "cssVar": "--size-12",
+            "value": "48px",
+            "distance": 0,
+            "confidence": 0.55,
+            "level": "medium"
+          }
+        }
+      ],
+      "components": [
+        {
+          "line": 15,
+          "column": 5,
+          "name": "Card",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Card"
+        },
+        {
+          "line": 27,
+          "column": 9,
+          "name": "Link",
+          "kind": "foreign",
+          "library": "react-router-dom",
+          "suggestion": "Link"
+        },
+        {
+          "line": 28,
+          "column": 13,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 54,
+          "column": 17,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 62,
+          "column": 17,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 67,
+          "column": 21,
+          "name": "Typography",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 68,
+          "column": 21,
+          "name": "Typography",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 74,
+          "column": 22,
+          "name": "Divider",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Divider"
+        }
+      ]
+    },
+    {
+      "path": "src/dashboard/Dashboard.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 6,
+      "dsComponents": 0,
+      "otherComponents": 8,
+      "findings": [
+        {
+          "line": 38,
+          "column": 39,
+          "category": "spacing",
+          "property": "margin-right",
+          "value": "0.5em",
+          "source": "styled",
+          "suggestion": {
+            "token": "space.2",
+            "cssVar": "--space-2",
+            "value": "8px",
+            "distance": 0,
+            "confidence": 0.55,
+            "level": "medium"
+          }
+        },
+        {
+          "line": 39,
+          "column": 39,
+          "category": "spacing",
+          "property": "margin-left",
+          "value": "0.5em",
+          "source": "styled",
+          "suggestion": {
+            "token": "space.2",
+            "cssVar": "--space-2",
+            "value": "8px",
+            "distance": 0,
+            "confidence": 0.55,
+            "level": "medium"
+          }
+        },
+        {
+          "line": 40,
+          "column": 30,
+          "category": "spacing",
+          "property": "margin-top",
+          "value": "1em",
+          "source": "styled",
+          "suggestion": {
+            "token": "space.4",
+            "cssVar": "--space-4",
+            "value": "16px",
+            "distance": 0,
+            "confidence": 0.55,
+            "level": "medium"
+          }
+        },
+        {
+          "line": 40,
+          "column": 51,
+          "category": "spacing",
+          "property": "margin-bottom",
+          "value": "1em",
+          "source": "styled",
+          "suggestion": {
+            "token": "space.4",
+            "cssVar": "--space-4",
+            "value": "16px",
+            "distance": 0,
+            "confidence": 0.55,
+            "level": "medium"
+          }
+        },
+        {
+          "line": 43,
+          "column": 45,
+          "category": "size",
+          "property": "width",
+          "value": "1em",
+          "source": "style",
+          "suggestion": {
+            "token": "icon.size.sm",
+            "cssVar": "--icon-size-sm",
+            "value": "16px",
+            "distance": 0,
+            "confidence": 0.55,
+            "level": "medium"
+          }
+        },
+        {
+          "line": 44,
+          "column": 54,
+          "category": "size",
+          "property": "height",
+          "value": "1em",
+          "source": "style",
+          "suggestion": {
+            "token": "icon.size.sm",
+            "cssVar": "--icon-size-sm",
+            "value": "16px",
+            "distance": 0,
+            "confidence": 0.55,
+            "level": "medium"
+          }
+        }
+      ],
+      "components": [
+        {
+          "line": 120,
+          "column": 17,
+          "name": "Card",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Card"
+        },
+        {
+          "line": 121,
+          "column": 21,
+          "name": "CardHeader",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Card"
+        },
+        {
+          "line": 126,
+          "column": 21,
+          "name": "CardContent",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Card"
+        },
+        {
+          "line": 127,
+          "column": 45,
+          "name": "Skeleton",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Skeleton"
+        },
+        {
+          "line": 148,
+          "column": 25,
+          "name": "Card",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Card"
+        },
+        {
+          "line": 149,
+          "column": 29,
+          "name": "CardHeader",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Card"
+        },
+        {
+          "line": 154,
+          "column": 29,
+          "name": "CardContent",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Card"
+        },
+        {
+          "line": 155,
+          "column": 53,
+          "name": "Skeleton",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Skeleton"
+        }
+      ]
+    },
+    {
+      "path": "src/dashboard/index.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "src/dashboard/MonthlyRevenue.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "src/dashboard/NbNewOrders.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "src/dashboard/NewCustomers.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 3,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 6,
+      "findings": [],
+      "components": [
+        {
+          "line": 27,
+          "column": 9,
+          "name": "ListBase",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 45,
+          "column": 17,
+          "name": "SimpleList",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 48,
+          "column": 25,
+          "name": "Avatar",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Avatar"
+        },
+        {
+          "line": 54,
+          "column": 17,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 61,
+          "column": 17,
+          "name": "Button",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Button"
+        },
+        {
+          "line": 68,
+          "column": 21,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        }
+      ]
+    },
+    {
+      "path": "src/dashboard/OrderChart.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 5,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [
+        {
+          "line": 117,
+          "column": 37,
+          "category": "color",
+          "property": "color",
+          "value": "#aaa",
+          "source": "js",
+          "suggestion": {
+            "token": "color.text.disabled",
+            "cssVar": "--color-text-disabled",
+            "value": "#a2aab5",
+            "distance": 1.85,
+            "confidence": 0.85,
+            "level": "high"
+          }
+        },
+        {
+          "line": 163,
+          "column": 49,
+          "category": "color",
+          "property": "color",
+          "value": "rgba(136, 132, 216, 0.8)",
+          "source": "js"
+        },
+        {
+          "line": 167,
+          "column": 49,
+          "category": "color",
+          "property": "color",
+          "value": "rgba(136, 132, 216, 0)",
+          "source": "js"
+        },
+        {
+          "line": 173,
+          "column": 37,
+          "category": "color",
+          "property": "color",
+          "value": "#8884d8",
+          "source": "js",
+          "suggestion": {
+            "token": "palette.info.500",
+            "cssVar": "--palette-info-500",
+            "value": "#9d71cc",
+            "mode": "brand=ocean",
+            "distance": 5.39,
+            "confidence": 0.3,
+            "level": "low"
+          }
+        },
+        {
+          "line": 200,
+          "column": 64,
+          "category": "size",
+          "property": "height",
+          "value": "300",
+          "source": "style",
+          "suggestion": {
+            "token": "size.72",
+            "cssVar": "--size-72",
+            "value": "288px",
+            "distance": 12,
+            "confidence": 0.8,
+            "level": "high"
+          }
+        }
+      ],
+      "components": []
+    },
+    {
+      "path": "src/dashboard/PendingOrder.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 2,
+      "hardcoded": 1,
+      "dsComponents": 0,
+      "otherComponents": 7,
+      "findings": [
+        {
+          "line": 54,
+          "column": 39,
+          "category": "spacing",
+          "property": "margin-right",
+          "value": "1em",
+          "source": "sx",
+          "suggestion": {
+            "token": "space.4",
+            "cssVar": "--space-4",
+            "value": "16px",
+            "distance": 0,
+            "confidence": 0.55,
+            "level": "medium"
+          }
+        }
+      ],
+      "components": [
+        {
+          "line": 28,
+          "column": 9,
+          "name": "ListItem",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 29,
+          "column": 13,
+          "name": "ListItemButton",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 30,
+          "column": 17,
+          "name": "ListItemAvatar",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 32,
+          "column": 25,
+          "name": "Avatar",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Avatar"
+        },
+        {
+          "line": 34,
+          "column": 25,
+          "name": "Avatar",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Avatar"
+        },
+        {
+          "line": 41,
+          "column": 17,
+          "name": "ListItemText",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 51,
+          "column": 17,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        }
+      ]
+    },
+    {
+      "path": "src/dashboard/PendingOrders.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 3,
+      "findings": [],
+      "components": [
+        {
+          "line": 17,
+          "column": 9,
+          "name": "Card",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Card"
+        },
+        {
+          "line": 18,
+          "column": 13,
+          "name": "CardHeader",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Card"
+        },
+        {
+          "line": 19,
+          "column": 13,
+          "name": "List",
+          "kind": "foreign",
+          "library": "@mui/material"
+        }
+      ]
+    },
+    {
+      "path": "src/dashboard/PendingReviews.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 5,
+      "hardcoded": 1,
+      "dsComponents": 0,
+      "otherComponents": 11,
+      "findings": [
+        {
+          "line": 97,
+          "column": 46,
+          "category": "size",
+          "property": "height",
+          "value": "4em",
+          "source": "sx",
+          "suggestion": {
+            "token": "size.16",
+            "cssVar": "--size-16",
+            "value": "64px",
+            "distance": 0,
+            "confidence": 0.55,
+            "level": "medium"
+          }
+        }
+      ],
+      "components": [
+        {
+          "line": 63,
+          "column": 13,
+          "name": "List",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 65,
+          "column": 21,
+          "name": "ListItem",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 66,
+          "column": 25,
+          "name": "ListItemButton",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 71,
+          "column": 29,
+          "name": "ListItemAvatar",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 72,
+          "column": 33,
+          "name": "ReferenceField",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 78,
+          "column": 37,
+          "name": "FunctionField",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 80,
+          "column": 45,
+          "name": "Avatar",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Avatar"
+        },
+        {
+          "line": 92,
+          "column": 29,
+          "name": "ListItemText",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 108,
+          "column": 13,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 115,
+          "column": 13,
+          "name": "Button",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Button"
+        },
+        {
+          "line": 122,
+          "column": 17,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        }
+      ]
+    },
+    {
+      "path": "src/dashboard/Welcome.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 5,
+      "hardcoded": 5,
+      "dsComponents": 0,
+      "otherComponents": 10,
+      "findings": [
+        {
+          "line": 17,
+          "column": 27,
+          "category": "spacing",
+          "property": "padding",
+          "value": "20px",
+          "source": "sx",
+          "suggestion": {
+            "token": "space.5",
+            "cssVar": "--space-5",
+            "value": "20px",
+            "distance": 0,
+            "confidence": 1,
+            "level": "exact"
+          }
+        },
+        {
+          "line": 19,
+          "column": 32,
+          "category": "spacing",
+          "property": "margin-bottom",
+          "value": "1em",
+          "source": "sx",
+          "suggestion": {
+            "token": "space.4",
+            "cssVar": "--space-4",
+            "value": "16px",
+            "distance": 0,
+            "confidence": 0.55,
+            "level": "medium"
+          }
+        },
+        {
+          "line": 37,
+          "column": 40,
+          "category": "size",
+          "property": "max-width",
+          "value": "40em",
+          "source": "sx",
+          "suggestion": {
+            "token": "size.160",
+            "cssVar": "--size-160",
+            "value": "640px",
+            "distance": 0,
+            "confidence": 0.55,
+            "level": "medium"
+          }
+        },
+        {
+          "line": 74,
+          "column": 33,
+          "category": "size",
+          "property": "width",
+          "value": "16em",
+          "source": "sx",
+          "suggestion": {
+            "token": "size.60",
+            "cssVar": "--size-60",
+            "value": "240px",
+            "distance": 16,
+            "confidence": 0.55,
+            "level": "medium"
+          }
+        },
+        {
+          "line": 75,
+          "column": 34,
+          "category": "size",
+          "property": "height",
+          "value": "9em",
+          "source": "sx"
+        }
+      ],
+      "components": [
+        {
+          "line": 12,
+          "column": 9,
+          "name": "Card",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Card"
+        },
+        {
+          "line": 22,
+          "column": 13,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 27,
+          "column": 17,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 32,
+          "column": 21,
+          "name": "Typography",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 35,
+          "column": 21,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 40,
+          "column": 25,
+          "name": "Typography",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 44,
+          "column": 21,
+          "name": "CardActions",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Card"
+        },
+        {
+          "line": 55,
+          "column": 25,
+          "name": "Button",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Button"
+        },
+        {
+          "line": 62,
+          "column": 25,
+          "name": "Button",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Button"
+        },
+        {
+          "line": 71,
+          "column": 17,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        }
+      ]
+    },
+    {
+      "path": "src/dataProvider/graphql.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "src/dataProvider/index.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "src/dataProvider/rest.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "src/fakeServer/graphql.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "src/fakeServer/index.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "src/fakeServer/rest.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "src/i18n/en.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "src/i18n/fr.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "src/index.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "src/invoices/index.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "src/invoices/InvoiceList.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 13,
+      "findings": [],
+      "components": [
+        {
+          "line": 23,
+          "column": 5,
+          "name": "DateInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        },
+        {
+          "line": 24,
+          "column": 5,
+          "name": "DateInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        },
+        {
+          "line": 25,
+          "column": 5,
+          "name": "ReferenceInput",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 26,
+          "column": 5,
+          "name": "ReferenceInput",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 30,
+          "column": 5,
+          "name": "TopToolbar",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 31,
+          "column": 9,
+          "name": "FilterButton",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 32,
+          "column": 9,
+          "name": "ColumnsButton",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 33,
+          "column": 9,
+          "name": "ExportButton",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Button"
+        },
+        {
+          "line": 52,
+          "column": 5,
+          "name": "List",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 60,
+          "column": 9,
+          "name": "DataTable",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Table"
+        },
+        {
+          "line": 77,
+          "column": 17,
+          "name": "ReferenceField",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 86,
+          "column": 17,
+          "name": "ReferenceField",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 95,
+          "column": 17,
+          "name": "ReferenceField",
+          "kind": "foreign",
+          "library": "react-admin"
+        }
+      ]
+    },
+    {
+      "path": "src/invoices/InvoiceShow.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 3,
+      "hardcoded": 3,
+      "dsComponents": 0,
+      "otherComponents": 22,
+      "findings": [
+        {
+          "line": 12,
+          "column": 28,
+          "category": "size",
+          "property": "width",
+          "value": "600",
+          "source": "sx",
+          "suggestion": {
+            "token": "size.140",
+            "cssVar": "--size-140",
+            "value": "560px",
+            "distance": 40,
+            "confidence": 0.55,
+            "level": "medium"
+          }
+        },
+        {
+          "line": 44,
+          "column": 33,
+          "category": "size",
+          "property": "height",
+          "value": "20",
+          "source": "sx",
+          "suggestion": {
+            "token": "icon.size.md",
+            "cssVar": "--icon-size-md",
+            "value": "20px",
+            "distance": 0,
+            "confidence": 1,
+            "level": "exact"
+          }
+        },
+        {
+          "line": 79,
+          "column": 34,
+          "category": "spacing",
+          "property": "margin",
+          "value": "10px",
+          "source": "sx",
+          "suggestion": {
+            "token": "space.2",
+            "cssVar": "--space-2",
+            "value": "8px",
+            "distance": 2,
+            "confidence": 0.3,
+            "level": "low"
+          }
+        }
+      ],
+      "components": [
+        {
+          "line": 12,
+          "column": 9,
+          "name": "Card",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Card"
+        },
+        {
+          "line": 13,
+          "column": 13,
+          "name": "CardContent",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Card"
+        },
+        {
+          "line": 14,
+          "column": 17,
+          "name": "Grid",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Grid"
+        },
+        {
+          "line": 15,
+          "column": 21,
+          "name": "Grid",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Grid"
+        },
+        {
+          "line": 16,
+          "column": 25,
+          "name": "Typography",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 20,
+          "column": 21,
+          "name": "Grid",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Grid"
+        },
+        {
+          "line": 21,
+          "column": 25,
+          "name": "Typography",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 26,
+          "column": 17,
+          "name": "Grid",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Grid"
+        },
+        {
+          "line": 27,
+          "column": 21,
+          "name": "Grid",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Grid"
+        },
+        {
+          "line": 33,
+          "column": 25,
+          "name": "ReferenceField",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 42,
+          "column": 17,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 49,
+          "column": 17,
+          "name": "Grid",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Grid"
+        },
+        {
+          "line": 50,
+          "column": 21,
+          "name": "Grid",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Grid"
+        },
+        {
+          "line": 51,
+          "column": 25,
+          "name": "Typography",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 54,
+          "column": 25,
+          "name": "Typography",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 59,
+          "column": 21,
+          "name": "Grid",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Grid"
+        },
+        {
+          "line": 60,
+          "column": 25,
+          "name": "Typography",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 63,
+          "column": 25,
+          "name": "ReferenceField",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 68,
+          "column": 29,
+          "name": "TextField",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        },
+        {
+          "line": 77,
+          "column": 17,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 82,
+          "column": 21,
+          "name": "ReferenceField",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 98,
+          "column": 9,
+          "name": "Typography",
+          "kind": "foreign",
+          "library": "@mui/material"
+        }
+      ]
+    },
+    {
+      "path": "src/layout/AppBar.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 3,
+      "findings": [],
+      "components": [
+        {
+          "line": 13,
+          "column": 9,
+          "name": "AppBar",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 14,
+          "column": 13,
+          "name": "TitlePortal",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 16,
+          "column": 31,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        }
+      ]
+    },
+    {
+      "path": "src/layout/AppBarToolbar.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 2,
+      "findings": [],
+      "components": [
+        {
+          "line": 7,
+          "column": 9,
+          "name": "LocalesMenuButton",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 9,
+          "column": 9,
+          "name": "LoadingIndicator",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Spinner"
+        }
+      ]
+    },
+    {
+      "path": "src/layout/index.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "src/layout/Layout.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 1,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 1,
+      "findings": [],
+      "components": [
+        {
+          "line": 7,
+          "column": 5,
+          "name": "Layout",
+          "kind": "foreign",
+          "library": "react-admin"
+        }
+      ]
+    },
+    {
+      "path": "src/layout/Login.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 1,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 3,
+      "findings": [],
+      "components": [
+        {
+          "line": 6,
+          "column": 5,
+          "name": "Login",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 7,
+          "column": 9,
+          "name": "Typography",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 15,
+          "column": 9,
+          "name": "LoginForm",
+          "kind": "foreign",
+          "library": "react-admin"
+        }
+      ]
+    },
+    {
+      "path": "src/layout/Logo.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 1,
+      "hardcoded": 1,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [
+        {
+          "line": 17,
+          "column": 33,
+          "category": "line-height",
+          "property": "line-height",
+          "value": "1.25",
+          "source": "style",
+          "suggestion": {
+            "token": "font.line-height.tight",
+            "cssVar": "--font-line-height-tight",
+            "value": "1.2",
+            "distance": 0.05,
+            "confidence": 0.5,
+            "level": "medium"
+          }
+        }
+      ],
+      "components": []
+    },
+    {
+      "path": "src/layout/Menu.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 5,
+      "hardcoded": 2,
+      "dsComponents": 0,
+      "otherComponents": 9,
+      "findings": [
+        {
+          "line": 40,
+          "column": 31,
+          "category": "size",
+          "property": "width",
+          "value": "200",
+          "source": "sx",
+          "suggestion": {
+            "token": "size.60",
+            "cssVar": "--size-60",
+            "value": "240px",
+            "distance": 40,
+            "confidence": 0.3,
+            "level": "low"
+          }
+        },
+        {
+          "line": 40,
+          "column": 37,
+          "category": "size",
+          "property": "width",
+          "value": "50",
+          "source": "sx",
+          "suggestion": {
+            "token": "size.12",
+            "cssVar": "--size-12",
+            "value": "48px",
+            "distance": 2,
+            "confidence": 0.8,
+            "level": "high"
+          }
+        }
+      ],
+      "components": [
+        {
+          "line": 38,
+          "column": 9,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 54,
+          "column": 13,
+          "name": "DashboardMenuItem",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "SidebarNav"
+        },
+        {
+          "line": 62,
+          "column": 17,
+          "name": "MenuItemLink",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "SidebarNav"
+        },
+        {
+          "line": 71,
+          "column": 17,
+          "name": "MenuItemLink",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "SidebarNav"
+        },
+        {
+          "line": 88,
+          "column": 17,
+          "name": "MenuItemLink",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "SidebarNav"
+        },
+        {
+          "line": 97,
+          "column": 17,
+          "name": "MenuItemLink",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "SidebarNav"
+        },
+        {
+          "line": 114,
+          "column": 17,
+          "name": "MenuItemLink",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "SidebarNav"
+        },
+        {
+          "line": 123,
+          "column": 17,
+          "name": "MenuItemLink",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "SidebarNav"
+        },
+        {
+          "line": 133,
+          "column": 13,
+          "name": "MenuItemLink",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "SidebarNav"
+        }
+      ]
+    },
+    {
+      "path": "src/layout/SubMenu.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 2,
+      "hardcoded": 3,
+      "dsComponents": 0,
+      "otherComponents": 5,
+      "findings": [
+        {
+          "line": 31,
+          "column": 43,
+          "category": "size",
+          "property": "min-width",
+          "value": "5",
+          "source": "sx"
+        },
+        {
+          "line": 58,
+          "column": 47,
+          "category": "duration",
+          "property": "transition",
+          "value": "195ms",
+          "source": "sx",
+          "suggestion": {
+            "token": "motion.duration.moderate",
+            "cssVar": "--motion-duration-moderate",
+            "value": "200ms",
+            "distance": 5,
+            "confidence": 0.8,
+            "level": "high"
+          }
+        },
+        {
+          "line": 58,
+          "column": 53,
+          "category": "easing",
+          "property": "transition",
+          "value": "cubic-bezier(0.4, 0, 0.6, 1)",
+          "source": "sx",
+          "suggestion": {
+            "token": "motion.easing.exit",
+            "cssVar": "--motion-easing-exit",
+            "value": "cubic-bezier(0.4, 0, 1, 1)",
+            "distance": 0.4,
+            "confidence": 0.3,
+            "level": "low"
+          }
+        }
+      ],
+      "components": [
+        {
+          "line": 30,
+          "column": 9,
+          "name": "MenuItem",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Menu"
+        },
+        {
+          "line": 31,
+          "column": 13,
+          "name": "ListItemIcon",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 34,
+          "column": 13,
+          "name": "Typography",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 45,
+          "column": 17,
+          "name": "Tooltip",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Tooltip"
+        },
+        {
+          "line": 50,
+          "column": 17,
+          "name": "List",
+          "kind": "foreign",
+          "library": "@mui/material"
+        }
+      ]
+    },
+    {
+      "path": "src/orders/Basket.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 8,
+      "findings": [],
+      "components": [
+        {
+          "line": 35,
+          "column": 9,
+          "name": "Table",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Table"
+        },
+        {
+          "line": 36,
+          "column": 13,
+          "name": "TableHead",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Table"
+        },
+        {
+          "line": 37,
+          "column": 17,
+          "name": "TableRow",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Table"
+        },
+        {
+          "line": 38,
+          "column": 21,
+          "name": "TableCell",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Table"
+        },
+        {
+          "line": 52,
+          "column": 13,
+          "name": "TableBody",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Table"
+        },
+        {
+          "line": 54,
+          "column": 21,
+          "name": "TableRow",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Table"
+        },
+        {
+          "line": 55,
+          "column": 25,
+          "name": "TableCell",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Table"
+        },
+        {
+          "line": 56,
+          "column": 29,
+          "name": "Link",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Link"
+        }
+      ]
+    },
+    {
+      "path": "src/orders/index.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "src/orders/MobileGrid.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 2,
+      "hardcoded": 2,
+      "dsComponents": 0,
+      "otherComponents": 14,
+      "findings": [
+        {
+          "line": 27,
+          "column": 26,
+          "category": "spacing",
+          "property": "margin",
+          "value": "0.5em",
+          "source": "sx",
+          "suggestion": {
+            "token": "space.2",
+            "cssVar": "--space-2",
+            "value": "8px",
+            "distance": 0,
+            "confidence": 0.55,
+            "level": "medium"
+          }
+        },
+        {
+          "line": 32,
+          "column": 42,
+          "category": "spacing",
+          "property": "margin",
+          "value": "0.5rem",
+          "source": "sx",
+          "suggestion": {
+            "token": "space.2",
+            "cssVar": "--space-2",
+            "value": "8px",
+            "distance": 0,
+            "confidence": 1,
+            "level": "exact"
+          }
+        }
+      ],
+      "components": [
+        {
+          "line": 25,
+          "column": 9,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 32,
+          "column": 21,
+          "name": "Card",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Card"
+        },
+        {
+          "line": 33,
+          "column": 25,
+          "name": "CardHeader",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Card"
+        },
+        {
+          "line": 37,
+          "column": 37,
+          "name": "TextField",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        },
+        {
+          "line": 44,
+          "column": 37,
+          "name": "EditButton",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Button"
+        },
+        {
+          "line": 46,
+          "column": 25,
+          "name": "CardContent",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Card"
+        },
+        {
+          "line": 51,
+          "column": 29,
+          "name": "Typography",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 54,
+          "column": 33,
+          "name": "DateField",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 56,
+          "column": 29,
+          "name": "Typography",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 61,
+          "column": 33,
+          "name": "NumberField",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "NumberField"
+        },
+        {
+          "line": 69,
+          "column": 29,
+          "name": "Typography",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 72,
+          "column": 33,
+          "name": "TextField",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        },
+        {
+          "line": 74,
+          "column": 29,
+          "name": "Typography",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 77,
+          "column": 33,
+          "name": "BooleanField",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Checkbox"
+        }
+      ]
+    },
+    {
+      "path": "src/orders/OrderEdit.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 3,
+      "hardcoded": 1,
+      "dsComponents": 0,
+      "otherComponents": 37,
+      "findings": [
+        {
+          "line": 86,
+          "column": 32,
+          "category": "size",
+          "property": "max-width",
+          "value": "50em",
+          "source": "sx",
+          "suggestion": {
+            "token": "size.180",
+            "cssVar": "--size-180",
+            "value": "720px",
+            "distance": 80,
+            "confidence": 0.55,
+            "level": "medium"
+          }
+        }
+      ],
+      "components": [
+        {
+          "line": 26,
+          "column": 5,
+          "name": "Edit",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 45,
+          "column": 9,
+          "name": "Typography",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 46,
+          "column": 13,
+          "name": "Link",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Link"
+        },
+        {
+          "line": 50,
+          "column": 13,
+          "name": "Link",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Link"
+        },
+        {
+          "line": 59,
+          "column": 13,
+          "name": "Typography",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 62,
+          "column": 13,
+          "name": "Typography",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 63,
+          "column": 13,
+          "name": "Typography",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 71,
+          "column": 5,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 83,
+          "column": 9,
+          "name": "Form",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Form"
+        },
+        {
+          "line": 84,
+          "column": 13,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 89,
+          "column": 17,
+          "name": "PrevNextButtons",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 93,
+          "column": 17,
+          "name": "Card",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Card"
+        },
+        {
+          "line": 94,
+          "column": 21,
+          "name": "CardContent",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Card"
+        },
+        {
+          "line": 95,
+          "column": 25,
+          "name": "Grid",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Grid"
+        },
+        {
+          "line": 96,
+          "column": 29,
+          "name": "Grid",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Grid"
+        },
+        {
+          "line": 97,
+          "column": 33,
+          "name": "Typography",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 102,
+          "column": 33,
+          "name": "Grid",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Grid"
+        },
+        {
+          "line": 103,
+          "column": 37,
+          "name": "Grid",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Grid"
+        },
+        {
+          "line": 104,
+          "column": 41,
+          "name": "Labeled",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Field"
+        },
+        {
+          "line": 105,
+          "column": 45,
+          "name": "DateField",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 108,
+          "column": 37,
+          "name": "Grid",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Grid"
+        },
+        {
+          "line": 109,
+          "column": 41,
+          "name": "Labeled",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Field"
+        },
+        {
+          "line": 110,
+          "column": 45,
+          "name": "TextField",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        },
+        {
+          "line": 114,
+          "column": 33,
+          "name": "Grid",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Grid"
+        },
+        {
+          "line": 115,
+          "column": 37,
+          "name": "Grid",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Grid"
+        },
+        {
+          "line": 116,
+          "column": 41,
+          "name": "SelectInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Select"
+        },
+        {
+          "line": 140,
+          "column": 37,
+          "name": "Grid",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Grid"
+        },
+        {
+          "line": 141,
+          "column": 41,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 146,
+          "column": 45,
+          "name": "BooleanInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Switch"
+        },
+        {
+          "line": 154,
+          "column": 29,
+          "name": "Grid",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Grid"
+        },
+        {
+          "line": 155,
+          "column": 33,
+          "name": "Typography",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 160,
+          "column": 33,
+          "name": "ReferenceField",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 169,
+          "column": 33,
+          "name": "Typography",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 174,
+          "column": 33,
+          "name": "ReferenceField",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 185,
+          "column": 25,
+          "name": "Typography",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 193,
+          "column": 25,
+          "name": "Typography",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 200,
+          "column": 21,
+          "name": "Toolbar",
+          "kind": "foreign",
+          "library": "react-admin"
+        }
+      ]
+    },
+    {
+      "path": "src/orders/OrderList.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 2,
+      "hardcoded": 2,
+      "dsComponents": 0,
+      "otherComponents": 19,
+      "findings": [
+        {
+          "line": 84,
+          "column": 29,
+          "category": "size",
+          "property": "min-width",
+          "value": "200",
+          "source": "sx",
+          "suggestion": {
+            "token": "size.60",
+            "cssVar": "--size-60",
+            "value": "240px",
+            "distance": 40,
+            "confidence": 0.3,
+            "level": "low"
+          }
+        },
+        {
+          "line": 225,
+          "column": 36,
+          "category": "font-weight",
+          "property": "font-weight",
+          "value": "bold",
+          "source": "sx",
+          "suggestion": {
+            "token": "font.weight.bold",
+            "cssVar": "--font-weight-bold",
+            "value": "700",
+            "distance": 0,
+            "confidence": 0.9,
+            "level": "high"
+          }
+        }
+      ],
+      "components": [
+        {
+          "line": 42,
+          "column": 9,
+          "name": "TopToolbar",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 43,
+          "column": 13,
+          "name": "FilterButton",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 44,
+          "column": 13,
+          "name": "ColumnsButton",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 45,
+          "column": 13,
+          "name": "ExportButton",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Button"
+        },
+        {
+          "line": 62,
+          "column": 5,
+          "name": "List",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 76,
+          "column": 5,
+          "name": "SearchInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        },
+        {
+          "line": 77,
+          "column": 5,
+          "name": "ReferenceInput",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 78,
+          "column": 9,
+          "name": "AutocompleteInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Combobox"
+        },
+        {
+          "line": 87,
+          "column": 5,
+          "name": "DateInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        },
+        {
+          "line": 88,
+          "column": 5,
+          "name": "DateInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        },
+        {
+          "line": 89,
+          "column": 5,
+          "name": "NumberInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "NumberField"
+        },
+        {
+          "line": 90,
+          "column": 5,
+          "name": "NullableBooleanInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Switch"
+        },
+        {
+          "line": 124,
+          "column": 13,
+          "name": "Tabs",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Tabs"
+        },
+        {
+          "line": 132,
+          "column": 21,
+          "name": "Tab",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Tabs"
+        },
+        {
+          "line": 137,
+          "column": 33,
+          "name": "Count",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 151,
+          "column": 13,
+          "name": "Divider",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Divider"
+        },
+        {
+          "line": 190,
+          "column": 9,
+          "name": "DataTable",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Table"
+        },
+        {
+          "line": 196,
+          "column": 17,
+          "name": "DateField",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 207,
+          "column": 17,
+          "name": "ReferenceField",
+          "kind": "foreign",
+          "library": "react-admin"
+        }
+      ]
+    },
+    {
+      "path": "src/orders/TableCellRight.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "src/orders/Totals.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 3,
+      "dsComponents": 0,
+      "otherComponents": 10,
+      "findings": [
+        {
+          "line": 13,
+          "column": 33,
+          "category": "size",
+          "property": "min-width",
+          "value": "35em",
+          "source": "sx",
+          "suggestion": {
+            "token": "size.140",
+            "cssVar": "--size-140",
+            "value": "560px",
+            "distance": 0,
+            "confidence": 0.55,
+            "level": "medium"
+          }
+        },
+        {
+          "line": 53,
+          "column": 51,
+          "category": "font-weight",
+          "property": "font-weight",
+          "value": "bold",
+          "source": "sx",
+          "suggestion": {
+            "token": "font.weight.bold",
+            "cssVar": "--font-weight-bold",
+            "value": "700",
+            "distance": 0,
+            "confidence": 0.9,
+            "level": "high"
+          }
+        },
+        {
+          "line": 56,
+          "column": 56,
+          "category": "font-weight",
+          "property": "font-weight",
+          "value": "bold",
+          "source": "sx",
+          "suggestion": {
+            "token": "font.weight.bold",
+            "cssVar": "--font-weight-bold",
+            "value": "700",
+            "distance": 0,
+            "confidence": 0.9,
+            "level": "high"
+          }
+        }
+      ],
+      "components": [
+        {
+          "line": 13,
+          "column": 9,
+          "name": "Table",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Table"
+        },
+        {
+          "line": 14,
+          "column": 13,
+          "name": "TableBody",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Table"
+        },
+        {
+          "line": 15,
+          "column": 17,
+          "name": "TableRow",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Table"
+        },
+        {
+          "line": 16,
+          "column": 21,
+          "name": "TableCell",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Table"
+        },
+        {
+          "line": 26,
+          "column": 17,
+          "name": "TableRow",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Table"
+        },
+        {
+          "line": 27,
+          "column": 21,
+          "name": "TableCell",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Table"
+        },
+        {
+          "line": 37,
+          "column": 17,
+          "name": "TableRow",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Table"
+        },
+        {
+          "line": 38,
+          "column": 21,
+          "name": "TableCell",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Table"
+        },
+        {
+          "line": 52,
+          "column": 17,
+          "name": "TableRow",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Table"
+        },
+        {
+          "line": 53,
+          "column": 21,
+          "name": "TableCell",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Table"
+        }
+      ]
+    },
+    {
+      "path": "src/products/Aside.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 2,
+      "hardcoded": 1,
+      "dsComponents": 0,
+      "otherComponents": 16,
+      "findings": [
+        {
+          "line": 28,
+          "column": 25,
+          "category": "size",
+          "property": "width",
+          "value": "15em",
+          "source": "sx",
+          "suggestion": {
+            "token": "size.60",
+            "cssVar": "--size-60",
+            "value": "240px",
+            "distance": 0,
+            "confidence": 0.55,
+            "level": "medium"
+          }
+        }
+      ],
+      "components": [
+        {
+          "line": 24,
+          "column": 9,
+          "name": "Card",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Card"
+        },
+        {
+          "line": 33,
+          "column": 13,
+          "name": "CardContent",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Card"
+        },
+        {
+          "line": 34,
+          "column": 17,
+          "name": "FilterLiveSearch",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 36,
+          "column": 17,
+          "name": "SavedQueriesList",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 38,
+          "column": 17,
+          "name": "FilterList",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 42,
+          "column": 21,
+          "name": "FilterListItem",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 50,
+          "column": 21,
+          "name": "FilterListItem",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 58,
+          "column": 21,
+          "name": "FilterListItem",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 66,
+          "column": 21,
+          "name": "FilterListItem",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 76,
+          "column": 17,
+          "name": "FilterList",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 80,
+          "column": 21,
+          "name": "FilterListItem",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 88,
+          "column": 21,
+          "name": "FilterListItem",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 96,
+          "column": 21,
+          "name": "FilterListItem",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 104,
+          "column": 21,
+          "name": "FilterListItem",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 114,
+          "column": 17,
+          "name": "FilterList",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 120,
+          "column": 29,
+          "name": "FilterListItem",
+          "kind": "foreign",
+          "library": "react-admin"
+        }
+      ]
+    },
+    {
+      "path": "src/products/CreateRelatedReviewButton.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 1,
+      "findings": [],
+      "components": [
+        {
+          "line": 8,
+          "column": 9,
+          "name": "CreateButton",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Button"
+        }
+      ]
+    },
+    {
+      "path": "src/products/GridList.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 3,
+      "hardcoded": 4,
+      "dsComponents": 0,
+      "otherComponents": 8,
+      "findings": [
+        {
+          "line": 89,
+          "column": 52,
+          "category": "font-size",
+          "property": "font-size",
+          "value": "1em",
+          "source": "sx",
+          "suggestion": {
+            "token": "font.size.300",
+            "cssVar": "--font-size-300",
+            "value": "17px",
+            "distance": 1,
+            "confidence": 0.55,
+            "level": "medium"
+          }
+        },
+        {
+          "line": 96,
+          "column": 58,
+          "category": "color",
+          "property": "background",
+          "value": "rgba(0,0,0,0.8)",
+          "source": "sx",
+          "suggestion": {
+            "token": "color.overlay.scrim",
+            "cssVar": "--color-overlay-scrim",
+            "value": "rgb(0 0 0 / 0.64)",
+            "mode": "theme=dark",
+            "distance": 8,
+            "confidence": 0.3,
+            "level": "low"
+          }
+        },
+        {
+          "line": 96,
+          "column": 77,
+          "category": "color",
+          "property": "background",
+          "value": "rgba(0,0,0,0.4)",
+          "source": "sx",
+          "suggestion": {
+            "token": "color.alpha.black-40",
+            "cssVar": "--color-alpha-black-40",
+            "value": "rgb(0 0 0 / 0.4)",
+            "distance": 0,
+            "confidence": 1,
+            "level": "exact"
+          }
+        },
+        {
+          "line": 96,
+          "column": 97,
+          "category": "color",
+          "property": "background",
+          "value": "rgba(0,0,0,0)",
+          "source": "sx",
+          "suggestion": {
+            "token": "color.alpha.black-24",
+            "cssVar": "--color-alpha-black-24",
+            "value": "rgb(0 0 0 / 0.24)",
+            "distance": 12,
+            "confidence": 0.3,
+            "level": "low"
+          }
+        }
+      ],
+      "components": [
+        {
+          "line": 39,
+          "column": 9,
+          "name": "ImageList",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Grid"
+        },
+        {
+          "line": 41,
+          "column": 17,
+          "name": "ImageListItem",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 42,
+          "column": 21,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 62,
+          "column": 9,
+          "name": "ImageList",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Grid"
+        },
+        {
+          "line": 64,
+          "column": 17,
+          "name": "ImageListItem",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 73,
+          "column": 21,
+          "name": "img",
+          "kind": "native",
+          "library": "native"
+        },
+        {
+          "line": 74,
+          "column": 21,
+          "name": "ImageListItemBar",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 79,
+          "column": 33,
+          "name": "NumberField",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "NumberField"
+        }
+      ]
+    },
+    {
+      "path": "src/products/index.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "src/products/Poster.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 2,
+      "dsComponents": 0,
+      "otherComponents": 2,
+      "findings": [
+        {
+          "line": 15,
+          "column": 34,
+          "category": "size",
+          "property": "max-width",
+          "value": "42em",
+          "source": "sx",
+          "suggestion": {
+            "token": "size.160",
+            "cssVar": "--size-160",
+            "value": "640px",
+            "distance": 32,
+            "confidence": 0.55,
+            "level": "medium"
+          }
+        },
+        {
+          "line": 15,
+          "column": 53,
+          "category": "size",
+          "property": "max-height",
+          "value": "15em",
+          "source": "sx",
+          "suggestion": {
+            "token": "size.60",
+            "cssVar": "--size-60",
+            "value": "240px",
+            "distance": 0,
+            "confidence": 0.55,
+            "level": "medium"
+          }
+        }
+      ],
+      "components": [
+        {
+          "line": 10,
+          "column": 9,
+          "name": "Card",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Card"
+        },
+        {
+          "line": 11,
+          "column": 13,
+          "name": "CardMedia",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Card"
+        }
+      ]
+    },
+    {
+      "path": "src/products/ProductCreate.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 2,
+      "dsComponents": 0,
+      "otherComponents": 7,
+      "findings": [
+        {
+          "line": 34,
+          "column": 34,
+          "category": "size",
+          "property": "max-width",
+          "value": "40em",
+          "source": "sx",
+          "suggestion": {
+            "token": "size.160",
+            "cssVar": "--size-160",
+            "value": "640px",
+            "distance": 0,
+            "confidence": 0.55,
+            "level": "medium"
+          }
+        },
+        {
+          "line": 42,
+          "column": 34,
+          "category": "size",
+          "property": "max-width",
+          "value": "40em",
+          "source": "sx",
+          "suggestion": {
+            "token": "size.160",
+            "cssVar": "--size-160",
+            "value": "640px",
+            "distance": 0,
+            "confidence": 0.55,
+            "level": "medium"
+          }
+        }
+      ],
+      "components": [
+        {
+          "line": 30,
+          "column": 5,
+          "name": "Create",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 31,
+          "column": 9,
+          "name": "TabbedForm",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Tabs"
+        },
+        {
+          "line": 32,
+          "column": 13,
+          "name": "TabbedForm.Tab",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Tabs"
+        },
+        {
+          "line": 36,
+          "column": 17,
+          "name": "TextInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        },
+        {
+          "line": 37,
+          "column": 17,
+          "name": "TextInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        },
+        {
+          "line": 39,
+          "column": 13,
+          "name": "TabbedForm.Tab",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Tabs"
+        },
+        {
+          "line": 46,
+          "column": 13,
+          "name": "TabbedForm.Tab",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Tabs"
+        }
+      ]
+    },
+    {
+      "path": "src/products/ProductEdit.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 8,
+      "dsComponents": 0,
+      "otherComponents": 13,
+      "findings": [
+        {
+          "line": 52,
+          "column": 34,
+          "category": "size",
+          "property": "max-width",
+          "value": "40em",
+          "source": "sx",
+          "suggestion": {
+            "token": "size.160",
+            "cssVar": "--size-160",
+            "value": "640px",
+            "distance": 0,
+            "confidence": 0.55,
+            "level": "medium"
+          }
+        },
+        {
+          "line": 52,
+          "column": 52,
+          "category": "size",
+          "property": "min-height",
+          "value": "48",
+          "source": "sx",
+          "suggestion": {
+            "token": "size.12",
+            "cssVar": "--size-12",
+            "value": "48px",
+            "distance": 0,
+            "confidence": 1,
+            "level": "exact"
+          }
+        },
+        {
+          "line": 63,
+          "column": 34,
+          "category": "size",
+          "property": "max-width",
+          "value": "40em",
+          "source": "sx",
+          "suggestion": {
+            "token": "size.160",
+            "cssVar": "--size-160",
+            "value": "640px",
+            "distance": 0,
+            "confidence": 0.55,
+            "level": "medium"
+          }
+        },
+        {
+          "line": 63,
+          "column": 52,
+          "category": "size",
+          "property": "min-height",
+          "value": "48",
+          "source": "sx",
+          "suggestion": {
+            "token": "size.12",
+            "cssVar": "--size-12",
+            "value": "48px",
+            "distance": 0,
+            "confidence": 1,
+            "level": "exact"
+          }
+        },
+        {
+          "line": 72,
+          "column": 34,
+          "category": "size",
+          "property": "max-width",
+          "value": "40em",
+          "source": "sx",
+          "suggestion": {
+            "token": "size.160",
+            "cssVar": "--size-160",
+            "value": "640px",
+            "distance": 0,
+            "confidence": 0.55,
+            "level": "medium"
+          }
+        },
+        {
+          "line": 72,
+          "column": 52,
+          "category": "size",
+          "property": "min-height",
+          "value": "48",
+          "source": "sx",
+          "suggestion": {
+            "token": "size.12",
+            "cssVar": "--size-12",
+            "value": "48px",
+            "distance": 0,
+            "confidence": 1,
+            "level": "exact"
+          }
+        },
+        {
+          "line": 88,
+          "column": 34,
+          "category": "size",
+          "property": "min-height",
+          "value": "48",
+          "source": "sx",
+          "suggestion": {
+            "token": "size.12",
+            "cssVar": "--size-12",
+            "value": "48px",
+            "distance": 0,
+            "confidence": 1,
+            "level": "exact"
+          }
+        },
+        {
+          "line": 111,
+          "column": 44,
+          "category": "size",
+          "property": "max-width",
+          "value": "20em",
+          "source": "sx",
+          "suggestion": {
+            "token": "size.80",
+            "cssVar": "--size-80",
+            "value": "320px",
+            "distance": 0,
+            "confidence": 0.55,
+            "level": "medium"
+          }
+        }
+      ],
+      "components": [
+        {
+          "line": 48,
+          "column": 5,
+          "name": "Edit",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 49,
+          "column": 9,
+          "name": "TabbedForm",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Tabs"
+        },
+        {
+          "line": 50,
+          "column": 13,
+          "name": "TabbedForm.Tab",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Tabs"
+        },
+        {
+          "line": 57,
+          "column": 17,
+          "name": "TextInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        },
+        {
+          "line": 58,
+          "column": 17,
+          "name": "TextInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        },
+        {
+          "line": 60,
+          "column": 13,
+          "name": "TabbedForm.Tab",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Tabs"
+        },
+        {
+          "line": 69,
+          "column": 13,
+          "name": "TabbedForm.Tab",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Tabs"
+        },
+        {
+          "line": 78,
+          "column": 13,
+          "name": "TabbedForm.Tab",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Tabs"
+        },
+        {
+          "line": 81,
+          "column": 21,
+          "name": "ReferenceManyCount",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 92,
+          "column": 17,
+          "name": "ReferenceManyField",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 95,
+          "column": 33,
+          "name": "Pagination",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Pagination"
+        },
+        {
+          "line": 97,
+          "column": 21,
+          "name": "DataTable",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Table"
+        },
+        {
+          "line": 119,
+          "column": 29,
+          "name": "EditButton",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Button"
+        }
+      ]
+    },
+    {
+      "path": "src/products/ProductEditDetails.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 20,
+      "findings": [],
+      "components": [
+        {
+          "line": 12,
+          "column": 5,
+          "name": "Grid",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Grid"
+        },
+        {
+          "line": 13,
+          "column": 9,
+          "name": "Grid",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Grid"
+        },
+        {
+          "line": 14,
+          "column": 13,
+          "name": "TextInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        },
+        {
+          "line": 16,
+          "column": 9,
+          "name": "Grid",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Grid"
+        },
+        {
+          "line": 17,
+          "column": 13,
+          "name": "ReferenceInput",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 18,
+          "column": 17,
+          "name": "SelectInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Select"
+        },
+        {
+          "line": 21,
+          "column": 9,
+          "name": "Grid",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Grid"
+        },
+        {
+          "line": 22,
+          "column": 13,
+          "name": "NumberInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "NumberField"
+        },
+        {
+          "line": 26,
+          "column": 25,
+          "name": "InputAdornment",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 32,
+          "column": 9,
+          "name": "Grid",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Grid"
+        },
+        {
+          "line": 33,
+          "column": 13,
+          "name": "NumberInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "NumberField"
+        },
+        {
+          "line": 37,
+          "column": 25,
+          "name": "InputAdornment",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 43,
+          "column": 9,
+          "name": "Grid",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Grid"
+        },
+        {
+          "line": 44,
+          "column": 9,
+          "name": "Grid",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Grid"
+        },
+        {
+          "line": 45,
+          "column": 13,
+          "name": "NumberInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "NumberField"
+        },
+        {
+          "line": 49,
+          "column": 25,
+          "name": "InputAdornment",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 55,
+          "column": 9,
+          "name": "Grid",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Grid"
+        },
+        {
+          "line": 56,
+          "column": 13,
+          "name": "NumberInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "NumberField"
+        },
+        {
+          "line": 58,
+          "column": 9,
+          "name": "Grid",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Grid"
+        },
+        {
+          "line": 59,
+          "column": 13,
+          "name": "NumberInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "NumberField"
+        }
+      ]
+    },
+    {
+      "path": "src/products/ProductList.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 2,
+      "hardcoded": 1,
+      "dsComponents": 0,
+      "otherComponents": 20,
+      "findings": [
+        {
+          "line": 52,
+          "column": 64,
+          "category": "size",
+          "property": "width",
+          "value": "16em",
+          "source": "sx",
+          "suggestion": {
+            "token": "size.60",
+            "cssVar": "--size-60",
+            "value": "240px",
+            "distance": 16,
+            "confidence": 0.55,
+            "level": "medium"
+          }
+        }
+      ],
+      "components": [
+        {
+          "line": 30,
+          "column": 9,
+          "name": "ListBase",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 35,
+          "column": 21,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 40,
+          "column": 25,
+          "name": "FilterForm",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 44,
+          "column": 13,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 50,
+          "column": 17,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 56,
+          "column": 21,
+          "name": "Pagination",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Pagination"
+        },
+        {
+          "line": 70,
+          "column": 13,
+          "name": "Title",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 77,
+          "column": 12,
+          "name": "Chip",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Tag"
+        },
+        {
+          "line": 81,
+          "column": 5,
+          "name": "SearchInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        },
+        {
+          "line": 82,
+          "column": 5,
+          "name": "ReferenceInput",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 87,
+          "column": 9,
+          "name": "SelectInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Select"
+        },
+        {
+          "line": 89,
+          "column": 5,
+          "name": "NumberInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "NumberField"
+        },
+        {
+          "line": 90,
+          "column": 5,
+          "name": "NumberInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "NumberField"
+        },
+        {
+          "line": 91,
+          "column": 5,
+          "name": "NumberInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "NumberField"
+        },
+        {
+          "line": 92,
+          "column": 5,
+          "name": "NumberInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "NumberField"
+        },
+        {
+          "line": 101,
+          "column": 5,
+          "name": "TopToolbar",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 102,
+          "column": 21,
+          "name": "FilterButton",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 103,
+          "column": 9,
+          "name": "SortButton",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 104,
+          "column": 9,
+          "name": "CreateButton",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Button"
+        },
+        {
+          "line": 105,
+          "column": 9,
+          "name": "ExportButton",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Button"
+        }
+      ]
+    },
+    {
+      "path": "src/products/ProductReferenceField.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 2,
+      "findings": [],
+      "components": [
+        {
+          "line": 12,
+          "column": 5,
+          "name": "ReferenceField",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 18,
+          "column": 9,
+          "name": "TextField",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        }
+      ]
+    },
+    {
+      "path": "src/products/ProductRefField.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 1,
+      "findings": [],
+      "components": [
+        {
+          "line": 8,
+          "column": 9,
+          "name": "Link",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Link"
+        }
+      ]
+    },
+    {
+      "path": "src/products/ThumbnailField.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 3,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [
+        {
+          "line": 7,
+          "column": 12,
+          "category": "size",
+          "property": "width",
+          "value": "25",
+          "source": "styled",
+          "suggestion": {
+            "token": "icon.size.lg",
+            "cssVar": "--icon-size-lg",
+            "value": "24px",
+            "distance": 1,
+            "confidence": 0.8,
+            "level": "high"
+          }
+        },
+        {
+          "line": 8,
+          "column": 15,
+          "category": "size",
+          "property": "max-width",
+          "value": "25",
+          "source": "styled",
+          "suggestion": {
+            "token": "icon.size.lg",
+            "cssVar": "--icon-size-lg",
+            "value": "24px",
+            "distance": 1,
+            "confidence": 0.8,
+            "level": "high"
+          }
+        },
+        {
+          "line": 9,
+          "column": 16,
+          "category": "size",
+          "property": "max-height",
+          "value": "25",
+          "source": "styled",
+          "suggestion": {
+            "token": "icon.size.lg",
+            "cssVar": "--icon-size-lg",
+            "value": "24px",
+            "distance": 1,
+            "confidence": 0.8,
+            "level": "high"
+          }
+        }
+      ],
+      "components": []
+    },
+    {
+      "path": "src/reviews/AcceptButton.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 2,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 1,
+      "findings": [],
+      "components": [
+        {
+          "line": 42,
+          "column": 9,
+          "name": "Button",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Button"
+        }
+      ]
+    },
+    {
+      "path": "src/reviews/BulkAcceptButton.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 1,
+      "findings": [],
+      "components": [
+        {
+          "line": 41,
+          "column": 9,
+          "name": "Button",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Button"
+        }
+      ]
+    },
+    {
+      "path": "src/reviews/BulkRejectButton.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 1,
+      "findings": [],
+      "components": [
+        {
+          "line": 41,
+          "column": 9,
+          "name": "Button",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Button"
+        }
+      ]
+    },
+    {
+      "path": "src/reviews/index.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "src/reviews/RejectButton.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 2,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 1,
+      "findings": [],
+      "components": [
+        {
+          "line": 43,
+          "column": 9,
+          "name": "Button",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Button"
+        }
+      ]
+    },
+    {
+      "path": "src/reviews/ReviewCreate.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 1,
+      "dsComponents": 0,
+      "otherComponents": 8,
+      "findings": [
+        {
+          "line": 51,
+          "column": 32,
+          "category": "size",
+          "property": "max-width",
+          "value": "30em",
+          "source": "sx",
+          "suggestion": {
+            "token": "size.120",
+            "cssVar": "--size-120",
+            "value": "480px",
+            "distance": 0,
+            "confidence": 0.55,
+            "level": "medium"
+          }
+        }
+      ],
+      "components": [
+        {
+          "line": 47,
+          "column": 9,
+          "name": "Create",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 48,
+          "column": 13,
+          "name": "SimpleForm",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Form"
+        },
+        {
+          "line": 54,
+          "column": 17,
+          "name": "ReferenceInput",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 55,
+          "column": 21,
+          "name": "AutocompleteInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Combobox"
+        },
+        {
+          "line": 57,
+          "column": 17,
+          "name": "ReferenceInput",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 58,
+          "column": 21,
+          "name": "AutocompleteInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Combobox"
+        },
+        {
+          "line": 63,
+          "column": 17,
+          "name": "DateInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        },
+        {
+          "line": 69,
+          "column": 17,
+          "name": "TextInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        }
+      ]
+    },
+    {
+      "path": "src/reviews/ReviewEdit.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 5,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 17,
+      "findings": [],
+      "components": [
+        {
+          "line": 35,
+          "column": 9,
+          "name": "EditBase",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 37,
+          "column": 13,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 44,
+          "column": 17,
+          "name": "Stack",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Stack"
+        },
+        {
+          "line": 50,
+          "column": 21,
+          "name": "Typography",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 58,
+          "column": 21,
+          "name": "IconButton",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "IconButton"
+        },
+        {
+          "line": 62,
+          "column": 17,
+          "name": "SimpleForm",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Form"
+        },
+        {
+          "line": 66,
+          "column": 21,
+          "name": "Grid",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Grid"
+        },
+        {
+          "line": 73,
+          "column": 25,
+          "name": "Grid",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Grid"
+        },
+        {
+          "line": 74,
+          "column": 29,
+          "name": "Labeled",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Field"
+        },
+        {
+          "line": 78,
+          "column": 25,
+          "name": "Grid",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Grid"
+        },
+        {
+          "line": 79,
+          "column": 29,
+          "name": "Labeled",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Field"
+        },
+        {
+          "line": 83,
+          "column": 25,
+          "name": "Grid",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Grid"
+        },
+        {
+          "line": 84,
+          "column": 29,
+          "name": "Labeled",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Field"
+        },
+        {
+          "line": 85,
+          "column": 33,
+          "name": "DateField",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 88,
+          "column": 25,
+          "name": "Grid",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Grid"
+        },
+        {
+          "line": 89,
+          "column": 29,
+          "name": "Labeled",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Field"
+        },
+        {
+          "line": 94,
+          "column": 21,
+          "name": "TextInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        }
+      ]
+    },
+    {
+      "path": "src/reviews/ReviewEditToolbar.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 3,
+      "findings": [],
+      "components": [
+        {
+          "line": 26,
+          "column": 9,
+          "name": "Toolbar",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 40,
+          "column": 21,
+          "name": "SaveButton",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Button"
+        },
+        {
+          "line": 53,
+          "column": 21,
+          "name": "DeleteButton",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Button"
+        }
+      ]
+    },
+    {
+      "path": "src/reviews/reviewFilters.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 2,
+      "hardcoded": 3,
+      "dsComponents": 0,
+      "otherComponents": 9,
+      "findings": [
+        {
+          "line": 37,
+          "column": 32,
+          "category": "size",
+          "property": "width",
+          "value": "8",
+          "source": "sx"
+        },
+        {
+          "line": 38,
+          "column": 33,
+          "category": "size",
+          "property": "height",
+          "value": "8",
+          "source": "sx"
+        },
+        {
+          "line": 55,
+          "column": 29,
+          "category": "size",
+          "property": "min-width",
+          "value": "200",
+          "source": "sx",
+          "suggestion": {
+            "token": "size.60",
+            "cssVar": "--size-60",
+            "value": "240px",
+            "distance": 40,
+            "confidence": 0.3,
+            "level": "low"
+          }
+        }
+      ],
+      "components": [
+        {
+          "line": 23,
+          "column": 5,
+          "name": "SearchInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        },
+        {
+          "line": 24,
+          "column": 5,
+          "name": "SelectInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Select"
+        },
+        {
+          "line": 33,
+          "column": 17,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 48,
+          "column": 5,
+          "name": "ReferenceInput",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 49,
+          "column": 9,
+          "name": "AutocompleteInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Combobox"
+        },
+        {
+          "line": 58,
+          "column": 5,
+          "name": "ReferenceInput",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 59,
+          "column": 9,
+          "name": "AutocompleteInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Combobox"
+        },
+        {
+          "line": 61,
+          "column": 5,
+          "name": "DateInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        },
+        {
+          "line": 62,
+          "column": 5,
+          "name": "DateInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        }
+      ]
+    },
+    {
+      "path": "src/reviews/ReviewItem.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 9,
+      "findings": [],
+      "components": [
+        {
+          "line": 28,
+          "column": 9,
+          "name": "ListItem",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 29,
+          "column": 13,
+          "name": "ListItemButton",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 37,
+          "column": 17,
+          "name": "ListItemAvatar",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 38,
+          "column": 21,
+          "name": "ReferenceField",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 46,
+          "column": 17,
+          "name": "ListItemText",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 49,
+          "column": 29,
+          "name": "ReferenceField",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 54,
+          "column": 33,
+          "name": "FunctionField",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 62,
+          "column": 29,
+          "name": "ReferenceField",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 67,
+          "column": 33,
+          "name": "TextField",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        }
+      ]
+    },
+    {
+      "path": "src/reviews/ReviewList.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 3,
+      "hardcoded": 2,
+      "dsComponents": 0,
+      "otherComponents": 8,
+      "findings": [
+        {
+          "line": 67,
+          "column": 43,
+          "category": "spacing",
+          "property": "margin-right",
+          "value": "400px",
+          "source": "sx"
+        },
+        {
+          "line": 93,
+          "column": 31,
+          "category": "z-index",
+          "property": "z-index",
+          "value": "100",
+          "source": "sx",
+          "suggestion": {
+            "token": "layer.sticky",
+            "cssVar": "--layer-sticky",
+            "value": "100",
+            "distance": 0,
+            "confidence": 1,
+            "level": "exact"
+          }
+        }
+      ],
+      "components": [
+        {
+          "line": 22,
+          "column": 5,
+          "name": "TopToolbar",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 23,
+          "column": 9,
+          "name": "FilterButton",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 24,
+          "column": 9,
+          "name": "CreateButton",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Button"
+        },
+        {
+          "line": 25,
+          "column": 9,
+          "name": "ColumnsButton",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 26,
+          "column": 9,
+          "name": "ExportButton",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Button"
+        },
+        {
+          "line": 55,
+          "column": 9,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 60,
+          "column": 13,
+          "name": "List",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 88,
+          "column": 13,
+          "name": "Drawer",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Drawer"
+        }
+      ]
+    },
+    {
+      "path": "src/reviews/ReviewListDesktop.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 2,
+      "dsComponents": 0,
+      "otherComponents": 1,
+      "findings": [
+        {
+          "line": 57,
+          "column": 38,
+          "category": "border-width",
+          "property": "border-left-width",
+          "value": "5",
+          "source": "sx",
+          "suggestion": {
+            "token": "border.width.3",
+            "cssVar": "--border-width-3",
+            "value": "3px",
+            "distance": 2,
+            "confidence": 0.3,
+            "level": "low"
+          }
+        },
+        {
+          "line": 85,
+          "column": 32,
+          "category": "size",
+          "property": "max-width",
+          "value": "18em",
+          "source": "sx",
+          "suggestion": {
+            "token": "size.72",
+            "cssVar": "--size-72",
+            "value": "288px",
+            "distance": 0,
+            "confidence": 0.55,
+            "level": "medium"
+          }
+        }
+      ],
+      "components": [
+        {
+          "line": 27,
+          "column": 9,
+          "name": "BulkDeleteButton",
+          "kind": "foreign",
+          "library": "react-admin"
+        }
+      ]
+    },
+    {
+      "path": "src/reviews/ReviewListMobile.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 1,
+      "dsComponents": 0,
+      "otherComponents": 1,
+      "findings": [
+        {
+          "line": 14,
+          "column": 42,
+          "category": "size",
+          "property": "width",
+          "value": "33px",
+          "source": "sx",
+          "suggestion": {
+            "token": "size.8",
+            "cssVar": "--size-8",
+            "value": "32px",
+            "distance": 1,
+            "confidence": 0.8,
+            "level": "high"
+          }
+        }
+      ],
+      "components": [
+        {
+          "line": 14,
+          "column": 9,
+          "name": "List",
+          "kind": "foreign",
+          "library": "@mui/material"
+        }
+      ]
+    },
+    {
+      "path": "src/reviews/rowSx.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 1,
+      "hardcoded": 3,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [
+        {
+          "line": 26,
+          "column": 34,
+          "category": "border-width",
+          "property": "border-left-width",
+          "value": "5",
+          "source": "sx",
+          "suggestion": {
+            "token": "border.width.3",
+            "cssVar": "--border-width-3",
+            "value": "3px",
+            "distance": 2,
+            "confidence": 0.3,
+            "level": "low"
+          }
+        },
+        {
+          "line": 33,
+          "column": 34,
+          "category": "border-width",
+          "property": "border-left-width",
+          "value": "5",
+          "source": "sx",
+          "suggestion": {
+            "token": "border.width.3",
+            "cssVar": "--border-width-3",
+            "value": "3px",
+            "distance": 2,
+            "confidence": 0.3,
+            "level": "low"
+          }
+        },
+        {
+          "line": 40,
+          "column": 34,
+          "category": "border-width",
+          "property": "border-left-width",
+          "value": "5",
+          "source": "sx",
+          "suggestion": {
+            "token": "border.width.3",
+            "cssVar": "--border-width-3",
+            "value": "3px",
+            "distance": 2,
+            "confidence": 0.3,
+            "level": "low"
+          }
+        }
+      ],
+      "components": []
+    },
+    {
+      "path": "src/reviews/StarRatingField.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 4,
+      "dsComponents": 0,
+      "otherComponents": 1,
+      "findings": [
+        {
+          "line": 32,
+          "column": 55,
+          "category": "size",
+          "property": "width",
+          "value": "20",
+          "source": "sx",
+          "suggestion": {
+            "token": "icon.size.md",
+            "cssVar": "--icon-size-md",
+            "value": "20px",
+            "distance": 0,
+            "confidence": 1,
+            "level": "exact"
+          }
+        },
+        {
+          "line": 32,
+          "column": 60,
+          "category": "size",
+          "property": "width",
+          "value": "15",
+          "source": "sx",
+          "suggestion": {
+            "token": "icon.size.sm",
+            "cssVar": "--icon-size-sm",
+            "value": "16px",
+            "distance": 1,
+            "confidence": 0.8,
+            "level": "high"
+          }
+        },
+        {
+          "line": 33,
+          "column": 56,
+          "category": "size",
+          "property": "height",
+          "value": "20",
+          "source": "sx",
+          "suggestion": {
+            "token": "icon.size.md",
+            "cssVar": "--icon-size-md",
+            "value": "20px",
+            "distance": 0,
+            "confidence": 1,
+            "level": "exact"
+          }
+        },
+        {
+          "line": 33,
+          "column": 61,
+          "category": "size",
+          "property": "height",
+          "value": "15",
+          "source": "sx",
+          "suggestion": {
+            "token": "icon.size.sm",
+            "cssVar": "--icon-size-sm",
+            "value": "16px",
+            "distance": 1,
+            "confidence": 0.8,
+            "level": "high"
+          }
+        }
+      ],
+      "components": [
+        {
+          "line": 18,
+          "column": 9,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        }
+      ]
+    },
+    {
+      "path": "src/reviews/StarRatingInput.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 3,
+      "dsComponents": 0,
+      "otherComponents": 2,
+      "findings": [
+        {
+          "line": 15,
+          "column": 32,
+          "category": "spacing",
+          "property": "margin-bottom",
+          "value": "1rem",
+          "source": "sx",
+          "suggestion": {
+            "token": "space.4",
+            "cssVar": "--space-4",
+            "value": "16px",
+            "distance": 0,
+            "confidence": 1,
+            "level": "exact"
+          }
+        },
+        {
+          "line": 30,
+          "column": 17,
+          "category": "color",
+          "property": "color",
+          "value": "#000",
+          "source": "styled",
+          "suggestion": {
+            "token": "color.black",
+            "cssVar": "--color-black",
+            "value": "#000000",
+            "distance": 0,
+            "confidence": 1,
+            "level": "exact"
+          }
+        },
+        {
+          "line": 33,
+          "column": 17,
+          "category": "color",
+          "property": "color",
+          "value": "#000",
+          "source": "styled",
+          "suggestion": {
+            "token": "color.black",
+            "cssVar": "--color-black",
+            "value": "#000000",
+            "distance": 0,
+            "confidence": 1,
+            "level": "exact"
+          }
+        }
+      ],
+      "components": [
+        {
+          "line": 11,
+          "column": 9,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 18,
+          "column": 13,
+          "name": "Typography",
+          "kind": "foreign",
+          "library": "@mui/material"
+        }
+      ]
+    },
+    {
+      "path": "src/segments/data.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "src/segments/LinkToRelatedCustomers.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 1,
+      "dsComponents": 0,
+      "otherComponents": 1,
+      "findings": [
+        {
+          "line": 28,
+          "column": 49,
+          "category": "spacing",
+          "property": "padding-right",
+          "value": "0.5em",
+          "source": "sx",
+          "suggestion": {
+            "token": "space.2",
+            "cssVar": "--space-2",
+            "value": "8px",
+            "distance": 0,
+            "confidence": 0.55,
+            "level": "medium"
+          }
+        }
+      ],
+      "components": [
+        {
+          "line": 12,
+          "column": 9,
+          "name": "Button",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Button"
+        }
+      ]
+    },
+    {
+      "path": "src/segments/Segments.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 1,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 11,
+      "findings": [],
+      "components": [
+        {
+          "line": 31,
+          "column": 13,
+          "name": "Card",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Card"
+        },
+        {
+          "line": 32,
+          "column": 17,
+          "name": "Title",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 33,
+          "column": 17,
+          "name": "Table",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Table"
+        },
+        {
+          "line": 34,
+          "column": 21,
+          "name": "TableHead",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Table"
+        },
+        {
+          "line": 35,
+          "column": 25,
+          "name": "TableRow",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Table"
+        },
+        {
+          "line": 36,
+          "column": 29,
+          "name": "TableCell",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Table"
+        },
+        {
+          "line": 39,
+          "column": 29,
+          "name": "TableCell",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Table"
+        },
+        {
+          "line": 42,
+          "column": 21,
+          "name": "TableBody",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Table"
+        },
+        {
+          "line": 44,
+          "column": 29,
+          "name": "TableRow",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Table"
+        },
+        {
+          "line": 45,
+          "column": 33,
+          "name": "TableCell",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Table"
+        },
+        {
+          "line": 46,
+          "column": 33,
+          "name": "TableCell",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Table"
+        }
+      ]
+    },
+    {
+      "path": "src/themes/chiptuneTheme.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 4,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [
+        {
+          "line": 10,
+          "column": 20,
+          "category": "color",
+          "property": "main",
+          "value": "#0f0",
+          "source": "theme"
+        },
+        {
+          "line": 13,
+          "column": 23,
+          "category": "color",
+          "property": "default",
+          "value": "#111111",
+          "source": "theme",
+          "suggestion": {
+            "token": "color.action.primary.bg-active",
+            "cssVar": "--color-action-primary-bg-active",
+            "value": "#0d1826",
+            "distance": 4.32,
+            "confidence": 0.6,
+            "level": "medium"
+          }
+        },
+        {
+          "line": 14,
+          "column": 21,
+          "category": "color",
+          "property": "paper",
+          "value": "#212121",
+          "source": "theme",
+          "suggestion": {
+            "token": "color.surface.inverse",
+            "cssVar": "--color-surface-inverse",
+            "value": "#1c2735",
+            "distance": 3.72,
+            "confidence": 0.6,
+            "level": "medium"
+          }
+        },
+        {
+          "line": 18,
+          "column": 22,
+          "category": "font-family",
+          "property": "font-family",
+          "value": "'Pixelify Sans', cursive",
+          "source": "theme",
+          "suggestion": {
+            "token": "font.family.sans",
+            "cssVar": "--font-family-sans",
+            "value": "\"IBM Plex Sans Variable\", \"IBM Plex Sans\", system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif",
+            "distance": 1,
+            "confidence": 0.3,
+            "level": "low"
+          }
+        }
+      ],
+      "components": []
+    },
+    {
+      "path": "src/themes/cssVariablesTheme.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 2,
+      "hardcoded": 4,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [
+        {
+          "line": 17,
+          "column": 111,
+          "category": "color",
+          "property": "background-color",
+          "value": "black",
+          "source": "styled",
+          "suggestion": {
+            "token": "color.black",
+            "cssVar": "--color-black",
+            "value": "#000000",
+            "distance": 0,
+            "confidence": 1,
+            "level": "exact"
+          }
+        },
+        {
+          "line": 17,
+          "column": 118,
+          "category": "color",
+          "property": "background-color",
+          "value": "white",
+          "source": "styled",
+          "suggestion": {
+            "token": "color.surface.default",
+            "cssVar": "--color-surface-default",
+            "value": "#ffffff",
+            "distance": 0,
+            "confidence": 1,
+            "level": "exact"
+          }
+        },
+        {
+          "line": 32,
+          "column": 111,
+          "category": "color",
+          "property": "background-color",
+          "value": "black",
+          "source": "styled",
+          "suggestion": {
+            "token": "color.black",
+            "cssVar": "--color-black",
+            "value": "#000000",
+            "distance": 0,
+            "confidence": 1,
+            "level": "exact"
+          }
+        },
+        {
+          "line": 32,
+          "column": 118,
+          "category": "color",
+          "property": "background-color",
+          "value": "white",
+          "source": "styled",
+          "suggestion": {
+            "token": "color.surface.default",
+            "cssVar": "--color-surface-default",
+            "value": "#ffffff",
+            "distance": 0,
+            "confidence": 1,
+            "level": "exact"
+          }
+        }
+      ],
+      "components": []
+    },
+    {
+      "path": "src/themes/softTheme.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 27,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [
+        {
+          "line": 13,
+          "column": 20,
+          "category": "color",
+          "property": "main",
+          "value": "#90caf9",
+          "source": "theme",
+          "suggestion": {
+            "token": "color.text.link",
+            "cssVar": "--color-text-link",
+            "value": "#8adafe",
+            "mode": "brand=ocean,theme=dark",
+            "distance": 4.14,
+            "confidence": 0.6,
+            "level": "medium"
+          }
+        },
+        {
+          "line": 16,
+          "column": 20,
+          "category": "color",
+          "property": "main",
+          "value": "#FBBA72",
+          "source": "theme",
+          "suggestion": {
+            "token": "color.feedback.warning.icon",
+            "cssVar": "--color-feedback-warning-icon",
+            "value": "#e9b154",
+            "mode": "theme=dark",
+            "distance": 4.61,
+            "confidence": 0.6,
+            "level": "medium"
+          }
+        },
+        {
+          "line": 21,
+          "column": 16,
+          "category": "size",
+          "property": "width",
+          "value": "200",
+          "source": "theme",
+          "suggestion": {
+            "token": "size.60",
+            "cssVar": "--size-60",
+            "value": "240px",
+            "distance": 40,
+            "confidence": 0.3,
+            "level": "low"
+          }
+        },
+        {
+          "line": 28,
+          "column": 34,
+          "category": "border-width",
+          "property": "border-left",
+          "value": "3px",
+          "source": "styled",
+          "suggestion": {
+            "token": "border.width.3",
+            "cssVar": "--border-width-3",
+            "value": "3px",
+            "distance": 0,
+            "confidence": 1,
+            "level": "exact"
+          }
+        },
+        {
+          "line": 28,
+          "column": 44,
+          "category": "color",
+          "property": "border-left",
+          "value": "#000",
+          "source": "styled",
+          "suggestion": {
+            "token": "color.black",
+            "cssVar": "--color-black",
+            "value": "#000000",
+            "distance": 0,
+            "confidence": 1,
+            "level": "exact"
+          }
+        },
+        {
+          "line": 30,
+          "column": 38,
+          "category": "border-width",
+          "property": "border-left",
+          "value": "3px",
+          "source": "styled",
+          "suggestion": {
+            "token": "border.width.3",
+            "cssVar": "--border-width-3",
+            "value": "3px",
+            "distance": 0,
+            "confidence": 1,
+            "level": "exact"
+          }
+        },
+        {
+          "line": 30,
+          "column": 48,
+          "category": "color",
+          "property": "border-left",
+          "value": "#90caf9",
+          "source": "styled",
+          "suggestion": {
+            "token": "color.text.link",
+            "cssVar": "--color-text-link",
+            "value": "#8adafe",
+            "mode": "brand=ocean,theme=dark",
+            "distance": 4.14,
+            "confidence": 0.6,
+            "level": "medium"
+          }
+        },
+        {
+          "line": 41,
+          "column": 29,
+          "category": "color",
+          "property": "color",
+          "value": "#ffffffb3",
+          "source": "styled",
+          "suggestion": {
+            "token": "color.text.inverse",
+            "cssVar": "--color-text-inverse",
+            "value": "#ffffff",
+            "distance": 14.9,
+            "confidence": 0.3,
+            "level": "low"
+          }
+        },
+        {
+          "line": 42,
+          "column": 39,
+          "category": "color",
+          "property": "background-color",
+          "value": "#616161",
+          "source": "styled",
+          "suggestion": {
+            "token": "color.surface.hover-raised",
+            "cssVar": "--color-surface-hover-raised",
+            "value": "#4b5562",
+            "mode": "theme=dark",
+            "distance": 5.31,
+            "confidence": 0.3,
+            "level": "low"
+          }
+        },
+        {
+          "line": 62,
+          "column": 20,
+          "category": "color",
+          "property": "main",
+          "value": "#4f3cc9",
+          "source": "theme",
+          "suggestion": {
+            "token": "color.feedback.info.text",
+            "cssVar": "--color-feedback-info-text",
+            "value": "#653d8c",
+            "mode": "brand=ocean",
+            "distance": 10.65,
+            "confidence": 0.3,
+            "level": "low"
+          }
+        },
+        {
+          "line": 65,
+          "column": 21,
+          "category": "color",
+          "property": "light",
+          "value": "#5f5fc4",
+          "source": "theme",
+          "suggestion": {
+            "token": "color.feedback.info.icon",
+            "cssVar": "--color-feedback-info-icon",
+            "value": "#7f53ac",
+            "mode": "brand=ocean",
+            "distance": 6.54,
+            "confidence": 0.3,
+            "level": "low"
+          }
+        },
+        {
+          "line": 66,
+          "column": 20,
+          "category": "color",
+          "property": "main",
+          "value": "#283593",
+          "source": "theme",
+          "suggestion": {
+            "token": "color.feedback.info.border",
+            "cssVar": "--color-feedback-info-border",
+            "value": "#4b2a6b",
+            "mode": "brand=ocean,theme=dark",
+            "distance": 9.01,
+            "confidence": 0.3,
+            "level": "low"
+          }
+        },
+        {
+          "line": 67,
+          "column": 20,
+          "category": "color",
+          "property": "dark",
+          "value": "#001064",
+          "source": "theme",
+          "suggestion": {
+            "token": "color.surface.inverse",
+            "cssVar": "--color-surface-inverse",
+            "value": "#1c2735",
+            "distance": 11.63,
+            "confidence": 0.3,
+            "level": "low"
+          }
+        },
+        {
+          "line": 68,
+          "column": 28,
+          "category": "color",
+          "property": "contrast-text",
+          "value": "#fff",
+          "source": "theme",
+          "suggestion": {
+            "token": "color.surface.default",
+            "cssVar": "--color-surface-default",
+            "value": "#ffffff",
+            "distance": 0,
+            "confidence": 1,
+            "level": "exact"
+          }
+        },
+        {
+          "line": 71,
+          "column": 23,
+          "category": "color",
+          "property": "default",
+          "value": "#fcfcfe",
+          "source": "theme",
+          "suggestion": {
+            "token": "color.surface.default",
+            "cssVar": "--color-surface-default",
+            "value": "#ffffff",
+            "distance": 0.88,
+            "confidence": 0.85,
+            "level": "high"
+          }
+        },
+        {
+          "line": 76,
+          "column": 23,
+          "category": "radius",
+          "property": "border-radius",
+          "value": "10",
+          "source": "theme",
+          "suggestion": {
+            "token": "radius.container",
+            "cssVar": "--radius-container",
+            "value": "10px",
+            "distance": 0,
+            "confidence": 1,
+            "level": "exact"
+          }
+        },
+        {
+          "line": 79,
+          "column": 16,
+          "category": "size",
+          "property": "width",
+          "value": "200",
+          "source": "theme",
+          "suggestion": {
+            "token": "size.60",
+            "cssVar": "--size-60",
+            "value": "240px",
+            "distance": 40,
+            "confidence": 0.3,
+            "level": "low"
+          }
+        },
+        {
+          "line": 86,
+          "column": 34,
+          "category": "border-width",
+          "property": "border-left",
+          "value": "3px",
+          "source": "styled",
+          "suggestion": {
+            "token": "border.width.3",
+            "cssVar": "--border-width-3",
+            "value": "3px",
+            "distance": 0,
+            "confidence": 1,
+            "level": "exact"
+          }
+        },
+        {
+          "line": 86,
+          "column": 44,
+          "category": "color",
+          "property": "border-left",
+          "value": "#fff",
+          "source": "styled",
+          "suggestion": {
+            "token": "avatar.ring",
+            "cssVar": "--avatar-ring",
+            "value": "#ffffff",
+            "distance": 0,
+            "confidence": 1,
+            "level": "exact"
+          }
+        },
+        {
+          "line": 88,
+          "column": 38,
+          "category": "border-width",
+          "property": "border-left",
+          "value": "3px",
+          "source": "styled",
+          "suggestion": {
+            "token": "border.width.3",
+            "cssVar": "--border-width-3",
+            "value": "3px",
+            "distance": 0,
+            "confidence": 1,
+            "level": "exact"
+          }
+        },
+        {
+          "line": 88,
+          "column": 48,
+          "category": "color",
+          "property": "border-left",
+          "value": "#4f3cc9",
+          "source": "styled",
+          "suggestion": {
+            "token": "color.feedback.info.text",
+            "cssVar": "--color-feedback-info-text",
+            "value": "#653d8c",
+            "mode": "brand=ocean",
+            "distance": 10.65,
+            "confidence": 0.3,
+            "level": "low"
+          }
+        },
+        {
+          "line": 99,
+          "column": 30,
+          "category": "border-width",
+          "property": "border",
+          "value": "1px",
+          "source": "styled",
+          "suggestion": {
+            "token": "border-width.default",
+            "cssVar": "--border-width-default",
+            "value": "1px",
+            "distance": 0,
+            "confidence": 1,
+            "level": "exact"
+          }
+        },
+        {
+          "line": 99,
+          "column": 40,
+          "category": "color",
+          "property": "border",
+          "value": "#e0e0e3",
+          "source": "styled",
+          "suggestion": {
+            "token": "color.border.default",
+            "cssVar": "--color-border-default",
+            "value": "#dce3eb",
+            "distance": 1.15,
+            "confidence": 0.85,
+            "level": "high"
+          }
+        },
+        {
+          "line": 107,
+          "column": 29,
+          "category": "color",
+          "property": "color",
+          "value": "#808080",
+          "source": "styled",
+          "suggestion": {
+            "token": "color.border.strong",
+            "cssVar": "--color-border-strong",
+            "value": "#818a96",
+            "distance": 3.67,
+            "confidence": 0.6,
+            "level": "medium"
+          }
+        },
+        {
+          "line": 108,
+          "column": 39,
+          "category": "color",
+          "property": "background-color",
+          "value": "#fff",
+          "source": "styled",
+          "suggestion": {
+            "token": "color.surface.default",
+            "cssVar": "--color-surface-default",
+            "value": "#ffffff",
+            "distance": 0,
+            "confidence": 1,
+            "level": "exact"
+          }
+        },
+        {
+          "line": 118,
+          "column": 39,
+          "category": "color",
+          "property": "background-color",
+          "value": "#f5f5f5",
+          "source": "styled",
+          "suggestion": {
+            "token": "color.bg.default",
+            "cssVar": "--color-bg-default",
+            "value": "#f4f7fa",
+            "distance": 0.69,
+            "confidence": 0.85,
+            "level": "high"
+          }
+        },
+        {
+          "line": 121,
+          "column": 39,
+          "category": "color",
+          "property": "background-color",
+          "value": "#d7d7d7",
+          "source": "styled",
+          "suggestion": {
+            "token": "color.bg.muted",
+            "cssVar": "--color-bg-muted",
+            "value": "#dce3eb",
+            "distance": 3.62,
+            "confidence": 0.6,
+            "level": "medium"
+          }
+        }
+      ],
+      "components": []
+    },
+    {
+      "path": "src/themes/themes.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 2,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [
+        {
+          "line": 40,
+          "column": 30,
+          "category": "spacing",
+          "property": "padding-left",
+          "value": "24",
+          "source": "styled",
+          "suggestion": {
+            "token": "space.6",
+            "cssVar": "--space-6",
+            "value": "24px",
+            "distance": 0,
+            "confidence": 1,
+            "level": "exact"
+          }
+        },
+        {
+          "line": 43,
+          "column": 30,
+          "category": "spacing",
+          "property": "padding-left",
+          "value": "8",
+          "source": "styled",
+          "suggestion": {
+            "token": "space.2",
+            "cssVar": "--space-2",
+            "value": "8px",
+            "distance": 0,
+            "confidence": 1,
+            "level": "exact"
+          }
+        }
+      ],
+      "components": []
+    },
+    {
+      "path": "src/themes/ThemeSwapper.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 5,
+      "findings": [],
+      "components": [
+        {
+          "line": 33,
+          "column": 13,
+          "name": "Tooltip",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Tooltip"
+        },
+        {
+          "line": 34,
+          "column": 17,
+          "name": "IconButton",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "IconButton"
+        },
+        {
+          "line": 42,
+          "column": 35,
+          "name": "ToggleThemeButton",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 43,
+          "column": 13,
+          "name": "Menu",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Menu"
+        },
+        {
+          "line": 45,
+          "column": 21,
+          "name": "MenuItem",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Menu"
+        }
+      ]
+    },
+    {
+      "path": "src/types.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "src/visitors/AddressField.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "src/visitors/Aside.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 9,
+      "hardcoded": 1,
+      "dsComponents": 0,
+      "otherComponents": 31,
+      "findings": [
+        {
+          "line": 41,
+          "column": 24,
+          "category": "size",
+          "property": "width",
+          "value": "400",
+          "source": "sx",
+          "suggestion": {
+            "token": "size.96",
+            "cssVar": "--size-96",
+            "value": "384px",
+            "distance": 16,
+            "confidence": 0.8,
+            "level": "high"
+          }
+        }
+      ],
+      "components": [
+        {
+          "line": 39,
+          "column": 9,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 75,
+          "column": 9,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 80,
+          "column": 13,
+          "name": "Card",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Card"
+        },
+        {
+          "line": 81,
+          "column": 17,
+          "name": "CardContent",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Card"
+        },
+        {
+          "line": 82,
+          "column": 21,
+          "name": "Typography",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 85,
+          "column": 21,
+          "name": "Grid",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Grid"
+        },
+        {
+          "line": 86,
+          "column": 25,
+          "name": "Grid",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Grid"
+        },
+        {
+          "line": 94,
+          "column": 29,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 99,
+          "column": 33,
+          "name": "Typography",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 104,
+          "column": 33,
+          "name": "DateField",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 110,
+          "column": 25,
+          "name": "Grid",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Grid"
+        },
+        {
+          "line": 123,
+          "column": 37,
+          "name": "Link",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Link"
+        },
+        {
+          "line": 143,
+          "column": 25,
+          "name": "Grid",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Grid"
+        },
+        {
+          "line": 151,
+          "column": 29,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 156,
+          "column": 33,
+          "name": "Typography",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 161,
+          "column": 33,
+          "name": "DateField",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 164,
+          "column": 25,
+          "name": "Grid",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Grid"
+        },
+        {
+          "line": 177,
+          "column": 37,
+          "name": "Link",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Link"
+        },
+        {
+          "line": 236,
+          "column": 5,
+          "name": "Stepper",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 238,
+          "column": 13,
+          "name": "Step",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 244,
+          "column": 17,
+          "name": "Link",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Link"
+        },
+        {
+          "line": 251,
+          "column": 25,
+          "name": "StepLabel",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 272,
+          "column": 25,
+          "name": "StepContent",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 301,
+          "column": 13,
+          "name": "Typography",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 310,
+          "column": 13,
+          "name": "Typography",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 312,
+          "column": 17,
+          "name": "TextField",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        },
+        {
+          "line": 314,
+          "column": 13,
+          "name": "Typography",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 315,
+          "column": 17,
+          "name": "NumberField",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "NumberField"
+        },
+        {
+          "line": 347,
+          "column": 13,
+          "name": "Typography",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 356,
+          "column": 13,
+          "name": "Typography",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 369,
+          "column": 13,
+          "name": "Typography",
+          "kind": "foreign",
+          "library": "@mui/material"
+        }
+      ]
+    },
+    {
+      "path": "src/visitors/AvatarField.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 1,
+      "findings": [],
+      "components": [
+        {
+          "line": 15,
+          "column": 9,
+          "name": "Avatar",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Avatar"
+        }
+      ]
+    },
+    {
+      "path": "src/visitors/ColoredNumberField.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 1,
+      "dsComponents": 0,
+      "otherComponents": 2,
+      "findings": [
+        {
+          "line": 10,
+          "column": 47,
+          "category": "color",
+          "property": "color",
+          "value": "red",
+          "source": "sx",
+          "suggestion": {
+            "token": "color.signal.default",
+            "cssVar": "--color-signal-default",
+            "value": "#e64611",
+            "distance": 6.05,
+            "confidence": 0.3,
+            "level": "low"
+          }
+        }
+      ],
+      "components": [
+        {
+          "line": 10,
+          "column": 9,
+          "name": "NumberField",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "NumberField"
+        },
+        {
+          "line": 12,
+          "column": 9,
+          "name": "NumberField",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "NumberField"
+        }
+      ]
+    },
+    {
+      "path": "src/visitors/CustomerLinkField.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 1,
+      "findings": [],
+      "components": [
+        {
+          "line": 13,
+          "column": 9,
+          "name": "Link",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Link"
+        }
+      ]
+    },
+    {
+      "path": "src/visitors/CustomerReferenceField.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 1,
+      "findings": [],
+      "components": [
+        {
+          "line": 11,
+          "column": 5,
+          "name": "ReferenceField",
+          "kind": "foreign",
+          "library": "react-admin"
+        }
+      ]
+    },
+    {
+      "path": "src/visitors/FullNameField.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 3,
+      "hardcoded": 1,
+      "dsComponents": 0,
+      "otherComponents": 1,
+      "findings": [
+        {
+          "line": 38,
+          "column": 43,
+          "category": "color",
+          "property": "text-decoration-color",
+          "value": "#bdbdbd",
+          "source": "sx",
+          "suggestion": {
+            "token": "color.text.disabled",
+            "cssVar": "--color-text-disabled",
+            "value": "#a2aab5",
+            "distance": 6.59,
+            "confidence": 0.3,
+            "level": "low"
+          }
+        }
+      ],
+      "components": [
+        {
+          "line": 18,
+          "column": 9,
+          "name": "Typography",
+          "kind": "foreign",
+          "library": "@mui/material"
+        }
+      ]
+    },
+    {
+      "path": "src/visitors/index.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "src/visitors/MobileGrid.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 2,
+      "hardcoded": 2,
+      "dsComponents": 0,
+      "otherComponents": 10,
+      "findings": [
+        {
+          "line": 29,
+          "column": 26,
+          "category": "spacing",
+          "property": "margin",
+          "value": "0.5em",
+          "source": "sx",
+          "suggestion": {
+            "token": "space.2",
+            "cssVar": "--space-2",
+            "value": "8px",
+            "distance": 0,
+            "confidence": 0.55,
+            "level": "medium"
+          }
+        },
+        {
+          "line": 34,
+          "column": 42,
+          "category": "spacing",
+          "property": "margin",
+          "value": "0.5rem",
+          "source": "sx",
+          "suggestion": {
+            "token": "space.2",
+            "cssVar": "--space-2",
+            "value": "8px",
+            "distance": 0,
+            "confidence": 1,
+            "level": "exact"
+          }
+        }
+      ],
+      "components": [
+        {
+          "line": 27,
+          "column": 9,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 34,
+          "column": 21,
+          "name": "Card",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Card"
+        },
+        {
+          "line": 35,
+          "column": 25,
+          "name": "CardHeader",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Card"
+        },
+        {
+          "line": 43,
+          "column": 37,
+          "name": "DateField",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 47,
+          "column": 37,
+          "name": "EditButton",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Button"
+        },
+        {
+          "line": 49,
+          "column": 25,
+          "name": "CardContent",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Card"
+        },
+        {
+          "line": 50,
+          "column": 29,
+          "name": "Typography",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 56,
+          "column": 33,
+          "name": "NumberField",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "NumberField"
+        },
+        {
+          "line": 58,
+          "column": 29,
+          "name": "Typography",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 74,
+          "column": 29,
+          "name": "CardContent",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Card"
+        }
+      ]
+    },
+    {
+      "path": "src/visitors/SegmentInput.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 1,
+      "findings": [],
+      "components": [
+        {
+          "line": 7,
+          "column": 5,
+          "name": "SelectInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Select"
+        }
+      ]
+    },
+    {
+      "path": "src/visitors/SegmentsField.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 1,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 2,
+      "findings": [],
+      "components": [
+        {
+          "line": 22,
+          "column": 9,
+          "name": "Stack",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Stack"
+        },
+        {
+          "line": 30,
+          "column": 17,
+          "name": "Chip",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Tag"
+        }
+      ]
+    },
+    {
+      "path": "src/visitors/SegmentsInput.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 1,
+      "findings": [],
+      "components": [
+        {
+          "line": 7,
+          "column": 5,
+          "name": "SelectArrayInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Select"
+        }
+      ]
+    },
+    {
+      "path": "src/visitors/VisitorCreate.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 2,
+      "dsComponents": 0,
+      "otherComponents": 24,
+      "findings": [
+        {
+          "line": 54,
+          "column": 29,
+          "category": "size",
+          "property": "max-width",
+          "value": "500",
+          "source": "sx",
+          "suggestion": {
+            "token": "size.120",
+            "cssVar": "--size-120",
+            "value": "480px",
+            "distance": 20,
+            "confidence": 0.8,
+            "level": "high"
+          }
+        },
+        {
+          "line": 167,
+          "column": 18,
+          "category": "spacing",
+          "property": "pt",
+          "value": "1em",
+          "source": "sx",
+          "suggestion": {
+            "token": "space.4",
+            "cssVar": "--space-4",
+            "value": "16px",
+            "distance": 0,
+            "confidence": 0.55,
+            "level": "medium"
+          }
+        }
+      ],
+      "components": [
+        {
+          "line": 52,
+          "column": 5,
+          "name": "Create",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 53,
+          "column": 9,
+          "name": "SimpleForm",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Form"
+        },
+        {
+          "line": 70,
+          "column": 13,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 75,
+          "column": 17,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 81,
+          "column": 21,
+          "name": "TextInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        },
+        {
+          "line": 83,
+          "column": 17,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 89,
+          "column": 21,
+          "name": "TextInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        },
+        {
+          "line": 92,
+          "column": 13,
+          "name": "TextInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        },
+        {
+          "line": 93,
+          "column": 13,
+          "name": "DateInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        },
+        {
+          "line": 96,
+          "column": 13,
+          "name": "TextInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        },
+        {
+          "line": 97,
+          "column": 13,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 102,
+          "column": 17,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 108,
+          "column": 21,
+          "name": "TextInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        },
+        {
+          "line": 110,
+          "column": 17,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 116,
+          "column": 21,
+          "name": "TextInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        },
+        {
+          "line": 118,
+          "column": 17,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 123,
+          "column": 21,
+          "name": "TextInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        },
+        {
+          "line": 128,
+          "column": 13,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 133,
+          "column": 17,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 139,
+          "column": 21,
+          "name": "PasswordInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        },
+        {
+          "line": 141,
+          "column": 17,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 147,
+          "column": 21,
+          "name": "PasswordInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        },
+        {
+          "line": 158,
+          "column": 9,
+          "name": "Typography",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 165,
+          "column": 5,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        }
+      ]
+    },
+    {
+      "path": "src/visitors/VisitorEdit.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 1,
+      "hardcoded": 3,
+      "dsComponents": 0,
+      "otherComponents": 35,
+      "findings": [
+        {
+          "line": 88,
+          "column": 42,
+          "category": "spacing",
+          "property": "mt",
+          "value": "1em",
+          "source": "sx",
+          "suggestion": {
+            "token": "space.4",
+            "cssVar": "--space-4",
+            "value": "16px",
+            "distance": 0,
+            "confidence": 0.55,
+            "level": "medium"
+          }
+        },
+        {
+          "line": 143,
+          "column": 42,
+          "category": "spacing",
+          "property": "mt",
+          "value": "1em",
+          "source": "sx",
+          "suggestion": {
+            "token": "space.4",
+            "cssVar": "--space-4",
+            "value": "16px",
+            "distance": 0,
+            "confidence": 0.55,
+            "level": "medium"
+          }
+        },
+        {
+          "line": 201,
+          "column": 32,
+          "category": "spacing",
+          "property": "margin",
+          "value": "5px",
+          "source": "sx",
+          "suggestion": {
+            "token": "space.1",
+            "cssVar": "--space-1",
+            "value": "4px",
+            "distance": 1,
+            "confidence": 0.8,
+            "level": "high"
+          }
+        }
+      ],
+      "components": [
+        {
+          "line": 23,
+          "column": 9,
+          "name": "Edit",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 24,
+          "column": 13,
+          "name": "SimpleForm",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Form"
+        },
+        {
+          "line": 26,
+          "column": 21,
+          "name": "Grid",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Grid"
+        },
+        {
+          "line": 33,
+          "column": 25,
+          "name": "Grid",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Grid"
+        },
+        {
+          "line": 34,
+          "column": 29,
+          "name": "Typography",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 39,
+          "column": 29,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 44,
+          "column": 33,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 50,
+          "column": 37,
+          "name": "TextInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        },
+        {
+          "line": 52,
+          "column": 33,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 58,
+          "column": 37,
+          "name": "TextInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        },
+        {
+          "line": 61,
+          "column": 29,
+          "name": "TextInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        },
+        {
+          "line": 62,
+          "column": 29,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 67,
+          "column": 33,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 73,
+          "column": 37,
+          "name": "DateInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        },
+        {
+          "line": 78,
+          "column": 33,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 86,
+          "column": 29,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 92,
+          "column": 29,
+          "name": "Typography",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 97,
+          "column": 29,
+          "name": "TextInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        },
+        {
+          "line": 102,
+          "column": 29,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 107,
+          "column": 33,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 113,
+          "column": 37,
+          "name": "TextInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        },
+        {
+          "line": 118,
+          "column": 33,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 124,
+          "column": 37,
+          "name": "TextInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        },
+        {
+          "line": 129,
+          "column": 33,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 134,
+          "column": 37,
+          "name": "TextInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        },
+        {
+          "line": 141,
+          "column": 29,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 147,
+          "column": 29,
+          "name": "Typography",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 152,
+          "column": 29,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 157,
+          "column": 33,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 163,
+          "column": 37,
+          "name": "PasswordInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        },
+        {
+          "line": 165,
+          "column": 33,
+          "name": "Box",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 171,
+          "column": 37,
+          "name": "PasswordInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        },
+        {
+          "line": 175,
+          "column": 25,
+          "name": "Grid",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Grid"
+        },
+        {
+          "line": 176,
+          "column": 29,
+          "name": "Typography",
+          "kind": "foreign",
+          "library": "@mui/material"
+        },
+        {
+          "line": 183,
+          "column": 29,
+          "name": "NullableBooleanInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Switch"
+        }
+      ]
+    },
+    {
+      "path": "src/visitors/VisitorList.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 1,
+      "dsComponents": 0,
+      "otherComponents": 11,
+      "findings": [
+        {
+          "line": 97,
+          "column": 66,
+          "category": "color",
+          "property": "color",
+          "value": "red",
+          "source": "sx",
+          "suggestion": {
+            "token": "color.signal.default",
+            "cssVar": "--color-signal-default",
+            "value": "#e64611",
+            "distance": 6.05,
+            "confidence": 0.3,
+            "level": "low"
+          }
+        }
+      ],
+      "components": [
+        {
+          "line": 27,
+          "column": 5,
+          "name": "SearchInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        },
+        {
+          "line": 28,
+          "column": 5,
+          "name": "DateInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Input"
+        },
+        {
+          "line": 29,
+          "column": 5,
+          "name": "NullableBooleanInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Switch"
+        },
+        {
+          "line": 30,
+          "column": 5,
+          "name": "NullableBooleanInput",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Switch"
+        },
+        {
+          "line": 35,
+          "column": 5,
+          "name": "TopToolbar",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 36,
+          "column": 9,
+          "name": "CreateButton",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Button"
+        },
+        {
+          "line": 37,
+          "column": 9,
+          "name": "ColumnsButton",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 38,
+          "column": 9,
+          "name": "ExportButton",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Button"
+        },
+        {
+          "line": 62,
+          "column": 9,
+          "name": "List",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 73,
+          "column": 17,
+          "name": "DataTable",
+          "kind": "foreign",
+          "library": "react-admin",
+          "suggestion": "Table"
+        },
+        {
+          "line": 102,
+          "column": 25,
+          "name": "DateField",
+          "kind": "foreign",
+          "library": "react-admin"
+        }
+      ]
+    },
+    {
+      "path": "src/visitors/VisitorListAside.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 3,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 19,
+      "findings": [],
+      "components": [
+        {
+          "line": 24,
+          "column": 5,
+          "name": "Card",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Card"
+        },
+        {
+          "line": 37,
+          "column": 9,
+          "name": "CardContent",
+          "kind": "foreign",
+          "library": "@mui/material",
+          "suggestion": "Card"
+        },
+        {
+          "line": 38,
+          "column": 13,
+          "name": "FilterLiveSearch",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 40,
+          "column": 13,
+          "name": "SavedQueriesList",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 42,
+          "column": 13,
+          "name": "FilterList",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 46,
+          "column": 17,
+          "name": "FilterListItem",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 53,
+          "column": 17,
+          "name": "FilterListItem",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 60,
+          "column": 17,
+          "name": "FilterListItem",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 70,
+          "column": 17,
+          "name": "FilterListItem",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 77,
+          "column": 17,
+          "name": "FilterListItem",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 87,
+          "column": 17,
+          "name": "FilterListItem",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 99,
+          "column": 13,
+          "name": "FilterList",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 103,
+          "column": 17,
+          "name": "FilterListItem",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 110,
+          "column": 17,
+          "name": "FilterListItem",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 119,
+          "column": 13,
+          "name": "FilterList",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 123,
+          "column": 17,
+          "name": "FilterListItem",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 127,
+          "column": 17,
+          "name": "FilterListItem",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 133,
+          "column": 13,
+          "name": "FilterList",
+          "kind": "foreign",
+          "library": "react-admin"
+        },
+        {
+          "line": 138,
+          "column": 21,
+          "name": "FilterListItem",
+          "kind": "foreign",
+          "library": "react-admin"
+        }
+      ]
+    }
+  ],
+  "history": []
+}

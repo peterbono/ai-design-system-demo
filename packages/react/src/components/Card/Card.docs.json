@@ -1,0 +1,55 @@
+{
+  "summary": "A flat plate with a hairline edge that groups related content: a release, a component summary, a settings section. It does not cast a shadow unless the whole card is one link.",
+  "preview": { "c": "Box", "children": [
+    { "c": "Card", "children": [
+      { "c": "CardHeader", "children": ["Release 1.4.0"] },
+      { "c": "CardBody", "children": ["Adds a subtle Badge appearance and tightens focus styles."] },
+      { "c": "CardFooter", "children": [ { "c": "Button", "p": { "size": "sm", "variant": "ghost" }, "children": ["View diff"] }, { "c": "Button", "p": { "size": "sm" }, "children": ["Approve"] } ] }
+    ] }
+  ] },
+  "whenToUse": [
+    "A self-contained unit the user scans or compares: a release, a component, a token group, an owner.",
+    "interactive when the whole card goes to one place (a component page): mark its title link with data-card-primary.",
+    "padding none for a full-bleed Table or media inside the card; compact in dense dashboards."
+  ],
+  "whenNotToUse": [
+    "As the page structure: rows of identical cards are a lazy layout. Use headings, lists and tables first.",
+    "Inside another card: nested plates blur hierarchy. Use a Divider or a heading.",
+    "Floating content (menus, popovers): those are overlays with elevation, not cards."
+  ],
+  "dos": [
+    {
+      "title": "One primary action in the footer",
+      "text": "The footer is for the decision; secondary actions step down to ghost.",
+      "example": { "c": "Box", "children": [ { "c": "Card", "children": [
+        { "c": "CardHeader", "children": ["Owners"] },
+        { "c": "CardBody", "children": ["Design: Florian G. Tech: platform team."] },
+        { "c": "CardFooter", "children": [ { "c": "Button", "p": { "size": "sm", "variant": "secondary" }, "children": ["Edit owners"] } ] }
+      ] } ] }
+    }
+  ],
+  "donts": [
+    {
+      "title": "A card around a single sentence",
+      "text": "A box with one line adds noise. Let the text sit on the page.",
+      "example": { "c": "Box", "children": [ { "c": "Card", "children": [ { "c": "CardBody", "children": ["No changes."] } ] } ] }
+    }
+  ],
+  "accessibility": [
+    "A card is a plain div. Pass aria-labelledby pointing at its title when it should be a navigable group.",
+    "Interactive cards keep a real link (data-card-primary) whose text names the destination; its click area is stretched over the card and its focus ring moves to the card edge.",
+    "Other buttons inside an interactive card stay on top and remain separately focusable.",
+    "The hover lift is skipped when the user prefers reduced motion."
+  ],
+  "contentGuidelines": [
+    "Titles are short nouns in sentence case: \"Release 1.4.0\", \"Color tokens\".",
+    "Body text in one or two sentences; numbers as digits."
+  ],
+  "anatomy": {
+    "card": "Plate",
+    "header": "Header (title and an optional status)",
+    "body": "Body",
+    "footer": "Footer (actions, end aligned)",
+    "interactive": "Interactive card (lifts on hover)"
+  }
+}

@@ -1,0 +1,165 @@
+/* Stacked toasts at the bottom end. Stacking math follows the Base UI CSS variables
+   (--toast-index, --toast-offset-y, --toast-height, --toast-swipe-movement-*). */
+.viewport {
+  position: fixed;
+  inset-block-end: var(--space-4);
+  inset-inline-end: var(--space-4);
+  z-index: var(--layer-toast);
+  width: min(var(--size-96), calc(100vw - var(--space-4) * 2));
+  color: var(--color-text-default);
+  font-family: var(--font-family-sans);
+}
+
+@media (min-width: 640px) {
+  .viewport {
+    inset-block-end: var(--space-6);
+    inset-inline-end: var(--space-6);
+  }
+}
+
+.toast {
+  --_gap: var(--space-3);
+  --_peek: var(--space-2);
+  --_scale: calc(max(0, 1 - (var(--toast-index) * 0.05)));
+  --_shrink: calc(1 - var(--_scale));
+  --_height: var(--toast-frontmost-height, var(--toast-height));
+  --_offset-y: calc(var(--toast-offset-y) * -1 + (var(--toast-index) * var(--_gap) * -1) + var(--toast-swipe-movement-y));
+  --_icon: var(--color-text-muted);
+
+  position: absolute;
+  inset-block-end: 0;
+  inset-inline-end: 0;
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--_height);
+  border: var(--border-width-default) solid var(--toast-border);
+  border-radius: var(--toast-radius);
+  background-color: var(--toast-bg);
+  box-shadow: var(--toast-shadow);
+  transform-origin: bottom center;
+  transform:
+    translateX(var(--toast-swipe-movement-x))
+    translateY(calc(var(--toast-swipe-movement-y) - (var(--toast-index) * var(--_peek)) - (var(--_shrink) * var(--_height))))
+    scale(var(--_scale));
+  user-select: none;
+  cursor: default;
+  transition-property: transform, opacity, height;
+  transition-duration: var(--motion-duration-slow);
+  transition-timing-function: var(--motion-easing-enter);
+}
+
+.toast[data-expanded] {
+  height: var(--toast-height);
+  transform: translateX(var(--toast-swipe-movement-x)) translateY(var(--_offset-y));
+}
+
+.toast[data-starting-style],
+.toast[data-ending-style] {
+  transform: translateY(150%);
+}
+
+.toast[data-ending-style] {
+  opacity: 0;
+  transition-duration: var(--motion-duration-moderate);
+  transition-timing-function: var(--motion-easing-exit);
+}
+
+.toast[data-ending-style][data-swipe-direction='down'] {
+  transform: translateY(calc(var(--toast-swipe-movement-y) + 150%));
+}
+
+.toast[data-ending-style][data-swipe-direction='right'] {
+  transform: translateX(calc(var(--toast-swipe-movement-x) + 150%)) translateY(var(--_offset-y));
+}
+
+.toast[data-limited] {
+  opacity: 0;
+}
+
+/* Keeps the hover zone continuous between stacked toasts so the stack does not collapse mid-move. */
+.toast::after {
+  content: '';
+  position: absolute;
+  inset-block-start: 100%;
+  inset-inline: 0;
+  height: calc(var(--_gap) + var(--border-width-default));
+}
+
+.toast:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.info {
+  --_icon: var(--color-feedback-info-icon);
+}
+
+.success {
+  --_icon: var(--color-feedback-success-icon);
+}
+
+.warning {
+  --_icon: var(--color-feedback-warning-icon);
+}
+
+.danger {
+  --_icon: var(--color-feedback-danger-icon);
+}
+
+.content {
+  box-sizing: border-box;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+  overflow: hidden;
+  transition: opacity var(--motion-duration-moderate) var(--motion-easing-standard);
+}
+
+.content[data-behind] {
+  opacity: 0;
+}
+
+.content[data-expanded] {
+  opacity: 1;
+}
+
+.icon {
+  height: calc(var(--font-size-200) * var(--font-line-height-normal));
+  margin-block-start: var(--space-1-5);
+  color: var(--_icon);
+}
+
+.text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-0-5);
+  min-width: 0;
+  padding-block: var(--space-1-5);
+}
+
+.title {
+  margin: 0;
+  color: var(--color-text-default);
+  font-size: var(--font-size-200);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--font-line-height-normal);
+}
+
+.description {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-200);
+  line-height: var(--font-line-height-normal);
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-block-start: var(--space-2);
+}
+
+.close {
+  flex: none;
+}

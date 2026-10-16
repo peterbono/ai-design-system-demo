@@ -1,0 +1,99 @@
+{
+  "summary": "Lays out children in a row with a token gap and wraps them when space runs out: badges, button rows, metadata.",
+  "preview": {
+    "c": "Inline",
+    "children": [
+      {
+        "c": "Badge",
+        "children": [
+          "color"
+        ]
+      },
+      {
+        "c": "Badge",
+        "children": [
+          "space"
+        ]
+      },
+      {
+        "c": "Badge",
+        "children": [
+          "radius"
+        ]
+      }
+    ]
+  },
+  "whenToUse": [
+    "Rows of related small items: badges, tags, buttons, meta text.",
+    "justify=\"between\" for page and card headers: title at the start, actions at the end.",
+    "wrap={false} only when the row must stay on one line and can scroll or truncate."
+  ],
+  "whenNotToUse": [
+    "A vertical list: use Stack.",
+    "Columns that must line up across rows: use Grid or Table."
+  ],
+  "dos": [
+    {
+      "title": "Let rows wrap",
+      "text": "Wrapping keeps every item reachable at narrow widths and at 200% zoom.",
+      "example": {
+        "c": "Inline",
+        "children": [
+          {
+            "c": "Badge",
+            "children": [
+              "color"
+            ]
+          },
+          {
+            "c": "Badge",
+            "children": [
+              "space"
+            ]
+          },
+          {
+            "c": "Badge",
+            "children": [
+              "radius"
+            ]
+          },
+          {
+            "c": "Badge",
+            "children": [
+              "motion"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "donts": [
+    {
+      "title": "Fixed widths inside an Inline",
+      "text": "Fixed widths fight the wrap and overflow on phones. Let content size the items.",
+      "example": {
+        "c": "Inline",
+        "children": [
+          {
+            "c": "Badge",
+            "children": [
+              "item"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "accessibility": [
+    "A plain div by default; use render for a list (<ul />) when the items are a list.",
+    "Wrapping never reorders items, so the visual and tab order match."
+  ],
+  "contentGuidelines": [
+    "Not applicable: Inline holds no copy of its own."
+  ],
+  "anatomy": {
+    "inline": "Flex row",
+    "nowrap": "No wrap",
+    "justify-between": "Justify between"
+  }
+}

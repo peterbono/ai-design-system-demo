@@ -1,0 +1,89 @@
+{
+  "summary": "Centers page content at a max width from the size scale with token side padding. Phones always get a 16px gutter.",
+  "preview": {
+    "c": "Container",
+    "p": {
+      "size": "sm"
+    },
+    "children": [
+      {
+        "c": "Badge",
+        "children": [
+          "Centered content"
+        ]
+      }
+    ]
+  },
+  "whenToUse": [
+    "The outer wrapper of a page or a page section.",
+    "sm for forms and reading (keeps lines under about 75 characters), lg for settings, xl for dashboards and tables.",
+    "render={<main />} on the page's main region."
+  ],
+  "whenNotToUse": [
+    "Inside cards or dialogs: they already set their width and padding.",
+    "Full-bleed backgrounds: put the background on an outer element and the Container inside it."
+  ],
+  "dos": [
+    {
+      "title": "Match the width to the content",
+      "text": "Forms in an xl container stretch inputs to unreadable lengths. Pick sm.",
+      "example": {
+        "c": "Container",
+        "p": {
+          "size": "sm"
+        },
+        "children": [
+          {
+            "c": "Badge",
+            "children": [
+              "Form"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "donts": [
+    {
+      "title": "Nested containers",
+      "text": "A container inside a container doubles the padding and adds nothing.",
+      "example": {
+        "c": "Container",
+        "p": {
+          "size": "lg"
+        },
+        "children": [
+          {
+            "c": "Container",
+            "p": {
+              "size": "sm"
+            },
+            "children": [
+              {
+                "c": "Badge",
+                "children": [
+                  "Nested"
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "accessibility": [
+    "A plain div by default; render as <main /> for the main region so the landmark exists.",
+    "Content reflows at 320px wide without horizontal scroll (WCAG 1.4.10)."
+  ],
+  "contentGuidelines": [
+    "Not applicable: Container holds no copy of its own."
+  ],
+  "anatomy": {
+    "container": "Centered wrapper",
+    "sm": "Size sm (640)",
+    "md": "Size md (720)",
+    "lg": "Size lg (960)",
+    "xl": "Size xl (1200)",
+    "full": "Full width"
+  }
+}

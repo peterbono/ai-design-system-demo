@@ -1,0 +1,52 @@
+{
+  "summary": "A square button with only an icon, for frequent, recognizable actions in toolbars, table rows and headers. Its label is still required: it becomes the accessible name.",
+  "preview": { "c": "Row", "children": [
+    { "c": "IconButton", "p": { "icon": "Pencil", "label": "Edit token" } },
+    { "c": "IconButton", "p": { "icon": "Copy", "label": "Copy token name", "variant": "secondary" } },
+    { "c": "IconButton", "p": { "icon": "Trash2", "label": "Delete token", "variant": "danger" } }
+  ] },
+  "whenToUse": [
+    "Repeated row actions in tables and lists: edit, copy, delete, more.",
+    "Toolbars where space is tight and the icons are widely understood (close, copy, search, settings).",
+    "Opening a Menu of secondary actions (the more icon)."
+  ],
+  "whenNotToUse": [
+    "The primary action of a view: give it a text Button.",
+    "Any icon whose meaning is not obvious without its label: use a Button with iconStart instead.",
+    "Navigation to another page: use a Link."
+  ],
+  "dos": [
+    {
+      "title": "Name the action, not the picture",
+      "text": "label=\"Delete token\" is what a screen reader says. \"Trash\" describes the drawing, not what happens.",
+      "example": { "c": "Row", "children": [ { "c": "IconButton", "p": { "icon": "Trash2", "label": "Delete token" } } ] }
+    },
+    {
+      "title": "Pair with a Tooltip showing the same label",
+      "text": "Sighted mouse users get the name on hover; keyboard users get it on focus.",
+      "example": { "c": "Row", "children": [ { "c": "IconButton", "p": { "icon": "Copy", "label": "Copy token name" } } ] }
+    }
+  ],
+  "donts": [
+    {
+      "title": "A row of filled icon buttons",
+      "text": "Primary icon buttons in every row shout. Keep row actions ghost.",
+      "example": { "c": "Row", "children": [
+        { "c": "IconButton", "p": { "icon": "Pencil", "label": "Edit", "variant": "primary" } },
+        { "c": "IconButton", "p": { "icon": "Copy", "label": "Copy", "variant": "primary" } }
+      ] }
+    }
+  ],
+  "accessibility": [
+    "label is required and becomes aria-label. The icon itself is aria-hidden.",
+    "Same keyboard behavior and focus ring as Button. Loading keeps focus and sets aria-busy.",
+    "The square target matches the control height (32/40/48 comfortable), never smaller than 24px."
+  ],
+  "contentGuidelines": [
+    "Labels are verb plus object in sentence case: \"Copy token name\", \"Close dialog\".",
+    "Use the same label in the Tooltip so what users see and hear match."
+  ],
+  "anatomy": {
+    "iconButton": "Square container (layout from Button)"
+  }
+}

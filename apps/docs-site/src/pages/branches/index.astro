@@ -1,0 +1,93 @@
+---
+import '../../styles/github.css';
+import '../../styles/reviews.css';
+import '../../styles/branches.css';
+import Layout from '../../layouts/Layout.astro';
+import GitHubConnect from '../../components/GitHubConnect.astro';
+import GitHubDialog from '../../components/GitHubDialog.astro';
+import Icon from '../../components/Icon.astro';
+import { setupGaps, type BranchesConfig } from '../../lib/branches';
+import { siteRepo } from '../../lib/config';
+import { lastUpdated, PREVIEW_APPS, PREVIEW_PACKAGES, sourceUrl } from '../../lib/repo';
+
+const r = siteRepo();
+const cfg: BranchesConfig = { owner: r.owner, repo: r.repo, defaultBranch: r.defaultBranch, apps: PREVIEW_APPS, packages: PREVIEW_PACKAGES };
+const gaps = setupGaps(cfg);
+const cfgJson = JSON.stringify(cfg).replace(/</g, '\\u003c');
+const previewsDoc = sourceUrl('docs/PREVIEWS.md');
+const sources = ['docs/PREVIEWS.md', 'bridge.config.json', '.github/workflows/preview-packages.yml'];
+---
+
+<Layout
+  title="Branches"
+  description="Open design system branches with their preview deploys, snapshot packages to install on a product staging, CI and visual impact."
+  sources={sources}
+  updated={lastUpdated(sources)}
+  wide
+>
+  <div class="rv br">
+    <p class="rv-notice" id="br-notice" role="status" hidden></p>
+    <header class="rv-page-head">
+      <div>
+        <h1>Branches <span class="rv-count num" id="br-count" aria-label="open pull requests"></span></h1>
+        <p class="lead">
+          Try a design system change in a real product before it merges. Every open pull request on
+          <a href={`https://github.com/${r.owner}/${r.repo}/pulls`}><code>{r.owner}/{r.repo}</code></a> gets its own docs, Storybook and admin
+          deploy, and a package snapshot a product can install on staging. Main and production stay untouched.
+        </p>
+      </div>
+      <GitHubConnect />
+    </header>
+
+    {
+      gaps.length > 0 && (
+        <aside class="callout br-setup" aria-labelledby="br-setup-title">
+          <h2 id="br-setup-title">Finish the setup</h2>
+          <ul>
+            {gaps.includes('apps') && (
+              <li>
+                <strong>Preview deploys are not configured.</strong> Create the docs, Storybook and admin projects on Vercel (or Netlify,
+                Cloudflare Pages), then add their branch URL templates to <code>previews.apps</code> in <code>bridge.config.json</code>, for
+                example <code>{'"docs": "https://bridge-docs-git-{branch}-<team>.vercel.app"'}</code>.
+              </li>
+            )}
+            {gaps.includes('packages') && (
+              <li>
+                <strong>No snapshot packages listed.</strong> Add the packages to publish per commit to <code>previews.packages</code> in{' '}
+                <code>bridge.config.json</code>.
+              </li>
+            )}
+          </ul>
+          <p><a href={previewsDoc}>Five-minute setup in docs/PREVIEWS.md</a></p>
+        </aside>
+      )
+    }
+
+    <ul class="rv-list br-list" id="br-list" aria-label="Open pull requests" aria-busy="true">
+      <li class="rv-skel" aria-hidden="true"></li>
+      <li class="rv-skel" aria-hidden="true"></li>
+    </ul>
+
+    <section class="br-other" id="br-other" aria-labelledby="br-other-title" hidden>
+      <h2 id="br-other-title">Branches without a pull request</h2>
+      <p class="br-hint">Deploy previews only: snapshot packages are published for pull request commits.</p>
+      <ul class="rv-list br-list" id="br-other-list"></ul>
+    </section>
+
+    <aside class="rv-howto">
+      <Icon name="info" />
+      <p>
+        Install a snapshot in a product branch that deploys to staging, or keep the installed version and preview only the tokens with
+        <code>?bridge-tokens=&lt;branch docs&gt;/tokens.css</code> once the product allowlists that origin.
+        <a href={previewsDoc}>How previews work</a>
+      </p>
+    </aside>
+  </div>
+
+  <GitHubDialog />
+  <script type="application/json" id="bridge-branches" set:html={cfgJson} />
+  <script>
+    import { initBranches } from '../../scripts/branches';
+    initBranches();
+  </script>
+</Layout>

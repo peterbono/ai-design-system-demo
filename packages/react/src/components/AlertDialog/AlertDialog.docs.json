@@ -1,0 +1,57 @@
+{
+  "summary": "Stops the user to confirm an action with consequences, usually destructive: delete tokens, revoke access, force publish. It asks one question and offers two answers.",
+  "preview": { "c": "Row", "children": [
+    { "c": "Button", "p": { "variant": "danger" }, "children": ["Delete 3 tokens"] }
+  ] },
+  "whenToUse": [
+    "Before an action that cannot be undone or that affects other people: deleting, revoking, overwriting.",
+    "tone primary for consequential but safe actions, like publishing a release to every consumer."
+  ],
+  "whenNotToUse": [
+    "Actions that can be undone: do them right away and offer Undo in a Toast.",
+    "Collecting input: use Dialog.",
+    "Routine saves: confirmation fatigue teaches people to click through without reading."
+  ],
+  "dos": [
+    {
+      "title": "Ask a question that names the action and the object",
+      "text": "\"Delete 3 tokens?\" with a confirm button \"Delete tokens\" is understood without reading the description.",
+      "example": { "c": "Row", "children": [
+        { "c": "Button", "p": { "variant": "secondary" }, "children": ["Cancel"] },
+        { "c": "Button", "p": { "variant": "danger" }, "children": ["Delete tokens"] }
+      ] }
+    },
+    {
+      "title": "Say the consequence, including what cannot be undone",
+      "text": "\"Components that use them fall back to their defaults. This cannot be undone.\"",
+      "example": { "c": "Row", "children": [ { "c": "Button", "p": { "variant": "danger" }, "children": ["Revoke access"] } ] }
+    }
+  ],
+  "donts": [
+    {
+      "title": "\"Are you sure?\" with Yes and No",
+      "text": "It hides what is about to happen. Name the action in the title and on the button.",
+      "example": { "c": "Row", "children": [
+        { "c": "Button", "p": { "variant": "secondary" }, "children": ["No"] },
+        { "c": "Button", "p": { "variant": "danger" }, "children": ["Yes"] }
+      ] }
+    }
+  ],
+  "accessibility": [
+    "Base UI AlertDialog: role alertdialog, named by the title, described by the consequence.",
+    "Focus starts on Cancel, the safe choice, so a reflexive Enter does not destroy anything.",
+    "It does not close on an outside click; Escape and Cancel close it and focus returns to the trigger.",
+    "While loading, the confirm button keeps focus and announces aria-busy."
+  ],
+  "contentGuidelines": [
+    "Title: a question with the verb and the object and a count when there are several: \"Delete 3 tokens?\"",
+    "Description: the consequence in one or two sentences. End with \"This cannot be undone.\" only when true.",
+    "Confirm label repeats the verb: \"Delete tokens\", \"Revoke access\". Never \"OK\" or \"Yes\".",
+    "Cancel stays \"Cancel\"."
+  ],
+  "anatomy": {
+    "alert": "Surface (shares Dialog styles, size sm)",
+    "header": "Title and description",
+    "actions": "Cancel and confirm buttons"
+  }
+}

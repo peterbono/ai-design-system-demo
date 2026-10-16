@@ -1,0 +1,37 @@
+.positioner {
+  z-index: var(--layer-tooltip);
+}
+
+.tooltip {
+  box-sizing: border-box;
+  max-width: min(var(--size-72), var(--available-width));
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--tooltip-radius);
+  background-color: var(--tooltip-bg);
+  box-shadow: var(--elevation-overlay);
+  color: var(--tooltip-text);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-100);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--font-line-height-snug);
+  letter-spacing: var(--font-tracking-wide);
+  text-wrap: balance;
+  transform-origin: var(--transform-origin);
+  transition-property: opacity, transform;
+  transition-duration: var(--motion-duration-fast);
+  transition-timing-function: var(--motion-easing-enter);
+}
+
+.tooltip[data-starting-style],
+.tooltip[data-ending-style] {
+  opacity: 0;
+  transform: scale(0.96);
+}
+
+.tooltip[data-instant] {
+  transition-duration: var(--motion-duration-instant);
+}
+
+.tooltip[data-ending-style] {
+  transition-timing-function: var(--motion-easing-exit);
+}

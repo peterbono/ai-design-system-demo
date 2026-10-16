@@ -1,50 +1,56 @@
-import { forwardRef, useId, type InputHTMLAttributes } from 'react';
+import { forwardRef, type InputHTMLAttributes, type ReactNode } from 'react';
+import { Input as BaseInput } from '@base-ui/react/input';
 import { cx } from '../../utils/cx';
+import { Field, useFieldContext } from '../Field';
 import styles from './Input.module.css';
 
-export interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> {
-  /** Visible label. Required: placeholders are not labels. */
-  label: string;
-  /** Helper text shown below the field. */
-  hint?: string;
-  /** Error message. When set, the field is marked invalid and the message is announced. */
-  error?: string;
+export type InputSize = 'sm' | 'md' | 'lg';
+
+export interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size' | 'prefix'> {
+  /**
+   * Visible label. When set, the Input wraps itself in a Field (label, hint, error wired for you).
+   * Leave it unset when the Input is already inside a Field.
+   */
+  label?: string;
+  /** Helper text under the label (Field description). */
+  hint?: ReactNode;
+  /** Error message. Marks the input invalid and announces the message. */
+  error?: ReactNode;
+  /** Content before the value: an Icon, a currency symbol, a unit. Decorative unless it is text. */
+  prefix?: ReactNode;
+  /** Content after the value: a unit, a Kbd hint, a clear IconButton. */
+  suffix?: ReactNode;
+  /** Height follows the density tokens. Default `md`. */
+  size?: InputSize;
+  /** Visually hide the Field label (still the accessible name). Only with `label`. */
+  hideLabel?: boolean;
+  /** Called with the new string value on every change. */
+  onValueChange?: (value: string) => void;
 }
 
+/** Single-line text input with optional prefix and suffix. Base UI Input, wired to the surrounding Field. */
 export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
-  { label, hint, error, id, className, disabled, 'aria-describedby': describedBy, ...rest },
+  { label, hint, error, prefix, suffix, size = 'md', hideLabel, className, required, onValueChange, ...rest },
   ref,
 ) {
-  const generatedId = useId();
-  const inputId = id ?? generatedId;
-  const hintId = hint ? `${inputId}-hint` : undefined;
-  const errorId = error ? `${inputId}-error` : undefined;
-  const describedByIds = [describedBy, hintId, errorId].filter(Boolean).join(' ') || undefined;
-
-  return (
-    <div className={cx(styles.field, className)} data-disabled={disabled || undefined}>
-      <label className={styles.label} htmlFor={inputId}>
-        {label}
-      </label>
-      <input
+  const field = useFieldContext();
+  const control = (
+    <div className={cx(styles.control, styles[size], className)} data-pseudo-root="">
+      {prefix != null && <span className={styles.affix}>{prefix}</span>}
+      <BaseInput
         ref={ref}
-        id={inputId}
-        className={cx(styles.input, error && styles.invalid)}
-        disabled={disabled}
-        aria-invalid={error ? true : undefined}
-        aria-describedby={describedByIds}
+        className={styles.input}
+        required={required ?? (field.required || undefined)}
+        onValueChange={onValueChange ? (value: string) => onValueChange(value) : undefined}
         {...rest}
       />
-      {hint && (
-        <p id={hintId} className={styles.hint}>
-          {hint}
-        </p>
-      )}
-      {error && (
-        <p id={errorId} className={styles.error}>
-          {error}
-        </p>
-      )}
+      {suffix != null && <span className={styles.affix}>{suffix}</span>}
     </div>
+  );
+  if (label === undefined) return control;
+  return (
+    <Field label={label} description={hint} error={error} required={required} disabled={rest.disabled} name={rest.name} hideLabel={hideLabel}>
+      {control}
+    </Field>
   );
 });

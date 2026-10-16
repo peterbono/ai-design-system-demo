@@ -1,0 +1,120 @@
+{
+  "summary": "A list of actions or options that opens from a button: row overflow actions, view options, sort order. Supports icons, shortcuts, groups, checkable items and submenus.",
+  "preview": {
+    "c": "Row",
+    "children": [
+      {
+        "c": "Button",
+        "p": {
+          "variant": "secondary"
+        },
+        "children": [
+          "Token actions"
+        ]
+      },
+      {
+        "c": "IconButton",
+        "p": {
+          "icon": "MoreHorizontal",
+          "label": "More actions"
+        }
+      }
+    ]
+  },
+  "whenToUse": [
+    "More than two or three actions on one item: show the main one as a button and the rest in a Menu.",
+    "View options: checkable items for columns, a radio group for sort order.",
+    "A submenu for one level of grouping (Move to group, then the groups)."
+  ],
+  "whenNotToUse": [
+    "Choosing a value for a form field: use Select or Combobox, which work with Field and forms.",
+    "Navigation between pages: use links in the sidebar or tabs.",
+    "Two actions: show both as buttons."
+  ],
+  "dos": [
+    {
+      "title": "Destructive items last, after a separator",
+      "text": "Distance from routine actions prevents slips. The danger tone backs up the verb.",
+      "example": {
+        "c": "Row",
+        "children": [
+          {
+            "c": "Button",
+            "p": {
+              "variant": "secondary"
+            },
+            "children": [
+              "Token actions"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "title": "Icons on all items or on none",
+      "text": "Labels stay aligned either way, but a mix reads as noise.",
+      "example": {
+        "c": "Row",
+        "children": [
+          {
+            "c": "IconButton",
+            "p": {
+              "icon": "MoreHorizontal",
+              "label": "More actions"
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "donts": [
+    {
+      "title": "Submenus inside submenus",
+      "text": "Two levels deep loses keyboard and pointer users alike. Flatten with groups.",
+      "example": {
+        "c": "Row",
+        "children": [
+          {
+            "c": "Button",
+            "p": {
+              "variant": "secondary"
+            },
+            "children": [
+              "Move to"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "accessibility": [
+    "Base UI Menu: the trigger has aria-haspopup and aria-expanded; the popup is role menu with menuitem, menuitemcheckbox and menuitemradio children.",
+    "ArrowDown or Enter opens it and focuses the first item; arrows move, Home and End jump, typing a letter jumps to a matching item.",
+    "Enter and Space activate; checkable items toggle aria-checked and keep the menu open.",
+    "ArrowRight opens a submenu, ArrowLeft and Escape close it; Escape on the root returns focus to the trigger.",
+    "Shortcut hints are visual only (aria-hidden); bind the shortcut yourself and document it elsewhere.",
+    "Disabled items stay in the list so users learn the action exists, but cannot be activated."
+  ],
+  "contentGuidelines": [
+    "Items are verbs in sentence case: \"Rename\", \"Duplicate\", \"Delete token\".",
+    "Options are nouns: \"Last updated\", \"Usage\".",
+    "Group labels are short nouns: \"Columns\", \"Sort by\".",
+    "No ellipsis on items, even when they open a dialog: the dialog title says what happens next."
+  ],
+  "anatomy": {
+    "positioner": "Positioning layer (layer.dropdown)",
+    "popup": "Surface (popup.*)",
+    "item": "Item (menu.item.*, height from menu.item-height density token)",
+    "leading": "Icon or indicator slot",
+    "label": "Label",
+    "shortcut": "Shortcut hint",
+    "chevron": "Submenu chevron",
+    "submenuTrigger": "Submenu trigger item",
+    "indicator": "Check or radio indicator (ink)",
+    "radioDot": "Radio dot",
+    "danger": "Danger tone",
+    "group": "Group",
+    "groupLabel": "Group label",
+    "separator": "Separator"
+  }
+}

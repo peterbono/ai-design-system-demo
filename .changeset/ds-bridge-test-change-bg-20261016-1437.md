@@ -1,5 +1,5 @@
 ---
-"@demo-ds/tokens": minor
+"@bridge-ds/tokens": minor
 ---
 
 test change bg (from Figma via DS Bridge).

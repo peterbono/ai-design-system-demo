@@ -1,0 +1,4 @@
+/* Layout comes from Button.module.css (.iconOnly). This hook only keeps the glyph optically centered. */
+.iconButton {
+  line-height: var(--font-line-height-none);
+}

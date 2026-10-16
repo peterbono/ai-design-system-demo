@@ -1,0 +1,105 @@
+{
+  "motion": {
+    "duration": {
+      "$type": "duration",
+      "instant": {
+        "$value": "{duration.75}",
+        "$description": "Hover and press color changes."
+      },
+      "fast": {
+        "$value": "{duration.150}",
+        "$description": "Tooltips, menus, popovers, checkbox ticks."
+      },
+      "moderate": {
+        "$value": "{duration.200}",
+        "$description": "Dialogs, accordions, tab indicator."
+      },
+      "slow": {
+        "$value": "{duration.300}",
+        "$description": "Drawers, toasts entering."
+      },
+      "spin": {
+        "$value": "{duration.700}",
+        "$description": "One spinner rotation."
+      },
+      "shimmer": {
+        "$value": "{duration.1400}",
+        "$description": "One skeleton shimmer pass."
+      }
+    },
+    "easing": {
+      "$type": "cubicBezier",
+      "standard": {
+        "$value": "{easing.standard}"
+      },
+      "enter": {
+        "$value": "{easing.expo-out}"
+      },
+      "exit": {
+        "$value": "{easing.accel}"
+      },
+      "linear": {
+        "$value": "{easing.linear}"
+      }
+    }
+  },
+  "layer": {
+    "$type": "number",
+    "$description": "Stacking layers (z-index).",
+    "sticky": {
+      "$value": "{z.sticky}"
+    },
+    "dropdown": {
+      "$value": "{z.dropdown}"
+    },
+    "overlay": {
+      "$value": "{z.overlay}"
+    },
+    "modal": {
+      "$value": "{z.modal}"
+    },
+    "popover": {
+      "$value": "{z.popover}"
+    },
+    "toast": {
+      "$value": "{z.toast}"
+    },
+    "tooltip": {
+      "$value": "{z.tooltip}"
+    }
+  },
+  "icon": {
+    "size": {
+      "$type": "dimension",
+      "xs": {
+        "$value": "{size.3}"
+      },
+      "sm": {
+        "$value": "{size.4}"
+      },
+      "md": {
+        "$value": "{size.5}"
+      },
+      "lg": {
+        "$value": "{size.6}"
+      }
+    },
+    "stroke": {
+      "$type": "number",
+      "$value": 1.75,
+      "$description": "Lucide stroke width at every size, matched to Plex text weight."
+    }
+  },
+  "border-width": {
+    "$type": "dimension",
+    "default": {
+      "$value": "{border.width.1}"
+    },
+    "strong": {
+      "$value": "{border.width.2}"
+    },
+    "indicator": {
+      "$value": "{border.width.2}"
+    }
+  }
+}

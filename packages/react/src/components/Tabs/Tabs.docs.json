@@ -1,0 +1,74 @@
+{
+  "summary": "Switches between views of the same object without leaving the page: the tokens, components and reviews of one library. The selected tab is marked with the signal underline.",
+  "preview": { "c": "Tabs", "p": { "defaultValue": "tokens" }, "children": [
+    { "c": "TabsList", "p": { "aria-label": "Library views" }, "children": [
+      { "c": "Tab", "p": { "value": "tokens" }, "children": ["Tokens"] },
+      { "c": "Tab", "p": { "value": "components" }, "children": ["Components"] },
+      { "c": "Tab", "p": { "value": "reviews", "count": 3 }, "children": ["Reviews"] }
+    ] },
+    { "c": "TabsPanel", "p": { "value": "tokens" }, "children": ["412 tokens across 2 brands."] },
+    { "c": "TabsPanel", "p": { "value": "components" }, "children": ["38 components."] },
+    { "c": "TabsPanel", "p": { "value": "reviews" }, "children": ["3 pull requests wait for review."] }
+  ] },
+  "whenToUse": [
+    "Two to seven peer views of the same context, where users switch back and forth.",
+    "underline for page and card sections; contained for a compact switch inside a toolbar (Light or Dark preview).",
+    "count to show how many items wait in a view, like open reviews.",
+    "Vertical orientation for settings pages with many sections next to their content."
+  ],
+  "whenNotToUse": [
+    "Steps of a sequence the user must complete in order: use a stepper or a form with sections.",
+    "Navigation between pages with their own URL: use SidebarNav or links styled as tabs, not Tabs (which do not change the URL).",
+    "Changing a setting or filter value: use RadioGroup or an attached ButtonGroup."
+  ],
+  "dos": [
+    {
+      "title": "Short, parallel labels",
+      "text": "One or two nouns per tab, same grammatical form. The user scans them as a set.",
+      "example": { "c": "Tabs", "p": { "defaultValue": "a" }, "children": [
+        { "c": "TabsList", "p": { "aria-label": "Library views" }, "children": [
+          { "c": "Tab", "p": { "value": "a" }, "children": ["Tokens"] },
+          { "c": "Tab", "p": { "value": "b" }, "children": ["Components"] },
+          { "c": "Tab", "p": { "value": "c" }, "children": ["Changelog"] }
+        ] }
+      ] }
+    }
+  ],
+  "donts": [
+    {
+      "title": "Tabs that are really actions",
+      "text": "\"Export\" or \"Delete\" in a tab list hides an action behind a view switch. Use a Button.",
+      "example": { "c": "Tabs", "p": { "defaultValue": "a" }, "children": [
+        { "c": "TabsList", "p": { "aria-label": "Mixed" }, "children": [
+          { "c": "Tab", "p": { "value": "a" }, "children": ["Tokens"] },
+          { "c": "Tab", "p": { "value": "b" }, "children": ["Export"] }
+        ] }
+      ] }
+    }
+  ],
+  "accessibility": [
+    "Base UI Tabs: role tablist, tab and tabpanel, aria-selected, aria-controls and aria-labelledby are wired for you.",
+    "One tab stop for the whole list. Arrow keys move between tabs (Up and Down when vertical), Home and End jump, focus wraps by default.",
+    "By default arrows move focus and Enter or Space selects; set activateOnFocus when panels are cheap to render.",
+    "Give the TabsList an aria-label (or labelledby) so the tablist has a name.",
+    "The selected tab has a visible signal underline plus stronger text: never color alone.",
+    "Disabled tabs are announced as disabled and cannot be selected."
+  ],
+  "contentGuidelines": [
+    "Sentence case nouns: \"Tokens\", \"Open reviews\".",
+    "No verbs, no punctuation, no more than two or three words.",
+    "Counts are numbers in the count prop, not in the label text."
+  ],
+  "anatomy": {
+    "root": "Container",
+    "list": "Tab list",
+    "tab": "Tab button",
+    "icon": "Leading icon",
+    "label": "Label",
+    "count": "Count",
+    "indicator": "Selection indicator (signal underline or raised plate)",
+    "underline": "Underline variant",
+    "contained": "Contained variant",
+    "panel": "Panel"
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "name": "@bridge-ds/stylelint-plugin",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Stylelint rule bridge/use-tokens: no raw colors, lengths, radii, shadows, durations or z-index in product CSS where a design token exists. Autofixes exact matches. Reads the tokens through @bridge-ds/core and bridge.config.json.",
+  "license": "MIT",
+  "author": "Florian Gouloubi",
+  "homepage": "https://github.com/peterbono/ai-design-system-demo/tree/main/packages/stylelint-plugin#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/peterbono/ai-design-system-demo.git",
+    "directory": "packages/stylelint-plugin"
+  },
+  "bugs": {
+    "url": "https://github.com/peterbono/ai-design-system-demo/issues"
+  },
+  "keywords": [
+    "stylelint",
+    "stylelint-plugin",
+    "design-tokens",
+    "design-system",
+    "bridge"
+  ],
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build:package": "node ../../scripts/build-packages.mjs stylelint-plugin"
+  },
+  "peerDependencies": {
+    "stylelint": ">=16.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.9",
+    "esbuild": "0.27.7",
+    "stylelint": "16.26.1"
+  },
+  "dependencies": {
+    "@bridge-ds/core": "^0.1.0"
+  }
+}

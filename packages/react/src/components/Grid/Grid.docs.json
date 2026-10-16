@@ -1,0 +1,151 @@
+{
+  "summary": "Two-dimensional layout with token gaps: a fixed number of equal columns, or as many columns as fit for card and tile grids.",
+  "preview": {
+    "c": "Grid",
+    "p": {
+      "columns": 3,
+      "gap": "3"
+    },
+    "children": [
+      {
+        "c": "Badge",
+        "children": [
+          "1"
+        ]
+      },
+      {
+        "c": "Badge",
+        "children": [
+          "2"
+        ]
+      },
+      {
+        "c": "Badge",
+        "children": [
+          "3"
+        ]
+      },
+      {
+        "c": "Badge",
+        "children": [
+          "4"
+        ]
+      },
+      {
+        "c": "Badge",
+        "children": [
+          "5"
+        ]
+      },
+      {
+        "c": "Badge",
+        "children": [
+          "6"
+        ]
+      }
+    ]
+  },
+  "whenToUse": [
+    "Card and tile grids: minItemWidth makes them responsive without breakpoints.",
+    "Dashboards and settings layouts with a fixed column count.",
+    "render={<ul />} when the cells are a list of items."
+  ],
+  "whenNotToUse": [
+    "Tabular data with headers: use Table.",
+    "A single row or column: use Inline or Stack."
+  ],
+  "dos": [
+    {
+      "title": "Prefer minItemWidth for tiles",
+      "text": "Tiles reflow from four columns to one as space shrinks, with no media queries.",
+      "example": {
+        "c": "Grid",
+        "p": {
+          "minItemWidth": "60"
+        },
+        "children": [
+          {
+            "c": "Badge",
+            "children": [
+              "Tile"
+            ]
+          },
+          {
+            "c": "Badge",
+            "children": [
+              "Tile"
+            ]
+          },
+          {
+            "c": "Badge",
+            "children": [
+              "Tile"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "donts": [
+    {
+      "title": "Many fixed columns on small screens",
+      "text": "Twelve fixed columns at phone width make unreadable slivers. Use minItemWidth or fewer columns.",
+      "example": {
+        "c": "Grid",
+        "p": {
+          "columns": 6
+        },
+        "children": [
+          {
+            "c": "Badge",
+            "children": [
+              "1"
+            ]
+          },
+          {
+            "c": "Badge",
+            "children": [
+              "2"
+            ]
+          },
+          {
+            "c": "Badge",
+            "children": [
+              "3"
+            ]
+          },
+          {
+            "c": "Badge",
+            "children": [
+              "4"
+            ]
+          },
+          {
+            "c": "Badge",
+            "children": [
+              "5"
+            ]
+          },
+          {
+            "c": "Badge",
+            "children": [
+              "6"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "accessibility": [
+    "A plain div by default with no role; it is not a data grid. Use Table for data.",
+    "Cells flow in DOM order, so reading and tab order follow the visual order row by row."
+  ],
+  "contentGuidelines": [
+    "Not applicable: Grid holds no copy of its own."
+  ],
+  "anatomy": {
+    "grid": "Grid container",
+    "fixed": "Fixed columns",
+    "auto": "Auto-fit columns"
+  }
+}

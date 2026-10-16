@@ -1,0 +1,173 @@
+---
+import '../../styles/foundations.css';
+import Layout from '../../layouts/Layout.astro';
+import Icon from '../../components/Icon.astro';
+import Updated from '../../components/Updated.astro';
+import { contrastPairs, THRESHOLDS } from '../../lib/contrast';
+import { PAGE_SOURCES, freshness } from '../../lib/sources';
+import { anchorOf, BRAND_LABEL, BRANDS, MODES, type Brand, type Mode } from '../../lib/tokens';
+
+const pairs = contrastPairs();
+const updated = freshness(PAGE_SOURCES.contrast);
+/** Every brand x theme combination the build gates on. */
+const COMBOS = BRANDS.flatMap((b) => MODES.map((m) => ({ b, m, key: `${b}-${m}` }))) as { b: Brand; m: Mode; key: string }[];
+const res = (p: (typeof pairs)[number], c: (typeof COMBOS)[number]) => p.brands[c.b][c.m];
+const failures = pairs.flatMap((p) => COMBOS.filter((c) => !res(p, c).aa).map((c) => ({ p, c })));
+const total = pairs.length * COMBOS.length;
+const passing = total - failures.length;
+const rate = total ? Math.floor((passing / total) * 1000) / 10 : 100;
+const perMode = COMBOS.map((c) => ({ c, pass: pairs.filter((p) => res(p, c).aa).length, total: pairs.length }));
+const failingPairs = pairs.filter((p) => COMBOS.some((c) => !res(p, c).aa));
+const comboLabel = (c: { b: Brand; m: Mode }) => `${BRAND_LABEL[c.b]} ${c.m === 'light' ? 'light' : 'dark'}`;
+const need = (p: { min: number }) => p.min;
+---
+
+<Layout title="Contrast" description="WCAG contrast of the gated foreground and background token pairs, in every brand and theme." sources={PAGE_SOURCES.contrast} updated={updated}>
+  <h1>Contrast matrix</h1>
+  <p class="lead">
+    The color pairs the token build gates on, checked against WCAG 2.2 in both brands and both themes. Ratios are computed at build time
+    from the token values, so a token change updates this page automatically, and a pair below its minimum fails the build.
+  </p>
+  <Updated date={updated} />
+
+  <section class="ct-summary" aria-label="Summary">
+    <div class="ct-score">
+      <p class="ct-big display num">{rate}%</p>
+      <p class="ct-score-label"><strong class="num">{passing} of {total}</strong> checks pass AA</p>
+      <div class="ct-meter" role="img" aria-label={`${passing} of ${total} checks pass`}>
+        <span style={`width: ${(passing / Math.max(total, 1)) * 100}%`}></span>
+      </div>
+      <ul class="ct-modes">
+        {
+          perMode.map((x) => (
+            <li>
+              <span>{comboLabel(x.c)}</span>
+              <strong class="num">
+                {x.pass}/{x.total}
+              </strong>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+    <div class="ct-rules">
+      <p><strong>Text</strong> needs {THRESHOLDS.text.aa}:1 for AA and {THRESHOLDS.text.aaa}:1 for AAA.</p>
+      <p><strong>UI</strong> (control edges, icons, focus rings) needs {THRESHOLDS.ui.aa}:1, WCAG 1.4.11. There is no AAA level for UI.</p>
+      <p class="muted small">
+        To gate a new combination, add it to <code>packages/tokens/src/contrast.checks.json</code> as
+        <code>{'["<fg token path>", "<bg token path>", <min ratio>]'}</code>. The token build checks it in every brand and theme and
+        fails below the minimum.
+      </p>
+    </div>
+  </section>
+
+  {
+    failingPairs.length > 0 && (
+      <section class="ct-failing" aria-labelledby="ct-fail-h">
+        <h2 id="ct-fail-h" class="ct-fail-title">
+          <Icon name="alert" /> {failures.length} {failures.length === 1 ? 'check needs' : 'checks need'} attention
+        </h2>
+        <div class="ct-fail-grid">
+          {failingPairs.map((p) => (
+            <article class="ct-fail-card">
+              <p class="ct-fail-pair">
+                <a href={`/tokens/?t=${encodeURIComponent(p.fg)}`}>{p.fg}</a> <span class="muted">on</span>{' '}
+                <a href={`/tokens/?t=${encodeURIComponent(p.bg)}`}>{p.bg}</a>
+              </p>
+              <div class="ct-fail-modes">
+                {COMBOS.map((c) => {
+                  const r = res(p, c);
+                  return (
+                    <div class="ct-fail-mode">
+                      <div class="ct-tile" data-theme={c.m} data-brand={c.b} data-scope-fixed style={`background-color: var(${p.bgToken.cssVar})`}>
+                        {p.usage === 'text' ? (
+                          <span style={`color: var(${p.fgToken.cssVar})`}>Aa</span>
+                        ) : (
+                          <i style={`border-color: var(${p.fgToken.cssVar})`} />
+                        )}
+                      </div>
+                      <div>
+                        <p class="ct-ratio num">{r.ratio.toFixed(2)}:1</p>
+                        <p class="small muted">
+                          {comboLabel(c)}, needs {need(p)}:1
+                        </p>
+                        <span class={`pill ${r.aa ? 'is-pass' : 'is-fail'}`}>{r.aa ? 'AA pass' : 'AA fail'}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+    )
+  }
+
+  <h2>All pairs</h2>
+  <p class="muted">Failing pairs first. Each tile renders the real tokens in that brand and theme, whatever this page is set to.</p>
+  <div class="table-wrap fd-table">
+    <table>
+      <caption class="sr-only">Contrast ratio per token pair, brand and theme</caption>
+      <thead>
+        <tr>
+          <th scope="col">Foreground on background</th>
+          <th scope="col">Use</th>
+          {COMBOS.map((c) => <th scope="col">{comboLabel(c)}</th>)}
+        </tr>
+      </thead>
+      <tbody>
+        {
+          [...pairs]
+            .sort((a, b) => Number(COMBOS.every((c) => res(a, c).aa)) - Number(COMBOS.every((c) => res(b, c).aa)))
+            .map((p) => (
+              <tr>
+                <th scope="row">
+                  <a href={`/foundations/color/#${anchorOf(p.fgToken.cssVar)}`}>{p.fg}</a>
+                  <br />
+                  <span class="muted small">on</span> <a href={`/foundations/color/#${anchorOf(p.bgToken.cssVar)}`}>{p.bg}</a>
+                </th>
+                <td>
+                  <span class="pill">{p.usage === 'text' ? 'Text' : 'UI'}</span>
+                  <span class="muted small num">min {p.min}:1</span>
+                </td>
+                {COMBOS.map((c) => {
+                  const r = res(p, c);
+                  return (
+                    <td>
+                      <div class="ct-cell">
+                        <div class="ct-tile" data-theme={c.m} data-brand={c.b} data-scope-fixed style={`background-color: var(${p.bgToken.cssVar})`}>
+                          {p.usage === 'text' ? (
+                            <span style={`color: var(${p.fgToken.cssVar})`}>Aa</span>
+                          ) : (
+                            <i style={`border-color: var(${p.fgToken.cssVar})`} />
+                          )}
+                        </div>
+                        <div class="ct-cell-meta">
+                          <strong class="num">{r.ratio.toFixed(2)}:1</strong>
+                          <span class="chain">
+                            {r.fgHex} / {r.bgHex}
+                          </span>
+                          <span class="ct-pills">
+                            <span class={`pill ${r.aa ? 'is-pass' : 'is-fail'}`}>{r.aa ? 'AA pass' : 'AA fail'}</span>
+                            {r.aaa !== null && <span class={`pill ${r.aaa ? 'is-pass' : ''}`}>{r.aaa ? 'AAA pass' : 'Not AAA'}</span>}
+                          </span>
+                        </div>
+                      </div>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <h2>What to do with a failing pair</h2>
+  <ul>
+    <li>Do not fix it locally in a screen or a component. That hides the problem and the next team hits it again.</li>
+    <li>Open an issue or a DS Bridge proposal with the pair, the ratio and where it shows up. A token change is Tier 3: design and tech owners both approve it.</li>
+    <li>Until it ships, avoid using that pair in new places.</li>
+  </ul>
+</Layout>

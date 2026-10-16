@@ -1,0 +1,63 @@
+{
+  "summary": "A form with one validation pattern for the whole system: client checks on submit, server errors passed by field name, each shown under its Field and listed in a summary that takes focus.",
+  "preview": { "c": "Form", "p": { "errors": { "repository": "Repository not found. Check the owner and the name." } }, "children": [
+    { "c": "Field", "p": { "label": "Repository", "name": "repository" }, "children": [ { "c": "Input", "p": { "defaultValue": "acme/desing-tokens" } } ] },
+    { "c": "FormActions", "children": [ { "c": "Button", "p": { "type": "submit" }, "children": ["Connect repository"] } ] }
+  ] },
+  "whenToUse": [
+    "Any group of fields submitted together: connect a repository, create a token, invite reviewers.",
+    "errors for server-side validation, keyed by each Field's name.",
+    "FormActions for the button row: primary action last."
+  ],
+  "whenNotToUse": [
+    "A single setting that saves on change: use Switch or an inline control without a form.",
+    "Search and filter bars that update results live: no submit, no Form."
+  ],
+  "dos": [
+    {
+      "title": "Validate on submit, then live",
+      "text": "Do not flag fields while the user is still typing for the first time. After a failed submit, errors clear as soon as the value is fixed.",
+      "example": { "c": "Form", "children": [
+        { "c": "Field", "p": { "label": "Token name", "name": "name", "required": true }, "children": [ { "c": "Input" } ] },
+        { "c": "FormActions", "children": [ { "c": "Button", "p": { "type": "submit" }, "children": ["Create token"] } ] }
+      ] }
+    },
+    {
+      "title": "Keep what the user typed",
+      "text": "Show the error next to the value so it can be corrected, never clear the field.",
+      "example": { "c": "Form", "p": { "errors": { "repository": "Repository not found. Check the owner and the name." } }, "children": [
+        { "c": "Field", "p": { "label": "Repository", "name": "repository" }, "children": [ { "c": "Input", "p": { "defaultValue": "acme/desing-tokens" } } ] }
+      ] }
+    }
+  ],
+  "donts": [
+    {
+      "title": "Disabling submit until the form is valid",
+      "text": "A disabled button explains nothing. Keep it enabled and show what is missing on submit.",
+      "example": { "c": "FormActions", "children": [ { "c": "Button", "p": { "disabled": true }, "children": ["Create token"] } ] }
+    },
+    {
+      "title": "One generic error at the top",
+      "text": "\"Something went wrong\" sends users hunting. Attach each error to its field.",
+      "example": { "c": "Stack", "children": [ "Something went wrong. Try again." ] }
+    }
+  ],
+  "accessibility": [
+    "Base UI Form: native form element; fields validate on submit and the first invalid field gets focus.",
+    "Server errors set aria-invalid on the control and are linked with aria-describedby.",
+    "The error summary is role alert, receives focus when new errors arrive, and links move focus to each field.",
+    "Errors are icon plus text, never color alone."
+  ],
+  "contentGuidelines": [
+    "Submit buttons name the outcome: \"Connect repository\", not \"Submit\".",
+    "Server errors name the problem and the fix in one or two short sentences.",
+    "Summary title counts what to fix: \"Fix 2 fields to continue\"."
+  ],
+  "anatomy": {
+    "form": "Form container",
+    "summary": "Error summary",
+    "summaryTitle": "Summary title",
+    "summaryLink": "Link to a field",
+    "actions": "Actions footer"
+  }
+}

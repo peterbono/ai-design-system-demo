@@ -1,0 +1,203 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--layout-gap);
+  font-family: var(--font-family-sans);
+}
+
+.vertical {
+  flex-direction: row;
+}
+
+.list {
+  --_height: var(--control-height-md);
+
+  position: relative;
+  z-index: 0;
+  display: flex;
+  align-items: stretch;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.sm {
+  --_height: var(--control-height-sm);
+}
+
+.list[data-orientation="vertical"] {
+  flex-direction: column;
+  overflow-x: visible;
+}
+
+.tab {
+  position: relative;
+  z-index: 1;
+  box-sizing: border-box;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--_height);
+  margin: 0;
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-control);
+  background-color: transparent;
+  color: var(--tabs-text);
+  font-family: inherit;
+  font-size: var(--font-size-200);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--font-line-height-tight);
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  transition-property: color, background-color;
+  transition-duration: var(--motion-duration-instant);
+  transition-timing-function: var(--motion-easing-standard);
+}
+
+@media (hover: hover) {
+  .tab:hover:not([data-disabled], [data-active]) {
+    color: var(--color-text-default);
+  }
+}
+
+.tab[data-active] {
+  color: var(--tabs-text-active);
+}
+
+.tab:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: calc(var(--focus-ring-width) * -1);
+}
+
+.tab[data-disabled] {
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+}
+
+.list[data-orientation="vertical"] .tab {
+  justify-content: flex-start;
+}
+
+.icon {
+  flex: none;
+}
+
+.count {
+  min-width: var(--space-5);
+  padding: 0 var(--space-1-5);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-bg-subtle);
+  color: var(--color-text-default);
+  font-size: var(--font-size-100);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--font-line-height-normal);
+  text-align: center;
+}
+
+.tab[data-active] .count {
+  color: var(--color-text-default);
+}
+
+/* Underline: a hairline under the whole list, the signal bar under the active tab. */
+.underline {
+  gap: var(--space-1);
+}
+
+.underline::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: auto 0 0;
+  height: var(--border-width-default);
+  background-color: var(--color-border-default);
+}
+
+.underline .tab {
+  border-radius: var(--radius-control) var(--radius-control) 0 0;
+}
+
+.underline[data-orientation="vertical"]::after {
+  inset: 0 auto 0 0;
+  width: var(--border-width-default);
+  height: auto;
+}
+
+.underline[data-orientation="vertical"] .tab {
+  border-radius: 0 var(--radius-control) var(--radius-control) 0;
+}
+
+.indicator {
+  position: absolute;
+  z-index: 0;
+  transition-property: left, top, width, height;
+  transition-duration: var(--motion-duration-moderate);
+  transition-timing-function: var(--motion-easing-standard);
+}
+
+.underline .indicator {
+  bottom: 0;
+  left: var(--active-tab-left);
+  width: var(--active-tab-width);
+  height: var(--border-width-indicator);
+  border-radius: var(--radius-pill);
+  background-color: var(--tabs-indicator);
+}
+
+.underline[data-orientation="vertical"] .indicator {
+  top: var(--active-tab-top);
+  bottom: auto;
+  left: 0;
+  width: var(--border-width-indicator);
+  height: var(--active-tab-height);
+}
+
+/* Contained: a recessed track with a raised plate under the active tab. */
+.contained {
+  align-self: flex-start;
+  gap: var(--space-0-5);
+  padding: var(--space-0-5);
+  border-radius: calc(var(--radius-control) + var(--space-0-5));
+  background-color: var(--color-bg-subtle);
+}
+
+.contained .tab {
+  --_height: calc(var(--control-height-md) - var(--space-1));
+
+  padding: 0 var(--space-3);
+}
+
+.contained.sm .tab {
+  --_height: calc(var(--control-height-sm) - var(--space-1));
+}
+
+.contained .indicator {
+  top: var(--active-tab-top);
+  left: var(--active-tab-left);
+  width: var(--active-tab-width);
+  height: var(--active-tab-height);
+  border-radius: var(--radius-control);
+  background-color: var(--color-surface-default);
+  box-shadow: var(--elevation-raised);
+}
+
+.panel {
+  min-width: 0;
+  flex: 1;
+  border-radius: var(--radius-container);
+  color: var(--color-text-default);
+  font-size: var(--font-size-200);
+  line-height: var(--font-line-height-normal);
+}
+
+.panel:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.panel[hidden] {
+  display: none;
+}

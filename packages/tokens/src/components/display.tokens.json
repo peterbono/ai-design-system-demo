@@ -1,0 +1,88 @@
+{
+  "avatar": {
+    "$type": "color",
+    "bg": {
+      "$value": "{color.bg.muted}"
+    },
+    "text": {
+      "$value": "{color.text.default}"
+    },
+    "ring": {
+      "$value": "{color.surface.default}"
+    }
+  },
+  "tag": {
+    "$type": "color",
+    "bg": {
+      "$value": "{color.bg.subtle}"
+    },
+    "border": {
+      "$value": "{color.border.default}"
+    },
+    "bg-hover": {
+      "$value": "{color.surface.hover}"
+    },
+    "text": {
+      "$value": "{color.text.default}"
+    },
+    "bg-selected": {
+      "$value": "{color.control.checked.bg}"
+    },
+    "text-selected": {
+      "$value": "{color.control.checked.fg}"
+    },
+    "signal-bg": {
+      "$value": "{color.signal.subtle}"
+    },
+    "signal-text": {
+      "$value": "{color.text.signal}"
+    },
+    "radius": {
+      "$type": "dimension",
+      "$value": "{radius.inset}"
+    }
+  },
+  "kbd": {
+    "$type": "color",
+    "bg": {
+      "$value": "{color.surface.default}"
+    },
+    "border": {
+      "$value": "{color.border.default}"
+    },
+    "border-bottom": {
+      "$value": "{color.border.strong}"
+    },
+    "text": {
+      "$value": "{color.text.muted}"
+    },
+    "radius": {
+      "$type": "dimension",
+      "$value": "{radius.inset}"
+    }
+  },
+  "divider": {
+    "$type": "color",
+    "line": {
+      "$value": "{color.border.default}"
+    },
+    "text": {
+      "$value": "{color.text.muted}"
+    }
+  },
+  "accordion": {
+    "$type": "color",
+    "border": {
+      "$value": "{color.border.default}"
+    },
+    "bg-hover": {
+      "$value": "{color.surface.hover}"
+    },
+    "text": {
+      "$value": "{color.text.default}"
+    },
+    "icon": {
+      "$value": "{color.text.muted}"
+    }
+  }
+}

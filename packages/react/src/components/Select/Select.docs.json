@@ -1,0 +1,91 @@
+{
+  "summary": "Picks one value from a short, known list in a popup. The trigger looks like an Input so forms read as one family; the list supports groups, descriptions and disabled options.",
+  "preview": { "c": "Stack", "children": [
+    { "c": "Select", "p": { "label": "Theme", "placeholder": "No theme", "defaultValue": "dark", "options": [
+      { "value": "system", "label": "System" },
+      { "value": "light", "label": "Light" },
+      { "value": "dark", "label": "Dark" }
+    ] } }
+  ] },
+  "whenToUse": [
+    "One choice from about 4 to 10 known options: a theme, a brand, a token group, a role.",
+    "The options are long words or labels that would crowd a RadioGroup.",
+    "Space is tight: in a toolbar, a table filter or a dense settings row (size sm)."
+  ],
+  "whenNotToUse": [
+    "Two or three options that should all stay visible: use RadioGroup, or an attached ButtonGroup for a view switch.",
+    "Long or unknown lists (people, repositories, 20+ tokens): use Combobox so users can type to filter.",
+    "Several values at once: use Combobox with multiple, or a CheckboxGroup.",
+    "Actions (Duplicate, Delete): use Menu. A Select changes a value, it does not run commands."
+  ],
+  "dos": [
+    {
+      "title": "Order options by meaning, not alphabetically by default",
+      "text": "Put the most common choice first, or follow the natural order (System, Light, Dark). Group long lists under short headings.",
+      "example": { "c": "Stack", "children": [
+        { "c": "Select", "p": { "label": "Theme", "defaultValue": "system", "options": [
+          { "value": "system", "label": "System" },
+          { "value": "light", "label": "Light" },
+          { "value": "dark", "label": "Dark" }
+        ] } }
+      ] }
+    },
+    {
+      "title": "Explain a disabled option",
+      "text": "A description on the option says why it cannot be picked, instead of leaving users guessing.",
+      "example": { "c": "Stack", "children": [
+        { "c": "Select", "p": { "label": "Theme", "defaultOpen": false, "options": [
+          { "value": "light", "label": "Light" },
+          { "value": "contrast", "label": "High contrast", "description": "Not available for the ocean brand", "disabled": true }
+        ] } }
+      ] }
+    }
+  ],
+  "donts": [
+    {
+      "title": "A Select with two options",
+      "text": "Hiding two choices behind a click costs a step for nothing. Show them as radios or a Switch.",
+      "example": { "c": "Stack", "children": [
+        { "c": "Select", "p": { "label": "Notifications", "defaultValue": "on", "options": [
+          { "value": "on", "label": "On" },
+          { "value": "off", "label": "Off" }
+        ] } }
+      ] }
+    },
+    {
+      "title": "The placeholder as an instruction",
+      "text": "\"Click to select\" says nothing. The placeholder describes the empty state: \"No theme\", \"Any reviewer\".",
+      "example": { "c": "Stack", "children": [
+        { "c": "Select", "p": { "label": "Theme", "placeholder": "Click to select", "options": [ { "value": "light", "label": "Light" } ] } }
+      ] }
+    }
+  ],
+  "accessibility": [
+    "Base UI Select: the trigger is a combobox button with aria-expanded; the popup is a listbox with options marked aria-selected and aria-disabled.",
+    "Keyboard: Enter, Space or Arrow keys open it; arrows move; typing jumps to a matching option; Enter selects; Escape closes and returns focus to the trigger.",
+    "The Field label names the trigger; hint and error are linked through aria-describedby, and an error sets aria-invalid.",
+    "The selected option shows a check mark and a medium weight, not color alone.",
+    "The trigger edge uses color.border.strong (3:1 against surfaces) and the signal focus ring on keyboard focus.",
+    "The popup is portaled and re-applies the theme, brand and density of its trigger."
+  ],
+  "contentGuidelines": [
+    "Label is a noun in sentence case: \"Theme\", \"Brand\", \"Reviewer role\".",
+    "Options are short, parallel nouns, sentence case, no trailing punctuation.",
+    "Group headings are one or two words and never repeat the label.",
+    "Placeholders describe the empty value (\"No theme\"), not the action."
+  ],
+  "anatomy": {
+    "trigger": "Trigger box (same edge and focus as Input)",
+    "value": "Selected value or placeholder",
+    "affix": "Prefix icon",
+    "chevron": "Chevron, turns when open",
+    "popup": "Popup surface (popup.* tokens)",
+    "list": "Scrollable list",
+    "item": "Option",
+    "itemText": "Option label",
+    "itemDescription": "Option description",
+    "indicator": "Check mark on the selected option",
+    "groupLabel": "Group heading",
+    "separator": "Divider between groups"
+  }
+}

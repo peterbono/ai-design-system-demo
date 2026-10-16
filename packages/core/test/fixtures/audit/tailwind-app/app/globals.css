@@ -1,0 +1,7 @@
+:root {
+  --primary: 222.2 47.4% 11.2%;
+  --radius: 0.5rem;
+}
+.card {
+  @apply bg-blue-500 p-4 rounded-[6px];
+}

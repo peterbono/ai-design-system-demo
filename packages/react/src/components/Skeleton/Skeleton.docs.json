@@ -1,0 +1,45 @@
+{
+  "summary": "A placeholder in the shape of content that is loading, so the layout does not jump when the data arrives.",
+  "preview": { "c": "Stack", "children": [ { "c": "Skeleton", "p": { "lines": 3 } } ] },
+  "whenToUse": [
+    "First load of a list, table, card or detail panel whose shape you know.",
+    "Mirror the real layout: a circle for an avatar, short lines for names, a block for a preview.",
+    "Pair with aria-busy=\"true\" on the region and a visually hidden \"Loading tokens\"."
+  ],
+  "whenNotToUse": [
+    "Inside a button or after a click on a control: use Button loading or Spinner.",
+    "Long tasks with known progress: use Progress.",
+    "When loading takes under about 300 ms: show nothing, the flash is worse than the wait."
+  ],
+  "dos": [
+    {
+      "title": "Match the shape of the real content",
+      "text": "The page settles in place instead of reflowing when data lands.",
+      "example": { "c": "Stack", "children": [ { "c": "Skeleton", "p": { "variant": "circle" } }, { "c": "Skeleton", "p": { "width": "60%" } } ] }
+    }
+  ],
+  "donts": [
+    {
+      "title": "A whole page of shimmering blocks",
+      "text": "Load the frame (navigation, titles) for real and use skeletons only where the data goes.",
+      "example": { "c": "Stack", "children": [ { "c": "Skeleton", "p": { "variant": "rect" } }, { "c": "Skeleton", "p": { "variant": "rect" } } ] }
+    }
+  ],
+  "accessibility": [
+    "Skeletons are always aria-hidden: they are decoration, not content.",
+    "Put aria-busy=\"true\" on the loading region and a VisuallyHidden label like \"Loading tokens\"; remove both when the content arrives.",
+    "The shimmer stops under prefers-reduced-motion; use static for long lists."
+  ],
+  "contentGuidelines": [
+    "The hidden loading label names the content: \"Loading tokens\", not \"Loading...\"."
+  ],
+  "anatomy": {
+    "skeleton": "Block",
+    "text": "Text line",
+    "lines": "Multi-line wrapper",
+    "last": "Shorter last line",
+    "circle": "Circle (avatar)",
+    "rect": "Block (media, card)",
+    "static": "No shimmer"
+  }
+}

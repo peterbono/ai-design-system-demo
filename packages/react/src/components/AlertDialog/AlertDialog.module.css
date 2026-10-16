@@ -1,0 +1,13 @@
+/* Surface, scrim and motion come from Dialog.module.css. */
+.alert {
+  text-align: start;
+}
+
+.header {
+  padding-block-end: var(--space-2);
+}
+
+.actions {
+  flex: none;
+  padding: var(--space-3) var(--layout-inset) var(--layout-inset);
+}

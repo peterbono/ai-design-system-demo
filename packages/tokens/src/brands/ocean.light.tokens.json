@@ -1,0 +1,56 @@
+{
+  "$description": "Ocean overrides on top of semantic/light: the primary action is a filled sea blue instead of ink.",
+  "color": {
+    "action": {
+      "primary": {
+        "bg": {
+          "$type": "color",
+          "$value": "{palette.primary.600}"
+        },
+        "bg-hover": {
+          "$type": "color",
+          "$value": "{palette.primary.700}"
+        },
+        "bg-active": {
+          "$type": "color",
+          "$value": "{palette.primary.800}"
+        },
+        "text": {
+          "$type": "color",
+          "$value": "{palette.neutral.0}"
+        }
+      }
+    },
+    "control": {
+      "checked": {
+        "bg": {
+          "$type": "color",
+          "$value": "{palette.primary.600}"
+        },
+        "bg-hover": {
+          "$type": "color",
+          "$value": "{palette.primary.700}"
+        },
+        "fg": {
+          "$type": "color",
+          "$value": "{palette.neutral.0}"
+        }
+      }
+    },
+    "signal": {
+      "default": {
+        "$type": "color",
+        "$value": "{palette.accent.600}",
+        "$description": "Sea 500 is too light for 3:1 on muted tracks."
+      }
+    }
+  },
+  "focus": {
+    "ring": {
+      "color": {
+        "$type": "color",
+        "$value": "{palette.accent.600}"
+      }
+    }
+  }
+}

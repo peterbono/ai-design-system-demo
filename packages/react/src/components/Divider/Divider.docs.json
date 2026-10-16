@@ -1,0 +1,42 @@
+{
+  "summary": "A hairline that separates groups of content, horizontally or vertically, with an optional short label.",
+  "preview": { "c": "Stack", "children": [ { "c": "Divider", "p": { "label": "Older changes" } } ] },
+  "whenToUse": [
+    "Between groups that belong to the same surface but differ in kind: settings sections, toolbar groups.",
+    "Labelled, to name what follows (\"Older changes\") or to offer an alternative (\"Or\")."
+  ],
+  "whenNotToUse": [
+    "Between every list item: use spacing, or row borders in a Table.",
+    "To separate sections that have headings: the heading and space already do it."
+  ],
+  "dos": [
+    {
+      "title": "Vertical dividers between toolbar groups",
+      "text": "They group related controls without adding boxes.",
+      "example": { "c": "Row", "children": ["Light", { "c": "Divider", "p": { "orientation": "vertical", "spacing": "sm" } }, "Dark"] }
+    }
+  ],
+  "donts": [
+    {
+      "title": "Stacked dividers and borders",
+      "text": "A divider next to a card edge doubles the line. Pick one.",
+      "example": { "c": "Stack", "children": [ { "c": "Divider" }, { "c": "Divider" } ] }
+    }
+  ],
+  "accessibility": [
+    "Base UI Separator: role separator with aria-orientation, announced as a boundary.",
+    "The labelled variant renders two separators around plain text, so the label is read once in order.",
+    "The line uses border.default (decorative); never rely on it to convey meaning."
+  ],
+  "contentGuidelines": [
+    "Labels are one to three words in sentence case."
+  ],
+  "anatomy": {
+    "divider": "Line",
+    "horizontal": "Horizontal",
+    "vertical": "Vertical",
+    "labelled": "Labelled container",
+    "line": "Line segment",
+    "label": "Label"
+  }
+}

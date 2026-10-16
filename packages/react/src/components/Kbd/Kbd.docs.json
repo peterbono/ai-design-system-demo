@@ -1,0 +1,40 @@
+{
+  "summary": "Shows a keyboard key or a key combination, as nested kbd elements in the mono face.",
+  "preview": { "c": "Row", "children": [ { "c": "Kbd", "p": { "keys": ["Cmd", "K"] } }, { "c": "Kbd", "p": { "keys": "Esc" } } ] },
+  "whenToUse": [
+    "Teaching a shortcut in a tooltip, a menu item, an empty state or help text.",
+    "Inside an Input suffix to hint at the search shortcut."
+  ],
+  "whenNotToUse": [
+    "Code or token names: use code.",
+    "Buttons: a Kbd is not clickable."
+  ],
+  "dos": [
+    {
+      "title": "Write the platform's key names",
+      "text": "Cmd on macOS, Ctrl elsewhere. Abbreviations get a title with the full name.",
+      "example": { "c": "Row", "children": [ { "c": "Kbd", "p": { "keys": ["Cmd", "Enter"] } } ] }
+    }
+  ],
+  "donts": [
+    {
+      "title": "Long sequences",
+      "text": "More than three keys is a recipe, not a shortcut. Explain it in text.",
+      "example": { "c": "Row", "children": [ { "c": "Kbd", "p": { "keys": ["Ctrl", "Shift", "Alt", "Cmd", "K"] } } ] }
+    }
+  ],
+  "accessibility": [
+    "Outer kbd wraps one kbd per key, the HTML pattern for keys pressed together; the plus signs are aria-hidden.",
+    "Abbreviated keys (Cmd, Esc, arrows) carry a title with the full name.",
+    "Text color is text.muted on surface (4.5:1)."
+  ],
+  "contentGuidelines": [
+    "Capitalize key names: Esc, Enter, Shift. Letters in capitals: K, not k.",
+    "Say the action before the keys: \"Search with Cmd K\"."
+  ],
+  "anatomy": {
+    "combo": "Combination container",
+    "key": "Key",
+    "plus": "Separator"
+  }
+}

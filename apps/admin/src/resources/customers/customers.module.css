@@ -1,0 +1,84 @@
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.amount {
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.span {
+  grid-column: 1 / -1;
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.switchCell {
+  display: flex;
+  align-items: center;
+}
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  margin: calc(var(--space-2) * -1) calc(var(--space-3) * -1);
+  padding: 0;
+  list-style: none;
+}
+
+.timelineRow,
+.review {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-control);
+  color: inherit;
+  text-decoration: none;
+}
+
+.review {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+
+.timelineRow:focus-visible,
+.review:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: calc(var(--focus-ring-offset) * -1);
+}
+
+@media (hover: hover) {
+  .timelineRow:hover,
+  .review:hover {
+    background-color: var(--color-surface-hover);
+  }
+}
+
+.timelineMain,
+.timelineEnd {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--font-size-100);
+}
+
+.timelineEnd {
+  align-items: flex-end;
+}
+
+.reviewText {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}

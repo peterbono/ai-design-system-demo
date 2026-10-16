@@ -1,0 +1,146 @@
+{
+  "summary": "Stacks children in a column with a gap from the space scale. The default gap follows density (16px comfortable, 12px compact).",
+  "preview": {
+    "c": "Stack",
+    "p": {
+      "gap": "2"
+    },
+    "children": [
+      {
+        "c": "Badge",
+        "children": [
+          "Token"
+        ]
+      },
+      {
+        "c": "Badge",
+        "children": [
+          "Value"
+        ]
+      },
+      {
+        "c": "Badge",
+        "children": [
+          "Description"
+        ]
+      }
+    ]
+  },
+  "whenToUse": [
+    "Vertical rhythm inside cards, dialogs, forms and page sections.",
+    "gap from the space scale: tight (1 to 2) inside a group, generous (6 to 8) between groups.",
+    "render to output a semantic element: <section />, <ul />, <form />."
+  ],
+  "whenNotToUse": [
+    "Rows of items: use Inline.",
+    "Two-dimensional layouts with columns: use Grid.",
+    "Spacing one element only: give that element a margin class in your app, not a wrapper."
+  ],
+  "dos": [
+    {
+      "title": "Nest stacks to show grouping",
+      "text": "A tight stack per group inside a looser stack: the space itself says what belongs together.",
+      "example": {
+        "c": "Stack",
+        "p": {
+          "gap": "6"
+        },
+        "children": [
+          {
+            "c": "Stack",
+            "p": {
+              "gap": "1"
+            },
+            "children": [
+              {
+                "c": "Badge",
+                "children": [
+                  "Label"
+                ]
+              },
+              {
+                "c": "Badge",
+                "children": [
+                  "Hint"
+                ]
+              }
+            ]
+          },
+          {
+            "c": "Stack",
+            "p": {
+              "gap": "1"
+            },
+            "children": [
+              {
+                "c": "Badge",
+                "children": [
+                  "Label"
+                ]
+              },
+              {
+                "c": "Badge",
+                "children": [
+                  "Hint"
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "donts": [
+    {
+      "title": "One gap for everything",
+      "text": "Equal spacing everywhere flattens hierarchy. Vary the gap to separate groups.",
+      "example": {
+        "c": "Stack",
+        "p": {
+          "gap": "4"
+        },
+        "children": [
+          {
+            "c": "Badge",
+            "children": [
+              "Title"
+            ]
+          },
+          {
+            "c": "Badge",
+            "children": [
+              "Label"
+            ]
+          },
+          {
+            "c": "Badge",
+            "children": [
+              "Hint"
+            ]
+          },
+          {
+            "c": "Badge",
+            "children": [
+              "Label"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "accessibility": [
+    "A plain div by default with no role: it changes layout, not semantics.",
+    "Use render to give the stack the right element (a list of items should be <ul />).",
+    "Visual order equals DOM order, so reading and tab order stay consistent."
+  ],
+  "contentGuidelines": [
+    "Not applicable: Stack holds no copy of its own."
+  ],
+  "anatomy": {
+    "stack": "Flex column",
+    "align-start": "Align start",
+    "align-center": "Align center",
+    "align-end": "Align end",
+    "justify-between": "Justify between"
+  }
+}

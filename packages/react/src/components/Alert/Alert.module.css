@@ -1,0 +1,83 @@
+.alert {
+  --_bg: var(--color-bg-subtle);
+  --_border: var(--color-border-default);
+  --_icon: var(--color-text-muted);
+
+  box-sizing: border-box;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-width-default) solid var(--_border);
+  border-radius: var(--alert-radius);
+  background-color: var(--_bg);
+  color: var(--color-text-default);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-200);
+  line-height: var(--font-line-height-normal);
+}
+
+.info {
+  --_bg: var(--color-feedback-info-bg);
+  --_border: var(--color-feedback-info-border);
+  --_icon: var(--color-feedback-info-icon);
+}
+
+.success {
+  --_bg: var(--color-feedback-success-bg);
+  --_border: var(--color-feedback-success-border);
+  --_icon: var(--color-feedback-success-icon);
+}
+
+.warning {
+  --_bg: var(--color-feedback-warning-bg);
+  --_border: var(--color-feedback-warning-border);
+  --_icon: var(--color-feedback-warning-icon);
+}
+
+.danger {
+  --_bg: var(--color-feedback-danger-bg);
+  --_border: var(--color-feedback-danger-border);
+  --_icon: var(--color-feedback-danger-icon);
+}
+
+/* The icon box matches one line of text so it stays aligned with the first line. */
+.icon {
+  height: calc(var(--font-size-200) * var(--font-line-height-normal));
+  color: var(--_icon);
+}
+
+.content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  font-weight: var(--font-weight-semibold);
+}
+
+.description {
+  color: var(--color-text-default);
+  max-width: 72ch;
+}
+
+.description > :where(p) {
+  margin: 0;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-block-start: var(--space-2);
+}
+
+/* Pull the dismiss button into the padding so its glyph lines up with the text block. */
+.dismiss {
+  margin-block: calc(var(--space-1) * -1);
+  margin-inline-end: calc(var(--space-2) * -1);
+}

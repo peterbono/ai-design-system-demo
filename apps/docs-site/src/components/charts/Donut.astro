@@ -1,0 +1,65 @@
+---
+// Hand-made SVG donut. Each slice is a stroked circle segment; the legend repeats every value as text,
+// so the chart never relies on color alone.
+import type { Slice } from '../../lib/stats';
+
+interface Props {
+  data: Slice[];
+  total: number;
+  centerLabel: string;
+  label: string;
+}
+const { data, total, centerLabel, label } = Astro.props;
+const R = 52;
+const C = 2 * Math.PI * R;
+const GAP = data.length > 1 ? 2.5 : 0;
+let offset = 0;
+const arcs = data.map((d, i) => {
+  const len = (d.value / total) * C;
+  const arc = { ...d, i, dash: Math.max(len - GAP, 0.5), offset: -offset };
+  offset += len;
+  return arc;
+});
+const pct = (v: number) => `${Math.round((v / total) * 100)}%`;
+---
+
+<figure class="donut">
+  <div class="donut-chart">
+    <svg viewBox="0 0 140 140" role="img" aria-label={`${label}: ${data.map((d) => `${d.label} ${d.value}`).join(', ')}`}>
+      <circle cx="70" cy="70" r={R} class="donut-track" />
+      {
+        arcs.map((a) => (
+          <circle
+            cx="70"
+            cy="70"
+            r={R}
+            class={`donut-arc data-${(a.i % 6) + 1}`}
+            stroke-dasharray={`${a.dash} ${C}`}
+            stroke-dashoffset={a.offset}
+            transform="rotate(-90 70 70)"
+          >
+            <title>{`${a.label}: ${a.value} (${pct(a.value)})`}</title>
+          </circle>
+        ))
+      }
+    </svg>
+    <div class="donut-center" aria-hidden="true">
+      <strong class="display num">{total}</strong>
+      <span>{centerLabel}</span>
+    </div>
+  </div>
+  <figcaption>
+    <ul class="legend">
+      {
+        data.map((d, i) => (
+          <li>
+            <span class={`legend-key data-${(i % 6) + 1}`} aria-hidden="true" />
+            <span class="legend-label">{d.label}</span>
+            <span class="legend-value num">{d.value}</span>
+            <span class="legend-pct num">{pct(d.value)}</span>
+          </li>
+        ))
+      }
+    </ul>
+  </figcaption>
+</figure>

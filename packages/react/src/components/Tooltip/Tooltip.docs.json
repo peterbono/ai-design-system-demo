@@ -1,0 +1,43 @@
+{
+  "summary": "A short label that appears on hover and keyboard focus. It names icon buttons and reveals truncated text for sighted users; the accessible name always lives on the trigger.",
+  "preview": { "c": "Row", "children": [ { "c": "IconButton", "p": { "icon": "Copy", "label": "Copy token name" } } ] },
+  "whenToUse": [
+    "Every IconButton, with the same text as its label.",
+    "Truncated text, to show the full value.",
+    "Wrap the app once in TooltipProvider so neighbouring tooltips open instantly after the first one."
+  ],
+  "whenNotToUse": [
+    "Information users need to complete a task: show it inline or in a Popover. Tooltips are invisible on touch screens.",
+    "Interactive content (links, buttons): tooltips cannot be reached. Use Popover.",
+    "Repeating a visible label: it adds noise."
+  ],
+  "dos": [
+    {
+      "title": "Match the trigger's label",
+      "text": "IconButton label=\"Copy token name\" and the tooltip \"Copy token name\": what users see and hear is the same.",
+      "example": { "c": "Row", "children": [ { "c": "IconButton", "p": { "icon": "Copy", "label": "Copy token name" } } ] }
+    }
+  ],
+  "donts": [
+    {
+      "title": "Tooltips on disabled buttons to explain why",
+      "text": "Disabled buttons do not receive focus, so keyboard users never see it. Explain inline instead.",
+      "example": { "c": "Row", "children": [ { "c": "Button", "p": { "disabled": true }, "children": ["Publish"] } ] }
+    }
+  ],
+  "accessibility": [
+    "Base UI treats tooltips as visual labels: the trigger must carry the accessible name (IconButton label), which screen readers announce. The popup is not announced.",
+    "Opens on hover after the provider delay (500ms) and immediately on keyboard focus; Escape dismisses it.",
+    "The trigger must be focusable: wrap a Button, IconButton or Link, never plain text.",
+    "Inverse surface (tooltip.bg, tooltip.text) passes 4.5:1 in both themes."
+  ],
+  "contentGuidelines": [
+    "A few words, sentence case, no period.",
+    "For icon buttons: the action (\"Delete token\"), not the icon name (\"Trash\").",
+    "Keyboard shortcuts can follow the label: \"Copy token name (C)\"."
+  ],
+  "anatomy": {
+    "positioner": "Positioning layer (layer.tooltip)",
+    "tooltip": "Surface (tooltip.bg, tooltip.text, tooltip.radius)"
+  }
+}

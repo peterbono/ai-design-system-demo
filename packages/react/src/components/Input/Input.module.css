@@ -1,58 +1,105 @@
-.field {
+/* The bordered box is the wrapper, so prefix and suffix sit inside the same edge and focus ring. */
+.control {
+  --_height: var(--control-height-md);
+  --_px: var(--control-padding-x-md);
+
+  box-sizing: border-box;
   display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: var(--_height);
+  padding: 0 var(--_px);
+  border: var(--border-width-default) solid var(--input-border);
+  border-radius: var(--input-radius);
+  background-color: var(--input-bg);
+  color: var(--input-text);
   font-family: var(--font-family-sans);
-}
-
-.label {
-  color: var(--color-text-default);
   font-size: var(--font-size-200);
-  font-weight: var(--font-weight-medium);
+  cursor: text;
+  transition-property: border-color, box-shadow, background-color;
+  transition-duration: var(--motion-duration-instant);
+  transition-timing-function: var(--motion-easing-standard);
 }
 
-.input {
-  min-height: var(--space-10);
-  padding: 0 var(--space-3);
-  border: var(--border-width-1) solid var(--color-border-strong);
-  border-radius: var(--radius-md);
-  background-color: var(--color-surface-default);
-  color: var(--color-text-default);
-  font-family: inherit;
+.sm {
+  --_height: var(--control-height-sm);
+  --_px: var(--control-padding-x-sm);
+}
+
+.lg {
+  --_height: var(--control-height-lg);
+
   font-size: var(--font-size-300);
 }
 
-.input::placeholder {
-  color: var(--color-text-muted);
+@media (hover: hover) {
+  .control:hover:not(:has(input[data-disabled], input[data-invalid], input[aria-invalid="true"])) {
+    border-color: var(--input-border-hover);
+  }
 }
 
-.input:focus-visible {
-  outline: var(--focus-ring-width) solid var(--focus-ring-color);
-  outline-offset: var(--border-width-2);
+/* Inputs show focus for every focus (users type into them): border plus inner ring, both signal color. */
+.control:focus-within {
+  border-color: var(--focus-ring-color);
+  box-shadow: inset 0 0 0 var(--border-width-default) var(--focus-ring-color);
 }
 
-.input:disabled {
-  background-color: var(--color-action-disabled-bg);
+.control:has(input[data-invalid]),
+.control:has(input[aria-invalid="true"]) {
+  border-color: var(--input-border-invalid);
+}
+
+.control:has(input[data-invalid]):focus-within,
+.control:has(input[aria-invalid="true"]):focus-within {
+  box-shadow: inset 0 0 0 var(--border-width-default) var(--input-border-invalid);
+}
+
+.control:has(input[data-disabled]) {
+  border-color: var(--color-border-default);
+  background-color: var(--input-bg-disabled);
   color: var(--color-text-disabled);
   cursor: not-allowed;
 }
 
-.invalid {
-  border-color: var(--color-feedback-danger-solid);
+.control:has(input[readonly]) {
+  border-color: var(--color-border-default);
+  background-color: var(--color-bg-subtle);
 }
 
-.hint,
-.error {
+.input {
+  flex: 1;
+  min-width: 0;
+  height: calc(var(--_height) - var(--border-width-default) * 2);
   margin: 0;
-  font-size: var(--font-size-100);
+  padding: 0;
+  border: 0;
+  background-color: transparent;
+  color: inherit;
+  font: inherit;
   line-height: var(--font-line-height-normal);
+  outline: none;
 }
 
-.hint {
+.input::placeholder {
+  color: var(--input-placeholder);
+  opacity: 1;
+}
+
+.input:disabled {
+  cursor: not-allowed;
+}
+
+.affix {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
   color: var(--color-text-muted);
 }
 
-.error {
-  color: var(--color-feedback-danger-text);
-  font-weight: var(--font-weight-medium);
+/* Touch screens: 17px text so iOS does not zoom on focus. */
+@media (pointer: coarse) {
+  .control {
+    font-size: var(--font-size-300);
+  }
 }

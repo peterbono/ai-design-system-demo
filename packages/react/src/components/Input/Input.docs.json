@@ -1,0 +1,53 @@
+{
+  "summary": "Single-line text field with optional prefix and suffix. Give it a label prop for a complete field, or place it inside a Field.",
+  "preview": { "c": "Stack", "children": [
+    { "c": "Input", "p": { "label": "Token name", "placeholder": "color.action.primary.bg", "hint": "Dot-separated path, lowercase." } }
+  ] },
+  "whenToUse": [
+    "Short free text: a name, a URL, a search query, a value with a unit.",
+    "prefix for an icon or a currency, suffix for a unit or a keyboard hint.",
+    "size follows density: sm in toolbars and filters, md in forms, lg only on sparse screens."
+  ],
+  "whenNotToUse": [
+    "More than one line: use Textarea.",
+    "Numbers with steps, min and max: use NumberField (increment buttons, arrow keys, locale formatting).",
+    "Choosing from a known list: Select for under about ten options, Combobox for long or searchable lists."
+  ],
+  "dos": [
+    {
+      "title": "Label above, format help in the hint",
+      "text": "The label stays visible while typing; the hint answers the question before it is asked.",
+      "example": { "c": "Stack", "children": [ { "c": "Input", "p": { "label": "Token name", "hint": "Dot-separated path, lowercase.", "placeholder": "color.action.primary.bg" } } ] }
+    },
+    {
+      "title": "Units in the suffix",
+      "text": "The value stays a number the user can edit; the unit is context, not content.",
+      "example": { "c": "Stack", "children": [ { "c": "Input", "p": { "label": "Spacing", "suffix": "px", "defaultValue": "16" } } ] }
+    }
+  ],
+  "donts": [
+    {
+      "title": "Clearing the value on error",
+      "text": "Keep what the user typed and say how to fix it.",
+      "example": { "c": "Stack", "children": [ { "c": "Input", "p": { "label": "Token name", "error": "Required." } } ] }
+    }
+  ],
+  "accessibility": [
+    "Base UI Input: inherits label, description and error wiring from the surrounding Field.",
+    "The field edge (color.border.strong) has at least 3:1 contrast with the surface in both themes (WCAG 1.4.11).",
+    "Focus shows a 2px signal-colored edge on every focus, since users type into it.",
+    "On touch screens the text is 17px so iOS does not zoom the page on focus.",
+    "A prefix icon is decorative; if the prefix carries meaning (a currency), make it text."
+  ],
+  "contentGuidelines": [
+    "Placeholders show an example value, not instructions: \"color.action.primary.bg\", not \"Enter a token name\".",
+    "Errors name the problem and the fix, in one or two short sentences."
+  ],
+  "anatomy": {
+    "control": "Bordered box (holds prefix, input and suffix)",
+    "input": "Native input",
+    "affix": "Prefix or suffix",
+    "sm": "Size sm",
+    "lg": "Size lg"
+  }
+}

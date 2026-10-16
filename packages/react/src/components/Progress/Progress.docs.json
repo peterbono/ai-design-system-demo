@@ -1,0 +1,56 @@
+{
+  "summary": "Shows how far a task has gone: a linear bar in layouts, a circular ring in compact spots. Indeterminate when the duration is unknown.",
+  "preview": { "c": "Stack", "children": [ { "c": "Progress", "p": { "value": 64, "label": "Publishing tokens" } } ] },
+  "whenToUse": [
+    "Tasks that take more than about two seconds and report progress: publishing, importing from Figma, running contrast checks.",
+    "Indeterminate (value null) when the task runs but its length is unknown.",
+    "Switch tone to success or danger when the task ends, and say so in the label."
+  ],
+  "whenNotToUse": [
+    "Short waits or busy controls: use Spinner (or Button loading).",
+    "Content that is loading into a layout: use Skeleton in the shape of the content.",
+    "A static measurement like storage used or a score: that is a meter, not progress."
+  ],
+  "dos": [
+    {
+      "title": "Label the task, show the value",
+      "text": "\"Publishing tokens 64%\" tells users what is happening and how long is left.",
+      "example": { "c": "Stack", "children": [ { "c": "Progress", "p": { "value": 64, "label": "Publishing tokens" } } ] }
+    },
+    {
+      "title": "Use counts when they mean more than percent",
+      "text": "getAriaValueText and the label can say \"12 of 40 pairs\".",
+      "example": { "c": "Stack", "children": [ { "c": "Progress", "p": { "value": 12, "max": 40, "label": "Checking contrast: 12 of 40 pairs", "showValue": false } } ] }
+    }
+  ],
+  "donts": [
+    {
+      "title": "A progress bar that never moves",
+      "text": "If you cannot report progress, use the indeterminate state rather than a fake value.",
+      "example": { "c": "Stack", "children": [ { "c": "Progress", "p": { "value": 5, "label": "Syncing" } } ] }
+    }
+  ],
+  "accessibility": [
+    "Base UI Progress: role=\"progressbar\" with aria-valuenow, aria-valuemin and aria-valuemax; indeterminate drops aria-valuenow.",
+    "Needs a name: the label prop, or aria-label when there is no visible label (rings).",
+    "The visible value text is aria-hidden; screen readers get it from aria-valuetext (customize with getAriaValueText).",
+    "The fill uses the signal color with at least 3:1 against the track and surfaces.",
+    "Under reduced motion the indeterminate bar stops sliding and shows a full, softened track instead."
+  ],
+  "contentGuidelines": [
+    "Labels use the present participle of the action: \"Publishing tokens\", \"Importing variables\".",
+    "When done, change the label to the outcome: \"Published\"."
+  ],
+  "anatomy": {
+    "progress": "Root",
+    "header": "Label and value row",
+    "label": "Label",
+    "value": "Value text",
+    "track": "Track (linear)",
+    "indicator": "Fill (linear)",
+    "ring": "Ring (circular)",
+    "ringTrack": "Ring track",
+    "ringFill": "Ring fill",
+    "ringValue": "Value inside the ring (lg)"
+  }
+}

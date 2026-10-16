@@ -1,0 +1,61 @@
+{
+  "summary": "A sheet that slides in from an edge and keeps the page in view behind it: token details, filters, a review checklist. On touch it can be swiped away.",
+  "preview": { "c": "Row", "children": [ { "c": "Button", "p": { "variant": "secondary" }, "children": ["Edit token"] } ] },
+  "whenToUse": [
+    "Details or editing for one item of a list or table, where the user wants to keep the list in mind.",
+    "Filters and settings for the current view.",
+    "side end (default) for details, start for navigation, bottom for small screens and quick choices."
+  ],
+  "whenNotToUse": [
+    "A short task that needs full attention: use Dialog.",
+    "Content that should stay visible while the user works on the page: use a non-modal side panel in the layout."
+  ],
+  "dos": [
+    {
+      "title": "Title it with the item's name",
+      "text": "\"color.signal.default\" tells the user which row they opened. The description says what it is for.",
+      "example": { "c": "Row", "children": [ { "c": "Button", "p": { "variant": "secondary" }, "children": ["Edit token"] } ] }
+    },
+    {
+      "title": "Put the actions in the footer",
+      "text": "The footer stays visible while the body scrolls.",
+      "example": { "c": "ButtonGroup", "p": { "align": "end", "aria-label": "Drawer actions" }, "children": [
+        { "c": "Button", "p": { "variant": "ghost" }, "children": ["Cancel"] },
+        { "c": "Button", "children": ["Save changes"] }
+      ] }
+    }
+  ],
+  "donts": [
+    {
+      "title": "A drawer that opens another drawer",
+      "text": "Stacked sheets hide where the user came from. Navigate inside the drawer or use a page.",
+      "example": { "c": "Row", "children": [ { "c": "Button", "p": { "variant": "secondary" }, "children": ["Open another drawer"] } ] }
+    }
+  ],
+  "accessibility": [
+    "Base UI Drawer: modal dialog semantics, named by the title, focus trapped, Escape closes, focus returns to the trigger.",
+    "Swipe to dismiss is an extra for touch, never the only way: the close button and Escape always work.",
+    "The page behind is inert while the drawer is open.",
+    "Slides in 300ms with an exponential ease-out; reduced motion shows it instantly.",
+    "start and end follow the physical left and right in v1; RTL layouts should pass the mirrored side."
+  ],
+  "contentGuidelines": [
+    "Title: the item's name, or the task when there is no item (\"Filter tokens\").",
+    "Footer: the same verb rules as Dialog. Primary last."
+  ],
+  "anatomy": {
+    "backdrop": "Scrim",
+    "viewport": "Positioning layer",
+    "popup": "Sheet (drawer.bg, drawer.radius on the inner edge, drawer.shadow)",
+    "end": "From the end edge",
+    "start": "From the start edge",
+    "bottom": "From the bottom",
+    "handle": "Drag handle (bottom sheets)",
+    "header": "Header",
+    "title": "Title",
+    "description": "Description",
+    "close": "Close button",
+    "body": "Scrolling body",
+    "footer": "Footer"
+  }
+}

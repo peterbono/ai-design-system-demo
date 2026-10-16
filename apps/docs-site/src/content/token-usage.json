@@ -1,0 +1,11 @@
+{
+  "$comment": "Usage notes per semantic group, shown on the Color page and in llms.txt. A token's own $description wins when present.",
+  "color.bg": "Page backgrounds. default for the main canvas, subtle for side panels and zones that sit behind content.",
+  "color.surface": "Anything that sits on the page: cards, inputs, menus. raised is for surfaces that also carry elevation.",
+  "color.text": "Text and icons. default for body copy, muted for secondary info, disabled only for disabled controls, inverse on dark or brand fills, on-solid on feedback solid fills.",
+  "color.border": "Dividers and outlines. default for quiet separators, strong for control edges that must be found.",
+  "color.action": "Interactive controls only. Never use action colors for decoration, or users will try to click it.",
+  "color.feedback": "Status and system messages. bg + text + border for inline messages, solid for compact labels like badges. Always pair with words.",
+  "focus": "Keyboard focus ring. Shared by every focusable component so focus looks the same everywhere.",
+  "elevation": "Shadows that lift surfaces. raised for cards, overlay for menus and dialogs. Stronger in dark mode so edges stay visible."
+}

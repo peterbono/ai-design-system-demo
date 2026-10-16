@@ -1,0 +1,219 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Icon from '../components/Icon.astro';
+import Updated from '../components/Updated.astro';
+import type { IconName } from '../brand/icons';
+import { agentRules, approvals, reviewGates, reviewingAgentPrs, riskTiers } from '../lib/governance';
+import { inline } from '../lib/markdown';
+import { PAGE_SOURCES, freshness } from '../lib/sources';
+import '../styles/process.css';
+
+const updated = freshness(PAGE_SOURCES.governance);
+const tiers = riskTiers();
+const who = approvals();
+const gates = reviewGates();
+const agentChecks = reviewingAgentPrs();
+const rules = agentRules();
+
+const journey: { title: string; text: string; icon: IconName }[] = [
+  { icon: 'figma', title: 'Explore in Figma', text: 'A designer tries the change on real screens. Nothing in Figma reaches the product by itself.' },
+  { icon: 'link', title: 'Propose with Bridge', text: 'The DS Bridge Figma plugin, or Edit mode in the token explorer, turns the proposal into a pull request against the token files. An issue works too; then the AI agent or a maintainer writes the pull request.' },
+  { icon: 'pr', title: 'Pull request', text: 'The change is a diff on a branch, with a risk tier, a changelog entry and a note on what to review.' },
+  { icon: 'ci', title: 'CI guardrails', text: 'Automated checks run on every pull request: tokens build, types check, no raw colors or shadows in components, Storybook builds, a changelog entry exists.' },
+  { icon: 'review', title: 'Design and tech review', text: 'The design owner checks both themes, contrast and keyboard focus in Storybook, and reads token diffs in Bridge Reviews. The tech owner checks naming, API and version bump. Token changes need both.' },
+  { icon: 'merge', title: 'Merge', text: 'A person who owns that area merges. The AI agent never merges.' },
+  { icon: 'tag', title: 'Release', text: 'Changesets bumps the version and writes the changelog from the entries collected in each pull request.' },
+  { icon: 'doc', title: 'Docs update themselves', text: 'This site rebuilds from the repo: color tables, contrast checks, component pages, the changelog and llms.txt all reflect the change. Figma variables are re-imported from the same files.' },
+];
+
+const tierTone = (cell: string) => (cell.startsWith('3') ? 'fail' : cell.startsWith('2') ? 'warn' : 'pass');
+const tierNum = (cell: string) => cell.split(',')[0]!.trim();
+const tierLevel = (cell: string) => cell.split(',').slice(1).join(',').trim();
+const ruleMeta = {
+  Always: { tone: 'pass', icon: 'check', intro: 'Things the agent does on every change.' },
+  'Ask before': { tone: 'warn', icon: 'hand', intro: 'The agent stops and asks a person first, and the pull request gets the higher review tier.' },
+  Never: { tone: 'fail', icon: 'stop', intro: 'Hard limits. Most are also blocked by CI, so breaking them fails the build.' },
+} as const;
+---
+
+<Layout title="Governance" description="Who approves what, how a token change travels, and how the AI agent is constrained." sources={PAGE_SOURCES.governance} updated={updated}>
+  <h1>Governance</h1>
+  <p class="lead">
+    Every change goes through the same gates, whoever writes it: a designer, an engineer or the AI agent. How much review a change gets depends on
+    how risky it is.
+  </p>
+  <Updated date={updated} />
+
+  <div class="section-head" id="tiers">
+    <div>
+      <h2>Who approves what</h2>
+      <p>Risk tiers, from <code>docs/GOVERNANCE.md</code>. If a change spans tiers, the highest one applies.</p>
+    </div>
+  </div>
+  {
+    tiers && (
+      <div class="tier-grid">
+        {tiers.rows.map((row) => (
+          <article class={`tier-card is-${tierTone(row[0] ?? '')}`} aria-label={`Tier ${row[0]}`}>
+            <header class="tier-head">
+              <span class="tier-num" aria-hidden="true">{tierNum(row[0] ?? '')}</span>
+              <div>
+                <h3>Tier {tierNum(row[0] ?? '')}</h3>
+                <p class="tier-level">{tierLevel(row[0] ?? '')} risk</p>
+              </div>
+            </header>
+            <dl class="tier-fields">
+              {row.slice(1).map((cell, i) => (
+                <div>
+                  <dt>{tiers.head[i + 1]}</dt>
+                  <dd set:html={inline(cell)} />
+                </div>
+              ))}
+            </dl>
+          </article>
+        ))}
+      </div>
+    )
+  }
+
+  {
+    who && (
+      <>
+        <h3>By area</h3>
+        <div class="table-wrap">
+          <table class="matrix">
+            <thead>
+              <tr>{who.head.map((h) => <th scope="col">{h}</th>)}</tr>
+            </thead>
+            <tbody>
+              {who.rows.map((row) => (
+                <tr>
+                  {row.map((cell, i) =>
+                    i === 0 ? (
+                      <th scope="row" set:html={inline(cell)} />
+                    ) : (
+                      <td>
+                        {cell === 'Approves' ? (
+                          <span class="mark is-approve">
+                            <Icon name="check" size={16} />
+                            Approves
+                          </span>
+                        ) : (
+                          <span class="mark">
+                            <Icon name="review" size={16} />
+                            {cell}
+                          </span>
+                        )}
+                      </td>
+                    ),
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </>
+    )
+  }
+
+  <div class="section-head" id="journey">
+    <div>
+      <h2>How a token change travels</h2>
+      <p>From an idea in Figma to updated docs, in eight steps. Nothing skips a step.</p>
+    </div>
+  </div>
+  <ol class="stepper">
+    {
+      journey.map((s, i) => (
+        <li class="step">
+          <div class="step-rail" aria-hidden="true">
+            <span class="step-icon">
+              <Icon name={s.icon} size={20} />
+            </span>
+          </div>
+          <div class="step-body">
+            <p class="step-num">Step {i + 1}</p>
+            <h3>{s.title}</h3>
+            <p>{s.text}</p>
+          </div>
+        </li>
+      ))
+    }
+  </ol>
+
+  <h3>The review gates, as written for reviewers</h3>
+  <ol class="checklist">
+    {
+      gates.map((g) => (
+        <li>
+          <span class="check-box" aria-hidden="true">
+            <Icon name="check" size={14} />
+          </span>
+          <span set:html={inline(g)} />
+        </li>
+      ))
+    }
+  </ol>
+
+  <div class="section-head" id="agent">
+    <div>
+      <h2>How the AI agent is constrained</h2>
+      <p>
+        The agent reads <code>AGENTS.md</code> before every task. Here are its rules in plain language; expand a rule to see the exact wording it
+        follows. Rules marked "original wording" changed recently and have no plain-language version yet.
+      </p>
+    </div>
+  </div>
+  <div class="rule-cols">
+    {
+      rules.map((group) => {
+        const meta = ruleMeta[group.heading];
+        return (
+          <section class={`rule-col is-${meta.tone}`} aria-labelledby={`rules-${group.heading.replace(' ', '-')}`}>
+            <header class="rule-head">
+              <span class="rule-icon" aria-hidden="true">
+                <Icon name={meta.icon} size={18} />
+              </span>
+              <div>
+                <h3 id={`rules-${group.heading.replace(' ', '-')}`}>
+                  {group.heading} <span class="rule-count num">{group.rules.length}</span>
+                </h3>
+                <p>{meta.intro}</p>
+              </div>
+            </header>
+            <ul class="rule-list">
+              {group.rules.map((r) => (
+                <li>
+                  <p>
+                    {r.plain === r.original ? <span set:html={inline(r.original)} /> : r.plain}
+                    {!r.rewritten && <span class="muted"> (original wording)</span>}
+                  </p>
+                  {r.rewritten && (
+                    <details>
+                      <summary>Exact rule</summary>
+                      <p set:html={inline(r.original)} />
+                    </details>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
+        );
+      })
+    }
+  </div>
+
+  <h3>What reviewers check on an agent's pull request</h3>
+  <ul class="checklist is-plain">
+    {
+      agentChecks.map((c) => (
+        <li>
+          <span class="check-box" aria-hidden="true">
+            <Icon name="review" size={14} />
+          </span>
+          <span set:html={inline(c)} />
+        </li>
+      ))
+    }
+  </ul>
+</Layout>

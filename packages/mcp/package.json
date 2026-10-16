@@ -1,0 +1,67 @@
+{
+  "name": "@bridge-ds/mcp",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Bridge MCP server: lets Claude (Claude Code, Claude Desktop or any MCP client) read, check and propose changes to a DTCG design system repo through pull requests.",
+  "license": "MIT",
+  "author": "Florian Gouloubi",
+  "homepage": "https://github.com/peterbono/ai-design-system-demo/tree/main/packages/mcp#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/peterbono/ai-design-system-demo.git",
+    "directory": "packages/mcp"
+  },
+  "bugs": {
+    "url": "https://github.com/peterbono/ai-design-system-demo/issues"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "claude",
+    "design-tokens",
+    "design-system",
+    "bridge"
+  ],
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "sideEffects": false,
+  "bin": {
+    "bridge-mcp": "dist/index.js"
+  },
+  "main": "./dist/lib.js",
+  "types": "./dist/lib.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/lib.ts",
+      "types": "./dist/lib.d.ts",
+      "default": "./dist/lib.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && vitest run --config vitest.config.ts",
+    "start": "node dist/index.js",
+    "build:package": "node ../../scripts/build-packages.mjs mcp"
+  },
+  "dependencies": {
+    "@bridge-ds/core": "^0.1.0",
+    "@bridge-ds/visual": "^0.1.0",
+    "@modelcontextprotocol/sdk": "1.31.0",
+    "typescript": "5.9.3",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.9",
+    "esbuild": "0.27.7"
+  }
+}

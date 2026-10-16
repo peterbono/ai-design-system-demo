@@ -1,14 +1,142 @@
 {
-  "$comment": "Guardrail: component CSS may only reference design tokens for color and elevation. Raw values fail CI.",
+  "$comment": "Guardrail: component CSS may only reference design tokens for color, elevation, space, size, radius, type, motion and layers. Raw values fail CI. Units px/rem/ms/s are banned outside media queries, so every length and duration must come from var(--*). Percentages, em, ch, fr, deg and viewport units stay allowed for relative layout.",
   "rules": {
     "color-no-hex": true,
     "color-named": "never",
-    "function-disallowed-list": ["rgb", "rgba", "hsl", "hsla", "hwb", "lab", "lch", "oklab", "oklch", "color", "color-mix"],
+    "function-disallowed-list": [
+      "rgb",
+      "rgba",
+      "hsl",
+      "hsla",
+      "hwb",
+      "lab",
+      "lch",
+      "oklab",
+      "oklch",
+      "color",
+      "color-mix",
+      "cubic-bezier",
+      "steps"
+    ],
+    "unit-disallowed-list": [
+      [
+        "px",
+        "rem",
+        "ms",
+        "s",
+        "pt",
+        "pc",
+        "cm",
+        "mm",
+        "in",
+        "q"
+      ],
+      {
+        "ignoreMediaFeatureNames": {
+          "px": [
+            "min-width",
+            "max-width",
+            "width",
+            "min-height",
+            "max-height",
+            "height"
+          ]
+        }
+      }
+    ],
     "declaration-property-value-allowed-list": {
-      "/^(color|background-color|border-color|border-top-color|border-right-color|border-bottom-color|border-left-color|outline-color|fill|stroke|caret-color)$/": ["/^var\\(--/", "transparent", "currentcolor", "inherit"],
-      "box-shadow": ["/^var\\(--/", "none"]
+      "/^(color|background-color|border-color|border-top-color|border-right-color|border-bottom-color|border-left-color|border-block-start-color|border-block-end-color|border-inline-start-color|border-inline-end-color|outline-color|fill|stroke|caret-color|text-decoration-color|accent-color|column-rule-color)$/": [
+        "/^var\\(--/",
+        "transparent",
+        "currentcolor",
+        "inherit"
+      ],
+      "box-shadow": [
+        "/^var\\(--/",
+        "none",
+        "/^(inset )?0 0 0 var\\(--[^)]+\\) var\\(--[^)]+\\)$/"
+      ],
+      "z-index": [
+        "/^var\\(--layer-/",
+        "auto",
+        "0",
+        "1",
+        "-1"
+      ],
+      "font-family": [
+        "/^var\\(--font-family-/",
+        "inherit"
+      ],
+      "font-weight": [
+        "/^var\\(--/",
+        "inherit"
+      ],
+      "font-size": [
+        "/^var\\(--/",
+        "inherit",
+        "/^\\d*\\.?\\d+em$/"
+      ],
+      "line-height": [
+        "/^var\\(--/",
+        "inherit",
+        "normal"
+      ],
+      "letter-spacing": [
+        "/^var\\(--/",
+        "inherit",
+        "normal"
+      ],
+      "/^(transition|animation)-duration$/": [
+        "/^var\\(--motion-duration-/"
+      ],
+      "/^(transition|animation)-timing-function$/": [
+        "/^var\\(--motion-easing-/"
+      ]
+    },
+    "declaration-property-value-disallowed-list": {
+      "/^(transition|animation)$/": [
+        "/\\bease(-in|-out|-in-out)?\\b/"
+      ]
     },
     "declaration-no-important": true,
     "length-zero-no-unit": true
-  }
+  },
+  "overrides": [
+    {
+      "files": [
+        "apps/docs-site/**/*.css"
+      ],
+      "rules": {
+        "unit-disallowed-list": null,
+        "function-disallowed-list": [
+          "rgb",
+          "rgba",
+          "hsl",
+          "hsla",
+          "hwb",
+          "lab",
+          "lch",
+          "oklab",
+          "oklch",
+          "color",
+          "color-mix"
+        ],
+        "declaration-property-value-allowed-list": {
+          "/^(color|background-color|border-color|border-top-color|border-right-color|border-bottom-color|border-left-color|outline-color|fill|stroke|caret-color|text-decoration-color|accent-color)$/": [
+            "/^var\\(--/",
+            "transparent",
+            "currentcolor",
+            "inherit"
+          ],
+          "box-shadow": [
+            "/^var\\(--/",
+            "none",
+            "/^(inset )?0 0 0 [\\d.]+px var\\(--[^)]+\\)$/"
+          ]
+        },
+        "declaration-property-value-disallowed-list": null
+      }
+    }
+  ],
+  "$comment_docs": "apps/docs-site styles the Bridge app chrome with its own --br-* brand tokens (apps/docs-site/src/brand/tokens.ts). There, only colors and shadows must come from var(--*); layout lengths stay free."
 }

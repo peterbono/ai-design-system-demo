@@ -27,17 +27,138 @@ jobs:
       - name: Install
         run: npm ci
 
-      - name: Build tokens (DTCG to CSS variables + TS)
+      - name: Build tokens (DTCG to CSS variables + TS, contrast gate)
         run: npm run tokens:build
 
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Lint CSS (no raw colors or shadows in components)
-        run: npm run lint:css
+      - name: Package scope (no @demo-ds or @bridge names left, only @bridge-ds)
+        run: node scripts/rename-scope.mjs --check
+
+      - name: "Lint CSS (tokens only: no raw colors, shadows, lengths or durations)"
+        run: npm run lint:css && npm run admin:lint:css
 
       - name: Build Storybook
         run: npm run build-storybook
+
+      - name: Build publishable packages (dist, every export target present)
+        run: npm run build:packages
+
+  unit:
+    name: Unit and a11y tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Vitest (keyboard, ARIA and axe-core checks)
+        run: npm test
+
+  docs:
+    name: Docs site
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history: pages show "last updated" dates and the changelog reads git log.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build docs site (tokens:build, then Astro static build)
+        run: npm run docs:build
+
+      - name: Typecheck docs data layer
+        run: npm run typecheck -w @bridge-ds/docs-site
+
+  plugin:
+    name: Figma plugin (DS Bridge)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build tokens (the plugin tests read contrast.checks.json and resolved tokens)
+        run: npm run tokens:build
+
+      - name: Typecheck plugin
+        run: npm run plugin:typecheck
+
+      - name: Test plugin (codec round trip, resolver, diff, WCAG, validators)
+        run: npm run plugin:test
+
+      - name: Build plugin
+        run: npm run plugin:build
+
+  mcp:
+    name: MCP server and CLI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build tokens (the MCP tests compare resolution with dist/resolved.json)
+        run: npm run tokens:build
+
+      - name: Typecheck MCP server and CLI
+        run: npm run typecheck -w @bridge-ds/mcp && npm run typecheck -w @bridge-ds/cli
+
+      - name: Test MCP server and CLI (real tokens, fixture repo, fake GitHub, stdio smoke test)
+        run: npm run mcp:test
+
+      - name: Build the Stylelint and ESLint plugins
+        run: npm run plugins:build
+
+      - name: bridge check (config, token validation, contrast)
+        run: npm run bridge -- check
+
+  admin:
+    name: Admin demo
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck the admin
+        run: npm run admin:typecheck
+
+      - name: Build the admin
+        run: npm run admin:build
 
   changeset:
     name: Changeset present

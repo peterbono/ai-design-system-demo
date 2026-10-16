@@ -1,0 +1,152 @@
+.positioner {
+  z-index: var(--layer-dropdown);
+  outline: none;
+}
+
+.popup {
+  box-sizing: border-box;
+  min-width: max(var(--size-60), var(--anchor-width));
+  max-width: min(var(--size-80), var(--available-width));
+  max-height: var(--available-height);
+  padding: var(--space-1);
+  border: var(--border-width-default) solid var(--popup-border);
+  border-radius: var(--popup-radius);
+  background-color: var(--popup-bg);
+  box-shadow: var(--popup-shadow);
+  color: var(--menu-item-text);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-200);
+  line-height: var(--font-line-height-snug);
+  overflow-y: auto;
+  outline: none;
+  transform-origin: var(--transform-origin);
+  transition-property: opacity, transform;
+  transition-duration: var(--motion-duration-fast);
+  transition-timing-function: var(--motion-easing-enter);
+}
+
+.popup[data-starting-style],
+.popup[data-ending-style] {
+  opacity: 0;
+  transform: scale(0.96);
+}
+
+.popup[data-ending-style] {
+  transition-timing-function: var(--motion-easing-exit);
+}
+
+/* Item: leading slot (icon or indicator), label, trailing shortcut or chevron. */
+.item {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--menu-item-height);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-inset);
+  color: var(--menu-item-text);
+  cursor: default;
+  outline: none;
+  user-select: none;
+}
+
+.item[data-highlighted],
+.submenuTrigger[data-popup-open] {
+  background-color: var(--menu-item-bg-highlight);
+}
+
+.item:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: calc(var(--focus-ring-width) * -1);
+}
+
+.item[data-disabled] {
+  color: var(--menu-item-text-disabled);
+  cursor: not-allowed;
+}
+
+.danger {
+  color: var(--menu-item-text-danger);
+}
+
+.leading {
+  display: none;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-size-sm);
+  color: var(--menu-item-text-muted);
+}
+
+.danger .leading {
+  color: inherit;
+}
+
+.item:not(:has(.leading > *)) .leading {
+  display: none;
+}
+
+/* Keep labels aligned when a group mixes indicators: the slot stays when the indicator is unmounted. */
+.group .item .leading,
+.item:has(.indicator) .leading {
+  display: none;
+}
+
+.label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shortcut {
+  flex: none;
+  margin-inline-start: var(--space-4);
+  color: var(--menu-item-text-muted);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-100);
+  letter-spacing: var(--font-tracking-wide);
+}
+
+.chevron {
+  flex: none;
+  margin-inline-start: var(--space-2);
+  color: var(--menu-item-text-muted);
+}
+
+.indicator {
+  display: inline-flex;
+  color: var(--menu-item-indicator);
+}
+
+.indicator[data-unchecked] {
+  visibility: hidden;
+}
+
+.radioDot {
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: var(--radius-pill);
+  background-color: var(--menu-item-indicator);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+}
+
+.groupLabel {
+  padding: var(--space-1-5) var(--space-2) var(--space-1);
+  color: var(--menu-item-text-muted);
+  font-size: var(--font-size-100);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: var(--font-tracking-wide);
+}
+
+.separator {
+  height: var(--border-width-default);
+  margin: var(--space-1) calc(var(--space-1) * -1);
+  border: 0;
+  background-color: var(--menu-separator);
+}

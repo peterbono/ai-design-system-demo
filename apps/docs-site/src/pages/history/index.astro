@@ -1,0 +1,96 @@
+---
+import '../../styles/github.css';
+import '../../styles/reviews.css';
+import '../../styles/process.css';
+import '../../styles/history.css';
+import Layout from '../../layouts/Layout.astro';
+import GitHubConnect from '../../components/GitHubConnect.astro';
+import GitHubDialog from '../../components/GitHubDialog.astro';
+import HistoryPlanner from '../../components/HistoryPlanner.astro';
+import Icon from '../../components/Icon.astro';
+import { historyData } from '../../lib/history';
+import { realSummary } from '../../lib/history-view';
+import { siteRepo } from '../../lib/config';
+
+const r = siteRepo();
+const data = await historyData();
+const s = realSummary(data.real);
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+const foundLine = `Bridge found ${plural(s.total, 'change')} to the token files in the history it can read: ${plural(s.reviewable, 'reviewable change')} and ${plural(s.imports, 'import')}.`;
+const updated = data.real?.entries[0]?.date.slice(0, 10) ?? null;
+---
+
+<Layout
+  title="History"
+  description="Every merged change to the design tokens: versions, who changed what and why, the diff with swatches and contrast, and a safe way to undo a change or restore a value."
+  sources={['packages/tokens/src', '.changeset']}
+  updated={updated}
+  wide
+>
+  <div class="rv hs">
+    <header class="rv-page-head">
+      <div>
+        <h1>History</h1>
+        <p class="lead">
+          Every merged change to the tokens of <code>{r.owner}/{r.repo}</code>, grouped by design system version. Open a change to see its values and
+          contrast before and after, or undo it: Bridge plans the opposite edits against main as it is now and opens them as a pull request.
+        </p>
+      </div>
+      <GitHubConnect />
+    </header>
+
+    <div class="hs-bar">
+      <button type="button" class="hs-switch" id="hs-demo" role="switch" aria-checked="false">
+        <span class="hs-switch-track" aria-hidden="true"><span class="hs-switch-thumb"></span></span>
+        <span>Show demo history</span>
+      </button>
+      <span class="small muted">Fixture changes built over the current tokens, to try the timeline and the revert planner. Off by default.</span>
+    </div>
+    <p class="hs-banner" id="hs-banner" role="note" hidden><Icon name="info" size={16} /> <strong>Demo data: fixture changes, not this repository's history.</strong> Nothing here can be proposed.</p>
+
+    <div id="hs-list-view">
+      <form class="hs-filters" id="hs-filters" role="search" aria-label="Filter history">
+        <label class="gh-field"><span>Token</span><input id="hs-token" list="hs-paths" placeholder="color.text.muted or color.text" autocomplete="off" spellcheck="false" /></label>
+        <datalist id="hs-paths"></datalist>
+        <label class="gh-field"><span>Author</span><select id="hs-author"><option value="">Anyone</option></select></label>
+        <label class="gh-field"><span>Tier</span><select id="hs-tier"><option value="">Any tier</option><option value="3">Tier 3</option><option value="2">Tier 2</option><option value="1">Tier 1</option></select></label>
+        <button type="reset" class="btn btn-secondary btn-sm" id="hs-clear">Clear filters</button>
+      </form>
+
+      <section class="hs-sparse" id="hs-sparse" aria-label="About this history" data-total={s.total} data-reviewable={s.reviewable} data-imports={s.imports}>
+        <Icon name="clock" size={22} />
+        <div>
+          {
+            data.real ? (
+              <p>
+                <strong>{foundLine}</strong>{' '}
+                {data.realNote}
+              </p>
+            ) : (
+              <p>
+                <strong>No history to show yet.</strong> {data.realNote}
+              </p>
+            )
+          }
+          <p class="small muted">
+            History grows with every merged pull request that touches tokens. Change a value in the <a href="/tokens/?edit=1">token explorer</a>, review open proposals in
+            <a href="/reviews/">Reviews</a>, and they show up here once merged. To see a longer history and a revert with a conflict, turn on demo history.
+          </p>
+        </div>
+      </section>
+
+      <ol class="timeline hs-timeline" id="hs-timeline" aria-busy="true">
+        <li class="rv-skel" aria-hidden="true"></li>
+      </ol>
+      <p class="hs-none" id="hs-none" hidden>No change matches these filters. <button type="button" class="tx-inline-link" data-hs-clear>Clear filters</button></p>
+    </div>
+    <div id="hs-detail" class="hs-detail" hidden></div>
+  </div>
+
+  <HistoryPlanner />
+  <GitHubDialog />
+  <script>
+    import { initHistoryPage } from '../../scripts/history/page';
+    initHistoryPage();
+  </script>
+</Layout>
