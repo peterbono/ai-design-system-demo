@@ -48,6 +48,12 @@
         "unit": "px"
       }
     },
+    "11": {
+      "$value": {
+        "value": 44,
+        "unit": "px"
+      }
+    },
     "12": {
       "$value": {
         "value": 48,
