@@ -5,7 +5,6 @@ import { Progress } from './Progress';
 const meta = {
   title: 'Feedback/Progress',
   component: Progress,
-  tags: ['autodocs'],
   args: { value: 64, label: 'Publishing tokens', variant: 'linear', size: 'md', tone: 'signal' },
   argTypes: {
     variant: { control: 'inline-radio', options: ['linear', 'circular'] },

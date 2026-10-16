@@ -1,5 +1,6 @@
 // Reviews: open pull requests of the configured repo, read client-side from the GitHub REST API, with a
 // designer-friendly token diff and governance-aware actions. Without a token every action deep-links to GitHub.
+import { classifyRisk } from '@bridge/core';
 import { mergeGate, parseChangeset, parseTier, summarizeApprovals, summarizeCi, type CheckRunLike, type ReviewLike, type StatusLike, type Tier } from '../lib/review-rules';
 import { currentViewer, esc, getToken, ghGet, ghWrite, initGitHubConnect, RateLimitError, readRepo, relativeTime, type Fetched } from './github-session';
 import { analyzeTokenFiles, isTokenFile, type TokenReview } from './reviews/token-review';
@@ -194,14 +195,18 @@ async function openPr(n: number, push = true) {
     const pf = await ghGet<Pull>(`${R}/pulls/${n}`);
     staleNotice(pf);
     const pull = pf.data;
-    const tier = parseTier(pull.labels, pull.body);
-    current = { pull, tier };
     const [files, reviews, comments, ci] = await Promise.all([
       ghGet<PrFile[]>(`${R}/pulls/${n}/files?per_page=100`).then((f) => f.data),
       ghGet<Review[]>(`${R}/pulls/${n}/reviews?per_page=100`).then((f) => f.data).catch(() => [] as Review[]),
       ghGet<Comment[]>(`${R}/issues/${n}/comments?per_page=100`).then((f) => f.data).catch(() => [] as Comment[]),
       ciFor(pull.head.sha).catch(() => summarizeCi([])),
     ]);
+    // Highest tier wins: the label or checkbox the author set, or what the shared classifier (the one the
+    // plugin, the editor and the MCP server use) computes from the changed files.
+    const labelled = parseTier(pull.labels, pull.body);
+    const computed = classifyRisk({ files: files.map((f) => ({ path: f.filename, status: f.status })) }).tier;
+    const tier = Math.max(labelled ?? 0, computed) as Tier;
+    current = { pull, tier };
     const approvals = summarizeApprovals(reviews, OWNERS, pull.user.login);
     const gate = mergeGate({ tier, ci, approvals, draft: pull.draft, mergeable: pull.mergeable, state: pull.state });
     const tokenFiles = files.filter((f) => isTokenFile(f.filename));

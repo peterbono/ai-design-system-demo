@@ -13,6 +13,8 @@ The Bridge design system as code. Source of truth is the token JSON and the Reac
 - `packages/react/src/components/<Name>/`: `Name.tsx`, `Name.module.css`, `Name.stories.tsx`, `Name.docs.json`,
   `Name.test.tsx` (interactive components), `index.ts`. Behavior comes from `@base-ui/react`.
 - `docs/DESIGN-LANGUAGE.md`: principles, palette, type, radius, motion, icons, voice. Read it before UI work.
+- Storybook = workbench and visual test fixtures; user docs live in Bridge (`apps/docs-site`). Its build output
+  `storybook-static/index.json` lists every story and is the source for visual impact screenshots.
 
 ## Commands
 
@@ -38,7 +40,8 @@ Run all five checks before you open a PR. CI runs the same ones.
 4. States: hover (inside `@media (hover: hover)`), `:focus-visible` ring from `--focus-ring-*`, active,
    disabled, invalid, loading where relevant. Check light, dark, ocean brand and compact density.
 5. Portaled popups spread `useScopeAttributes()` so theme, brand and density follow.
-6. `Name.stories.tsx`: title `<Family>/<Name>`, `tags: ['autodocs']`, plus an `AllStates` story (StateGrid).
+6. `Name.stories.tsx`: title `<Family>/<Name>`, plus an `AllStates` story (StateGrid). No `autodocs`: stories are
+   workbench and visual test fixtures, user docs live in Bridge (`Name.docs.json` feeds the docs site).
 7. `Name.docs.json`: same keys as `Button.docs.json` (summary, preview, whenToUse, whenNotToUse, dos, donts,
    accessibility, contentGuidelines, anatomy keyed by CSS class).
 8. `Name.test.tsx` for anything interactive: keyboard path, ARIA state, `expectNoAxeViolations()`.

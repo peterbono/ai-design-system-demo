@@ -1,5 +1,6 @@
 {
   "$schema": "./packages/core/bridge.config.schema.json",
+  "version": 1,
   "repo": {
     "owner": "peterbono",
     "name": "ai-design-system-demo",
@@ -7,28 +8,58 @@
   },
   "tokens": {
     "root": "packages/tokens/src",
-    "primitives": "primitives",
-    "brands": "brands",
-    "semantic": "semantic",
-    "base": "base",
-    "density": "density",
-    "components": "components",
-    "contrastChecks": "contrast.checks.json"
-  },
-  "components": {
-    "dir": "packages/react/src/components"
+    "include": ["**/*.tokens.json"],
+    "tiers": {
+      "primitive": ["primitives"],
+      "brand": ["brands"],
+      "base": ["semantic/base.tokens.json"],
+      "semantic": ["semantic"],
+      "density": ["density"],
+      "component": ["components"]
+    },
+    "layers": [
+      { "files": "primitives/*.tokens.json" },
+      { "files": "semantic/base.tokens.json" },
+      { "files": "brands/{brand}.tokens.json" },
+      { "files": "semantic/{theme}.tokens.json" },
+      { "files": "brands/{brand}.{theme}.tokens.json", "optional": true },
+      { "files": "density/{density}.tokens.json" },
+      { "files": "components/*.tokens.json" }
+    ]
   },
   "modes": {
-    "brands": ["bridge", "ocean"],
-    "themes": ["light", "dark"],
-    "densities": ["comfortable", "compact"],
-    "defaults": {
-      "brand": "bridge",
-      "theme": "light",
-      "density": "comfortable"
-    }
+    "brand": { "values": ["bridge", "ocean"], "default": "bridge" },
+    "theme": { "values": ["light", "dark"], "default": "light", "parity": true },
+    "density": { "values": ["comfortable", "compact"], "default": "comfortable" }
   },
-  "changeset": {
-    "package": "@demo-ds/tokens"
+  "contrast": { "path": "packages/tokens/src/contrast.checks.json", "modes": ["brand", "theme"] },
+  "components": {
+    "dir": "packages/react/src/components",
+    "docsSuffix": ".docs.json",
+    "styleSuffix": ".module.css",
+    "reference": "Button",
+    "index": "packages/react/src/index.ts"
+  },
+  "docs": {
+    "designLanguage": "docs/DESIGN-LANGUAGE.md",
+    "guidelines": "AGENTS.md",
+    "governance": "docs/GOVERNANCE.md"
+  },
+  "changesets": { "dir": ".changeset", "package": "@demo-ds/tokens" },
+  "cssVar": { "prefix": "--", "separator": "-" },
+  "governance": {
+    "protectedBranches": ["main", "master"],
+    "branchPrefix": "bridge/",
+    "labels": ["source: mcp"],
+    "guardrails": [
+      "AGENTS.md",
+      "CLAUDE.md",
+      ".github/",
+      ".stylelintrc.json",
+      "docs/GOVERNANCE.md",
+      "bridge.config.json",
+      "packages/tokens/src/contrast.checks.json"
+    ],
+    "owners": { "design": [], "tech": [] }
   }
 }

@@ -7,7 +7,6 @@ import { Inline } from './Inline';
 const meta = {
   title: 'Layout/Inline',
   component: Inline,
-  tags: ['autodocs'],
   args: { gap: '2', align: 'center', justify: 'start', wrap: true },
   argTypes: {
     gap: { control: 'select', options: ['0', '0-5', '1', '1-5', '2', '3', '4', '5', '6', '8'] },

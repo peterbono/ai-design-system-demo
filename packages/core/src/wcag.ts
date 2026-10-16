@@ -141,18 +141,30 @@ export function evaluatePairs(index: PathIndex, pairs: ContrastPair[], scope: Co
 /** Text pair when the minimum is 4.5:1 or more, UI pair (WCAG 1.4.11) below that. */
 export const kindForMin = (min: number): PairKind => (min >= AA_MIN.text ? 'text' : 'ui');
 
+/** A pair from its parts; the kind follows the minimum. */
+export const contrastPair = (foreground: string, background: string, min = AA_MIN.text): ContrastPair => ({ foreground, background, min, kind: kindForMin(min) });
+
 /**
- * Parse contrast.checks.json: `{ "$description": "...", "pairs": [[fg, bg, min], ...] }`.
- * Entries that are not a [string, string, number] triple are skipped.
+ * Parse contrast checks: `{ "$description": "...", "pairs": [[fg, bg, min], ...] }`. A top-level array and
+ * `{ "fg", "bg", "min" }` (or foreground, background, ratio) entries are read too, for other repos' files.
+ * Entries that are not a pair of token paths with a positive minimum are skipped.
  */
 export function parseContrastChecks(text: string | undefined): ContrastPair[] {
   if (!text) return [];
-  const data = JSON.parse(text) as { pairs?: unknown };
-  if (!Array.isArray(data.pairs)) return [];
+  const data = JSON.parse(text) as { pairs?: unknown } | unknown[];
+  const list = Array.isArray(data) ? data : Array.isArray(data.pairs) ? data.pairs : [];
   const out: ContrastPair[] = [];
-  for (const p of data.pairs) {
-    if (!Array.isArray(p) || typeof p[0] !== 'string' || typeof p[1] !== 'string' || typeof p[2] !== 'number' || !(p[2] > 0)) continue;
-    out.push({ foreground: p[0], background: p[1], min: p[2], kind: kindForMin(p[2]) });
+  for (const p of list) {
+    let fg: unknown, bg: unknown, min: unknown;
+    if (Array.isArray(p)) [fg, bg, min] = p;
+    else if (p && typeof p === 'object') {
+      const o = p as Record<string, unknown>;
+      fg = o.fg ?? o.foreground;
+      bg = o.bg ?? o.background;
+      min = o.min ?? o.ratio ?? AA_MIN.text;
+    }
+    if (typeof fg !== 'string' || typeof bg !== 'string' || typeof min !== 'number' || !(min > 0)) continue;
+    out.push(contrastPair(fg, bg, min));
   }
   return out;
 }

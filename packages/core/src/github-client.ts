@@ -1,8 +1,13 @@
 // Minimal GitHub REST client over fetch. The token is passed in; nothing is read from the
-// environment. Talks to api.github.com only (the Figma plugin manifest allows nothing else).
+// environment. Talks to api.github.com (the Figma plugin manifest allows nothing else) and, for
+// token-less reads of public repos, raw.githubusercontent.com, which has no hourly API limit.
 // Bulk reads go through the git trees and blobs endpoints; single files can use the contents API.
+//
+// Writes refuse protected branches (main, master and whatever the caller adds) whatever the caller
+// asks: the client is the last guard between an agent and the default branch.
 
 import { type BridgeConfig, CONFIG_FILE, ConfigError, DEFAULT_TOKEN_PATHS, loadConfig } from './config';
+import { assertSafeBranch, DEFAULT_PROTECTED_BRANCHES, ProtectedBranchError } from './governance';
 
 export class GitHubError extends Error {
   constructor(
@@ -49,6 +54,39 @@ export interface Review {
   user: string | undefined;
   state: string;
   body: string;
+  submittedAt?: string | undefined;
+}
+
+export interface PullRequestSummary {
+  number: number;
+  title: string;
+  /** "open", "closed" or "merged". */
+  state: string;
+  draft: boolean;
+  author: string;
+  headRef: string;
+  headSha: string;
+  baseRef: string;
+  labels: string[];
+  url: string;
+  updatedAt: string;
+}
+
+export interface ClientOptions {
+  /** API base, for GitHub Enterprise or tests. */
+  apiUrl?: string;
+  /** Raw file host used for token-less reads. */
+  rawUrl?: string;
+  /** Branches no write may target. Default main and master; the repo's default branch belongs here too. */
+  protectedBranches?: string[];
+  /** When set, branches this client creates must start with it (agents use "bridge/"). */
+  branchPrefix?: string;
+}
+
+/** A file in a new commit: text content, or null to delete it. */
+export interface CommitFile {
+  path: string;
+  content: string | null;
 }
 
 export interface CheckRun {
@@ -88,9 +126,11 @@ const DEFAULT_RETRY: RetryPolicy = { attempts: 3, baseDelayMs: 600, sleep: (ms) 
 const isTransient = (status: number, detail: string) => status === 0 || status >= 500 || status === 429 || (status === 403 && /secondary rate limit/i.test(detail));
 
 const API = 'https://api.github.com';
+const RAW = 'https://raw.githubusercontent.com';
 
+/** "owner/name", a github.com URL or an SSH remote. */
 export function parseRepo(repo: string): { owner: string; name: string } {
-  const m = /^\s*([A-Za-z0-9-]+)\/([A-Za-z0-9._-]+)\s*$/.exec(repo);
+  const m = /^\s*(?:https?:\/\/github\.com\/|git@github\.com:)?([A-Za-z0-9-]+)\/([A-Za-z0-9._-]+?)(?:\.git)?\/?\s*$/.exec(repo);
   if (!m) throw new Error(`"${repo}" is not a repository. Use the form owner/name.`);
   return { owner: m[1]!, name: m[2]! };
 }
@@ -112,19 +152,48 @@ export function base64ToUtf8(b64: string): string {
 const encodeRef = (ref: string) => ref.split('/').map(encodeURIComponent).join('/');
 
 export class GitHubClient {
-  private readonly owner: string;
-  private readonly name: string;
+  readonly owner: string;
+  readonly name: string;
   private readonly blobCache = new Map<string, string>();
+  private readonly api: string;
+  private readonly protectedBranches: string[];
 
   constructor(
     repo: string,
     private readonly token: string,
     private readonly fetchImpl: FetchLike = (url, init) => fetch(url, init),
     private readonly retry: RetryPolicy = DEFAULT_RETRY,
+    private readonly options: ClientOptions = {},
   ) {
     const r = parseRepo(repo);
     this.owner = r.owner;
     this.name = r.name;
+    this.api = (options.apiUrl ?? API).replace(/\/$/, '');
+    this.protectedBranches = options.protectedBranches ?? DEFAULT_PROTECTED_BRANCHES;
+  }
+
+  /** "owner/name". */
+  get fullName() {
+    return `${this.owner}/${this.name}`;
+  }
+
+  /** Whether a token was given (without one, every write is refused before any request). */
+  get canWrite() {
+    return Boolean(this.token);
+  }
+
+  /** Throws unless `branch` may be written: not protected, not the base, and with the agent prefix when set. */
+  assertWritableBranch(branch: string, base?: string): void {
+    try {
+      assertSafeBranch(branch, { protectedBranches: this.protectedBranches, base, branchPrefix: this.options.branchPrefix });
+    } catch (err) {
+      if (err instanceof ProtectedBranchError) throw new GitHubError(403, err.message, 'protected-branch');
+      throw err;
+    }
+  }
+
+  private assertToken(what: string): void {
+    if (!this.token) throw new GitHubError(401, `${what} needs a GitHub token (contents and pull requests, read and write, on this repository only). Without one Bridge is read-only.`);
   }
 
   private get repoPath() {
@@ -153,7 +222,7 @@ export class GitHubClient {
     if (body !== undefined) headers['Content-Type'] = 'application/json';
     let res: Awaited<ReturnType<FetchLike>>;
     try {
-      res = await this.fetchImpl(`${API}${path}`, { method, headers, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) });
+      res = await this.fetchImpl(`${this.api}${path}`, { method, headers, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) });
     } catch (err) {
       throw new GitHubError(0, 'Could not reach GitHub. Check your connection, then try again.', (err as Error).message);
     }
@@ -236,10 +305,11 @@ export class GitHubClient {
     return r.sha;
   }
 
-  async createTree(baseTree: string, files: { path: string; sha: string }[]): Promise<string> {
+  /** A tree on top of `baseTree`. Each file gives a blob `sha`, inline `content`, or `sha: null` to delete. */
+  async createTree(baseTree: string, files: ({ path: string; sha: string | null } | { path: string; content: string })[]): Promise<string> {
     const r = await this.request<{ sha: string }>('POST', `${this.repoPath}/git/trees`, {
       base_tree: baseTree,
-      tree: files.map((f) => ({ path: f.path, mode: '100644', type: 'blob', sha: f.sha })),
+      tree: files.map((f) => ({ path: f.path, mode: '100644', type: 'blob', ...('content' in f ? { content: f.content } : { sha: f.sha }) })),
     }, true);
     return r.sha;
   }
@@ -249,16 +319,36 @@ export class GitHubClient {
     return r.sha;
   }
 
+  /** Create a new branch. Refuses protected branches; GitHub refuses existing ones, so nothing is overwritten. */
   async createBranch(branch: string, sha: string): Promise<void> {
+    this.assertWritableBranch(branch);
     await this.request('POST', `${this.repoPath}/git/refs`, { ref: `refs/heads/${branch}`, sha });
   }
 
   /** Fast-forward a branch. Never forces: a concurrent push makes this fail instead of losing work. */
   async updateBranch(branch: string, sha: string): Promise<void> {
+    this.assertWritableBranch(branch);
     await this.request('PATCH', `${this.repoPath}/git/refs/heads/${encodeRef(branch)}`, { sha, force: false });
   }
 
+  /**
+   * One commit with `files` on top of `base`, on the new branch `branch`. The branch is created, never
+   * moved, so an existing branch is never overwritten. Refuses protected branches and the base itself.
+   */
+  async commitToNewBranch(input: { base: string; branch: string; message: string; files: CommitFile[] }): Promise<{ sha: string; branch: string }> {
+    this.assertToken('Creating a branch');
+    this.assertWritableBranch(input.branch, input.base);
+    const baseSha = await this.getBranchSha(input.base);
+    if (!baseSha) throw new GitHubError(404, `Base branch "${input.base}" not found.`);
+    const baseTree = await this.getCommitTree(baseSha);
+    const tree = await this.createTree(baseTree, input.files.map((f) => (f.content === null ? { path: f.path, sha: null } : { path: f.path, content: f.content })));
+    const sha = await this.createCommit(input.message, tree, [baseSha]);
+    await this.createBranch(input.branch, sha);
+    return { sha, branch: input.branch };
+  }
+
   async createPullRequest(input: { title: string; head: string; base: string; body: string; draft: boolean }): Promise<PullRequest> {
+    this.assertWritableBranch(input.head, input.base);
     const r = await this.request<{ number: number; html_url: string; title: string; draft?: boolean; head: { ref: string } }>(
       'POST',
       `${this.repoPath}/pulls`,
@@ -308,6 +398,7 @@ export class GitHubClient {
 
   /** Create or update one file on a branch in its own commit (contents API). Returns the commit sha. */
   async putFile(input: { path: string; content: string; branch: string; message: string; sha?: string | undefined }): Promise<string> {
+    this.assertWritableBranch(input.branch);
     const r = await this.request<{ commit: { sha: string } }>('PUT', `${this.repoPath}/contents/${encodeRef(input.path)}`, {
       message: input.message,
       content: utf8ToBase64(input.content),
@@ -317,14 +408,61 @@ export class GitHubClient {
     return r.commit.sha;
   }
 
+  /**
+   * Text of a file at a ref, or undefined. Without a token, public repos are read from the raw host (no
+   * hourly API limit); with one, through the contents API (private repos work).
+   */
+  async readFile(path: string, ref: string): Promise<string | undefined> {
+    if (this.token) return this.getFileText(path, ref);
+    const url = `${(this.options.rawUrl ?? RAW).replace(/\/$/, '')}/${this.owner}/${this.name}/${encodeRef(ref)}/${encodeRef(path)}`;
+    let res: Awaited<ReturnType<FetchLike>>;
+    try {
+      res = await this.fetchImpl(url, {});
+    } catch (err) {
+      throw new GitHubError(0, 'Could not reach GitHub. Check your connection, then try again.', (err as Error).message);
+    }
+    if (res.status === 404) return undefined;
+    if (!res.ok) throw new GitHubError(res.status, friendlyMessage(res.status, ''), `raw ${path}@${ref}`);
+    return res.text();
+  }
+
+  /** The repository's default branch. */
+  async getDefaultBranch(): Promise<string> {
+    return (await this.getRepo()).defaultBranch;
+  }
+
+  /** Every file path at a ref (branch, tag or sha), one API call. */
+  async listFiles(ref: string): Promise<string[]> {
+    const r = await this.request<{ tree: { path: string; type: string }[]; truncated: boolean }>('GET', `${this.repoPath}/git/trees/${encodeRef(ref)}?recursive=1`);
+    if (r.truncated) throw new GitHubError(413, 'The repository tree is too large to read in one request.');
+    return r.tree.filter((e) => e.type === 'blob').map((e) => e.path);
+  }
+
   // --- Pull requests, reviews, checks ---------------------------------------------------------
 
-  async getPullRequest(n: number): Promise<PullRequest & { body: string; state: string; baseRef: string; headSha: string }> {
-    const r = await this.request<{ number: number; html_url: string; title: string; draft?: boolean; head: { ref: string; sha: string }; base: { ref: string }; body: string | null; state: string }>(
-      'GET',
-      `${this.repoPath}/pulls/${n}`,
-    );
-    return { number: r.number, url: r.html_url, title: r.title, draft: !!r.draft, headRef: r.head.ref, headSha: r.head.sha, baseRef: r.base.ref, body: r.body ?? '', state: r.state };
+  async listPullRequests(state: 'open' | 'closed' | 'all' = 'open'): Promise<PullRequestSummary[]> {
+    const r = await this.request<Record<string, any>[]>('GET', `${this.repoPath}/pulls?state=${state}&per_page=50&sort=updated&direction=desc`);
+    return r.map(toSummary);
+  }
+
+  /** Commit statuses and check runs of a commit, folded into one state. */
+  async getChecks(sha: string): Promise<{ state: 'success' | 'failure' | 'pending' | 'none'; checks: { name: string; status: string; conclusion: string | null }[] }> {
+    const [combined, runs] = await Promise.all([
+      this.request<{ statuses: { context: string; state: string }[] }>('GET', `${this.repoPath}/commits/${encodeRef(sha)}/status`).catch(() => ({ statuses: [] })),
+      this.listCheckRuns(sha).catch(() => [] as CheckRun[]),
+    ]);
+    const checks = [
+      ...runs.map((c) => ({ name: c.name, status: c.status, conclusion: c.conclusion })),
+      ...combined.statuses.map((s) => ({ name: s.context, status: s.state === 'pending' ? 'in_progress' : 'completed', conclusion: s.state === 'pending' ? null : s.state })),
+    ];
+    const failing = checks.some((c) => c.conclusion && !['success', 'neutral', 'skipped'].includes(c.conclusion));
+    const pending = checks.some((c) => c.status !== 'completed');
+    return { state: !checks.length ? 'none' : failing ? 'failure' : pending ? 'pending' : 'success', checks };
+  }
+
+  async getPullRequest(n: number): Promise<PullRequest & PullRequestSummary & { body: string; mergeable: boolean | null }> {
+    const r = await this.request<Record<string, any>>('GET', `${this.repoPath}/pulls/${n}`);
+    return { ...toSummary(r), body: r.body ?? '', mergeable: r.mergeable ?? null };
   }
 
   async listPullRequestFiles(n: number): Promise<PullRequestFile[]> {
@@ -337,12 +475,13 @@ export class GitHubClient {
   }
 
   async listReviews(n: number): Promise<Review[]> {
-    const r = await this.request<{ id: number; user?: { login: string }; state: string; body: string | null }[]>('GET', `${this.repoPath}/pulls/${n}/reviews`);
-    return r.map((x) => ({ id: x.id, user: x.user?.login, state: x.state, body: x.body ?? '' }));
+    const r = await this.request<{ id: number; user?: { login: string }; state: string; body: string | null; submitted_at?: string }[]>('GET', `${this.repoPath}/pulls/${n}/reviews`);
+    return r.map((x) => ({ id: x.id, user: x.user?.login, state: x.state, body: x.body ?? '', ...(x.submitted_at ? { submittedAt: x.submitted_at } : {}) }));
   }
 
   /** Submit a review. `COMMENT` works for any collaborator; approving your own PR is refused by GitHub. */
   async createReview(n: number, input: { event: 'COMMENT' | 'APPROVE' | 'REQUEST_CHANGES'; body: string }): Promise<Review> {
+    this.assertToken('Reviewing a pull request');
     const r = await this.request<{ id: number; user?: { login: string }; state: string; body: string | null }>('POST', `${this.repoPath}/pulls/${n}/reviews`, input);
     return { id: r.id, user: r.user?.login, state: r.state, body: r.body ?? '' };
   }
@@ -376,6 +515,22 @@ export class GitHubClient {
   async removeLabel(issueNumber: number, label: string): Promise<void> {
     await this.request('DELETE', `${this.repoPath}/issues/${issueNumber}/labels/${encodeURIComponent(label)}`);
   }
+}
+
+function toSummary(r: Record<string, any>): PullRequestSummary & PullRequest {
+  return {
+    number: r.number,
+    title: r.title,
+    state: r.merged_at || r.merged ? 'merged' : r.state,
+    draft: Boolean(r.draft),
+    author: r.user?.login ?? 'unknown',
+    headRef: r.head?.ref,
+    headSha: r.head?.sha,
+    baseRef: r.base?.ref,
+    labels: (r.labels ?? []).map((l: { name: string }) => l.name),
+    url: r.html_url,
+    updatedAt: r.updated_at,
+  };
 }
 
 export function friendlyMessage(status: number, detail: string): string {

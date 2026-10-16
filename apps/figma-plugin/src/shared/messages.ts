@@ -172,14 +172,15 @@ export function isProgress(msg: unknown): msg is ProgressEnvelope {
   return !!msg && typeof msg === 'object' && (msg as { kind?: unknown }).kind === 'progress';
 }
 
-const defaults = defineConfig(rootConfig);
+const defaults = defineConfig(rootConfig as Parameters<typeof defineConfig>[0]);
+const defaultRepo = defaults.repo ?? { owner: '', name: '', defaultBranch: 'main' };
 /**
  * Prefilled settings, from bridge.config.json at the root of this repo. At scan time the plugin also
  * reads bridge.config.json from the configured repository, which decides the token paths there.
  */
 export const DEFAULT_SETTINGS: RepoSettings = {
-  repo: `${defaults.repo.owner}/${defaults.repo.name}`,
-  branch: defaults.repo.defaultBranch,
+  repo: defaultRepo.owner ? `${defaultRepo.owner}/${defaultRepo.name}` : '',
+  branch: defaultRepo.defaultBranch,
   tokensPath: defaults.tokens.root,
 };
 

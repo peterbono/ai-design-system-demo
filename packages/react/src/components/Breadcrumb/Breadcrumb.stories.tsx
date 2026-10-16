@@ -13,7 +13,6 @@ const PATH = [
 const meta = {
   title: 'Navigation/Breadcrumb',
   component: Breadcrumb,
-  tags: ['autodocs'],
   args: { items: PATH.slice(1) },
 } satisfies Meta<typeof Breadcrumb>;
 

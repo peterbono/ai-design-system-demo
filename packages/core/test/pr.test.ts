@@ -73,9 +73,21 @@ test('risk tiers follow docs/GOVERNANCE.md, highest wins', () => {
   assert.equal(classifyRisk({ files: [{ path: 'packages/react/src/components/Button/Button.tsx' }], config }).tier, 2);
   assert.equal(classifyRisk({ files: [{ path: 'packages/tokens/src/contrast.checks.json' }], config }).tier, 3);
   assert.equal(classifyRisk({ files: [{ path: '.github/workflows/ci.yml' }] }).tier, 3);
-  const changed = classifyRisk({ tokenChanges: [{ current: t, target: clone(t, { description: 'x' }) }] });
+  const described = classifyRisk({ tokenChanges: [{ current: t, target: clone(t, { description: 'x' }) }] });
+  assert.deepEqual([described.tier, described.bump], [1, 'patch']);
+  assert.match(described.label, /^Tier 1/);
+  const changed = classifyRisk({ tokenChanges: [{ current: t, target: clone(t, { values: { light: '{palette.neutral.50}', dark: t.values.dark } }) }] });
   assert.deepEqual([changed.tier, changed.bump], [3, 'minor']);
   assert.match(changed.label, /^Tier 3: token change/);
+  const added = classifyRisk({ tokenChanges: [{ kind: 'added', path: 'color.bg.new' }, { kind: 'changed', path: 'color.bg.default', descriptionOnly: true }] });
+  assert.deepEqual([added.tier, added.bump], [3, 'minor']);
+  const deleted = classifyRisk({ tokenChanges: [{ kind: 'removed', path: 'color.bg.old' }] });
+  assert.deepEqual([deleted.tier, deleted.bump], [3, 'major']);
+  // Known token changes decide the tier of the token files they live in.
+  const docOnly = classifyRisk({ tokenChanges: [{ kind: 'changed', path: 'a.b', descriptionOnly: true }], files: [{ path: 'packages/tokens/src/semantic/light.tokens.json' }] });
+  assert.equal(docOnly.tier, 1);
+  assert.equal(classifyRisk({ files: [{ path: 'packages/tokens/src/semantic/light.tokens.json' }] }).tier, 3);
+  assert.equal(classifyRisk({ files: [{ path: 'packages/tokens/src/contrast.checks.json' }], config: realConfig() }).tier, 3);
   const renamed = classifyRisk({ tokenChanges: [{ current: t, target: clone(t, { path: 'color.bg.canvas' }) }], files: [{ path: 'README.md' }] });
   assert.deepEqual([renamed.tier, renamed.bump, renamed.reasons[0]], [3, 'major', 'Token renamed: color.bg.canvas']);
 });
@@ -83,7 +95,8 @@ test('risk tiers follow docs/GOVERNANCE.md, highest wins', () => {
 test('changeset names the configured package and bumps major for removals', () => {
   const t = realSet().byPath.get('color.bg.default')!;
   assert.equal(changesetBump([{ current: t, target: undefined }]), 'major');
-  const cs = composeChangeset([{ current: t, target: clone(t, { description: 'x' }) }], { title: 'Tint', branch: 'tokens/tint-20261016-1200', packageName: '@acme/tokens' });
+  assert.equal(changesetBump([{ current: t, target: clone(t, { description: 'x' }) }]), 'patch');
+  const cs = composeChangeset([{ current: t, target: clone(t, { values: { ...t.values, light: '{palette.neutral.50}' } }) }], { title: 'Tint', branch: 'tokens/tint-20261016-1200', packageName: '@acme/tokens' });
   assert.equal(cs.path, '.changeset/ds-bridge-tint-20261016-1200.md');
   assert.match(cs.content, /^---\n"@acme\/tokens": minor\n---\n\nTint\.\n\n- changed `color\.bg\.default`\n$/);
 });

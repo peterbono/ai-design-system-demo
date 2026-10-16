@@ -11,7 +11,6 @@ import { Table, TableBody, TableCell, TableEmpty, TableHead, TableHeader, TableR
 const meta = {
   title: 'Data display/Table',
   component: Table,
-  tags: ['autodocs'],
   args: { caption: 'Tokens changed in this release', stickyHeader: false, gridLines: false },
 } satisfies Meta<typeof Table>;
 

@@ -20,7 +20,6 @@ const COMPONENTS: ComboboxOption[] = ['Accordion', 'Alert', 'Avatar', 'Badge', '
 const meta = {
   title: 'Forms/Combobox',
   component: Combobox,
-  tags: ['autodocs'],
   args: { label: 'Component', options: COMPONENTS, placeholder: 'Search components', hint: 'Type to filter 20 components.' },
   argTypes: {
     size: { control: 'inline-radio', options: ['sm', 'md', 'lg'] },

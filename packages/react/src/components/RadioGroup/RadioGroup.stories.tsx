@@ -5,7 +5,6 @@ import { Radio, RadioGroup } from './RadioGroup';
 const meta = {
   title: 'Forms/RadioGroup',
   component: RadioGroup,
-  tags: ['autodocs'],
   args: { label: 'Merge strategy', defaultValue: 'squash', children: null },
   argTypes: { orientation: { control: 'inline-radio', options: ['vertical', 'horizontal'] } },
 } satisfies Meta<typeof RadioGroup>;

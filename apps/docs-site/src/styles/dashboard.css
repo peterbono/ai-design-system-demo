@@ -1125,3 +1125,21 @@
     animation: none;
   }
 }
+
+.contribute {
+  margin-top: 1rem;
+  padding: 0.875rem 1rem;
+  border: 1px dashed var(--br-border);
+  border-radius: var(--br-radius-card);
+  color: var(--br-text-muted);
+}
+
+.contribute h3 {
+  margin: 0 0 0.25rem;
+  color: var(--br-text);
+  font-size: var(--br-text-sm);
+}
+
+.contribute p {
+  margin: 0;
+}

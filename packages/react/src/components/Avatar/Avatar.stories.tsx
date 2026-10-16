@@ -12,7 +12,6 @@ const PHOTO =
 const meta = {
   title: 'Data display/Avatar',
   component: Avatar,
-  tags: ['autodocs'],
   args: { name: 'Florian Gouloubi', size: 'md' },
   argTypes: { size: { control: 'inline-radio', options: ['xs', 'sm', 'md', 'lg'] } },
 } satisfies Meta<typeof Avatar>;

@@ -145,7 +145,8 @@ function findTemplateToken(group: JsonObject, doc: TokenDocument): JsonObject | 
 // Edits
 
 export interface TokenFields {
-  type: string;
+  /** Effective $type; undefined leaves the type to the groups (or, for an alias, to its target). */
+  type: string | undefined;
   value: unknown;
   description: string | undefined;
   /** Extension keys to set (value) or delete (undefined). Other keys are preserved. */
@@ -180,7 +181,7 @@ export function upsertToken(doc: TokenDocument, path: string, fields: TokenField
   const layout = template ?? findTemplateToken(group, doc);
   const node: JsonObject = { kind: 'object', inline: layout?.inline ?? false, entries: [] };
   const inherited = inheritedTypeAt(doc, path);
-  if (fields.type !== inherited) node.entries.push({ key: '$type', value: { kind: 'string', value: fields.type } });
+  if (fields.type !== undefined && fields.type !== inherited) node.entries.push({ key: '$type', value: { kind: 'string', value: fields.type } });
   if (fields.description) node.entries.push({ key: '$description', value: { kind: 'string', value: fields.description } });
   const valueTemplate = layout ? getEntry(layout, '$value')?.value : undefined;
   node.entries.push({ key: '$value', value: fromPlain(fields.value, valueTemplate, node.inline) });
@@ -208,7 +209,7 @@ function updateTokenNode(doc: TokenDocument, loc: Located, path: string, fields:
   // $type: only written when it differs from what the groups already say.
   const ownType = stringEntry(node, '$type');
   const inherited = inheritedTypeAt(doc, path);
-  if ((ownType ?? inherited) !== fields.type) {
+  if (fields.type !== undefined && (ownType ?? inherited) !== fields.type) {
     const entry = getEntry(node, '$type');
     if (fields.type === inherited && entry) node.entries.splice(node.entries.indexOf(entry), 1);
     else if (entry) entry.value = { kind: 'string', value: fields.type };

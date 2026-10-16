@@ -1,0 +1,5 @@
+[
+  { "fg": "fg.default", "bg": "bg.page", "min": 4.5 },
+  { "fg": "fg.default", "bg": "bg.card", "min": 4.5 },
+  { "fg": "fg.accent", "bg": "bg.page", "min": 3 }
+]

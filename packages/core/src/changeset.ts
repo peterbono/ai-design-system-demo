@@ -2,10 +2,19 @@
 
 import type { AcceptedChange } from './compose';
 import { changeKind } from './pr-composer';
+import { type SemverBump, tokenBump } from './risk';
 
-/** Semver bump per .changeset/README.md: removals and renames are breaking, the rest is minor. */
-export function changesetBump(changes: AcceptedChange[]): 'minor' | 'major' {
-  return changes.some((c) => ['removed', 'renamed'].includes(changeKind(c))) ? 'major' : 'minor';
+/**
+ * Semver bump per .changeset/README.md, from the shared risk rules: removals and renames are breaking,
+ * other value changes minor, description-only changes patch.
+ */
+export function changesetBump(changes: AcceptedChange[]): SemverBump {
+  return tokenBump(changes) ?? 'patch';
+}
+
+/** Text of a changeset file bumping one package. */
+export function formatChangeset(packageName: string, bump: SemverBump, summary: string, details = ''): string {
+  return `---\n"${packageName}": ${bump}\n---\n\n${summary.trim()}\n${details ? `\n${details.trim()}\n` : ''}`;
 }
 
 export interface ChangesetOptions {
@@ -31,6 +40,6 @@ export function composeChangeset(changes: AcceptedChange[], opts: ChangesetOptio
   const summary = opts.source ? `${opts.title} (${opts.source}).` : `${opts.title}.`;
   return {
     path: `.changeset/${name}.md`,
-    content: `---\n"${opts.packageName}": ${bump}\n---\n\n${summary}\n\n${list}${more}\n`,
+    content: formatChangeset(opts.packageName, bump, summary, `${list}${more}`),
   };
 }

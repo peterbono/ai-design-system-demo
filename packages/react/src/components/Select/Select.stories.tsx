@@ -24,7 +24,6 @@ const TOKEN_GROUPS: SelectOption[] = [
 const meta = {
   title: 'Forms/Select',
   component: Select,
-  tags: ['autodocs'],
   args: { label: 'Theme', options: THEMES, placeholder: 'No theme', hint: 'Applies to the preview only.' },
   argTypes: {
     size: { control: 'inline-radio', options: ['sm', 'md', 'lg'] },

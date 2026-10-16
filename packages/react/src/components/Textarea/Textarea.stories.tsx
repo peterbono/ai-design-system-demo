@@ -5,7 +5,6 @@ import { Textarea } from './Textarea';
 const meta = {
   title: 'Forms/Textarea',
   component: Textarea,
-  tags: ['autodocs'],
   args: { label: 'Change summary', hint: 'Reviewers read this first. Say what changed and why.', placeholder: 'Darkens steel 600 so muted text passes 4.5:1 on the canvas.' },
 } satisfies Meta<typeof Textarea>;
 

@@ -7,7 +7,6 @@ import { IconButton } from './IconButton';
 const meta = {
   title: 'Actions/IconButton',
   component: IconButton,
-  tags: ['autodocs'],
   args: { icon: Pencil, label: 'Edit token', variant: 'ghost', size: 'md' },
   argTypes: {
     icon: { control: false },

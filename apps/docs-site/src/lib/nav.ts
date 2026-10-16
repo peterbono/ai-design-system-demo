@@ -35,6 +35,8 @@ export const PROCESS: NavItem[] = [
   { href: '/for-ai-agents/', label: 'For AI agents', icon: 'agent' },
 ];
 
+export const CONNECT: NavItem[] = [{ href: '/connect/mcp/', label: 'AI / MCP', icon: 'agent' }];
+
 export function componentGroups() {
   const groups = new Map<string, NavItem[]>();
   for (const c of loadComponents()) {
@@ -58,5 +60,6 @@ export function navigation(): NavSection[] {
     { label: 'Foundations', items: FOUNDATIONS },
     { label: 'Components', items: [{ href: '/components/', label: 'All components', icon: 'components' }], groups: componentGroups() },
     { label: 'Process', items: PROCESS },
+    { label: 'Connect', items: CONNECT },
   ];
 }

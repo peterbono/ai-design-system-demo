@@ -162,6 +162,23 @@ Three local branches simulate agent PRs, each with a draft description in `docs/
 git switch agent/card-elevation-hardcoded && npm run lint:css   # see the guardrail fail
 ```
 
+## Connect your Claude (MCP)
+
+`packages/mcp` is an MCP server that gives Claude Code, Claude Desktop or any MCP client a structured view of
+this design system: tokens resolved per brand, theme and density, the contrast gate, components and their docs,
+the agent rules. Claude can propose token changes as reviewable branches or draft pull requests; it never writes
+to `main`. `packages/cli` adds `bridge init`, `check`, `tokens`, `diff`, `propose` and `mcp`. Free and open
+source (MIT), not published to npm yet:
+
+```sh
+npm run mcp:build
+claude mcp add bridge -- node "$PWD/packages/mcp/dist/index.js" --root "$PWD"
+```
+
+This repo also ships a project `.mcp.json`. Full guide: [docs/AI.md](docs/AI.md), or the "AI / MCP" page of the
+docs site. Everything (plugin, docs site, CLI, MCP server) reads the same `bridge.config.json`
+(schema: `packages/core/bridge.config.schema.json`).
+
 ## Figma
 
 Designers edit tokens as Figma Variables with **DS Bridge**, the plugin in `apps/figma-plugin`. **Pull**

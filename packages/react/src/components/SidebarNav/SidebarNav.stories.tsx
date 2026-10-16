@@ -6,7 +6,6 @@ import { SidebarNav, SidebarNavItem, SidebarNavSection } from './SidebarNav';
 const meta = {
   title: 'Navigation/SidebarNav',
   component: SidebarNav,
-  tags: ['autodocs'],
   args: { 'aria-label': 'Library' },
 } satisfies Meta<typeof SidebarNav>;
 

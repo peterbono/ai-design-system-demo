@@ -5,7 +5,6 @@ import { NumberField } from './NumberField';
 const meta = {
   title: 'Forms/NumberField',
   component: NumberField,
-  tags: ['autodocs'],
   args: { label: 'Required approvals', defaultValue: 2, min: 1, max: 5, hint: 'Reviews needed before a token change merges.' },
   argTypes: { size: { control: 'inline-radio', options: ['sm', 'md', 'lg'] } },
 } satisfies Meta<typeof NumberField>;

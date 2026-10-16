@@ -6,7 +6,6 @@ import { Skeleton } from './Skeleton';
 const meta = {
   title: 'Feedback/Skeleton',
   component: Skeleton,
-  tags: ['autodocs'],
   args: { variant: 'text', lines: 3 },
   argTypes: { variant: { control: 'inline-radio', options: ['text', 'circle', 'rect'] } },
   decorators: [(Story) => <div style={{ maxWidth: 420 }}><Story /></div>],

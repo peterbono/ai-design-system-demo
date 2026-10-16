@@ -1,5 +1,6 @@
 // @bridge/core: pure design-token logic shared by the DS Bridge Figma plugin, the CLI and the MCP
 // server. No Figma API, no DOM, no Node-only API: everything runs in a browser, a plugin sandbox or Node.
+// Node-only helpers (local git) live in '@bridge/core/node'.
 
 export * from './types';
 export * from './config';
@@ -17,4 +18,8 @@ export * from './compose';
 export * from './risk';
 export * from './pr-composer';
 export * from './changeset';
+export * from './layered';
+export * from './token-edits';
+export * from './layered-review';
+export * from './governance';
 export * from './github-client';

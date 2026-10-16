@@ -7,7 +7,6 @@ import { Drawer, DrawerClose, DrawerContent, DrawerTrigger, type DrawerSide } fr
 const meta = {
   title: 'Overlays/Drawer',
   component: Drawer,
-  tags: ['autodocs'],
   args: { side: 'end' },
   argTypes: { side: { control: 'inline-radio', options: ['start', 'end', 'bottom'] } },
 } satisfies Meta<typeof Drawer>;

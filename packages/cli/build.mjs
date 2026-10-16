@@ -1,0 +1,18 @@
+// Bundles the bridge CLI with esbuild. @bridge/mcp (its built dist) and npm dependencies stay external;
+// @bridge/core sources are compiled in.
+import { build } from 'esbuild';
+import { chmod, rm } from 'node:fs/promises';
+
+await rm(new URL('./dist', import.meta.url), { recursive: true, force: true });
+await build({
+  entryPoints: ['src/index.ts'],
+  outfile: 'dist/index.js',
+  bundle: true,
+  format: 'esm',
+  platform: 'node',
+  target: 'node20',
+  external: ['@bridge/mcp', '@modelcontextprotocol/sdk', '@modelcontextprotocol/sdk/*', 'zod', 'zod/*'],
+  logLevel: 'warning',
+  absWorkingDir: new URL('.', import.meta.url).pathname,
+});
+await chmod(new URL('./dist/index.js', import.meta.url), 0o755);

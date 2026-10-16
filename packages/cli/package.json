@@ -1,0 +1,33 @@
+{
+  "name": "@bridge/cli",
+  "version": "0.1.0",
+  "description": "bridge CLI: set up Bridge in a design system repo, check tokens in CI, search and diff tokens, propose changes, start the MCP server.",
+  "license": "MIT",
+  "author": "Florian Gouloubi",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/peterbono/ai-design-system-demo.git",
+    "directory": "packages/cli"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "bin": {
+    "bridge": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@bridge/mcp": "0.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.9",
+    "esbuild": "0.27.7"
+  }
+}

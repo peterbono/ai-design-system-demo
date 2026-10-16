@@ -7,7 +7,6 @@ import { AlertDialog, AlertDialogContent, AlertDialogTrigger } from './AlertDial
 const meta = {
   title: 'Overlays/AlertDialog',
   component: AlertDialog,
-  tags: ['autodocs'],
 } satisfies Meta<typeof AlertDialog>;
 
 export default meta;

@@ -8,7 +8,6 @@ import { Dialog, DialogClose, DialogContent, DialogTrigger } from './Dialog';
 const meta = {
   title: 'Overlays/Dialog',
   component: Dialog,
-  tags: ['autodocs'],
   parameters: { layout: 'padded' },
 } satisfies Meta<typeof Dialog>;
 

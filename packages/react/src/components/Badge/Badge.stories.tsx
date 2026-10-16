@@ -6,7 +6,6 @@ import { Badge, type BadgeTone } from './Badge';
 const meta = {
   title: 'Data display/Badge',
   component: Badge,
-  tags: ['autodocs'],
   args: { children: 'Draft', tone: 'neutral', appearance: 'subtle', size: 'md' },
   argTypes: {
     tone: { control: 'select', options: ['neutral', 'success', 'warning', 'danger', 'info'] },

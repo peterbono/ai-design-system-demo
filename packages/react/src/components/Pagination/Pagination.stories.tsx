@@ -6,7 +6,6 @@ import { Pagination } from './Pagination';
 const meta = {
   title: 'Navigation/Pagination',
   component: Pagination,
-  tags: ['autodocs'],
   args: { pageCount: 12, defaultPage: 6, siblingCount: 1, variant: 'full', size: 'md' },
   argTypes: {
     variant: { control: 'inline-radio', options: ['full', 'compact'] },

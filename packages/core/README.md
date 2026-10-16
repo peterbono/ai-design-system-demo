@@ -4,7 +4,7 @@ Pure design-token logic for Bridge: load DTCG 2025.10 tokens across tiers, resol
 theme and density, check WCAG contrast, diff three versions of a token set, edit `*.tokens.json` files
 without reformatting them, build the pull request (body, risk tier, changeset) and talk to GitHub.
 
-No Figma API, no DOM, no Node-only API: it runs in a Figma plugin sandbox, a browser, Node or an MCP
+No Figma API, no DOM, no Node-only API in the main entry (Node helpers live in `@bridge/core/node`): it runs in a Figma plugin sandbox, a browser, Node or an MCP
 server. The DS Bridge Figma plugin (`apps/figma-plugin`) is built on it; a CLI and an MCP server can be
 too. Nothing here hardcodes a repository: callers pass a `BridgeConfig` (usually `bridge.config.json`).
 
@@ -30,23 +30,55 @@ Typecheck: `npx tsc --noEmit -p packages/core`.
 
 ## config
 
-`bridge.config.json` at the repository root. Schema: `packages/core/bridge.config.schema.json`
-(also exported as `@bridge/core/bridge.config.schema.json`).
+`bridge.config.json` at the repository root: one file and one schema (`packages/core/bridge.config.schema.json`,
+also exported as `@bridge/core/bridge.config.schema.json`) for the plugin, the docs site, the CLI and the MCP
+server. Canonical form: `repo`, `tokens` (`root`, `include`, `exclude`, `tiers`, ordered `layers` with `{mode}`
+placeholders and `optional`), `modes` (name -> `{ values, default, parity }`), `contrast` (`path`, `modes`),
+`components`, `docs`, `changesets`, `cssVar`, `governance` (`protectedBranches`, `branchPrefix`, `labels`,
+`guardrails`, `owners: { design, tech }`). The older flat form (`tokens.primitives`, `modes.brands`...) still loads.
 
 ```ts
 const CONFIG_FILE = 'bridge.config.json';
 interface BridgeConfig {
-  repo: { owner: string; name: string; defaultBranch: string };
-  tokens: { root; primitives; brands; semantic; base; density; components; contrastChecks: string };
-  components?: { dir: string };          // code components, repo-relative
-  modes: { brands: string[]; themes: string[]; densities: string[]; defaults: { brand?; theme?; density? } };
-  changeset?: { package: string };       // no changeset is written without it
+  repo: { owner; name; defaultBranch } | undefined;
+  tokens: TokenPaths & { include; exclude; tiers: Record<string, string[]>; layers: { files; optional }[] };
+  axes: Record<string, { values; default; parity }>;     // canonical modes
+  modes: { brands; themes; densities; defaults };         // brand/theme/density view for the tier model
+  contrast: { path; modes? } | undefined;
+  components?: { dir; docsSuffix; styleSuffix; reference?; index? };
+  docs; changesets: { dir; package } | undefined; changeset?: { package };
+  cssVar: { prefix; separator };
+  governance: { protectedBranches; branchPrefix; labels; guardrails; owners: { design: string[]; tech: string[] } };
 }
-function defineConfig(input: BridgeConfigInput): BridgeConfig;   // fills defaults
-function loadConfig(source: string | unknown): BridgeConfig;       // parse + validate, throws ConfigError { problems: string[] }
-function tokensPath(config: BridgeConfig, rel?: string): string;   // "<tokens.root>/<rel>"
-const DEFAULT_TOKEN_PATHS: TokenPaths;                               // root "tokens", folders as in the table above
+function defineConfig(input): BridgeConfig;   function loadConfig(source): BridgeConfig;   // ConfigError { problems }
+function toConfigJson(config): object;        // canonical JSON (what `bridge init` writes)
+function protectedBranchesOf(config); function baseBranchOf(config); function tokensPath(config, rel?);
 ```
+
+## governance
+
+```ts
+function assertSafeBranch(branch, { protectedBranches?, base?, branchPrefix? }): void;  // ProtectedBranchError
+const DEFAULT_PROTECTED_BRANCHES = ['main', 'master'];
+```
+
+The GitHub client and the local git writer both call it: no Bridge surface writes to a protected branch.
+
+## layered sets (CLI and MCP)
+
+```ts
+new LayeredTokenSet(config, files: Map<relPath, text>);  // combos(), view(combo), resolve(path, combo), tierOf(path), cssVarName(path)
+function validateLayered(set): LayerIssue[];              // DTCG shapes, names, aliases per combo, missing layers, mode parity
+function runLayeredContrast(set, pairs, modes?); function contrastDelta(before, after);
+function applyTokenEdits(set, edits: TokenEdit[]): { files; touched; notes };   // set, add, remove, rename; minimal diffs
+function coerceValue(input, type?, existing?);            // "#ff5500", "12px", "150ms" -> the repo's DTCG form
+function diffLayered(before, after); function layeredImpact(before, after, changes);
+function classifyLayered(changes, otherFiles?, config?);  // classifyRisk underneath
+function composeProposalBody(input); function changeTable(changes); function contrastDeltaTable(deltas);
+```
+
+`@bridge/core/node` (Node only): `git`, `isGitRepo`, `currentBranch`, `branchExists`, `showFile`, `listFilesAt`,
+`originRepo`, `commitToNewLocalBranch` (plumbing commit on a new branch; working tree, index and checkout untouched).
 
 ## types
 
@@ -170,16 +202,19 @@ Each value goes to the file of its tier and mode; only changed files are returne
 
 ```ts
 type RiskTier = 1 | 2 | 3;
-function classifyRisk(input: { tokenChanges?; files?: { path; status? }[]; config? }): { tier; label; reasons: string[]; bump?: 'minor' | 'major' };
+function classifyRisk(input: { tokenChanges?; files?: { path; status? }[]; config? }): { tier; label; reasons: string[]; bump?: 'patch' | 'minor' | 'major' };
+function tokenBump(changes); function isGuardrail(path, config?);
 const RISK_LABELS: Record<RiskTier, string>;
 ```
 
-Rules (from `docs/GOVERNANCE.md`, highest wins): Tier 3 for any token added, changed, renamed or
-removed in any tier or override, any `*.tokens.json`, and guardrail files (contrast checks,
-`bridge.config.json`, `AGENTS.md`, `CLAUDE.md`, `docs/GOVERNANCE.md`, `.stylelintrc.json`, `.github/**`).
-Tier 2 for component sources under `components.dir` and unknown source files. Tier 1 for docs, `*.md`,
-stories, `*.docs.json`, tests and changesets. Removals and renames bump `major`, other token changes
-`minor`.
+The one classifier for the plugin, the docs site, the CLI and the MCP server. Rules (from
+`docs/GOVERNANCE.md`, highest wins): Tier 3 for any token added, changed (value, type, scopes), renamed or
+removed in any tier or override, `*.tokens.json` files when their token changes are unknown, and guardrail
+files (`governance.guardrails`, the contrast checks, `bridge.config.json`, `.github/**`). Tier 2 for component
+sources under `components.dir` and unknown source files. Tier 1 for a description-only token edit, docs,
+`*.md`, stories, `*.docs.json`, tests and changesets. Bumps: removals and renames `major`, other token
+changes `minor`, description-only `patch`. Token changes can be `AcceptedChange`s or `{ kind, path,
+descriptionOnly? }` summaries.
 
 ## pr-composer and changeset
 
