@@ -44,6 +44,7 @@ export function createServer(ctx: BridgeContext): McpServer {
         'Bridge exposes a design system repo (DTCG tokens, components, docs) to you.',
         'Read before you write: bridge_get_guidelines for the repo rules, bridge_search_tokens / bridge_get_token before using or proposing a token.',
         'Never hardcode a value in UI code when a token exists; never invent a token name (check it with bridge_get_token).',
+        'bridge_audit measures how a product codebase adopts the design system (hardcoded values, foreign UI components) and suggests the tokens and components to use.',
         'Token changes go through bridge_propose_token_change only: it validates, checks contrast, and opens a branch or PR. It never writes to main.',
         'Adding, renaming or removing a token is Tier 3: tell the user it needs design and tech owner approval.',
       ].join(' '),
@@ -240,6 +241,25 @@ export function createServer(ctx: BridgeContext): McpServer {
     run((a) => ops.scaffoldComponentOp(ctx, a)),
   );
 
+  // --- adoption ---
+  server.registerTool(
+    'bridge_audit',
+    {
+      title: 'Audit design system adoption',
+      description:
+        'Measure how a product codebase uses this design system (local only). Scans CSS, SCSS, style/sx/styled objects, CSS-in-JS and Tailwind classes for hardcoded colors, spacing, radii, shadows, durations, z-index and fonts, each with the closest token (colors by deltaE across every mode) and a confidence; and JSX for DS components versus foreign UI libraries (MUI, react-admin, Radix, shadcn/ui...), native elements and re-created DS components. Returns token and component adoption, counts by category, top files and top fixes; for a single file (or findings: true) the findings with line numbers.',
+      inputSchema: {
+        path: z.string().min(1).describe('Product folder or file, absolute or relative to the design system repo root.'),
+        baseline: z.string().optional().describe('Earlier report from `bridge audit --json` to compare with (progress per metric and file).'),
+        label: z.string().optional(),
+        limit: z.number().int().min(1).max(50).optional().describe('Top files and fixes to return. Default 10.'),
+        findings: z.boolean().optional().describe('Include per-file findings with line numbers. Default: only when auditing one file.'),
+      },
+      annotations: RO,
+    },
+    run((a) => ops.auditOp(ctx, a)),
+  );
+
   // --- resources ---
   server.registerResource('resolved-tokens', 'bridge://tokens/resolved', { title: 'Resolved tokens', description: 'Every token resolved in the default mode, plus only the values that differ in each other mode combination.', mimeType: 'application/json' }, async (uri) => {
     const set = await ctx.tokens();
@@ -374,6 +394,47 @@ export function createServer(ctx: BridgeContext): McpServer {
                 'For each finding pick the token that matches the intent, not only the value (text color vs border vs surface); confirm with bridge_get_token when unsure.',
                 'Components must use semantic or component tokens for color, elevation and focus, never primitives. If no token fits, say which token is missing instead of keeping the literal (adding one is Tier 3).',
                 'Return the rewritten code and a table: line, literal, token, why.',
+              ].join('\n'),
+            },
+          },
+        ],
+      };
+    },
+  );
+
+  server.registerPrompt(
+    'migrate-file-to-ds',
+    {
+      title: 'Migrate a file to the design system',
+      description: 'Audit one product file, then rewrite it with design system components and tokens.',
+      argsSchema: { path: z.string().describe('Product file, absolute or relative to the design system repo root') },
+    },
+    async ({ path }) => {
+      let audit = '';
+      try {
+        audit = JSON.stringify(await ops.auditOp(ctx, { path, findings: true, limit: 50 }), null, 1);
+      } catch (e) {
+        audit = `(automatic audit failed: ${(e as Error).message}; call bridge_audit with the path)`;
+      }
+      return {
+        messages: [
+          {
+            role: 'user',
+            content: {
+              type: 'text',
+              text: [
+                `Migrate \`${path}\` to the design system: DS components instead of foreign UI libraries and native elements, tokens instead of hardcoded values.`,
+                '',
+                'Bridge audited it (findings with line numbers, the closest token for each value, the DS component for each foreign or native one):',
+                '```json',
+                audit,
+                '```',
+                '',
+                '1. Read the file. For each component finding, call bridge_get_component on the suggested DS component and map the props (variants, sizes, labels, events). If no DS component fits, keep the original and say why.',
+                '2. For each value: use the suggested token when the confidence is exact or high and it matches the intent (text vs background vs border); check medium and low ones with bridge_search_tokens or bridge_get_token. Use semantic or component tokens for color, elevation and focus, never primitives. If no token fits, keep the literal and list the missing token (adding one is Tier 3).',
+                '3. Keep behavior and accessibility: same data flow, labels wired, keyboard paths, no new dependencies.',
+                '4. Return the rewritten file, then a table: line, before, after, why. End with what is left (values or components without a DS equivalent).',
+                '5. Run bridge_audit on the file again and report the new token and component adoption.',
               ].join('\n'),
             },
           },

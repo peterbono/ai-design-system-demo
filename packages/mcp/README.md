@@ -57,9 +57,11 @@ and the full guide: [docs/AI.md](../../docs/AI.md).
 | `bridge_get_review` | Diff table, contrast before/after, impact, tier check, CI status, approvals |
 | `bridge_review_pr` | Comment, approve or request changes (token required) |
 | `bridge_scaffold_component` | New component folder per the repo checklist |
+| `bridge_audit` | Adoption in a product folder or file (local): token and component adoption, hardcoded values with the closest token, foreign components with the DS one to use, top files and fixes |
 
 Resources: `bridge://tokens/resolved`, `bridge://design-language`, `bridge://guidelines`,
-`bridge://components/{name}`. Prompts: `review-token-pr`, `add-component`, `audit-ui-for-tokens`.
+`bridge://components/{name}`. Prompts: `review-token-pr`, `add-component`, `audit-ui-for-tokens`,
+`migrate-file-to-ds`.
 
 ## Configuration
 

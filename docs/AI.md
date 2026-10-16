@@ -103,6 +103,7 @@ Any client that speaks MCP over stdio works: run `node packages/mcp/dist/index.j
 | `bridge_get_review` | Review a token PR: diff table, contrast before and after, downstream impact, tier, CI, approvals |
 | `bridge_review_pr` | Comment, approve or request changes on a PR, as you |
 | `bridge_scaffold_component` | Generate a component folder that follows the repo checklist |
+| `bridge_audit` | Measure how a product codebase adopts the design system: token and component adoption, hardcoded values with the closest token, foreign UI components with the DS component to use, top files and fixes |
 
 Resources: `bridge://tokens/resolved`, `bridge://design-language`, `bridge://guidelines`,
 `bridge://components/{name}`.
@@ -113,6 +114,8 @@ Prompts (slash commands in Claude Code, for example `/mcp__bridge__audit-ui-for-
 - `add-component`: check for an existing component, plan the API and tokens, then scaffold.
 - `audit-ui-for-tokens`: paste CSS or TSX; Bridge flags hardcoded colors, lengths, durations, shadows and
   z-index and suggests the token for each, matched to the property (a background gets a surface token).
+- `migrate-file-to-ds`: give a product file; Bridge audits it (values and components with line numbers), then
+  Claude rewrites it with DS components and tokens, explains each change and re-runs the audit.
 
 Things to ask:
 
@@ -120,6 +123,38 @@ Things to ask:
 - "Darken muted text in the light theme and show me the contrast impact first."
 - "Review PR 42 for the design owner."
 - "Audit this component's CSS for hardcoded values."
+- "How much of apps/admin uses the design system? Which files should we migrate first?"
+
+## Measure adoption in product code
+
+`bridge audit` reads a product codebase that consumes the design system and tells you how much of it really
+uses it. Run it from the design system repo (or pass `--ds <dir>`):
+
+```sh
+bridge audit ../my-app/src                         # summary in the terminal
+bridge audit ../my-app/src --json audit.json --md audit.md --label "my-app"
+bridge audit ../my-app/src --baseline audit.json --no-regress --fail-under 60   # CI: exit 1 when it drops
+bridge audit ../my-app/src --fix                   # dry run: CSS values equal to a token
+bridge audit ../my-app/src --fix --write           # replace them with var(--token)
+```
+
+- **Token adoption** = token references / (token references + hardcoded values). Hardcoded colors, spacing,
+  sizes, radii, borders, shadows, durations, easings, z-index and fonts are found in CSS, SCSS, CSS modules,
+  `style`, MUI `sx`, `styled()`, theme objects, CSS-in-JS templates and Tailwind classes (`p-[13px]`,
+  `bg-blue-500`). Each gets the closest token: colors by perceptual distance (deltaE in OKLab) across every
+  brand, theme and density, lengths by the nearest scale step, with a confidence.
+- **Component adoption** = DS component instances / all UI component instances: DS, foreign libraries (MUI,
+  react-admin, antd, Chakra, Radix, Headless UI, Mantine, shadcn/ui local components), native elements that
+  should be DS components (`button`, `input`, `select`, `textarea`, `dialog`, `table`) and local components
+  named like a DS component.
+- The JSON report is versioned (`packages/core/audit-report.schema.json`). Commit it under
+  `apps/docs-site/src/data/audits/` and the docs site shows it on the Adoption page, with the trend across
+  baselines. Exit codes: 0 ok, 1 under `--fail-under` or regressed with `--no-regress`, 2 setup error.
+- In the editor, the lint plugins give the same feedback while you type: `@bridge/stylelint-plugin`
+  (`bridge/use-tokens`, autofix for exact matches) and `@bridge/eslint-plugin`
+  (`bridge/no-hardcoded-style-values`, `bridge/prefer-ds-components`). See their READMEs.
+- `bridge.config.json` takes an optional `audit` section: `packages` (where DS components are imported from),
+  `foreignLibraries`, `nativeElements`, `exclude`.
 
 ## Safety model
 
