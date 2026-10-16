@@ -133,8 +133,8 @@ upload `apps/docs-site/dist`. Set `SITE_URL` for absolute URLs.
 
 ## The operating model
 
-- **The repo is the source of truth.** Tokens live as W3C DTCG JSON; Figma explores and receives a one-way
-  import of what shipped, with no bidirectional sync.
+- **The repo is the source of truth.** Tokens live as W3C DTCG JSON. Figma receives what shipped, and
+  Figma edits come back only as reviewed pull requests (DS Bridge), never as a direct write or a live sync.
 - **Tiers keep decisions in one place.** Primitives hold raw scales; brands map them to roles; semantic
   tokens give them meaning per theme; component tokens give components stable hooks.
 - **Guardrails live in CI, not in prompts.** Stylelint rejects raw values, the token build rejects
@@ -157,6 +157,24 @@ Three local branches simulate agent PRs, each with a draft description in `docs/
 | `agent/badge-subtle-variant` | 2, medium | Approve after design review |
 | `agent/focus-ring-token` | 3, high | Needs design + tech owner approval |
 | `agent/card-elevation-hardcoded` | 2, but CI fails | Request changes: use the elevation token |
+
+```sh
+git switch agent/card-elevation-hardcoded && npm run lint:css   # see the guardrail fail
+```
+
+## Figma
+
+Designers edit tokens as Figma Variables with **DS Bridge**, the plugin in `apps/figma-plugin`. It pulls
+the DTCG files from `main` into Variables (Primitives; Brand with Bridge and Ocean modes; Semantic with Light and Dark; Density with
+Comfortable and Compact; Component), and turns
+variable edits into a draft PR: a three-way diff against the last pulled commit and current `main`,
+conflicts resolved side by side, guardrails (aliases, scopes, WCAG contrast) checked before the PR
+button is enabled. The PR then goes through the same CI and CODEOWNERS review as any other Tier 3
+change. Works on the free Figma plan (Plugin API only). See [`apps/figma-plugin/README.md`](apps/figma-plugin/README.md).
+
+```sh
+npm run plugin:build    # then Figma desktop: Plugins > Development > Import plugin from manifest
+```
 
 ## Placeholders
 

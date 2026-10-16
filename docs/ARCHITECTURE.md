@@ -23,7 +23,11 @@ flowchart LR
     C --> VT["Vitest + axe-core<br/>keyboard and ARIA"]
   end
   F["Figma<br/>exploration"] -. "proposal via issue / PR" .-> P
-  RJ -. "one-way import" .-> FV["Figma variables"]
+  RJ -. "pull (DS Bridge)" .-> FV["Figma variables<br/>Primitives, Brand, Semantic, Density, Component"]
+  FV -- "edit in Figma" --> DB["DS Bridge review<br/>three-way diff + guardrails"]
+  DB -- "branch tokens/* + draft PR" --> PR["Pull request<br/>Tier 3"]
+  PR --> CI["CI + CODEOWNERS<br/>design + tech approval"]
+  CI -- "human merge" --> P
 ```
 
 Plain-text version:
@@ -34,8 +38,9 @@ primitives --> brands (palette roles) --> semantic light/dark --> component tier
 all of it --> Style Dictionary (build.mjs) --> tokens.css + tokens.ts + resolved.json, fails on contrast
 @base-ui/react (behavior) + tokens.css (look) --> @demo-ds/react components --> Storybook, Vitest
 
-Figma (explore) ..proposal..> PR changing tokens
-resolved.json / tokens JSON ..one-way import..> Figma variables
+tokens JSON (main) --pull (DS Bridge)--> Figma variables (Primitives, Brand, Semantic, Density, Component)
+Figma variables --DS Bridge: three-way diff + guardrails--> branch tokens/* + draft PR
+PR --> CI guardrails + CODEOWNERS (design + tech) --> human merge --> main
 ```
 
 ## Token tiers
@@ -98,15 +103,24 @@ component tier, density modes, motion, layers, focus offset, icon sizes and brea
 
 ## Where Figma fits
 
-Figma is where designers explore. It is not the source of truth and there is no bidirectional live sync.
+Figma is where designers explore and edit. It is not the source of truth and there is no live sync.
+The bridge is DS Bridge, the plugin in `apps/figma-plugin`:
 
-1. A designer explores in Figma and opens an issue or PR describing the token or component change.
-2. The change lands in this repo through the normal review gates (`docs/GOVERNANCE.md`).
-3. After merge, tokens are imported one way into Figma variables (for example with Tokens Studio reading
-   the DTCG files), so the next exploration starts from what actually shipped.
+1. **Pull.** The plugin reads the DTCG files on `main` through the GitHub API and writes them into Figma
+   variables: a Primitives collection, and Semantic with Light and Dark modes (or one collection per
+   theme on plans limited to one mode). The pulled commit is stored in the file as the base.
+2. **Edit.** Designers change variables in Figma like any other variable.
+3. **Review and push.** The plugin diffs three versions per token (base, Figma, current `main`), shows
+   conflicts side by side, runs the guardrails (semantic tokens alias primitives, no cycles or broken
+   references, no `ALL_SCOPES`, WCAG contrast on declared pairs) and opens a draft PR from a
+   `tokens/*` branch with a single commit and a changeset.
+4. **Review gates.** The PR goes through CI and CODEOWNERS like any Tier 3 change (`docs/GOVERNANCE.md`).
+   A human merges it; the next pull brings Figma back in line with what shipped.
 
-Why one way: two-way sync makes it unclear which side won a conflict, and it lets an unreviewed canvas edit
-reach production. Keeping the repo authoritative means every change has a diff, a reviewer and a changelog.
+Why not a live two-way sync: it makes it unclear which side won a conflict, and it lets an unreviewed
+canvas edit reach production. Edits flow both ways, but only through a reviewed PR, so every change has
+a diff, a reviewer and a changelog. Tokens removed on `main` are flagged as orphans in Figma, never
+deleted silently. Composite tokens such as shadows stay code-only.
 
 ## Where the AI agent fits
 
@@ -130,3 +144,5 @@ Rules live in CI, not in prompts. A prompt can be ignored; a failing Stylelint c
 | `build-storybook` | Stories that do not compile or render |
 | Changeset check | Package changes with no semver bump or changelog entry |
 | CODEOWNERS | Token and guardrail changes without design + tech approval |
+| DS Bridge (in Figma, before the PR) | Semantic tokens not aliasing a primitive, raw values in semantic tokens, broken references, alias cycles, missing theme values, `ALL_SCOPES` variables, type changes, WCAG AA failures on `contrast-pairs.json` |
+| Plugin CI job | DS Bridge typecheck, unit tests (lossless DTCG round trip, diff, resolver, WCAG, validators), build |
