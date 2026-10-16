@@ -4,8 +4,9 @@ import '@bridge-ds/tokens/tokens.css';
 import '../styles/site.css';
 import '../styles/github.css';
 import '../styles/spaces.css';
+import '../styles/studio-app.css';
 import { brandCss } from '../brand/tokens';
-import GitHubConnect from '../components/GitHubConnect.astro';
+import GitHubAccount from '../components/GitHubAccount.astro';
 import GitHubDialog from '../components/GitHubDialog.astro';
 import Icon from '../components/Icon.astro';
 import Logo from '../components/Logo.astro';
@@ -57,7 +58,8 @@ if (crumbs) trail.push(...crumbs);
 else if (here.item && here.item.href !== spaceHome) {
   trail.push(here.item.href === path ? { label: here.item.label } : { label: here.item.label, href: here.item.href }, ...(here.item.href === path ? [] : [{ label: title }]));
 } else if (path !== spaceHome || space === 'settings') trail.push({ label: title });
-const showCrumbs = crumbs !== false && !isHome;
+// The Studio is an app: its compact page headers say where you are, so no breadcrumb there.
+const showCrumbs = crumbs !== false && !isHome && !isStudio;
 const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of truth' : `${title} | ${SPACE_LABEL[space] === 'Library' ? 'Bridge' : `Bridge ${SPACE_LABEL[space]}`}`;
 ---
 
@@ -174,7 +176,18 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
         <kbd class="kbd" aria-hidden="true">⌘K</kbd>
       </button>
       <div class="topbar-actions">
-        {isStudio && <div class="topbar-gh"><GitHubConnect /></div>}
+        {
+          isStudio && (
+            <div class="topbar-studio">
+              <a class="hd-btn hd-drafts" href="/studio/drafts/" data-keep-branch data-drafts-open data-count="0" aria-label="Drafts" title="Token edits waiting in this browser">
+                <Icon name="draft" size={16} />
+                <span class="hd-label">Drafts</span>
+                <span class="hd-n" data-nav-count-value-hd>0</span>
+              </a>
+              <GitHubAccount />
+            </div>
+          )
+        }
         <a class="icon-btn" href={STORYBOOK_URL} aria-label="Component workbench (Storybook)" title="Component workbench (Storybook), for contributors"><Icon name="storybook" /></a>
         <a class="icon-btn" href={GITHUB_URL} aria-label="View the repository on GitHub" title="GitHub"><Icon name="github" /></a>
         <details class="scope-menu" id="scope-menu">
@@ -285,20 +298,6 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
       <div class="scrim" id="scrim" hidden></div>
 
       <main id="main" tabindex="-1" class:list={[{ wide, 'has-toc': showToc }]}>
-        {
-          isStudio && (
-            <p class="studio-access" data-gh-connect data-studio-access>
-              <Icon name="info" size={16} />
-              <span>
-                <strong>Read only.</strong> Browse everything here. Connect GitHub to propose, review, merge or revert.
-              </span>
-              <button type="button" class="btn btn-secondary btn-sm" data-gh-open>
-                <Icon name="github" size={16} />
-                Connect GitHub
-              </button>
-            </p>
-          )
-        }
         {
           showCrumbs && (
             <nav class="crumbs" aria-label="Breadcrumb">

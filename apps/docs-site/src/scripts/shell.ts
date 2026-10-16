@@ -419,6 +419,14 @@ function setCount(kind: 'drafts' | 'reviews', n: number | null) {
     const v = el.querySelector('[data-nav-count-value]');
     if (v) v.textContent = n ? String(n) : '';
   });
+  // The Drafts counter in the Studio header always shows its number, zero included.
+  if (kind === 'drafts')
+    document.querySelectorAll<HTMLElement>('[data-drafts-open]').forEach((el) => {
+      el.dataset.count = String(n ?? 0);
+      el.setAttribute('aria-label', `Drafts, ${n ?? 0} change${n === 1 ? '' : 's'} in this browser`);
+      const v = el.querySelector('[data-nav-count-value-hd]');
+      if (v) v.textContent = String(n ?? 0);
+    });
 }
 
 /** The branch this Studio view reads, from ?branch=. Empty: the default branch. */

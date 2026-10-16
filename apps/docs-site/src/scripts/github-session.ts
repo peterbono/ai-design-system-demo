@@ -186,13 +186,26 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
   wired = true;
 
   const paint = () => {
+    const state = viewer ? 'connected' : !checked && getToken() ? 'checking' : 'readonly';
     document.querySelectorAll<HTMLElement>('[data-gh-connect]').forEach((block) => {
-      block.dataset.state = viewer ? 'connected' : !checked && getToken() ? 'checking' : 'readonly';
+      block.dataset.state = state;
       const text = block.querySelector('[data-gh-status-text]');
       if (text) text.textContent = viewer ? `Connected as @${viewer.login}` : 'Read only';
       const label = block.querySelector('[data-gh-open-label]');
       if (label) label.textContent = viewer ? 'Token' : 'Connect GitHub';
     });
+    // Header account menu: login, avatar.
+    document.querySelectorAll<HTMLElement>('[data-gh-acct]').forEach((acct) => {
+      const login = viewer ? `@${viewer.login}` : '';
+      acct.querySelectorAll('[data-gh-login], [data-gh-login-full]').forEach((el) => (el.textContent = viewer ? (el.hasAttribute('data-gh-login') ? viewer.login : login) : ''));
+      const img = acct.querySelector<HTMLImageElement>('[data-gh-avatar]');
+      if (img) {
+        img.hidden = !viewer;
+        if (viewer && !img.src.startsWith(viewer.avatar_url)) img.src = `${viewer.avatar_url}${viewer.avatar_url.includes('?') ? '&' : '?'}s=40`;
+      }
+      acct.querySelector('summary')?.setAttribute('aria-label', viewer ? `GitHub: connected as ${viewer.login}. Account menu` : 'GitHub account');
+    });
+    paintGates();
     if (forget) forget.hidden = !viewer;
   };
 
@@ -240,13 +253,36 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
       save.textContent = 'Check and connect';
     }
   });
-  forget?.addEventListener('click', () => {
+  const disconnect = () => {
     setToken(null);
     viewer = null;
-    dialog.close();
+    access = null;
+    if (dialog.open) dialog.close();
     paint();
+    paintAccess();
     notify(null);
+  };
+  forget?.addEventListener('click', disconnect);
+  document.addEventListener('click', (e) => {
+    if (!(e.target as HTMLElement).closest('[data-gh-forget]')) return;
+    (e.target as HTMLElement).closest('details')?.removeAttribute('open');
+    disconnect();
   });
+  // Gated actions (data-gh-gate): without a connection a click opens the Connect dialog instead of acting.
+  document.addEventListener(
+    'click',
+    (e) => {
+      const gated = (e.target as HTMLElement).closest<HTMLElement>('[data-gh-gate][aria-disabled="true"]');
+      if (!gated) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      if (error) error.hidden = true;
+      input.value = '';
+      dialog.showModal();
+      input.focus();
+    },
+    true,
+  );
 
   paint();
   check()
@@ -261,4 +297,45 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
       paint();
       notify(viewer);
     });
+  listeners.push(() => void readAccess().then(paintAccess));
+}
+
+/** What the connected token may do on this repository: null until known, or without a token. */
+let access: { write: boolean } | null = null;
+
+async function readAccess(): Promise<{ write: boolean } | null> {
+  if (!viewer || !getToken()) return (access = null);
+  try {
+    const r = readRepo();
+    const res = await fetch(`${API}/repos/${r.owner}/${r.repo}`, { headers: headers() });
+    if (!res.ok) return (access = null);
+    const info = (await res.json()) as { permissions?: { admin?: boolean; maintain?: boolean; push?: boolean } };
+    const p = info.permissions;
+    return (access = { write: Boolean(p && (p.admin || p.maintain || p.push)) });
+  } catch {
+    return (access = null);
+  }
+}
+
+function paintAccess() {
+  document.querySelectorAll<HTMLElement>('[data-gh-perm]').forEach((el) => {
+    el.textContent = !viewer ? '' : !access ? 'Unknown' : access.write ? 'Read and write' : 'Read only';
+    el.className = `gh-perm${access ? (access.write ? ' is-write' : ' is-read') : ''}`;
+  });
+  document.querySelectorAll<HTMLElement>('[data-gh-perm-help]').forEach((el) => (el.hidden = !viewer || !access || access.write));
+}
+
+/** Marks every [data-gh-gate="verb phrase"] action as unavailable until GitHub is connected, with a tooltip. */
+export function paintGates(root: ParentNode = document) {
+  const on = Boolean(viewer);
+  root.querySelectorAll<HTMLElement>('[data-gh-gate]').forEach((el) => {
+    if (on) {
+      el.removeAttribute('aria-disabled');
+      if (el.dataset.tip?.startsWith('Connect GitHub')) delete el.dataset.tip;
+    } else {
+      el.setAttribute('aria-disabled', 'true');
+      el.dataset.tip = `Connect GitHub to ${el.dataset.ghGate}.`;
+      el.classList.add('has-tip');
+    }
+  });
 }
