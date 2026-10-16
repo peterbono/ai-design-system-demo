@@ -171,7 +171,9 @@ code {
   border-radius: var(--radius-control);
   background-color: var(--color-bg-subtle);
   color: var(--color-text-default);
-  font-size: calc(1em - var(--space-0-5));
+  --_code-size: calc(1em - var(--space-0-5));
+
+  font-size: var(--_code-size);
   overflow-wrap: anywhere;
 }
 
