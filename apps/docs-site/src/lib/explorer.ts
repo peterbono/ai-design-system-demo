@@ -4,7 +4,21 @@
 import { loadComponents } from './components';
 import { contrastPairs } from './contrast';
 import { libraryTokenUsage, typeLabel } from './stats';
+import { siteRepo } from './config';
+import { listDir, readText } from './repo';
 import { BRANDS, hrefForVar, loadTokens, MODES, type Brand, type Mode, type Semantic, type Tier } from './tokens';
+
+let filesCache: Record<string, string> | null = null;
+/** Token files of this build, keyed "<dir>/<file>", as the explorer and @bridge-ds/core buildTokenSet read them. */
+export function tokenFiles(): Record<string, string> {
+  if (filesCache) return filesCache;
+  const root = siteRepo().tokensRoot;
+  const files: Record<string, string> = {};
+  for (const dir of listDir(root).filter((d) => !d.includes('.'))) {
+    for (const f of listDir(`${root}/${dir}`)) if (f.endsWith('.tokens.json')) files[`${dir}/${f}`] = readText(`${root}/${dir}/${f}`);
+  }
+  return (filesCache = files);
+}
 
 export interface ExplorerLink {
   name: string;

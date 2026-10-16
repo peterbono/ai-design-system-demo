@@ -1,9 +1,0 @@
----
-interface Props {
-  value: string;
-  kind: string; // e.g. "CSS variable", "token path", "Figma variable"
-}
-const { value, kind } = Astro.props;
----
-
-<button type="button" class="copy" data-copy={value} aria-label={`Copy ${kind} ${value}`} title={`Copy ${kind}`}>{value}</button>

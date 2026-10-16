@@ -2,16 +2,11 @@
 // The data the token explorer and the token detail drawer build their token set from, embedded as JSON: the token
 // files of this build, bridge.config.json, the contrast checks and build-time usage (which components read each
 // token, from the component CSS scan). Mount it once per page; scripts/explorer/data.ts reads it.
-import { explorerTokens } from '../../lib/explorer';
-import { listDir, readText, exists } from '../../lib/repo';
+import { explorerTokens, tokenFiles } from '../../lib/explorer';
+import { readText, exists } from '../../lib/repo';
 import { CONTRAST_FILE } from '../../lib/contrast';
-import { siteRepo } from '../../lib/config';
 
-const root = siteRepo().tokensRoot;
-const files: Record<string, string> = {};
-for (const dir of listDir(root).filter((d) => !d.includes('.'))) {
-  for (const f of listDir(`${root}/${dir}`)) if (f.endsWith('.tokens.json')) files[`${dir}/${f}`] = readText(`${root}/${dir}/${f}`);
-}
+const files = tokenFiles();
 const usage = Object.fromEntries(explorerTokens().map((t) => [t.path, { used: t.used, usedBy: t.usedBy }]));
 const safe = (s: string) => s.replace(/</g, '\\u003c');
 const filesJson = safe(JSON.stringify(files));
