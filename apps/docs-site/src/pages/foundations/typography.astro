@@ -1,4 +1,5 @@
 ---
+import '../../styles/foundations.css';
 import Layout from '../../layouts/Layout.astro';
 import CopyName from '../../components/CopyName.astro';
 import Updated from '../../components/Updated.astro';
@@ -23,7 +24,7 @@ const used = (v: string) => componentsUsing(v).join(', ') || 'Not used by a comp
   <Updated date={updated} />
 
   <h2>Families</h2>
-  <div class="table-wrap">
+  <div class="table-wrap fd-table">
     <table>
       <thead><tr><th scope="col">Token</th><th scope="col">Sample</th><th scope="col">Stack</th></tr></thead>
       <tbody>
@@ -40,12 +41,12 @@ const used = (v: string) => componentsUsing(v).join(', ') || 'Not used by a comp
     </table>
   </div>
   <p class="muted small">
-    Inter and JetBrains Mono are listed first but not bundled; without them the system font of each platform is used. That is a deliberate
-    choice for this demo: no font download, no layout shift.
+    The system lists Inter and JetBrains Mono first but does not bundle them: a product without them falls back to the platform font, with no
+    download and no layout shift. This docs site self-hosts both, so the samples above render in the real faces.
   </p>
 
   <h2>Size scale</h2>
-  <div class="table-wrap">
+  <div class="table-wrap fd-table">
     <table>
       <thead><tr><th scope="col">Token</th><th scope="col">Size</th><th scope="col">Sample</th><th scope="col">Used by</th></tr></thead>
       <tbody>
@@ -64,7 +65,7 @@ const used = (v: string) => componentsUsing(v).join(', ') || 'Not used by a comp
   </div>
 
   <h2>Weights</h2>
-  <div class="table-wrap">
+  <div class="table-wrap fd-table">
     <table>
       <thead><tr><th scope="col">Token</th><th scope="col">Value</th><th scope="col">Sample</th><th scope="col">Used by</th></tr></thead>
       <tbody>
@@ -83,7 +84,7 @@ const used = (v: string) => componentsUsing(v).join(', ') || 'Not used by a comp
   </div>
 
   <h2>Line heights</h2>
-  <div class="table-wrap">
+  <div class="table-wrap fd-table">
     <table>
       <thead><tr><th scope="col">Token</th><th scope="col">Value</th><th scope="col">Use for</th><th scope="col">Used by</th></tr></thead>
       <tbody>

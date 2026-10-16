@@ -1,6 +1,7 @@
 ---
-import { Badge } from '@demo-ds/react';
+import '../../styles/foundations.css';
 import Layout from '../../layouts/Layout.astro';
+import Icon from '../../components/Icon.astro';
 import Updated from '../../components/Updated.astro';
 import { contrastPairs, THRESHOLDS } from '../../lib/contrast';
 import { PAGE_SOURCES, freshness } from '../../lib/sources';
@@ -10,6 +11,12 @@ const pairs = contrastPairs();
 const updated = freshness(PAGE_SOURCES.contrast);
 const failures = pairs.flatMap((p) => MODES.filter((m) => !p.modes[m].aa).map((m) => ({ p, m })));
 const total = pairs.length * MODES.length;
+const passing = total - failures.length;
+const rate = total ? Math.floor((passing / total) * 1000) / 10 : 100;
+const perMode = MODES.map((m) => ({ m, pass: pairs.filter((p) => p.modes[m].aa).length, total: pairs.length }));
+const failingPairs = pairs.filter((p) => MODES.some((m) => !p.modes[m].aa));
+const modeLabel = (m: string) => (m === 'light' ? 'Light' : 'Dark');
+const need = (usage: 'text' | 'ui') => THRESHOLDS[usage].aa;
 ---
 
 <Layout title="Contrast" description="WCAG contrast of real foreground and background token pairs, in light and dark." sources={PAGE_SOURCES.contrast} updated={updated}>
@@ -20,28 +27,89 @@ const total = pairs.length * MODES.length;
   </p>
   <Updated date={updated} />
 
-  <div class="callout">
-    <p>
-      <strong>{total - failures.length} of {total}</strong> checks pass AA.
-      {failures.length > 0 && <> {failures.length} need attention; they are listed first below.</>}
-      Text needs {THRESHOLDS.text.aa}:1 for AA and {THRESHOLDS.text.aaa}:1 for AAA. Control edges, icons and focus rings (marked UI) need
-      {THRESHOLDS.ui.aa}:1 (WCAG 1.4.11; there is no AAA level for UI).
-    </p>
-  </div>
+  <section class="ct-summary" aria-label="Summary">
+    <div class="ct-score">
+      <p class="ct-big display num">{rate}%</p>
+      <p class="ct-score-label"><strong class="num">{passing} of {total}</strong> checks pass AA</p>
+      <div class="ct-meter" role="img" aria-label={`${passing} of ${total} checks pass`}>
+        <span style={`width: ${(passing / Math.max(total, 1)) * 100}%`}></span>
+      </div>
+      <ul class="ct-modes">
+        {
+          perMode.map((x) => (
+            <li>
+              <span>{modeLabel(x.m)}</span>
+              <strong class="num">
+                {x.pass}/{x.total}
+              </strong>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+    <div class="ct-rules">
+      <p><strong>Text</strong> needs {THRESHOLDS.text.aa}:1 for AA and {THRESHOLDS.text.aaa}:1 for AAA.</p>
+      <p><strong>UI</strong> (control edges, icons, focus rings) needs {THRESHOLDS.ui.aa}:1, WCAG 1.4.11. There is no AAA level for UI.</p>
+      <p class="muted small">
+        To check a new combination, add it to <code>packages/tokens/src/contrast-pairs.json</code> as
+        <code>{'{ "fg": "<token path>", "bg": "<token path>", "usage": "text" | "ui" }'}</code>.
+      </p>
+    </div>
+  </section>
 
-  <p>
-    To check a new combination, add it to <code>packages/tokens/src/contrast-pairs.json</code> as
-    <code>{'{ "fg": "<token path>", "bg": "<token path>", "usage": "text" | "ui" }'}</code>.
-  </p>
+  {
+    failingPairs.length > 0 && (
+      <section class="ct-failing" aria-labelledby="ct-fail-h">
+        <h2 id="ct-fail-h" class="ct-fail-title">
+          <Icon name="alert" /> {failures.length} {failures.length === 1 ? 'check needs' : 'checks need'} attention
+        </h2>
+        <div class="ct-fail-grid">
+          {failingPairs.map((p) => (
+            <article class="ct-fail-card">
+              <p class="ct-fail-pair">
+                <a href={`/tokens/?t=${encodeURIComponent(p.fg)}`}>{p.fg}</a> <span class="muted">on</span>{' '}
+                <a href={`/tokens/?t=${encodeURIComponent(p.bg)}`}>{p.bg}</a>
+              </p>
+              <div class="ct-fail-modes">
+                {MODES.map((m) => {
+                  const r = p.modes[m];
+                  return (
+                    <div class="ct-fail-mode">
+                      <div class="ct-tile" data-theme={m} style={`background-color: var(${p.bgToken.cssVar})`}>
+                        {p.usage === 'text' ? (
+                          <span style={`color: var(${p.fgToken.cssVar})`}>Aa</span>
+                        ) : (
+                          <i style={`border-color: var(${p.fgToken.cssVar})`} />
+                        )}
+                      </div>
+                      <div>
+                        <p class="ct-ratio num">{r.ratio.toFixed(2)}:1</p>
+                        <p class="small muted">
+                          {modeLabel(m)}, needs {need(p.usage)}:1
+                        </p>
+                        <span class={`pill ${r.aa ? 'is-pass' : 'is-fail'}`}>{r.aa ? 'AA pass' : 'AA fail'}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+    )
+  }
 
-  <div class="table-wrap">
+  <h2>All pairs</h2>
+  <p class="muted">Failing pairs first. Each tile renders the real tokens in that theme, whatever theme this page is in.</p>
+  <div class="table-wrap fd-table">
     <table>
       <caption class="sr-only">Contrast ratio per token pair and theme</caption>
       <thead>
         <tr>
           <th scope="col">Foreground on background</th>
           <th scope="col">Use</th>
-          {MODES.map((m) => <th scope="col">{m === 'light' ? 'Light' : 'Dark'}</th>)}
+          {MODES.map((m) => <th scope="col">{modeLabel(m)}</th>)}
         </tr>
       </thead>
       <tbody>
@@ -55,24 +123,32 @@ const total = pairs.length * MODES.length;
                   <br />
                   <span class="muted small">on</span> <a href={`/foundations/color/#${anchorOf(p.bgToken.cssVar)}`}>{p.bg}</a>
                 </th>
-                <td>{p.usage === 'text' ? 'Text' : 'UI'}</td>
+                <td>
+                  <span class="pill">{p.usage === 'text' ? 'Text' : 'UI'}</span>
+                </td>
                 {MODES.map((m) => {
                   const r = p.modes[m];
                   return (
                     <td>
-                      <div data-theme={m} class="swatch-cell" style={`background-color: var(${p.bgToken.cssVar})`}>
-                        {p.usage === 'text' ? (
-                          <span style={`color: var(${p.fgToken.cssVar}); font-weight: var(--font-weight-medium)`}>Aa</span>
-                        ) : (
-                          <span class="swatch" style={`background-color: transparent; border: var(--border-width-2) solid var(${p.fgToken.cssVar})`} aria-hidden="true" />
-                        )}
-                        <span class="chain" style={p.usage === 'text' ? `color: var(${p.fgToken.cssVar})` : undefined}>{r.fgHex} / {r.bgHex}</span>
+                      <div class="ct-cell">
+                        <div class="ct-tile" data-theme={m} style={`background-color: var(${p.bgToken.cssVar})`}>
+                          {p.usage === 'text' ? (
+                            <span style={`color: var(${p.fgToken.cssVar})`}>Aa</span>
+                          ) : (
+                            <i style={`border-color: var(${p.fgToken.cssVar})`} />
+                          )}
+                        </div>
+                        <div class="ct-cell-meta">
+                          <strong class="num">{r.ratio.toFixed(2)}:1</strong>
+                          <span class="chain">
+                            {r.fgHex} / {r.bgHex}
+                          </span>
+                          <span class="ct-pills">
+                            <span class={`pill ${r.aa ? 'is-pass' : 'is-fail'}`}>{r.aa ? 'AA pass' : 'AA fail'}</span>
+                            {r.aaa !== null && <span class={`pill ${r.aaa ? 'is-pass' : ''}`}>{r.aaa ? 'AAA pass' : 'Not AAA'}</span>}
+                          </span>
+                        </div>
                       </div>
-                      <p style="margin: var(--space-2) 0 0; display: flex; gap: var(--space-1); align-items: center; flex-wrap: wrap;">
-                        <strong>{r.ratio.toFixed(2)}:1</strong>
-                        <Badge tone={r.aa ? 'success' : 'danger'}>{r.aa ? 'AA pass' : 'AA fail'}</Badge>
-                        {r.aaa !== null && <Badge tone={r.aaa ? 'success' : 'neutral'}>{r.aaa ? 'AAA pass' : 'Not AAA'}</Badge>}
-                      </p>
                     </td>
                   );
                 })}

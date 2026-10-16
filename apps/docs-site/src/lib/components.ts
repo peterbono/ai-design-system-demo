@@ -18,6 +18,10 @@ export interface GuidanceItem {
 
 export interface ComponentDocs {
   summary: string;
+  /** Navigation group. Optional; components without one are listed under "Core". */
+  category?: string;
+  /** Lifecycle shown on the component page and in the nav: stable (default), beta, deprecated. */
+  status?: 'stable' | 'beta' | 'deprecated';
   preview?: ExampleNode;
   whenToUse: string[];
   whenNotToUse: string[];
@@ -39,7 +43,7 @@ export interface CssRule {
   selector: string;
   className: string; // first class in the selector, used for the anatomy label
   label: string;
-  vars: { name: string; href?: string; known: boolean }[];
+  vars: { name: string; href?: string; known: boolean; path?: string; kind?: 'primitive' | 'semantic' }[];
 }
 
 export interface ComponentInfo {
@@ -171,7 +175,7 @@ function parseCss(src: string, labels: Record<string, string>): CssRule[] {
           selector: prefix + head.replace(/\s+/g, ' '),
           className,
           label: (labels[className] ?? className) + stateOf(head),
-          vars: names.map((n) => ({ name: n, href: index.get(n)?.href, known: index.has(n) })),
+          vars: names.map((n) => ({ name: n, href: index.get(n)?.href, known: index.has(n), path: index.get(n)?.path, kind: index.get(n)?.kind })),
         });
       } else {
         buf += ch;
@@ -234,4 +238,83 @@ export function componentsUsing(cssVar: string) {
   return loadComponents()
     .filter((c) => c.tokensUsed.some((t) => t.name === cssVar))
     .map((c) => c.name);
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Props playground spec: serializable control definitions derived from the parsed props, so the React island can
+// render any component without per-component code. Unsupported prop types are listed but get no control.
+
+export type Control =
+  | { name: string; kind: 'enum'; options: string[]; description?: string }
+  | { name: string; kind: 'boolean'; description?: string }
+  | { name: string; kind: 'string'; description?: string };
+
+export interface PlaygroundSpec {
+  component: string;
+  controls: Control[];
+  initial: Record<string, string | boolean>;
+  /** Text children, when the component takes text content. null when it takes none. */
+  children: string | null;
+  /** Native attributes worth exposing even though they are inherited (disabled on buttons and inputs). */
+  native: Control[];
+  /** Default values from the component signature; the code snippet omits props left at their default. */
+  defaults: Record<string, string | boolean>;
+}
+
+const literalUnion = (type: string) => {
+  const parts = type.split('|').map((p) => p.trim());
+  if (parts.length < 2 || !parts.every((p) => /^'[^']*'$/.test(p))) return null;
+  return parts.map((p) => p.slice(1, -1));
+};
+
+const unquote = (v: string) => (/^'.*'$/.test(v) ? v.slice(1, -1) : v === 'true' ? true : v === 'false' ? false : v);
+
+/** First node in a docs example tree that renders the given component. */
+export function findNode(node: ExampleNode | undefined, name: string): Exclude<ExampleNode, string> | null {
+  if (!node || typeof node === 'string') return null;
+  if (node.c === name) return node;
+  for (const child of node.children ?? []) {
+    const hit = findNode(child, name);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+export function playgroundSpec(c: ComponentInfo): PlaygroundSpec | null {
+  const controls: Control[] = [];
+  for (const p of c.props) {
+    const options = literalUnion(p.type);
+    if (options) controls.push({ name: p.name, kind: 'enum', options, description: p.description });
+    else if (p.type === 'boolean') controls.push({ name: p.name, kind: 'boolean', description: p.description });
+    else if (p.type === 'string') controls.push({ name: p.name, kind: 'string', description: p.description });
+  }
+  const native: Control[] =
+    c.inherits === 'button' || c.inherits === 'input' ? [{ name: 'disabled', kind: 'boolean', description: 'Native attribute.' }] : [];
+  if (!controls.length) return null;
+  const node = findNode(c.docs?.preview, c.name) ?? c.docs?.dos.map((d) => findNode(d.example, c.name)).find(Boolean) ?? null;
+  const initial: Record<string, string | boolean> = {};
+  for (const ctl of controls) {
+    const prop = c.props.find((p) => p.name === ctl.name);
+    const fromExample = node?.p?.[ctl.name];
+    if (typeof fromExample === 'string' || typeof fromExample === 'boolean') initial[ctl.name] = fromExample;
+    else if (prop?.defaultValue) {
+      const v = unquote(prop.defaultValue);
+      if (typeof v === 'boolean' || typeof v === 'string') initial[ctl.name] = v;
+    } else if (ctl.kind === 'enum') initial[ctl.name] = ctl.options[0]!;
+    else if (ctl.kind === 'boolean') initial[ctl.name] = false;
+    else if (prop?.required) initial[ctl.name] = ctl.name;
+  }
+  // Keep string props from the example that are not typed props (placeholder, type) so the preview looks real.
+  for (const [k, v] of Object.entries(node?.p ?? {})) {
+    if (!(k in initial) && (typeof v === 'string' || typeof v === 'boolean')) initial[k] = v;
+  }
+  const text = node?.children?.filter((x): x is string => typeof x === 'string').join(' ');
+  const children = c.inherits === 'input' ? null : text || (node ? null : c.name);
+  const defaults: Record<string, string | boolean> = { disabled: false };
+  for (const p of c.props) {
+    if (!p.defaultValue) continue;
+    const v = unquote(p.defaultValue);
+    if (typeof v === 'boolean' || typeof v === 'string') defaults[p.name] = v;
+  }
+  return { component: c.name, controls, initial, children: children ?? null, native, defaults };
 }

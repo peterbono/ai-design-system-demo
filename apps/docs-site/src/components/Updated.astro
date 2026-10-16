@@ -1,8 +1,14 @@
 ---
+import { humanDate } from '../lib/stats';
+import Icon from './Icon.astro';
+
 interface Props {
   date: string | null;
 }
 const { date } = Astro.props;
 ---
 
-<p class="muted small">Last updated {date ?? 'unknown'} (from git history of the source files).</p>
+<p class="updated" title="From the git history of this page's source files">
+  <Icon name="clock" size={14} />
+  <span>Updated {humanDate(date)}</span>
+</p>

@@ -1,4 +1,5 @@
 ---
+import '../../styles/foundations.css';
 import { Button, Input } from '@demo-ds/react';
 import Layout from '../../layouts/Layout.astro';
 import Updated from '../../components/Updated.astro';
@@ -66,6 +67,9 @@ const updated = freshness(PAGE_SOURCES.lookup);
           h.appendChild(link(p.href, p.path));
           box.appendChild(h);
           box.appendChild(el('p', { class: 'chain' }, p.cssVar + '  |  ' + p.figma + '  |  ' + p.value));
+          var ex = el('p', { class: 'small' });
+          ex.appendChild(link('/tokens/?t=' + encodeURIComponent(p.path), 'Open in the token explorer'));
+          box.appendChild(ex);
           if (p.semantic.length) {
             box.appendChild(el('h4', null, 'Semantic tokens pointing here'));
             var ul = el('ul');
@@ -97,7 +101,7 @@ const updated = freshness(PAGE_SOURCES.lookup);
         var q = input.value;
         try { history.replaceState(null, '', q ? '?q=' + encodeURIComponent(q) : location.pathname); } catch (x) {}
         if (data) return render(q);
-        status.textContent = 'Loading index...';
+        status.textContent = 'Loading index…';
         fetch('/lookup-index.json').then(function (r) { return r.json(); }).then(function (d) { data = d; render(q); }, function () { status.textContent = 'Could not load the index.'; });
       }
       form.addEventListener('submit', run);

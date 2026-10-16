@@ -45,8 +45,12 @@ generated from the repo at build time, so nothing is typed twice:
 | Changelog | `.changeset/*.md` and git log (conventional commits) |
 | `/llms.txt` and For AI agents | the same sources, as plain text |
 
-Each page shows a "last updated" date from the git history of its source files. The site imports
-`@demo-ds/tokens/tokens.css` and uses only those variables, so it dogfoods the tokens (`npm run lint:css` checks it).
+Each page shows a "last updated" date from the git history of its source files. The site is presented as **Bridge**,
+the web side of the DS Bridge Figma plugin: an overview dashboard computed from the repo (token counts, contrast
+pass rate, health issues, recent changes), a theme playground with the real components in light and dark, a token
+explorer, a Cmd+K palette and component pages with a props playground. The app chrome has its own brand tokens
+(`apps/docs-site/src/brand/tokens.ts`, emitted as `--br-*`); the design system is only shown inside preview surfaces
+with its own `@demo-ds/tokens` variables. `npm run lint:css` checks both. Design decisions: `apps/docs-site/DESIGN.md`.
 
 Props are parsed from the TypeScript types so the table cannot drift from the code; usage guidance lives in a small
 `<Name>.docs.json` next to each component because a parser cannot know when to use a button.

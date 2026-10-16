@@ -26,6 +26,9 @@ export const toRel = (abs: string) => relative(ROOT, abs);
 export const GITHUB_URL = 'https://github.com/peterbono/ai-design-system-demo';
 export const STORYBOOK_URL = (process.env.STORYBOOK_URL || 'http://localhost:6006').replace(/\/$/, '');
 
+/** DS Bridge Figma plugin (apps/figma-plugin). Override with PLUGIN_URL once it is published to Figma Community. */
+export const PLUGIN_URL = process.env.PLUGIN_URL || `${GITHUB_URL}/tree/main/apps/figma-plugin`;
+
 export const sourceUrl = (rel: string) => `${GITHUB_URL}/blob/main/${rel}`;
 
 function git(args: string[]): string {

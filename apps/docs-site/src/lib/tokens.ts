@@ -12,6 +12,8 @@ export interface RawToken {
   type: string;
   value: unknown;
   description?: string;
+  /** DTCG $deprecated: true, or a string explaining what to use instead. */
+  deprecated?: boolean | string;
   file: string;
 }
 
@@ -24,6 +26,7 @@ export interface Primitive {
   cssVar: string;
   figma: string;
   description?: string;
+  deprecated?: boolean | string;
   raw: unknown;
   file: string;
 }
@@ -43,6 +46,7 @@ export interface Semantic {
   figma: string;
   description?: string;
   group: string; // e.g. "color.action" or "elevation"
+  deprecated?: boolean | string;
   modes: Record<Mode, SemanticMode>;
 }
 
@@ -59,7 +63,16 @@ export const TOKEN_SOURCE_FILES = () => [...primitiveFiles(), semanticFile('ligh
 function flatten(node: Json, file: string, path: string[] = [], inheritedType = ''): RawToken[] {
   const type = (node.$type as string) ?? inheritedType;
   if ('$value' in node) {
-    return [{ path, type, value: node.$value, description: node.$description as string | undefined, file }];
+    return [
+      {
+        path,
+        type,
+        value: node.$value,
+        description: node.$description as string | undefined,
+        deprecated: node.$deprecated as boolean | string | undefined,
+        file,
+      },
+    ];
   }
   const out: RawToken[] = [];
   for (const [key, child] of Object.entries(node)) {
@@ -144,6 +157,7 @@ export function loadTokens() {
       cssVar: cssVarOf(t.path),
       figma: figmaNameOf(t.path),
       description: t.description,
+      deprecated: t.deprecated,
       raw: t.value,
       file: t.file,
     };
@@ -187,6 +201,7 @@ export function loadTokens() {
       figma: figmaNameOf(t.path),
       description: t.description ?? dark.description,
       group,
+      deprecated: t.deprecated ?? dark.deprecated,
       modes: { light: resolveMode('light', t.value, t.type), dark: resolveMode('dark', dark.value, dark.type) },
     };
   });

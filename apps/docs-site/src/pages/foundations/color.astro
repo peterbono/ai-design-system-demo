@@ -1,10 +1,11 @@
 ---
+import '../../styles/foundations.css';
 import Layout from '../../layouts/Layout.astro';
-import CopyName from '../../components/CopyName.astro';
 import TokenNames from '../../components/TokenNames.astro';
 import Updated from '../../components/Updated.astro';
 import { componentsUsing } from '../../lib/components';
 import { PAGE_SOURCES, freshness, groupUsage } from '../../lib/sources';
+import { luminance } from '../../lib/contrast';
 import { anchorOf, colorRamps, loadTokens, MODES } from '../../lib/tokens';
 
 const { semantic } = loadTokens();
@@ -13,6 +14,8 @@ const groups = [...new Set(colors.map((s) => s.group))];
 const ramps = colorRamps();
 const updated = freshness(PAGE_SOURCES.color);
 
+// Step label color: whichever of the system's own extremes reads better on the swatch.
+const labelOn = (hex?: string) => (hex && luminance(hex) > 0.36 ? 'var(--color-neutral-950)' : 'var(--color-neutral-0)');
 const semanticUsing = (primitivePath: string) =>
   colors.filter((s) => MODES.some((m) => s.modes[m].chain.includes(primitivePath))).map((s) => s.path);
 ---
@@ -35,7 +38,7 @@ const semanticUsing = (primitivePath: string) =>
       <section aria-labelledby={`g-${group}`}>
         <h3 id={`g-${group}`}>{group}</h3>
         {groupUsage(group) && <p class="muted">{groupUsage(group)}</p>}
-        <div class="table-wrap">
+        <div class="table-wrap fd-table">
           <table>
             <thead>
               <tr>
@@ -95,22 +98,23 @@ const semanticUsing = (primitivePath: string) =>
     ramps.map(({ hue, steps }) => (
       <section aria-labelledby={`ramp-${hue}`}>
         <h3 id={`ramp-${hue}`}>{hue}</h3>
-        <div class="ramp">
-          {steps.map((p) => (
-            <div class="chip" id={anchorOf(p.cssVar)}>
-              <div class="chip-color" style={`background-color: var(${p.cssVar})`} aria-hidden="true" />
-              <div class="chip-meta">
-                <strong>{p.segments.slice(1).join('.')}</strong>
-                <span class="chain">{p.hex}</span>
-                <div>
-                  <CopyName value={`var(${p.cssVar})`} kind="CSS variable" />
-                </div>
-                <span class="muted">
-                  {semanticUsing(p.path).length > 0 ? `${semanticUsing(p.path).length} semantic` : 'unused'}
+        <div class="ramp-strip" role="list">
+          {steps.map((p) => {
+            const n = semanticUsing(p.path).length;
+            return (
+              <div class="ramp-step" id={anchorOf(p.cssVar)} role="listitem">
+                <span class="ramp-color" style={`background-color: var(${p.cssVar}); color: ${labelOn(p.hex)}`}>
+                  <strong>{p.segments.slice(2).join('.') || p.segments.slice(1).join('.')}</strong>
+                </span>
+                <span class="ramp-meta">
+                  <button type="button" class="ramp-copy" data-copy={`var(${p.cssVar})`} aria-label={`Copy CSS variable var(${p.cssVar})`} title={`Copy var(${p.cssVar})`}>
+                    {p.hex}
+                  </button>
+                  <span class={n ? 'ramp-n' : 'ramp-n is-unused'}>{n > 0 ? `${n} semantic` : 'unused'}</span>
                 </span>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </section>
     ))

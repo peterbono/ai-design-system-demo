@@ -1,12 +1,35 @@
 ---
+import '../styles/dashboard.css';
 import Layout from '../layouts/Layout.astro';
-import { loadComponents } from '../lib/components';
-import { GITHUB_URL, STORYBOOK_URL } from '../lib/repo';
+import HeroBridge from '../components/HeroBridge.astro';
+import Icon from '../components/Icon.astro';
+import Donut from '../components/charts/Donut.astro';
+import StackedBars from '../components/charts/StackedBars.astro';
+import ContrastWaffle from '../components/charts/ContrastWaffle.astro';
+import { releases } from '../lib/changelog';
+import { GITHUB_URL, PLUGIN_URL, STORYBOOK_URL } from '../lib/repo';
 import { PAGE_SOURCES, freshness } from '../lib/sources';
-import { loadTokens } from '../lib/tokens';
+import { dashboard, humanDate, repoStatus } from '../lib/stats';
+import type { IconName } from '../brand/icons';
 
-const { primitives, semantic } = loadTokens();
-const components = loadComponents();
+const s = dashboard();
+const repo = repoStatus();
+const failing = s.contrast.fail;
+const ratePct = Math.round(s.contrast.rate * 1000) / 10;
+
+const recent = releases()
+  .flatMap((r) => r.entries.map((e) => ({ ...e, release: r.name, pending: r.pending, date: e.date ?? r.date })))
+  .slice(0, 6);
+const kindTone: Record<string, string> = { Breaking: 'is-fail', New: 'is-info', Fix: 'is-pass', Docs: 'is-accent' };
+
+const flow: { icon: IconName; title: string; text: string }[] = [
+  { icon: 'figma', title: 'Propose in Figma', text: 'DS Bridge turns a variable or component change into a pull request.' },
+  { icon: 'pr', title: 'Pull request', text: 'A diff on a branch, with a risk tier and a changelog entry.' },
+  { icon: 'ci', title: 'CI guardrails', text: 'Tokens build, types check, no raw colors, Storybook builds.' },
+  { icon: 'review', title: 'Design and tech review', text: 'Both themes, contrast and focus checked. Token changes need both owners.' },
+  { icon: 'merge', title: 'Merge', text: 'A person who owns the area merges. Agents never do.' },
+  { icon: 'doc', title: 'Docs update', text: 'This app, llms.txt and Figma variables rebuild from the same files.' },
+];
 
 const principles = [
   { title: 'The repo decides', text: 'Tokens and components in code are the source of truth. Figma explores ideas and receives what shipped.' },
@@ -17,72 +40,240 @@ const principles = [
 ];
 ---
 
-<Layout title="Home" description="What this design system is, how it works and how to contribute." sources={PAGE_SOURCES.home} updated={freshness(PAGE_SOURCES.home)}>
-  <h1>Design system documentation</h1>
-  <p class="lead">
-    A small design system run as code: {primitives.length} primitive tokens, {semantic.length} semantic tokens in light and dark,
-    and {components.length} components. Every page here is generated from the repository at build time, so what you read is what ships.
-  </p>
-
-  <div class="callout">
-    <p>
-      <strong>Demo repository.</strong> It illustrates an operating model (design system as code, evolved with an AI agent through reviewed
-      pull requests), not a production library. One brand, two themes, four components.
-    </p>
-  </div>
-
-  <h2>Principles</h2>
-  <div class="grid">
-    {
-      principles.map((p, i) => (
-        <div class="panel">
-          <h3>
-            {i + 1}. {p.title}
-          </h3>
-          <p>{p.text}</p>
-        </div>
-      ))
-    }
-  </div>
-
-  <h2>Start here</h2>
-  <div class="cards">
-    <a class="panel" href="/foundations/color/"><h3>Foundations</h3><p>Color in both themes, contrast checks, type, spacing, radius and elevation.</p></a>
-    <a class="panel" href="/components/"><h3>Components</h3><p>When to use each one, do and don't, accessibility and the tokens it reads.</p></a>
-    <a class="panel" href="/governance/"><h3>Governance</h3><p>Who approves what, how a token change travels, and what the AI agent may do.</p></a>
-    <a class="panel" href="/changelog/"><h3>Changelog</h3><p>What changed, what it means for you, and a message ready to post.</p></a>
-  </div>
-
-  <h2>How to contribute</h2>
-  <p>Every change, from anyone, lands as a pull request that people review. Pick the path that fits you:</p>
-  <div class="grid">
-    <div class="panel">
-      <h3>Designers, from Figma</h3>
-      <p>
-        Explore in Figma, then send the proposal with the <strong>DS Bridge</strong> plugin. It opens a pull request with the token or component
-        change, so you never edit code by hand. CI checks it and a design owner and a tech owner review it.
+<Layout
+  title="Home"
+  description="Bridge: your design system, one source of truth. Figma for designers, Git for everyone, docs for humans and agents."
+  sources={PAGE_SOURCES.home}
+  updated={freshness(PAGE_SOURCES.home)}
+  wide
+>
+  <section class="hero" aria-labelledby="hero-title">
+    <div class="hero-copy">
+      <h1 id="hero-title" class="hero-title">Your design system, one source of truth.</h1>
+      <p class="hero-lead">
+        Figma for designers, Git for everyone, docs for humans and agents. Bridge rebuilds this workspace from the repository on every
+        merge, so what you read here is what ships.
+      </p>
+      <div class="hero-ctas">
+        <a class="btn btn-primary" href={STORYBOOK_URL}><Icon name="storybook" size={18} />Open Storybook</a>
+        <a class="btn btn-secondary" href={PLUGIN_URL}><Icon name="figma" size={18} />Install DS Bridge plugin</a>
+        <a class="btn btn-secondary" href={GITHUB_URL}><Icon name="github" size={18} />View on GitHub</a>
+      </div>
+      <p class="hero-note">
+        Open source demo by Florian Gouloubi. It shows an operating model, not a production library: one brand, {s.themes} themes,
+        {s.components} components.
       </p>
     </div>
-    <div class="panel">
-      <h3>Anyone, with an issue</h3>
-      <p>
-        Not sure what the change should be? <a href={`${GITHUB_URL}/issues/new`}>Open an issue</a> with the problem, a screenshot or a Figma
-        link. A maintainer or the AI agent turns it into a pull request.
-      </p>
-    </div>
-    <div class="panel">
-      <h3>The AI agent, by pull request</h3>
-      <p>
-        The agent works on its own branch, follows <a href="/for-ai-agents/">the same rules shown here</a>, and opens a pull request. It never merges:
-        people review and decide, with the same risk tiers as everyone else.
-      </p>
-    </div>
-  </div>
+    <HeroBridge />
+  </section>
 
-  <h2>Elsewhere</h2>
-  <ul>
-    <li><a href={STORYBOOK_URL}>Storybook</a>: every component state, in light and dark, with the accessibility panel.</li>
-    <li><a href={GITHUB_URL}>GitHub repository</a>: token sources, components and pull requests.</li>
-    <li><a href="/llms.txt">llms.txt</a>: this documentation as plain text for AI agents.</li>
-  </ul>
+  <section class="kpis" aria-label="System at a glance">
+    <a class="kpi" href="/tokens/">
+      <span class="kpi-label">Tokens</span>
+      <strong class="kpi-value num">{s.total}</strong>
+      <span class="kpi-sub num">{s.primitives} primitive, {s.semantic} semantic</span>
+    </a>
+    <a class="kpi" href="/playground/">
+      <span class="kpi-label">Themes</span>
+      <strong class="kpi-value num">{s.themes}</strong>
+      <span class="kpi-sub">{s.themeNames.map((t) => t[0]!.toUpperCase() + t.slice(1)).join(' and ')}</span>
+    </a>
+    <a class="kpi" href="/components/">
+      <span class="kpi-label">Components</span>
+      <strong class="kpi-value num">{s.components}</strong>
+      <span class="kpi-sub num">{s.documented} with usage guidance</span>
+    </a>
+    <a class="kpi" href="/foundations/contrast/">
+      <span class="kpi-label">Contrast AA</span>
+      <strong class="kpi-value num">{ratePct}<small>%</small></strong>
+      <span class:list={['kpi-sub', 'num', { 'is-fail': failing > 0 }]}>
+        {failing > 0 ? `${failing} failing of ${s.contrast.total} checks` : `All ${s.contrast.total} checks pass`}
+      </span>
+    </a>
+    <a class="kpi" href="/changelog/">
+      <span class="kpi-label">Last change</span>
+      <strong class="kpi-value kpi-date">{humanDate(repo.lastChange)}</strong>
+      <span class="kpi-sub num">
+        <span class="mono">{repo.sha}</span>, {repo.commits} commits
+      </span>
+    </a>
+  </section>
+
+  <section class="charts" aria-labelledby="charts-title">
+    <h2 id="charts-title" class="sr-only">Token and contrast charts</h2>
+    <article class="panel chart-panel">
+      <header class="panel-head">
+        <h3>Tokens by type</h3>
+        <a href="/tokens/" class="panel-link">Explore</a>
+      </header>
+      <Donut data={s.byType} total={s.total} centerLabel="tokens" label="Tokens by type" />
+    </article>
+    <article class="panel chart-panel">
+      <header class="panel-head">
+        <h3>Categories and layers</h3>
+        <a href="/foundations/color/" class="panel-link">Foundations</a>
+      </header>
+      <StackedBars rows={s.byCategory} />
+    </article>
+    <article class="panel chart-panel">
+      <header class="panel-head">
+        <h3>Contrast checks</h3>
+        <a href="/foundations/contrast/" class="panel-link">Matrix</a>
+      </header>
+      <ContrastWaffle />
+    </article>
+  </section>
+
+  <section class="duo">
+    <article class="panel health" aria-labelledby="health-title">
+      <header class="panel-head">
+        <h3 id="health-title">Health</h3>
+        <span class="muted small num">{s.issues.length} {s.issues.length === 1 ? 'item' : 'items'}</span>
+      </header>
+      {
+        s.issues.length === 0 ? (
+          <p class="empty">
+            <Icon name="check" /> Nothing to fix. Every contrast pair passes, every token is used and nothing is deprecated.
+          </p>
+        ) : (
+          <ul class="issues">
+            {s.issues.map((i) => (
+              <li class={`issue is-${i.severity}`}>
+                <span class="issue-icon">
+                  <Icon name={i.severity === 'fail' ? 'x' : i.severity === 'warn' ? 'alert' : 'info'} size={18} />
+                </span>
+                <span class="issue-body">
+                  <a href={i.href} class="issue-title">
+                    {i.title}
+                  </a>
+                  <span class="issue-detail">{i.detail}</span>
+                </span>
+                <span class={`pill is-${i.severity === 'fail' ? 'fail' : i.severity === 'warn' ? 'warn' : 'info'}`}>
+                  {i.severity === 'fail' ? 'Fix' : i.severity === 'warn' ? 'Review' : 'Note'}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )
+      }
+      <p class="health-foot muted small">
+        {s.deprecated.length === 0 ? 'No deprecated tokens.' : `${s.deprecated.length} deprecated tokens.`} Checked on every build from the
+        token files, component CSS and contrast pairs.
+      </p>
+    </article>
+
+    <article class="panel recent" aria-labelledby="recent-title">
+      <header class="panel-head">
+        <h3 id="recent-title">Recent changes</h3>
+        <a href="/changelog/" class="panel-link">Changelog</a>
+      </header>
+      {
+        recent.length === 0 ? (
+          <p class="empty">No changes recorded yet.</p>
+        ) : (
+          <ol class="timeline">
+            {recent.map((e) => (
+              <li>
+                <span class="tl-node" aria-hidden="true" />
+                <div class="tl-head">
+                  <span class={`pill ${kindTone[e.kind] ?? ''}`}>{e.kind}</span>
+                  <span class="tl-date num">{e.date ? humanDate(e.date) : e.pending ? 'Pending' : ''}</span>
+                </div>
+                <p class="tl-title">{e.title}</p>
+                <p class="tl-ref">
+                  {e.source === 'commit' ? (
+                    <a href={`${GITHUB_URL}/commit/${e.ref}`} class="mono">
+                      {e.ref}
+                    </a>
+                  ) : (
+                    <span class="mono">{e.ref}</span>
+                  )}
+                </p>
+              </li>
+            ))}
+          </ol>
+        )
+      }
+    </article>
+  </section>
+
+  <section class="flow-band" aria-labelledby="flow-title">
+    <div class="section-head">
+      <div>
+        <h2 id="flow-title">How a change travels</h2>
+        <p>The same path for every change, whoever writes it: a designer in Figma, an engineer, or an AI agent.</p>
+      </div>
+      <a href="/governance/" class="btn btn-secondary btn-sm">Read the governance</a>
+    </div>
+    <ol class="flow">
+      {
+        flow.map((step, i) => (
+          <li class="flow-step">
+            <span class="flow-icon">
+              <Icon name={step.icon} size={22} />
+            </span>
+            <span class="flow-num num">{i + 1}</span>
+            <strong>{step.title}</strong>
+            <span class="flow-text">{step.text}</span>
+          </li>
+        ))
+      }
+    </ol>
+  </section>
+
+  <section class="split" aria-labelledby="principles-title">
+    <div>
+      <h2 id="principles-title">Principles</h2>
+      <dl class="principles">
+        {
+          principles.map((p) => (
+            <div>
+              <dt>{p.title}</dt>
+              <dd>{p.text}</dd>
+            </div>
+          ))
+        }
+      </dl>
+    </div>
+    <div>
+      <h2>How to contribute</h2>
+      <p class="muted">Every change, from anyone, lands as a pull request that people review. Pick the path that fits you.</p>
+      <ul class="paths">
+        <li>
+          <span class="path-icon"><Icon name="figma" /></span>
+          <div>
+            <strong>Designers, from Figma</strong>
+            <p>
+              Explore in Figma, then send the proposal with the <a href={PLUGIN_URL}>DS Bridge plugin</a>. It opens a pull request with the token or
+              component change, so you never edit code by hand. CI checks it and a design owner and a tech owner review it.
+            </p>
+          </div>
+        </li>
+        <li>
+          <span class="path-icon"><Icon name="info" /></span>
+          <div>
+            <strong>Anyone, with an issue</strong>
+            <p>
+              Not sure what the change should be? <a href={`${GITHUB_URL}/issues/new`}>Open an issue</a> with the problem, a screenshot or a Figma link.
+              A maintainer or the AI agent turns it into a pull request.
+            </p>
+          </div>
+        </li>
+        <li>
+          <span class="path-icon"><Icon name="agent" /></span>
+          <div>
+            <strong>The AI agent, by pull request</strong>
+            <p>
+              The agent works on its own branch, follows <a href="/for-ai-agents/">the same rules shown here</a>, and opens a pull request. It never
+              merges: people review and decide, with the same risk tiers as everyone else.
+            </p>
+          </div>
+        </li>
+      </ul>
+      <p class="elsewhere small">
+        Also: <a href={STORYBOOK_URL}>Storybook</a> for every state with the accessibility panel, the <a href={GITHUB_URL}>GitHub repository</a> for
+        sources and pull requests, and <a href="/llms.txt">llms.txt</a> for agents.
+      </p>
+    </div>
+  </section>
 </Layout>

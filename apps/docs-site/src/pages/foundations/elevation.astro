@@ -1,4 +1,5 @@
 ---
+import '../../styles/foundations.css';
 import Layout from '../../layouts/Layout.astro';
 import CopyName from '../../components/CopyName.astro';
 import TokenNames from '../../components/TokenNames.astro';
@@ -35,7 +36,7 @@ const shadows = primitivesOf('shadow');
       ))
     }
   </div>
-  <div class="table-wrap" style="margin-top: var(--space-6)">
+  <div class="table-wrap fd-table fd-gap">
     <table>
       <thead><tr><th scope="col">Token</th><th scope="col">Light</th><th scope="col">Dark</th><th scope="col">Used by</th></tr></thead>
       <tbody>
@@ -60,7 +61,7 @@ const shadows = primitivesOf('shadow');
 
   <h2>Shadow primitives</h2>
   <p>The raw shadows. The strong variants exist because a light shadow disappears on a dark surface.</p>
-  <div class="table-wrap">
+  <div class="table-wrap fd-table">
     <table>
       <thead><tr><th scope="col">Token</th><th scope="col">Value</th><th scope="col">Preview</th></tr></thead>
       <tbody>

@@ -1,16 +1,31 @@
 ---
-import { Badge } from '@demo-ds/react';
 import Layout from '../layouts/Layout.astro';
+import Icon from '../components/Icon.astro';
 import Updated from '../components/Updated.astro';
+import type { IconName } from '../brand/icons';
 import { releases } from '../lib/changelog';
-import { GITHUB_URL } from '../lib/repo';
+import { GITHUB_URL, sourceUrl } from '../lib/repo';
 import { PAGE_SOURCES, freshness } from '../lib/sources';
+import { humanDate } from '../lib/stats';
+import '../styles/process.css';
 
 const all = releases();
 const updated = all[0]?.date ?? freshness(PAGE_SOURCES.changelog);
-const tone = (kind: string) =>
-  kind === 'Breaking' ? 'danger' : kind === 'New' ? 'info' : kind === 'Fix' ? 'success' : 'neutral';
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+const KINDS: { kind: string; tone: string; icon: IconName; meaning: string }[] = [
+  { kind: 'Breaking', tone: 'fail', icon: 'alert', meaning: 'needs action before you update' },
+  { kind: 'New', tone: 'info', icon: 'plus', meaning: 'adds an option, nothing breaks' },
+  { kind: 'Fix', tone: 'pass', icon: 'check', meaning: 'matches the spec again' },
+  { kind: 'Improvement', tone: 'accent', icon: 'sliders', meaning: 'faster or smoother, same API' },
+  { kind: 'Docs', tone: 'neutral', icon: 'doc', meaning: 'guidance only' },
+  { kind: 'Internal', tone: 'neutral', icon: 'wrench', meaning: 'changes nothing you see' },
+];
+const kindOf = (k: string) => KINDS.find((x) => x.kind === k) ?? KINDS[KINDS.length - 1]!;
+const toneClass = (tone: string) => (tone === 'neutral' ? 'pill' : `pill is-${tone}`);
+const counts = (entries: { kind: string }[]) =>
+  KINDS.map((k) => ({ ...k, n: entries.filter((e) => e.kind === k.kind).length })).filter((k) => k.n > 0);
+const visibleKinds = KINDS.filter((k) => all.some((r) => r.entries.some((e) => e.kind === k.kind)));
 ---
 
 <Layout title="Changelog" description="What changed in the design system, what it means for you, and a message ready to post." sources={['.changeset', 'git log']} updated={updated}>
@@ -20,47 +35,111 @@ const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(
     release has an announcement you can paste into Slack or an email.
   </p>
   <Updated date={updated} />
-  <p class="small muted">
-    Labels: <Badge tone="danger">Breaking</Badge> needs action, <Badge tone="info">New</Badge> adds an option,
-    <Badge tone="success">Fix</Badge> matches the spec again, <Badge tone="neutral">Internal</Badge> changes nothing you see.
-  </p>
+
+  <ul class="kind-legend" aria-label="Labels used in this changelog">
+    {
+      (visibleKinds.length ? visibleKinds : KINDS).map((k) => (
+        <li>
+          <span class={toneClass(k.tone)}>
+            <Icon name={k.icon} size={13} />
+            {k.kind}
+          </span>
+          <span class="muted">{k.meaning}</span>
+        </li>
+      ))
+    }
+  </ul>
 
   {
-    all.map((r) => (
-      <section class="release" aria-labelledby={`r-${slug(r.name)}`}>
-        <h2 id={`r-${slug(r.name)}`}>{r.name}</h2>
-        {r.date && <p class="muted small">{r.pending ? `Latest change ${r.date}` : `Released ${r.date}`}</p>}
-        <div class="panel">
-          {r.entries.map((e) => (
-            <div class="entry">
-              <div class="entry-head">
-                <Badge tone={tone(e.kind)}>{e.kind}</Badge>
-                <strong>{e.title}</strong>
-                {e.source === 'changeset' ? (
-                  <span class="muted small">
-                    changelog entry{e.bump && `, ${e.bump}`}{e.packages.length > 0 && ` (${e.packages.join(', ')})`}
+    all.length === 0 ? (
+      <div class="process-empty">
+        <Icon name="clock" size={28} />
+        <h2>No changes recorded yet</h2>
+        <p class="muted">
+          The first changeset or conventional commit shows up here on the next build. Run <code>npm run changeset</code> in a pull request to add one.
+        </p>
+      </div>
+    ) : (
+      <ol class="timeline">
+        {all.map((r) => (
+          <li class="tl-item" data-pending={r.pending || undefined}>
+            <span class="tl-node" aria-hidden="true" />
+            <section class="release-card" aria-labelledby={`r-${slug(r.name)}`}>
+              <header class="release-head">
+                <div class="release-title">
+                  <h2 id={`r-${slug(r.name)}`}>{r.name}</h2>
+                  <p class="release-meta">
+                    <span class={r.pending ? 'pill is-warn' : 'pill is-pass'}>{r.pending ? 'Pending release' : 'Released'}</span>
+                    {r.date && (
+                      <span class="muted small">
+                        {r.pending ? 'Latest change' : 'Released'} <time datetime={r.date}>{humanDate(r.date)}</time>
+                      </span>
+                    )}
+                  </p>
+                </div>
+                <ul class="release-counts" aria-label="Changes by kind">
+                  {counts(r.entries).map((k) => (
+                    <li>
+                      <strong class="num">{k.n}</strong> <span class="muted">{k.kind}</span>
+                    </li>
+                  ))}
+                </ul>
+              </header>
+
+              <ul class="entries">
+                {r.entries.map((e) => {
+                  const k = kindOf(e.kind);
+                  return (
+                    <li class="entry-row">
+                      <span class={toneClass(k.tone)}>
+                        <Icon name={k.icon} size={13} />
+                        {e.kind}
+                      </span>
+                      <div class="entry-main">
+                        <p class="entry-title">{e.title}</p>
+                        <p class="entry-foryou">
+                          <span class="entry-foryou-label">What changes for you:</span> {e.forYou}
+                        </p>
+                      </div>
+                      <div class="entry-ref">
+                        {e.source === 'changeset' ? (
+                          <a href={sourceUrl(e.ref!)} title="Changeset file">
+                            <Icon name="file" size={14} />
+                            <span>changeset{e.bump && `, ${e.bump}`}</span>
+                          </a>
+                        ) : (
+                          <a href={`${GITHUB_URL}/commit/${e.ref}`} title="Commit">
+                            <Icon name="merge" size={14} />
+                            <code>{e.ref}</code>
+                          </a>
+                        )}
+                        {e.packages.length > 0 && <span class="muted entry-pkgs">{e.packages.join(', ')}</span>}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+
+              <div class="announce">
+                <div class="announce-head">
+                  <span class="announce-avatar" aria-hidden="true">
+                    <Icon name="agent" size={18} />
                   </span>
-                ) : (
-                  <a class="small" href={`${GITHUB_URL}/commit/${e.ref}`}>
-                    <code>{e.ref}</code>
-                  </a>
-                )}
+                  <div>
+                    <h3 id={`a-${slug(r.name)}`}>Announcement</h3>
+                    <p class="muted small">Ready to paste into Slack, Teams or an email.</p>
+                  </div>
+                  <button type="button" class="copy copy-ui" data-copy="" data-copy-from={`s-${slug(r.name)}`} aria-describedby={`a-${slug(r.name)}`}>
+                    <Icon name="copy" size={15} />
+                    <span data-copy-label>Copy for Slack or email</span>
+                  </button>
+                </div>
+                <pre class="announce-body" id={`s-${slug(r.name)}`}>{r.announcement}</pre>
               </div>
-              <p>
-                <strong>What changes for you:</strong> {e.forYou}
-              </p>
-            </div>
-          ))}
-        </div>
-        <div class="snippet-head">
-          <h3 style="margin: 0" id={`a-${slug(r.name)}`}>Announcement</h3>
-          <button type="button" class="copy" data-copy="" data-copy-from={`s-${slug(r.name)}`} aria-describedby={`a-${slug(r.name)}`}>
-            Copy for Slack or email
-          </button>
-        </div>
-        <pre id={`s-${slug(r.name)}`}>{r.announcement}</pre>
-      </section>
-    ))
+            </section>
+          </li>
+        ))}
+      </ol>
+    )
   }
-  {all.length === 0 && <p>No changes recorded yet.</p>}
 </Layout>
