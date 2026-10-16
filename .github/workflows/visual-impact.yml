@@ -1,0 +1,175 @@
+name: Visual impact
+
+# Screenshots what a design system pull request changes (impacted stories in every brand and theme, and the
+# admin back office per tenant and theme), before and after, and posts one sticky comment with the diffs.
+# It never fails the pull request because of a diff: reviewers decide. It labels the PR `visual-change`.
+#
+# Images: published to the orphan branch `bridge-visual` under pr-<number>/<head sha>/ (manifest.json plus
+# before, after, diff and composite PNGs of changed shots). Raw URLs from that branch embed in the comment and
+# in the Bridge docs site (Reviews > pull request > Visual impact), which artifact links cannot do: artifacts
+# are zip downloads that need a signed-in user. Only the latest head of a PR is kept, and the folder is
+# removed when the PR closes. The workflow artifact keeps every image for 14 days as a fallback.
+# Pull requests from forks get a read-only token: the run still happens and uploads the artifact, publishing
+# and commenting are skipped.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    paths:
+      - 'packages/tokens/src/**'
+      - 'packages/react/src/**'
+      - 'apps/admin/src/**'
+      - '.storybook/**'
+
+concurrency:
+  group: visual-impact-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write # push to the bridge-visual branch
+  pull-requests: write # sticky comment
+  issues: write # visual-change label
+
+env:
+  VISUAL_BRANCH: bridge-visual
+
+jobs:
+  impact:
+    name: Visual impact
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PR: ${{ github.event.pull_request.number }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Both refs are checked out as worktrees and the merge base is computed: full history.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build the bridge CLI
+        run: npm run mcp:build
+
+      - name: Visual impact (Storybook and admin, base and head, pixel diff)
+        id: impact
+        continue-on-error: true
+        env:
+          # ubuntu-latest ships Google Chrome; playwright-core drives it, no browser download.
+          BRIDGE_CHROME_CHANNEL: chrome
+        run: |
+          node packages/cli/dist/index.js impact \
+            --base "$BASE_SHA" --head "$HEAD_SHA" --out visual-impact \
+            --image-base "https://raw.githubusercontent.com/${{ github.repository }}/$VISUAL_BRANCH/pr-$PR/$HEAD_SHA" \
+            --artifact-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+      - name: Upload images
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-impact-pr-${{ github.event.pull_request.number }}
+          path: visual-impact
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Publish images to the bridge-visual branch
+        id: publish
+        if: steps.impact.outcome == 'success' && env.SAME_REPO == 'true'
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          dir="$RUNNER_TEMP/bridge-visual"
+          if git ls-remote --exit-code --heads origin "$VISUAL_BRANCH" > /dev/null; then
+            git fetch --depth 1 origin "$VISUAL_BRANCH"
+            git worktree add --detach "$dir" FETCH_HEAD
+          else
+            git worktree add --detach "$dir" HEAD
+            git -C "$dir" checkout --orphan "$VISUAL_BRANCH"
+            git -C "$dir" rm -rfq .
+            printf '# bridge-visual\n\nVisual impact images for open pull requests, written by .github/workflows/visual-impact.yml.\nOne folder per PR (pr-<number>/<head sha>/manifest.json + PNGs), latest head only, removed when the PR closes.\n' > "$dir/README.md"
+          fi
+          rm -rf "$dir/pr-$PR"
+          mkdir -p "$dir/pr-$PR/$HEAD_SHA"
+          cp -R visual-impact/. "$dir/pr-$PR/$HEAD_SHA/"
+          rm -f "$dir/pr-$PR/$HEAD_SHA/comment.md"
+          cd "$dir"
+          git add -A
+          git commit -qm "visual impact: PR #$PR at ${HEAD_SHA:0:7}" || { echo "Nothing new to publish"; exit 0; }
+          # Other PRs publish to other folders: on a race, rebase and retry.
+          for i in 1 2 3 4; do
+            if git push -q origin "HEAD:refs/heads/$VISUAL_BRANCH"; then exit 0; fi
+            sleep $((i * 3))
+            git fetch -q --depth 20 origin "$VISUAL_BRANCH" && git rebase -q FETCH_HEAD
+          done
+          exit 1
+
+      - name: Comment and label
+        if: always() && env.SAME_REPO == 'true'
+        continue-on-error: true
+        uses: actions/github-script@v7
+        env:
+          IMPACT: ${{ steps.impact.outcome }}
+          PUBLISH: ${{ steps.publish.outcome }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          script: |
+            const fs = require('fs');
+            const MARKER = '<!-- bridge-visual-impact -->';
+            const LABEL = 'visual-change';
+            const issue_number = context.payload.pull_request.number;
+            const { owner, repo } = context.repo;
+            let body;
+            let changed = false;
+            if (process.env.IMPACT === 'success' && fs.existsSync('visual-impact/manifest.json')) {
+              const m = JSON.parse(fs.readFileSync('visual-impact/manifest.json', 'utf8'));
+              changed = m.summary.changed + m.summary.added + m.summary.removed > 0;
+              body = fs.readFileSync('visual-impact/comment.md', 'utf8');
+              if (process.env.PUBLISH !== 'success') {
+                body = body.replace(/### Before, after, diff[\s\S]*?(?=<sub>)/, `Images could not be published to the \`bridge-visual\` branch: download them from the [workflow artifact](${process.env.RUN_URL}).\n\n`);
+              }
+            } else {
+              body = `${MARKER}\n## Visual impact\n\nThe visual impact run did not finish for ${context.payload.pull_request.head.sha.slice(0, 7)}. [See the logs](${process.env.RUN_URL}). This never blocks the pull request.\n`;
+            }
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number, per_page: 100 });
+            const mine = comments.find((c) => c.user?.type === 'Bot' && c.body?.includes(MARKER));
+            if (mine) await github.rest.issues.updateComment({ owner, repo, comment_id: mine.id, body });
+            else await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            const has = context.payload.pull_request.labels.some((l) => l.name === LABEL);
+            if (changed && !has) await github.rest.issues.addLabels({ owner, repo, issue_number, labels: [LABEL] });
+            if (!changed && has && process.env.IMPACT === 'success') await github.rest.issues.removeLabel({ owner, repo, issue_number, name: LABEL }).catch(() => undefined);
+
+  cleanup:
+    name: Remove published images
+    if: github.event.action == 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.VISUAL_BRANCH }}
+          fetch-depth: 1
+        continue-on-error: true
+        id: checkout
+      - name: Delete pr-${{ github.event.pull_request.number }}
+        if: steps.checkout.outcome == 'success'
+        env:
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          [ -d "pr-$PR" ] || exit 0
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -rq "pr-$PR"
+          git commit -qm "visual impact: remove PR #$PR (closed)"
+          for i in 1 2 3; do git push -q origin "HEAD:refs/heads/$VISUAL_BRANCH" && exit 0; sleep $((i * 3)); git pull -q --rebase origin "$VISUAL_BRANCH"; done
