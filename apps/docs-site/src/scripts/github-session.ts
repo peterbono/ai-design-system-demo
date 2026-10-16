@@ -96,10 +96,22 @@ function headers(extra: Record<string, string> = {}): Record<string, string> {
   return h;
 }
 
+// Identical GETs started on the same page load share one request (the header count and the page list read the
+// same open pull requests): anonymous visitors only have 60 reads an hour.
+const inflight = new Map<string, Promise<Fetched<unknown>>>();
+
 /** GET with cache fallback. `path` is relative to api.github.com, or an absolute URL. */
-export async function ghGet<T>(path: string, opts: { accept?: string; raw?: boolean } = {}): Promise<Fetched<T>> {
+export function ghGet<T>(path: string, opts: { accept?: string; raw?: boolean } = {}): Promise<Fetched<T>> {
   const url = path.startsWith('http') ? path : `${API}${path}`;
-  const key = `${url}|${opts.accept ?? ''}`;
+  const key = `${url}|${opts.accept ?? ''}|${opts.raw ? 'raw' : ''}|${getToken() ? 'auth' : 'anon'}`;
+  const pending = inflight.get(key);
+  if (pending) return pending as Promise<Fetched<T>>;
+  const p = ghGetOnce<T>(url, path, `${url}|${opts.accept ?? ''}`, opts).finally(() => inflight.delete(key));
+  inflight.set(key, p);
+  return p;
+}
+
+async function ghGetOnce<T>(url: string, path: string, key: string, opts: { accept?: string; raw?: boolean }): Promise<Fetched<T>> {
   try {
     // raw.githubusercontent.com: no custom headers, so no CORS preflight (and no API rate limit).
     const res = await fetch(url, url.startsWith(API) ? { headers: headers(opts.accept ? { Accept: opts.accept } : {}) } : {});

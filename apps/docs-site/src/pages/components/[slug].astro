@@ -10,6 +10,7 @@ import { loadComponents, playgroundSpec, type ComponentInfo } from '../../lib/co
 import { lastUpdated, sourceUrl, STORYBOOK_URL } from '../../lib/repo';
 import { MODES } from '../../lib/tokens';
 import { releases } from '../../lib/changelog';
+import { mdTitleHtml } from '../../lib/markdown';
 import { humanDate } from '../../lib/stats';
 
 export function getStaticPaths() {
@@ -406,7 +407,7 @@ const tabs = [
                   <li>
                     <span class="pill">{e.kind}</span>
                     <div>
-                      <p>{e.title}</p>
+                      <p set:html={mdTitleHtml(e.title)} />
                       <p class="small muted">
                         {e.release}
                         {e.date && <>, {humanDate(e.date)}</>}

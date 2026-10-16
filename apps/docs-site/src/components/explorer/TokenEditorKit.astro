@@ -26,14 +26,14 @@ const palette = explorerTokens()
       </button>
       <div class="ed-tray-actions">
         <button type="button" class="btn btn-secondary btn-sm" id="ed-export">Export JSON</button>
-        <button type="button" class="btn btn-primary btn-sm" id="ed-propose" disabled>Propose change</button>
+        <button type="button" class="btn btn-primary btn-sm" id="ed-propose" data-gh-gate="open a pull request" disabled>Propose change</button>
         <button type="button" class="icon-btn ed-tray-close" data-ed-sheet-close aria-label="Close drafts" hidden><Icon name="close" size={18} /></button>
       </div>
     </div>
     <div class="ed-tray-panel" id="ed-tray-panel">
       <ul class="ed-tray-list" id="ed-tray-list"></ul>
       <div class="ed-tray-foot">
-        <p class="small muted">Saved in this browser only. Proposing opens a Tier 3 pull request labeled <code>source: bridge-web</code>.</p>
+        <p class="small muted">Saved in this browser only, no GitHub needed. Proposing opens a Tier 3 pull request labeled <code>source: bridge-web</code> and needs GitHub.</p>
         <button type="button" class="btn btn-secondary btn-sm ed-danger" id="ed-discard">Discard draft</button>
       </div>
     </div>
@@ -45,7 +45,7 @@ const palette = explorerTokens()
         <h2 id="ed-add-title">New semantic color</h2>
         <button type="submit" value="cancel" class="icon-btn" aria-label="Close"><Icon name="close" /></button>
       </header>
-      <p>A semantic token names a job, like <code>color.bg.canvas</code>. Point each theme at a palette role so brands can re-theme it. Adding a token is Tier 3.</p>
+      <p>A semantic token names a job, like <code>color.bg.canvas</code>. Point each theme at a palette role so brands can re-theme it. It stays a draft in this browser until you propose it; proposing a new token is Tier 3.</p>
       <label class="gh-field"><span>Name</span><input id="ed-add-path" placeholder="color.bg.canvas" spellcheck="false" autocomplete="off" /></label>
       <label class="gh-field"><span>Light points to</span><input id="ed-add-light" list="ed-palette" placeholder="palette.neutral.50" spellcheck="false" autocomplete="off" /></label>
       <label class="gh-field"><span>Dark points to</span><input id="ed-add-dark" list="ed-palette" placeholder="palette.neutral.950" spellcheck="false" autocomplete="off" /></label>

@@ -26,7 +26,8 @@ import {
 import { currentViewer, esc, getToken, ghGet, ghWrite, initGitHubConnect, RateLimitError, readRepo, relativeTime, type Fetched } from './github-session';
 import { analyzeTokenFiles, isTokenFile, type TokenReview } from './reviews/token-review';
 import { loadVisualImpact } from './reviews/visual-impact';
-import { ciFor, pullStatus, statusChip } from './pr-status';
+import { ciFor, loadStatuses, statusChip } from './pr-status';
+import { mdTitleHtml } from '../lib/markdown';
 import { touchesVisuals } from '../lib/visual-impact';
 
 interface User {
@@ -164,10 +165,11 @@ async function loadList(): Promise<Pull[]> {
   const el = listEl();
   el.setAttribute('aria-busy', 'true');
   try {
-    const f = await ghGet<Pull[]>(`${R}/pulls?state=open&per_page=50&sort=updated&direction=desc`);
+    // Same request as the header's open count, so one page load reads the list once.
+    const f = await ghGet<Pull[]>(`${R}/pulls?state=open&per_page=100`);
     staleNotice(f);
     // state=open already excludes merged and closed ones; filter again so a cached list never counts them.
-    const pulls = openPulls(f.data);
+    const pulls = openPulls(f.data).sort((a, b) => b.updated_at.localeCompare(a.updated_at));
     $('rv-count').textContent = String(pulls.length);
     try {
       localStorage.setItem('bridge.reviews.open', JSON.stringify({ n: pulls.length, at: new Date().toISOString() }));
@@ -185,7 +187,7 @@ async function loadList(): Promise<Pull[]> {
         return `<li class="rv-row" data-pr="${p.number}">
           <a class="rv-row-link" href="?pr=${p.number}" data-open-pr="${p.number}">
             <span class="rv-row-main">
-              <span class="rv-row-title">${esc(p.title)}</span>
+              <span class="rv-row-title">${mdTitleHtml(p.title)}</span>
               <span class="rv-row-meta">
                 <span class="mono">#${p.number}</span>
                 ${avatar(p.user, 18)}<span>${esc(p.user.login)}</span>
@@ -204,13 +206,12 @@ async function loadList(): Promise<Pull[]> {
         </li>`;
       })
       .join('');
-    // Status per row (CI and reviews), in the background. A failed read shows "Status unknown", never "Ready".
-    for (const p of pulls) {
-      void pullStatus(p).then((st) => {
-        const slot = el.querySelector(`[data-status-slot="${p.number}"]`);
-        if (slot) slot.innerHTML = statusChip(st);
-      });
-    }
+    // Status per row (CI and reviews), in the background, within the request budget (lib/status-budget): every
+    // row with a token, the 3 most recent without. A failed read shows "Status unknown", never "Ready".
+    void loadStatuses(pulls, (p, st, skipped) => {
+      const slot = el.querySelector(`[data-status-slot="${p.number}"]`);
+      if (slot) slot.innerHTML = statusChip(st, { skipped });
+    });
     return pulls;
   } catch (err) {
     el.innerHTML = '';

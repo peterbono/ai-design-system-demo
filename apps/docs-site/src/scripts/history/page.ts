@@ -4,6 +4,7 @@ import type { HistoryEntry, HistoryFilter, HistoryReport } from '@bridge-ds/core
 import { authorsOf, countsLabel, shortDate, viewTimeline } from '../../lib/history-view';
 import { renderTokenReview } from '../reviews';
 import { esc, initGitHubConnect, readRepo } from '../github-session';
+import { mdTitleHtml } from '../../lib/markdown';
 import { openRevertPlanner } from './planner';
 import { activeReport, DEMO_EVENT, demoOn, loadHistory, setDemo, type Loaded } from './state';
 
@@ -40,15 +41,15 @@ function row(e: HistoryEntry, demo: boolean): string {
   const kind = e.bulk ? '<span class="pill">Import</span>' : e.breaking ? '<span class="pill is-fail">Breaking</span>' : tierPill(e.tier);
   if (e.bulk) {
     return `<li class="entry-row hs-row is-bulk">${kind}<div class="entry-main">
-      <details class="hs-bulk"><summary><span class="entry-title">${esc(e.title)}</span></summary>
+      <details class="hs-bulk"><summary><span class="entry-title">${mdTitleHtml(e.title)}</span></summary>
       <p class="entry-foryou">An import or a restructure of ${e.counts.total} tokens (${esc(countsLabel(e.counts))}), not a reviewable edit. Bridge does not offer to undo it.</p>
       <p class="small"><a href="?entry=${encodeURIComponent(e.id)}" data-hs-open="${esc(e.id)}">See the tokens it touched</a></p></details>
       <p class="entry-foryou">${esc(e.author)}, ${esc(shortDate(e.date))}</p></div>
       <div class="entry-ref">${refLink(e, demo)}</div></li>`;
   }
   return `<li class="entry-row hs-row">${kind}<div class="entry-main">
-    <p class="entry-title"><a href="?entry=${encodeURIComponent(e.id)}" data-hs-open="${esc(e.id)}">${esc(e.title)}</a></p>
-    <p class="entry-foryou">${esc(e.why !== e.title ? e.why : countsLabel(e.counts))}</p>
+    <p class="entry-title"><a href="?entry=${encodeURIComponent(e.id)}" data-hs-open="${esc(e.id)}">${mdTitleHtml(e.title)}</a></p>
+    <p class="entry-foryou">${e.why !== e.title ? mdTitleHtml(e.why) : esc(countsLabel(e.counts))}</p>
     <p class="entry-foryou">${esc(e.author)}, ${esc(shortDate(e.date))}, ${esc(countsLabel(e.counts))}</p>
     <p class="hs-row-actions"><button type="button" class="btn btn-secondary btn-sm" data-hs-undo="${esc(e.id)}">Undo this change</button></p></div>
     <div class="entry-ref">${refLink(e, demo)}</div></li>`;
@@ -120,11 +121,11 @@ function paintDetail(e: HistoryEntry, report: HistoryReport, demo: boolean) {
   ].join(' ');
   $('hs-detail').innerHTML = `<p><a href="/studio/versions/" data-hs-back>Back to the timeline</a></p>
     <article class="rv-card hs-card">
-      <header class="hs-detail-head"><div><h2>${esc(e.title)}</h2>
+      <header class="hs-detail-head"><div><h2>${mdTitleHtml(e.title)}</h2>
         <p class="small muted">${esc(e.author)}, ${esc(shortDate(e.date))}. ${demo ? 'Fixture change.' : `<span class="entry-ref hs-inline-ref">${refLink(e, false)}</span>`}</p>
         <p class="hs-facts">${facts}</p></div>
         ${e.bulk ? '' : `<button type="button" class="btn btn-primary btn-sm" data-hs-undo="${esc(e.id)}">Undo this change</button>`}</header>
-      <section><h3 class="rv-sub">Why</h3><p>${esc(e.why)}</p>${e.changesets.length ? `<p class="small muted">From ${e.changesets.map((c) => `<code>${esc(c.path)}</code>`).join(', ')}.</p>` : ''}</section>
+      <section><h3 class="rv-sub">Why</h3><p>${mdTitleHtml(e.why)}</p>${e.changesets.length ? `<p class="small muted">From ${e.changesets.map((c) => `<code>${esc(c.path)}</code>`).join(', ')}.</p>` : ''}</section>
       <section><h3 class="rv-sub">Token changes <span class="tx-d-n">${e.counts.total}</span></h3>${diff}</section>
     </article>`;
   void report;

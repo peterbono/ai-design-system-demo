@@ -4,6 +4,7 @@ import Icon from '../components/Icon.astro';
 import Updated from '../components/Updated.astro';
 import type { IconName } from '../brand/icons';
 import { releases } from '../lib/changelog';
+import { mdTitleHtml } from '../lib/markdown';
 import { GITHUB_URL, sourceUrl } from '../lib/repo';
 import { PAGE_SOURCES, freshness } from '../lib/sources';
 import { humanDate } from '../lib/stats';
@@ -97,7 +98,7 @@ const visibleKinds = KINDS.filter((k) => all.some((r) => r.entries.some((e) => e
                         {e.kind}
                       </span>
                       <div class="entry-main">
-                        <p class="entry-title">{e.title}</p>
+                        <p class="entry-title" set:html={mdTitleHtml(e.title)} />
                         <p class="entry-foryou">
                           <span class="entry-foryou-label">What changes for you:</span> {e.forYou}
                         </p>

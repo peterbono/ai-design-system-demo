@@ -40,7 +40,7 @@ import {
   type Guardrails,
 } from '../lib/editor-model';
 import { currentScope } from './shell';
-import { esc, getToken, initGitHubConnect, readRepo } from './github-session';
+import { esc, getToken, initGitHubConnect, paintGates, readRepo } from './github-session';
 
 /** The config's repository, or the one this site documents when the config names none. */
 function repoOf(config: BridgeConfig): { owner: string; name: string; defaultBranch: string } {
@@ -344,13 +344,11 @@ function paintTray() {
   const status = $('ed-tray-status')!;
   status.textContent = !n ? 'Open a token to edit it.' : fails ? `${fails} guardrail${fails > 1 ? 's' : ''} block proposing` : 'Guardrails pass';
   status.className = `ed-tray-status ${!n ? '' : fails ? 'is-fail' : 'is-pass'}`;
+  // Drafts never need GitHub: adding, editing and exporting stay in this browser. Only proposing opens a pull
+  // request, so it is the one gated action (data-gh-gate): without a connection a click opens Connect GitHub.
   const propose = $<HTMLButtonElement>('ed-propose')!;
-  const signedIn = Boolean(getToken());
-  // Without a token the draft can still leave the browser, as a JSON file with the edited token files.
-  propose.disabled = !n || (signedIn && fails > 0);
-  propose.textContent = signedIn ? 'Propose change' : 'Export draft';
-  const exp = $('ed-export');
-  if (exp) exp.hidden = !signedIn;
+  propose.disabled = !n || fails > 0;
+  paintGates(propose.parentElement ?? document);
   const sw = (hex: string | null) => (hex ? `<span class="ed-sw sm" style="background-color:${hex}"></span>` : '');
   const moves = contrastMoves({ contrastBefore: S.contrastBefore, contrastAfter: S.contrastAfter });
   $('ed-tray-list')!.innerHTML = rows.length
@@ -629,8 +627,7 @@ export function initTokenEditor() {
     ($<HTMLDialogElement>('ed-add-dialog') as HTMLDialogElement).close();
   });
   $('ed-propose')?.addEventListener('click', () => {
-    if (!S?.draft.edits.length) return;
-    if (!getToken()) return downloadDraft();
+    if (!S?.draft.edits.length || !getToken()) return;
     ($<HTMLDialogElement>('ed-propose-dialog') as HTMLDialogElement | null)?.showModal();
   });
   $('ed-export')?.addEventListener('click', downloadDraft);
