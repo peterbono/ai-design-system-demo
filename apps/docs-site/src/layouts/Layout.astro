@@ -103,7 +103,7 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
   <body>
     <a class="skip" href="#main">Skip to content</a>
     <header class="topbar">
-      <IconButton icon={MenuIcon} label="Open navigation" className="rail-toggle" id="rail-toggle" aria-controls="rail" aria-expanded="false" />
+      <span class="rail-toggle-slot"><IconButton icon={MenuIcon} label="Open navigation" id="rail-toggle" aria-controls="rail" aria-expanded="false" /></span>
       <a class="topbar-brand" href={LIBRARY_HOME} aria-label="Bridge Library, home"><Logo /></a>
 
       {
@@ -160,7 +160,7 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
       <Button variant="secondary" iconStart={Search} className="shell-search" id="search-open" aria-haspopup="dialog" aria-controls="palette" aria-label="Search tokens, components, pages">
         <span class="shell-search-text">
           <span class="shell-search-label">Search tokens, components, pages</span>
-          <Kbd keys={['⌘', 'K']} size="sm" className="shell-search-kbd" aria-hidden="true" />
+          <Kbd keys="⌘K" size="sm" className="shell-search-kbd" aria-hidden="true" />
         </span>
       </Button>
       <div class="topbar-actions">

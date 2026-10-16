@@ -1,7 +1,7 @@
 // The "All pairs" grid of the Accessibility page, built with the DS Table. A .tsx component (not markup in the
 // .astro page) because Astro wraps the children of a React component in an <astro-static-slot> element, which is not
 // valid inside <table>: the table parts have to be rendered by React together. Rendered statically, no client JS.
-import { Badge, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Tag } from '@bridge-ds/react';
+import { Badge, Link, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Tag } from '@bridge-ds/react';
 import { CircleAlert, CircleCheck } from 'lucide-react';
 
 export interface ContrastCombo {
@@ -48,9 +48,9 @@ export default function ContrastTable({ combos, rows }: { combos: ContrastCombo[
         {rows.map((p) => (
           <TableRow key={`${p.fg}|${p.bg}`}>
             <TableHead scope="row">
-              <a href={p.fgHref}>{p.fg}</a>
+              <Link href={p.fgHref}>{p.fg}</Link>
               <br />
-              <span className="muted small">on</span> <a href={p.bgHref}>{p.bg}</a>
+              <span className="muted small">on</span> <Link href={p.bgHref}>{p.bg}</Link>
             </TableHead>
             <TableCell>
               <Tag size="sm">{p.usage === 'text' ? 'Text' : 'UI'}</Tag> <span className="muted small num">min {p.min}:1</span>

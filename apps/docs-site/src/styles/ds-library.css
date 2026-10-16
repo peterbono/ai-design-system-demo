@@ -183,3 +183,14 @@
     margin-inline-start: 0;
   }
 }
+
+/* Phones: the workbench and GitHub icon links leave the top bar, as before the DS swap, so it fits 390 px. */
+@media (max-width: 640px) {
+  .topbar-actions .shell-ext {
+    display: none;
+  }
+
+  .topbar {
+    gap: var(--space-1-5);
+  }
+}

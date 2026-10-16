@@ -38,7 +38,8 @@ function snippet(name: string, values: Values, children: string | null, defaults
 /** Enums with up to four short options read best side by side; longer lists go in a Select. */
 const segmentable = (options: string[]) => options.length <= 4 && options.every((o) => o.length <= 12);
 
-function Field({ control, value, onChange }: { control: Control; value: string | boolean | undefined; onChange: (v: string | boolean) => void }) {
+/** One prop's control, composed from DS controls (SegmentedControl, Select, Switch, Input). */
+function PropControl({ control, value, onChange }: { control: Control; value: string | boolean | undefined; onChange: (v: string | boolean) => void }) {
   const labelId = useId();
   if (control.kind === 'enum') {
     const current = typeof value === 'string' ? value : control.options[0]!;
@@ -164,7 +165,7 @@ export default function PropsPlayground({ spec }: { spec: PlaygroundSpec }) {
       </div>
       <form className="pg-controls" onSubmit={(e) => e.preventDefault()} aria-label={`${spec.component} props`}>
         {controls.map((c) => (
-          <Field key={c.name} control={c} value={values[c.name]} onChange={set(c.name)} />
+          <PropControl key={c.name} control={c} value={values[c.name]} onChange={set(c.name)} />
         ))}
         {spec.children !== null && (
           <div className="pg-field">
