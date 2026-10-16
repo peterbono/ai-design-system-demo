@@ -37,131 +37,13 @@
   display: none;
 }
 
-/* GitHub connection */
+/* Notices */
 
-.gh-connect {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.gh-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: var(--br-text-muted);
-  font-size: var(--br-text-sm);
-}
-
-.gh-dot {
-  width: 0.5rem;
-  height: 0.5rem;
-  border-radius: var(--br-radius-pill);
-  background-color: var(--br-text-muted);
-}
-
-.gh-connect[data-state="connected"] .gh-dot {
-  background-color: var(--br-pass);
-}
-
-.gh-connect[data-state="connected"] .gh-status {
-  color: var(--br-text);
-}
-
-.gh-dialog {
-  width: min(32rem, calc(100vw - 2rem));
-  padding: 0;
-  border: 1px solid var(--br-border);
-  border-radius: var(--br-radius-card);
-  background-color: var(--br-surface);
-  color: var(--br-text);
-  box-shadow: var(--br-shadow-3);
-}
-
-.gh-dialog::backdrop {
-  background-color: var(--br-scrim);
-}
-
-.gh-dialog-box {
-  display: grid;
-  gap: 0.75rem;
-  padding: 1.25rem 1.5rem 1.5rem;
-}
-
-.gh-dialog-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.gh-dialog-head h2 {
-  margin: 0;
-  font-size: var(--br-text-xl);
-}
-
-.gh-dialog p {
-  margin: 0;
-  font-size: var(--br-text-sm);
-  line-height: 1.55;
-}
-
-.gh-steps {
-  display: grid;
-  gap: 0.375rem;
-  margin: 0;
-  padding-left: 1.25rem;
-  color: var(--br-text-muted);
-  font-size: var(--br-text-sm);
-}
-
-.gh-field {
-  display: grid;
-  gap: 0.375rem;
-  font-size: var(--br-text-sm);
-  font-weight: 500;
-}
-
-.gh-field input,
-.rv-actions textarea {
-  width: 100%;
-  min-height: 2.5rem;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--br-border-strong);
-  border-radius: var(--br-radius-control);
-  background-color: var(--br-surface);
-  color: var(--br-text);
-  font: inherit;
-  font-size: var(--br-text-sm);
-}
-
-.gh-field input {
-  font-family: var(--br-font-mono);
-}
-
-.gh-field input:focus-visible,
-.rv-actions textarea:focus-visible {
-  outline: 2px solid var(--br-focus);
-  outline-offset: 1px;
-}
-
-.gh-error,
 .rv-error {
   color: var(--br-fail);
   font-size: var(--br-text-sm);
 }
 
-.gh-dialog-foot {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-top: 0.25rem;
-}
-
-.gh-spacer {
-  flex: 1;
-}
-
-/* Notices */
 
 .rv-notice {
   margin: 0 0 1rem;
@@ -688,11 +570,6 @@
 
 .rv-danger {
   color: var(--br-fail);
-}
-
-.btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
 }
 
 .rv-act-status {

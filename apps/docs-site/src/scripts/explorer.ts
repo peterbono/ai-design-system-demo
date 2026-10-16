@@ -274,7 +274,17 @@ export function initExplorer() {
   const open = (path: string, from?: HTMLElement | null) => {
     const t = byPath.get(path);
     if (!t) return;
+    body.querySelector('[data-ed-slot]')?.dispatchEvent(new Event('ed:dispose'));
     body.innerHTML = render(t, byPath);
+    if (document.body.classList.contains('is-editing')) {
+      // Edit mode: the editor goes right under the title, above the read-only details.
+      const slot = document.createElement('section');
+      slot.className = 'tx-d-sec ed-slot';
+      slot.dataset.edSlot = '';
+      slot.setAttribute('aria-label', 'Edit token');
+      body.querySelector('.tx-d-head')?.after(slot);
+      document.dispatchEvent(new CustomEvent('bridge:token-open', { detail: { path, slot } }));
+    }
     drawer.dataset.path = path;
     if (!drawer.open) {
       returnFocus = from ?? (document.activeElement as HTMLElement | null);
@@ -298,7 +308,12 @@ export function initExplorer() {
   drawer.addEventListener('click', (e) => {
     if (e.target === drawer) drawer.close();
   });
+  // Re-render the open drawer when edit mode turns on or off.
+  document.addEventListener('bridge:editing', () => {
+    if (drawer.open && drawer.dataset.path) open(drawer.dataset.path);
+  });
   drawer.addEventListener('close', () => {
+    body.querySelector('[data-ed-slot]')?.dispatchEvent(new Event('ed:dispose'));
     document.body.classList.remove('no-scroll');
     delete drawer.dataset.path;
     syncUrl();

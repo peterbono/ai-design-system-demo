@@ -1,10 +1,20 @@
 ---
+import '../../styles/github.css';
+import '../../styles/editor.css';
 import '../../styles/explorer.css';
 import Layout from '../../layouts/Layout.astro';
 import Icon from '../../components/Icon.astro';
 import Updated from '../../components/Updated.astro';
 import { explorerTokens, previewKind, type ExplorerToken } from '../../lib/explorer';
 import { PAGE_SOURCES, freshness } from '../../lib/sources';
+import GitHubConnect from '../../components/GitHubConnect.astro';
+import GitHubDialog from '../../components/GitHubDialog.astro';
+import EditorPreview from '../../components/EditorPreview.tsx';
+import { listDir, readText, exists } from '../../lib/repo';
+import { CONTRAST_FILE } from '../../lib/contrast';
+import { siteRepo } from '../../lib/config';
+
+const TOKENS_SRC = siteRepo().tokensRoot;
 
 const updated = freshness(PAGE_SOURCES.lookup);
 const tokens = explorerTokens().map((t) => ({ ...t, kind: previewKind(t) }));
@@ -24,6 +34,14 @@ const searchText = (t: ExplorerToken) =>
 const shortValue = (t: ExplorerToken) =>
   t.modes ? (t.modes.light.css === t.modes.dark.css ? t.modes.light.css : `${t.modes.light.hex ?? t.modes.light.css} / ${t.modes.dark.hex ?? t.modes.dark.css}`) : (t.hex ?? t.value);
 const json = JSON.stringify(tokens).replace(/</g, '\\u003c');
+// Token files and config for the editor: it rebuilds the token set in the browser with @bridge/core.
+const tokenFiles: Record<string, string> = {};
+for (const dir of listDir(TOKENS_SRC).filter((d) => !d.includes('.'))) {
+  for (const f of listDir(`${TOKENS_SRC}/${dir}`)) if (f.endsWith('.tokens.json')) tokenFiles[`${dir}/${f}`] = readText(`${TOKENS_SRC}/${dir}/${f}`);
+}
+const filesJson = JSON.stringify(tokenFiles).replace(/</g, '\\u003c');
+const configJson = (exists('bridge.config.json') ? readText('bridge.config.json') : '{}').replace(/</g, '\\u003c');
+const checksJson = readText(CONTRAST_FILE).replace(/</g, '\\u003c');
 ---
 
 <Layout title="Token explorer" description="Every token in the system: filter, search and open one to see its alias chain, values, contrast and usage." sources={PAGE_SOURCES.lookup} updated={updated} wide>
@@ -37,7 +55,21 @@ const json = JSON.stringify(tokens).replace(/</g, '\\u003c');
         </p>
         <Updated date={updated} />
       </div>
+      <div class="tx-head-actions">
+        <div class="ed-only"><GitHubConnect /></div>
+        <button type="button" class="btn btn-secondary ed-only" id="ed-add"><Icon name="plus" size={16} />New semantic token</button>
+        <button type="button" class="btn btn-primary tx-edit-toggle" id="tx-edit-toggle" aria-pressed="false">
+          <Icon name="sliders" size={16} /><span class="when-off">Edit tokens</span><span class="when-on">Done editing</span>
+        </button>
+      </div>
     </header>
+    <p class="ed-banner ed-only">
+      <Icon name="pr" size={18} />
+      <span>
+        Edit mode. Open a token to change it. Edits stay in this browser as a draft, the preview and the guardrails update as you go, and nothing
+        reaches the repo until you propose a pull request and it is reviewed.
+      </span>
+    </p>
 
     <div class="tx-toolbar" role="search">
       <label class="tx-search">
@@ -155,6 +187,68 @@ const json = JSON.stringify(tokens).replace(/</g, '\\u003c');
     </div>
   </div>
 
+  <template id="ed-preview-tpl"><EditorPreview theme="light" /></template>
+
+  <section class="ed-tray" id="ed-tray" data-open="false" aria-label="Draft changes" hidden>
+    <div class="ed-tray-bar">
+      <button type="button" class="ed-tray-toggle" id="ed-tray-toggle" aria-expanded="false" aria-controls="ed-tray-panel">
+        <span class="ed-tray-count" id="ed-tray-count">No draft changes yet</span>
+        <span class="ed-tray-status" id="ed-tray-status"></span>
+        <Icon name="chevron" size={14} />
+      </button>
+      <div class="ed-tray-actions">
+        <button type="button" class="btn btn-secondary btn-sm" id="ed-export">Export JSON</button>
+        <button type="button" class="btn btn-primary btn-sm" id="ed-propose" disabled>Propose change</button>
+      </div>
+    </div>
+    <div class="ed-tray-panel" id="ed-tray-panel">
+      <ul class="ed-tray-list" id="ed-tray-list"></ul>
+      <div class="ed-tray-foot">
+        <p class="small muted">Saved in this browser only. Proposing opens a Tier 3 pull request labeled <code>source: bridge-web</code>.</p>
+        <button type="button" class="btn btn-secondary btn-sm ed-danger" id="ed-discard">Discard draft</button>
+      </div>
+    </div>
+  </section>
+
+  <dialog class="gh-dialog" id="ed-add-dialog" aria-labelledby="ed-add-title">
+    <form method="dialog" class="gh-dialog-box">
+      <header class="gh-dialog-head">
+        <h2 id="ed-add-title">New semantic color</h2>
+        <button type="submit" value="cancel" class="icon-btn" aria-label="Close"><Icon name="close" /></button>
+      </header>
+      <p>A semantic token names a job, like <code>color.bg.canvas</code>. Point each theme at a palette role so brands can re-theme it. Adding a token is Tier 3.</p>
+      <label class="gh-field"><span>Name</span><input id="ed-add-path" placeholder="color.bg.canvas" spellcheck="false" autocomplete="off" /></label>
+      <label class="gh-field"><span>Light points to</span><input id="ed-add-light" list="ed-palette" placeholder="palette.neutral.50" spellcheck="false" autocomplete="off" /></label>
+      <label class="gh-field"><span>Dark points to</span><input id="ed-add-dark" list="ed-palette" placeholder="palette.neutral.950" spellcheck="false" autocomplete="off" /></label>
+      <datalist id="ed-palette">{tokens.filter((t) => t.layer === 'brand' && t.type === 'color').map((t) => <option value={t.path} />)}</datalist>
+      <p class="gh-error" id="ed-add-error" role="alert" hidden></p>
+      <footer class="gh-dialog-foot">
+        <span class="gh-spacer"></span>
+        <button type="submit" value="cancel" class="btn btn-secondary btn-sm">Cancel</button>
+        <button type="button" class="btn btn-primary btn-sm" id="ed-add-save">Add to draft</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog class="gh-dialog" id="ed-propose-dialog" aria-labelledby="ed-propose-h">
+    <form method="dialog" class="gh-dialog-box">
+      <header class="gh-dialog-head">
+        <h2 id="ed-propose-h">Propose change</h2>
+        <button type="submit" value="cancel" class="icon-btn" aria-label="Close"><Icon name="close" /></button>
+      </header>
+      <p>Bridge creates a <code>tokens/*</code> branch, commits the edited token files with minimal diffs and a changeset, and opens a pull request for design and tech review.</p>
+      <label class="gh-field"><span>Title</span><input id="ed-propose-title" placeholder="tokens: soften the page background" /></label>
+      <label class="gh-field"><span>Why</span><textarea id="ed-propose-notes" rows="3" placeholder="What problem this solves, and where reviewers should look."></textarea></label>
+      <p class="small" id="ed-propose-status" role="status" aria-live="polite"></p>
+      <footer class="gh-dialog-foot">
+        <span class="gh-spacer"></span>
+        <button type="submit" value="cancel" class="btn btn-secondary btn-sm">Cancel</button>
+        <button type="button" class="btn btn-primary btn-sm" id="ed-propose-go">Open pull request</button>
+      </footer>
+    </form>
+  </dialog>
+  <GitHubDialog />
+
   <dialog class="tx-drawer" id="tx-drawer" aria-labelledby="tx-d-title">
     <div class="tx-d-inner">
       <div class="tx-d-bar">
@@ -166,8 +260,13 @@ const json = JSON.stringify(tokens).replace(/</g, '\\u003c');
   </dialog>
 
   <script type="application/json" id="tx-data" set:html={json} />
+  <script type="application/json" id="tx-files" set:html={filesJson} />
+  <script type="application/json" id="tx-config" set:html={configJson} />
+  <script type="application/json" id="bridge-contrast" set:html={checksJson} />
   <script>
     import { initExplorer } from '../../scripts/explorer';
+    import { initTokenEditor } from '../../scripts/token-editor';
+    initTokenEditor();
     initExplorer();
   </script>
 </Layout>
