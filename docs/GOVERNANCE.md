@@ -35,6 +35,19 @@ If a PR spans tiers, the highest tier applies.
 `@design-owner` and `@tech-owner` in `.github/CODEOWNERS` are placeholders. Branch protection with
 "Require review from Code Owners" is what turns this table into an enforced rule.
 
+## Branches from the Figma plugin (`tokens/*`)
+
+DS Bridge (`apps/figma-plugin`) turns Figma variable edits into pull requests:
+
+- Branches are named `tokens/<slug>-<yyyymmdd-hhmm>`, with a single commit that only touches the
+  changed token files plus a changeset (`minor`, or `major` when a token is renamed or removed).
+- These PRs are always **Tier 3** (token change): opened as draft, labelled `tokens`, and they need
+  **design owner and tech owner** approval, like any other token change.
+- The plugin refuses to open the PR while its guardrails fail (aliases, cycles, scopes, type changes,
+  WCAG contrast on `packages/tokens/src/contrast-pairs.json`). That is a convenience, not a gate:
+  CI and CODEOWNERS remain the authority.
+- If you want stricter handling, add a branch protection or ruleset entry for the pattern `tokens/*`.
+
 ## Reviewing an AI-authored PR
 
 Read it as you would a junior contributor's PR, with extra attention to things an agent does confidently

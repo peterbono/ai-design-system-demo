@@ -24,6 +24,7 @@ npm run ci               # tokens:build, typecheck, lint:css, build-storybook
 ```
 packages/tokens   DTCG 2025.10 token JSON (primitives + light/dark semantic) -> Style Dictionary -> CSS vars + TS
 packages/react    Button, Input, Badge, Card. CSS Modules that read var(--*) tokens only
+apps/figma-plugin DS Bridge: Figma plugin, pull tokens into Variables, push edits back as a reviewed PR
 .storybook        react-vite, addon-docs, addon-a11y, theme toggle via data-theme
 .changeset        semver bumps and changelog entries
 .github           CI guardrails, CODEOWNERS, PR template with design review checklist
@@ -33,8 +34,8 @@ docs/             ARCHITECTURE, GOVERNANCE, SOURCES, pr-drafts/
 
 ## The operating model
 
-- **The repo is the source of truth.** Tokens live as W3C DTCG JSON; Figma explores and receives a one-way
-  import of what shipped, with no bidirectional sync.
+- **The repo is the source of truth.** Tokens live as W3C DTCG JSON. Figma receives what shipped, and
+  Figma edits come back only as reviewed pull requests, never as a direct write or a live sync.
 - **Two tiers of tokens.** Primitives hold raw scales; semantic tokens alias them per theme. Components
   only use semantic tokens for color, elevation and focus.
 - **Guardrails live in CI, not in prompts.** Stylelint rejects raw colors and shadows, TypeScript checks
@@ -71,6 +72,19 @@ Three local branches simulate agent PRs, each with a draft description in `docs/
 
 ```sh
 git switch agent/card-elevation-hardcoded && npm run lint:css   # see the guardrail fail
+```
+
+## Figma
+
+Designers edit tokens as Figma Variables with **DS Bridge**, the plugin in `apps/figma-plugin`. It pulls
+the DTCG files from `main` into Variables (Primitives, plus Semantic with Light and Dark), and turns
+variable edits into a draft PR: a three-way diff against the last pulled commit and current `main`,
+conflicts resolved side by side, guardrails (aliases, scopes, WCAG contrast) checked before the PR
+button is enabled. The PR then goes through the same CI and CODEOWNERS review as any other Tier 3
+change. Works on the free Figma plan (Plugin API only). See [`apps/figma-plugin/README.md`](apps/figma-plugin/README.md).
+
+```sh
+npm run plugin:build    # then Figma desktop: Plugins > Development > Import plugin from manifest
 ```
 
 ## Placeholders

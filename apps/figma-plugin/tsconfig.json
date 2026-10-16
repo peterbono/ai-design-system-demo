@@ -1,0 +1,20 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "types": [
+      "@figma/plugin-typings",
+      "node"
+    ]
+  },
+  "include": [
+    "src",
+    "test",
+    "scripts/*.d.ts"
+  ]
+}

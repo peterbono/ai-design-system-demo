@@ -1,0 +1,19 @@
+{
+  "name": "@demo-ds/figma-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "DS Bridge: Figma plugin that pulls DTCG tokens from GitHub into Figma Variables and opens reviewed pull requests for variable edits.",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "watch": "node scripts/build.mjs --watch",
+    "test": "node scripts/test.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@figma/plugin-typings": "1.142.0",
+    "@types/node": "20.19.9",
+    "esbuild": "0.27.7",
+    "typescript": "5.9.3"
+  }
+}

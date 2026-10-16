@@ -1,0 +1,30 @@
+{
+  "$description": "Foreground/background semantic token pairs checked for WCAG 2.x contrast in every theme. kind: text (AA 4.5:1), large-text (AA 3:1), ui (non-text, AA 3:1). Used by the DS Bridge Figma plugin before it opens a pull request. Not a token file: it is not read by the Style Dictionary build.",
+  "pairs": [
+    { "foreground": "color.text.default", "background": "color.bg.default", "kind": "text" },
+    { "foreground": "color.text.muted", "background": "color.bg.default", "kind": "text" },
+    { "foreground": "color.text.default", "background": "color.bg.subtle", "kind": "text" },
+    { "foreground": "color.text.muted", "background": "color.bg.subtle", "kind": "text" },
+    { "foreground": "color.text.default", "background": "color.surface.default", "kind": "text" },
+    { "foreground": "color.text.muted", "background": "color.surface.default", "kind": "text" },
+    { "foreground": "color.text.default", "background": "color.surface.raised", "kind": "text" },
+    { "foreground": "color.text.muted", "background": "color.surface.raised", "kind": "text" },
+    { "foreground": "color.action.primary.text", "background": "color.action.primary.bg", "kind": "text" },
+    { "foreground": "color.action.primary.text", "background": "color.action.primary.bg-hover", "kind": "text" },
+    { "foreground": "color.action.secondary.text", "background": "color.action.secondary.bg", "kind": "text" },
+    { "foreground": "color.action.secondary.text", "background": "color.action.secondary.bg-hover", "kind": "text" },
+    { "foreground": "color.action.ghost.text", "background": "color.bg.default", "kind": "text" },
+    { "foreground": "color.action.ghost.text", "background": "color.surface.default", "kind": "text" },
+    { "foreground": "color.action.ghost.text", "background": "color.action.ghost.bg-hover", "kind": "text" },
+    { "foreground": "color.feedback.success.text", "background": "color.feedback.success.bg", "kind": "text" },
+    { "foreground": "color.text.on-solid", "background": "color.feedback.success.solid", "kind": "text" },
+    { "foreground": "color.feedback.warning.text", "background": "color.feedback.warning.bg", "kind": "text" },
+    { "foreground": "color.text.on-solid", "background": "color.feedback.warning.solid", "kind": "text" },
+    { "foreground": "color.feedback.danger.text", "background": "color.feedback.danger.bg", "kind": "text" },
+    { "foreground": "color.text.on-solid", "background": "color.feedback.danger.solid", "kind": "text" },
+    { "foreground": "color.feedback.info.text", "background": "color.feedback.info.bg", "kind": "text" },
+    { "foreground": "color.text.on-solid", "background": "color.feedback.info.solid", "kind": "text" },
+    { "foreground": "focus.ring.color", "background": "color.bg.default", "kind": "ui" },
+    { "foreground": "focus.ring.color", "background": "color.surface.raised", "kind": "ui" }
+  ]
+}

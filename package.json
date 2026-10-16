@@ -11,12 +11,16 @@
   },
   "workspaces": [
     "packages/tokens",
-    "packages/react"
+    "packages/react",
+    "apps/figma-plugin"
   ],
   "scripts": {
     "tokens:build": "npm run build -w @demo-ds/tokens",
     "typecheck": "npm run typecheck -w @demo-ds/react",
     "lint:css": "stylelint \"packages/react/src/**/*.css\"",
+    "plugin:build": "npm run build -w @demo-ds/figma-plugin",
+    "plugin:test": "npm run test -w @demo-ds/figma-plugin",
+    "plugin:typecheck": "npm run typecheck -w @demo-ds/figma-plugin",
     "storybook": "npm run tokens:build && storybook dev -p 6006",
     "build-storybook": "npm run tokens:build && storybook build -o storybook-static --quiet",
     "ci": "npm run tokens:build && npm run typecheck && npm run lint:css && npm run build-storybook",

@@ -39,6 +39,29 @@ jobs:
       - name: Build Storybook
         run: npm run build-storybook
 
+  plugin:
+    name: Figma plugin (DS Bridge)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck plugin
+        run: npm run plugin:typecheck
+
+      - name: Test plugin (codec round trip, resolver, diff, WCAG, validators)
+        run: npm run plugin:test
+
+      - name: Build plugin
+        run: npm run plugin:build
+
   changeset:
     name: Changeset present
     if: github.event_name == 'pull_request'
