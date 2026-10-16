@@ -1,0 +1,23 @@
+---
+// The revert and restore planner. Include once per page that offers "Undo this change" or "Restore this value".
+import Icon from './Icon.astro';
+---
+
+<dialog class="gh-dialog hp-dialog" id="hp-dialog" aria-labelledby="hp-title">
+  <div class="gh-dialog-box hp-box">
+    <header class="gh-dialog-head">
+      <h2 id="hp-title">Plan a revert</h2>
+      <button type="button" class="icon-btn" id="hp-close" aria-label="Close the planner"><Icon name="close" /></button>
+    </header>
+    <p class="hp-demo-flag" id="hp-demo-flag" hidden><Icon name="info" size={15} /> Demo data: this plan runs on a fixture change, not on this repository's history.</p>
+    <div id="hp-body" class="hp-body" aria-live="polite"></div>
+    <p class="small" id="hp-status" role="status" aria-live="polite"></p>
+    <footer class="gh-dialog-foot hp-foot">
+      <button type="button" class="btn btn-secondary btn-sm" id="hp-download-json">Download patch</button>
+      <button type="button" class="btn btn-secondary btn-sm" id="hp-download-md">Download PR text</button>
+      <span class="gh-spacer"></span>
+      <button type="button" class="btn btn-secondary btn-sm" data-gh-open id="hp-connect" hidden>Connect GitHub</button>
+      <button type="button" class="btn btn-primary btn-sm" id="hp-propose">Propose revert</button>
+    </footer>
+  </div>
+</dialog>

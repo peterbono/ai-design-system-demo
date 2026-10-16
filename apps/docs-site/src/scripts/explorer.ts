@@ -276,6 +276,8 @@ export function initExplorer() {
     if (!t) return;
     body.querySelector('[data-ed-slot]')?.dispatchEvent(new Event('ed:dispose'));
     body.innerHTML = render(t, byPath);
+    // The token history panel (scripts/history/token-panel.ts) fills itself in.
+    document.dispatchEvent(new CustomEvent('bridge:token-detail', { detail: { path, body } }));
     if (document.body.classList.contains('is-editing')) {
       // Edit mode: the editor goes right under the title, above the read-only details.
       const slot = document.createElement('section');

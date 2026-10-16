@@ -255,3 +255,41 @@ loadRepoFiles(client, commitSha, fallbackTokensPath): Promise<{ files; contrastC
 
 Reads and content-addressed writes retry on network errors, 5xx and secondary rate limits; errors
 become `GitHubError { status, message, detail }` with plain-language messages.
+
+## history (history.ts, history-github.ts, history-demo.ts)
+
+What changed in the tokens, when, who changed it and why, and how to undo it safely.
+
+```ts
+// model
+interface HistoryEntry { id; sha; baseSha?; date; author; title; why; pr?; changes: LayeredChange[]; counts; tier; bump; breaking; reasons; changesets; version?; bulk?; demo? }
+function buildHistoryEntry({ config, commit, before, after, changesets? }): HistoryEntry | null;
+function collectHistory(config, backend: HistoryBackend, { ref, limit }): Promise<HistoryEntry[]>;
+// backends: GitHub REST (browser or Node) and local git (Node, @bridge/core/node)
+function gitHubHistoryBackend(client, config); function loadGitHubHistory(client, config, { ref?, limit? }): Promise<HistoryReport>;
+function localGitHistoryBackend(root, config); function loadLocalHistory(root, config, { ref?, limit? }): Promise<HistoryReport>;
+// versions: CHANGELOG sections and tags; the timeline of design system versions
+function parseChangelog(text); function releasesFromTags(tags, pkg?); function assignVersions(entries, releases); function versionTimeline(entries, releases?);
+// reading
+function filterHistory(entries, { token?, author?, tier?, version?, breaking?, since?, until?, query? });
+function tokenHistory(entries, path, config?): TokenHistoryItem[];   // every change of one token, renames followed
+function fileModes(config, file); function modeLabel(modes);            // semantic/dark.tokens.json -> { theme: "dark" } -> "Dark"
+// planning (never writes)
+function planRevert({ current, entry, later?, pairs?, resolutions? }): ChangePlan;
+function planRestore({ current, path, file?, value, label?, item?, pairs? }): ChangePlan;
+function planToJson(plan);                                             // a patch-like JSON for people without a token
+function demoHistory(config, currentFiles): HistoryReport;             // fixture entries, flagged demo, never real
+```
+
+Local history follows the first parent of the ref, so a merged branch is one entry (the merge commit against
+the base it merged into); GitHub history asks each commit for its pull request and diffs the PR's merge commit.
+Bulk entries (more than 60 token changes: an import or a restructure) are flagged.
+
+A revert is not a blind `git revert`. `planRevert` computes the inverse token edits against the current base
+branch: a token that changed again later (`changed-later`), was removed (`removed-later`), came back
+(`recreated-later`), moved (`renamed-later`) or that other tokens now alias (`still-referenced`) is a conflict,
+listed with the later changes that explain it and kept as it is unless `resolutions[key]` is `"use-before"`.
+Changes already undone are skipped. The rest goes through `applyTokenEdits` (minimal diffs), validation, the
+contrast gate, `classifyRisk` and a changeset, like any proposal: `status` is `ready`, `blocked` (new
+validation errors or a failing contrast pair) or `nothing-to-do`. The PR body starts with "Reverts #n" and the
+conflicts table.

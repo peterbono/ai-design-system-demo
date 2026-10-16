@@ -58,6 +58,10 @@ and the full guide: [docs/AI.md](../../docs/AI.md).
 | `bridge_review_pr` | Comment, approve or request changes (token required) |
 | `bridge_scaffold_component` | New component folder per the repo checklist |
 | `bridge_visual_impact` | Before/after screenshots of the impacted stories and admin screens, pixel diff, manifest (local, needs Chrome; `plan` for the selection only) |
+| `bridge_get_history` | Token history: versions, merged PRs and commits, who, when, why, tier |
+| `bridge_get_token_history` | Every change of one token, before and after per mode |
+| `bridge_plan_revert` | Dry run of a revert (or a one-token restore) against the current base, conflicts shown |
+| `bridge_propose_revert` | The revert as a local bridge/* branch or a draft PR labelled revert |
 
 Resources: `bridge://tokens/resolved`, `bridge://design-language`, `bridge://guidelines`,
 `bridge://components/{name}`. Prompts: `review-token-pr`, `add-component`, `audit-ui-for-tokens`.

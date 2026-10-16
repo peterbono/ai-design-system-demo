@@ -11,11 +11,15 @@ const TOOLS = [
   'bridge_get_config',
   'bridge_get_design_language',
   'bridge_get_guidelines',
+  'bridge_get_history',
   'bridge_get_review',
   'bridge_get_token',
+  'bridge_get_token_history',
   'bridge_list_components',
   'bridge_list_reviews',
   'bridge_list_tokens',
+  'bridge_plan_revert',
+  'bridge_propose_revert',
   'bridge_propose_token_change',
   'bridge_review_pr',
   'bridge_scaffold_component',
@@ -42,7 +46,7 @@ describe('MCP over stdio', () => {
     expect(client.getInstructions()).toMatch(/never writes to main/);
   });
 
-  it('lists the 16 tools with JSON schemas and read-only hints', async () => {
+  it('lists the 20 tools with JSON schemas and read-only hints', async () => {
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual(TOOLS);
     const getToken = tools.find((t) => t.name === 'bridge_get_token')!;

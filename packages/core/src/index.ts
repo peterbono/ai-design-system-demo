@@ -24,3 +24,6 @@ export * from './layered-review';
 export * from './governance';
 export * from './usage';
 export * from './github-client';
+export * from './history';
+export * from './history-github';
+export * from './history-demo';

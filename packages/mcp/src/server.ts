@@ -5,6 +5,7 @@ import type { BridgeContext } from './context.js';
 import { core } from './core-adapter.js';
 import { listComponentNames } from './components.js';
 import * as ops from './ops.js';
+import * as history from './history.js';
 
 export const VERSION = '0.1.0';
 
@@ -46,6 +47,7 @@ export function createServer(ctx: BridgeContext): McpServer {
         'Never hardcode a value in UI code when a token exists; never invent a token name (check it with bridge_get_token).',
         'Token changes go through bridge_propose_token_change only: it validates, checks contrast, and opens a branch or PR. It never writes to main.',
         'Adding, renaming or removing a token is Tier 3: tell the user it needs design and tech owner approval.',
+        'To undo a merged token change use bridge_plan_revert first (it shows conflicts with later changes), then bridge_propose_revert; never revert by hand-editing files.',
       ].join(' '),
     },
   );
@@ -219,6 +221,86 @@ export function createServer(ctx: BridgeContext): McpServer {
       annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
     },
     run((a) => ops.reviewPr(ctx, a)),
+  );
+
+  // --- history and rollback ---
+  const ResolutionsArg = z.record(z.string(), z.enum(['keep-current', 'use-before'])).describe('Per conflict key ("path@file" from bridge_plan_revert): keep-current (default) keeps the later value, use-before puts the value from before the reverted change back.');
+  const RestoreArg = z
+    .object({
+      path: z.string().describe('Token path (or CSS variable).'),
+      entry: z.string().optional().describe('History entry (id, #PR or sha) whose value to put back: the value right after that change.'),
+      side: z.enum(['before', 'after']).optional().describe('before: the value from just before `entry` instead. Default after.'),
+      value: z.any().optional().describe('Or the value itself: "#ff5500", "{palette.neutral.600}", raw DTCG.'),
+      file: z.string().optional().describe('Token file relative to the tokens root, when the token lives in several files.'),
+      mode: ModeArg.optional().describe('Alternative to file: {"theme":"dark"}.'),
+    })
+    .describe('Restore one token to an older value instead of reverting a whole change.');
+
+  server.registerTool(
+    'bridge_get_history',
+    {
+      title: 'Get token history',
+      description: 'History of the design tokens: merged token-changing PRs and commits (local git: first parent of HEAD; GitHub: PR merge commits), newest first, each with author, date, why (changeset summary, PR or commit body), version it shipped in, risk tier, semver bump, breaking flag and change counts, plus the timeline of design system versions. Filter by token (path or group prefix), author, tier, version, breaking, dates or text.',
+      inputSchema: {
+        token: z.string().optional().describe('Token path or group prefix: color.text matches color.text.muted.'),
+        author: z.string().optional(),
+        tier: z.union([z.literal(1), z.literal(2), z.literal(3)]).optional(),
+        version: z.string().optional().describe('"1.2.0" or "Unreleased".'),
+        breaking: z.boolean().optional(),
+        since: z.string().optional().describe('ISO date, inclusive.'),
+        until: z.string().optional().describe('ISO date, inclusive.'),
+        query: z.string().optional().describe('Text in the title, why, PR number or sha.'),
+        limit: z.number().int().min(1).max(200).optional().describe('Entries returned (default 20).'),
+        includeChanges: z.boolean().optional().describe('List the token changes of each entry (always on with token).'),
+      },
+      annotations: { readOnlyHint: true, openWorldHint: true },
+    },
+    run((a) => history.getHistory(ctx, a)),
+  );
+
+  server.registerTool(
+    'bridge_get_token_history',
+    {
+      title: 'Get token history for one token',
+      description: 'Every recorded change of one token, newest first, renames followed: value before and after per mode (raw and resolved CSS), who, when, the PR and why. Use before restoring a value or answering "when did this change and why".',
+      inputSchema: { path: z.string().describe('color.text.muted or --color-text-muted.'), limit: z.number().int().min(1).max(200).optional() },
+      annotations: { readOnlyHint: true, openWorldHint: true },
+    },
+    run((a) => history.getTokenHistory(ctx, a)),
+  );
+
+  server.registerTool(
+    'bridge_plan_revert',
+    {
+      title: 'Plan a revert (dry run)',
+      description: 'What undoing a merged token change takes, computed against the CURRENT base branch (not a blind git revert): the inverse edits, conflicts where a token changed again later (with the later PR), changes already undone, contrast before and after, new validation errors, risk tier, files and the PR body ("Revert: <title>", links the original PR). Or pass restore to put one token back to an older value. Writes nothing.',
+      inputSchema: {
+        target: z.string().optional().describe('History entry to undo: id (pr-12), PR number (#12) or commit sha.'),
+        restore: RestoreArg.optional(),
+        resolutions: ResolutionsArg.optional(),
+        restoreConflicts: z.boolean().optional().describe('Every conflict uses the value from before the change. Only when the user asked.'),
+        includeBody: z.boolean().optional().describe('Include the PR body (default true).'),
+      },
+      annotations: RO,
+    },
+    run((a) => history.planRevertOp(ctx, a)),
+  );
+
+  server.registerTool(
+    'bridge_propose_revert',
+    {
+      title: 'Propose a revert',
+      description: 'Plans the revert (or restore) like bridge_plan_revert, then: local repo, commits to a new local bridge/* branch without touching your working tree (never pushes); GitHub with token, new bridge/* branch and a PR labelled revert and its tier (draft for Tier 2 and 3). Blocked when it would add validation errors or break a contrast pair. Never writes to main. Show the user the plan and its conflicts first.',
+      inputSchema: {
+        target: z.string().optional(),
+        restore: RestoreArg.optional(),
+        resolutions: ResolutionsArg.optional(),
+        restoreConflicts: z.boolean().optional(),
+        dryRun: z.boolean().optional(),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    },
+    run((a) => history.proposeRevert(ctx, a)),
   );
 
   server.registerTool(
