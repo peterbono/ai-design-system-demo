@@ -41,3 +41,15 @@ export const WithStatus: Story = {
     </Card>
   ),
 };
+
+export const Interactive: Story = {
+  args: { interactive: true },
+  render: (args) => (
+    <Card {...args} aria-labelledby="interactive-title">
+      <CardHeader>
+        <span id="interactive-title">Hover me</span>
+      </CardHeader>
+      <CardBody>The card lifts on hover to signal that the whole surface is clickable.</CardBody>
+    </Card>
+  ),
+};
