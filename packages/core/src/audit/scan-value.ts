@@ -97,7 +97,10 @@ export function scanCssValue(property: string, value: string): ValueScan {
     return out;
   }
   if (prop === 'box-shadow' || prop === 'text-shadow') {
-    if (/\d/.test(masked) || masked.search(COLOR_LITERAL_RE) >= 0) hits.push({ category: 'shadow', text: v, index: value.indexOf(v) });
+    // A ring built from tokens (`inset 0 0 0 var(--border-width-default) var(--color-border-default)`) is not
+    // hardcoded: bare zero offsets carry no value. Any other number or a color literal is.
+    const numbers = masked.replace(/(?<![\w.])0(?![\w.%])/g, ' ');
+    if (/\d/.test(numbers) || masked.search(COLOR_LITERAL_RE) >= 0) hits.push({ category: 'shadow', text: v, index: value.indexOf(v) });
     return out;
   }
 

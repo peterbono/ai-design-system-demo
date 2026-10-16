@@ -39,6 +39,8 @@ describe('declarations', () => {
     assert.deepEqual(scanCssValue('padding', 'var(--space-4) 13px').hits.map((h) => h.text), ['13px']);
     assert.deepEqual(scanCssValue('padding', 'var(--space-4) 13px').vars, ['--space-4']);
     assert.equal(scanCssValue('box-shadow', '0 1px 2px rgba(0,0,0,.2)').hits[0]!.category, 'shadow');
+    assert.equal(scanCssValue('box-shadow', 'inset 0 0 0 var(--border-width-default) var(--color-border-default)').hits.length, 0);
+    assert.equal(scanCssValue('box-shadow', '0 0 0 1px var(--color-border-default)').hits[0]!.category, 'shadow');
     assert.deepEqual(scanCssValue('transition', 'color 150ms cubic-bezier(0.2, 0, 0, 1)').hits.map((h) => h.category), ['duration', 'easing']);
     assert.equal(scanCssValue('z-index', '1').hits.length, 0, 'local stacking (0, 1, -1) is not drift');
     assert.equal(scanCssValue('color', 'var(--x, #fff)').hits.length, 0, 'fallbacks inside var() are ignored');
