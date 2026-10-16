@@ -5,6 +5,8 @@ import '@demo-ds/tokens/tokens.css';
 import '../packages/react/src/styles/base.css';
 import './preview.css';
 import { ThemeProvider } from '../packages/react/src/theme';
+import { ToastProvider } from '../packages/react/src/components/Toast';
+import { TooltipProvider } from '../packages/react/src/components/Tooltip';
 import type { Brand, Density, Theme } from '@demo-ds/tokens';
 
 // Applies the scope the way a product does: all three attributes on <html> (for portaled overlays and the
@@ -21,7 +23,11 @@ const withScope: Decorator = (Story, context) => {
   }, [theme, brand, density]);
   return (
     <ThemeProvider theme={theme} brand={brand} density={density} className="sb-theme-root">
-      <Story />
+      <TooltipProvider>
+        <ToastProvider>
+          <Story />
+        </ToastProvider>
+      </TooltipProvider>
     </ThemeProvider>
   );
 };

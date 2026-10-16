@@ -1,0 +1,98 @@
+.positioner {
+  z-index: var(--layer-popover);
+  outline: none;
+}
+
+.popup {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: max-content;
+  max-width: min(var(--size-80), var(--available-width));
+  max-height: var(--available-height);
+  padding: var(--space-4);
+  border: var(--border-width-default) solid var(--popup-border);
+  border-radius: var(--popup-radius);
+  background-color: var(--popup-bg);
+  box-shadow: var(--popup-shadow);
+  color: var(--color-text-default);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-200);
+  line-height: var(--font-line-height-normal);
+  overflow-y: auto;
+  outline: none;
+  transform-origin: var(--transform-origin);
+  transition-property: opacity, transform;
+  transition-duration: var(--motion-duration-fast);
+  transition-timing-function: var(--motion-easing-enter);
+}
+
+.popup[data-starting-style],
+.popup[data-ending-style] {
+  opacity: 0;
+  transform: scale(0.96);
+}
+
+.popup[data-ending-style] {
+  transition-timing-function: var(--motion-easing-exit);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-200);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--font-line-height-snug);
+}
+
+.description {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.close {
+  margin: calc(var(--space-2) * -1) calc(var(--space-2) * -1) 0 auto;
+}
+
+/* Arrow: a rotated square that shares the popup's fill and edge. */
+.arrow {
+  width: var(--space-3);
+  height: var(--space-3);
+  border: var(--border-width-default) solid var(--popup-border);
+  background-color: var(--popup-bg);
+  transform: rotate(45deg);
+}
+
+.arrow[data-side="bottom"] {
+  top: calc(var(--space-1-5) * -1);
+  border-right-color: transparent;
+  border-bottom-color: transparent;
+}
+
+.arrow[data-side="top"] {
+  bottom: calc(var(--space-1-5) * -1);
+  border-top-color: transparent;
+  border-left-color: transparent;
+}
+
+.arrow[data-side="left"],
+.arrow[data-side="inline-start"] {
+  right: calc(var(--space-1-5) * -1);
+  border-bottom-color: transparent;
+  border-left-color: transparent;
+}
+
+.arrow[data-side="right"],
+.arrow[data-side="inline-end"] {
+  left: calc(var(--space-1-5) * -1);
+  border-top-color: transparent;
+  border-right-color: transparent;
+}

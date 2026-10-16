@@ -1,0 +1,78 @@
+{
+  "summary": "A modal window for a short, focused task that must be finished or cancelled before the user goes back to the page: rename a token, invite a reviewer, review a release.",
+  "preview": { "c": "Row", "children": [
+    { "c": "Button", "p": { "variant": "secondary" }, "children": ["Rename token"] }
+  ] },
+  "whenToUse": [
+    "A task of one to three fields that belongs to the current page and needs the user's full attention.",
+    "Reviewing something before committing it, like release notes before Publish.",
+    "Size sm for one field, md (default) for short forms, lg for reading or comparing content."
+  ],
+  "whenNotToUse": [
+    "Confirming a destructive action: use AlertDialog, which cannot be dismissed by clicking outside.",
+    "Details the user wants to read next to the page, like a token's history: use Drawer.",
+    "A hint or a small menu anchored to a control: use Popover or Menu.",
+    "Long multi-step flows: give them a page. Stacked dialogs lose people."
+  ],
+  "dos": [
+    {
+      "title": "Title says the task, the primary button repeats the verb",
+      "text": "\"Rename token\" opens a dialog titled \"Rename token\" whose primary action is \"Rename token\". Users always know where they are.",
+      "example": { "c": "Row", "children": [
+        { "c": "Button", "p": { "variant": "ghost" }, "children": ["Cancel"] },
+        { "c": "Button", "children": ["Rename token"] }
+      ] }
+    },
+    {
+      "title": "Keep the footer for actions only",
+      "text": "Alternatives first, primary last, aligned to the end. Explanations go in the description or the body.",
+      "example": { "c": "ButtonGroup", "p": { "align": "end", "aria-label": "Dialog actions" }, "children": [
+        { "c": "Button", "p": { "variant": "ghost" }, "children": ["Cancel"] },
+        { "c": "Button", "children": ["Send invite"] }
+      ] }
+    }
+  ],
+  "donts": [
+    {
+      "title": "A dialog for information the page could show inline",
+      "text": "Interrupting to say \"Saved\" costs a click. Use a Toast or an inline Alert.",
+      "example": { "c": "Row", "children": [ { "c": "Button", "p": { "variant": "secondary" }, "children": ["Show saved message"] } ] }
+    },
+    {
+      "title": "Vague footer labels",
+      "text": "\"OK\" and \"Yes\" make users reread the title to know what they agree to.",
+      "example": { "c": "Row", "children": [
+        { "c": "Button", "p": { "variant": "ghost" }, "children": ["No"] },
+        { "c": "Button", "children": ["OK"] }
+      ] }
+    }
+  ],
+  "accessibility": [
+    "Base UI Dialog: role dialog, aria-modal, named by the title and described by the description.",
+    "Focus moves into the dialog when it opens (the first focusable element, or initialFocus) and is trapped there.",
+    "Escape, the close button and a click on the scrim close it; focus returns to the trigger.",
+    "The page behind is inert and scroll is locked while the dialog is open.",
+    "The body scrolls on its own when content is long, so the title and the actions stay visible.",
+    "Motion is a 200ms fade and a slight rise; with reduced motion it appears instantly."
+  ],
+  "contentGuidelines": [
+    "Title: the task as a verb phrase in sentence case, no period: \"Invite reviewer\".",
+    "Description: one or two sentences on what happens next. Skip it if the title says enough.",
+    "Primary button repeats the title's verb. Secondary is \"Cancel\".",
+    "The close button label says what it closes: \"Close dialog\"."
+  ],
+  "anatomy": {
+    "backdrop": "Scrim (dialog.scrim)",
+    "viewport": "Positioning layer",
+    "popup": "Surface (dialog.bg, dialog.radius, dialog.shadow)",
+    "header": "Header",
+    "title": "Title",
+    "description": "Description",
+    "close": "Close button",
+    "body": "Scrolling body",
+    "footer": "Footer with actions",
+    "sm": "Size sm (384px)",
+    "md": "Size md (560px, default)",
+    "lg": "Size lg (720px)"
+  }
+}

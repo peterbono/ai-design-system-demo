@@ -31,3 +31,11 @@ export * from './components/Progress';
 export * from './components/Spinner';
 export * from './components/Skeleton';
 export * from './components/EmptyState';
+
+// Overlays
+export * from './components/Dialog';
+export * from './components/AlertDialog';
+export * from './components/Drawer';
+export * from './components/Popover';
+export * from './components/Tooltip';
+export * from './components/Menu';
