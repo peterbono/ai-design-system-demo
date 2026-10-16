@@ -31,6 +31,7 @@ export const FOUNDATIONS: NavItem[] = [
 export const PROCESS: NavItem[] = [
   { href: '/reviews/', label: 'Reviews', icon: 'review' },
   { href: '/governance/', label: 'Governance', icon: 'shield' },
+  { href: '/adoption/', label: 'Adoption', icon: 'layers' },
   { href: '/changelog/', label: 'Changelog', icon: 'clock' },
   { href: '/for-ai-agents/', label: 'For AI agents', icon: 'agent' },
 ];
