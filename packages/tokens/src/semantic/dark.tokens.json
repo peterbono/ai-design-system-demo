@@ -1,146 +1,351 @@
 {
   "color": {
-    "$type": "color",
     "bg": {
       "default": {
-        "$value": "{color.neutral.950}"
+        "$type": "color",
+        "$value": "{palette.neutral.950}",
+        "$description": "Page canvas behind panels."
       },
       "subtle": {
-        "$value": "{color.neutral.900}"
+        "$type": "color",
+        "$value": "{palette.neutral.900}",
+        "$description": "Recessed areas: table headers, code blocks, footers."
+      },
+      "muted": {
+        "$type": "color",
+        "$value": "{palette.neutral.800}",
+        "$description": "Tracks, skeletons, neutral fills."
       }
     },
     "surface": {
       "default": {
-        "$value": "{color.neutral.900}"
+        "$type": "color",
+        "$value": "{palette.neutral.900}",
+        "$description": "Panels, cards, inputs."
       },
       "raised": {
-        "$value": "{color.neutral.800}"
+        "$type": "color",
+        "$value": "{palette.neutral.800}",
+        "$description": "Floating layers: popovers, menus, dialogs, toasts."
+      },
+      "hover": {
+        "$type": "color",
+        "$value": "{palette.neutral.800}",
+        "$description": "Hover fill for rows, menu items, ghost controls."
+      },
+      "hover-raised": {
+        "$type": "color",
+        "$value": "{palette.neutral.700}",
+        "$description": "Hover fill inside a raised surface."
+      },
+      "pressed": {
+        "$type": "color",
+        "$value": "{palette.neutral.700}",
+        "$description": "Pressed fill."
+      },
+      "selected": {
+        "$type": "color",
+        "$value": "{palette.accent.950}",
+        "$description": "Selected rows and items. Paired with a checked control or a mark, never alone."
+      },
+      "inverse": {
+        "$type": "color",
+        "$value": "{palette.neutral.100}",
+        "$description": "Tooltips and inverse chips."
       }
     },
     "text": {
       "default": {
-        "$value": "{color.neutral.50}"
+        "$type": "color",
+        "$value": "{palette.neutral.50}"
       },
       "muted": {
-        "$value": "{color.neutral.400}"
+        "$type": "color",
+        "$value": "{palette.neutral.400}",
+        "$description": "Secondary text. 4.5:1 on every background."
       },
       "disabled": {
-        "$value": "{color.neutral.600}"
+        "$type": "color",
+        "$value": "{palette.neutral.600}",
+        "$description": "Disabled text. Exempt from contrast minimums; never the only cue."
       },
       "inverse": {
-        "$value": "{color.neutral.950}"
+        "$type": "color",
+        "$value": "{palette.neutral.950}",
+        "$description": "Text on surface.inverse."
       },
       "on-solid": {
-        "$value": "{color.neutral.0}"
+        "$type": "color",
+        "$value": "{palette.neutral.0}",
+        "$description": "Text and icons on feedback and danger solids."
+      },
+      "link": {
+        "$type": "color",
+        "$value": "{palette.link.300}"
+      },
+      "link-hover": {
+        "$type": "color",
+        "$value": "{palette.link.200}"
+      },
+      "signal": {
+        "$type": "color",
+        "$value": "{palette.accent.300}",
+        "$description": "Signal-colored text (match highlights, current step)."
       }
     },
     "border": {
       "default": {
-        "$value": "{color.neutral.700}"
+        "$type": "color",
+        "$value": "{palette.neutral.800}",
+        "$description": "Hairlines: card edges, dividers. Decorative, no contrast minimum."
+      },
+      "subtle": {
+        "$type": "color",
+        "$value": "{palette.neutral.900}",
+        "$description": "Row separators inside tables and lists."
       },
       "strong": {
-        "$value": "{color.neutral.600}"
+        "$type": "color",
+        "$value": "{palette.neutral.500}",
+        "$description": "Edges that identify a control (inputs, checkboxes, switches). 3:1 against surfaces (WCAG 1.4.11)."
+      },
+      "hover": {
+        "$type": "color",
+        "$value": "{palette.neutral.400}",
+        "$description": "Control edge on hover."
       }
     },
     "action": {
       "primary": {
         "bg": {
-          "$value": "{color.brand.400}"
+          "$type": "color",
+          "$value": "{palette.primary.50}",
+          "$description": "Primary action fill (steel ink in the bridge brand)."
         },
         "bg-hover": {
-          "$value": "{color.brand.300}"
+          "$type": "color",
+          "$value": "{palette.primary.200}"
+        },
+        "bg-active": {
+          "$type": "color",
+          "$value": "{palette.primary.300}"
         },
         "text": {
-          "$value": "{color.neutral.950}"
+          "$type": "color",
+          "$value": "{palette.primary.950}"
         }
       },
       "secondary": {
         "bg": {
-          "$value": "{color.neutral.900}"
+          "$type": "color",
+          "$value": "{palette.neutral.900}"
         },
         "bg-hover": {
-          "$value": "{color.neutral.800}"
+          "$type": "color",
+          "$value": "{palette.neutral.800}"
+        },
+        "bg-active": {
+          "$type": "color",
+          "$value": "{palette.neutral.700}"
         },
         "text": {
-          "$value": "{color.neutral.50}"
+          "$type": "color",
+          "$value": "{palette.neutral.50}"
         },
         "border": {
-          "$value": "{color.neutral.600}"
+          "$type": "color",
+          "$value": "{palette.neutral.600}"
         }
       },
       "ghost": {
         "bg-hover": {
-          "$value": "{color.neutral.800}"
+          "$type": "color",
+          "$value": "{palette.neutral.800}"
+        },
+        "bg-active": {
+          "$type": "color",
+          "$value": "{palette.neutral.700}"
         },
         "text": {
-          "$value": "{color.brand.300}"
+          "$type": "color",
+          "$value": "{palette.neutral.100}"
+        }
+      },
+      "danger": {
+        "bg": {
+          "$type": "color",
+          "$value": "{palette.danger.600}"
+        },
+        "bg-hover": {
+          "$type": "color",
+          "$value": "{palette.danger.700}"
+        },
+        "bg-active": {
+          "$type": "color",
+          "$value": "{palette.danger.800}"
+        },
+        "text": {
+          "$type": "color",
+          "$value": "{palette.neutral.0}"
         }
       },
       "disabled": {
         "bg": {
-          "$value": "{color.neutral.800}"
+          "$type": "color",
+          "$value": "{palette.neutral.800}"
         },
         "text": {
-          "$value": "{color.neutral.600}"
+          "$type": "color",
+          "$value": "{palette.neutral.600}"
         }
+      }
+    },
+    "control": {
+      "bg": {
+        "$type": "color",
+        "$value": "{palette.neutral.900}",
+        "$description": "Unchecked checkbox, radio, input fill."
+      },
+      "checked": {
+        "bg": {
+          "$type": "color",
+          "$value": "{palette.primary.50}",
+          "$description": "Checked checkbox, radio, switch track. Selection is ink."
+        },
+        "bg-hover": {
+          "$type": "color",
+          "$value": "{palette.primary.200}"
+        },
+        "fg": {
+          "$type": "color",
+          "$value": "{palette.primary.950}",
+          "$description": "Check mark, radio dot, switch thumb when checked."
+        }
+      },
+      "track": {
+        "$type": "color",
+        "$value": "{palette.neutral.500}",
+        "$description": "Unchecked switch track and slider rail edge. 3:1 against surfaces."
+      },
+      "thumb": {
+        "$type": "color",
+        "$value": "{palette.neutral.50}"
+      }
+    },
+    "signal": {
+      "default": {
+        "$type": "color",
+        "$value": "{palette.accent.400}",
+        "$description": "The signal: active indicators, progress, slider range."
+      },
+      "subtle": {
+        "$type": "color",
+        "$value": "{palette.accent.900}",
+        "$description": "Soft signal fill: highlighted search matches."
+      }
+    },
+    "overlay": {
+      "scrim": {
+        "$type": "color",
+        "$value": "{color.alpha.black-64}",
+        "$description": "Backdrop behind dialogs and drawers."
       }
     },
     "feedback": {
       "success": {
         "bg": {
-          "$value": "{color.green.900}"
-        },
-        "text": {
-          "$value": "{color.green.300}"
+          "$type": "color",
+          "$value": "{palette.success.950}"
         },
         "border": {
-          "$value": "{color.green.600}"
+          "$type": "color",
+          "$value": "{palette.success.800}"
+        },
+        "text": {
+          "$type": "color",
+          "$value": "{palette.success.300}"
+        },
+        "icon": {
+          "$type": "color",
+          "$value": "{palette.success.400}"
         },
         "solid": {
-          "$value": "{color.green.600}"
+          "$type": "color",
+          "$value": "{palette.success.600}"
         }
       },
       "warning": {
         "bg": {
-          "$value": "{color.amber.900}"
-        },
-        "text": {
-          "$value": "{color.amber.300}"
+          "$type": "color",
+          "$value": "{palette.warning.950}"
         },
         "border": {
-          "$value": "{color.amber.600}"
+          "$type": "color",
+          "$value": "{palette.warning.800}"
+        },
+        "text": {
+          "$type": "color",
+          "$value": "{palette.warning.300}"
+        },
+        "icon": {
+          "$type": "color",
+          "$value": "{palette.warning.400}"
         },
         "solid": {
-          "$value": "{color.amber.600}"
+          "$type": "color",
+          "$value": "{palette.warning.600}"
         }
       },
       "danger": {
         "bg": {
-          "$value": "{color.red.900}"
-        },
-        "text": {
-          "$value": "{color.red.300}"
+          "$type": "color",
+          "$value": "{palette.danger.950}"
         },
         "border": {
-          "$value": "{color.red.600}"
+          "$type": "color",
+          "$value": "{palette.danger.800}"
+        },
+        "text": {
+          "$type": "color",
+          "$value": "{palette.danger.300}"
+        },
+        "icon": {
+          "$type": "color",
+          "$value": "{palette.danger.400}"
         },
         "solid": {
-          "$value": "{color.red.600}"
+          "$type": "color",
+          "$value": "{palette.danger.600}"
         }
       },
       "info": {
         "bg": {
-          "$value": "{color.blue.900}"
-        },
-        "text": {
-          "$value": "{color.blue.300}"
+          "$type": "color",
+          "$value": "{palette.info.950}"
         },
         "border": {
-          "$value": "{color.blue.600}"
+          "$type": "color",
+          "$value": "{palette.info.800}"
+        },
+        "text": {
+          "$type": "color",
+          "$value": "{palette.info.300}"
+        },
+        "icon": {
+          "$type": "color",
+          "$value": "{palette.info.400}"
         },
         "solid": {
-          "$value": "{color.blue.600}"
+          "$type": "color",
+          "$value": "{palette.info.600}"
         }
+      }
+    },
+    "selection": {
+      "bg": {
+        "$type": "color",
+        "$value": "{palette.accent.800}",
+        "$description": "Text selection highlight (::selection)."
       }
     }
   },
@@ -148,21 +353,34 @@
     "ring": {
       "color": {
         "$type": "color",
-        "$value": "{color.brand.300}"
+        "$value": "{palette.accent.400}",
+        "$description": "Keyboard focus ring. 3:1 against every surface."
       },
       "width": {
+        "$type": "dimension",
+        "$value": "{border.width.2}"
+      },
+      "offset": {
         "$type": "dimension",
         "$value": "{border.width.2}"
       }
     }
   },
   "elevation": {
-    "$type": "shadow",
     "raised": {
-      "$value": "{shadow.sm-strong}"
+      "$type": "shadow",
+      "$value": "{shadow.dark-1}",
+      "$description": "Interactive cards on hover, sticky headers."
     },
     "overlay": {
-      "$value": "{shadow.md-strong}"
+      "$type": "shadow",
+      "$value": "{shadow.dark-2}",
+      "$description": "Popovers, menus, listboxes, tooltips."
+    },
+    "modal": {
+      "$type": "shadow",
+      "$value": "{shadow.dark-3}",
+      "$description": "Dialogs, drawers, toasts."
     }
   }
 }

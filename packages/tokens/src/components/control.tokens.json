@@ -1,0 +1,60 @@
+{
+  "checkbox": {
+    "bg": {
+      "$type": "color",
+      "$value": "{color.control.bg}"
+    },
+    "border": {
+      "$type": "color",
+      "$value": "{color.border.strong}"
+    },
+    "bg-checked": {
+      "$type": "color",
+      "$value": "{color.control.checked.bg}"
+    },
+    "fg-checked": {
+      "$type": "color",
+      "$value": "{color.control.checked.fg}"
+    },
+    "radius": {
+      "$type": "dimension",
+      "$value": "{radius.inset}"
+    }
+  },
+  "switch": {
+    "track-off": {
+      "$type": "color",
+      "$value": "{color.control.track}"
+    },
+    "track-on": {
+      "$type": "color",
+      "$value": "{color.control.checked.bg}"
+    },
+    "thumb": {
+      "$type": "color",
+      "$value": "{color.control.thumb}"
+    },
+    "thumb-on": {
+      "$type": "color",
+      "$value": "{color.control.checked.fg}"
+    }
+  },
+  "slider": {
+    "track": {
+      "$type": "color",
+      "$value": "{color.bg.muted}"
+    },
+    "range": {
+      "$type": "color",
+      "$value": "{color.signal.default}"
+    },
+    "thumb": {
+      "$type": "color",
+      "$value": "{color.control.thumb}"
+    },
+    "thumb-border": {
+      "$type": "color",
+      "$value": "{color.border.strong}"
+    }
+  }
+}

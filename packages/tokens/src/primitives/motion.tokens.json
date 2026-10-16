@@ -1,0 +1,103 @@
+{
+  "duration": {
+    "0": {
+      "$value": {
+        "value": 0,
+        "unit": "ms"
+      }
+    },
+    "75": {
+      "$value": {
+        "value": 75,
+        "unit": "ms"
+      }
+    },
+    "100": {
+      "$value": {
+        "value": 100,
+        "unit": "ms"
+      }
+    },
+    "150": {
+      "$value": {
+        "value": 150,
+        "unit": "ms"
+      }
+    },
+    "200": {
+      "$value": {
+        "value": 200,
+        "unit": "ms"
+      }
+    },
+    "250": {
+      "$value": {
+        "value": 250,
+        "unit": "ms"
+      }
+    },
+    "300": {
+      "$value": {
+        "value": 300,
+        "unit": "ms"
+      }
+    },
+    "400": {
+      "$value": {
+        "value": 400,
+        "unit": "ms"
+      }
+    },
+    "700": {
+      "$value": {
+        "value": 700,
+        "unit": "ms"
+      }
+    },
+    "1400": {
+      "$value": {
+        "value": 1400,
+        "unit": "ms"
+      }
+    },
+    "$type": "duration"
+  },
+  "easing": {
+    "$type": "cubicBezier",
+    "standard": {
+      "$value": [
+        0.2,
+        0,
+        0,
+        1
+      ],
+      "$description": "In-place state changes."
+    },
+    "expo-out": {
+      "$value": [
+        0.16,
+        1,
+        0.3,
+        1
+      ],
+      "$description": "Exponential ease-out for things appearing."
+    },
+    "accel": {
+      "$value": [
+        0.4,
+        0,
+        1,
+        1
+      ],
+      "$description": "Accelerating curve for things leaving."
+    },
+    "linear": {
+      "$value": [
+        0,
+        0,
+        1,
+        1
+      ]
+    }
+  }
+}

@@ -1,0 +1,325 @@
+{
+  "$description": "Bridge (default brand): steel ink structure, International Orange signal, engineered radii.",
+  "palette": {
+    "$type": "color",
+    "$description": "Palette roles. Semantic tokens only reference palette.*; a brand re-points these to primitive ramps.",
+    "neutral": {
+      "0": {
+        "$value": "{color.white}"
+      },
+      "50": {
+        "$value": "{color.steel.50}"
+      },
+      "100": {
+        "$value": "{color.steel.100}"
+      },
+      "200": {
+        "$value": "{color.steel.200}"
+      },
+      "300": {
+        "$value": "{color.steel.300}"
+      },
+      "400": {
+        "$value": "{color.steel.400}"
+      },
+      "500": {
+        "$value": "{color.steel.500}"
+      },
+      "600": {
+        "$value": "{color.steel.600}"
+      },
+      "700": {
+        "$value": "{color.steel.700}"
+      },
+      "800": {
+        "$value": "{color.steel.800}"
+      },
+      "900": {
+        "$value": "{color.steel.900}"
+      },
+      "950": {
+        "$value": "{color.steel.950}"
+      }
+    },
+    "primary": {
+      "50": {
+        "$value": "{color.steel.50}"
+      },
+      "100": {
+        "$value": "{color.steel.100}"
+      },
+      "200": {
+        "$value": "{color.steel.200}"
+      },
+      "300": {
+        "$value": "{color.steel.300}"
+      },
+      "400": {
+        "$value": "{color.steel.400}"
+      },
+      "500": {
+        "$value": "{color.steel.500}"
+      },
+      "600": {
+        "$value": "{color.steel.600}"
+      },
+      "700": {
+        "$value": "{color.steel.700}"
+      },
+      "800": {
+        "$value": "{color.steel.800}"
+      },
+      "900": {
+        "$value": "{color.steel.900}"
+      },
+      "950": {
+        "$value": "{color.steel.950}"
+      }
+    },
+    "accent": {
+      "50": {
+        "$value": "{color.orange.50}"
+      },
+      "100": {
+        "$value": "{color.orange.100}"
+      },
+      "200": {
+        "$value": "{color.orange.200}"
+      },
+      "300": {
+        "$value": "{color.orange.300}"
+      },
+      "400": {
+        "$value": "{color.orange.400}"
+      },
+      "500": {
+        "$value": "{color.orange.500}"
+      },
+      "600": {
+        "$value": "{color.orange.600}"
+      },
+      "700": {
+        "$value": "{color.orange.700}"
+      },
+      "800": {
+        "$value": "{color.orange.800}"
+      },
+      "900": {
+        "$value": "{color.orange.900}"
+      },
+      "950": {
+        "$value": "{color.orange.950}"
+      }
+    },
+    "success": {
+      "50": {
+        "$value": "{color.teal.50}"
+      },
+      "100": {
+        "$value": "{color.teal.100}"
+      },
+      "200": {
+        "$value": "{color.teal.200}"
+      },
+      "300": {
+        "$value": "{color.teal.300}"
+      },
+      "400": {
+        "$value": "{color.teal.400}"
+      },
+      "500": {
+        "$value": "{color.teal.500}"
+      },
+      "600": {
+        "$value": "{color.teal.600}"
+      },
+      "700": {
+        "$value": "{color.teal.700}"
+      },
+      "800": {
+        "$value": "{color.teal.800}"
+      },
+      "900": {
+        "$value": "{color.teal.900}"
+      },
+      "950": {
+        "$value": "{color.teal.950}"
+      }
+    },
+    "warning": {
+      "50": {
+        "$value": "{color.ochre.50}"
+      },
+      "100": {
+        "$value": "{color.ochre.100}"
+      },
+      "200": {
+        "$value": "{color.ochre.200}"
+      },
+      "300": {
+        "$value": "{color.ochre.300}"
+      },
+      "400": {
+        "$value": "{color.ochre.400}"
+      },
+      "500": {
+        "$value": "{color.ochre.500}"
+      },
+      "600": {
+        "$value": "{color.ochre.600}"
+      },
+      "700": {
+        "$value": "{color.ochre.700}"
+      },
+      "800": {
+        "$value": "{color.ochre.800}"
+      },
+      "900": {
+        "$value": "{color.ochre.900}"
+      },
+      "950": {
+        "$value": "{color.ochre.950}"
+      }
+    },
+    "danger": {
+      "50": {
+        "$value": "{color.crimson.50}"
+      },
+      "100": {
+        "$value": "{color.crimson.100}"
+      },
+      "200": {
+        "$value": "{color.crimson.200}"
+      },
+      "300": {
+        "$value": "{color.crimson.300}"
+      },
+      "400": {
+        "$value": "{color.crimson.400}"
+      },
+      "500": {
+        "$value": "{color.crimson.500}"
+      },
+      "600": {
+        "$value": "{color.crimson.600}"
+      },
+      "700": {
+        "$value": "{color.crimson.700}"
+      },
+      "800": {
+        "$value": "{color.crimson.800}"
+      },
+      "900": {
+        "$value": "{color.crimson.900}"
+      },
+      "950": {
+        "$value": "{color.crimson.950}"
+      }
+    },
+    "info": {
+      "50": {
+        "$value": "{color.cable.50}"
+      },
+      "100": {
+        "$value": "{color.cable.100}"
+      },
+      "200": {
+        "$value": "{color.cable.200}"
+      },
+      "300": {
+        "$value": "{color.cable.300}"
+      },
+      "400": {
+        "$value": "{color.cable.400}"
+      },
+      "500": {
+        "$value": "{color.cable.500}"
+      },
+      "600": {
+        "$value": "{color.cable.600}"
+      },
+      "700": {
+        "$value": "{color.cable.700}"
+      },
+      "800": {
+        "$value": "{color.cable.800}"
+      },
+      "900": {
+        "$value": "{color.cable.900}"
+      },
+      "950": {
+        "$value": "{color.cable.950}"
+      }
+    },
+    "link": {
+      "50": {
+        "$value": "{color.cable.50}"
+      },
+      "100": {
+        "$value": "{color.cable.100}"
+      },
+      "200": {
+        "$value": "{color.cable.200}"
+      },
+      "300": {
+        "$value": "{color.cable.300}"
+      },
+      "400": {
+        "$value": "{color.cable.400}"
+      },
+      "500": {
+        "$value": "{color.cable.500}"
+      },
+      "600": {
+        "$value": "{color.cable.600}"
+      },
+      "700": {
+        "$value": "{color.cable.700}"
+      },
+      "800": {
+        "$value": "{color.cable.800}"
+      },
+      "900": {
+        "$value": "{color.cable.900}"
+      },
+      "950": {
+        "$value": "{color.cable.950}"
+      }
+    }
+  },
+  "radius": {
+    "$type": "dimension",
+    "$description": "Radius roles by hierarchy (docs/DESIGN-LANGUAGE.md, section 6).",
+    "inset": {
+      "$value": "{radius.xs}",
+      "$description": "Small parts inside controls: checkbox box, tag, kbd, menu item highlight."
+    },
+    "control": {
+      "$value": "{radius.md}",
+      "$description": "Buttons, inputs, selects, tabs."
+    },
+    "container": {
+      "$value": "{radius.lg}",
+      "$description": "Cards, alerts, popovers, menus, tables."
+    },
+    "overlay": {
+      "$value": "{radius.xl}",
+      "$description": "Dialogs, drawers, toasts."
+    },
+    "pill": {
+      "$value": "{radius.full}",
+      "$description": "Switch, avatar, badge, slider thumb."
+    }
+  },
+  "font": {
+    "family": {
+      "$type": "fontFamily",
+      "sans": {
+        "$value": "{font.family.plex-sans}"
+      },
+      "mono": {
+        "$value": "{font.family.plex-mono}"
+      }
+    }
+  }
+}

@@ -1,521 +1,1241 @@
 {
   "color": {
     "$type": "color",
-    "neutral": {
-      "0": {
-        "$value": {
-          "colorSpace": "srgb",
-          "components": [
-            1,
-            1,
-            1
-          ],
-          "hex": "#ffffff"
-        }
-      },
+    "$description": "Primitive color ramps. Never used by components directly: brands map them to palette roles.",
+    "white": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          1,
+          1,
+          1
+        ],
+        "hex": "#ffffff"
+      }
+    },
+    "black": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0,
+          0,
+          0
+        ],
+        "hex": "#000000"
+      }
+    },
+    "steel": {
       "50": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.973,
-            0.976,
-            0.984
+            0.959,
+            0.968,
+            0.981
           ],
-          "hex": "#f8f9fb"
+          "hex": "#f4f7fa"
         }
       },
       "100": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.945,
-            0.953,
-            0.965
+            0.929,
+            0.938,
+            0.951
           ],
-          "hex": "#f1f3f6"
+          "hex": "#edeff2"
         }
       },
       "200": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.89,
-            0.902,
-            0.922
+            0.864,
+            0.888,
+            0.92
           ],
-          "hex": "#e3e6eb"
+          "hex": "#dce3eb"
         }
       },
       "300": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.804,
-            0.824,
-            0.855
+            0.781,
+            0.81,
+            0.847
           ],
-          "hex": "#cdd2da"
+          "hex": "#c7ced8"
         }
       },
       "400": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.604,
             0.635,
-            0.682
+            0.667,
+            0.709
           ],
-          "hex": "#9aa2ae"
+          "hex": "#a2aab5"
         }
       },
       "500": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.42,
-            0.451,
-            0.502
+            0.506,
+            0.541,
+            0.587
           ],
-          "hex": "#6b7380"
+          "hex": "#818a96"
         }
       },
       "600": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.302,
-            0.333,
-            0.384
+            0.388,
+            0.426,
+            0.476
           ],
-          "hex": "#4d5562"
+          "hex": "#636d79"
         }
       },
       "700": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.216,
-            0.243,
-            0.286
+            0.292,
+            0.333,
+            0.385
           ],
-          "hex": "#373e49"
+          "hex": "#4b5562"
         }
       },
       "800": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.145,
-            0.165,
-            0.2
+            0.201,
+            0.243,
+            0.298
           ],
-          "hex": "#252a33"
+          "hex": "#333e4c"
         }
       },
       "900": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.09,
-            0.106,
-            0.129
+            0.111,
+            0.154,
+            0.209
           ],
-          "hex": "#171b21"
+          "hex": "#1c2735"
         }
       },
       "950": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.055,
-            0.067,
-            0.082
+            0.05,
+            0.093,
+            0.147
           ],
-          "hex": "#0e1115"
+          "hex": "#0d1826"
         }
-      }
+      },
+      "$description": "Bridge neutral. Cool steel blue, faint at the light end, inky at the dark end."
     },
-    "brand": {
+    "orange": {
       "50": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.933,
-            0.953,
-            1
+            0.999,
+            0.957,
+            0.946
           ],
-          "hex": "#eef3ff"
+          "hex": "#fff4f1"
         }
       },
       "100": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.863,
-            0.902,
-            1
+            1,
+            0.917,
+            0.894
           ],
-          "hex": "#dce6ff"
+          "hex": "#ffeae4"
         }
       },
       "200": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.737,
-            0.804,
-            1
+            0.995,
+            0.848,
+            0.808
           ],
-          "hex": "#bccdff"
+          "hex": "#fed8ce"
         }
       },
       "300": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.561,
-            0.667,
-            1
+            0.993,
+            0.737,
+            0.666
           ],
-          "hex": "#8faaff"
+          "hex": "#fdbcaa"
         }
       },
       "400": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.388,
-            0.514,
-            0.969
+            0.986,
+            0.505,
+            0.376
           ],
-          "hex": "#6383f7"
+          "hex": "#fb8160"
         }
       },
       "500": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.271,
-            0.388,
-            0.91
+            0.904,
+            0.274,
+            0.067
           ],
-          "hex": "#4563e8"
+          "hex": "#e64611"
         }
       },
       "600": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.204,
-            0.286,
-            0.8
+            0.734,
+            0.214,
+            0.041
           ],
-          "hex": "#3449cc"
+          "hex": "#bb370b"
         }
       },
       "700": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.165,
-            0.227,
-            0.647
+            0.588,
+            0.147,
+            0
           ],
-          "hex": "#2a3aa5"
+          "hex": "#962600"
         }
       },
       "800": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.145,
-            0.184,
-            0.502
+            0.433,
+            0.108,
+            0.009
           ],
-          "hex": "#252f80"
+          "hex": "#6e1c02"
         }
       },
       "900": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.118,
-            0.149,
-            0.376
+            0.289,
+            0.053,
+            0
           ],
-          "hex": "#1e2660"
+          "hex": "#4a0e00"
         }
-      }
+      },
+      "950": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.194,
+            0.017,
+            0
+          ],
+          "hex": "#320400"
+        }
+      },
+      "$description": "International Orange. The Bridge signal color: focus, active, progress."
     },
-    "green": {
-      "50": {
-        "$value": {
-          "colorSpace": "srgb",
-          "components": [
-            0.925,
-            0.992,
-            0.953
-          ],
-          "hex": "#ecfdf3"
-        }
-      },
-      "200": {
-        "$value": {
-          "colorSpace": "srgb",
-          "components": [
-            0.651,
-            0.941,
-            0.776
-          ],
-          "hex": "#a6f0c6"
-        }
-      },
-      "300": {
-        "$value": {
-          "colorSpace": "srgb",
-          "components": [
-            0.42,
-            0.875,
-            0.627
-          ],
-          "hex": "#6bdfa0"
-        }
-      },
-      "600": {
-        "$value": {
-          "colorSpace": "srgb",
-          "components": [
-            0.078,
-            0.502,
-            0.29
-          ],
-          "hex": "#14804a"
-        }
-      },
-      "700": {
-        "$value": {
-          "colorSpace": "srgb",
-          "components": [
-            0.059,
-            0.42,
-            0.239
-          ],
-          "hex": "#0f6b3d"
-        }
-      },
-      "900": {
-        "$value": {
-          "colorSpace": "srgb",
-          "components": [
-            0.039,
-            0.239,
-            0.141
-          ],
-          "hex": "#0a3d24"
-        }
-      }
-    },
-    "amber": {
+    "crimson": {
       "50": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
             1,
-            0.98,
-            0.922
+            0.955,
+            0.959
           ],
-          "hex": "#fffaeb"
+          "hex": "#fff4f4"
+        }
+      },
+      "100": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.999,
+            0.914,
+            0.921
+          ],
+          "hex": "#ffe9eb"
         }
       },
       "200": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.999,
+            0.84,
+            0.854
+          ],
+          "hex": "#ffd6da"
+        }
+      },
+      "300": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.998,
+            0.722,
+            0.751
+          ],
+          "hex": "#ffb8bf"
+        }
+      },
+      "400": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
             0.992,
-            0.894,
-            0.604
+            0.474,
+            0.557
           ],
-          "hex": "#fde49a"
+          "hex": "#fd798e"
         }
       },
-      "300": {
+      "500": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.984,
-            0.812,
-            0.361
+            0.907,
+            0.264,
+            0.409
           ],
-          "hex": "#fbcf5c"
+          "hex": "#e74368"
         }
       },
       "600": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.698,
-            0.369,
-            0.035
+            0.766,
+            0.095,
+            0.298
           ],
-          "hex": "#b25e09"
+          "hex": "#c3184c"
         }
       },
       "700": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.576,
-            0.275,
-            0.047
+            0.614,
+            0.022,
+            0.225
           ],
-          "hex": "#93460c"
+          "hex": "#9d0639"
+        }
+      },
+      "800": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.462,
+            0,
+            0.158
+          ],
+          "hex": "#760028"
         }
       },
       "900": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.306,
-            0.145,
-            0.031
+            0.303,
+            0.004,
+            0.095
           ],
-          "hex": "#4e2508"
+          "hex": "#4d0118"
         }
-      }
+      },
+      "950": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.205,
+            0,
+            0.048
+          ],
+          "hex": "#34000c"
+        }
+      },
+      "$description": "Danger. A raspberry red pushed away from the orange signal."
     },
-    "red": {
+    "teal": {
       "50": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.996,
-            0.949,
-            0.949
+            0.934,
+            0.98,
+            0.966
           ],
-          "hex": "#fef2f2"
+          "hex": "#eefaf6"
+        }
+      },
+      "100": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.875,
+            0.96,
+            0.935
+          ],
+          "hex": "#dff5ee"
         }
       },
       "200": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.988,
-            0.784,
-            0.784
+            0.77,
+            0.926,
+            0.881
           ],
-          "hex": "#fcc8c8"
+          "hex": "#c4ece1"
         }
       },
       "300": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.62,
+            0.866,
+            0.8
+          ],
+          "hex": "#9eddcc"
+        }
+      },
+      "400": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.384,
+            0.74,
+            0.655
+          ],
+          "hex": "#62bda7"
+        }
+      },
+      "500": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.132,
+            0.622,
+            0.528
+          ],
+          "hex": "#229e87"
+        }
+      },
+      "600": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0,
+            0.494,
+            0.414
+          ],
+          "hex": "#007e6a"
+        }
+      },
+      "700": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.01,
+            0.386,
+            0.322
+          ],
+          "hex": "#036252"
+        }
+      },
+      "800": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.022,
+            0.282,
+            0.234
+          ],
+          "hex": "#06483c"
+        }
+      },
+      "900": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.002,
+            0.181,
+            0.147
+          ],
+          "hex": "#002e25"
+        }
+      },
+      "950": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0,
+            0.114,
+            0.088
+          ],
+          "hex": "#001d16"
+        }
+      },
+      "$description": "Success."
+    },
+    "ochre": {
+      "50": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.995,
+            0.963,
+            0.916
+          ],
+          "hex": "#fef6ea"
+        }
+      },
+      "100": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.987,
+            0.929,
+            0.843
+          ],
+          "hex": "#fcedd7"
+        }
+      },
+      "200": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.974,
+            0.87,
+            0.713
+          ],
+          "hex": "#f8deb6"
+        }
+      },
+      "300": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.979,
+            0.817,
+            0.568
+          ],
+          "hex": "#fad091"
+        }
+      },
+      "400": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.913,
+            0.695,
+            0.329
+          ],
+          "hex": "#e9b154"
+        }
+      },
+      "500": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.796,
+            0.558,
+            0.028
+          ],
+          "hex": "#cb8e07"
+        }
+      },
+      "600": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.558,
+            0.385,
+            0.003
+          ],
+          "hex": "#8e6201"
+        }
+      },
+      "700": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.436,
+            0.299,
+            0.01
+          ],
+          "hex": "#6f4c03"
+        }
+      },
+      "800": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.324,
+            0.216,
+            0
+          ],
+          "hex": "#533700"
+        }
+      },
+      "900": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.208,
+            0.135,
+            0.002
+          ],
+          "hex": "#352200"
+        }
+      },
+      "950": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.134,
+            0.078,
+            0
+          ],
+          "hex": "#221400"
+        }
+      },
+      "$description": "Warning."
+    },
+    "cable": {
+      "50": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.939,
+            0.974,
+            0.996
+          ],
+          "hex": "#f0f8fe"
+        }
+      },
+      "100": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.886,
+            0.949,
+            0.989
+          ],
+          "hex": "#e2f2fc"
+        }
+      },
+      "200": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.791,
+            0.905,
+            0.978
+          ],
+          "hex": "#cae7f9"
+        }
+      },
+      "300": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.657,
+            0.835,
+            0.946
+          ],
+          "hex": "#a7d5f1"
+        }
+      },
+      "400": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.451,
+            0.698,
+            0.846
+          ],
+          "hex": "#73b2d8"
+        }
+      },
+      "500": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.27,
+            0.573,
+            0.743
+          ],
+          "hex": "#4592bd"
+        }
+      },
+      "600": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.135,
+            0.454,
+            0.618
+          ],
+          "hex": "#22749e"
+        }
+      },
+      "700": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.039,
+            0.356,
+            0.501
+          ],
+          "hex": "#0a5b80"
+        }
+      },
+      "800": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.01,
+            0.26,
+            0.374
+          ],
+          "hex": "#03425f"
+        }
+      },
+      "900": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0,
+            0.165,
+            0.247
+          ],
+          "hex": "#002a3f"
+        }
+      },
+      "950": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0,
+            0.101,
+            0.16
+          ],
+          "hex": "#001a29"
+        }
+      },
+      "$description": "Links and info in the bridge brand."
+    },
+    "slate": {
+      "50": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.956,
+            0.969,
+            0.983
+          ],
+          "hex": "#f4f7fb"
+        }
+      },
+      "100": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.926,
+            0.939,
+            0.953
+          ],
+          "hex": "#ecf0f3"
+        }
+      },
+      "200": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.85,
+            0.892,
+            0.933
+          ],
+          "hex": "#d9e3ee"
+        }
+      },
+      "300": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.765,
+            0.813,
+            0.861
+          ],
+          "hex": "#c3cfdb"
+        }
+      },
+      "400": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.618,
+            0.671,
+            0.723
+          ],
+          "hex": "#9eabb8"
+        }
+      },
+      "500": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.488,
+            0.545,
+            0.602
+          ],
+          "hex": "#7c8b9a"
+        }
+      },
+      "600": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.369,
+            0.43,
+            0.491
+          ],
+          "hex": "#5e6e7d"
+        }
+      },
+      "700": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.271,
+            0.337,
+            0.401
+          ],
+          "hex": "#455666"
+        }
+      },
+      "800": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.178,
+            0.247,
+            0.314
+          ],
+          "hex": "#2d3f50"
+        }
+      },
+      "900": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.085,
+            0.157,
+            0.225
+          ],
+          "hex": "#162839"
+        }
+      },
+      "950": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.023,
+            0.096,
+            0.162
+          ],
+          "hex": "#061829"
+        }
+      },
+      "$description": "Ocean brand neutral."
+    },
+    "sea": {
+      "50": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.93,
+            0.977,
+            0.999
+          ],
+          "hex": "#edf9ff"
+        }
+      },
+      "100": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.865,
+            0.955,
+            0.998
+          ],
+          "hex": "#ddf3fe"
+        }
+      },
+      "200": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.742,
+            0.917,
+            0.999
+          ],
+          "hex": "#bdeaff"
+        }
+      },
+      "300": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.541,
+            0.856,
+            0.995
+          ],
+          "hex": "#8adafe"
+        }
+      },
+      "400": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.22,
+            0.722,
+            0.91
+          ],
+          "hex": "#38b8e8"
+        }
+      },
+      "500": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.016,
+            0.59,
+            0.764
+          ],
+          "hex": "#0496c3"
+        }
+      },
+      "600": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.061,
+            0.464,
+            0.599
+          ],
+          "hex": "#107699"
+        }
+      },
+      "700": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0,
+            0.363,
+            0.476
+          ],
+          "hex": "#005d79"
+        }
+      },
+      "800": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.015,
+            0.265,
+            0.349
+          ],
+          "hex": "#044459"
+        }
+      },
+      "900": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0,
+            0.169,
+            0.23
+          ],
+          "hex": "#002b3b"
+        }
+      },
+      "950": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0,
+            0.104,
+            0.147
+          ],
+          "hex": "#001a26"
+        }
+      },
+      "$description": "Ocean brand primary and signal."
+    },
+    "plum": {
+      "50": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
             0.976,
-            0.604,
-            0.604
+            0.959,
+            0.999
           ],
-          "hex": "#f99a9a"
+          "hex": "#f9f5ff"
         }
       },
-      "600": {
+      "100": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.788,
-            0.149,
-            0.169
+            0.954,
+            0.921,
+            0.999
           ],
-          "hex": "#c9262b"
-        }
-      },
-      "700": {
-        "$value": {
-          "colorSpace": "srgb",
-          "components": [
-            0.647,
-            0.114,
-            0.133
-          ],
-          "hex": "#a51d22"
-        }
-      },
-      "900": {
-        "$value": {
-          "colorSpace": "srgb",
-          "components": [
-            0.361,
-            0.063,
-            0.075
-          ],
-          "hex": "#5c1013"
-        }
-      }
-    },
-    "blue": {
-      "50": {
-        "$value": {
-          "colorSpace": "srgb",
-          "components": [
-            0.937,
-            0.973,
-            1
-          ],
-          "hex": "#eff8ff"
+          "hex": "#f3ebff"
         }
       },
       "200": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.698,
-            0.867,
-            1
+            0.916,
+            0.855,
+            0.995
           ],
-          "hex": "#b2ddff"
+          "hex": "#eadafe"
         }
       },
       "300": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.486,
-            0.769,
-            0.984
+            0.858,
+            0.753,
+            0.988
           ],
-          "hex": "#7cc4fb"
+          "hex": "#dbc0fc"
+        }
+      },
+      "400": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.732,
+            0.586,
+            0.9
+          ],
+          "hex": "#bb96e5"
+        }
+      },
+      "500": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.616,
+            0.442,
+            0.802
+          ],
+          "hex": "#9d71cc"
         }
       },
       "600": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.082,
-            0.439,
-            0.788
+            0.498,
+            0.325,
+            0.673
           ],
-          "hex": "#1570c9"
+          "hex": "#7f53ac"
         }
       },
       "700": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.09,
-            0.361,
-            0.827
+            0.395,
+            0.24,
+            0.549
           ],
-          "hex": "#175cd3"
+          "hex": "#653d8c"
+        }
+      },
+      "800": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.295,
+            0.163,
+            0.42
+          ],
+          "hex": "#4b2a6b"
         }
       },
       "900": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.043,
-            0.212,
-            0.4
+            0.19,
+            0.094,
+            0.281
           ],
-          "hex": "#0b3666"
+          "hex": "#311848"
+        }
+      },
+      "950": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.121,
+            0.047,
+            0.189
+          ],
+          "hex": "#1f0c30"
+        }
+      },
+      "$description": "Ocean brand info tone."
+    },
+    "alpha": {
+      "$description": "Translucent colors for scrims and shadows.",
+      "steel-8": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.05,
+            0.093,
+            0.147
+          ],
+          "hex": "#0d1825",
+          "alpha": 0.08
+        }
+      },
+      "steel-12": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.05,
+            0.093,
+            0.147
+          ],
+          "hex": "#0d1825",
+          "alpha": 0.12
+        }
+      },
+      "steel-16": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.05,
+            0.093,
+            0.147
+          ],
+          "hex": "#0d1825",
+          "alpha": 0.16
+        }
+      },
+      "steel-48": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.05,
+            0.093,
+            0.147
+          ],
+          "hex": "#0d1825",
+          "alpha": 0.48
+        }
+      },
+      "black-24": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0,
+            0,
+            0
+          ],
+          "hex": "#000000",
+          "alpha": 0.24
+        }
+      },
+      "black-40": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0,
+            0,
+            0
+          ],
+          "hex": "#000000",
+          "alpha": 0.4
+        }
+      },
+      "black-56": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0,
+            0,
+            0
+          ],
+          "hex": "#000000",
+          "alpha": 0.56
+        }
+      },
+      "black-64": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0,
+            0,
+            0
+          ],
+          "hex": "#000000",
+          "alpha": 0.64
         }
       }
     }

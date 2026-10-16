@@ -2,28 +2,157 @@
   "font": {
     "family": {
       "$type": "fontFamily",
-      "sans": { "$value": ["Inter", "system-ui", "-apple-system", "Segoe UI", "Roboto", "sans-serif"] },
-      "mono": { "$value": ["JetBrains Mono", "ui-monospace", "SFMono-Regular", "Menlo", "monospace"] }
+      "plex-sans": {
+        "$value": [
+          "IBM Plex Sans Variable",
+          "IBM Plex Sans",
+          "system-ui",
+          "-apple-system",
+          "Segoe UI",
+          "Roboto",
+          "sans-serif"
+        ],
+        "$description": "Self-hosted via @fontsource-variable/ibm-plex-sans (import @demo-ds/tokens/fonts.css)."
+      },
+      "plex-mono": {
+        "$value": [
+          "IBM Plex Mono",
+          "ui-monospace",
+          "SFMono-Regular",
+          "Menlo",
+          "Consolas",
+          "monospace"
+        ],
+        "$description": "Self-hosted via @fontsource/ibm-plex-mono."
+      },
+      "system": {
+        "$value": [
+          "system-ui",
+          "-apple-system",
+          "Segoe UI",
+          "Roboto",
+          "sans-serif"
+        ]
+      }
     },
     "size": {
+      "100": {
+        "$value": {
+          "value": 12,
+          "unit": "px"
+        }
+      },
+      "200": {
+        "$value": {
+          "value": 14,
+          "unit": "px"
+        }
+      },
+      "300": {
+        "$value": {
+          "value": 17,
+          "unit": "px"
+        }
+      },
+      "400": {
+        "$value": {
+          "value": 20,
+          "unit": "px"
+        }
+      },
+      "500": {
+        "$value": {
+          "value": 24,
+          "unit": "px"
+        }
+      },
+      "600": {
+        "$value": {
+          "value": 29,
+          "unit": "px"
+        }
+      },
+      "700": {
+        "$value": {
+          "value": 35,
+          "unit": "px"
+        }
+      },
+      "800": {
+        "$value": {
+          "value": 42,
+          "unit": "px"
+        }
+      },
       "$type": "dimension",
-      "100": { "$value": { "value": 12, "unit": "px" } },
-      "200": { "$value": { "value": 14, "unit": "px" } },
-      "300": { "$value": { "value": 16, "unit": "px" } },
-      "400": { "$value": { "value": 18, "unit": "px" } },
-      "500": { "$value": { "value": 20, "unit": "px" } },
-      "600": { "$value": { "value": 24, "unit": "px" } }
+      "$description": "Modular scale, ratio 1.2 (minor third) anchored at 14px, rounded to whole pixels."
     },
     "weight": {
       "$type": "fontWeight",
-      "regular": { "$value": 400 },
-      "medium": { "$value": 500 },
-      "semibold": { "$value": 600 }
+      "regular": {
+        "$value": 400
+      },
+      "medium": {
+        "$value": 500
+      },
+      "semibold": {
+        "$value": 600
+      },
+      "bold": {
+        "$value": 700
+      }
     },
     "line-height": {
       "$type": "number",
-      "tight": { "$value": 1.25 },
-      "normal": { "$value": 1.5 }
+      "none": {
+        "$value": 1
+      },
+      "tight": {
+        "$value": 1.2
+      },
+      "snug": {
+        "$value": 1.35
+      },
+      "normal": {
+        "$value": 1.5
+      },
+      "relaxed": {
+        "$value": 1.65
+      }
+    },
+    "tracking": {
+      "$type": "number",
+      "$description": "Letter-spacing in em (the build appends the unit from $extensions).",
+      "tighter": {
+        "$value": -0.025,
+        "$extensions": {
+          "dev.bridge.unit": "em"
+        }
+      },
+      "tight": {
+        "$value": -0.015,
+        "$extensions": {
+          "dev.bridge.unit": "em"
+        }
+      },
+      "snug": {
+        "$value": -0.01,
+        "$extensions": {
+          "dev.bridge.unit": "em"
+        }
+      },
+      "normal": {
+        "$value": 0,
+        "$extensions": {
+          "dev.bridge.unit": "em"
+        }
+      },
+      "wide": {
+        "$value": 0.01,
+        "$extensions": {
+          "dev.bridge.unit": "em"
+        }
+      }
     }
   }
 }

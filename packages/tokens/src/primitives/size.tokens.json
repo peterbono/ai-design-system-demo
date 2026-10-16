@@ -1,0 +1,166 @@
+{
+  "size": {
+    "3": {
+      "$value": {
+        "value": 12,
+        "unit": "px"
+      }
+    },
+    "4": {
+      "$value": {
+        "value": 16,
+        "unit": "px"
+      }
+    },
+    "5": {
+      "$value": {
+        "value": 20,
+        "unit": "px"
+      }
+    },
+    "6": {
+      "$value": {
+        "value": 24,
+        "unit": "px"
+      }
+    },
+    "7": {
+      "$value": {
+        "value": 28,
+        "unit": "px"
+      }
+    },
+    "8": {
+      "$value": {
+        "value": 32,
+        "unit": "px"
+      }
+    },
+    "9": {
+      "$value": {
+        "value": 36,
+        "unit": "px"
+      }
+    },
+    "10": {
+      "$value": {
+        "value": 40,
+        "unit": "px"
+      }
+    },
+    "12": {
+      "$value": {
+        "value": 48,
+        "unit": "px"
+      }
+    },
+    "14": {
+      "$value": {
+        "value": 56,
+        "unit": "px"
+      }
+    },
+    "16": {
+      "$value": {
+        "value": 64,
+        "unit": "px"
+      }
+    },
+    "20": {
+      "$value": {
+        "value": 80,
+        "unit": "px"
+      }
+    },
+    "60": {
+      "$value": {
+        "value": 240,
+        "unit": "px"
+      }
+    },
+    "72": {
+      "$value": {
+        "value": 288,
+        "unit": "px"
+      }
+    },
+    "80": {
+      "$value": {
+        "value": 320,
+        "unit": "px"
+      }
+    },
+    "96": {
+      "$value": {
+        "value": 384,
+        "unit": "px"
+      }
+    },
+    "120": {
+      "$value": {
+        "value": 480,
+        "unit": "px"
+      }
+    },
+    "140": {
+      "$value": {
+        "value": 560,
+        "unit": "px"
+      }
+    },
+    "160": {
+      "$value": {
+        "value": 640,
+        "unit": "px"
+      }
+    },
+    "180": {
+      "$value": {
+        "value": 720,
+        "unit": "px"
+      }
+    },
+    "240": {
+      "$value": {
+        "value": 960,
+        "unit": "px"
+      }
+    },
+    "300": {
+      "$value": {
+        "value": 1200,
+        "unit": "px"
+      }
+    },
+    "$type": "dimension",
+    "$description": "Fixed sizes: icons, avatars, layout widths."
+  },
+  "breakpoint": {
+    "$type": "dimension",
+    "$description": "Viewport breakpoints. CSS media queries cannot read variables: use the same literal values there.",
+    "sm": {
+      "$value": {
+        "value": 640,
+        "unit": "px"
+      }
+    },
+    "md": {
+      "$value": {
+        "value": 768,
+        "unit": "px"
+      }
+    },
+    "lg": {
+      "$value": {
+        "value": 1024,
+        "unit": "px"
+      }
+    },
+    "xl": {
+      "$value": {
+        "value": 1280,
+        "unit": "px"
+      }
+    }
+  }
+}

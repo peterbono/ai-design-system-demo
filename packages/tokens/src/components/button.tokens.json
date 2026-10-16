@@ -1,0 +1,72 @@
+{
+  "button": {
+    "primary": {
+      "$type": "color",
+      "bg": {
+        "$value": "{color.action.primary.bg}"
+      },
+      "bg-hover": {
+        "$value": "{color.action.primary.bg-hover}"
+      },
+      "bg-active": {
+        "$value": "{color.action.primary.bg-active}"
+      },
+      "text": {
+        "$value": "{color.action.primary.text}"
+      }
+    },
+    "secondary": {
+      "$type": "color",
+      "bg": {
+        "$value": "{color.action.secondary.bg}"
+      },
+      "bg-hover": {
+        "$value": "{color.action.secondary.bg-hover}"
+      },
+      "bg-active": {
+        "$value": "{color.action.secondary.bg-active}"
+      },
+      "text": {
+        "$value": "{color.action.secondary.text}"
+      },
+      "border": {
+        "$value": "{color.action.secondary.border}"
+      }
+    },
+    "ghost": {
+      "$type": "color",
+      "bg-hover": {
+        "$value": "{color.action.ghost.bg-hover}"
+      },
+      "bg-active": {
+        "$value": "{color.action.ghost.bg-active}"
+      },
+      "text": {
+        "$value": "{color.action.ghost.text}"
+      }
+    },
+    "danger": {
+      "$type": "color",
+      "bg": {
+        "$value": "{color.action.danger.bg}"
+      },
+      "bg-hover": {
+        "$value": "{color.action.danger.bg-hover}"
+      },
+      "bg-active": {
+        "$value": "{color.action.danger.bg-active}"
+      },
+      "text": {
+        "$value": "{color.action.danger.text}"
+      }
+    },
+    "radius": {
+      "$type": "dimension",
+      "$value": "{radius.control}"
+    },
+    "font-weight": {
+      "$type": "fontWeight",
+      "$value": "{font.weight.medium}"
+    }
+  }
+}

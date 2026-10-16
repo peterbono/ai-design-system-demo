@@ -1,0 +1,88 @@
+{
+  "card": {
+    "bg": {
+      "$type": "color",
+      "$value": "{color.surface.default}"
+    },
+    "border": {
+      "$type": "color",
+      "$value": "{color.border.default}"
+    },
+    "radius": {
+      "$type": "dimension",
+      "$value": "{radius.container}"
+    },
+    "shadow": {
+      "$type": "shadow",
+      "$value": "{elevation.raised}"
+    }
+  },
+  "popup": {
+    "bg": {
+      "$type": "color",
+      "$value": "{color.surface.raised}"
+    },
+    "border": {
+      "$type": "color",
+      "$value": "{color.border.default}"
+    },
+    "radius": {
+      "$type": "dimension",
+      "$value": "{radius.container}"
+    },
+    "shadow": {
+      "$type": "shadow",
+      "$value": "{elevation.overlay}"
+    }
+  },
+  "dialog": {
+    "bg": {
+      "$type": "color",
+      "$value": "{color.surface.raised}"
+    },
+    "scrim": {
+      "$type": "color",
+      "$value": "{color.overlay.scrim}"
+    },
+    "radius": {
+      "$type": "dimension",
+      "$value": "{radius.overlay}"
+    },
+    "shadow": {
+      "$type": "shadow",
+      "$value": "{elevation.modal}"
+    }
+  },
+  "tooltip": {
+    "bg": {
+      "$type": "color",
+      "$value": "{color.surface.inverse}"
+    },
+    "text": {
+      "$type": "color",
+      "$value": "{color.text.inverse}"
+    },
+    "radius": {
+      "$type": "dimension",
+      "$value": "{radius.control}"
+    }
+  },
+  "toast": {
+    "bg": {
+      "$type": "color",
+      "$value": "{color.surface.raised}"
+    },
+    "border": {
+      "$type": "color",
+      "$value": "{color.border.default}"
+    },
+    "radius": {
+      "$type": "dimension",
+      "$value": "{radius.overlay}"
+    },
+    "shadow": {
+      "$type": "shadow",
+      "$value": "{elevation.modal}"
+    }
+  }
+}
