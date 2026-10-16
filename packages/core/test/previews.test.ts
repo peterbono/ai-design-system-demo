@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import { ConfigError, loadConfig } from '../src/config';
-import { branchSlug, installCommand, PREVIEW_COMMENT_MARKER, previewComment, previewLinks, previewUrl, snapshotUrl, tarballAssetName, tarballUrl } from '../src/previews';
+import { appUrl, branchSlug, installCommand, PREVIEW_COMMENT_MARKER, previewComment, previewLinks, previewUrl, snapshotUrl, tarballAssetName, tarballUrl } from '../src/previews';
 import { realConfig } from './helpers';
 
 const SHA = '0123456789abcdef0123456789abcdef01234567';
@@ -80,4 +80,36 @@ test('config: previews load, unknown apps and non-URL templates are refused', ()
   assert.throws(() => loadConfig({ ...base, previews: { apps: { site: 'https://x' } } }), ConfigError);
   assert.throws(() => loadConfig({ ...base, previews: { apps: { docs: 'ftp://x' } } }), ConfigError);
   assert.throws(() => loadConfig({ ...base, previews: { packages: 'x' } }), ConfigError);
+});
+
+test('branchSlug matches the Vercel branch aliases of this repo', () => {
+  // Alias read with `vercel inspect` on a real bridge-docs deployment (scope peterbonos-projects).
+  const docs = 'https://bridge-docs-git-{branch}-peterbonos-projects.vercel.app';
+  assert.equal(previewUrl(docs, { branch: 'feat/library-studio' }), 'https://bridge-docs-git-feat-library-studio-peterbonos-projects.vercel.app/');
+  // 64 characters in the first label: Vercel shortens it with a hash, so Bridge leaves the link out.
+  assert.equal(previewUrl(docs, { branch: 'chore/previews-and-figma-kit' }), null);
+  assert.equal(previewUrl(docs, { branch: 'chore/previews-and-figma-ki' }), 'https://bridge-docs-git-chore-previews-and-figma-ki-peterbonos-projects.vercel.app/');
+});
+
+test('appUrl picks the branch preview, else production', () => {
+  const previews = {
+    apps: { storybook: 'https://sb-git-{branch}-acme.vercel.app', admin: 'https://admin-git-{branch}-acme.vercel.app' },
+    production: { storybook: 'https://storybook.example.com/', docs: 'https://docs.example.com' },
+  };
+  assert.equal(appUrl(previews, 'storybook', { branch: 'feat/x', defaultBranch: 'main' }), 'https://sb-git-feat-x-acme.vercel.app');
+  assert.equal(appUrl(previews, 'storybook', { branch: 'main', defaultBranch: 'main' }), 'https://storybook.example.com');
+  assert.equal(appUrl(previews, 'storybook'), 'https://storybook.example.com', 'local build: production');
+  assert.equal(appUrl(previews, 'docs', { branch: 'feat/x' }), 'https://docs.example.com', 'no preview template: production');
+  assert.equal(appUrl(previews, 'admin', { branch: 'trunk', defaultBranch: 'trunk' }), 'https://admin-git-trunk-acme.vercel.app', 'no production URL: default branch preview');
+  assert.equal(appUrl(previews, 'storybook', { branch: 'a'.repeat(70) }), 'https://storybook.example.com', 'unbuildable preview: production');
+  assert.equal(appUrl(undefined, 'docs'), null);
+});
+
+test('config: production URLs load and refuse placeholders', () => {
+  const base = { repo: { owner: 'o', name: 'r' } };
+  const ok = loadConfig({ ...base, previews: { production: { docs: 'https://docs.example.com' } } });
+  assert.deepEqual(ok.previews, { packages: [], apps: {}, production: { docs: 'https://docs.example.com' } });
+  assert.throws(() => loadConfig({ ...base, previews: { production: { docs: 'https://{branch}.example.com' } } }), ConfigError);
+  assert.throws(() => loadConfig({ ...base, previews: { production: { site: 'https://x.example.com' } } }), ConfigError);
+  assert.equal(realConfig().previews?.production?.storybook, 'https://bridge-storybook.floriangouloubi.com');
 });

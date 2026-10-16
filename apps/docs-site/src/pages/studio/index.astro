@@ -224,11 +224,14 @@ const flow: { icon: IconName; title: string; text: string }[] = [
   <script>
     import { esc, ghGet, readRepo, relativeTime, RateLimitError } from '../../scripts/github-session';
     import { draftCount } from '../../scripts/shell';
+    import { openPulls } from '../../lib/review-rules';
 
     interface Pull {
       number: number;
       title: string;
       draft?: boolean;
+      state?: string;
+      merged_at?: string | null;
       updated_at: string;
       user: { login: string };
       head: { ref: string };
@@ -249,10 +252,11 @@ const flow: { icon: IconName; title: string; text: string }[] = [
     const out = tile?.querySelector<HTMLElement>('[data-open-count]');
     ghGet<Pull[]>(`/repos/${r.owner}/${r.repo}/pulls?state=open&per_page=100`)
       .then((f) => {
-        if (out) out.textContent = String(f.data.length);
+        const open = openPulls(f.data);
+        if (out) out.textContent = String(open.length);
         if (f.stale && tile) tile.title = "From this browser's cache: GitHub rate limit reached.";
         if (!list) return;
-        const pulls = [...f.data].sort((a, b) => b.updated_at.localeCompare(a.updated_at)).slice(0, 5);
+        const pulls = [...open].sort((a, b) => b.updated_at.localeCompare(a.updated_at)).slice(0, 5);
         list.innerHTML = pulls.length
           ? pulls
               .map(
@@ -262,7 +266,7 @@ const flow: { icon: IconName; title: string; text: string }[] = [
                   ${p.draft ? '<span class="pill">Draft</span>' : '<span class="pill is-info">Ready</span>'}
                 </a></li>`,
               )
-              .join('') + (f.data.length > 5 ? `<li class="st-review-more"><a href="/studio/reviews/">${f.data.length - 5} more open</a></li>` : '')
+              .join('') + (open.length > 5 ? `<li class="st-review-more"><a href="/studio/reviews/">${open.length - 5} more open</a></li>` : '')
           : '<li class="st-review-empty"><span>Nothing waiting for review.</span></li>';
       })
       .catch((err) => {

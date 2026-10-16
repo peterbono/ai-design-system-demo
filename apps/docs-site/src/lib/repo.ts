@@ -3,7 +3,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
-import { previewUrl, type PreviewApps } from '@bridge-ds/core';
+import { appUrl, type PreviewApps } from '@bridge-ds/core';
 
 function findRoot(start: string): string {
   let dir = resolve(start);
@@ -53,15 +53,20 @@ export const DEFAULT_BRANCH = REPO.defaultBranch;
 /** Per-branch deploy URL templates from bridge.config.json (`previews.apps`), read by the Branches page too. */
 export const PREVIEW_APPS: PreviewApps = (rawConfig().previews?.apps as PreviewApps | undefined) ?? {};
 export const PREVIEW_PACKAGES: string[] = (rawConfig().previews?.packages as string[] | undefined) ?? [];
+/** Production URL of each app from bridge.config.json (`previews.production`). */
+export const PRODUCTION_APPS: PreviewApps = (rawConfig().previews?.production as PreviewApps | undefined) ?? {};
 
 /** Branch being built on a preview host (Vercel, Cloudflare Pages, Netlify), or undefined for a local build. */
 export const BUILD_BRANCH: string | undefined =
   process.env.VERCEL_GIT_COMMIT_REF || process.env.CF_PAGES_BRANCH || (process.env.NETLIFY === 'true' ? process.env.BRANCH : undefined) || undefined;
 
-/** Storybook to link and embed: STORYBOOK_URL, else this branch's Storybook preview, else a local Storybook. */
+/**
+ * Storybook to link and embed: STORYBOOK_URL when set, else this branch's Storybook preview on a preview build,
+ * else the production Storybook (`previews.production.storybook`), else a local Storybook.
+ */
 export const STORYBOOK_URL = (
   process.env.STORYBOOK_URL ||
-  (BUILD_BRANCH ? previewUrl(PREVIEW_APPS.storybook, { branch: BUILD_BRANCH }) : null) ||
+  appUrl({ apps: PREVIEW_APPS, production: PRODUCTION_APPS }, 'storybook', { branch: BUILD_BRANCH, defaultBranch: DEFAULT_BRANCH }) ||
   'http://localhost:6006'
 ).replace(/\/$/, '');
 

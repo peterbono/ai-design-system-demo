@@ -21,6 +21,40 @@ export function parseTier(labels: LabelLike[], body: string | null | undefined):
   return found.length ? (Math.max(...found) as Tier) : null;
 }
 
+/** What GitHub returns about a pull request's lifecycle. `merged_at` is set once merged; `state` is then "closed". */
+export interface PullStateLike {
+  state?: string;
+  draft?: boolean;
+  merged?: boolean;
+  merged_at?: string | null;
+}
+
+export type PullState = 'merged' | 'closed' | 'draft' | 'open';
+
+/** Merged wins over closed (GitHub reports merged pull requests as closed), closed over draft, draft over open. */
+export function pullState(p: PullStateLike): PullState {
+  if (p.merged_at || p.merged) return 'merged';
+  if (p.state && p.state !== 'open') return 'closed';
+  if (p.draft) return 'draft';
+  return 'open';
+}
+
+/** Label and pill tone of each state, for list and detail views. */
+export const PULL_STATE_PILL: Record<PullState, { label: string; cls: string }> = {
+  merged: { label: 'Merged', cls: 'is-accent' },
+  closed: { label: 'Closed', cls: 'is-fail' },
+  draft: { label: 'Draft', cls: '' },
+  open: { label: 'Open', cls: 'is-pass' },
+};
+
+/** Pull requests still waiting for review (open or draft): merged and closed ones never count as open reviews. */
+export function openPulls<P extends PullStateLike>(pulls: P[]): P[] {
+  return pulls.filter((p) => {
+    const s = pullState(p);
+    return s === 'open' || s === 'draft';
+  });
+}
+
 export interface CheckRunLike {
   name: string;
   status: 'queued' | 'in_progress' | 'completed' | string;
@@ -153,6 +187,7 @@ export function mergeGate(input: {
   draft: boolean;
   mergeable?: boolean | null;
   state: string;
+  merged_at?: string | null;
   /** Login of the connected viewer (GitHub /user). */
   viewer?: string | null;
   override?: OverridePolicy | null;
@@ -160,7 +195,9 @@ export function mergeGate(input: {
   const blocking: string[] = [];
   const missing: MissingApproval[] = [];
   const approvalReasons: string[] = [];
-  if (input.state !== 'open') blocking.push('This pull request is not open.');
+  const lifecycle = pullState(input);
+  if (lifecycle === 'merged') blocking.push('This pull request is already merged.');
+  else if (lifecycle === 'closed') blocking.push('This pull request is closed.');
   if (input.draft) blocking.push('It is a draft. Mark it ready for review on GitHub first.');
   if (input.ci.state === 'fail') blocking.push(`CI fails: ${input.ci.failed.map((f) => f.name).join(', ')}.`);
   if (input.ci.state === 'pending') blocking.push('CI is still running.');

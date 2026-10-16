@@ -480,7 +480,7 @@
     "previews": {
       "type": "object",
       "additionalProperties": false,
-      "description": "Branch previews: packages published as snapshots per PR commit, and per-branch deploy URL templates. See docs/PREVIEWS.md.",
+      "description": "Branch previews: packages published as snapshots per PR commit, per-branch deploy URL templates and production URLs. See docs/PREVIEWS.md.",
       "properties": {
         "packages": {
           "type": "array",
@@ -509,6 +509,16 @@
               "pattern": "^https?://",
               "description": "Admin demo preview. URL template. Placeholders: {branch} (Vercel-style slug), {rawBranch}, {pr}, {sha}, {sha7}."
             }
+          }
+        },
+        "production": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Production URL of each app (what the default branch deploys). Fixed URLs, no placeholders. Used for links on the default branch and in local builds.",
+          "properties": {
+            "docs": { "type": "string", "pattern": "^https?://[^{}]*$", "description": "Docs site production URL." },
+            "storybook": { "type": "string", "pattern": "^https?://[^{}]*$", "description": "Storybook production URL." },
+            "admin": { "type": "string", "pattern": "^https?://[^{}]*$", "description": "Admin demo production URL." }
           }
         }
       }

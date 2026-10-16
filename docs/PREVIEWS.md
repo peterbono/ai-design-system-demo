@@ -55,30 +55,41 @@ Then, in each project's **Settings**:
 - **Deployment Protection > Vercel Authentication**: turn it off for previews, or only people logged in to your
   Vercel team can open them, and a product staging cannot load `tokens.css` from the docs preview. These apps
   hold public demo content only.
-- `bridge-docs` only, optional: **Environment Variables** > `STORYBOOK_URL` for **Production** (the production
-  Storybook URL). Preview builds find their branch Storybook from the template in step 3.
+- Nothing else: the docs site finds its Storybook from `bridge.config.json` (step 3), the branch Storybook on a
+  preview build and `previews.production.storybook` on `main`. `STORYBOOK_URL` still overrides both when set.
 
 ### 3. Tell Bridge the preview URLs
 
 Open any preview deployment of each project once and note its branch URL. Vercel names it
 `<project>-git-<branch>-<scope>.vercel.app`. Put the pattern in `bridge.config.json`, with `{branch}` where the branch
-goes:
+goes, and the production URL of each app under `production`. This repository's values (Vercel team
+`peterbonos-projects`):
 
 ```json
 "previews": {
   "packages": ["@bridge-ds/tokens", "@bridge-ds/core", "@bridge-ds/react"],
   "apps": {
-    "docs": "https://bridge-docs-git-{branch}-<scope>.vercel.app",
-    "storybook": "https://bridge-storybook-git-{branch}-<scope>.vercel.app",
-    "admin": "https://bridge-admin-git-{branch}-<scope>.vercel.app"
+    "docs": "https://bridge-docs-git-{branch}-peterbonos-projects.vercel.app",
+    "storybook": "https://bridge-storybook-git-{branch}-peterbonos-projects.vercel.app",
+    "admin": "https://bridge-admin-git-{branch}-peterbonos-projects.vercel.app"
+  },
+  "production": {
+    "docs": "https://bridge.floriangouloubi.com",
+    "storybook": "https://bridge-storybook.floriangouloubi.com",
+    "admin": "https://bridge-demo.floriangouloubi.com"
   }
 }
 ```
 
+`production` holds fixed URLs (no placeholders). The docs site uses them on `main` and in local builds, for
+example to link and embed Storybook; `appUrl()` in `@bridge-ds/core` makes that choice.
+
 Placeholders: `{branch}` (Vercel slug: lowercase, every run of other characters becomes `-`), `{rawBranch}`
 (URL-encoded name), `{pr}`, `{sha}`, `{sha7}`. When a branch URL would exceed 63 characters in one DNS label,
 Vercel shortens it with a hash nobody can predict; Bridge then leaves that link out and the Vercel bot comment on
-the PR has the exact URL. Keep project names short.
+the PR has the exact URL. Keep project and branch names short: with `-peterbonos-projects` as the scope, a branch slug of up to 22
+characters gets predictable links for all three apps (`bridge-storybook-git-` is the longest prefix; docs allows
+27, admin 26).
 
 Commit this on a branch and open a PR: the comment and the Branches page pick it up.
 
@@ -94,7 +105,7 @@ One comment per PR, edited on every push (it starts with `<!-- bridge-branch-pre
 ````md
 ## Try this DS branch in your product
 
-Snapshot of `1a2b3c4` on `agent/badge-subtle-variant`. Install it in a product branch that deploys to staging; production keeps the released version.
+Snapshot of `1a2b3c4` on `agent/badge-subtle`. Install it in a product branch that deploys to staging; production keeps the released version.
 
 ```sh
 npm i https://pkg.pr.new/peterbono/ai-design-system-demo/@bridge-ds/tokens@1a2b3c4... https://pkg.pr.new/peterbono/ai-design-system-demo/@bridge-ds/core@1a2b3c4... https://pkg.pr.new/peterbono/ai-design-system-demo/@bridge-ds/react@1a2b3c4...
@@ -109,11 +120,11 @@ npm i https://pkg.pr.new/peterbono/ai-design-system-demo/@bridge-ds/tokens@1a2b3
 
 | App | Preview |
 | --- | --- |
-| Docs | https://bridge-docs-git-agent-badge-subtle-variant-<scope>.vercel.app/ |
-| Storybook | https://bridge-storybook-git-agent-badge-subtle-variant-<scope>.vercel.app/ |
-| Admin demo | https://bridge-admin-git-agent-badge-subtle-variant-<scope>.vercel.app/ |
+| Docs | https://bridge-docs-git-agent-badge-subtle-peterbonos-projects.vercel.app/ |
+| Storybook | https://bridge-storybook-git-agent-badge-subtle-peterbonos-projects.vercel.app/ |
+| Admin demo | https://bridge-admin-git-agent-badge-subtle-peterbonos-projects.vercel.app/ |
 
-Tokens only, no reinstall: open your staging with `?bridge-tokens=https://bridge-docs-git-agent-badge-subtle-variant-<scope>.vercel.app/tokens.css` ...
+Tokens only, no reinstall: open your staging with `?bridge-tokens=https://bridge-docs-git-agent-badge-subtle-peterbonos-projects.vercel.app/tokens.css` ...
 ````
 
 The text comes from `previewComment()` in `packages/core/src/previews.ts`, the same code the Branches page uses.
@@ -145,7 +156,7 @@ For token changes (color, radius, density), keep the installed packages and let 
   tokenOverride={{
     enabled: import.meta.env.VITE_BRIDGE_TOKEN_PREVIEW === 'true', // set only in the staging environment
     allowInProduction: true, // staging builds are production builds; still off unless `enabled`
-    allow: ['https://bridge-docs-git-agent-badge-subtle-variant-<scope>.vercel.app'],
+    allow: ['https://bridge-docs-git-agent-badge-subtle-peterbonos-projects.vercel.app'],
   }}
 >
 ```

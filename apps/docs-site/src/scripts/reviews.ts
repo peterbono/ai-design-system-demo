@@ -6,6 +6,7 @@ import {
   canWrite,
   mergeGate,
   NO_OVERRIDE,
+  openPulls,
   OVERRIDE_HEADING,
   overrideComment,
   overrideReasonProblem,
@@ -13,6 +14,8 @@ import {
   parseChangeset,
   parseOverrideComment,
   parseTier,
+  PULL_STATE_PILL,
+  pullState,
   summarizeApprovals,
   summarizeCi,
   type CheckRunLike,
@@ -46,6 +49,7 @@ interface Pull {
   created_at: string;
   updated_at: string;
   merged?: boolean;
+  merged_at?: string | null;
   mergeable?: boolean | null;
   comments?: number;
   review_comments?: number;
@@ -132,6 +136,11 @@ function tierPill(t: Tier | null) {
   return `<span class="pill rv-tier is-t${t}">Tier ${t}</span>`;
 }
 
+function statePill(p: Pull) {
+  const { label, cls } = PULL_STATE_PILL[pullState(p)];
+  return `<span class="pill ${cls}">${label}</span>`;
+}
+
 function ciPill(state: string, loading = false) {
   if (loading) return '<span class="pill rv-ci is-loading">CI</span>';
   const map: Record<string, [string, string]> = {
@@ -158,7 +167,8 @@ async function loadList(): Promise<Pull[]> {
   try {
     const f = await ghGet<Pull[]>(`${R}/pulls?state=open&per_page=50&sort=updated&direction=desc`);
     staleNotice(f);
-    const pulls = f.data;
+    // state=open already excludes merged and closed ones; filter again so a cached list never counts them.
+    const pulls = openPulls(f.data);
     $('rv-count').textContent = String(pulls.length);
     try {
       localStorage.setItem('bridge.reviews.open', JSON.stringify({ n: pulls.length, at: new Date().toISOString() }));
@@ -187,7 +197,7 @@ async function loadList(): Promise<Pull[]> {
               </span>
             </span>
             <span class="rv-row-pills">
-              ${p.draft ? '<span class="pill">Draft</span>' : ''}
+              ${pullState(p) === 'draft' ? statePill(p) : ''}
               ${tokens ? '<span class="pill is-accent">Tokens</span>' : ''}
               ${tierPill(tier)}
               <span data-ci-slot="${p.number}">${ciPill('', true)}</span>
@@ -264,7 +274,7 @@ async function openPr(n: number, push = true) {
     const tier = Math.max(labelled ?? 0, computed) as Tier;
     current = { pull, tier };
     const approvals = summarizeApprovals(reviews, OWNERS, pull.user.login);
-    const gate = mergeGate({ tier, ci, approvals, draft: pull.draft, mergeable: pull.mergeable, state: pull.state, viewer: access?.login, override: OVERRIDE });
+    const gate = mergeGate({ tier, ci, approvals, draft: pull.draft, mergeable: pull.mergeable, state: pull.state, merged_at: pull.merged_at, viewer: access?.login, override: OVERRIDE });
     const tokenFiles = files.filter((f) => isTokenFile(f.filename));
     const changesets = files.filter((f) => /^\.changeset\/(?!README).+\.md$/.test(f.filename) && f.status !== 'removed');
 
@@ -355,10 +365,10 @@ function renderDetail(
   <header class="rv-head">
     <h1 class="rv-title">${esc(pull.title)} <span class="rv-num mono">#${pull.number}</span></h1>
     <div class="rv-head-meta">
-      ${pull.draft ? '<span class="pill">Draft</span>' : `<span class="pill is-pass">Open</span>`}
+      ${statePill(pull)}
       ${tierPill(tier)}
       ${ciPill(ci.state)}
-      <span class="rv-by">${avatar(pull.user, 20)}<strong>${esc(pull.user.login)}</strong> wants to merge <span class="mono rv-branch">${esc(pull.head.ref)}</span> into <span class="mono rv-branch">${esc(pull.base.ref)}</span></span>
+      <span class="rv-by">${avatar(pull.user, 20)}<strong>${esc(pull.user.login)}</strong> ${pullState(pull) === 'merged' ? 'merged' : 'wants to merge'} <span class="mono rv-branch">${esc(pull.head.ref)}</span> into <span class="mono rv-branch">${esc(pull.base.ref)}</span></span>
       <a class="rv-gh-link" href="${esc(pull.html_url)}" target="_blank" rel="noopener">Open on GitHub</a>
     </div>
   </header>
