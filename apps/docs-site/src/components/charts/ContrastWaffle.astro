@@ -1,8 +1,8 @@
 ---
-// One square per contrast check (pair x theme). Failing squares are filled and carry an x mark,
+// One square per contrast check (pair x brand x theme). Failing squares are filled and carry an x mark,
 // so pass and fail differ by shape as well as color.
 import { dashboard } from '../../lib/stats';
-import { MODES } from '../../lib/tokens';
+import { BRAND_LABEL } from '../../lib/tokens';
 
 const { contrast } = dashboard();
 const pct = Math.round(contrast.rate * 1000) / 10;
@@ -14,14 +14,15 @@ const pct = Math.round(contrast.rate * 1000) / 10;
     <span>of {contrast.total} checks pass WCAG AA</span>
   </div>
   {
-    MODES.map((m) => {
-      const checks = contrast.byMode.find((x) => x.mode === m)!;
+    contrast.byCombo.map((checks) => {
+      const m = checks.mode;
+      const label = `${BRAND_LABEL[checks.brand]} ${m}`;
       return (
         <div class="waffle-row">
-          <span class="waffle-mode">{m === 'light' ? 'Light' : 'Dark'}</span>
-          <ul class="waffle-grid" aria-label={`${m} theme: ${checks.pass} of ${checks.total} pass`}>
+          <span class="waffle-mode">{label}</span>
+          <ul class="waffle-grid" aria-label={`${label}: ${checks.pass} of ${checks.total} pass`}>
             {contrast.failing
-              .filter((f) => f.mode === m)
+              .filter((f) => f.mode === m && f.brand === checks.brand)
               .map((f) => (
                 <li class="cell is-fail" title={`${f.pair.fg} on ${f.pair.bg}: ${f.result.ratio.toFixed(2)}:1, fails AA`}>
                   <span class="sr-only">

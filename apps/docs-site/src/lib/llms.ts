@@ -64,7 +64,7 @@ export function buildLlmsTxt(): string {
       .filter((m) => !p.modes[m].aa)
       .map((m) => `- ${p.fg} on ${p.bg} (${p.usage}, ${m}): ${p.modes[m].ratio}:1`),
   );
-  push('## Contrast', '', 'Pairs are listed in packages/tokens/src/contrast-pairs.json and checked against WCAG AA (4.5:1 text, 3:1 UI).');
+  push('## Contrast', '', 'Pairs are listed in packages/tokens/src/contrast.checks.json and checked against WCAG AA (4.5:1 text, 3:1 UI).');
   push(failing.length ? 'Pairs currently below AA (do not copy these combinations into new places):' : 'All listed pairs pass AA in both themes.', ...failing, '');
 
   push('## Components', '');

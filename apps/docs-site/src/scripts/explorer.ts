@@ -12,12 +12,14 @@ interface Token {
   figma: string;
   type: string;
   typeLabel: string;
-  layer: 'primitive' | 'semantic';
+  layer: 'primitive' | 'brand' | 'semantic' | 'density' | 'component';
   description?: string;
   deprecated?: boolean | string;
   value: string;
   hex?: string;
   modes?: Record<Mode, { chain: string[]; css: string; hex?: string }>;
+  brands?: Record<string, Record<Mode, { chain: string[]; css: string; hex?: string }>>;
+  densities?: Record<string, string>;
   used: boolean;
   usedBy: Link[];
   referencedBy?: { path: string; modes: Mode[] }[];
@@ -29,6 +31,9 @@ interface Token {
 
 const MODES: Mode[] = ['light', 'dark'];
 const MODE_LABEL: Record<Mode, string> = { light: 'Light', dark: 'Dark' };
+const TIER_LABEL: Record<string, string> = { primitive: 'Primitive', brand: 'Brand', semantic: 'Semantic', density: 'Density', component: 'Component' };
+const BRAND_LABEL: Record<string, string> = { bridge: 'Bridge', ocean: 'Ocean' };
+const isAlias = (t: Token) => t.layer !== 'primitive';
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const ICON = {
   copy: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V6a1.5 1.5 0 0 0-1.5-1.5H6A1.5 1.5 0 0 0 4.5 6v8A1.5 1.5 0 0 0 6 15.5h2.5"/></svg>',
@@ -62,7 +67,8 @@ function sample(t: Token, mode: Mode | null, size: 'lg' | 'sm' = 'lg'): string {
 }
 
 function node(path: string, kind: 'self' | 'semantic' | 'primitive', byPath: Map<string, Token>, note?: string): string {
-  const label = note ?? (kind === 'self' ? 'This token' : kind === 'semantic' ? 'Semantic' : 'Primitive');
+  const tier = byPath.get(path)?.layer;
+  const label = note ?? (kind === 'self' ? 'This token' : TIER_LABEL[tier ?? kind] ?? 'Semantic');
   const known = byPath.has(path);
   const inner = `<span class="tx-node-kind">${label}</span><span class="tx-node-name">${esc(path)}</span>`;
   return known && kind !== 'self'
@@ -78,9 +84,9 @@ function valueNode(t: Token, mode: Mode | null): string {
 }
 
 function graph(t: Token, byPath: Map<string, Token>): string {
-  if (t.layer === 'semantic' && t.modes) {
+  if (isAlias(t) && t.modes) {
     return MODES.map((m) => {
-      const hops = t.modes![m].chain.map((h) => node(h, byPath.get(h)?.layer === 'semantic' ? 'semantic' : 'primitive', byPath));
+      const hops = t.modes![m].chain.map((h) => node(h, byPath.get(h)?.layer === 'primitive' ? 'primitive' : 'semantic', byPath));
       const nodes = [node(t.path, 'self', byPath), ...hops, valueNode(t, m)];
       return `<div class="tx-graph-row"><span class="tx-graph-mode">${MODE_LABEL[m]}</span><div class="tx-graph">${nodes.join('<span class="tx-link" aria-hidden="true"></span>')}</div></div>`;
     }).join('');
@@ -89,11 +95,11 @@ function graph(t: Token, byPath: Map<string, Token>): string {
   const fan = refs.length
     ? `<div class="tx-fan">${refs
         .slice(0, 8)
-        .map((r) => `<div class="tx-fan-item">${node(r.path, 'semantic', byPath, r.modes.length === MODES.length ? 'Semantic, both themes' : `Semantic, ${MODE_LABEL[r.modes[0]!].toLowerCase()} only`)}</div>`)
+        .map((r) => `<div class="tx-fan-item">${node(r.path, 'semantic', byPath, `${TIER_LABEL[byPath.get(r.path)?.layer ?? 'semantic']}, ${r.modes.length === MODES.length ? 'both themes' : `${MODE_LABEL[r.modes[0]!].toLowerCase()} only`}`)}</div>`)
         .join('')}${refs.length > 8 ? `<p class="muted small">and ${refs.length - 8} more</p>` : ''}</div><span class="tx-link" aria-hidden="true"></span>`
     : '';
   return `<div class="tx-graph-row"><div class="tx-graph${refs.length ? ' has-fan' : ''}">${fan}${node(t.path, 'self', byPath)}<span class="tx-link" aria-hidden="true"></span>${valueNode(t, null)}</div></div>${
-    refs.length ? '' : '<p class="muted small tx-graph-note">No semantic token points to this primitive.</p>'
+    refs.length ? '' : '<p class="muted small tx-graph-note">No token points to this primitive.</p>'
   }`;
 }
 
@@ -103,7 +109,8 @@ function copyRow(kind: string, value: string): string {
 
 function render(t: Token, byPath: Map<string, Token>): string {
   const pills = [
-    `<span class="pill ${t.layer === 'semantic' ? 'is-accent' : ''}">${t.layer === 'semantic' ? 'Semantic' : 'Primitive'}</span>`,
+    `<span class="pill ${isAlias(t) ? 'is-accent' : ''}">${TIER_LABEL[t.layer]}</span>`,
+    t.brands ? '<span class="pill">Changes with brand</span>' : '',
     `<span class="pill">${esc(t.typeLabel)}</span>`,
     t.used ? '' : '<span class="pill is-warn">Unused</span>',
     t.deprecated ? '<span class="pill is-fail">Deprecated</span>' : '',
@@ -111,8 +118,17 @@ function render(t: Token, byPath: Map<string, Token>): string {
   const desc = t.description ? `<p class="tx-d-desc">${esc(t.description)}</p>` : '';
   const dep = typeof t.deprecated === 'string' ? `<p class="tx-d-desc"><strong>Deprecated:</strong> ${esc(t.deprecated)}</p>` : '';
 
-  const values =
-    t.layer === 'semantic' && t.modes
+  const stage = (inner: string, theme: Mode, brand?: string, label = '', css = '') =>
+    `<div class="tx-value"><div class="tx-value-stage" data-theme="${theme}"${brand ? ` data-brand="${brand}" data-scope-fixed` : ''}>${inner}</div><div class="tx-value-meta"><strong>${esc(label)}</strong><span class="mono">${esc(css)}</span></div></div>`;
+  const values = t.densities
+    ? `<div class="tx-values">${Object.entries(t.densities)
+        .map(([d, css]) => stage(sample(t, null), 'light', undefined, d === 'compact' ? 'Compact' : 'Comfortable', css))
+        .join('')}</div>`
+    : t.brands
+    ? `<div class="tx-values is-grid">${Object.entries(t.brands)
+        .flatMap(([b, modes]) => MODES.map((m) => stage(sample(t, m), m, b, `${BRAND_LABEL[b] ?? b}, ${MODE_LABEL[m]}`, modes[m].css)))
+        .join('')}</div>`
+    : isAlias(t) && t.modes
       ? `<div class="tx-values">${MODES.map(
           (m) =>
             `<div class="tx-value"><div class="tx-value-stage" data-theme="${m}">${sample(t, m)}</div><div class="tx-value-meta"><strong>${MODE_LABEL[m]}</strong><span class="mono">${esc(
@@ -140,20 +156,20 @@ function render(t: Token, byPath: Map<string, Token>): string {
     : `<p class="tx-empty-line">${
         t.type !== 'color'
           ? 'Contrast only applies to color tokens.'
-          : t.layer === 'primitive'
-            ? 'Contrast is checked on semantic pairs. Open a token that points here to see its pairs.'
-            : 'Not part of any checked pair. Add it to packages/tokens/src/contrast-pairs.json to track it.'
+          : t.layer !== 'semantic'
+            ? 'Contrast is checked on semantic pairs. Open the semantic token that uses this value to see its pairs.'
+            : 'Not part of any checked pair. Add it to packages/tokens/src/contrast.checks.json to track it.'
       }</p>`;
 
   const users = t.usedBy.length
     ? `<ul class="tx-users">${t.usedBy.map((u) => `<li><a href="${esc(u.href)}">${esc(u.name)}</a></li>`).join('')}</ul>${
-        t.layer === 'primitive' ? '<p class="muted small">Includes components that reach this value through a semantic token.</p>' : ''
+        t.layer === 'primitive' ? '<p class="muted small">Includes components that reach this value through an alias.</p>' : ''
       }`
-    : `<p class="tx-empty-line">No component reads this token yet${t.layer === 'primitive' ? ', directly or through a semantic token' : ''}.</p>`;
+    : `<p class="tx-empty-line">No component reads this token yet${t.layer === 'primitive' ? ', directly or through an alias' : ''}.</p>`;
 
   return `
     <header class="tx-d-head">
-      ${sample(t, t.layer === 'semantic' ? 'light' : null)}
+      ${sample(t, isAlias(t) ? 'light' : null)}
       <div>
         <h2 id="tx-d-title" class="tx-d-title" tabindex="-1">${esc(t.path)}</h2>
         <div class="tx-d-pills">${pills}</div>
@@ -163,7 +179,7 @@ function render(t: Token, byPath: Map<string, Token>): string {
     <section class="tx-d-sec" aria-label="Names">
       <div class="tx-copies">${copyRow('CSS variable', `var(${t.cssVar})`)}${copyRow('Token path', t.path)}${copyRow('Figma variable', t.figma)}</div>
     </section>
-    <section class="tx-d-sec"><h3>${t.layer === 'semantic' ? 'Alias chain' : 'Who points here'}</h3>${graph(t, byPath)}</section>
+    <section class="tx-d-sec"><h3>${isAlias(t) ? 'Alias chain' : 'Who points here'}</h3>${graph(t, byPath)}</section>
     <section class="tx-d-sec"><h3>Values</h3>${values}</section>
     <section class="tx-d-sec"><h3>Contrast pairs <span class="tx-d-n">${t.contrast.length}</span></h3>${contrast}</section>
     <section class="tx-d-sec"><h3>Used by <span class="tx-d-n">${t.usedBy.length}</span></h3>${users}</section>

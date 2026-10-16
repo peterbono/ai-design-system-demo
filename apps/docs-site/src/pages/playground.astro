@@ -7,7 +7,7 @@ import Updated from '../components/Updated.astro';
 import { scaleBaseline } from '../lib/inspect';
 import { lastUpdated } from '../lib/repo';
 import { dashboard } from '../lib/stats';
-import { TOKEN_SOURCE_FILES } from '../lib/tokens';
+import { BRANDS, BRAND_LABEL, DENSITIES, DENSITY_LABEL, TOKEN_SOURCE_FILES } from '../lib/tokens';
 
 const sources = [...TOKEN_SOURCE_FILES(), 'packages/react/src/components'];
 const updated = lastUpdated(sources);
@@ -38,7 +38,7 @@ const ratios = [
   <h1>Theme playground</h1>
   <p class="lead">
     Tiny tokens, big impact. This billing screen is built only with the real components from <code>@demo-ds/react</code>, and the same
-    {s.semantic} semantic tokens paint it in both themes. Hover or focus any part to see exactly which tokens it reads.
+    {s.semantic} semantic tokens paint it in both themes, in either brand and density. Hover or focus any part to see exactly which tokens it reads.
   </p>
   <Updated date={updated} />
 
@@ -47,6 +47,16 @@ const ratios = [
       <button type="button" role="radio" aria-checked="true" data-view="both">Side by side</button>
       <button type="button" role="radio" aria-checked="false" data-view="light"><Icon name="sun" size={16} />Light</button>
       <button type="button" role="radio" aria-checked="false" data-view="dark"><Icon name="moon" size={16} />Dark</button>
+    </div>
+    <div class="seg" role="radiogroup" aria-label="Brand">
+      {BRANDS.map((b) => (
+        <button type="button" role="radio" aria-checked={b === 'bridge' ? 'true' : 'false'} data-set-brand={b}>{BRAND_LABEL[b]}</button>
+      ))}
+    </div>
+    <div class="seg" role="radiogroup" aria-label="Density">
+      {DENSITIES.map((d) => (
+        <button type="button" role="radio" aria-checked={d === 'comfortable' ? 'true' : 'false'} data-set-density={d}>{DENSITY_LABEL[d]}</button>
+      ))}
     </div>
     <label class="switch">
       <input type="checkbox" id="pg-outline" />

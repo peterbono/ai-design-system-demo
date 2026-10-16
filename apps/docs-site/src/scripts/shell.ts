@@ -40,6 +40,81 @@ function initTheme() {
   });
 }
 
+/**
+ * Brand and density of the design system previews. Stored per browser, applied to <html> and to every element
+ * that sets data-theme (preview frames, islands): tokens.css resolves brand x theme overrides only when the
+ * attributes sit on the same element, so each themed scope carries all three.
+ */
+type Scope = { brand: string; density: string };
+const SCOPE_DEFAULT: Scope = { brand: 'bridge', density: 'comfortable' };
+const LABELS: Record<string, string> = { bridge: 'Bridge', ocean: 'Ocean', comfortable: 'Comfortable', compact: 'Compact' };
+
+export function currentScope(): Scope {
+  const root = document.documentElement;
+  return { brand: root.dataset.brand ?? SCOPE_DEFAULT.brand, density: root.dataset.density ?? SCOPE_DEFAULT.density };
+}
+
+function applyScope(scope: Scope, within: ParentNode = document) {
+  const root = document.documentElement;
+  root.dataset.brand = scope.brand;
+  root.dataset.density = scope.density;
+  within.querySelectorAll<HTMLElement>('[data-theme]').forEach((el) => {
+    if (el.hasAttribute('data-scope-fixed')) return;
+    if (el.dataset.brand !== scope.brand) el.dataset.brand = scope.brand;
+    if (el.dataset.density !== scope.density) el.dataset.density = scope.density;
+  });
+  document.querySelectorAll<HTMLElement>('[data-set-brand]').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.setBrand === scope.brand)));
+  document.querySelectorAll<HTMLElement>('[data-set-density]').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.setDensity === scope.density)));
+  document.querySelectorAll<HTMLElement>('[data-scope-label]').forEach((l) => {
+    const key = l.dataset.scopeLabel as keyof Scope;
+    l.textContent = LABELS[scope[key]] ?? scope[key];
+  });
+}
+
+function initScope() {
+  applyScope(currentScope());
+  const set = (patch: Partial<Scope>) => {
+    const next = { ...currentScope(), ...patch };
+    try {
+      localStorage.setItem('ds-brand', next.brand);
+      localStorage.setItem('ds-density', next.density);
+    } catch {
+      /* private mode: applies to this page only */
+    }
+    applyScope(next);
+    announce(`Previews: ${LABELS[next.brand]}, ${LABELS[next.density]}`);
+    document.dispatchEvent(new CustomEvent('bridge:scope', { detail: next }));
+  };
+  document.addEventListener('click', (e) => {
+    const t = (e.target as HTMLElement).closest<HTMLElement>('[data-set-brand], [data-set-density]');
+    if (!t) return;
+    if (t.dataset.setBrand) set({ brand: t.dataset.setBrand });
+    if (t.dataset.setDensity) set({ density: t.dataset.setDensity });
+  });
+  // Islands and drawers add themed scopes after load: keep them in step.
+  let queued = false;
+  new MutationObserver(() => {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => {
+      queued = false;
+      applyScope(currentScope());
+    });
+  }).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-theme'] });
+  const menu = document.getElementById('scope-menu') as HTMLDetailsElement | null;
+  if (menu) {
+    document.addEventListener('click', (e) => {
+      if (menu.open && !menu.contains(e.target as Node)) menu.open = false;
+    });
+    menu.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && menu.open) {
+        menu.open = false;
+        menu.querySelector('summary')?.focus();
+      }
+    });
+  }
+}
+
 function initCopy() {
   document.addEventListener('click', (e) => {
     const b = (e.target as HTMLElement).closest<HTMLElement>('[data-copy]');
@@ -273,6 +348,7 @@ function initPalette() {
 
 export function initShell() {
   initTheme();
+  initScope();
   initCopy();
   initRail();
   initPalette();

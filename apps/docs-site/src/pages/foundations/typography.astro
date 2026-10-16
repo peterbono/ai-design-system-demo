@@ -41,8 +41,9 @@ const used = (v: string) => componentsUsing(v).join(', ') || 'Not used by a comp
     </table>
   </div>
   <p class="muted small">
-    The system lists Inter and JetBrains Mono first but does not bundle them: a product without them falls back to the platform font, with no
-    download and no layout shift. This docs site self-hosts both, so the samples above render in the real faces.
+    Brands pick their faces through font roles (<code>font.family.sans</code>, <code>font.family.mono</code>); both ship IBM Plex Sans and
+    IBM Plex Mono, self-hosted with <code>@demo-ds/tokens/fonts.css</code>. Without it, products fall back to the platform font with no layout
+    shift. This site loads the same files, so the samples above render in the real faces.
   </p>
 
   <h2>Size scale</h2>

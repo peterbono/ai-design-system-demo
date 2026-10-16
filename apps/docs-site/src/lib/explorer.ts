@@ -4,7 +4,7 @@
 import { loadComponents } from './components';
 import { contrastPairs } from './contrast';
 import { dashboard, typeLabel } from './stats';
-import { hrefForVar, loadTokens, MODES, type Mode } from './tokens';
+import { BRANDS, hrefForVar, loadTokens, MODES, type Brand, type Mode, type Semantic, type Tier } from './tokens';
 
 export interface ExplorerLink {
   name: string;
@@ -32,13 +32,17 @@ export interface ExplorerToken {
   figma: string;
   type: string;
   typeLabel: string;
-  layer: 'primitive' | 'semantic';
+  layer: Tier;
   description?: string;
   deprecated?: boolean | string;
   /** Primitive: resolved CSS value. Semantic: light value (see modes). */
   value: string;
   hex?: string;
   modes?: Record<Mode, ExplorerMode>;
+  /** Values per brand x theme, when a brand changes this token. */
+  brands?: Record<Brand, Record<Mode, ExplorerMode>>;
+  /** Density tokens: value per density. */
+  densities?: Record<string, string>;
   used: boolean;
   usedBy: ExplorerLink[];
   /** Primitives only: semantic tokens that resolve through this primitive, per theme. */
@@ -49,7 +53,8 @@ export interface ExplorerToken {
 }
 
 export function explorerTokens(): ExplorerToken[] {
-  const { primitives, semantic } = loadTokens();
+  const { primitives, all } = loadTokens();
+  const semantic = all;
   const components = loadComponents();
   const stats = dashboard();
   const unusedSemantic = new Set(stats.unusedSemantic.map((s) => s.path));
@@ -70,19 +75,30 @@ export function explorerTokens(): ExplorerToken[] {
         modes: Object.fromEntries(MODES.map((m) => [m, { ratio: p.modes[m].ratio, aa: p.modes[m].aa }])) as ExplorerContrast['modes'],
       }));
 
+  const modesOf = (r: Record<Mode, { chain: string[]; css: string; hex?: string }>) =>
+    Object.fromEntries(MODES.map((m) => [m, { chain: r[m].chain, css: r[m].css, hex: r[m].hex }])) as Record<Mode, ExplorerMode>;
+  const unused = (s: Semantic) => (s.tier === 'semantic' ? unusedSemantic.has(s.path) : !usedThroughChain(s));
+  // Brand, density and component tokens count as used when a component reads them, directly or through an alias.
+  const usedThroughChain = (s: Semantic): boolean =>
+    usersOf(s.cssVar).length > 0 || semantic.some((o) => o.path !== s.path && MODES.some((m) => o.modes[m].chain.includes(s.path)) && usersOf(o.cssVar).length > 0);
+
   const sem: ExplorerToken[] = semantic.map((s) => ({
     path: s.path,
     cssVar: s.cssVar,
     figma: s.figma,
     type: s.type,
     typeLabel: typeLabel(s.type),
-    layer: 'semantic',
+    layer: s.tier,
     description: s.description,
     deprecated: s.deprecated,
     value: s.modes.light.css,
     hex: s.modes.light.hex,
-    modes: Object.fromEntries(MODES.map((m) => [m, { chain: s.modes[m].chain, css: s.modes[m].css, hex: s.modes[m].hex }])) as Record<Mode, ExplorerMode>,
-    used: !unusedSemantic.has(s.path),
+    modes: modesOf(s.modes),
+    brands: s.brandSpecific
+      ? (Object.fromEntries(BRANDS.map((b) => [b, modesOf(s.brands[b])])) as Record<Brand, Record<Mode, ExplorerMode>>)
+      : undefined,
+    densities: s.densities ? Object.fromEntries(Object.entries(s.densities).map(([d, v]) => [d, v.css])) : undefined,
+    used: !unused(s),
     usedBy: usersOf(s.cssVar),
     contrast: contrastFor(s.path),
     href: hrefForVar(s.cssVar, s.type),
@@ -90,7 +106,10 @@ export function explorerTokens(): ExplorerToken[] {
 
   const prim: ExplorerToken[] = primitives.map((p) => {
     const referencedBy = semantic
-      .map((s) => ({ path: s.path, modes: MODES.filter((m) => s.modes[m].chain.includes(p.path)) }))
+      .map((s) => ({
+        path: s.path,
+        modes: MODES.filter((m) => BRANDS.some((b) => s.brands[b][m].chain.includes(p.path)) || s.densities?.comfortable.chain.includes(p.path) || s.densities?.compact.chain.includes(p.path)),
+      }))
       .filter((x) => x.modes.length);
     // Components reached through a semantic alias count as users too, so the blast radius is complete.
     const via = semantic.filter((s) => referencedBy.some((r) => r.path === s.path)).flatMap((s) => usersOf(s.cssVar));

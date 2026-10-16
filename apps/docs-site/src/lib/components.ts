@@ -4,7 +4,7 @@
 //   <Name>.stories.tsx Storybook story ids for the live preview (parsed)
 // plus <Name>.docs.json for the usage guidance a parser cannot know (written by designers).
 import { exists, listDir, readJson, readText } from './repo';
-import { tokenIndex } from './tokens';
+import { BRANDS, loadTokens, MODES, tokenIndex } from './tokens';
 
 export const COMPONENTS_DIR = 'packages/react/src/components';
 
@@ -43,7 +43,7 @@ export interface CssRule {
   selector: string;
   className: string; // first class in the selector, used for the anatomy label
   label: string;
-  vars: { name: string; href?: string; known: boolean; path?: string; kind?: 'primitive' | 'semantic' }[];
+  vars: { name: string; href?: string; known: boolean; path?: string; kind?: import('./tokens').TokenKind }[];
 }
 
 export interface ComponentInfo {
@@ -60,6 +60,21 @@ export interface ComponentInfo {
   tokensUsed: { name: string; href?: string; known: boolean; kind?: string }[];
   stories: { name: string; id: string }[];
   docs: ComponentDocs | null;
+  /** Family from docs.json `category`, else from the grouped exports in packages/react/src/index.ts. */
+  category: string;
+}
+
+/** Families in the order packages/react/src/index.ts lists them ("// Actions" then its exports). */
+export function families(): { name: string; members: string[] }[] {
+  const src = readText('packages/react/src/index.ts');
+  const out: { name: string; members: string[] }[] = [];
+  for (const line of src.split('\n')) {
+    const head = line.match(/^\/\/\s*([A-Z][\w ]+)$/);
+    if (head) out.push({ name: head[1]!.trim(), members: [] });
+    const exp = line.match(/export \* from '\.\/components\/(\w+)'/);
+    if (exp && out.length) out[out.length - 1]!.members.push(exp[1]!);
+  }
+  return out.filter((f) => f.members.length);
 }
 
 const kebab = (s: string) =>
@@ -142,6 +157,9 @@ const stateOf = (selector: string) => {
   return hit.length ? `, ${hit.join(' + ')}` : '';
 };
 
+/** CSS variables Base UI sets at runtime (positioning, measured heights, swipe) and private --_* locals. Not tokens. */
+const BASE_UI_RUNTIME = /^--(_|accordion-panel-|collapsible-panel-|active-tab-|anchor-|available-|drawer-swipe-|toast-(frontmost-height|height|index|offset-y|swipe-)|transform-origin)/;
+
 /** Minimal CSS reader: selector -> var(--*) list. Skips @keyframes, flattens @media. */
 function parseCss(src: string, labels: Record<string, string>): CssRule[] {
   const index = tokenIndex();
@@ -168,7 +186,7 @@ function parseCss(src: string, labels: Record<string, string>): CssRule[] {
           walk(inner, `${head} `);
           continue;
         }
-        const names = [...new Set([...inner.matchAll(/var\((--[\w-]+)/g)].map((m) => m[1]!))];
+        const names = [...new Set([...inner.matchAll(/var\((--[\w-]+)/g)].map((m) => m[1]!))].filter((n) => !BASE_UI_RUNTIME.test(n));
         if (!names.length) continue;
         const className = head.match(/\.([\w-]+)/)?.[1] ?? head;
         rules.push({
@@ -202,6 +220,8 @@ let cache: ComponentInfo[] | null = null;
 export function loadComponents(): ComponentInfo[] {
   if (cache) return cache;
   const index = tokenIndex();
+  const fam = families();
+  const familyOf = (name: string) => fam.find((f) => f.members.includes(name))?.name;
   const result: ComponentInfo[] = listDir(COMPONENTS_DIR)
     .filter((n) => exists(`${COMPONENTS_DIR}/${n}/${n}.tsx`))
     .sort()
@@ -227,16 +247,34 @@ export function loadComponents(): ComponentInfo[] {
         tokensUsed: used.map((n) => ({ name: n, href: index.get(n)?.href, known: index.has(n), kind: index.get(n)?.kind })),
         stories: exists(files.stories) ? parseStories(readText(files.stories)) : [],
         docs,
+        category: docs?.category ?? familyOf(name) ?? 'Core',
       };
     });
+  const order = (c: ComponentInfo) => {
+    const i = fam.findIndex((f) => f.name === c.category);
+    return i < 0 ? fam.length : i;
+  };
+  result.sort((a, b) => order(a) - order(b) || a.name.localeCompare(b.name));
   cache = result;
   return result;
 }
 
-/** Which components read a given CSS variable. */
+/**
+ * Which components a CSS variable reaches: read directly, or through any alias chain in any brand, theme or
+ * density (a primitive reaches every component that reads a token resolving to it).
+ */
 export function componentsUsing(cssVar: string) {
+  const { primitives, all } = loadTokens();
+  const path = [...primitives, ...all].find((t) => t.cssVar === cssVar)?.path;
+  const via = new Set([cssVar]);
+  if (path) {
+    for (const t of all) {
+      const chains = [...BRANDS.flatMap((b) => MODES.flatMap((m) => t.brands[b][m].chain)), ...Object.values(t.densities ?? {}).flatMap((d) => d.chain)];
+      if (chains.includes(path)) via.add(t.cssVar);
+    }
+  }
   return loadComponents()
-    .filter((c) => c.tokensUsed.some((t) => t.name === cssVar))
+    .filter((c) => c.tokensUsed.some((t) => via.has(t.name)))
     .map((c) => c.name);
 }
 
@@ -259,6 +297,8 @@ export interface PlaygroundSpec {
   native: Control[];
   /** Default values from the component signature; the code snippet omits props left at their default. */
   defaults: Record<string, string | boolean>;
+  /** Props from the docs example that are not editable (options, items, numbers). Passed through as is. */
+  fixed: Record<string, unknown>;
 }
 
 const literalUnion = (type: string) => {
@@ -291,7 +331,11 @@ export function playgroundSpec(c: ComponentInfo): PlaygroundSpec | null {
   const native: Control[] =
     c.inherits === 'button' || c.inherits === 'input' ? [{ name: 'disabled', kind: 'boolean', description: 'Native attribute.' }] : [];
   if (!controls.length) return null;
+  // Without a docs example there is no realistic set of props to start from (Icon needs a glyph, overlays need content).
+  if (!c.docs) return null;
   const node = findNode(c.docs?.preview, c.name) ?? c.docs?.dos.map((d) => findNode(d.example, c.name)).find(Boolean) ?? null;
+  // The playground starts from a real example; components only shown composed (Tooltip, overlays) get none.
+  if (!node) return null;
   const initial: Record<string, string | boolean> = {};
   for (const ctl of controls) {
     const prop = c.props.find((p) => p.name === ctl.name);
@@ -304,9 +348,12 @@ export function playgroundSpec(c: ComponentInfo): PlaygroundSpec | null {
     else if (ctl.kind === 'boolean') initial[ctl.name] = false;
     else if (prop?.required) initial[ctl.name] = ctl.name;
   }
-  // Keep string props from the example that are not typed props (placeholder, type) so the preview looks real.
+  // Keep props from the example that are not controls (placeholder, options, items) so the preview looks real.
+  const fixed: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(node?.p ?? {})) {
-    if (!(k in initial) && (typeof v === 'string' || typeof v === 'boolean')) initial[k] = v;
+    if (k in initial) continue;
+    if ((typeof v === 'string' || typeof v === 'boolean') && !controls.some((c) => c.name === k) && k !== 'icon') initial[k] = v;
+    else fixed[k] = v;
   }
   const text = node?.children?.filter((x): x is string => typeof x === 'string').join(' ');
   const children = c.inherits === 'input' ? null : text || (node ? null : c.name);
@@ -316,5 +363,5 @@ export function playgroundSpec(c: ComponentInfo): PlaygroundSpec | null {
     const v = unquote(p.defaultValue);
     if (typeof v === 'boolean' || typeof v === 'string') defaults[p.name] = v;
   }
-  return { component: c.name, controls, initial, children: children ?? null, native, defaults };
+  return { component: c.name, controls, initial, children: children ?? null, native, defaults, fixed };
 }

@@ -3,7 +3,7 @@
 import { loadComponents } from './components';
 import { contrastPairs } from './contrast';
 import { git } from './repo';
-import { loadTokens, MODES, hrefForVar, type Primitive, type Semantic } from './tokens';
+import { BRANDS, DENSITIES, loadTokens, MODES, hrefForVar, type Primitive, type Semantic } from './tokens';
 
 export interface Slice {
   key: string;
@@ -18,6 +18,9 @@ const TYPE_LABEL: Record<string, string> = {
   fontFamily: 'Font family',
   fontWeight: 'Font weight',
   number: 'Number',
+  duration: 'Duration',
+  cubicBezier: 'Easing',
+  string: 'Text',
 };
 
 const CATEGORY: { key: string; label: string; match: (segments: string[]) => boolean }[] = [
@@ -27,6 +30,8 @@ const CATEGORY: { key: string; label: string; match: (segments: string[]) => boo
   { key: 'shape', label: 'Radius and borders', match: (s) => s[0] === 'radius' || s[0] === 'border' },
   { key: 'depth', label: 'Elevation', match: (s) => s[0] === 'shadow' || s[0] === 'elevation' },
   { key: 'focus', label: 'Focus', match: (s) => s[0] === 'focus' },
+  { key: 'motion', label: 'Motion', match: (s) => s[0] === 'motion' || s[0] === 'duration' || s[0] === 'easing' },
+  { key: 'size', label: 'Sizes and layers', match: (s) => ['size', 'icon', 'layer', 'z', 'breakpoint'].includes(s[0]!) },
 ];
 
 export const categoryOf = (segments: string[]) => CATEGORY.find((c) => c.match(segments))?.key ?? 'other';
@@ -43,14 +48,14 @@ let cache: ReturnType<typeof compute> | null = null;
 export const dashboard = () => (cache ??= compute());
 
 function compute() {
-  const { primitives, semantic } = loadTokens();
+  const { primitives, semantic, brand, density, component, all } = loadTokens();
   const components = loadComponents();
   const pairs = contrastPairs();
-  const total = primitives.length + semantic.length;
+  const total = primitives.length + all.length;
 
   // Donut: every token by DTCG $type.
   const typeCounts = new Map<string, number>();
-  for (const t of [...primitives, ...semantic]) typeCounts.set(t.type, (typeCounts.get(t.type) ?? 0) + 1);
+  for (const t of [...primitives, ...all]) typeCounts.set(t.type, (typeCounts.get(t.type) ?? 0) + 1);
   const byType: Slice[] = [...typeCounts.entries()]
     .sort((a, b) => b[1] - a[1])
     .map(([key, value]) => ({ key, label: typeLabel(key), value }));
@@ -63,8 +68,8 @@ function compute() {
     semantic: semantic.filter((s) => c.match(s.segments)).length,
   })).filter((c) => c.primitive + c.semantic > 0);
 
-  // Contrast: one check per pair per theme.
-  const checks = pairs.flatMap((p) => MODES.map((m) => ({ pair: p, mode: m, result: p.modes[m] })));
+  // Contrast: one check per pair per brand x theme, like the build gate.
+  const checks = pairs.flatMap((p) => BRANDS.flatMap((b) => MODES.map((m) => ({ pair: p, brand: b, mode: m, result: p.brands[b][m] }))));
   const failing = checks.filter((c) => !c.result.aa);
   const aaa = checks.filter((c) => c.result.aaa === true).length;
   const contrast = {
@@ -79,27 +84,39 @@ function compute() {
       pass: checks.filter((c) => c.mode === m && c.result.aa).length,
       total: checks.filter((c) => c.mode === m).length,
     })),
+    byCombo: BRANDS.flatMap((b) =>
+      MODES.map((m) => ({
+        brand: b,
+        mode: m,
+        pass: checks.filter((c) => c.brand === b && c.mode === m && c.result.aa).length,
+        total: checks.filter((c) => c.brand === b && c.mode === m).length,
+      })),
+    ),
   };
 
   // Usage: which tokens no component CSS reads.
   const usedVars = new Set(components.flatMap((c) => c.tokensUsed.map((t) => t.name)));
-  const reachedPrimitives = new Set(semantic.flatMap((s) => MODES.flatMap((m) => s.modes[m].chain)));
-  const unusedSemantic: Semantic[] = semantic.filter((s) => !usedVars.has(s.cssVar));
+  // A token is in use when a component reads it directly or reads a token whose alias chain passes through it.
+  const chains = (t: Semantic) =>
+    BRANDS.flatMap((b) => MODES.flatMap((m) => t.brands[b][m].chain)).concat(t.densities ? Object.values(t.densities).flatMap((d) => d.chain) : []);
+  const readByComponents = all.filter((t) => usedVars.has(t.cssVar));
+  const reachedByUse = new Set(readByComponents.flatMap(chains));
+  const reachedPrimitives = new Set(all.flatMap(chains));
+  const unusedSemantic: Semantic[] = semantic.filter((s) => !usedVars.has(s.cssVar) && !reachedByUse.has(s.path));
   const orphanPrimitives: Primitive[] = primitives.filter((p) => !reachedPrimitives.has(p.path) && !usedVars.has(p.cssVar));
-  const deprecated = [...primitives, ...semantic].filter((t) => t.deprecated);
+  const deprecated = [...primitives, ...all].filter((t) => t.deprecated);
   const unknownRefs = components.flatMap((c) => c.tokensUsed.filter((t) => !t.known).map((t) => ({ component: c, name: t.name })));
   const undocumented = components.filter((c) => !c.docs);
 
   const issues: Issue[] = [
     ...pairs
-      .filter((p) => MODES.some((m) => !p.modes[m].aa))
+      .filter((p) => BRANDS.some((b) => MODES.some((m) => !p.brands[b][m].aa)))
       .map((p) => {
-        const bad = MODES.filter((m) => !p.modes[m].aa);
-        const need = p.usage === 'text' ? '4.5' : '3';
+        const bad = BRANDS.flatMap((b) => MODES.filter((m) => !p.brands[b][m].aa).map((m) => ({ b, m })));
         return {
           severity: 'fail' as const,
           title: `${p.fg} on ${p.bg}`,
-          detail: `${bad.map((m) => `${p.modes[m].ratio.toFixed(2)}:1 in ${m}`).join(', ')}. Needs ${need}:1 (${p.usage === 'text' ? 'text' : 'UI'}).`,
+          detail: `${bad.map(({ b, m }) => `${p.brands[b][m].ratio.toFixed(2)}:1 in ${b} ${m}`).join(', ')}. Needs ${p.min}:1 (${p.usage === 'text' ? 'text' : 'UI'}).`,
           href: '/foundations/contrast/',
         };
       }),
@@ -150,6 +167,11 @@ function compute() {
     total,
     primitives: primitives.length,
     semantic: semantic.length,
+    brandTokens: brand.length,
+    densityTokens: density.length,
+    componentTokens: component.length,
+    brands: BRANDS.length,
+    densities: DENSITIES.length,
     themes: MODES.length,
     themeNames: MODES,
     components: components.length,

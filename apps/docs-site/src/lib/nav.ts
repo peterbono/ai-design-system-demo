@@ -37,7 +37,7 @@ export const PROCESS: NavItem[] = [
 export function componentGroups() {
   const groups = new Map<string, NavItem[]>();
   for (const c of loadComponents()) {
-    const cat = c.docs?.category ?? 'Core';
+    const cat = c.category;
     if (!groups.has(cat)) groups.set(cat, []);
     const status = c.docs?.status;
     groups.get(cat)!.push({ href: `/components/${c.slug}/`, label: c.name, badge: status && status !== 'stable' ? status : undefined });

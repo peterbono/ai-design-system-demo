@@ -1,13 +1,12 @@
 ---
-import '@fontsource-variable/space-grotesk';
-import '@fontsource-variable/inter';
-import '@fontsource-variable/jetbrains-mono';
+import '@demo-ds/tokens/fonts.css';
 import '@demo-ds/tokens/tokens.css';
 import '../styles/site.css';
 import { brandCss } from '../brand/tokens';
 import Icon from '../components/Icon.astro';
 import Logo from '../components/Logo.astro';
 import { navigation } from '../lib/nav';
+import { BRANDS, BRAND_LABEL, DENSITIES, DENSITY_LABEL } from '../lib/tokens';
 import { GITHUB_URL, STORYBOOK_URL, sourceUrl } from '../lib/repo';
 import { dashboard, humanDate, repoStatus } from '../lib/stats';
 
@@ -49,6 +48,10 @@ const inSection = (href: string) => href !== '/' && href !== '/components/' && p
         try { t = localStorage.getItem('ds-theme'); } catch (e) {}
         if (t !== 'light' && t !== 'dark') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         document.documentElement.setAttribute('data-theme', t);
+        var b = null, d = null;
+        try { b = localStorage.getItem('ds-brand'); d = localStorage.getItem('ds-density'); } catch (e) {}
+        document.documentElement.setAttribute('data-brand', b === 'ocean' ? 'ocean' : 'bridge');
+        document.documentElement.setAttribute('data-density', d === 'compact' ? 'compact' : 'comfortable');
       })();
     </script>
   </head>
@@ -78,6 +81,31 @@ const inSection = (href: string) => href !== '/' && href !== '/components/' && p
         </a>
         <a class="icon-btn" href={STORYBOOK_URL} aria-label="Open Storybook" title="Storybook"><Icon name="storybook" /></a>
         <a class="icon-btn" href={GITHUB_URL} aria-label="View the repository on GitHub" title="GitHub"><Icon name="github" /></a>
+        <details class="scope-menu" id="scope-menu">
+          <summary class="scope-trigger" aria-label="Design system preview: brand and density" title="Brand and density of the design system previews">
+            <span class="scope-swatch" aria-hidden="true"></span>
+            <span class="scope-label"><span data-scope-label="brand">Bridge</span><span class="scope-dot" aria-hidden="true"></span><span data-scope-label="density">Comfortable</span></span>
+            <Icon name="chevron" size={14} />
+          </summary>
+          <div class="scope-panel">
+            <p class="scope-title">Previews use</p>
+            <p class="scope-help">Applies to every design system preview on the site. The Bridge app chrome stays the same.</p>
+            <p class="scope-group-label" id="scope-brand-label">Brand</p>
+            <div class="scope-seg" role="radiogroup" aria-labelledby="scope-brand-label">
+              {BRANDS.map((b) => (
+                <button type="button" role="radio" aria-checked={b === 'bridge' ? 'true' : 'false'} data-set-brand={b}>
+                  <span class="scope-chip" data-theme="light" data-brand={b} data-scope-fixed aria-hidden="true"></span>{BRAND_LABEL[b]}
+                </button>
+              ))}
+            </div>
+            <p class="scope-group-label" id="scope-density-label">Density</p>
+            <div class="scope-seg" role="radiogroup" aria-labelledby="scope-density-label">
+              {DENSITIES.map((d) => (
+                <button type="button" role="radio" aria-checked={d === 'comfortable' ? 'true' : 'false'} data-set-density={d}>{DENSITY_LABEL[d]}</button>
+              ))}
+            </div>
+          </div>
+        </details>
         <button type="button" class="icon-btn theme-toggle" id="theme-toggle" aria-label="Dark theme" aria-pressed="false" title="Toggle dark theme">
           <span class="when-light"><Icon name="moon" /></span>
           <span class="when-dark"><Icon name="sun" /></span>

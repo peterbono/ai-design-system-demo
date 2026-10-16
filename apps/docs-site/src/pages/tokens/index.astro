@@ -9,8 +9,11 @@ import { PAGE_SOURCES, freshness } from '../../lib/sources';
 const updated = freshness(PAGE_SOURCES.lookup);
 const tokens = explorerTokens().map((t) => ({ ...t, kind: previewKind(t) }));
 const layers = [
-  { key: 'semantic', label: 'Semantic', note: 'Tokens with a job. They point to a different primitive in each theme. Design and build with these.' },
-  { key: 'primitive', label: 'Primitives', note: 'The raw scales and palette. Semantic tokens point here; components rarely should.' },
+  { key: 'semantic', label: 'Semantic', note: 'Tokens with a job. They point to a different palette role in each theme. Design and build with these.' },
+  { key: 'component', label: 'Component', note: 'Stable hooks for one component or family. They alias semantic tokens, so themes and brands flow through.' },
+  { key: 'density', label: 'Density', note: 'Control heights, paddings and row heights. Comfortable by default, compact for dense tools.' },
+  { key: 'brand', label: 'Brand', note: 'Palette, radius and font roles. Each brand (Bridge, Ocean) points them at different primitives.' },
+  { key: 'primitive', label: 'Primitives', note: 'The raw scales. Brands point here; components never should.' },
 ] as const;
 
 const typeCounts = [...tokens.reduce((m, t) => m.set(t.type, { label: t.typeLabel, n: (m.get(t.type)?.n ?? 0) + 1 }), new Map<string, { label: string; n: number }>())]
@@ -29,8 +32,8 @@ const json = JSON.stringify(tokens).replace(/</g, '\\u003c');
       <div>
         <h1>Token explorer</h1>
         <p class="lead">
-          All {tokens.length} tokens, straight from the token files. Open one to follow its alias chain in both themes, check its contrast pairs and
-          see which components would change with it.
+          All {tokens.length} tokens across five tiers, straight from the token files. Open one to follow its alias chain in both themes and
+          brands, check its contrast pairs and see which components would change with it.
         </p>
         <Updated date={updated} />
       </div>
@@ -44,8 +47,9 @@ const json = JSON.stringify(tokens).replace(/</g, '\\u003c');
       </label>
       <div class="tx-seg" role="group" aria-label="Layer" data-filter="layer">
         <button type="button" data-value="" aria-pressed="true">All layers</button>
-        <button type="button" data-value="semantic" aria-pressed="false">Semantic</button>
-        <button type="button" data-value="primitive" aria-pressed="false">Primitive</button>
+        {layers.map((l) => (
+          <button type="button" data-value={l.key} aria-pressed="false">{l.key === 'primitive' ? 'Primitive' : l.label}</button>
+        ))}
       </div>
       <div class="tx-seg" role="group" aria-label="Usage" data-filter="usage">
         <button type="button" data-value="" aria-pressed="true">Any usage</button>
@@ -83,7 +87,7 @@ const json = JSON.stringify(tokens).replace(/</g, '\\u003c');
                   <button type="button" class="tk-card" data-open={t.path} aria-haspopup="dialog">
                     <span class={`tk-preview kind-${t.kind}`} aria-hidden="true">
                       {t.kind === 'color' &&
-                        (t.layer === 'semantic' ? (
+                        (t.layer !== 'primitive' ? (
                           <span class="pv-split">
                             <span data-theme="light" style={`background-color: var(${t.cssVar})`} />
                             <span data-theme="dark" style={`background-color: var(${t.cssVar})`} />
@@ -92,7 +96,7 @@ const json = JSON.stringify(tokens).replace(/</g, '\\u003c');
                           <span class="pv-fill" style={`background-color: var(${t.cssVar})`} />
                         ))}
                       {t.kind === 'shadow' &&
-                        (t.layer === 'semantic' ? (
+                        (t.layer !== 'primitive' ? (
                           <span class="pv-split pv-shadow-split">
                             <span data-theme="light"><i style={`box-shadow: var(${t.cssVar})`} /></span>
                             <span data-theme="dark"><i style={`box-shadow: var(${t.cssVar})`} /></span>

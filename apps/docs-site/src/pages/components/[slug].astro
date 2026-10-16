@@ -23,8 +23,9 @@ const mainStory = c.stories[0];
 const storyUrl = (id: string) => `${STORYBOOK_URL}/iframe.html?id=${id}&viewMode=story`;
 const unknownTokens = c.tokensUsed.filter((t) => !t.known);
 const spec = playgroundSpec(c);
-const semanticCount = c.tokensUsed.filter((t) => t.kind === 'semantic').length;
-const primitiveCount = c.tokensUsed.filter((t) => t.kind === 'primitive').length;
+const semanticCount = c.tokensUsed.filter((t) => t.kind === 'semantic' || t.kind === 'component').length;
+const densityCount = c.tokensUsed.filter((t) => t.kind === 'density').length;
+const primitiveCount = c.tokensUsed.filter((t) => t.kind === 'primitive' || t.kind === 'brand').length;
 const tokenHref = (v: { path?: string; href?: string }) => (v.path ? `/tokens/?t=${encodeURIComponent(v.path)}` : v.href);
 const fileLinks = [
   { label: `${c.name}.tsx`, href: sourceUrl(c.files.tsx) },
@@ -216,7 +217,8 @@ const toc = [
         </p>
         <div class="token-summary">
           <span class="pill">{c.tokensUsed.length} tokens</span>
-          <span class="pill is-accent">{semanticCount} semantic, change with the theme</span>
+          <span class="pill is-accent">{semanticCount} semantic or component, change with theme and brand</span>
+          {densityCount > 0 && <span class="pill">{densityCount} density, change with comfortable or compact</span>}
           <span class="pill is-info">{primitiveCount} from the shared scales</span>
         </div>
         {
@@ -241,7 +243,7 @@ const toc = [
                 <div class="anatomy-tokens">
                   {r.vars.map((v) =>
                     tokenHref(v) ? (
-                      <a class:list={['tchip', v.kind === 'semantic' ? 'is-semantic' : 'is-primitive']} href={tokenHref(v)}>
+                      <a class:list={['tchip', v.kind === 'primitive' || v.kind === 'brand' ? 'is-primitive' : 'is-semantic']} href={tokenHref(v)}>
                         {v.name}
                       </a>
                     ) : (

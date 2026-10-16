@@ -10,7 +10,7 @@ const components = loadComponents();
 const updated = freshness(PAGE_SOURCES.components);
 const groups = new Map<string, ComponentInfo[]>();
 for (const c of components) {
-  const cat = c.docs?.category ?? 'Core';
+  const cat = c.category;
   if (!groups.has(cat)) groups.set(cat, []);
   groups.get(cat)!.push(c);
 }

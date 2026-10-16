@@ -1,9 +1,23 @@
 // Props playground: the one React island of the component pages. It renders the REAL component from
 // @demo-ds/react with controls generated from the props parsed out of its TypeScript source (see playgroundSpec).
 // Generic: any component in registry.tsx with string-literal, boolean or string props gets a playground.
-import { useId, useMemo, useState } from 'react';
+import { Component, useId, useMemo, useState, type ReactNode } from 'react';
 import type { Control, PlaygroundSpec } from '../lib/components';
-import { REGISTRY } from './registry';
+import { REGISTRY, resolveProps } from './registry';
+
+/** Some prop combinations are invalid for a component; show a note instead of a blank island. */
+class Guard extends Component<{ children: ReactNode; resetKey: string }, { failed: boolean; key: string }> {
+  state = { failed: false, key: this.props.resetKey };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  static getDerivedStateFromProps(props: { resetKey: string }, state: { failed: boolean; key: string }) {
+    return props.resetKey !== state.key ? { failed: false, key: props.resetKey } : null;
+  }
+  render() {
+    return this.state.failed ? <p className="pg-note">This combination does not render. Try other values.</p> : this.props.children;
+  }
+}
 
 type Values = Record<string, string | boolean>;
 
@@ -95,7 +109,7 @@ export default function PropsPlayground({ spec }: { spec: PlaygroundSpec }) {
   if (!Comp) return <p className="muted">No playground: {spec.component} is not in the registry yet.</p>;
 
   const set = (k: string) => (v: string | boolean) => setValues((prev) => ({ ...prev, [k]: v }));
-  const renderProps = Object.fromEntries(Object.entries(values).filter(([, v]) => v !== ''));
+  const renderProps = { ...resolveProps(spec.fixed), ...Object.fromEntries(Object.entries(values).filter(([, v]) => v !== '')) };
 
   const copy = () => {
     navigator.clipboard?.writeText(code).then(() => {
@@ -115,13 +129,29 @@ export default function PropsPlayground({ spec }: { spec: PlaygroundSpec }) {
               </button>
             ))}
           </div>
+          <div className="cp-seg" role="radiogroup" aria-label="Brand">
+            {(['bridge', 'ocean'] as const).map((b) => (
+              <button key={b} type="button" role="radio" aria-checked={b === 'bridge'} data-set-brand={b}>
+                {b === 'bridge' ? 'Bridge' : 'Ocean'}
+              </button>
+            ))}
+          </div>
+          <div className="cp-seg" role="radiogroup" aria-label="Density">
+            {(['comfortable', 'compact'] as const).map((d) => (
+              <button key={d} type="button" role="radio" aria-checked={d === 'comfortable'} data-set-density={d}>
+                {d === 'comfortable' ? 'Comfortable' : 'Compact'}
+              </button>
+            ))}
+          </div>
           <button type="button" className="pg-reset" onClick={() => { setValues(spec.initial); setChildren(spec.children ?? ''); }}>
             Reset
           </button>
         </div>
         <div className="pg-stage stage-checker" data-theme={theme}>
           <div className="pg-stage-inner">
-            {spec.children !== null ? <Comp {...renderProps}>{children}</Comp> : <Comp {...renderProps} />}
+            <Guard resetKey={JSON.stringify(values) + children}>
+              {spec.children !== null ? <Comp {...renderProps}>{children}</Comp> : <Comp {...renderProps} />}
+            </Guard>
           </div>
         </div>
         <div className="pg-code">

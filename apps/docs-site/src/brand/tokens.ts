@@ -117,11 +117,11 @@ export const semantic: { light: Theme; dark: Theme } = {
   },
 };
 
-/** Non-color tokens: type, radius, motion. Same in both themes. */
+/** Non-color tokens: type, radius, motion. Same in both themes. Type matches the design system: IBM Plex Sans and Mono. */
 export const scales: Theme = {
-  'font-display': '"Space Grotesk Variable", "Space Grotesk", ui-sans-serif, system-ui, sans-serif',
-  'font-ui': '"Inter Variable", Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif',
-  'font-mono': '"JetBrains Mono Variable", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace',
+  'font-display': '"IBM Plex Sans Variable", "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif',
+  'font-ui': '"IBM Plex Sans Variable", "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif',
+  'font-mono': '"IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace',
   'text-xs': '0.75rem',
   'text-sm': '0.8125rem',
   'text-md': '0.9375rem',
