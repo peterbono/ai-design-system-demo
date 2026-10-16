@@ -288,3 +288,92 @@ export function parseChangeset(text: string): { bumps: { pkg: string; bump: stri
   const bumps = [...m[1]!.matchAll(/["']?([@\w/.-]+)["']?\s*:\s*(major|minor|patch)/g)].map((x) => ({ pkg: x[1]!, bump: x[2]! }));
   return { bumps, summary: m[2]!.trim() };
 }
+
+export type ReviewStatusKind =
+  | 'merged'
+  | 'closed'
+  | 'draft'
+  | 'ci-failing'
+  | 'changes-requested'
+  | 'ci-running'
+  | 'needs-design'
+  | 'needs-tech'
+  | 'needs-approval'
+  | 'conflict'
+  | 'ready'
+  | 'unknown';
+
+export interface ReviewStatus {
+  kind: ReviewStatusKind;
+  label: string;
+  /** Pill class: '', is-pass, is-fail, is-warn, is-info, is-accent. */
+  tone: string;
+}
+
+export const REVIEW_STATUS: Record<ReviewStatusKind, { label: string; tone: string }> = {
+  merged: { label: 'Merged', tone: 'is-accent' },
+  closed: { label: 'Closed', tone: 'is-fail' },
+  draft: { label: 'Draft', tone: '' },
+  'ci-failing': { label: 'CI failing', tone: 'is-fail' },
+  'changes-requested': { label: 'Changes requested', tone: 'is-warn' },
+  'ci-running': { label: 'CI running', tone: 'is-warn' },
+  'needs-design': { label: 'Needs design approval', tone: 'is-info' },
+  'needs-tech': { label: 'Needs tech approval', tone: 'is-info' },
+  'needs-approval': { label: 'Needs approval', tone: 'is-info' },
+  conflict: { label: 'Merge conflict', tone: 'is-fail' },
+  ready: { label: 'Ready to merge', tone: 'is-pass' },
+  unknown: { label: 'Status unknown', tone: '' },
+};
+
+/**
+ * Sort order for a "needs you" list: what blocks or waits on a person first, drafts and finished ones last.
+ * Lower comes first.
+ */
+export const REVIEW_STATUS_ORDER: Record<ReviewStatusKind, number> = {
+  'ci-failing': 0,
+  conflict: 1,
+  'changes-requested': 2,
+  ready: 3,
+  'needs-design': 4,
+  'needs-tech': 5,
+  'needs-approval': 6,
+  'ci-running': 7,
+  unknown: 8,
+  draft: 9,
+  merged: 10,
+  closed: 11,
+};
+
+/**
+ * One status chip for a pull request, from real data. Same rules and order as mergeGate: lifecycle, draft, CI
+ * failing, changes requested, CI running, missing approvals (Tier 3 by default), merge conflict, then ready.
+ * `ready` is returned only when mergeGate allows the merge. Unknown CI or reviews (null, still loading or failed)
+ * never read as ready.
+ */
+export function reviewStatus(input: {
+  state?: string;
+  draft?: boolean;
+  merged_at?: string | null;
+  ci: CiSummary | null;
+  approvals: ApprovalSummary | null;
+  tier: Tier | null;
+  mergeable?: boolean | null;
+}): ReviewStatus {
+  const out = (kind: ReviewStatusKind): ReviewStatus => ({ kind, ...REVIEW_STATUS[kind] });
+  const lifecycle = pullState(input);
+  if (lifecycle === 'merged') return out('merged');
+  if (lifecycle === 'closed') return out('closed');
+  if (lifecycle === 'draft') return out('draft');
+  if (input.ci?.state === 'fail') return out('ci-failing');
+  if (input.approvals?.changesRequested.length) return out('changes-requested');
+  if (input.ci?.state === 'pending') return out('ci-running');
+  if (!input.ci || !input.approvals) return out('unknown');
+  const tier = input.tier ?? 3;
+  if (tier === 3) {
+    if (!input.approvals.design) return out('needs-design');
+    if (!input.approvals.tech) return out('needs-tech');
+  } else if (!input.approvals.approvers.length) return out('needs-approval');
+  if (input.mergeable === false) return out('conflict');
+  const gate = mergeGate({ tier: input.tier, ci: input.ci, approvals: input.approvals, draft: Boolean(input.draft), mergeable: input.mergeable, state: input.state ?? 'open', merged_at: input.merged_at });
+  return gate.allowed ? out('ready') : out('unknown');
+}

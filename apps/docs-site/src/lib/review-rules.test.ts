@@ -12,6 +12,8 @@ import {
   parseOverrideComment,
   PULL_STATE_PILL,
   pullState,
+  REVIEW_STATUS_ORDER,
+  reviewStatus,
   summarizeApprovals,
   summarizeCi,
   type OverridePolicy,
@@ -177,5 +179,111 @@ describe('pullState', () => {
   it('blocks merging a pull request that is already merged or closed', () => {
     expect(gate({ state: 'closed', merged_at: '2026-10-10T09:00:00Z' }).reasons[0]).toBe('This pull request is already merged.');
     expect(gate({ state: 'closed', merged_at: null }).reasons[0]).toBe('This pull request is closed.');
+  });
+});
+
+describe('reviewStatus', () => {
+  const both = summarizeApprovals(
+    [
+      { user: { login: 'designer' }, state: 'APPROVED', submitted_at: '2026-10-16T10:00:00Z' },
+      { user: { login: 'engineer' }, state: 'APPROVED', submitted_at: '2026-10-16T11:00:00Z' },
+    ],
+    { design: ['designer'], tech: ['engineer'] },
+    'author',
+  );
+  const designOnly = summarizeApprovals([{ user: { login: 'designer' }, state: 'APPROVED' }], { design: ['designer'], tech: ['engineer'] }, 'author');
+  const changes = summarizeApprovals([{ user: { login: 'engineer' }, state: 'CHANGES_REQUESTED' }], { design: ['designer'], tech: ['engineer'] }, 'author');
+  const none = summarizeApprovals([], { design: ['designer'], tech: ['engineer'] }, 'author');
+  const base = { state: 'open', draft: false, merged_at: null, ci: green, approvals: both, tier: 3 as const, mergeable: true };
+  const st = (over: Partial<Parameters<typeof reviewStatus>[0]> = {}) => reviewStatus({ ...base, ...over });
+
+  it('reads each state from real data', () => {
+    expect(st().kind).toBe('ready');
+    expect(st().label).toBe('Ready to merge');
+    expect(st().tone).toBe('is-pass');
+    expect(st({ state: 'closed', merged_at: '2026-10-10T09:00:00Z' }).kind).toBe('merged');
+    expect(st({ state: 'closed' }).kind).toBe('closed');
+    expect(st({ draft: true }).kind).toBe('draft');
+    expect(st({ ci: red }).kind).toBe('ci-failing');
+    expect(st({ ci: running }).kind).toBe('ci-running');
+    expect(st({ approvals: changes }).kind).toBe('changes-requested');
+    expect(st({ approvals: none }).kind).toBe('needs-design');
+    expect(st({ approvals: designOnly }).kind).toBe('needs-tech');
+    expect(st({ mergeable: false }).kind).toBe('conflict');
+  });
+
+  it('never says ready while CI fails, the old "Ready" bug', () => {
+    expect(st({ ci: red }).label).toBe('CI failing');
+    expect(st({ ci: red }).tone).toBe('is-fail');
+  });
+
+  it('follows the merge gate priority', () => {
+    expect(st({ draft: true, ci: red }).kind).toBe('draft');
+    expect(st({ ci: red, approvals: changes }).kind).toBe('ci-failing');
+    expect(st({ ci: running, approvals: changes }).kind).toBe('changes-requested');
+    expect(st({ ci: running, approvals: none }).kind).toBe('ci-running');
+    expect(st({ approvals: none, mergeable: false }).kind).toBe('needs-design');
+    expect(st({ state: 'closed', merged_at: '2026-10-10T09:00:00Z', draft: true }).kind).toBe('merged');
+  });
+
+  it('treats a missing tier as Tier 3, like mergeGate', () => {
+    expect(st({ tier: null, approvals: designOnly }).kind).toBe('needs-tech');
+  });
+
+  it('Tier 1 and 2 need one approval only', () => {
+    expect(st({ tier: 1, approvals: designOnly }).kind).toBe('ready');
+    expect(st({ tier: 2, approvals: none }).kind).toBe('needs-approval');
+  });
+
+  it('without configured owners, two approvers stand in for design and tech', () => {
+    const one = summarizeApprovals([{ user: { login: 'a' }, state: 'APPROVED' }], { design: [], tech: [] }, 'author');
+    const two = summarizeApprovals(
+      [
+        { user: { login: 'a' }, state: 'APPROVED' },
+        { user: { login: 'b' }, state: 'APPROVED' },
+      ],
+      { design: [], tech: [] },
+      'author',
+    );
+    expect(st({ approvals: one }).kind).toBe('needs-tech');
+    expect(st({ approvals: two }).kind).toBe('ready');
+  });
+
+  it('unknown CI or reviews never read as ready', () => {
+    expect(st({ ci: null }).kind).toBe('unknown');
+    expect(st({ approvals: null }).kind).toBe('unknown');
+    expect(st({ ci: null }).label).toBe('Status unknown');
+    // A known blocker still shows while the rest loads.
+    expect(st({ ci: red, approvals: null }).kind).toBe('ci-failing');
+  });
+
+  it('is ready exactly when mergeGate allows the merge', () => {
+    const cases: Partial<Parameters<typeof reviewStatus>[0]>[] = [
+      {},
+      { ci: red },
+      { ci: running },
+      { ci: summarizeCi([]) },
+      { draft: true },
+      { approvals: none },
+      { approvals: designOnly },
+      { approvals: changes },
+      { tier: 1, approvals: designOnly },
+      { tier: 2, approvals: none },
+      { tier: null },
+      { mergeable: false },
+      { mergeable: null },
+      { state: 'closed' },
+    ];
+    for (const c of cases) {
+      const input = { ...base, ...c };
+      const allowed = mergeGate({ tier: input.tier, ci: input.ci!, approvals: input.approvals!, draft: input.draft, mergeable: input.mergeable, state: input.state, merged_at: input.merged_at }).allowed;
+      expect(reviewStatus(input).kind === 'ready').toBe(allowed);
+    }
+  });
+
+  it('sorts what blocks first and drafts last', () => {
+    expect(REVIEW_STATUS_ORDER['ci-failing']).toBeLessThan(REVIEW_STATUS_ORDER.ready);
+    expect(REVIEW_STATUS_ORDER['changes-requested']).toBeLessThan(REVIEW_STATUS_ORDER['needs-design']);
+    expect(REVIEW_STATUS_ORDER.draft).toBeGreaterThan(REVIEW_STATUS_ORDER['ci-running']);
   });
 });
