@@ -72,9 +72,21 @@
         "unit": "px"
       }
     },
+    "40": {
+      "$value": {
+        "value": 160,
+        "unit": "px"
+      }
+    },
     "60": {
       "$value": {
         "value": 240,
+        "unit": "px"
+      }
+    },
+    "64": {
+      "$value": {
+        "value": 256,
         "unit": "px"
       }
     },

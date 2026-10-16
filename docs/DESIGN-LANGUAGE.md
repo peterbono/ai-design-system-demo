@@ -126,6 +126,8 @@ suits product UI, where there are many type roles and big jumps create noise.
 | `font.size.600` | 29 | Page titles | 1.2 | -0.02em |
 | `font.size.700` | 35 | Empty states, onboarding | 1.15 | -0.02em |
 | `font.size.800` | 42 | Rare display moments | 1.1 | -0.025em |
+| `font.size.900` | 50 | Landing display, KPI numbers | 1 | -0.025em |
+| `font.size.1000` | 60 | Landing hero only | 1 | -0.025em |
 
 Weights: 400 body, 500 labels and buttons, 600 titles, 700 only for numbers that must win a glance.
 Prose measure 65 to 75ch. Sentence case everywhere. Numbers in tables use `font-variant-numeric: tabular-nums`.

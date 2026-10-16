@@ -6,6 +6,10 @@ import Example from '../../components/Example.tsx';
 import Icon from '../../components/Icon.astro';
 import PropsPlayground from '../../components/PropsPlayground.tsx';
 import Updated from '../../components/Updated.astro';
+import ButtonLink from '../../components/ds/ButtonLink';
+import PropsTable from '../../components/ds/PropsTable';
+import { Alert, Badge, SegmentedControl, PageHeader } from '@bridge-ds/react';
+import { BookOpen, Check, Columns2, FileCode, Moon, Pencil, Sun, X } from 'lucide-react';
 import { loadComponents, playgroundSpec, type ComponentInfo } from '../../lib/components';
 import { lastUpdated, sourceUrl, STORYBOOK_URL } from '../../lib/repo';
 import { MODES } from '../../lib/tokens';
@@ -22,7 +26,7 @@ const sources = Object.values(c.files);
 const updated = lastUpdated(sources);
 const d = c.docs;
 const status = d?.status ?? 'stable';
-const statusTone = status === 'stable' ? 'is-pass' : status === 'beta' ? 'is-info' : 'is-warn';
+const statusTone = status === 'stable' ? 'success' : status === 'beta' ? 'info' : 'warning';
 const mainStory = c.stories[0];
 const storyUrl = (id: string) => `${STORYBOOK_URL}/iframe.html?id=${id}&viewMode=story`;
 const unknownTokens = c.tokensUsed.filter((t) => !t.known);
@@ -51,25 +55,21 @@ const tabs = [
 
 <Layout title={c.name} description={d?.summary ?? c.description} sources={sources} updated={updated} crumbs={[{ label: 'Catalog', href: '/components/' }, { label: c.name }]} toc={false}>
   <div class="cp-head">
-    <div class="page-head">
-      <div class="cp-title">
-        <h1>{c.name}</h1>
-        <span class:list={['pill', statusTone]}>{status === 'stable' ? 'Stable' : status === 'beta' ? 'Beta' : 'Deprecated'}</span>
-      </div>
-      <div class="page-head-actions">
-        <a class="btn btn-secondary" href={`/studio/components/?c=${c.slug}`}><Icon name="edit" size={16} />Edit in Studio</a>
-      </div>
-    </div>
-    {d?.summary && <p class="lead">{d.summary}</p>}
+    <PageHeader className="lib-page-header" title={c.name} lead={d?.summary}>
+      <Badge slot="meta" tone={statusTone}>{status === 'stable' ? 'Stable' : status === 'beta' ? 'Beta' : 'Deprecated'}</Badge>
+      <Fragment slot="actions">
+        <ButtonLink variant="secondary" href={`/studio/components/?c=${c.slug}`} iconStart={Pencil}>Edit in Studio</ButtonLink>
+      </Fragment>
+    </PageHeader>
     <div class="cp-meta">
       <Updated date={updated} />
       <ul class="cp-links" aria-label="Resources">
         {
           mainStory && (
             <li>
-              <a class="cp-link" href={`${STORYBOOK_URL}/?path=/story/${mainStory.id}`}>
-                <Icon name="storybook" size={16} /> Workbench
-              </a>
+              <ButtonLink variant="secondary" size="sm" href={`${STORYBOOK_URL}/?path=/story/${mainStory.id}`} iconStart={BookOpen}>
+                Workbench
+              </ButtonLink>
             </li>
           )
         }
@@ -81,17 +81,18 @@ const tabs = [
     d?.preview && (
       <section class="hero-stage" data-view="split" aria-label={`${c.name} preview`}>
         <div class="hero-stage-bar">
-          <div class="cp-seg" role="group" aria-label="Preview theme">
-            <button type="button" data-view-btn="light" aria-pressed="false">
-              <Icon name="sun" size={16} /> Light
-            </button>
-            <button type="button" data-view-btn="dark" aria-pressed="false">
-              <Icon name="moon" size={16} /> Dark
-            </button>
-            <button type="button" data-view-btn="split" aria-pressed="true">
-              <Icon name="contrast" size={16} /> Side by side
-            </button>
-          </div>
+          <SegmentedControl
+            label="Preview theme"
+            size="sm"
+            data-vanilla
+            data-hero-view
+            defaultValue="split"
+            items={[
+              { value: 'light', label: 'Light', icon: Sun },
+              { value: 'dark', label: 'Dark', icon: Moon },
+              { value: 'split', label: 'Side by side', icon: Columns2 },
+            ]}
+          />
           <span class="hero-stage-note">Rendered with the real component</span>
         </div>
         <div class="hero-stage-panes">
@@ -110,12 +111,9 @@ const tabs = [
 
   {
     !d && (
-      <div class="callout is-warn">
-        <Icon name="info" />
-        <p>
-          No usage guidance yet. Add <code>{c.files.docs}</code> to fill this page. Props and tokens below are generated from the code.
-        </p>
-      </div>
+      <Alert tone="warning" announce="off" className="lib-block-gap">
+        No usage guidance yet. Add <code>{c.files.docs}</code> to fill this page. Props and tokens below are generated from the code.
+      </Alert>
     )
   }
 
@@ -174,9 +172,7 @@ const tabs = [
                       </div>
                     )}
                     <figcaption class="verdict-body">
-                      <span class="pill is-pass">
-                        <Icon name="check" size={14} /> Do
-                      </span>
+                      <Badge tone="success" icon={Check}>Do</Badge>
                       <h4>{g.title}</h4>
                       <p>{g.text}</p>
                     </figcaption>
@@ -190,9 +186,7 @@ const tabs = [
                       </div>
                     )}
                     <figcaption class="verdict-body">
-                      <span class="pill is-fail">
-                        <Icon name="close" size={14} /> Don't
-                      </span>
+                      <Badge tone="danger" icon={X}>Don't</Badge>
                       <h4>{g.title}</h4>
                       <p>{g.text}</p>
                     </figcaption>
@@ -233,20 +227,16 @@ const tabs = [
           alias chain in both themes.
         </p>
         <div class="token-summary">
-          <span class="pill">{c.tokensUsed.length} tokens</span>
-          <span class="pill is-accent">{semanticCount} semantic or component, change with theme and brand</span>
-          {densityCount > 0 && <span class="pill">{densityCount} density, change with comfortable or compact</span>}
-          <span class="pill is-info">{primitiveCount} from the shared scales</span>
+          <Badge>{c.tokensUsed.length} tokens</Badge>
+          <Badge tone="info">{semanticCount} semantic or component, change with theme and brand</Badge>
+          {densityCount > 0 && <Badge>{densityCount} density, change with comfortable or compact</Badge>}
+          <Badge>{primitiveCount} from the shared scales</Badge>
         </div>
         {
           unknownTokens.length > 0 && (
-            <div class="callout is-warn">
-              <Icon name="alert" />
-              <p>
-                <strong>Unknown tokens:</strong> {unknownTokens.map((t) => t.name).join(', ')}. They are not defined in the token sources and will
-                render as nothing.
-              </p>
-            </div>
+            <Alert tone="warning" announce="off" title="Unknown tokens" className="lib-block-gap">
+              {unknownTokens.map((t) => t.name).join(', ')}. They are not defined in the token sources and will render as nothing.
+            </Alert>
           )
         }
         <ul class="anatomy">
@@ -281,9 +271,9 @@ const tabs = [
         {
           fileLinks.map((f) => (
             <li>
-              <a class="cp-link mono" href={f.href}>
-                <Icon name="github" size={16} /> {f.label}
-              </a>
+              <ButtonLink variant="secondary" size="sm" href={f.href} iconStart={FileCode}>
+                {f.label}
+              </ButtonLink>
             </li>
           ))
         }
@@ -297,33 +287,7 @@ const tabs = [
         </p>
         {
           c.props.length > 0 ? (
-            <div class="table-wrap">
-              <table class="props-table">
-                <thead>
-                  <tr>
-                    <th scope="col">Prop</th>
-                    <th scope="col">Type</th>
-                    <th scope="col">Default</th>
-                    <th scope="col">Description</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {c.props.map((p) => (
-                    <tr>
-                      <th scope="row">
-                        <code class="prop-name">{p.name}</code>
-                        {p.required && <span class="pill is-accent">required</span>}
-                      </th>
-                      <td>
-                        <code class="prop-type">{p.type}</code>
-                      </td>
-                      <td class="prop-default">{p.defaultValue ? <code>{p.defaultValue}</code> : <span class="muted">none</span>}</td>
-                      <td>{p.description ?? <span class="muted">No description in the code yet.</span>}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <PropsTable component={c.name} rows={c.props} />
           ) : (
             <p class="muted">No props of its own.{c.description && ` ${c.description}`}</p>
           )
@@ -405,7 +369,7 @@ const tabs = [
               <ul class="cp-changes">
                 {notes.map((e) => (
                   <li>
-                    <span class="pill">{e.kind}</span>
+                    <Badge>{e.kind}</Badge>
                     <div>
                       <p set:html={mdTitleHtml(e.title)} />
                       <p class="small muted">
@@ -432,14 +396,11 @@ const tabs = [
   </div>
 
   <script>
+    // Preview theme: a static DS SegmentedControl driven by shell.ts (data-vanilla), which emits bridge:segment.
     document.querySelectorAll<HTMLElement>('.hero-stage').forEach((stage) => {
-      const buttons = stage.querySelectorAll<HTMLButtonElement>('[data-view-btn]');
-      buttons.forEach((b) =>
-        b.addEventListener('click', () => {
-          stage.dataset.view = b.dataset.viewBtn;
-          buttons.forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
-        }),
-      );
+      stage.querySelector('[data-hero-view]')?.addEventListener('bridge:segment', (e) => {
+        stage.dataset.view = (e as CustomEvent<{ value: string }>).detail.value;
+      });
     });
     // Page tabs: hash-driven (#usage, #tokens, #code, #changelog). Old section anchors open the tab that holds them.
     const tablist = document.querySelector<HTMLElement>('[data-cp-tabs]');

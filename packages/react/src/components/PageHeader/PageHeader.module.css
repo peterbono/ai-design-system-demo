@@ -1,0 +1,75 @@
+/* Title block on the start side, actions on the end side; actions wrap below the text when the row is narrow. */
+.pageHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4) var(--space-8);
+  margin: 0 0 var(--space-6);
+  font-family: var(--font-family-sans);
+}
+
+.text {
+  display: flex;
+  flex: 1 1 calc(var(--size-120) + var(--size-8));
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  max-width: 72ch;
+}
+
+.title {
+  margin: 0;
+  color: var(--color-text-default);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-700);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--font-tracking-tighter);
+  line-height: var(--font-line-height-none);
+  text-wrap: balance;
+}
+
+.titleSm {
+  font-size: var(--font-size-500);
+}
+
+/* Titles step up one size on wide screens. */
+@media (min-width: 900px) {
+  .title {
+    font-size: var(--font-size-800);
+  }
+
+  .titleSm {
+    font-size: var(--font-size-600);
+  }
+}
+
+.lead {
+  max-width: 68ch;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-300);
+  line-height: var(--font-line-height-normal);
+  text-wrap: pretty;
+}
+
+.lead > :first-child {
+  margin-block-start: 0;
+}
+
+.lead > :last-child {
+  margin-block-end: 0;
+}
+
+.meta {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-100);
+  line-height: var(--font-line-height-normal);
+  letter-spacing: var(--font-tracking-wide);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}

@@ -4,6 +4,9 @@ import '../styles/home.css';
 import Layout from '../layouts/Layout.astro';
 import HeroBridge from '../components/HeroBridge.astro';
 import Icon from '../components/Icon.astro';
+import ButtonLink from '../components/ds/ButtonLink';
+import { LayoutGrid, Pencil } from 'lucide-react';
+import { Badge, type BadgeTone } from '@bridge-ds/react';
 import { releases, versionInfo } from '../lib/changelog';
 import { mdTitleHtml } from '../lib/markdown';
 import { FOUNDATIONS, LIBRARY_USE, componentFamilies } from '../lib/nav';
@@ -14,7 +17,7 @@ import type { IconName } from '../brand/icons';
 
 const s = dashboard();
 const version = versionInfo();
-const kindTone: Record<string, string> = { Breaking: 'is-fail', New: 'is-info', Fix: 'is-pass', Docs: 'is-accent', Improvement: 'is-accent' };
+const kindTone: Record<string, BadgeTone> = { Breaking: 'danger', New: 'info', Fix: 'success', Docs: 'neutral', Improvement: 'neutral' };
 // What's new: the latest entries people notice (internal tooling left out), newest first.
 const recent = releases()
   .flatMap((r) => r.entries.map((e) => ({ ...e, pending: r.pending, date: e.date ?? r.date })))
@@ -44,9 +47,9 @@ const starts: { icon: IconName; title: string; text: string; href: string; cta: 
         here is what ships. To change something, open it in the Studio: every change goes through a draft, a review and a merge.
       </p>
       <div class="hero-ctas">
-        <a class="btn btn-primary" href="/components/"><Icon name="components" size={18} />Browse components</a>
-        <a class="btn btn-secondary" href="/tokens/"><Icon name="grid" size={18} />Explore tokens</a>
-        <a class="btn btn-secondary" href="/studio/"><Icon name="edit" size={18} />Open the Studio</a>
+        <ButtonLink variant="primary" href="/components/" iconStart={LayoutGrid}>Browse components</ButtonLink>
+        <ButtonLink variant="secondary" href="/tokens/" iconStart={LayoutGrid}>Explore tokens</ButtonLink>
+        <ButtonLink variant="secondary" href="/studio/" iconStart={Pencil}>Open the Studio</ButtonLink>
       </div>
       <p class="hero-note">
         Free and open source, by Florian Gouloubi. {s.total} tokens, {s.components} components, {s.brands} brands, {s.themes} themes and {s.densities}
@@ -69,12 +72,12 @@ const starts: { icon: IconName; title: string; text: string; href: string; cta: 
           <ol class="news">
             {recent.map((e) => (
               <li class="news-item">
-                <span class={`pill ${kindTone[e.kind] ?? ''}`}>{e.kind}</span>
+                <Badge tone={kindTone[e.kind] ?? 'neutral'} className="news-kind">{e.kind}</Badge>
                 <div>
                   <p class="news-title" set:html={mdTitleHtml(e.title)} />
                   <p class="news-meta">
                     {e.date ? humanDate(e.date) : 'Not released yet'}
-                    {e.pending && <span class="news-pending">Next release</span>}
+                    {e.pending && <Badge tone="warning" size="sm">Next release</Badge>}
                     {e.source === 'commit' && (
                       <a href={`${GITHUB_URL}/commit/${e.ref}`} class="mono">
                         {e.ref}

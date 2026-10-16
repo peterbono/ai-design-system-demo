@@ -10,11 +10,18 @@ import '../../styles/reviews.css';
 import '../../styles/history.css';
 import '../../styles/token-explorer.css';
 import Icon from '../Icon.astro';
+import SummaryButton from '../ds/studio/SummaryButton';
+import { Button, EmptyState, Kbd, SegmentedControl } from '@bridge-ds/react';
+import { Eye, Layers, Plus, Search, SlidersHorizontal } from 'lucide-react';
 import TokenEditorKit from './TokenEditorKit.astro';
 import ExplorerData from './ExplorerData.astro';
 import XpKeys from './XpKeys.astro';
-import { CATEGORY_LABEL, CATEGORY_ORDER, SYNTAX_LABEL } from '../../lib/explorer/format';
-import { TIER_NAMES, TIER_ORDER } from '@bridge-ds/core';
+import { CATEGORY_LABEL, CATEGORY_ORDER, SYNTAX_LABEL, modeName } from '../../lib/explorer/format';
+import { modesOf } from '../../lib/explorer/model';
+import { tokenFiles } from '../../lib/explorer';
+import { exists, readText } from '../../lib/repo';
+import { TIER_NAMES, TIER_ORDER, buildTokenSet, layoutOptions, loadConfig } from '@bridge-ds/core';
+import { Fragment as RFragment, createElement } from 'react';
 
 interface Props {
   mode: 'read' | 'edit';
@@ -24,6 +31,12 @@ const { mode, focus } = Astro.props;
 // Studio (mode "edit") renders the explorer as the page itself: full bleed, one compact header, one toolbar row,
 // compact rows. The Library (mode "read") keeps its card, heading and inline controls.
 const app = mode === 'edit';
+// The brand and density selectors render here, statically, from the same token set the browser builds
+// (scripts/explorer/data.ts); the script only shows, hides and selects them.
+const modes = modesOf(buildTokenSet(tokenFiles(), layoutOptions(loadConfig(exists('bridge.config.json') ? readText('bridge.config.json') : '{}'))));
+const combos = modes.brands.length * modes.themes.length;
+// Lens segments carry a count the script fills in.
+const lensLabel = (text: string) => createElement(RFragment, null, `${text} `, createElement('span', { className: 'xp-lens-n', 'data-lens-n': '' }));
 ---
 
 <div class="xp" data-xp data-mode={mode} data-surface={app ? 'app' : 'page'} data-rows={app ? 'compact' : undefined} data-focus={focus ?? ''}>
@@ -41,10 +54,18 @@ const app = mode === 'edit';
     )
   }
   <aside class="xp-left" aria-label="Browse tokens">
-    <div class="xp-lens" role="radiogroup" aria-label="Browse by" data-xp-lens>
-      <button type="button" role="radio" aria-checked="true" data-lens="collections">Collections <span class="xp-lens-n" data-lens-n></span></button>
-      <button type="button" role="radio" aria-checked="false" tabindex="-1" data-lens="types">By type <span class="xp-lens-n" data-lens-n></span></button>
-    </div>
+    <SegmentedControl
+      label="Browse by"
+      data-vanilla
+      data-xp-lens
+      size={app ? 'sm' : 'md'}
+      fullWidth
+      defaultValue="collections"
+      items={[
+        { value: 'collections', label: lensLabel('Collections') },
+        { value: 'types', label: lensLabel('By type') },
+      ]}
+    />
     <nav class="xp-tree" aria-label="Collections and groups" data-xp-tree></nav>
   </aside>
 
@@ -63,11 +84,11 @@ const app = mode === 'edit';
           <Icon name="search" size={16} />
           <label class="sr-only" for="xp-q">Search tokens</label>
           <input id="xp-q" type="search" placeholder="Name, CSS variable or hex" autocomplete="off" spellcheck="false" aria-keyshortcuts="F" data-xp-q />
-          <kbd class="kbd xp-slash" aria-hidden="true">F</kbd>
+          <Kbd keys="F" size="sm" className="xp-slash" aria-hidden="true" />
           <button type="button" class="xp-exact" aria-pressed="false" data-xp-exact title="Match the whole name, variable or hex">Exact</button>
         </div>
         <details class="xp-filters" data-xp-filters>
-          <summary class="btn btn-secondary btn-sm"><Icon name="sliders" size={16} />Filters <span class="xp-filter-n num" data-xp-filter-n hidden>0</span></summary>
+          <SummaryButton variant="secondary" size="sm" iconStart={SlidersHorizontal}>Filters <span class="xp-filter-n num" data-xp-filter-n hidden>0</span></SummaryButton>
           <div class="xp-filters-panel">
             <fieldset>
               <legend>Collection</legend>
@@ -83,22 +104,35 @@ const app = mode === 'edit';
               <label><input type="radio" name="xp-usage" value="used" />In use</label>
               <label><input type="radio" name="xp-usage" value="unused" />Unused</label>
             </fieldset>
-            <button type="button" class="btn btn-secondary btn-sm" data-xp-clear-filters>Clear filters</button>
+            <Button variant="secondary" size="sm" className="st-xp-clear-filters" data-xp-clear-filters>Clear filters</Button>
           </div>
         </details>
         {
           app ? (
             <>
               <details class="xp-menu" data-xp-modes-menu hidden>
-                <summary class="btn btn-secondary btn-sm" title="Brand, density and combinations shown in the value columns">
-                  <Icon name="layers" size={16} /><span data-xp-modes-label>Modes</span>
-                </summary>
+                <SummaryButton variant="secondary" size="sm" iconStart={Layers} title="Brand, density and combinations shown in the value columns">
+                  <span data-xp-modes-label>Modes</span>
+                </SummaryButton>
                 <div class="xp-menu-panel">
-                  <div class="xp-modebar" data-xp-modebar></div>
+                  <div class="xp-modebar" data-xp-modebar>
+                    <div class="xp-menu-field" data-xp-mode-field="brand" hidden>
+                      <span aria-hidden="true">Brand</span>
+                      <SegmentedControl label="Brand" data-vanilla data-xp-brand size="sm" fullWidth defaultValue={modes.brands[0]} items={modes.brands.map((b) => ({ value: b, label: modeName(b) }))} />
+                    </div>
+                    <div class="xp-menu-field" data-xp-mode-field="density" hidden>
+                      <span aria-hidden="true">Density</span>
+                      <SegmentedControl label="Density" data-vanilla data-xp-density size="sm" fullWidth defaultValue={modes.densities[0]} items={modes.densities.map((x) => ({ value: x, label: modeName(x) }))} />
+                    </div>
+                    <button type="button" class="xp-switch" role="switch" aria-checked="false" data-combos hidden>
+                      <span class="xp-switch-track" aria-hidden="true"><span class="xp-switch-thumb"></span></span>
+                      <span>All {combos} combinations</span>
+                    </button>
+                  </div>
                 </div>
               </details>
               <details class="xp-menu" data-xp-view-menu>
-                <summary class="btn btn-secondary btn-sm" aria-label="View options"><Icon name="eye" size={16} /><span>View</span></summary>
+                <SummaryButton variant="secondary" size="sm" iconStart={Eye} aria-label="View options">View</SummaryButton>
                 <div class="xp-menu-panel xp-view-panel">
                   <label class="xp-menu-field">
                     <span>Code column</span>
@@ -112,19 +146,38 @@ const app = mode === 'edit';
                   </button>
                   <div class="xp-menu-field">
                     <span id="xp-rows-label">Rows</span>
-                    <div class="xp-seg" role="radiogroup" aria-labelledby="xp-rows-label" data-xp-rows>
-                      <button type="button" role="radio" aria-checked="true" data-rows="compact">Compact</button>
-                      <button type="button" role="radio" aria-checked="false" tabindex="-1" data-rows="comfortable">Comfortable</button>
-                    </div>
+                    <SegmentedControl
+                      aria-labelledby="xp-rows-label"
+                      data-vanilla
+                      data-xp-rows
+                      size="sm"
+                      fullWidth
+                      defaultValue="compact"
+                      items={[
+                        { value: 'compact', label: 'Compact' },
+                        { value: 'comfortable', label: 'Comfortable' },
+                      ]}
+                    />
                   </div>
                   <p class="xp-menu-keys small muted" aria-hidden="true"><XpKeys /></p>
                 </div>
               </details>
-              <button type="button" class="btn btn-primary btn-sm xp-new has-tip" id="ed-add" data-tip="Adds a draft in this browser. No GitHub needed." aria-label="New token"><Icon name="plus" size={16} /><span>New token</span></button>
+              <Button variant="primary" size="sm" iconStart={Plus} className="xp-new has-tip" id="ed-add" data-tip="Adds a draft in this browser. No GitHub needed." aria-label="New token">New token</Button>
             </>
           ) : (
             <>
-              <div class="xp-modebar" data-xp-modebar hidden></div>
+              <div class="xp-modebar" data-xp-modebar hidden>
+                <div data-xp-mode-field="brand" hidden>
+                  <SegmentedControl label="Brand" data-vanilla data-xp-brand size="sm" defaultValue={modes.brands[0]} items={modes.brands.map((b) => ({ value: b, label: modeName(b) }))} />
+                </div>
+                <div data-xp-mode-field="density" hidden>
+                  <SegmentedControl label="Density" data-vanilla data-xp-density size="sm" defaultValue={modes.densities[0]} items={modes.densities.map((x) => ({ value: x, label: modeName(x) }))} />
+                </div>
+                <button type="button" class="xp-switch" role="switch" aria-checked="false" data-combos hidden>
+                  <span class="xp-switch-track" aria-hidden="true"><span class="xp-switch-thumb"></span></span>
+                  <span>All {combos} combinations</span>
+                </button>
+              </div>
               <div class="xp-view">
                 <label class="xp-select"><span class="sr-only">Code syntax</span>
                   <select data-xp-syntax>
@@ -141,11 +194,9 @@ const app = mode === 'edit';
 
     <div class="xp-scroll" data-xp-scroll>
       <div class="xp-grid" role="grid" aria-labelledby="xp-title" aria-readonly="true" data-xp-grid></div>
-      <div class="xp-empty" data-xp-empty hidden>
-        <Icon name="search" size={24} />
-        <p><strong>No token matches.</strong> Try a shorter name, a hex like <code>#1c2735</code>, or clear the filters.</p>
-        <button type="button" class="btn btn-secondary btn-sm" data-xp-clear>Clear search and filters</button>
-      </div>
+      <EmptyState icon={Search} title="No token matches." description="Try a shorter name, a hex like #1c2735, or clear the filters." className="st-hideable st-xp-empty" data-xp-empty hidden>
+        <Fragment slot="actions"><Button variant="secondary" size="sm" data-xp-clear>Clear search and filters</Button></Fragment>
+      </EmptyState>
     </div>
     {!app && <p class="xp-keys small muted" aria-hidden="true"><XpKeys /></p>}
   </section>
@@ -156,6 +207,13 @@ const app = mode === 'edit';
 
 <ExplorerData />
 {mode === 'edit' && <TokenEditorKit />}
+{
+  mode === 'edit' && (
+    <template data-xp-seg-tpl>
+      <SegmentedControl data-vanilla size="sm" label="Mode" items={[{ value: 'mode', label: 'Mode' }]} />
+    </template>
+  )
+}
 
 <script>
   import { initTokenExplorer } from '../../scripts/explorer';

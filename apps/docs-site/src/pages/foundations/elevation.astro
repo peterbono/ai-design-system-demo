@@ -1,6 +1,8 @@
 ---
+import { PageHeader } from '@bridge-ds/react';
 import Layout from '../../layouts/Layout.astro';
-import Icon from '../../components/Icon.astro';
+import ButtonLink from '../../components/ds/ButtonLink';
+import { Pencil } from 'lucide-react';
 import Updated from '../../components/Updated.astro';
 import CopyAs from '../../components/foundations/CopyAs.astro';
 import LibraryKit from '../../components/foundations/LibraryKit.astro';
@@ -16,19 +18,13 @@ const shadows = primitiveRows('shadow');
 
 <Layout title="Elevation" description="Elevation levels on real surfaces in light and dark, and the shadow primitives behind them." sources={PAGE_SOURCES.elevation} updated={updated}>
   <div data-fd-page>
-    <header class="page-head">
-      <div>
-        <h1>Elevation</h1>
-        <p class="lead">
-          Things that float cast shadows; things that sit do not. Cards and panels are flat plates with a hairline edge. Only popovers, menus, dialogs,
-          drawers and toasts get elevation, and dark mode uses darker, tighter shadows so edges stay visible.
-        </p>
-        <Updated date={updated} />
-      </div>
-      <div class="page-head-actions">
-        <a class="btn btn-secondary" href="/studio/tokens/?focus=shadow"><Icon name="edit" size={16} />Edit in Studio</a>
-      </div>
-    </header>
+    <PageHeader className="lib-page-header" title="Elevation">
+      Things that float cast shadows; things that sit do not. Cards and panels are flat plates with a hairline edge. Only popovers, menus, dialogs, drawers and toasts get elevation, and dark mode uses darker, tighter shadows so edges stay visible.
+      <Updated slot="meta" date={updated} />
+      <Fragment slot="actions">
+        <ButtonLink variant="secondary" iconStart={Pencil} href="/studio/tokens/?focus=shadow">Edit in Studio</ButtonLink>
+      </Fragment>
+    </PageHeader>
     <div class="fd-toolbar">
       <p class="fd-hint">Select a token to see where it is used and its history. Click a name to copy it.</p>
       <CopyAs />

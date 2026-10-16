@@ -2,6 +2,8 @@
 import Layout from '../layouts/Layout.astro';
 import Icon from '../components/Icon.astro';
 import Updated from '../components/Updated.astro';
+import { Alert, Button, PageHeader } from '@bridge-ds/react';
+import { Copy } from 'lucide-react';
 import { GITHUB_URL, PLUGIN_URL, readJson, sourceUrl } from '../lib/repo';
 import { freshness } from '../lib/sources';
 import '../styles/process.css';
@@ -43,24 +45,15 @@ const plugin = ['npm install', 'npm run plugin:build'].join('\n');
 ---
 
 <Layout title="Install" description="Install the Bridge packages in a product, or the DS Bridge Figma plugin." sources={sources} updated={updated}>
-  <header class="page-head">
-    <div>
-      <h1>Install</h1>
-      <p class="lead">
-        Two ways to use the system: the packages in a product codebase, and the DS Bridge plugin in Figma. Both read the same token files, so code
-        and Figma never drift. For AI agents, see <a href="/agents/">Agents</a>.
-      </p>
-      <Updated date={updated} />
-    </div>
-  </header>
+  <PageHeader className="lib-page-header" title="Install">
+    Two ways to use the system: the packages in a product codebase, and the DS Bridge plugin in Figma. Both read the same token files, so code and Figma never drift. For AI agents, see <a href="/agents/">Agents</a>.
+    <Updated slot="meta" date={updated} />
+  </PageHeader>
 
-  <div class="callout is-warn" role="note">
-    <Icon name="info" size={20} />
-    <p>
-      <strong>Not published on npm yet.</strong> The packages are built and checked, and the release workflow publishes them under the
-      <code>@bridge-ds</code> scope once an npm token is set. Until then, install them from a clone of the repository, as shown below.
-    </p>
-  </div>
+  <Alert tone="warning" announce="off" title="Not published on npm yet" className="lib-note">
+    The packages are built and checked, and the release workflow publishes them under the
+    <code>@bridge-ds</code> scope once an npm token is set. Until then, install them from a clone of the repository, as shown below.
+  </Alert>
 
   <h2 id="packages">Packages</h2>
   <ul class="pkg-list">
@@ -83,7 +76,7 @@ const plugin = ['npm install', 'npm run plugin:build'].join('\n');
           <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
           <span class="terminal-title"><Icon name="terminal" size={15} /> <span>Terminal</span></span>
           <span class="terminal-actions">
-            <button type="button" class="copy copy-ui" data-copy={clone}><Icon name="copy" size={15} /><span data-copy-label>Copy</span></button>
+            <Button variant="secondary" size="sm" iconStart={Copy} data-copy={clone}><span data-copy-label>Copy</span></Button>
           </span>
         </div>
         <pre class="terminal-body cx-pre" tabindex="0" aria-label="Build and pack commands">{clone}</pre>
@@ -96,7 +89,7 @@ const plugin = ['npm install', 'npm run plugin:build'].join('\n');
           <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
           <span class="terminal-title"><Icon name="terminal" size={15} /> <span>Terminal</span></span>
           <span class="terminal-actions">
-            <button type="button" class="copy copy-ui" data-copy={add}><Icon name="copy" size={15} /><span data-copy-label>Copy</span></button>
+            <Button variant="secondary" size="sm" iconStart={Copy} data-copy={add}><span data-copy-label>Copy</span></Button>
           </span>
         </div>
         <pre class="terminal-body cx-pre" tabindex="0" aria-label="Install the tarballs">{add}</pre>
@@ -112,7 +105,7 @@ const plugin = ['npm install', 'npm run plugin:build'].join('\n');
       <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
       <span class="terminal-title"><Icon name="file" size={15} /> <span>App.tsx</span></span>
       <span class="terminal-actions">
-        <button type="button" class="copy copy-ui" data-copy={app}><Icon name="copy" size={15} /><span data-copy-label>Copy</span></button>
+        <Button variant="secondary" size="sm" iconStart={Copy} data-copy={app}><span data-copy-label>Copy</span></Button>
       </span>
     </div>
     <pre class="terminal-body cx-pre" tabindex="0" aria-label="App setup">{app}</pre>

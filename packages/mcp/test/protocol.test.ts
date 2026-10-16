@@ -67,7 +67,7 @@ describe('MCP over stdio', () => {
 
   it('calls bridge_check_contrast, with and without edits', async () => {
     const all = JSON.parse(text(await client.callTool({ name: 'bridge_check_contrast', arguments: {} })));
-    expect(all.checks).toBe(220);
+    expect(all.checks).toBe(276);
     expect(all.failing).toBe(0);
     const edit = JSON.parse(text(await client.callTool({ name: 'bridge_check_contrast', arguments: { edits: [{ op: 'set', path: 'color.text.muted', value: '{palette.neutral.300}', mode: { theme: 'light' } }] } })));
     expect(edit.newFailures.length).toBeGreaterThan(0);

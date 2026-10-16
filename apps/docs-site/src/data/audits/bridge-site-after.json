@@ -1,0 +1,1500 @@
+{
+  "$schema": "https://raw.githubusercontent.com/peterbono/ai-design-system-demo/main/packages/core/audit-report.schema.json",
+  "schemaVersion": 1,
+  "tool": {
+    "name": "bridge",
+    "version": "0.1.0"
+  },
+  "label": "Bridge docs site, after",
+  "generatedAt": "2026-10-16T23:26:47.573Z",
+  "target": {
+    "path": "apps/docs-site/src",
+    "files": 102,
+    "skipped": 0
+  },
+  "designSystem": {
+    "packages": [
+      "@bridge-ds/react"
+    ],
+    "components": 48,
+    "tokens": 563,
+    "modes": [
+      "brand=bridge,theme=light,density=comfortable",
+      "brand=bridge,theme=light,density=compact",
+      "brand=bridge,theme=dark,density=comfortable",
+      "brand=bridge,theme=dark,density=compact",
+      "brand=ocean,theme=light,density=comfortable",
+      "brand=ocean,theme=light,density=compact",
+      "brand=ocean,theme=dark,density=comfortable",
+      "brand=ocean,theme=dark,density=compact"
+    ]
+  },
+  "metrics": {
+    "tokenAdoption": 100,
+    "componentAdoption": 100,
+    "tokenUsages": 4667,
+    "hardcoded": 2,
+    "themeRefs": 46,
+    "dsComponentInstances": 210,
+    "uiComponentInstances": 210
+  },
+  "byCategory": {
+    "color": {
+      "hardcoded": 2,
+      "exact": 2,
+      "suggested": 2
+    }
+  },
+  "components": {
+    "ds": {
+      "Tabs": 1,
+      "TabsList": 1,
+      "Tab": 2,
+      "TabsPanel": 1,
+      "Card": 1,
+      "CardHeader": 1,
+      "Badge": 20,
+      "CardBody": 1,
+      "Input": 4,
+      "CardFooter": 1,
+      "Button": 18,
+      "Alert": 5,
+      "SegmentedControl": 6,
+      "Select": 1,
+      "Switch": 4,
+      "Table": 9,
+      "TableHeader": 9,
+      "TableRow": 18,
+      "TableHead": 39,
+      "TableBody": 9,
+      "TableCell": 34,
+      "Popover": 2,
+      "PopoverTrigger": 2,
+      "PopoverContent": 2,
+      "Link": 9,
+      "Icon": 3,
+      "Tag": 2,
+      "Checkbox": 3,
+      "Progress": 1,
+      "Kbd": 1
+    },
+    "foreign": {},
+    "native": {},
+    "recreated": []
+  },
+  "topFiles": [
+    {
+      "path": "scripts/explorer/inline-edit.ts",
+      "hardcoded": 1,
+      "otherComponents": 0,
+      "tokenUsages": 0,
+      "dsComponents": 0
+    },
+    {
+      "path": "scripts/token-editor.ts",
+      "hardcoded": 1,
+      "otherComponents": 0,
+      "tokenUsages": 0,
+      "dsComponents": 0
+    }
+  ],
+  "topFixes": [
+    {
+      "category": "color",
+      "value": "#000000",
+      "count": 2,
+      "files": 2,
+      "suggestion": {
+        "token": "color.black",
+        "cssVar": "--color-black",
+        "value": "#000000",
+        "distance": 0,
+        "confidence": 1,
+        "level": "exact"
+      }
+    }
+  ],
+  "files": [
+    {
+      "path": "brand/icons.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/ds/AgentToolsTable.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 9,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/ds/brand-icons.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/ds/ButtonLink.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 1,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/ds/IconLink.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 1,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/ds/PropsTable.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 14,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/ds/scope.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/ds/ScopeMenu.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 6,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/ds/studio/AdoptionTables.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 45,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/ds/studio/ApprovalMatrix.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 10,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/ds/studio/brand-icons.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/ds/studio/ComponentsTable.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 30,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/ds/studio/ContrastFailTable.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 15,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/ds/studio/SummaryButton.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 1,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/ds/VersionMenu.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 5,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/EditorPreview.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 15,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/Example.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/foundations/ContrastTable.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 16,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/foundations/Specimens.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 2,
+      "hardcoded": 0,
+      "dsComponents": 32,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/PropsPlayground.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 10,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/registry.tsx",
+      "lang": "tsx",
+      "tokenUsages": 1,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/audits.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/branches.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/changelog.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/components.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/config.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/contrast.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/editor-model.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/explorer.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/explorer/flow.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/explorer/format.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/explorer/model.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/foundations.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/governance.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/history-view.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/history.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/inspect.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/library-rows.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/llms.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/markdown.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/mcp.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/nav.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/redirects.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/repo.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/review-rules.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/search.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/sources.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/stats.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/status-budget.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/token-review.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/tokens.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/visual-impact.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "pages/llms.txt.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "pages/search-index.json.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "pages/studio/versions/data.json.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "pages/tokens.css.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "scripts/branches.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "scripts/explorer/cells.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "scripts/explorer/data.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "scripts/explorer/detail.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "scripts/explorer/drawer.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "scripts/explorer/grid.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "scripts/explorer/index.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "scripts/explorer/inline-edit.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 1,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [
+        {
+          "line": 28,
+          "column": 49,
+          "category": "color",
+          "value": "#000000",
+          "source": "js",
+          "suggestion": {
+            "token": "color.black",
+            "cssVar": "--color-black",
+            "value": "#000000",
+            "distance": 0,
+            "confidence": 1,
+            "level": "exact"
+          }
+        }
+      ],
+      "components": []
+    },
+    {
+      "path": "scripts/explorer/types.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "scripts/explorer/util.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "scripts/foundations.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "scripts/github-session.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "scripts/history/page.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "scripts/history/planner.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "scripts/history/state.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "scripts/history/token-panel.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "scripts/playground.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "scripts/pr-status.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "scripts/reviews.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "scripts/reviews/token-review.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "scripts/reviews/visual-impact.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "scripts/shell.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "scripts/token-editor.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 1,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [
+        {
+          "line": 165,
+          "column": 37,
+          "category": "color",
+          "value": "#000000",
+          "source": "js",
+          "suggestion": {
+            "token": "color.black",
+            "cssVar": "--color-black",
+            "value": "#000000",
+            "distance": 0,
+            "confidence": 1,
+            "level": "exact"
+          }
+        }
+      ],
+      "components": []
+    },
+    {
+      "path": "scripts/visual-list.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "styles/adoption.css",
+      "lang": "css",
+      "tokenUsages": 107,
+      "themeRefs": 5,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "styles/branches.css",
+      "lang": "css",
+      "tokenUsages": 29,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "styles/component.css",
+      "lang": "css",
+      "tokenUsages": 272,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "styles/connect.css",
+      "lang": "css",
+      "tokenUsages": 37,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "styles/dashboard.css",
+      "lang": "css",
+      "tokenUsages": 331,
+      "themeRefs": 4,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "styles/ds-library.css",
+      "lang": "css",
+      "tokenUsages": 33,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "styles/ds-studio.css",
+      "lang": "css",
+      "tokenUsages": 34,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "styles/editor.css",
+      "lang": "css",
+      "tokenUsages": 193,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "styles/foundations.css",
+      "lang": "css",
+      "tokenUsages": 587,
+      "themeRefs": 15,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "styles/github.css",
+      "lang": "css",
+      "tokenUsages": 50,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "styles/history.css",
+      "lang": "css",
+      "tokenUsages": 142,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "styles/home.css",
+      "lang": "css",
+      "tokenUsages": 59,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "styles/library.css",
+      "lang": "css",
+      "tokenUsages": 59,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "styles/playground.css",
+      "lang": "css",
+      "tokenUsages": 235,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "styles/process.css",
+      "lang": "css",
+      "tokenUsages": 378,
+      "themeRefs": 5,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "styles/reviews.css",
+      "lang": "css",
+      "tokenUsages": 338,
+      "themeRefs": 2,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "styles/settings.css",
+      "lang": "css",
+      "tokenUsages": 39,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "styles/site.css",
+      "lang": "css",
+      "tokenUsages": 539,
+      "themeRefs": 4,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "styles/spaces.css",
+      "lang": "css",
+      "tokenUsages": 164,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "styles/studio-app.css",
+      "lang": "css",
+      "tokenUsages": 109,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "styles/studio.css",
+      "lang": "css",
+      "tokenUsages": 215,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "styles/token-explorer.css",
+      "lang": "css",
+      "tokenUsages": 716,
+      "themeRefs": 9,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    }
+  ],
+  "history": [
+    {
+      "label": "Bridge docs site, before",
+      "generatedAt": "2026-10-16T22:47:20.766Z",
+      "tokenAdoption": 9.7,
+      "componentAdoption": 52.8,
+      "hardcoded": 2628,
+      "uiComponentInstances": 89,
+      "dsComponentInstances": 47
+    }
+  ],
+  "baseline": {
+    "label": "Bridge docs site, before",
+    "generatedAt": "2026-10-16T22:47:20.766Z",
+    "tokenAdoption": {
+      "before": 9.7,
+      "after": 100,
+      "delta": 90.3
+    },
+    "componentAdoption": {
+      "before": 52.8,
+      "after": 100,
+      "delta": 47.2
+    },
+    "hardcoded": {
+      "before": 2628,
+      "after": 2,
+      "delta": -2626
+    },
+    "byCategory": {
+      "color": {
+        "before": 73,
+        "after": 2,
+        "delta": -71
+      },
+      "spacing": {
+        "before": 1424,
+        "after": 0,
+        "delta": -1424
+      },
+      "size": {
+        "before": 391,
+        "after": 0,
+        "delta": -391
+      },
+      "radius": {
+        "before": 68,
+        "after": 0,
+        "delta": -68
+      },
+      "border-width": {
+        "before": 311,
+        "after": 0,
+        "delta": -311
+      },
+      "shadow": {
+        "before": 12,
+        "after": 0,
+        "delta": -12
+      },
+      "duration": {
+        "before": 29,
+        "after": 0,
+        "delta": -29
+      },
+      "easing": {
+        "before": 2,
+        "after": 0,
+        "delta": -2
+      },
+      "z-index": {
+        "before": 23,
+        "after": 0,
+        "delta": -23
+      },
+      "font-size": {
+        "before": 69,
+        "after": 0,
+        "delta": -69
+      },
+      "font-weight": {
+        "before": 165,
+        "after": 0,
+        "delta": -165
+      },
+      "line-height": {
+        "before": 61,
+        "after": 0,
+        "delta": -61
+      }
+    },
+    "improved": [
+      {
+        "path": "styles/token-explorer.css",
+        "before": 435,
+        "after": 0
+      },
+      {
+        "path": "styles/site.css",
+        "before": 318,
+        "after": 0
+      },
+      {
+        "path": "styles/dashboard.css",
+        "before": 214,
+        "after": 0
+      },
+      {
+        "path": "styles/process.css",
+        "before": 194,
+        "after": 0
+      },
+      {
+        "path": "styles/foundations.css",
+        "before": 192,
+        "after": 0
+      },
+      {
+        "path": "styles/component.css",
+        "before": 184,
+        "after": 0
+      },
+      {
+        "path": "styles/reviews.css",
+        "before": 175,
+        "after": 0
+      },
+      {
+        "path": "styles/playground.css",
+        "before": 123,
+        "after": 0
+      },
+      {
+        "path": "styles/studio.css",
+        "before": 120,
+        "after": 0
+      },
+      {
+        "path": "styles/editor.css",
+        "before": 113,
+        "after": 0
+      },
+      {
+        "path": "styles/history.css",
+        "before": 95,
+        "after": 0
+      },
+      {
+        "path": "styles/spaces.css",
+        "before": 94,
+        "after": 0
+      },
+      {
+        "path": "styles/studio-app.css",
+        "before": 61,
+        "after": 0
+      },
+      {
+        "path": "styles/adoption.css",
+        "before": 55,
+        "after": 0
+      },
+      {
+        "path": "styles/library.css",
+        "before": 39,
+        "after": 0
+      },
+      {
+        "path": "styles/home.css",
+        "before": 38,
+        "after": 0
+      },
+      {
+        "path": "components/foundations/Specimens.tsx",
+        "before": 32,
+        "after": 0
+      },
+      {
+        "path": "styles/connect.css",
+        "before": 29,
+        "after": 0
+      },
+      {
+        "path": "styles/github.css",
+        "before": 24,
+        "after": 0
+      },
+      {
+        "path": "styles/settings.css",
+        "before": 23,
+        "after": 0
+      },
+      {
+        "path": "styles/branches.css",
+        "before": 22,
+        "after": 0
+      },
+      {
+        "path": "components/PropsPlayground.tsx",
+        "before": 10,
+        "after": 0
+      }
+    ],
+    "regressed": [],
+    "newFiles": [
+      "components/ds/AgentToolsTable.tsx",
+      "components/ds/ButtonLink.tsx",
+      "components/ds/IconLink.tsx",
+      "components/ds/PropsTable.tsx",
+      "components/ds/ScopeMenu.tsx",
+      "components/ds/VersionMenu.tsx",
+      "components/ds/brand-icons.ts",
+      "components/ds/scope.ts",
+      "components/ds/studio/AdoptionTables.tsx",
+      "components/ds/studio/ApprovalMatrix.tsx",
+      "components/ds/studio/ComponentsTable.tsx",
+      "components/ds/studio/ContrastFailTable.tsx",
+      "components/ds/studio/SummaryButton.tsx",
+      "components/ds/studio/brand-icons.ts",
+      "components/foundations/ContrastTable.tsx",
+      "styles/ds-library.css",
+      "styles/ds-studio.css"
+    ],
+    "removedFiles": [
+      "brand/tokens.ts"
+    ]
+  }
+}

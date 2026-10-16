@@ -45,9 +45,11 @@ function initTheme() {
 }
 
 /**
- * Brand and density of the design system previews. Stored per browser, applied to <html> and to every element
- * that sets data-theme (preview frames, islands): tokens.css resolves brand x theme overrides only when the
- * attributes sit on the same element, so each themed scope carries all three.
+ * Brand and density of the design system previews. Stored per browser, kept on <html> as data-preview-brand and
+ * data-preview-density, and applied to every element below <html> that sets data-theme (preview frames, islands):
+ * tokens.css resolves brand x theme overrides only when the attributes sit on the same element, so each themed
+ * scope carries all three. <html> itself keeps data-brand="bridge" and comfortable density: the Bridge chrome is
+ * built with the design system and does not change with the preview scope.
  */
 type Scope = { brand: string; density: string };
 const SCOPE_DEFAULT: Scope = { brand: 'bridge', density: 'comfortable' };
@@ -55,15 +57,15 @@ const LABELS: Record<string, string> = { bridge: 'Bridge', ocean: 'Ocean', comfo
 
 export function currentScope(): Scope {
   const root = document.documentElement;
-  return { brand: root.dataset.brand ?? SCOPE_DEFAULT.brand, density: root.dataset.density ?? SCOPE_DEFAULT.density };
+  return { brand: root.dataset.previewBrand ?? SCOPE_DEFAULT.brand, density: root.dataset.previewDensity ?? SCOPE_DEFAULT.density };
 }
 
 function applyScope(scope: Scope, within: ParentNode = document) {
   const root = document.documentElement;
-  root.dataset.brand = scope.brand;
-  root.dataset.density = scope.density;
+  root.dataset.previewBrand = scope.brand;
+  root.dataset.previewDensity = scope.density;
   within.querySelectorAll<HTMLElement>('[data-theme]').forEach((el) => {
-    if (el.hasAttribute('data-scope-fixed')) return;
+    if (el === root || el.hasAttribute('data-scope-fixed')) return;
     if (el.dataset.brand !== scope.brand) el.dataset.brand = scope.brand;
     if (el.dataset.density !== scope.density) el.dataset.density = scope.density;
   });
@@ -89,6 +91,8 @@ function initScope() {
     announce(`Previews: ${LABELS[next.brand]}, ${LABELS[next.density]}`);
     document.dispatchEvent(new CustomEvent('bridge:scope', { detail: next }));
   };
+  // React islands (scope menu, props playground) ask for a change with an event; see components/ds/scope.ts.
+  document.addEventListener('bridge:set-scope', (e) => set((e as CustomEvent<Partial<Scope>>).detail ?? {}));
   document.addEventListener('click', (e) => {
     const t = (e.target as HTMLElement).closest<HTMLElement>('[data-set-brand], [data-set-density]');
     if (!t) return;
@@ -117,6 +121,65 @@ function initScope() {
       }
     });
   }
+}
+
+/**
+ * Statically rendered DS SegmentedControls (Astro, no hydration) opt in with `data-vanilla`. Base UI renders every
+ * segment with tabindex -1 on the server, so this restores the roving tab stop, selects on click and moves the
+ * selection with arrow keys, Home and End, like the hydrated control. A change dispatches `bridge:segment`
+ * ({ value }) on the group root, bubbling. Other scripts select programmatically with selectSegment().
+ */
+const SEG_ROOT = '[data-segmented-control][data-vanilla]';
+const segmentsOf = (root: Element) => [...root.querySelectorAll<HTMLButtonElement>('[data-segment]')];
+const segDisabled = (b: HTMLButtonElement) => b.disabled || b.hasAttribute('data-disabled');
+
+function paintSegments(root: Element, value: string | null) {
+  const segs = segmentsOf(root);
+  const current = segs.find((b) => b.dataset.value === value) ?? null;
+  const stop = current ?? segs.find((b) => !segDisabled(b)) ?? null;
+  for (const b of segs) {
+    const on = b === current;
+    b.setAttribute('aria-checked', String(on));
+    b.toggleAttribute('data-checked', on);
+    b.toggleAttribute('data-unchecked', !on);
+    b.tabIndex = b === stop ? 0 : -1;
+  }
+}
+
+/** Select a segment of a static SegmentedControl. `emit` dispatches bridge:segment as a user change would. */
+export function selectSegment(root: Element, value: string, emit = false) {
+  paintSegments(root, value);
+  if (emit) root.dispatchEvent(new CustomEvent('bridge:segment', { detail: { value }, bubbles: true }));
+}
+
+function initSegmented() {
+  document.querySelectorAll(SEG_ROOT).forEach((root) => {
+    const checked = root.querySelector<HTMLElement>('[data-segment][aria-checked="true"]');
+    paintSegments(root, checked?.dataset.value ?? null);
+  });
+  document.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>(`${SEG_ROOT} [data-segment]`);
+    const root = b?.closest(SEG_ROOT);
+    if (!b || !root || segDisabled(b) || b.getAttribute('aria-checked') === 'true') return;
+    selectSegment(root, b.dataset.value ?? '', true);
+  });
+  document.addEventListener('keydown', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>(`${SEG_ROOT} [data-segment]`);
+    const root = b?.closest(SEG_ROOT);
+    if (!b || !root) return;
+    const segs = segmentsOf(root).filter((x) => !segDisabled(x));
+    const i = segs.indexOf(b);
+    const rtl = getComputedStyle(root).direction === 'rtl';
+    const step: Record<string, number> = { ArrowRight: rtl ? -1 : 1, ArrowDown: 1, ArrowLeft: rtl ? 1 : -1, ArrowUp: -1 };
+    let next: HTMLButtonElement | undefined;
+    if (e.key in step) next = segs[(i + step[e.key] + segs.length) % segs.length];
+    else if (e.key === 'Home') next = segs[0];
+    else if (e.key === 'End') next = segs[segs.length - 1];
+    if (!next) return;
+    e.preventDefault();
+    next.focus();
+    if (next !== b) selectSegment(root, next.dataset.value ?? '', true);
+  });
 }
 
 function initCopy() {
@@ -518,6 +581,7 @@ function initStudio() {
 
 export function initShell() {
   initTheme();
+  initSegmented();
   initMenus();
   initToc();
   initStudio();

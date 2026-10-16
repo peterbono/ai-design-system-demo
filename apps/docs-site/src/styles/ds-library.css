@@ -1,0 +1,196 @@
+/* Library-side layout glue around @bridge-ds/react components (wrappers, placement only). Tokens only. */
+
+/* == Shell (Layout.astro) == */
+
+/* Search trigger: a DS secondary Button that takes the free width of the top bar. */
+.shell-search {
+  flex: 0 1 var(--size-120);
+  justify-content: flex-start;
+  min-width: 0;
+}
+
+.shell-search-text {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.shell-search-label {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-regular);
+  text-overflow: ellipsis;
+}
+
+/* PageHeader meta slot: the freshness chip (Updated.astro) sits flush, the header owns the spacing. */
+.lib-page-header .updated {
+  margin: 0;
+}
+
+.shell-crumbs {
+  margin-block-end: var(--space-3);
+}
+
+/* Scope and version popovers: content layout inside the DS Popover. */
+.shell-scope-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.shell-pop {
+  width: var(--size-72);
+}
+
+.shell-scope-groups {
+  display: grid;
+  gap: var(--space-1-5);
+  margin-block-start: var(--space-3);
+}
+
+.shell-pop-label {
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-100);
+  font-weight: var(--font-weight-semibold);
+}
+
+.shell-version-list {
+  display: grid;
+  gap: var(--space-1);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.shell-version-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-radius: var(--radius-inset);
+}
+
+.shell-version-list li[aria-current="true"] {
+  background-color: var(--color-surface-selected);
+}
+
+.shell-version-list li[aria-disabled="true"] {
+  color: var(--color-text-disabled);
+}
+
+.shell-version-name {
+  display: grid;
+  gap: var(--space-0-5);
+}
+
+.shell-version-note,
+.shell-pop-help {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-100);
+}
+
+.shell-version-check {
+  flex: none;
+  width: var(--size-4);
+  height: var(--size-4);
+}
+
+.shell-pop-help,
+.shell-pop-foot {
+  margin: var(--space-3) 0 0;
+}
+
+@media (max-width: 960px) {
+  .shell-search {
+    flex: 1 1 auto;
+    margin-inline-start: var(--space-2);
+  }
+}
+
+@media (max-width: 640px) {
+  .shell-search-text,
+  .shell-ext {
+    display: none;
+  }
+
+  .shell-search {
+    flex: none;
+    margin-inline-start: auto;
+  }
+}
+
+/* == Foundations and tokens pages == */
+
+/* Token list: the "Open details" IconButton takes the row's open grid area. */
+.ds-fd-open {
+  grid-area: open;
+  align-self: center;
+}
+
+/* Accessibility contrast grid: token names never break one character per line. */
+.ds-ct-table th[scope="row"] {
+  min-width: var(--size-60);
+}
+
+/* == Component pages and playground == */
+
+/* Push a toolbar action (props playground Reset) to the end of its row. */
+.lib-push-end {
+  margin-inline-start: auto;
+}
+
+/* Alerts that replaced block callouts keep the old spacing below them. */
+.lib-block-gap {
+  margin-block-end: var(--space-6);
+}
+
+/* Theme playground: the note under the tactile knobs. */
+.lib-tactile-alert {
+  margin-block-start: var(--space-4);
+}
+
+/* Props table: the "required" Badge sits after the prop name. */
+.lib-prop-required {
+  margin-inline-start: var(--space-2);
+}
+
+/* == Home, install, agents, changelog == */
+
+/* Static notes (DS Alert) sit in the reading flow like a paragraph block. */
+.lib-note {
+  margin-block-end: var(--space-6);
+}
+
+/* Changelog: the copy button closes the announcement header row. */
+.announce-copy {
+  margin-inline-start: auto;
+}
+
+/* Home and news: badges keep their own width in grid rows. */
+.news-kind {
+  justify-self: start;
+}
+
+@media (max-width: 720px) {
+  .hero-ctas > * {
+    flex: 1 1 100%;
+  }
+
+  .announce-copy {
+    margin-inline-start: 0;
+  }
+}
+
+/* Phones: the workbench and GitHub icon links leave the top bar, as before the DS swap, so it fits 390 px. */
+@media (max-width: 640px) {
+  .topbar-actions .shell-ext {
+    display: none;
+  }
+
+  .topbar {
+    gap: var(--space-1-5);
+  }
+}

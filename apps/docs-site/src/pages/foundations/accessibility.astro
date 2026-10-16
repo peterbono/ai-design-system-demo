@@ -2,6 +2,10 @@
 import '../../styles/foundations.css';
 import '../../styles/library.css';
 import Layout from '../../layouts/Layout.astro';
+import ButtonLink from '../../components/ds/ButtonLink';
+import { Badge, PageHeader } from '@bridge-ds/react';
+import ContrastTable, { type ContrastRow } from '../../components/foundations/ContrastTable';
+import { CircleAlert, CircleCheck, ShieldCheck } from 'lucide-react';
 import Icon from '../../components/Icon.astro';
 import Updated from '../../components/Updated.astro';
 import { contrastPairs, THRESHOLDS } from '../../lib/contrast';
@@ -21,23 +25,33 @@ const perMode = COMBOS.map((c) => ({ c, pass: pairs.filter((p) => res(p, c).aa).
 const failingPairs = pairs.filter((p) => COMBOS.some((c) => !res(p, c).aa));
 const comboLabel = (c: { b: Brand; m: Mode }) => `${BRAND_LABEL[c.b]} ${c.m === 'light' ? 'light' : 'dark'}`;
 const need = (p: { min: number }) => p.min;
+const tableCombos = COMBOS.map((c) => ({ key: c.key, brand: c.b, mode: c.m, label: comboLabel(c) }));
+const tableRows: ContrastRow[] = [...pairs]
+  .sort((a, b) => Number(COMBOS.every((c) => res(a, c).aa)) - Number(COMBOS.every((c) => res(b, c).aa)))
+  .map((p) => ({
+    fg: p.fg,
+    bg: p.bg,
+    fgHref: `/foundations/color/#${anchorOf(p.fgToken.cssVar)}`,
+    bgHref: `/foundations/color/#${anchorOf(p.bgToken.cssVar)}`,
+    fgVar: p.fgToken.cssVar,
+    bgVar: p.bgToken.cssVar,
+    usage: p.usage === 'text' ? 'text' : 'ui',
+    min: p.min,
+    results: COMBOS.map((c) => {
+      const r = res(p, c);
+      return { ratio: r.ratio, fgHex: r.fgHex, bgHex: r.bgHex, aa: r.aa, aaa: r.aaa };
+    }),
+  }));
 ---
 
 <Layout title="Accessibility" description="What Bridge commits to for accessibility, and the contrast grid of every gated color pair in every brand and theme." sources={PAGE_SOURCES.accessibility} updated={updated}>
-  <header class="page-head">
-    <div>
-      <h1>Accessibility</h1>
-      <p class="lead">
-        Bridge targets WCAG 2.2 AA: text needs {THRESHOLDS.text.aa}:1 against its background, control edges, icons and focus rings need
-        {THRESHOLDS.ui.aa}:1. The token build checks every gated color pair in both brands and both themes, so a token change that breaks a pair
-        fails the build before it ships.
-      </p>
-      <Updated date={updated} />
-    </div>
-    <div class="page-head-actions">
-      <a class="btn btn-secondary" href="/studio/checks/"><Icon name="shield" size={16} />Open in Studio Checks</a>
-    </div>
-  </header>
+  <PageHeader className="lib-page-header" title="Accessibility">
+    Bridge targets WCAG 2.2 AA: text needs {THRESHOLDS.text.aa}:1 against its background, control edges, icons and focus rings need {THRESHOLDS.ui.aa}:1. The token build checks every gated color pair in both brands and both themes, so a token change that breaks a pair fails the build before it ships.
+    <Updated slot="meta" date={updated} />
+    <Fragment slot="actions">
+      <ButtonLink variant="secondary" iconStart={ShieldCheck} href="/studio/checks/">Open in Studio Checks</ButtonLink>
+    </Fragment>
+  </PageHeader>
 
   <h2>What every component guarantees</h2>
   <ul class="a11y-floor">
@@ -113,7 +127,7 @@ const need = (p: { min: number }) => p.min;
                         <p class="small muted">
                           {comboLabel(c)}, needs {need(p)}:1
                         </p>
-                        <span class={`pill ${r.aa ? 'is-pass' : 'is-fail'}`}>{r.aa ? 'AA pass' : 'AA fail'}</span>
+                        <Badge tone={r.aa ? 'success' : 'danger'} icon={r.aa ? CircleCheck : CircleAlert} size="sm">{r.aa ? 'AA pass' : 'AA fail'}</Badge>
                       </div>
                     </div>
                   );
@@ -128,63 +142,7 @@ const need = (p: { min: number }) => p.min;
 
   <h3>All pairs</h3>
   <p class="muted">Failing pairs first. Each tile renders the real tokens in that brand and theme, whatever this page is set to.</p>
-  <div class="table-wrap fd-table">
-    <table>
-      <caption class="sr-only">Contrast ratio per token pair, brand and theme</caption>
-      <thead>
-        <tr>
-          <th scope="col">Foreground on background</th>
-          <th scope="col">Use</th>
-          {COMBOS.map((c) => <th scope="col">{comboLabel(c)}</th>)}
-        </tr>
-      </thead>
-      <tbody>
-        {
-          [...pairs]
-            .sort((a, b) => Number(COMBOS.every((c) => res(a, c).aa)) - Number(COMBOS.every((c) => res(b, c).aa)))
-            .map((p) => (
-              <tr>
-                <th scope="row">
-                  <a href={`/foundations/color/#${anchorOf(p.fgToken.cssVar)}`}>{p.fg}</a>
-                  <br />
-                  <span class="muted small">on</span> <a href={`/foundations/color/#${anchorOf(p.bgToken.cssVar)}`}>{p.bg}</a>
-                </th>
-                <td>
-                  <span class="pill">{p.usage === 'text' ? 'Text' : 'UI'}</span>
-                  <span class="muted small num">min {p.min}:1</span>
-                </td>
-                {COMBOS.map((c) => {
-                  const r = res(p, c);
-                  return (
-                    <td>
-                      <div class="ct-cell">
-                        <div class="ct-tile" data-theme={c.m} data-brand={c.b} data-scope-fixed style={`background-color: var(${p.bgToken.cssVar})`}>
-                          {p.usage === 'text' ? (
-                            <span style={`color: var(${p.fgToken.cssVar})`}>Aa</span>
-                          ) : (
-                            <i style={`border-color: var(${p.fgToken.cssVar})`} />
-                          )}
-                        </div>
-                        <div class="ct-cell-meta">
-                          <strong class="num">{r.ratio.toFixed(2)}:1</strong>
-                          <span class="chain">
-                            {r.fgHex} / {r.bgHex}
-                          </span>
-                          <span class="ct-pills">
-                            <span class={`pill ${r.aa ? 'is-pass' : 'is-fail'}`}>{r.aa ? 'AA pass' : 'AA fail'}</span>
-                            {r.aaa !== null && <span class={`pill ${r.aaa ? 'is-pass' : ''}`}>{r.aaa ? 'AAA pass' : 'Not AAA'}</span>}
-                          </span>
-                        </div>
-                      </div>
-                    </td>
-                  );
-                })}
-              </tr>
-            ))
-        }
-      </tbody>
-    </table>
-  </div>
+  <ContrastTable combos={tableCombos} rows={tableRows} />
 
   <h2>What to do with a failing pair</h2>
   <ul>

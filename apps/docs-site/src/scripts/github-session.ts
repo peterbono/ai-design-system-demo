@@ -190,10 +190,17 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
     return;
   }
   const dialog = document.getElementById('gh-dialog') as HTMLDialogElement | null;
-  const input = document.getElementById('gh-token') as HTMLInputElement | null;
-  const error = document.getElementById('gh-error');
-  const forget = document.getElementById('gh-forget');
-  const save = document.getElementById('gh-save') as HTMLButtonElement | null;
+  const input = dialog?.querySelector<HTMLInputElement>('[data-gh-token]') ?? null;
+  const errorBox = dialog?.querySelector<HTMLElement>('[data-gh-error]') ?? null;
+  const errorText = errorBox?.querySelector<HTMLElement>('[data-gh-error-text]') ?? errorBox;
+  // The error is a DS Alert: its text goes in its own span so the tone icon stays.
+  const showError = (message: string | null) => {
+    if (!errorBox || !errorText) return;
+    if (message !== null) errorText.textContent = message;
+    errorBox.hidden = message === null;
+  };
+  const forget = dialog?.querySelector<HTMLElement>('[data-gh-forget-dialog]') ?? null;
+  const save = dialog?.querySelector<HTMLButtonElement>('[data-gh-save]') ?? null;
   if (!dialog || !input || !save) return;
   wired = true;
 
@@ -230,7 +237,7 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
 
   document.addEventListener('click', (e) => {
     if ((e.target as HTMLElement).closest('[data-gh-open]')) {
-      if (error) error.hidden = true;
+      showError(null);
       input.value = '';
       dialog.showModal();
       input.focus();
@@ -239,14 +246,10 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
   save.addEventListener('click', async () => {
     const value = input.value.trim();
     if (!value) {
-      if (error) {
-        error.textContent = 'Paste a token first.';
-        error.hidden = false;
-      }
+      showError('Paste a token first.');
       return;
     }
-    save.disabled = true;
-    save.textContent = 'Checking';
+    setButtonBusy(save, true, 'Checking');
     const previous = getToken();
     setToken(value);
     try {
@@ -256,13 +259,9 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
       notify(viewer);
     } catch (err) {
       setToken(previous);
-      if (error) {
-        error.textContent = (err as Error).message;
-        error.hidden = false;
-      }
+      showError((err as Error).message);
     } finally {
-      save.disabled = false;
-      save.textContent = 'Check and connect';
+      setButtonBusy(save, false, 'Check and connect');
     }
   });
   const disconnect = () => {
@@ -288,7 +287,7 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
       if (!gated) return;
       e.preventDefault();
       e.stopImmediatePropagation();
-      if (error) error.hidden = true;
+      showError(null);
       input.value = '';
       dialog.showModal();
       input.focus();
@@ -350,4 +349,26 @@ export function paintGates(root: ParentNode = document) {
       el.classList.add('has-tip');
     }
   });
+}
+
+/**
+ * DS Button state from a vanilla script. A statically rendered DS Button styles its disabled look from
+ * data-disabled (set once at render) and wraps its text in a label span next to the icon: keep both in sync.
+ */
+export function setButtonDisabled(btn: HTMLButtonElement, disabled: boolean) {
+  btn.disabled = disabled;
+  btn.toggleAttribute('data-disabled', disabled);
+}
+
+/** Sets a DS Button's visible text without removing its icon. */
+export function setButtonLabel(btn: HTMLElement, text: string) {
+  const label = btn.querySelector<HTMLElement>(':scope > span') ?? btn;
+  label.textContent = text;
+}
+
+/** Disables a DS Button while work runs and shows what it does ("Checking"), then restores it. */
+export function setButtonBusy(btn: HTMLButtonElement, busy: boolean, text: string) {
+  setButtonDisabled(btn, busy);
+  btn.toggleAttribute('aria-busy', busy);
+  setButtonLabel(btn, text);
 }

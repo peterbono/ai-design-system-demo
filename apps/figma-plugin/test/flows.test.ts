@@ -190,13 +190,15 @@ test('PR #4 regression: changing color.bg.default fills the contrast column with
   await openPullRequest(client, a, push, { title: 'Canvas tint', notes: '', fileName: 'Test' });
   const cell = row(gh.prs[0]!.body, 'color.bg.default')[4]!;
   assert.notEqual(cell.trim(), '', 'contrast column is filled');
-  // Every pair with color.bg.default as foreground or background, in both brands, light only.
+  // Every pair with color.bg.default as foreground or background, in both brands, light only. The cell lists the
+  // biggest moves and points to the Contrast impact table for the rest, which lists every pair.
   for (const brand of ['Bridge', 'Ocean']) {
-    assert.match(cell, new RegExp(`${brand} light, color\\.text\\.default on color\\.bg\\.default: \\d+(\\.\\d+)? -> \\d+(\\.\\d+)? (AAA|AA)`));
+    assert.match(gh.prs[0]!.body, new RegExp(`\\| \`color\\.text\\.default\` on \`color\\.bg\\.default\` \\| ${brand} light \\| \\d+(\\.\\d+)? \\| \\d+(\\.\\d+)? \\| 4\\.5 \\| (AAA|AA) \\|`));
   }
   assert.doesNotMatch(cell, /dark/);
   const lines = cell.split('<br>');
-  assert.ok(lines.every((l) => /^(Bridge|Ocean) light, \S+ on \S+: \d+(\.\d+)? -> \d+(\.\d+)?/.test(l)), cell);
+  const more = /^and \d+ more \(see Contrast impact\)( \|)?$/;
+  assert.ok(lines.every((l, i) => /^(Bridge|Ocean) light, \S+ on \S+: \d+(\.\d+)? -> \d+(\.\d+)?/.test(l) || (i === lines.length - 1 && more.test(l))), cell);
   assert.ok(lines.some((l) => { const m = /: ([\d.]+) -> ([\d.]+)/.exec(l)!; return m[1] !== m[2]; }), 'ratios moved');
   assert.match(gh.prs[0]!.body, /### Contrast impact/);
 });
@@ -213,7 +215,8 @@ test('PR #4 regression: a brand palette change shows the pairs it reaches throug
   const cells = row(gh.prs[0]!.body, 'palette.neutral.50');
   assert.equal(cells[1], 'Brand');
   assert.match(cells[3]!, /^Bridge: `color\.steel\.50 \(#[0-9a-f]{6}\)` -> `color\.white \(#ffffff\)`<br>Ocean: .* \(unchanged\)$/);
-  assert.match(cells[4]!, /Bridge light, color\.text\.default on color\.bg\.default: \d+(\.\d+)? -> \d+(\.\d+)?/);
+  assert.match(gh.prs[0]!.body, /\| `color\.text\.default` on `color\.bg\.default` \| Bridge light \| \d+(\.\d+)? \| \d+(\.\d+)? \|/);
+  assert.match(cells[4]!, /^Bridge light, /);
   assert.doesNotMatch(cells[4]!, /Ocean/, 'the ocean palette did not change');
 });
 

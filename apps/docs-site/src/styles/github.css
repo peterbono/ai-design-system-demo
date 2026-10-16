@@ -1,52 +1,52 @@
-/* GitHub connection block and dialogs (Reviews, token editor). Chrome tokens only (--br-*). */
+/* GitHub connection block and dialogs (Reviews, token editor). Design system tokens only. */
 
 .gh-connect {
   display: inline-flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: var(--space-3);
 }
 
 .gh-status {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  color: var(--br-text-muted);
-  font-size: var(--br-text-sm);
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-200);
 }
 
 .gh-dot {
-  width: 0.5rem;
-  height: 0.5rem;
-  border-radius: var(--br-radius-pill);
-  background-color: var(--br-text-muted);
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-text-muted);
 }
 
 .gh-connect[data-state="connected"] .gh-dot {
-  background-color: var(--br-pass);
+  background-color: var(--color-feedback-success-text);
 }
 
 .gh-connect[data-state="connected"] .gh-status {
-  color: var(--br-text);
+  color: var(--color-text-default);
 }
 
 .gh-dialog {
-  width: min(32rem, calc(100vw - 2rem));
+  width: min(calc(var(--size-64) * 2), calc(100vw - var(--size-8)));
   padding: 0;
-  border: 1px solid var(--br-border);
-  border-radius: var(--br-radius-card);
-  background-color: var(--br-surface);
-  color: var(--br-text);
-  box-shadow: var(--br-shadow-3);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-container);
+  background-color: var(--color-surface-default);
+  color: var(--color-text-default);
+  box-shadow: var(--elevation-modal);
 }
 
 .gh-dialog::backdrop {
-  background-color: var(--br-scrim);
+  background-color: var(--color-overlay-scrim);
 }
 
 .gh-dialog-box {
   display: grid;
-  gap: 0.75rem;
-  padding: 1.25rem 1.5rem 1.5rem;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-6) var(--space-6);
 }
 
 .gh-dialog-head {
@@ -57,66 +57,66 @@
 
 .gh-dialog-head h2 {
   margin: 0;
-  font-size: var(--br-text-xl);
+  font-size: var(--font-size-400);
 }
 
 .gh-dialog p {
   margin: 0;
-  font-size: var(--br-text-sm);
-  line-height: 1.55;
+  font-size: var(--font-size-200);
+  line-height: var(--font-line-height-normal);
 }
 
 .gh-steps {
   display: grid;
-  gap: 0.375rem;
+  gap: var(--space-1-5);
   margin: 0;
-  padding-left: 1.25rem;
-  color: var(--br-text-muted);
-  font-size: var(--br-text-sm);
+  padding-left: var(--space-5);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-200);
 }
 
 .gh-field {
   display: grid;
-  gap: 0.375rem;
-  font-size: var(--br-text-sm);
-  font-weight: 500;
+  gap: var(--space-1-5);
+  font-size: var(--font-size-200);
+  font-weight: var(--font-weight-medium);
 }
 
 .gh-field input,
 .gh-field textarea,
 .rv-actions textarea {
   width: 100%;
-  min-height: 2.5rem;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--br-border-strong);
-  border-radius: var(--br-radius-control);
-  background-color: var(--br-surface);
-  color: var(--br-text);
+  min-height: var(--size-10);
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width-default) solid var(--color-border-emphasis);
+  border-radius: var(--radius-control);
+  background-color: var(--color-surface-default);
+  color: var(--color-text-default);
   font: inherit;
-  font-size: var(--br-text-sm);
+  font-size: var(--font-size-200);
 }
 
 .gh-field input {
-  font-family: var(--br-font-mono);
+  font-family: var(--font-family-mono);
 }
 
 .gh-field input:focus-visible,
 .gh-field textarea:focus-visible,
 .rv-actions textarea:focus-visible {
-  outline: 2px solid var(--br-focus);
-  outline-offset: 1px;
+  outline: var(--border-width-strong) solid var(--focus-ring-color);
+  outline-offset: var(--border-width-default);
 }
 
 .gh-error {
-  color: var(--br-fail);
-  font-size: var(--br-text-sm);
+  color: var(--color-feedback-danger-text);
+  font-size: var(--font-size-200);
 }
 
 .gh-dialog-foot {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  margin-top: 0.25rem;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
 }
 
 .gh-spacer {

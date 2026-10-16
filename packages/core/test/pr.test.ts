@@ -36,9 +36,11 @@ test('PR body: changing color.bg.default fills the contrast column (PR #4 regres
   const row = body.split('\n').find((l) => l.startsWith('| `color.bg.default` |'))!;
   const cell = row.split(' | ')[4]!;
   const lines = cell.split('<br>');
-  assert.ok(lines.length >= 2 && lines.every((l) => ratioLine.test(l)), cell);
-  assert.match(cell, /Bridge light, color\.text\.default on color\.bg\.default/);
-  assert.match(cell, /Ocean light, color\.text\.default on color\.bg\.default/);
+  // Long lists end with a pointer to the full table ("and 14 more (see Contrast impact)").
+  const more = /^and \d+ more \(see Contrast impact\)( \|)?$/;
+  assert.ok(lines.length >= 2 && lines.every((l, i) => ratioLine.test(l) || (i === lines.length - 1 && more.test(l))), cell);
+  assert.match(body, /`color\.text\.default` on `color\.bg\.default` \| Bridge light/);
+  assert.match(body, /`color\.text\.default` on `color\.bg\.default` \| Ocean light/);
   assert.doesNotMatch(cell, /dark/);
   assert.match(body, /Opened from the Bridge CLI\. the terminal is the editing surface/i);
   assert.match(body, /- \[x\] Tier 3: token change/);

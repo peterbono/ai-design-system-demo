@@ -1,14 +1,26 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import StudioHeader from '../../components/StudioHeader.astro';
-import { adoptionTone, categoryRows, componentBreakdown, formatDelta, formatPct, loadAudits, trendPoints } from '../../lib/audits';
+import { TopFilesTable, TopFixesTable, TrendTable } from '../../components/ds/studio/AdoptionTables';
+import { Badge, Card, CardBody, CardHeader, Icon } from '@bridge-ds/react';
+import { ArrowRight } from 'lucide-react';
+import { adoptionTone, categoryRows, componentBreakdown, formatDelta, formatPct, groupByApp, loadAudits, trendPoints, type TrendPoint } from '../../lib/audits';
 import { PAGE_SOURCES, freshness } from '../../lib/sources';
 import '../../styles/process.css';
 import '../../styles/adoption.css';
 
 const updated = freshness(PAGE_SOURCES.adoption);
-const entries = loadAudits();
-const trend = trendPoints(entries.map((e) => e.report));
+const all = loadAudits();
+const grouped = groupByApp(all);
+// Detailed reports: app by app (newest first inside an app), then reports that match no app.
+const entries = [...grouped.apps.flatMap((a) => [...a.reports].reverse()), ...grouped.other];
+const appOf = (id: string) => grouped.apps.find((a) => a.reports.some((e) => e.id === id))?.app;
+const trends = [
+  ...grouped.apps.map((a) => ({ id: a.app.id, title: a.app.title, points: trendPoints(a.reports.map((e) => e.report)) })),
+  ...(grouped.other.length ? [{ id: 'other', title: 'Other reports', points: trendPoints(grouped.other.map((e) => e.report)) }] : []),
+];
+const pct = (n: number | null) => formatPct(n);
+const diff = (a: number | null | undefined, b: number | null | undefined) => (a === null || a === undefined || b === null || b === undefined ? null : Math.round((b - a) * 10) / 10);
 
 const R = 52;
 const C = 2 * Math.PI * R;
@@ -20,17 +32,17 @@ const w = (n: number, max: number) => `${max ? (n / max) * 100 : 0}%`;
 const TW = 640;
 const TH = 200;
 const PAD = { l: 36, r: 16, t: 12, b: 28 };
-const tx = (i: number) => PAD.l + (trend.length > 1 ? (i / (trend.length - 1)) * (TW - PAD.l - PAD.r) : (TW - PAD.l - PAD.r) / 2);
-const ty = (pct: number) => PAD.t + (1 - pct / 100) * (TH - PAD.t - PAD.b);
-const line = (key: 'tokenAdoption' | 'componentAdoption') =>
+const tx = (trend: TrendPoint[], i: number) => PAD.l + (trend.length > 1 ? (i / (trend.length - 1)) * (TW - PAD.l - PAD.r) : (TW - PAD.l - PAD.r) / 2);
+const ty = (v: number) => PAD.t + (1 - v / 100) * (TH - PAD.t - PAD.b);
+const line = (trend: TrendPoint[], key: 'tokenAdoption' | 'componentAdoption') =>
   trend
-    .map((p, i) => (p[key] === null ? null : `${tx(i)},${ty(p[key]!)}`))
+    .map((p, i) => (p[key] === null ? null : `${tx(trend, i)},${ty(p[key]!)}`))
     .filter(Boolean)
     .join(' ');
 ---
 
 <Layout title="Adoption" description="How much of a product codebase uses the design system: tokens instead of hardcoded values, DS components instead of other UI libraries." sources={PAGE_SOURCES.adoption} updated={updated}>
-  <StudioHeader title="Adoption" subtitle="How much of a product codebase uses the design system tokens and components." />
+  <StudioHeader title="Adoption" subtitle="How much of a product codebase uses the design system tokens and components: the admin demo and Bridge itself, before and after." />
   <details class="ad-howto">
     <summary>How adoption is measured</summary>
     <p>
@@ -41,6 +53,80 @@ const line = (key: 'tokenAdoption' | 'componentAdoption') =>
       charts, and local components that re-create a DS component. Providers do not count.
     </p>
   </details>
+
+  {
+    grouped.apps.length > 0 && (
+      <section class="ad-compare" aria-labelledby="ad-compare-title">
+        <h2 id="ad-compare-title" class="sr-only">Two apps, before and after</h2>
+        {grouped.apps.map(({ app, before, after }) => {
+          const b = before?.report.metrics;
+          const a = after?.report.metrics;
+          const rows = [
+            { label: 'Token adoption', from: b?.tokenAdoption ?? null, to: a?.tokenAdoption ?? null, fmt: pct },
+            { label: 'Component adoption', from: b?.componentAdoption ?? null, to: a?.componentAdoption ?? null, fmt: pct },
+          ];
+          return (
+            <Card className="ad-app">
+              <CardHeader>
+                <h3 class="ad-app-title">{app.title}</h3>
+              </CardHeader>
+              <CardBody>
+                <p class="ad-app-summary">{app.summary}</p>
+                {app.note && <p class="ad-app-note small">{app.note}</p>}
+                <dl class="ad-app-rows">
+                  {rows.map((row) => {
+                    const d = diff(row.from, row.to);
+                    return (
+                      <div class="ad-app-row">
+                        <dt>{row.label}</dt>
+                        <dd>
+                          <span class="num ad-app-before">{row.fmt(row.from)}</span>
+                          {a && (
+                            <>
+                              <Icon icon={ArrowRight} size="sm" className="ad-app-arrow" />
+                              <span class="sr-only">, after:</span>
+                              <span class={`num ad-app-after is-${adoptionTone(row.to)}`}>{row.fmt(row.to)}</span>
+                            </>
+                          )}
+                          {d !== null && (
+                            <Badge size="sm" tone={d >= 0 ? 'success' : 'danger'}>
+                              {formatDelta(d)} points
+                            </Badge>
+                          )}
+                        </dd>
+                      </div>
+                    );
+                  })}
+                  <div class="ad-app-row">
+                    <dt>Hardcoded values</dt>
+                    <dd>
+                      <span class="num ad-app-before">{b?.hardcoded ?? 'n/a'}</span>
+                      {a && (
+                        <>
+                          <Icon icon={ArrowRight} size="sm" className="ad-app-arrow" />
+                          <span class="sr-only">, after:</span>
+                          <span class="num ad-app-after">{a.hardcoded}</span>
+                        </>
+                      )}
+                    </dd>
+                  </div>
+                </dl>
+                <p class="muted small">
+                  {before && <a href={`#${before.id}`}>{before.report.label ?? before.id}</a>}
+                  {after && (
+                    <>
+                      {' '}then <a href={`#${after.id}`}>{after.report.label ?? after.id}</a>
+                    </>
+                  )}
+                  {!after && ', no after report yet'}
+                </p>
+              </CardBody>
+            </Card>
+          );
+        })}
+      </section>
+    )
+  }
 
   {
     entries.length === 0 && (
@@ -62,11 +148,11 @@ const line = (key: 'tokenAdoption' | 'componentAdoption') =>
       <nav class="ad-picker" aria-label="Reports">
         <span class="muted small">Reports</span>
         <ul>
-          {entries.map((e, i) => (
+          {entries.map((e) => (
             <li>
               <a href={`#${e.id}`}>
                 {e.report.label ?? e.id}
-                {i === 0 && <span class="pill is-info">Latest</span>}
+                {appOf(e.id) && <span class="muted"> ({appOf(e.id)!.id === 'admin' ? 'Admin demo' : 'Bridge itself'})</span>}
               </a>
             </li>
           ))}
@@ -282,32 +368,7 @@ const line = (key: 'tokenAdoption' | 'componentAdoption') =>
           {r.topFiles.length === 0 ? (
             <p class="muted">Nothing to fix.</p>
           ) : (
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th scope="col">File</th>
-                    <th scope="col" class="num">Hardcoded</th>
-                    <th scope="col" class="num">Non-DS components</th>
-                    <th scope="col" class="num">Token usages</th>
-                    <th scope="col" class="num">DS components</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {r.topFiles.slice(0, 12).map((f) => (
-                    <tr>
-                      <th scope="row" class="ad-path">
-                        <code>{f.path}</code>
-                      </th>
-                      <td class="num">{f.hardcoded}</td>
-                      <td class="num">{f.otherComponents}</td>
-                      <td class="num">{f.tokenUsages}</td>
-                      <td class="num">{f.dsComponents}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <TopFilesTable rows={r.topFiles.slice(0, 12)} />
           )}
 
           <div class="section-head">
@@ -319,46 +380,7 @@ const line = (key: 'tokenAdoption' | 'componentAdoption') =>
           {r.topFixes.length === 0 ? (
             <p class="muted">No repeated literal.</p>
           ) : (
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th scope="col">Value</th>
-                    <th scope="col">Token</th>
-                    <th scope="col">Confidence</th>
-                    <th scope="col" class="num">Uses</th>
-                    <th scope="col" class="num">Files</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {r.topFixes.slice(0, 15).map((f) => (
-                    <tr>
-                      <th scope="row">
-                        <code>{f.value}</code> <span class="muted small">{f.category}</span>
-                      </th>
-                      <td>
-                        {f.suggestion ? (
-                          <span>
-                            <code>{`var(${f.suggestion.cssVar})`}</code> <span class="muted small">{f.suggestion.value}</span>
-                          </span>
-                        ) : (
-                          <span class="muted">No token fits</span>
-                        )}
-                      </td>
-                      <td>
-                        {f.suggestion ? (
-                          <span class={`pill ${f.suggestion.level === 'exact' ? 'is-pass' : f.suggestion.level === 'high' ? 'is-info' : f.suggestion.level === 'medium' ? 'is-warn' : ''}`}>{f.suggestion.level}</span>
-                        ) : (
-                          <span class="pill is-fail">missing</span>
-                        )}
-                      </td>
-                      <td class="num">{f.count}</td>
-                      <td class="num">{f.files}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <TopFixesTable rows={r.topFixes.slice(0, 15)} />
           )}
 
           {r.baseline && (
@@ -373,11 +395,11 @@ const line = (key: 'tokenAdoption' | 'componentAdoption') =>
   }
 
   {
-    entries.length > 0 && (
-      <section class="ad-trend" aria-labelledby="trend-title">
+    trends.map(({ id, title, points: trend }) => (
+      <section class="ad-trend" aria-labelledby={`trend-${id}-title`}>
         <div class="section-head">
           <div>
-            <h2 id="trend-title">Trend</h2>
+            <h2 id={`trend-${id}-title`}>Trend: {title}</h2>
             <p>Adoption across runs, from each report and the baselines it was compared with.</p>
           </div>
         </div>
@@ -391,50 +413,29 @@ const line = (key: 'tokenAdoption' | 'componentAdoption') =>
               <li><span class="ad-key ad-tok" />Token adoption</li>
               <li><span class="ad-key ad-comp" />Component adoption</li>
             </ul>
-            <svg viewBox={`0 0 ${TW} ${TH}`} role="img" aria-label={`Adoption trend: ${trend.map((p) => `${p.label} tokens ${formatPct(p.tokenAdoption)}, components ${formatPct(p.componentAdoption)}`).join('; ')}`}>
+            <svg viewBox={`0 0 ${TW} ${TH}`} role="img" aria-label={`${title} adoption trend: ${trend.map((p) => `${p.label} tokens ${formatPct(p.tokenAdoption)}, components ${formatPct(p.componentAdoption)}`).join('; ')}`}>
               {[0, 50, 100].map((v) => (
                 <g>
                   <line x1={PAD.l} x2={TW - PAD.r} y1={ty(v)} y2={ty(v)} class="ad-grid" />
                   <text x={PAD.l - 6} y={ty(v)} class="ad-axis" text-anchor="end" dominant-baseline="central">{`${v}%`}</text>
                 </g>
               ))}
-              <polyline points={line('tokenAdoption')} class="ad-line ad-tok" />
-              <polyline points={line('componentAdoption')} class="ad-line ad-comp" />
+              <polyline points={line(trend, 'tokenAdoption')} class="ad-line ad-tok" />
+              <polyline points={line(trend, 'componentAdoption')} class="ad-line ad-comp" />
               {trend.map((p, i) => (
                 <g>
-                  {p.tokenAdoption !== null && <circle cx={tx(i)} cy={ty(p.tokenAdoption)} r="4" class="ad-dot ad-tok" />}
-                  {p.componentAdoption !== null && <circle cx={tx(i)} cy={ty(p.componentAdoption)} r="4" class="ad-dot ad-comp" />}
-                  <text x={tx(i)} y={TH - 8} class="ad-axis" text-anchor="middle">{date(p.generatedAt)}</text>
+                  {p.tokenAdoption !== null && <circle cx={tx(trend, i)} cy={ty(p.tokenAdoption)} r="4" class="ad-dot ad-tok" />}
+                  {p.componentAdoption !== null && <circle cx={tx(trend, i)} cy={ty(p.componentAdoption)} r="4" class="ad-dot ad-comp" />}
+                  <text x={tx(trend, i)} y={TH - 8} class="ad-axis" text-anchor="middle">{date(p.generatedAt)}</text>
                 </g>
               ))}
             </svg>
-            <figcaption class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th scope="col">Run</th>
-                    <th scope="col" class="num">Token adoption</th>
-                    <th scope="col" class="num">Component adoption</th>
-                    <th scope="col" class="num">Hardcoded</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {trend.map((p) => (
-                    <tr>
-                      <th scope="row">
-                        {p.label} <span class="muted small">{date(p.generatedAt)}</span>
-                      </th>
-                      <td class="num">{formatPct(p.tokenAdoption)}</td>
-                      <td class="num">{formatPct(p.componentAdoption)}</td>
-                      <td class="num">{p.hardcoded}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <figcaption>
+              <TrendTable rows={trend.map((p) => ({ label: p.label, date: date(p.generatedAt), tokenAdoption: formatPct(p.tokenAdoption), componentAdoption: formatPct(p.componentAdoption), hardcoded: p.hardcoded }))} />
             </figcaption>
           </figure>
         )}
       </section>
-    )
+    ))
   }
 </Layout>

@@ -4,6 +4,8 @@ import Layout from '../layouts/Layout.astro';
 import Icon from '../components/Icon.astro';
 import SampleScreen from '../components/SampleScreen.astro';
 import Updated from '../components/Updated.astro';
+import { Alert, Button, SegmentedControl } from '@bridge-ds/react';
+import { Moon, Sun } from 'lucide-react';
 import { scaleBaseline } from '../lib/inspect';
 import { lastUpdated } from '../lib/repo';
 import { dashboard } from '../lib/stats';
@@ -43,21 +45,25 @@ const ratios = [
   <Updated date={updated} />
 
   <div class="pg-toolbar" role="toolbar" aria-label="Preview options">
-    <div class="seg" role="radiogroup" aria-label="Themes shown">
-      <button type="button" role="radio" aria-checked="true" data-view="both">Side by side</button>
-      <button type="button" role="radio" aria-checked="false" data-view="light"><Icon name="sun" size={16} />Light</button>
-      <button type="button" role="radio" aria-checked="false" data-view="dark"><Icon name="moon" size={16} />Dark</button>
-    </div>
-    <div class="seg" role="radiogroup" aria-label="Brand">
-      {BRANDS.map((b) => (
-        <button type="button" role="radio" aria-checked={b === 'bridge' ? 'true' : 'false'} data-set-brand={b}>{BRAND_LABEL[b]}</button>
-      ))}
-    </div>
-    <div class="seg" role="radiogroup" aria-label="Density">
-      {DENSITIES.map((d) => (
-        <button type="button" role="radio" aria-checked={d === 'comfortable' ? 'true' : 'false'} data-set-density={d}>{DENSITY_LABEL[d]}</button>
-      ))}
-    </div>
+    <SegmentedControl
+      label="Themes shown"
+      data-vanilla
+      data-pg-view
+      defaultValue="both"
+      items={[
+        { value: 'both', label: 'Side by side' },
+        { value: 'light', label: 'Light', icon: Sun },
+        { value: 'dark', label: 'Dark', icon: Moon },
+      ]}
+    />
+    <SegmentedControl label="Brand" data-vanilla data-pg-scope="brand" defaultValue="bridge" items={BRANDS.map((b) => ({ value: b, label: BRAND_LABEL[b] }))} />
+    <SegmentedControl
+      label="Density"
+      data-vanilla
+      data-pg-scope="density"
+      defaultValue="comfortable"
+      items={DENSITIES.map((d) => ({ value: d, label: DENSITY_LABEL[d] }))}
+    />
     <label class="switch">
       <input type="checkbox" id="pg-outline" />
       <span class="switch-track" aria-hidden="true"></span>
@@ -88,7 +94,7 @@ const ratios = [
           browser only, the design system does not change.
         </p>
       </div>
-      <button type="button" class="btn btn-secondary btn-sm" id="pg-reset">Reset to shipped values</button>
+      <Button variant="secondary" size="sm" id="pg-reset">Reset to shipped values</Button>
     </div>
 
     <div class="knobs">
@@ -130,10 +136,10 @@ const ratios = [
         <p class="knob-foot mono" id="ratio-foot">--font-size-100 to --font-size-600</p>
       </fieldset>
     </div>
-    <p class="tactile-note small">
-      <Icon name="info" size={16} /> Want one of these for real? Propose it with DS Bridge from Figma or open an issue: scale changes are Tier 3 and need
-      both the design and the tech owner.
-    </p>
+    <Alert tone="info" announce="off" className="lib-tactile-alert">
+      Want one of these for real? Propose it with DS Bridge from Figma or open an issue: scale changes are Tier 3 and need both the design and the tech
+      owner.
+    </Alert>
   </section>
 
   <script type="application/json" id="pg-data" set:html={JSON.stringify({ baseline, ratios })} />

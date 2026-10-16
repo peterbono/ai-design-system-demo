@@ -1,0 +1,110 @@
+/* A track on the subtle background; the selected segment is a raised plate. State reads aria-checked (not
+   data-checked) so a statically rendered control can be driven by a script. */
+.root {
+  --_height: var(--control-height-md);
+  --_px: var(--space-3);
+  --_inset: var(--space-0-5);
+
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: stretch;
+  max-width: 100%;
+  min-height: var(--_height);
+  padding: var(--_inset);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-control);
+  background-color: var(--color-bg-subtle);
+  font-family: var(--font-family-sans);
+}
+
+.sm {
+  --_height: var(--control-height-sm);
+  --_px: var(--space-2);
+}
+
+.fullWidth {
+  display: flex;
+  width: 100%;
+}
+
+.fullWidth > .segment {
+  flex: 1 1 0;
+}
+
+.segment {
+  box-sizing: border-box;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1-5);
+  min-width: 0;
+  margin: 0;
+  padding: 0 var(--_px);
+  border: 0;
+  border-radius: var(--radius-inset);
+  background-color: transparent;
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: var(--font-size-200);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--font-line-height-tight);
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition-property: background-color, color, box-shadow;
+  transition-duration: var(--motion-duration-instant);
+  transition-timing-function: var(--motion-easing-standard);
+}
+
+.sm .segment {
+  font-size: var(--font-size-100);
+}
+
+@media (hover: hover) {
+  .segment:hover:not(:disabled, [data-disabled], [aria-checked="true"]) {
+    background-color: var(--color-surface-hover);
+    color: var(--color-text-default);
+  }
+}
+
+.segment:active:not(:disabled, [data-disabled], [aria-checked="true"]) {
+  background-color: var(--color-surface-pressed);
+}
+
+.segment[aria-checked="true"] {
+  background-color: var(--color-surface-default);
+  color: var(--color-text-default);
+  box-shadow: var(--elevation-raised);
+}
+
+.segment:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.segment:disabled,
+.segment[data-disabled] {
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+}
+
+.segment[aria-checked="true"]:disabled,
+.segment[aria-checked="true"][data-disabled] {
+  background-color: var(--color-action-disabled-bg);
+  box-shadow: none;
+}
+
+.leading,
+.icon {
+  display: inline-flex;
+  flex: none;
+}
+
+.label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

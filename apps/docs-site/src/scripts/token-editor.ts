@@ -39,8 +39,8 @@ import {
   type DraftEdit,
   type Guardrails,
 } from '../lib/editor-model';
-import { currentScope } from './shell';
-import { esc, getToken, initGitHubConnect, paintGates, readRepo } from './github-session';
+import { currentScope, selectSegment } from './shell';
+import { esc, getToken, initGitHubConnect, paintGates, readRepo, setButtonDisabled } from './github-session';
 
 /** The config's repository, or the one this site documents when the config names none. */
 function repoOf(config: BridgeConfig): { owner: string; name: string; defaultBranch: string } {
@@ -75,6 +75,8 @@ interface State {
 
 let S: State | null = null;
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T | null;
+/** Fields of the add and propose dialogs, by data-ed-field: DS Input and Textarea do not keep a custom id. */
+const field = <T extends HTMLElement>(name: string) => document.querySelector<T>(`[data-ed-field="${name}"]`);
 
 function loadDraft(): Draft {
   try {
@@ -170,6 +172,32 @@ function rawEditor(t: LogicalToken, value: unknown): string {
   return `<input class="ed-input mono" value="${esc(isAlias(value) ? '' : JSON.stringify(value))}" data-ed-json aria-label="Raw value as JSON" />`;
 }
 
+/**
+ * A static DS SegmentedControl built from the one TokenExplorer.astro renders in `template[data-xp-seg-tpl]`: its
+ * segment is cloned once per option, so the markup and classes stay the design system's. scripts/shell.ts drives it
+ * (data-vanilla) and reports changes with bridge:segment. Null when the page has no template.
+ */
+function segmentedControl(name: string, options: { value: string; label: string }[], value: string): HTMLElement | null {
+  const tpl = document.querySelector<HTMLTemplateElement>('template[data-xp-seg-tpl]');
+  const root = tpl?.content.querySelector('[data-segmented-control]')?.cloneNode(true) as HTMLElement | undefined;
+  const proto = root?.querySelector<HTMLElement>('[data-segment]');
+  if (!root || !proto) return null;
+  root.setAttribute('aria-label', name);
+  root.replaceChildren(
+    ...options.map((o) => {
+      const b = proto.cloneNode(true) as HTMLElement;
+      b.removeAttribute('id');
+      b.removeAttribute('data-composite-item-active');
+      b.dataset.value = o.value;
+      const text = b.querySelector('span');
+      if (text) text.textContent = o.label;
+      return b;
+    }),
+  );
+  selectSegment(root, value);
+  return root;
+}
+
 export function renderEditor(path: string, slot: HTMLElement) {
   if (!S) return;
   const t = (S.applied?.proposed ?? S.head).byPath.get(path) ?? S.head.byPath.get(path);
@@ -191,13 +219,7 @@ export function renderEditor(path: string, slot: HTMLElement) {
       <div class="ed">
         <div class="ed-head"><h3>Edit</h3>${edited ? '<span class="pill is-accent">In draft</span>' : ''}</div>
         <p class="ed-note is-${t.tier}">${esc(TIER_NOTE[t.tier] ?? '')}</p>
-        ${
-          modes.length > 1
-            ? `<div class="ed-modes" role="radiogroup" aria-label="Mode">${modes
-                .map((m) => `<button type="button" role="radio" aria-checked="${m === mode}" data-ed-mode="${esc(m)}">${esc(label(m))}</button>`)
-                .join('')}</div>`
-            : ''
-        }
+        ${modes.length > 1 ? '<div data-ed-modes></div>' : ''}
         <div class="ed-field">
           <label class="ed-label" for="${listId}-in">${t.tier === 'primitive' ? 'Value' : 'Points to'}</label>
           ${
@@ -221,6 +243,24 @@ export function renderEditor(path: string, slot: HTMLElement) {
         </div>
         <div class="ed-live" data-ed-live></div>
       </div>`;
+    const modesSlot = slot.querySelector('[data-ed-modes]');
+    const seg = modesSlot
+      ? segmentedControl(
+          'Mode',
+          modes.map((m) => ({ value: m, label: label(m) })),
+          mode,
+        )
+      : null;
+    if (modesSlot && seg) {
+      seg.setAttribute('data-ed-modes', '');
+      seg.addEventListener('bridge:segment', (e) => {
+        mode = (e as CustomEvent<{ value: string }>).detail.value;
+        slot.dataset.mode = mode;
+        draw();
+        slot.querySelector<HTMLElement>('[data-ed-modes] [aria-checked="true"]')?.focus();
+      });
+      modesSlot.replaceWith(seg);
+    } else modesSlot?.remove();
     paintLive(slot, t);
     paintPreview();
   };
@@ -261,11 +301,7 @@ export function renderEditor(path: string, slot: HTMLElement) {
   slot.onclick = (e) => {
     const b = (e.target as HTMLElement).closest<HTMLElement>('button');
     if (!b) return;
-    if (b.dataset.edMode) {
-      mode = b.dataset.edMode;
-      slot.dataset.mode = mode;
-      draw();
-    } else if (b.dataset.edStep) {
+    if (b.dataset.edStep) {
       const input = slot.querySelector<HTMLInputElement>('[data-ed-num]');
       if (input) {
         input.value = String(Number(input.value) + Number(b.dataset.edStep) * Number(input.step || 1));
@@ -347,7 +383,7 @@ function paintTray() {
   // Drafts never need GitHub: adding, editing and exporting stay in this browser. Only proposing opens a pull
   // request, so it is the one gated action (data-gh-gate): without a connection a click opens Connect GitHub.
   const propose = $<HTMLButtonElement>('ed-propose')!;
-  propose.disabled = !n || fails > 0;
+  setButtonDisabled(propose, !n || fails > 0);
   paintGates(propose.parentElement ?? document);
   const sw = (hex: string | null) => (hex ? `<span class="ed-sw sm" style="background-color:${hex}"></span>` : '');
   const moves = contrastMoves({ contrastBefore: S.contrastBefore, contrastAfter: S.contrastAfter });
@@ -607,10 +643,10 @@ export function initTokenEditor() {
   $('ed-add')?.addEventListener('click', () => ($<HTMLDialogElement>('ed-add-dialog') as HTMLDialogElement | null)?.showModal());
   $('ed-add-save')?.addEventListener('click', () => {
     if (!S) return;
-    const path = ($<HTMLInputElement>('ed-add-path')?.value ?? '').trim();
-    const light = ($<HTMLInputElement>('ed-add-light')?.value ?? '').trim();
-    const dark = ($<HTMLInputElement>('ed-add-dark')?.value ?? '').trim();
-    const err = $('ed-add-error')!;
+    const path = (field<HTMLInputElement>('add-path')?.value ?? '').trim();
+    const light = (field<HTMLInputElement>('add-light')?.value ?? '').trim();
+    const dark = (field<HTMLInputElement>('add-dark')?.value ?? '').trim();
+    const err = field('add-error')!;
     const problem = !/^color(\.[a-z0-9-]+)+$/.test(path)
       ? 'Name it like color.bg.canvas: dot-separated, lowercase, starting with color.'
       : S.head.byPath.has(path)
@@ -618,7 +654,7 @@ export function initTokenEditor() {
         : !S.head.byPath.has(light) || !S.head.byPath.has(dark)
           ? 'Point both themes at existing palette roles, like palette.neutral.50.'
           : '';
-    err.textContent = problem;
+    (err.querySelector('[data-ed-error-text]') ?? err).textContent = problem;
     err.hidden = !problem;
     if (problem) return;
     S.draft.edits.push({ kind: 'add', id: uid(), path, type: 'color', tier: 'semantic', values: { light: `{${light}}`, dark: `{${dark}}` } });
@@ -634,16 +670,16 @@ export function initTokenEditor() {
   $('ed-propose-go')?.addEventListener('click', async () => {
     const go = $<HTMLButtonElement>('ed-propose-go')!;
     const out = $('ed-propose-status')!;
-    go.disabled = true;
+    setButtonDisabled(go, true);
     out.textContent = 'Creating a branch, committing the token files and a changeset, opening the pull request';
     try {
-      const n = await propose($<HTMLInputElement>('ed-propose-title')?.value ?? '', $<HTMLTextAreaElement>('ed-propose-notes')?.value ?? '');
+      const n = await propose(field<HTMLInputElement>('propose-title')?.value ?? '', field<HTMLTextAreaElement>('propose-notes')?.value ?? '');
       S!.draft = emptyDraft();
       saveDraft();
       location.href = `/studio/reviews/?pr=${n}`;
     } catch (err) {
       out.textContent = `Not proposed: ${(err as Error).message}`;
-      go.disabled = false;
+      setButtonDisabled(go, false);
     }
   });
 }

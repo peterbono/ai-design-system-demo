@@ -5,6 +5,7 @@ import Icon from '../../../components/Icon.astro';
 import type { IconName } from '../../../brand/icons';
 import { agentRules, approvals, reviewGates, reviewingAgentPrs, riskTiers } from '../../../lib/governance';
 import { inline } from '../../../lib/markdown';
+import ApprovalMatrix from '../../../components/ds/studio/ApprovalMatrix';
 import { PAGE_SOURCES, freshness } from '../../../lib/sources';
 import '../../../styles/process.css';
 import '../../../styles/studio.css';
@@ -15,6 +16,7 @@ const who = approvals();
 const gates = reviewGates();
 const agentChecks = reviewingAgentPrs();
 const rules = agentRules();
+const matrixRows = who ? who.rows.map((row) => ({ areaHtml: inline(row[0] ?? ''), cells: row.slice(1) })) : [];
 
 const journey: { title: string; text: string; icon: IconName }[] = [
   { icon: 'figma', title: 'Explore in Figma', text: 'A designer tries the change on real screens. Nothing in Figma reaches the product by itself.' },
@@ -76,38 +78,7 @@ const ruleMeta = {
     who && (
       <>
         <h3>By area</h3>
-        <div class="table-wrap">
-          <table class="matrix">
-            <thead>
-              <tr>{who.head.map((h) => <th scope="col">{h}</th>)}</tr>
-            </thead>
-            <tbody>
-              {who.rows.map((row) => (
-                <tr>
-                  {row.map((cell, i) =>
-                    i === 0 ? (
-                      <th scope="row" set:html={inline(cell)} />
-                    ) : (
-                      <td>
-                        {cell === 'Approves' ? (
-                          <span class="mark is-approve">
-                            <Icon name="check" size={16} />
-                            Approves
-                          </span>
-                        ) : (
-                          <span class="mark">
-                            <Icon name="review" size={16} />
-                            {cell}
-                          </span>
-                        )}
-                      </td>
-                    ),
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <ApprovalMatrix head={who.head} rows={matrixRows} />
       </>
     )
   }

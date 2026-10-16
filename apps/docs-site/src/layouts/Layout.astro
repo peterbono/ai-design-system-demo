@@ -5,7 +5,8 @@ import '../styles/site.css';
 import '../styles/github.css';
 import '../styles/spaces.css';
 import '../styles/studio-app.css';
-import { brandCss } from '../brand/tokens';
+import '../styles/ds-library.css';
+import '../styles/ds-studio.css';
 import GitHubAccount from '../components/GitHubAccount.astro';
 import GitHubDialog from '../components/GitHubDialog.astro';
 import Icon from '../components/Icon.astro';
@@ -16,6 +17,12 @@ import { versionInfo } from '../lib/changelog';
 import { BRANDS, BRAND_LABEL, DENSITIES, DENSITY_LABEL } from '../lib/tokens';
 import { GITHUB_URL, STORYBOOK_URL, sourceUrl } from '../lib/repo';
 import { humanDate, repoStatus } from '../lib/stats';
+import { Breadcrumb, Button, IconButton, Kbd } from '@bridge-ds/react';
+import { Blocks, Menu as MenuIcon, Search, SunMoon, X } from 'lucide-react';
+import IconLink from '../components/ds/IconLink';
+import ScopeMenu from '../components/ds/ScopeMenu';
+import VersionMenu from '../components/ds/VersionMenu';
+import { GitHubMark } from '../components/ds/brand-icons';
 
 export interface Crumb {
   label: string;
@@ -60,22 +67,24 @@ else if (here.item && here.item.href !== spaceHome) {
 } else if (path !== spaceHome || space === 'settings') trail.push({ label: title });
 // The Studio is an app: its compact page headers say where you are, so no breadcrumb there.
 const showCrumbs = crumbs !== false && !isHome && !isStudio;
+const crumbItems = trail.map((c, i) => (c.href && i < trail.length - 1 ? { label: c.label, href: c.href } : { label: c.label }));
+const brandOptions = BRANDS.map((b) => ({ value: b, label: BRAND_LABEL[b] }));
+const densityOptions = DENSITIES.map((d) => ({ value: d, label: DENSITY_LABEL[d] }));
 const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of truth' : `${title} | ${SPACE_LABEL[space] === 'Library' ? 'Bridge' : `Bridge ${SPACE_LABEL[space]}`}`;
 ---
 
 <!doctype html>
-<html lang="en" data-theme="light" data-space={space}>
+<html lang="en" data-theme="light" data-brand="bridge" data-density="comfortable" data-space={space}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{pageTitle}</title>
     {description && <meta name="description" content={description} />}
     <meta name="author" content="Florian Gouloubi" />
-    <meta name="theme-color" content="#f2f3f1" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#0f141c" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f4f7fa" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0d1826" media="(prefers-color-scheme: dark)" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="alternate" type="text/plain" href="/llms.txt" title="llms.txt" />
-    <style is:inline set:html={brandCss()}></style>
     <script is:inline>
       (function () {
         var t = null;
@@ -84,17 +93,17 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
         document.documentElement.setAttribute('data-theme', t);
         var b = null, d = null;
         try { b = localStorage.getItem('ds-brand'); d = localStorage.getItem('ds-density'); } catch (e) {}
-        document.documentElement.setAttribute('data-brand', b === 'ocean' ? 'ocean' : 'bridge');
-        document.documentElement.setAttribute('data-density', d === 'compact' ? 'compact' : 'comfortable');
+        // The chrome stays on the bridge brand and comfortable density (attributes above); the picked brand and
+        // density only reach the design system previews (scripts/shell.ts copies them onto every data-theme scope).
+        document.documentElement.setAttribute('data-preview-brand', b === 'ocean' ? 'ocean' : 'bridge');
+        document.documentElement.setAttribute('data-preview-density', d === 'compact' ? 'compact' : 'comfortable');
       })();
     </script>
   </head>
   <body>
     <a class="skip" href="#main">Skip to content</a>
     <header class="topbar">
-      <button type="button" class="icon-btn rail-toggle" id="rail-toggle" aria-controls="rail" aria-expanded="false" aria-label="Open navigation">
-        <Icon name="menu" />
-      </button>
+      <span class="rail-toggle-slot"><IconButton icon={MenuIcon} label="Open navigation" id="rail-toggle" aria-controls="rail" aria-expanded="false" /></span>
       <a class="topbar-brand" href={LIBRARY_HOME} aria-label="Bridge Library, home"><Logo /></a>
 
       {
@@ -113,37 +122,15 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
 
       {
         space === 'library' ? (
-          <details class="menu scope-pick" data-menu id="version-menu">
-            <summary class="scope-pick-trigger" aria-label={`Library version ${version.current}. Change version`} title={`Built from ${repo.branch} at ${repo.sha}, ${humanDate(repo.lastChange)}`}>
-              <Icon name="tag" size={14} />
-              <span class="mono">{version.current}</span>
-              <span class="scope-pick-chev" aria-hidden="true"><Icon name="chevron" size={12} /></span>
-            </summary>
-            <div class="menu-panel" role="group" aria-label="Versions">
-              <p class="menu-title">Version</p>
-              <ul class="menu-list">
-                <li>
-                  <span class="menu-item is-current" aria-current="true">
-                    <span class="mono">{version.current}</span>
-                    <span class="menu-note">Latest, built from {repo.branch} at <span class="mono">{repo.sha}</span></span>
-                    <Icon name="check" size={14} />
-                  </span>
-                </li>
-                {version.past.map((r) => (
-                  <li>
-                    <span class="menu-item is-disabled" aria-disabled="true" title="Archived docs for past versions are coming soon">
-                      <span class="mono">{r.name}</span>
-                      <span class="menu-note">Archived docs coming soon</span>
-                    </span>
-                  </li>
-                ))}
-              </ul>
-              {version.past.length === 0 && <p class="menu-help">No earlier release is tagged yet. Archived docs for past versions are coming soon.</p>}
-              <a class="menu-foot" href="/changelog/">
-                Release notes{version.pending > 0 && <span class="muted"> and {version.pending} unreleased changes</span>}
-              </a>
-            </div>
-          </details>
+          <VersionMenu
+            client:idle
+            current={version.current}
+            past={version.past.map((r) => r.name)}
+            branch={repo.branch}
+            sha={repo.sha}
+            pending={version.pending}
+            builtFrom={`Built from ${repo.branch} at ${repo.sha}, ${humanDate(repo.lastChange)}`}
+          />
         ) : (
           <details class="menu scope-pick" data-menu id="branch-menu">
             <summary class="scope-pick-trigger" aria-label="Branch: main. Change branch" title="Branch this Studio view reads">
@@ -170,11 +157,12 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
         )
       }
 
-      <button type="button" class="search-trigger" id="search-open" aria-haspopup="dialog" aria-controls="palette">
-        <Icon name="search" size={18} />
-        <span class="search-label">Search tokens, components, pages</span>
-        <kbd class="kbd" aria-hidden="true">⌘K</kbd>
-      </button>
+      <Button variant="secondary" iconStart={Search} className="shell-search" id="search-open" aria-haspopup="dialog" aria-controls="palette" aria-label="Search tokens, components, pages">
+        <span class="shell-search-text">
+          <span class="shell-search-label">Search tokens, components, pages</span>
+          <Kbd keys="⌘K" size="sm" className="shell-search-kbd" aria-hidden="true" />
+        </span>
+      </Button>
       <div class="topbar-actions">
         {
           isStudio && (
@@ -188,37 +176,10 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
             </div>
           )
         }
-        <a class="icon-btn" href={STORYBOOK_URL} aria-label="Component workbench (Storybook)" title="Component workbench (Storybook), for contributors"><Icon name="storybook" /></a>
-        <a class="icon-btn" href={GITHUB_URL} aria-label="View the repository on GitHub" title="GitHub"><Icon name="github" /></a>
-        <details class="scope-menu" id="scope-menu">
-          <summary class="scope-trigger" aria-label="Design system preview: brand and density" title="Brand and density of the design system previews">
-            <span class="scope-swatch" aria-hidden="true"></span>
-            <span class="scope-label"><span data-scope-label="brand">Bridge</span><span class="scope-dot" aria-hidden="true"></span><span data-scope-label="density">Comfortable</span></span>
-            <Icon name="chevron" size={14} />
-          </summary>
-          <div class="scope-panel">
-            <p class="scope-title">Previews use</p>
-            <p class="scope-help">Applies to every design system preview on the site. The Bridge app chrome stays the same.</p>
-            <p class="scope-group-label" id="scope-brand-label">Brand</p>
-            <div class="scope-seg" role="radiogroup" aria-labelledby="scope-brand-label">
-              {BRANDS.map((b) => (
-                <button type="button" role="radio" aria-checked={b === 'bridge' ? 'true' : 'false'} data-set-brand={b}>
-                  <span class="scope-chip" data-theme="light" data-brand={b} data-scope-fixed aria-hidden="true"></span>{BRAND_LABEL[b]}
-                </button>
-              ))}
-            </div>
-            <p class="scope-group-label" id="scope-density-label">Density</p>
-            <div class="scope-seg" role="radiogroup" aria-labelledby="scope-density-label">
-              {DENSITIES.map((d) => (
-                <button type="button" role="radio" aria-checked={d === 'comfortable' ? 'true' : 'false'} data-set-density={d}>{DENSITY_LABEL[d]}</button>
-              ))}
-            </div>
-          </div>
-        </details>
-        <button type="button" class="icon-btn theme-toggle" id="theme-toggle" aria-label="Dark theme" aria-pressed="false" title="Toggle dark theme">
-          <span class="when-light"><Icon name="moon" /></span>
-          <span class="when-dark"><Icon name="sun" /></span>
-        </button>
+        <IconLink href={STORYBOOK_URL} icon={Blocks} label="Component workbench (Storybook)" title="Component workbench (Storybook), for contributors" className="shell-ext" />
+        <IconLink href={GITHUB_URL} icon={GitHubMark} label="View the repository on GitHub" title="GitHub" className="shell-ext" />
+        <ScopeMenu client:idle brands={brandOptions} densities={densityOptions} />
+        <IconButton icon={SunMoon} label="Dark theme" id="theme-toggle" aria-pressed="false" title="Toggle dark theme" />
       </div>
     </header>
 
@@ -226,7 +187,7 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
       <nav class="rail" id="rail" aria-label={`${SPACE_LABEL[space]} navigation`}>
         <div class="rail-head">
           <Logo />
-          <button type="button" class="icon-btn" id="rail-close" aria-label="Close navigation"><Icon name="close" /></button>
+          <IconButton icon={X} label="Close navigation" id="rail-close" />
         </div>
         {
           space === 'settings' ? (
@@ -300,19 +261,7 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
       <main id="main" tabindex="-1" class:list={[{ wide, 'has-toc': showToc }]}>
         {
           showCrumbs && (
-            <nav class="crumbs" aria-label="Breadcrumb">
-              <ol>
-                {trail.map((c, i) => (
-                  <li>
-                    {c.href && i < trail.length - 1 ? (
-                      <a href={c.href} data-keep-branch={isStudio || undefined}>{c.label}</a>
-                    ) : (
-                      <span aria-current={i === trail.length - 1 ? 'page' : undefined}>{c.label}</span>
-                    )}
-                  </li>
-                ))}
-              </ol>
-            </nav>
+            <Breadcrumb items={crumbItems} className="shell-crumbs" />
           )
         }
         {
@@ -382,12 +331,12 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
             aria-autocomplete="list"
             aria-label="Search"
           />
-          <kbd class="kbd">esc</kbd>
+          <Kbd keys="Esc" size="sm" />
         </div>
         <ul id="palette-list" class="palette-list" role="listbox" aria-label="Results"></ul>
         <p class="palette-foot">
-          <span><kbd class="kbd">↑</kbd><kbd class="kbd">↓</kbd> to move</span>
-          <span><kbd class="kbd">enter</kbd> to open</span>
+          <span><Kbd keys="↑" size="sm" /> <Kbd keys="↓" size="sm" /> to move</span>
+          <span><Kbd keys="↵" size="sm" /> to open</span>
           <span id="palette-count" aria-live="polite"></span>
         </p>
       </form>

@@ -1,6 +1,8 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import Icon from '../../components/Icon.astro';
+import ButtonLink from '../../components/ds/ButtonLink';
+import { Kbd, PageHeader } from '@bridge-ds/react';
+import { Pencil } from 'lucide-react';
 import Updated from '../../components/Updated.astro';
 import CopyAs from '../../components/foundations/CopyAs.astro';
 import LibraryKit from '../../components/foundations/LibraryKit.astro';
@@ -40,19 +42,13 @@ const semanticUsing = (primitivePath: string) =>
 
 <Layout title="Color" description="Semantic color tokens shown in context in light and dark, and the primitive palette behind them." sources={PAGE_SOURCES.color} updated={updated}>
   <div data-fd-page>
-    <header class="page-head">
-      <div>
-        <h1>Color</h1>
-        <p class="lead">
-          Every color has a job. Each group below shows its tokens at work in both themes, then lists them. Design and build with these semantic
-          tokens; the primitive palette at the end is what they point to.
-        </p>
-        <Updated date={updated} />
-      </div>
-      <div class="page-head-actions">
-        <a class="btn btn-secondary" href="/studio/tokens/?focus=color"><Icon name="edit" size={16} />Edit in Studio</a>
-      </div>
-    </header>
+    <PageHeader className="lib-page-header" title="Color">
+      Every color has a job. Each group below shows its tokens at work in both themes, then lists them. Design and build with these semantic tokens; the primitive palette at the end is what they point to.
+      <Updated slot="meta" date={updated} />
+      <Fragment slot="actions">
+        <ButtonLink variant="secondary" iconStart={Pencil} href="/studio/tokens/?focus=color">Edit in Studio</ButtonLink>
+      </Fragment>
+    </PageHeader>
     <div class="fd-toolbar">
       <p class="fd-hint">Select a token to see its alias chain, contrast pairs and history. Click a name to copy it.</p>
       <CopyAs />
@@ -94,7 +90,7 @@ const semanticUsing = (primitivePath: string) =>
         ))
       }
       <p>
-        Want to know exactly who uses a value? Paste a hex in search (<kbd class="kbd">⌘K</kbd>) or in the <a href="/tokens/">token explorer</a>.
+        Want to know exactly who uses a value? Paste a hex in search (<Kbd keys={['⌘', 'K']} size="sm" />) or in the <a href="/tokens/">token explorer</a>.
       </p>
     </section>
   </div>

@@ -15,7 +15,7 @@ describe('bridge CLI', () => {
   it('check passes on the real repo (exit 0)', () => {
     const r = bridge(REPO, 'check');
     expect(r.code).toBe(0);
-    expect(r.out).toMatch(/contrast: 220 checks, 0 failing/);
+    expect(r.out).toMatch(/contrast: 276 checks, 0 failing/);
     expect(r.out).toMatch(/OK$/m);
   });
 

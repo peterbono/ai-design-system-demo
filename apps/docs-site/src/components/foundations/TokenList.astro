@@ -2,7 +2,8 @@
 // The light token list of a Library foundation page: one row per token with a preview (a dual light and dark swatch
 // for colors and shadows, a shape, bar or sample otherwise), the name once (copies in the page's "Copy as" format),
 // a one-line role, a muted alias line and a neutral usage chip. A click on the row opens the explorer's detail panel.
-import Icon from '../Icon.astro';
+import { IconButton } from '@bridge-ds/react';
+import { ChevronRight } from 'lucide-react';
 import type { FoundationRow } from '../../lib/foundations';
 import { anchorOf, MODES } from '../../lib/tokens';
 
@@ -115,9 +116,7 @@ const short = (r: FoundationRow) => r.type === 'shadow';
               </details>
             )}
           </span>
-          <button type="button" class="fd-open" data-fd-open={r.path} aria-label={`Open details for ${r.path}`} title="Open details">
-            <Icon name="chevron" size={16} />
-          </button>
+          <IconButton icon={ChevronRight} label={`Open details for ${r.path}`} title="Open details" size="sm" className="ds-fd-open" data-fd-open={r.path} />
         </li>
       );
     })

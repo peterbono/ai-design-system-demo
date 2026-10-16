@@ -5,7 +5,7 @@
 // variables (--_bg-hover, --_bg-active), so a static state shows exactly what the pointer would.
 import type { CSSProperties, ReactNode } from 'react';
 import { Check } from 'lucide-react';
-import { Alert, Badge, Button, Checkbox, Input, Kbd, Progress, Switch, Tag as DsTag } from '@bridge-ds/react';
+import { Alert, Badge, Button, Checkbox, Input, Kbd, Progress, Switch, Tag } from '@bridge-ds/react';
 
 export type SpecimenGroup =
   | 'color.bg'
@@ -23,8 +23,11 @@ export type SpecimenGroup =
 
 type Mode = 'light' | 'dark';
 
-/** Small token label inside a specimen: the last segments of the path, in the system's mono face. */
-function Tag({ children, className = '' }: { children: ReactNode; className?: string }) {
+/**
+ * Token caption inside a specimen: names the token that paints the area it sits on, in the system's mono face.
+ * Not a DS Tag: it has no fill of its own, so the surface under it stays the thing being shown.
+ */
+function TokenCaption({ children, className = '' }: { children: ReactNode; className?: string }) {
   return <span className={`sp-tag ${className}`.trim()}>{children}</span>;
 }
 
@@ -34,16 +37,16 @@ const PRESSED: CSSProperties = { backgroundColor: 'var(--_bg-active)' };
 function Backgrounds() {
   return (
     <div className="sp-bg-canvas">
-      <Tag>bg.default</Tag>
+      <TokenCaption>bg.default</TokenCaption>
       <div className="sp-bg-subtle">
-        <Tag>bg.subtle</Tag>
+        <TokenCaption>bg.subtle</TokenCaption>
         <div className="sp-bg-code" aria-hidden="true">
           <span />
           <span />
           <span />
         </div>
         <div className="sp-bg-muted">
-          <Tag>bg.muted</Tag>
+          <TokenCaption>bg.muted</TokenCaption>
           <span className="sp-bg-track" aria-hidden="true" />
         </div>
       </div>
@@ -67,18 +70,18 @@ function Surfaces() {
               {selected && <Check size={14} strokeWidth={1.75} aria-hidden="true" />}
               {label}
             </span>
-            <Tag>{token}</Tag>
+            <TokenCaption>{token}</TokenCaption>
           </div>
         ))}
       </div>
       <div className="sp-surface-float">
         <div className="sp-surface-raised">
           <span>Raised</span>
-          <Tag>surface.raised</Tag>
+          <TokenCaption>surface.raised</TokenCaption>
         </div>
         <div className="sp-surface-inverse">
           <span>Inverse</span>
-          <Tag className="is-inverse">surface.inverse</Tag>
+          <TokenCaption className="is-inverse">surface.inverse</TokenCaption>
         </div>
       </div>
     </div>
@@ -90,19 +93,19 @@ function Texts() {
     <div className="sp-stage">
       <div className="sp-text-card">
         <p className="sp-text is-default">
-          Approve the token change <Tag>text.default</Tag>
+          Approve the token change <TokenCaption>text.default</TokenCaption>
         </p>
         <p className="sp-text is-muted">
-          Edited 2 hours ago by Florian <Tag>text.muted</Tag>
+          Edited 2 hours ago by Florian <TokenCaption>text.muted</TokenCaption>
         </p>
         <p className="sp-text is-disabled">
-          Not available in compact density <Tag>text.disabled</Tag>
+          Not available in compact density <TokenCaption>text.disabled</TokenCaption>
         </p>
         <p className="sp-text">
-          <span className="sp-link">Read the contrast rules</span> <span className="sp-link is-hover">on hover</span> <Tag>text.link</Tag>
+          <span className="sp-link">Read the contrast rules</span> <span className="sp-link is-hover">on hover</span> <TokenCaption>text.link</TokenCaption>
         </p>
         <p className="sp-text is-signal">
-          3 matches in this file <Tag>text.signal</Tag>
+          3 matches in this file <TokenCaption>text.signal</TokenCaption>
         </p>
       </div>
       <div className="sp-text-on">
@@ -117,21 +120,21 @@ function Borders() {
   return (
     <div className="sp-stage sp-border-grid">
       <div className="sp-border-box is-default">
-        <Tag>border.default</Tag>
+        <TokenCaption>border.default</TokenCaption>
         <span className="sp-muted">Card edge</span>
       </div>
       <div className="sp-border-box is-list">
         <span>Row one</span>
         <span>Row two</span>
-        <Tag>border.subtle</Tag>
+        <TokenCaption>border.subtle</TokenCaption>
       </div>
       <div className="sp-border-field is-strong">
         <span className="sp-muted">Control edge</span>
-        <Tag>border.strong</Tag>
+        <TokenCaption>border.strong</TokenCaption>
       </div>
       <div className="sp-border-field is-hover">
         <span className="sp-muted">On hover</span>
-        <Tag>border.hover</Tag>
+        <TokenCaption>border.hover</TokenCaption>
       </div>
     </div>
   );
@@ -161,7 +164,7 @@ function Actions() {
         {variants.map(({ v, label }) => (
           <div role="row" className="sp-action-row" key={v}>
             <span role="rowheader">
-              <Tag>action.{v}</Tag>
+              <TokenCaption>action.{v}</TokenCaption>
             </span>
             <span role="cell">
               <Button variant={v} size="sm" tabIndex={-1}>
@@ -182,7 +185,7 @@ function Actions() {
         ))}
         <div role="row" className="sp-action-row">
           <span role="rowheader">
-            <Tag>action.disabled</Tag>
+            <TokenCaption>action.disabled</TokenCaption>
           </span>
           <span role="cell">
             <Button size="sm" disabled>
@@ -202,7 +205,7 @@ function Controls({ mode }: { mode: Mode }) {
       <Checkbox label="Include compact density" id={`sp-cb-off-${mode}`} />
       <Switch label="Sync from Figma" defaultChecked id={`sp-sw-on-${mode}`} />
       <Switch label="Auto-merge" id={`sp-sw-off-${mode}`} />
-      <Tag>control.checked · control.track · control.thumb</Tag>
+      <TokenCaption>control.checked · control.track · control.thumb</TokenCaption>
     </div>
   );
 }
@@ -217,9 +220,9 @@ function Signals() {
       </div>
       <Progress value={64} label="Publishing tokens" showValue />
       <p className="sp-text">
-        Search: <mark className="sp-mark">bg</mark>.default <Tag>signal.subtle · text.signal</Tag>
+        Search: <mark className="sp-mark">bg</mark>.default <TokenCaption>signal.subtle · text.signal</TokenCaption>
       </p>
-      <Tag>signal.default</Tag>
+      <TokenCaption>signal.default</TokenCaption>
     </div>
   );
 }
@@ -237,7 +240,7 @@ function Overlays() {
           <strong>Delete 3 tokens?</strong>
           <span className="sp-muted">Components that use them fall back to their defaults.</span>
         </div>
-        <Tag className="is-inverse sp-overlay-tag">overlay.scrim</Tag>
+        <TokenCaption className="is-inverse sp-overlay-tag">overlay.scrim</TokenCaption>
       </div>
     </div>
   );
@@ -281,7 +284,7 @@ function Selection() {
         Semantic tokens give each color a job. <span className="sp-selected">Design and build with semantic tokens only</span>, so a brand can
         repaint every screen at once.
       </p>
-      <Tag>selection.bg</Tag>
+      <TokenCaption>selection.bg</TokenCaption>
     </div>
   );
 }
@@ -296,7 +299,7 @@ function Focus({ mode }: { mode: Mode }) {
         <Button variant="secondary" size="sm" className="sp-focus-ring" tabIndex={-1}>
           Preview
         </Button>
-        <Tag>focus.ring.color · width · offset</Tag>
+        <TokenCaption>focus.ring.color · width · offset</TokenCaption>
       </div>
     </div>
   );
@@ -314,7 +317,7 @@ function Elevation() {
       {levels.map(([label, cls, token]) => (
         <div className={`sp-lift ${cls}`} key={cls}>
           <strong>{label}</strong>
-          <Tag>{token}</Tag>
+          <TokenCaption>{token}</TokenCaption>
         </div>
       ))}
     </div>
@@ -374,15 +377,15 @@ export function LayoutSpecimen() {
       <ul className="sp-layout-legend">
         <li>
           <i className="sp-layout-key" aria-hidden="true" />
-          <span>Card padding</span> <Tag>layout.inset</Tag>
+          <span>Card padding</span> <TokenCaption>layout.inset</TokenCaption>
         </li>
         <li>
           <i className="sp-layout-key" aria-hidden="true" />
-          <span>Between blocks</span> <Tag>layout.gap</Tag>
+          <span>Between blocks</span> <TokenCaption>layout.gap</TokenCaption>
         </li>
         <li>
           <i className="sp-layout-key" aria-hidden="true" />
-          <span>Title to badge, between buttons</span> <Tag>control.gap</Tag>
+          <span>Title to badge, between buttons</span> <TokenCaption>control.gap</TokenCaption>
         </li>
       </ul>
     </div>
@@ -397,10 +400,10 @@ export function RadiusSpecimen() {
         <span className="sp-radius-shape is-inset" aria-hidden="true" />
         <div className="sp-radius-demo">
           <Checkbox label="Box" defaultChecked />
-          <DsTag>Tag</DsTag>
+          <Tag>Tag</Tag>
           <Kbd keys="K" />
         </div>
-        <Tag>radius.inset</Tag>
+        <TokenCaption>radius.inset</TokenCaption>
       </div>
       <div className="sp-radius-col">
         <span className="sp-radius-shape is-control" aria-hidden="true" />
@@ -409,21 +412,21 @@ export function RadiusSpecimen() {
             Publish
           </Button>
         </div>
-        <Tag>radius.control</Tag>
+        <TokenCaption>radius.control</TokenCaption>
       </div>
       <div className="sp-radius-col">
         <span className="sp-radius-shape is-container" aria-hidden="true" />
         <div className="sp-radius-demo">
           <span className="sp-radius-card">Card</span>
         </div>
-        <Tag>radius.container</Tag>
+        <TokenCaption>radius.container</TokenCaption>
       </div>
       <div className="sp-radius-col">
         <span className="sp-radius-shape is-overlay" aria-hidden="true" />
         <div className="sp-radius-demo">
           <span className="sp-radius-dialog">Dialog</span>
         </div>
-        <Tag>radius.overlay</Tag>
+        <TokenCaption>radius.overlay</TokenCaption>
       </div>
       <div className="sp-radius-col">
         <span className="sp-radius-shape is-pill" aria-hidden="true" />
@@ -431,7 +434,7 @@ export function RadiusSpecimen() {
           <Badge tone="success">Passed</Badge>
           <Switch label="Sync" defaultChecked />
         </div>
-        <Tag>radius.pill</Tag>
+        <TokenCaption>radius.pill</TokenCaption>
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AuditReport } from '@bridge-ds/core/audit';
-import { adoptionTone, categoryRows, componentBreakdown, formatDelta, formatPct, isAuditReport, parseAudits, trendPoints } from './audits';
+import { adoptionTone, categoryRows, componentBreakdown, formatDelta, formatPct, groupByApp, isAuditReport, parseAudits, trendPoints } from './audits';
 
 const report = (over: Partial<AuditReport> = {}): AuditReport => ({
   schemaVersion: 1,
@@ -68,5 +68,20 @@ describe('audits', () => {
     expect(formatDelta(2.25)).toBe('+2.3');
     expect(adoptionTone(85)).toBe('pass');
     expect(adoptionTone(10)).toBe('fail');
+  });
+
+  it('groups reports by app, before and after side by side', () => {
+    const list = parseAudits({
+      'x/admin-before.json': report({ generatedAt: '2026-10-01T00:00:00.000Z' }),
+      'x/admin-after.json': report({ generatedAt: '2026-10-02T00:00:00.000Z' }),
+      'x/bridge-site-before.json': report({ generatedAt: '2026-10-03T00:00:00.000Z' }),
+      'x/other.json': report(),
+    });
+    const { apps, other } = groupByApp(list);
+    expect(apps.map((a) => [a.app.id, a.before?.id, a.after?.id])).toEqual([
+      ['admin', 'admin-before', 'admin-after'],
+      ['bridge-site', 'bridge-site-before', undefined],
+    ]);
+    expect(other.map((e) => e.id)).toEqual(['other']);
   });
 });

@@ -1,0 +1,132 @@
+/* Studio-side layout glue around @bridge-ds/react components (wrappers, placement only). Tokens only. */
+
+/* DS components set their own display (inline-flex, grid), which beats the UA [hidden] rule. Studio scripts
+   toggle `hidden` on these ones, so keep the attribute meaningful. */
+.st-hideable[hidden] {
+  display: none;
+}
+
+/* Overview, recent activity: the kind badge sits in a grid column without stretching. */
+.st-act-kind {
+  justify-self: start;
+}
+
+/* Versions: the demo history banner above the filters. */
+.st-hs-banner {
+  margin-block-end: var(--space-4);
+}
+
+/* Branches: the "Finish the setup" alert above the list. */
+.st-br-setup {
+  margin-block-end: var(--space-5);
+}
+
+.st-br-setup ul {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  padding-inline-start: var(--space-5);
+}
+
+/* Token explorer: the filters panel's clear button spans the panel grid. */
+.st-xp-clear-filters {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+
+/* Token explorer: the no-match empty state, centred in the grid area. */
+.st-xp-empty {
+  margin-block: var(--space-12);
+}
+
+/* Draft tray on a phone: the actions share the row. */
+@media (max-width: 640px) {
+  .ed-tray-actions > button:not([aria-label]) {
+    flex: 1;
+  }
+}
+
+/* Adoption: the two audited apps side by side, before and after. */
+.ad-compare {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--size-96)), 1fr));
+  gap: var(--layout-gap);
+  margin-block: var(--space-6);
+}
+
+.ad-app-title {
+  margin: 0;
+  font-size: var(--font-size-400);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--font-line-height-snug);
+}
+
+.ad-app-summary {
+  margin: 0 0 var(--space-4);
+  color: var(--color-text-muted);
+}
+
+.ad-app-rows {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-4);
+}
+
+.ad-app-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-2);
+  align-items: baseline;
+  padding-block-end: var(--space-3);
+  border-block-end: var(--border-width-default) solid var(--color-border-default);
+}
+
+.ad-app-row dt {
+  color: var(--color-text-muted);
+}
+
+.ad-app-row dd {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: baseline;
+  margin: 0;
+}
+
+.ad-app-before {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-300);
+}
+
+.ad-app-arrow {
+  align-self: center;
+  color: var(--color-text-muted);
+}
+
+.ad-app-after {
+  font-size: var(--font-size-600);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--font-line-height-tight);
+}
+
+.ad-app-after.is-pass {
+  color: var(--color-feedback-success-text);
+}
+
+.ad-app-after.is-warn {
+  color: var(--color-feedback-warning-text);
+}
+
+.ad-app-after.is-fail {
+  color: var(--color-feedback-danger-text);
+}
+
+/* Token editor: the mode SegmentedControl above the value field. */
+[data-ed-modes] {
+  margin-block-end: var(--space-3);
+}
+
+.ad-app-note {
+  margin: 0 0 var(--space-4);
+  color: var(--color-text-muted);
+}

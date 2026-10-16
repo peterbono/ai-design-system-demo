@@ -3,6 +3,8 @@
 // editor drawer (live component preview, rename, delete), the GitHub and revert dialogs. TokenExplorer includes it in
 // mode="edit"; a page that switches the explorer into edit mode at runtime (the token explorer page) includes it once.
 import Icon from '../Icon.astro';
+import { Alert, Button, IconButton, Input, Textarea } from '@bridge-ds/react';
+import { X } from 'lucide-react';
 import GitHubDialog from '../GitHubDialog.astro';
 import HistoryPlanner from '../HistoryPlanner.astro';
 import EditorPreview from '../EditorPreview.tsx';
@@ -25,16 +27,16 @@ const palette = explorerTokens()
         <Icon name="chevron" size={14} />
       </button>
       <div class="ed-tray-actions">
-        <button type="button" class="btn btn-secondary btn-sm" id="ed-export">Export JSON</button>
-        <button type="button" class="btn btn-primary btn-sm" id="ed-propose" data-gh-gate="open a pull request" disabled>Propose change</button>
-        <button type="button" class="icon-btn ed-tray-close" data-ed-sheet-close aria-label="Close drafts" hidden><Icon name="close" size={18} /></button>
+        <Button variant="secondary" size="sm" id="ed-export">Export JSON</Button>
+        <Button variant="primary" size="sm" id="ed-propose" data-gh-gate="open a pull request" disabled>Propose change</Button>
+        <IconButton icon={X} label="Close drafts" size="sm" className="st-hideable" data-ed-sheet-close hidden />
       </div>
     </div>
     <div class="ed-tray-panel" id="ed-tray-panel">
       <ul class="ed-tray-list" id="ed-tray-list"></ul>
       <div class="ed-tray-foot">
         <p class="small muted">Saved in this browser only, no GitHub needed. Proposing opens a Tier 3 pull request labeled <code>source: bridge-web</code> and needs GitHub.</p>
-        <button type="button" class="btn btn-secondary btn-sm ed-danger" id="ed-discard">Discard draft</button>
+        <Button variant="danger" size="sm" id="ed-discard">Discard draft</Button>
       </div>
     </div>
   </section>
@@ -43,18 +45,18 @@ const palette = explorerTokens()
     <form method="dialog" class="gh-dialog-box">
       <header class="gh-dialog-head">
         <h2 id="ed-add-title">New semantic color</h2>
-        <button type="submit" value="cancel" class="icon-btn" aria-label="Close"><Icon name="close" /></button>
+        <IconButton icon={X} label="Close" size="sm" type="submit" value="cancel" />
       </header>
       <p>A semantic token names a job, like <code>color.bg.canvas</code>. Point each theme at a palette role so brands can re-theme it. It stays a draft in this browser until you propose it; proposing a new token is Tier 3.</p>
-      <label class="gh-field"><span>Name</span><input id="ed-add-path" placeholder="color.bg.canvas" spellcheck="false" autocomplete="off" /></label>
-      <label class="gh-field"><span>Light points to</span><input id="ed-add-light" list="ed-palette" placeholder="palette.neutral.50" spellcheck="false" autocomplete="off" /></label>
-      <label class="gh-field"><span>Dark points to</span><input id="ed-add-dark" list="ed-palette" placeholder="palette.neutral.950" spellcheck="false" autocomplete="off" /></label>
+      <Input label="Name" data-ed-field="add-path" placeholder="color.bg.canvas" spellCheck={false} autoComplete="off" />
+      <Input label="Light points to" data-ed-field="add-light" list="ed-palette" placeholder="palette.neutral.50" spellCheck={false} autoComplete="off" />
+      <Input label="Dark points to" data-ed-field="add-dark" list="ed-palette" placeholder="palette.neutral.950" spellCheck={false} autoComplete="off" />
       <datalist id="ed-palette">{palette.map((p) => <option value={p} />)}</datalist>
-      <p class="gh-error" id="ed-add-error" role="alert" hidden></p>
+      <Alert tone="danger" className="st-hideable" data-ed-field="add-error" hidden><span data-ed-error-text></span></Alert>
       <footer class="gh-dialog-foot">
         <span class="gh-spacer"></span>
-        <button type="submit" value="cancel" class="btn btn-secondary btn-sm">Cancel</button>
-        <button type="button" class="btn btn-primary btn-sm" id="ed-add-save">Add to draft</button>
+        <Button variant="secondary" size="sm" type="submit" value="cancel">Cancel</Button>
+        <Button variant="primary" size="sm" id="ed-add-save">Add to draft</Button>
       </footer>
     </form>
   </dialog>
@@ -63,16 +65,16 @@ const palette = explorerTokens()
     <form method="dialog" class="gh-dialog-box">
       <header class="gh-dialog-head">
         <h2 id="ed-propose-h">Propose change</h2>
-        <button type="submit" value="cancel" class="icon-btn" aria-label="Close"><Icon name="close" /></button>
+        <IconButton icon={X} label="Close" size="sm" type="submit" value="cancel" />
       </header>
       <p>Bridge creates a <code>tokens/*</code> branch, commits the edited token files with minimal diffs and a changeset, and opens a pull request for design and tech review.</p>
-      <label class="gh-field"><span>Title</span><input id="ed-propose-title" placeholder="tokens: soften the page background" /></label>
-      <label class="gh-field"><span>Why</span><textarea id="ed-propose-notes" rows="3" placeholder="What problem this solves, and where reviewers should look."></textarea></label>
+      <Input label="Title" data-ed-field="propose-title" placeholder="tokens: soften the page background" />
+      <Textarea label="Why" data-ed-field="propose-notes" rows={3} placeholder="What problem this solves, and where reviewers should look." />
       <p class="small" id="ed-propose-status" role="status" aria-live="polite"></p>
       <footer class="gh-dialog-foot">
         <span class="gh-spacer"></span>
-        <button type="submit" value="cancel" class="btn btn-secondary btn-sm">Cancel</button>
-        <button type="button" class="btn btn-primary btn-sm" id="ed-propose-go">Open pull request</button>
+        <Button variant="secondary" size="sm" type="submit" value="cancel">Cancel</Button>
+        <Button variant="primary" size="sm" id="ed-propose-go">Open pull request</Button>
       </footer>
     </form>
   </dialog>
@@ -81,7 +83,7 @@ const palette = explorerTokens()
     <div class="gh-dialog-box">
       <header class="gh-dialog-head">
         <h2 id="xp-full-title" class="mono" data-xp-full-title>Edit token</h2>
-        <form method="dialog"><button type="submit" class="icon-btn" aria-label="Close the full editor"><Icon name="close" /></button></form>
+        <form method="dialog"><IconButton icon={X} label="Close the full editor" size="sm" type="submit" /></form>
       </header>
       <div data-xp-full-slot></div>
     </div>

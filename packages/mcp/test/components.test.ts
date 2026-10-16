@@ -11,9 +11,9 @@ beforeAll(async () => {
 });
 
 describe('components and docs (real repo)', () => {
-  it('bridge_list_components: 46 components with family and summary', async () => {
+  it('bridge_list_components: 48 components with family and summary', async () => {
     const l = await ops.listComponentsOp(ctx, {});
-    expect(l.total).toBe(46);
+    expect(l.total).toBe(48);
     const button = l.components.find((c) => c.name === 'Button');
     expect(button?.family).toBe('Actions');
     expect(button?.summary).toMatch(/Triggers an action/);

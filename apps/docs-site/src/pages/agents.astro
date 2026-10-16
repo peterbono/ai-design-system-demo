@@ -2,6 +2,9 @@
 import Layout from '../layouts/Layout.astro';
 import Icon from '../components/Icon.astro';
 import Updated from '../components/Updated.astro';
+import { Alert, Button, PageHeader } from '@bridge-ds/react';
+import AgentToolsTable from '../components/ds/AgentToolsTable';
+import { Copy } from 'lucide-react';
 import { GITHUB_URL, sourceUrl } from '../lib/repo';
 import { PAGE_SOURCES, freshness } from '../lib/sources';
 import { AI_DOC, mcpPrompts, mcpTools, safetyModel } from '../lib/mcp';
@@ -73,17 +76,10 @@ const asks = [
   sources={sources}
   updated={updated}
 >
-  <header class="page-head">
-    <div>
-      <h1>Agents</h1>
-      <p class="lead">
-        Three ways in, all generated from the same token files, components and rules. <a href="#mcp">The MCP server</a> gives Claude Code, Claude
-        Desktop or any MCP client a structured view and proposes changes as pull requests. <a href="#cli">The bridge CLI</a> does the same from a
-        terminal or CI. <a href="#llms">llms.txt</a> is the whole documentation as plain text, for any agent that can read a URL.
-      </p>
-      <Updated date={updated} />
-    </div>
-  </header>
+  <PageHeader className="lib-page-header" title="Agents">
+    Three ways in, all generated from the same token files, components and rules. <a href="#mcp">The MCP server</a> gives Claude Code, Claude Desktop or any MCP client a structured view and proposes changes as pull requests. <a href="#cli">The bridge CLI</a> does the same from a terminal or CI. <a href="#llms">llms.txt</a> is the whole documentation as plain text, for any agent that can read a URL.
+    <Updated slot="meta" date={updated} />
+  </PageHeader>
 
   <ul class="cx-facts" aria-label="At a glance">
     <li><Icon name="check" size={16} /> Free and open source, MIT</li>
@@ -126,10 +122,9 @@ const asks = [
         <span class="terminal-title"><Icon name="terminal" size={15} /> <span>GET /llms.txt</span></span>
         <span class="terminal-actions">
           <a class="terminal-link" href="/llms.txt">Open raw</a>
-          <button type="button" class="copy copy-ui" data-copy="" data-copy-from="llms">
-            <Icon name="copy" size={15} />
+          <Button variant="secondary" size="sm" iconStart={Copy} data-copy="" data-copy-from="llms">
             <span data-copy-label>Copy llms.txt</span>
-          </button>
+          </Button>
         </span>
       </div>
       <pre id="llms" class="terminal-body" tabindex="0" aria-label="Contents of llms.txt">{text}</pre>
@@ -141,13 +136,10 @@ const asks = [
     Tokens resolved in every brand, theme and density, the contrast gate, components with their props and usage docs, and the agent rules. Claude
     builds UI with real tokens and proposes token changes as pull requests your design and tech owners review.
   </p>
-  <div class="callout is-warn" role="note">
-    <Icon name="info" size={20} />
-    <p>
-      <strong>Not published on npm yet.</strong> <code>@bridge-ds/mcp</code> and <code>@bridge-ds/cli</code> run from a local build of this repository, as
-      shown below. The <code>npx</code> form works once they are published.
-    </p>
-  </div>
+  <Alert tone="warning" announce="off" title="Not published on npm yet" className="lib-note">
+    <code>@bridge-ds/mcp</code> and <code>@bridge-ds/cli</code> run from a local build of this repository, as shown below. The <code>npx</code> form
+    works once they are published.
+  </Alert>
 
   <h3 id="build">1. Build once</h3>
   <div class="terminal">
@@ -155,7 +147,7 @@ const asks = [
       <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
       <span class="terminal-title"><Icon name="terminal" size={15} /> <span>Terminal</span></span>
       <span class="terminal-actions">
-        <button type="button" class="copy copy-ui" data-copy={build}><Icon name="copy" size={15} /><span data-copy-label>Copy</span></button>
+        <Button variant="secondary" size="sm" iconStart={Copy} data-copy={build}><span data-copy-label>Copy</span></Button>
       </span>
     </div>
     <pre class="terminal-body cx-pre" tabindex="0" aria-label="Build commands">{build}</pre>
@@ -169,7 +161,7 @@ const asks = [
       <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
       <span class="terminal-title"><Icon name="terminal" size={15} /> <span>Terminal</span></span>
       <span class="terminal-actions">
-        <button type="button" class="copy copy-ui" data-copy={claudeCode}><Icon name="copy" size={15} /><span data-copy-label>Copy</span></button>
+        <Button variant="secondary" size="sm" iconStart={Copy} data-copy={claudeCode}><span data-copy-label>Copy</span></Button>
       </span>
     </div>
     <pre class="terminal-body cx-pre" tabindex="0" aria-label="Claude Code command">{claudeCode}</pre>
@@ -183,7 +175,7 @@ const asks = [
       <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
       <span class="terminal-title"><Icon name="file" size={15} /> <span>.mcp.json</span></span>
       <span class="terminal-actions">
-        <button type="button" class="copy copy-ui" data-copy={projectJson}><Icon name="copy" size={15} /><span data-copy-label>Copy</span></button>
+        <Button variant="secondary" size="sm" iconStart={Copy} data-copy={projectJson}><span data-copy-label>Copy</span></Button>
       </span>
     </div>
     <pre class="terminal-body cx-pre" tabindex="0" aria-label="Project .mcp.json">{projectJson}</pre>
@@ -196,7 +188,7 @@ const asks = [
       <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
       <span class="terminal-title"><Icon name="file" size={15} /> <span>claude_desktop_config.json</span></span>
       <span class="terminal-actions">
-        <button type="button" class="copy copy-ui" data-copy={desktopJson}><Icon name="copy" size={15} /><span data-copy-label>Copy</span></button>
+        <Button variant="secondary" size="sm" iconStart={Copy} data-copy={desktopJson}><span data-copy-label>Copy</span></Button>
       </span>
     </div>
     <pre class="terminal-body cx-pre" tabindex="0" aria-label="Claude Desktop configuration">{desktopJson}</pre>
@@ -215,25 +207,7 @@ const asks = [
   </p>
 
   <h3 id="tools">What Claude can do: {tools.length} tools</h3>
-  <div class="table-wrap">
-    <table class="cx-tools">
-      <thead>
-        <tr><th scope="col">Tool</th><th scope="col">Use it to</th></tr>
-      </thead>
-      <tbody>
-        {
-          tools.map((t) => (
-            <tr>
-              <th scope="row">
-                <code>{t.name}</code>
-              </th>
-              <td set:html={t.use} />
-            </tr>
-          ))
-        }
-      </tbody>
-    </table>
-  </div>
+  <AgentToolsTable tools={tools} />
   {
     prompts.length > 0 && (
       <>
@@ -259,7 +233,7 @@ const asks = [
       <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
       <span class="terminal-title"><Icon name="terminal" size={15} /> <span>Terminal</span></span>
       <span class="terminal-actions">
-        <button type="button" class="copy copy-ui" data-copy={cliRun}><Icon name="copy" size={15} /><span data-copy-label>Copy</span></button>
+        <Button variant="secondary" size="sm" iconStart={Copy} data-copy={cliRun}><span data-copy-label>Copy</span></Button>
       </span>
     </div>
     <pre class="terminal-body cx-pre" tabindex="0" aria-label="Run bridge init">{cliRun}</pre>

@@ -2,7 +2,9 @@
 import '../../../styles/settings.css';
 import Layout from '../../../layouts/Layout.astro';
 import StudioHeader from '../../../components/StudioHeader.astro';
-import Icon from '../../../components/Icon.astro';
+import ButtonLink from '../../../components/ds/ButtonLink';
+import { GitHubMark } from '../../../components/ds/studio/brand-icons';
+import { Badge } from '@bridge-ds/react';
 import { siteRepo } from '../../../lib/config';
 import { exists, GITHUB_URL, lastUpdated, readText, sourceUrl } from '../../../lib/repo';
 import { humanDate, repoStatus } from '../../../lib/stats';
@@ -35,7 +37,7 @@ const rows: { label: string; value: string; mono?: boolean; href?: string }[] = 
 
 <Layout title="Repository" description="The repository and bridge.config.json this Bridge workspace reads: token tiers, modes, contrast gate, owners and previews." sources={[file]} updated={lastUpdated([file])}>
   <StudioHeader title="Repository" subtitle="Read from bridge.config.json. Change it in a pull request: it is a guarded file, reviewed at the highest tier.">
-    <a slot="actions" class="btn btn-secondary btn-sm" href={sourceUrl(file)}><Icon name="github" size={16} />Open on GitHub</a>
+    <Fragment slot="actions"><ButtonLink variant="secondary" size="sm" iconStart={GitHubMark} href={sourceUrl(file)}>Open on GitHub</ButtonLink></Fragment>
   </StudioHeader>
 
   <section class="set-section" aria-labelledby="set-source">
@@ -69,7 +71,7 @@ const rows: { label: string; value: string; mono?: boolean; href?: string }[] = 
             <dt>{axis.charAt(0).toUpperCase() + axis.slice(1)} modes</dt>
             <dd>
               {m.values.map((v) => (
-                <span class:list={['pill', { 'is-accent': v === m.default }]}>{v}{v === m.default ? ', default' : ''}</span>
+                <Badge size="sm" tone={v === m.default ? 'info' : 'neutral'}>{v}{v === m.default ? ', default' : ''}</Badge>
               ))}
             </dd>
           </div>

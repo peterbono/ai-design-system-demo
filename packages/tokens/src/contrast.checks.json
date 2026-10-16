@@ -55,6 +55,20 @@
     ["color.text.on-solid", "color.feedback.warning.solid", 4.5],
     ["color.text.on-solid", "color.feedback.danger.solid", 4.5],
     ["color.text.on-solid", "color.feedback.info.solid", 4.5],
-    ["color.text.default", "color.selection.bg", 4.5]
+    ["color.text.default", "color.selection.bg", 4.5],
+    ["color.chart.series.1", "color.surface.default", 3],
+    ["color.chart.series.1", "color.bg.default", 3],
+    ["color.chart.series.2", "color.surface.default", 3],
+    ["color.chart.series.2", "color.bg.default", 3],
+    ["color.chart.series.3", "color.surface.default", 3],
+    ["color.chart.series.3", "color.bg.default", 3],
+    ["color.chart.series.4", "color.surface.default", 3],
+    ["color.chart.series.4", "color.bg.default", 3],
+    ["color.chart.series.5", "color.surface.default", 3],
+    ["color.chart.series.5", "color.bg.default", 3],
+    ["color.chart.series.6", "color.surface.default", 3],
+    ["color.chart.series.6", "color.bg.default", 3],
+    ["color.chart.axis", "color.surface.default", 4.5],
+    ["color.chart.axis", "color.bg.default", 4.5]
   ]
 }

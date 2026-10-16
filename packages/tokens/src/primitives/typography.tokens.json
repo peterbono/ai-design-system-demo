@@ -85,7 +85,19 @@
         }
       },
       "$type": "dimension",
-      "$description": "Modular scale, ratio 1.2 (minor third) anchored at 14px, rounded to whole pixels."
+      "$description": "Modular scale, ratio 1.2 (minor third) anchored at 14px, rounded to whole pixels.",
+      "900": {
+        "$value": {
+          "value": 50,
+          "unit": "px"
+        }
+      },
+      "1000": {
+        "$value": {
+          "value": 60,
+          "unit": "px"
+        }
+      }
     },
     "weight": {
       "$type": "fontWeight",

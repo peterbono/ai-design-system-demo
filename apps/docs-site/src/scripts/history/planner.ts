@@ -21,7 +21,7 @@ import {
 import { reviewTokenChange } from '../../lib/token-review';
 import { humanAuthored, laterThan, shortDate } from '../../lib/history-view';
 import { renderTokenReview } from '../reviews';
-import { esc, getToken, readRepo } from '../github-session';
+import { esc, getToken, readRepo, setButtonDisabled, setButtonLabel } from '../github-session';
 import { mdTitleHtml } from '../../lib/markdown';
 import { loadHistory, type Loaded } from './state';
 
@@ -164,11 +164,11 @@ function syncFoot() {
   const dl = [$<HTMLButtonElement>('hp-download-json'), $<HTMLButtonElement>('hp-download-md')];
   const ready = plan?.status === 'ready';
   const token = Boolean(getToken());
-  for (const b of dl) if (b) b.disabled = !plan || !plan.files.length;
+  for (const b of dl) if (b) setButtonDisabled(b, !plan || !plan.files.length);
   if (go) {
-    go.textContent = req?.kind === 'restore' ? 'Propose restore' : 'Propose revert';
+    setButtonLabel(go, req?.kind === 'restore' ? 'Propose restore' : 'Propose revert');
     go.hidden = !token;
-    go.disabled = !ready || Boolean(req?.demo);
+    setButtonDisabled(go, !ready || Boolean(req?.demo));
   }
   if (connect) connect.hidden = token || Boolean(req?.demo);
   if (status) {
@@ -240,14 +240,14 @@ function wire() {
   $('hp-propose')?.addEventListener('click', async () => {
     const go = $<HTMLButtonElement>('hp-propose')!;
     const out = $('hp-status')!;
-    go.disabled = true;
+    setButtonDisabled(go, true);
     out.textContent = 'Reading main, creating a bridge/ branch with the token files and a changeset, opening the pull request';
     try {
       const n = await propose();
       location.href = `/studio/reviews/?pr=${n}`;
     } catch (err) {
       out.textContent = `Not proposed: ${(err as Error).message}`;
-      go.disabled = false;
+      setButtonDisabled(go, false);
     }
   });
 }

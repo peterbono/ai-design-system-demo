@@ -1,4 +1,4 @@
-/* Adoption page: gauges, category bars, component split, trend. Chrome tokens only (--br-*). */
+/* Adoption page: gauges, category bars, component split, trend. Design system tokens only. */
 
 .ad-cmd {
   max-width: 100%;
@@ -10,14 +10,14 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem 1rem;
-  margin: 0 0 2rem;
+  gap: var(--space-2) var(--space-4);
+  margin: 0 0 var(--space-8);
 }
 
 .ad-picker ul {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: var(--space-2);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -26,24 +26,24 @@
 .ad-picker a {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.375rem 0.75rem;
-  border: 1px solid var(--br-border);
-  border-radius: var(--br-radius-pill);
-  background-color: var(--br-surface);
-  color: var(--br-text);
-  font-size: var(--br-text-sm);
+  gap: var(--space-2);
+  padding: var(--space-1-5) var(--space-3);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface-default);
+  color: var(--color-text-default);
+  font-size: var(--font-size-200);
   text-decoration: none;
 }
 
 .ad-picker a:hover {
-  border-color: var(--br-border-strong);
+  border-color: var(--color-border-emphasis);
 }
 
 .ad-report {
-  margin: 0 0 3.5rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--br-border);
+  margin: 0 0 calc(var(--space-12) + var(--space-2));
+  padding-top: var(--space-4);
+  border-top: var(--border-width-default) solid var(--color-border-default);
 }
 
 .ad-head {
@@ -51,12 +51,12 @@
   flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
-  gap: 0.5rem 1.5rem;
-  margin-bottom: 1.5rem;
+  gap: var(--space-2) var(--space-6);
+  margin-bottom: var(--space-6);
 }
 
 .ad-head h2 {
-  margin: 0 0 0.25rem;
+  margin: 0 0 var(--space-1);
 }
 
 .ad-head p {
@@ -71,42 +71,42 @@
 
 .ad-gauges {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
-  gap: 1rem;
-  margin-bottom: 2rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--size-80)), 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-8);
 }
 
 .ad-gauge.is-none {
-  --tone: var(--br-text-muted);
+  --tone: var(--color-text-muted);
 }
 
 .ad-gauge {
   display: flex;
   align-items: center;
-  gap: 1.25rem;
+  gap: var(--space-5);
   margin: 0;
-  padding: 1.25rem;
-  border: 1px solid var(--br-border);
-  border-radius: var(--br-radius-card);
-  background-color: var(--br-surface);
-  box-shadow: var(--br-shadow-1);
+  padding: var(--space-5);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-container);
+  background-color: var(--color-surface-default);
+  box-shadow: var(--elevation-raised);
 }
 
 .ad-gauge svg {
-  width: 8.5rem;
+  width: calc(var(--size-40) - var(--size-6));
   height: auto;
   flex-shrink: 0;
 }
 
 .ad-gauge h3 {
-  margin: 0 0 0.25rem;
-  font-family: var(--br-font-display);
-  font-size: var(--br-text-lg);
+  margin: 0 0 var(--space-1);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-300);
 }
 
 .ad-gauge p {
-  margin: 0 0 0.5rem;
-  font-size: var(--br-text-sm);
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-200);
 }
 
 .ad-gauge figcaption {
@@ -116,14 +116,14 @@
 /* The baseline label can be long ("react-admin demo, original MUI source"): let the delta pill wrap. */
 .ad-gauge .pill {
   height: auto;
-  min-height: 1.375rem;
-  padding-block: 0.125rem;
+  min-height: var(--size-6);
+  padding-block: var(--space-0-5);
   white-space: normal;
 }
 
 .ad-ring-track {
   fill: transparent;
-  stroke: var(--br-data-track);
+  stroke: var(--color-chart-track);
   stroke-width: 14;
 }
 
@@ -135,11 +135,11 @@
 }
 
 .ad-ring-value {
-  fill: var(--br-text);
-  font-family: var(--br-font-display);
-  font-size: 1.5rem;
+  fill: var(--color-text-default);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-500);
   font-variant-numeric: tabular-nums;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
 }
 
 /* Keys and bars */
@@ -147,66 +147,66 @@
 .ad-legend {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem 1.25rem;
+  gap: var(--space-2) var(--space-5);
   margin: 0;
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid var(--br-border);
-  color: var(--br-text-muted);
-  font-size: var(--br-text-xs);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: var(--border-width-default) solid var(--color-border-default);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-100);
   list-style: none;
 }
 
 .ad-legend li {
   display: inline-flex;
   align-items: center;
-  gap: 0.375rem;
+  gap: var(--space-1-5);
   margin: 0;
 }
 
 .ad-key {
   display: inline-block;
-  width: 0.75rem;
-  height: 0.75rem;
+  width: var(--size-3);
+  height: var(--size-3);
   flex-shrink: 0;
-  border-radius: var(--br-radius-sm);
+  border-radius: var(--radius-control);
   background-color: var(--c);
 }
 
 .ad-exact {
-  --c: var(--br-data-3);
+  --c: var(--color-chart-series-3);
 }
 
 .ad-near {
-  --c: var(--br-data-4);
+  --c: var(--color-chart-series-4);
 }
 
 .ad-none {
-  --c: var(--br-data-1);
+  --c: var(--color-chart-series-1);
 }
 
 .ad-recreated {
-  --c: var(--br-data-5);
+  --c: var(--color-chart-series-5);
 }
 
 .ad-tok {
-  --c: var(--br-data-2);
+  --c: var(--color-chart-series-2);
 }
 
 .ad-comp {
-  --c: var(--br-data-1);
+  --c: var(--color-chart-series-1);
 }
 
 .ad-cats .ad-bar-col {
   width: 40%;
-  min-width: 8rem;
+  min-width: calc(var(--size-64) / 2);
 }
 
 .ad-track {
   display: flex;
-  height: 0.875rem;
+  height: calc(var(--space-3) + var(--space-0-5));
   overflow: hidden;
-  border-radius: var(--br-radius-pill);
-  background-color: var(--br-data-track);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-chart-track);
 }
 
 .ad-seg {
@@ -217,37 +217,37 @@
 
 .ad-split {
   display: flex;
-  height: 1rem;
-  margin-bottom: 1rem;
+  height: var(--size-4);
+  margin-bottom: var(--space-4);
   overflow: hidden;
-  border-radius: var(--br-radius-pill);
-  background-color: var(--br-data-track);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-chart-track);
 }
 
 /* Component cards */
 
 .ad-comp-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr));
-  gap: 1rem;
-  margin-bottom: 2rem;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, calc(var(--size-60) - var(--space-4))), 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-8);
 }
 
 .ad-card {
   margin: 0;
-  padding: 1rem 1.25rem;
-  border: 1px solid var(--br-border);
-  border-radius: var(--br-radius-card);
-  background-color: var(--br-surface);
-  box-shadow: var(--br-shadow-1);
+  padding: var(--space-4) var(--space-5);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-container);
+  background-color: var(--color-surface-default);
+  box-shadow: var(--elevation-raised);
 }
 
 .ad-card h3 {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  margin: 0 0 0.75rem;
-  font-size: var(--br-text-md);
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-200);
 }
 
 .ad-card h3 code {
@@ -256,17 +256,17 @@
 
 .ad-list {
   display: grid;
-  gap: 0.25rem;
+  gap: var(--space-1);
   margin: 0;
   padding: 0;
-  font-size: var(--br-text-sm);
+  font-size: var(--font-size-200);
   list-style: none;
 }
 
 .ad-list li {
   display: flex;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: var(--space-3);
   margin: 0;
 }
 
@@ -280,7 +280,7 @@
   display: block;
   width: 100%;
   height: auto;
-  margin: 1rem 0;
+  margin: var(--space-4) 0;
 }
 
 .ad-trend-chart .ad-legend {
@@ -294,13 +294,13 @@
 }
 
 .ad-grid {
-  stroke: var(--br-border);
+  stroke: var(--color-chart-grid);
   stroke-dasharray: 3 3;
 }
 
 .ad-axis {
-  fill: var(--br-text-muted);
-  font-size: 0.6875rem;
+  fill: var(--color-chart-axis);
+  font-size: var(--font-size-100);
 }
 
 .ad-line {
@@ -310,7 +310,7 @@
 }
 
 .ad-dot {
-  fill: var(--br-surface);
+  fill: var(--color-surface-default);
   stroke: var(--c);
   stroke-width: 2.5;
 }
@@ -324,17 +324,17 @@
 
 /* Studio density: card titles in UI type, the measuring rules folded under the header. */
 .ad-head h2 {
-  font-family: var(--br-font-ui);
-  font-size: var(--br-text-md);
-  font-weight: 600;
-  letter-spacing: -0.005em;
-  line-height: 1.35;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-200);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--font-tracking-snug);
+  line-height: var(--font-line-height-snug);
 }
 
 .ad-howto {
-  margin: -0.5rem 0 1.25rem;
-  color: var(--br-text-muted);
-  font-size: var(--br-text-sm);
+  margin: calc(var(--space-2) * -1) 0 var(--space-5);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-200);
 }
 
 .ad-howto summary {
@@ -344,5 +344,5 @@
 
 .ad-howto p {
   max-width: 80ch;
-  margin: 0.5rem 0 0;
+  margin: var(--space-2) 0 0;
 }

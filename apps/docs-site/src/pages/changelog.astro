@@ -2,7 +2,8 @@
 import Layout from '../layouts/Layout.astro';
 import Icon from '../components/Icon.astro';
 import Updated from '../components/Updated.astro';
-import type { IconName } from '../brand/icons';
+import { Badge, Button, EmptyState, type BadgeTone } from '@bridge-ds/react';
+import { Check, Clock, Copy, FileText, Plus, SlidersHorizontal, TriangleAlert, Wrench, type LucideIcon } from 'lucide-react';
 import { releases } from '../lib/changelog';
 import { mdTitleHtml } from '../lib/markdown';
 import { GITHUB_URL, sourceUrl } from '../lib/repo';
@@ -14,16 +15,16 @@ const all = releases();
 const updated = all[0]?.date ?? freshness(PAGE_SOURCES.changelog);
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
-const KINDS: { kind: string; tone: string; icon: IconName; meaning: string }[] = [
-  { kind: 'Breaking', tone: 'fail', icon: 'alert', meaning: 'needs action before you update' },
-  { kind: 'New', tone: 'info', icon: 'plus', meaning: 'adds an option, nothing breaks' },
-  { kind: 'Fix', tone: 'pass', icon: 'check', meaning: 'matches the spec again' },
-  { kind: 'Improvement', tone: 'accent', icon: 'sliders', meaning: 'faster or smoother, same API' },
-  { kind: 'Docs', tone: 'neutral', icon: 'doc', meaning: 'guidance only' },
-  { kind: 'Internal', tone: 'neutral', icon: 'wrench', meaning: 'changes nothing you see' },
+// Badge has no accent tone: Improvement reads as neutral, its icon and text carry the meaning.
+const KINDS: { kind: string; tone: BadgeTone; icon: LucideIcon; meaning: string }[] = [
+  { kind: 'Breaking', tone: 'danger', icon: TriangleAlert, meaning: 'needs action before you update' },
+  { kind: 'New', tone: 'info', icon: Plus, meaning: 'adds an option, nothing breaks' },
+  { kind: 'Fix', tone: 'success', icon: Check, meaning: 'matches the spec again' },
+  { kind: 'Improvement', tone: 'neutral', icon: SlidersHorizontal, meaning: 'faster or smoother, same API' },
+  { kind: 'Docs', tone: 'neutral', icon: FileText, meaning: 'guidance only' },
+  { kind: 'Internal', tone: 'neutral', icon: Wrench, meaning: 'changes nothing you see' },
 ];
 const kindOf = (k: string) => KINDS.find((x) => x.kind === k) ?? KINDS[KINDS.length - 1]!;
-const toneClass = (tone: string) => (tone === 'neutral' ? 'pill' : `pill is-${tone}`);
 const counts = (entries: { kind: string }[]) =>
   KINDS.map((k) => ({ ...k, n: entries.filter((e) => e.kind === k.kind).length })).filter((k) => k.n > 0);
 const visibleKinds = KINDS.filter((k) => all.some((r) => r.entries.some((e) => e.kind === k.kind)));
@@ -42,10 +43,7 @@ const visibleKinds = KINDS.filter((k) => all.some((r) => r.entries.some((e) => e
     {
       (visibleKinds.length ? visibleKinds : KINDS).map((k) => (
         <li>
-          <span class={toneClass(k.tone)}>
-            <Icon name={k.icon} size={13} />
-            {k.kind}
-          </span>
+          <Badge tone={k.tone} icon={k.icon}>{k.kind}</Badge>
           <span class="muted">{k.meaning}</span>
         </li>
       ))
@@ -54,13 +52,11 @@ const visibleKinds = KINDS.filter((k) => all.some((r) => r.entries.some((e) => e
 
   {
     all.length === 0 ? (
-      <div class="process-empty">
-        <Icon name="clock" size={28} />
-        <h2>No changes recorded yet</h2>
-        <p class="muted">
+      <EmptyState icon={Clock} title="No changes recorded yet" headingLevel={2}>
+        <Fragment slot="description">
           The first changeset or conventional commit shows up here on the next build. Run <code>npm run changeset</code> in a pull request to add one.
-        </p>
-      </div>
+        </Fragment>
+      </EmptyState>
     ) : (
       <ol class="timeline">
         {all.map((r) => (
@@ -71,7 +67,7 @@ const visibleKinds = KINDS.filter((k) => all.some((r) => r.entries.some((e) => e
                 <div class="release-title">
                   <h2 id={`r-${slug(r.name)}`}>{r.name}</h2>
                   <p class="release-meta">
-                    <span class={r.pending ? 'pill is-warn' : 'pill is-pass'}>{r.pending ? 'Pending release' : 'Released'}</span>
+                    <Badge tone={r.pending ? 'warning' : 'success'}>{r.pending ? 'Pending release' : 'Released'}</Badge>
                     {r.date && (
                       <span class="muted small">
                         {r.pending ? 'Latest change' : 'Released'} <time datetime={r.date}>{humanDate(r.date)}</time>
@@ -93,10 +89,7 @@ const visibleKinds = KINDS.filter((k) => all.some((r) => r.entries.some((e) => e
                   const k = kindOf(e.kind);
                   return (
                     <li class="entry-row">
-                      <span class={toneClass(k.tone)}>
-                        <Icon name={k.icon} size={13} />
-                        {e.kind}
-                      </span>
+                      <Badge tone={k.tone} icon={k.icon}>{e.kind}</Badge>
                       <div class="entry-main">
                         <p class="entry-title" set:html={mdTitleHtml(e.title)} />
                         <p class="entry-foryou">
@@ -131,10 +124,9 @@ const visibleKinds = KINDS.filter((k) => all.some((r) => r.entries.some((e) => e
                     <h3 id={`a-${slug(r.name)}`}>Announcement</h3>
                     <p class="muted small">Ready to paste into Slack, Teams or an email.</p>
                   </div>
-                  <button type="button" class="copy copy-ui" data-copy="" data-copy-from={`s-${slug(r.name)}`} aria-describedby={`a-${slug(r.name)}`}>
-                    <Icon name="copy" size={15} />
+                  <Button variant="secondary" size="sm" iconStart={Copy} className="announce-copy" data-copy="" data-copy-from={`s-${slug(r.name)}`} aria-describedby={`a-${slug(r.name)}`}>
                     <span data-copy-label>Copy for Slack or email</span>
-                  </button>
+                  </Button>
                 </div>
                 <pre class="announce-body" id={`s-${slug(r.name)}`}>{r.announcement}</pre>
               </div>

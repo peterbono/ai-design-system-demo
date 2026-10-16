@@ -1,6 +1,8 @@
 ---
+import { PageHeader } from '@bridge-ds/react';
 import Layout from '../../layouts/Layout.astro';
-import Icon from '../../components/Icon.astro';
+import ButtonLink from '../../components/ds/ButtonLink';
+import { Pencil } from 'lucide-react';
 import Updated from '../../components/Updated.astro';
 import CopyAs from '../../components/foundations/CopyAs.astro';
 import LibraryKit from '../../components/foundations/LibraryKit.astro';
@@ -13,6 +15,8 @@ const updated = freshness(PAGE_SOURCES.typography);
 // Roles, line heights and tracking per step come from docs/DESIGN-LANGUAGE.md (section 5), mapped to the
 // nearest token of the scale.
 const STEPS: Record<string, { role: string; leading: string; tracking: string }> = {
+  '1000': { role: 'Landing hero only', leading: 'none', tracking: 'tighter' },
+  '900': { role: 'Landing display, KPI numbers', leading: 'none', tracking: 'tighter' },
   '800': { role: 'Rare display moments', leading: 'tight', tracking: 'tighter' },
   '700': { role: 'Empty states, onboarding', leading: 'tight', tracking: 'tighter' },
   '600': { role: 'Page titles', leading: 'tight', tracking: 'tight' },
@@ -49,19 +53,13 @@ const lh = (name: string) => primitiveRows('font.line-height').find((r) => r.pat
 
 <Layout title="Typography" description="The type scale at every step, weights, line heights, tracking and font families." sources={PAGE_SOURCES.typography} updated={updated}>
   <div data-fd-page>
-    <header class="page-head">
-      <div>
-        <h1>Typography</h1>
-        <p class="lead">
-          IBM Plex Sans for interface text, IBM Plex Mono for code and token names. Eight sizes on a 1.2 ratio from a 14 px base. If a design needs a
-          step that is not here, propose a token instead of picking a value by eye.
-        </p>
-        <Updated date={updated} />
-      </div>
-      <div class="page-head-actions">
-        <a class="btn btn-secondary" href="/studio/tokens/?focus=font"><Icon name="edit" size={16} />Edit in Studio</a>
-      </div>
-    </header>
+    <PageHeader className="lib-page-header" title="Typography">
+      IBM Plex Sans for interface text, IBM Plex Mono for code and token names. Ten sizes on a 1.2 ratio from a 14 px base; the two largest are for landing heroes only. If a design needs a step that is not here, propose a token instead of picking a value by eye.
+      <Updated slot="meta" date={updated} />
+      <Fragment slot="actions">
+        <ButtonLink variant="secondary" iconStart={Pencil} href="/studio/tokens/?focus=font">Edit in Studio</ButtonLink>
+      </Fragment>
+    </PageHeader>
     <div class="fd-toolbar">
       <p class="fd-hint">Select a token to see where it is used and its history. Click a name to copy it.</p>
       <CopyAs />
