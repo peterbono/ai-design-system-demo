@@ -37,14 +37,16 @@ body.no-scroll {
   color: var(--br-text);
 }
 
+/* Links are ink with a quiet underline. Orange is the signal (focus, current page, active tab), never a link color. */
 a {
-  color: var(--br-accent-text);
+  color: var(--br-text);
+  text-decoration-color: var(--br-border-strong);
   text-decoration-thickness: 1px;
   text-underline-offset: 0.22em;
 }
 
 a:hover {
-  text-decoration-thickness: 2px;
+  text-decoration-color: currentcolor;
 }
 
 :focus-visible {
@@ -947,25 +949,6 @@ tr:target {
   flex-shrink: 0;
 }
 
-.swatch-cell {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  min-width: 11rem;
-  padding: 0.375rem 0.5rem;
-  border-radius: var(--br-radius-sm);
-  background-color: var(--color-bg-default);
-  color: var(--color-text-default);
-}
-
-.swatch-cell .chain {
-  color: var(--color-text-muted);
-}
-
-.swatch-cell .chain a {
-  color: var(--color-action-ghost-text);
-}
-
 .preview {
   display: grid;
   gap: 1rem;
@@ -1020,39 +1003,6 @@ tr:target {
 
 .chip-meta strong {
   font-size: var(--br-text-sm);
-}
-
-.bar {
-  height: 1rem;
-  min-width: 1px;
-  border-radius: 4px;
-  background-color: var(--br-accent);
-}
-
-.radius-demo {
-  width: 3rem;
-  height: 3rem;
-  border: 2px solid var(--br-accent);
-  background-color: var(--br-accent-soft);
-}
-
-.shadow-stage {
-  display: grid;
-  gap: 1.5rem;
-  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
-  padding: 1.5rem;
-}
-
-.shadow-demo {
-  display: grid;
-  place-items: center;
-  height: 6rem;
-  padding: 0.5rem;
-  border-radius: var(--radius-lg);
-  background-color: var(--color-surface-raised);
-  color: var(--color-text-muted);
-  font-size: var(--br-text-xs);
-  text-align: center;
 }
 
 /* Lookup */

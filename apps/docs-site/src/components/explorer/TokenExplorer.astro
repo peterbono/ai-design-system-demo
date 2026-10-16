@@ -12,10 +12,7 @@ import '../../styles/token-explorer.css';
 import Icon from '../Icon.astro';
 import GitHubConnect from '../GitHubConnect.astro';
 import TokenEditorKit from './TokenEditorKit.astro';
-import { explorerTokens } from '../../lib/explorer';
-import { listDir, readText, exists } from '../../lib/repo';
-import { CONTRAST_FILE } from '../../lib/contrast';
-import { siteRepo } from '../../lib/config';
+import ExplorerData from './ExplorerData.astro';
 import { CATEGORY_LABEL, CATEGORY_ORDER, SYNTAX_LABEL } from '../../lib/explorer/format';
 import { TIER_NAMES, TIER_ORDER } from '@bridge-ds/core';
 
@@ -24,19 +21,6 @@ interface Props {
   focus?: string;
 }
 const { mode, focus } = Astro.props;
-
-const root = siteRepo().tokensRoot;
-const files: Record<string, string> = {};
-for (const dir of listDir(root).filter((d) => !d.includes('.'))) {
-  for (const f of listDir(`${root}/${dir}`)) if (f.endsWith('.tokens.json')) files[`${dir}/${f}`] = readText(`${root}/${dir}/${f}`);
-}
-// Build-time usage: which components read each token, directly or through an alias (component CSS scan).
-const usage = Object.fromEntries(explorerTokens().map((t) => [t.path, { used: t.used, usedBy: t.usedBy }]));
-const safe = (s: string) => s.replace(/</g, '\\u003c');
-const filesJson = safe(JSON.stringify(files));
-const usageJson = safe(JSON.stringify(usage));
-const configJson = safe(exists('bridge.config.json') ? readText('bridge.config.json') : '{}');
-const checksJson = safe(readText(CONTRAST_FILE));
 ---
 
 <div class="xp" data-xp data-mode={mode} data-focus={focus ?? ''}>
@@ -117,10 +101,7 @@ const checksJson = safe(readText(CONTRAST_FILE));
   <aside class="xp-detail" aria-labelledby="xp-d-title" data-xp-detail hidden></aside>
 </div>
 
-<script type="application/json" id="xp-files" set:html={filesJson} />
-<script type="application/json" id="xp-config" set:html={configJson} />
-<script type="application/json" id="xp-checks" set:html={checksJson} />
-<script type="application/json" id="xp-usage" set:html={usageJson} />
+<ExplorerData />
 {mode === 'edit' && <TokenEditorKit />}
 
 <script>

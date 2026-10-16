@@ -2,7 +2,7 @@
 // column per relevant mode in the center, a detail panel with the token flow on the right. Builds the token set in
 // the browser with @bridge-ds/core from the embedded token files. In edit mode, cells edit through the existing
 // token editor (draft, guardrails, tray, pull request); the page's "Edit tokens" toggle switches modes at runtime.
-import { buildTokenSet, contrastScope, evaluatePairs, layoutOptions, loadConfig, parseContrastChecks, TIER_ORDER, type Tier } from '@bridge-ds/core';
+import { TIER_ORDER, type Tier } from '@bridge-ds/core';
 import { CATEGORY_LABEL, CATEGORY_ORDER, modeName, typeCategory, type Syntax, type TypeCategory } from '../../lib/explorer/format';
 import {
   activeFilterCount,
@@ -23,6 +23,7 @@ import {
 } from '../../lib/explorer/model';
 import { initTokenHistoryPanel } from '../history/token-panel';
 import { editorReady, editorSnapshot, initTokenEditor, renderEditor, setEditing } from '../token-editor';
+import { loadExplorerData } from './data';
 import { renderDetail, syntaxes } from './detail';
 import { refreshRow, renderGrid } from './grid';
 import { closeInlineEditor, inlineEditorOpen, openInlineEditor } from './inline-edit';
@@ -32,16 +33,6 @@ import { copyText, esc, icon } from './util';
 const NARROW = '(max-width: 1099px)';
 let historyPanelReady = false;
 
-function readJson<T>(id: string, fallback: T): T {
-  const el = document.getElementById(id);
-  if (!el?.textContent) return fallback;
-  try {
-    return JSON.parse(el.textContent) as T;
-  } catch {
-    return fallback;
-  }
-}
-
 export function initTokenExplorer() {
   const found = document.querySelector<HTMLElement>('[data-xp]');
   if (!found || found.dataset.ready) return;
@@ -50,15 +41,8 @@ export function initTokenExplorer() {
   const t0 = performance.now();
 
   // ---- data
-  const files = readJson<Record<string, string>>('xp-files', {});
-  const config = loadConfig(document.getElementById('xp-config')?.textContent || '{}');
-  const head = buildTokenSet(files, layoutOptions(config));
-  const pairs = parseContrastChecks(document.getElementById('xp-checks')?.textContent || undefined);
-  const usage = readJson<UsageMap>('xp-usage', {});
-  const results = evaluatePairs(head.byPath, pairs, contrastScope(head));
-  const modes = modesOf(head);
-  const tokens = buildTokens(head, usage);
-  const d: ExplorerData = { set: head, head, tokens, byPath: new Map(tokens.map((t) => [t.path, t])), usage, pairs, results, before: [], modes };
+  const d: ExplorerData = loadExplorerData();
+  const { results, modes } = d;
   const buildMs = performance.now() - t0;
 
   // ---- elements

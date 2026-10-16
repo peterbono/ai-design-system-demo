@@ -1,0 +1,32 @@
+---
+// One token group of a Library foundation page: heading, the group's usage note, the specimen in both themes, then
+// the light list. Visual first, detail on demand (a row opens the detail drawer).
+import SpecimenPair from './SpecimenPair.astro';
+import TokenList, { type Preview } from './TokenList.astro';
+import type { SpecimenGroup } from './Specimens.tsx';
+import type { FoundationRow } from '../../lib/foundations';
+import { groupTitle } from '../../lib/library-rows';
+import { groupUsage } from '../../lib/sources';
+
+interface Props {
+  group: string;
+  rows: FoundationRow[];
+  preview: Preview;
+  specimen?: SpecimenGroup;
+  title?: string;
+  note?: string;
+}
+const { group, rows, preview, specimen, title = groupTitle(group), note = groupUsage(group) } = Astro.props;
+const id = `g-${group.replace(/\./g, '-')}`;
+---
+
+<section class="fd-group" aria-labelledby={id}>
+  <header class="fd-group-head">
+    <h2 id={id}>{title}</h2>
+    <code class="fd-group-path">{group}</code>
+    <span class="fd-group-n">{rows.length} {rows.length === 1 ? 'token' : 'tokens'}</span>
+  </header>
+  {note && <p class="fd-group-note">{note}</p>}
+  {specimen && <SpecimenPair group={specimen} label={`${title} tokens in light and dark`} />}
+  <TokenList rows={rows} preview={preview} label={`${title} tokens`} />
+</section>

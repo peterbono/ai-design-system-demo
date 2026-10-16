@@ -1,0 +1,21 @@
+---
+// The data the token explorer and the token detail drawer build their token set from, embedded as JSON: the token
+// files of this build, bridge.config.json, the contrast checks and build-time usage (which components read each
+// token, from the component CSS scan). Mount it once per page; scripts/explorer/data.ts reads it.
+import { explorerTokens, tokenFiles } from '../../lib/explorer';
+import { readText, exists } from '../../lib/repo';
+import { CONTRAST_FILE } from '../../lib/contrast';
+
+const files = tokenFiles();
+const usage = Object.fromEntries(explorerTokens().map((t) => [t.path, { used: t.used, usedBy: t.usedBy }]));
+const safe = (s: string) => s.replace(/</g, '\\u003c');
+const filesJson = safe(JSON.stringify(files));
+const usageJson = safe(JSON.stringify(usage));
+const configJson = safe(exists('bridge.config.json') ? readText('bridge.config.json') : '{}');
+const checksJson = safe(readText(CONTRAST_FILE));
+---
+
+<script type="application/json" id="xp-files" set:html={filesJson} />
+<script type="application/json" id="xp-config" set:html={configJson} />
+<script type="application/json" id="xp-checks" set:html={checksJson} />
+<script type="application/json" id="xp-usage" set:html={usageJson} />

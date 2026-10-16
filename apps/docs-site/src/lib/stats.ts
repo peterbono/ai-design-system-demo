@@ -48,6 +48,16 @@ export interface Issue {
 /** Library stylesheets outside the component folders that ship with it: base styles and theme (stories excluded). */
 const GLOBAL_STYLE_DIRS = ['packages/react/src/styles', 'packages/react/src/theme'];
 
+let globalCache: Record<string, string[]> | null = null;
+/** Global stylesheet -> CSS custom properties it reads (base styles, theme), for tokenUsage and the Library rows. */
+export function globalStyleVars(): Record<string, string[]> {
+  if (globalCache) return globalCache;
+  const out: Record<string, string[]> = {};
+  for (const dir of GLOBAL_STYLE_DIRS)
+    for (const f of listDir(dir).filter((n) => n.endsWith('.css'))) out[`${dir}/${f}`] = cssVarsIn(readText(`${dir}/${f}`));
+  return (globalCache = out);
+}
+
 let usageCache: TokenUsage | null = null;
 /** Which tokens are in use: read by component CSS or the library's global stylesheets, or aliased by a token in use. */
 export function libraryTokenUsage(): TokenUsage {
@@ -55,9 +65,7 @@ export function libraryTokenUsage(): TokenUsage {
   const { primitives, all } = loadTokens();
   const byVar: Record<string, string[]> = {};
   for (const c of loadComponents()) for (const t of c.tokensUsed) (byVar[t.name] ??= []).push(c.name);
-  const globalVars: Record<string, string[]> = {};
-  for (const dir of GLOBAL_STYLE_DIRS)
-    for (const f of listDir(dir).filter((n) => n.endsWith('.css'))) globalVars[`${dir}/${f}`] = cssVarsIn(readText(`${dir}/${f}`));
+  const globalVars = globalStyleVars();
   const refs = (t: Semantic) =>
     BRANDS.flatMap((b) => MODES.flatMap((m) => t.brands[b][m].chain)).concat(t.densities ? Object.values(t.densities).flatMap((d) => d.chain) : []);
   usageCache = tokenUsage(

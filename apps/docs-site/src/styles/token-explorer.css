@@ -1511,10 +1511,11 @@
   padding: 0;
   border: 0;
   background-color: transparent;
-  color: var(--br-accent-text);
+  color: var(--br-text);
   font: inherit;
   text-align: left;
   text-decoration: underline;
+  text-decoration-color: var(--br-border-strong);
   text-decoration-thickness: 1px;
   text-underline-offset: 0.2em;
   cursor: pointer;
@@ -1522,6 +1523,10 @@
 
 .xp-link.mono {
   font-family: var(--br-font-mono);
+}
+
+.xp-link:hover {
+  text-decoration-color: currentcolor;
 }
 
 .xp-deps,

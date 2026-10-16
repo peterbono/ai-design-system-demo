@@ -1,113 +1,187 @@
 ---
-import '../../styles/foundations.css';
 import Layout from '../../layouts/Layout.astro';
 import Icon from '../../components/Icon.astro';
-import CopyName from '../../components/CopyName.astro';
 import Updated from '../../components/Updated.astro';
-import { componentsUsing } from '../../lib/components';
+import CopyAs from '../../components/foundations/CopyAs.astro';
+import LibraryKit from '../../components/foundations/LibraryKit.astro';
+import TokenList from '../../components/foundations/TokenList.astro';
+import { groupRows, primitiveRows, type FoundationRow } from '../../lib/foundations';
 import { PAGE_SOURCES, freshness } from '../../lib/sources';
-import { anchorOf, primitivesOf } from '../../lib/tokens';
 
 const updated = freshness(PAGE_SOURCES.typography);
-const families = primitivesOf('font.family');
-const sizes = primitivesOf('font.size');
-const weights = primitivesOf('font.weight');
-const lineHeights = primitivesOf('font.line-height');
-const used = (v: string) => componentsUsing(v).join(', ') || 'Not used by a component yet';
+
+// Roles, line heights and tracking per step come from docs/DESIGN-LANGUAGE.md (section 5), mapped to the
+// nearest token of the scale.
+const STEPS: Record<string, { role: string; leading: string; tracking: string }> = {
+  '800': { role: 'Rare display moments', leading: 'tight', tracking: 'tighter' },
+  '700': { role: 'Empty states, onboarding', leading: 'tight', tracking: 'tighter' },
+  '600': { role: 'Page titles', leading: 'tight', tracking: 'tight' },
+  '500': { role: 'Section headings', leading: 'tight', tracking: 'tight' },
+  '400': { role: 'Card and dialog titles', leading: 'snug', tracking: 'snug' },
+  '300': { role: 'Reading body, lead text', leading: 'normal', tracking: 'normal' },
+  '200': { role: 'UI text, labels, table cells', leading: 'normal', tracking: 'normal' },
+  '100': { role: 'Captions, badges, table meta', leading: 'snug', tracking: 'wide' },
+};
+const WEIGHTS: Record<string, string> = {
+  'font.weight.regular': 'Body text.',
+  'font.weight.medium': 'Labels and buttons.',
+  'font.weight.semibold': 'Titles.',
+  'font.weight.bold': 'Only for numbers that must win a glance.',
+};
+const LEADING: Record<string, string> = {
+  'font.line-height.none': 'Icons and single glyphs, never text that wraps.',
+  'font.line-height.tight': 'Headings from 24 px up.',
+  'font.line-height.snug': 'Captions and card titles.',
+  'font.line-height.normal': 'Body text and UI text that wraps.',
+  'font.line-height.relaxed': 'Long reading, like changelogs and guidance.',
+};
+const withRole = (rows: FoundationRow[], roles: Record<string, string>) => rows.map((r) => ({ ...r, role: r.role || roles[r.path] || '' }));
+
+const sizes = primitiveRows('font.size');
+const sizeRows = withRole([...sizes].reverse(), Object.fromEntries(sizes.map((r) => [r.path, `${STEPS[r.path.split('.').pop()!]?.role ?? ''}.`])));
+const weights = withRole(primitiveRows('font.weight'), WEIGHTS);
+const leading = withRole(primitiveRows('font.line-height'), LEADING);
+const tracking = primitiveRows('font.tracking');
+const families = [...groupRows('font.family'), ...primitiveRows('font.family')];
+const px = (css: string) => css.replace('px', ' px');
+const lh = (name: string) => primitiveRows('font.line-height').find((r) => r.path.endsWith(`.${name}`))?.values.light ?? '';
 ---
 
-<Layout title="Typography" description="Font families, type scale, weights and line heights." sources={PAGE_SOURCES.typography} updated={updated}>
-  <header class="page-head">
-    <div>
-      <h1>Typography</h1>
-      <p class="lead">
-        One sans family for interface text, one mono family for code. Six sizes, three weights, two line heights. If a design needs a step that is not
-        here, propose a token instead of picking a value by eye.
-      </p>
-      <Updated date={updated} />
+<Layout title="Typography" description="The type scale at every step, weights, line heights, tracking and font families." sources={PAGE_SOURCES.typography} updated={updated}>
+  <div data-fd-page>
+    <header class="page-head">
+      <div>
+        <h1>Typography</h1>
+        <p class="lead">
+          IBM Plex Sans for interface text, IBM Plex Mono for code and token names. Eight sizes on a 1.2 ratio from a 14 px base. If a design needs a
+          step that is not here, propose a token instead of picking a value by eye.
+        </p>
+        <Updated date={updated} />
+      </div>
+      <div class="page-head-actions">
+        <a class="btn btn-secondary" href="/studio/tokens/?focus=font"><Icon name="edit" size={16} />Edit in Studio</a>
+      </div>
+    </header>
+    <div class="fd-toolbar">
+      <p class="fd-hint">Select a token to see where it is used and its history. Click a name to copy it.</p>
+      <CopyAs />
     </div>
-    <div class="page-head-actions">
-      <a class="btn btn-secondary" href="/studio/tokens/?focus=font"><Icon name="edit" size={16} />Edit in Studio</a>
-    </div>
-  </header>
 
-  <h2>Families</h2>
-  <div class="table-wrap fd-table">
-    <table>
-      <thead><tr><th scope="col">Token</th><th scope="col">Sample</th><th scope="col">Stack</th></tr></thead>
-      <tbody>
+    <section class="fd-group" aria-labelledby="scale">
+      <header class="fd-group-head">
+        <h2 id="scale">Type scale</h2>
+        <code class="fd-group-path">font.size</code>
+        <span class="fd-group-n">{sizes.length} tokens</span>
+      </header>
+      <p class="fd-group-note">Each step at its size, with the line height and tracking it pairs with.</p>
+      <div class="fd-stage" role="group" aria-label="Type scale specimen">
         {
-          families.map((f) => (
-            <tr id={anchorOf(f.cssVar)}>
-              <th scope="row"><CopyName value={`var(${f.cssVar})`} kind="CSS variable" /></th>
-              <td style={`font-family: var(${f.cssVar}); font-size: var(--font-size-500)`}>Ship the system, not the slides</td>
-              <td class="chain">{f.css}</td>
-            </tr>
-          ))
+          sizeRows.map((r) => {
+            const step = r.path.split('.').pop()!;
+            const s = STEPS[step]!;
+            return (
+              <div class="sp-type-row">
+                <span class="sp-type-meta">
+                  <strong>{step}</strong>
+                  <span>
+                    {px(r.values.light)} / {lh(s.leading)}
+                  </span>
+                  <span>{s.role}</span>
+                </span>
+                <p
+                  class="sp-type-sample"
+                  style={`font-size: var(${r.cssVar}); line-height: var(--font-line-height-${s.leading}); letter-spacing: var(--font-tracking-${s.tracking}); font-weight: var(--font-weight-${Number(step) >= 400 ? 'semibold' : 'regular'})`}
+                >
+                  {Number(step) >= 500 ? 'Review the token change' : 'Every token change ships as a reviewed pull request.'}
+                </p>
+              </div>
+            );
+          })
         }
-      </tbody>
-    </table>
-  </div>
-  <p class="muted small">
-    Brands pick their faces through font roles (<code>font.family.sans</code>, <code>font.family.mono</code>); both ship IBM Plex Sans and
-    IBM Plex Mono, self-hosted with <code>@bridge-ds/tokens/fonts.css</code>. Without it, products fall back to the platform font with no layout
-    shift. This site loads the same files, so the samples above render in the real faces.
-  </p>
+      </div>
+      <TokenList rows={sizeRows} preview="size" label="Font size tokens" />
+    </section>
 
-  <h2>Size scale</h2>
-  <div class="table-wrap fd-table">
-    <table>
-      <thead><tr><th scope="col">Token</th><th scope="col">Size</th><th scope="col">Sample</th><th scope="col">Used by</th></tr></thead>
-      <tbody>
-        {
-          [...sizes].reverse().map((s) => (
-            <tr id={anchorOf(s.cssVar)}>
-              <th scope="row"><CopyName value={`var(${s.cssVar})`} kind="CSS variable" /></th>
-              <td class="chain">{s.css}</td>
-              <td style={`font-size: var(${s.cssVar}); line-height: var(--font-line-height-tight)`}>Review the token change</td>
-              <td class="small">{used(s.cssVar)}</td>
-            </tr>
-          ))
-        }
-      </tbody>
-    </table>
-  </div>
-
-  <h2>Weights</h2>
-  <div class="table-wrap fd-table">
-    <table>
-      <thead><tr><th scope="col">Token</th><th scope="col">Value</th><th scope="col">Sample</th><th scope="col">Used by</th></tr></thead>
-      <tbody>
+    <section class="fd-group" aria-labelledby="weights">
+      <header class="fd-group-head">
+        <h2 id="weights">Weights</h2>
+        <code class="fd-group-path">font.weight</code>
+        <span class="fd-group-n">{weights.length} tokens</span>
+      </header>
+      <div class="fd-stage sp-type-weights" role="group" aria-label="Weight specimen">
         {
           weights.map((w) => (
-            <tr id={anchorOf(w.cssVar)}>
-              <th scope="row"><CopyName value={`var(${w.cssVar})`} kind="CSS variable" /></th>
-              <td class="chain">{w.css}</td>
-              <td style={`font-weight: var(${w.cssVar}); font-size: var(--font-size-400)`}>Approve and merge</td>
-              <td class="small">{used(w.cssVar)}</td>
-            </tr>
+            <div>
+              <span class="sp-type-meta">
+                <strong>{w.path.split('.').pop()}</strong>
+                <span>{w.values.light}</span>
+              </span>
+              <p style={`font-weight: var(${w.cssVar}); font-size: var(--font-size-500); line-height: var(--font-line-height-tight)`}>Approve and merge</p>
+            </div>
           ))
         }
-      </tbody>
-    </table>
-  </div>
+      </div>
+      <TokenList rows={weights} preview="weight" label="Font weight tokens" />
+    </section>
 
-  <h2>Line heights</h2>
-  <div class="table-wrap fd-table">
-    <table>
-      <thead><tr><th scope="col">Token</th><th scope="col">Value</th><th scope="col">Use for</th><th scope="col">Used by</th></tr></thead>
-      <tbody>
+    <section class="fd-group" aria-labelledby="leading">
+      <header class="fd-group-head">
+        <h2 id="leading">Line heights</h2>
+        <code class="fd-group-path">font.line-height</code>
+        <span class="fd-group-n">{leading.length} tokens</span>
+      </header>
+      <div class="fd-stage sp-type-leading" role="group" aria-label="Line height specimen">
         {
-          lineHeights.map((l) => (
-            <tr id={anchorOf(l.cssVar)}>
-              <th scope="row"><CopyName value={`var(${l.cssVar})`} kind="CSS variable" /></th>
-              <td class="chain">{l.css}</td>
-              <td>{l.path.endsWith('tight') ? 'Single-line labels, buttons, headings' : 'Paragraphs, hints, anything that wraps'}</td>
-              <td class="small">{used(l.cssVar)}</td>
-            </tr>
-          ))
+          leading
+            .filter((l) => !l.path.endsWith('.none'))
+            .map((l) => (
+              <div>
+                <span class="sp-type-meta">
+                  <strong>{l.path.split('.').pop()}</strong>
+                  <span>{l.values.light}</span>
+                </span>
+                <p style={`line-height: var(${l.cssVar}); font-size: var(--font-size-200)`}>
+                  Semantic tokens give each color a job and point to a different primitive in each theme, so one change repaints every screen.
+                </p>
+              </div>
+            ))
         }
-      </tbody>
-    </table>
+      </div>
+      <TokenList rows={leading} preview="line-height" label="Line height tokens" />
+    </section>
+
+    <section class="fd-group" aria-labelledby="tracking">
+      <header class="fd-group-head">
+        <h2 id="tracking">Tracking</h2>
+        <code class="fd-group-path">font.tracking</code>
+        <span class="fd-group-n">{tracking.length} tokens</span>
+      </header>
+      <p class="fd-group-note">Tighter as type gets bigger, slightly open at caption size. Values are in em, so they scale with the text.</p>
+      <TokenList rows={tracking} preview="tracking" label="Tracking tokens" />
+    </section>
+
+    <section class="fd-group" aria-labelledby="families">
+      <header class="fd-group-head">
+        <h2 id="families">Families</h2>
+        <code class="fd-group-path">font.family</code>
+        <span class="fd-group-n">{families.length} tokens</span>
+      </header>
+      <p class="fd-group-note">
+        Brands pick their faces through the font roles <code>font.family.sans</code> and <code>font.family.mono</code>. Both brands ship IBM Plex,
+        self-hosted with <code>@bridge-ds/tokens/fonts.css</code>; without it, products fall back to the platform font.
+      </p>
+      <div class="fd-stage sp-type-families" role="group" aria-label="Font family specimen">
+        <div>
+          <span class="sp-type-meta"><strong>sans</strong></span>
+          <p style="font-family: var(--font-family-sans)">Ship the system, not the slides</p>
+        </div>
+        <div>
+          <span class="sp-type-meta"><strong>mono</strong></span>
+          <p style="font-family: var(--font-family-mono)">color.bg.default 0O Il1</p>
+        </div>
+      </div>
+      <TokenList rows={families} preview="family" label="Font family tokens" />
+    </section>
   </div>
+  <LibraryKit />
 </Layout>

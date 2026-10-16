@@ -1,53 +1,66 @@
 ---
-import '../../styles/foundations.css';
 import Layout from '../../layouts/Layout.astro';
 import Icon from '../../components/Icon.astro';
-import CopyName from '../../components/CopyName.astro';
 import Updated from '../../components/Updated.astro';
-import { componentsUsing } from '../../lib/components';
+import CopyAs from '../../components/foundations/CopyAs.astro';
+import LibraryKit from '../../components/foundations/LibraryKit.astro';
+import TokenList from '../../components/foundations/TokenList.astro';
+import { LayoutSpecimen } from '../../components/foundations/Specimens.tsx';
+import { foundationRow, primitiveRows } from '../../lib/foundations';
 import { PAGE_SOURCES, freshness } from '../../lib/sources';
-import { anchorOf, primitivesOf } from '../../lib/tokens';
 
 const updated = freshness(PAGE_SOURCES.spacing);
-const steps = primitivesOf('space');
+const num = (css: string) => parseFloat(css) || 0;
+const steps = primitiveRows('space').sort((a, b) => num(a.values.light) - num(b.values.light));
+const DENSITY = ['layout.inset', 'layout.gap', 'control.gap', 'control.padding-x.sm', 'control.padding-x.md', 'control.padding-x.lg', 'table.cell-padding-x'];
+const density = DENSITY.map((p) => foundationRow(p));
 ---
 
-<Layout title="Spacing" description="The 4px spacing scale, shown as bars." sources={PAGE_SOURCES.spacing} updated={updated}>
-  <header class="page-head">
-    <div>
-      <h1>Spacing</h1>
-      <p class="lead">
-        A 4px base scale: step n is n &times; 4px. Use it for padding, gaps and control heights. Steps are not continuous on purpose (no 7, 9 or 11):
-        fewer choices means more consistent screens.
+<Layout title="Spacing" description="The 4 px spacing scale and the density tokens built on it, shown in a real layout." sources={PAGE_SOURCES.spacing} updated={updated}>
+  <div data-fd-page>
+    <header class="page-head">
+      <div>
+        <h1>Spacing</h1>
+        <p class="lead">
+          A 4 px base scale: step n is n &times; 4 px, with half steps where controls need them. Tight inside groups, generous between them. Fewer
+          choices means more consistent screens.
+        </p>
+        <Updated date={updated} />
+      </div>
+      <div class="page-head-actions">
+        <a class="btn btn-secondary" href="/studio/tokens/?focus=space"><Icon name="edit" size={16} />Edit in Studio</a>
+      </div>
+    </header>
+    <div class="fd-toolbar">
+      <p class="fd-hint">Select a token to see where it is used and its history. Click a name to copy it.</p>
+      <CopyAs />
+    </div>
+
+    <section class="fd-group" aria-labelledby="in-layout">
+      <header class="fd-group-head">
+        <h2 id="in-layout">In a layout</h2>
+      </header>
+      <p class="fd-group-note">
+        A review card built from the real components. Tinted areas are spacing: card padding, the gap between blocks and the gap inside a row of
+        controls. They come from density tokens, so the compact density in the top bar tightens them.
       </p>
-      <Updated date={updated} />
-    </div>
-    <div class="page-head-actions">
-      <a class="btn btn-secondary" href="/studio/tokens/?focus=space"><Icon name="edit" size={16} />Edit in Studio</a>
-    </div>
-  </header>
-  <div class="table-wrap fd-table">
-    <table>
-      <thead><tr><th scope="col">Token</th><th scope="col">Value</th><th scope="col" style="width: 40%">Size</th><th scope="col">Used by</th></tr></thead>
-      <tbody>
-        {
-          steps.map((s) => (
-            <tr id={anchorOf(s.cssVar)}>
-              <th scope="row"><CopyName value={`var(${s.cssVar})`} kind="CSS variable" /></th>
-              <td class="chain">{s.css}</td>
-              <td><div class="bar" style={`width: var(${s.cssVar})`} role="img" aria-label={`${s.css} bar`} /></td>
-              <td class="small">{componentsUsing(s.cssVar).join(', ') || <span class="muted">Not used by a component yet</span>}</td>
-            </tr>
-          ))
-        }
-      </tbody>
-    </table>
+      <div class="fd-stage" inert>
+        <LayoutSpecimen />
+      </div>
+      <TokenList rows={density} preview="space" label="Density spacing tokens" />
+    </section>
+
+    <section class="fd-group" aria-labelledby="scale">
+      <header class="fd-group-head">
+        <h2 id="scale">Scale</h2>
+        <code class="fd-group-path">space</code>
+        <span class="fd-group-n">{steps.length} tokens</span>
+      </header>
+      <p class="fd-group-note">
+        Inside a control: space 2 to 4. Between related items: space 1 to 3. Inside a card or panel: space 4 to 5. Between sections: space 8 and up.
+      </p>
+      <TokenList rows={steps} preview="space" label="Space tokens" />
+    </section>
   </div>
-  <h2>Rules of thumb</h2>
-  <ul>
-    <li>Inside a control (button, input): space-2 to space-4.</li>
-    <li>Between related items (label and field, badge and title): space-1 to space-3.</li>
-    <li>Inside a card or panel: space-4 to space-5.</li>
-    <li>Between sections: space-8 and up.</li>
-  </ul>
+  <LibraryKit />
 </Layout>

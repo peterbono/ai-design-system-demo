@@ -321,7 +321,9 @@
 }
 
 .panel-link:hover {
-  color: var(--br-accent-text);
+  color: var(--br-text);
+  text-decoration: underline;
+  text-decoration-color: var(--br-border-strong);
 }
 
 .charts {
@@ -680,8 +682,9 @@
 }
 
 .issue-title:hover {
-  color: var(--br-accent-text);
+  color: var(--br-text);
   text-decoration: underline;
+  text-decoration-color: var(--br-border-strong);
 }
 
 .issue.is-info .issue-title {
