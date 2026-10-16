@@ -1,0 +1,51 @@
+{
+  "summary": "Explains why a view has no content yet and invites the action that fills it. An empty screen is a starting point, not a dead end.",
+  "preview": { "c": "EmptyState", "p": { "icon": "GitPullRequest", "title": "No pull requests yet", "description": "Changes you sync from Figma open a pull request here, ready for review." } },
+  "whenToUse": [
+    "First use: nothing has been created yet (no tokens, no pull requests). Explain the value and offer the first step.",
+    "No results: a search or filter matched nothing. Say what was searched and how to widen it.",
+    "Cleared: the user finished everything (no reviews waiting). Confirm it calmly.",
+    "size sm inside tables and cards, md in panels, lg for a whole page."
+  ],
+  "whenNotToUse": [
+    "Errors that stopped content from loading: use an Alert with a retry action.",
+    "Content still loading: use Skeleton."
+  ],
+  "dos": [
+    {
+      "title": "Say what goes here and how to get it",
+      "text": "The title names the missing object, the description says where it comes from, the button starts it.",
+      "example": { "c": "EmptyState", "p": { "size": "sm", "title": "No pull requests yet", "description": "Changes you sync from Figma open a pull request here." } }
+    }
+  ],
+  "donts": [
+    {
+      "title": "\"Nothing here\" with no way forward",
+      "text": "It describes the screen the user already sees and leaves them stuck.",
+      "example": { "c": "EmptyState", "p": { "size": "sm", "title": "Nothing here" } }
+    }
+  ],
+  "accessibility": [
+    "The title is a real heading (headingLevel, default h3) so it appears in the page outline; pick the level that fits the page.",
+    "The icon is decorative and hidden from assistive tech: the title carries the meaning.",
+    "Actions are regular Buttons or Links in the tab order, after the text."
+  ],
+  "contentGuidelines": [
+    "Title: what is missing, plainly: \"No tokens match brand.700\".",
+    "Description: why it is empty and what fills it, in one or two sentences.",
+    "One primary action at most, named with a verb: \"Sync from Figma\".",
+    "No jokes or illustrations that delay the next step."
+  ],
+  "anatomy": {
+    "emptyState": "Container",
+    "media": "Icon plate",
+    "text": "Text column",
+    "title": "Title (heading)",
+    "description": "Description",
+    "actions": "Actions",
+    "sm": "Size sm",
+    "lg": "Size lg",
+    "center": "Centered alignment (default)",
+    "start": "Start alignment"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "alert": {
+    "radius": { "$type": "dimension", "$value": "{radius.container}", "$description": "Inline alerts are containers." }
+  },
+  "skeleton": {
+    "$type": "color",
+    "base": { "$value": "{color.bg.muted}", "$description": "Skeleton block fill." },
+    "shine": { "$value": "{color.bg.subtle}", "$description": "Moving highlight of the shimmer." },
+    "radius": { "$type": "dimension", "$value": "{radius.inset}" }
+  }
+}

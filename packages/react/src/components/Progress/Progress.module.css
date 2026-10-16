@@ -1,0 +1,163 @@
+.progress {
+  --_fill: var(--progress-fill);
+  --_thickness: var(--space-1-5);
+  --_ring: var(--size-8);
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  color: var(--color-text-default);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-200);
+  line-height: var(--font-line-height-normal);
+}
+
+.success {
+  --_fill: var(--color-feedback-success-icon);
+}
+
+.warning {
+  --_fill: var(--color-feedback-warning-icon);
+}
+
+.danger {
+  --_fill: var(--color-feedback-danger-icon);
+}
+
+.sm {
+  --_thickness: var(--space-1);
+  --_ring: var(--size-5);
+}
+
+.lg {
+  --_thickness: var(--space-2);
+  --_ring: var(--size-14);
+}
+
+.header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.label {
+  font-weight: var(--font-weight-medium);
+}
+
+.value,
+.ringValue {
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Linear */
+.track {
+  position: relative;
+  height: var(--_thickness);
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background-color: var(--progress-track);
+}
+
+.indicator {
+  height: 100%;
+  border-radius: inherit;
+  background-color: var(--_fill);
+  transition: width var(--motion-duration-moderate) var(--motion-easing-standard);
+}
+
+.progress[data-indeterminate] .indicator {
+  position: absolute;
+  inset-block: 0;
+  width: 40%;
+  animation: slide var(--motion-duration-shimmer) var(--motion-easing-standard) infinite;
+}
+
+@keyframes slide {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(250%);
+  }
+}
+
+/* Circular */
+.circular {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.ring {
+  position: relative;
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: var(--_ring);
+  height: var(--_ring);
+}
+
+.svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.ringTrack,
+.ringFill {
+  stroke-width: 4;
+}
+
+.lg .ringTrack,
+.lg .ringFill {
+  stroke-width: 3;
+}
+
+.ringTrack {
+  stroke: var(--progress-track);
+}
+
+.ringFill {
+  stroke: var(--_fill);
+  stroke-dasharray: 100 100;
+  stroke-dashoffset: calc(100 - var(--_pct));
+  stroke-linecap: round;
+  transition: stroke-dashoffset var(--motion-duration-moderate) var(--motion-easing-standard);
+}
+
+.progress[data-indeterminate] .ringFill {
+  stroke-dashoffset: 72;
+}
+
+.progress[data-indeterminate] .svg {
+  animation: spin var(--motion-duration-spin) linear infinite;
+}
+
+.ringValue {
+  font-size: var(--font-size-100);
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(-90deg);
+  }
+
+  to {
+    transform: rotate(270deg);
+  }
+}
+
+/* Reduced motion: no sliding bar; a full, softened track says "working" without movement. */
+@media (prefers-reduced-motion: reduce) {
+  .progress[data-indeterminate] .indicator {
+    width: 100%;
+    animation: none;
+    opacity: 0.5;
+  }
+}

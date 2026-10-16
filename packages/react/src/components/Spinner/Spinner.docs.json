@@ -1,0 +1,46 @@
+{
+  "summary": "An indeterminate activity indicator for short waits and busy controls. For content that is loading into a layout, use Skeleton; for long tasks, use Progress.",
+  "preview": { "c": "Row", "children": [ { "c": "Spinner", "p": { "size": "md", "tone": "signal", "label": "Loading tokens" } } ] },
+  "whenToUse": [
+    "Inside a control that is working: Button and IconButton show it automatically with loading.",
+    "Small regions that refresh in place, for waits up to a few seconds.",
+    "tone signal when it stands alone, current when it sits in text or a control."
+  ],
+  "whenNotToUse": [
+    "First load of a list or a page: use Skeleton in the shape of the content.",
+    "Tasks with measurable progress or that take longer than a few seconds: use Progress."
+  ],
+  "dos": [
+    {
+      "title": "Name what is loading",
+      "text": "A standalone spinner needs a label so screen readers hear \"Loading tokens\".",
+      "example": { "c": "Row", "children": [ { "c": "Spinner", "p": { "tone": "signal", "label": "Loading tokens" } } ] }
+    }
+  ],
+  "donts": [
+    {
+      "title": "A spinner in the middle of an empty page",
+      "text": "It hides the layout and makes the wait feel longer. Show the frame and use skeletons.",
+      "example": { "c": "Row", "children": [ { "c": "Spinner", "p": { "size": "lg", "tone": "signal", "label": "Loading" } } ] }
+    }
+  ],
+  "accessibility": [
+    "With label it renders role=\"status\" and is announced; without label it is aria-hidden (use it inside a control that sets aria-busy).",
+    "Under reduced motion it keeps turning, slower: a frozen spinner looks like a crash.",
+    "The arc is drawn in currentColor or the signal color, which keeps 3:1 against surfaces."
+  ],
+  "contentGuidelines": [
+    "Labels name the content: \"Loading tokens\", \"Checking contrast\". Never just \"Loading...\"."
+  ],
+  "anatomy": {
+    "spinner": "Container",
+    "svg": "Rotating drawing",
+    "track": "Faint full circle",
+    "arc": "Moving arc",
+    "signal": "Signal tone",
+    "xs": "Size xs",
+    "sm": "Size sm (default)",
+    "md": "Size md",
+    "lg": "Size lg"
+  }
+}

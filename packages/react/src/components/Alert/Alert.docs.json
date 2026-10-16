@@ -1,0 +1,77 @@
+{
+  "summary": "An inline message about the state of a page or a section: a failed publish, a pending review, a sync in progress. It stays until the situation changes or the user dismisses it.",
+  "preview": { "c": "Stack", "children": [
+    { "c": "Alert", "p": { "tone": "warning", "title": "3 tokens fail contrast", "announce": "off" }, "children": ["Review them before you publish."] }
+  ] },
+  "whenToUse": [
+    "A condition that affects what the user is doing here: a failed build, a protected branch, contrast warnings.",
+    "Tone follows meaning: danger for failed or blocked, warning for needs attention, success for a finished task that changed this page, info for context, neutral when there is no judgement.",
+    "Inside a form or card, above the content it is about."
+  ],
+  "whenNotToUse": [
+    "Confirming an action the user just took (Copied, Saved): use a Toast.",
+    "An error on one field: use the Field error under that control.",
+    "A decision the user must make before continuing: use an AlertDialog."
+  ],
+  "dos": [
+    {
+      "title": "Title says what happened, description says what to do",
+      "text": "Users scan the bold line and read on only when they need to act.",
+      "example": { "c": "Stack", "children": [
+        { "c": "Alert", "p": { "tone": "danger", "title": "Publish failed", "announce": "off" }, "children": ["The token build found 2 broken aliases. Fix them and publish again."] }
+      ] }
+    },
+    {
+      "title": "Give the way out as an action",
+      "text": "A button next to the problem saves a search through the page.",
+      "example": { "c": "Stack", "children": [
+        { "c": "Alert", "p": { "tone": "warning", "title": "2 pull requests wait for review", "announce": "off" }, "children": ["Token changes need a design owner and a tech owner."] }
+      ] }
+    }
+  ],
+  "donts": [
+    {
+      "title": "Stacking several alerts",
+      "text": "Three alerts in a row read as noise. Merge them, or keep the most severe and link to the rest.",
+      "example": { "c": "Stack", "children": [
+        { "c": "Alert", "p": { "tone": "info", "announce": "off" }, "children": ["Sync running."] },
+        { "c": "Alert", "p": { "tone": "info", "announce": "off" }, "children": ["2 new variables."] },
+        { "c": "Alert", "p": { "tone": "info", "announce": "off" }, "children": ["Theme updated."] }
+      ] }
+    },
+    {
+      "title": "Danger for something that is not broken",
+      "text": "Red trains people to ignore red. Use info or warning when nothing failed.",
+      "example": { "c": "Stack", "children": [
+        { "c": "Alert", "p": { "tone": "danger", "announce": "off" }, "children": ["New components are available."] }
+      ] }
+    }
+  ],
+  "accessibility": [
+    "Alerts that appear after load are announced: danger and warning with role=\"alert\" (interrupts), the others with role=\"status\" (polite).",
+    "Alerts present when the page loads should use announce=\"off\": a live region on load is either ignored or read twice.",
+    "Every tone has its own icon and the text carries the meaning, so color is never the only signal (WCAG 1.4.1).",
+    "The dismiss button is a named IconButton (dismissLabel, default \"Dismiss\"). Move focus to a sensible place after dismissing if the alert had focus.",
+    "Feedback text and icon colors are checked against their tinted backgrounds in both themes."
+  ],
+  "contentGuidelines": [
+    "Title: what happened, in a few words, no period: \"Publish failed\".",
+    "Description: why, and what to do next, in one or two sentences.",
+    "Name objects and numbers: \"3 tokens fail contrast\", not \"Some issues were found\".",
+    "No apology, no blame, no exclamation marks."
+  ],
+  "anatomy": {
+    "alert": "Container",
+    "neutral": "Neutral tone",
+    "info": "Info tone (default)",
+    "success": "Success tone",
+    "warning": "Warning tone",
+    "danger": "Danger tone",
+    "icon": "Tone icon",
+    "content": "Text column",
+    "title": "Title",
+    "description": "Description",
+    "actions": "Actions",
+    "dismiss": "Dismiss button"
+  }
+}
