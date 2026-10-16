@@ -1,0 +1,42 @@
+{
+  "shadow": {
+    "$type": "shadow",
+    "sm": {
+      "$value": {
+        "color": { "colorSpace": "srgb", "components": [0.063, 0.094, 0.157], "alpha": 0.08, "hex": "#101828" },
+        "offsetX": { "value": 0, "unit": "px" },
+        "offsetY": { "value": 1, "unit": "px" },
+        "blur": { "value": 3, "unit": "px" },
+        "spread": { "value": 0, "unit": "px" }
+      }
+    },
+    "md": {
+      "$value": {
+        "color": { "colorSpace": "srgb", "components": [0.063, 0.094, 0.157], "alpha": 0.12, "hex": "#101828" },
+        "offsetX": { "value": 0, "unit": "px" },
+        "offsetY": { "value": 8, "unit": "px" },
+        "blur": { "value": 24, "unit": "px" },
+        "spread": { "value": -4, "unit": "px" }
+      }
+    },
+    "md-strong": {
+      "$description": "Higher-opacity variant so elevation stays visible on dark surfaces.",
+      "$value": {
+        "color": { "colorSpace": "srgb", "components": [0, 0, 0], "alpha": 0.48, "hex": "#000000" },
+        "offsetX": { "value": 0, "unit": "px" },
+        "offsetY": { "value": 8, "unit": "px" },
+        "blur": { "value": 24, "unit": "px" },
+        "spread": { "value": -4, "unit": "px" }
+      }
+    },
+    "sm-strong": {
+      "$value": {
+        "color": { "colorSpace": "srgb", "components": [0, 0, 0], "alpha": 0.4, "hex": "#000000" },
+        "offsetX": { "value": 0, "unit": "px" },
+        "offsetY": { "value": 1, "unit": "px" },
+        "blur": { "value": 3, "unit": "px" },
+        "spread": { "value": 0, "unit": "px" }
+      }
+    }
+  }
+}

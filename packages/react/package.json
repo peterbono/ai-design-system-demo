@@ -1,0 +1,20 @@
+{
+  "name": "@demo-ds/react",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "React components that consume design tokens through CSS variables only.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "sideEffects": ["*.css"],
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@demo-ds/tokens": "*"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  }
+}

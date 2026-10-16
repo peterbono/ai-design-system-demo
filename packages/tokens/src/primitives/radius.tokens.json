@@ -1,0 +1,17 @@
+{
+  "radius": {
+    "$type": "dimension",
+    "none": { "$value": { "value": 0, "unit": "px" } },
+    "sm": { "$value": { "value": 4, "unit": "px" } },
+    "md": { "$value": { "value": 6, "unit": "px" } },
+    "lg": { "$value": { "value": 10, "unit": "px" } },
+    "full": { "$value": { "value": 9999, "unit": "px" } }
+  },
+  "border": {
+    "width": {
+      "$type": "dimension",
+      "1": { "$value": { "value": 1, "unit": "px" } },
+      "2": { "$value": { "value": 2, "unit": "px" } }
+    }
+  }
+}

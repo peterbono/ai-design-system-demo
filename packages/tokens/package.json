@@ -1,0 +1,18 @@
+{
+  "name": "@demo-ds/tokens",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Design tokens in W3C DTCG 2025.10 format, built to CSS variables and TypeScript with Style Dictionary.",
+  "exports": {
+    "./tokens.css": "./dist/tokens.css",
+    ".": "./dist/tokens.ts"
+  },
+  "files": ["dist", "src"],
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "style-dictionary": "4.4.0"
+  }
+}

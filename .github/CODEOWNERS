@@ -1,0 +1,19 @@
+# Placeholder handles. Replace with real GitHub users or teams before use.
+# Combined with branch protection ("Require review from Code Owners"), these lines enforce
+# the review gates in docs/GOVERNANCE.md.
+
+# Default: tech owner reviews everything
+*                                   @tech-owner
+
+# Tokens are design decisions: design and tech owners must both approve
+/packages/tokens/                   @design-owner @tech-owner
+
+# Components: design reviews visuals and a11y, tech reviews API
+/packages/react/                    @design-owner @tech-owner
+
+# Guardrails and agent instructions: changing the rules is itself a high-risk change
+/.stylelintrc.json                  @tech-owner @design-owner
+/.github/                           @tech-owner
+/AGENTS.md                          @design-owner @tech-owner
+/CLAUDE.md                          @design-owner @tech-owner
+/docs/GOVERNANCE.md                 @design-owner @tech-owner

@@ -1,0 +1,14 @@
+{
+  "$comment": "Guardrail: component CSS may only reference design tokens for color and elevation. Raw values fail CI.",
+  "rules": {
+    "color-no-hex": true,
+    "color-named": "never",
+    "function-disallowed-list": ["rgb", "rgba", "hsl", "hsla", "hwb", "lab", "lch", "oklab", "oklch", "color", "color-mix"],
+    "declaration-property-value-allowed-list": {
+      "/^(color|background-color|border-color|border-top-color|border-right-color|border-bottom-color|border-left-color|outline-color|fill|stroke|caret-color)$/": ["/^var\\(--/", "transparent", "currentcolor", "inherit"],
+      "box-shadow": ["/^var\\(--/", "none"]
+    },
+    "declaration-no-important": true,
+    "length-zero-no-unit": true
+  }
+}
