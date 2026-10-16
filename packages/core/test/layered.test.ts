@@ -23,8 +23,8 @@ test('the canonical config: tiers, ordered layers, modes with parity, governance
   assert.equal(c.tokens.contrastChecks, 'contrast.checks.json');
   assert.equal(c.contrast?.path, 'packages/tokens/src/contrast.checks.json');
   assert.deepEqual(c.governance.owners, { design: [], tech: [] });
-  assert.equal(c.changesets?.package, '@demo-ds/tokens');
-  assert.equal(c.changeset?.package, '@demo-ds/tokens');
+  assert.equal(c.changesets?.package, '@bridge-ds/tokens');
+  assert.equal(c.changeset?.package, '@bridge-ds/tokens');
 });
 
 test('the flat form still loads and gets conventional layers', () => {

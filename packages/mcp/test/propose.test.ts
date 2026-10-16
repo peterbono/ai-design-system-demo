@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { BridgeContext, core, ops } from '../dist/lib.js';
-import { commitToNewLocalBranch } from '@bridge/core/node';
+import { commitToNewLocalBranch } from '@bridge-ds/core/node';
 import { git, REAL_PATHS, REPO, tempGitRepo } from './helpers.js';
 
 let dir: string;
@@ -91,7 +91,7 @@ describe('bridge_propose_token_change (local)', () => {
     expect(git(dir, 'status', '--porcelain').trim()).toBe('');
     expect(readFileSync(join(dir, LIGHT), 'utf8')).toBe(fileBefore);
     expect(git(dir, 'show', `${p.branch}:${LIGHT}`)).toContain('{palette.neutral.700}');
-    expect(git(dir, 'show', `${p.branch}:.changeset/bridge-darken-muted-text.md`)).toContain('"@demo-ds/tokens": minor');
+    expect(git(dir, 'show', `${p.branch}:.changeset/bridge-darken-muted-text.md`)).toContain('"@bridge-ds/tokens": minor');
     expect(p.diff).toContain('-        "$value": "{palette.neutral.600}"');
     // Same title again gets a fresh branch, never overwrites.
     const again = (await ops.proposeTokenChange(ctx, { title: 'Darken muted text', edits: [{ op: 'set', path: 'color.text.muted', value: '{palette.neutral.800}', mode: { theme: 'light' } }] })) as any;

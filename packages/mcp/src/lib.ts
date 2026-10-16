@@ -1,4 +1,4 @@
-// Public API of @bridge/mcp, used by the `bridge` CLI.
+// Public API of @bridge-ds/mcp, used by the `bridge` CLI.
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { BridgeContext, type ContextOptions } from './context.js';
 import { createServer, VERSION } from './server.js';

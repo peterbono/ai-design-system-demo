@@ -3,8 +3,8 @@ import { existsSync } from 'node:fs';
 import { mkdir, readFile, rm, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
-import { buildUsageIndex, diffLayered, loadConfig, LayeredTokenSet, selectTokenFiles, comboKey, type BridgeConfig } from '@bridge/core';
-import { git, listFilesAt, showFile } from '@bridge/core/node';
+import { buildUsageIndex, diffLayered, loadConfig, LayeredTokenSet, selectTokenFiles, comboKey, type BridgeConfig } from '@bridge-ds/core';
+import { git, listFilesAt, showFile } from '@bridge-ds/core/node';
 import { launch, newContext, newPage, shoot, switchStory } from './capture.js';
 import { composite } from './composite.js';
 import { decodePng, diffPngs, encodePng } from './diff.js';
@@ -171,7 +171,7 @@ export async function runImpact(o: ImpactOptions): Promise<ImpactResult> {
   const finish = async (shots: ShotResult[]): Promise<ImpactResult> => {
     const manifest: Manifest = {
       version: 1,
-      tool: '@bridge/visual',
+      tool: '@bridge-ds/visual',
       createdAt: new Date().toISOString(),
       durationMs: Date.now() - started,
       base: plan.base,

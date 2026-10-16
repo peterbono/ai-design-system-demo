@@ -10,7 +10,7 @@ changes as pull requests that your design and tech owners review.
 - **Repo-agnostic**: point it at any DTCG token repo. `bridge.config.json` says where things are; without it
   Bridge detects them.
 
-> The packages (`@bridge/mcp`, `@bridge/cli`) are **not published to npm yet**. Use the local path commands
+> The packages (`@bridge-ds/mcp`, `@bridge-ds/cli`) are **not published to npm yet**. Use the local path commands
 > below. The `npx` forms are shown for when they are.
 
 ## 1. Build once
@@ -57,7 +57,7 @@ Or user-scoped, from a terminal:
 ```sh
 claude mcp add bridge -- node /abs/path/packages/mcp/dist/index.js --root /abs/path/to/your-ds
 # once published to npm:
-claude mcp add bridge -- npx -y @bridge/mcp
+claude mcp add bridge -- npx -y @bridge-ds/mcp
 ```
 
 ### Claude Desktop
@@ -172,7 +172,7 @@ node packages/cli/dist/index.js impact --only stories --out /tmp/vi       # Stor
 ```
 
 1. **Selection.** Tokens whose resolved value differs (in any brand, theme or density, through aliases) become
-   CSS variables. The usage index in `@bridge/core` knows which variables each component's CSS reads and which
+   CSS variables. The usage index in `@bridge-ds/core` knows which variables each component's CSS reads and which
    components it renders, so a change reaches the components that read it, then the components that render
    those. Changed component files map to their own stories. Each directly impacted component gets up to 4
    stories (`AllStates` first); one reached only through what it renders gets its `AllStates` story. Shared
@@ -224,8 +224,8 @@ bridge audit ../my-app/src --fix --write           # replace them with var(--tok
 - The JSON report is versioned (`packages/core/audit-report.schema.json`). Commit it under
   `apps/docs-site/src/data/audits/` and the docs site shows it on the Adoption page, with the trend across
   baselines. Exit codes: 0 ok, 1 under `--fail-under` or regressed with `--no-regress`, 2 setup error.
-- In the editor, the lint plugins give the same feedback while you type: `@bridge/stylelint-plugin`
-  (`bridge/use-tokens`, autofix for exact matches) and `@bridge/eslint-plugin`
+- In the editor, the lint plugins give the same feedback while you type: `@bridge-ds/stylelint-plugin`
+  (`bridge/use-tokens`, autofix for exact matches) and `@bridge-ds/eslint-plugin`
   (`bridge/no-hardcoded-style-values`, `bridge/prefer-ds-components`). See their READMEs.
 - `bridge.config.json` takes an optional `audit` section: `packages` (where DS components are imported from),
   `foreignLibraries`, `nativeElements`, `exclude`.
@@ -261,6 +261,6 @@ have, with your own Claude and your own GitHub token.
 
 ## Status
 
-v0.1, not yet published to npm. The server is built on `@bridge/core`, the same package as the DS Bridge Figma
+v0.1, not yet published to npm. The server is built on `@bridge-ds/core`, the same package as the DS Bridge Figma
 plugin and the docs site: one `bridge.config.json` (schema in `packages/core/bridge.config.schema.json`), one
 risk classifier, one GitHub client with the same protected-branch guard.

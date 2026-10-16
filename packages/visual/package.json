@@ -1,27 +1,60 @@
 {
-  "name": "@bridge/visual",
+  "name": "@bridge-ds/visual",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
   "description": "Bridge visual impact analysis: screenshots the stories and app screens a design system change touches, at the base and head refs, and pixel-diffs them into before/after/diff images and a JSON manifest.",
   "license": "MIT",
   "author": "Florian Gouloubi",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "homepage": "https://github.com/peterbono/ai-design-system-demo/tree/main/packages/visual#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/peterbono/ai-design-system-demo.git",
+    "directory": "packages/visual"
+  },
+  "bugs": {
+    "url": "https://github.com/peterbono/ai-design-system-demo/issues"
+  },
+  "keywords": [
+    "visual-regression",
+    "screenshots",
+    "design-system",
+    "bridge"
+  ],
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "node build.mjs",
+    "build:package": "node ../../scripts/build-packages.mjs visual"
   },
   "dependencies": {
-    "@bridge/core": "*",
+    "@bridge-ds/core": "^0.1.0",
     "pixelmatch": "7.1.0",
     "playwright-core": "1.63.0",
     "pngjs": "7.0.0"
   },
   "devDependencies": {
     "@types/node": "20.19.9",
-    "@types/pngjs": "6.0.5"
+    "@types/pngjs": "6.0.5",
+    "esbuild": "0.27.7"
   }
 }

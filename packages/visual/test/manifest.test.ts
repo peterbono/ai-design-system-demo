@@ -24,7 +24,7 @@ const shot = (over: Partial<ShotResult>): ShotResult => ({
 
 const manifest = (shots: ShotResult[]): Manifest => ({
   version: 1,
-  tool: '@bridge/visual',
+  tool: '@bridge-ds/visual',
   createdAt: '2026-10-16T00:00:00.000Z',
   durationMs: 61_000,
   base: { ref: 'main', sha: 'a'.repeat(40) },

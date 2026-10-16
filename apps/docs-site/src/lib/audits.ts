@@ -1,7 +1,7 @@
 // Adoption page data: `bridge audit` reports committed under src/data/audits/*.json.
 // Pure helpers take report objects (tested in audits.test.ts); only loadAudits() reads files.
 import { listDir, readJson } from './repo';
-import type { AuditReport, FindingCategory, HistoryPoint } from '@bridge/core/audit';
+import type { AuditReport, FindingCategory, HistoryPoint } from '@bridge-ds/core/audit';
 
 export const AUDITS_DIR = 'apps/docs-site/src/data/audits';
 

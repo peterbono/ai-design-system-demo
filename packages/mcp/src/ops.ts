@@ -2,12 +2,12 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, writeFile, access } from 'node:fs/promises';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
-import { buildAuditReport, compareWithBaseline, DesignSystemIndex, type AuditReport } from '@bridge/core/audit';
+import { buildAuditReport, compareWithBaseline, DesignSystemIndex, type AuditReport } from '@bridge-ds/core/audit';
 import { auditSnippet } from './audit.js';
 import { getComponent, listComponentNames, listComponents, scaffoldComponent, type ScaffoldInput } from './components.js';
 import type { BridgeContext } from './context.js';
-import { baseBranchOf, protectedBranchesOf } from '@bridge/core';
-import { branchExists, collectAuditFiles, commitToNewLocalBranch, currentBranch, git } from '@bridge/core/node';
+import { baseBranchOf, protectedBranchesOf } from '@bridge-ds/core';
+import { branchExists, collectAuditFiles, commitToNewLocalBranch, currentBranch, git } from '@bridge-ds/core/node';
 import { core, type Combo, type Issue, type PairInput, type TokenEdit, type TokenSet } from './core-adapter.js';
 import { bullets, findSection, toc } from './markdown.js';
 import { GitHubSource, GitRefSource, type RepoSource } from './source.js';
@@ -499,13 +499,13 @@ export async function auditUi(ctx: BridgeContext, code: string) {
 export async function visualImpact(
   ctx: BridgeContext,
   a: { base?: string; head?: string; out?: string; only?: ('stories' | 'app')[]; plan?: boolean; threshold?: number; maxStoriesPerComponent?: number },
-  run?: typeof import('@bridge/visual').runImpact,
+  run?: typeof import('@bridge-ds/visual').runImpact,
 ) {
   if (ctx.mode !== 'local' || !ctx.root) throw new Error('Visual impact needs a local checkout (start Bridge with --root): it builds Storybook and the app at both refs.');
   if (!ctx.isGit) throw new Error(`${ctx.root} is not a git repository.`);
   const out = a.out ? resolve(ctx.root, a.out) : join(ctx.root, 'visual-impact');
   // Loaded on demand: the capture stack (playwright-core, pngjs) is not needed by any other tool.
-  const runImpact = run ?? (await import('@bridge/visual')).runImpact;
+  const runImpact = run ?? (await import('@bridge-ds/visual')).runImpact;
   const r = await runImpact({
     root: ctx.root,
     base: a.base ?? 'main',
@@ -548,6 +548,9 @@ export async function visualImpact(
       : changed.length
         ? 'Open the composite images (before | after | diff) to review; manifest.json has every shot with bounding boxes.'
         : 'No visual change in the captured stories and screens.',
+  };
+}
+
 // --- adoption audit -------------------------------------------------------------------------------------
 
 /** The design system the audit measures against: tokens of this repo, its components and package names. */
@@ -557,7 +560,7 @@ async function designSystemIndex(ctx: BridgeContext): Promise<DesignSystemIndex>
   const components = (await listComponentNames(ctx.source, config)).map((c) => c.name).filter((n) => /^[A-Z]/.test(n));
   let packages = config.audit?.packages;
   if (!packages) {
-    packages = ['@bridge/react'];
+    packages = ['@bridge-ds/react'];
     const parts = (config.components?.dir ?? '').split('/').filter(Boolean);
     for (let i = parts.length; i > 0; i--) {
       const text = await ctx.source.read(`${parts.slice(0, i).join('/')}/package.json`);

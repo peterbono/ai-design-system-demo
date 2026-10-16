@@ -14,8 +14,8 @@ import {
   planRevert,
   protectedBranchesOf,
   tokenHistory,
-} from '@bridge/core';
-import { branchExists, commitToNewLocalBranch, currentBranch, loadLocalHistory } from '@bridge/core/node';
+} from '@bridge-ds/core';
+import { branchExists, commitToNewLocalBranch, currentBranch, loadLocalHistory } from '@bridge-ds/core/node';
 import type { BridgeContext } from './context.js';
 import { core, type TokenSet } from './core-adapter.js';
 import { normalizeTokenPath } from './ops.js';

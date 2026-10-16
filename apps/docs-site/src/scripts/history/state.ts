@@ -1,6 +1,6 @@
 // History data in the browser: one fetch of /history/data.json per page, and the demo toggle. Real and demo
 // reports stay separate; the toggle only picks which one a view shows, and every demo view carries a banner.
-import { layoutOptions, loadConfig, parseContrastChecks, type BridgeConfig, type ContrastPair, type HistoryReport } from '@bridge/core';
+import { layoutOptions, loadConfig, parseContrastChecks, type BridgeConfig, type ContrastPair, type HistoryReport } from '@bridge-ds/core';
 import type { HistoryData } from '../../lib/history';
 
 let data: Promise<HistoryData> | null = null;

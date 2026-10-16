@@ -1,7 +1,7 @@
 // Remote mode against an in-memory GitHub: read-only without a token, PRs on new branches with one, never main.
 import { describe, expect, it } from 'vitest';
 import { BridgeContext, ops } from '../dist/lib.js';
-import { GitHubClient } from '@bridge/core';
+import { GitHubClient } from '@bridge-ds/core';
 import { fakeGitHub, readTree, REAL_PATHS, REPO } from './helpers.js';
 
 const files = () => readTree(REPO, REAL_PATHS);

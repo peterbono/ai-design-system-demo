@@ -1,6 +1,6 @@
 // @bridge-ds/core: pure design-token logic shared by the DS Bridge Figma plugin, the CLI and the MCP
 // server. No Figma API, no DOM, no Node-only API: everything runs in a browser, a plugin sandbox or Node.
-// Node-only helpers (local git) live in '@bridge/core/node'.
+// Node-only helpers (local git) live in '@bridge-ds/core/node'.
 
 export * from './types';
 export * from './config';

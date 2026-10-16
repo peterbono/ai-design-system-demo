@@ -1,7 +1,7 @@
 // Where the server reads from and what it may write. Local: a working tree. Remote: a GitHub repo.
 import { resolve } from 'node:path';
-import { baseBranchOf, protectedBranchesOf, type FetchLike } from '@bridge/core';
-import { isGitRepo, originRepo } from '@bridge/core/node';
+import { baseBranchOf, protectedBranchesOf, type FetchLike } from '@bridge-ds/core';
+import { isGitRepo, originRepo } from '@bridge-ds/core/node';
 import { CONFIG_FILE, detectConfig, parseConfig, type BridgeConfig } from './config.js';
 import { core, GitHubClient, type TokenSet } from './core-adapter.js';
 import { GitHubSource, LocalSource, type RepoSource } from './source.js';

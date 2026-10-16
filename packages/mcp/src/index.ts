@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// bridge-mcp: stdio MCP server. `npx @bridge/mcp` or `node packages/mcp/dist/index.js [--root dir | --repo owner/name]`.
+// bridge-mcp: stdio MCP server. `npx @bridge-ds/mcp` or `node packages/mcp/dist/index.js [--root dir | --repo owner/name]`.
 import { optionsFromArgv, serveStdio, VERSION } from './lib.js';
 
 const argv = process.argv.slice(2);

@@ -1,4 +1,4 @@
-# @bridge/mcp
+# @bridge-ds/mcp
 
 An MCP server that connects your own Claude (Claude Code, Claude Desktop or any MCP client) to your own
 design system repo. Claude can read your DTCG tokens, components and docs, run your contrast gate, and
@@ -7,7 +7,7 @@ propose token changes as reviewable branches and pull requests. It never writes 
 Free and open source (MIT). Local, no backend, no account: it reads files on your disk, or a GitHub repo
 with your own token.
 
-> Not published to npm yet. The `npx @bridge/mcp` commands below work once it is; until then use the local
+> Not published to npm yet. The `npx @bridge-ds/mcp` commands below work once it is; until then use the local
 > path form (`node packages/mcp/dist/index.js`).
 
 ## Run it
@@ -24,7 +24,7 @@ Connect it to Claude Code:
 ```sh
 claude mcp add bridge -- node /abs/path/to/packages/mcp/dist/index.js --root /abs/path/to/your-ds
 # once published:
-claude mcp add bridge -- npx -y @bridge/mcp
+claude mcp add bridge -- npx -y @bridge-ds/mcp
 ```
 
 Or commit a project `.mcp.json` (this repo has one), or run `bridge init`. Claude Desktop, other clients
@@ -112,10 +112,10 @@ detected one so you can pin and edit it.
 npm run mcp:test     # builds both packages, runs vitest (real repo tokens, a fixture repo, fake GitHub, stdio smoke test)
 ```
 
-All design-system logic comes from `@bridge/core`, through `src/core-adapter.ts`: layered token sets,
+All design-system logic comes from `@bridge-ds/core`, through `src/core-adapter.ts`: layered token sets,
 validation, contrast, minimal-diff edits, diffs, the PR body, changesets, the GitHub client, the local git
-writer (`@bridge/core/node`) and the risk classifier the Figma plugin and the docs site use too. `npm run
-mcp:build` bundles the server and the CLI with esbuild, compiling `@bridge/core` in.
+writer (`@bridge-ds/core/node`) and the risk classifier the Figma plugin and the docs site use too. `npm run
+mcp:build` bundles the server and the CLI with esbuild, compiling `@bridge-ds/core` in.
 
 ## License
 

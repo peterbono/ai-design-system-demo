@@ -1,5 +1,5 @@
-// Bundles the bridge CLI with esbuild. @bridge/mcp (its built dist) and npm dependencies stay external;
-// @bridge/core sources are compiled in.
+// Bundles the bridge CLI with esbuild. @bridge-ds/mcp (its built dist) and npm dependencies stay external;
+// @bridge-ds/core sources are compiled in.
 import { build } from 'esbuild';
 import { chmod, rm } from 'node:fs/promises';
 
@@ -10,8 +10,10 @@ await build({
   bundle: true,
   format: 'esm',
   platform: 'node',
+  // Workspace packages resolve to their TypeScript sources (the `source` export condition), compiled in.
+  conditions: ['source'],
   target: 'node20',
-  external: ['typescript', '@bridge/mcp', 'playwright-core', 'pixelmatch', 'pngjs', '@modelcontextprotocol/sdk', '@modelcontextprotocol/sdk/*', 'zod', 'zod/*'],
+  external: ['typescript', '@bridge-ds/mcp', 'playwright-core', 'pixelmatch', 'pngjs', '@modelcontextprotocol/sdk', '@modelcontextprotocol/sdk/*', 'zod', 'zod/*'],
   logLevel: 'warning',
   absWorkingDir: new URL('.', import.meta.url).pathname,
 });

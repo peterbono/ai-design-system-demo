@@ -55,14 +55,14 @@ describe('bridge/prefer-ds-components', () => {
       "import * as Dialog from '@radix-ui/react-dialog';",
       "import { Card } from '@/components/ui/card';",
       "import DeleteIcon from '@mui/icons-material/Delete';",
-      "import { Button as DsButton } from '@demo-ds/react';",
+      "import { Button as DsButton } from '@bridge-ds/react';",
       'export const A = () => (<form><button type="submit">Go</button><input type="checkbox" /><input type="hidden" /><select /></form>);',
     ].join('\n');
     const { reports } = runRule(preferDsComponents, code, [ds]);
     expect(reports.map((r) => r.message)).toEqual([
       'Button from @mui/material: use the design system Button instead.',
       'TextField from @mui/material: use the design system Input instead.',
-      'Box from @mui/material is not a design system component. Use DS components (@demo-ds/react, @bridge/react) or ask for one.',
+      'Box from @mui/material is not a design system component. Use DS components (@bridge-ds/react) or ask for one.',
       'Dialog from @radix-ui/react-dialog: use the design system Dialog instead.',
       'Card from shadcn/ui (local): use the design system Card instead.',
       'Native <button>: use the design system Button (accessible states, tokens, focus ring).',

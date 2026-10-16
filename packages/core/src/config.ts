@@ -1,6 +1,6 @@
 // bridge.config.json: where a design system repo keeps its tokens, which modes it has, and how Bridge may
 // propose changes to it. One file, one schema (packages/core/bridge.config.schema.json), read by
-// @bridge/core, the DS Bridge Figma plugin, the docs site, the CLI and the MCP server.
+// @bridge-ds/core, the DS Bridge Figma plugin, the docs site, the CLI and the MCP server.
 //
 // The canonical form names tiers, ordered layers and modes:
 //
@@ -102,7 +102,7 @@ export interface GovernanceConfig {
 
 /** `bridge audit` settings: how product code that consumes the design system is measured. */
 export interface AuditConfig {
-  /** Packages the DS components are imported from. Default: the package that holds components.dir, plus @bridge/react. */
+  /** Packages the DS components are imported from. Default: the package that holds components.dir, plus @bridge-ds/react. */
   packages?: string[] | undefined;
   /** Extra import prefixes counted as foreign UI libraries (MUI, antd, Chakra, Radix... are built in). */
   foreignLibraries?: string[] | undefined;

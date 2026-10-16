@@ -1,13 +1,13 @@
 #!/usr/bin/env node
-// bridge: CLI for the Bridge design-system-as-code tools. Small on purpose: Node built-ins + @bridge/mcp.
+// bridge: CLI for the Bridge design-system-as-code tools. Small on purpose: Node built-ins + @bridge-ds/mcp.
 import { existsSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join, relative, resolve } from 'node:path';
-import { auditMarkdown, type AuditReport } from '@bridge/core/audit';
-import { findDesignSystemRoot, fixCss, loadDesignSystem, originRepo, runAudit } from '@bridge/core/node';
+import { auditMarkdown, type AuditReport } from '@bridge-ds/core/audit';
+import { findDesignSystemRoot, fixCss, loadDesignSystem, originRepo, runAudit } from '@bridge-ds/core/node';
 import { fileURLToPath } from 'node:url';
-import { runImpact, type Only } from '@bridge/visual';
-import { BridgeContext, CONFIG_FILE, core, detectConfig, GitRefSource, history as hist, LocalSource, ops, optionsFromArgv, serveStdio, toConfigJson, VERSION, type BridgeConfig } from '@bridge/mcp';
+import { runImpact, type Only } from '@bridge-ds/visual';
+import { BridgeContext, CONFIG_FILE, core, detectConfig, GitRefSource, history as hist, LocalSource, ops, optionsFromArgv, serveStdio, toConfigJson, VERSION, type BridgeConfig } from '@bridge-ds/mcp';
 
 const HELP = `bridge ${VERSION}: design system as code, for you and your Claude
 
@@ -83,8 +83,8 @@ async function init(a: Args, root: string) {
     print(`Wrote ${CONFIG_FILE}: tokens in ${config.tokens.root}, ${config.tokens.layers.length} layers, modes ${Object.keys(config.axes).join(', ') || 'none'}.`);
     print('Check the layers order (lowest first) and the tiers; detection is a starting point.');
   }
-  // Server command: the local build of @bridge/mcp (packages are not published to npm yet).
-  const serverJs = fileURLToPath(new URL('./index.js', import.meta.resolve('@bridge/mcp')));
+  // Server command: the local build of @bridge-ds/mcp (packages are not published to npm yet).
+  const serverJs = fileURLToPath(new URL('./index.js', import.meta.resolve('@bridge-ds/mcp')));
   const relServer = relative(root, serverJs);
   const inRepo = !relServer.startsWith('..');
   const mcpPath = join(root, '.mcp.json');
@@ -96,7 +96,7 @@ async function init(a: Args, root: string) {
   print(JSON.stringify({ mcpServers: { bridge: { command: 'node', args: [serverJs, '--root', root] } } }, null, 2));
   print('\nOr with the Claude Code CLI:');
   print(`  claude mcp add bridge -- node ${serverJs} --root ${root}`);
-  print('(Once @bridge/mcp is published: claude mcp add bridge -- npx -y @bridge/mcp)');
+  print('(Once @bridge-ds/mcp is published: claude mcp add bridge -- npx -y @bridge-ds/mcp)');
 }
 
 async function check(a: Args, root: string): Promise<number> {
@@ -309,6 +309,8 @@ async function revertCmd(a: Args, root: string): Promise<number> {
   if (r.next) print(String(r.next));
   if (r.status === 'dry-run') print(`\n${r.prBody}`);
   return r.status === 'blocked' ? 1 : 0;
+}
+
 async function audit(a: Args, root: string): Promise<number> {
   const target = a._[1];
   if (!target) throw new UsageError('bridge audit <path>   (a product folder or file that uses the design system)');

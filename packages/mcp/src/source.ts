@@ -1,8 +1,8 @@
 // Where the repo comes from: the local working tree, a local git ref, or GitHub over the REST API.
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { GitHubClient } from '@bridge/core';
-import { listFilesAt, showFile } from '@bridge/core/node';
+import type { GitHubClient } from '@bridge-ds/core';
+import { listFilesAt, showFile } from '@bridge-ds/core/node';
 
 export interface RepoSource {
   kind: 'local' | 'git-ref' | 'github';

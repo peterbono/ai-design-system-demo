@@ -12,7 +12,7 @@ import {
   type HistoryReport,
   type TokenEdit,
   type VersionGroup,
-} from '@bridge/core';
+} from '@bridge-ds/core';
 
 /** Token files before an entry, from the files right after it: every change of the entry undone. */
 export function demoBeforeFiles(config: BridgeConfig, after: Record<string, string>, entry: HistoryEntry): Record<string, string> {

@@ -1,4 +1,4 @@
-// @bridge/visual: visual impact analysis for design system pull requests.
+// @bridge-ds/visual: visual impact analysis for design system pull requests.
 export { runImpact, planImpact, changedTokens, type ImpactOptions, type ImpactResult, type Plan } from './run.js';
 export { selectImpact, storiesFromSource, storyId, storyComponent, type SelectInput } from './select.js';
 export { diffPngs, boxesFromDiff, boxesFromCells, padTo, decodePng, encodePng, type DiffResult } from './diff.js';

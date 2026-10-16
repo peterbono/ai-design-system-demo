@@ -1,6 +1,6 @@
 // "History" panel in the token explorer drawer: every recorded change of the open token (renames followed), each
 // with "Restore this value". Real history by default; demo only with the toggle, under the same banner.
-import { tokenHistory, type TokenHistoryItem } from '@bridge/core';
+import { tokenHistory, type TokenHistoryItem } from '@bridge-ds/core';
 import { shortDate } from '../../lib/history-view';
 import { esc } from '../github-session';
 import { openRestorePlanner } from './planner';

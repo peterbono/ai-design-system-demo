@@ -55,7 +55,7 @@ export function historyFixture(): Fixture {
   const raw = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../../bridge.config.json'), 'utf8'));
   write('bridge.config.json', JSON.stringify({ ...raw, repo: { owner: 'acme', name: 'ds', defaultBranch: 'main' } }, null, 2));
   write(`${ROOT}/contrast.checks.json`, realChecksText());
-  write('packages/tokens/package.json', JSON.stringify({ name: '@demo-ds/tokens', version: '0.2.0' }, null, 2));
+  write('packages/tokens/package.json', JSON.stringify({ name: '@bridge-ds/tokens', version: '0.2.0' }, null, 2));
   write('.changeset/README.md', 'Changesets.\n');
   writeTokens();
   g('add', '-A');
@@ -63,7 +63,7 @@ export function historyFixture(): Fixture {
   const init = sha();
 
   edit([{ op: 'set', path: 'color.text.muted', value: '{palette.neutral.700}', file: LIGHT }]);
-  write('.changeset/darken-muted.md', '---\n"@demo-ds/tokens": minor\n---\n\nMuted text was too light on subtle surfaces; darken it one step in light.\n');
+  write('.changeset/darken-muted.md', '---\n"@bridge-ds/tokens": minor\n---\n\nMuted text was too light on subtle surfaces; darken it one step in light.\n');
   g('add', '-A');
   g('commit', '-q', '-m', 'feat(tokens): darken muted text (#3)');
   const pr3 = sha();

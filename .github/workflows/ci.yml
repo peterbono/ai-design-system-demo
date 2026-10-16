@@ -33,8 +33,11 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Package scope (no @demo-ds or @bridge names left, only @bridge-ds)
+        run: node scripts/rename-scope.mjs --check
+
       - name: Lint CSS (tokens only: no raw colors, shadows, lengths or durations)
-        run: npm run lint:css
+        run: npm run lint:css && npm run admin:lint:css
 
       - name: Build Storybook
         run: npm run build-storybook
@@ -126,10 +129,36 @@ jobs:
         run: npm run tokens:build
 
       - name: Typecheck MCP server and CLI
-        run: npm run typecheck -w @bridge/mcp && npm run typecheck -w @bridge/cli
+        run: npm run typecheck -w @bridge-ds/mcp && npm run typecheck -w @bridge-ds/cli
 
       - name: Test MCP server and CLI (real tokens, fixture repo, fake GitHub, stdio smoke test)
         run: npm run mcp:test
+
+      - name: Build the Stylelint and ESLint plugins
+        run: npm run plugins:build
+
+      - name: bridge check (config, token validation, contrast)
+        run: npm run bridge -- check
+
+  admin:
+    name: Admin demo
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck the admin
+        run: npm run admin:typecheck
+
+      - name: Build the admin
+        run: npm run admin:build
 
   changeset:
     name: Changeset present

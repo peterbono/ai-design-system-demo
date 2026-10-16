@@ -12,7 +12,7 @@ through the same gates; agent PRs are additionally labelled and never self-merge
 | 3, high | Token added, changed, renamed or removed; breaking prop change; guardrail or `AGENTS.md` change | Draft, labelled `tokens` or `breaking` | Design owner **and** tech owner, mandatory | `minor` (added or changed token) or `major` (renamed or removed token) |
 
 If a PR spans tiers, the highest tier applies. The DS Bridge plugin, the docs site editor and Reviews, the CLI
-and the MCP server compute the tier with the same classifier (`classifyRisk` in `@bridge/core`).
+and the MCP server compute the tier with the same classifier (`classifyRisk` in `@bridge-ds/core`).
 
 ## Review gates
 

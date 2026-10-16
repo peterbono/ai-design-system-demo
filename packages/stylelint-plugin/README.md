@@ -1,10 +1,10 @@
-# @bridge/stylelint-plugin
+# @bridge-ds/stylelint-plugin
 
 Stylelint rule for product apps that use a Bridge design system: raw colors, lengths, radii, borders, shadows,
 durations, easings, z-index and fonts are reported where a design token exists, with the token to use.
 `stylelint --fix` replaces values that equal a token with `var(--token)`; nothing else is rewritten.
 
-It reads the tokens (every brand, theme and density) through `@bridge/core` and the design system's
+It reads the tokens (every brand, theme and density) through `@bridge-ds/core` and the design system's
 `bridge.config.json`, so the suggestions are the same as `bridge audit` and the `bridge_audit` MCP tool.
 
 > Not published to npm yet: build it from this repo (`npm run plugins:build`) and install the folder, or use
@@ -13,13 +13,13 @@ It reads the tokens (every brand, theme and density) through `@bridge/core` and 
 ## Install
 
 ```sh
-npm install --save-dev stylelint @bridge/stylelint-plugin
+npm install --save-dev stylelint @bridge-ds/stylelint-plugin
 ```
 
 ```json
 // .stylelintrc.json in the product app
 {
-  "plugins": ["@bridge/stylelint-plugin"],
+  "plugins": ["@bridge-ds/stylelint-plugin"],
   "rules": {
     "bridge/use-tokens": [true, { "designSystem": "../design-system" }]
   }

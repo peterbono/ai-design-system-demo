@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { lstat, mkdir, readdir, readFile, realpath, rm, symlink } from 'node:fs/promises';
 import { dirname, join, relative } from 'node:path';
-import { git } from '@bridge/core/node';
+import { git } from '@bridge-ds/core/node';
 
 export type Log = (msg: string) => void;
 
@@ -34,7 +34,7 @@ async function link(target: string, at: string) {
 
 /**
  * Gives `dst` (a worktree of the same repo) a node_modules that reuses the installed packages of `src`
- * while its workspace packages (@bridge/*, @demo-ds/*...) point at `dst`'s own sources. Per-checkout caches
+ * while its workspace packages (@bridge/*, @bridge-ds/*...) point at `dst`'s own sources. Per-checkout caches
  * stay private. Nested workspace node_modules are linked too.
  */
 export async function linkNodeModules(src: string, dst: string): Promise<void> {

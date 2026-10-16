@@ -1,6 +1,6 @@
 // History and rollback for a token set: what changed, when, who changed it and why, and how to undo a
 // change safely. Pure: the commits and file snapshots come from a backend (GitHub REST in
-// history-github.ts, local git in @bridge/core/node), so the same model runs in a browser, the CLI and the
+// history-github.ts, local git in @bridge-ds/core/node), so the same model runs in a browser, the CLI and the
 // MCP server.
 //
 // A revert is not a blind `git revert`. The planner computes the inverse token edits against the CURRENT

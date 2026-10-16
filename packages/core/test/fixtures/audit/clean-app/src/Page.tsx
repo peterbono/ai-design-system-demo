@@ -1,4 +1,4 @@
-import { Button, Card, Input } from '@demo-ds/react';
+import { Button, Card, Input } from '@bridge-ds/react';
 import styles from './page.module.css';
 
 export function Page() {

@@ -1,6 +1,6 @@
 // History page: the version timeline with filters, an entry detail with the Reviews diff, and "Undo this change".
 // Real history by default; the demo toggle swaps in the fixture report and a banner, never both at once.
-import type { HistoryEntry, HistoryFilter, HistoryReport } from '@bridge/core';
+import type { HistoryEntry, HistoryFilter, HistoryReport } from '@bridge-ds/core';
 import { authorsOf, countsLabel, shortDate, viewTimeline } from '../../lib/history-view';
 import { renderTokenReview } from '../reviews';
 import { esc, initGitHubConnect, readRepo } from '../github-session';

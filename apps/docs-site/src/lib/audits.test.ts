@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { AuditReport } from '@bridge/core/audit';
+import type { AuditReport } from '@bridge-ds/core/audit';
 import { adoptionTone, categoryRows, componentBreakdown, formatDelta, formatPct, isAuditReport, parseAudits, trendPoints } from './audits';
 
 const report = (over: Partial<AuditReport> = {}): AuditReport => ({
@@ -7,7 +7,7 @@ const report = (over: Partial<AuditReport> = {}): AuditReport => ({
   tool: { name: 'bridge', version: '0.1.0' },
   generatedAt: '2026-10-16T10:00:00.000Z',
   target: { path: 'src', files: 2, skipped: 0 },
-  designSystem: { packages: ['@demo-ds/react'], components: 3, tokens: 10, modes: ['theme'] },
+  designSystem: { packages: ['@bridge-ds/react'], components: 3, tokens: 10, modes: ['theme'] },
   metrics: { tokenAdoption: 40, componentAdoption: 25, tokenUsages: 4, hardcoded: 6, themeRefs: 1, dsComponentInstances: 1, uiComponentInstances: 4 },
   byCategory: { color: { hardcoded: 4, exact: 1, suggested: 3 }, spacing: { hardcoded: 2, exact: 2, suggested: 2 }, radius: { hardcoded: 0, exact: 0, suggested: 0 } },
   components: {

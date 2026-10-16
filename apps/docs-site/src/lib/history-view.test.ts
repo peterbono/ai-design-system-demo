@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LayeredTokenSet, composeProposalBody, demoHistory, planRevert } from '@bridge/core';
+import { LayeredTokenSet, composeProposalBody, demoHistory, planRevert } from '@bridge-ds/core';
 import { authorsOf, countsLabel, demoBeforeFiles, humanAuthored, laterThan, realSummary, viewTimeline } from './history-view';
 import { currentTokenFiles, siteConfig } from './history';
 

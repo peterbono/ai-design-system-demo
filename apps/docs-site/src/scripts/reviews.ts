@@ -1,6 +1,6 @@
 // Reviews: open pull requests of the configured repo, read client-side from the GitHub REST API, with a
 // designer-friendly token diff and governance-aware actions. Without a token every action deep-links to GitHub.
-import { classifyRisk } from '@bridge/core';
+import { classifyRisk } from '@bridge-ds/core';
 import { mergeGate, parseChangeset, parseTier, summarizeApprovals, summarizeCi, type CheckRunLike, type ReviewLike, type StatusLike, type Tier } from '../lib/review-rules';
 import { currentViewer, esc, getToken, ghGet, ghWrite, initGitHubConnect, RateLimitError, readRepo, relativeTime, type Fetched } from './github-session';
 import { analyzeTokenFiles, isTokenFile, type TokenReview } from './reviews/token-review';

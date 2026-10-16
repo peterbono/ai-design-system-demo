@@ -6,7 +6,7 @@ import { deltaE, parseCssColor } from './color';
 import type { Confidence, FindingCategory, TokenSuggestion } from './types';
 
 export interface AuditDsOptions {
-  /** Packages the DS components are imported from, e.g. ["@bridge/react"]. */
+  /** Packages the DS components are imported from, e.g. ["@bridge-ds/react"]. */
   packages: string[];
   /** DS component names (PascalCase). */
   components: string[];

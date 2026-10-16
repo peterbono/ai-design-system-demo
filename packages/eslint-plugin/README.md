@@ -1,7 +1,7 @@
-# @bridge/eslint-plugin
+# @bridge-ds/eslint-plugin
 
 ESLint rules for product apps that use a Bridge design system. They read the tokens and the component list
-through `@bridge/core` and the design system's `bridge.config.json`, so they agree with `bridge audit` and the
+through `@bridge-ds/core` and the design system's `bridge.config.json`, so they agree with `bridge audit` and the
 `bridge_audit` MCP tool.
 
 > Not published to npm yet: build it from this repo (`npm run plugins:build`) and install the folder.
@@ -9,12 +9,12 @@ through `@bridge/core` and the design system's `bridge.config.json`, so they agr
 ## Install
 
 ```sh
-npm install --save-dev eslint @bridge/eslint-plugin
+npm install --save-dev eslint @bridge-ds/eslint-plugin
 ```
 
 ```js
 // eslint.config.js (flat config, ESLint 9)
-import bridge from '@bridge/eslint-plugin';
+import bridge from '@bridge-ds/eslint-plugin';
 
 export default [
   bridge.configs.recommended,

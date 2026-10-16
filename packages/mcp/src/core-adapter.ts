@@ -1,5 +1,5 @@
-// core-adapter.ts: the one place @bridge/mcp reaches for design-system logic. Every function is
-// @bridge/core: layered token sets, validation, contrast, minimal-diff edits, diff and impact, the shared
+// core-adapter.ts: the one place @bridge-ds/mcp reaches for design-system logic. Every function is
+// @bridge-ds/core: layered token sets, validation, contrast, minimal-diff edits, diff and impact, the shared
 // risk classifier (same tiers as the Figma plugin and the docs site), the PR body, changesets and the
 // GitHub client. The adapter only shapes them for the MCP tools and the CLI.
 import {
@@ -42,10 +42,10 @@ import {
   selectTokenFiles,
   slugify,
   validateLayered,
-} from '@bridge/core';
+} from '@bridge-ds/core';
 import type { RepoSource } from './source.js';
 
-export type { Combo } from '@bridge/core';
+export type { Combo } from '@bridge-ds/core';
 export type Issue = LayerIssue;
 export type Resolved = LayeredResolution;
 export type TokenSet = LayeredTokenSet;
@@ -76,7 +76,7 @@ export interface BridgeCore {
   coerceValue(input: unknown, type?: string, existing?: unknown): unknown;
   diff(before: TokenSet, after: TokenSet): TokenChange[];
   impact(before: TokenSet, after: TokenSet, direct: TokenChange[], limit?: number): { total: number; entries: ImpactEntry[] };
-  /** The shared classifier (risk.ts in @bridge/core). */
+  /** The shared classifier (risk.ts in @bridge-ds/core). */
   classify(changes: TokenChange[], otherFiles?: string[], config?: BridgeConfig): TierResult;
   prBody(input: ProposalBodyInput): string;
   changeset(pkg: string, bump: SemverBump, summary: string): string;

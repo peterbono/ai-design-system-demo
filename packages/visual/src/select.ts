@@ -1,6 +1,6 @@
 // Impact selection: from what a change touches (token values, component files) to the stories and screens to
 // capture. Pure: the inputs come from git, the token sets and the usage index, so it is unit tested.
-import { componentForPath, impactedModules, type UsageIndex } from '@bridge/core';
+import { componentForPath, impactedModules, type UsageIndex } from '@bridge-ds/core';
 import type { Selection, StoryEntry } from './types.js';
 
 export interface SelectInput {

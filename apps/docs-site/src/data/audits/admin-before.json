@@ -14,8 +14,8 @@
   },
   "designSystem": {
     "packages": [
-      "@demo-ds/react",
-      "@bridge/react"
+      "@bridge-ds/react",
+      "@bridge-ds/react"
     ],
     "components": 46,
     "tokens": 535,

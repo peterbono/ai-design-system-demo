@@ -1,4 +1,4 @@
-import { buildUsageIndex } from '@bridge/core';
+import { buildUsageIndex } from '@bridge-ds/core';
 import { describe, expect, it } from 'vitest';
 import { selectImpact, storiesFromSource, storyId, type SelectInput } from '../src/select';
 import type { StoryEntry } from '../src/types';

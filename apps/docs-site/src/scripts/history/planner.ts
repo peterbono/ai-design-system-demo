@@ -1,4 +1,4 @@
-// The revert and restore planner: plans with @bridge/core against main (live from GitHub when a token is
+// The revert and restore planner: plans with @bridge-ds/core against main (live from GitHub when a token is
 // connected, else the files this site was built from), shows conflicts with the later change that explains each,
 // the designer diff and contrast impact from Reviews, the tier and the files. "Propose" opens a pull request on a
 // new bridge/* branch with the user's token, like the token editor; main is never written. Without a token the
@@ -17,7 +17,7 @@ import {
   type HistoryReport,
   type RevertResolution,
   type TokenHistoryItem,
-} from '@bridge/core';
+} from '@bridge-ds/core';
 import { reviewTokenChange } from '../../lib/token-review';
 import { humanAuthored, laterThan, shortDate } from '../../lib/history-view';
 import { renderTokenReview } from '../reviews';

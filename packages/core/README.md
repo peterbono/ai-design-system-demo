@@ -4,7 +4,7 @@ Pure design-token logic for Bridge: load DTCG 2025.10 tokens across tiers, resol
 theme and density, check WCAG contrast, diff three versions of a token set, edit `*.tokens.json` files
 without reformatting them, build the pull request (body, risk tier, changeset) and talk to GitHub.
 
-No Figma API, no DOM, no Node-only API in the main entry (Node helpers live in `@bridge/core/node`): it runs in a Figma plugin sandbox, a browser, Node or an MCP
+No Figma API, no DOM, no Node-only API in the main entry (Node helpers live in `@bridge-ds/core/node`): it runs in a Figma plugin sandbox, a browser, Node or an MCP
 server. The DS Bridge Figma plugin (`apps/figma-plugin`) is built on it; a CLI and an MCP server can be
 too. Nothing here hardcodes a repository: callers pass a `BridgeConfig` (usually `bridge.config.json`).
 
@@ -32,7 +32,7 @@ Typecheck: `npx tsc --noEmit -p packages/core`.
 ## config
 
 `bridge.config.json` at the repository root: one file and one schema (`packages/core/bridge.config.schema.json`,
-also exported as `@bridge/core/bridge.config.schema.json`) for the plugin, the docs site, the CLI and the MCP
+also exported as `@bridge-ds/core/bridge.config.schema.json`) for the plugin, the docs site, the CLI and the MCP
 server. Canonical form: `repo`, `tokens` (`root`, `include`, `exclude`, `tiers`, ordered `layers` with `{mode}`
 placeholders and `optional`), `modes` (name -> `{ values, default, parity }`), `contrast` (`path`, `modes`),
 `components`, `docs`, `changesets`, `cssVar`, `governance` (`protectedBranches`, `branchPrefix`, `labels`,
@@ -78,7 +78,7 @@ function classifyLayered(changes, otherFiles?, config?);  // classifyRisk undern
 function composeProposalBody(input); function changeTable(changes); function contrastDeltaTable(deltas);
 ```
 
-`@bridge/core/node` (Node only): `git`, `isGitRepo`, `currentBranch`, `branchExists`, `showFile`, `listFilesAt`,
+`@bridge-ds/core/node` (Node only): `git`, `isGitRepo`, `currentBranch`, `branchExists`, `showFile`, `listFilesAt`,
 `originRepo`, `commitToNewLocalBranch` (plumbing commit on a new branch; working tree, index and checkout untouched).
 
 ## types
@@ -266,7 +266,7 @@ What changed in the tokens, when, who changed it and why, and how to undo it saf
 interface HistoryEntry { id; sha; baseSha?; date; author; title; why; pr?; changes: LayeredChange[]; counts; tier; bump; breaking; reasons; changesets; version?; bulk?; demo? }
 function buildHistoryEntry({ config, commit, before, after, changesets? }): HistoryEntry | null;
 function collectHistory(config, backend: HistoryBackend, { ref, limit }): Promise<HistoryEntry[]>;
-// backends: GitHub REST (browser or Node) and local git (Node, @bridge/core/node)
+// backends: GitHub REST (browser or Node) and local git (Node, @bridge-ds/core/node)
 function gitHubHistoryBackend(client, config); function loadGitHubHistory(client, config, { ref?, limit? }): Promise<HistoryReport>;
 function localGitHistoryBackend(root, config); function loadLocalHistory(root, config, { ref?, limit? }): Promise<HistoryReport>;
 // versions: CHANGELOG sections and tags; the timeline of design system versions
@@ -294,15 +294,15 @@ Changes already undone are skipped. The rest goes through `applyTokenEdits` (min
 contrast gate, `classifyRisk` and a changeset, like any proposal: `status` is `ready`, `blocked` (new
 validation errors or a failing contrast pair) or `nothing-to-do`. The PR body starts with "Reverts #n" and the
 conflicts table.
-## audit (`@bridge/core/audit`)
+## audit (`@bridge-ds/core/audit`)
 
 Design system adoption and drift in a product codebase that consumes the DS. Pure (file texts in, report
 out); it reads TSX/JSX with the TypeScript compiler API (syntax only), which is why it is its own entry and the
-Figma plugin never loads it. `@bridge/core/node` adds the disk side.
+Figma plugin never loads it. `@bridge-ds/core/node` adds the disk side.
 
 ```ts
-import { DesignSystemIndex, buildAuditReport, compareWithBaseline, auditMarkdown, planCssFixes, auditFile } from '@bridge/core/audit';
-import { loadDesignSystem, runAudit, collectAuditFiles, fixCss, findDesignSystemRoot } from '@bridge/core/node';
+import { DesignSystemIndex, buildAuditReport, compareWithBaseline, auditMarkdown, planCssFixes, auditFile } from '@bridge-ds/core/audit';
+import { loadDesignSystem, runAudit, collectAuditFiles, fixCss, findDesignSystemRoot } from '@bridge-ds/core/node';
 
 const ds = loadDesignSystem('/path/to/ds-repo');               // bridge.config.json: tokens in every mode, components, packages
 const report = runAudit('apps/admin/src', { ds: ds.root, label: 'admin', baseline });  // AuditReport, schemaVersion 1
@@ -318,7 +318,7 @@ const report = runAudit('apps/admin/src', { ds: ds.root, label: 'admin', baselin
 - **Token references**: `var(--x)` of a DS token (also in Tailwind arbitrary values). Other variables, MUI palette
   paths, `theme.spacing()` and Tailwind scale classes count as references to another theme, not as hardcoded.
 - **Components**: JSX instances imported from the DS packages (`audit.packages`, default: the package that holds
-  `components.dir`, plus `@bridge/react`) versus foreign UI libraries (MUI, react-admin, antd, Chakra, Radix,
+  `components.dir`, plus `@bridge-ds/react`) versus foreign UI libraries (MUI, react-admin, antd, Chakra, Radix,
   Headless UI, Mantine, shadcn/ui local components...), native elements that should be DS components
   (`button`, `input`, `select`, `textarea`, `dialog`, `table`) and local components named like a DS component.
 - **Metrics**: token adoption = token references / (token references + hardcoded values); component adoption =
@@ -328,5 +328,5 @@ const report = runAudit('apps/admin/src', { ds: ds.root, label: 'admin', baselin
   CSS values equal to a token become `var(--token)`.
 
 The report schema is `packages/core/audit-report.schema.json` (also exported as
-`@bridge/core/audit-report.schema.json`). `bridge.config.json` takes an optional `audit` section:
+`@bridge-ds/core/audit-report.schema.json`). `bridge.config.json` takes an optional `audit` section:
 `packages`, `foreignLibraries`, `nativeElements`, `exclude`.

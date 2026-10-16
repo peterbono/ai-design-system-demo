@@ -57,11 +57,11 @@ test('versions: tags date the releases, later changes are Unreleased; timeline n
 });
 
 test('changelog, tags and changesets parse', () => {
-  const rel = parseChangelog('# @demo-ds/tokens\n\n## 1.1.0\n\n### Minor Changes\n\n- 1a2b3c4: Darken muted text ([#3](https://github.com/acme/ds/pull/3))\n\n## 1.0.0\n\n- Initial release\n');
+  const rel = parseChangelog('# @bridge-ds/tokens\n\n## 1.1.0\n\n### Minor Changes\n\n- 1a2b3c4: Darken muted text ([#3](https://github.com/acme/ds/pull/3))\n\n## 1.0.0\n\n- Initial release\n');
   assert.deepEqual(rel.map((r) => [r.version, r.shas, r.prs]), [['1.1.0', ['1a2b3c4'], [3]], ['1.0.0', [], []]]);
-  assert.deepEqual(releasesFromTags([{ name: 'v1.0.0' }, { name: '@demo-ds/tokens@1.1.0' }, { name: '@demo-ds/react@9.0.0' }, { name: 'nightly' }], '@demo-ds/tokens').map((r) => r.version), ['1.0.0', '1.1.0']);
+  assert.deepEqual(releasesFromTags([{ name: 'v1.0.0' }, { name: '@bridge-ds/tokens@1.1.0' }, { name: '@bridge-ds/react@9.0.0' }, { name: 'nightly' }], '@bridge-ds/tokens').map((r) => r.version), ['1.0.0', '1.1.0']);
   assert.equal(mergeReleases(rel, [{ version: '1.1.0', date: '2026-01-01' }]).find((r) => r.version === '1.1.0')!.date, '2026-01-01');
-  assert.deepEqual(parseChangesetText('.changeset/a.md', '---\n"@demo-ds/tokens": major\n---\n\nRemove the old link token.\n\nMore.'), { path: '.changeset/a.md', bump: 'major', packages: ['@demo-ds/tokens'], summary: 'Remove the old link token.' });
+  assert.deepEqual(parseChangesetText('.changeset/a.md', '---\n"@bridge-ds/tokens": major\n---\n\nRemove the old link token.\n\nMore.'), { path: '.changeset/a.md', bump: 'major', packages: ['@bridge-ds/tokens'], summary: 'Remove the old link token.' });
   // The CHANGELOG wins over the tag date.
   const e = { ...entry('pr-7') };
   const withCl = versionTimeline([{ ...e, version: undefined }], []);

@@ -1,5 +1,5 @@
 // Visual impact in Reviews: where the manifest of a pull request lives, and the views on it (state, filters).
-// The manifest is written by `bridge impact` (@bridge/visual) and published by .github/workflows/visual-impact.yml
+// The manifest is written by `bridge impact` (@bridge-ds/visual) and published by .github/workflows/visual-impact.yml
 // to the bridge-visual branch under pr-<number>/<head sha>/. Only the fields used here are typed.
 
 export interface VisualShot {

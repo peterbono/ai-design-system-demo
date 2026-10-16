@@ -14,7 +14,7 @@ const SKIP = [/^apps\/admin\/_original\//, /^scripts\/rename-scope\.mjs$/, /\.(p
 // Plain and regex-escaped forms (`@demo-ds\/react` inside a RegExp literal).
 const RULES = [
   [/@demo-ds(\\?\/)/g, '@bridge-ds$1'],
-  [/@bridge(\\?\/)(core|mcp|cli|react|tokens|preview)\b/g, '@bridge-ds$1$2'],
+  [/@bridge(\\?\/)(core|mcp|cli|react|tokens|preview|visual|stylelint-plugin|eslint-plugin|admin|docs-site|figma-plugin)\b/g, '@bridge-ds$1$2'],
 ];
 
 const files = execFileSync('git', ['ls-files'], { encoding: 'utf8' }).split('\n').filter((f) => f && !SKIP.some((re) => re.test(f)));

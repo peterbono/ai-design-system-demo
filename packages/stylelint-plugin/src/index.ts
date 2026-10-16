@@ -1,8 +1,8 @@
-// @bridge/stylelint-plugin: bridge/use-tokens. Raw values in product CSS where a design token exists are
+// @bridge-ds/stylelint-plugin: bridge/use-tokens. Raw values in product CSS where a design token exists are
 // reported with the token to use; values equal to a token are replaced with var(--token) by --fix.
 import stylelint, { type Rule } from 'stylelint';
-import { isSafeFix, scanCssValue, type Confidence, type FindingCategory } from '@bridge/core/audit';
-import { findDesignSystemRoot, loadDesignSystem } from '@bridge/core/node';
+import { isSafeFix, scanCssValue, type Confidence, type FindingCategory } from '@bridge-ds/core/audit';
+import { findDesignSystemRoot, loadDesignSystem } from '@bridge-ds/core/node';
 
 const {
   createPlugin,

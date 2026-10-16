@@ -45,7 +45,7 @@
     "guidelines": "AGENTS.md",
     "governance": "docs/GOVERNANCE.md"
   },
-  "changesets": { "dir": ".changeset", "package": "@demo-ds/tokens" },
+  "changesets": { "dir": ".changeset", "package": "@bridge-ds/tokens" },
   "cssVar": { "prefix": "--", "separator": "-" },
   "governance": {
     "protectedBranches": ["main", "master"],

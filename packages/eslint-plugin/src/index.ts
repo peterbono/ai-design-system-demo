@@ -1,10 +1,10 @@
-// @bridge/eslint-plugin: design system rules for product code.
+// @bridge-ds/eslint-plugin: design system rules for product code.
 //   bridge/no-hardcoded-style-values  raw colors, lengths, radii, shadows, durations, z-index, fonts in style, sx,
 //                                     styled() and theme objects; suggests the token, fixes exact matches.
 //   bridge/prefer-ds-components       native elements and foreign UI libraries where a DS component exists.
-// Tokens and components come from the design system repo (bridge.config.json) through @bridge/core.
-import { classifyModule, dsEquivalent, isNonVisual, isSafeFix, libraryLabel, nativeEquivalent, scanJsStyle, type Confidence, type DesignSystemIndex, type JsStyleContext } from '@bridge/core/audit';
-import { findDesignSystemRoot, loadDesignSystem } from '@bridge/core/node';
+// Tokens and components come from the design system repo (bridge.config.json) through @bridge-ds/core.
+import { classifyModule, dsEquivalent, isNonVisual, isSafeFix, libraryLabel, nativeEquivalent, scanJsStyle, type Confidence, type DesignSystemIndex, type JsStyleContext } from '@bridge-ds/core/audit';
+import { findDesignSystemRoot, loadDesignSystem } from '@bridge-ds/core/node';
 
 // Minimal ESTree and ESLint rule types: the plugin has no runtime dependency on ESLint.
 export interface Node {
@@ -183,7 +183,7 @@ export const preferDsComponents: RuleModule = {
     const opts = (context.options[0] ?? {}) as PreferOptions;
     const ds = designSystem(context, opts.designSystem);
     const comps = ds?.components ?? new Set<string>();
-    const packages = opts.packages ?? ds?.packages ?? ['@bridge/react'];
+    const packages = opts.packages ?? ds?.packages ?? ['@bridge-ds/react'];
     const natives = opts.nativeElements ?? ds?.nativeElements ?? ['button', 'input', 'select', 'textarea', 'dialog', 'table'];
     const foreign = [...(ds?.foreignLibraries ?? []), ...(opts.foreignLibraries ?? [])];
     const allow = new Set(opts.allow ?? []);
@@ -220,12 +220,12 @@ export const rules = {
 };
 
 const plugin = {
-  meta: { name: '@bridge/eslint-plugin', version: '0.1.0' },
+  meta: { name: '@bridge-ds/eslint-plugin', version: '0.1.0' },
   rules,
   configs: {} as Record<string, unknown>,
 };
 
-/** Flat config: `import bridge from '@bridge/eslint-plugin'; export default [bridge.configs.recommended];` */
+/** Flat config: `import bridge from '@bridge-ds/eslint-plugin'; export default [bridge.configs.recommended];` */
 plugin.configs.recommended = {
   plugins: { bridge: plugin },
   rules: { 'bridge/no-hardcoded-style-values': 'warn', 'bridge/prefer-ds-components': 'warn' },

@@ -11,8 +11,8 @@ import {
   type BridgeConfig,
   type HistoryEntry,
   type HistoryReport,
-} from '@bridge/core';
-import { loadLocalHistory, localGitHistoryBackend } from '@bridge/core/node';
+} from '@bridge-ds/core';
+import { loadLocalHistory, localGitHistoryBackend } from '@bridge-ds/core/node';
 import { readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { reviewTokenChange, type TokenReview } from './token-review';

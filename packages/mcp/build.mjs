@@ -1,5 +1,5 @@
 // Bundles the server (dist/index.js) and the library the CLI uses (dist/lib.js) with esbuild.
-// @bridge/core ships TypeScript sources, so it is compiled into the bundle; npm dependencies stay external.
+// @bridge-ds/core ships TypeScript sources, so it is compiled into the bundle; npm dependencies stay external.
 import { build } from 'esbuild';
 import { chmod, rm } from 'node:fs/promises';
 
@@ -11,6 +11,8 @@ await build({
   splitting: true,
   format: 'esm',
   platform: 'node',
+  // Workspace packages resolve to their TypeScript sources (the `source` export condition), compiled in.
+  conditions: ['source'],
   target: 'node20',
   external: ['typescript', 'playwright-core', 'pixelmatch', 'pngjs', '@modelcontextprotocol/sdk', '@modelcontextprotocol/sdk/*', 'zod', 'zod/*'],
   logLevel: 'warning',

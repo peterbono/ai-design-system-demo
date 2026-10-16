@@ -70,7 +70,7 @@ export function loadDesignSystem(root: string, opts: { fresh?: boolean } = {}): 
     const dir = join(abs, config.components.dir);
     if (existsSync(dir)) for (const name of readdirSync(dir)) if (/^[A-Z][A-Za-z0-9]*$/.test(name) && statSync(join(dir, name)).isDirectory()) components.push(name);
     if (!packages) {
-      packages = ['@bridge/react'];
+      packages = ['@bridge-ds/react'];
       for (let d = dir; d.startsWith(abs) && d !== abs; d = dirname(d)) {
         const pj = join(d, 'package.json');
         if (existsSync(pj)) {
@@ -82,7 +82,7 @@ export function loadDesignSystem(root: string, opts: { fresh?: boolean } = {}): 
     }
   }
   const index = new DesignSystemIndex(set, {
-    packages: packages ?? ['@bridge/react'],
+    packages: packages ?? ['@bridge-ds/react'],
     components: components.sort(),
     ...(config.audit?.foreignLibraries ? { foreignLibraries: config.audit.foreignLibraries } : {}),
     ...(config.audit?.nativeElements ? { nativeElements: config.audit.nativeElements } : {}),

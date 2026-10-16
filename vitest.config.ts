@@ -6,8 +6,8 @@ import { defineConfig } from 'vitest/config';
 //   core   @bridge-ds/core, pure token logic (node)
 //   docs   docs-site data layer: token review, review rules, token editor model (node)
 //   admin  back-office demo data layer: browser persistence of the demo dataset (node)
-//   visual @bridge/visual: impact selection, pixel diff and manifest (node, no browser)
-//   lint   @bridge/stylelint-plugin and @bridge/eslint-plugin rules (node)
+//   visual @bridge-ds/visual: impact selection, pixel diff and manifest (node, no browser)
+//   lint   @bridge-ds/stylelint-plugin and @bridge-ds/eslint-plugin rules (node)
 //   scripts repo scripts with logic (Vercel ignored build step)
 export default defineConfig({
   esbuild: { jsx: 'automatic' },

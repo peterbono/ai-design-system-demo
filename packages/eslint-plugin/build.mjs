@@ -1,4 +1,4 @@
-// Bundles the plugin with esbuild: @bridge/core sources are compiled in; typescript stays external.
+// Bundles the plugin with esbuild: @bridge-ds/core sources are compiled in; typescript stays external.
 import { build } from 'esbuild';
 import { rm } from 'node:fs/promises';
 
@@ -9,6 +9,8 @@ await build({
   bundle: true,
   format: 'esm',
   platform: 'node',
+  // Workspace packages resolve to their TypeScript sources (the `source` export condition), compiled in.
+  conditions: ['source'],
   target: 'node20',
   external: ['typescript'],
   logLevel: 'warning',

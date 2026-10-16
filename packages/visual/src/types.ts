@@ -89,7 +89,7 @@ export interface ShotResult {
 
 export interface Manifest {
   version: 1;
-  tool: '@bridge/visual';
+  tool: '@bridge-ds/visual';
   createdAt: string;
   durationMs: number;
   base: { ref: string; sha: string };
