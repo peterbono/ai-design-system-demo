@@ -656,3 +656,216 @@
     border: 0;
   }
 }
+
+/* Visual impact: before/after slider, diff toggle, filters */
+
+.rv-seg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.125rem;
+  padding: 0.1875rem;
+  border: 1px solid var(--br-border);
+  border-radius: var(--br-radius-control);
+  background-color: var(--br-bg-sunken);
+}
+
+.rv-seg button {
+  min-height: 2rem;
+  padding: 0 0.75rem;
+  border: 0;
+  border-radius: var(--br-radius-sm);
+  background-color: transparent;
+  color: var(--br-text-muted);
+  font: inherit;
+  font-size: var(--br-text-sm);
+  font-weight: 500;
+  text-transform: capitalize;
+  cursor: pointer;
+}
+
+.rv-seg button:hover {
+  color: var(--br-text);
+}
+
+.rv-seg button:focus-visible {
+  outline: 2px solid var(--br-focus);
+  outline-offset: 1px;
+}
+
+.rv-seg button[aria-pressed="true"] {
+  background-color: var(--br-surface);
+  color: var(--br-text);
+  box-shadow: var(--br-shadow-1);
+}
+
+.vi-empty {
+  padding: 1rem;
+  border: 1px dashed var(--br-border-strong);
+  border-radius: var(--br-radius-control);
+  background-color: var(--br-bg-sunken);
+}
+
+.vi-empty.is-pass {
+  border-style: solid;
+  border-color: var(--br-border);
+  background-color: var(--br-pass-soft);
+}
+
+.vi-empty p {
+  margin: 0;
+}
+
+.vi-empty p + p {
+  margin-top: 0.5rem;
+}
+
+.vi-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  margin: 1rem 0 0.5rem;
+}
+
+.vi-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.vi-filter-label {
+  color: var(--br-text-muted);
+  font-size: var(--br-text-sm);
+}
+
+.vi-list {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.vi-shot {
+  min-width: 0;
+}
+
+.vi-shot-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.vi-shot-head h3 {
+  margin: 0;
+  font-size: var(--br-text-md);
+}
+
+.vi-shot-head .pill {
+  margin-left: auto;
+}
+
+.vi-compare {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--br-border);
+  border-radius: var(--br-radius-control);
+  background-color: var(--br-bg-sunken);
+}
+
+.vi-img {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.vi-before {
+  position: absolute;
+  inset: 0;
+  clip-path: inset(0 calc(100% - var(--pos)) 0 0);
+}
+
+.vi-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--pos);
+  width: 2px;
+  margin-left: -1px;
+  background-color: var(--br-accent);
+  box-shadow: var(--br-shadow-1);
+  pointer-events: none;
+}
+
+.vi-tag {
+  position: absolute;
+  top: 0.5rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--br-radius-pill);
+  background-color: var(--br-surface-inverse);
+  color: var(--br-text-inverse);
+  font-size: var(--br-text-xs);
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.vi-tag.is-before {
+  left: 0.5rem;
+}
+
+.vi-tag.is-after {
+  right: 0.5rem;
+}
+
+.vi-boxes {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.vi-boxes i {
+  position: absolute;
+  border: 2px solid var(--br-fail);
+  border-radius: var(--br-radius-sm);
+}
+
+.vi-compare.is-diff .vi-before,
+.vi-compare.is-diff .vi-handle,
+.vi-compare.is-diff .vi-tag {
+  display: none;
+}
+
+.vi-diffimg {
+  background-color: var(--br-surface);
+}
+
+.vi-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin-top: 0.5rem;
+}
+
+.vi-range {
+  display: flex;
+  flex: 1 1 14rem;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--br-text-muted);
+  font-size: var(--br-text-xs);
+}
+
+.vi-range input {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--br-accent);
+}
+
+.vi-single {
+  display: block;
+  max-width: 100%;
+  border: 1px solid var(--br-border);
+  border-radius: var(--br-radius-control);
+}

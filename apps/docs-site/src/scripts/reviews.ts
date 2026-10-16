@@ -4,6 +4,8 @@ import { classifyRisk } from '@bridge/core';
 import { mergeGate, parseChangeset, parseTier, summarizeApprovals, summarizeCi, type CheckRunLike, type ReviewLike, type StatusLike, type Tier } from '../lib/review-rules';
 import { currentViewer, esc, getToken, ghGet, ghWrite, initGitHubConnect, RateLimitError, readRepo, relativeTime, type Fetched } from './github-session';
 import { analyzeTokenFiles, isTokenFile, type TokenReview } from './reviews/token-review';
+import { loadVisualImpact } from './reviews/visual-impact';
+import { touchesVisuals } from '../lib/visual-impact';
 
 interface User {
   login: string;
@@ -212,8 +214,19 @@ async function openPr(n: number, push = true) {
     const tokenFiles = files.filter((f) => isTokenFile(f.filename));
     const changesets = files.filter((f) => /^\.changeset\/(?!README).+\.md$/.test(f.filename) && f.status !== 'removed');
 
-    d.innerHTML = renderDetail(pull, tier, files, reviews, comments, ci, approvals, gate, tokenFiles.length, changesets.length);
+    const visual = touchesVisuals(files.map((f) => f.filename));
+    d.innerHTML = renderDetail(pull, tier, files, reviews, comments, ci, approvals, gate, tokenFiles.length, changesets.length, visual);
     wireActions(pull, gate);
+
+    if (visual) {
+      loadVisualImpact($('rv-visual'), {
+        owner: repo.owner,
+        repo: repo.repo,
+        pr: pull.number,
+        sha: pull.head.sha,
+        actionsUrl: `https://github.com/${repo.owner}/${repo.repo}/actions/workflows/visual-impact.yml`,
+      }).catch((err) => ($('rv-visual').innerHTML = `<p class="rv-error">Could not read the visual impact: ${esc((err as Error).message)}</p>`));
+    }
 
     if (tokenFiles.length) {
       const slot = $('rv-tokens');
@@ -258,6 +271,7 @@ function renderDetail(
   gate: ReturnType<typeof mergeGate>,
   tokenCount: number,
   changesetCount: number,
+  visual = false,
 ) {
   const owners = OWNERS.design.length || OWNERS.tech.length;
   const check = (ok: boolean, label: string) => `<li class="${ok ? 'is-pass' : 'is-pending'}"><span class="rv-check" aria-hidden="true"></span>${label}</li>`;
@@ -295,6 +309,11 @@ function renderDetail(
               .slice(0, 40)
               .map((f) => `<li><span class="mono">${esc(f.filename)}</span><span class="rv-delta"><span class="is-add">+${f.additions}</span> <span class="is-del">-${f.deletions}</span></span></li>`)
               .join('')}</ul></section>`
+      }
+      ${
+        visual
+          ? `<section class="rv-card" aria-labelledby="rv-vi-h"><header class="rv-card-head"><h2 id="rv-vi-h">Visual impact</h2><span class="muted small">stories and admin screens, before and after</span></header><div id="rv-visual"><p class="rv-loading">Reading the visual impact for ${esc(pull.head.sha.slice(0, 7))}</p></div></section>`
+          : ''
       }
       <section class="rv-card" aria-labelledby="rv-ci-h">
         <header class="rv-card-head"><h2 id="rv-ci-h">Checks</h2>${ciPill(ci.state)}</header>
