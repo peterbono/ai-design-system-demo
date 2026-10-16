@@ -86,7 +86,9 @@ export function cellHtml(d: ExplorerData, path: string, col: Column, editable: b
   const line = v.alias ? `<span class="xp-line mono">${esc(v.line)}</span>` : '';
   const err = v.error ? `<span class="xp-line is-error">${esc(v.line)}</span>` : '';
   const copyValue = type === 'color' ? (v.hex ?? v.css) : v.css;
-  return `<span class="xp-cv">${preview(d, type, path, v, col)}<span class="xp-cv-text">${main}${err || line}${bar(type, path, v)}</span>${
+  // Studio rows hide the resolved line; the value stays one hover away (and in the detail panel).
+  const tip = editable && v.line ? ` title="${esc(v.alias ? `${aliasLabel(v.alias)}: ${v.line}` : v.line)}"` : '';
+  return `<span class="xp-cv"${tip}>${preview(d, type, path, v, col)}<span class="xp-cv-text">${main}${err || line}${bar(type, path, v)}</span>${
     copyValue ? copyButton(copyValue, `value ${copyValue}`) : ''
   }${editable ? '<span class="xp-edit-hint" aria-hidden="true">Enter to edit</span>' : ''}</span>`;
 }

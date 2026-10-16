@@ -329,25 +329,108 @@ body.is-editing main {
 
 /* Draft changes tray */
 
+/* A bar docked to the bottom of the content area, shown only while the draft has changes. */
 .ed-tray {
   position: fixed;
-  right: 1rem;
-  bottom: 1rem;
-  left: calc(var(--br-rail-width) + 1rem);
+  right: 0;
+  bottom: 0;
+  left: var(--br-rail-width);
   z-index: 40;
-  max-width: 64rem;
-  margin: 0 auto;
-  border: 1px solid var(--br-border-strong);
-  border-radius: var(--br-radius-card);
+  border-top: 1px solid var(--br-border-strong);
   background-color: var(--br-surface);
-  box-shadow: var(--br-shadow-3);
+  box-shadow: var(--br-shadow-2);
 }
 
 .ed-tray-bar {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.5rem 0.5rem 0.5rem 0.75rem;
+  min-height: 3.25rem;
+  padding: 0.375rem 0.75rem 0.375rem 1rem;
+}
+
+.ed-tray:not(.is-page) .ed-tray-toggle {
+  min-height: 2.25rem;
+}
+
+.ed-tray:not(.is-page) .ed-tray-actions .btn {
+  min-height: 2rem;
+}
+
+/* Side sheet: the header's Drafts button opens the tray on the right, at any count. */
+.ed-tray[data-sheet="true"] {
+  top: var(--br-topbar-height);
+  left: auto;
+  z-index: 71;
+  display: flex;
+  flex-direction: column;
+  width: min(28rem, 100vw);
+  border-top: 0;
+  border-left: 1px solid var(--br-border);
+  box-shadow: var(--br-shadow-3);
+}
+
+.ed-tray[data-sheet="true"] .ed-tray-bar {
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--br-border);
+}
+
+.ed-tray[data-sheet="true"] .ed-tray-toggle {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.125rem;
+  cursor: default;
+}
+
+.ed-tray[data-sheet="true"] .ed-tray-count {
+  white-space: nowrap;
+}
+
+.ed-tray[data-sheet="true"] .ed-tray-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.ed-tray[data-sheet="true"] .ed-tray-vals {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+
+.ed-tray[data-sheet="true"] .ed-tray-toggle:hover {
+  background-color: transparent;
+}
+
+.ed-tray[data-sheet="true"] .ed-tray-toggle > .icon {
+  display: none;
+}
+
+.ed-tray[data-sheet="true"] .ed-tray-panel {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  max-height: none;
+  border-top: 0;
+}
+
+.ed-tray[data-sheet="true"] .ed-tray-list {
+  flex: 1;
+  align-content: start;
+}
+
+.ed-tray-close {
+  width: 2rem;
+  height: 2rem;
+}
+
+.ed-tray-close[hidden] {
+  display: none;
+}
+
+.ed-sheet-scrim:not([hidden]) {
+  position: fixed;
+  inset: var(--br-topbar-height) 0 0;
+  z-index: 70;
+  background-color: var(--br-scrim);
 }
 
 .ed-tray-toggle {
@@ -486,18 +569,13 @@ body.is-editing main {
   margin: 0;
 }
 
-@media (max-width: 1080px) {
+@media (max-width: 960px) {
   .ed-tray {
-    left: 1rem;
+    left: 0;
   }
 }
 
 @media (max-width: 640px) {
-  .ed-tray {
-    right: 0.5rem;
-    bottom: 0.5rem;
-    left: 0.5rem;
-  }
 
   .ed-tray-bar {
     flex-wrap: wrap;

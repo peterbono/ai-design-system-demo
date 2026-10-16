@@ -1,6 +1,7 @@
 ---
+// Studio Tokens: the token explorer in edit mode is the whole page (its own compact header, one toolbar row,
+// compact rows). Edits land in a draft kept in this browser; the header's Drafts button opens it.
 import Layout from '../../layouts/Layout.astro';
-import Icon from '../../components/Icon.astro';
 import TokenExplorerSlot from '../../components/TokenExplorerSlot.astro';
 import { PAGE_SOURCES, freshness } from '../../lib/sources';
 
@@ -8,17 +9,5 @@ const updated = freshness(PAGE_SOURCES.explorer);
 ---
 
 <Layout title="Tokens" description="Edit tokens into a draft: live preview of real components, the same guardrails as CI, and a pull request when it is ready." sources={PAGE_SOURCES.explorer} updated={updated} wide>
-  <header class="page-head">
-    <div>
-      <h1>Tokens</h1>
-      <p class="lead">
-        Select a value and press Enter to change it, or open a token for the full editor. Every edit lands in a draft kept in this browser, the preview and the guardrails update as you go, and nothing
-        reaches the repository until you propose it as a pull request and it is reviewed.
-      </p>
-    </div>
-    <div class="page-head-actions">
-      <a class="btn btn-secondary" href="/studio/drafts/" data-keep-branch><Icon name="draft" size={16} />Drafts</a>
-    </div>
-  </header>
   <TokenExplorerSlot mode="edit" />
 </Layout>

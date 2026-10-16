@@ -64,6 +64,12 @@ export function initTokenExplorer() {
   const count = $<HTMLElement>('[data-xp-count]');
   const empty = $<HTMLElement>('[data-xp-empty]');
   const lensBtns = [...root.querySelectorAll<HTMLButtonElement>('[data-lens]')];
+  // Studio surface only: the Modes and View menus, and the row density control.
+  const app = root.dataset.surface === 'app';
+  const modesMenu = root.querySelector<HTMLDetailsElement>('[data-xp-modes-menu]');
+  const modesLabel = root.querySelector<HTMLElement>('[data-xp-modes-label]');
+  const rowsSeg = root.querySelector<HTMLElement>('[data-xp-rows]');
+  const menus = [...root.querySelectorAll<HTMLDetailsElement>('details.xp-menu, details[data-xp-filters]')];
   const narrow = window.matchMedia(NARROW);
 
   // ---- state (URL first, then the focus prop, then defaults)
@@ -228,7 +234,7 @@ export function initTokenExplorer() {
     filtersEl.querySelectorAll<HTMLInputElement>('input[name="xp-fc"]').forEach((i) => (i.checked = s.filters.categories.includes(i.value as TypeCategory)));
     filtersEl.querySelectorAll<HTMLInputElement>('input[name="xp-usage"]').forEach((i) => (i.checked = i.value === s.filters.usage));
     syntaxSel.value = s.syntax;
-    descBtn.setAttribute('aria-pressed', String(s.showDescription));
+    descBtn.setAttribute(descBtn.getAttribute('role') === 'switch' ? 'aria-checked' : 'aria-pressed', String(s.showDescription));
 
     const parts: string[] = [];
     const plan = view.plan;
@@ -250,6 +256,23 @@ export function initTokenExplorer() {
       parts.push(
         `<button type="button" class="xp-switch" role="switch" aria-checked="${s.view.allCombos}" data-combos><span class="xp-switch-track" aria-hidden="true"><span class="xp-switch-thumb"></span></span><span>All ${d.modes.brands.length * d.modes.themes.length} combinations</span></button>`,
       );
+    }
+    if (app && modesMenu) {
+      // In the Studio the selectors live in the Modes menu, each with its label.
+      const labelled = parts.map((html) => {
+        const m = html.match(/aria-label="(Brand|Density)"/);
+        return m ? `<div class="xp-menu-field"><span aria-hidden="true">${m[1]}</span>${html}</div>` : html;
+      });
+      modebar.innerHTML = labelled.join('');
+      modesMenu.hidden = parts.length === 0;
+      if (modesLabel) {
+        const bits: string[] = [];
+        if (s.view.allCombos) bits.push(`All ${d.modes.brands.length * d.modes.themes.length} combinations`);
+        else if (plan.selectors.includes('brand')) bits.push(modeName(s.view.brand));
+        if (plan.selectors.includes('density')) bits.push(modeName(s.view.density));
+        modesLabel.textContent = bits.length ? bits.join(', ') : 'Modes';
+      }
+      return;
     }
     modebar.innerHTML = parts.join('');
     modebar.hidden = parts.length === 0;
@@ -506,6 +529,63 @@ export function initTokenExplorer() {
   descBtn.addEventListener('click', () => {
     s.showDescription = !s.showDescription;
     render({ keepScroll: true });
+  });
+
+  // Row density (Studio): compact by default, remembered in this browser. The Library keeps its own comfortable rows.
+  const ROWS_KEY = 'bridge.xp.rows';
+  const paintRows = () => {
+    rowsSeg?.querySelectorAll<HTMLElement>('[data-rows]').forEach((b) => {
+      const on = b.dataset.rows === root.dataset.rows;
+      b.setAttribute('aria-checked', String(on));
+      b.tabIndex = on ? 0 : -1;
+    });
+  };
+  if (rowsSeg) {
+    try {
+      const saved = localStorage.getItem(ROWS_KEY);
+      if (saved === 'compact' || saved === 'comfortable') root.dataset.rows = saved;
+    } catch {
+      /* private mode: default rows */
+    }
+    paintRows();
+    rowsSeg.addEventListener('click', (e) => {
+      const b = (e.target as HTMLElement).closest<HTMLElement>('[data-rows]');
+      if (!b || b.dataset.rows === root.dataset.rows) return;
+      root.dataset.rows = b.dataset.rows!;
+      try {
+        localStorage.setItem(ROWS_KEY, root.dataset.rows);
+      } catch {
+        /* ignore */
+      }
+      paintRows();
+      render({ keepScroll: true });
+      if (s.selected) openDetail(s.selected);
+      b.focus();
+    });
+    rowsSeg.addEventListener('keydown', (e) => {
+      const k = (e as KeyboardEvent).key;
+      if (k !== 'ArrowLeft' && k !== 'ArrowRight') return;
+      e.preventDefault();
+      rowsSeg.querySelector<HTMLElement>('[data-rows][aria-checked="false"]')?.click();
+    });
+  }
+
+  // Toolbar menus (Filters, Modes, View): one open at a time, closed by a click outside or Esc.
+  for (const m of menus) {
+    m.addEventListener('toggle', () => {
+      if (m.open) for (const o of menus) if (o !== m) o.open = false;
+    });
+    if (m.hasAttribute('data-xp-filters')) continue;
+    m.addEventListener('keydown', (e) => {
+      if ((e as KeyboardEvent).key === 'Escape' && m.open) {
+        e.stopPropagation();
+        m.open = false;
+        m.querySelector('summary')?.focus();
+      }
+    });
+  }
+  document.addEventListener('click', (e) => {
+    for (const m of menus) if (m.open && !m.contains(e.target as Node)) m.open = false;
   });
 
   // ---- events: grid

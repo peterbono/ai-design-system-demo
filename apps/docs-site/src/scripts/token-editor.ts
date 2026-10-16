@@ -334,7 +334,9 @@ function paintTray() {
   const n = rows.length;
   // The Drafts page shows the tray as a page section, always visible; elsewhere it is a bar that appears while editing.
   const asPage = tray.dataset.variant === 'page';
-  tray.hidden = !asPage && n === 0 && !document.body.classList.contains('is-editing');
+  // Studio Tokens: a bar at the bottom only while the draft has changes; the header's Drafts button opens it as a
+  // side sheet at any count.
+  tray.hidden = !asPage && n === 0 && tray.dataset.sheet !== 'true';
   const empty = $('ed-drafts-empty');
   if (empty) empty.hidden = n > 0;
   $('ed-tray-count')!.textContent = n ? `${n} draft change${n > 1 ? 's' : ''}` : 'No draft changes yet';
@@ -542,8 +544,51 @@ export function initTokenEditor() {
   document.addEventListener('bridge:scope', () => paintPreview());
 
   const tray = $('ed-tray');
+  // Side sheet: the header's Drafts button opens the tray on the right, whatever the count.
+  const scrim = document.querySelector<HTMLElement>('[data-ed-sheet-scrim]');
+  const closeBtn = document.querySelector<HTMLButtonElement>('[data-ed-sheet-close]');
+  let sheetReturn: HTMLElement | null = null;
+  const setSheet = (on: boolean) => {
+    if (!tray || tray.dataset.variant === 'page') return;
+    if (on) {
+      sheetReturn = document.activeElement as HTMLElement | null;
+      tray.dataset.sheet = 'true';
+      tray.dataset.open = 'true';
+      tray.setAttribute('role', 'dialog');
+      tray.setAttribute('aria-modal', 'true');
+    } else {
+      delete tray.dataset.sheet;
+      tray.dataset.open = 'false';
+      tray.removeAttribute('role');
+      tray.removeAttribute('aria-modal');
+    }
+    $('ed-tray-toggle')?.setAttribute('aria-expanded', String(on));
+    if (scrim) scrim.hidden = !on;
+    if (closeBtn) closeBtn.hidden = !on;
+    document.body.classList.toggle('no-scroll', on);
+    paintTray();
+    if (on) closeBtn?.focus();
+    else {
+      sheetReturn?.focus();
+      sheetReturn = null;
+    }
+  };
+  document.addEventListener('click', (e) => {
+    const open = (e.target as HTMLElement).closest('[data-drafts-open]');
+    if (!open || !tray || tray.dataset.variant === 'page' || (e as MouseEvent).metaKey || (e as MouseEvent).ctrlKey) return;
+    e.preventDefault();
+    setSheet(tray.dataset.sheet !== 'true');
+  });
+  closeBtn?.addEventListener('click', () => setSheet(false));
+  scrim?.addEventListener('click', () => setSheet(false));
+  tray?.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && tray.dataset.sheet === 'true') {
+      e.stopPropagation();
+      setSheet(false);
+    }
+  });
   $('ed-tray-toggle')?.addEventListener('click', () => {
-    if (tray?.dataset.variant === 'page') return;
+    if (tray?.dataset.variant === 'page' || tray?.dataset.sheet === 'true') return;
     const open = tray?.dataset.open !== 'true';
     if (tray) tray.dataset.open = String(open);
     $('ed-tray-toggle')?.setAttribute('aria-expanded', String(open));

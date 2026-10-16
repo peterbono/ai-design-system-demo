@@ -16,6 +16,7 @@ const palette = explorerTokens()
 <div class="xp-kit" data-xp-kit>
   <template id="ed-preview-tpl"><EditorPreview theme="light" /></template>
 
+  <div class="ed-sheet-scrim" data-ed-sheet-scrim hidden></div>
   <section class="ed-tray" id="ed-tray" data-open="false" aria-label="Draft changes" hidden>
     <div class="ed-tray-bar">
       <button type="button" class="ed-tray-toggle" id="ed-tray-toggle" aria-expanded="false" aria-controls="ed-tray-panel">
@@ -26,6 +27,7 @@ const palette = explorerTokens()
       <div class="ed-tray-actions">
         <button type="button" class="btn btn-secondary btn-sm" id="ed-export">Export JSON</button>
         <button type="button" class="btn btn-primary btn-sm" id="ed-propose" disabled>Propose change</button>
+        <button type="button" class="icon-btn ed-tray-close" data-ed-sheet-close aria-label="Close drafts" hidden><Icon name="close" size={18} /></button>
       </div>
     </div>
     <div class="ed-tray-panel" id="ed-tray-panel">

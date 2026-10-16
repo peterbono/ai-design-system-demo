@@ -100,6 +100,8 @@ export function renderGrid(host: HTMLElement, d: ExplorerData, view: View, s: Ex
   host.setAttribute('aria-colcount', String(colCount(view, s)));
   host.setAttribute('aria-rowcount', String(1 + sections.length + view.visible.length));
   host.setAttribute('aria-readonly', String(s.mode !== 'edit'));
+  // Placeholder height of groups not painted yet: the row height of the current density (--xp-row on the explorer).
+  const rowH = parseFloat(getComputedStyle(host).getPropertyValue('--xp-row')) || ROW_HEIGHT;
 
   let rowIndex = 2;
   const groups = sections.map((sec) => {
@@ -110,7 +112,7 @@ export function renderGrid(host: HTMLElement, d: ExplorerData, view: View, s: Ex
   const groupHtml = ({ sec, start }: (typeof groups)[number]) => {
     const collapsed = s.collapsed.has(sec.key);
     const rows = collapsed ? '' : sec.tokens.map((t, i) => rowHtml(d, t, view, s, sec, start + 1 + i)).join('');
-    return `<div role="rowgroup" class="xp-group" data-group="${esc(sec.key)}" style="contain-intrinsic-size:auto ${(collapsed ? 1 : 1 + sec.tokens.length) * ROW_HEIGHT}px">${sectionHead(
+    return `<div role="rowgroup" class="xp-group" data-group="${esc(sec.key)}" style="contain-intrinsic-size:auto ${(collapsed ? 1 : 1 + sec.tokens.length) * rowH}px">${sectionHead(
       sec,
       view,
       s,
