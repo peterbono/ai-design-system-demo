@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "bridge": {
+      "command": "node",
+      "args": ["packages/mcp/dist/index.js", "--root", "."]
+    }
+  }
+}
