@@ -59,7 +59,7 @@ body.is-editing .tk-card {
 }
 
 body.is-editing main {
-  padding-bottom: 7rem;
+  padding-bottom: calc(var(--size-16) + var(--size-12));
 }
 
 /* Editor section in the drawer */
@@ -99,7 +99,7 @@ body.is-editing main {
 .ed-modes {
   display: inline-flex;
   margin-bottom: var(--space-3);
-  padding: 3px;
+  padding: var(--space-0-5);
   border: var(--border-width-default) solid var(--color-border-default);
   border-radius: var(--radius-control);
   background-color: var(--color-bg-subtle);
@@ -109,7 +109,7 @@ body.is-editing main {
   min-height: var(--size-8);
   padding: 0 var(--space-3);
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background-color: transparent;
   color: var(--color-text-muted);
   font: inherit;
@@ -335,7 +335,7 @@ body.is-editing main {
   right: 0;
   bottom: 0;
   left: var(--layout-sidebar-width);
-  z-index: 40;
+  z-index: var(--layer-dropdown);
   border-top: var(--border-width-default) solid var(--color-border-emphasis);
   background-color: var(--color-surface-default);
   box-shadow: var(--elevation-overlay);
@@ -345,7 +345,7 @@ body.is-editing main {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  min-height: 3.25rem;
+  min-height: calc(var(--size-12) + var(--space-1));
   padding: var(--space-1-5) var(--space-3) var(--space-1-5) var(--space-4);
 }
 
@@ -361,10 +361,10 @@ body.is-editing main {
 .ed-tray[data-sheet="true"] {
   top: var(--layout-header-height);
   left: auto;
-  z-index: 71;
+  z-index: var(--layer-modal);
   display: flex;
   flex-direction: column;
-  width: min(28rem, 100vw);
+  width: min(calc(var(--size-120) - var(--size-8)), 100vw);
   border-top: 0;
   border-left: var(--border-width-default) solid var(--color-border-default);
   box-shadow: var(--elevation-modal);
@@ -429,7 +429,7 @@ body.is-editing main {
 .ed-sheet-scrim:not([hidden]) {
   position: fixed;
   inset: var(--layout-header-height) 0 0;
-  z-index: 70;
+  z-index: var(--layer-overlay);
   background-color: var(--color-overlay-scrim);
 }
 

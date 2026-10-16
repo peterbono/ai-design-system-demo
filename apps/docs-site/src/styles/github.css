@@ -30,7 +30,7 @@
 }
 
 .gh-dialog {
-  width: min(32rem, calc(100vw - var(--size-8)));
+  width: min(calc(var(--size-64) * 2), calc(100vw - var(--size-8)));
   padding: 0;
   border: var(--border-width-default) solid var(--color-border-default);
   border-radius: var(--radius-container);

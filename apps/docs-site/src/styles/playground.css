@@ -10,7 +10,7 @@
 
 .seg {
   display: inline-flex;
-  padding: 3px;
+  padding: var(--space-0-5);
   border: var(--border-width-default) solid var(--color-border-default);
   border-radius: var(--radius-control);
   background-color: var(--color-bg-subtle);
@@ -20,10 +20,10 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-1-5);
-  min-height: 2.125rem;
+  min-height: var(--control-height-sm);
   padding: 0 var(--space-3);
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background-color: transparent;
   color: var(--color-text-muted);
   font: inherit;
@@ -56,7 +56,7 @@
   position: absolute;
   opacity: 0;
   width: var(--size-9);
-  height: 1.375rem;
+  height: calc(var(--size-5) + var(--space-0-5));
   margin: 0;
   cursor: pointer;
 }
@@ -64,7 +64,7 @@
 .switch-track {
   position: relative;
   width: var(--size-9);
-  height: 1.375rem;
+  height: calc(var(--size-5) + var(--space-0-5));
   border-radius: var(--radius-pill);
   background-color: var(--color-border-emphasis);
   transition: background-color var(--motion-duration-fast) var(--motion-easing-enter);
@@ -73,8 +73,8 @@
 .switch-track::after {
   content: "";
   position: absolute;
-  left: 3px;
-  top: 3px;
+  left: calc((var(--size-5) + var(--space-0-5) - var(--size-4)) / 2);
+  top: calc((var(--size-5) + var(--space-0-5) - var(--size-4)) / 2);
   width: var(--size-4);
   height: var(--size-4);
   border-radius: 50%;
@@ -88,7 +88,7 @@
 }
 
 .switch input:checked + .switch-track::after {
-  transform: translateX(0.875rem);
+  transform: translateX(calc(var(--size-9) - var(--size-5) - var(--space-0-5)));
 }
 
 .switch input:focus-visible + .switch-track {
@@ -174,12 +174,12 @@
   font-family: var(--font-family-sans);
   font-size: var(--font-size-500);
   font-weight: var(--font-weight-semibold);
-  letter-spacing: 0;
+  letter-spacing: var(--font-tracking-normal);
 }
 
 .sample-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(calc(var(--size-64) + var(--space-4)), 1fr));
   align-items: start;
   gap: var(--space-4);
 }
@@ -247,8 +247,8 @@
   position: fixed;
   left: 0;
   top: 0;
-  z-index: 60;
-  width: min(27rem, calc(100vw - var(--size-4)));
+  z-index: var(--layer-tooltip);
+  width: min(calc(var(--size-96) + var(--size-12)), calc(100vw - var(--size-4)));
   padding: var(--space-3);
   border: var(--border-width-default) solid var(--color-border-default);
   border-radius: var(--radius-container);
@@ -288,7 +288,7 @@
 
 .tip-list li {
   display: grid;
-  grid-template-columns: 0.875rem minmax(0, 1fr) auto auto;
+  grid-template-columns: calc(var(--size-3) + var(--space-0-5)) minmax(0, 1fr) auto auto;
   grid-template-areas: "sw name val kind";
   align-items: center;
   column-gap: var(--space-2);
@@ -303,10 +303,10 @@
 
 .tip-sw {
   grid-area: sw;
-  width: 0.875rem;
-  height: 0.875rem;
+  width: calc(var(--size-3) + var(--space-0-5));
+  height: calc(var(--size-3) + var(--space-0-5));
   border: var(--border-width-default) solid var(--color-border-default);
-  border-radius: 4px;
+  border-radius: var(--radius-inset);
 }
 
 .tip-sw.is-scale {
@@ -339,12 +339,12 @@
   grid-area: kind;
   display: grid;
   place-items: center;
-  width: 1.125rem;
-  height: 1.125rem;
-  border-radius: 4px;
+  width: var(--size-5);
+  height: var(--size-5);
+  border-radius: var(--radius-inset);
   background-color: var(--color-feedback-info-bg);
   color: var(--color-feedback-info-text);
-  font-size: 0.625rem;
+  font-size: var(--font-size-100);
   font-weight: var(--font-weight-bold);
 }
 
@@ -447,7 +447,7 @@
   border-color: var(--color-text-default);
   background-color: var(--color-surface-default);
   color: var(--color-text-default);
-  transform: translateY(1px);
+  transform: translateY(var(--border-width-default));
 }
 
 .radius-pick:has(input:focus-visible) {
@@ -484,11 +484,11 @@
 }
 
 .r-soft .radius-shape {
-  border-top-left-radius: 12px;
+  border-top-left-radius: var(--radius-overlay);
 }
 
 .r-pill .radius-shape {
-  border-top-left-radius: 1.75rem;
+  border-top-left-radius: var(--size-7);
 }
 
 /* Range sliders */
@@ -536,7 +536,7 @@
 
 .knob input[type="range"]:focus-visible {
   outline: var(--border-width-strong) solid var(--focus-ring-color);
-  outline-offset: 4px;
+  outline-offset: var(--space-1);
 }
 
 .range-labels {

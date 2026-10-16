@@ -5,7 +5,7 @@
 .stage-checker {
   background-color: var(--color-bg-default);
   background-image: conic-gradient(var(--color-bg-subtle) 25%, transparent 0 50%, var(--color-bg-subtle) 0 75%, transparent 0);
-  background-size: 1.5rem 1.5rem;
+  background-size: var(--size-6) var(--size-6);
   color: var(--color-text-default);
   font-family: var(--font-family-sans);
 }
@@ -16,7 +16,7 @@
   left: var(--space-3);
   display: inline-flex;
   align-items: center;
-  height: 1.375rem;
+  height: calc(var(--size-5) + var(--space-0-5));
   padding: 0 var(--space-2);
   border: var(--border-width-default) solid var(--color-border-default);
   border-radius: var(--radius-pill);
@@ -32,7 +32,7 @@
 .cp-seg {
   display: inline-flex;
   gap: var(--space-0-5);
-  padding: 0.1875rem;
+  padding: var(--space-0-5);
   border: var(--border-width-default) solid var(--color-border-default);
   border-radius: var(--radius-control);
   background-color: var(--color-bg-subtle);
@@ -45,7 +45,7 @@
   min-height: var(--size-8);
   padding: 0 var(--space-3);
   border: 0;
-  border-radius: 7px;
+  border-radius: var(--radius-control);
   background-color: transparent;
   color: var(--color-text-muted);
   font: inherit;
@@ -108,7 +108,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-1-5);
-  height: 1.875rem;
+  height: calc(var(--size-7) + var(--space-0-5));
   padding: 0 var(--space-2);
   border: var(--border-width-default) solid var(--color-border-default);
   border-radius: var(--radius-pill);
@@ -169,8 +169,8 @@
   position: relative;
   display: grid;
   place-items: center;
-  min-height: 17rem;
-  padding: 3.5rem var(--space-8) var(--space-10);
+  min-height: calc(var(--size-64) + var(--space-4));
+  padding: calc(var(--space-12) + var(--space-2)) var(--space-8) var(--space-10);
   border-radius: var(--radius-overlay);
   overflow: hidden;
 }
@@ -185,7 +185,7 @@
 
 .cp-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 12rem;
+  grid-template-columns: minmax(0, 1fr) calc(var(--size-40) + var(--size-8));
   gap: var(--space-12);
 }
 
@@ -221,7 +221,7 @@
 
 .cp-toc a {
   display: block;
-  margin-left: -1px;
+  margin-left: calc(var(--border-width-default) * -1);
   padding: var(--space-1) 0 var(--space-1) var(--space-3);
   border-left: var(--border-width-strong) solid transparent;
   color: var(--color-text-muted);
@@ -243,7 +243,7 @@
 .usage-grid {
   display: grid;
   gap: var(--space-4);
-  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(calc(var(--size-64) + var(--space-4)), 1fr));
 }
 
 .usage-col {
@@ -279,7 +279,7 @@
 .guidance {
   display: grid;
   gap: var(--space-4);
-  grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(calc(var(--size-72) + var(--size-4)), 1fr));
 }
 
 .verdict {
@@ -300,7 +300,7 @@
 
 .verdict .verdict-stage {
   justify-content: center;
-  min-height: 9rem;
+  min-height: calc(var(--size-40) - var(--space-4));
   padding: var(--space-7) var(--space-6);
   border-bottom: var(--border-width-default) solid var(--color-border-default);
 }
@@ -370,7 +370,7 @@
 
 .anatomy-row {
   display: grid;
-  grid-template-columns: minmax(12rem, 18rem) minmax(0, 1fr);
+  grid-template-columns: minmax(calc(var(--size-40) + var(--size-8)), var(--size-72)) minmax(0, 1fr);
   gap: var(--space-2) var(--space-6);
   margin: 0;
   padding: var(--space-3) var(--space-5);
@@ -411,7 +411,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-1-5);
-  height: 1.625rem;
+  height: calc(var(--size-6) + var(--space-0-5));
   padding: 0 var(--space-2);
   border: var(--border-width-default) solid var(--color-border-default);
   border-radius: var(--radius-control);
@@ -425,8 +425,8 @@
 
 .tchip::before {
   content: "";
-  width: 0.4375rem;
-  height: 0.4375rem;
+  width: var(--space-2);
+  height: var(--space-2);
   border-radius: var(--radius-inset);
   background-color: var(--color-chart-series-2);
 }
@@ -474,7 +474,7 @@ a.tchip:hover {
 
 .pg {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 16rem;
+  grid-template-columns: minmax(0, 1fr) var(--size-64);
   overflow: hidden;
   border: var(--border-width-default) solid var(--color-border-default);
   border-radius: var(--radius-overlay);
@@ -544,7 +544,7 @@ a.tchip:hover {
 
 .pg-code pre {
   min-height: var(--size-14);
-  padding-right: 6.5rem;
+  padding-right: calc(var(--size-20) + var(--size-6));
   border-radius: var(--radius-overlay);
   white-space: pre;
 }
@@ -604,10 +604,10 @@ a.tchip:hover {
 .pg-seg-opt span {
   display: inline-flex;
   align-items: center;
-  height: 1.875rem;
+  height: calc(var(--size-7) + var(--space-0-5));
   padding: 0 var(--space-2);
   border: var(--border-width-default) solid var(--color-border-default);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background-color: var(--color-surface-default);
   color: var(--color-text-muted);
   font-size: var(--font-size-100);
@@ -635,7 +635,7 @@ a.tchip:hover {
   height: var(--size-9);
   padding: 0 var(--space-2);
   border: var(--border-width-default) solid var(--color-border-emphasis);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background-color: var(--color-surface-default);
   color: var(--color-text-default);
   font: inherit;
@@ -663,8 +663,8 @@ a.tchip:hover {
 
 .pg-switch-thumb {
   position: absolute;
-  top: 0.1875rem;
-  left: 0.1875rem;
+  top: calc((var(--size-6) - var(--size-4)) / 2 - var(--border-width-default));
+  left: calc((var(--size-6) - var(--size-4)) / 2 - var(--border-width-default));
   width: var(--size-4);
   height: var(--size-4);
   border-radius: 50%;
@@ -679,13 +679,13 @@ a.tchip:hover {
 }
 
 .pg-switch[aria-checked="true"] .pg-switch-thumb {
-  transform: translateX(1rem);
+  transform: translateX(var(--size-4));
 }
 
 .pg-fallback {
   display: grid;
   gap: var(--space-2);
-  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(var(--size-72), 1fr));
   padding: var(--space-2);
   border: var(--border-width-default) solid var(--color-border-default);
   border-radius: var(--radius-overlay);
@@ -713,7 +713,7 @@ a.tchip:hover {
 .gallery {
   display: grid;
   gap: var(--space-5);
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--size-80)), 1fr));
   margin: 0;
   padding: 0;
   list-style: none;
@@ -737,7 +737,7 @@ a.tchip:hover {
 
 .gcard:hover {
   box-shadow: var(--elevation-overlay);
-  transform: translateY(-2px);
+  transform: translateY(calc(var(--space-0-5) * -1));
 }
 
 .gcard:focus-within {
@@ -748,7 +748,7 @@ a.tchip:hover {
 .gcard-stage {
   display: grid;
   place-items: center;
-  height: 12rem;
+  height: calc(var(--size-40) + var(--size-8));
   padding: var(--space-6);
   overflow: hidden;
   border-bottom: var(--border-width-default) solid var(--color-border-default);
@@ -871,7 +871,7 @@ a.tchip:hover {
   }
 
   .hero-pane {
-    min-height: 13rem;
+    min-height: calc(var(--size-40) + var(--size-12));
     padding: var(--space-12) var(--space-4) var(--space-6);
   }
 

@@ -56,7 +56,7 @@
 }
 
 .hs-switch[aria-checked="true"] .hs-switch-thumb {
-  transform: translateX(1rem);
+  transform: translateX(var(--space-4));
 }
 
 .hs-switch-sm {
@@ -86,12 +86,12 @@
 }
 
 .hs-filters .gh-field {
-  flex: 1 1 12rem;
+  flex: 1 1 calc(var(--size-96) / 2);
   min-width: 0;
 }
 
 .hs-filters .gh-field:first-child {
-  flex: 2 1 16rem;
+  flex: 2 1 var(--size-64);
 }
 
 .hs-filters select {
@@ -150,7 +150,7 @@
 }
 
 .hs-detail {
-  max-width: 1180px;
+  max-width: var(--layout-content-max-width);
 }
 
 .hs-card {
@@ -189,7 +189,7 @@
 }
 
 .hs-paths {
-  columns: 2 16rem;
+  columns: 2 var(--size-64);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -247,7 +247,7 @@
 /* Planner */
 
 .hp-dialog {
-  width: min(52rem, calc(100vw - var(--size-8)));
+  width: min(calc(var(--size-64) * 3 + var(--size-16)), calc(100vw - var(--size-8)));
   max-height: calc(100dvh - var(--size-8));
 }
 
@@ -317,7 +317,7 @@
   gap: var(--space-1-5);
   padding: var(--space-3) var(--space-4);
   border: var(--border-width-default) solid var(--color-feedback-warning-text);
-  border-left-width: 4px;
+  border-left-width: calc(var(--border-width-strong) * 2);
   border-radius: var(--radius-control);
   background-color: var(--color-bg-default);
 }

@@ -105,7 +105,7 @@
 /* Checks: one card per gate */
 .st-gates {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(var(--size-64), 1fr));
   gap: var(--space-4);
   margin-bottom: var(--space-4);
 }
@@ -145,7 +145,7 @@
 
 .st-combos {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(calc(var(--size-96) / 2), 1fr));
   gap: var(--space-2);
   margin: var(--space-4) 0 var(--space-5);
   padding: 0;
@@ -289,7 +289,7 @@
 .ov-kpi {
   display: grid;
   align-content: center;
-  gap: 0.0625rem;
+  gap: var(--space-0-5);
   min-width: 0;
   min-height: var(--size-16);
   padding: var(--space-2) var(--space-4);
@@ -319,7 +319,7 @@
 }
 
 .ov-kpi-value {
-  font-size: 1.375rem;
+  font-size: var(--font-size-400);
   font-weight: var(--font-weight-semibold);
   letter-spacing: var(--font-tracking-tighter);
   line-height: var(--font-line-height-tight);
@@ -402,7 +402,7 @@
 
 .ov-pr-main {
   display: grid;
-  gap: 0.0625rem;
+  gap: var(--space-0-5);
   min-width: 0;
 }
 
@@ -492,7 +492,7 @@
 
 .ov-act {
   display: grid;
-  grid-template-columns: 4.5rem minmax(0, 1fr) auto auto;
+  grid-template-columns: calc(var(--size-16) + var(--space-2)) minmax(0, 1fr) auto auto;
   align-items: center;
   gap: var(--space-3);
   min-height: var(--size-10);
@@ -551,7 +551,7 @@
 
 .ov-issue-body {
   display: grid;
-  gap: 0.0625rem;
+  gap: var(--space-0-5);
   min-width: 0;
 }
 
@@ -572,7 +572,7 @@
 
 .ov-charts {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(var(--size-72), 1fr));
   gap: 0 var(--space-4);
 }
 

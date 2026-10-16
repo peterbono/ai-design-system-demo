@@ -15,7 +15,7 @@
 
 .set-rows > div {
   display: grid;
-  grid-template-columns: minmax(10rem, 16rem) minmax(0, 1fr);
+  grid-template-columns: minmax(var(--size-40), var(--size-64)) minmax(0, 1fr);
   gap: var(--space-1) var(--space-6);
   padding: var(--space-3) 0;
   border-bottom: var(--border-width-default) solid var(--color-border-default);
@@ -46,7 +46,7 @@
 }
 
 .set-raw pre {
-  max-height: 28rem;
+  max-height: calc(var(--size-120) - var(--size-8));
   overflow: auto;
 }
 

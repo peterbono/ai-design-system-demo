@@ -7,7 +7,7 @@
   grid-auto-columns: 1fr;
   grid-auto-flow: column;
   flex: none;
-  padding: 3px;
+  padding: var(--space-0-5);
   border: var(--border-width-default) solid var(--color-border-default);
   border-radius: var(--radius-control);
   background-color: var(--color-bg-subtle);
@@ -19,7 +19,7 @@
   justify-content: center;
   min-height: var(--size-8);
   padding: 0 var(--space-3);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   color: var(--color-text-muted);
   font-size: var(--font-size-200);
   font-weight: var(--font-weight-semibold);
@@ -52,7 +52,7 @@
   align-items: center;
   gap: var(--space-1-5);
   height: var(--size-8);
-  max-width: 14rem;
+  max-width: calc(var(--size-40) + var(--size-16));
   padding: 0 var(--space-2) 0 var(--space-2);
   border: var(--border-width-default) solid var(--color-border-default);
   border-radius: var(--radius-pill);
@@ -97,7 +97,7 @@
   position: absolute;
   top: calc(100% + var(--space-2));
   left: 0;
-  z-index: 60;
+  z-index: var(--layer-dropdown);
   width: var(--size-80);
   padding: var(--space-2);
   border: var(--border-width-default) solid var(--color-border-default);
@@ -221,7 +221,7 @@ a.menu-item:hover {
 
 /* Rail additions: live counts and the Settings door at the foot of the Studio rail. */
 .rail-num {
-  min-width: 1.375rem;
+  min-width: calc(var(--size-5) + var(--space-0-5));
   margin-left: auto;
   padding: 0 var(--space-1-5);
   border-radius: var(--radius-pill);
@@ -230,7 +230,7 @@ a.menu-item:hover {
   font-size: var(--font-size-100);
   font-weight: var(--font-weight-semibold);
   font-variant-numeric: tabular-nums;
-  line-height: 1.25rem;
+  line-height: var(--font-line-height-relaxed);
   text-align: center;
 }
 
@@ -275,7 +275,7 @@ a.menu-item:hover {
 }
 
 .page-head > div:first-child {
-  flex: 1 1 32rem;
+  flex: 1 1 calc(var(--size-120) + var(--size-8));
   max-width: 72ch;
 }
 
@@ -320,7 +320,7 @@ a.menu-item:hover {
   }
 
   .page-grid {
-    grid-template-columns: minmax(0, 1fr) 13rem;
+    grid-template-columns: minmax(0, 1fr) calc(var(--size-40) + var(--size-12));
   }
 
   .page-toc:not([hidden]) {
@@ -374,7 +374,7 @@ a.menu-item:hover {
   position: absolute;
   top: var(--space-1);
   bottom: var(--space-1);
-  left: calc(calc(var(--space-3) * -1) - 1px);
+  left: calc(calc(var(--space-3) * -1) - var(--border-width-default));
   width: var(--space-0-5);
   border-radius: var(--radius-inset);
   background-color: var(--color-signal-default);
@@ -412,7 +412,7 @@ a.menu-item:hover {
 .page-tabs a[aria-selected="true"]::after {
   position: absolute;
   right: var(--space-3);
-  bottom: -1px;
+  bottom: calc(var(--border-width-default) * -1);
   left: var(--space-3);
   height: var(--space-0-5);
   border-radius: var(--radius-inset);
@@ -456,7 +456,7 @@ a.menu-item:hover {
   }
 
   .scope-pick-trigger {
-    max-width: 9rem;
+    max-width: calc(var(--size-40) - var(--space-4));
   }
 
   .menu-panel {

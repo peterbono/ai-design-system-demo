@@ -7,7 +7,7 @@
   align-items: center;
   gap: var(--space-8) var(--space-12);
   margin: calc(var(--space-2) * -1) 0 var(--space-6);
-  padding: 3.5rem var(--space-12) var(--space-12);
+  padding: calc(var(--space-12) + var(--space-2)) var(--space-12) var(--space-12);
   overflow: hidden;
   border: var(--border-width-default) solid var(--color-border-default);
   border-radius: var(--radius-overlay);
@@ -20,7 +20,9 @@
 .hero-title {
   max-width: 13ch;
   margin: 0 0 var(--space-5);
-  font-size: clamp(2.5rem, var(--font-size-500) + 3.4vw, 4.25rem);
+  --_hero-title-size: clamp(var(--font-size-800), calc(var(--font-size-500) + 3.4vw), var(--font-size-1000));
+
+  font-size: var(--_hero-title-size);
   font-weight: var(--font-weight-bold);
   letter-spacing: var(--font-tracking-tighter);
   line-height: var(--font-line-height-none);
@@ -263,7 +265,7 @@
 
 .kpi-value {
   font-family: var(--font-family-sans);
-  font-size: 2.5rem;
+  font-size: var(--font-size-800);
   font-weight: var(--font-weight-bold);
   letter-spacing: var(--font-tracking-tighter);
   line-height: var(--font-line-height-none);
@@ -277,7 +279,7 @@
 
 .kpi-date {
   padding: var(--space-2) 0 var(--space-1);
-  font-size: 1.625rem;
+  font-size: var(--font-size-500);
 }
 
 .kpi-sub {
@@ -373,7 +375,7 @@
 
 .donut-chart {
   position: relative;
-  width: 9.5rem;
+  width: calc(var(--size-40) - var(--space-2));
   flex-shrink: 0;
 }
 
@@ -403,7 +405,7 @@
 }
 
 .donut-center strong {
-  font-size: 2rem;
+  font-size: var(--font-size-600);
   line-height: var(--font-line-height-none);
 }
 
@@ -435,9 +437,9 @@
 }
 
 .legend-key {
-  width: 0.625rem;
-  height: 0.625rem;
-  border-radius: 3px;
+  width: calc(var(--space-2) + var(--space-0-5));
+  height: calc(var(--space-2) + var(--space-0-5));
+  border-radius: var(--radius-inset);
   background-color: var(--c);
 }
 
@@ -483,7 +485,7 @@
 }
 
 .stacked-table th {
-  width: 7.5rem;
+  width: calc(var(--size-16) + var(--size-14));
   padding-right: var(--space-3);
   color: var(--color-text-muted);
   font-weight: var(--font-weight-medium);
@@ -493,19 +495,19 @@
 .stacked-track {
   display: flex;
   gap: var(--space-0-5);
-  height: 0.875rem;
+  height: calc(var(--space-3) + var(--space-0-5));
 }
 
 .seg {
   display: block;
-  min-width: 3px;
+  min-width: var(--space-0-5);
   height: 100%;
-  border-radius: 3px;
+  border-radius: var(--radius-inset);
   background-color: var(--c);
 }
 
 .stacked-total {
-  width: 4.5rem;
+  width: calc(var(--size-16) + var(--space-2));
   padding-left: var(--space-3);
   font-weight: var(--font-weight-semibold);
   text-align: right;
@@ -537,13 +539,13 @@
 
 .waffle-score strong {
   color: var(--color-text-default);
-  font-size: 2rem;
+  font-size: var(--font-size-600);
   line-height: var(--font-line-height-none);
 }
 
 .waffle-row {
   display: grid;
-  grid-template-columns: 5.5rem 1fr auto;
+  grid-template-columns: calc(var(--size-20) + var(--space-2)) 1fr auto;
   align-items: center;
   gap: var(--space-3);
 }
@@ -557,7 +559,7 @@
 .waffle-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 3px;
+  gap: var(--space-0-5);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -572,7 +574,7 @@
   display: inline-block;
   width: var(--size-3);
   height: var(--size-3);
-  border-radius: 3px;
+  border-radius: var(--radius-inset);
   background-color: var(--color-feedback-success-text);
   vertical-align: middle;
 }
@@ -588,7 +590,7 @@
   left: 50%;
   top: 50%;
   width: var(--space-2);
-  height: 1.5px;
+  height: var(--border-width-strong);
   background-color: var(--color-surface-default);
   transform: translate(-50%, -50%) rotate(45deg);
 }
@@ -820,7 +822,7 @@
   top: var(--space-6);
   height: var(--space-0-5);
   background-image: linear-gradient(to right, var(--color-border-emphasis) 50%, transparent 0);
-  background-size: 8px 2px;
+  background-size: var(--space-2) var(--space-0-5);
 }
 
 .flow-step:last-child::after {
@@ -1051,7 +1053,7 @@
   }
 
   .kpi-value {
-    font-size: 2rem;
+    font-size: var(--font-size-600);
   }
 
   .charts {
@@ -1078,7 +1080,7 @@
   }
 
   .flow-step {
-    grid-template-columns: 3rem 1fr;
+    grid-template-columns: var(--size-12) 1fr;
     column-gap: var(--space-4);
     padding-bottom: var(--space-5);
   }
@@ -1095,14 +1097,14 @@
   .flow-step::after,
   .flow-step:nth-child(3)::after {
     display: block;
-    left: calc(var(--space-4) + var(--space-6) - 1px);
+    left: calc(var(--space-4) + var(--space-6) - var(--border-width-default));
     right: auto;
-    top: 3.25rem;
+    top: calc(var(--size-12) + var(--space-1));
     bottom: var(--space-1);
     width: var(--space-0-5);
     height: auto;
     background-image: linear-gradient(to bottom, var(--color-border-emphasis) 50%, transparent 0);
-    background-size: 2px 8px;
+    background-size: var(--space-0-5) var(--space-2);
   }
 
   .flow-step:last-child::after {
