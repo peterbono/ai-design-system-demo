@@ -1,0 +1,153 @@
+/* The scroll region is focusable so keyboard users can scroll a wide table (WCAG 2.1.1). */
+.scroller {
+  position: relative;
+  max-width: 100%;
+  overflow: auto;
+  border: var(--border-width-default) solid var(--card-border);
+  border-radius: var(--radius-container);
+  background-color: var(--color-surface-default);
+  overscroll-behavior-x: contain;
+}
+
+.scroller:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  color: var(--color-text-default);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-200);
+  line-height: var(--font-line-height-snug);
+  font-variant-numeric: tabular-nums;
+}
+
+.caption {
+  padding: var(--space-3) var(--table-cell-padding-x);
+  border-bottom: var(--border-width-default) solid var(--table-border);
+  color: var(--color-text-default);
+  font-size: var(--font-size-300);
+  font-weight: var(--font-weight-semibold);
+  text-align: start;
+  caption-side: top;
+}
+
+.head {
+  height: var(--control-height-md);
+  padding: 0 var(--table-cell-padding-x);
+  border-bottom: var(--border-width-default) solid var(--color-border-default);
+  background-color: var(--table-header-bg);
+  color: var(--table-header-text);
+  font-size: var(--font-size-100);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: var(--font-tracking-wide);
+  text-align: start;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.sticky .head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.cell {
+  height: var(--table-row-height);
+  padding: 0 var(--table-cell-padding-x);
+  border-bottom: var(--border-width-default) solid var(--table-border);
+  vertical-align: middle;
+}
+
+.tbody .row:last-child .cell {
+  border-bottom: 0;
+}
+
+.gridLines .cell + .cell,
+.gridLines .head + .head {
+  border-inline-start: var(--border-width-default) solid var(--table-border);
+}
+
+.numeric {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.numeric .sortButton {
+  flex-direction: row-reverse;
+}
+
+.select {
+  width: var(--size-6);
+  padding-inline-end: 0;
+}
+
+/* The selection checkbox's label is visually hidden: drop its gap. */
+.select :where(label) {
+  gap: 0;
+}
+
+.row {
+  transition-property: background-color;
+  transition-duration: var(--motion-duration-instant);
+  transition-timing-function: var(--motion-easing-standard);
+}
+
+@media (hover: hover) {
+  .tbody .row:hover {
+    background-color: var(--table-row-bg-hover);
+  }
+}
+
+.row[data-selected] {
+  background-color: var(--table-row-bg-selected);
+}
+
+/* Sortable header: the whole label is the button, the icon shows the current direction. */
+.sortButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0 calc(var(--space-1) * -1);
+  padding: var(--space-1);
+  border: 0;
+  border-radius: var(--radius-inset);
+  background-color: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .sortButton:hover {
+    color: var(--color-text-default);
+  }
+}
+
+.sortButton:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: 0;
+}
+
+.sortButton[data-sorted] {
+  color: var(--color-text-default);
+}
+
+.sortIcon {
+  opacity: 0.6;
+}
+
+.sortButton[data-sorted] .sortIcon {
+  color: var(--color-signal-default);
+  opacity: 1;
+}
+
+.empty {
+  padding: var(--space-8) var(--table-cell-padding-x);
+  color: var(--color-text-muted);
+  text-align: center;
+}

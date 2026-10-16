@@ -1,0 +1,75 @@
+{
+  "summary": "A semantic data table for comparing records: sortable columns, selectable rows, density-aware rows, and a focusable scroll region on narrow screens.",
+  "preview": { "c": "Box", "children": [ { "c": "Table", "p": { "caption": "Tokens in this release" }, "children": [
+    { "c": "TableHeader", "children": [ { "c": "TableRow", "children": [ { "c": "TableHead", "children": ["Token"] }, { "c": "TableHead", "p": { "numeric": true }, "children": ["Uses"] } ] } ] },
+    { "c": "TableBody", "children": [
+      { "c": "TableRow", "children": [ { "c": "TableCell", "children": ["color.text.default"] }, { "c": "TableCell", "p": { "numeric": true }, "children": ["212"] } ] },
+      { "c": "TableRow", "children": [ { "c": "TableCell", "children": ["color.border.strong"] }, { "c": "TableCell", "p": { "numeric": true }, "children": ["48"] } ] }
+    ] }
+  ] } ] },
+  "whenToUse": [
+    "Records with the same attributes that users compare, sort or act on: tokens, components, pull requests.",
+    "Sortable headers (sortDirection + onSort, or useTableSort) on columns users reorder by.",
+    "Selectable rows: a Checkbox in the first cell, selected on the row, bulk actions above the table.",
+    "Compact density for expert, data-heavy screens."
+  ],
+  "whenNotToUse": [
+    "Layout: never use a table to position content.",
+    "Fewer than three attributes per item: use a list.",
+    "Editing many cells inline like a spreadsheet: that needs a grid pattern, not in the system yet."
+  ],
+  "dos": [
+    {
+      "title": "Right-align numbers",
+      "text": "numeric aligns digits on the right with tabular figures, so values compare at a glance.",
+      "example": { "c": "Box", "children": [ { "c": "Table", "p": { "aria-label": "Usage" }, "children": [
+        { "c": "TableBody", "children": [
+          { "c": "TableRow", "children": [ { "c": "TableCell", "children": ["Button"] }, { "c": "TableCell", "p": { "numeric": true }, "children": ["1,204"] } ] },
+          { "c": "TableRow", "children": [ { "c": "TableCell", "children": ["Badge"] }, { "c": "TableCell", "p": { "numeric": true }, "children": ["87"] } ] }
+        ] }
+      ] } ] }
+    },
+    {
+      "title": "Say what to do when it is empty",
+      "text": "TableEmpty keeps the header in place and explains how rows will appear.",
+      "example": { "c": "Box", "children": [ { "c": "Table", "p": { "aria-label": "Pull requests" }, "children": [
+        { "c": "TableBody", "children": [ { "c": "TableEmpty", "p": { "colSpan": 2 }, "children": ["No pull requests yet. Changes you sync from Figma appear here."] } ] }
+      ] } ] }
+    }
+  ],
+  "donts": [
+    {
+      "title": "Color as the only row state",
+      "text": "A tinted row alone does not say selected. Pair it with a checked Checkbox.",
+      "example": { "c": "Box", "children": [ { "c": "Table", "p": { "aria-label": "Tokens" }, "children": [
+        { "c": "TableBody", "children": [ { "c": "TableRow", "p": { "selected": true }, "children": [ { "c": "TableCell", "children": ["color.signal.default"] } ] } ] }
+      ] } ] }
+    }
+  ],
+  "accessibility": [
+    "Native table, thead, th scope col and td: screen readers announce headers with each cell.",
+    "Sortable headers contain a button; the th gets aria-sort ascending or descending on the sorted column only.",
+    "Selected rows set aria-selected and use the selected surface plus a checked Checkbox (never color alone).",
+    "The scroll container is a labelled region with tabIndex 0, so keyboard users can scroll wide tables (named by the caption or aria-label).",
+    "Row height and cell padding follow density: 48/36px rows, both above the 24px target minimum for the controls inside."
+  ],
+  "contentGuidelines": [
+    "Column headers are short nouns in sentence case: \"Token\", \"Owner\", \"Uses\".",
+    "Units go in the header (\"Size (px)\") so cells hold only values.",
+    "Empty cells show \"None\" or \"n/a\", never blank."
+  ],
+  "anatomy": {
+    "scroller": "Scroll region (focusable, labelled)",
+    "table": "Table",
+    "caption": "Caption",
+    "head": "Header cell",
+    "sortButton": "Sort button",
+    "sortIcon": "Sort direction icon",
+    "row": "Row",
+    "cell": "Cell",
+    "numeric": "Numeric alignment",
+    "select": "Selection cell",
+    "empty": "Empty row",
+    "sticky": "Sticky header"
+  }
+}

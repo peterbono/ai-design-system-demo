@@ -1,33 +1,110 @@
+/* Things that sit do not cast shadows: a flat plate with a hairline edge. Only interactive cards lift. */
 .card {
+  --_inset: var(--layout-inset);
+
+  position: relative;
   display: flex;
   flex-direction: column;
-  border: var(--border-width-1) solid var(--color-border-default);
-  border-radius: var(--radius-lg);
-  background-color: var(--color-surface-raised);
-  box-shadow: var(--elevation-raised);
+  min-width: 0;
+  border: var(--border-width-default) solid var(--card-border);
+  border-radius: var(--card-radius);
+  background-color: var(--card-bg);
   color: var(--color-text-default);
   font-family: var(--font-family-sans);
   overflow: hidden;
 }
 
+.padding-compact {
+  --_inset: var(--space-3);
+}
+
+.padding-none {
+  --_inset: 0;
+}
+
 .header {
-  padding: var(--space-4) var(--space-5);
-  border-bottom: var(--border-width-1) solid var(--color-border-default);
-  font-size: var(--font-size-300);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--_inset) var(--_inset) 0;
+  font-size: var(--font-size-400);
   font-weight: var(--font-weight-semibold);
+  line-height: var(--font-line-height-snug);
+  letter-spacing: var(--font-tracking-snug);
 }
 
 .body {
-  padding: var(--space-5);
+  padding: var(--_inset);
+  color: var(--color-text-default);
   font-size: var(--font-size-200);
   line-height: var(--font-line-height-normal);
 }
 
+.header + .body {
+  padding-block-start: var(--space-2);
+}
+
 .footer {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: flex-end;
   gap: var(--space-2);
-  padding: var(--space-3) var(--space-5);
-  border-top: var(--border-width-1) solid var(--color-border-default);
+  padding: var(--space-3) var(--_inset);
+  border-top: var(--border-width-default) solid var(--card-border);
   background-color: var(--color-bg-subtle);
+}
+
+.padding-none .header,
+.padding-none .footer {
+  padding-inline: var(--space-4);
+}
+
+/* Interactive: the card lifts and its edge firms up on hover; the focus ring moves to the card. */
+.interactive {
+  transition-property: box-shadow, border-color, transform;
+  transition-duration: var(--motion-duration-fast);
+  transition-timing-function: var(--motion-easing-standard);
+}
+
+@media (hover: hover) {
+  .interactive:hover {
+    border-color: var(--color-border-hover);
+    box-shadow: var(--card-shadow);
+    transform: translateY(calc(var(--border-width-1) * -1));
+  }
+}
+
+.interactive:has([data-card-primary]:focus-visible) {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* The primary link (data-card-primary) covers the whole card so the plate is clickable; its ring moves to the card. */
+.interactive [data-card-primary] {
+  color: inherit;
+  text-decoration: none;
+}
+
+.interactive [data-card-primary]::after {
+  content: '';
+  cursor: pointer;
+  position: absolute;
+  inset: 0;
+}
+
+.interactive [data-card-primary]:focus-visible {
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .interactive:hover {
+    transform: none;
+  }
+}
+
+.interactive :where(a, button, input, [tabindex]):not([data-card-primary]) {
+  position: relative;
+  z-index: 1;
 }

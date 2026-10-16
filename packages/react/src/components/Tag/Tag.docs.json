@@ -1,0 +1,55 @@
+{
+  "summary": "A compact label for a value. Static to describe, toggleable as a filter chip, or removable to show selected values.",
+  "preview": { "c": "Row", "children": [
+    { "c": "Tag", "children": ["color.action"] },
+    { "c": "Tag", "p": { "defaultSelected": true }, "children": ["Dark theme"] },
+    { "c": "Tag", "p": { "removeLabel": "Button" }, "children": ["Button"] }
+  ] },
+  "whenToUse": [
+    "Filter chips above a table or a list: toggle tags in a labelled group.",
+    "Selected values in a multi-select Combobox or a filter bar: removable tags.",
+    "Static metadata: token groups, platforms, component categories."
+  ],
+  "whenNotToUse": [
+    "Status (Published, Failed): use Badge.",
+    "Actions: use Button. A tag describes a value; it does not do something.",
+    "Choosing one option out of several: use RadioGroup or Tabs."
+  ],
+  "dos": [
+    {
+      "title": "Put filter chips in a named group",
+      "text": "role group with aria-label (\"Filter by theme\") tells screen reader users what the chips control.",
+      "example": { "c": "Row", "children": [
+        { "c": "Tag", "p": { "defaultSelected": true }, "children": ["Light"] },
+        { "c": "Tag", "p": { "defaultSelected": false }, "children": ["Dark"] }
+      ] }
+    }
+  ],
+  "donts": [
+    {
+      "title": "Sentences in tags",
+      "text": "Tags truncate. Keep them to a value of one to three words.",
+      "example": { "c": "Row", "children": [ { "c": "Tag", "children": ["Tokens that changed since the last release"] } ] }
+    }
+  ],
+  "accessibility": [
+    "Toggle tags are Base UI Toggle buttons with aria-pressed; selected also shows a check icon, so selection is not color alone.",
+    "The remove button is a separate button named \"Remove <label>\" (removeLabel when the text is not a plain string).",
+    "Both buttons have the focus ring and are reachable with Tab; Enter and Space activate them.",
+    "Static tags are plain text with no role."
+  ],
+  "contentGuidelines": [
+    "Values as they appear elsewhere in the product: token paths in lowercase, names in sentence case.",
+    "After removing a tag, move focus to the next tag or back to the input."
+  ],
+  "anatomy": {
+    "tag": "Container",
+    "label": "Static label",
+    "toggle": "Toggle button",
+    "check": "Selected check",
+    "icon": "Leading icon",
+    "remove": "Remove button",
+    "signal": "Signal tone",
+    "sm": "Size sm"
+  }
+}

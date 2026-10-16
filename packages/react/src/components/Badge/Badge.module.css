@@ -1,39 +1,109 @@
 .badge {
+  --_bg: transparent;
+  --_border: transparent;
+  --_text: var(--color-text-default);
+  --_mark: currentcolor;
+
+  box-sizing: border-box;
   display: inline-flex;
+  flex: none;
   align-items: center;
-  padding: 0 var(--space-2);
-  min-height: var(--space-5);
-  border: var(--border-width-1) solid transparent;
-  border-radius: var(--radius-full);
+  gap: var(--space-1);
+  max-width: 100%;
+  border: var(--border-width-default) solid var(--_border);
+  border-radius: var(--radius-pill);
+  background-color: var(--_bg);
+  color: var(--_text);
   font-family: var(--font-family-sans);
   font-size: var(--font-size-100);
   font-weight: var(--font-weight-medium);
   line-height: var(--font-line-height-tight);
+  letter-spacing: var(--font-tracking-wide);
   white-space: nowrap;
+  vertical-align: middle;
 }
 
-.neutral {
-  background-color: var(--color-bg-subtle);
-  border-color: var(--color-border-default);
-  color: var(--color-text-default);
+.md {
+  min-height: var(--size-6);
+  padding: 0 var(--space-2);
 }
 
-.success {
-  background-color: var(--color-feedback-success-solid);
-  color: var(--color-text-on-solid);
+.sm {
+  min-height: var(--size-5);
+  padding: 0 var(--space-1-5);
 }
 
-.warning {
-  background-color: var(--color-feedback-warning-solid);
-  color: var(--color-text-on-solid);
+.dot {
+  width: var(--space-1-5);
+  height: var(--space-1-5);
+  flex: none;
+  border-radius: var(--radius-pill);
+  background-color: var(--_mark);
 }
 
-.danger {
-  background-color: var(--color-feedback-danger-solid);
-  color: var(--color-text-on-solid);
+.icon {
+  color: var(--_mark);
 }
 
-.info {
-  background-color: var(--color-feedback-info-solid);
-  color: var(--color-text-on-solid);
+/* Subtle: tinted fill, toned text. Default for lists and tables. */
+.subtle.neutral {
+  --_bg: var(--color-bg-subtle);
+  --_border: var(--color-border-default);
+  --_text: var(--color-text-muted);
+  --_mark: var(--color-text-muted);
+}
+
+.subtle.success {
+  --_bg: var(--color-feedback-success-bg);
+  --_border: var(--color-feedback-success-border);
+  --_text: var(--color-feedback-success-text);
+  --_mark: var(--color-feedback-success-icon);
+}
+
+.subtle.warning {
+  --_bg: var(--color-feedback-warning-bg);
+  --_border: var(--color-feedback-warning-border);
+  --_text: var(--color-feedback-warning-text);
+  --_mark: var(--color-feedback-warning-icon);
+}
+
+.subtle.danger {
+  --_bg: var(--color-feedback-danger-bg);
+  --_border: var(--color-feedback-danger-border);
+  --_text: var(--color-feedback-danger-text);
+  --_mark: var(--color-feedback-danger-icon);
+}
+
+.subtle.info {
+  --_bg: var(--color-feedback-info-bg);
+  --_border: var(--color-feedback-info-border);
+  --_text: var(--color-feedback-info-text);
+  --_mark: var(--color-feedback-info-icon);
+}
+
+/* Solid: filled, text on solid. For the one status that must win a glance. */
+.solid {
+  --_text: var(--color-text-on-solid);
+  --_mark: currentcolor;
+}
+
+.solid.neutral {
+  --_bg: var(--color-surface-inverse);
+  --_text: var(--color-text-inverse);
+}
+
+.solid.success {
+  --_bg: var(--color-feedback-success-solid);
+}
+
+.solid.warning {
+  --_bg: var(--color-feedback-warning-solid);
+}
+
+.solid.danger {
+  --_bg: var(--color-feedback-danger-solid);
+}
+
+.solid.info {
+  --_bg: var(--color-feedback-info-solid);
 }

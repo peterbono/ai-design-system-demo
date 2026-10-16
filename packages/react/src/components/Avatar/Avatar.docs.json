@@ -1,0 +1,50 @@
+{
+  "summary": "A person or a team, shown as a photo with an initials fallback. AvatarGroup stacks several and collapses the rest into a +N counter.",
+  "preview": { "c": "Row", "children": [
+    { "c": "Avatar", "p": { "name": "Florian Gouloubi" } },
+    { "c": "Avatar", "p": { "name": "Ana Lima", "size": "lg" } }
+  ] },
+  "whenToUse": [
+    "Owners, reviewers and authors next to tokens, components and pull requests.",
+    "AvatarGroup for the reviewers of a change; set max so the row never wraps."
+  ],
+  "whenNotToUse": [
+    "As the only way to identify someone in a table: write the name too.",
+    "For product or brand logos: use an image with its own alt text."
+  ],
+  "dos": [
+    {
+      "title": "Name next to the avatar in lists",
+      "text": "Faces are hard to tell apart at 24px. Mark the avatar decorative when the name is right beside it.",
+      "example": { "c": "Row", "children": [ { "c": "Avatar", "p": { "name": "Kenji Sato", "size": "sm", "decorative": true } }, "Kenji Sato" ] }
+    }
+  ],
+  "donts": [
+    {
+      "title": "Ten avatars in a row",
+      "text": "Past four or five faces nobody counts. Let the +N counter carry the rest.",
+      "example": { "c": "Row", "children": [ { "c": "Avatar", "p": { "name": "A B" } }, { "c": "Avatar", "p": { "name": "C D" } }, { "c": "Avatar", "p": { "name": "E F" } }, { "c": "Avatar", "p": { "name": "G H" } }, { "c": "Avatar", "p": { "name": "I J" } } ] }
+    }
+  ],
+  "accessibility": [
+    "role img with the full name as its label; initials are hidden from screen readers so they do not spell letters.",
+    "decorative removes it from the accessibility tree when the name is already written next to it.",
+    "The image has an empty alt: the name is on the container. Broken images fall back to initials (Base UI Avatar).",
+    "AvatarGroup is a named group; the +N counter is announced as \"3 more: names\"."
+  ],
+  "contentGuidelines": [
+    "Pass the full display name; initials are computed from the first and last words.",
+    "Name groups by role: \"Reviewers\", \"Owners\"."
+  ],
+  "anatomy": {
+    "avatar": "Circle",
+    "image": "Photo",
+    "fallback": "Initials",
+    "group": "Group (overlapping)",
+    "overflow": "+N counter",
+    "xs": "Size xs (20px)",
+    "sm": "Size sm (24px)",
+    "md": "Size md (32px)",
+    "lg": "Size lg (40px)"
+  }
+}

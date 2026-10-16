@@ -45,3 +45,13 @@ export * from './components/Tabs';
 export * from './components/Breadcrumb';
 export * from './components/Pagination';
 export * from './components/SidebarNav';
+
+// Data display
+export * from './components/Card';
+export * from './components/Badge';
+export * from './components/Avatar';
+export * from './components/Table';
+export * from './components/Accordion';
+export * from './components/Tag';
+export * from './components/Divider';
+export * from './components/Kbd';

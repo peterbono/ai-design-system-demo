@@ -1,0 +1,69 @@
+{
+  "summary": "A short, non-interactive status label like Draft, Published or Failed. The words carry the meaning; the tone reinforces it.",
+  "preview": { "c": "Row", "children": [
+    { "c": "Badge", "p": { "tone": "neutral" }, "children": ["Draft"] },
+    { "c": "Badge", "p": { "tone": "success" }, "children": ["Published"] },
+    { "c": "Badge", "p": { "tone": "warning" }, "children": ["Needs review"] },
+    { "c": "Badge", "p": { "tone": "danger" }, "children": ["Failed"] },
+    { "c": "Badge", "p": { "tone": "info" }, "children": ["Beta"] }
+  ] },
+  "whenToUse": [
+    "The status of one item in a table row, a list or a card header.",
+    "subtle (default) in lists and tables where many badges sit together; solid for the single status that must win a glance (Breaking, Build failed).",
+    "Tone by meaning: success done or healthy, warning needs attention, danger failed or blocked, info new or changed, neutral no judgement."
+  ],
+  "whenNotToUse": [
+    "Anything clickable or removable: use Tag.",
+    "A sentence or an explanation: use an inline Alert.",
+    "Counts on icons: use the number in text next to the label."
+  ],
+  "dos": [
+    {
+      "title": "The text says the status, the tone backs it up",
+      "text": "Someone who cannot tell green from red still reads Published and Failed.",
+      "example": { "c": "Row", "children": [
+        { "c": "Badge", "p": { "tone": "success" }, "children": ["Published"] },
+        { "c": "Badge", "p": { "tone": "danger" }, "children": ["Failed"] }
+      ] }
+    },
+    {
+      "title": "Subtle in rows, solid for the exception",
+      "text": "A table full of solid badges shouts. Keep solid for the one thing that must stand out.",
+      "example": { "c": "Row", "children": [
+        { "c": "Badge", "p": { "tone": "neutral" }, "children": ["Draft"] },
+        { "c": "Badge", "p": { "tone": "danger", "appearance": "solid" }, "children": ["Breaking"] }
+      ] }
+    }
+  ],
+  "donts": [
+    {
+      "title": "Color as the only signal",
+      "text": "A dot without words fails WCAG 1.4.1 and means nothing to a screen reader.",
+      "example": { "c": "Row", "children": [ { "c": "Badge", "p": { "tone": "success", "dot": true }, "children": [""] } ] }
+    },
+    {
+      "title": "A tone that contradicts the words",
+      "text": "Danger for New borrows urgency the user did not ask for.",
+      "example": { "c": "Row", "children": [ { "c": "Badge", "p": { "tone": "danger" }, "children": ["New"] } ] }
+    }
+  ],
+  "accessibility": [
+    "Static text read in reading order. No role, not focusable.",
+    "Subtle tones use feedback text on feedback bg (4.5:1); solid tones use text.on-solid on feedback solid (4.5:1). Checked by the token build in every brand and theme.",
+    "The dot and icon are decorative; the text carries the status.",
+    "If a status changes while the user watches (Running to Failed), announce it with a live region; the badge itself is silent."
+  ],
+  "contentGuidelines": [
+    "One or two words, sentence case: \"Needs review\", not \"NEEDS REVIEW\".",
+    "Past participles for finished states (Published, Merged), present for ongoing (Running)."
+  ],
+  "anatomy": {
+    "badge": "Container",
+    "subtle": "Subtle appearance (default)",
+    "solid": "Solid appearance",
+    "dot": "Leading dot",
+    "icon": "Leading icon",
+    "sm": "Size sm",
+    "md": "Size md"
+  }
+}
