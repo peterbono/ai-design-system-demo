@@ -261,6 +261,7 @@ npm run plugin:build                         # same build, from the repo root
 ```
 apps/figma-plugin/
   manifest.json          name, editorType, dynamic-page access, network allowlist (api.github.com only)
+  community/             Figma Community listing (listing.md), icon, cover and gallery PNGs, and their sources
   scripts/               esbuild build and test runner (both bundle @bridge-ds/core from source)
   src/main/              main thread: figma.variables, clientStorage, plugin data (no network)
   src/ui/                UI iframe: Pull, Push and Settings tabs, rendering, GitHub calls
