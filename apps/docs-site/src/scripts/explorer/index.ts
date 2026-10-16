@@ -29,6 +29,7 @@ import { refreshRow, renderGrid } from './grid';
 import { closeInlineEditor, inlineEditorOpen, openInlineEditor } from './inline-edit';
 import type { ExplorerData, ExplorerMode, ExplorerState, View } from './types';
 import { copyText, esc, icon } from './util';
+import { selectSegment } from '../shell';
 
 const NARROW = '(max-width: 1099px)';
 let historyPanelReady = false;
@@ -63,7 +64,14 @@ export function initTokenExplorer() {
   const title = $<HTMLElement>('[data-xp-title]');
   const count = $<HTMLElement>('[data-xp-count]');
   const empty = $<HTMLElement>('[data-xp-empty]');
-  const lensBtns = [...root.querySelectorAll<HTMLButtonElement>('[data-lens]')];
+  // Static DS SegmentedControls (data-vanilla): scripts/shell.ts handles clicks and arrow keys and reports a change
+  // with a bubbling bridge:segment event; this script keeps the state and selects with selectSegment().
+  const lens = $<HTMLElement>('[data-xp-lens]');
+  const brandSeg = root.querySelector<HTMLElement>('[data-xp-brand]');
+  const densitySeg = root.querySelector<HTMLElement>('[data-xp-density]');
+  const brandField = root.querySelector<HTMLElement>('[data-xp-mode-field="brand"]');
+  const densityField = root.querySelector<HTMLElement>('[data-xp-mode-field="density"]');
+  const combosBtn = root.querySelector<HTMLElement>('[data-combos]');
   // Studio surface only: the Modes and View menus, and the row density control.
   const app = root.dataset.surface === 'app';
   const modesMenu = root.querySelector<HTMLDetailsElement>('[data-xp-modes-menu]');
@@ -164,12 +172,10 @@ export function initTokenExplorer() {
   function renderTree() {
     const matching = counts();
     const n = (pred: (t: (typeof d.tokens)[number]) => boolean) => matching.filter(pred).length;
-    lensBtns.forEach((b) => {
-      const on = b.dataset.lens === s.selection.lens;
-      b.setAttribute('aria-checked', String(on));
-      b.tabIndex = on ? 0 : -1;
+    selectSegment(lens, s.selection.lens);
+    lens.querySelectorAll<HTMLElement>('[data-segment]').forEach((b) => {
       const c = b.querySelector('[data-lens-n]');
-      if (c) c.textContent = String(b.dataset.lens === 'collections' ? collectionTree(d.tokens).length : categoryList(d.tokens).length);
+      if (c) c.textContent = String(b.dataset.value === 'collections' ? collectionTree(d.tokens).length : categoryList(d.tokens).length);
     });
     const sel = s.selection;
     const item = (label: string, count: number, attrs: string, current: boolean, extra = '', depth = 0) =>
@@ -236,35 +242,22 @@ export function initTokenExplorer() {
     syntaxSel.value = s.syntax;
     descBtn.setAttribute(descBtn.getAttribute('role') === 'switch' ? 'aria-checked' : 'aria-pressed', String(s.showDescription));
 
-    const parts: string[] = [];
+    // Brand and density selectors and the combinations switch are rendered by TokenExplorer.astro; show the ones
+    // this selection's columns need and sync their state.
     const plan = view.plan;
-    if (plan.selectors.includes('brand') && !s.view.allCombos) {
-      parts.push(
-        `<div class="xp-seg" role="radiogroup" aria-label="Brand">${d.modes.brands
-          .map((b) => `<button type="button" role="radio" aria-checked="${b === s.view.brand}" tabindex="${b === s.view.brand ? 0 : -1}" data-brand="${esc(b)}">${esc(modeName(b))}</button>`)
-          .join('')}</div>`,
-      );
+    const showBrand = plan.selectors.includes('brand') && !s.view.allCombos;
+    const showDensity = plan.selectors.includes('density');
+    if (brandField) brandField.hidden = !showBrand;
+    if (densityField) densityField.hidden = !showDensity;
+    if (brandSeg) selectSegment(brandSeg, s.view.brand);
+    if (densitySeg) selectSegment(densitySeg, s.view.density);
+    if (combosBtn) {
+      combosBtn.hidden = !plan.combos;
+      combosBtn.setAttribute('aria-checked', String(s.view.allCombos));
     }
-    if (plan.selectors.includes('density')) {
-      parts.push(
-        `<div class="xp-seg" role="radiogroup" aria-label="Density">${d.modes.densities
-          .map((x) => `<button type="button" role="radio" aria-checked="${x === s.view.density}" tabindex="${x === s.view.density ? 0 : -1}" data-density="${esc(x)}">${esc(modeName(x))}</button>`)
-          .join('')}</div>`,
-      );
-    }
-    if (plan.combos) {
-      parts.push(
-        `<button type="button" class="xp-switch" role="switch" aria-checked="${s.view.allCombos}" data-combos><span class="xp-switch-track" aria-hidden="true"><span class="xp-switch-thumb"></span></span><span>All ${d.modes.brands.length * d.modes.themes.length} combinations</span></button>`,
-      );
-    }
+    const any = showBrand || showDensity || plan.combos;
     if (app && modesMenu) {
-      // In the Studio the selectors live in the Modes menu, each with its label.
-      const labelled = parts.map((html) => {
-        const m = html.match(/aria-label="(Brand|Density)"/);
-        return m ? `<div class="xp-menu-field"><span aria-hidden="true">${m[1]}</span>${html}</div>` : html;
-      });
-      modebar.innerHTML = labelled.join('');
-      modesMenu.hidden = parts.length === 0;
+      modesMenu.hidden = !any;
       if (modesLabel) {
         const bits: string[] = [];
         if (s.view.allCombos) bits.push(`All ${d.modes.brands.length * d.modes.themes.length} combinations`);
@@ -274,8 +267,7 @@ export function initTokenExplorer() {
       }
       return;
     }
-    modebar.innerHTML = parts.join('');
-    modebar.hidden = parts.length === 0;
+    modebar.hidden = !any;
   }
 
   // ---- grid
@@ -418,19 +410,11 @@ export function initTokenExplorer() {
   }
 
   // ---- events: left pane
-  root.querySelector('[data-xp-lens]')!.addEventListener('click', (e) => {
-    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-lens]');
-    if (!b) return;
-    s.selection = b.dataset.lens === 'types' ? { lens: 'types', category: 'color' } : { lens: 'collections', tier: 'semantic' };
+  const segValue = (e: Event) => (e as CustomEvent<{ value: string }>).detail.value;
+  lens.addEventListener('bridge:segment', (e) => {
+    s.selection = segValue(e) === 'types' ? { lens: 'types', category: 'color' } : { lens: 'collections', tier: 'semantic' };
     s.collapsed.clear();
     render();
-  });
-  root.querySelector('[data-xp-lens]')!.addEventListener('keydown', (e) => {
-    const k = (e as KeyboardEvent).key;
-    if (k !== 'ArrowLeft' && k !== 'ArrowRight') return;
-    const next = lensBtns.find((b) => b.getAttribute('aria-checked') !== 'true');
-    next?.click();
-    next?.focus();
   });
   tree.addEventListener('click', (e) => {
     const twist = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-twist]');
@@ -503,25 +487,17 @@ export function initTokenExplorer() {
     render();
     q.focus();
   });
-  modebar.addEventListener('click', (e) => {
-    const b = (e.target as HTMLElement).closest<HTMLElement>('button');
-    if (!b) return;
-    if (b.dataset.brand) s.view.brand = b.dataset.brand;
-    else if (b.dataset.density) s.view.density = b.dataset.density;
-    else if (b.hasAttribute('data-combos')) s.view.allCombos = !s.view.allCombos;
-    else return;
+  // Re-render the grid (and the open detail) after a view change; focus stays on the control that changed it.
+  const changeView = (apply: () => void) => {
+    const from = document.activeElement as HTMLElement | null;
+    apply();
     render({ keepScroll: true });
     if (s.selected) openDetail(s.selected);
-    modebar.querySelector<HTMLElement>(b.dataset.brand ? `[data-brand="${CSS.escape(b.dataset.brand)}"]` : b.dataset.density ? `[data-density="${CSS.escape(b.dataset.density)}"]` : '[data-combos]')?.focus();
-  });
-  modebar.addEventListener('keydown', (e) => {
-    const k = (e as KeyboardEvent).key;
-    const b = (e.target as HTMLElement).closest<HTMLElement>('[role="radio"]');
-    if (!b || (k !== 'ArrowLeft' && k !== 'ArrowRight')) return;
-    const sibs = [...b.parentElement!.querySelectorAll<HTMLElement>('[role="radio"]')];
-    const next = sibs[(sibs.indexOf(b) + (k === 'ArrowRight' ? 1 : sibs.length - 1)) % sibs.length];
-    next?.click();
-  });
+    from?.focus();
+  };
+  brandSeg?.addEventListener('bridge:segment', (e) => changeView(() => (s.view.brand = segValue(e))));
+  densitySeg?.addEventListener('bridge:segment', (e) => changeView(() => (s.view.density = segValue(e))));
+  combosBtn?.addEventListener('click', () => changeView(() => (s.view.allCombos = !s.view.allCombos)));
   syntaxSel.addEventListener('change', () => {
     s.syntax = syntaxSel.value as Syntax;
     render({ keepScroll: true });
@@ -533,13 +509,6 @@ export function initTokenExplorer() {
 
   // Row density (Studio): compact by default, remembered in this browser. The Library keeps its own comfortable rows.
   const ROWS_KEY = 'bridge.xp.rows';
-  const paintRows = () => {
-    rowsSeg?.querySelectorAll<HTMLElement>('[data-rows]').forEach((b) => {
-      const on = b.dataset.rows === root.dataset.rows;
-      b.setAttribute('aria-checked', String(on));
-      b.tabIndex = on ? 0 : -1;
-    });
-  };
   if (rowsSeg) {
     try {
       const saved = localStorage.getItem(ROWS_KEY);
@@ -547,26 +516,18 @@ export function initTokenExplorer() {
     } catch {
       /* private mode: default rows */
     }
-    paintRows();
-    rowsSeg.addEventListener('click', (e) => {
-      const b = (e.target as HTMLElement).closest<HTMLElement>('[data-rows]');
-      if (!b || b.dataset.rows === root.dataset.rows) return;
-      root.dataset.rows = b.dataset.rows!;
-      try {
-        localStorage.setItem(ROWS_KEY, root.dataset.rows);
-      } catch {
-        /* ignore */
-      }
-      paintRows();
-      render({ keepScroll: true });
-      if (s.selected) openDetail(s.selected);
-      b.focus();
-    });
-    rowsSeg.addEventListener('keydown', (e) => {
-      const k = (e as KeyboardEvent).key;
-      if (k !== 'ArrowLeft' && k !== 'ArrowRight') return;
-      e.preventDefault();
-      rowsSeg.querySelector<HTMLElement>('[data-rows][aria-checked="false"]')?.click();
+    selectSegment(rowsSeg, root.dataset.rows ?? 'compact');
+    rowsSeg.addEventListener('bridge:segment', (e) => {
+      const rows = segValue(e);
+      if (rows === root.dataset.rows) return;
+      changeView(() => {
+        root.dataset.rows = rows;
+        try {
+          localStorage.setItem(ROWS_KEY, rows);
+        } catch {
+          /* ignore */
+        }
+      });
     });
   }
 

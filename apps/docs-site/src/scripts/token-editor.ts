@@ -39,7 +39,7 @@ import {
   type DraftEdit,
   type Guardrails,
 } from '../lib/editor-model';
-import { currentScope } from './shell';
+import { currentScope, selectSegment } from './shell';
 import { esc, getToken, initGitHubConnect, paintGates, readRepo, setButtonDisabled } from './github-session';
 
 /** The config's repository, or the one this site documents when the config names none. */
@@ -172,6 +172,32 @@ function rawEditor(t: LogicalToken, value: unknown): string {
   return `<input class="ed-input mono" value="${esc(isAlias(value) ? '' : JSON.stringify(value))}" data-ed-json aria-label="Raw value as JSON" />`;
 }
 
+/**
+ * A static DS SegmentedControl built from the one TokenExplorer.astro renders in `template[data-xp-seg-tpl]`: its
+ * segment is cloned once per option, so the markup and classes stay the design system's. scripts/shell.ts drives it
+ * (data-vanilla) and reports changes with bridge:segment. Null when the page has no template.
+ */
+function segmentedControl(name: string, options: { value: string; label: string }[], value: string): HTMLElement | null {
+  const tpl = document.querySelector<HTMLTemplateElement>('template[data-xp-seg-tpl]');
+  const root = tpl?.content.querySelector('[data-segmented-control]')?.cloneNode(true) as HTMLElement | undefined;
+  const proto = root?.querySelector<HTMLElement>('[data-segment]');
+  if (!root || !proto) return null;
+  root.setAttribute('aria-label', name);
+  root.replaceChildren(
+    ...options.map((o) => {
+      const b = proto.cloneNode(true) as HTMLElement;
+      b.removeAttribute('id');
+      b.removeAttribute('data-composite-item-active');
+      b.dataset.value = o.value;
+      const text = b.querySelector('span');
+      if (text) text.textContent = o.label;
+      return b;
+    }),
+  );
+  selectSegment(root, value);
+  return root;
+}
+
 export function renderEditor(path: string, slot: HTMLElement) {
   if (!S) return;
   const t = (S.applied?.proposed ?? S.head).byPath.get(path) ?? S.head.byPath.get(path);
@@ -193,13 +219,7 @@ export function renderEditor(path: string, slot: HTMLElement) {
       <div class="ed">
         <div class="ed-head"><h3>Edit</h3>${edited ? '<span class="pill is-accent">In draft</span>' : ''}</div>
         <p class="ed-note is-${t.tier}">${esc(TIER_NOTE[t.tier] ?? '')}</p>
-        ${
-          modes.length > 1
-            ? `<div class="ed-modes" role="radiogroup" aria-label="Mode">${modes
-                .map((m) => `<button type="button" role="radio" aria-checked="${m === mode}" data-ed-mode="${esc(m)}">${esc(label(m))}</button>`)
-                .join('')}</div>`
-            : ''
-        }
+        ${modes.length > 1 ? '<div data-ed-modes></div>' : ''}
         <div class="ed-field">
           <label class="ed-label" for="${listId}-in">${t.tier === 'primitive' ? 'Value' : 'Points to'}</label>
           ${
@@ -223,6 +243,24 @@ export function renderEditor(path: string, slot: HTMLElement) {
         </div>
         <div class="ed-live" data-ed-live></div>
       </div>`;
+    const modesSlot = slot.querySelector('[data-ed-modes]');
+    const seg = modesSlot
+      ? segmentedControl(
+          'Mode',
+          modes.map((m) => ({ value: m, label: label(m) })),
+          mode,
+        )
+      : null;
+    if (modesSlot && seg) {
+      seg.setAttribute('data-ed-modes', '');
+      seg.addEventListener('bridge:segment', (e) => {
+        mode = (e as CustomEvent<{ value: string }>).detail.value;
+        slot.dataset.mode = mode;
+        draw();
+        slot.querySelector<HTMLElement>('[data-ed-modes] [aria-checked="true"]')?.focus();
+      });
+      modesSlot.replaceWith(seg);
+    } else modesSlot?.remove();
     paintLive(slot, t);
     paintPreview();
   };
@@ -263,11 +301,7 @@ export function renderEditor(path: string, slot: HTMLElement) {
   slot.onclick = (e) => {
     const b = (e.target as HTMLElement).closest<HTMLElement>('button');
     if (!b) return;
-    if (b.dataset.edMode) {
-      mode = b.dataset.edMode;
-      slot.dataset.mode = mode;
-      draw();
-    } else if (b.dataset.edStep) {
+    if (b.dataset.edStep) {
       const input = slot.querySelector<HTMLInputElement>('[data-ed-num]');
       if (input) {
         input.value = String(Number(input.value) + Number(b.dataset.edStep) * Number(input.step || 1));
