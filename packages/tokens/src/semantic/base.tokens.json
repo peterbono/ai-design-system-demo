@@ -101,5 +101,26 @@
     "indicator": {
       "$value": "{border.width.2}"
     }
+  },
+  "layout": {
+    "$type": "dimension",
+    "sidebar": {
+      "width": {
+        "$value": "{size.64}",
+        "$description": "App shell side navigation width."
+      }
+    },
+    "header": {
+      "height": {
+        "$value": "{size.14}",
+        "$description": "App shell top bar height. Sticky offsets add it."
+      }
+    },
+    "content": {
+      "max-width": {
+        "$value": "{size.300}",
+        "$description": "Widest a page content column grows before it stays left aligned."
+      }
+    }
   }
 }

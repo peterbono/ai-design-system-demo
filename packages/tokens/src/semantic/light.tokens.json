@@ -109,6 +109,11 @@
         "$value": "{palette.neutral.500}",
         "$description": "Edges that identify a control (inputs, checkboxes, switches). 3:1 against surfaces (WCAG 1.4.11)."
       },
+      "emphasis": {
+        "$type": "color",
+        "$value": "{palette.neutral.300}",
+        "$description": "A hairline that must read before the default one: hovered cards, group dividers, dashed placeholders. Decorative, no contrast minimum."
+      },
       "hover": {
         "$type": "color",
         "$value": "{palette.neutral.600}",
@@ -339,6 +344,48 @@
           "$type": "color",
           "$value": "{palette.info.600}"
         }
+      }
+    },
+    "chart": {
+      "$type": "color",
+      "$description": "Data visualization. Series colors mark graphics (bars, arcs, lines) and need 3:1 against the surface; every series also carries a text label, never color alone.",
+      "series": {
+        "1": {
+          "$value": "{palette.accent.500}",
+          "$description": "Series 1, the signal hue: the series a chart is about."
+        },
+        "2": {
+          "$value": "{palette.info.600}",
+          "$description": "Series 2, the info hue."
+        },
+        "3": {
+          "$value": "{palette.success.600}",
+          "$description": "Series 3, the success hue."
+        },
+        "4": {
+          "$value": "{palette.warning.600}",
+          "$description": "Series 4, the warning hue."
+        },
+        "5": {
+          "$value": "{palette.categorical.600}",
+          "$description": "Series 5, the categorical extra hue."
+        },
+        "6": {
+          "$value": "{palette.neutral.500}",
+          "$description": "Series 6, neutral: \"other\" and baselines."
+        }
+      },
+      "track": {
+        "$value": "{palette.neutral.100}",
+        "$description": "Unfilled part of a bar, gauge or donut."
+      },
+      "grid": {
+        "$value": "{palette.neutral.200}",
+        "$description": "Grid lines and axis rules."
+      },
+      "axis": {
+        "$value": "{palette.neutral.600}",
+        "$description": "Axis labels and tick text. Same contrast as muted text."
       }
     },
     "selection": {

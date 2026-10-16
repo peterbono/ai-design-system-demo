@@ -285,6 +285,42 @@
       "950": {
         "$value": "{color.cable.950}"
       }
+    },
+    "categorical": {
+      "$description": "Extra categorical hue for data visualization only (chart series 5). Chosen far from the accent and info hues of the brand.",
+      "50": {
+        "$value": "{color.plum.50}"
+      },
+      "100": {
+        "$value": "{color.plum.100}"
+      },
+      "200": {
+        "$value": "{color.plum.200}"
+      },
+      "300": {
+        "$value": "{color.plum.300}"
+      },
+      "400": {
+        "$value": "{color.plum.400}"
+      },
+      "500": {
+        "$value": "{color.plum.500}"
+      },
+      "600": {
+        "$value": "{color.plum.600}"
+      },
+      "700": {
+        "$value": "{color.plum.700}"
+      },
+      "800": {
+        "$value": "{color.plum.800}"
+      },
+      "900": {
+        "$value": "{color.plum.900}"
+      },
+      "950": {
+        "$value": "{color.plum.950}"
+      }
     }
   },
   "radius": {
