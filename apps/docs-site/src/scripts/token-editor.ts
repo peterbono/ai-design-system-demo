@@ -332,7 +332,11 @@ function paintTray() {
   if (!tray || !S?.applied || !S.checks) return;
   const rows = trayRows(S.head, S.applied.proposed, S.draft);
   const n = rows.length;
-  tray.hidden = n === 0 && !document.body.classList.contains('is-editing');
+  // The Drafts page shows the tray as a page section, always visible; elsewhere it is a bar that appears while editing.
+  const asPage = tray.dataset.variant === 'page';
+  tray.hidden = !asPage && n === 0 && !document.body.classList.contains('is-editing');
+  const empty = $('ed-drafts-empty');
+  if (empty) empty.hidden = n > 0;
   $('ed-tray-count')!.textContent = n ? `${n} draft change${n > 1 ? 's' : ''}` : 'No draft changes yet';
   const fails = S.checks.blocking.length;
   const status = $('ed-tray-status')!;
@@ -369,7 +373,7 @@ function paintTray() {
             .map((i) => `<li>${esc(i.message)}</li>`)
             .join('')}</ul></div></li>`
         : '')
-    : '<li class="ed-tray-empty">Edits you make show up here, with before and after values and their contrast impact.</li>';
+    : `<li class="ed-tray-empty">${asPage ? 'No draft yet. Open a token in Studio Tokens and change a value: it lands here.' : 'Edits you make show up here, with before and after values and their contrast impact.'}</li>`;
 }
 
 function downloadDraft() {
@@ -443,11 +447,62 @@ async function propose(title: string, notes: string): Promise<number> {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
+// API for the token explorer (scripts/explorer/): inline cell edits go through the same draft, guardrails and tray.
+
+let setEditingImpl: ((on: boolean) => void) | null = null;
+
+/** Turns edit mode on or off (body.is-editing, the tray, the bridge:editing event). */
+export function setEditing(on: boolean) {
+  setEditingImpl?.(on);
+}
+
+export const editorReady = () => S !== null;
+
+/** Current state: the head set, the draft applied to it, guardrails and contrast before and after the draft. */
+export function editorSnapshot() {
+  if (!S) return null;
+  return {
+    head: S.head,
+    proposed: S.applied?.proposed ?? S.head,
+    draft: S.draft,
+    checks: S.checks,
+    contrastBefore: S.contrastBefore,
+    contrastAfter: S.contrastAfter,
+  };
+}
+
+/** Sets one mode of one token in the draft (an alias string like "{palette.neutral.600}" or a DTCG literal). */
+export function editValue(path: string, mode: string, value: unknown) {
+  const t = S?.head.byPath.get(path);
+  if (t) setValue(t, mode, value);
+}
+
+/** The value a token has in the draft for one mode (the head value when the draft does not touch it). */
+export function draftValue(path: string, mode: string): unknown {
+  const t = S?.head.byPath.get(path);
+  return t ? currentValue(t, mode) : undefined;
+}
+
+/** Same-type tokens a token may alias, following the tier rules. */
+export function aliasOptions(path: string): string[] {
+  const t = S?.head.byPath.get(path);
+  return S && t ? aliasCandidates(S.head, t) : [];
+}
+
+/** Drops every draft edit of one token. */
+export function undoToken(path: string) {
+  if (!S) return;
+  S.draft.edits = S.draft.edits.filter((x) => x.path !== path);
+  saveDraft();
+  recompute();
+}
 
 export function initTokenEditor() {
-  const filesEl = $('tx-files');
-  const cfgEl = $('tx-config');
-  const checksEl = $('bridge-contrast');
+  if (S) return;
+  // Token files, config and contrast pairs: from the token explorer component (xp-*), or the older page ids.
+  const filesEl = $('xp-files') ?? $('tx-files');
+  const cfgEl = $('xp-config') ?? $('tx-config');
+  const checksEl = $('xp-checks') ?? $('bridge-contrast');
   if (!filesEl || !cfgEl) return;
   const config = loadConfig(cfgEl.textContent || '{}');
   const originals = JSON.parse(filesEl.textContent || '{}') as Record<string, string>;
@@ -457,7 +512,7 @@ export function initTokenEditor() {
   initGitHubConnect(() => paintTray());
 
   const toggle = $<HTMLButtonElement>('tx-edit-toggle');
-  const setEditing = (on: boolean) => {
+  setEditingImpl = (on: boolean) => {
     document.body.classList.toggle('is-editing', on);
     toggle?.setAttribute('aria-pressed', String(on));
     try {
@@ -475,18 +530,20 @@ export function initTokenEditor() {
   } catch {
     /* ignore */
   }
-  recompute();
-  if (startEditing || S.draft.edits.length) setEditing(true);
-
-  // The explorer drawer asks for an editor when edit mode is on.
+  // The explorer drawer asks for an editor when edit mode is on. Listen before edit mode starts: turning it on
+  // re-renders an open drawer.
   document.addEventListener('bridge:token-open', (e) => {
     const { path, slot } = (e as CustomEvent<{ path: string; slot: HTMLElement }>).detail;
     if (document.body.classList.contains('is-editing')) renderEditor(path, slot);
   });
+  recompute();
+  // Studio Tokens turns edit mode on itself (the explorer in mode "edit"); the Drafts page only shows the tray.
+  if (startEditing || (S.draft.edits.length && !$('ed-tray')?.dataset.variant)) setEditing(true);
   document.addEventListener('bridge:scope', () => paintPreview());
 
   const tray = $('ed-tray');
   $('ed-tray-toggle')?.addEventListener('click', () => {
+    if (tray?.dataset.variant === 'page') return;
     const open = tray?.dataset.open !== 'true';
     if (tray) tray.dataset.open = String(open);
     $('ed-tray-toggle')?.setAttribute('aria-expanded', String(open));
@@ -541,7 +598,7 @@ export function initTokenEditor() {
       const n = await propose($<HTMLInputElement>('ed-propose-title')?.value ?? '', $<HTMLTextAreaElement>('ed-propose-notes')?.value ?? '');
       S!.draft = emptyDraft();
       saveDraft();
-      location.href = `/reviews/?pr=${n}`;
+      location.href = `/studio/reviews/?pr=${n}`;
     } catch (err) {
       out.textContent = `Not proposed: ${(err as Error).message}`;
       go.disabled = false;

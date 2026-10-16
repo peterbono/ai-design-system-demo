@@ -1,278 +1,36 @@
 ---
-import '../../styles/github.css';
-import '../../styles/editor.css';
-import '../../styles/explorer.css';
-import '../../styles/reviews.css';
-import '../../styles/history.css';
 import Layout from '../../layouts/Layout.astro';
 import Icon from '../../components/Icon.astro';
+import TokenExplorerSlot from '../../components/TokenExplorerSlot.astro';
 import Updated from '../../components/Updated.astro';
-import { explorerTokens, previewKind, type ExplorerToken } from '../../lib/explorer';
+import { explorerTokens } from '../../lib/explorer';
 import { PAGE_SOURCES, freshness } from '../../lib/sources';
-import GitHubConnect from '../../components/GitHubConnect.astro';
-import GitHubDialog from '../../components/GitHubDialog.astro';
-import HistoryPlanner from '../../components/HistoryPlanner.astro';
-import EditorPreview from '../../components/EditorPreview.tsx';
-import { listDir, readText, exists } from '../../lib/repo';
-import { CONTRAST_FILE } from '../../lib/contrast';
-import { siteRepo } from '../../lib/config';
 
-const TOKENS_SRC = siteRepo().tokensRoot;
-
-const updated = freshness(PAGE_SOURCES.lookup);
-const tokens = explorerTokens().map((t) => ({ ...t, kind: previewKind(t) }));
-const layers = [
-  { key: 'semantic', label: 'Semantic', note: 'Tokens with a job. They point to a different palette role in each theme. Design and build with these.' },
-  { key: 'component', label: 'Component', note: 'Stable hooks for one component or family. They alias semantic tokens, so themes and brands flow through.' },
-  { key: 'density', label: 'Density', note: 'Control heights, paddings and row heights. Comfortable by default, compact for dense tools.' },
-  { key: 'brand', label: 'Brand', note: 'Palette, radius and font roles. Each brand (Bridge, Ocean) points them at different primitives.' },
-  { key: 'primitive', label: 'Primitives', note: 'The raw scales. Brands point here; components never should.' },
-] as const;
-
-const typeCounts = [...tokens.reduce((m, t) => m.set(t.type, { label: t.typeLabel, n: (m.get(t.type)?.n ?? 0) + 1 }), new Map<string, { label: string; n: number }>())]
-  .sort((a, b) => b[1].n - a[1].n);
-const unusedCount = tokens.filter((t) => !t.used).length;
-const searchText = (t: ExplorerToken) =>
-  [t.path, t.cssVar, t.figma, t.value, t.hex ?? '', ...(t.modes ? Object.values(t.modes).flatMap((m) => [m.css, m.hex ?? '', ...m.chain]) : [])].join(' ').toLowerCase();
-const shortValue = (t: ExplorerToken) =>
-  t.modes ? (t.modes.light.css === t.modes.dark.css ? t.modes.light.css : `${t.modes.light.hex ?? t.modes.light.css} / ${t.modes.dark.hex ?? t.modes.dark.css}`) : (t.hex ?? t.value);
-const json = JSON.stringify(tokens).replace(/</g, '\\u003c');
-// Token files and config for the editor: it rebuilds the token set in the browser with @bridge-ds/core.
-const tokenFiles: Record<string, string> = {};
-for (const dir of listDir(TOKENS_SRC).filter((d) => !d.includes('.'))) {
-  for (const f of listDir(`${TOKENS_SRC}/${dir}`)) if (f.endsWith('.tokens.json')) tokenFiles[`${dir}/${f}`] = readText(`${TOKENS_SRC}/${dir}/${f}`);
-}
-const filesJson = JSON.stringify(tokenFiles).replace(/</g, '\\u003c');
-const configJson = (exists('bridge.config.json') ? readText('bridge.config.json') : '{}').replace(/</g, '\\u003c');
-const checksJson = readText(CONTRAST_FILE).replace(/</g, '\\u003c');
+const updated = freshness(PAGE_SOURCES.explorer);
+const total = explorerTokens().length;
 ---
 
-<Layout title="Token explorer" description="Every token in the system: filter, search and open one to see its alias chain, values, contrast and usage." sources={PAGE_SOURCES.lookup} updated={updated} wide>
-  <div class="tx">
-    <header class="tx-head">
-      <div>
-        <h1>Token explorer</h1>
-        <p class="lead">
-          All {tokens.length} tokens across five tiers, straight from the token files. Open one to follow its alias chain in both themes and
-          brands, check its contrast pairs and see which components would change with it.
-        </p>
-        <Updated date={updated} />
-      </div>
-      <div class="tx-head-actions">
-        <div class="ed-only"><GitHubConnect /></div>
-        <button type="button" class="btn btn-secondary ed-only" id="ed-add"><Icon name="plus" size={16} />New semantic token</button>
-        <button type="button" class="btn btn-primary tx-edit-toggle" id="tx-edit-toggle" aria-pressed="false">
-          <Icon name="sliders" size={16} /><span class="when-off">Edit tokens</span><span class="when-on">Done editing</span>
-        </button>
-      </div>
-    </header>
-    <p class="ed-banner ed-only">
-      <Icon name="pr" size={18} />
-      <span>
-        Edit mode. Open a token to change it. Edits stay in this browser as a draft, the preview and the guardrails update as you go, and nothing
-        reaches the repo until you propose a pull request and it is reviewed.
-      </span>
-    </p>
-
-    <div class="tx-toolbar" role="search">
-      <label class="tx-search">
-        <Icon name="search" size={18} />
-        <span class="sr-only">Search tokens</span>
-        <input id="tx-q" type="search" placeholder="Name, CSS variable, Figma name or hex" autocomplete="off" spellcheck="false" />
-      </label>
-      <div class="tx-seg" role="group" aria-label="Layer" data-filter="layer">
-        <button type="button" data-value="" aria-pressed="true">All layers</button>
-        {layers.map((l) => (
-          <button type="button" data-value={l.key} aria-pressed="false">{l.key === 'primitive' ? 'Primitive' : l.label}</button>
-        ))}
-      </div>
-      <div class="tx-seg" role="group" aria-label="Usage" data-filter="usage">
-        <button type="button" data-value="" aria-pressed="true">Any usage</button>
-        <button type="button" data-value="used" aria-pressed="false">In use</button>
-        <button type="button" data-value="unused" aria-pressed="false">Unused <span class="tx-n">{unusedCount}</span></button>
-      </div>
-    </div>
-    <div class="tx-types" role="group" aria-label="Type" data-filter="type">
-      <button type="button" data-value="" aria-pressed="true">All types <span class="tx-n">{tokens.length}</span></button>
-      {
-        typeCounts.map(([key, v]) => (
-          <button type="button" data-value={key} aria-pressed="false">
-            {v.label} <span class="tx-n">{v.n}</span>
-          </button>
-        ))
-      }
-    </div>
-
-    <p class="tx-count" id="tx-count" aria-live="polite">{tokens.length} tokens</p>
-
-    {
-      layers.map((layer) => {
-        const list = tokens.filter((t) => t.layer === layer.key);
-        return (
-          <section class="tx-section" data-layer-section={layer.key} aria-labelledby={`tx-h-${layer.key}`}>
-            <div class="tx-section-head">
-              <h2 id={`tx-h-${layer.key}`}>
-                {layer.label} <span class="tx-section-n" data-section-count>{list.length}</span>
-              </h2>
-              <p>{layer.note}</p>
-            </div>
-            <ul class="tx-grid" role="list">
-              {list.map((t) => (
-                <li class="tk" data-path={t.path} data-type={t.type} data-layer={t.layer} data-used={t.used ? 'used' : 'unused'} data-search={searchText(t)}>
-                  <button type="button" class="tk-card" data-open={t.path} aria-haspopup="dialog">
-                    <span class={`tk-preview kind-${t.kind}`} aria-hidden="true">
-                      {t.kind === 'color' &&
-                        (t.layer !== 'primitive' ? (
-                          <span class="pv-split">
-                            <span data-theme="light" style={`background-color: var(${t.cssVar})`} />
-                            <span data-theme="dark" style={`background-color: var(${t.cssVar})`} />
-                          </span>
-                        ) : (
-                          <span class="pv-fill" style={`background-color: var(${t.cssVar})`} />
-                        ))}
-                      {t.kind === 'shadow' &&
-                        (t.layer !== 'primitive' ? (
-                          <span class="pv-split pv-shadow-split">
-                            <span data-theme="light"><i style={`box-shadow: var(${t.cssVar})`} /></span>
-                            <span data-theme="dark"><i style={`box-shadow: var(${t.cssVar})`} /></span>
-                          </span>
-                        ) : (
-                          <span class="pv-shadow-solo" data-theme={t.path.endsWith('strong') ? 'dark' : 'light'}>
-                            <i style={`box-shadow: var(${t.cssVar})`} />
-                          </span>
-                        ))}
-                      {t.kind === 'radius' && <span class="pv-corner" style={`border-top-left-radius: var(${t.cssVar})`} />}
-                      {t.kind === 'stroke' && <span class="pv-stroke" style={`border-top-width: var(${t.cssVar})`} />}
-                      {t.kind === 'space' && (
-                        <span class="pv-space">
-                          <span style={`width: var(${t.cssVar})`} />
-                        </span>
-                      )}
-                      {t.kind === 'size' && <span class="pv-text" style={`font-size: var(${t.cssVar})`}>Ag</span>}
-                      {t.kind === 'family' && <span class="pv-text" style={`font-family: var(${t.cssVar})`}>Ag</span>}
-                      {t.kind === 'weight' && <span class="pv-text" style={`font-weight: var(${t.cssVar})`}>Ag</span>}
-                      {t.kind === 'number' && (
-                        <span class="pv-leading" style={`line-height: var(${t.cssVar})`}>
-                          Tokens decide,
-                          <br />
-                          Figma explores.
-                        </span>
-                      )}
-                    </span>
-                    <span class="tk-body">
-                      <span class="tk-name">{t.path}</span>
-                      <span class="tk-value">{shortValue(t)}</span>
-                      <span class="tk-meta">
-                        <span>{t.typeLabel}</span>
-                        {!t.used && <span class="pill is-warn">Unused</span>}
-                        {t.deprecated && <span class="pill is-fail">Deprecated</span>}
-                        {t.usedBy.length > 0 && (
-                          <span class="tk-users">
-                            {t.usedBy.length} component{t.usedBy.length > 1 ? 's' : ''}
-                          </span>
-                        )}
-                      </span>
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </section>
-        );
-      })
-    }
-
-    <div class="tx-empty" id="tx-empty" hidden>
-      <Icon name="search" size={28} />
-      <h2>No token matches these filters</h2>
-      <p>Try a shorter name, a hex value like <code>#3449cc</code>, or clear the filters. If a value came from a mockup and is not here, it is not in the system.</p>
-      <button type="button" class="btn btn-secondary btn-sm" id="tx-clear">Clear filters</button>
-    </div>
-  </div>
-
-  <template id="ed-preview-tpl"><EditorPreview theme="light" /></template>
-
-  <section class="ed-tray" id="ed-tray" data-open="false" aria-label="Draft changes" hidden>
-    <div class="ed-tray-bar">
-      <button type="button" class="ed-tray-toggle" id="ed-tray-toggle" aria-expanded="false" aria-controls="ed-tray-panel">
-        <span class="ed-tray-count" id="ed-tray-count">No draft changes yet</span>
-        <span class="ed-tray-status" id="ed-tray-status"></span>
-        <Icon name="chevron" size={14} />
-      </button>
-      <div class="ed-tray-actions">
-        <button type="button" class="btn btn-secondary btn-sm" id="ed-export">Export JSON</button>
-        <button type="button" class="btn btn-primary btn-sm" id="ed-propose" disabled>Propose change</button>
-      </div>
-    </div>
-    <div class="ed-tray-panel" id="ed-tray-panel">
-      <ul class="ed-tray-list" id="ed-tray-list"></ul>
-      <div class="ed-tray-foot">
-        <p class="small muted">Saved in this browser only. Proposing opens a Tier 3 pull request labeled <code>source: bridge-web</code>.</p>
-        <button type="button" class="btn btn-secondary btn-sm ed-danger" id="ed-discard">Discard draft</button>
-      </div>
-    </div>
-  </section>
-
-  <dialog class="gh-dialog" id="ed-add-dialog" aria-labelledby="ed-add-title">
-    <form method="dialog" class="gh-dialog-box">
-      <header class="gh-dialog-head">
-        <h2 id="ed-add-title">New semantic color</h2>
-        <button type="submit" value="cancel" class="icon-btn" aria-label="Close"><Icon name="close" /></button>
-      </header>
-      <p>A semantic token names a job, like <code>color.bg.canvas</code>. Point each theme at a palette role so brands can re-theme it. Adding a token is Tier 3.</p>
-      <label class="gh-field"><span>Name</span><input id="ed-add-path" placeholder="color.bg.canvas" spellcheck="false" autocomplete="off" /></label>
-      <label class="gh-field"><span>Light points to</span><input id="ed-add-light" list="ed-palette" placeholder="palette.neutral.50" spellcheck="false" autocomplete="off" /></label>
-      <label class="gh-field"><span>Dark points to</span><input id="ed-add-dark" list="ed-palette" placeholder="palette.neutral.950" spellcheck="false" autocomplete="off" /></label>
-      <datalist id="ed-palette">{tokens.filter((t) => t.layer === 'brand' && t.type === 'color').map((t) => <option value={t.path} />)}</datalist>
-      <p class="gh-error" id="ed-add-error" role="alert" hidden></p>
-      <footer class="gh-dialog-foot">
-        <span class="gh-spacer"></span>
-        <button type="submit" value="cancel" class="btn btn-secondary btn-sm">Cancel</button>
-        <button type="button" class="btn btn-primary btn-sm" id="ed-add-save">Add to draft</button>
-      </footer>
-    </form>
-  </dialog>
-
-  <dialog class="gh-dialog" id="ed-propose-dialog" aria-labelledby="ed-propose-h">
-    <form method="dialog" class="gh-dialog-box">
-      <header class="gh-dialog-head">
-        <h2 id="ed-propose-h">Propose change</h2>
-        <button type="submit" value="cancel" class="icon-btn" aria-label="Close"><Icon name="close" /></button>
-      </header>
-      <p>Bridge creates a <code>tokens/*</code> branch, commits the edited token files with minimal diffs and a changeset, and opens a pull request for design and tech review.</p>
-      <label class="gh-field"><span>Title</span><input id="ed-propose-title" placeholder="tokens: soften the page background" /></label>
-      <label class="gh-field"><span>Why</span><textarea id="ed-propose-notes" rows="3" placeholder="What problem this solves, and where reviewers should look."></textarea></label>
-      <p class="small" id="ed-propose-status" role="status" aria-live="polite"></p>
-      <footer class="gh-dialog-foot">
-        <span class="gh-spacer"></span>
-        <button type="submit" value="cancel" class="btn btn-secondary btn-sm">Cancel</button>
-        <button type="button" class="btn btn-primary btn-sm" id="ed-propose-go">Open pull request</button>
-      </footer>
-    </form>
-  </dialog>
-  <GitHubDialog />
-  <HistoryPlanner />
-
-  <dialog class="tx-drawer" id="tx-drawer" aria-labelledby="tx-d-title">
-    <div class="tx-d-inner">
-      <div class="tx-d-bar">
-        <span class="tx-d-crumb">Token</span>
-        <button type="button" class="icon-btn" id="tx-d-close" aria-label="Close token details"><Icon name="close" /></button>
-      </div>
-      <div class="tx-d-body" id="tx-d-body"></div>
-    </div>
-  </dialog>
-
-  <script type="application/json" id="tx-data" set:html={json} />
-  <script type="application/json" id="tx-files" set:html={filesJson} />
-  <script type="application/json" id="tx-config" set:html={configJson} />
-  <script type="application/json" id="bridge-contrast" set:html={checksJson} />
-  <script>
-    import { initExplorer } from '../../scripts/explorer';
-    import { initTokenEditor } from '../../scripts/token-editor';
-    import { initTokenHistoryPanel } from '../../scripts/history/token-panel';
-    initTokenEditor();
-    initTokenHistoryPanel();
-    initExplorer();
+<Layout title="Token explorer" description="Every token in the system by collection or type, with its value in every mode, alias chain, contrast and usage." sources={PAGE_SOURCES.explorer} updated={updated} wide>
+  <script is:inline>
+    // Old links to the editor (/tokens/?edit=1) now open Studio Tokens.
+    (function () {
+      var p = new URLSearchParams(location.search);
+      if (p.get('edit') === '1') { p.delete('edit'); var q = p.toString(); location.replace('/studio/tokens/' + (q ? '?' + q : '') + location.hash); }
+    })();
   </script>
+  <header class="page-head">
+    <div>
+      <h1>Token explorer</h1>
+      <p class="lead">
+        All {total} tokens from the token files of the latest release, in the same collections the Figma plugin creates, one column per mode.
+        Search by name, CSS variable or a hex from a mockup, then select a token to follow its alias chain, check its contrast pairs and see
+        which components use it.
+      </p>
+      <Updated date={updated} />
+    </div>
+    <div class="page-head-actions">
+      <a class="btn btn-secondary" href="/studio/tokens/" data-xp-studio-link><Icon name="edit" size={16} />Edit in Studio</a>
+    </div>
+  </header>
+  <TokenExplorerSlot mode="read" />
 </Layout>

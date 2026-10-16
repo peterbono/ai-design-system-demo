@@ -919,17 +919,6 @@
   margin: 0;
 }
 
-.path-icon {
-  display: grid;
-  place-items: center;
-  width: 2.5rem;
-  height: 2.5rem;
-  border: 1px solid var(--br-border);
-  border-radius: var(--br-radius-control);
-  background-color: var(--br-surface);
-  color: var(--br-text);
-}
-
 .paths p {
   margin: 0.25rem 0 0;
   color: var(--br-text-muted);

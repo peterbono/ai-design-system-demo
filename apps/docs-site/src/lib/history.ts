@@ -1,6 +1,6 @@
 // Build-time history data for the History page and the token history panel: the real history of the token files
 // read from local git (first parent of HEAD), and a separate demo history built over the current files. Both go to
-// /history/data.json; the browser never mixes them. A shallow clone (CI, Vercel) or a missing git simply gives fewer
+// /studio/versions/data.json; the browser never mixes them. A shallow clone (CI, Vercel) or a missing git simply gives fewer
 // real entries, and the page says so.
 import {
   demoHistory,

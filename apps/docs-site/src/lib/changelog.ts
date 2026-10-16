@@ -96,7 +96,7 @@ function commitEntry(sha: string, date: string, subject: string, body: string): 
   };
 }
 
-function versionNow() {
+export function versionNow() {
   try {
     return readJson<{ version: string }>('packages/react/package.json').version;
   } catch {
@@ -121,7 +121,14 @@ function announcement(r: Omit<Release, 'announcement'>): string {
   return lines.join('\n');
 }
 
+let releasesCache: Release[] | null = null;
+
 export function releases(): Release[] {
+  releasesCache ??= readReleases();
+  return releasesCache;
+}
+
+function readReleases(): Release[] {
   const SEP = '\u001f';
   const END = '\u001e';
   const raw = git(['log', '--no-merges', `--format=%H${SEP}%cs${SEP}%s${SEP}%b${SEP}%D${END}`]);
@@ -153,4 +160,17 @@ export function releases(): Release[] {
   }
   if (!first.date) first.date = commits[0]?.date;
   return groups.filter((g) => g.entries.length).map((g) => ({ ...g, announcement: announcement(g) }));
+}
+
+/**
+ * The version the Library shows (the package version on main) and the tagged releases before it. Past releases
+ * have notes in the Changelog but no archived docs yet, so the header menu lists them as not browsable.
+ */
+export function versionInfo(): { current: string; past: { name: string; date?: string }[]; pending: number } {
+  const all = releases();
+  return {
+    current: `v${versionNow()}`,
+    past: all.filter((r) => !r.pending).map((r) => ({ name: r.name, date: r.date })),
+    pending: all.filter((r) => r.pending).reduce((n, r) => n + r.entries.length, 0),
+  };
 }

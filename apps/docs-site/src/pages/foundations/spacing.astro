@@ -1,6 +1,7 @@
 ---
 import '../../styles/foundations.css';
 import Layout from '../../layouts/Layout.astro';
+import Icon from '../../components/Icon.astro';
 import CopyName from '../../components/CopyName.astro';
 import Updated from '../../components/Updated.astro';
 import { componentsUsing } from '../../lib/components';
@@ -12,12 +13,19 @@ const steps = primitivesOf('space');
 ---
 
 <Layout title="Spacing" description="The 4px spacing scale, shown as bars." sources={PAGE_SOURCES.spacing} updated={updated}>
-  <h1>Spacing</h1>
-  <p class="lead">
-    A 4px base scale: step n is n &times; 4px. Use it for padding, gaps and control heights. Steps are not continuous on purpose (no 7, 9 or 11):
-    fewer choices means more consistent screens.
-  </p>
-  <Updated date={updated} />
+  <header class="page-head">
+    <div>
+      <h1>Spacing</h1>
+      <p class="lead">
+        A 4px base scale: step n is n &times; 4px. Use it for padding, gaps and control heights. Steps are not continuous on purpose (no 7, 9 or 11):
+        fewer choices means more consistent screens.
+      </p>
+      <Updated date={updated} />
+    </div>
+    <div class="page-head-actions">
+      <a class="btn btn-secondary" href="/studio/tokens/?focus=space"><Icon name="edit" size={16} />Edit in Studio</a>
+    </div>
+  </header>
   <div class="table-wrap fd-table">
     <table>
       <thead><tr><th scope="col">Token</th><th scope="col">Value</th><th scope="col" style="width: 40%">Size</th><th scope="col">Used by</th></tr></thead>

@@ -1,6 +1,7 @@
 ---
 import '../../styles/foundations.css';
 import Layout from '../../layouts/Layout.astro';
+import Icon from '../../components/Icon.astro';
 import CopyName from '../../components/CopyName.astro';
 import Updated from '../../components/Updated.astro';
 import { componentsUsing } from '../../lib/components';
@@ -16,12 +17,19 @@ const used = (v: string) => componentsUsing(v).join(', ') || 'Not used by a comp
 ---
 
 <Layout title="Typography" description="Font families, type scale, weights and line heights." sources={PAGE_SOURCES.typography} updated={updated}>
-  <h1>Typography</h1>
-  <p class="lead">
-    One sans family for interface text, one mono family for code. Six sizes, three weights, two line heights. If a design needs a step that is not
-    here, propose a token instead of picking a value by eye.
-  </p>
-  <Updated date={updated} />
+  <header class="page-head">
+    <div>
+      <h1>Typography</h1>
+      <p class="lead">
+        One sans family for interface text, one mono family for code. Six sizes, three weights, two line heights. If a design needs a step that is not
+        here, propose a token instead of picking a value by eye.
+      </p>
+      <Updated date={updated} />
+    </div>
+    <div class="page-head-actions">
+      <a class="btn btn-secondary" href="/studio/tokens/?focus=font"><Icon name="edit" size={16} />Edit in Studio</a>
+    </div>
+  </header>
 
   <h2>Families</h2>
   <div class="table-wrap fd-table">

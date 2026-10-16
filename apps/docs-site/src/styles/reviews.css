@@ -336,8 +336,6 @@
   color: var(--br-text-muted);
   font-size: var(--br-text-xs);
   font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 .rv-table tbody th {

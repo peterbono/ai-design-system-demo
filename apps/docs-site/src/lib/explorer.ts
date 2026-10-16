@@ -1,9 +1,9 @@
 // Token explorer data: one record per token (primitives and semantic), with everything the cards and the
 // detail drawer show. Computed at build time from the token sources, component CSS and contrast pairs, and
-// embedded in the page as JSON. "Unused" uses the same definitions as the Overview dashboard (lib/stats.ts).
+// embedded in the page as JSON. "Unused" uses the same definition as the Overview dashboard (lib/stats.ts).
 import { loadComponents } from './components';
 import { contrastPairs } from './contrast';
-import { dashboard, typeLabel } from './stats';
+import { libraryTokenUsage, typeLabel } from './stats';
 import { BRANDS, hrefForVar, loadTokens, MODES, type Brand, type Mode, type Semantic, type Tier } from './tokens';
 
 export interface ExplorerLink {
@@ -56,9 +56,8 @@ export function explorerTokens(): ExplorerToken[] {
   const { primitives, all } = loadTokens();
   const semantic = all;
   const components = loadComponents();
-  const stats = dashboard();
-  const unusedSemantic = new Set(stats.unusedSemantic.map((s) => s.path));
-  const orphan = new Set(stats.orphanPrimitives.map((p) => p.path));
+  // One definition of "in use" with the Overview and Checks (lib/stats.ts, @bridge-ds/core tokenUsage).
+  const { used } = libraryTokenUsage();
   const pairs = contrastPairs();
   const usersOf = (cssVar: string): ExplorerLink[] =>
     components.filter((c) => c.tokensUsed.some((t) => t.name === cssVar)).map((c) => ({ name: c.name, href: `/components/${c.slug}/` }));
@@ -77,10 +76,6 @@ export function explorerTokens(): ExplorerToken[] {
 
   const modesOf = (r: Record<Mode, { chain: string[]; css: string; hex?: string }>) =>
     Object.fromEntries(MODES.map((m) => [m, { chain: r[m].chain, css: r[m].css, hex: r[m].hex }])) as Record<Mode, ExplorerMode>;
-  const unused = (s: Semantic) => (s.tier === 'semantic' ? unusedSemantic.has(s.path) : !usedThroughChain(s));
-  // Brand, density and component tokens count as used when a component reads them, directly or through an alias.
-  const usedThroughChain = (s: Semantic): boolean =>
-    usersOf(s.cssVar).length > 0 || semantic.some((o) => o.path !== s.path && MODES.some((m) => o.modes[m].chain.includes(s.path)) && usersOf(o.cssVar).length > 0);
 
   const sem: ExplorerToken[] = semantic.map((s) => ({
     path: s.path,
@@ -98,7 +93,7 @@ export function explorerTokens(): ExplorerToken[] {
       ? (Object.fromEntries(BRANDS.map((b) => [b, modesOf(s.brands[b])])) as Record<Brand, Record<Mode, ExplorerMode>>)
       : undefined,
     densities: s.densities ? Object.fromEntries(Object.entries(s.densities).map(([d, v]) => [d, v.css])) : undefined,
-    used: !unused(s),
+    used: used.has(s.path),
     usedBy: usersOf(s.cssVar),
     contrast: contrastFor(s.path),
     href: hrefForVar(s.cssVar, s.type),
@@ -126,7 +121,7 @@ export function explorerTokens(): ExplorerToken[] {
       deprecated: p.deprecated,
       value: p.css,
       hex: p.type === 'color' ? p.hex : undefined,
-      used: !orphan.has(p.path),
+      used: used.has(p.path),
       usedBy,
       referencedBy,
       contrast: [],

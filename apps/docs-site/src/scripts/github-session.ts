@@ -162,18 +162,32 @@ export interface Viewer {
 let viewer: Viewer | null = null;
 export const currentViewer = () => viewer;
 
-/** Wires every [data-gh-connect] block and the shared dialog. Calls `onChange` after connect or disconnect. */
+let wired = false;
+let checked = false;
+const listeners: ((v: Viewer | null) => void)[] = [];
+const notify = (v: Viewer | null) => listeners.forEach((fn) => fn(v));
+
+/**
+ * Wires every [data-gh-connect] block and the shared dialog (once per page: the Studio layout and the page script
+ * may both call it). Calls `onChange` after the first token check, and after every connect or disconnect.
+ */
 export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
+  if (onChange) listeners.push(onChange);
+  if (wired) {
+    if (checked) onChange?.(viewer);
+    return;
+  }
   const dialog = document.getElementById('gh-dialog') as HTMLDialogElement | null;
   const input = document.getElementById('gh-token') as HTMLInputElement | null;
   const error = document.getElementById('gh-error');
   const forget = document.getElementById('gh-forget');
   const save = document.getElementById('gh-save') as HTMLButtonElement | null;
   if (!dialog || !input || !save) return;
+  wired = true;
 
   const paint = () => {
     document.querySelectorAll<HTMLElement>('[data-gh-connect]').forEach((block) => {
-      block.dataset.state = viewer ? 'connected' : 'readonly';
+      block.dataset.state = viewer ? 'connected' : !checked && getToken() ? 'checking' : 'readonly';
       const text = block.querySelector('[data-gh-status-text]');
       if (text) text.textContent = viewer ? `Connected as @${viewer.login}` : 'Read only';
       const label = block.querySelector('[data-gh-open-label]');
@@ -214,7 +228,7 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
       viewer = await check();
       dialog.close();
       paint();
-      onChange?.(viewer);
+      notify(viewer);
     } catch (err) {
       setToken(previous);
       if (error) {
@@ -231,19 +245,20 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
     viewer = null;
     dialog.close();
     paint();
-    onChange?.(null);
+    notify(null);
   });
 
   paint();
   check()
     .then((v) => {
       viewer = v;
-      paint();
-      onChange?.(viewer);
     })
     .catch(() => {
       viewer = null;
+    })
+    .finally(() => {
+      checked = true;
       paint();
-      onChange?.(null);
+      notify(viewer);
     });
 }

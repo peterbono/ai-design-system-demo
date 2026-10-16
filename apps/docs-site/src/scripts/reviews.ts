@@ -152,7 +152,7 @@ function avatar(u: User | null, size = 24) {
 // ---------------------------------------------------------------------------------------------------------------
 // List
 
-async function loadList() {
+async function loadList(): Promise<Pull[]> {
   const el = listEl();
   el.setAttribute('aria-busy', 'true');
   try {
@@ -167,7 +167,7 @@ async function loadList() {
     }
     if (!pulls.length) {
       el.innerHTML = `<div class="rv-empty"><h2>No open pull requests</h2><p>When someone proposes a change from Figma, the token explorer or an agent, it shows up here for review.</p></div>`;
-      return;
+      return pulls;
     }
     el.innerHTML = pulls
       .map((p) => {
@@ -208,6 +208,7 @@ async function loadList() {
           if (slot) slot.innerHTML = ciPill('none');
         });
     }
+    return pulls;
   } catch (err) {
     el.innerHTML = '';
     if (err instanceof RateLimitError) {
@@ -218,6 +219,7 @@ async function loadList() {
   } finally {
     el.removeAttribute('aria-busy');
   }
+  return [];
 }
 
 async function ciFor(sha: string) {
@@ -687,13 +689,20 @@ function showList() {
   detailEl().hidden = true;
   $('rv-list-view').hidden = false;
   current = null;
-  loadList();
+  return loadList();
 }
 
 function route() {
-  const n = Number(new URLSearchParams(location.search).get('pr'));
+  const params = new URLSearchParams(location.search);
+  const n = Number(params.get('pr'));
+  // Branch scope from the Studio header: open the pull request of that branch, if it has one.
+  const branch = params.get('branch');
   if (n) openPr(n, false);
-  else showList();
+  else
+    void showList().then((pulls) => {
+      const match = branch ? pulls.find((p) => p.head.ref === branch) : undefined;
+      if (match) openPr(match.number, false);
+    });
 }
 
 export const _current = () => current;

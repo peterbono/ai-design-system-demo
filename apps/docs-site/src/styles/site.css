@@ -449,50 +449,6 @@ kbd,
   margin-left: auto;
 }
 
-.repo-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
-  height: 2rem;
-  margin-right: 0.5rem;
-  padding: 0 0.75rem;
-  border: 1px solid var(--br-border);
-  border-radius: var(--br-radius-pill);
-  background-color: var(--br-surface);
-  color: var(--br-text);
-  font-size: var(--br-text-xs);
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.repo-chip:hover {
-  border-color: var(--br-border-strong);
-}
-
-.repo-chip .mono {
-  font-size: 0.75rem;
-}
-
-.repo-sep {
-  color: var(--br-text-muted);
-}
-
-.repo-dot {
-  width: 0.5rem;
-  height: 0.5rem;
-  border-radius: 50%;
-  background-color: var(--br-pass);
-  outline: 3px solid var(--br-pass-soft);
-}
-
-.repo-count {
-  margin-left: 0.25rem;
-  padding-left: 0.5rem;
-  border-left: 1px solid var(--br-border);
-  color: var(--br-text-muted);
-  font-variant-numeric: tabular-nums;
-}
-
 /* Shell and rail */
 
 .shell {
@@ -521,11 +477,14 @@ kbd,
   margin-top: 1.5rem;
 }
 
+/* Group labels are the one uppercase element of the chrome: short, few, and they mark where a job starts. */
 .rail-label {
   margin: 0 0 0.375rem 0.625rem;
   color: var(--br-text-muted);
-  font-size: var(--br-text-xs);
+  font-size: 0.6875rem;
   font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .rail-sublabel {
@@ -723,12 +682,34 @@ main > .crumbs + h1 {
 /* Page header helpers */
 
 .crumbs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.375rem;
   margin: 0 0 0.75rem;
   color: var(--br-text-muted);
   font-size: var(--br-text-sm);
+}
+
+.crumbs ol {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.crumbs li + li {
+  margin: 0;
+}
+
+.crumbs li + li::before {
+  margin-right: 0.375rem;
+  color: var(--br-border-strong);
+  content: "/";
+}
+
+.crumbs [aria-current="page"] {
+  color: var(--br-text);
+  font-weight: 500;
 }
 
 .crumbs a {
@@ -1294,14 +1275,6 @@ tr:target {
 
 /* Responsive shell: the rail becomes a sheet */
 
-@media (max-width: 1180px) {
-  .repo-chip .repo-count,
-  .repo-chip .repo-sep,
-  .repo-chip .mono:first-of-type {
-    display: none;
-  }
-}
-
 @media (max-width: 960px) {
   .shell {
     grid-template-columns: minmax(0, 1fr);
@@ -1371,8 +1344,7 @@ tr:target {
   .topbar-brand .logo-word,
   .search-label,
   .search-trigger .kbd,
-  .topbar-actions > a.icon-btn,
-  .repo-chip {
+  .topbar-actions > a.icon-btn {
     display: none;
   }
 
@@ -1553,8 +1525,6 @@ label {
   color: var(--br-text-muted);
   font-size: var(--br-text-xs);
   font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 .scope-seg {
@@ -1618,4 +1588,16 @@ label {
     left: 0.75rem;
     width: auto;
   }
+}
+
+/* Icon tile beside a short block of text (home, settings, integrations). */
+.path-icon {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid var(--br-border);
+  border-radius: var(--br-radius-control);
+  background-color: var(--br-surface);
+  color: var(--br-text);
 }

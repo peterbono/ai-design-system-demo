@@ -118,7 +118,7 @@ function paintDetail(e: HistoryEntry, report: HistoryReport, demo: boolean) {
     `<span class="pill">${esc(e.version ?? 'Unreleased')}</span>`,
     demo ? '<span class="pill is-info">Demo</span>' : '',
   ].join(' ');
-  $('hs-detail').innerHTML = `<p><a href="/history/" data-hs-back>Back to the timeline</a></p>
+  $('hs-detail').innerHTML = `<p><a href="/studio/versions/" data-hs-back>Back to the timeline</a></p>
     <article class="rv-card hs-card">
       <header class="hs-detail-head"><div><h2>${esc(e.title)}</h2>
         <p class="small muted">${esc(e.author)}, ${esc(shortDate(e.date))}. ${demo ? 'Fixture change.' : `<span class="entry-ref hs-inline-ref">${refLink(e, false)}</span>`}</p>
@@ -188,6 +188,10 @@ export function initHistoryPage() {
   });
   $('hs-filters').addEventListener('reset', () => setTimeout(paintList, 0));
   window.addEventListener('popstate', route);
+  // Deep link from a token drawer: /studio/versions/?token=color.text.muted prefills the token filter.
+  const token = new URLSearchParams(location.search).get('token');
+  const tokenInput = document.getElementById('hs-token') as HTMLInputElement | null;
+  if (token && tokenInput) tokenInput.value = token;
   loadHistory()
     .then((l) => {
       L = l;

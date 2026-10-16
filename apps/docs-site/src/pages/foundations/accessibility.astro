@@ -1,5 +1,6 @@
 ---
 import '../../styles/foundations.css';
+import '../../styles/library.css';
 import Layout from '../../layouts/Layout.astro';
 import Icon from '../../components/Icon.astro';
 import Updated from '../../components/Updated.astro';
@@ -8,7 +9,7 @@ import { PAGE_SOURCES, freshness } from '../../lib/sources';
 import { anchorOf, BRAND_LABEL, BRANDS, MODES, type Brand, type Mode } from '../../lib/tokens';
 
 const pairs = contrastPairs();
-const updated = freshness(PAGE_SOURCES.contrast);
+const updated = freshness(PAGE_SOURCES.accessibility);
 /** Every brand x theme combination the build gates on. */
 const COMBOS = BRANDS.flatMap((b) => MODES.map((m) => ({ b, m, key: `${b}-${m}` }))) as { b: Brand; m: Mode; key: string }[];
 const res = (p: (typeof pairs)[number], c: (typeof COMBOS)[number]) => p.brands[c.b][c.m];
@@ -22,13 +23,34 @@ const comboLabel = (c: { b: Brand; m: Mode }) => `${BRAND_LABEL[c.b]} ${c.m === 
 const need = (p: { min: number }) => p.min;
 ---
 
-<Layout title="Contrast" description="WCAG contrast of the gated foreground and background token pairs, in every brand and theme." sources={PAGE_SOURCES.contrast} updated={updated}>
-  <h1>Contrast matrix</h1>
-  <p class="lead">
-    The color pairs the token build gates on, checked against WCAG 2.2 in both brands and both themes. Ratios are computed at build time
-    from the token values, so a token change updates this page automatically, and a pair below its minimum fails the build.
-  </p>
-  <Updated date={updated} />
+<Layout title="Accessibility" description="What Bridge commits to for accessibility, and the contrast grid of every gated color pair in every brand and theme." sources={PAGE_SOURCES.accessibility} updated={updated}>
+  <header class="page-head">
+    <div>
+      <h1>Accessibility</h1>
+      <p class="lead">
+        Bridge targets WCAG 2.2 AA: text needs {THRESHOLDS.text.aa}:1 against its background, control edges, icons and focus rings need
+        {THRESHOLDS.ui.aa}:1. The token build checks every gated color pair in both brands and both themes, so a token change that breaks a pair
+        fails the build before it ships.
+      </p>
+      <Updated date={updated} />
+    </div>
+    <div class="page-head-actions">
+      <a class="btn btn-secondary" href="/studio/checks/"><Icon name="shield" size={16} />Open in Studio Checks</a>
+    </div>
+  </header>
+
+  <h2>What every component guarantees</h2>
+  <ul class="a11y-floor">
+    <li><strong>Keyboard and screen readers.</strong> Every interactive component is keyboard operable, with the right role, name and state (<code>aria-checked</code>, <code>aria-expanded</code>, <code>aria-invalid</code>, <code>aria-busy</code>). Behavior comes from native elements or Base UI parts, and the wrappers do not break it.</li>
+    <li><strong>Visible focus.</strong> A 2px ring in the focus color, offset by 2px, on <code>:focus-visible</code> only. Inputs draw it inside so it hugs the field. The ring keeps 3:1 against canvas and surfaces.</li>
+    <li><strong>Color is never the only signal.</strong> Status has text and an icon; an invalid field has a message.</li>
+    <li><strong>Targets of at least 24 by 24 px</strong> in both densities.</li>
+    <li><strong>Reduced motion.</strong> With <code>prefers-reduced-motion: reduce</code>, every motion duration in <code>tokens.css</code> drops to 0.</li>
+    <li><strong>Checked in CI.</strong> Storybook runs the accessibility addon in error mode, and the component tests run axe-core on keyboard and ARIA behavior.</li>
+  </ul>
+
+  <h2>Contrast grid</h2>
+  <p class="muted">The pairs the token build gates on, computed at build time from the token values. Fix a failing pair with a token change, never locally.</p>
 
   <section class="ct-summary" aria-label="Summary">
     <div class="ct-score">
@@ -64,9 +86,9 @@ const need = (p: { min: number }) => p.min;
   {
     failingPairs.length > 0 && (
       <section class="ct-failing" aria-labelledby="ct-fail-h">
-        <h2 id="ct-fail-h" class="ct-fail-title">
+        <h3 id="ct-fail-h" class="ct-fail-title">
           <Icon name="alert" /> {failures.length} {failures.length === 1 ? 'check needs' : 'checks need'} attention
-        </h2>
+        </h3>
         <div class="ct-fail-grid">
           {failingPairs.map((p) => (
             <article class="ct-fail-card">
@@ -104,7 +126,7 @@ const need = (p: { min: number }) => p.min;
     )
   }
 
-  <h2>All pairs</h2>
+  <h3>All pairs</h3>
   <p class="muted">Failing pairs first. Each tile renders the real tokens in that brand and theme, whatever this page is set to.</p>
   <div class="table-wrap fd-table">
     <table>

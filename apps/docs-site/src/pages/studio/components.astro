@@ -1,0 +1,120 @@
+---
+import '../../styles/studio.css';
+import Layout from '../../layouts/Layout.astro';
+import Icon from '../../components/Icon.astro';
+import { loadComponents, type ComponentInfo } from '../../lib/components';
+import { sourceUrl, STORYBOOK_URL } from '../../lib/repo';
+import { PAGE_SOURCES, freshness } from '../../lib/sources';
+
+const components = loadComponents();
+const updated = freshness(PAGE_SOURCES.components);
+const families = [...new Set(components.map((c) => c.category))];
+const statusOf = (c: ComponentInfo) => c.docs?.status ?? 'stable';
+const toneOf = (s: string) => (s === 'stable' ? 'is-pass' : s === 'beta' ? 'is-info' : 'is-warn');
+const label = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+// Component-tier tokens are named after the component or its family (--button-primary-bg, --popup-bg): filter the
+// editor on the first component-tier name the CSS reads, else on the component name.
+const tokenQuery = (c: ComponentInfo) => {
+  const own = c.tokensUsed.find((t) => t.kind === 'component');
+  return own ? own.name.replace(/^--/, '').split('-')[0]! : c.slug;
+};
+const documented = components.filter((c) => c.docs).length;
+const count = (s: string) => components.filter((c) => statusOf(c) === s).length;
+---
+
+<Layout
+  title="Components"
+  description="Every component with its status, guidance, tokens and links to the code, the workbench and its tokens in the editor."
+  sources={PAGE_SOURCES.components}
+  updated={updated}
+  wide
+>
+  <header class="page-head">
+    <div>
+      <h1>Components</h1>
+      <p class="lead">
+        Where each component stands: lifecycle status, usage guidance, the tokens it reads and where its code lives. Components change in code
+        through a pull request; their look changes here through their tokens.
+      </p>
+    </div>
+  </header>
+
+  <ul class="st-summary" aria-label="Summary">
+    <li><strong class="num">{components.length}</strong> components</li>
+    <li><strong class="num">{families.length}</strong> families</li>
+    <li><strong class="num">{count('stable')}</strong> stable</li>
+    <li><strong class="num">{count('beta')}</strong> beta</li>
+    <li><strong class="num">{count('deprecated')}</strong> deprecated</li>
+    <li><strong class="num">{documented}</strong> with guidance</li>
+  </ul>
+
+  <div class="table-wrap st-table-wrap">
+    <table class="st-components">
+      <caption class="sr-only">Components, their status and links</caption>
+      <thead>
+        <tr>
+          <th scope="col">Component</th>
+          <th scope="col">Status</th>
+          <th scope="col">Family</th>
+          <th scope="col">Guidance</th>
+          <th scope="col" class="num">Tokens</th>
+          <th scope="col" class="num">Props</th>
+          <th scope="col" class="num">Stories</th>
+          <th scope="col">Links</th>
+        </tr>
+      </thead>
+      <tbody>
+        {
+          components.map((c) => (
+            <tr id={`c-${c.slug}`} data-slug={c.slug}>
+              <th scope="row">
+                <a href={`/components/${c.slug}/`}>{c.name}</a>
+              </th>
+              <td>
+                <span class:list={['pill', toneOf(statusOf(c))]}>{label(statusOf(c))}</span>
+              </td>
+              <td>{c.category}</td>
+              <td>{c.docs ? 'Yes' : <span class="pill is-warn">Missing</span>}</td>
+              <td class="num">{c.tokensUsed.length}</td>
+              <td class="num">{c.props.length}</td>
+              <td class="num">{c.stories.length}</td>
+              <td>
+                <span class="st-links">
+                  <a href={`/studio/tokens/?q=${encodeURIComponent(tokenQuery(c))}`} data-keep-branch>
+                    <Icon name="edit" size={14} />
+                    Edit tokens
+                  </a>
+                  <a href={sourceUrl(c.files.tsx)}>
+                    <Icon name="github" size={14} />
+                    Code
+                  </a>
+                  {c.stories[0] && (
+                    <a href={`${STORYBOOK_URL}/?path=/story/${c.stories[0].id}`}>
+                      <Icon name="storybook" size={14} />
+                      Workbench
+                    </a>
+                  )}
+                </span>
+              </td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </div>
+  <p class="small muted">
+    No Figma links yet: component docs do not record a Figma node. Push and pull of variables goes through the DS Bridge plugin, see
+    <a href="/studio/settings/integrations/" data-keep-branch>Integrations</a>.
+  </p>
+
+  <script>
+    // Door target from a Library component page: /studio/components/?c=button highlights that row.
+    const slug = new URLSearchParams(location.search).get('c');
+    const row = slug ? document.getElementById(`c-${CSS.escape(slug)}`) : null;
+    if (row) {
+      row.classList.add('is-focus');
+      row.setAttribute('aria-current', 'true');
+      row.scrollIntoView({ block: 'center' });
+    }
+  </script>
+</Layout>

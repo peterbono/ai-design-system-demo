@@ -1,0 +1,127 @@
+---
+import '../../../styles/settings.css';
+import Layout from '../../../layouts/Layout.astro';
+import Icon from '../../../components/Icon.astro';
+import { siteRepo } from '../../../lib/config';
+import { exists, GITHUB_URL, lastUpdated, readText, sourceUrl } from '../../../lib/repo';
+import { humanDate, repoStatus } from '../../../lib/stats';
+
+const r = siteRepo();
+const build = repoStatus();
+const file = 'bridge.config.json';
+const raw = exists(file) ? readText(file) : null;
+let config: Record<string, any> = {};
+try {
+  config = raw ? JSON.parse(raw) : {};
+} catch {
+  config = {};
+}
+const modes = Object.entries((config.modes ?? {}) as Record<string, { values: string[]; default?: string }>);
+const tiers = Object.entries((config.tokens?.tiers ?? {}) as Record<string, string[]>);
+const previewApps = Object.keys(config.previews?.apps ?? {});
+const previewPkgs: string[] = config.previews?.packages ?? [];
+const list = (xs: string[]) => (xs.length ? xs.join(', ') : 'none');
+const rows: { label: string; value: string; mono?: boolean; href?: string }[] = [
+  { label: 'Repository', value: `${r.owner}/${r.repo}`, mono: true, href: GITHUB_URL },
+  { label: 'Default branch', value: r.defaultBranch, mono: true },
+  { label: 'This site was built from', value: `${build.branch} at ${build.sha}, ${humanDate(build.lastChange)}`, mono: false },
+  { label: 'Token root', value: r.tokensRoot, mono: true, href: `${GITHUB_URL}/tree/${r.defaultBranch}/${r.tokensRoot}` },
+  { label: 'Contrast gate', value: config.contrast?.path ?? 'not configured', mono: true, href: config.contrast?.path ? sourceUrl(config.contrast.path) : undefined },
+  { label: 'Components', value: config.components?.dir ?? 'not configured', mono: true },
+  { label: 'Changesets', value: config.changesets?.dir ?? '.changeset', mono: true },
+];
+---
+
+<Layout title="Repository" description="The repository and bridge.config.json this Bridge workspace reads: token tiers, modes, contrast gate, owners and previews." sources={[file]} updated={lastUpdated([file])}>
+  <header class="page-head">
+    <div>
+      <h1>Repository</h1>
+      <p class="lead">
+        What this workspace reads. Everything comes from <code>bridge.config.json</code> at the repository root, the same file the Figma plugin, the
+        MCP server and the CLI read. To change a setting, edit that file in a pull request: it is a guarded file, so the change gets the highest review tier.
+      </p>
+    </div>
+    <div class="page-head-actions">
+      <a class="btn btn-secondary" href={sourceUrl(file)}><Icon name="github" size={16} />Open on GitHub</a>
+    </div>
+  </header>
+
+  <section class="set-section" aria-labelledby="set-source">
+    <h2 id="set-source">Source</h2>
+    <dl class="set-rows">
+      {
+        rows.map((x) => (
+          <div>
+            <dt>{x.label}</dt>
+            <dd class:list={{ mono: x.mono }}>{x.href ? <a href={x.href}>{x.value}</a> : x.value}</dd>
+          </div>
+        ))
+      }
+    </dl>
+  </section>
+
+  <section class="set-section" aria-labelledby="set-tiers">
+    <h2 id="set-tiers">Token tiers and modes</h2>
+    <dl class="set-rows">
+      {
+        tiers.map(([tier, folders]) => (
+          <div>
+            <dt>{tier.charAt(0).toUpperCase() + tier.slice(1)}</dt>
+            <dd class="mono">{folders.join(', ')}</dd>
+          </div>
+        ))
+      }
+      {
+        modes.map(([axis, m]) => (
+          <div>
+            <dt>{axis.charAt(0).toUpperCase() + axis.slice(1)} modes</dt>
+            <dd>
+              {m.values.map((v) => (
+                <span class:list={['pill', { 'is-accent': v === m.default }]}>{v}{v === m.default ? ', default' : ''}</span>
+              ))}
+            </dd>
+          </div>
+        ))
+      }
+    </dl>
+  </section>
+
+  <section class="set-section" aria-labelledby="set-gov">
+    <h2 id="set-gov">Owners and previews</h2>
+    <dl class="set-rows">
+      <div>
+        <dt>Design owners</dt>
+        <dd class="mono">{list(r.owners.design)}</dd>
+      </div>
+      <div>
+        <dt>Tech owners</dt>
+        <dd class="mono">{list(r.owners.tech)}</dd>
+      </div>
+      <div>
+        <dt>May merge past missing approvals</dt>
+        <dd>
+          <span class="mono">{list(r.override.allowed)}</span>
+          {r.override.allowed.length > 0 && r.override.requireReason && <span class="muted small">, with a reason of {r.override.minReasonLength} characters or more</span>}
+        </dd>
+      </div>
+      <div>
+        <dt>Preview deploys</dt>
+        <dd>{previewApps.length ? <span class="mono">{previewApps.join(', ')}</span> : <span class="muted">Not configured. See <a href={sourceUrl('docs/PREVIEWS.md')}>docs/PREVIEWS.md</a>.</span>}</dd>
+      </div>
+      <div>
+        <dt>Snapshot packages</dt>
+        <dd class="mono">{list(previewPkgs)}</dd>
+      </div>
+    </dl>
+    <p class="small muted">Risk tiers and approval rules: <a href="/studio/settings/governance/">Governance</a>.</p>
+  </section>
+
+  {
+    raw && (
+      <details class="set-raw">
+        <summary>Show bridge.config.json</summary>
+        <pre tabindex="0" aria-label="Contents of bridge.config.json"><code>{raw}</code></pre>
+      </details>
+    )
+  }
+</Layout>

@@ -1,0 +1,129 @@
+---
+// Token explorer: lens and collection tree, a Figma-like grid with one column per relevant mode, and a detail panel
+// with the token flow, contrast and history. Public API: { mode, focus }. Mount it once per page.
+//   mode  'read' shows no edit affordances and links to Studio; 'edit' edits cells through the token editor
+//         (draft, guardrails, tray, pull request) and brings its own editing kit.
+//   focus token path or group to preselect (?focus= or the older ?t= in the URL wins at runtime).
+import '../../styles/github.css';
+import '../../styles/editor.css';
+import '../../styles/reviews.css';
+import '../../styles/history.css';
+import '../../styles/token-explorer.css';
+import Icon from '../Icon.astro';
+import GitHubConnect from '../GitHubConnect.astro';
+import TokenEditorKit from './TokenEditorKit.astro';
+import { explorerTokens } from '../../lib/explorer';
+import { listDir, readText, exists } from '../../lib/repo';
+import { CONTRAST_FILE } from '../../lib/contrast';
+import { siteRepo } from '../../lib/config';
+import { CATEGORY_LABEL, CATEGORY_ORDER, SYNTAX_LABEL } from '../../lib/explorer/format';
+import { TIER_NAMES, TIER_ORDER } from '@bridge-ds/core';
+
+interface Props {
+  mode: 'read' | 'edit';
+  focus?: string;
+}
+const { mode, focus } = Astro.props;
+
+const root = siteRepo().tokensRoot;
+const files: Record<string, string> = {};
+for (const dir of listDir(root).filter((d) => !d.includes('.'))) {
+  for (const f of listDir(`${root}/${dir}`)) if (f.endsWith('.tokens.json')) files[`${dir}/${f}`] = readText(`${root}/${dir}/${f}`);
+}
+// Build-time usage: which components read each token, directly or through an alias (component CSS scan).
+const usage = Object.fromEntries(explorerTokens().map((t) => [t.path, { used: t.used, usedBy: t.usedBy }]));
+const safe = (s: string) => s.replace(/</g, '\\u003c');
+const filesJson = safe(JSON.stringify(files));
+const usageJson = safe(JSON.stringify(usage));
+const configJson = safe(exists('bridge.config.json') ? readText('bridge.config.json') : '{}');
+const checksJson = safe(readText(CONTRAST_FILE));
+---
+
+<div class="xp" data-xp data-mode={mode} data-focus={focus ?? ''}>
+  <aside class="xp-left" aria-label="Browse tokens">
+    <div class="xp-lens" role="radiogroup" aria-label="Browse by" data-xp-lens>
+      <button type="button" role="radio" aria-checked="true" data-lens="collections">Collections <span class="xp-lens-n" data-lens-n></span></button>
+      <button type="button" role="radio" aria-checked="false" tabindex="-1" data-lens="types">By type <span class="xp-lens-n" data-lens-n></span></button>
+    </div>
+    <nav class="xp-tree" aria-label="Collections and groups" data-xp-tree></nav>
+  </aside>
+
+  <section class="xp-main" aria-labelledby="xp-title" data-xp-main>
+    <div class="xp-toolbar">
+      <div class="xp-heading">
+        <h2 class="xp-title" id="xp-title" data-xp-title>Tokens</h2>
+        <span class="xp-count num" data-xp-count aria-live="polite"></span>
+        {
+          mode === 'edit' && (
+            <div class="xp-edit-tools">
+              <GitHubConnect />
+              <button type="button" class="btn btn-secondary btn-sm" id="ed-add"><Icon name="plus" size={16} />New semantic token</button>
+            </div>
+          )
+        }
+      </div>
+      <div class="xp-tools">
+        <div class="xp-search" role="search">
+          <Icon name="search" size={16} />
+          <label class="sr-only" for="xp-q">Search tokens</label>
+          <input id="xp-q" type="search" placeholder="Name, CSS variable or hex" autocomplete="off" spellcheck="false" aria-keyshortcuts="F" data-xp-q />
+          <kbd class="kbd xp-slash" aria-hidden="true">F</kbd>
+          <button type="button" class="xp-exact" aria-pressed="false" data-xp-exact title="Match the whole name, variable or hex">Exact</button>
+        </div>
+        <details class="xp-filters" data-xp-filters>
+          <summary class="btn btn-secondary btn-sm"><Icon name="sliders" size={16} />Filters <span class="xp-filter-n num" data-xp-filter-n hidden>0</span></summary>
+          <div class="xp-filters-panel">
+            <fieldset>
+              <legend>Collection</legend>
+              {TIER_ORDER.map((t) => <label><input type="checkbox" name="xp-ft" value={t} />{TIER_NAMES[t]}</label>)}
+            </fieldset>
+            <fieldset>
+              <legend>Type</legend>
+              {CATEGORY_ORDER.map((c) => <label><input type="checkbox" name="xp-fc" value={c} />{CATEGORY_LABEL[c]}</label>)}
+            </fieldset>
+            <fieldset>
+              <legend>Usage</legend>
+              <label><input type="radio" name="xp-usage" value="" checked />Any</label>
+              <label><input type="radio" name="xp-usage" value="used" />In use</label>
+              <label><input type="radio" name="xp-usage" value="unused" />Unused</label>
+            </fieldset>
+            <button type="button" class="btn btn-secondary btn-sm" data-xp-clear-filters>Clear filters</button>
+          </div>
+        </details>
+        <div class="xp-modebar" data-xp-modebar hidden></div>
+        <div class="xp-view">
+          <label class="xp-select"><span class="sr-only">Code syntax</span>
+            <select data-xp-syntax>
+              {Object.entries(SYNTAX_LABEL).map(([k, v]) => <option value={k}>{v}</option>)}
+            </select>
+          </label>
+          <button type="button" class="btn btn-secondary btn-sm xp-toggle" aria-pressed="false" data-xp-desc>Description</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="xp-scroll" data-xp-scroll>
+      <div class="xp-grid" role="grid" aria-labelledby="xp-title" aria-readonly="true" data-xp-grid></div>
+      <div class="xp-empty" data-xp-empty hidden>
+        <Icon name="search" size={24} />
+        <p><strong>No token matches.</strong> Try a shorter name, a hex like <code>#1c2735</code>, or clear the filters.</p>
+        <button type="button" class="btn btn-secondary btn-sm" data-xp-clear>Clear search and filters</button>
+      </div>
+    </div>
+    <p class="xp-keys small muted" aria-hidden="true"><kbd class="kbd">F</kbd> search tokens <kbd class="kbd">/</kbd> search the site <kbd class="kbd">↑</kbd><kbd class="kbd">↓</kbd><kbd class="kbd">←</kbd><kbd class="kbd">→</kbd> move <kbd class="kbd">Enter</kbd> open <span class="xp-edit-only">or edit</span> <kbd class="kbd">C</kbd> copy <kbd class="kbd">Esc</kbd> close</p>
+  </section>
+
+  <div class="xp-scrim" data-xp-scrim hidden></div>
+  <aside class="xp-detail" aria-labelledby="xp-d-title" data-xp-detail hidden></aside>
+</div>
+
+<script type="application/json" id="xp-files" set:html={filesJson} />
+<script type="application/json" id="xp-config" set:html={configJson} />
+<script type="application/json" id="xp-checks" set:html={checksJson} />
+<script type="application/json" id="xp-usage" set:html={usageJson} />
+{mode === 'edit' && <TokenEditorKit />}
+
+<script>
+  import { initTokenExplorer } from '../../scripts/explorer';
+  initTokenExplorer();
+</script>

@@ -1,0 +1,91 @@
+/* Settings: definition rows for the repository view, one card per integration. */
+
+.set-section {
+  margin-top: 2.5rem;
+}
+
+.set-section h2 {
+  margin: 0 0 0.75rem;
+}
+
+.set-rows {
+  margin: 0;
+  border-top: 1px solid var(--br-border);
+}
+
+.set-rows > div {
+  display: grid;
+  grid-template-columns: minmax(10rem, 16rem) minmax(0, 1fr);
+  gap: 0.25rem 1.5rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--br-border);
+}
+
+.set-rows dt {
+  color: var(--br-text-muted);
+  font-size: var(--br-text-sm);
+}
+
+.set-rows dd {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  align-items: baseline;
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.set-rows dd.mono {
+  font-family: var(--br-font-mono);
+  font-size: 0.8125rem;
+}
+
+.set-raw {
+  margin-top: 2.5rem;
+}
+
+.set-raw pre {
+  max-height: 28rem;
+  overflow: auto;
+}
+
+.set-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 1rem;
+  max-width: 72ch;
+  margin-top: 1.5rem;
+  padding: 1.25rem;
+  border: 1px solid var(--br-border);
+  border-radius: var(--br-radius-card);
+  background-color: var(--br-surface);
+}
+
+.set-card h2 {
+  margin: 0.25rem 0 0.375rem;
+  font-size: var(--br-text-lg);
+}
+
+.set-card p {
+  margin: 0;
+  color: var(--br-text-faint);
+}
+
+.set-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+  margin-top: 1rem;
+}
+
+@media (max-width: 640px) {
+  .set-rows > div {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .set-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

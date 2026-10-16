@@ -5,6 +5,7 @@ import { contrastPairs } from './contrast';
 import { agentRules } from './governance';
 import { stripMd } from './markdown';
 import { GITHUB_URL, today } from './repo';
+import { allPages } from './nav';
 import { groupUsage } from './sources';
 import { loadTokens, primitivesOf } from './tokens';
 
@@ -15,17 +16,22 @@ export function buildLlmsTxt(): string {
   const push = (...l: string[]) => out.push(...l);
 
   push(
-    '# AI design system demo',
+    '# Bridge design system',
     '',
-    '> A small design system run as code: W3C DTCG tokens (primitives + light/dark semantic aliases) and four React',
-    '> components (Button, Input, Badge, Card) that read CSS variables only. The repo is the source of truth, not Figma.',
+    `> A design system run as code: W3C DTCG tokens (primitives, brand roles, light/dark semantic aliases, density and`,
+    `> component tiers) and ${components.length} React components that read CSS variables only. The repo is the source of truth, not Figma.`,
     '',
     `Generated from the repository on ${today()}. Source: ${GITHUB_URL}`,
-    'Human version of the same content: the docs site pages /foundations/, /components/, /governance/.',
-    '',
-    '## Rules for agents (from AGENTS.md)',
+    'Human version of the same content: the docs site pages /foundations/, /tokens/, /components/, /agents/ (Library) and /studio/settings/governance/.',
     '',
   );
+  // Where the human pages are: the Library reads the latest release, the Studio changes it (drafts, reviews).
+  for (const space of ['library', 'studio'] as const) {
+    push(space === 'library' ? '## Library pages (read, latest release)' : '## Studio pages (change: drafts, branches, reviews, versions)', '');
+    for (const p of allPages().filter((x) => x.space === space)) push(`- [${p.label}](${p.href})${p.meta ? `: ${p.meta}` : ''}`);
+    push('');
+  }
+  push('## Rules for agents (from AGENTS.md)', '');
   for (const group of agentRules()) {
     push(`### ${group.heading}`, '', ...group.rules.map((r) => `- ${stripMd(r.original)}`), '');
   }

@@ -1,6 +1,7 @@
 ---
 import '../../styles/foundations.css';
 import Layout from '../../layouts/Layout.astro';
+import Icon from '../../components/Icon.astro';
 import CopyName from '../../components/CopyName.astro';
 import TokenNames from '../../components/TokenNames.astro';
 import Updated from '../../components/Updated.astro';
@@ -14,9 +15,16 @@ const shadows = primitivesOf('shadow');
 ---
 
 <Layout title="Elevation" description="Semantic elevation tokens and the shadow primitives behind them, rendered in both themes." sources={PAGE_SOURCES.elevation} updated={updated}>
-  <h1>Elevation</h1>
-  <p class="lead">{groupUsage('elevation')}</p>
-  <Updated date={updated} />
+  <header class="page-head">
+    <div>
+      <h1>Elevation</h1>
+      <p class="lead">{groupUsage('elevation')}</p>
+      <Updated date={updated} />
+    </div>
+    <div class="page-head-actions">
+      <a class="btn btn-secondary" href="/studio/tokens/?focus=shadow"><Icon name="edit" size={16} />Edit in Studio</a>
+    </div>
+  </header>
 
   <h2>Semantic elevation</h2>
   <p>Use these in designs and components. Each theme points to a different shadow, so the same card reads as lifted in both.</p>

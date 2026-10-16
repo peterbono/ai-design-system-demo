@@ -243,7 +243,7 @@ function wire() {
     out.textContent = 'Reading main, creating a bridge/ branch with the token files and a changeset, opening the pull request';
     try {
       const n = await propose();
-      location.href = `/reviews/?pr=${n}`;
+      location.href = `/studio/reviews/?pr=${n}`;
     } catch (err) {
       out.textContent = `Not proposed: ${(err as Error).message}`;
       go.disabled = false;

@@ -1,6 +1,7 @@
 ---
 import '../../styles/foundations.css';
 import Layout from '../../layouts/Layout.astro';
+import Icon from '../../components/Icon.astro';
 import CopyName from '../../components/CopyName.astro';
 import TokenNames from '../../components/TokenNames.astro';
 import Updated from '../../components/Updated.astro';
@@ -16,9 +17,16 @@ const used = (v: string) => componentsUsing(v).join(', ') || 'Not used by a comp
 ---
 
 <Layout title="Radius and borders" description="Corner radius scale, border widths and focus ring width." sources={PAGE_SOURCES.radius} updated={updated}>
-  <h1>Radius and borders</h1>
-  <p class="lead">Small radii for small things, larger for containers, full for pills. Two border widths: 1px for edges, 2px for emphasis and focus.</p>
-  <Updated date={updated} />
+  <header class="page-head">
+    <div>
+      <h1>Radius and borders</h1>
+      <p class="lead">Small radii for small things, larger for containers, full for pills. Two border widths: 1px for edges, 2px for emphasis and focus.</p>
+      <Updated date={updated} />
+    </div>
+    <div class="page-head-actions">
+      <a class="btn btn-secondary" href="/studio/tokens/?focus=radius"><Icon name="edit" size={16} />Edit in Studio</a>
+    </div>
+  </header>
 
   <h2>Radius</h2>
   <div class="table-wrap fd-table">

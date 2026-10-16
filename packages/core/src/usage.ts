@@ -176,3 +176,49 @@ export function impactedModules(index: UsageIndex, input: { vars?: string[]; fil
   const modules = [...reasons.entries()].map(([id, r]) => ({ id, reasons: r.reasons, indirect: r.indirect })).sort((a, b) => Number(a.indirect) - Number(b.indirect) || a.id.localeCompare(b.id));
   return { modules, globalHits };
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// Token usage: which tokens are in use. One definition for every surface (Overview, Checks, the token explorer).
+
+export interface UsageToken {
+  path: string;
+  /** CSS custom property the token builds to, e.g. "--color-bg-default". */
+  cssVar: string;
+  /** Token paths this token resolves through, in any mode (its alias chains). May include the token itself. */
+  refs: readonly string[];
+}
+
+export interface TokenReads {
+  /** CSS custom property -> components that read it (UsageIndex.byVar). */
+  byVar?: Record<string, readonly string[]>;
+  /** Global stylesheet -> CSS custom properties it reads (UsageIndex.globalVars): base styles, app shell, theme. */
+  globalVars?: Record<string, readonly string[]>;
+}
+
+export interface TokenUsage {
+  /** Paths of every token in use. */
+  used: Set<string>;
+  /** Paths read directly with var(), by a component or a global stylesheet. */
+  direct: Set<string>;
+}
+
+/**
+ * A token is in use when a component stylesheet or a global stylesheet (base styles, the app shell) reads its
+ * variable, or when a token in use aliases it, at any depth and in any mode. Everything else is unused.
+ */
+export function tokenUsage(tokens: readonly UsageToken[], reads: TokenReads): TokenUsage {
+  const readVars = new Set<string>();
+  for (const [v, mods] of Object.entries(reads.byVar ?? {})) if (mods.length) readVars.add(v);
+  for (const vars of Object.values(reads.globalVars ?? {})) for (const v of vars) readVars.add(v);
+  const byPath = new Map(tokens.map((t) => [t.path, t]));
+  const direct = new Set(tokens.filter((t) => readVars.has(t.cssVar)).map((t) => t.path));
+  const used = new Set<string>();
+  const queue = [...direct];
+  while (queue.length) {
+    const p = queue.pop()!;
+    if (used.has(p)) continue;
+    used.add(p);
+    for (const r of byPath.get(p)?.refs ?? []) if (!used.has(r) && byPath.has(r)) queue.push(r);
+  }
+  return { used, direct };
+}

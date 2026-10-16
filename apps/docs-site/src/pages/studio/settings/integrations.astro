@@ -1,0 +1,67 @@
+---
+import '../../../styles/settings.css';
+import Layout from '../../../layouts/Layout.astro';
+import GitHubConnect from '../../../components/GitHubConnect.astro';
+import Icon from '../../../components/Icon.astro';
+import { siteRepo } from '../../../lib/config';
+import { mcpTools } from '../../../lib/mcp';
+import { PLUGIN_URL, sourceUrl } from '../../../lib/repo';
+
+const r = siteRepo();
+const tools = mcpTools().length;
+const tokenUrl = `https://github.com/settings/personal-access-tokens/new?description=Bridge%20for%20${encodeURIComponent(`${r.owner}/${r.repo}`)}`;
+---
+
+<Layout title="Integrations" description="Connect GitHub to act in the Studio, the DS Bridge Figma plugin, and the MCP server for your own Claude." sources={['docs/AI.md', 'apps/figma-plugin/README.md']}>
+  <header class="page-head">
+    <div>
+      <h1>Integrations</h1>
+      <p class="lead">Three ways Bridge talks to the tools around it. Each one works on its own, and none of them needs a Bridge account or server.</p>
+    </div>
+  </header>
+
+  <section class="set-card" aria-labelledby="int-gh">
+    <span class="path-icon" aria-hidden="true"><Icon name="github" /></span>
+    <div>
+      <h2 id="int-gh">GitHub</h2>
+      <p>
+        Reading works without a token. To approve, comment, merge, propose drafts or plan a revert from the Studio, connect a fine-grained token limited
+        to <code>{r.owner}/{r.repo}</code>. It stays in this browser and is only ever sent to api.github.com.
+      </p>
+      <div class="set-actions">
+        <GitHubConnect />
+        <a class="small" href={tokenUrl} target="_blank" rel="noopener">Create a token on GitHub</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="set-card" aria-labelledby="int-figma">
+    <span class="path-icon" aria-hidden="true"><Icon name="figma" /></span>
+    <div>
+      <h2 id="int-figma">DS Bridge Figma plugin</h2>
+      <p>
+        Pull tokens into Figma Variables, and push variable edits back as a draft pull request with a three-way diff and the contrast gate. Works on
+        the free Figma plan. Not published to Figma Community yet: import it from a local build of this repository.
+      </p>
+      <div class="set-actions">
+        <a class="btn btn-secondary btn-sm" href={PLUGIN_URL}><Icon name="figma" size={16} />Get the plugin</a>
+        <a class="small" href="/install/#figma-plugin">How to install it</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="set-card" aria-labelledby="int-mcp">
+    <span class="path-icon" aria-hidden="true"><Icon name="agent" /></span>
+    <div>
+      <h2 id="int-mcp">MCP server and CLI</h2>
+      <p>
+        Give your own Claude {tools} tools on this design system: tokens resolved in every mode, the contrast gate, components and their docs, and
+        changes proposed on a branch for review. It never writes to <code>{r.defaultBranch}</code>.
+      </p>
+      <div class="set-actions">
+        <a class="btn btn-secondary btn-sm" href="/agents/"><Icon name="agent" size={16} />Set up an agent</a>
+        <a class="small" href={sourceUrl('docs/AI.md')}>docs/AI.md</a>
+      </div>
+    </div>
+  </section>
+</Layout>

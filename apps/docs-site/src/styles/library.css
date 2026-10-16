@@ -1,0 +1,175 @@
+/* Library reading pages: accessibility floor, install steps, agents, component tabs and the catalog families. */
+
+.a11y-floor {
+  display: grid;
+  gap: 0.75rem;
+  max-width: 72ch;
+  margin: 0 0 2rem;
+  padding: 0;
+  list-style: none;
+}
+
+.a11y-floor li {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--br-border);
+  border-radius: var(--br-radius-control);
+  background-color: var(--br-surface);
+}
+
+.lib-steps {
+  display: grid;
+  gap: 1rem;
+  margin: 1rem 0 2rem;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+}
+
+.lib-steps > li {
+  position: relative;
+  margin: 0;
+  padding-left: 2.5rem;
+  counter-increment: step;
+}
+
+.lib-steps > li::before {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 1px solid var(--br-border);
+  border-radius: var(--br-radius-pill);
+  background-color: var(--br-surface);
+  color: var(--br-text);
+  font-size: var(--br-text-xs);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  content: counter(step);
+}
+
+.pkg-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  gap: 1rem;
+  margin: 1rem 0 2rem;
+  padding: 0;
+  list-style: none;
+}
+
+.pkg-list li {
+  margin: 0;
+  padding: 1rem;
+  border: 1px solid var(--br-border);
+  border-radius: var(--br-radius-card);
+  background-color: var(--br-surface);
+}
+
+.pkg-list code {
+  font-weight: 600;
+}
+
+.pkg-list p {
+  margin: 0.5rem 0 0;
+  color: var(--br-text-faint);
+  font-size: var(--br-text-sm);
+}
+
+.llms-preview {
+  margin: 1rem 0 2rem;
+}
+
+.llms-preview > summary {
+  font-weight: 600;
+}
+
+.llms-preview[open] > summary {
+  margin-bottom: 1rem;
+}
+
+/* Component page tabs */
+.cp-panel[hidden] {
+  display: none;
+}
+
+.cp-panel > h2:first-child {
+  margin-top: 0;
+}
+
+.cp-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0 0 1.5rem;
+  padding: 0;
+  list-style: none;
+}
+
+.cp-files li {
+  margin: 0;
+}
+
+.cp-changes {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cp-changes li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.25rem 0.75rem;
+  margin: 0;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--br-border);
+}
+
+.cp-changes p {
+  margin: 0;
+}
+
+/* Catalog families */
+.family {
+  margin-top: 2rem;
+}
+
+.family > summary {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  list-style: none;
+  cursor: pointer;
+}
+
+.family > summary::-webkit-details-marker {
+  display: none;
+}
+
+.family > summary::before {
+  width: 0.45rem;
+  height: 0.45rem;
+  margin-right: 0.25rem;
+  border-right: 1.5px solid currentcolor;
+  border-bottom: 1.5px solid currentcolor;
+  content: "";
+  transform: rotate(-45deg) translateY(-0.1rem);
+  transition: transform 160ms var(--br-ease-out);
+}
+
+.family[open] > summary::before {
+  transform: rotate(45deg) translateY(-0.2rem);
+}
+
+.family > summary h2 {
+  margin: 0;
+}
+
+.family-count {
+  color: var(--br-text-muted);
+  font-size: var(--br-text-sm);
+  font-variant-numeric: tabular-nums;
+}

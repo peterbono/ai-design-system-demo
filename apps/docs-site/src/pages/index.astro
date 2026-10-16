@@ -1,48 +1,36 @@
 ---
 import '../styles/dashboard.css';
+import '../styles/home.css';
 import Layout from '../layouts/Layout.astro';
 import HeroBridge from '../components/HeroBridge.astro';
 import Icon from '../components/Icon.astro';
-import Donut from '../components/charts/Donut.astro';
-import StackedBars from '../components/charts/StackedBars.astro';
-import ContrastWaffle from '../components/charts/ContrastWaffle.astro';
-import { releases } from '../lib/changelog';
-import { GITHUB_URL, PLUGIN_URL, STORYBOOK_URL } from '../lib/repo';
+import { releases, versionInfo } from '../lib/changelog';
+import { FOUNDATIONS, LIBRARY_USE, componentFamilies } from '../lib/nav';
+import { GITHUB_URL, PLUGIN_URL } from '../lib/repo';
 import { PAGE_SOURCES, freshness } from '../lib/sources';
-import { dashboard, humanDate, repoStatus } from '../lib/stats';
+import { dashboard, humanDate } from '../lib/stats';
 import type { IconName } from '../brand/icons';
 
 const s = dashboard();
-const repo = repoStatus();
-const failing = s.contrast.fail;
-const ratePct = Math.round(s.contrast.rate * 1000) / 10;
-
+const version = versionInfo();
+const kindTone: Record<string, string> = { Breaking: 'is-fail', New: 'is-info', Fix: 'is-pass', Docs: 'is-accent', Improvement: 'is-accent' };
+// What's new: the latest entries people notice (internal tooling left out), newest first.
 const recent = releases()
-  .flatMap((r) => r.entries.map((e) => ({ ...e, release: r.name, pending: r.pending, date: e.date ?? r.date })))
+  .flatMap((r) => r.entries.map((e) => ({ ...e, pending: r.pending, date: e.date ?? r.date })))
+  .filter((e) => e.kind !== 'Internal')
   .slice(0, 6);
-const kindTone: Record<string, string> = { Breaking: 'is-fail', New: 'is-info', Fix: 'is-pass', Docs: 'is-accent' };
+const families = componentFamilies();
 
-const flow: { icon: IconName; title: string; text: string }[] = [
-  { icon: 'figma', title: 'Propose in Figma', text: 'DS Bridge turns a variable or component change into a pull request.' },
-  { icon: 'pr', title: 'Pull request', text: 'A diff on a branch, with a risk tier and a changelog entry.' },
-  { icon: 'ci', title: 'CI guardrails', text: 'Tokens build, types check, no raw colors, Storybook builds.' },
-  { icon: 'review', title: 'Design and tech review', text: 'Both themes, contrast and focus checked. Token changes need both owners.' },
-  { icon: 'merge', title: 'Merge', text: 'A person who owns the area merges. Agents never do.' },
-  { icon: 'doc', title: 'Docs update', text: 'This app, llms.txt and Figma variables rebuild from the same files.' },
-];
-
-const principles = [
-  { title: 'The repo decides', text: 'Tokens and components in code are the source of truth. Figma explores ideas and receives what shipped.' },
-  { title: 'Meaning before value', text: 'Designs use semantic tokens (action, feedback, surface), never raw colors. Themes swap values, not decisions.' },
-  { title: 'Accessible by default', text: 'Native elements, visible keyboard focus, labels wired to fields, and color is never the only signal.' },
-  { title: 'Guardrails over good intentions', text: 'Rules that matter are checked by CI on every change, for people and AI agents alike.' },
-  { title: 'Written once, shown everywhere', text: 'These pages, llms.txt and the MCP server read the same files. Nothing is typed twice.' },
+const starts: { icon: IconName; title: string; text: string; href: string; cta: string }[] = [
+  { icon: 'palette', title: 'Designers', text: 'Color roles, type and spacing, with every value shown in both themes. Pull the same tokens into Figma with the plugin.', href: '/foundations/color/', cta: 'Start with color' },
+  { icon: 'terminal', title: 'Engineers', text: 'Install the packages, then build with components that read CSS variables only. Props come straight from the TypeScript.', href: '/install/', cta: 'Install' },
+  { icon: 'agent', title: 'AI agents', text: 'The same docs as plain text in llms.txt, and an MCP server so your Claude builds with real tokens and proposes changes by pull request.', href: '/agents/', cta: 'Connect an agent' },
 ];
 ---
 
 <Layout
   title="Home"
-  description="Bridge: your design system, one source of truth. Figma for designers, Git for everyone, docs for humans and agents."
+  description="Bridge Library: the latest release of the design system. Foundations, tokens, components and how to use them, for people and agents."
   sources={PAGE_SOURCES.home}
   updated={freshness(PAGE_SOURCES.home)}
   wide
@@ -51,254 +39,117 @@ const principles = [
     <div class="hero-copy">
       <h1 id="hero-title" class="hero-title">Your design system, one source of truth.</h1>
       <p class="hero-lead">
-        Figma for designers, Git for everyone, docs for humans and agents. Bridge rebuilds this workspace from the repository on every
-        merge, so what you read here is what ships.
+        This Library shows the latest release, <span class="mono">{version.current}</span>, rebuilt from the repository on every merge. What you read
+        here is what ships. To change something, open it in the Studio: every change goes through a draft, a review and a merge.
       </p>
       <div class="hero-ctas">
-        <a class="btn btn-primary" href={PLUGIN_URL}><Icon name="figma" size={18} />Install DS Bridge plugin</a>
-        <a class="btn btn-secondary" href="/connect/mcp/"><Icon name="agent" size={18} />Connect your Claude</a>
-        <a class="btn btn-secondary" href={GITHUB_URL}><Icon name="github" size={18} />View on GitHub</a>
+        <a class="btn btn-primary" href="/components/"><Icon name="components" size={18} />Browse components</a>
+        <a class="btn btn-secondary" href="/tokens/"><Icon name="grid" size={18} />Explore tokens</a>
+        <a class="btn btn-secondary" href="/studio/"><Icon name="edit" size={18} />Open the Studio</a>
       </div>
       <p class="hero-note">
-        Free and open source, by Florian Gouloubi. This workspace runs on the demo design system: {s.brands} brands, {s.themes} themes,
-        {s.densities} densities, {s.components} components.
+        Free and open source, by Florian Gouloubi. {s.total} tokens, {s.components} components, {s.brands} brands, {s.themes} themes and {s.densities}
+        densities.
       </p>
     </div>
     <HeroBridge />
   </section>
 
-  <section class="kpis" aria-label="System at a glance">
-    <a class="kpi" href="/tokens/">
-      <span class="kpi-label">Tokens</span>
-      <strong class="kpi-value num">{s.total}</strong>
-      <span class="kpi-sub num">{s.primitives} primitive, {s.brandTokens} brand, {s.semantic} semantic, {s.componentTokens} component</span>
-    </a>
-    <a class="kpi" href="/playground/">
-      <span class="kpi-label">Modes</span>
-      <strong class="kpi-value num">{s.brands * s.themes * s.densities}</strong>
-      <span class="kpi-sub num">{s.brands} brands x {s.themes} themes x {s.densities} densities</span>
-    </a>
-    <a class="kpi" href="/components/">
-      <span class="kpi-label">Components</span>
-      <strong class="kpi-value num">{s.components}</strong>
-      <span class="kpi-sub num">{s.documented} with usage guidance</span>
-    </a>
-    <a class="kpi" href="/foundations/contrast/">
-      <span class="kpi-label">Contrast AA</span>
-      <strong class="kpi-value num">{ratePct}<small>%</small></strong>
-      <span class:list={['kpi-sub', 'num', { 'is-fail': failing > 0 }]}>
-        {failing > 0 ? `${failing} failing of ${s.contrast.total} checks` : `All ${s.contrast.total} checks pass`}
-      </span>
-    </a>
-    <a class="kpi" href="/reviews/" data-open-reviews>
-      <span class="kpi-label">Open reviews</span>
-      <strong class="kpi-value num" data-open-count>&nbsp;</strong>
-      <span class="kpi-sub num" data-open-sub>
-        Last change {humanDate(repo.lastChange)}, <span class="mono">{repo.sha}</span>
-      </span>
-    </a>
-  </section>
-
-  <section class="charts" aria-labelledby="charts-title">
-    <h2 id="charts-title" class="sr-only">Token and contrast charts</h2>
-    <article class="panel chart-panel">
-      <header class="panel-head">
-        <h3>Tokens by type</h3>
-        <a href="/tokens/" class="panel-link">Explore</a>
-      </header>
-      <Donut data={s.byType} total={s.total} centerLabel="tokens" label="Tokens by type" />
-    </article>
-    <article class="panel chart-panel">
-      <header class="panel-head">
-        <h3>Categories and layers</h3>
-        <a href="/foundations/color/" class="panel-link">Foundations</a>
-      </header>
-      <StackedBars rows={s.byCategory} />
-    </article>
-    <article class="panel chart-panel">
-      <header class="panel-head">
-        <h3>Contrast checks</h3>
-        <a href="/foundations/contrast/" class="panel-link">Matrix</a>
-      </header>
-      <ContrastWaffle />
-    </article>
-  </section>
-
-  <section class="duo">
-    <article class="panel health" aria-labelledby="health-title">
-      <header class="panel-head">
-        <h3 id="health-title">Health</h3>
-        <span class="muted small num">{s.issues.length} {s.issues.length === 1 ? 'item' : 'items'}</span>
-      </header>
-      {
-        s.issues.length === 0 ? (
-          <p class="empty">
-            <Icon name="check" /> Nothing to fix. Every contrast pair passes, every token is used and nothing is deprecated.
-          </p>
-        ) : (
-          <ul class="issues">
-            {s.issues.map((i) => (
-              <li class={`issue is-${i.severity}`}>
-                <span class="issue-icon">
-                  <Icon name={i.severity === 'fail' ? 'x' : i.severity === 'warn' ? 'alert' : 'info'} size={18} />
-                </span>
-                <span class="issue-body">
-                  <a href={i.href} class="issue-title">
-                    {i.title}
-                  </a>
-                  <span class="issue-detail">{i.detail}</span>
-                </span>
-                <span class={`pill is-${i.severity === 'fail' ? 'fail' : i.severity === 'warn' ? 'warn' : 'info'}`}>
-                  {i.severity === 'fail' ? 'Fix' : i.severity === 'warn' ? 'Review' : 'Note'}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )
-      }
-      <p class="health-foot muted small">
-        {s.deprecated.length === 0 ? 'No deprecated tokens.' : `${s.deprecated.length} deprecated tokens.`} Checked on every build from the
-        token files, component CSS and contrast pairs.
-      </p>
-    </article>
-
-    <article class="panel recent" aria-labelledby="recent-title">
-      <header class="panel-head">
-        <h3 id="recent-title">Recent changes</h3>
-        <a href="/changelog/" class="panel-link">Changelog</a>
+  <div class="home-grid">
+    <section class="home-news" aria-labelledby="news-title">
+      <header class="home-head">
+        <h2 id="news-title">What's new</h2>
+        <a href="/changelog/" class="panel-link">All release notes</a>
       </header>
       {
         recent.length === 0 ? (
           <p class="empty">No changes recorded yet.</p>
         ) : (
-          <ol class="timeline">
+          <ol class="news">
             {recent.map((e) => (
-              <li>
-                <span class="tl-node" aria-hidden="true" />
-                <div class="tl-head">
-                  <span class={`pill ${kindTone[e.kind] ?? ''}`}>{e.kind}</span>
-                  <span class="tl-date num">{e.date ? humanDate(e.date) : e.pending ? 'Pending' : ''}</span>
+              <li class="news-item">
+                <span class={`pill ${kindTone[e.kind] ?? ''}`}>{e.kind}</span>
+                <div>
+                  <p class="news-title">{e.title}</p>
+                  <p class="news-meta">
+                    {e.date ? humanDate(e.date) : 'Not released yet'}
+                    {e.pending && <span class="news-pending">Next release</span>}
+                    {e.source === 'commit' && (
+                      <a href={`${GITHUB_URL}/commit/${e.ref}`} class="mono">
+                        {e.ref}
+                      </a>
+                    )}
+                  </p>
                 </div>
-                <p class="tl-title">{e.title}</p>
-                <p class="tl-ref">
-                  {e.source === 'commit' ? (
-                    <a href={`${GITHUB_URL}/commit/${e.ref}`} class="mono">
-                      {e.ref}
-                    </a>
-                  ) : (
-                    <span class="mono">{e.ref}</span>
-                  )}
-                </p>
               </li>
             ))}
           </ol>
         )
       }
-    </article>
-  </section>
+    </section>
 
-  <section class="flow-band" aria-labelledby="flow-title">
-    <div class="section-head">
-      <div>
-        <h2 id="flow-title">How a change travels</h2>
-        <p>The same path for every change, whoever writes it: a designer in Figma, an engineer, or an AI agent.</p>
+    <section class="home-index" aria-labelledby="index-title">
+      <h2 id="index-title">In the Library</h2>
+      <div class="index-cols">
+        <div>
+          <p class="index-label">Foundations</p>
+          <ul class="index-list">
+            {FOUNDATIONS.map((f) => (
+              <li>
+                <a href={f.href}>{f.icon && <Icon name={f.icon} size={16} />}{f.label}</a>
+              </li>
+            ))}
+          </ul>
+          <p class="index-label">Tokens</p>
+          <ul class="index-list">
+            <li><a href="/tokens/"><Icon name="grid" size={16} />Explorer <span class="index-n num">{s.total}</span></a></li>
+            <li><a href="/playground/"><Icon name="play" size={16} />Theme playground</a></li>
+          </ul>
+        </div>
+        <div>
+          <p class="index-label">Components</p>
+          <ul class="index-list">
+            {families.map((f) => (
+              <li>
+                <a href={`/components/#fam-${f.label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`}><Icon name="components" size={16} />{f.label} <span class="index-n num">{f.items.length}</span></a>
+              </li>
+            ))}
+          </ul>
+          <p class="index-label">Use</p>
+          <ul class="index-list">
+            {LIBRARY_USE.map((f) => (
+              <li>
+                <a href={f.href}>{f.icon && <Icon name={f.icon} size={16} />}{f.label}</a>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
-      <a href="/governance/" class="btn btn-secondary btn-sm">Read the governance</a>
-    </div>
-    <ol class="flow">
+    </section>
+  </div>
+
+  <section class="home-starts" aria-labelledby="starts-title">
+    <h2 id="starts-title">Where to start</h2>
+    <ul class="starts">
       {
-        flow.map((step, i) => (
-          <li class="flow-step">
-            <span class="flow-icon">
-              <Icon name={step.icon} size={22} />
-            </span>
-            <span class="flow-num num">{i + 1}</span>
-            <strong>{step.title}</strong>
-            <span class="flow-text">{step.text}</span>
+        starts.map((x) => (
+          <li>
+            <span class="path-icon"><Icon name={x.icon} /></span>
+            <div>
+              <h3>{x.title}</h3>
+              <p>{x.text}</p>
+              <a href={x.href}>{x.cta}</a>
+            </div>
           </li>
         ))
       }
-    </ol>
+    </ul>
+    <p class="home-door">
+      <Icon name="edit" size={16} />
+      <span>
+        Want to change a token or a component? Every page here has an <strong>Edit in Studio</strong> action that opens it in a draft. Designers can also
+        propose from Figma with the <a href={PLUGIN_URL}>DS Bridge plugin</a>.
+      </span>
+    </p>
   </section>
-
-  <section class="split" aria-labelledby="principles-title">
-    <div>
-      <h2 id="principles-title">Principles</h2>
-      <dl class="principles">
-        {
-          principles.map((p) => (
-            <div>
-              <dt>{p.title}</dt>
-              <dd>{p.text}</dd>
-            </div>
-          ))
-        }
-      </dl>
-    </div>
-    <div>
-      <h2>How to contribute</h2>
-      <p class="muted">Every change, from anyone, lands as a pull request that people review. Pick the path that fits you.</p>
-      <ul class="paths">
-        <li>
-          <span class="path-icon"><Icon name="figma" /></span>
-          <div>
-            <strong>Designers, from Figma</strong>
-            <p>
-              Explore in Figma, then send the proposal with the <a href={PLUGIN_URL}>DS Bridge plugin</a>. It opens a pull request with the token or
-              component change, so you never edit code by hand. CI checks it and a design owner and a tech owner review it.
-            </p>
-          </div>
-        </li>
-        <li>
-          <span class="path-icon"><Icon name="info" /></span>
-          <div>
-            <strong>Anyone, with an issue</strong>
-            <p>
-              Not sure what the change should be? <a href={`${GITHUB_URL}/issues/new`}>Open an issue</a> with the problem, a screenshot or a Figma link.
-              A maintainer or the AI agent turns it into a pull request.
-            </p>
-          </div>
-        </li>
-        <li>
-          <span class="path-icon"><Icon name="agent" /></span>
-          <div>
-            <strong>The AI agent, by pull request</strong>
-            <p>
-              The agent works on its own branch, follows <a href="/for-ai-agents/">the same rules shown here</a>, and opens a pull request. It never
-              merges: people review and decide, with the same risk tiers as everyone else.
-            </p>
-          </div>
-        </li>
-      </ul>
-      <p class="elsewhere small">
-        Also: the <a href={GITHUB_URL}>GitHub repository</a> for sources and pull requests, <a href="/connect/mcp/">the MCP server</a> for your own
-        Claude, and <a href="/llms.txt">llms.txt</a> for agents.
-      </p>
-      <div class="contribute small" aria-labelledby="contribute-title">
-        <h3 id="contribute-title">Contribute</h3>
-        <p>
-          Building or fixing a component? The <a href={STORYBOOK_URL}>component workbench (Storybook)</a> renders every state with the
-          accessibility panel. It is a development tool and the source of visual test fixtures; user docs live here.
-        </p>
-      </div>
-    </div>
-  </section>
-  <script>
-    import { ghGet, readRepo } from '../scripts/github-session';
-    // Open pull request count for the dashboard tile. Cached by ghGet, so a rate-limited visitor still sees a number.
-    const tile = document.querySelector<HTMLElement>('[data-open-reviews]');
-    const out = tile?.querySelector<HTMLElement>('[data-open-count]');
-    if (tile && out) {
-      const r = readRepo();
-      ghGet<unknown[]>(`/repos/${r.owner}/${r.repo}/pulls?state=open&per_page=100`)
-        .then((f) => {
-          out.textContent = String(f.data.length);
-          if (f.stale) tile.title = 'From this browser\'s cache: GitHub rate limit reached.';
-        })
-        .catch(() => {
-          out.textContent = '?';
-          tile.title = 'GitHub could not be reached. Open Reviews to retry.';
-        });
-    }
-  </script>
 </Layout>

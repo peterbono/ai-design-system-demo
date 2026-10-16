@@ -47,7 +47,11 @@ Two tiers, as for any design system we ship: primitives (`fog.50`, `orange.500`.
 | Code, token names, values, SHAs | JetBrains Mono Variable | 0.86em, only for things a person copies or compares |
 
 Scale (major third, 1.25): 12, 13, 15, 18, 22, 28, 36, 48, 64. Tabular numerals on every number.
-All fonts self-hosted via `@fontsource-variable/*`. Sentence case everywhere; no all-caps labels.
+All fonts self-hosted via `@fontsource-variable/*`. Sentence case everywhere; no all-caps labels, with one exception:
+sidebar group labels (`.rail-label`, the Library and Studio groups of `src/lib/nav.ts`) are uppercase. They stay short
+(one or two words), letter-spaced (0.04em to 0.06em), 600 weight at the smallest UI size, in the muted text color, so
+they mark where a job starts without competing with the items. Everything else stays sentence case:
+eyebrows, buttons, pills, table headers and section titles.
 
 ## Layout
 
@@ -115,7 +119,8 @@ Radius follows hierarchy, not one value for everything: 20px stages and hero, 14
 - First instinct for dark mode was `#0B0B0B` with a lime accent: the near-black plus acid accent tell. Replaced by a
   blue-steel night (`#0F141C`) and a warmer orange, so dark mode still reads as the same brand.
 - Rejected ALL-CAPS eyebrows above headings (the brief's reference uses them); section titles carry their own
-  weight in Space Grotesk instead.
+  weight in Space Grotesk instead. Sidebar group labels are the single uppercase exception (see Type), validated with
+  the Library and Studio information architecture.
 - Rejected "identical card grid" for the home: KPI tiles are a single strip with dividers, charts sit in panels of
   different widths, the flow diagram is a band, not cards.
 - Rejected mono for decorative small labels; mono is only for token names, values and SHAs.

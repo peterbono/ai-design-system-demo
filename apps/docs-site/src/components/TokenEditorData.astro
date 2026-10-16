@@ -1,0 +1,20 @@
+---
+// Token files, config and contrast pairs for the browser-side token editor (scripts/token-editor.ts): it rebuilds
+// the token set with @bridge-ds/core to preview, check and propose drafts. Used by Studio Tokens and Drafts.
+import { CONTRAST_FILE } from '../lib/contrast';
+import { siteRepo } from '../lib/config';
+import { exists, listDir, readText } from '../lib/repo';
+
+const root = siteRepo().tokensRoot;
+const files: Record<string, string> = {};
+for (const dir of listDir(root).filter((d) => !d.includes('.'))) {
+  for (const f of listDir(`${root}/${dir}`)) if (f.endsWith('.tokens.json')) files[`${dir}/${f}`] = readText(`${root}/${dir}/${f}`);
+}
+const filesJson = JSON.stringify(files).replace(/</g, '\\u003c');
+const configJson = (exists('bridge.config.json') ? readText('bridge.config.json') : '{}').replace(/</g, '\\u003c');
+const checksJson = readText(CONTRAST_FILE).replace(/</g, '\\u003c');
+---
+
+<script type="application/json" id="tx-files" set:html={filesJson} />
+<script type="application/json" id="tx-config" set:html={configJson} />
+<script type="application/json" id="bridge-contrast" set:html={checksJson} />
