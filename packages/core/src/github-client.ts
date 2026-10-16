@@ -97,6 +97,16 @@ export interface CheckRun {
   url: string | undefined;
 }
 
+export interface CommitSummary {
+  sha: string;
+  parents: string[];
+  /** ISO date the commit landed (committer date). */
+  date: string;
+  /** GitHub login when known, else the git author name. */
+  author: string;
+  message: string;
+}
+
 export interface PullRequestFile {
   filename: string;
   status: string;
@@ -297,6 +307,38 @@ export class GitHubClient {
       `${this.repoPath}/compare/${base}...${head}`,
     );
     return { status: r.status, aheadBy: r.ahead_by, behindBy: r.behind_by, files: (r.files ?? []).map((f) => ({ filename: f.filename, status: f.status })) };
+  }
+
+  // --- History (read only) ----------------------------------------------------------------------
+
+  /** Commits on a ref, newest first, optionally only those touching `path` (a file or directory). */
+  async listCommits(opts: { sha?: string; path?: string; perPage?: number; page?: number } = {}): Promise<CommitSummary[]> {
+    const q = new URLSearchParams();
+    if (opts.sha) q.set('sha', opts.sha);
+    if (opts.path) q.set('path', opts.path);
+    q.set('per_page', String(Math.min(100, opts.perPage ?? 30)));
+    if (opts.page) q.set('page', String(opts.page));
+    const r = await this.request<Record<string, any>[]>('GET', `${this.repoPath}/commits?${q}`);
+    return r.map(toCommitSummary);
+  }
+
+  /** One commit: message, author, date and parents. */
+  async getCommitInfo(sha: string): Promise<CommitSummary> {
+    return toCommitSummary(await this.request<Record<string, any>>('GET', `${this.repoPath}/commits/${encodeRef(sha)}`));
+  }
+
+  /** Pull requests a commit belongs to (merged ones first): how a commit on main finds its PR. */
+  async listPullRequestsForCommit(sha: string): Promise<(PullRequestSummary & { body: string; mergedAt?: string; mergeCommitSha?: string })[]> {
+    const r = await this.request<Record<string, any>[]>('GET', `${this.repoPath}/commits/${encodeRef(sha)}/pulls`);
+    return r
+      .map((p) => ({ ...toSummary(p), body: p.body ?? '', ...(p.merged_at ? { mergedAt: p.merged_at as string } : {}), ...(p.merge_commit_sha ? { mergeCommitSha: p.merge_commit_sha as string } : {}) }))
+      .sort((a, b) => Number(Boolean(b.mergedAt)) - Number(Boolean(a.mergedAt)));
+  }
+
+  /** Tags with the commit they point to, newest first as GitHub lists them. */
+  async listTags(perPage = 30): Promise<{ name: string; sha: string }[]> {
+    const r = await this.request<{ name: string; commit: { sha: string } }[]>('GET', `${this.repoPath}/tags?per_page=${Math.min(100, perPage)}`);
+    return r.map((t) => ({ name: t.name, sha: t.commit.sha }));
   }
 
   async createBlob(content: string): Promise<string> {
@@ -515,6 +557,16 @@ export class GitHubClient {
   async removeLabel(issueNumber: number, label: string): Promise<void> {
     await this.request('DELETE', `${this.repoPath}/issues/${issueNumber}/labels/${encodeURIComponent(label)}`);
   }
+}
+
+function toCommitSummary(c: Record<string, any>): CommitSummary {
+  return {
+    sha: c.sha,
+    parents: (c.parents ?? []).map((p: { sha: string }) => p.sha),
+    date: c.commit?.committer?.date ?? c.commit?.author?.date ?? '',
+    author: c.author?.login ?? c.commit?.author?.name ?? 'unknown',
+    message: c.commit?.message ?? '',
+  };
 }
 
 function toSummary(r: Record<string, any>): PullRequestSummary & PullRequest {

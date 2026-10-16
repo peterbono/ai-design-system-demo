@@ -141,7 +141,7 @@ export function diffLayered(before: LayeredTokenSet, after: LayeredTokenSet): La
     removed.splice(removed.indexOf(r), 1);
     changes.push({ kind: 'renamed', path: n.path, from: r.path, file: n.file, ...(n.type ? { type: n.type } : {}), fields: [], before: r.value, after: n.value, afterCss: css(after, n), ...tierOf(after, n.file) });
   }
-  for (const d of removed) changes.push({ kind: 'removed', path: d.path, file: d.file, ...(d.type ? { type: d.type } : {}), fields: [], before: d.value, beforeCss: css(before, d), ...tierOf(before, d.file) });
+  for (const d of removed) changes.push({ kind: 'removed', path: d.path, file: d.file, ...(d.type ? { type: d.type } : {}), fields: [], before: d.value, beforeCss: css(before, d), ...(d.description ? { descriptionBefore: d.description } : {}), ...tierOf(before, d.file) });
   for (const d of added) changes.push({ kind: 'added', path: d.path, file: d.file, ...(d.type ? { type: d.type } : {}), fields: [], after: d.value, afterCss: css(after, d), ...(d.description ? { descriptionAfter: d.description } : {}), ...tierOf(after, d.file) });
   return changes.sort((x, y) => x.path.localeCompare(y.path) || x.file.localeCompare(y.file));
 }
