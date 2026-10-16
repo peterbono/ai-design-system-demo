@@ -5,6 +5,8 @@ const config: StorybookConfig = {
   addons: ['@storybook/addon-docs', '@storybook/addon-a11y'],
   framework: { name: '@storybook/react-vite', options: {} },
   core: { disableTelemetry: true },
+  // Use the automatic JSX runtime so components do not need to import React.
+  viteFinal: async (cfg) => ({ ...cfg, esbuild: { ...(cfg.esbuild || {}), jsx: 'automatic' } }),
 };
 
 export default config;
