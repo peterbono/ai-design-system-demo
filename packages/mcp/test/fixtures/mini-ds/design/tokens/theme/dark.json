@@ -1,0 +1,13 @@
+{
+  "fg": {
+    "$type": "color",
+    "default": { "$value": "{color.ink.100}", "$description": "Body text." },
+    "muted": { "$value": "{color.ink.500}", "$description": "Secondary text." },
+    "accent": { "$value": "{color.green.500}" }
+  },
+  "bg": {
+    "$type": "color",
+    "page": { "$value": "{color.ink.900}" },
+    "card": { "$value": "{color.ink.700}" }
+  }
+}

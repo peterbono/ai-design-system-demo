@@ -1,0 +1,5 @@
+{
+  "summary": "Groups related content on a surface.",
+  "whenToUse": ["Dashboards and lists of items."],
+  "accessibility": ["Use a heading inside."]
+}
