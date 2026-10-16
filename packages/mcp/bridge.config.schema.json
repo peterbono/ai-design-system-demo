@@ -1,0 +1,259 @@
+{
+  "$id": "https://raw.githubusercontent.com/peterbono/ai-design-system-demo/main/packages/mcp/bridge.config.schema.json",
+  "title": "bridge.config.json",
+  "description": "DRAFT schema for bridge.config.json, written for @bridge/mcp before @bridge/core existed. Must be reconciled with the @bridge/core config schema (branch integrate/bridge-v1) at merge time: field names, layer model and governance block. Generated from the zod schema in src/config.ts.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "version": {
+      "default": 1,
+      "type": "number",
+      "const": 1
+    },
+    "repo": {
+      "type": "string",
+      "pattern": "^[\\w.-]+\\/[\\w.-]+$"
+    },
+    "branch": {
+      "default": "main",
+      "type": "string"
+    },
+    "tokens": {
+      "type": "object",
+      "properties": {
+        "root": {
+          "type": "string",
+          "minLength": 1
+        },
+        "include": {
+          "default": [
+            "**/*.tokens.json"
+          ],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "exclude": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "tiers": {
+          "default": {},
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "layers": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "files": {
+                "type": "string",
+                "minLength": 1
+              },
+              "optional": {
+                "default": false,
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "files"
+            ]
+          }
+        }
+      },
+      "required": [
+        "root",
+        "layers"
+      ]
+    },
+    "modes": {
+      "default": {},
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "values": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "default": {
+            "type": "string",
+            "minLength": 1
+          },
+          "parity": {
+            "default": false,
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "values",
+          "default"
+        ]
+      }
+    },
+    "contrast": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "modes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "path"
+      ]
+    },
+    "components": {
+      "type": "object",
+      "properties": {
+        "dir": {
+          "type": "string",
+          "minLength": 1
+        },
+        "docsSuffix": {
+          "default": ".docs.json",
+          "type": "string"
+        },
+        "styleSuffix": {
+          "default": ".module.css",
+          "type": "string"
+        },
+        "reference": {
+          "type": "string"
+        },
+        "index": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "dir"
+      ]
+    },
+    "docs": {
+      "default": {},
+      "type": "object",
+      "properties": {
+        "designLanguage": {
+          "type": "string"
+        },
+        "guidelines": {
+          "type": "string"
+        },
+        "governance": {
+          "type": "string"
+        }
+      }
+    },
+    "changesets": {
+      "type": "object",
+      "properties": {
+        "dir": {
+          "default": ".changeset",
+          "type": "string"
+        },
+        "package": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "package"
+      ]
+    },
+    "cssVar": {
+      "default": {
+        "prefix": "--",
+        "separator": "-"
+      },
+      "type": "object",
+      "properties": {
+        "prefix": {
+          "default": "--",
+          "type": "string"
+        },
+        "separator": {
+          "default": "-",
+          "type": "string"
+        }
+      }
+    },
+    "governance": {
+      "default": {
+        "protectedBranches": [
+          "main",
+          "master"
+        ],
+        "branchPrefix": "bridge/",
+        "labels": [
+          "source: mcp"
+        ],
+        "guardrails": []
+      },
+      "type": "object",
+      "properties": {
+        "protectedBranches": {
+          "default": [
+            "main",
+            "master"
+          ],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "branchPrefix": {
+          "default": "bridge/",
+          "type": "string"
+        },
+        "labels": {
+          "default": [
+            "source: mcp"
+          ],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "guardrails": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "tokens"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}
