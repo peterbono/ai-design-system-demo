@@ -6,7 +6,7 @@
     "version": "0.1.0"
   },
   "label": "Bridge docs site, after",
-  "generatedAt": "2026-10-16T23:20:44.977Z",
+  "generatedAt": "2026-10-16T23:26:47.573Z",
   "target": {
     "path": "apps/docs-site/src",
     "files": 102,
@@ -32,7 +32,7 @@
   "metrics": {
     "tokenAdoption": 100,
     "componentAdoption": 100,
-    "tokenUsages": 4665,
+    "tokenUsages": 4667,
     "hardcoded": 2,
     "themeRefs": 46,
     "dsComponentInstances": 210,
@@ -1096,7 +1096,7 @@
     {
       "path": "styles/ds-studio.css",
       "lang": "css",
-      "tokenUsages": 32,
+      "tokenUsages": 34,
       "themeRefs": 0,
       "hardcoded": 0,
       "dsComponents": 0,
