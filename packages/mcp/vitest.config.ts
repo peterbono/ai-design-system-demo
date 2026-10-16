@@ -7,6 +7,7 @@ export default defineConfig({
     environment: 'node',
     root: fileURLToPath(new URL('../..', import.meta.url)),
     include: ['packages/mcp/test/**/*.test.ts', 'packages/cli/test/**/*.test.ts'],
+    globalSetup: ['packages/mcp/test/global-setup.ts'],
     pool: 'forks',
     maxWorkers: 2,
     testTimeout: 30000,

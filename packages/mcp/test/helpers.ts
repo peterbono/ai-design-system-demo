@@ -9,7 +9,7 @@ export const FIXTURE = join(REPO, 'packages/mcp/test/fixtures/mini-ds');
 export const MCP_DIST = join(REPO, 'packages/mcp/dist');
 export const CLI = join(REPO, 'packages/cli/dist/index.js');
 
-/** A throwaway git repo holding copies of `paths` (relative to `from`), committed on main. */
+/** A throwaway git repo holding copies of `paths` (relative to `from`), committed on main (removed by global-setup). */
 export function tempGitRepo(from: string, paths: string[]): string {
   const dir = mkdtempSync(join(tmpdir(), 'bridge-test-'));
   for (const p of paths) {
