@@ -109,6 +109,18 @@
   font-size: var(--br-text-sm);
 }
 
+.ad-gauge figcaption {
+  min-width: 0;
+}
+
+/* The baseline label can be long ("react-admin demo, original MUI source"): let the delta pill wrap. */
+.ad-gauge .pill {
+  height: auto;
+  min-height: 1.375rem;
+  padding-block: 0.125rem;
+  white-space: normal;
+}
+
 .ad-ring-track {
   fill: transparent;
   stroke: var(--br-data-track);

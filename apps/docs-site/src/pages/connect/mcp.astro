@@ -32,6 +32,10 @@ const cli = [
   { cmd: 'bridge tokens <query>', text: 'Searches tokens by words, CSS variable or value.' },
   { cmd: 'bridge diff <base>', text: 'Designer-readable token diff against a git ref, with alias impact, contrast and the risk tier.' },
   { cmd: 'bridge propose --title "..." --set path=value', text: 'Turns token edits into a commit on a new local bridge/* branch. Blocked when a check fails.' },
+  { cmd: 'bridge history [token]', text: 'Token history: versions and merged changes, or every change of one token, with who, when and why.' },
+  { cmd: 'bridge revert <pr|commit> --dry-run', text: 'Plans the undo of a merged token change against today: conflicts with later changes shown. Without --dry-run, a new local branch.' },
+  { cmd: 'bridge impact --plan', text: 'Visual impact: which stories and app screens a change touches. Without --plan, screenshots both refs and pixel-diffs them (needs Chrome).' },
+  { cmd: 'bridge audit <path>', text: 'Design system adoption in product code: token and component adoption, hardcoded values with the closest token, top files. --fix for exact CSS matches.' },
   { cmd: 'bridge mcp', text: 'Starts the MCP server on stdio, same as node packages/mcp/dist/index.js.' },
 ];
 const cliRun = 'node /abs/path/ai-design-system-demo/packages/cli/dist/index.js init';

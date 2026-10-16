@@ -1,16 +1,39 @@
 // Reviews > pull request > Visual impact: reads the manifest the visual impact workflow published for the
 // head commit, then shows each changed story or screen with a before/after slider and a diff toggle.
-import { changeLabel, facet, filterShots, modeLabel, visualBase, visualState, type VisualFilter, type VisualManifest, type VisualShot } from '../../lib/visual-impact';
+import { changeLabel, facet, filterShots, modeLabel, VISUAL_BRANCH, visualBase, visualState, type VisualFilter, type VisualManifest, type VisualShot } from '../../lib/visual-impact';
 import { esc, GitHubError, ghGet } from '../github-session';
 
 const PAGE = 8;
+
+type TreeEntry = { path: string; type: string; sha: string };
+
+/**
+ * Whether the workflow published a manifest for this PR commit, asked without a 404: the branch ref (an empty
+ * list when it does not exist), then one level of tree per folder (pr-<n>/<sha>/manifest.json).
+ */
+async function manifestPublished(owner: string, repo: string, pr: number, sha: string): Promise<boolean> {
+  const refs = await ghGet<{ ref: string; object: { sha: string } }[]>(`/repos/${owner}/${repo}/git/matching-refs/heads/${VISUAL_BRANCH}`);
+  const ref = refs.data.find((r) => r.ref === `refs/heads/${VISUAL_BRANCH}`);
+  if (!ref) return false;
+  let tree = ref.object.sha;
+  for (const part of [`pr-${pr}`, sha]) {
+    const t = await ghGet<{ tree: TreeEntry[] }>(`/repos/${owner}/${repo}/git/trees/${tree}`);
+    const next = t.data.tree.find((e) => e.path === part && e.type === 'tree');
+    if (!next) return false;
+    tree = next.sha;
+  }
+  const leaf = await ghGet<{ tree: TreeEntry[] }>(`/repos/${owner}/${repo}/git/trees/${tree}`);
+  return leaf.data.tree.some((e) => e.path === 'manifest.json' && e.type === 'blob');
+}
 
 export async function loadVisualImpact(slot: HTMLElement, o: { owner: string; repo: string; pr: number; sha: string; actionsUrl: string }): Promise<void> {
   const base = visualBase(o.owner, o.repo, o.pr, o.sha);
   let manifest: VisualManifest | null = null;
   try {
-    const r = await ghGet<string>(`${base}/manifest.json`, { raw: true });
-    manifest = JSON.parse(r.data) as VisualManifest;
+    if (await manifestPublished(o.owner, o.repo, o.pr, o.sha)) {
+      const r = await ghGet<string>(`${base}/manifest.json`, { raw: true });
+      manifest = JSON.parse(r.data) as VisualManifest;
+    }
   } catch (err) {
     if (!(err instanceof GitHubError && err.status === 404)) {
       slot.innerHTML = `<p class="rv-error">Could not read the visual impact: ${esc((err as Error).message)}</p>`;
