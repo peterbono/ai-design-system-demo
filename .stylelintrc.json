@@ -101,5 +101,23 @@
     "declaration-no-important": true,
     "length-zero-no-unit": true
   },
-  "$comment_docs": "apps/docs-site (the Bridge app) is built with the design system it documents: its CSS follows the same token-only rules as component CSS."
+  "$comment_docs": "apps/docs-site (the Bridge app) is built with the design system it documents: its CSS follows the same token-only rules as component CSS.",
+  "overrides": [
+    {
+      "files": [
+        "apps/docs-site/**/*.css"
+      ],
+      "plugins": [
+        "@bridge-ds/stylelint-plugin"
+      ],
+      "rules": {
+        "bridge/use-tokens": [
+          true,
+          {
+            "minConfidence": "low"
+          }
+        ]
+      }
+    }
+  ]
 }

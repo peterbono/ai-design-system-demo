@@ -82,6 +82,9 @@ jobs:
       - name: Build docs site (tokens:build, then Astro static build)
         run: npm run docs:build
 
+      - name: "Dogfooding: the docs app adoption must not regress (bridge audit --baseline --no-regress --fail-under)"
+        run: npm run audit:docs
+
       - name: Typecheck docs data layer
         run: npm run typecheck -w @bridge-ds/docs-site
 
