@@ -3,18 +3,26 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "React components that consume design tokens through CSS variables only.",
+  "description": "Bridge design system React components: Base UI behavior, token-only styling through CSS Modules.",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
-  "sideEffects": ["*.css"],
+  "sideEffects": [
+    "*.css"
+  ],
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@demo-ds/tokens": "*"
+    "@base-ui/react": "1.9.0",
+    "@demo-ds/tokens": "*",
+    "lucide-react": "1.58.0"
   },
   "peerDependencies": {
     "react": ">=18",
     "react-dom": ">=18"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./styles.css": "./src/styles/base.css"
   }
 }

@@ -1,0 +1,50 @@
+{
+  "summary": "Lays out related buttons as one unit, either spaced (an action bar or dialog footer) or attached (a segmented control), and gives the group one accessible name.",
+  "preview": { "c": "ButtonGroup", "p": { "align": "end", "aria-label": "Review actions" }, "children": [
+    { "c": "Button", "p": { "variant": "ghost" }, "children": ["Cancel"] },
+    { "c": "Button", "p": { "variant": "secondary" }, "children": ["Request changes"] },
+    { "c": "Button", "children": ["Approve"] }
+  ] },
+  "whenToUse": [
+    "Footers of dialogs, forms and cards: primary at the end, alternatives before it.",
+    "Attached: two to five closely related choices of equal weight, like Unified or Split diff."
+  ],
+  "whenNotToUse": [
+    "Switching between views of content: use Tabs, which manage the panel and arrow-key navigation.",
+    "A single choice that persists as a setting: use RadioGroup."
+  ],
+  "dos": [
+    {
+      "title": "Put the primary action last",
+      "text": "Users read the alternatives on the way to the main action, and the primary lands where the eye ends.",
+      "example": { "c": "ButtonGroup", "p": { "align": "end", "aria-label": "Dialog actions" }, "children": [
+        { "c": "Button", "p": { "variant": "ghost" }, "children": ["Cancel"] },
+        { "c": "Button", "children": ["Save changes"] }
+      ] }
+    }
+  ],
+  "donts": [
+    {
+      "title": "Mix variants in an attached group",
+      "text": "An attached group reads as one control. Mixed fills break it into unrelated pieces.",
+      "example": { "c": "ButtonGroup", "p": { "appearance": "attached", "aria-label": "View" }, "children": [
+        { "c": "Button", "p": { "variant": "primary" }, "children": ["Unified"] },
+        { "c": "Button", "p": { "variant": "ghost" }, "children": ["Split"] }
+      ] }
+    }
+  ],
+  "accessibility": [
+    "Renders role=\"group\". Pass aria-label when the buttons are related choices so the group is announced.",
+    "Each button stays in the tab order; the focused button lifts above its neighbors so the ring is never clipped.",
+    "Vertical groups set aria-orientation."
+  ],
+  "contentGuidelines": [
+    "Labels in one group share a grammatical form: all verbs, or all nouns for view choices.",
+    "Keep attached groups to five items or fewer."
+  ],
+  "anatomy": {
+    "group": "Container",
+    "spaced": "Spaced appearance (gap between buttons)",
+    "attached": "Attached appearance (segmented)"
+  }
+}

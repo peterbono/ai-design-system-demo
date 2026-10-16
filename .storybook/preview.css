@@ -5,9 +5,12 @@ body {
 }
 
 .sb-theme-root {
-  min-height: 100%;
-  padding: var(--space-4);
+  min-height: 100vh;
+  box-sizing: border-box;
+  padding: var(--space-6);
   background-color: var(--color-bg-default);
   color: var(--color-text-default);
   font-family: var(--font-family-sans);
+  font-size: var(--font-size-200);
+  line-height: var(--font-line-height-normal);
 }

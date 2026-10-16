@@ -1,0 +1,56 @@
+.spinner {
+  display: inline-flex;
+  flex: none;
+  color: currentcolor;
+}
+
+.signal {
+  color: var(--color-signal-default);
+}
+
+.xs {
+  width: var(--icon-size-xs);
+  height: var(--icon-size-xs);
+}
+
+.sm {
+  width: var(--icon-size-sm);
+  height: var(--icon-size-sm);
+}
+
+.md {
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
+}
+
+.lg {
+  width: var(--icon-size-lg);
+  height: var(--icon-size-lg);
+}
+
+.svg {
+  width: 100%;
+  height: 100%;
+  animation: spin var(--motion-duration-spin) linear infinite;
+}
+
+.track,
+.arc {
+  stroke: currentcolor;
+  stroke-width: 3;
+}
+
+.track {
+  opacity: 0.2;
+}
+
+.arc {
+  stroke-dasharray: 28 100;
+  stroke-linecap: round;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

@@ -1,0 +1,62 @@
+.group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.vertical {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.spaced {
+  gap: var(--space-2);
+}
+
+.align-start {
+  justify-content: flex-start;
+}
+
+.align-end {
+  justify-content: flex-end;
+}
+
+.align-between {
+  justify-content: space-between;
+}
+
+/* Attached: one segmented control. Inner corners go square, borders overlap by one hairline. */
+.attached {
+  flex-wrap: nowrap;
+  gap: 0;
+}
+
+.attached > * {
+  position: relative;
+}
+
+.attached > *:focus-visible {
+  z-index: 1;
+}
+
+.attached.horizontal > *:not(:first-child) {
+  margin-inline-start: calc(var(--border-width-default) * -1);
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+}
+
+.attached.horizontal > *:not(:last-child) {
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
+
+.attached.vertical > *:not(:first-child) {
+  margin-block-start: calc(var(--border-width-default) * -1);
+  border-start-start-radius: 0;
+  border-start-end-radius: 0;
+}
+
+.attached.vertical > *:not(:last-child) {
+  border-end-start-radius: 0;
+  border-end-end-radius: 0;
+}

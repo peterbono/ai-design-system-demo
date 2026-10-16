@@ -1,0 +1,48 @@
+{
+  "summary": "Takes the user to another page, section or site. Underlined in running text so it is never identified by color alone.",
+  "preview": { "c": "Row", "children": [
+    { "c": "Link", "p": { "href": "#" }, "children": ["Read the token guidelines"] },
+    { "c": "Link", "p": { "href": "#", "variant": "standalone" }, "children": ["View all components"] }
+  ] },
+  "whenToUse": [
+    "Navigation: another page, a section of this page, an external resource.",
+    "Inline in sentences (inline variant), or on its own under a card or a table (standalone).",
+    "external for other sites: it opens a new tab and says so."
+  ],
+  "whenNotToUse": [
+    "Actions on this screen (save, delete, open a dialog): use Button.",
+    "Navigation that should look like a button (a single call to action): use Button with render={<a href />}."
+  ],
+  "dos": [
+    {
+      "title": "Link text says where it goes",
+      "text": "Screen reader users jump between links out of context: \"Read the token guidelines\" works alone, \"here\" does not.",
+      "example": { "c": "Row", "children": [ { "c": "Link", "p": { "href": "#" }, "children": ["Read the token guidelines"] } ] }
+    }
+  ],
+  "donts": [
+    {
+      "title": "\"Click here\" or a bare URL",
+      "text": "Both say nothing about the destination.",
+      "example": { "c": "Row", "children": [ { "c": "Link", "p": { "href": "#" }, "children": ["Click here"] } ] }
+    }
+  ],
+  "accessibility": [
+    "Native <a href>: Enter follows it, it is announced as a link, Cmd or Ctrl+click opens a new tab.",
+    "Inline links are underlined (WCAG 1.4.1): color is never the only cue inside text.",
+    "external adds target=_blank, rel=noopener noreferrer, an icon and \"(opens in a new tab)\" for screen readers.",
+    "Focus ring hugs the text with a 1px offset so it does not overlap neighbouring lines."
+  ],
+  "contentGuidelines": [
+    "Describe the destination, not the action of clicking.",
+    "Keep it short: three to six words is ideal.",
+    "Do not end link text with punctuation or an arrow glyph."
+  ],
+  "anatomy": {
+    "link": "Anchor",
+    "inline": "Inline variant (underlined)",
+    "standalone": "Standalone variant (underline on hover)",
+    "subtle": "Subtle variant (inherits text color)",
+    "externalIcon": "External icon"
+  }
+}

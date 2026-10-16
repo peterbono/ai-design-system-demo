@@ -15,11 +15,13 @@
   ],
   "scripts": {
     "tokens:build": "npm run build -w @demo-ds/tokens",
-    "typecheck": "npm run typecheck -w @demo-ds/react",
+    "typecheck": "npm run tokens:build && npm run typecheck -w @demo-ds/react",
     "lint:css": "stylelint \"packages/react/src/**/*.css\"",
+    "test": "npm run tokens:build && vitest run",
+    "test:watch": "vitest",
     "storybook": "npm run tokens:build && storybook dev -p 6006",
     "build-storybook": "npm run tokens:build && storybook build -o storybook-static --quiet",
-    "ci": "npm run tokens:build && npm run typecheck && npm run lint:css && npm run build-storybook",
+    "ci": "npm run tokens:build && npm run typecheck && npm run lint:css && npm run test && npm run build-storybook",
     "changeset": "changeset",
     "version-packages": "changeset version"
   },
@@ -28,13 +30,21 @@
     "@storybook/addon-a11y": "10.3.6",
     "@storybook/addon-docs": "10.3.6",
     "@storybook/react-vite": "10.3.6",
+    "@testing-library/dom": "10.4.1",
+    "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "16.3.0",
+    "@testing-library/user-event": "14.6.1",
     "@types/react": "18.3.12",
     "@types/react-dom": "18.3.1",
+    "axe-core": "4.14.0",
+    "jsdom": "27.0.1",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "storybook": "10.3.6",
+    "storybook-addon-pseudo-states": "10.3.6",
     "stylelint": "16.26.1",
     "typescript": "5.9.3",
-    "vite": "7.3.7"
+    "vite": "7.3.7",
+    "vitest": "4.0.5"
   }
 }

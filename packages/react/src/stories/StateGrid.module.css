@@ -1,0 +1,51 @@
+.scroller {
+  overflow-x: auto;
+}
+
+.grid {
+  border-collapse: separate;
+  border-spacing: var(--space-4) var(--space-3);
+  margin: calc(var(--space-3) * -1) calc(var(--space-4) * -1);
+}
+
+.colHead,
+.rowHead,
+.specimenLabel {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-100);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: var(--font-tracking-wide);
+  text-align: start;
+  white-space: nowrap;
+}
+
+.rowHead {
+  padding-inline-end: var(--space-2);
+}
+
+.cell {
+  vertical-align: middle;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.specimen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.specimenLabel {
+  margin: 0;
+}
+
+.specimenBody {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}

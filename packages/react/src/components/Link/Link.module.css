@@ -1,0 +1,52 @@
+.link {
+  border-radius: var(--radius-inset);
+  color: var(--color-text-link);
+  font-weight: inherit;
+  text-decoration-line: underline;
+  text-decoration-thickness: var(--border-width-1);
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+  transition-property: color, text-decoration-color;
+  transition-duration: var(--motion-duration-instant);
+  transition-timing-function: var(--motion-easing-standard);
+}
+
+@media (hover: hover) {
+  .link:hover {
+    color: var(--color-text-link-hover);
+    text-decoration-thickness: var(--border-width-2);
+  }
+}
+
+.link:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--border-width-1);
+}
+
+.standalone {
+  font-weight: var(--font-weight-medium);
+  text-decoration-color: transparent;
+}
+
+@media (hover: hover) {
+  .standalone:hover {
+    text-decoration-color: currentcolor;
+  }
+}
+
+.subtle {
+  color: inherit;
+  text-decoration-color: var(--color-border-strong);
+}
+
+@media (hover: hover) {
+  .subtle:hover {
+    color: inherit;
+    text-decoration-color: currentcolor;
+  }
+}
+
+.externalIcon {
+  margin-inline-start: var(--space-0-5);
+  vertical-align: -0.1em;
+}

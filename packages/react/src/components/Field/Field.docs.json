@@ -1,0 +1,51 @@
+{
+  "summary": "Wires a visible label, an optional description and an error message to one form control. Ids, aria-describedby, aria-invalid and validation timing are handled by Base UI Field.",
+  "preview": { "c": "Stack", "children": [
+    { "c": "Field", "p": { "label": "Repository", "description": "Owner and name, like acme/design-tokens." }, "children": [ { "c": "Input", "p": { "placeholder": "acme/design-tokens" } } ] }
+  ] },
+  "whenToUse": [
+    "Around every Input, Textarea, Select, Combobox, NumberField or Slider that does not take a label prop itself.",
+    "To show a server-side error next to the right control (error prop, or Form errors by name).",
+    "description for what the user needs before typing: format, limits, why you ask."
+  ],
+  "whenNotToUse": [
+    "Checkbox and Switch: they carry their own label next to the control.",
+    "A group of checkboxes or radios: use CheckboxGroup or RadioGroup, which render a fieldset and legend."
+  ],
+  "dos": [
+    {
+      "title": "Description before, error after",
+      "text": "The description answers questions before typing; the error appears under the control, where the eye already is.",
+      "example": { "c": "Stack", "children": [
+        { "c": "Field", "p": { "label": "Figma file URL", "description": "Paste the link from Share, Copy link.", "error": "Enter a Figma design link." }, "children": [ { "c": "Input", "p": { "defaultValue": "figma.com" } } ] }
+      ] }
+    }
+  ],
+  "donts": [
+    {
+      "title": "Placeholder as the label",
+      "text": "It disappears on the first keystroke and has low contrast. Keep a visible label.",
+      "example": { "c": "Stack", "children": [ { "c": "Input", "p": { "aria-label": "Repository", "placeholder": "Repository" } } ] }
+    }
+  ],
+  "accessibility": [
+    "The label is a native <label> bound to the control: clicking it focuses the control.",
+    "description and error are linked through aria-describedby; an error also sets aria-invalid on the control.",
+    "Errors carry an icon and text, never color alone (WCAG 1.4.1).",
+    "required shows an asterisk (hidden from screen readers) and sets the native required attribute, which is announced.",
+    "hideLabel keeps the label for assistive tech; use it only when the context labels the field visually (a search bar with an icon)."
+  ],
+  "contentGuidelines": [
+    "Labels are nouns in sentence case, no colon: \"Repository\", not \"Repository:\".",
+    "Errors name the problem and the fix: \"Repository not found. Check the owner and the name.\"",
+    "Do not repeat the label in the description."
+  ],
+  "anatomy": {
+    "field": "Container",
+    "label": "Label",
+    "required": "Required marker",
+    "description": "Description",
+    "error": "Error message",
+    "errorIcon": "Error icon"
+  }
+}
