@@ -23,11 +23,13 @@ flowchart LR
     C --> VT["Vitest + axe-core<br/>keyboard and ARIA"]
   end
   F["Figma<br/>exploration"] -. "proposal via issue / PR" .-> P
-  RJ -. "pull (DS Bridge)" .-> FV["Figma variables<br/>Primitives, Brand, Semantic, Density, Component"]
+  RJ -. "pull (DS Bridge)" .-> FV["Figma variables<br/>Primitives, Brand, Base, Semantic, Density, Component"]
   FV -- "edit in Figma" --> DB["DS Bridge review<br/>three-way diff + guardrails"]
   DB -- "branch tokens/* + draft PR" --> PR["Pull request<br/>Tier 3"]
+  WEB["Bridge web<br/>token editor"] -- "branch tokens/* + PR" --> PR
   PR --> CI["CI + CODEOWNERS<br/>design + tech approval"]
-  CI -- "human merge" --> P
+  CI --> RV["Bridge Reviews<br/>diff, contrast, approve, merge"]
+  RV -- "human merge" --> P
 ```
 
 Plain-text version:
@@ -38,7 +40,7 @@ primitives --> brands (palette roles) --> semantic light/dark --> component tier
 all of it --> Style Dictionary (build.mjs) --> tokens.css + tokens.ts + resolved.json, fails on contrast
 @base-ui/react (behavior) + tokens.css (look) --> @demo-ds/react components --> Storybook, Vitest
 
-tokens JSON (main) --pull (DS Bridge)--> Figma variables (Primitives, Brand, Semantic, Density, Component)
+tokens JSON (main) --pull (DS Bridge)--> Figma variables (Primitives, Brand, Base, Semantic, Density, Component)
 Figma variables --DS Bridge: three-way diff + guardrails--> branch tokens/* + draft PR
 PR --> CI guardrails + CODEOWNERS (design + tech) --> human merge --> main
 ```

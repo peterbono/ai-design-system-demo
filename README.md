@@ -105,7 +105,7 @@ generated from the repo at build time, so nothing is typed twice:
 
 | Page | Generated from |
 | ---- | -------------- |
-| Foundations: color, contrast, type, spacing, radius, elevation, token lookup | `packages/tokens/src/**` (DTCG JSON), `contrast-pairs.json` |
+| Foundations: color, contrast, type, spacing, radius, elevation, token lookup | `packages/tokens/src/**` (DTCG JSON), `contrast.checks.json` |
 | Components: usage, do/don't, a11y, anatomy and tokens, props, live preview | `<Name>.docs.json` (guidance), `<Name>.tsx` (props), `<Name>.module.css` (tokens), `<Name>.stories.tsx` (stories) |
 | Governance | `docs/GOVERNANCE.md`, `AGENTS.md` (+ plain-language rewrites in `apps/docs-site/src/content/agent-rules-plain.json`) |
 | Changelog | `.changeset/*.md` and git log (conventional commits) |

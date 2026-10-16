@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@astrojs/react": "4.4.2",
+    "@bridge/core": "*",
     "@demo-ds/react": "*",
     "@demo-ds/tokens": "*",
     "astro": "5.18.1",

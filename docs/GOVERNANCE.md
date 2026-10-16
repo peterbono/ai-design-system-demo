@@ -44,7 +44,7 @@ DS Bridge (`apps/figma-plugin`) turns Figma variable edits into pull requests:
 - These PRs are always **Tier 3** (token change): opened as draft, labelled `tokens`, and they need
   **design owner and tech owner** approval, like any other token change.
 - The plugin refuses to open the PR while its guardrails fail (aliases, cycles, scopes, type changes,
-  WCAG contrast on `packages/tokens/src/contrast-pairs.json`). That is a convenience, not a gate:
+  WCAG contrast on `packages/tokens/src/contrast.checks.json`). That is a convenience, not a gate:
   CI and CODEOWNERS remain the authority.
 - If you want stricter handling, add a branch protection or ruleset entry for the pattern `tokens/*`.
 

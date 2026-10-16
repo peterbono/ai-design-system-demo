@@ -23,13 +23,29 @@ export const exists = (rel: string) => existsSync(repoPath(rel));
 export const listDir = (rel: string) => (exists(rel) ? readdirSync(repoPath(rel)) : []);
 export const toRel = (abs: string) => relative(ROOT, abs);
 
-export const GITHUB_URL = 'https://github.com/peterbono/ai-design-system-demo';
+/** Repo this workspace documents, from bridge.config.json (see lib/config.ts). Read lazily to avoid an import cycle. */
+function configuredRepo(): { owner: string; repo: string; defaultBranch: string } {
+  const fallback = { owner: 'peterbono', repo: 'ai-design-system-demo', defaultBranch: 'main' };
+  try {
+    const raw = existsSync(join(ROOT, 'bridge.config.json')) ? JSON.parse(readFileSync(join(ROOT, 'bridge.config.json'), 'utf8')) : {};
+    const r = raw.repo;
+    if (typeof r === 'string' && r.includes('/')) return { ...fallback, owner: r.split('/')[0], repo: r.split('/')[1], defaultBranch: raw.defaultBranch ?? fallback.defaultBranch };
+    if (r && typeof r === 'object') return { owner: r.owner ?? fallback.owner, repo: r.name ?? r.repo ?? fallback.repo, defaultBranch: r.defaultBranch ?? r.branch ?? fallback.defaultBranch };
+  } catch {
+    /* invalid config: fall back to the demo repo */
+  }
+  return fallback;
+}
+
+const REPO = configuredRepo();
+export const GITHUB_URL = `https://github.com/${REPO.owner}/${REPO.repo}`;
+export const DEFAULT_BRANCH = REPO.defaultBranch;
 export const STORYBOOK_URL = (process.env.STORYBOOK_URL || 'http://localhost:6006').replace(/\/$/, '');
 
 /** DS Bridge Figma plugin (apps/figma-plugin). Override with PLUGIN_URL once it is published to Figma Community. */
-export const PLUGIN_URL = process.env.PLUGIN_URL || `${GITHUB_URL}/tree/main/apps/figma-plugin`;
+export const PLUGIN_URL = process.env.PLUGIN_URL || `${GITHUB_URL}/tree/${DEFAULT_BRANCH}/apps/figma-plugin`;
 
-export const sourceUrl = (rel: string) => `${GITHUB_URL}/blob/main/${rel}`;
+export const sourceUrl = (rel: string) => `${GITHUB_URL}/blob/${DEFAULT_BRANCH}/${rel}`;
 
 function git(args: string[]): string {
   try {

@@ -6,6 +6,7 @@ import { brandCss } from '../brand/tokens';
 import Icon from '../components/Icon.astro';
 import Logo from '../components/Logo.astro';
 import { navigation } from '../lib/nav';
+import { siteRepoJson } from '../lib/config';
 import { BRANDS, BRAND_LABEL, DENSITIES, DENSITY_LABEL } from '../lib/tokens';
 import { GITHUB_URL, STORYBOOK_URL, sourceUrl } from '../lib/repo';
 import { dashboard, humanDate, repoStatus } from '../lib/stats';
@@ -242,6 +243,7 @@ const inSection = (href: string) => href !== '/' && href !== '/components/' && p
     </dialog>
 
     <p class="sr-only" role="status" aria-live="polite" id="live"></p>
+    <script type="application/json" id="bridge-repo" set:html={siteRepoJson()} />
     <script>
       import { initShell } from '../scripts/shell';
       initShell();

@@ -1,0 +1,37 @@
+---
+// The Connect GitHub dialog. Include once per page, outside any element that gets hidden.
+import Icon from './Icon.astro';
+import { siteRepo } from '../lib/config';
+
+const r = siteRepo();
+const tokenUrl = `https://github.com/settings/personal-access-tokens/new?description=Bridge%20for%20${encodeURIComponent(`${r.owner}/${r.repo}`)}`;
+---
+
+<dialog class="gh-dialog" id="gh-dialog" aria-labelledby="gh-dialog-title">
+  <form method="dialog" class="gh-dialog-box">
+    <header class="gh-dialog-head">
+      <h2 id="gh-dialog-title">Connect GitHub</h2>
+      <button type="submit" value="cancel" class="icon-btn" aria-label="Close"><Icon name="close" /></button>
+    </header>
+    <p>
+      Reading pull requests works without a token. To approve, comment, merge or propose token changes, paste a
+      <strong>fine-grained personal access token</strong> limited to <code>{r.owner}/{r.repo}</code>.
+    </p>
+    <ol class="gh-steps">
+      <li><a href={tokenUrl} target="_blank" rel="noopener">Create a token on GitHub</a>, repository access: only <code>{r.repo}</code>.</li>
+      <li>Permissions: Pull requests read and write, Contents read and write, Commit statuses and Checks read.</li>
+      <li>Paste it below. It stays in this browser (localStorage) and is only sent to api.github.com.</li>
+    </ol>
+    <label class="gh-field">
+      <span>Token</span>
+      <input type="password" id="gh-token" autocomplete="off" spellcheck="false" placeholder="github_pat_..." />
+    </label>
+    <p class="gh-error" id="gh-error" role="alert" hidden></p>
+    <footer class="gh-dialog-foot">
+      <button type="button" class="btn btn-secondary btn-sm" id="gh-forget" hidden>Disconnect</button>
+      <span class="gh-spacer"></span>
+      <button type="submit" value="cancel" class="btn btn-secondary btn-sm">Cancel</button>
+      <button type="button" class="btn btn-primary btn-sm" id="gh-save">Check and connect</button>
+    </footer>
+  </form>
+</dialog>

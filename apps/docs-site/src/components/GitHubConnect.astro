@@ -1,0 +1,12 @@
+---
+// Connect GitHub: paste a fine-grained token once, kept in this browser only. Shared by Reviews and token editing.
+import Icon from './Icon.astro';
+---
+
+<div class="gh-connect" data-gh-connect>
+  <span class="gh-status" data-gh-status>
+    <span class="gh-dot" aria-hidden="true"></span>
+    <span data-gh-status-text>Read only</span>
+  </span>
+  <button type="button" class="btn btn-secondary btn-sm" data-gh-open><Icon name="github" size={16} /><span data-gh-open-label>Connect GitHub</span></button>
+</div>

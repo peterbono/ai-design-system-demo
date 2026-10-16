@@ -90,11 +90,11 @@ const principles = [
         {failing > 0 ? `${failing} failing of ${s.contrast.total} checks` : `All ${s.contrast.total} checks pass`}
       </span>
     </a>
-    <a class="kpi" href="/changelog/">
-      <span class="kpi-label">Last change</span>
-      <strong class="kpi-value kpi-date">{humanDate(repo.lastChange)}</strong>
-      <span class="kpi-sub num">
-        <span class="mono">{repo.sha}</span>, {repo.commits} commits
+    <a class="kpi" href="/reviews/" data-open-reviews>
+      <span class="kpi-label">Open reviews</span>
+      <strong class="kpi-value num" data-open-count>&nbsp;</strong>
+      <span class="kpi-sub num" data-open-sub>
+        Last change {humanDate(repo.lastChange)}, <span class="mono">{repo.sha}</span>
       </span>
     </a>
   </section>
@@ -276,4 +276,22 @@ const principles = [
       </p>
     </div>
   </section>
+  <script>
+    import { ghGet, readRepo } from '../scripts/github-session';
+    // Open pull request count for the dashboard tile. Cached by ghGet, so a rate-limited visitor still sees a number.
+    const tile = document.querySelector<HTMLElement>('[data-open-reviews]');
+    const out = tile?.querySelector<HTMLElement>('[data-open-count]');
+    if (tile && out) {
+      const r = readRepo();
+      ghGet<unknown[]>(`/repos/${r.owner}/${r.repo}/pulls?state=open&per_page=100`)
+        .then((f) => {
+          out.textContent = String(f.data.length);
+          if (f.stale) tile.title = 'From this browser\'s cache: GitHub rate limit reached.';
+        })
+        .catch(() => {
+          out.textContent = '?';
+          tile.title = 'GitHub could not be reached. Open Reviews to retry.';
+        });
+    }
+  </script>
 </Layout>
