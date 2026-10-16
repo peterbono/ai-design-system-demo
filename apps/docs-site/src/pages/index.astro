@@ -5,6 +5,7 @@ import Layout from '../layouts/Layout.astro';
 import HeroBridge from '../components/HeroBridge.astro';
 import Icon from '../components/Icon.astro';
 import ButtonLink from '../components/ds/ButtonLink';
+import { LayoutGrid, Pencil } from 'lucide-react';
 import { Badge, type BadgeTone } from '@bridge-ds/react';
 import { releases, versionInfo } from '../lib/changelog';
 import { mdTitleHtml } from '../lib/markdown';
@@ -46,9 +47,9 @@ const starts: { icon: IconName; title: string; text: string; href: string; cta: 
         here is what ships. To change something, open it in the Studio: every change goes through a draft, a review and a merge.
       </p>
       <div class="hero-ctas">
-        <ButtonLink variant="primary" href="/components/">Browse components</ButtonLink>
-        <ButtonLink variant="secondary" href="/tokens/">Explore tokens</ButtonLink>
-        <ButtonLink variant="secondary" href="/studio/">Open the Studio</ButtonLink>
+        <ButtonLink variant="primary" href="/components/" iconStart={LayoutGrid}>Browse components</ButtonLink>
+        <ButtonLink variant="secondary" href="/tokens/" iconStart={LayoutGrid}>Explore tokens</ButtonLink>
+        <ButtonLink variant="secondary" href="/studio/" iconStart={Pencil}>Open the Studio</ButtonLink>
       </div>
       <p class="hero-note">
         Free and open source, by Florian Gouloubi. {s.total} tokens, {s.components} components, {s.brands} brands, {s.themes} themes and {s.densities}
