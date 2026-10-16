@@ -617,3 +617,42 @@
     animation: none;
   }
 }
+
+.rv-card {
+  min-width: 0;
+}
+
+.rv-card .table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.rv-table .mono {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  /* Token diff as stacked rows: token, then before -> after. */
+  .rv-table:not(.rv-contrast) thead {
+    display: none;
+  }
+
+  .rv-table:not(.rv-contrast) tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    gap: 0.25rem 0.5rem;
+    padding: 0.625rem 0;
+    border-bottom: 1px solid var(--br-border);
+  }
+
+  .rv-table:not(.rv-contrast) tbody th {
+    grid-column: 1 / -1;
+  }
+
+  .rv-table:not(.rv-contrast) th,
+  .rv-table:not(.rv-contrast) td {
+    padding: 0;
+    border: 0;
+  }
+}

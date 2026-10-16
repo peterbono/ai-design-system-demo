@@ -23,7 +23,11 @@ interface Tree {
 const raw = (owner: string, repo: string, sha: string, path: string) =>
   ghGet<string>(`https://raw.githubusercontent.com/${owner}/${repo}/${sha}/${path}`, { raw: true }).then((r) => r.data);
 
-async function configAt(owner: string, repo: string, sha: string): Promise<BridgeConfig | null> {
+const treeAt = (owner: string, repo: string, sha: string) =>
+  ghGet<Tree>(`/repos/${owner}/${repo}/git/trees/${sha}?recursive=1`).then((t) => new Set(t.data.tree.filter((e) => e.type === 'blob').map((e) => e.path)));
+
+async function configAt(owner: string, repo: string, sha: string, tree: Set<string>): Promise<BridgeConfig | null> {
+  if (!tree.has('bridge.config.json')) return null;
   try {
     return loadConfig(await raw(owner, repo, sha, 'bridge.config.json'));
   } catch {
@@ -31,23 +35,24 @@ async function configAt(owner: string, repo: string, sha: string): Promise<Bridg
   }
 }
 
-export async function filesAt(owner: string, repo: string, sha: string, root: string): Promise<Record<string, string>> {
-  const tree = await ghGet<Tree>(`/repos/${owner}/${repo}/git/trees/${sha}?recursive=1`);
+async function filesAt(owner: string, repo: string, sha: string, root: string, tree: Set<string>): Promise<Record<string, string>> {
   const prefix = root ? `${root}/` : '';
-  const paths = tree.data.tree.filter((e) => e.type === 'blob' && e.path.startsWith(prefix) && e.path.endsWith('.tokens.json')).map((e) => e.path);
+  const paths = [...tree].filter((p) => p.startsWith(prefix) && p.endsWith('.tokens.json'));
   const entries = await Promise.all(paths.map(async (p) => [p.slice(prefix.length), await raw(owner, repo, sha, p)] as const));
   return Object.fromEntries(entries);
 }
 
 export async function analyzeTokenFiles(input: { owner: string; repo: string; baseSha: string; headSha: string; files: { filename: string }[] }): Promise<TokenReview> {
   const { owner, repo, baseSha, headSha } = input;
-  const config = (await configAt(owner, repo, headSha)) ?? (await configAt(owner, repo, baseSha));
+  // One git-trees call per commit tells which optional files exist, so nothing 404s.
+  const [baseTree, headTree] = await Promise.all([treeAt(owner, repo, baseSha), treeAt(owner, repo, headSha)]);
+  const config = (await configAt(owner, repo, headSha, headTree)) ?? (await configAt(owner, repo, baseSha, baseTree));
   const root = config?.tokens.root ?? siteRoot() ?? DEFAULT_TOKEN_PATHS.root;
   const checksPath = `${root}/${config?.tokens.contrastChecks ?? DEFAULT_TOKEN_PATHS.contrastChecks}`;
   const [baseFiles, headFiles, checks] = await Promise.all([
-    filesAt(owner, repo, baseSha, root),
-    filesAt(owner, repo, headSha, root),
-    raw(owner, repo, headSha, checksPath).catch(() => raw(owner, repo, baseSha, checksPath).catch(() => '')),
+    filesAt(owner, repo, baseSha, root, baseTree),
+    filesAt(owner, repo, headSha, root, headTree),
+    headTree.has(checksPath) ? raw(owner, repo, headSha, checksPath) : baseTree.has(checksPath) ? raw(owner, repo, baseSha, checksPath) : Promise.resolve(''),
   ]);
   // Repos (or older commits) without contrast.checks.json fall back to the checks this site was built with.
   const fallback = document.getElementById('bridge-contrast')?.textContent || undefined;

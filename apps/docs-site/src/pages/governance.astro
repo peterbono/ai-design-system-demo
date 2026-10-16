@@ -17,10 +17,10 @@ const rules = agentRules();
 
 const journey: { title: string; text: string; icon: IconName }[] = [
   { icon: 'figma', title: 'Explore in Figma', text: 'A designer tries the change on real screens. Nothing in Figma reaches the product by itself.' },
-  { icon: 'link', title: 'Propose with DS Bridge', text: 'The DS Bridge plugin turns the proposal into a pull request against the token files. An issue works too; then the AI agent or a maintainer writes the pull request.' },
+  { icon: 'link', title: 'Propose with Bridge', text: 'The DS Bridge Figma plugin, or Edit mode in the token explorer, turns the proposal into a pull request against the token files. An issue works too; then the AI agent or a maintainer writes the pull request.' },
   { icon: 'pr', title: 'Pull request', text: 'The change is a diff on a branch, with a risk tier, a changelog entry and a note on what to review.' },
   { icon: 'ci', title: 'CI guardrails', text: 'Automated checks run on every pull request: tokens build, types check, no raw colors or shadows in components, Storybook builds, a changelog entry exists.' },
-  { icon: 'review', title: 'Design and tech review', text: 'The design owner checks both themes, contrast and keyboard focus in Storybook. The tech owner checks naming, API and version bump. Token changes need both.' },
+  { icon: 'review', title: 'Design and tech review', text: 'The design owner checks both themes, contrast and keyboard focus in Storybook, and reads token diffs in Bridge Reviews. The tech owner checks naming, API and version bump. Token changes need both.' },
   { icon: 'merge', title: 'Merge', text: 'A person who owns that area merges. The AI agent never merges.' },
   { icon: 'tag', title: 'Release', text: 'Changesets bumps the version and writes the changelog from the entries collected in each pull request.' },
   { icon: 'doc', title: 'Docs update themselves', text: 'This site rebuilds from the repo: color tables, contrast checks, component pages, the changelog and llms.txt all reflect the change. Figma variables are re-imported from the same files.' },
