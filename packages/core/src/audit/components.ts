@@ -8,14 +8,23 @@ const FOREIGN_PREFIXES = [
 ];
 const ICON_PREFIXES = ['@mui/icons-material', '@material-ui/icons', '@ant-design/icons', '@radix-ui/react-icons', 'lucide-react', 'react-icons', '@heroicons/', '@tabler/icons-react', '@phosphor-icons/', 'react-feather'];
 const SHADCN_RE = /(^|\/)components\/ui(\/|$)/;
+/** Chart libraries: visible UI the design system does not provide, counted as foreign with no DS equivalent. */
+const CHART_PREFIXES = ['recharts', 'react-chartjs-2', 'chart.js', '@nivo/', 'victory', '@visx/', 'echarts-for-react', 'react-apexcharts', '@tremor/react', '@mui/x-charts'];
+/**
+ * Router links render a visible anchor. From a router or a headless admin core they are UI that the DS Link
+ * covers, unless passed to a DS component as its render element (`render={<Link to="..." />}`).
+ */
+const ROUTER_LINK_MODULES = ['react-router', 'react-router-dom', 'ra-core', 'next/link', '@tanstack/react-router', 'wouter', '@remix-run/react'];
+const ROUTER_LINK_NAMES = new Set(['Link', 'NavLink', 'LinkBase']);
+export const isRouterLink = (mod: string, name: string) => ROUTER_LINK_MODULES.some((p) => prefixMatch(mod, p)) && (ROUTER_LINK_NAMES.has(name) || (mod === 'next/link' && name === 'default'));
 
 /** Rendered by UI libraries but not UI: providers, routers, data wrappers. */
-const NON_VISUAL = new Set(['Admin', 'AdminContext', 'AdminUI', 'Resource', 'CustomRoutes', 'Route', 'Routes', 'Router', 'BrowserRouter', 'Translate', 'CssBaseline', 'ScopedCssBaseline', 'GlobalStyles', 'StyledEngineProvider', 'Fragment', 'Suspense', 'StrictMode', 'ErrorBoundary', 'WithRecord', 'WithListContext', 'Portal', 'NoSsr', 'ClickAwayListener', 'Fade', 'Grow', 'Slide', 'Zoom', 'Collapse', 'Transition', 'TrapFocus', 'FocusTrap', 'Slot', 'VisuallyHidden']);
+const NON_VISUAL = new Set(['Admin', 'AdminContext', 'AdminUI', 'Resource', 'CustomRoutes', 'Route', 'Routes', 'Router', 'BrowserRouter', 'Translate', 'CssBaseline', 'ScopedCssBaseline', 'GlobalStyles', 'ResponsiveContainer', 'StyledEngineProvider', 'Fragment', 'Suspense', 'StrictMode', 'ErrorBoundary', 'WithRecord', 'WithListContext', 'Portal', 'NoSsr', 'ClickAwayListener', 'Fade', 'Grow', 'Slide', 'Zoom', 'Collapse', 'Transition', 'TrapFocus', 'FocusTrap', 'Slot', 'VisuallyHidden']);
 export const isNonVisual = (name: string) => NON_VISUAL.has(name) || /(Provider|Context|Consumer|Controller)$/.test(name);
 
 const prefixMatch = (mod: string, p: string) => (p.endsWith('/') || p.endsWith('-') ? mod.startsWith(p) : mod === p || mod.startsWith(`${p}/`));
 
-export type ModuleKind = 'ds' | 'foreign' | 'icons' | 'shadcn' | 'local' | 'other';
+export type ModuleKind = 'ds' | 'foreign' | 'charts' | 'icons' | 'shadcn' | 'local' | 'other';
 
 /** Package name of an import specifier: @scope/name or name. */
 export function packageName(mod: string): string {
@@ -26,6 +35,7 @@ export function packageName(mod: string): string {
 export function classifyModule(mod: string, dsPackages: string[], extraForeign: string[] = []): ModuleKind {
   if (dsPackages.some((p) => mod === p || mod.startsWith(`${p}/`))) return 'ds';
   if (ICON_PREFIXES.some((p) => prefixMatch(mod, p))) return 'icons';
+  if (CHART_PREFIXES.some((p) => prefixMatch(mod, p))) return 'charts';
   if (SHADCN_RE.test(mod) && (mod.startsWith('.') || mod.startsWith('@/') || mod.startsWith('~/') || mod.startsWith('src/') || mod.startsWith('components/'))) return 'shadcn';
   if ([...FOREIGN_PREFIXES, ...extraForeign].some((p) => prefixMatch(mod, p))) return 'foreign';
   if (mod.startsWith('.') || mod.startsWith('@/') || mod.startsWith('~/') || mod.startsWith('src/')) return 'local';
@@ -110,6 +120,10 @@ export function nativeEquivalent(tag: string, type: string | undefined, ds: Set<
       return pick('Dialog');
     case 'table':
       return pick('Table');
+    case 'a':
+      return pick('Link');
+    case 'img':
+      return pick('Image');
     default:
       return pick(tag[0]!.toUpperCase() + tag.slice(1));
   }

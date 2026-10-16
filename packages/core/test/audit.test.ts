@@ -195,3 +195,37 @@ describe('autofix', () => {
     assert.equal(f.findings[0]!.suggestion!.token, 'color.text.default');
   });
 });
+
+describe('what counts as a UI component instance', () => {
+  const app = [
+    "import { Button, Link, ThemeProvider, SidebarNavItem } from '@bridge-ds/react';",
+    "import { LinkBase } from 'ra-core';",
+    "import { Link as RouterLink } from 'react-router-dom';",
+    "import { AreaChart, Area, ResponsiveContainer } from 'recharts';",
+    'export const A = () => (',
+    '  <ThemeProvider>',
+    '    <Button>Save</Button>',
+    '    <SidebarNavItem render={<LinkBase to="/orders" />}>Orders</SidebarNavItem>',
+    '    <Link render={<RouterLink to="/" />}>Home</Link>',
+    '    <LinkBase to="/customers/1" className="row">Ada</LinkBase>',
+    '    <a href="#main">Skip</a>',
+    '    <a id="top" />',
+    '    <img src="/p.png" alt="" />',
+    '    <ResponsiveContainer><AreaChart data={[]}><Area dataKey="v" /></AreaChart></ResponsiveContainer>',
+    '  </ThemeProvider>',
+    ');',
+  ].join('\n');
+
+  test('providers do not count; router links in a render prop do not; standalone links, anchors, images and charts do', () => {
+    const f = auditFile('app.tsx', app, ds());
+    assert.equal(f.dsComponents, 3);
+    const other = f.components.map((c) => `${c.kind}:${c.library}:${c.name}${c.suggestion ? `>${c.suggestion}` : ''}`);
+    assert.deepEqual(other, [
+      'foreign:ra-core:LinkBase>Link',
+      'native:native:a>Link',
+      'native:native:img',
+      'foreign:recharts:AreaChart',
+      'foreign:recharts:Area',
+    ]);
+  });
+});

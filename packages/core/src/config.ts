@@ -106,7 +106,7 @@ export interface AuditConfig {
   packages?: string[] | undefined;
   /** Extra import prefixes counted as foreign UI libraries (MUI, antd, Chakra, Radix... are built in). */
   foreignLibraries?: string[] | undefined;
-  /** Native elements that should be DS components. Default: button, input, select, textarea, dialog, table. */
+  /** Native elements that should be DS components. Default: button, input, select, textarea, dialog, table, a (with href), img. */
   nativeElements?: string[] | undefined;
   /** Path globs (relative to the audited folder) to skip. */
   exclude?: string[] | undefined;

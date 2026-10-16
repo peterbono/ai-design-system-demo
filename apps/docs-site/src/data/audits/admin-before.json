@@ -6,7 +6,7 @@
     "version": "0.1.0"
   },
   "label": "react-admin demo, original MUI source",
-  "generatedAt": "2026-10-16T16:12:34.968Z",
+  "generatedAt": "2026-10-16T17:25:13.187Z",
   "target": {
     "path": "apps/admin/_original",
     "files": 97,
@@ -14,7 +14,6 @@
   },
   "designSystem": {
     "packages": [
-      "@bridge-ds/react",
       "@bridge-ds/react"
     ],
     "components": 46,
@@ -37,7 +36,7 @@
     "hardcoded": 131,
     "themeRefs": 84,
     "dsComponentInstances": 0,
-    "uiComponentInstances": 524
+    "uiComponentInstances": 526
   },
   "byCategory": {
     "color": {
@@ -218,9 +217,17 @@
           "StepLabel": 1,
           "StepContent": 1
         }
+      },
+      "react-router-dom": {
+        "instances": 1,
+        "components": {
+          "Link": 1
+        }
       }
     },
-    "native": {},
+    "native": {
+      "img": 1
+    },
     "recreated": [
       {
         "name": "Menu",
@@ -951,7 +958,7 @@
       "themeRefs": 2,
       "hardcoded": 3,
       "dsComponents": 0,
-      "otherComponents": 7,
+      "otherComponents": 8,
       "findings": [
         {
           "line": 17,
@@ -1010,6 +1017,14 @@
           "kind": "foreign",
           "library": "@mui/material",
           "suggestion": "Card"
+        },
+        {
+          "line": 27,
+          "column": 9,
+          "name": "Link",
+          "kind": "foreign",
+          "library": "react-router-dom",
+          "suggestion": "Link"
         },
         {
           "line": 28,
@@ -3633,7 +3648,7 @@
       "themeRefs": 3,
       "hardcoded": 4,
       "dsComponents": 0,
-      "otherComponents": 7,
+      "otherComponents": 8,
       "findings": [
         {
           "line": 89,
@@ -3738,6 +3753,13 @@
           "name": "ImageListItem",
           "kind": "foreign",
           "library": "@mui/material"
+        },
+        {
+          "line": 73,
+          "column": 21,
+          "name": "img",
+          "kind": "native",
+          "library": "native"
         },
         {
           "line": 74,

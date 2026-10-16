@@ -430,14 +430,16 @@
           "items": {
             "type": "string"
           },
-          "description": "Native elements that should be DS components.",
+          "description": "Native elements counted as UI that a DS component should render (an <a> only with href).",
           "default": [
             "button",
             "input",
             "select",
             "textarea",
             "dialog",
-            "table"
+            "table",
+            "a",
+            "img"
           ]
         },
         "exclude": {

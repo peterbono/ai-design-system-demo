@@ -53,7 +53,7 @@ Raw design values in `style`, MUI `sx`, `styled()`, `makeStyles`, `createTheme` 
 ## bridge/prefer-ds-components
 
 Imports of UI components from foreign libraries (MUI, react-admin, antd, Chakra, Radix, Headless UI, Mantine,
-shadcn/ui local `components/ui`...) and native `button`, `input`, `select`, `textarea`, `dialog`, `table`
+shadcn/ui local `components/ui`...) and native `button`, `input`, `select`, `textarea`, `dialog`, `table`, `a` (with `href`), `img`
 elements, with the DS component to use when one fits (`TextField` -> `Input`, `<input type="checkbox">` ->
 `Checkbox`). Providers, hooks and icon packages are ignored.
 
@@ -61,7 +61,7 @@ elements, with the DS component to use when one fits (`TextField` -> `Input`, `<
 | --- | --- | --- |
 | `designSystem` | see above | Design system repo root. |
 | `packages` | from the config | Packages DS components are imported from. |
-| `nativeElements` | `button, input, select, textarea, dialog, table` | |
+| `nativeElements` | `button, input, select, textarea, dialog, table, a, img` | |
 | `foreignLibraries` | built-in list | Extra import prefixes to treat as foreign UI libraries. |
 | `allow` | none | Component names or import sources to accept. |
 

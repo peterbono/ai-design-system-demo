@@ -2,7 +2,7 @@
 // theme objects), CSS-in-JS templates, Tailwind class strings, color literals, DS token references, and
 // component usage (DS, foreign UI libraries, native elements, re-created DS components).
 import ts from 'typescript';
-import { classifyModule, dsEquivalent, isNonVisual, libraryLabel, nativeEquivalent } from './components';
+import { classifyModule, dsEquivalent, isNonVisual, isRouterLink, libraryLabel, nativeEquivalent } from './components';
 import { scanCssText } from './css';
 import { isColorLiteral, scanJsStyle, type JsStyleContext, type ValueHit } from './scan-value';
 import { scanClassString, type TailwindHit } from './tailwind';
@@ -30,6 +30,16 @@ const THEME_REF_RE = /\btheme\.(palette|spacing|shape|typography|shadows|zIndex|
 
 function kindFor(path: string): ts.ScriptKind {
   return path.endsWith('.tsx') ? ts.ScriptKind.TSX : path.endsWith('.jsx') ? ts.ScriptKind.JSX : path.endsWith('.ts') || path.endsWith('.mts') || path.endsWith('.cts') ? ts.ScriptKind.TS : ts.ScriptKind.JSX;
+}
+
+const RENDER_PROPS = new Set(['render', 'component', 'as', 'linkComponent', 'LinkComponent']);
+/** `<Comp render={<Link to="/x" />} />` or `{ render: <Link /> }`: the element only gives a DS component its router. */
+function isRenderElement(node: ts.JsxOpeningElement | ts.JsxSelfClosingElement): boolean {
+  let p: ts.Node = ts.isJsxOpeningElement(node) ? node.parent.parent : node.parent;
+  while (ts.isParenthesizedExpression(p)) p = p.parent;
+  if (ts.isJsxExpression(p) && ts.isJsxAttribute(p.parent)) return RENDER_PROPS.has(p.parent.name.getText());
+  if (ts.isPropertyAssignment(p)) return RENDER_PROPS.has(p.name.getText());
+  return false;
 }
 
 const keyName = (n: ts.PropertyName | undefined): string | undefined =>
@@ -165,6 +175,8 @@ export function scanCode(path: string, text: string, ds: DesignSystemIndex): Cod
       const typeAttr = node.attributes.properties.find((p): p is ts.JsxAttribute => ts.isJsxAttribute(p) && p.name.getText(sf) === 'type');
       const type = typeAttr?.initializer && ts.isStringLiteral(typeAttr.initializer) ? typeAttr.initializer.text : undefined;
       if (name === 'input' && type === 'hidden') return;
+      // An anchor without href is not a link (named anchor, placeholder).
+      if (name === 'a' && !node.attributes.properties.some((p) => ts.isJsxAttribute(p) && p.name.getText(sf) === 'href')) return;
       const suggestion = nativeEquivalent(name, type, ds.components);
       out.components.push({ ...at, name, kind: 'native', library: 'native', ...(suggestion ? { suggestion } : {}) });
       return;
@@ -177,11 +189,22 @@ export function scanCode(path: string, text: string, ds: DesignSystemIndex): Cod
     const leaf = ns && name.includes('.') ? name.split('.').slice(1).join('.') : shown;
     if (imp) {
       const kind = classifyModule(imp.module, ds.packages, ds.foreignLibraries);
+      // Providers and other non-visual parts are not UI instances, from the DS or elsewhere.
+      if (isNonVisual(leaf.split('.').pop()!)) return;
       if (kind === 'ds') {
         out.ds[leaf] = (out.ds[leaf] ?? 0) + 1;
         return;
       }
-      if (isNonVisual(leaf.split('.').pop()!)) return;
+      if (kind === 'charts') {
+        out.components.push({ ...at, name: shown, kind: 'foreign', library: libraryLabel(imp.module, kind) });
+        return;
+      }
+      if (kind === 'other' && isRouterLink(imp.module, imp.imported === 'default' ? 'default' : leaf)) {
+        if (isRenderElement(node)) return;
+        const suggestion = ds.components.has('Link') ? 'Link' : undefined;
+        out.components.push({ ...at, name: shown, kind: 'foreign', library: libraryLabel(imp.module, kind), ...(suggestion ? { suggestion } : {}) });
+        return;
+      }
       if (kind === 'foreign' || kind === 'shadcn') {
         const suggestion = (ns ? dsEquivalent(root, ds.components) : undefined) ?? dsEquivalent(leaf, ds.components);
         out.components.push({ ...at, name: shown, kind: 'foreign', library: libraryLabel(imp.module, kind), ...(suggestion ? { suggestion } : {}) });

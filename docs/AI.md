@@ -219,7 +219,8 @@ bridge audit ../my-app/src --fix --write           # replace them with var(--tok
   brand, theme and density, lengths by the nearest scale step, with a confidence.
 - **Component adoption** = DS component instances / all UI component instances: DS, foreign libraries (MUI,
   react-admin, antd, Chakra, Radix, Headless UI, Mantine, shadcn/ui local components), native elements that
-  should be DS components (`button`, `input`, `select`, `textarea`, `dialog`, `table`) and local components
+  should be DS components (`button`, `input`, `select`, `textarea`, `dialog`, `table`, `a` with `href`, `img`), router links
+  outside a DS component's `render` prop, chart libraries (recharts...: no DS equivalent) and local components
   named like a DS component.
 - The JSON report is versioned (`packages/core/audit-report.schema.json`). Commit it under
   `apps/docs-site/src/data/audits/` and the docs site shows it on the Adoption page, with the trend across

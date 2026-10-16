@@ -4,6 +4,10 @@ Building a real back office (the react-admin e-commerce demo, migrated from MUI)
 design system does not cover yet. Rule followed in `apps/admin`: no hacks in app CSS. Each gap below lists
 what the app needed, what it used instead, and a proposal for the DS. Ordered by impact.
 
+The adoption audit (`bridge audit apps/admin/src`, Adoption page in the docs) counts these gaps as non-DS UI:
+row and card links built on ra-core `LinkBase`, product images (`img`), the skip link and the recharts revenue
+chart. That is why component adoption is 90%, not 100%: closing the Image, ListItem and Chart gaps closes it.
+
 ## Components
 
 | Need | Used instead | Proposal |

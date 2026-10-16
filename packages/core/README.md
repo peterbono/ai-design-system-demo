@@ -320,7 +320,10 @@ const report = runAudit('apps/admin/src', { ds: ds.root, label: 'admin', baselin
 - **Components**: JSX instances imported from the DS packages (`audit.packages`, default: the package that holds
   `components.dir`, plus `@bridge-ds/react`) versus foreign UI libraries (MUI, react-admin, antd, Chakra, Radix,
   Headless UI, Mantine, shadcn/ui local components...), native elements that should be DS components
-  (`button`, `input`, `select`, `textarea`, `dialog`, `table`) and local components named like a DS component.
+  (`button`, `input`, `select`, `textarea`, `dialog`, `table`, `a` with `href`, `img`), router links (react-router,
+  ra-core `LinkBase`, next/link) unless passed as a DS component's `render` element, chart libraries (recharts,
+  Nivo, Chart.js...: foreign with no DS equivalent) and local components named like a DS component. Providers and
+  other non-visual parts never count, DS ones included.
 - **Metrics**: token adoption = token references / (token references + hardcoded values); component adoption =
   DS instances / all UI instances. By category, top files, top fixes, per-file findings with line numbers.
 - **Baseline**: `compareWithBaseline(report, previous)` adds deltas per metric, category and file, and carries the

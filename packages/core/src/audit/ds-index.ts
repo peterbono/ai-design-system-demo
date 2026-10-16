@@ -75,6 +75,9 @@ function level(conf: number): Confidence {
 }
 const round = (n: number, d = 2) => Math.round(n * 10 ** d) / 10 ** d;
 
+/** Native elements counted as UI instances that a DS component should render: controls, links and images. */
+export const DEFAULT_NATIVE_ELEMENTS = ['button', 'input', 'select', 'textarea', 'dialog', 'table', 'a', 'img'];
+
 export class DesignSystemIndex {
   readonly cssVars = new Set<string>();
   readonly packages: string[];
@@ -91,7 +94,7 @@ export class DesignSystemIndex {
     this.packages = opts.packages;
     this.components = new Set(opts.components);
     this.foreignLibraries = opts.foreignLibraries ?? [];
-    this.nativeElements = opts.nativeElements ?? ['button', 'input', 'select', 'textarea', 'dialog', 'table'];
+    this.nativeElements = opts.nativeElements ?? DEFAULT_NATIVE_ELEMENTS;
     this.defaultCombo = set.defaultCombo;
     this.modes = set.combos().map(comboKey);
     const paths = set.allPaths();
