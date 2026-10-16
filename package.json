@@ -13,6 +13,7 @@
     "packages/tokens",
     "packages/core",
     "packages/react",
+    "packages/visual",
     "packages/mcp",
     "packages/cli",
     "apps/docs-site",
@@ -21,7 +22,7 @@
   ],
   "scripts": {
     "tokens:build": "npm run build -w @demo-ds/tokens",
-    "typecheck": "npm run tokens:build && npm run typecheck -w @bridge/core && npm run typecheck -w @demo-ds/react && npm run typecheck -w @demo-ds/docs-site && npm run plugin:typecheck && npm run typecheck -w @bridge/mcp && npm run typecheck -w @bridge/cli",
+    "typecheck": "npm run tokens:build && npm run typecheck -w @bridge/core && npm run typecheck -w @demo-ds/react && npm run typecheck -w @demo-ds/docs-site && npm run plugin:typecheck && npm run typecheck -w @bridge/visual && npm run typecheck -w @bridge/mcp && npm run typecheck -w @bridge/cli",
     "lint:css": "stylelint \"packages/react/src/**/*.css\" \"apps/docs-site/src/**/*.css\"",
     "test": "npm run tokens:build && vitest run",
     "test:watch": "vitest",

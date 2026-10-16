@@ -5,6 +5,7 @@ import { defineConfig } from 'vitest/config';
 //   core   @bridge/core, pure token logic (node)
 //   docs   docs-site data layer: token review, review rules, token editor model (node)
 //   admin  back-office demo data layer: browser persistence of the demo dataset (node)
+//   visual @bridge/visual: impact selection, pixel diff and manifest (node, no browser)
 export default defineConfig({
   esbuild: { jsx: 'automatic' },
   test: {
@@ -44,6 +45,14 @@ export default defineConfig({
           name: 'admin',
           environment: 'node',
           include: ['apps/admin/src/**/*.test.ts'],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: 'visual',
+          environment: 'node',
+          include: ['packages/visual/test/**/*.test.ts'],
         },
       },
     ],
