@@ -1,15 +1,16 @@
 ---
 // The single mount point for the token explorer, in the Library (mode "read") and in Studio Tokens (mode "edit").
-// To switch implementations, change the import below: both take { mode: 'read' | 'edit', focus?: string }.
-import Explorer from './LegacyTokenExplorer.astro';
+// Mount it once per page. Mode "edit" brings its own editing kit (tray, dialogs, full editor), so a page never adds
+// a second one. Deep links: ?focus=<token path or group> and the older ?t=<token path> both select on load.
+import TokenExplorer from './explorer/TokenExplorer.astro';
 
 interface Props {
   mode: 'read' | 'edit';
-  /** Token path to open on load. A ?t= in the URL wins. */
+  /** Token path (or group, like "color.text") to open on load. ?focus= or ?t= in the URL wins. */
   focus?: string;
 }
 
 const { mode, focus } = Astro.props;
 ---
 
-<Explorer mode={mode} focus={focus} />
+<TokenExplorer mode={mode} focus={focus} />

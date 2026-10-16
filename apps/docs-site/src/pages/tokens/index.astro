@@ -10,7 +10,7 @@ const updated = freshness(PAGE_SOURCES.explorer);
 const total = explorerTokens().length;
 ---
 
-<Layout title="Token explorer" description="Every token in the system: filter, search by name or hex, and open one to see its alias chain, values, contrast and usage." sources={PAGE_SOURCES.explorer} updated={updated} wide>
+<Layout title="Token explorer" description="Every token in the system by collection or type, with its value in every mode, alias chain, contrast and usage." sources={PAGE_SOURCES.explorer} updated={updated} wide>
   <script is:inline>
     // Old links to the editor (/tokens/?edit=1) now open Studio Tokens.
     (function () {
@@ -22,14 +22,14 @@ const total = explorerTokens().length;
     <div>
       <h1>Token explorer</h1>
       <p class="lead">
-        All {total} tokens across five tiers, straight from the token files of the latest release. Search by name, CSS variable, Figma name or
-        a hex from a mockup, then open a token to follow its alias chain in both themes and brands, check its contrast pairs and see which
-        components use it.
+        All {total} tokens from the token files of the latest release, in the same collections the Figma plugin creates, one column per mode.
+        Search by name, CSS variable or a hex from a mockup, then select a token to follow its alias chain, check its contrast pairs and see
+        which components use it.
       </p>
       <Updated date={updated} />
     </div>
     <div class="page-head-actions">
-      <a class="btn btn-secondary" href="/studio/tokens/"><Icon name="edit" size={16} />Edit in Studio</a>
+      <a class="btn btn-secondary" href="/studio/tokens/" data-xp-studio-link><Icon name="edit" size={16} />Edit in Studio</a>
     </div>
   </header>
   <TokenExplorerSlot mode="read" />

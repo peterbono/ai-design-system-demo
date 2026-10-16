@@ -447,11 +447,62 @@ async function propose(title: string, notes: string): Promise<number> {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
+// API for the token explorer (scripts/explorer/): inline cell edits go through the same draft, guardrails and tray.
+
+let setEditingImpl: ((on: boolean) => void) | null = null;
+
+/** Turns edit mode on or off (body.is-editing, the tray, the bridge:editing event). */
+export function setEditing(on: boolean) {
+  setEditingImpl?.(on);
+}
+
+export const editorReady = () => S !== null;
+
+/** Current state: the head set, the draft applied to it, guardrails and contrast before and after the draft. */
+export function editorSnapshot() {
+  if (!S) return null;
+  return {
+    head: S.head,
+    proposed: S.applied?.proposed ?? S.head,
+    draft: S.draft,
+    checks: S.checks,
+    contrastBefore: S.contrastBefore,
+    contrastAfter: S.contrastAfter,
+  };
+}
+
+/** Sets one mode of one token in the draft (an alias string like "{palette.neutral.600}" or a DTCG literal). */
+export function editValue(path: string, mode: string, value: unknown) {
+  const t = S?.head.byPath.get(path);
+  if (t) setValue(t, mode, value);
+}
+
+/** The value a token has in the draft for one mode (the head value when the draft does not touch it). */
+export function draftValue(path: string, mode: string): unknown {
+  const t = S?.head.byPath.get(path);
+  return t ? currentValue(t, mode) : undefined;
+}
+
+/** Same-type tokens a token may alias, following the tier rules. */
+export function aliasOptions(path: string): string[] {
+  const t = S?.head.byPath.get(path);
+  return S && t ? aliasCandidates(S.head, t) : [];
+}
+
+/** Drops every draft edit of one token. */
+export function undoToken(path: string) {
+  if (!S) return;
+  S.draft.edits = S.draft.edits.filter((x) => x.path !== path);
+  saveDraft();
+  recompute();
+}
 
 export function initTokenEditor() {
-  const filesEl = $('tx-files');
-  const cfgEl = $('tx-config');
-  const checksEl = $('bridge-contrast');
+  if (S) return;
+  // Token files, config and contrast pairs: from the token explorer component (xp-*), or the older page ids.
+  const filesEl = $('xp-files') ?? $('tx-files');
+  const cfgEl = $('xp-config') ?? $('tx-config');
+  const checksEl = $('xp-checks') ?? $('bridge-contrast');
   if (!filesEl || !cfgEl) return;
   const config = loadConfig(cfgEl.textContent || '{}');
   const originals = JSON.parse(filesEl.textContent || '{}') as Record<string, string>;
@@ -461,7 +512,7 @@ export function initTokenEditor() {
   initGitHubConnect(() => paintTray());
 
   const toggle = $<HTMLButtonElement>('tx-edit-toggle');
-  const setEditing = (on: boolean) => {
+  setEditingImpl = (on: boolean) => {
     document.body.classList.toggle('is-editing', on);
     toggle?.setAttribute('aria-pressed', String(on));
     try {
@@ -486,9 +537,8 @@ export function initTokenEditor() {
     if (document.body.classList.contains('is-editing')) renderEditor(path, slot);
   });
   recompute();
-  // The Studio editor is always in edit mode; elsewhere (the Drafts page) only the tray is shown.
-  const studioEditor = document.querySelector('[data-explorer-mode="edit"]') !== null;
-  if (studioEditor || startEditing || (S.draft.edits.length && !$('ed-tray')?.dataset.variant)) setEditing(true);
+  // Studio Tokens turns edit mode on itself (the explorer in mode "edit"); the Drafts page only shows the tray.
+  if (startEditing || (S.draft.edits.length && !$('ed-tray')?.dataset.variant)) setEditing(true);
   document.addEventListener('bridge:scope', () => paintPreview());
 
   const tray = $('ed-tray');

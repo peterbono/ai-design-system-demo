@@ -108,9 +108,9 @@ const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
               {failures.map(({ p, c, r }) => (
                 <tr id={`fail-${p.fg}-${p.bg}-${c.b}-${c.m}`.replace(/[^a-z0-9-]+/gi, '-')}>
                   <th scope="row">
-                    <a href={`/studio/tokens/?t=${encodeURIComponent(p.fg)}`} data-keep-branch>{p.fg}</a>
+                    <a href={`/studio/tokens/?focus=${encodeURIComponent(p.fg)}`} data-keep-branch>{p.fg}</a>
                     <span class="muted small"> on </span>
-                    <a href={`/studio/tokens/?t=${encodeURIComponent(p.bg)}`} data-keep-branch>{p.bg}</a>
+                    <a href={`/studio/tokens/?focus=${encodeURIComponent(p.bg)}`} data-keep-branch>{p.bg}</a>
                   </th>
                   <td>{comboLabel(c)}</td>
                   <td class="num"><strong>{r.ratio.toFixed(2)}:1</strong> <span class="chain">{r.fgHex} / {r.bgHex}</span></td>
