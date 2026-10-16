@@ -1,0 +1,88 @@
+.pagination {
+  --_size: var(--control-height-md);
+
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-200);
+}
+
+.sm {
+  --_size: var(--control-height-sm);
+}
+
+.list,
+.compact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.list > li {
+  display: inline-flex;
+}
+
+.page {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--_size);
+  height: var(--_size);
+  margin: 0;
+  padding: 0 var(--space-2);
+  border: var(--border-width-default) solid transparent;
+  border-radius: var(--radius-control);
+  background-color: transparent;
+  color: var(--color-text-default);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition-property: background-color, color;
+  transition-duration: var(--motion-duration-instant);
+  transition-timing-function: var(--motion-easing-standard);
+}
+
+@media (hover: hover) {
+  .page:hover:not(.current) {
+    background-color: var(--button-ghost-bg-hover);
+  }
+}
+
+.page:active:not(.current) {
+  background-color: var(--button-ghost-bg-active);
+}
+
+.page:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* Current page: selection is ink. */
+.current {
+  background-color: var(--color-control-checked-bg);
+  color: var(--color-control-checked-fg);
+  cursor: default;
+}
+
+.ellipsis {
+  align-items: center;
+  justify-content: center;
+  min-width: var(--_size);
+  color: var(--color-text-muted);
+}
+
+.status {
+  padding: 0 var(--space-2);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.number {
+  color: var(--color-text-default);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--font-weight-medium);
+}

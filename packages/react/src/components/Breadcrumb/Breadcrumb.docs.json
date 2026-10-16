@@ -1,0 +1,53 @@
+{
+  "summary": "Shows where the current page sits in the library hierarchy and links back to each level above it.",
+  "preview": { "c": "Breadcrumb", "p": { "items": [
+    { "label": "Components", "href": "#" },
+    { "label": "Forms", "href": "#" },
+    { "label": "Input" }
+  ] } },
+  "whenToUse": [
+    "Pages two or more levels deep in a hierarchy: a token inside a group, a component inside a family.",
+    "At the top of the page, above the page title.",
+    "maxItems on deep paths so the trail stays on one line; the middle levels stay one click away."
+  ],
+  "whenNotToUse": [
+    "Flat sites or the top level: there is nothing to go back up to.",
+    "Showing the steps of a flow: use a stepper. A breadcrumb shows location, not progress.",
+    "As the only navigation: it complements SidebarNav, it does not replace it."
+  ],
+  "dos": [
+    {
+      "title": "Mirror the hierarchy, not the history",
+      "text": "Each item is a parent of the next, whatever route the user took to get here.",
+      "example": { "c": "Breadcrumb", "p": { "items": [ { "label": "Tokens", "href": "#" }, { "label": "Color", "href": "#" }, { "label": "Signal" } ] } }
+    }
+  ],
+  "donts": [
+    {
+      "title": "Linking the current page",
+      "text": "The last item is where the user already is. It is text with aria-current, not a link.",
+      "example": { "c": "Breadcrumb", "p": { "items": [ { "label": "Tokens", "href": "#" }, { "label": "Signal", "href": "#" } ] } }
+    }
+  ],
+  "accessibility": [
+    "A nav landmark named \"Breadcrumb\" (override with aria-label), with an ordered list inside.",
+    "The last item has aria-current=\"page\".",
+    "Separators are icons hidden from assistive tech, so screen readers only read the levels.",
+    "The collapse button is named \"Show N more levels\" and expands the trail in place.",
+    "Truncated labels keep the full text in the title attribute and in the accessible name."
+  ],
+  "contentGuidelines": [
+    "Use the same names as the page titles they point to.",
+    "Sentence case, no punctuation.",
+    "Do not repeat the product or app name as the first item unless it is a real level."
+  ],
+  "anatomy": {
+    "breadcrumb": "Navigation landmark",
+    "list": "Ordered list",
+    "item": "Level",
+    "link": "Ancestor link",
+    "current": "Current page",
+    "separator": "Separator icon",
+    "ellipsis": "Collapse button"
+  }
+}

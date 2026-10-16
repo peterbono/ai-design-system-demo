@@ -1,0 +1,49 @@
+{
+  "summary": "Moves through a long list split into pages, like the token table or the review history. The first and last pages stay visible; the rest collapse into ellipses.",
+  "preview": { "c": "Pagination", "p": { "pageCount": 12, "defaultPage": 6 } },
+  "whenToUse": [
+    "Long, stable lists where users need to know where they are and jump back: token tables, audit logs.",
+    "Below the list it controls, aligned with the list's start or end edge.",
+    "compact in narrow spaces (side panels, mobile) and in card footers."
+  ],
+  "whenNotToUse": [
+    "Feeds the user skims once: load more or infinite scroll fit better.",
+    "Fewer than about 25 items: show them all.",
+    "Steps of a task: use a stepper."
+  ],
+  "dos": [
+    {
+      "title": "Keep the page in the URL",
+      "text": "Reloading or sharing the link should land on the same page. Control page and onPageChange from your router.",
+      "example": { "c": "Pagination", "p": { "pageCount": 12, "defaultPage": 3 } }
+    }
+  ],
+  "donts": [
+    {
+      "title": "Hiding previous and next at the ends",
+      "text": "Disabled previous on page 1 keeps the layout still and tells the user they are at the start.",
+      "example": { "c": "Pagination", "p": { "pageCount": 5, "defaultPage": 1 } }
+    }
+  ],
+  "accessibility": [
+    "A nav landmark named \"Pagination\" (override with aria-label when a page has several).",
+    "The current page button has aria-current=\"page\" and an ink fill, not color alone.",
+    "Page buttons are named \"Page N\"; previous and next are named \"Previous page\" and \"Next page\" and are disabled at the ends.",
+    "Ellipses are icons hidden from assistive tech.",
+    "In compact, the \"Page 3 of 12\" text is a polite live region, so page changes are announced."
+  ],
+  "contentGuidelines": [
+    "Use \"Previous\" and \"Next\", not arrows alone or \"Back\" and \"Forward\".",
+    "Show the total count of items near the list (\"412 tokens\"), not inside the pagination."
+  ],
+  "anatomy": {
+    "pagination": "Navigation landmark",
+    "list": "Page list (full)",
+    "page": "Page button",
+    "current": "Current page",
+    "ellipsis": "Ellipsis",
+    "compact": "Compact layout",
+    "status": "Page N of M text",
+    "number": "Number in the status"
+  }
+}

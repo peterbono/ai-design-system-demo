@@ -39,3 +39,9 @@ export * from './components/Drawer';
 export * from './components/Popover';
 export * from './components/Tooltip';
 export * from './components/Menu';
+
+// Navigation
+export * from './components/Tabs';
+export * from './components/Breadcrumb';
+export * from './components/Pagination';
+export * from './components/SidebarNav';

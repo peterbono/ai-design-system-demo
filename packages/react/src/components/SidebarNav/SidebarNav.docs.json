@@ -1,0 +1,72 @@
+{
+  "summary": "The app's side navigation: sections of links to the main areas of Bridge, with the current page marked by a signal mark and an ink label.",
+  "preview": { "c": "SidebarNav", "p": { "aria-label": "Library" }, "children": [
+    { "c": "SidebarNavSection", "p": { "title": "Library" }, "children": [
+      { "c": "SidebarNavItem", "p": { "href": "#", "active": true }, "children": ["Tokens"] },
+      { "c": "SidebarNavItem", "p": { "href": "#" }, "children": ["Components"] },
+      { "c": "SidebarNavItem", "p": { "href": "#", "count": 3 }, "children": ["Reviews"] }
+    ] }
+  ] },
+  "whenToUse": [
+    "Primary navigation of an app with more than five areas, in a left rail that stays visible.",
+    "Group items into titled sections by task (Library, Governance, Workspace).",
+    "collapsible on sections users rarely need, so the rail stays short.",
+    "count for items that need attention, like reviews waiting for you."
+  ],
+  "whenNotToUse": [
+    "Switching views inside one page: use Tabs.",
+    "Fewer than five destinations: a top bar is enough.",
+    "Actions (Create token, Sync from Figma): put them in the page header as Buttons, not in the navigation."
+  ],
+  "dos": [
+    {
+      "title": "Mark exactly one current page",
+      "text": "active on the item for the current URL, including when the user is on a child page of it.",
+      "example": { "c": "SidebarNav", "p": { "aria-label": "Example" }, "children": [
+        { "c": "SidebarNavSection", "children": [
+          { "c": "SidebarNavItem", "p": { "href": "#", "active": true }, "children": ["Tokens"] },
+          { "c": "SidebarNavItem", "p": { "href": "#" }, "children": ["Components"] }
+        ] }
+      ] }
+    }
+  ],
+  "donts": [
+    {
+      "title": "Icons on some items only",
+      "text": "A ragged column of icons breaks the scan line. Use icons on every item of a section or none.",
+      "example": { "c": "SidebarNav", "p": { "aria-label": "Mixed" }, "children": [
+        { "c": "SidebarNavSection", "children": [
+          { "c": "SidebarNavItem", "p": { "href": "#" }, "children": ["Tokens"] },
+          { "c": "SidebarNavItem", "p": { "href": "#" }, "children": ["Components"] }
+        ] }
+      ] }
+    }
+  ],
+  "accessibility": [
+    "A nav landmark: give it an aria-label when the page has other navigation (Breadcrumb, Pagination).",
+    "Each section is a list labelled by its title.",
+    "The current item has aria-current=\"page\". It also gets a 2px signal mark and ink text, so color is not the only cue.",
+    "Collapsible section titles are buttons with aria-expanded (Base UI Collapsible); Enter and Space toggle them.",
+    "Items are full-width targets at the menu item height (36px comfortable, 30px compact)."
+  ],
+  "contentGuidelines": [
+    "Name destinations with nouns users know: \"Tokens\", \"Reviews\", \"Settings\".",
+    "Section titles are short nouns in sentence case, not all caps.",
+    "Counts are numbers only; explain them on the destination page."
+  ],
+  "anatomy": {
+    "sidebar": "Navigation landmark",
+    "section": "Section",
+    "title": "Section title",
+    "trigger": "Collapsible title button",
+    "chevron": "Collapse chevron",
+    "panel": "Collapsible panel",
+    "list": "Link list",
+    "item": "Link",
+    "active": "Current page",
+    "indicator": "Signal mark",
+    "icon": "Icon",
+    "label": "Label",
+    "count": "Count"
+  }
+}
