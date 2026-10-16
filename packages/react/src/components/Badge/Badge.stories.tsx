@@ -5,8 +5,11 @@ const meta = {
   title: 'Components/Badge',
   component: Badge,
   tags: ['autodocs'],
-  args: { children: 'Draft', tone: 'neutral' },
-  argTypes: { tone: { control: 'select', options: ['neutral', 'success', 'warning', 'danger', 'info'] } },
+  args: { children: 'Draft', tone: 'neutral', appearance: 'solid' },
+  argTypes: {
+    tone: { control: 'select', options: ['neutral', 'success', 'warning', 'danger', 'info'] },
+    appearance: { control: 'inline-radio', options: ['solid', 'subtle'] },
+  },
 } satisfies Meta<typeof Badge>;
 
 export default meta;
@@ -26,6 +29,20 @@ export const AllTones: Story = {
       <Badge tone="warning">Needs review</Badge>
       <Badge tone="danger">Failed</Badge>
       <Badge tone="info">Beta</Badge>
+    </div>
+  ),
+};
+
+export const Subtle: Story = { args: { appearance: 'subtle', tone: 'success', children: 'Published' } };
+
+export const AllTonesSubtle: Story = {
+  render: () => (
+    <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+      <Badge appearance="subtle" tone="neutral">Draft</Badge>
+      <Badge appearance="subtle" tone="success">Published</Badge>
+      <Badge appearance="subtle" tone="warning">Needs review</Badge>
+      <Badge appearance="subtle" tone="danger">Failed</Badge>
+      <Badge appearance="subtle" tone="info">Beta</Badge>
     </div>
   ),
 };
