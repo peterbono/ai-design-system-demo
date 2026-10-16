@@ -115,6 +115,7 @@ describe('bridge audit on fixtures', () => {
     assert.equal(byValue('1200')!.suggestion!.token, 'layer.modal');
     assert.ok(!app.findings.some((f) => f.value === '2'), 'sx p: 2 is a theme spacing unit, not a hardcoded value');
     assert.equal(app.components.find((c) => c.name === 'TextField')!.suggestion, 'Input');
+    assert.equal(app.components.filter((c) => c.name === 'Card').length, 2, 'styled(Card) renders a MUI Card');
     assert.equal(app.components.find((c) => c.name === 'button')!.suggestion, 'Button');
     const theme = r.files.find((f) => f.path === 'src/theme.ts')!;
     assert.deepEqual(theme.findings.map((f) => f.category).sort(), ['color', 'color', 'font-family', 'radius']);

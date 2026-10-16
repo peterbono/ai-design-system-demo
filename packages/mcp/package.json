@@ -37,6 +37,7 @@
   "dependencies": {
     "@bridge/core": "*",
     "@modelcontextprotocol/sdk": "1.31.0",
+    "typescript": "5.9.3",
     "zod": "3.25.76"
   },
   "devDependencies": {

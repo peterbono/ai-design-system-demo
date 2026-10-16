@@ -3,7 +3,8 @@
 import { existsSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join, relative, resolve } from 'node:path';
-import { originRepo } from '@bridge/core/node';
+import { auditMarkdown, type AuditReport } from '@bridge/core/audit';
+import { findDesignSystemRoot, fixCss, loadDesignSystem, originRepo, runAudit } from '@bridge/core/node';
 import { fileURLToPath } from 'node:url';
 import { BridgeContext, CONFIG_FILE, core, detectConfig, GitRefSource, LocalSource, ops, optionsFromArgv, serveStdio, toConfigJson, VERSION, type BridgeConfig } from '@bridge/mcp';
 
@@ -17,10 +18,18 @@ Usage:
   bridge propose --title "..." --set path=value [--set ...] [--file f | --mode theme=dark]
                  [--edits edits.json] [--summary "..."] [--dry-run]
                                       validate + contrast + new local bridge/* branch (never pushes)
+  bridge audit <path> [--json [out.json]] [--md [out.md]] [--fail-under 80] [--baseline prev.json]
+               [--label "..."] [--ds dir] [--no-regress]
+                                      design system adoption in a product folder: token and component
+                                      adoption, hardcoded values with the closest token, top files.
+                                      Exit 0 ok, 1 under --fail-under or regressed, 2 setup error
+  bridge audit <path> --fix [--write] safe autofix: CSS values equal to a token become var(--token).
+                                      Dry run unless --write
   bridge mcp [--root dir | --repo owner/name]   start the MCP server on stdio
 
 Options:
   --root <dir>   repo root (default: current directory)
+  --ds <dir>     audit: design system repo with bridge.config.json (default: --root, or the nearest one above)
   GITHUB_TOKEN   env, optional: lets the MCP server open PRs on a remote repo. Never needed for local use.
 `;
 
@@ -34,7 +43,10 @@ function parse(argv: string[]): Args {
     const a = argv[i]!;
     if (a.startsWith('--')) {
       const [k, inline] = a.slice(2).split(/=(.*)/s, 2) as [string, string | undefined];
-      const takesValue = inline === undefined && argv[i + 1] !== undefined && !argv[i + 1]!.startsWith('--') && !['force', 'json', 'md', 'strict', 'dry-run', 'help'].includes(k);
+      const next = argv[i + 1];
+      // --json and --md print to stdout, or write a file when followed by one (bridge audit).
+      const fileArg = (k === 'json' && /\.json$/i.test(next ?? '')) || (k === 'md' && /\.(md|markdown)$/i.test(next ?? ''));
+      const takesValue = inline === undefined && next !== undefined && !next.startsWith('--') && (fileArg || !['force', 'json', 'md', 'strict', 'dry-run', 'help', 'fix', 'write', 'no-regress'].includes(k));
       (out.flags[k] ??= []).push(inline ?? (takesValue ? argv[++i]! : 'true'));
     } else out._.push(a);
   }
@@ -181,6 +193,81 @@ async function propose(a: Args, root: string): Promise<number> {
   return r.status === 'blocked' ? 1 : 0;
 }
 
+async function audit(a: Args, root: string): Promise<number> {
+  const target = a._[1];
+  if (!target) throw new UsageError('bridge audit <path>   (a product folder or file that uses the design system)');
+  if (!existsSync(target)) throw new UsageError(`No such file or folder: ${target}`);
+  const dsRoot = flag(a, 'ds') ? resolve(flag(a, 'ds')!) : existsSync(join(root, CONFIG_FILE)) ? root : findDesignSystemRoot(root);
+  if (!dsRoot) throw new UsageError(`No ${CONFIG_FILE} found: run bridge audit from the design system repo or pass --ds <dir>.`);
+  const ds = loadDesignSystem(dsRoot);
+  if (has(a, 'fix')) {
+    const write = has(a, 'write');
+    const changes = fixCss(target, ds.index, write);
+    const n = changes.reduce((acc, c) => acc + c.edits.length, 0);
+    for (const c of changes) for (const e of c.edits) print(`${c.file}:${e.line}:${e.column}  ${e.from} -> ${e.to}`);
+    print(n ? `${write ? 'Replaced' : 'Would replace'} ${n} value(s) in ${changes.length} file(s) with exact token matches.${write ? '' : ' Run again with --write to apply.'}` : 'Nothing to fix: no CSS value equals a token exactly.');
+    return 0;
+  }
+  const baselinePath = flag(a, 'baseline');
+  let baseline: AuditReport | undefined;
+  if (baselinePath) {
+    if (!existsSync(baselinePath)) throw new UsageError(`Baseline not found: ${baselinePath}`);
+    baseline = JSON.parse(await readFile(baselinePath, 'utf8')) as AuditReport;
+  }
+  const label = flag(a, 'label');
+  const report = runAudit(target, { ds: dsRoot, version: VERSION, ...(label ? { label } : {}), ...(baseline ? { baseline } : {}) });
+  const md = auditMarkdown(report);
+  const jsonOut = flag(a, 'json');
+  const mdOut = flag(a, 'md');
+  if (jsonOut && jsonOut !== 'true') await writeFile(jsonOut, `${JSON.stringify(report, null, 2)}\n`);
+  if (mdOut && mdOut !== 'true') await writeFile(mdOut, `${md}\n`);
+  if (jsonOut === 'true') print(JSON.stringify(report, null, 2));
+  else if (mdOut === 'true') print(md);
+  else {
+    const m = report.metrics;
+    print(`bridge audit ${report.target.path}: ${report.target.files} files`);
+    print(`  token adoption      ${m.tokenAdoption ?? 'n/a'}${m.tokenAdoption === null ? '' : '%'}  (${m.tokenUsages} token refs, ${m.hardcoded} hardcoded, ${m.themeRefs} other theme refs)`);
+    print(`  component adoption  ${m.componentAdoption ?? 'n/a'}${m.componentAdoption === null ? '' : '%'}  (${m.dsComponentInstances} of ${m.uiComponentInstances} UI component instances)`);
+    if (report.baseline) {
+      const b = report.baseline;
+      const d = (x: number | null) => (x === null ? 'n/a' : `${x > 0 ? '+' : ''}${x} pts`);
+      print(`  since baseline      tokens ${d(b.tokenAdoption.delta)}, components ${d(b.componentAdoption.delta)}, hardcoded ${b.hardcoded.delta > 0 ? '+' : ''}${b.hardcoded.delta}; ${b.improved.length} files improved, ${b.regressed.length} regressed`);
+    }
+    const cats = Object.entries(report.byCategory).map(([k, v]) => `${k} ${v.hardcoded}`).join(', ');
+    if (cats) print(`  hardcoded by category: ${cats}`);
+    if (report.topFiles.length) {
+      print('  top files:');
+      for (const f of report.topFiles.slice(0, 5)) print(`    ${f.path}  ${f.hardcoded} hardcoded, ${f.otherComponents} non-DS components`);
+    }
+    const fixes = report.topFixes.filter((f) => f.suggestion).slice(0, 5);
+    if (fixes.length) {
+      print('  top fixes:');
+      for (const f of fixes) print(`    ${f.value} -> var(${f.suggestion!.cssVar})  ${f.suggestion!.level}, ${f.count}x`);
+    }
+    if (jsonOut) print(`Wrote ${jsonOut}`);
+    if (mdOut) print(`Wrote ${mdOut}`);
+  }
+  let code = 0;
+  const failUnder = flag(a, 'fail-under');
+  if (failUnder !== undefined) {
+    const min = Number(failUnder);
+    if (!Number.isFinite(min)) throw new UsageError('--fail-under needs a number, e.g. --fail-under 80');
+    const low = (['tokenAdoption', 'componentAdoption'] as const).filter((k) => report.metrics[k] !== null && report.metrics[k]! < min);
+    if (low.length) {
+      process.stderr.write(`bridge audit: ${low.map((k) => `${k === 'tokenAdoption' ? 'token' : 'component'} adoption ${report.metrics[k]}%`).join(' and ')} under ${min}%\n`);
+      code = 1;
+    }
+  }
+  if (has(a, 'no-regress') && report.baseline) {
+    const b = report.baseline;
+    if ((b.tokenAdoption.delta ?? 0) < 0 || (b.componentAdoption.delta ?? 0) < 0 || b.hardcoded.delta > 0) {
+      process.stderr.write('bridge audit: adoption regressed since the baseline\n');
+      code = 1;
+    }
+  }
+  return code;
+}
+
 class UsageError extends Error {}
 
 async function main(): Promise<number> {
@@ -206,6 +293,8 @@ async function main(): Promise<number> {
       return diff(a, root);
     case 'propose':
       return propose(a, root);
+    case 'audit':
+      return audit(a, root);
     case 'mcp':
       await serveStdio(optionsFromArgv(argv.slice(1)));
       return -1;

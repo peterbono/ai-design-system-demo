@@ -33,3 +33,6 @@ export function App() {
     </Box>
   );
 }
+
+const Panel = styled(Card)({ padding: 8 });
+export const Side = () => <Panel />;

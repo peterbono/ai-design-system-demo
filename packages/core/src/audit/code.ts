@@ -214,6 +214,12 @@ export function scanCode(path: string, text: string, ds: DesignSystemIndex): Cod
       const init = node.initializer;
       if (/^[A-Z]/.test(name) && init && (ts.isArrowFunction(init) || ts.isFunctionExpression(init) || (ts.isCallExpression(init) && /^(React\.)?(forwardRef|memo)$/.test(init.expression.getText(sf)))))
         out.definitions.push({ name, line: pos(node.getStart(sf)).line });
+      // const Root = styled(Card)(...): Root renders the imported component, same library.
+      if (init && ts.isCallExpression(init) && ts.isCallExpression(init.expression) && init.expression.expression.getText(sf) === 'styled') {
+        const base = init.expression.arguments[0];
+        const from = base && ts.isIdentifier(base) ? imports.get(base.text) : undefined;
+        if (from) imports.set(name, { ...from, imported: from.imported === 'default' || from.imported === '*' ? base!.getText(sf) : from.imported });
+      }
       const declCtx = contextForDeclaration(name, node.type?.getText(sf) ?? '');
       if (declCtx && init) {
         visit(init, declCtx, classCtx);
