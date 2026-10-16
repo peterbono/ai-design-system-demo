@@ -1,6 +1,7 @@
 ---
 import '../../../styles/settings.css';
 import Layout from '../../../layouts/Layout.astro';
+import StudioHeader from '../../../components/StudioHeader.astro';
 import GitHubConnect from '../../../components/GitHubConnect.astro';
 import Icon from '../../../components/Icon.astro';
 import { siteRepo } from '../../../lib/config';
@@ -13,12 +14,7 @@ const tokenUrl = `https://github.com/settings/personal-access-tokens/new?descrip
 ---
 
 <Layout title="Integrations" description="Connect GitHub to act in the Studio, the DS Bridge Figma plugin, and the MCP server for your own Claude." sources={['docs/AI.md', 'apps/figma-plugin/README.md']}>
-  <header class="page-head">
-    <div>
-      <h1>Integrations</h1>
-      <p class="lead">Three ways Bridge talks to the tools around it. Each one works on its own, and none of them needs a Bridge account or server.</p>
-    </div>
-  </header>
+  <StudioHeader title="Integrations" subtitle="Each works on its own. None needs a Bridge account or server." />
 
   <section class="set-card" aria-labelledby="int-gh">
     <span class="path-icon" aria-hidden="true"><Icon name="github" /></span>

@@ -1,6 +1,7 @@
 ---
 import '../../styles/studio.css';
 import Layout from '../../layouts/Layout.astro';
+import StudioHeader from '../../components/StudioHeader.astro';
 import Icon from '../../components/Icon.astro';
 import { loadComponents, type ComponentInfo } from '../../lib/components';
 import { sourceUrl, STORYBOOK_URL } from '../../lib/repo';
@@ -29,15 +30,7 @@ const count = (s: string) => components.filter((c) => statusOf(c) === s).length;
   updated={updated}
   wide
 >
-  <header class="page-head">
-    <div>
-      <h1>Components</h1>
-      <p class="lead">
-        Where each component stands: lifecycle status, usage guidance, the tokens it reads and where its code lives. Components change in code
-        through a pull request; their look changes here through their tokens.
-      </p>
-    </div>
-  </header>
+  <StudioHeader title="Components" subtitle="Status, guidance, tokens and code of every component. Their look changes through their tokens." />
 
   <ul class="st-summary" aria-label="Summary">
     <li><strong class="num">{components.length}</strong> components</li>

@@ -4,6 +4,7 @@ import '../../styles/reviews.css';
 import '../../styles/studio.css';
 import Layout from '../../layouts/Layout.astro';
 import Icon from '../../components/Icon.astro';
+import StudioHeader from '../../components/StudioHeader.astro';
 import Donut from '../../components/charts/Donut.astro';
 import StackedBars from '../../components/charts/StackedBars.astro';
 import ContrastWaffle from '../../components/charts/ContrastWaffle.astro';
@@ -11,7 +12,6 @@ import { releases } from '../../lib/changelog';
 import { GITHUB_URL } from '../../lib/repo';
 import { PAGE_SOURCES, freshness } from '../../lib/sources';
 import { dashboard, humanDate, repoStatus } from '../../lib/stats';
-import type { IconName } from '../../brand/icons';
 
 const s = dashboard();
 const repo = repoStatus();
@@ -20,17 +20,9 @@ const ratePct = Math.round(s.contrast.rate * 1000) / 10;
 
 const recent = releases()
   .flatMap((r) => r.entries.map((e) => ({ ...e, release: r.name, pending: r.pending, date: e.date ?? r.date })))
-  .slice(0, 6);
+  .slice(0, 8);
 const kindTone: Record<string, string> = { Breaking: 'is-fail', New: 'is-info', Fix: 'is-pass', Docs: 'is-accent' };
 
-const flow: { icon: IconName; title: string; text: string }[] = [
-  { icon: 'figma', title: 'Propose in Figma', text: 'DS Bridge turns a variable or component change into a pull request.' },
-  { icon: 'pr', title: 'Pull request', text: 'A diff on a branch, with a risk tier and a changelog entry.' },
-  { icon: 'ci', title: 'CI guardrails', text: 'Tokens build, types check, no raw colors, Storybook builds.' },
-  { icon: 'review', title: 'Design and tech review', text: 'Both themes, contrast and focus checked. Token changes need both owners.' },
-  { icon: 'merge', title: 'Merge', text: 'A person who owns the area merges. Agents never do.' },
-  { icon: 'doc', title: 'Docs update', text: 'This app, llms.txt and Figma variables rebuild from the same files.' },
-];
 
 ---
 
@@ -41,243 +33,217 @@ const flow: { icon: IconName; title: string; text: string }[] = [
   updated={freshness(PAGE_SOURCES.home)}
   wide
 >
-  <header class="page-head">
-    <div>
-      <h1>Overview</h1>
-      <p class="lead">What waits for a decision, how healthy the system is, and what changed lately. Every number comes from the repository as it was built, plus open pull requests read live from GitHub.</p>
-    </div>
-    <div class="page-head-actions">
-      <a class="btn btn-secondary" href="/studio/drafts/" data-keep-branch><Icon name="draft" size={16} />Drafts</a>
-      <a class="btn btn-primary" href="/studio/tokens/" data-keep-branch><Icon name="edit" size={16} />Edit tokens</a>
-    </div>
-  </header>
+  <StudioHeader title="Overview" />
 
-  <section class="panel st-review" aria-labelledby="st-review-title">
-    <header class="panel-head">
-      <h3 id="st-review-title">To review</h3>
-      <a href="/studio/reviews/" class="panel-link" data-keep-branch>All reviews</a>
+  <section class="ov-kpis" aria-label="System at a glance">
+    <a class="ov-kpi" href="/studio/tokens/" data-keep-branch>
+      <span class="ov-kpi-label">Tokens</span>
+      <strong class="ov-kpi-value num">{s.total}</strong>
+      <span class="ov-kpi-sub num">{s.semantic} semantic, {s.componentTokens} component</span>
+    </a>
+    <a class="ov-kpi" href="/playground/">
+      <span class="ov-kpi-label">Modes</span>
+      <strong class="ov-kpi-value num">{s.brands * s.themes * s.densities}</strong>
+      <span class="ov-kpi-sub num">{s.brands} brands, {s.themes} themes, {s.densities} densities</span>
+    </a>
+    <a class="ov-kpi" href="/studio/components/" data-keep-branch>
+      <span class="ov-kpi-label">Components</span>
+      <strong class="ov-kpi-value num">{s.components}</strong>
+      <span class="ov-kpi-sub num">{s.documented} with guidance</span>
+    </a>
+    <a class="ov-kpi" href="/studio/checks/" data-keep-branch>
+      <span class="ov-kpi-label">Contrast AA</span>
+      <strong class="ov-kpi-value num">{ratePct}%</strong>
+      <span class:list={['ov-kpi-sub', 'num', { 'is-fail': failing > 0 }]}>
+        {failing > 0 ? `${failing} of ${s.contrast.total} failing` : `All ${s.contrast.total} pass`}
+      </span>
+    </a>
+    <a class="ov-kpi" href="/studio/reviews/" data-open-reviews data-keep-branch>
+      <span class="ov-kpi-label">Open reviews</span>
+      <strong class="ov-kpi-value num" data-open-count>&nbsp;</strong>
+      <span class="ov-kpi-sub num" data-open-sub>Last change {humanDate(repo.lastChange)}</span>
+    </a>
+  </section>
+
+  <section class="ov-panel" aria-labelledby="ov-needs-title">
+    <header class="ov-panel-head">
+      <h2 id="ov-needs-title" class="st-section-title">Needs you</h2>
+      <a href="/studio/reviews/" class="ov-panel-link" data-keep-branch>All reviews</a>
     </header>
-    <ul class="st-review-list" id="st-review-list" aria-busy="true">
-      <li class="rv-skel" aria-hidden="true"></li>
-      <li class="rv-skel" aria-hidden="true"></li>
+    <ul class="ov-list" id="st-review-list" aria-busy="true" aria-live="polite">
+      <li class="ov-skel" aria-hidden="true"></li>
+      <li class="ov-skel" aria-hidden="true"></li>
     </ul>
-    <p class="st-review-foot muted small" id="st-drafts-line">
+    <p class="ov-drafts" id="st-drafts-line" hidden>
       <Icon name="draft" size={14} />
-      <span><a href="/studio/drafts/" data-keep-branch>Drafts in this browser</a>: <strong class="num" data-drafts-count>0</strong></span>
+      <a href="/studio/drafts/" data-keep-branch><span class="num" data-drafts-count>0</span> <span data-drafts-word>draft changes</span> in this browser</a>
     </p>
   </section>
 
-  <section class="kpis" aria-label="System at a glance">
-    <a class="kpi" href="/studio/tokens/" data-keep-branch>
-      <span class="kpi-label">Tokens</span>
-      <strong class="kpi-value num">{s.total}</strong>
-      <span class="kpi-sub num">{s.primitives} primitive, {s.brandTokens} brand, {s.semantic} semantic, {s.componentTokens} component</span>
-    </a>
-    <a class="kpi" href="/playground/">
-      <span class="kpi-label">Modes</span>
-      <strong class="kpi-value num">{s.brands * s.themes * s.densities}</strong>
-      <span class="kpi-sub num">{s.brands} brands x {s.themes} themes x {s.densities} densities</span>
-    </a>
-    <a class="kpi" href="/studio/components/" data-keep-branch>
-      <span class="kpi-label">Components</span>
-      <strong class="kpi-value num">{s.components}</strong>
-      <span class="kpi-sub num">{s.documented} with usage guidance</span>
-    </a>
-    <a class="kpi" href="/studio/checks/" data-keep-branch>
-      <span class="kpi-label">Contrast AA</span>
-      <strong class="kpi-value num">{ratePct}<small>%</small></strong>
-      <span class:list={['kpi-sub', 'num', { 'is-fail': failing > 0 }]}>
-        {failing > 0 ? `${failing} failing of ${s.contrast.total} checks` : `All ${s.contrast.total} checks pass`}
-      </span>
-    </a>
-    <a class="kpi" href="/studio/reviews/" data-open-reviews data-keep-branch>
-      <span class="kpi-label">Open reviews</span>
-      <strong class="kpi-value num" data-open-count>&nbsp;</strong>
-      <span class="kpi-sub num" data-open-sub>
-        Last change {humanDate(repo.lastChange)}, <span class="mono">{repo.sha}</span>
-      </span>
-    </a>
-  </section>
+  <div class="ov-duo">
+    <section class="ov-panel" aria-labelledby="ov-activity-title">
+      <header class="ov-panel-head">
+        <h2 id="ov-activity-title" class="st-section-title">Recent activity</h2>
+        <a href="/studio/versions/" class="ov-panel-link" data-keep-branch>Versions</a>
+      </header>
+      {
+        recent.length === 0 ? (
+          <p class="ov-empty">No changes recorded yet.</p>
+        ) : (
+          <ul class="ov-list">
+            {recent.map((e) => (
+              <li class="ov-act">
+                <span class={`pill ${kindTone[e.kind] ?? ''}`}>{e.kind}</span>
+                <span class="ov-act-title">{e.title}</span>
+                {e.source === 'commit' && e.ref ? (
+                  <a href={`${GITHUB_URL}/commit/${e.ref}`} class="mono ov-act-ref">{e.ref}</a>
+                ) : (
+                  <span class="ov-act-ref" title={e.release}>{e.pending ? 'Unreleased' : e.release}</span>
+                )}
+                <span class="ov-act-date num">{e.date ? humanDate(e.date) : e.pending ? 'Unreleased' : ''}</span>
+              </li>
+            ))}
+          </ul>
+        )
+      }
+    </section>
 
-  <section class="charts" aria-labelledby="charts-title">
-    <h2 id="charts-title" class="sr-only">Token and contrast charts</h2>
-    <article class="panel chart-panel">
-      <header class="panel-head">
-        <h3>Tokens by type</h3>
-        <a href="/tokens/" class="panel-link">Explorer</a>
-      </header>
-      <Donut data={s.byType} total={s.total} centerLabel="tokens" label="Tokens by type" />
-    </article>
-    <article class="panel chart-panel">
-      <header class="panel-head">
-        <h3>Categories and layers</h3>
-        <a href="/foundations/color/" class="panel-link">Foundations</a>
-      </header>
-      <StackedBars rows={s.byCategory} />
-    </article>
-    <article class="panel chart-panel">
-      <header class="panel-head">
-        <h3>Contrast checks</h3>
-        <a href="/studio/checks/" class="panel-link" data-keep-branch>Checks</a>
-      </header>
-      <ContrastWaffle />
-    </article>
-  </section>
-
-  <section class="duo">
-    <article class="panel health" aria-labelledby="health-title">
-      <header class="panel-head">
-        <h3 id="health-title">Health</h3>
-        <span class="muted small num">{s.issues.length} {s.issues.length === 1 ? 'item' : 'items'}</span>
+    <section class="ov-panel" aria-labelledby="ov-health-title">
+      <header class="ov-panel-head">
+        <h2 id="ov-health-title" class="st-section-title">Health</h2>
+        <span class="ov-panel-meta num">{s.issues.length} {s.issues.length === 1 ? 'item' : 'items'}</span>
       </header>
       {
         s.issues.length === 0 ? (
-          <p class="empty">
-            <Icon name="check" /> Nothing to fix. Every contrast pair passes, every token is used and nothing is deprecated.
-          </p>
+          <p class="ov-empty"><Icon name="check" size={16} /> Nothing to fix. Every contrast pair passes, every token is used and nothing is deprecated.</p>
         ) : (
-          <ul class="issues">
+          <ul class="ov-list">
             {s.issues.map((i) => (
-              <li class={`issue is-${i.severity}`}>
-                <span class="issue-icon">
-                  <Icon name={i.severity === 'fail' ? 'x' : i.severity === 'warn' ? 'alert' : 'info'} size={18} />
+              <li class={`ov-issue is-${i.severity}`}>
+                <span class="ov-issue-icon">
+                  <Icon name={i.severity === 'fail' ? 'x' : i.severity === 'warn' ? 'alert' : 'info'} size={16} />
                 </span>
-                <span class="issue-body">
-                  <a href={i.href} class="issue-title">
-                    {i.title}
-                  </a>
-                  <span class="issue-detail">{i.detail}</span>
-                </span>
-                <span class={`pill is-${i.severity === 'fail' ? 'fail' : i.severity === 'warn' ? 'warn' : 'info'}`}>
-                  {i.severity === 'fail' ? 'Fix' : i.severity === 'warn' ? 'Review' : 'Note'}
+                <span class="ov-issue-body">
+                  <a href={i.href} class="ov-issue-title">{i.title}</a>
+                  <span class="ov-issue-detail">{i.detail}</span>
                 </span>
               </li>
             ))}
           </ul>
         )
       }
-      <p class="health-foot muted small">
-        {s.deprecated.length === 0 ? 'No deprecated tokens.' : `${s.deprecated.length} deprecated tokens.`} Checked on every build from the
-        token files, component CSS and contrast pairs.
-      </p>
-    </article>
+    </section>
+  </div>
 
-    <article class="panel recent" aria-labelledby="recent-title">
-      <header class="panel-head">
-        <h3 id="recent-title">Activity</h3>
-        <a href="/studio/versions/" class="panel-link" data-keep-branch>Versions</a>
+  <section class="ov-charts" aria-labelledby="charts-title">
+    <h2 id="charts-title" class="sr-only">Token and contrast charts</h2>
+    <article class="ov-panel chart-panel">
+      <header class="ov-panel-head">
+        <h3 class="st-section-title">Tokens by type</h3>
+        <a href="/studio/tokens/" class="ov-panel-link" data-keep-branch>Tokens</a>
       </header>
-      {
-        recent.length === 0 ? (
-          <p class="empty">No changes recorded yet.</p>
-        ) : (
-          <ol class="timeline">
-            {recent.map((e) => (
-              <li>
-                <span class="tl-node" aria-hidden="true" />
-                <div class="tl-head">
-                  <span class={`pill ${kindTone[e.kind] ?? ''}`}>{e.kind}</span>
-                  <span class="tl-date num">{e.date ? humanDate(e.date) : e.pending ? 'Pending' : ''}</span>
-                </div>
-                <p class="tl-title">{e.title}</p>
-                <p class="tl-ref">
-                  {e.source === 'commit' ? (
-                    <a href={`${GITHUB_URL}/commit/${e.ref}`} class="mono">
-                      {e.ref}
-                    </a>
-                  ) : (
-                    <span class="mono">{e.ref}</span>
-                  )}
-                </p>
-              </li>
-            ))}
-          </ol>
-        )
-      }
+      <Donut data={s.byType} total={s.total} centerLabel="tokens" label="Tokens by type" />
     </article>
-  </section>
-
-  <section class="flow-band" aria-labelledby="flow-title">
-    <div class="section-head">
-      <div>
-        <h2 id="flow-title">How a change travels</h2>
-        <p>The same path for every change, whoever writes it: a designer in Figma, an engineer, or an AI agent.</p>
-      </div>
-      <a href="/studio/settings/governance/" class="btn btn-secondary btn-sm" data-keep-branch>Read the governance</a>
-    </div>
-    <ol class="flow">
-      {
-        flow.map((step, i) => (
-          <li class="flow-step">
-            <span class="flow-icon">
-              <Icon name={step.icon} size={22} />
-            </span>
-            <span class="flow-num num">{i + 1}</span>
-            <strong>{step.title}</strong>
-            <span class="flow-text">{step.text}</span>
-          </li>
-        ))
-      }
-    </ol>
+    <article class="ov-panel chart-panel">
+      <header class="ov-panel-head">
+        <h3 class="st-section-title">Categories and layers</h3>
+      </header>
+      <StackedBars rows={s.byCategory} />
+    </article>
+    <article class="ov-panel chart-panel">
+      <header class="ov-panel-head">
+        <h3 class="st-section-title">Contrast checks</h3>
+        <a href="/studio/checks/" class="ov-panel-link" data-keep-branch>Checks</a>
+      </header>
+      <ContrastWaffle />
+    </article>
   </section>
 
   <script>
     import { esc, ghGet, readRepo, relativeTime, RateLimitError } from '../../scripts/github-session';
     import { draftCount } from '../../scripts/shell';
-    import { openPulls } from '../../lib/review-rules';
+    import { pullStatus, statusChip, type PullForStatus } from '../../scripts/pr-status';
+    import { openPulls, parseTier, REVIEW_STATUS_ORDER, type ReviewStatus } from '../../lib/review-rules';
 
-    interface Pull {
-      number: number;
+    interface Pull extends PullForStatus {
       title: string;
-      draft?: boolean;
-      state?: string;
-      merged_at?: string | null;
       updated_at: string;
-      user: { login: string };
-      head: { ref: string };
     }
 
+    const draftsLine = document.getElementById('st-drafts-line');
     const drafts = document.querySelector<HTMLElement>('[data-drafts-count]');
+    const draftsWord = document.querySelector<HTMLElement>('[data-drafts-word]');
     const paintDrafts = () => {
-      if (drafts) drafts.textContent = String(draftCount());
+      const n = draftCount();
+      if (drafts) drafts.textContent = String(n);
+      if (draftsWord) draftsWord.textContent = n === 1 ? 'draft change' : 'draft changes';
+      if (draftsLine) draftsLine.hidden = n === 0;
     };
     paintDrafts();
     document.addEventListener('bridge:draft', paintDrafts);
 
-    // Open pull requests: the "To review" panel and the KPI tile. Same request as the nav count, so one fetch is
-    // cached for both; a rate-limited visitor still sees the last list.
+    // Open pull requests: "Needs you" and the KPI. Each row gets its real status from CI and reviews; rows that
+    // wait on someone sort first. Same list request as the nav count, so one fetch is cached for both.
     const r = readRepo();
     const list = document.getElementById('st-review-list');
     const tile = document.querySelector<HTMLElement>('[data-open-reviews]');
     const out = tile?.querySelector<HTMLElement>('[data-open-count]');
+    const MAX = 6;
+
+    const row = (p: Pull, st: ReviewStatus | null) => {
+      const tier = parseTier(p.labels ?? [], p.body);
+      return `<li data-pr="${p.number}"><a class="ov-pr" href="/studio/reviews/?pr=${p.number}">
+        <span class="ov-pr-main"><span class="ov-pr-title">${esc(p.title)}</span>
+        <span class="ov-pr-meta"><span class="num">#${p.number}</span><span>${esc(p.user.login)}</span><span class="mono">${esc(p.head.ref)}</span><span>updated ${esc(relativeTime(p.updated_at))}</span></span></span>
+        <span class="ov-pr-pills">${tier ? `<span class="pill">Tier ${tier}</span>` : ''}${statusChip(st)}</span>
+      </a></li>`;
+    };
+
     ghGet<Pull[]>(`/repos/${r.owner}/${r.repo}/pulls?state=open&per_page=100`)
       .then((f) => {
         const open = openPulls(f.data);
         if (out) out.textContent = String(open.length);
         if (f.stale && tile) tile.title = "From this browser's cache: GitHub rate limit reached.";
         if (!list) return;
-        const pulls = [...open].sort((a, b) => b.updated_at.localeCompare(a.updated_at)).slice(0, 5);
-        list.innerHTML = pulls.length
-          ? pulls
-              .map(
-                (p) => `<li><a class="st-review-row" href="/studio/reviews/?pr=${p.number}">
-                  <span class="st-review-main"><span class="st-review-title">${esc(p.title)}</span>
-                  <span class="st-review-meta"><span class="mono">#${p.number}</span><span>${esc(p.user.login)}</span><span>updated ${esc(relativeTime(p.updated_at))}</span></span></span>
-                  ${p.draft ? '<span class="pill">Draft</span>' : '<span class="pill is-info">Ready</span>'}
-                </a></li>`,
-              )
-              .join('') + (open.length > 5 ? `<li class="st-review-more"><a href="/studio/reviews/">${open.length - 5} more open</a></li>` : '')
-          : '<li class="st-review-empty"><span>Nothing waiting for review.</span></li>';
+        if (!open.length) {
+          list.innerHTML = '<li class="ov-empty">Nothing needs you. No open pull requests.</li>';
+          return;
+        }
+        const byUpdate = [...open].sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+        const statuses = new Map<number, ReviewStatus | null>(byUpdate.map((p) => [p.number, null]));
+        const paint = () => {
+          const sorted = [...byUpdate].sort((a, b) => {
+            const sa = statuses.get(a.number);
+            const sb = statuses.get(b.number);
+            return (sa ? REVIEW_STATUS_ORDER[sa.kind] : 50) - (sb ? REVIEW_STATUS_ORDER[sb.kind] : 50);
+          });
+          list.innerHTML =
+            sorted
+              .slice(0, MAX)
+              .map((p) => row(p, statuses.get(p.number) ?? null))
+              .join('') + (open.length > MAX ? `<li class="ov-more"><a href="/studio/reviews/">${open.length - MAX} more open</a></li>` : '');
+        };
+        paint();
+        // Statuses arrive one by one; sort once they are all known so rows do not jump while you read.
+        Promise.all(
+          byUpdate.map((p) =>
+            pullStatus(p).then((st) => {
+              statuses.set(p.number, st);
+              const slot = list.querySelector(`[data-pr="${p.number}"] .rv-status`);
+              if (slot) slot.outerHTML = statusChip(st);
+            }),
+          ),
+        ).then(paint);
       })
       .catch((err) => {
         if (out) out.textContent = '?';
         if (tile) tile.title = 'GitHub could not be reached. Open Reviews to retry.';
         if (list)
-          list.innerHTML = `<li class="st-review-empty is-fail"><span>${
+          list.innerHTML = `<li class="ov-empty is-fail">${
             err instanceof RateLimitError
               ? 'GitHub limits anonymous reads to 60 an hour and this browser has used them. Connect GitHub, or try again later.'
               : 'Could not reach GitHub. Open Reviews to retry.'
-          }</span></li>`;
+          }</li>`;
       })
       .finally(() => list?.removeAttribute('aria-busy'));
   </script>

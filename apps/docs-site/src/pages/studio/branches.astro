@@ -3,7 +3,7 @@ import '../../styles/github.css';
 import '../../styles/reviews.css';
 import '../../styles/branches.css';
 import Layout from '../../layouts/Layout.astro';
-import Icon from '../../components/Icon.astro';
+import StudioHeader from '../../components/StudioHeader.astro';
 import { setupGaps, type BranchesConfig } from '../../lib/branches';
 import { siteRepo } from '../../lib/config';
 import { lastUpdated, PREVIEW_APPS, PREVIEW_PACKAGES, sourceUrl } from '../../lib/repo';
@@ -25,21 +25,12 @@ const sources = ['docs/PREVIEWS.md', 'bridge.config.json', '.github/workflows/pr
 >
   <div class="rv br">
     <p class="rv-notice" id="br-notice" role="status" hidden></p>
-    <header class="rv-page-head">
-      <div>
-        <h1>Branches <span class="rv-count num" id="br-count" aria-label="open pull requests"></span></h1>
-        <p class="lead">
-          Try a design system change in a real product before it merges. Every open pull request on
-          <a href={`https://github.com/${r.owner}/${r.repo}/pulls`}><code>{r.owner}/{r.repo}</code></a> gets its own docs, Storybook and admin
-          deploy, and a package snapshot a product can install on staging. Main and production stay untouched.
-        </p>
-      </div>
-    </header>
+    <StudioHeader title="Branches" countId="br-count" countLabel="open pull requests" subtitle="Each open pull request gets its own docs, Storybook and admin deploy, plus a snapshot package for staging." />
 
     {
       gaps.length > 0 && (
         <aside class="callout br-setup" aria-labelledby="br-setup-title">
-          <h2 id="br-setup-title">Finish the setup</h2>
+          <h2 id="br-setup-title" class="st-section-title">Finish the setup</h2>
           <ul>
             {gaps.includes('apps') && (
               <li>
@@ -66,19 +57,15 @@ const sources = ['docs/PREVIEWS.md', 'bridge.config.json', '.github/workflows/pr
     </ul>
 
     <section class="br-other" id="br-other" aria-labelledby="br-other-title" hidden>
-      <h2 id="br-other-title">Branches without a pull request</h2>
+      <h2 id="br-other-title" class="st-section-title">Branches without a pull request</h2>
       <p class="br-hint">Deploy previews only: snapshot packages are published for pull request commits.</p>
       <ul class="rv-list br-list" id="br-other-list"></ul>
     </section>
 
-    <aside class="rv-howto">
-      <Icon name="info" />
-      <p>
-        Install a snapshot in a product branch that deploys to staging, or keep the installed version and preview only the tokens with
-        <code>?bridge-tokens=&lt;branch docs&gt;/tokens.css</code> once the product allowlists that origin.
-        <a href={previewsDoc}>How previews work</a>
-      </p>
-    </aside>
+    <p class="rv-foot-note">
+      Install a snapshot in a product branch that deploys to staging, or preview only the tokens with <code>?bridge-tokens=&lt;branch docs&gt;/tokens.css</code>.
+      <a href={previewsDoc}>How previews work</a>
+    </p>
   </div>
 
   <script type="application/json" id="bridge-branches" set:html={cfgJson} />

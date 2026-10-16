@@ -174,7 +174,7 @@ function syncFoot() {
     status.textContent = req?.demo
       ? 'Demo plans cannot be proposed: the change they undo never happened in this repository. Downloads are labelled demo.'
       : !token
-        ? 'Read only: connect GitHub to open this as a pull request, or download the patch and the PR text.'
+        ? 'Connect GitHub to open this as a pull request, or download the patch and the PR text.'
         : base && !base.live
           ? 'Could not read main from GitHub; this plan uses the files the site was built from. Bridge re-reads main when you propose.'
           : '';

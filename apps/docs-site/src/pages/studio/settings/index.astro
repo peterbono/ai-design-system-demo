@@ -1,6 +1,7 @@
 ---
 import '../../../styles/settings.css';
 import Layout from '../../../layouts/Layout.astro';
+import StudioHeader from '../../../components/StudioHeader.astro';
 import Icon from '../../../components/Icon.astro';
 import { siteRepo } from '../../../lib/config';
 import { exists, GITHUB_URL, lastUpdated, readText, sourceUrl } from '../../../lib/repo';
@@ -33,18 +34,9 @@ const rows: { label: string; value: string; mono?: boolean; href?: string }[] = 
 ---
 
 <Layout title="Repository" description="The repository and bridge.config.json this Bridge workspace reads: token tiers, modes, contrast gate, owners and previews." sources={[file]} updated={lastUpdated([file])}>
-  <header class="page-head">
-    <div>
-      <h1>Repository</h1>
-      <p class="lead">
-        What this workspace reads. Everything comes from <code>bridge.config.json</code> at the repository root, the same file the Figma plugin, the
-        MCP server and the CLI read. To change a setting, edit that file in a pull request: it is a guarded file, so the change gets the highest review tier.
-      </p>
-    </div>
-    <div class="page-head-actions">
-      <a class="btn btn-secondary" href={sourceUrl(file)}><Icon name="github" size={16} />Open on GitHub</a>
-    </div>
-  </header>
+  <StudioHeader title="Repository" subtitle="Read from bridge.config.json. Change it in a pull request: it is a guarded file, reviewed at the highest tier.">
+    <a slot="actions" class="btn btn-secondary btn-sm" href={sourceUrl(file)}><Icon name="github" size={16} />Open on GitHub</a>
+  </StudioHeader>
 
   <section class="set-section" aria-labelledby="set-source">
     <h2 id="set-source">Source</h2>

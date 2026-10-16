@@ -4,6 +4,7 @@ import '../../styles/dashboard.css';
 import '../../styles/process.css';
 import '../../styles/studio.css';
 import Layout from '../../layouts/Layout.astro';
+import StudioHeader from '../../components/StudioHeader.astro';
 import Icon from '../../components/Icon.astro';
 import { CONTRAST_FILE, contrastPairs } from '../../lib/contrast';
 import { PAGE_SOURCES, freshness } from '../../lib/sources';
@@ -35,18 +36,9 @@ const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
   updated={updated}
   wide
 >
-  <header class="page-head">
-    <div>
-      <h1>Checks</h1>
-      <p class="lead">
-        The gates a change has to pass before it merges, run on the token files of this build. The token build fails when a contrast pair drops
-        below its minimum; validation findings do not block, but reviewers read them.
-      </p>
-    </div>
-    <div class="page-head-actions">
-      <a class="btn btn-secondary" href="/foundations/accessibility/"><Icon name="contrast" size={16} />Full contrast grid</a>
-    </div>
-  </header>
+  <StudioHeader title="Checks" subtitle="Contrast blocks the token build; validation findings do not block, but reviewers read them.">
+    <a slot="actions" class="btn btn-secondary btn-sm" href="/foundations/accessibility/"><Icon name="contrast" size={16} />Full contrast grid</a>
+  </StudioHeader>
 
   <section class="st-gates" aria-label="Gate status">
     <article class:list={['panel', 'st-gate', failures.length ? 'is-fail' : 'is-pass']}>
@@ -70,7 +62,7 @@ const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
   </section>
 
   <section aria-labelledby="contrast">
-    <h2 id="contrast">Contrast gate</h2>
+    <h2 id="contrast" class="st-h2">Contrast gate</h2>
     <p class="muted">
       Pairs listed in <code>{CONTRAST_FILE}</code>, resolved for every brand and theme. Text needs 4.5:1, UI edges and focus rings 3:1.
     </p>
@@ -125,7 +117,7 @@ const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
   </section>
 
   <section aria-labelledby="validation">
-    <h2 id="validation">Token validation</h2>
+    <h2 id="validation" class="st-h2">Token validation</h2>
     <p class="muted">Read from the token files, the component CSS and the docs at build time.</p>
     {
       validation.length === 0 ? (
@@ -154,7 +146,7 @@ const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
   </section>
 
   <section aria-labelledby="local">
-    <h2 id="local">Run the same checks locally</h2>
+    <h2 id="local" class="st-h2">Run the same checks locally</h2>
     <p class="muted">CI runs these on every pull request. Run them before you push to see the same result.</p>
     <div class="terminal">
       <div class="terminal-bar">

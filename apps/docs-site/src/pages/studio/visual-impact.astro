@@ -2,7 +2,7 @@
 import '../../styles/reviews.css';
 import '../../styles/studio.css';
 import Layout from '../../layouts/Layout.astro';
-import Icon from '../../components/Icon.astro';
+import StudioHeader from '../../components/StudioHeader.astro';
 import { lastUpdated, sourceUrl } from '../../lib/repo';
 
 const sources = ['.github/workflows/visual-impact.yml', 'packages/visual/src'];
@@ -15,29 +15,17 @@ const sources = ['.github/workflows/visual-impact.yml', 'packages/visual/src'];
   updated={lastUpdated(sources)}
   wide
 >
-  <header class="page-head">
-    <div>
-      <h1>Visual impact</h1>
-      <p class="lead">
-        For each open pull request, the visual impact workflow screenshots the stories and product screens a change can reach, at the base and at
-        the head commit, and compares them pixel by pixel. Open one to see the before and after.
-      </p>
-    </div>
-  </header>
+  <StudioHeader title="Visual impact" subtitle="Stories and product screens each open pull request changes, base against head, pixel by pixel." />
   <p class="rv-notice" id="vi-notice" role="status" hidden></p>
   <p class="st-scope small" id="vi-scope" hidden></p>
   <ul class="st-vi-list" id="vi-list" aria-label="Open pull requests and their visual impact" aria-busy="true">
     <li class="rv-skel" aria-hidden="true"></li>
     <li class="rv-skel" aria-hidden="true"></li>
   </ul>
-  <aside class="rv-howto">
-    <Icon name="info" />
-    <p>
-      Screenshots run in CI with <code>bridge impact</code> and are published to the <code>bridge-visual</code> branch, so this page needs no
-      server. Run <code>npm run bridge -- impact --plan</code> locally to see what a change would capture.
-      <a href={sourceUrl('.github/workflows/visual-impact.yml')}>The workflow</a>
-    </p>
-  </aside>
+  <p class="rv-foot-note">
+    Screenshots run in CI with <code>bridge impact</code> and land on the <code>bridge-visual</code> branch. Run <code>npm run bridge -- impact --plan</code> to see what a change would capture.
+    <a href={sourceUrl('.github/workflows/visual-impact.yml')}>The workflow</a>
+  </p>
   <script>
     import { initVisualList } from '../../scripts/visual-list';
     void initVisualList();

@@ -321,3 +321,28 @@
     align-items: flex-start;
   }
 }
+
+/* Studio density: card titles in UI type, the measuring rules folded under the header. */
+.ad-head h2 {
+  font-family: var(--br-font-ui);
+  font-size: var(--br-text-md);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  line-height: 1.35;
+}
+
+.ad-howto {
+  margin: -0.5rem 0 1.25rem;
+  color: var(--br-text-muted);
+  font-size: var(--br-text-sm);
+}
+
+.ad-howto summary {
+  width: fit-content;
+  cursor: pointer;
+}
+
+.ad-howto p {
+  max-width: 80ch;
+  margin: 0.5rem 0 0;
+}

@@ -1,32 +1,21 @@
 ---
 import Layout from '../../layouts/Layout.astro';
+import StudioHeader from '../../components/StudioHeader.astro';
 import DraftTray from '../../components/DraftTray.astro';
 import Icon from '../../components/Icon.astro';
 import TokenEditorData from '../../components/TokenEditorData.astro';
 import '../../styles/editor.css';
+import '../../styles/reviews.css';
 ---
 
 <Layout title="Drafts" description="Token edits waiting in this browser: before and after values, contrast moves and the guardrails, ready to propose as a pull request." wide>
-  <header class="page-head">
-    <div>
-      <h1>Drafts</h1>
-      <p class="lead">
-        Token edits you made in Studio Tokens, waiting in this browser. Check the values and the contrast moves, undo what you do not want, then
-        propose them as one pull request. Without a GitHub connection you can still export the draft as a JSON file.
-      </p>
-    </div>
-    <div class="page-head-actions">
-      <a class="btn btn-secondary" href="/studio/tokens/" data-keep-branch><Icon name="edit" size={16} />Keep editing</a>
-    </div>
-  </header>
+  <StudioHeader title="Drafts" subtitle="Token edits waiting in this browser. Nobody else sees them until you propose them.">
+    <a slot="actions" class="btn btn-secondary btn-sm" href="/studio/tokens/" data-keep-branch><Icon name="edit" size={16} />Keep editing</a>
+  </StudioHeader>
   <DraftTray variant="page" />
-  <aside class="rv-howto">
-    <Icon name="info" />
-    <p>
-      A draft is local: other people do not see it and it is not on any branch yet. Proposing creates a <code>tokens/*</code> branch, commits the
-      edited token files with a changeset and opens a Tier 3 pull request in <a href="/studio/reviews/" data-keep-branch>Reviews</a>.
-    </p>
-  </aside>
+  <p class="rv-foot-note">
+    Proposing creates a <code>tokens/*</code> branch with a changeset and opens a Tier 3 pull request in <a href="/studio/reviews/" data-keep-branch>Reviews</a>. Without GitHub, export the draft as JSON.
+  </p>
   <TokenEditorData />
   <script>
     import { initTokenEditor } from '../../scripts/token-editor';
