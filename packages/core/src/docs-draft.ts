@@ -8,6 +8,8 @@
 // accessibility and content guidelines. Prose an AI wrote carries "draftedBy": "claude" and "needsReview": true
 // until a reviewer accepts it.
 
+import { type JsonEntry, type JsonNode, fromPlain, getEntry, parseJson, plainEqual, serializeJson, toPlain } from './json-ast';
+
 export type DocsExampleNode = string | { c: string; p?: Record<string, unknown>; children?: DocsExampleNode[] };
 
 export interface DocsGuidance {
@@ -259,9 +261,43 @@ export function formatDocsJson(d: Partial<ComponentDocsJson>): string {
   return `${JSON.stringify(out, null, 2)}\n`;
 }
 
-/** Accepts the drafted prose inside a docs.json text, keeping its formatting rules. Throws on invalid JSON. */
+/** Keeps untouched nodes as they were written; rebuilds only what changed, in the shape of what it replaces. */
+function patchNode(old: JsonNode, next: unknown): JsonNode {
+  if (plainEqual(toPlain(old), next)) return old;
+  if (old.kind === 'object' && next && typeof next === 'object' && !Array.isArray(next)) {
+    const n = next as Record<string, unknown>;
+    const kept = old.entries.filter((e) => n[e.key] !== undefined).map((e): JsonEntry => ({ key: e.key, value: patchNode(e.value, n[e.key]) }));
+    const added = Object.keys(n)
+      .filter((k) => n[k] !== undefined && !getEntry(old, k))
+      .map((k): JsonEntry => ({ key: k, value: fromPlain(n[k], undefined, old.inline) }));
+    return { kind: 'object', inline: old.inline, entries: [...kept, ...added] };
+  }
+  if (old.kind === 'array' && Array.isArray(next)) {
+    return { kind: 'array', inline: old.inline, items: next.map((v, i) => (old.items[i] ? patchNode(old.items[i]!, v) : fromPlain(v, old.items[0], old.inline))) };
+  }
+  return fromPlain(next, old);
+}
+
+/**
+ * docs.json text for edited docs, written as a minimal diff of the file it replaces: untouched sections stay byte for
+ * byte (a hand-formatted file keeps its inline preview nodes), new keys go at the end in the repo order. Without an
+ * original (or with one that is not valid JSON) it falls back to formatDocsJson.
+ */
+export function patchDocsJson(original: string | null | undefined, next: Partial<ComponentDocsJson>): string {
+  const plain = JSON.parse(formatDocsJson(next)) as unknown;
+  if (!original) return formatDocsJson(next);
+  try {
+    const doc = parseJson(original);
+    if (doc.root.kind !== 'object') return formatDocsJson(next);
+    return serializeJson({ ...doc, root: patchNode(doc.root, plain) });
+  } catch {
+    return formatDocsJson(next);
+  }
+}
+
+/** Accepts the drafted prose inside a docs.json text: only the needsReview line changes. Throws on invalid JSON. */
 export function acceptDocsText(text: string): string {
-  return formatDocsJson(acceptDocsDraft(JSON.parse(text) as ComponentDocsJson));
+  return patchDocsJson(text, acceptDocsDraft(JSON.parse(text) as ComponentDocsJson));
 }
 
 /** Tier and bump of a docs-only change: Tier 1 under the shared classifier, and a patch. */

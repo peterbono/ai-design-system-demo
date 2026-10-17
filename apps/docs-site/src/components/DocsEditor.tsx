@@ -9,7 +9,7 @@ import type { ComponentDocsJson, DocsGuidance } from '@bridge-ds/core';
 import UsagePanel from './UsagePanel';
 import { REGISTRY, resolveProps } from './registry';
 import type { ExampleNode } from '../lib/components';
-import { cleanDocs, docsEdits, docsText, setDocsEdit, validateDocs } from '../lib/docs-draft-model';
+import { cleanDocs, docsEdits, docsFileText, docsText, setDocsEdit, validateDocs } from '../lib/docs-draft-model';
 import type { Draft } from '../lib/editor-model';
 
 export interface DocsEditorProps {
@@ -150,6 +150,8 @@ export default function DocsEditor(p: DocsEditorProps) {
   }, []);
 
   const text = useMemo(() => docsText(docs), [docs]);
+  // What gets written: a minimal diff of the file it replaces, so a hand-formatted docs.json keeps its layout.
+  const fileText = useMemo(() => docsFileText(docs, base), [docs, base]);
   const issues = useMemo(() => validateDocs(cleanDocs(docs)), [docs]);
   // Compared in the editor's own format, so a hand-formatted file that is not edited does not count as changed.
   const baseText = useMemo(() => {
@@ -167,14 +169,14 @@ export default function DocsEditor(p: DocsEditorProps) {
     const t = window.setTimeout(() => {
       const draft = readDraft();
       const next = changed
-        ? setDocsEdit(draft, { path: p.path, component: p.name, slug: p.slug, before: p.original, after: text })
+        ? setDocsEdit(draft, { path: p.path, component: p.name, slug: p.slug, before: p.original, after: fileText })
         : { ...draft, edits: draft.edits.filter((e) => !(e.kind === 'docs' && e.path === p.path)) };
       writeDraft(next);
       const inDraft = docsEdits(next).some((e) => e.path === p.path);
       setStatus(inDraft ? 'Saved to your draft, only in this browser.' : 'Same as main. Nothing in your draft.');
     }, 250);
     return () => window.clearTimeout(t);
-  }, [text, source, dirty]);
+  }, [text, fileText, source, dirty]);
 
   const set = <K extends keyof ComponentDocsJson>(k: K, v: ComponentDocsJson[K]) => {
     setDirty(true);
@@ -245,8 +247,8 @@ export default function DocsEditor(p: DocsEditorProps) {
     try {
       if (source === 'pr' && prRef) {
         const { commitDocsToBranch } = await import('../scripts/docs-commit');
-        const sha = await commitDocsToBranch(p.path, prRef, p.name, text);
-        setBase(text);
+        const sha = await commitDocsToBranch(p.path, prRef, p.name, fileText);
+        setBase(fileText);
         setStatus(sha ? `Committed to ${prRef}.` : 'Nothing to commit: the branch already has this text.');
         return;
       }
