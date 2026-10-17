@@ -101,7 +101,86 @@ export class SimNode {
   ) {
     this.id = nextId(type === 'PAGE' ? '0' : '1');
     api.nodes.set(this.id, this);
-    if (type === 'TEXT') this.fills = [{ type: 'SOLID', color: { r: 0, g: 0, b: 0 } }];
+    if (type === 'TEXT') {
+      this.fills = [{ type: 'SOLID', color: { r: 0, g: 0, b: 0 } }];
+      this.textAutoResize = 'WIDTH_AND_HEIGHT';
+    }
+    // Figma frames and components clip their content by default.
+    if (type === 'FRAME' || type === 'COMPONENT') this.clipsContent = true;
+  }
+
+  // Auto layout sizing, modelled on Figma: layoutSizingHorizontal / Vertical are shorthands over the node's own axis
+  // sizing (primaryAxisSizingMode / counterAxisSizingMode) and how it sits in its auto layout parent (layoutAlign on the
+  // parent's cross axis, layoutGrow on its main axis). Hugging an axis drops a fill on it, as in Figma.
+  layoutAlign = 'INHERIT';
+  layoutGrow = 0;
+  private axisSizing = { primary: 'FIXED', counter: 'FIXED' };
+  private autoLayout(n: SimNode | null): boolean {
+    return !!n && (n.layoutMode === 'HORIZONTAL' || n.layoutMode === 'VERTICAL');
+  }
+  /** Which own sizing field holds an axis ("primary" or "counter"), for an auto layout node. */
+  private axisOf(horizontal: boolean): 'primary' | 'counter' {
+    return (this.layoutMode === 'HORIZONTAL') === horizontal ? 'primary' : 'counter';
+  }
+  private fills_(horizontal: boolean): boolean {
+    const p = this.parent;
+    if (!p || !this.autoLayout(p)) return false;
+    const parentHorizontal = p.layoutMode === 'HORIZONTAL';
+    return parentHorizontal === horizontal ? this.layoutGrow === 1 : this.layoutAlign === 'STRETCH';
+  }
+  private clearFill(horizontal: boolean): void {
+    const p = this.parent;
+    if (!p || !this.autoLayout(p)) return;
+    if ((p.layoutMode === 'HORIZONTAL') === horizontal) this.layoutGrow = 0;
+    else this.layoutAlign = 'INHERIT';
+  }
+  get primaryAxisSizingMode() {
+    return this.axisSizing.primary;
+  }
+  set primaryAxisSizingMode(v: string) {
+    this.axisSizing.primary = v;
+    if (v === 'AUTO' && this.autoLayout(this)) this.clearFill(this.layoutMode === 'HORIZONTAL');
+  }
+  get counterAxisSizingMode() {
+    return this.axisSizing.counter;
+  }
+  set counterAxisSizingMode(v: string) {
+    this.axisSizing.counter = v;
+    if (v === 'AUTO' && this.autoLayout(this)) this.clearFill(this.layoutMode !== 'HORIZONTAL');
+  }
+  private sizing(horizontal: boolean): string {
+    if (this.fills_(horizontal)) return 'FILL';
+    if (this.type === 'TEXT') return this.textAutoResize === 'WIDTH_AND_HEIGHT' || (!horizontal && this.textAutoResize === 'HEIGHT') ? 'HUG' : 'FIXED';
+    if (this.autoLayout(this)) return this.axisSizing[this.axisOf(horizontal)] === 'AUTO' ? 'HUG' : 'FIXED';
+    return 'FIXED';
+  }
+  private setSizing(horizontal: boolean, v: string): void {
+    if (v === 'FILL') {
+      const p = this.parent;
+      if (!p || !this.autoLayout(p)) throw new Error('FILL can only be set on children of auto-layout frames');
+      if ((p.layoutMode === 'HORIZONTAL') === horizontal) this.layoutGrow = 1;
+      else this.layoutAlign = 'STRETCH';
+      if (this.type === 'TEXT' && horizontal && this.textAutoResize === 'WIDTH_AND_HEIGHT') this.textAutoResize = 'HEIGHT';
+      return;
+    }
+    this.clearFill(horizontal);
+    if (v === 'HUG') {
+      if (this.type === 'TEXT') this.textAutoResize = horizontal ? 'WIDTH_AND_HEIGHT' : 'HEIGHT';
+      else if (this.autoLayout(this)) this.axisSizing[this.axisOf(horizontal)] = 'AUTO';
+      else throw new Error('HUG can only be set on auto-layout frames and text');
+    } else if (this.autoLayout(this)) this.axisSizing[this.axisOf(horizontal)] = 'FIXED';
+  }
+  get layoutSizingHorizontal() {
+    return this.sizing(true);
+  }
+  set layoutSizingHorizontal(v: string) {
+    this.setSizing(true, v);
+  }
+  get layoutSizingVertical() {
+    return this.sizing(false);
+  }
+  set layoutSizingVertical(v: string) {
+    this.setSizing(false, v);
   }
 
   // Shared plugin data
@@ -342,7 +421,7 @@ export class SimFigma {
       return v ? this.resolveVariable(v) : 'missing';
     };
     const paint = (p: Dict) => ((p.boundVariables as Dict | undefined)?.color ? value((p.boundVariables as Dict).color) : p.color);
-    const fields = ['layoutMode', 'primaryAxisAlignItems', 'counterAxisAlignItems', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft', 'itemSpacing', 'cornerRadius', 'strokeWeight', 'lineHeight', 'letterSpacing', 'visible'];
+    const fields = ['layoutMode', 'primaryAxisAlignItems', 'counterAxisAlignItems', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft', 'itemSpacing', 'cornerRadius', 'strokeWeight', 'lineHeight', 'letterSpacing', 'visible', 'clipsContent', 'textAutoResize', 'minHeight'];
     return {
       type: n.type,
       fills: n.fills.map(paint),

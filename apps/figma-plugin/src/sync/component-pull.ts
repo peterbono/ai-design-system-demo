@@ -56,7 +56,7 @@ export type PlannedValue =
       /** Value in the default modes, for the font style choice (font weight) and the preview. */
       value?: number | string | undefined;
     }
-  | { kind: 'number'; value: number }
+  | { kind: 'number'; value: number; /** A calc() of tokens, resolved: set, not bound. */ expr?: string | undefined }
   | { kind: 'percent'; value: number; path: string }
   | { kind: 'none' }
   | { kind: 'font'; families: string[]; path: string };
@@ -144,6 +144,12 @@ export async function loadComponentSpecs(
 // ---------------------------------------------------------------------------------------------
 // Planning
 
+/**
+ * Width of a root that fills its container in code (Card, Input): a component in Figma needs a width of its own. A size
+ * token, so it follows the scale; designers resize instances freely.
+ */
+export const FILL_WIDTH_TOKEN = 'size.80';
+
 const TEXT_ONLY: ReadonlySet<SpecField> = new Set(['textFill', 'fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing']);
 
 function numberValue(set: TokenSet, path: string): number | undefined {
@@ -160,10 +166,67 @@ function familiesOf(set: TokenSet, path: string): string[] | undefined {
   return list?.map((x) => String(x).trim().replace(/^["']|["']$/g, '')).filter(Boolean);
 }
 
+/**
+ * Evaluates a calc() of token paths from the specs ("calc(space.2 + space.0-5)") with the tokens' resolved values in the
+ * default brand, theme and density. Operators + - * /, parentheses, numbers and px numbers.
+ */
+export function evaluateCalc(expr: string, head: TokenSet): number | { problem: string } {
+  const inner = expr.replace(/^calc\(/, '').replace(/\)$/, '');
+  const tokens = inner.match(/[()*/]|[^\s()*/]+/g) ?? [];
+  let i = 0;
+  const fail = (why: string): never => {
+    throw new Error(why);
+  };
+  const atom = (): number => {
+    const t = tokens[i++];
+    if (t === undefined) return fail(`${expr} ends too early`);
+    if (t === '(') {
+      const v = sum();
+      if (tokens[i++] !== ')') fail(`${expr} has an unclosed parenthesis`);
+      return v;
+    }
+    const num = /^(-?\d+(?:\.\d+)?)(px)?$/.exec(t);
+    if (num) return Number(num[1]);
+    if (!head.byPath.has(t)) return fail(`${t} is not a token on this branch`);
+    const n = numberValue(head, t);
+    return n === undefined ? fail(`${t} does not resolve to a number`) : n;
+  };
+  const product = (): number => {
+    let v = atom();
+    while (tokens[i] === '*' || tokens[i] === '/') {
+      const op = tokens[i++];
+      const r = atom();
+      v = op === '*' ? v * r : v / r;
+    }
+    return v;
+  };
+  const sum = (): number => {
+    let v = product();
+    while (tokens[i] === '+' || tokens[i] === '-') {
+      const op = tokens[i++];
+      const r = product();
+      v = op === '+' ? v + r : v - r;
+    }
+    return v;
+  };
+  try {
+    const v = sum();
+    if (i !== tokens.length) return { problem: `${expr} could not be read` };
+    return Number.isFinite(v) ? Math.round(v * 100) / 100 : { problem: `${expr} is not a finite number` };
+  } catch (err) {
+    return { problem: (err as Error).message };
+  }
+}
+
 /** How one spec value is written in Figma, or the reason it cannot be. */
 export function planValue(field: SpecField, value: string | 0 | null, head: TokenSet): PlannedValue | { problem: string } {
   if (value === null) return COLOR_FIELDS.has(field) ? { kind: 'none' } : { problem: 'no value' };
   if (value === 0) return { kind: 'number', value: 0 };
+  if (value.startsWith('calc(')) {
+    if (COLOR_FIELDS.has(field)) return { problem: `${value}: a color cannot be a calc()` };
+    const n = evaluateCalc(value, head);
+    return typeof n === 'number' ? { kind: 'number', value: n, expr: value } : n;
+  }
   const t = head.byPath.get(value);
   if (!t) return { problem: `${value} is not a token on this branch` };
   if (field === 'fontFamily') {
@@ -216,6 +279,12 @@ export function buildComponentPlan(specs: ComponentSpecsFile, source: string, ge
   for (const spec of specs.components) {
     for (const u of spec.unmapped) problem({ component: spec.name, part: u.part, property: u.property, reason: u.reason });
     const kinds = new Map(spec.parts.map((p) => [p.id, p.kind]));
+    let rootFill: PlannedValue | undefined;
+    if (spec.parts.find((p) => !p.parent)?.fill) {
+      const w = planValue('width', FILL_WIDTH_TOKEN, head);
+      if ('problem' in w) problem({ component: spec.name, part: 'root', property: 'width', reason: `fills its container in code, and ${w.problem}: the Figma set hugs its content` });
+      else rootFill = w;
+    }
     const variants: PlannedVariant[] = spec.variants.map((v) => {
       const parts: Record<string, PlannedField[]> = {};
       for (const [part, values] of Object.entries(v.values)) {
@@ -224,10 +293,15 @@ export function buildComponentPlan(specs: ComponentSpecsFile, source: string, ge
           if (TEXT_ONLY.has(field) !== (kinds.get(part) === 'text')) continue;
           const pv = planValue(field, value, head);
           if ('problem' in pv) problem({ component: spec.name, part, property: field, reason: pv.problem });
-          else fields.push({ field, value: pv });
+          else {
+            fields.push({ field, value: pv });
+            if (pv.kind === 'number' && pv.expr) problem({ component: spec.name, part, property: field, reason: `${pv.expr} = ${pv.value}, set, not bound` });
+          }
         }
         parts[part] = fields;
       }
+      // A block-level root fills its container in code: drawn at a fixed width from the size scale.
+      if (rootFill && !(parts.root ?? []).some((f) => f.field === 'width')) (parts.root ??= []).push({ field: 'width', value: rootFill });
       return { key: variantKeyOf(v.props), name: variantName(v.props), props: v.props, parts };
     });
     const existing = generated.find((g) => g.componentId === spec.name);

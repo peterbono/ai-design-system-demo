@@ -3561,7 +3561,7 @@
     },
     {
       "name": "Badge",
-      "hash": "6d69dae8",
+      "hash": "84764745",
       "source": [
         "packages/react/src/components/Badge/Badge.tsx",
         "packages/react/src/components/Badge/Badge.module.css",
@@ -3688,8 +3688,11 @@
               "fill": "color.bg.subtle",
               "cornerRadius": "radius.pill",
               "paddingTop": 0,
+              "paddingRight": "calc(space.2 + space.0-5)",
               "paddingBottom": 0,
+              "paddingLeft": "calc(space.2 + space.0-5)",
               "itemSpacing": "space.1",
+              "minHeight": "calc(size.6 + space.0-5)",
               "strokeWeight": "border-width.default",
               "stroke": "color.border.default"
             },
@@ -3754,8 +3757,11 @@
               "fill": "color.surface.inverse",
               "cornerRadius": "radius.pill",
               "paddingTop": 0,
+              "paddingRight": "calc(space.2 + space.0-5)",
               "paddingBottom": 0,
+              "paddingLeft": "calc(space.2 + space.0-5)",
               "itemSpacing": "space.1",
+              "minHeight": "calc(size.6 + space.0-5)",
               "strokeWeight": "border-width.default",
               "stroke": null
             },
@@ -3820,8 +3826,11 @@
               "fill": "color.feedback.success.bg",
               "cornerRadius": "radius.pill",
               "paddingTop": 0,
+              "paddingRight": "calc(space.2 + space.0-5)",
               "paddingBottom": 0,
+              "paddingLeft": "calc(space.2 + space.0-5)",
               "itemSpacing": "space.1",
+              "minHeight": "calc(size.6 + space.0-5)",
               "strokeWeight": "border-width.default",
               "stroke": "color.feedback.success.border"
             },
@@ -3886,8 +3895,11 @@
               "fill": "color.feedback.success.solid",
               "cornerRadius": "radius.pill",
               "paddingTop": 0,
+              "paddingRight": "calc(space.2 + space.0-5)",
               "paddingBottom": 0,
+              "paddingLeft": "calc(space.2 + space.0-5)",
               "itemSpacing": "space.1",
+              "minHeight": "calc(size.6 + space.0-5)",
               "strokeWeight": "border-width.default",
               "stroke": null
             },
@@ -3952,8 +3964,11 @@
               "fill": "color.feedback.warning.bg",
               "cornerRadius": "radius.pill",
               "paddingTop": 0,
+              "paddingRight": "calc(space.2 + space.0-5)",
               "paddingBottom": 0,
+              "paddingLeft": "calc(space.2 + space.0-5)",
               "itemSpacing": "space.1",
+              "minHeight": "calc(size.6 + space.0-5)",
               "strokeWeight": "border-width.default",
               "stroke": "color.feedback.warning.border"
             },
@@ -4018,8 +4033,11 @@
               "fill": "color.feedback.warning.solid",
               "cornerRadius": "radius.pill",
               "paddingTop": 0,
+              "paddingRight": "calc(space.2 + space.0-5)",
               "paddingBottom": 0,
+              "paddingLeft": "calc(space.2 + space.0-5)",
               "itemSpacing": "space.1",
+              "minHeight": "calc(size.6 + space.0-5)",
               "strokeWeight": "border-width.default",
               "stroke": null
             },
@@ -4084,8 +4102,11 @@
               "fill": "color.feedback.danger.bg",
               "cornerRadius": "radius.pill",
               "paddingTop": 0,
+              "paddingRight": "calc(space.2 + space.0-5)",
               "paddingBottom": 0,
+              "paddingLeft": "calc(space.2 + space.0-5)",
               "itemSpacing": "space.1",
+              "minHeight": "calc(size.6 + space.0-5)",
               "strokeWeight": "border-width.default",
               "stroke": "color.feedback.danger.border"
             },
@@ -4150,8 +4171,11 @@
               "fill": "color.feedback.danger.solid",
               "cornerRadius": "radius.pill",
               "paddingTop": 0,
+              "paddingRight": "calc(space.2 + space.0-5)",
               "paddingBottom": 0,
+              "paddingLeft": "calc(space.2 + space.0-5)",
               "itemSpacing": "space.1",
+              "minHeight": "calc(size.6 + space.0-5)",
               "strokeWeight": "border-width.default",
               "stroke": null
             },
@@ -4216,8 +4240,11 @@
               "fill": "color.feedback.info.bg",
               "cornerRadius": "radius.pill",
               "paddingTop": 0,
+              "paddingRight": "calc(space.2 + space.0-5)",
               "paddingBottom": 0,
+              "paddingLeft": "calc(space.2 + space.0-5)",
               "itemSpacing": "space.1",
+              "minHeight": "calc(size.6 + space.0-5)",
               "strokeWeight": "border-width.default",
               "stroke": "color.feedback.info.border"
             },
@@ -4282,8 +4309,11 @@
               "fill": "color.feedback.info.solid",
               "cornerRadius": "radius.pill",
               "paddingTop": 0,
+              "paddingRight": "calc(space.2 + space.0-5)",
               "paddingBottom": 0,
+              "paddingLeft": "calc(space.2 + space.0-5)",
               "itemSpacing": "space.1",
+              "minHeight": "calc(size.6 + space.0-5)",
               "strokeWeight": "border-width.default",
               "stroke": null
             },
@@ -4309,30 +4339,12 @@
           "property": "prop dot",
           "value": "boolean",
           "reason": "not drawn in this version"
-        },
-        {
-          "part": "root",
-          "property": "padding-right",
-          "value": "calc(var(--space-2) + var(--space-0-5))",
-          "reason": "calc() has no Figma equivalent"
-        },
-        {
-          "part": "root",
-          "property": "padding-left",
-          "value": "calc(var(--space-2) + var(--space-0-5))",
-          "reason": "calc() has no Figma equivalent"
-        },
-        {
-          "part": "root",
-          "property": "min-height",
-          "value": "calc(var(--size-6) + var(--space-0-5))",
-          "reason": "calc() has no Figma equivalent"
         }
       ]
     },
     {
       "name": "Tag",
-      "hash": "a2b9aaf7",
+      "hash": "22e60973",
       "source": [
         "packages/react/src/components/Tag/Tag.tsx",
         "packages/react/src/components/Icon/Icon.module.css",
@@ -4385,19 +4397,7 @@
           "id": "root",
           "name": "Tag",
           "kind": "frame",
-          "source": "Tag.module.css .tag, Tag.module.css .neutral, Tag.module.css .md",
-          "layout": {
-            "direction": "HORIZONTAL",
-            "primary": "MIN",
-            "counter": "STRETCH"
-          }
-        },
-        {
-          "id": "label",
-          "name": "label",
-          "kind": "frame",
-          "parent": "root",
-          "source": "Tag.module.css .label",
+          "source": "Tag.module.css .tag, Tag.module.css .neutral, Tag.module.css .md, Tag.module.css .label",
           "layout": {
             "direction": "HORIZONTAL",
             "primary": "MIN",
@@ -4408,7 +4408,7 @@
           "id": "icon",
           "name": "Icon",
           "kind": "icon",
-          "parent": "label",
+          "parent": "root",
           "source": "Icon.module.css .icon, Icon.module.css .xs, Tag.module.css .icon",
           "visible": "Icon"
         },
@@ -4416,7 +4416,7 @@
           "id": "text",
           "name": "Label",
           "kind": "text",
-          "parent": "label",
+          "parent": "root",
           "source": "Tag.module.css .text",
           "text": "Label"
         }
@@ -4434,9 +4434,7 @@
               "cornerRadius": "tag.radius",
               "minHeight": "size.5",
               "strokeWeight": "border-width.default",
-              "stroke": "tag.border"
-            },
-            "label": {
+              "stroke": "tag.border",
               "paddingTop": 0,
               "paddingRight": "space.2",
               "paddingBottom": 0,
@@ -4471,9 +4469,7 @@
               "cornerRadius": "tag.radius",
               "minHeight": "size.5",
               "strokeWeight": "border-width.default",
-              "stroke": null
-            },
-            "label": {
+              "stroke": null,
               "paddingTop": 0,
               "paddingRight": "space.2",
               "paddingBottom": 0,
@@ -4508,9 +4504,7 @@
               "cornerRadius": "tag.radius",
               "minHeight": "size.6",
               "strokeWeight": "border-width.default",
-              "stroke": "tag.border"
-            },
-            "label": {
+              "stroke": "tag.border",
               "paddingTop": 0,
               "paddingRight": "space.2",
               "paddingBottom": 0,
@@ -4545,9 +4539,7 @@
               "cornerRadius": "tag.radius",
               "minHeight": "size.6",
               "strokeWeight": "border-width.default",
-              "stroke": null
-            },
-            "label": {
+              "stroke": null,
               "paddingTop": 0,
               "paddingRight": "space.2",
               "paddingBottom": 0,
@@ -4582,9 +4574,7 @@
               "cornerRadius": "tag.radius",
               "minHeight": "size.5",
               "strokeWeight": "border-width.default",
-              "stroke": null
-            },
-            "label": {
+              "stroke": null,
               "paddingTop": 0,
               "paddingRight": "space.2",
               "paddingBottom": 0,
@@ -4619,9 +4609,7 @@
               "cornerRadius": "tag.radius",
               "minHeight": "size.5",
               "strokeWeight": "border-width.default",
-              "stroke": null
-            },
-            "label": {
+              "stroke": null,
               "paddingTop": 0,
               "paddingRight": "space.2",
               "paddingBottom": 0,
@@ -4656,9 +4644,7 @@
               "cornerRadius": "tag.radius",
               "minHeight": "size.6",
               "strokeWeight": "border-width.default",
-              "stroke": null
-            },
-            "label": {
+              "stroke": null,
               "paddingTop": 0,
               "paddingRight": "space.2",
               "paddingBottom": 0,
@@ -4693,9 +4679,7 @@
               "cornerRadius": "tag.radius",
               "minHeight": "size.6",
               "strokeWeight": "border-width.default",
-              "stroke": null
-            },
-            "label": {
+              "stroke": null,
               "paddingTop": 0,
               "paddingRight": "space.2",
               "paddingBottom": 0,
@@ -4736,7 +4720,7 @@
     },
     {
       "name": "Input",
-      "hash": "5d2773ef",
+      "hash": "258d9d34",
       "source": [
         "packages/react/src/components/Input/Input.tsx",
         "packages/react/src/components/Field/Field.module.css",
@@ -4781,7 +4765,8 @@
             "direction": "HORIZONTAL",
             "primary": "MIN",
             "counter": "CENTER"
-          }
+          },
+          "fill": true
         },
         {
           "id": "placeholder",
@@ -5063,13 +5048,13 @@
           "part": "root",
           "property": "width",
           "value": "100%",
-          "reason": "relative size: the Figma part hugs its content"
+          "reason": "fills its container: Figma draws it at a fixed width"
         }
       ]
     },
     {
       "name": "Card",
-      "hash": "be6dac12",
+      "hash": "0c4cd637",
       "source": [
         "packages/react/src/components/Card/Card.tsx",
         "packages/react/src/components/Card/Card.module.css"
@@ -5113,7 +5098,9 @@
             "direction": "VERTICAL",
             "primary": "MIN",
             "counter": "STRETCH"
-          }
+          },
+          "clip": true,
+          "fill": true
         },
         {
           "id": "header",

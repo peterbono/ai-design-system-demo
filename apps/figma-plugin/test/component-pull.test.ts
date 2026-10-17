@@ -8,11 +8,11 @@ import { test } from 'node:test';
 import { type ComponentSpecsFile, hashSpec, parseComponentSpecs } from '@bridge-ds/core';
 import { SPEC_COMPONENTS, generateRepoComponentSpecs } from '@bridge-ds/core/node';
 import { applyPullPlan } from '../src/main/apply';
-import { applyComponentPlan, scanGenerated } from '../src/main/build-components';
+import { applyComponentPlan, layoutVariants, scanGenerated } from '../src/main/build-components';
 import { scanComponents } from '../src/main/components';
 import { takeSnapshot } from '../src/main/snapshot';
 import { DEFAULT_SETTINGS } from '../src/shared/messages';
-import { buildComponentPlan, loadComponentSpecs, pendingComponents, writablePlan } from '../src/sync/component-pull';
+import { buildComponentPlan, evaluateCalc, loadComponentSpecs, pendingComponents, writablePlan } from '../src/sync/component-pull';
 import { classifyComponents, pullBaselines } from '../src/sync/components';
 import { analyze, buildPull } from '../src/sync/flows';
 import { FakeGitHub } from './fake-github';
@@ -106,7 +106,7 @@ test('plan: every spec is new on a first pull, fields resolve to variables of th
   const lh = md.parts.text!.find((f) => f.field === 'lineHeight')!.value;
   assert.equal(lh.kind, 'percent', 'unitless line heights are set as a percent, not bound');
   // CSS that has no Figma equivalent is reported before anything is written.
-  assert.ok(plan.problems.some((p) => p.component === 'Badge' && p.property === 'min-height' && /calc/.test(p.reason)));
+  assert.ok(plan.problems.some((p) => p.component === 'Badge' && p.property === 'minHeight' && /^calc\(size\.6 \+ space\.0-5\) = 26, set, not bound$/.test(p.reason)));
   assert.ok(plan.problems.some((p) => p.component === 'Input' && p.property === 'prop prefix'));
 });
 
@@ -228,4 +228,104 @@ test('variables missing in Figma: the part is reported, never bound to something
   const report = await applyComponentPlan(writablePlan(plan));
   assert.equal(report.created, 6);
   assert.ok(report.problems.some((p) => /Button Variant=primary, Size=sm, State=Default, Button, fill: no variable "button\/primary\/bg" in Component/.test(p)));
+});
+
+// ---------------------------------------------------------------------------------------------
+// Fixes seen in real Figma on the Components page (Badge md padding, Card layout, Tag wrapper, grid spacing).
+
+test('calc(): Badge md padding and min height are resolved from the tokens and set, not bound', async () => {
+  const { sim, plan, a } = await pulledFile();
+  assert.equal(evaluateCalc('calc(space.2 + space.0-5)', a.head), 10);
+  assert.equal(evaluateCalc('calc((size.6 - space.1) * 2)', a.head), 40);
+  assert.deepEqual(evaluateCalc('calc(space.2 + nope.1)', a.head), { problem: 'nope.1 is not a token on this branch' });
+  const badge = plan.components.find((c) => c.name === 'Badge')!;
+  const md = badge.variants.find((v) => v.props.Size === 'md')!;
+  assert.deepEqual(md.parts.root!.find((f) => f.field === 'paddingLeft')!.value, { kind: 'number', value: 10, expr: 'calc(space.2 + space.0-5)' });
+  assert.ok(plan.problems.some((p) => p.component === 'Badge' && p.property === 'paddingLeft' && p.reason === 'calc(space.2 + space.0-5) = 10, set, not bound'));
+  await applyComponentPlan(writablePlan(plan));
+  const set = sim.sets().find((s) => s.name === 'Badge')!;
+  const v = variantOf(set, 'Tone=neutral, Appearance=subtle, Size=md');
+  assert.deepEqual([v.paddingLeft, v.paddingRight, v.minHeight], [10, 10, 26], 'the label no longer touches the edges');
+  assert.equal(boundName(sim, v, 'paddingLeft'), undefined, 'a calc() is set, not bound');
+  // sm stays bound: a single token.
+  assert.equal(boundName(sim, variantOf(set, 'Tone=neutral, Appearance=subtle, Size=sm'), 'paddingLeft'), 'Primitives:space/1-5');
+});
+
+test('Card: fixed width from the size scale, parts fill the card, body text wraps, content clipped, h3 header', async () => {
+  const { sim, plan } = await pulledFile();
+  const report = await applyComponentPlan(writablePlan(plan));
+  assert.deepEqual(report.problems, []);
+  const set = sim.sets().find((s) => s.name === 'Card')!;
+  for (const padding of ['none', 'compact', 'default']) {
+    const v = variantOf(set, `Padding=${padding}`);
+    assert.equal(v.clipsContent, true, 'overflow: hidden: the footer fill stays inside the rounded corners');
+    assert.equal(boundName(sim, v, 'width'), 'Primitives:size/80', 'the coded card fills its container: drawn 320 wide');
+    assert.equal(v.layoutSizingHorizontal, 'FIXED');
+    for (const id of ['header', 'body', 'footer']) assert.equal(partOf(v, id).layoutSizingHorizontal, 'FILL', `${padding}: ${id} fills the card width`);
+    const body = partOf(v, 'body-text');
+    assert.equal(body.layoutSizingHorizontal, 'FILL', `${padding}: body text is as wide as the body, never 0`);
+    assert.equal(body.textAutoResize, 'HEIGHT');
+  }
+  // The header uses the h3 role of Card.module.css (21 / 28, semibold), not a bigger one.
+  const header = partOf(variantOf(set, 'Padding=default'), 'header-text');
+  assert.equal(boundName(sim, header, 'fontSize'), 'Brand:typography/h3/size');
+  assert.equal(boundName(sim, header, 'lineHeight'), 'Brand:typography/h3/line-height');
+  const resolved = (field: string) => sim.resolveVariable(sim.variables.find((x) => x.id === (header.boundVariables[field] as { id: string }).id)!);
+  assert.deepEqual([resolved('fontSize'), resolved('lineHeight'), resolved('fontWeight')], [21, 28, 600]);
+  // Inline components still hug.
+  const button = variantOf(sim.sets()[0]!, 'Variant=primary, Size=md, State=Default');
+  assert.equal(button.layoutSizingHorizontal, 'HUG');
+  assert.equal(button.clipsContent, false);
+});
+
+test('Tag: no wrapper frame, the icon and the Label text sit in the tag like Badge; a re-pull migrates the old layers', async () => {
+  // The previous spec had a "label" wrapper frame between the tag and its content.
+  const { specs } = await pulledFile();
+  const old: ComponentSpecsFile = structuredClone(specs);
+  const tag = old.components.find((c) => c.name === 'Tag')!;
+  assert.deepEqual(tag.parts.map((p) => `${p.id}<${p.parent ?? ''}`), ['root<', 'icon<root', 'text<root']);
+  tag.parts.splice(1, 0, { id: 'label', name: 'label', kind: 'frame', parent: 'root', layout: { direction: 'HORIZONTAL', primary: 'MIN', counter: 'CENTER' } });
+  for (const p of tag.parts) if (p.id === 'icon' || p.id === 'text') p.parent = 'label';
+  for (const v of tag.variants) {
+    const { paddingTop, paddingRight, paddingBottom, paddingLeft, itemSpacing, ...rest } = v.values.root!;
+    v.values.root = rest;
+    v.values.label = { paddingTop, paddingRight, paddingBottom, paddingLeft, itemSpacing } as typeof rest;
+  }
+  tag.hash = hashSpec(tag);
+  const first = await pulledFile({ gh: new FakeGitHub(repoFiles(JSON.stringify(old))) });
+  await applyComponentPlan(writablePlan(first.plan));
+  const set = first.sim.sets().find((s) => s.name === 'Tag')!;
+  const v = variantOf(set, 'Tone=neutral, Size=md, State=Default');
+  assert.deepEqual(v.children.map((c) => c.name), ['label']);
+  const textId = partOf(v, 'text').id;
+  // Pull the current spec: the wrapper goes, the text layer is the same node (instances keep their overrides).
+  const next = await pulledFile({ sim: first.sim });
+  assert.equal(next.plan.components.find((c) => c.name === 'Tag')!.status, 'updated');
+  await applyComponentPlan(writablePlan(next.plan));
+  assert.deepEqual(v.children.map((c) => `${c.type}:${c.name}`), ['FRAME:Icon', 'TEXT:Label']);
+  assert.equal(partOf(v, 'text').id, textId);
+  assert.equal(boundName(first.sim, v, 'paddingLeft'), 'Primitives:space/2');
+  assert.equal(boundName(first.sim, v, 'itemSpacing'), 'Primitives:space/1');
+  assert.equal(v.findAll((n) => n.name === 'label').length, 0);
+});
+
+test('grid: rows of different heights are evenly spaced, columns as wide as their widest variant', async () => {
+  const { sim, plan } = await pulledFile();
+  await applyComponentPlan(writablePlan(plan));
+  const set = sim.sets().find((s) => s.name === 'Button')!;
+  const comp = plan.components.find((c) => c.name === 'Button')!;
+  // What Figma measures after auto layout: sm 32, md 44, lg 48 tall; Hover a bit wider.
+  for (const c of set.children) {
+    c.height = /Size=sm/.test(c.name) ? 32 : /Size=md/.test(c.name) ? 44 : 48;
+    c.width = /State=Hover/.test(c.name) ? 120 : 100;
+  }
+  layoutVariants(set as unknown as ComponentSetNode, comp);
+  const rows = [...new Set(set.children.map((c) => c.y))].sort((x, y) => x - y);
+  assert.equal(rows.length, 12);
+  const rowOf = (y: number) => set.children.filter((c) => c.y === y);
+  const gaps = rows.slice(1).map((y, i) => y - (rows[i]! + Math.max(...rowOf(rows[i]!).map((c) => c.height))));
+  assert.deepEqual([...new Set(gaps)], [24], 'the same gap between every row');
+  const cols = [...new Set(set.children.map((c) => c.x))].sort((x, y) => x - y);
+  assert.deepEqual(cols, [24, 148, 292, 416]);
+  assert.equal(set.height, rows[11]! + 48 + 24);
 });
