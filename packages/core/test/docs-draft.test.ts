@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { acceptDocsText, anatomyLabel, classifyRisk, cssModuleClasses, docsPrompt, formatDocsJson, markClaudeDraft, missingProse, needsDocsReview, prefillDocs } from '../src/index';
+import { patchDocsJson, acceptDocsText, anatomyLabel, classifyRisk, cssModuleClasses, docsPrompt, formatDocsJson, markClaudeDraft, missingProse, needsDocsReview, prefillDocs } from '../src/index';
 
 const input = {
   name: 'Icon',
@@ -75,5 +75,53 @@ describe('docs review state', () => {
 
   it('a docs-only change is Tier 1', () => {
     expect(classifyRisk({ files: [{ path: 'packages/react/src/components/Icon/Icon.docs.json' }] }).tier).toBe(1);
+  });
+});
+
+describe('patchDocsJson (minimal diff)', () => {
+  const hand = [
+    '{',
+    '  "summary": "Old summary.",',
+    '  "preview": {',
+    '    "c": "Row",',
+    '    "children": [',
+    '      { "c": "Button", "p": { "variant": "primary" }, "children": ["Publish"] }',
+    '    ]',
+    '  },',
+    '  "whenToUse": ["One.", "Two."],',
+    '  "dos": [{ "title": "A", "text": "B" }]',
+    '}',
+    '',
+  ].join('\n');
+  const parsed = JSON.parse(hand);
+
+  it('keeps an unchanged hand-formatted file byte for byte', () => {
+    expect(patchDocsJson(hand, parsed)).toBe(hand);
+  });
+
+  it('changes only the edited line', () => {
+    const out = patchDocsJson(hand, { ...parsed, summary: 'New summary.' });
+    const a = hand.split('\n');
+    const b = out.split('\n');
+    expect(b.length).toBe(a.length);
+    expect(a.filter((l, i) => l !== b[i])).toEqual(['  "summary": "Old summary.",']);
+  });
+
+  it('edits one list item without reflowing the preview', () => {
+    const out = patchDocsJson(hand, { ...parsed, whenToUse: ['One.', 'Three.'] });
+    expect(out).toContain('{ "c": "Button", "p": { "variant": "primary" }, "children": ["Publish"] }');
+    expect(out).toContain('"whenToUse": ["One.", "Three."]');
+  });
+
+  it('adds new keys at the end and accepts a draft by touching one line', () => {
+    const drafted = patchDocsJson(hand, { ...parsed, draftedBy: 'claude', needsReview: true });
+    expect(drafted.startsWith(hand.slice(0, hand.lastIndexOf('\n}')))).toBe(true);
+    const accepted = acceptDocsText(drafted);
+    const diff = drafted.split('\n').filter((l, i) => l !== accepted.split('\n')[i]);
+    expect(diff).toEqual(['  "needsReview": true']);
+  });
+
+  it('falls back to the repo format without a valid original', () => {
+    expect(patchDocsJson(null, parsed)).toBe(patchDocsJson('not json', parsed));
   });
 });

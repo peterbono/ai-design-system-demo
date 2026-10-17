@@ -1,7 +1,7 @@
 // Docs edits in the local draft, as pure functions. The docs editor (Studio > Components > Edit docs) writes a
 // component's docs.json into the same draft as token edits (localStorage bridge.draft.v1), as an edit of kind "docs".
 // Proposing turns the docs edits into one pull request: Tier 1 under the shared classifier, a patch changeset.
-import { classifyRisk, formatDocsJson, missingProse, type ComponentDocsJson, type RiskResult } from '@bridge-ds/core';
+import { classifyRisk, formatDocsJson, missingProse, patchDocsJson, type ComponentDocsJson, type RiskResult } from '@bridge-ds/core';
 import type { Draft, DraftEdit } from './editor-model';
 
 export type DocsEdit = Extract<DraftEdit, { kind: 'docs' }>;
@@ -67,8 +67,11 @@ export function cleanDocs(d: ComponentDocsJson): ComponentDocsJson {
   };
 }
 
-/** docs.json text the editor writes: cleaned, in the Button.docs.json key order. */
+/** docs.json in the editor's canonical form: cleaned, in the Button.docs.json key order. Used to compare. */
 export const docsText = (d: ComponentDocsJson) => formatDocsJson(cleanDocs(d));
+
+/** docs.json text the editor writes: cleaned, as a minimal diff of the file on main (or the branch) when there is one. */
+export const docsFileText = (d: ComponentDocsJson, original: string | null) => patchDocsJson(original, cleanDocs(d));
 
 export interface DocsProposal {
   branch: string;
