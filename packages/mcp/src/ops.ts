@@ -11,6 +11,7 @@ import { branchExists, collectAuditFiles, commitToNewLocalBranch, currentBranch,
 import { core, type Combo, type Issue, type PairInput, type TokenEdit, type TokenSet } from './core-adapter.js';
 import { bullets, findSection, toc } from './markdown.js';
 import { GitHubSource, GitRefSource, type RepoSource } from './source.js';
+import { explorationContext, explorationRules, writeToExploration } from './explorations.js';
 
 const prefixPath = (set: TokenSet, f: string) => set.repoPath(f);
 
@@ -253,7 +254,10 @@ function jsdocOf(src: string, name: string): string | undefined {
  * CSS module classes, contrast notes, changelog line, existing prose kept) and a prompt for the user's own Claude
  * to write the prose that code cannot tell. Nothing is written.
  */
-export async function draftDocsOp(ctx: BridgeContext, a: { name: string }) {
+export async function draftDocsOp(ctx: BridgeContext, a: { name: string; branch?: string | undefined }) {
+  // On an exploration: read the component as it is on that branch (remote), and save the draft there.
+  const target = a.branch ? await explorationContext(ctx, a.branch, { requireCheckout: false }) : null;
+  if (target) ctx = target.ctx;
   const { config } = await ctx.config();
   if (!config.components) throw new Error('No components.dir in bridge.config.json.');
   const set = await ctx.tokens();
@@ -317,7 +321,10 @@ export async function draftDocsOp(ctx: BridgeContext, a: { name: string }) {
     exists: Boolean(existing),
     prefill,
     prompt,
-    instruction: `Write the prose from \`prompt\`, set "draftedBy": "claude" and "needsReview": true, and save the JSON to ${path}. A reviewer accepts it in Bridge Studio (Changes, Docs) before needsReview turns false.`,
+    instruction: target
+      ? `Write the prose from \`prompt\`, set "draftedBy": "claude" and "needsReview": true, and save the JSON to ${path} on the exploration branch ${target.branch} (commit it there). Do not open a pull request to main: it is reviewed when the exploration is promoted.`
+      : `Write the prose from \`prompt\`, set "draftedBy": "claude" and "needsReview": true, and save the JSON to ${path}. A reviewer accepts it in Bridge Studio (Changes, Docs) before needsReview turns false.`,
+    ...(target ? { branch: target.branch, rules: explorationRules(target.branch) } : {}),
   };
 }
 
@@ -361,6 +368,7 @@ export async function getGuidelines(ctx: BridgeContext, a: { section?: string })
     ...(tiers ? { riskTiers: tiers } : {}),
     bridgeEnforces: [
       'Proposals never touch the base branch or main: new bridge/* branch, then a pull request (remote) or a local branch (local).',
+      'With branch: "explore/<name>", proposals land on that exploration instead (a draft pull request labeled exploration, never merged as is, never a pull request to main).',
       'Any token added, changed, renamed or removed is Tier 3: draft PR, design and tech owner approval. A description-only change is Tier 1 (patch).',
       'A proposal that adds validation errors or breaks a contrast pair is blocked, not opened.',
       'Without a GitHub token the server is read-only.',
@@ -371,8 +379,11 @@ export async function getGuidelines(ctx: BridgeContext, a: { section?: string })
 
 // --- proposals ------------------------------------------------------------------------------------------
 
-export async function proposeTokenChange(ctx: BridgeContext, a: { edits: TokenEdit[]; title: string; summary?: string; dryRun?: boolean }) {
+export async function proposeTokenChange(ctx: BridgeContext, a: { edits: TokenEdit[]; title: string; summary?: string; dryRun?: boolean; branch?: string | undefined }) {
   if (!a.edits?.length) throw new Error('Pass at least one edit.');
+  // Target an exploration branch instead of a new pull request: edits read from and land on explore/<slug>.
+  const target = a.branch ? await explorationContext(ctx, a.branch, { requireCheckout: !a.dryRun }) : null;
+  if (target) ctx = target.ctx;
   const { config } = await ctx.config();
   const { before, after, touched, notes } = await withEdits(ctx, a.edits);
   const changes = core.diff(before, after);
@@ -406,9 +417,13 @@ export async function proposeTokenChange(ctx: BridgeContext, a: { edits: TokenEd
   if (newErrors.length || newFailures.length) {
     return { status: 'blocked', why: [newErrors.length ? `${newErrors.length} new validation error(s)` : '', newFailures.length ? `${newFailures.length} contrast pair(s) would fail` : ''].filter(Boolean).join(' and '), newErrors, ...report, hint: 'Fix the edits (or add edits for the aliases they break). Bridge never opens a PR that breaks the gate.' };
   }
-  let branch = `${config.governance.branchPrefix}${slugTitle}`;
+  let branch = target ? target.branch : `${config.governance.branchPrefix}${slugTitle}`;
   const preview = { ...report, branch, files: files.map((f) => f.path), prBody: body };
   if (a.dryRun) return { status: 'dry-run', ...preview, fileContents: files };
+  if (target) {
+    const message = `${tier.bump === 'major' ? 'feat(tokens)!' : 'feat(tokens)'}: ${a.title}\n\n${summary}\n\nExploration ${target.branch}: not merged as is. Proposed through Bridge MCP (source: mcp).`;
+    return { ...preview, exploration: true, ...(await writeToExploration(ctx, target.branch, { message, files })) };
+  }
 
   if (ctx.mode === 'local') {
     if (!ctx.isGit) return { status: 'preview', message: 'Not a git repo: nothing written. Apply fileContents yourself.', ...preview, fileContents: files };

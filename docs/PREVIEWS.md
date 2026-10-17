@@ -21,6 +21,10 @@ Product staging branch: npm i <snapshot>      or      https://staging.product.co
 
 Nothing here publishes to the npm registry or deploys production. Releases are separate (see the last section).
 
+**Explorations** (`explore/<name>` branches with a draft pull request labeled `exploration`) get the same three on
+every push, with the comment titled "Try this exploration in your product" and `npm i @bridge-ds/react@<snapshot>`
+commands. They are never merged as is: see [EXPLORATIONS.md](EXPLORATIONS.md).
+
 ## Five-minute setup
 
 You do these once. None of it is automated, because each step grants access to your accounts.

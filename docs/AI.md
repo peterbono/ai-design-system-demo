@@ -86,9 +86,9 @@ Any client that speaks MCP over stdio works: run `node packages/mcp/dist/index.j
 
 ## What Claude can do
 
-28 tools: 6 for tokens (config, browse, read, search, contrast, validation), 6 for components and guidance,
+30 tools: 6 for tokens (config, browse, read, search, contrast, validation), 6 for components and guidance,
 5 for proposals and reviews (visual impact included), 3 for brands, 4 for history and revert, 1 for adoption
-audits, 3 for component change requests.
+audits, 3 for component change requests, 2 for explorations.
 
 | Tool | Use it to |
 | --- | --- |
@@ -104,7 +104,7 @@ audits, 3 for component change requests.
 | `bridge_draft_docs` | Start or refresh a component's docs.json: what the code tells (props, tokens, anatomy, contrast, changelog line) plus a prompt for you to write the prose (see [Docs drafts](#docs-drafts)) |
 | `bridge_get_design_language` | Read the relevant section of the design language |
 | `bridge_get_guidelines` | Read the agent rules (always, ask before, never) and the risk tiers |
-| `bridge_propose_token_change` | Turn token edits into a branch (local) or a draft PR (GitHub), with a designer-friendly body |
+| `bridge_propose_token_change` | Turn token edits into a branch (local) or a draft PR (GitHub), with a designer-friendly body; with `branch`, commit them to an exploration instead |
 | `bridge_list_brands` | See the brands: slug, name, default, primary action color, theme overrides |
 | `bridge_plan_brand` | Dry run of a new brand: generated ramps, every contrast pair in light and dark, files, tier, PR body |
 | `bridge_propose_brand` | Turn that plan into a `bridge/brand-<slug>` branch (local) or a draft PR (GitHub), never `main` |
@@ -119,7 +119,9 @@ audits, 3 for component change requests.
 | `bridge_audit` | Measure how a product codebase adopts the design system: token and component adoption, hardcoded values with the closest token, foreign UI components with the DS component to use, top files and fixes |
 | `bridge_list_requests` | List component change requests (GitHub issues labeled `component-change`) with status: requested, in progress (an open pull request says "Closes #n"), done, declined |
 | `bridge_get_request` | Read one request with the component's files, the agent rules and a brief to implement it in a pull request that closes it |
-| `bridge_create_request` | File a request as an issue labeled `component-change` (`source: mcp`); needs `GITHUB_TOKEN`; `dryRun` previews it |
+| `bridge_create_request` | File a request as an issue labeled `component-change` (`source: mcp`); needs `GITHUB_TOKEN`; `dryRun` previews it; `exploration` implements it on an exploration branch |
+| `bridge_start_exploration` | Start an exploration: an `explore/<name>` branch and a draft pull request labeled `exploration`, with previews and a snapshot package for a product staging branch, never merged as is (see [Explorations](#explorations)) |
+| `bridge_list_explorations` | List explorations: purpose, status (running, promoted, closed), previews, the snapshot install command and the requests implemented on each |
 
 Resources: `bridge://tokens/resolved`, `bridge://design-language`, `bridge://guidelines`,
 `bridge://components/{name}`.
@@ -280,6 +282,26 @@ bridge request create --component Button --kind new-variant --title "Add a dange
 
 Ask Claude: "Which component requests are waiting?", "Implement request 42."
 
+## Explorations
+
+Try experimental variables and components in a product staging branch without touching `main`: a coded prototype
+for a user test, a stakeholder demo, an A/B idea, or a designer exploring from the terminal with Claude Code. An
+exploration is an `explore/<name>` branch with a draft pull request labeled `exploration`: it gets the branch
+previews and a snapshot package (`npm i @bridge-ds/react@<snapshot>`), and it is never merged as is. A person
+promotes it to review or closes it. See [EXPLORATIONS.md](EXPLORATIONS.md).
+
+```sh
+bridge explore start "Pill buttons" --purpose "Do rounder buttons feel friendlier in checkout?"
+git switch explore/pill-buttons
+bridge propose --branch explore/pill-buttons --title "Pill radius" --set radius.control=999px
+bridge request implement 42 --branch explore/pill-buttons     # the brief: work there, no pull request to main
+bridge explore promote pill-buttons                           # ready for review, tier labels; never merges
+```
+
+Ask Claude: "Start an exploration for denser tables", "Darken muted text on explore/dense-tables", "Which
+explorations are running?". Claude passes `"branch": "explore/<name>"` to `bridge_propose_token_change`,
+`bridge_draft_docs` and `bridge_get_request`, and never opens a pull request to `main` from an exploration.
+
 ## Measure adoption in product code
 
 `bridge audit` reads a product codebase that consumes the design system and tells you how much of it really
@@ -316,7 +338,9 @@ bridge audit ../my-app/src --fix --write           # replace them with var(--tok
 
 - **Read-only by default.** Without `GITHUB_TOKEN` nothing remote is written. Locally, read tools never
   write.
-- **Never `main`.** Proposals go to new branches named `bridge/<title>`. The protected list (`main`,
+- **Never `main`.** Proposals go to new branches named `bridge/<title>`, or to an exploration branch
+  `explore/<name>` when you pass one (its draft pull request is never merged as is: the check "Exploration not
+  merged as is" fails while the `exploration` label is on). The protected list (`main`,
   `master`, the configured base branch) is checked in the GitHub client and the local git writer, whatever
   the caller asks. Existing branches are never overwritten; a new suffix is used instead.
 - **Pull requests, not pushes.** Remote proposals open a **draft** PR labelled `source: mcp` and `tier: N`.

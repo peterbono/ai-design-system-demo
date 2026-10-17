@@ -8,6 +8,7 @@ import { findDesignSystemRoot, fixCss, loadDesignSystem, originRepo, runAudit } 
 import { fileURLToPath } from 'node:url';
 import { runImpact, type Only } from '@bridge-ds/visual';
 import { runRequest } from './request.js';
+import { runExplore } from './explore.js';
 import { brand, BridgeContext, CONFIG_FILE, core, detectConfig, GitRefSource, history as hist, LocalSource, ops, optionsFromArgv, serveStdio, toConfigJson, VERSION, type BridgeConfig } from '@bridge-ds/mcp';
 
 const HELP = `bridge ${VERSION}: design system as code, for you and your Claude
@@ -18,8 +19,9 @@ Usage:
   bridge tokens <query> [--json]      search tokens by name, description or value
   bridge diff <base> [--json|--md]    designer-readable token diff: working tree vs <base> (git ref)
   bridge propose --title "..." --set path=value [--set ...] [--file f | --mode theme=dark]
-                 [--edits edits.json] [--summary "..."] [--dry-run]
-                                      validate + contrast + new local bridge/* branch (never pushes)
+                 [--edits edits.json] [--summary "..."] [--branch explore/<name>] [--dry-run]
+                                      validate + contrast + new local bridge/* branch (never pushes).
+                                      --branch: write the edits to the checked-out exploration instead
   bridge brand list [--json]          brands: slug, name, default, primary action color, theme overrides
   bridge brand create <slug> --from bridge --primary <hex|hue> --neutral <hex|hue>
                  [--name "Acme"] [--accent x] [--link x] [--radius soft|balanced|crisp|i,c,co,o]
@@ -55,8 +57,15 @@ Usage:
                                       list them, read one, print the brief to implement it (--claude starts
                                       Claude Code with it). \`bridge request help\` for create and jira-sync
   bridge request create --component Button --kind new-variant --title "..." --summary "..."
-                 [--change field=before:after] [--figma url] [--dry-run]
+                 [--change field=before:after] [--figma url] [--exploration explore/<name>] [--dry-run]
                                       file a request as a GitHub issue (needs a GitHub token)
+  bridge explore start <name> --purpose "..." [--use-case user-test|stakeholder-demo|ab-idea|terminal]
+  bridge explore list [--all] [--json]
+  bridge explore promote <name|#pr> [--dry-run]
+  bridge explore close <name|#pr>
+                                      explorations: an explore/<name> branch with a draft pull request
+                                      labeled exploration, previews and a snapshot package for a product
+                                      staging branch. Never merged as is: promote it to review or close it
   bridge mcp [--root dir | --repo owner/name]   start the MCP server on stdio
 
 Options:
@@ -79,7 +88,7 @@ function parse(argv: string[]): Args {
       const next = argv[i + 1];
       // --json and --md print to stdout, or write a file when followed by one (bridge audit).
       const fileArg = (k === 'json' && /\.json$/i.test(next ?? '')) || (k === 'md' && /\.(md|markdown)$/i.test(next ?? ''));
-      const takesValue = inline === undefined && next !== undefined && !next.startsWith('--') && (fileArg || !['force', 'json', 'md', 'strict', 'dry-run', 'help', 'fix', 'write', 'no-regress', 'plan', 'keep-unchanged', 'restore-conflicts', 'breaking', 'claude'].includes(k));
+      const takesValue = inline === undefined && next !== undefined && !next.startsWith('--') && (fileArg || !['force', 'json', 'md', 'strict', 'dry-run', 'help', 'fix', 'write', 'no-regress', 'plan', 'keep-unchanged', 'restore-conflicts', 'breaking', 'claude', 'all'].includes(k));
       (out.flags[k] ??= []).push(inline ?? (takesValue ? argv[++i]! : 'true'));
     } else out._.push(a);
   }
@@ -212,7 +221,8 @@ async function propose(a: Args, root: string): Promise<number> {
   if (!edits.length) throw new UsageError('Give at least one --set path=value or --edits file.json');
   const ctx = await BridgeContext.create({ root });
   const summary = flag(a, 'summary');
-  const r = (await ops.proposeTokenChange(ctx, { title, edits: edits as never, ...(summary ? { summary } : {}), dryRun: has(a, 'dry-run') })) as Record<string, unknown>;
+  const branch = flag(a, 'branch');
+  const r = (await ops.proposeTokenChange(ctx, { title, edits: edits as never, ...(summary ? { summary } : {}), ...(branch ? { branch } : {}), dryRun: has(a, 'dry-run') })) as Record<string, unknown>;
   if (has(a, 'json')) print(JSON.stringify(r, null, 2));
   else {
     print(`status: ${r.status}${r.why ? ` (${r.why})` : ''}`);
@@ -491,6 +501,7 @@ async function main(): Promise<number> {
   const cmd = a._[0];
   const root = resolve(flag(a, 'root') ?? process.cwd());
   if (cmd === 'request') return runRequest(a, root);
+  if (cmd === 'explore') return runExplore(a, root);
   if (!cmd || has(a, 'help') || cmd === 'help') {
     print(HELP);
     return cmd ? 0 : 2;

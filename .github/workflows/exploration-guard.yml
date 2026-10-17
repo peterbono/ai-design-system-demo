@@ -1,0 +1,31 @@
+# Explorations (docs/EXPLORATIONS.md) are draft pull requests labeled `exploration` on `explore/<slug>` branches. They
+# are never merged as is: when the idea is validated they are promoted to review (Studio "Promote to review" or
+# `bridge explore promote <slug>`), which removes the label; otherwise they are closed.
+#
+# This job fails while the `exploration` label is on, so an exploration can never be merged by accident (owners merge
+# green pull requests only). It passes on every other pull request and re-runs when labels change.
+name: Exploration guard
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled, ready_for_review]
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    name: Exploration not merged as is
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail while the pull request is an exploration
+        env:
+          IS_EXPLORATION: ${{ contains(github.event.pull_request.labels.*.name, 'exploration') }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          if [ "$IS_EXPLORATION" = "true" ]; then
+            echo "::error title=Exploration not merged as is::This pull request is an exploration ($HEAD_REF into $BASE_REF). It is never merged as is: promote it to review (Bridge Studio, Changes, Explorations, or bridge explore promote), which removes the exploration label, or close it."
+            exit 1
+          fi
+          echo "Not an exploration: nothing to guard."

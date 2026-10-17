@@ -13,6 +13,7 @@ export * as ops from './ops.js';
 export * as history from './history.js';
 export * as brand from './brand.js';
 export * as requests from './requests.js';
+export * as explorations from './explorations.js';
 
 export interface ServeOptions extends ContextOptions {}
 

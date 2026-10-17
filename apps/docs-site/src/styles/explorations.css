@@ -1,0 +1,143 @@
+/* Explorations (Field Guide): the Explorations view of Changes and its detail. Rows carry a link to the detail and a
+   copyable install command, so a row is not one big link like In review. Statuses stay grey: running, promoted and
+   closed are states, not verdicts. */
+
+.ex-rule {
+  max-width: 65ch;
+}
+
+.ex-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, calc(var(--size-80) + var(--size-20)));
+  align-items: center;
+  gap: var(--space-3) var(--space-5);
+  padding: var(--space-3) var(--space-5);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.ex-row-main {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.ex-row-title,
+.ex-purpose,
+.ex-meta {
+  margin: 0;
+}
+
+.ex-row-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1-5);
+}
+
+.ex-name {
+  font-weight: var(--font-weight-semibold);
+}
+
+.ex-purpose {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.ex-meta {
+  min-width: 0;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.ex-install {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.ex-cmd {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-top: 0;
+  padding: var(--space-1-5) var(--space-2);
+  overflow: hidden;
+  font-family: var(--font-family-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ex-form {
+  margin-top: var(--space-4);
+  padding: var(--space-5);
+}
+
+.ex-form .rq-hint {
+  font-size: var(--typography-ui-size);
+}
+
+.ex-form .rq-field,
+.ex-no-gh {
+  max-width: calc(var(--size-80) * 3);
+}
+
+.ex-form[hidden],
+.ex-done[hidden],
+.ex-confirm[hidden],
+.ex-no-gh[hidden] {
+  display: none;
+}
+
+.ex-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.ex-no-gh {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.ex-done {
+  margin-top: var(--space-4);
+}
+
+.ex-confirm {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding: var(--space-4);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-container);
+}
+
+.ex-confirm p {
+  margin: 0;
+}
+
+.ex-note {
+  max-width: 65ch;
+}
+
+.ex-uses {
+  display: grid;
+  gap: var(--space-1);
+  max-width: 65ch;
+  margin: 0 auto;
+  padding-left: var(--space-5);
+  color: var(--color-text-muted);
+  text-align: left;
+}
+
+@media (max-width: 760px) {
+  .ex-row {
+    grid-template-columns: minmax(0, 1fr);
+    padding: var(--space-3) var(--space-4);
+  }
+}

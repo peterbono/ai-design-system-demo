@@ -69,7 +69,9 @@ and the full guide: [docs/AI.md](../../docs/AI.md).
 | `bridge_audit` | Adoption in a product folder or file (local): token and component adoption, hardcoded values with the closest token, foreign components with the DS one to use, top files and fixes |
 | `bridge_list_requests` | Component change requests (issues labeled `component-change`) with status and linked pull requests |
 | `bridge_get_request` | One request with the component's files and a brief to implement it in a pull request that says "Closes #n" |
-| `bridge_create_request` | File a request as an issue labeled `component-change` (token required; `dryRun` previews) |
+| `bridge_create_request` | File a request as an issue labeled `component-change` (token required; `dryRun` previews; `exploration` targets an exploration branch) |
+| `bridge_start_exploration` | Start an exploration: `explore/<name>` branch and a draft pull request labeled `exploration`, previews and a snapshot package, never merged as is |
+| `bridge_list_explorations` | Explorations with status, previews, the snapshot install command and linked requests |
 
 Resources: `bridge://tokens/resolved`, `bridge://design-language`, `bridge://guidelines`,
 `bridge://components/{name}`. Prompts: `review-token-pr`, `add-component`, `audit-ui-for-tokens`,

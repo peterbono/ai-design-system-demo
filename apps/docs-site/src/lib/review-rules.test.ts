@@ -50,6 +50,18 @@ describe('mergeGate owner override', () => {
     expect(canOverride('peterbono', { ...policy, allowed: ['@PeterBono'] })).toBe(true);
   });
 
+  it('never merges or overrides a running exploration, even fully green and approved', () => {
+    const g = gate({ exploration: true });
+    expect(g.allowed).toBe(false);
+    expect(g.overridable).toBe(false);
+    expect(g.reasons[0]).toBe('It is an exploration: promote it to review first.');
+    const approved = summarizeApprovals([{ user: { login: 'a' }, state: 'APPROVED' }, { user: { login: 'b' }, state: 'APPROVED' }], { design: [], tech: [] });
+    expect(gate({ exploration: true, approvals: approved }).allowed).toBe(false);
+    expect(gate({ exploration: false, approvals: approved }).allowed).toBe(true);
+    // A closed exploration says closed, not exploration.
+    expect(gate({ exploration: true, state: 'closed' }).reasons).not.toContain('It is an exploration: promote it to review first.');
+  });
+
   it('never overrides failing CI', () => {
     const g = gate({ ci: red });
     expect(g.overridable).toBe(false);

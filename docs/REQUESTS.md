@@ -25,6 +25,12 @@ Designers ask, developers implement, code stays the source of truth.
 | 5. Pull request | GitHub | A branch `agent/request-42` and a pull request whose body says `Closes #42`. It goes through the usual review and CI |
 | 6. Done | GitHub, then Jira | Merging closes the issue; the Action comments `Closed in GitHub (#42), completed` on the Jira issue |
 
+**On an exploration.** A request can target an exploration branch instead (`--exploration explore/<name>` in the CLI,
+`exploration` in `bridge_create_request`, or the exploration's page in Studio). The issue gets the `exploration`
+label, and the brief says to commit on that branch and never open a pull request to `main`: the work ships to
+product staging as a snapshot and reaches review only when the exploration is promoted, which closes the request.
+See [EXPLORATIONS.md](EXPLORATIONS.md).
+
 Status, everywhere (Studio, CLI, MCP): **requested** (open, no pull request), **in progress** (an open pull request
 says `Closes #n`), **done** (closed as completed, or by a merged pull request), **declined** (closed otherwise).
 Bridge reads `Closes`, `Fixes` and `Resolves` in pull request bodies, like GitHub does.
@@ -43,6 +49,7 @@ bridge request list --status requested --component Button
 bridge request show 42                                # the request, its component files, linked pull requests
 bridge request implement 42                           # the brief on stdout: pipe it, paste it, edit it
 bridge request implement 42 --claude                  # start Claude Code in the repo with that brief
+bridge request implement 42 --branch explore/pill-buttons   # implement it on an exploration, no pull request to main
 ```
 
 `--claude` needs [Claude Code](https://docs.anthropic.com/en/docs/claude-code) (`claude` on your PATH). Without it,
