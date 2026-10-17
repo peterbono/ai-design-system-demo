@@ -119,14 +119,22 @@
 }
 
 .ov-row-title {
+  display: flex;
+  gap: var(--space-1-5);
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+/* One line per change: the first sentence, cut with an ellipsis. The full notes live on the changelog. */
 .ov-row-title b {
+  min-width: 0;
+  overflow: hidden;
   font-weight: var(--font-weight-semibold);
+  text-overflow: ellipsis;
+}
+
+.ov-row-title > span {
+  flex: none;
 }
 
 .ov-row-date {
@@ -139,6 +147,10 @@
   font-size: var(--typography-ui-size);
   font-weight: var(--font-weight-medium);
   line-height: var(--typography-ui-line-height);
+}
+
+.ov-skel[hidden] {
+  display: none;
 }
 
 .ov-skel {
@@ -185,6 +197,6 @@
   }
 
   .ov-row-title {
-    white-space: normal;
+    white-space: nowrap;
   }
 }

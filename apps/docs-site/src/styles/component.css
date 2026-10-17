@@ -37,9 +37,6 @@
   margin-bottom: var(--space-8);
 }
 
-.cp-meta .updated {
-  margin: 0;
-}
 
 .cp-links {
   display: flex;

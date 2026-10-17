@@ -108,3 +108,26 @@ export function mdTitleHtml(md: string | null | undefined): string {
     .replace(/\s+/g, ' ')
     .trim();
 }
+
+/**
+ * One-line title for short lists (home "What changed", Studio activity): the first sentence of a Markdown title as
+ * plain text, cut at a word boundary with an ellipsis past `max` characters. The full text lives on the release
+ * notes page; CSS still ellipsizes whatever does not fit the row.
+ */
+export function oneLineTitle(md: string | null | undefined, max = 110): string {
+  const text = mdTitleText(md);
+  // A sentence ends at . ! or ? followed by a space: dotted names like bridge.config.json stay whole.
+  const end = text.search(/[.!?](\s|$)/);
+  const first = end >= 0 ? text.slice(0, end + 1) : text;
+  return truncateWords(first, max);
+}
+
+/** Cuts text to at most `max` characters at a word boundary and adds an ellipsis. Short text comes back as is. */
+export function truncateWords(text: string, max: number): string {
+  const t = text.trim();
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max - 1);
+  const space = cut.lastIndexOf(' ');
+  const base = (space > max * 0.6 ? cut.slice(0, space) : cut).replace(/[\s,;:.(-]+$/, '');
+  return `${base}…`;
+}

@@ -2,6 +2,7 @@
 // theme toggle, copy buttons, the mobile navigation sheet, the Cmd+K command palette, header menus, the "On this
 // page" rail and, in the Studio, the branch scope, the nav counts and the GitHub connection.
 import { ghGet, initGitHubConnect, readRepo } from './github-session';
+import { initMaintainer } from './maintainer';
 import { mdTitleText } from '../lib/markdown';
 import { openPulls } from '../lib/review-rules';
 
@@ -67,6 +68,11 @@ function applyScope(scope: Scope, within: ParentNode = document) {
   const root = document.documentElement;
   root.dataset.previewBrand = scope.brand;
   root.dataset.previewDensity = scope.density;
+  // Specimen stages on the page's own theme (Library foundation pages): they follow the page theme and the scope.
+  const theme = root.dataset.theme ?? 'light';
+  within.querySelectorAll<HTMLElement>('[data-scope-stage]').forEach((el) => {
+    if (el.dataset.theme !== theme) el.dataset.theme = theme;
+  });
   within.querySelectorAll<HTMLElement>('[data-theme]').forEach((el) => {
     if (el === root || el.hasAttribute('data-scope-fixed')) return;
     if (el.dataset.brand !== scope.brand) el.dataset.brand = scope.brand;
@@ -112,6 +118,8 @@ function initScope() {
       applyScope(currentScope());
     });
   }).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-theme'] });
+  // The page theme lives on <html>: specimen stages follow it.
+  new MutationObserver(() => applyScope(currentScope())).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
   const menu = document.getElementById('scope-menu') as HTMLDetailsElement | null;
   if (menu) {
     document.addEventListener('click', (e) => {
@@ -494,6 +502,7 @@ export function draftCount(): number {
 }
 
 function setCount(kind: 'drafts' | 'reviews', n: number | null) {
+  // The nav shows one number, on Changes: open pull requests waiting for a review.
   document.querySelectorAll<HTMLElement>(`[data-nav-count="${kind}"]`).forEach((el) => {
     el.hidden = !n;
     const v = el.querySelector('[data-nav-count-value]');
@@ -597,6 +606,7 @@ function initStudio() {
 
 export function initShell() {
   initTheme();
+  initMaintainer();
   initSegmented();
   initMenus();
   initToc();

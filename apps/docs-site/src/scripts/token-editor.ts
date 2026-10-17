@@ -1,6 +1,7 @@
-// Token editor: Edit mode of the token explorer. Every edit lands in a draft (kept in localStorage), repaints a live
-// preview of real components, runs the same guardrails as the build and the Figma plugin, and is proposed as a pull
-// request with the user's own GitHub token. Nothing is written to the repo without review.
+// Token editor: the draft behind Studio Tokens. Every applied edit lands in a draft (kept in localStorage), runs the
+// same guardrails as the build and the Figma plugin, and is proposed as a pull request with the user's own GitHub
+// token. The cell editor (scripts/explorer/inline-edit.ts) and the review sheet (scripts/explorer/review.ts) read and
+// write it through the API below; the Drafts page shows it as a tray. Nothing is written to the repo without review.
 import {
   GitHubClient,
   buildTokenSet,
@@ -9,18 +10,14 @@ import {
   commitMessage,
   composeChangeset,
   composePrBody,
-  isAlias,
-  aliasTarget,
   layoutOptions,
   loadConfig,
   loadRepoFiles,
-  parseColor,
   parseContrastChecks,
-  rgbaToDtcg,
-  rgbaToHex,
-  hexToRgba,
-  resolve,
   validateProposal,
+  contrastScope,
+  evaluatePairs,
+  type ContrastResult,
   type BridgeConfig,
   type LogicalToken,
   type TokenSet,
@@ -39,7 +36,6 @@ import {
   type DraftEdit,
   type Guardrails,
 } from '../lib/editor-model';
-import { currentScope, selectSegment } from './shell';
 import { esc, getToken, initGitHubConnect, paintGates, readRepo, setButtonDisabled } from './github-session';
 
 /** The config's repository, or the one this site documents when the config names none. */
@@ -50,17 +46,6 @@ function repoOf(config: BridgeConfig): { owner: string; name: string; defaultBra
 }
 
 const DRAFT_KEY = 'bridge.draft.v1';
-const MODE_LABEL: Record<string, string> = { light: 'Light', dark: 'Dark', bridge: 'Bridge', ocean: 'Ocean', comfortable: 'Comfortable', compact: 'Compact' };
-const label = (m: string) => MODE_LABEL[m] ?? m.charAt(0).toUpperCase() + m.slice(1);
-const TIER_NOTE: Record<string, string> = {
-  primitive: 'You are editing a primitive: a raw value. Every brand role and semantic token that points here changes with it, in every theme. Prefer re-pointing a semantic token or a palette role.',
-  brand: 'You are editing a brand palette role. It changes every semantic token that uses this role, in both themes, for this brand only.',
-  semantic: 'You are editing a semantic token. Point it at a palette role; raw values are allowed but skip the brand layer, so brands cannot re-theme them.',
-  base: 'You are editing a theme-independent token (motion, layers, sizes). It applies in every theme and brand.',
-  density: 'You are editing a density token. It changes control heights and paddings for this density only.',
-  component: 'You are editing a component token. Point it at a semantic token so themes and brands flow through.',
-};
-
 interface State {
   config: BridgeConfig;
   originals: Record<string, string>;
@@ -105,7 +90,6 @@ function recompute() {
   S.contrastBefore = v.contrastBefore;
   S.contrastAfter = v.contrastAfter;
   S.checks = guardrails(S.head, S.applied.proposed, S.pairs);
-  paintPreview();
   paintTray();
   document.dispatchEvent(new CustomEvent('bridge:draft'));
 }
@@ -127,247 +111,30 @@ function setValue(t: LogicalToken, mode: string, after: unknown) {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// Preview
-
-function paintPreview() {
-  if (!S?.applied) return;
-  const scope = currentScope();
-  document.querySelectorAll<HTMLElement>('[data-ed-frame]').forEach((frame) => {
-    const theme = frame.dataset.theme ?? 'light';
-    const vars = previewOverrides(S!.head, S!.applied!.proposed, { brand: scope.brand, theme, density: scope.density });
-    frame.removeAttribute('style');
-    for (const [k, v] of Object.entries(vars)) frame.style.setProperty(k, v);
-  });
-}
-
-// ---------------------------------------------------------------------------------------------------------------
-// Editor section inside the token drawer
+// Draft values
 
 function currentValue(t: LogicalToken, mode: string): unknown {
   const e = [...(S?.draft.edits ?? [])].reverse().find((x) => x.kind === 'value' && x.path === t.path && x.mode === mode) as Extract<DraftEdit, { kind: 'value' }> | undefined;
   return e ? e.after : t.values[mode];
 }
 
-function resolvedHex(t: LogicalToken, mode: string): string | null {
-  if (!S?.applied) return null;
-  const set = S.applied.proposed;
-  const axis = t.tier === 'brand' ? 'brand' : t.tier === 'semantic' ? 'theme' : t.tier === 'density' ? 'density' : null;
-  const scope = currentScope();
-  const ctx = { brand: scope.brand, theme: 'light', density: scope.density, overrides: set.overrideIndex, ...(axis ? { [axis]: mode } : {}) };
-  const r = resolve(set.byPath, t.path, ctx);
-  const c = r.value !== undefined ? parseColor(r.value) : undefined;
-  return c ? rgbaToHex(c) : null;
-}
-
-function rawEditor(t: LogicalToken, value: unknown): string {
-  if (t.type === 'color') {
-    const c = isAlias(value) ? undefined : parseColor(value);
-    const hex = c ? rgbaToHex(c) : '#000000';
-    return `<div class="ed-raw-row"><input type="color" value="${hex.slice(0, 7)}" data-ed-color aria-label="Pick a color" /><input class="ed-input mono" value="${hex}" data-ed-hex aria-label="Hex value" spellcheck="false" /></div>`;
-  }
-  if (t.type === 'dimension' || t.type === 'duration') {
-    const d = !isAlias(value) && value && typeof value === 'object' ? (value as { value: number; unit: string }) : { value: 0, unit: t.type === 'duration' ? 'ms' : 'px' };
-    return `<div class="ed-raw-row"><button type="button" class="ed-step" data-ed-step="-1" aria-label="Decrease">-</button><input class="ed-input num" type="number" value="${d.value}" step="${t.type === 'duration' ? 25 : 1}" data-ed-num aria-label="Value" /><button type="button" class="ed-step" data-ed-step="1" aria-label="Increase">+</button><span class="ed-unit mono" data-ed-unit>${esc(d.unit)}</span></div>`;
-  }
-  return `<input class="ed-input mono" value="${esc(isAlias(value) ? '' : JSON.stringify(value))}" data-ed-json aria-label="Raw value as JSON" />`;
-}
-
-/**
- * A static DS SegmentedControl built from the one TokenExplorer.astro renders in `template[data-xp-seg-tpl]`: its
- * segment is cloned once per option, so the markup and classes stay the design system's. scripts/shell.ts drives it
- * (data-vanilla) and reports changes with bridge:segment. Null when the page has no template.
- */
-function segmentedControl(name: string, options: { value: string; label: string }[], value: string): HTMLElement | null {
-  const tpl = document.querySelector<HTMLTemplateElement>('template[data-xp-seg-tpl]');
-  const root = tpl?.content.querySelector('[data-segmented-control]')?.cloneNode(true) as HTMLElement | undefined;
-  const proto = root?.querySelector<HTMLElement>('[data-segment]');
-  if (!root || !proto) return null;
-  root.setAttribute('aria-label', name);
-  root.replaceChildren(
-    ...options.map((o) => {
-      const b = proto.cloneNode(true) as HTMLElement;
-      b.removeAttribute('id');
-      b.removeAttribute('data-composite-item-active');
-      b.dataset.value = o.value;
-      const text = b.querySelector('span');
-      if (text) text.textContent = o.label;
-      return b;
-    }),
-  );
-  selectSegment(root, value);
-  return root;
-}
-
-export function renderEditor(path: string, slot: HTMLElement) {
-  if (!S) return;
-  const t = (S.applied?.proposed ?? S.head).byPath.get(path) ?? S.head.byPath.get(path);
-  if (!t) {
-    slot.innerHTML = '<p class="muted small">This token is not in the token files this site was built from.</p>';
-    return;
-  }
-  const modes = Object.keys(t.values);
-  let mode = slot.dataset.mode && modes.includes(slot.dataset.mode) ? slot.dataset.mode : modes[0]!;
-  const candidates = aliasCandidates(S.head, t);
-  const listId = `ed-alias-${uid()}`;
-  const draw = () => {
-    const v = currentValue(t, mode);
-    const alias = isAlias(v) ? aliasTarget(v) : '';
-    const hex = t.type === 'color' ? resolvedHex(t, mode) : null;
-    const edited = S!.draft.edits.some((e) => (e.kind === 'value' && e.path === t.path) || ((e.kind === 'rename' || e.kind === 'delete') && e.path === t.path));
-    const nudgeRaw = t.tier === 'semantic' || t.tier === 'component';
-    slot.innerHTML = `
-      <div class="ed">
-        <div class="ed-head"><h3>Edit</h3>${edited ? '<span class="pill is-accent">In draft</span>' : ''}</div>
-        <p class="ed-note is-${t.tier}">${esc(TIER_NOTE[t.tier] ?? '')}</p>
-        ${modes.length > 1 ? '<div data-ed-modes></div>' : ''}
-        <div class="ed-field">
-          <label class="ed-label" for="${listId}-in">${t.tier === 'primitive' ? 'Value' : 'Points to'}</label>
-          ${
-            t.tier === 'primitive'
-              ? rawEditor(t, v)
-              : `<div class="ed-alias">${hex ? `<span class="ed-sw" style="background-color:${hex}"></span>` : ''}<input id="${listId}-in" class="ed-input mono" list="${listId}" value="${esc(alias)}" placeholder="${alias ? '' : 'Raw value below'}" data-ed-alias spellcheck="false" autocomplete="off" /><datalist id="${listId}">${candidates
-                  .map((c) => `<option value="${esc(c)}"></option>`)
-                  .join('')}</datalist></div>
-                 <p class="ed-hint">${candidates.length} ${t.type} tokens you can point to from this tier.</p>
-                 <details class="ed-rawbox"${alias ? '' : ' open'}><summary>${nudgeRaw ? 'Use a raw value (not recommended)' : 'Use a raw value'}</summary>${rawEditor(t, v)}</details>`
-          }
-        </div>
-        <div class="ed-frames" aria-label="Live preview, light and dark">
-          ${['light', 'dark']
-            .map((th) => `<div class="ed-frame" data-theme="${th}" data-ed-frame><span class="ed-frame-label">${th === 'light' ? 'Light' : 'Dark'}</span>${$('ed-preview-tpl')?.innerHTML ?? ''}</div>`)
-            .join('')}
-        </div>
-        <div class="ed-row-actions">
-          ${t.tier === 'semantic' ? '<button type="button" class="btn btn-secondary btn-sm" data-ed-rename>Rename</button><button type="button" class="btn btn-secondary btn-sm ed-danger" data-ed-delete>Delete</button>' : ''}
-          <button type="button" class="btn btn-secondary btn-sm" data-ed-reset ${edited ? '' : 'disabled'}>Undo edits on this token</button>
-        </div>
-        <div class="ed-live" data-ed-live></div>
-      </div>`;
-    const modesSlot = slot.querySelector('[data-ed-modes]');
-    const seg = modesSlot
-      ? segmentedControl(
-          'Mode',
-          modes.map((m) => ({ value: m, label: label(m) })),
-          mode,
-        )
-      : null;
-    if (modesSlot && seg) {
-      seg.setAttribute('data-ed-modes', '');
-      seg.addEventListener('bridge:segment', (e) => {
-        mode = (e as CustomEvent<{ value: string }>).detail.value;
-        slot.dataset.mode = mode;
-        draw();
-        slot.querySelector<HTMLElement>('[data-ed-modes] [aria-checked="true"]')?.focus();
-      });
-      modesSlot.replaceWith(seg);
-    } else modesSlot?.remove();
-    paintLive(slot, t);
-    paintPreview();
-  };
-
-  slot.oninput = (e) => {
-    const el = e.target as HTMLInputElement;
-    if (el.matches('[data-ed-alias]')) {
-      const p = el.value.trim();
-      if (S!.head.byPath.has(p) || (S!.applied?.proposed.byPath.has(p) ?? false)) setValue(t, mode, `{${p}}`);
-      else if (!p) return;
-      else setValue(t, mode, `{${p}}`); // broken references are shown by the guardrails, not silently dropped
-    }
-    if (el.matches('[data-ed-color]')) {
-      const hexIn = slot.querySelector<HTMLInputElement>('[data-ed-hex]');
-      if (hexIn) hexIn.value = el.value;
-      const c = hexToRgba(el.value);
-      if (c) setValue(t, mode, rgbaToDtcg(c));
-    }
-    if (el.matches('[data-ed-hex]')) {
-      const c = /^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(el.value.trim()) ? hexToRgba(el.value.trim()) : undefined;
-      el.setAttribute('aria-invalid', String(!c));
-      if (c) setValue(t, mode, rgbaToDtcg(c));
-    }
-    if (el.matches('[data-ed-num]')) {
-      const unit = slot.querySelector('[data-ed-unit]')?.textContent ?? 'px';
-      const n = Number(el.value);
-      if (Number.isFinite(n)) setValue(t, mode, { value: n, unit });
-    }
-    if (el.matches('[data-ed-json]')) {
-      try {
-        setValue(t, mode, JSON.parse(el.value));
-        el.setAttribute('aria-invalid', 'false');
-      } catch {
-        el.setAttribute('aria-invalid', 'true');
-      }
-    }
-  };
-  slot.onclick = (e) => {
-    const b = (e.target as HTMLElement).closest<HTMLElement>('button');
-    if (!b) return;
-    if (b.dataset.edStep) {
-      const input = slot.querySelector<HTMLInputElement>('[data-ed-num]');
-      if (input) {
-        input.value = String(Number(input.value) + Number(b.dataset.edStep) * Number(input.step || 1));
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-      }
-    } else if (b.hasAttribute('data-ed-reset')) {
-      S!.draft.edits = S!.draft.edits.filter((x) => x.path !== t.path);
-      saveDraft();
-      recompute();
-      draw();
-    } else if (b.hasAttribute('data-ed-delete')) {
-      if (!window.confirm(`Delete ${t.path}? Components that read it will lose the value. This is a breaking change (major).`)) return;
-      S!.draft.edits.push({ kind: 'delete', id: uid(), path: t.path });
-      saveDraft();
-      recompute();
-      draw();
-    } else if (b.hasAttribute('data-ed-rename')) {
-      const to = window.prompt(`New name for ${t.path}`, t.path)?.trim();
-      if (!to || to === t.path) return;
-      if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(to)) return window.alert('Use dot-separated lowercase names, like color.bg.canvas.');
-      S!.draft.edits.push({ kind: 'rename', id: uid(), path: t.path, to });
-      saveDraft();
-      recompute();
-      draw();
-    }
-  };
-  const onDraft = () => paintLive(slot, t);
-  document.addEventListener('bridge:draft', onDraft);
-  slot.addEventListener('ed:dispose', () => document.removeEventListener('bridge:draft', onDraft), { once: true });
-  draw();
-}
-
-function paintLive(slot: HTMLElement, t: LogicalToken) {
-  const live = slot.querySelector<HTMLElement>('[data-ed-live]');
-  if (!live || !S?.checks) return;
-  const mine = S.checks.blocking.filter((i) => !i.path || i.path === t.path || i.code === 'contrast');
-  const moves = contrastMoves({ contrastBefore: S.contrastBefore, contrastAfter: S.contrastAfter }).filter((m) => m.fg === t.path || m.bg === t.path || S!.draft.edits.some((e) => e.path === t.path));
-  live.innerHTML = `
-    ${
-      mine.length
-        ? `<div class="ed-block" role="alert"><strong>Proposing is blocked</strong><ul>${mine
-            .slice(0, 6)
-            .map((i) => `<li>${esc(i.message)}</li>`)
-            .join('')}</ul></div>`
-        : S.draft.edits.length
-          ? '<p class="ed-ok">Guardrails pass: references resolve, no cycles, every contrast pair meets its minimum.</p>'
-          : ''
-    }
-    ${
-      moves.length
-        ? `<ul class="ed-moves">${moves
-            .slice(0, 8)
-            .map((m) => `<li class="${m.after < m.min ? 'is-fail' : ''}"><span class="mono small">${esc(m.fg)} on ${esc(m.bg)}</span><span class="small muted">${esc(m.where)}</span><span class="num">${m.before?.toFixed(2) ?? '?'} -> <strong>${m.after.toFixed(2)}</strong></span></li>`)
-            .join('')}</ul>`
-        : ''
-    }`;
-}
-
 // ---------------------------------------------------------------------------------------------------------------
 // Draft tray
 
 function paintTray() {
-  const tray = $('ed-tray');
-  if (!tray || !S?.applied || !S.checks) return;
+  if (!S?.applied || !S.checks) return;
   const rows = trayRows(S.head, S.applied.proposed, S.draft);
   const n = rows.length;
+  const fails = S.checks.blocking.length;
+  // Drafts never need GitHub: adding, editing and exporting stay in this browser. Only proposing opens a pull
+  // request, so it is the one gated action (data-gh-gate): without a connection a click opens Connect GitHub.
+  const propose = $<HTMLButtonElement>('ed-propose');
+  if (propose) {
+    setButtonDisabled(propose, !n || fails > 0);
+    paintGates(propose.parentElement ?? document);
+  }
+  const tray = $('ed-tray');
+  if (!tray) return;
   // The Drafts page shows the tray as a page section, always visible; elsewhere it is a bar that appears while editing.
   const asPage = tray.dataset.variant === 'page';
   // Studio Tokens: a bar at the bottom only while the draft has changes; the header's Drafts button opens it as a
@@ -376,15 +143,9 @@ function paintTray() {
   const empty = $('ed-drafts-empty');
   if (empty) empty.hidden = n > 0;
   $('ed-tray-count')!.textContent = n ? `${n} draft change${n > 1 ? 's' : ''}` : 'No draft changes yet';
-  const fails = S.checks.blocking.length;
   const status = $('ed-tray-status')!;
   status.textContent = !n ? 'Open a token to edit it.' : fails ? `${fails} guardrail${fails > 1 ? 's' : ''} block proposing` : 'Guardrails pass';
   status.className = `ed-tray-status ${!n ? '' : fails ? 'is-fail' : 'is-pass'}`;
-  // Drafts never need GitHub: adding, editing and exporting stay in this browser. Only proposing opens a pull
-  // request, so it is the one gated action (data-gh-gate): without a connection a click opens Connect GitHub.
-  const propose = $<HTMLButtonElement>('ed-propose')!;
-  setButtonDisabled(propose, !n || fails > 0);
-  paintGates(propose.parentElement ?? document);
   const sw = (hex: string | null) => (hex ? `<span class="ed-sw sm" style="background-color:${hex}"></span>` : '');
   const moves = contrastMoves({ contrastBefore: S.contrastBefore, contrastAfter: S.contrastAfter });
   $('ed-tray-list')!.innerHTML = rows.length
@@ -525,6 +286,75 @@ export function aliasOptions(path: string): string[] {
   return S && t ? aliasCandidates(S.head, t) : [];
 }
 
+/** Applies several mode values at once (the cell editor's Apply), with one recompute. */
+export function applyValues(values: { path: string; mode: string; value: unknown }[]) {
+  if (!S) return;
+  for (const v of values) {
+    const t = S.head.byPath.get(v.path);
+    if (!t) continue;
+    const before = t.values[v.mode];
+    S.draft.edits = S.draft.edits.filter((e) => !(e.kind === 'value' && e.path === v.path && e.mode === v.mode));
+    if (JSON.stringify(before) !== JSON.stringify(v.value)) S.draft.edits.push({ kind: 'value', id: uid(), path: v.path, mode: v.mode, before, after: v.value });
+  }
+  saveDraft();
+  recompute();
+}
+
+/** Sets the description of one token in the draft. Back to the original text drops the edit. */
+export function editDescription(path: string, text: string) {
+  const t = S?.head.byPath.get(path);
+  if (!S || !t) return;
+  S.draft.edits = S.draft.edits.filter((e) => !(e.kind === 'description' && e.path === path));
+  if (text.trim() !== (t.description ?? '').trim()) S.draft.edits.push({ kind: 'description', id: uid(), path, before: t.description, after: text.trim() });
+  saveDraft();
+  recompute();
+}
+
+/** The description a token has in the draft. */
+export function draftDescription(path: string): string {
+  const e = [...(S?.draft.edits ?? [])].reverse().find((x) => x.kind === 'description' && x.path === path) as Extract<DraftEdit, { kind: 'description' }> | undefined;
+  return e ? e.after : (S?.head.byPath.get(path)?.description ?? '');
+}
+
+/** Modes of a token the draft changes (value edits), for the edited dot on its cells. */
+export function editedModes(path: string): Set<string> {
+  return new Set((S?.draft.edits ?? []).filter((e): e is Extract<DraftEdit, { kind: 'value' }> => e.kind === 'value' && e.path === path).map((e) => e.mode));
+}
+
+/**
+ * Contrast of every checked pair with `pending` values applied on top of the current draft: what the cell editor
+ * shows before Apply. Nothing is saved.
+ */
+export function previewContrast(pending: { path: string; mode: string; value: unknown }[]): ContrastResult[] {
+  if (!S) return [];
+  const edits: DraftEdit[] = S.draft.edits.filter((e) => !(e.kind === 'value' && pending.some((p) => p.path === e.path && p.mode === e.mode)));
+  for (const p of pending) edits.push({ kind: 'value', id: 'pending', path: p.path, mode: p.mode, before: S.head.byPath.get(p.path)?.values[p.mode], after: p.value });
+  const proposed = applyDraft(S.head, S.originals, { edits }, layoutOptions(S.config)).proposed;
+  return evaluatePairs(proposed.byPath, S.pairs, contrastScope(proposed));
+}
+
+/** Removes one draft edit by its index in the draft. */
+export function undoEdit(index: number) {
+  if (!S) return;
+  S.draft.edits.splice(index, 1);
+  saveDraft();
+  recompute();
+}
+
+/** Empties the draft (the caller confirms). */
+export function discardDraft() {
+  if (!S) return;
+  S.draft = emptyDraft();
+  saveDraft();
+  recompute();
+}
+
+/** The head and proposed sets and the CSS overrides that paint the draft on a preview scope. */
+export function draftOverrides(ctx: { brand: string; theme: string; density: string }): Record<string, string> {
+  if (!S?.applied) return {};
+  return previewOverrides(S.head, S.applied.proposed, ctx);
+}
+
 /** Drops every draft edit of one token. */
 export function undoToken(path: string) {
   if (!S) return;
@@ -566,16 +396,9 @@ export function initTokenEditor() {
   } catch {
     /* ignore */
   }
-  // The explorer drawer asks for an editor when edit mode is on. Listen before edit mode starts: turning it on
-  // re-renders an open drawer.
-  document.addEventListener('bridge:token-open', (e) => {
-    const { path, slot } = (e as CustomEvent<{ path: string; slot: HTMLElement }>).detail;
-    if (document.body.classList.contains('is-editing')) renderEditor(path, slot);
-  });
   recompute();
   // Studio Tokens turns edit mode on itself (the explorer in mode "edit"); the Drafts page only shows the tray.
   if (startEditing || (S.draft.edits.length && !$('ed-tray')?.dataset.variant)) setEditing(true);
-  document.addEventListener('bridge:scope', () => paintPreview());
 
   const tray = $('ed-tray');
   // Side sheet: the header's Drafts button opens the tray on the right, whatever the count.

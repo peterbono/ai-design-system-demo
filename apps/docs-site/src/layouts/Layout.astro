@@ -56,6 +56,10 @@ const nested = !!here.item && here.item.href !== path;
 const trail: Crumb[] = crumbs || (nested && here.item ? [{ label: here.item.label, href: here.item.href }, { label: title }] : []);
 const showCrumbs = crumbs !== false && !isStudio && trail.length > 1;
 const crumbItems = trail.map((c, i) => (c.href && i < trail.length - 1 ? { label: c.label, href: c.href } : { label: c.label }));
+// Page sources for "View source": real files only; "git log" is said in the popover title instead.
+const files = sources.filter((s) => s !== 'git log');
+const logged = sources.includes('git log');
+const searchLabel = isStudio ? 'Search tokens, components, changes' : 'Search tokens, components, pages';
 const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of truth' : `${title} | ${SPACE_LABEL[space] === 'Library' ? 'Bridge' : `Bridge ${SPACE_LABEL[space]}`}`;
 ---
 
@@ -83,39 +87,60 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
         // density only reach the design system previews (scripts/shell.ts copies them onto every data-theme scope).
         document.documentElement.setAttribute('data-preview-brand', b === 'ocean' ? 'ocean' : 'bridge');
         document.documentElement.setAttribute('data-preview-density', d === 'compact' ? 'compact' : 'comfortable');
+        // Maintainer tools (Edit in Studio, View source, the avatar next to Open Studio) paint before first render
+        // from the last check of this browser's GitHub token; scripts/maintainer.ts checks it again.
+        try {
+          var tk = localStorage.getItem('bridge.github.token');
+          var m = JSON.parse(localStorage.getItem('bridge.gh.maintainer') || 'null');
+          if (tk && m && m.key === tk.slice(-6)) {
+            document.documentElement.setAttribute('data-signed-in', '');
+            if (m.write) document.documentElement.setAttribute('data-maintainer', '');
+          }
+        } catch (e) {}
       })();
     </script>
   </head>
   <body>
     <a class="skip" href="#main">Skip to content</a>
     <header class="topbar">
-      <a class="topbar-brand" href={space === 'studio' ? STUDIO_HOME : LIBRARY_HOME} aria-label={`Bridge ${SPACE_LABEL[space]}, home`}><Logo /></a>
-      <nav class="space-switch topbar-switch" aria-label="Space">
-        <a href={LIBRARY_HOME} aria-current={space === 'library' ? 'page' : undefined}>Library</a>
-        <a href={STUDIO_HOME} aria-current={space === 'studio' ? 'page' : undefined} data-keep-branch>Studio</a>
-      </nav>
-      <Button variant="ghost" iconStart={Search} className="shell-search" id="search-open" aria-haspopup="dialog" aria-controls="palette" aria-label="Search tokens, components, pages">
+      <a class="topbar-brand" href={isStudio ? STUDIO_HOME : LIBRARY_HOME} aria-label={isStudio ? 'Bridge Studio, overview' : 'Bridge, home'}>
+        <Logo />
+        {isStudio && <span class="topbar-space" aria-hidden="true">Studio</span>}
+      </a>
+      <Button variant="ghost" iconStart={Search} className="shell-search" id="search-open" aria-haspopup="dialog" aria-controls="palette" aria-label={searchLabel}>
         <span class="shell-search-text">
-          <span class="shell-search-label">Search tokens, components, pages</span>
+          <span class="shell-search-label">{searchLabel}</span>
         </span>
       </Button>
       <div class="topbar-actions">
         <IconButton icon={Moon} label="Dark theme" id="theme-toggle" data-theme-toggle aria-pressed="false" title="Dark theme" className="shell-wide" />
-        {isStudio ? <GitHubAccount /> : <IconLink href={GITHUB_URL} icon={GitHubMark} label="View the repository on GitHub" title="GitHub" className="shell-wide" />}
+        {
+          isStudio ? (
+            <GitHubAccount />
+          ) : (
+            <>
+              <IconLink href={GITHUB_URL} icon={GitHubMark} label="View the repository on GitHub" title="GitHub" className="shell-wide" />
+              <span class="topbar-rule shell-wide" aria-hidden="true"></span>
+              <div class="team shell-wide" data-team>
+                <a class="hd-btn team-open" href={STUDIO_HOME}>Open Studio</a>
+                <a class="team-avatar" href={STUDIO_HOME} data-team-avatar hidden>
+                  <img alt="" width="28" height="28" data-team-avatar-img />
+                  <span class="sr-only" data-team-avatar-label>Your Studio</span>
+                </a>
+              </div>
+            </>
+          )
+        }
         <span class="rail-toggle-slot"><IconButton icon={MenuIcon} label="Open navigation" id="rail-toggle" aria-controls="rail" aria-expanded="false" /></span>
       </div>
     </header>
 
     <div class="shell">
-      <nav class="rail" id="rail" aria-label={`${SPACE_LABEL[space]} navigation`}>
+      <nav class="rail" id="rail" aria-label={isStudio ? 'Studio navigation' : 'Library navigation'}>
         <div class="rail-head">
           <Logo />
           <IconButton icon={X} label="Close navigation" id="rail-close" />
         </div>
-        <nav class="space-switch rail-switch" aria-label="Space">
-          <a href={LIBRARY_HOME} aria-current={space === 'library' ? 'page' : undefined}>Library</a>
-          <a href={STUDIO_HOME} aria-current={space === 'studio' ? 'page' : undefined} data-keep-branch>Studio</a>
-        </nav>
         <ul class="nav">
           {
             nav.map((entry, n) => {
@@ -138,20 +163,20 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
                   <button type="button" class="nav-link nav-toggle" aria-expanded={open ? 'true' : 'false'} aria-controls={id} data-nav-group data-active={open || undefined}>
                     <Icon name={entry.icon} size={20} />
                     <span>{entry.label}</span>
+                    {entry.badge && (
+                      <span class="rail-num" data-nav-count={entry.badge} hidden>
+                        <span class="sr-only">, </span>
+                        <span data-nav-count-value></span>
+                        <span class="sr-only"> waiting for a review</span>
+                      </span>
+                    )}
                     <span class="nav-chev" aria-hidden="true"><Icon name="chevron" size={16} /></span>
                   </button>
                   <ul class="nav-sub" id={id} hidden={!open}>
                     {entry.children!.map((item) => (
-                      <li>
+                      <li class:list={[{ 'nav-apart': item.apart }]}>
                         <a href={item.href} aria-current={isCurrent(item.href) ? 'page' : undefined} data-keep-branch={isStudio || undefined}>
                           <span>{item.label}</span>
-                          {item.badge && (
-                            <span class="rail-num" data-nav-count={item.badge} hidden>
-                              <span class="sr-only">, </span>
-                              <span data-nav-count-value></span>
-                              <span class="sr-only"> draft changes</span>
-                            </span>
-                          )}
                         </a>
                       </li>
                     ))}
@@ -163,10 +188,25 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
         </ul>
         <div class="rail-foot">
           <div class="rail-tools">
-            <IconButton icon={Moon} label="Dark theme" data-theme-toggle aria-pressed="false" title="Dark theme" />
-            {!isStudio && <IconLink href={GITHUB_URL} icon={GitHubMark} label="View the repository on GitHub" title="GitHub" />}
+            <button type="button" class="rail-tool" data-theme-toggle aria-pressed="false" aria-label="Dark theme"><Icon name="moon" size={20} /><span>Theme</span></button>
+            {!isStudio && <a class="rail-tool" href={GITHUB_URL}><Icon name="github" size={20} /><span>GitHub</span></a>}
           </div>
-          <p>Bridge by Florian Gouloubi. Free and open source.</p>
+          {
+            isStudio ? (
+              <a class="rail-exit" href={LIBRARY_HOME}>
+                <Icon name="book" size={20} />
+                <span>
+                  <strong>Library <Icon name="out" size={16} /></strong>
+                  <span>View published library</span>
+                </span>
+              </a>
+            ) : (
+              <div class="rail-team">
+                <p>Maintaining Bridge? Edit tokens and review changes.</p>
+                <a class="hd-btn" href={STUDIO_HOME}>Open Studio</a>
+              </div>
+            )
+          }
         </div>
       </nav>
       <div class="scrim" id="scrim" hidden></div>
@@ -192,44 +232,50 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
             <slot />
           )
         }
-        <footer class="page-footer">
-          <p>
+        <div class="page-end">
+          <div class="page-meta">
             <Icon name="clock" size={16} />
-            <span>
-              Updated <strong>{humanDate(updated ?? null)}</strong>, from the latest commit touching this page's sources.
-              {
-                sources.length > 0 && (
-                  <>
-                    {' '}Generated from{' '}
-                    {sources.slice(0, 3).map((s, i) => (
-                      <>
-                        {i > 0 && ', '}
-                        {s === 'git log' ? <code>git log</code> : <a href={sourceUrl(s)}><code>{s}</code></a>}
-                      </>
-                    ))}
-                    {sources.length > 3 ? (
-                      <details class="footer-more">
-                        <summary>and {sources.length - 3} more files</summary>
-                        <ul>
-                          {sources.slice(3).map((s) => (
-                            <li>{s === 'git log' ? <code>git log</code> : <a href={sourceUrl(s)}><code>{s}</code></a>}</li>
-                          ))}
-                        </ul>
-                      </details>
-                    ) : (
-                      '.'
-                    )}
-                  </>
-                )
-              }
-            </span>
-          </p>
-          <p class="page-footer-links">
-            <a href="/llms.txt" class="mono">llms.txt</a>
-            <a href={STORYBOOK_URL}>Storybook workbench</a>
-            <a href={GITHUB_URL}>GitHub</a>
-          </p>
-        </footer>
+            <span title="From the git history of this page's source files">Updated {humanDate(updated ?? null)}</span>
+            {
+              files.length > 0 && (
+                <details class="menu page-source" data-menu data-maintainer-only={!isStudio || undefined}>
+                  <summary class="page-source-trigger">
+                    <Icon name="code" size={16} />
+                    <span>View source</span>
+                  </summary>
+                  <div class="menu-panel page-source-panel" role="group" aria-label="Source files">
+                    <p class="menu-title">Generated from {files.length === 1 ? '1 file' : `${files.length} files`}{logged ? ' and the git log' : ''}</p>
+                    <ul class="page-source-list">
+                      {files.map((s) => (
+                        <li>
+                          <a class="menu-item" href={sourceUrl(s)} title={s}>
+                            <span class="mono">{s}</span>
+                            <Icon name="out" size={16} />
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </details>
+              )
+            }
+          </div>
+          {
+            !isStudio && (
+              <footer class="site-footer">
+                <div class="site-footer-brand">
+                  <Logo />
+                  <p>Free and open source design system, MIT</p>
+                </div>
+                <nav class="site-footer-links" aria-label="Footer">
+                  <a href={GITHUB_URL}>GitHub<span>Source and issues</span></a>
+                  <a href="/llms.txt">For AI agents<span class="mono">llms.txt</span></a>
+                  <a href={STORYBOOK_URL}>Contribute<span>Storybook workbench</span></a>
+                </nav>
+              </footer>
+            )
+          }
+        </div>
       </main>
     </div>
 

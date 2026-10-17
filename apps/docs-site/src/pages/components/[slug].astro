@@ -5,7 +5,6 @@ import Layout from '../../layouts/Layout.astro';
 import Example from '../../components/Example.tsx';
 import Icon from '../../components/Icon.astro';
 import PropsPlayground from '../../components/PropsPlayground.tsx';
-import Updated from '../../components/Updated.astro';
 import ButtonLink from '../../components/ds/ButtonLink';
 import PropsTable from '../../components/ds/PropsTable';
 import { Alert, Badge, SegmentedControl, PageHeader } from '@bridge-ds/react';
@@ -59,11 +58,10 @@ import PreviewScope from '../../components/PreviewScope.astro';
     <PageHeader className="lib-page-header" title={c.name} lead={d?.summary}>
       <Badge slot="meta" tone={statusTone}>{status === 'stable' ? 'Stable' : status === 'beta' ? 'Beta' : 'Deprecated'}</Badge>
       <Fragment slot="actions">
-        <ButtonLink variant="secondary" href={`/studio/components/?c=${c.slug}`} iconStart={Pencil}>Edit in Studio</ButtonLink>
+        <span data-maintainer-only><ButtonLink variant="secondary" size="sm" href={`/studio/components/?c=${c.slug}`} iconStart={Pencil}>Edit in Studio</ButtonLink></span>
       </Fragment>
     </PageHeader>
     <div class="cp-meta">
-      <Updated date={updated} />
       <ul class="cp-links" aria-label="Resources">
         {
           mainStory && (

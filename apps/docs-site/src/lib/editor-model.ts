@@ -27,6 +27,7 @@ import {
 export type DraftEdit =
   | { kind: 'value'; id: string; path: string; mode: string; before: unknown; after: unknown }
   | { kind: 'add'; id: string; path: string; type: string; tier: 'semantic'; values: Record<string, unknown>; description?: string }
+  | { kind: 'description'; id: string; path: string; before: string | undefined; after: string }
   | { kind: 'rename'; id: string; path: string; to: string }
   | { kind: 'delete'; id: string; path: string };
 
@@ -62,12 +63,13 @@ export function draftToChanges(head: TokenSet, draft: Draft): AcceptedChange[] {
     if (e.kind === 'delete') v.target = undefined;
     else if (!v.target) continue;
     else if (e.kind === 'rename') v.target.path = e.to;
+    else if (e.kind === 'description') v.target.description = e.after.trim() || undefined;
     else v.target.values[e.mode] = e.after;
   }
   const out: AcceptedChange[] = [];
   for (const v of targets.values()) {
     const { current, target } = v;
-    if (current && target && current.path === target.path && JSON.stringify(current.values) === JSON.stringify(target.values)) continue;
+    if (current && target && current.path === target.path && JSON.stringify(current.values) === JSON.stringify(target.values) && (current.description ?? '') === (target.description ?? '')) continue;
     out.push({ current, target });
   }
   return out;
@@ -167,6 +169,7 @@ export function trayRows(head: TokenSet, proposed: TokenSet, draft: Draft): Tray
       };
     }
     if (edit.kind === 'add') return { edit, index, label: edit.path, context: 'new token', before: null, after: { text: Object.entries(edit.values).map(([m, v]) => `${m}: ${String(v)}`).join(', '), hex: null } };
+    if (edit.kind === 'description') return { edit, index, label: edit.path, context: 'description', before: { text: edit.before ?? 'No description', hex: null }, after: { text: edit.after || 'No description', hex: null } };
     if (edit.kind === 'rename') return { edit, index, label: `${edit.path} -> ${edit.to}`, context: 'rename', before: null, after: null };
     return { edit, index, label: edit.path, context: 'delete', before: null, after: null };
   });

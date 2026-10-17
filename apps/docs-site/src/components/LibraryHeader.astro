@@ -1,46 +1,42 @@
 ---
-// Library section page header: a Harbor zone block with the DS PageHeader (title, lead, actions), the release this
-// page documents next to the freshness line, and an optional ink drawing on the end side.
-//   title  the page name, as in the side nav
-//   art    one of src/brand/illustrations.ts
-//   updated  freshness date of the page sources
-// Slots: default (the lead), "actions" (one or two buttons).
-import { PageHeader } from '@bridge-ds/react';
+// Library section page header: a Harbor zone block with the page title, the lead and an optional ink drawing on the
+// end side. Freshness and sources live in the page meta line at the end of the page (Layout.astro).
+//   title   the page name, as in the side nav
+//   art     one of src/brand/illustrations.ts
+//   studio  where this page is edited in the Studio. Shown as a small "Edit in Studio" button right after the
+//           title, to maintainers only (a GitHub token with write access); visitors see a plain title.
+//   studioLabel  the button text, when the Studio page is not an editor ("Open in Studio")
+// Slots: default (the lead), "actions" (one or two buttons under the lead, for everyone).
+import ButtonLink from './ds/ButtonLink';
 import Illustration from './Illustration.astro';
-import Updated from './Updated.astro';
-import VersionMenu from './ds/VersionMenu';
+import { Pencil } from 'lucide-react';
 import type { IllustrationName } from '../brand/illustrations';
-import { versionInfo } from '../lib/changelog';
-import { humanDate, repoStatus } from '../lib/stats';
 
 interface Props {
   title: string;
   art?: IllustrationName;
+  /** Kept for callers; the date now shows in the page meta line. */
   updated?: string | null;
+  studio?: string;
+  studioLabel?: string;
 }
-const { title, art, updated } = Astro.props;
-const version = versionInfo();
-const repo = repoStatus();
+const { title, art, studio, studioLabel = 'Edit in Studio' } = Astro.props;
 ---
 
 <section class="zone lib-zone">
-  <div class="lib-zone-text">
-    <PageHeader className="lib-page-header" title={title}>
-      <slot />
-      {Astro.slots.has('actions') && <Fragment slot="actions"><slot name="actions" /></Fragment>}
-    </PageHeader>
-    <div class="lib-zone-meta">
-      <VersionMenu
-        client:idle
-        current={version.current}
-        past={version.past.map((r) => r.name)}
-        branch={repo.branch}
-        sha={repo.sha}
-        pending={version.pending}
-        builtFrom={`Built from ${repo.branch} at ${repo.sha}, ${humanDate(repo.lastChange)}`}
-      />
-      {updated !== undefined && <Updated date={updated} />}
+  <header class="lib-zone-text lib-page-header">
+    <div class="lib-title-row">
+      <h1 class="lib-title">{title}</h1>
+      {
+        studio && (
+          <span class="lib-studio" data-maintainer-only>
+            <ButtonLink variant="secondary" size="sm" iconStart={Pencil} href={studio}>{studioLabel}</ButtonLink>
+          </span>
+        )
+      }
     </div>
-  </div>
+    <div class="lib-lead"><slot /></div>
+    {Astro.slots.has('actions') && <div class="lib-actions"><slot name="actions" /></div>}
+  </header>
   {art && <Illustration name={art} width={112} class="lib-zone-art" />}
 </section>

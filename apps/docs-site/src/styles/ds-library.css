@@ -35,11 +35,6 @@
   text-overflow: ellipsis;
 }
 
-/* PageHeader meta slot: the freshness chip (Updated.astro) sits flush, the header owns the spacing. */
-.lib-page-header .updated {
-  margin: 0;
-}
-
 .shell-crumbs {
   margin-block-end: var(--space-3);
 }

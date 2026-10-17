@@ -7,7 +7,7 @@
   padding: var(--space-8) var(--space-10) var(--space-16);
 }
 
-:root:is([data-space="studio"], [data-space="settings"]) .page-footer {
+:root:is([data-space="studio"], [data-space="settings"]) .page-end {
   margin-top: var(--space-12);
 }
 

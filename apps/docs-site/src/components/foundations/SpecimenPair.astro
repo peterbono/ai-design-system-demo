@@ -3,6 +3,7 @@
 // the documented system's real tokens resolve inside it; the shell adds the preview brand and density. The panels
 // illustrate the list below them: they are inert, the list and the detail drawer carry every value.
 import Icon from '../Icon.astro';
+import ScopeSwitch from './ScopeSwitch.astro';
 import Specimen, { type SpecimenGroup } from './Specimens.tsx';
 import { MODES } from '../../lib/tokens';
 
@@ -10,10 +11,19 @@ interface Props {
   group: SpecimenGroup;
   /** Accessible summary of what the panels show. */
   label: string;
+  /** The preview axis these panels change with, if any: a compact switch sits in their header. */
+  scope?: 'brand' | 'density' | undefined;
 }
-const { group, label } = Astro.props;
+const { group, label, scope } = Astro.props;
 ---
 
+{
+  scope && (
+    <div class="fd-spec-bar">
+      <ScopeSwitch axis={scope} />
+    </div>
+  )
+}
 <div class="fd-spec" role="group" aria-label={label}>
   {
     MODES.map((m) => (

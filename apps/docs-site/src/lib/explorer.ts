@@ -3,7 +3,7 @@
 // embedded in the page as JSON. "Unused" uses the same definition as the Overview dashboard (lib/stats.ts).
 import { loadComponents } from './components';
 import { contrastPairs } from './contrast';
-import { libraryTokenUsage, typeLabel } from './stats';
+import { globalStyleVars, libraryTokenUsage, typeLabel } from './stats';
 import { siteRepo } from './config';
 import { listDir, readText } from './repo';
 import { BRANDS, hrefForVar, loadTokens, MODES, type Brand, type Mode, type Semantic, type Tier } from './tokens';
@@ -59,6 +59,8 @@ export interface ExplorerToken {
   densities?: Record<string, string>;
   used: boolean;
   usedBy: ExplorerLink[];
+  /** Global stylesheets (base styles, theme) that read this token's variable directly, by file name: "base.css". */
+  globalStyles: string[];
   /** Primitives only: semantic tokens that resolve through this primitive, per theme. */
   referencedBy?: { path: string; modes: Mode[] }[];
   contrast: ExplorerContrast[];
@@ -73,6 +75,13 @@ export function explorerTokens(): ExplorerToken[] {
   // One definition of "in use" with the Overview and Checks (lib/stats.ts, @bridge-ds/core tokenUsage).
   const { used } = libraryTokenUsage();
   const pairs = contrastPairs();
+  // Global stylesheets count as users too (tokenUsage already does): color.bg.default is read by base.css only.
+  const globals = Object.entries(globalStyleVars());
+  const stylesOf = (cssVar: string): string[] =>
+    globals
+      .filter(([, vars]) => vars.includes(cssVar))
+      .map(([file]) => file.slice(file.lastIndexOf('/') + 1))
+      .sort();
   const usersOf = (cssVar: string): ExplorerLink[] =>
     components.filter((c) => c.tokensUsed.some((t) => t.name === cssVar)).map((c) => ({ name: c.name, href: `/components/${c.slug}/` }));
 
@@ -109,6 +118,7 @@ export function explorerTokens(): ExplorerToken[] {
     densities: s.densities ? Object.fromEntries(Object.entries(s.densities).map(([d, v]) => [d, v.css])) : undefined,
     used: used.has(s.path),
     usedBy: usersOf(s.cssVar),
+    globalStyles: stylesOf(s.cssVar),
     contrast: contrastFor(s.path),
     href: hrefForVar(s.cssVar, s.type),
   }));
@@ -137,6 +147,7 @@ export function explorerTokens(): ExplorerToken[] {
       hex: p.type === 'color' ? p.hex : undefined,
       used: used.has(p.path),
       usedBy,
+      globalStyles: stylesOf(p.cssVar),
       referencedBy,
       contrast: [],
       href: hrefForVar(p.cssVar, p.type),

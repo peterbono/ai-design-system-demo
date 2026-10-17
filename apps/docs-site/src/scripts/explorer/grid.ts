@@ -3,15 +3,20 @@
 // syntax and description columns. Rows render in chunks: the first screenful synchronously, the rest on idle.
 import { codeSyntax, SYNTAX_LABEL } from '../../lib/explorer/format';
 import { sectionsFor, type Column, type Section, type XToken } from '../../lib/explorer/model';
-import { cellHtml, cellLabel } from './cells';
+import { cellHtml, cellLabel, studioCellHtml } from './cells';
+import { editedModes } from '../token-editor';
+import { modeKeyFor } from '../../lib/explorer/model';
 import type { ExplorerData, ExplorerState, View } from './types';
 import { copyButton, esc, icon } from './util';
 
 export const ROW_HEIGHT = 56;
 
+/** Minimum width of a mode column in rem: Studio cells carry the alias, the value and a chevron. */
+const modeMin = (s: ExplorerState) => (s.mode === 'edit' ? 15 : 10.5);
+
 /** CSS grid-template-columns for the current columns. */
 export function gridTemplate(view: View, s: ExplorerState): string {
-  const modes = view.columns.map(() => 'minmax(10.5rem, 1fr)').join(' ');
+  const modes = view.columns.map(() => `minmax(${modeMin(s)}rem, 1fr)`).join(' ');
   return ['minmax(9.5rem, 1.1fr)', modes, s.showCode ? 'minmax(13rem, 0.9fr)' : '', s.showDescription ? 'minmax(16rem, 1.2fr)' : ''].filter(Boolean).join(' ');
 }
 
@@ -42,15 +47,21 @@ function subLabel(c: Column): string {
 
 function rowHtml(d: ExplorerData, t: XToken, view: View, s: ExplorerState, section: Section, index: number): string {
   const editable = s.mode === 'edit';
-  const rel = section.key === t.group ? t.name : t.path;
+  const rel = !s.flat && section.key === t.group ? t.name : t.path;
   const unused = t.used ? '' : '<span class="xp-flag">Unused</span>';
-  const name = `<div role="rowheader" class="xp-td is-name" aria-colindex="1" tabindex="-1" data-col="0"><span class="xp-name"><span class="xp-name-main mono" title="${esc(t.path)}">${esc(rel)}</span>${unused}</span>${copyButton(codeSyntax(t.path, t.tier, s.syntax), `${SYNTAX_LABEL[s.syntax]} ${codeSyntax(t.path, t.tier, s.syntax)}`)}</div>`;
+  // Studio: the name opens the read-only details, the value cells open the editor. No copy buttons in the cells
+  // (C copies, and the row menu); the row menu sits at the end of the name cell.
+  const nameEnd = editable
+    ? `<button type="button" class="xp-rowmenu" data-xp-rowmenu tabindex="-1" aria-label="Actions for ${esc(t.path)}" aria-haspopup="menu">${icon('more', 16)}</button>`
+    : copyButton(codeSyntax(t.path, t.tier, s.syntax), `${SYNTAX_LABEL[s.syntax]} ${codeSyntax(t.path, t.tier, s.syntax)}`);
+  const name = `<div role="rowheader" class="xp-td is-name" aria-colindex="1" tabindex="-1" data-col="0"><span class="xp-name"><span class="xp-name-main mono" title="${esc(t.path)}">${esc(rel)}</span>${unused}</span>${nameEnd}</div>`;
+  const edited = editable ? editedModes(t.path) : new Set<string>();
   const cells = view.columns
     .map(
       (c, i) =>
         `<div role="gridcell" class="xp-td is-mode" aria-colindex="${i + 2}" tabindex="-1" data-col="${i + 1}" data-colkey="${esc(c.key)}" aria-label="${esc(cellLabel(d, t.path, c))}"${
-          editable ? ' aria-readonly="false"' : ''
-        }>${cellHtml(d, t.path, c, editable)}</div>`,
+          editable ? ' aria-readonly="false" aria-haspopup="dialog"' : ''
+        }>${editable ? studioCellHtml(d, t.path, c, edited.has(modeKeyFor(t.tier, c))) : cellHtml(d, t.path, c, editable)}</div>`,
     )
     .join('');
   let n = view.columns.length + 1;
@@ -93,31 +104,31 @@ let generation = 0;
 export function renderGrid(host: HTMLElement, d: ExplorerData, view: View, s: ExplorerState, opts: { sync?: boolean; firstRows?: number } = {}): RenderResult {
   const t0 = performance.now();
   const gen = ++generation;
-  const sections = sectionsFor(view.visible, s.selection);
+  // Flat (Studio): one group without a section row, full token names.
+  // Chunks of 50 rows keep content-visibility cheap on long scopes.
+  const sections: Section[] = s.flat
+    ? Array.from({ length: Math.ceil(view.visible.length / 50) }, (_, i) => ({ key: `rows-${i}`, label: '', tokens: view.visible.slice(i * 50, i * 50 + 50) }))
+    : sectionsFor(view.visible, s.selection);
   host.style.setProperty('--xp-cols', gridTemplate(view, s));
   host.style.setProperty('--xp-n', String(view.columns.length));
-  host.style.setProperty('--xp-minw', `${9.5 + 10.5 * view.columns.length + (s.showCode ? 13 : 0) + (s.showDescription ? 16 : 0)}rem`);
+  host.style.setProperty('--xp-minw', `${9.5 + modeMin(s) * view.columns.length + (s.showCode ? 13 : 0) + (s.showDescription ? 16 : 0)}rem`);
   host.setAttribute('aria-colcount', String(colCount(view, s)));
-  host.setAttribute('aria-rowcount', String(1 + sections.length + view.visible.length));
+  host.setAttribute('aria-rowcount', String(1 + (s.flat ? 0 : sections.length) + view.visible.length));
   host.setAttribute('aria-readonly', String(s.mode !== 'edit'));
   // Placeholder height of groups not painted yet: the row height of the current density (--xp-row on the explorer).
   const rowH = parseFloat(getComputedStyle(host).getPropertyValue('--xp-row')) || ROW_HEIGHT;
 
-  let rowIndex = 2;
+  let rowIndex = s.flat ? 1 : 2;
   const groups = sections.map((sec) => {
     const start = rowIndex;
-    rowIndex += 1 + sec.tokens.length;
+    rowIndex += (s.flat ? 0 : 1) + sec.tokens.length;
     return { sec, start };
   });
   const groupHtml = ({ sec, start }: (typeof groups)[number]) => {
-    const collapsed = s.collapsed.has(sec.key);
+    const collapsed = !s.flat && s.collapsed.has(sec.key);
     const rows = collapsed ? '' : sec.tokens.map((t, i) => rowHtml(d, t, view, s, sec, start + 1 + i)).join('');
-    return `<div role="rowgroup" class="xp-group" data-group="${esc(sec.key)}" style="contain-intrinsic-size:auto ${(collapsed ? 1 : 1 + sec.tokens.length) * rowH}px">${sectionHead(
-      sec,
-      view,
-      s,
-      start,
-    )}${rows}</div>`;
+    const head = s.flat ? '' : sectionHead(sec, view, s, start);
+    return `<div role="rowgroup" class="xp-group" data-group="${esc(sec.key)}" style="contain-intrinsic-size:auto ${(collapsed ? 1 : (s.flat ? 0 : 1) + sec.tokens.length) * rowH}px">${head}${rows}</div>`;
   };
 
   const budget = opts.sync ? Infinity : (opts.firstRows ?? 80);
@@ -156,10 +167,12 @@ export function renderGrid(host: HTMLElement, d: ExplorerData, view: View, s: Ex
 export function refreshRow(host: HTMLElement, d: ExplorerData, view: View, s: ExplorerState, path: string) {
   const row = host.querySelector<HTMLElement>(`.xp-tr[data-path="${CSS.escape(path)}"]`);
   if (!row) return;
+  const t = d.set.byPath.get(path);
+  const edited = s.mode === 'edit' ? editedModes(path) : new Set<string>();
   row.querySelectorAll<HTMLElement>('.xp-td.is-mode').forEach((cell, i) => {
     const col = view.columns[i];
     if (!col) return;
-    cell.innerHTML = cellHtml(d, path, col, s.mode === 'edit');
+    cell.innerHTML = s.mode === 'edit' && t ? studioCellHtml(d, path, col, edited.has(modeKeyFor(t.tier, col))) : cellHtml(d, path, col, false);
     cell.setAttribute('aria-label', cellLabel(d, path, col));
   });
 }

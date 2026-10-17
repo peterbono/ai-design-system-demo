@@ -2,10 +2,9 @@
 import '../../styles/foundations.css';
 import '../../styles/library.css';
 import Layout from '../../layouts/Layout.astro';
-import ButtonLink from '../../components/ds/ButtonLink';
 import { Badge } from '@bridge-ds/react';
 import ContrastTable, { type ContrastRow } from '../../components/foundations/ContrastTable';
-import { CircleAlert, CircleCheck, ShieldCheck } from 'lucide-react';
+import { CircleAlert, CircleCheck } from 'lucide-react';
 import Icon from '../../components/Icon.astro';
 import { contrastPairs, THRESHOLDS } from '../../lib/contrast';
 import { PAGE_SOURCES, freshness } from '../../lib/sources';
@@ -45,11 +44,8 @@ import LibraryHeader from '../../components/LibraryHeader.astro';
 ---
 
 <Layout title="Accessibility" description="What Bridge commits to for accessibility, and the contrast grid of every gated color pair in every brand and theme." sources={PAGE_SOURCES.accessibility} updated={updated}>
-  <LibraryHeader title="Accessibility" art="foundations" updated={updated}>
+  <LibraryHeader title="Accessibility" art="foundations" updated={updated} studio="/studio/checks/" studioLabel="Open in Studio">
     Bridge targets WCAG 2.2 AA: text needs {THRESHOLDS.text.aa}:1 against its background, control edges, icons and focus rings need {THRESHOLDS.ui.aa}:1. The token build checks every gated color pair in both brands and both themes, so a token change that breaks a pair fails the build before it ships.
-    <Fragment slot="actions">
-      <ButtonLink variant="secondary" size="sm" iconStart={ShieldCheck} href="/studio/checks/">Open in Studio Checks</ButtonLink>
-    </Fragment>
   </LibraryHeader>
 
   <h2>What every component guarantees</h2>

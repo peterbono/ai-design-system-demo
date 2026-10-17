@@ -4,7 +4,9 @@ import Layout from '../layouts/Layout.astro';
 import Illustration from '../components/Illustration.astro';
 import ButtonLink from '../components/ds/ButtonLink';
 import { releases, versionInfo } from '../lib/changelog';
-import { mdTitleHtml } from '../lib/markdown';
+import { mdTitleText, oneLineTitle } from '../lib/markdown';
+import { loadComponents } from '../lib/components';
+import { explorerTokens } from '../lib/explorer';
 import { PAGE_SOURCES, freshness } from '../lib/sources';
 import { repoStatus } from '../lib/stats';
 import type { IllustrationName } from '../brand/illustrations';
@@ -24,10 +26,14 @@ const thisWeek = recent.length > 0 && recent.every((e) => e.date && ref - Date.p
 const shortDate = (iso?: string) =>
   iso ? new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(new Date(`${iso.slice(0, 10)}T00:00:00Z`)) : 'Next release';
 
+// Counts on the topic cards come from the same data as the pages they open.
+const semantic = explorerTokens().filter((t) => t.layer === 'semantic').length;
+const componentCount = loadComponents().length;
+
 const topics: { art: IllustrationName; title: string; text: string; href: string }[] = [
   { art: 'foundations', title: 'Foundations', text: 'Color, type, spacing and the accessibility rules underneath.', href: '/foundations/color/' },
-  { art: 'tokens', title: 'Tokens', text: 'Every value with a name, an alias chain and a history.', href: '/tokens/' },
-  { art: 'components', title: 'Components', text: 'React components with examples, props and guidance.', href: '/components/' },
+  { art: 'tokens', title: 'All tokens', text: `All ${semantic} semantic tokens with their light and dark values, ready to copy.`, href: '/tokens/' },
+  { art: 'components', title: 'Components', text: `${componentCount} React components with examples, props and guidance.`, href: '/components/' },
 ];
 ---
 
@@ -75,7 +81,7 @@ const topics: { art: IllustrationName; title: string; text: string; href: string
         <ul class="hm-changes">
           {recent.map((e) => (
             <li>
-              <span class="t-body hm-change" set:html={mdTitleHtml(e.title)} />
+              <span class="t-body hm-change" title={mdTitleText(e.title)}>{oneLineTitle(e.title)}</span>
               <span class="t-ui t-muted hm-date">{shortDate(e.date)}</span>
             </li>
           ))}

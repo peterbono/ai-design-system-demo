@@ -1,8 +1,6 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import ButtonLink from '../../components/ds/ButtonLink';
-import { Pencil } from 'lucide-react';
-import CopyAs from '../../components/foundations/CopyAs.astro';
+import ScopeSwitch from '../../components/foundations/ScopeSwitch.astro';
 import LibraryKit from '../../components/foundations/LibraryKit.astro';
 import TokenList from '../../components/foundations/TokenList.astro';
 import { RadiusSpecimen } from '../../components/foundations/Specimens.tsx';
@@ -15,24 +13,13 @@ const radii = primitiveRows('radius');
 const widths = [...groupRows('border-width'), ...primitiveRows('border.width')];
 const focus = groupRows('focus').filter((r) => r.type !== 'color');
 import LibraryHeader from '../../components/LibraryHeader.astro';
-import PreviewScope from '../../components/PreviewScope.astro';
 ---
 
 <Layout title="Radius and borders" description="Radius roles by rank, the radius scale, border widths and the focus ring width." sources={PAGE_SOURCES.radius} updated={updated}>
   <div data-fd-page>
-    <LibraryHeader title="Radius and borders" art="foundations" updated={updated}>
+    <LibraryHeader title="Radius and borders" art="foundations" updated={updated} studio="/studio/tokens/?focus=radius">
       Radius tells you what kind of object you are looking at: small parts inside controls get the smallest, controls a little more, containers and overlays more again, pills are round. Design with the roles; brands set their values.
-      <Fragment slot="actions">
-        <ButtonLink variant="secondary" size="sm" iconStart={Pencil} href="/studio/tokens/?focus=radius">Edit in Studio</ButtonLink>
-      </Fragment>
     </LibraryHeader>
-    <div class="fd-toolbar">
-      <p class="fd-hint">Select a token to see where it is used and its history. Click a name to copy it.</p>
-      <div class="fd-tools">
-        <PreviewScope />
-        <CopyAs />
-      </div>
-    </div>
 
     <section class="fd-group" aria-labelledby="roles">
       <header class="fd-group-head">
@@ -40,8 +27,9 @@ import PreviewScope from '../../components/PreviewScope.astro';
         <code class="fd-group-path">radius</code>
         <span class="fd-group-n">{roles.length} tokens</span>
       </header>
-      <p class="fd-group-note">Each role on the components that use it, in the brand the top bar previews. Nested corners stay concentric: outer = inner + padding.</p>
-      <div class="fd-stage" inert>
+      <p class="fd-group-note">Each role on the components that use it, in the brand you pick here. Nested corners stay concentric: outer = inner + padding.</p>
+      <div class="fd-spec-bar"><ScopeSwitch axis="brand" /></div>
+      <div class="fd-stage" data-scope-stage inert>
         <RadiusSpecimen />
       </div>
       <TokenList rows={roles} preview="radius" label="Radius role tokens" />

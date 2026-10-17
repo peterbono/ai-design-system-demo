@@ -15,8 +15,10 @@ interface Props {
   specimen?: SpecimenGroup;
   title?: string;
   note?: string;
+  /** Preview axis the specimen changes with (a compact switch in its header). */
+  scope?: 'brand' | 'density';
 }
-const { group, rows, preview, specimen, title = groupTitle(group), note = groupUsage(group) } = Astro.props;
+const { group, rows, preview, specimen, scope, title = groupTitle(group), note = groupUsage(group) } = Astro.props;
 const id = `g-${group.replace(/\./g, '-')}`;
 ---
 
@@ -27,6 +29,6 @@ const id = `g-${group.replace(/\./g, '-')}`;
     <span class="fd-group-n">{rows.length} {rows.length === 1 ? 'token' : 'tokens'}</span>
   </header>
   {note && <p class="fd-group-note">{note}</p>}
-  {specimen && <SpecimenPair group={specimen} label={`${title} tokens in light and dark`} />}
+  {specimen && <SpecimenPair group={specimen} scope={scope} label={`${title} tokens in light and dark`} />}
   <TokenList rows={rows} preview={preview} label={`${title} tokens`} />
 </section>

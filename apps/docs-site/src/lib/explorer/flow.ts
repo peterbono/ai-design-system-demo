@@ -99,6 +99,24 @@ export function componentsUsing(path: string, dependents: string[], usage: Usage
   return [...all.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
+/** Global stylesheets (base styles, theme) that read the token itself or any token aliasing it, by file name. */
+export function stylesUsing(path: string, dependents: string[], usage: UsageMap): string[] {
+  const all = new Set<string>();
+  for (const p of [path, ...dependents]) for (const f of usage[p]?.styles ?? []) all.add(f);
+  return [...all].sort();
+}
+
+/**
+ * The "Used by" summary line: components and global stylesheets counted separately.
+ * "3 components, 1 global style (base.css)", "1 global style (base.css)", "No component or global style".
+ */
+export function usedByLine(components: number, styles: readonly string[]): string {
+  const parts: string[] = [];
+  if (components) parts.push(`${components} component${components > 1 ? 's' : ''}`);
+  if (styles.length) parts.push(`${styles.length} global style${styles.length > 1 ? 's' : ''} (${styles.join(', ')})`);
+  return parts.length ? parts.join(', ') : 'No component or global style';
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // Contrast
 

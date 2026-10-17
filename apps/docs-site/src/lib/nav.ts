@@ -1,13 +1,14 @@
 // The one navigation data file. Both spaces, their side nav, breadcrumbs, the search index pages and the page
 // title of every route read from here.
 //
-// Two spaces, one door:
-//   Library  reads the latest release of main. No token needed.
-//   Studio   changes it: drafts, branches, reviews, versions, checks, settings. Needs a GitHub token to act,
-//            browsable without.
+// The Library is the site; the Studio is a space inside it:
+//   Library  the public site, reads the latest release of main. No token needed. No space switch: one quiet
+//            "Open Studio" button in the header is the team entry.
+//   Studio   changes it: drafts, branches, reviews, versions, checks, settings. Its own header (Bridge Studio) and
+//            nav; "Library, view published library" at the bottom of its nav is the way back.
 //
-// Side nav rules (apps/docs-site/DESIGN.md): at most 7 top-level entries per space, no group headings, no counts,
-// two levels at most. A top-level entry is either a page (href) or a group of pages (children); only the group you
+// Side nav rules (apps/docs-site/DESIGN.md): at most 7 top-level entries per space, no group headings, one count
+// (the reviews waiting on Changes), two levels at most. A top-level entry is either a page (href) or a group of pages (children); only the group you
 // are in starts expanded. Deeper levels (each component) live as cards on their group page, not in the nav.
 import type { IconName } from '../brand/icons';
 import { loadComponents } from './components';
@@ -18,8 +19,8 @@ export interface NavItem {
   href: string;
   label: string;
   icon?: IconName;
-  /** Live badge filled in the browser: drafts waiting in localStorage. The one number the nav shows. */
-  badge?: 'drafts';
+  /** Sits slightly apart from the pages above it (All tokens under the foundations). */
+  apart?: boolean;
   /** Studio pages that read the branch chosen next to the page title (?branch=). Others show main and say so. */
   branchAware?: boolean;
   /** One line for search, llms.txt and the group pages. */
@@ -35,6 +36,8 @@ export interface NavEntry {
   meta?: string;
   /** Group entry: its pages, shown when the group is expanded. */
   children?: NavItem[];
+  /** Live count filled in the browser: open pull requests waiting for a review. The one number the nav shows. */
+  badge?: 'reviews';
 }
 
 export const LIBRARY_HOME = '/';
@@ -48,6 +51,7 @@ export const FOUNDATIONS: NavItem[] = [
   { href: '/foundations/radius/', label: 'Radius and borders', icon: 'radius', meta: 'Radius roles and border widths' },
   { href: '/foundations/elevation/', label: 'Elevation', icon: 'elevation', meta: 'Shadows for floating layers' },
   { href: '/foundations/accessibility/', label: 'Accessibility', icon: 'contrast', meta: 'Contrast grid of every gated color pair, in every brand and theme' },
+  { href: '/tokens/', label: 'All tokens', icon: 'grid', apart: true, meta: 'Every semantic token with its light and dark value, ready to copy' },
 ];
 
 export const LIBRARY_USE: NavItem[] = [
@@ -57,7 +61,7 @@ export const LIBRARY_USE: NavItem[] = [
 ];
 
 export const STUDIO_CHANGES: NavItem[] = [
-  { href: '/studio/drafts/', label: 'Drafts', icon: 'draft', badge: 'drafts', meta: 'Token edits waiting in this browser' },
+  { href: '/studio/drafts/', label: 'Drafts', icon: 'draft', meta: 'Token edits waiting in this browser' },
   { href: '/studio/branches/', label: 'Branches', icon: 'merge', branchAware: true, meta: 'Open branches with previews and snapshot packages' },
   { href: '/studio/reviews/', label: 'Reviews', icon: 'review', branchAware: true, meta: 'Open pull requests with token diffs and contrast' },
   { href: '/studio/versions/', label: 'Versions', icon: 'clock', meta: 'Releases and merged token changes, with revert' },
@@ -89,7 +93,6 @@ export function libraryNav(): NavEntry[] {
   return [
     { href: LIBRARY_HOME, label: 'Home', icon: 'home', meta: "What's new and where to start" },
     { label: 'Foundations', icon: 'layers', children: FOUNDATIONS },
-    { href: '/tokens/', label: 'Tokens', icon: 'grid', meta: 'Every token with its alias chain, values, contrast and usage' },
     { href: '/components/', label: 'Components', icon: 'diamonds', meta: 'Every component with its guidance' },
     { label: 'Use', icon: 'book', children: LIBRARY_USE },
   ];
@@ -100,7 +103,7 @@ export function studioNav(): NavEntry[] {
     { href: STUDIO_HOME, label: 'Overview', icon: 'gauge', meta: 'What waits for you, suggestions and activity' },
     { href: '/studio/tokens/', label: 'Tokens', icon: 'grid', meta: 'Edit tokens into a draft, with live preview and guardrails' },
     { href: '/studio/components/', label: 'Components', icon: 'diamonds', meta: 'Status, tokens, code and Figma links per component' },
-    { label: 'Changes', icon: 'branch', children: STUDIO_CHANGES },
+    { label: 'Changes', icon: 'branch', badge: 'reviews', children: STUDIO_CHANGES },
     { label: 'Quality', icon: 'shield', children: STUDIO_QUALITY },
     { label: 'Settings', icon: 'sliders', children: SETTINGS_NAV },
   ];

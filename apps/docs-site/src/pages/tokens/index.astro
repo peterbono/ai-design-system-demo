@@ -1,17 +1,30 @@
 ---
+// All tokens: the Library's read-only reference. Every semantic token of the latest release with its light and dark
+// value (bridge brand), a filter, type chips and one side panel. Editing lives in Studio Tokens.
+// Deep links: ?t=<token path> (and ?focus=) select a token; a primitive path pre-fills the filter instead.
+import '../../styles/all-tokens.css';
 import Layout from '../../layouts/Layout.astro';
-import ButtonLink from '../../components/ds/ButtonLink';
-import { Pencil } from 'lucide-react';
-import TokenExplorerSlot from '../../components/TokenExplorerSlot.astro';
-import { explorerTokens } from '../../lib/explorer';
+import { Button, Icon, IconButton, Input } from '@bridge-ds/react';
+import { ClipboardCopy, Hash, Ruler, Search, Timer, X } from 'lucide-react';
+import { allTokenRows, typeChips } from '../../lib/all-tokens';
+import { versionInfo } from '../../lib/changelog';
 import { PAGE_SOURCES, freshness } from '../../lib/sources';
+import { loadTokens } from '../../lib/tokens';
+import { createElement } from 'react';
 
 const updated = freshness(PAGE_SOURCES.explorer);
-const total = explorerTokens().length;
-import LibraryHeader from '../../components/LibraryHeader.astro';
+const rows = allTokenRows(loadTokens().all);
+const chips = typeChips(rows);
+const version = versionInfo().current;
+const TYPE_ICON: Record<string, typeof Hash> = { dimension: Ruler, motion: Timer, number: Hash, typography: Hash };
+const MODES = ['light', 'dark'];
+const searchIcon = createElement(Icon, { icon: Search, size: 'sm' });
+const glyph = (type: string) => TYPE_ICON[type] ?? Hash;
+// What the panel needs, keyed by path. Everything else is in the rendered rows.
+const panelData = Object.fromEntries(rows.map((r) => [r.path, { cssVar: r.cssVar, type: r.type, description: r.description, light: r.light, dark: r.dark }]));
 ---
 
-<Layout title="Token explorer" description="Every token in the system by collection or type, with its value in every mode, alias chain, contrast and usage." sources={PAGE_SOURCES.explorer} updated={updated} wide>
+<Layout title="All tokens" description="Every semantic token in the latest release with its light and dark value, ready to copy." sources={PAGE_SOURCES.explorer} updated={updated} wide>
   <script is:inline>
     // Old links to the editor (/tokens/?edit=1) now open Studio Tokens.
     (function () {
@@ -19,11 +32,127 @@ import LibraryHeader from '../../components/LibraryHeader.astro';
       if (p.get('edit') === '1') { p.delete('edit'); var q = p.toString(); location.replace('/studio/tokens/' + (q ? '?' + q : '') + location.hash); }
     })();
   </script>
-  <LibraryHeader title="Token explorer" art="tokens" updated={updated}>
-    All {total} tokens from the token files of the latest release, in the same collections the Figma plugin creates, one column per mode. Search by name, CSS variable or a hex from a mockup, then select a token to follow its alias chain, check its contrast pairs and see which components use it.
-    <Fragment slot="actions">
-      <ButtonLink variant="secondary" size="sm" iconStart={Pencil} href="/studio/tokens/" data-xp-studio-link>Edit in Studio</ButtonLink>
-    </Fragment>
-  </LibraryHeader>
-  <TokenExplorerSlot mode="read" />
+  <div class="at" data-at>
+    <header class="at-head">
+      <h1>All tokens</h1>
+      <p class="at-lead">
+        Every semantic token in the latest release, <span class="mono">{version}</span>, with its light and dark value. Read only: copy a token's CSS variable, or open a token to see where its value comes from.
+      </p>
+    </header>
+
+    <div class="at-bar">
+      <Input
+        className="at-filter"
+        type="search"
+        label="Filter tokens"
+        hideLabel
+        placeholder={`Filter ${rows.length} tokens`}
+        prefix={searchIcon}
+        autoComplete="off"
+        spellCheck={false}
+        data-at-q
+      />
+      <div class="at-chips" role="radiogroup" aria-label="Type" data-at-chips>
+        {
+          chips.map((c, i) => (
+            <button type="button" class="at-chip" role="radio" aria-checked={i === 0 ? 'true' : 'false'} tabindex={i === 0 ? 0 : -1} data-at-type={c.value}>
+              {c.label} <span class="at-chip-n num">{c.count}</span>
+            </button>
+          ))
+        }
+      </div>
+    </div>
+
+    <div class="at-split">
+      <section class="at-list" aria-labelledby="at-list-title">
+        <h2 class="sr-only" id="at-list-title">Tokens</h2>
+        <div class="at-lh" aria-hidden="true">
+          <span></span>
+          <span>Name</span>
+          <span>Light</span>
+          <span>Dark</span>
+          <span></span>
+        </div>
+        <ul class="at-rows" data-at-rows>
+          {
+            rows.map((r) => (
+              <li class="at-row" data-at-row={r.path} data-type={r.type} data-search={r.search}>
+                <button type="button" class="at-row-main" aria-controls="at-panel" aria-pressed="false" data-at-open={r.path}>
+                  {r.type === 'color' ? (
+                    <span class="at-sw" aria-hidden="true">
+                      <i data-theme="light" data-brand="bridge" data-scope-fixed style={`background-color: var(${r.cssVar})`} />
+                      <i data-theme="dark" data-brand="bridge" data-scope-fixed style={`background-color: var(${r.cssVar})`} />
+                    </span>
+                  ) : r.type === 'shadow' ? (
+                    <span class="at-sw at-sw-shadow" aria-hidden="true">
+                      <i style={`box-shadow: var(${r.cssVar})`} />
+                    </span>
+                  ) : (
+                    <span class="at-sw at-sw-glyph" aria-hidden="true">
+                      <Icon icon={glyph(r.type)} size="sm" />
+                    </span>
+                  )}
+                  <span class="at-name mono">
+                    {r.cssVar}
+                    {r.deprecated && <span class="at-dep">Deprecated</span>}
+                  </span>
+                  <span class="at-vals">
+                  <span class="at-val mono">
+                    <span class="sr-only">Light </span>
+                    {r.light.short}
+                  </span>
+                  <span class="at-val mono">
+                    <span class="sr-only">Dark </span>
+                    {r.dark.short}
+                  </span>
+                  </span>
+                </button>
+                <IconButton icon={ClipboardCopy} label={`Copy variable var(${r.cssVar})`} size="sm" variant="secondary" className="at-copy has-tip" data-tip="Copy variable" data-copy={`var(${r.cssVar})`} />
+              </li>
+            ))
+          }
+        </ul>
+        <p class="at-empty" data-at-empty hidden>
+          No token matches this filter. Try a name like <span class="mono">bg.zone</span>, a CSS variable or a hex.
+          <span data-at-elsewhere hidden> <span class="mono" data-at-elsewhere-name></span> is not a semantic token: <a href="/studio/tokens/" data-at-elsewhere-link>see it in Studio Tokens</a>.</span>
+        </p>
+      </section>
+
+      <aside class="at-panel" id="at-panel" aria-label="Token detail" data-at-panel data-open="false" tabindex="-1">
+        <div class="at-panel-head">
+          <h2 class="at-panel-name mono" data-at-p-name></h2>
+          <IconButton icon={X} label="Close token detail" size="sm" className="at-panel-close" data-at-close />
+        </div>
+        <p class="at-panel-desc" data-at-p-desc></p>
+        <div class="at-modes">
+          {
+            MODES.map((m) => (
+              <div class="at-mode" data-at-mode={m}>
+                <div class="at-big" data-at-p-big data-theme={m} data-brand="bridge" data-scope-fixed>
+                  <span class="mono" data-at-p-bigval></span>
+                </div>
+                <p class="at-mode-text">
+                  <strong>{m === 'light' ? 'Light' : 'Dark'}</strong>
+                  <span class="mono" data-at-p-source></span>
+                  <span class="mono" data-at-p-value></span>
+                </p>
+              </div>
+            ))
+          }
+        </div>
+        <div class="at-var">
+          <span class="mono" id="at-p-var" data-at-p-var></span>
+          <Button variant="secondary" size="sm" iconStart={ClipboardCopy} data-copy-from="at-p-var">
+            <span data-copy-label>Copy variable</span>
+          </Button>
+        </div>
+      </aside>
+    </div>
+    <div class="at-scrim" data-at-scrim hidden></div>
+  </div>
+  <script type="application/json" id="at-data" set:html={JSON.stringify(panelData)} />
+  <script>
+    import { initAllTokens } from '../../scripts/all-tokens';
+    initAllTokens();
+  </script>
 </Layout>
