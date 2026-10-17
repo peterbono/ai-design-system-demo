@@ -106,6 +106,9 @@ a.fg-card {
 
 /* Underlined standalone link (All release notes, See all). */
 .fg-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--size-6);
   color: var(--color-text-link);
   font-size: var(--typography-ui-size);
   font-weight: var(--font-weight-semibold);

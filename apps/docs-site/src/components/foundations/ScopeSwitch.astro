@@ -13,10 +13,12 @@ const { axis } = Astro.props;
 const options = axis === 'brand' ? BRANDS.map((b) => ({ value: b, label: BRAND_LABEL[b] })) : DENSITIES.map((d) => ({ value: d, label: DENSITY_LABEL[d] }));
 const name = axis === 'brand' ? 'Preview brand' : 'Preview density';
 // Several switches can share a page (one per color group): each label needs its own id.
+// One brand (or density) in the repo: nothing to compare, so no switch.
+const show = options.length > 1;
 const labelId = `fd-scope-${axis}-${Math.random().toString(36).slice(2, 8)}`;
 ---
 
-<div class="fd-scope-field">
+{show && (<div class="fd-scope-field">
   <span class="fd-scope-label" id={labelId}>{name}</span>
   <div class="fd-scope" role="radiogroup" aria-labelledby={labelId} data-fd-scope>
     {
@@ -33,4 +35,4 @@ const labelId = `fd-scope-${axis}-${Math.random().toString(36).slice(2, 8)}`;
       )
     }
   </div>
-</div>
+</div>)}

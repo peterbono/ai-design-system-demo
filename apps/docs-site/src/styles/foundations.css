@@ -50,6 +50,7 @@
 
 .ramp-copy {
   justify-self: start;
+  min-height: var(--size-6);
   padding: 0;
   border: 0;
   background-color: transparent;
@@ -903,6 +904,7 @@
 
 .fd-name {
   max-width: 100%;
+  min-height: var(--size-8);
   padding: 0;
   border: 0;
   background-color: transparent;
@@ -962,7 +964,7 @@
 .fd-copy-chev {
   display: inline-grid;
   place-items: center;
-  height: var(--size-6);
+  height: var(--size-8);
   border: 0;
   background-color: transparent;
   color: var(--color-text-muted);
@@ -970,7 +972,7 @@
 }
 
 .fd-copy-btn {
-  width: var(--size-6);
+  width: var(--size-8);
   border-radius: var(--radius-control) 0 0 var(--radius-control);
 }
 
@@ -983,7 +985,7 @@
 }
 
 .fd-copy-chev {
-  width: var(--size-5);
+  width: var(--size-6);
   border-left: var(--border-width-default) solid var(--color-border-default);
   border-radius: 0 var(--radius-control) var(--radius-control) 0;
   list-style: none;
@@ -1096,7 +1098,7 @@
 .fd-chip {
   display: inline-flex;
   align-items: center;
-  height: calc(var(--size-6) + var(--space-0-5));
+  height: var(--size-8);
   padding: 0 var(--space-2);
   border: var(--border-width-default) solid var(--color-border-default);
   border-radius: var(--radius-pill);

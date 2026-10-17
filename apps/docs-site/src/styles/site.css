@@ -401,6 +401,7 @@ pre code {
 .topbar-brand {
   display: inline-flex;
   align-items: center;
+  min-height: var(--control-height-md);
   gap: var(--space-3);
   justify-self: start;
   color: var(--color-text-default);
@@ -767,6 +768,7 @@ main > h1:first-child {
 .page-source-trigger {
   display: inline-flex;
   align-items: center;
+  min-height: var(--size-6);
   gap: var(--space-1-5);
   border-radius: var(--radius-inset);
   color: var(--color-text-muted);

@@ -120,6 +120,7 @@
 }
 
 .family > summary {
+  min-height: var(--size-8);
   display: flex;
   align-items: baseline;
   gap: var(--space-2);
