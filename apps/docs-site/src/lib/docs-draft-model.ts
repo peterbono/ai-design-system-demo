@@ -123,3 +123,18 @@ export function docsProposal(edits: DocsEdit[], opts: { title?: string; notes?: 
     .join('\n');
   return { branch, title, body, files, risk, bump: 'patch', labels: ['docs', 'source: bridge-web', `tier-${risk.tier}`] };
 }
+
+/**
+ * The docs side of a token change, for its pull request body: one changelog line per component that paints with a
+ * changed token (the same line the docs pre-fill writes), so reviewers know which guidance pages to look at.
+ */
+export function docsNotesForTokens(paths: string[], usedBy: (path: string) => string[], max = 12): string {
+  const byComponent = new Map<string, string[]>();
+  for (const p of paths) for (const c of usedBy(p)) (byComponent.get(c) ?? byComponent.set(c, []).get(c)!).push(p);
+  if (!byComponent.size) return '';
+  const lines = [...byComponent.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([c, ps]) => `- ${c}: ${ps.length === 1 ? `token ${ps[0]} changed` : `${ps.length} tokens changed (${ps.slice(0, 3).join(', ')}${ps.length > 3 ? ', ...' : ''})`}.`);
+  const more = lines.length > max ? [`- And ${lines.length - max} more components.`] : [];
+  return ['## Docs to check', '', 'Components that paint with a changed token. Their guidance pages may need a new screenshot or a sentence.', '', ...lines.slice(0, max), ...more].join('\n');
+}

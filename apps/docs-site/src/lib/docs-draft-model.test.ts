@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { acceptDocsText, formatDocsJson, type ComponentDocsJson } from '@bridge-ds/core';
-import { cleanDocs, docsEdits, docsProposal, docsText, draftSummary, dropDocsEdits, setDocsEdit, tokenEdits, validateDocs } from './docs-draft-model';
+import { cleanDocs, docsEdits, docsNotesForTokens, docsProposal, docsText, draftSummary, dropDocsEdits, setDocsEdit, tokenEdits, validateDocs } from './docs-draft-model';
 import { draftSlug, draftToChanges, trayRows, type Draft } from './editor-model';
 
 const docs = (over: Partial<ComponentDocsJson> = {}): ComponentDocsJson => ({
@@ -74,5 +74,16 @@ describe('Claude drafts', () => {
     const text = formatDocsJson({ ...docs(), draftedBy: 'claude', needsReview: true });
     const accepted = JSON.parse(acceptDocsText(text));
     expect(accepted).toMatchObject({ draftedBy: 'claude', needsReview: false });
+  });
+});
+
+describe('docs notes on a token change', () => {
+  it('lists each component that paints with a changed token, once', () => {
+    const used: Record<string, string[]> = { 'color.a': ['Button', 'Link'], 'color.b': ['Button'] };
+    const md = docsNotesForTokens(['color.a', 'color.b', 'color.c'], (p) => used[p] ?? []);
+    expect(md).toContain('## Docs to check');
+    expect(md).toContain('- Button: 2 tokens changed (color.a, color.b).');
+    expect(md).toContain('- Link: token color.a changed.');
+    expect(docsNotesForTokens(['color.c'], () => [])).toBe('');
   });
 });

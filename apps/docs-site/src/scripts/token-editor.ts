@@ -37,6 +37,17 @@ import {
   type Guardrails,
 } from '../lib/editor-model';
 import { esc, getToken, initGitHubConnect, paintGates, readRepo, setButtonDisabled } from './github-session';
+import { docsNotesForTokens } from '../lib/docs-draft-model';
+
+/** Components that paint with a token (build-time usage embedded by the explorer), for the docs notes of a proposal. */
+function usedByComponents(path: string): string[] {
+  try {
+    const usage = JSON.parse(document.getElementById('xp-usage')?.textContent || '{}') as Record<string, { usedBy?: { name: string }[] }>;
+    return (usage[path]?.usedBy ?? []).map((c) => c.name);
+  } catch {
+    return [];
+  }
+}
 
 /** The config's repository, or the one this site documents when the config names none. */
 function repoOf(config: BridgeConfig): { owner: string; name: string; defaultBranch: string } {
@@ -226,7 +237,7 @@ async function propose(title: string, notes: string): Promise<number> {
       authoredBy: 'Human designer in the Bridge web editor (no AI involved in the values)',
     },
     title: prTitle,
-    notes,
+    notes: [notes.trim(), docsNotesForTokens(applied.changes.map((c) => (c.target ?? c.current)!.path), usedByComponents)].filter(Boolean).join('\n\n'),
     upstreamPaths: [],
     resolvedConflicts: [],
   });
