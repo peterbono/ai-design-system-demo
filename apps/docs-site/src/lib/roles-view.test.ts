@@ -25,8 +25,8 @@ describe('roleRows and rolesSummary', () => {
       ['Approve tech', 'Tech owners', ['theo']],
       ['Ship', 'Anyone with write access', []],
     ]);
-    // The form preselects the default: tech owners ship.
-    expect(rows[2]!.choice).toBe('tech');
+    // No segment says "anyone with write access": the form selects nothing for an unset ship right.
+    expect(rows[2]!.choice).toBe(null);
     expect(rolesSummary(owners, null)).toBe('Design owners approve design, tech owners approve tech, anyone with write access ships.');
   });
 

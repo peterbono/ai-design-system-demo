@@ -27,8 +27,8 @@ export interface RoleRow {
   who: string;
   /** Logins holding the right; empty when nobody is listed. */
   logins: string[];
-  /** Choice preselected in the form (the default when the team has not set rights yet). */
-  choice: RightChoice;
+  /** Choice selected in the form. null for a ship right the team has not set: no segment matches "anyone with write access". */
+  choice: RightChoice | null;
 }
 
 const WHO: Record<RightChoice, string> = { design: 'Design owners', tech: 'Tech owners', both: 'Design and tech owners' };
@@ -46,7 +46,7 @@ export function roleRows(owners: Owners, rights: Rights | null): RoleRow[] {
       help: RIGHT_HELP[right],
       who: unsetShip ? 'Anyone with write access' : WHO[choice],
       logins: unsetShip ? [] : holdersOf(right, owners, effective),
-      choice,
+      choice: unsetShip ? null : choice,
     };
   });
 }
@@ -63,7 +63,7 @@ export const VISUAL_MODE_LABEL: Record<VisualImpactMode, string> = { auto: 'Auto
 
 export const VISUAL_MODE_HELP: Record<VisualImpactMode, string> = {
   auto: 'Runs on every change to tokens or components.',
-  'on-demand': 'Runs when someone asks from the change. Saves GitHub Actions minutes on private repositories.',
+  'on-demand': 'Runs when someone asks from the change. Saves GitHub minutes on private repositories.',
 };
 
 /**

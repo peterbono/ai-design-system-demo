@@ -149,76 +149,71 @@ const overrideLine = ov.allowed.length
   </section>
 
   <section class="set-block" id="roles" aria-labelledby="set-roles">
-    <h2 id="set-roles" class="set-h">Roles</h2>
+    <div class="set-h-row">
+      <h2 id="set-roles" class="set-h">Roles</h2>
+      <Button variant="secondary" data-density="compact" data-roles-edit aria-controls="set-roles-form">Edit</Button>
+    </div>
     <p class="set-summary">{rolesLine}</p>
-    <ul class="set-rows-plain set-roles">
-      {
-        roles.map((x) => (
-          <li>
-            <div>
-              <p class="set-row-title">{x.label}</p>
-              <p class="set-row-text">{x.help}</p>
-            </div>
-            <p class="set-who">
-              {x.logins.length > 0 && (
-                <span class="set-avatars" aria-hidden="true">
-                  {x.logins.slice(0, 3).map((l) => (
-                    <img class="set-avatar" src={avatar(l)} alt="" width="20" height="20" loading="lazy" />
-                  ))}
-                </span>
-              )}
-              <span>
-                {x.who}
-                {x.logins.length > 0 ? <span class="set-who-logins"> {x.logins.map((l) => `@${l}`).join(', ')}</span> : x.who !== 'Anyone with write access' && <span class="set-who-logins"> nobody listed yet</span>}
-              </span>
-            </p>
-          </li>
-        ))
-      }
-      <li>
-        <div>
-          <p class="set-row-title">Visual before and after</p>
-          <p class="set-row-text">{VISUAL_MODE_HELP[mode]}</p>
-        </div>
-        <p class="set-who">{VISUAL_MODE_LABEL[mode]}</p>
-      </li>
-    </ul>
-
-    <details class="set-more" id="roles-edit">
-      <summary><span class="set-more-title">Change roles</span><span class="set-chev" aria-hidden="true"></span></summary>
-      <form class="set-roles-form" data-roles-form novalidate>
-        <ul class="set-rows-plain">
-          {
-            roles.map((x) => (
-              <li>
+    <form class="set-roles-form" id="set-roles-form" data-roles-form data-editing="false" novalidate>
+      <ul class="set-rows-plain set-roles">
+        {
+          roles.map((x) => (
+            <li>
+              <div>
                 <p class="set-row-title" id={`set-role-${x.right}`}>{x.label}</p>
-                <SegmentedControl aria-labelledby={`set-role-${x.right}`} data-vanilla data-right={x.right} defaultValue={x.choice} items={choices} />
-              </li>
-            ))
-          }
-          <li>
+                <p class="set-row-text">{x.help}</p>
+              </div>
+              <div class="set-role-value">
+                <p class="set-who" data-view>
+                  {x.logins.length > 0 && (
+                    <span class="set-avatars" aria-hidden="true">
+                      {x.logins.slice(0, 3).map((l) => (
+                        <img class="set-avatar" src={avatar(l)} alt="" width="20" height="20" loading="lazy" />
+                      ))}
+                    </span>
+                  )}
+                  <span>
+                    {x.who}
+                    {x.logins.length > 0 ? <span class="set-who-logins"> {x.logins.map((l) => `@${l}`).join(', ')}</span> : x.who !== 'Anyone with write access' && <span class="set-who-logins"> nobody listed yet</span>}
+                  </span>
+                </p>
+                <SegmentedControl data-edit aria-labelledby={`set-role-${x.right}`} data-vanilla data-right={x.right} data-initial={x.choice ?? ''} defaultValue={x.choice ?? undefined} items={choices} />
+              </div>
+            </li>
+          ))
+        }
+        <li>
+          <div>
             <p class="set-row-title" id="set-role-visual">Visual before and after</p>
+            <p class="set-row-text" data-visual-help data-auto={VISUAL_MODE_HELP.auto} data-on-demand={VISUAL_MODE_HELP['on-demand']}>{VISUAL_MODE_HELP[mode]}</p>
+          </div>
+          <div class="set-role-value">
+            <p class="set-who" data-view>{VISUAL_MODE_LABEL[mode]}</p>
             <SegmentedControl
+              data-edit
               aria-labelledby="set-role-visual"
               data-vanilla
               data-visual-mode
+              data-initial={mode}
               defaultValue={mode}
               items={[
                 { value: 'auto', label: VISUAL_MODE_LABEL.auto },
                 { value: 'on-demand', label: VISUAL_MODE_LABEL['on-demand'] },
               ]}
             />
-          </li>
-        </ul>
-        <p class="set-muted">On demand saves GitHub Actions minutes on private repositories: the before and after runs when someone asks from the change.</p>
-        <p class="rq-error" role="alert" data-roles-error hidden></p>
+          </div>
+        </li>
+      </ul>
+      <div class="set-savebar" data-edit>
         <div class="rq-actions">
-          <Button variant="secondary" type="submit" data-roles-submit data-gh-gate="propose roles">Propose changes</Button>
-          <span class="set-muted">Opens a pull request on <span class="mono">{file}</span>. Nothing changes until it is approved and shipped.</span>
+          <Button variant="primary" type="submit" data-roles-submit disabled>Propose changes</Button>
+          <Button variant="secondary" data-roles-cancel>Cancel</Button>
+          <span class="set-muted">Your team reviews this before it applies.</span>
         </div>
-        <div class="rq-done" role="status" data-roles-done hidden></div>
-      </form>
-    </details>
+        <p class="rq-error" role="alert" data-roles-error hidden></p>
+      </div>
+      <div class="rq-done" role="status" data-roles-done hidden></div>
+    </form>
   </section>
 
   <section class="set-block" id="repository" aria-labelledby="set-repository">

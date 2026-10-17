@@ -33,6 +33,8 @@ export interface VisualSummary {
   changed: number | null;
   /** Before and after thumbnails of the biggest change, for the section header. */
   thumb: string;
+  /** On demand: someone already asked for this pull request (label visual-check), the run is on its way. */
+  asked?: boolean;
 }
 
 export async function loadVisualImpact(slot: HTMLElement, o: { owner: string; repo: string; pr: number; sha: string; actionsUrl: string }): Promise<VisualSummary> {
@@ -51,8 +53,8 @@ export async function loadVisualImpact(slot: HTMLElement, o: { owner: string; re
   }
   const state = visualState(manifest);
   if (state.kind === 'not-computed') {
-    await notRun(slot, o);
-    return { changed: null, thumb: '' };
+    const asked = await notRun(slot, o);
+    return { changed: null, thumb: '', asked };
   }
   const m = state.manifest;
   const head = `<p class="small muted">${m.summary.shots} screenshot${m.summary.shots === 1 ? '' : 's'} compared, base <span class="mono">${esc(m.base.sha.slice(0, 7))}</span> to head <span class="mono">${esc(m.head.sha.slice(0, 7))}</span>, threshold ${m.options.threshold}.${
@@ -123,7 +125,7 @@ function visualMode(): 'auto' | 'on-demand' {
  * No manifest for this commit. Automatic mode: the run is on its way, link to it. On demand: one button that adds
  * the visual-check label (the workflow runs on that label), or the way to do it on GitHub without a write token.
  */
-async function notRun(slot: HTMLElement, o: { owner: string; repo: string; pr: number; sha: string; actionsUrl: string }) {
+async function notRun(slot: HTMLElement, o: { owner: string; repo: string; pr: number; sha: string; actionsUrl: string }): Promise<boolean> {
   const mode = visualMode();
   const run = `<a href="${esc(o.actionsUrl)}" target="_blank" rel="noopener">Follow the run</a>`;
   let labels = mode === 'on-demand' ? await ghGet<{ name: string }[]>(`/repos/${o.owner}/${o.repo}/issues/${o.pr}/labels`).then((f) => f.data, () => null) : null;
@@ -134,7 +136,7 @@ async function notRun(slot: HTMLElement, o: { owner: string; repo: string; pr: n
       ask === 'auto'
         ? `<p class="cg-line">Not run yet for <span class="mono">${esc(o.sha.slice(0, 7))}</span>. <a href="${esc(o.actionsUrl)}" target="_blank" rel="noopener">Run it</a></p>`
         : ask === 'asked'
-          ? `<p class="cg-line">Asked. The before and after shows here once the run on GitHub finishes. ${run}</p>`
+          ? `<p class="cg-line">The before and after shows here once the run on GitHub finishes. ${run}</p>`
           : ask === 'ask'
             ? `<div class="vi-ask">${lead}<button type="button" class="btn btn-secondary btn-lg" data-vi-ask>Show the visual impact</button></div><p class="rv-error" role="alert" data-vi-ask-error hidden></p>`
             : `<div class="vi-ask">${lead}<a class="btn btn-secondary btn-lg" href="https://github.com/${esc(o.owner)}/${esc(o.repo)}/pull/${o.pr}" target="_blank" rel="noopener">Add the ${VISUAL_CHECK_LABEL} label on GitHub</a></div>`;
@@ -147,6 +149,8 @@ async function notRun(slot: HTMLElement, o: { owner: string; repo: string; pr: n
         await ghWrite('POST', `/repos/${o.owner}/${o.repo}/issues/${o.pr}/labels`, { labels: [VISUAL_CHECK_LABEL] });
         labels = [...(labels ?? []), { name: VISUAL_CHECK_LABEL }];
         paint(true);
+        const meta = document.querySelector('#cg-sec-visual [data-sec-meta]');
+        if (meta) meta.textContent = 'Asked';
       } catch (err) {
         btn.disabled = false;
         btn.textContent = 'Show the visual impact';
@@ -158,6 +162,7 @@ async function notRun(slot: HTMLElement, o: { owner: string; repo: string; pr: n
   paint(hasWorkingToken());
   // A token that turns out read only gets the GitHub way instead of a button that would fail.
   if (mode === 'on-demand') onAccess((a) => slot.isConnected && slot.querySelector('[data-vi-ask]') && a && !a.write && paint(false));
+  return visualAsk({ mode, labels, canWrite: false, label: VISUAL_CHECK_LABEL }) === 'asked';
 }
 
 function shotCard(s: VisualShot, base: string): string {

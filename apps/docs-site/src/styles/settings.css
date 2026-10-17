@@ -133,40 +133,61 @@
   margin-left: calc(var(--space-1-5) * -1);
 }
 
-.set-roles-form {
-  display: grid;
-  gap: var(--space-3);
-  padding-bottom: var(--space-5);
+/* Heading line: the section title and its one action (Edit) on the same line. */
+.set-h-row {
+  display: flex;
+  min-height: var(--size-9);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
 }
 
-.set-roles-form .set-rows-plain {
+.set-h-row .set-h {
   margin: 0;
 }
 
-/* Edit rows: the right on the left, its control in one aligned column, both at their natural width. */
-.set-roles-form .set-rows-plain > li {
+/* In edit mode Cancel replaces Edit: the DS Button sets its own display, so honor hidden here. */
+.set-h-row [hidden] {
+  display: none;
+}
+
+/* Edit in place: one list of rows. Viewing shows who holds each right; editing swaps that value for a segmented
+   control on the same row, and shows the save bar under the list. */
+.set-roles-form {
   display: grid;
-  grid-template-columns: minmax(var(--size-40), var(--size-60)) auto;
+  gap: var(--space-4);
+}
+
+.set-roles-form .set-rows-plain > li {
   align-items: center;
-  justify-content: start;
 }
 
-.set-roles-form .set-rows-plain > li > div {
-  flex: none;
+.set-roles-form .set-role-value {
+  display: flex;
+  flex: 0 1 auto;
+  justify-content: flex-end;
+  min-width: 0;
 }
 
-@media (max-width: 640px) {
-  .set-roles-form .set-rows-plain > li {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-.set-roles-form .set-rows-plain > li:last-child {
-  border-bottom: 0;
+.set-roles-form[data-editing="false"] [data-edit],
+.set-roles-form[data-editing="true"] [data-view] {
+  display: none;
 }
 
 .set-roles-form .set-muted {
   margin: 0;
+}
+
+@media (max-width: 640px) {
+  .set-roles-form .set-role-value {
+    flex-basis: 100%;
+    justify-content: flex-start;
+  }
+
+  .set-role-value [data-segmented-control] {
+    width: 100%;
+  }
 }
 
 /* Repository: one sentence and the way to GitHub, then Source at rest and two collapsed groups. */

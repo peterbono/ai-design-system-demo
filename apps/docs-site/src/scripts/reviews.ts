@@ -428,7 +428,7 @@ export async function openPr(n: number, push = true) {
       })
         .then((v) => {
           const meta = document.querySelector('#cg-sec-visual [data-sec-meta]');
-          if (meta) meta.innerHTML = v.changed === null ? 'Not run yet' : v.changed === 0 ? 'No change' : `${plural(v.changed, 'screen')} changed${v.thumb}`;
+          if (meta) meta.innerHTML = v.changed === null ? (v.asked ? 'Asked' : 'Not run yet') : v.changed === 0 ? 'No change' : `${plural(v.changed, 'screen')} changed${v.thumb}`;
         })
         .catch((err) => (slot.innerHTML = `<p class="rv-error">Could not read the visual impact: ${esc((err as Error).message)}</p>`));
     }
