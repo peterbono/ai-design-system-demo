@@ -283,7 +283,7 @@ bridge audit ../my-app/src --fix --write           # replace them with var(--tok
   outside a DS component's `render` prop, chart libraries (recharts...: no DS equivalent) and local components
   named like a DS component.
 - The JSON report is versioned (`packages/core/audit-report.schema.json`). Commit it under
-  `apps/docs-site/src/data/audits/` and the docs site shows it on the Adoption page, with the trend across
+  `apps/docs-site/src/data/audits/` and the docs site shows it in Studio Quality (each report on its own page), with the trend across
   baselines. Exit codes: 0 ok, 1 under `--fail-under` or regressed with `--no-regress`, 2 setup error.
 - In the editor, the lint plugins give the same feedback while you type: `@bridge-ds/stylelint-plugin`
   (`bridge/use-tokens`, autofix for exact matches) and `@bridge-ds/eslint-plugin`

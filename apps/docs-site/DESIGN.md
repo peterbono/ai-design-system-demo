@@ -87,7 +87,7 @@ Studio (header and nav on a soft ground, white canvas)
 | Tokens    |                                                                    |
 | Components|                                                                    |
 | Changes 3 |                                                                    |
-| Quality  >|                                                                    |
+| Quality   |                                                                    |
 | Settings  |                                                                    |
 | --------- |                                                                    |
 | [GitHub] Connect GitHub, Read only until connected                             |
@@ -118,15 +118,30 @@ on their group page, not in the nav.
   apart All tokens), Components, Use (Install, Agents, How review works, Changelog). All tokens (`/tokens/`) is a read-only reference:
   filter, type chips, rows with light and dark values, a side panel per token. Editing happens in Studio Tokens.
 - Studio: Overview, Tokens, Components, Changes (one page: In review and History tabs, a pull request opens in place),
-  Quality (Checks, Adoption), Settings (one page). Under a divider, the GitHub account:
+  Quality (one page), Settings (one page). Under a divider, the GitHub account:
   "Connect GitHub" and "Read only until connected", or the avatar, login and repository opening the account menu.
+
+Studio Components: one sentence ("48 components, all stable. 2 need usage guidance.", the second part filters the
+list) and one primary, "Add guidance", while any guidance is missing. The list groups by family under small headers,
+three columns (name, tokens as "1 own · 39 from Button" when a component reuses another one's stylesheet, stories),
+badges only for exceptions (Missing guidance, Draft by Claude needs review, Beta, Deprecated), family chips and a
+filter field. The list is one tab stop (arrow keys between rows); a row opens a drawer with the guidance status, Edit
+docs (primary), Edit tokens, Library page, Code and Workbench. Edit docs is a form beside the real Library Usage tab,
+live; changes go to the local draft as a "docs" edit and are proposed as a Tier 1 pull request. A component without
+docs starts from the deterministic pre-fill (props, tokens, anatomy from the CSS classes, contrast notes).
+
+Studio Quality: a Harbor opener ("All 296 contrast checks pass. 2 components need guidance.", primary "Fix the first
+finding"), then one list of findings, most severe first (contrast as one line that opens to its four brand and theme
+rows, missing guidance and Claude drafts to review, unused tokens collapsed under "Clean up (N)"), then adoption as two
+rows (Admin demo, Bridge itself) before and after, each opening its audit report on its own route. Running the checks
+locally is a disclosure at the end.
 
 Studio Changes: In review opens with a Harbor block (one status sentence about the most urgent pull request, one
 primary "Review #N"); a draft strip only when this browser holds a draft; the pull requests on one card (plain title
 and #, one status chip, date, the tier as a grey label), most urgent first; "Other branches (N)" collapsed at the end.
 Without GitHub, the last list stays "as of" its time. A pull request: a compact Harbor opener (title, one sentence
-on its state, one primary), then collapsed sections with counts (Files, Checks, Visual impact, Preview and install,
-Changeset, Conversation) and a footer action bar. History: one sentence on the release, one timeline grouped by
+on its state, one primary), then collapsed sections with counts (Files, Docs when docs.json files change, Checks,
+Visual impact, Preview and install, Changeset, Conversation) and a footer action bar. History: one sentence on the release, one timeline grouped by
 release, imports folded, filters behind "Filter", the demo switch at the bottom; undo is a side panel. Status colors
 everywhere in the Studio: red blocked, violet waiting for approval, green ready to merge, grey for the rest. Risk
 tiers never take a color.
