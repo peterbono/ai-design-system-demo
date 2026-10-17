@@ -3,12 +3,12 @@ import '../../styles/component.css';
 import '../../styles/library.css';
 import Layout from '../../layouts/Layout.astro';
 import Example from '../../components/Example.tsx';
-import Icon from '../../components/Icon.astro';
+import UsagePanelStatic from '../../components/UsagePanelStatic';
 import PropsPlayground from '../../components/PropsPlayground.tsx';
 import ButtonLink from '../../components/ds/ButtonLink';
 import PropsTable from '../../components/ds/PropsTable';
 import { Alert, Badge, SegmentedControl, PageHeader } from '@bridge-ds/react';
-import { BookOpen, Check, Columns2, FileCode, Moon, Pencil, Sun, X } from 'lucide-react';
+import { BookOpen, Columns2, FileCode, Moon, Pencil, Sun } from 'lucide-react';
 import { loadComponents, playgroundSpec, type ComponentInfo } from '../../lib/components';
 import { lastUpdated, sourceUrl, STORYBOOK_URL } from '../../lib/repo';
 import { BRANDS, BRAND_LABEL, MODES } from '../../lib/tokens';
@@ -132,84 +132,7 @@ import PreviewScope from '../../components/PreviewScope.astro';
   <div class="cp-layout">
     <div class="cp-body">
       <div class="cp-panel" role="tabpanel" id="tab-usage" aria-labelledby="tab-usage-btn" data-panel="usage">
-      {
-        d && (
-          <>
-            <section aria-labelledby="usage">
-              <h2 id="usage">When to use</h2>
-              <div class="usage-grid">
-                <div class="usage-col is-use">
-                  <h3>
-                    <Icon name="check" size={18} /> Use it for
-                  </h3>
-                  <ul>
-                    {d.whenToUse.map((x) => (
-                      <li>{x}</li>
-                    ))}
-                  </ul>
-                </div>
-                <div class="usage-col is-avoid">
-                  <h3>
-                    <Icon name="x" size={18} /> Not for
-                  </h3>
-                  <ul>
-                    {d.whenNotToUse.map((x) => (
-                      <li>{x}</li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            </section>
-
-            <section aria-labelledby="do-dont">
-              <h2 id="do-dont">Do and don't</h2>
-              <p class="muted">Every example is rendered with the real component, so it always matches what ships.</p>
-              <div class="guidance">
-                {d.dos.map((g) => (
-                  <figure class="verdict do">
-                    {g.example && (
-                      <div class="verdict-stage" data-theme="light">
-                        <Example node={g.example} />
-                      </div>
-                    )}
-                    <figcaption class="verdict-body">
-                      <Badge tone="success" icon={Check}>Do</Badge>
-                      <h4>{g.title}</h4>
-                      <p>{g.text}</p>
-                    </figcaption>
-                  </figure>
-                ))}
-                {d.donts.map((g) => (
-                  <figure class="verdict dont">
-                    {g.example && (
-                      <div class="verdict-stage" data-theme="light" inert>
-                        <Example node={g.example} />
-                      </div>
-                    )}
-                    <figcaption class="verdict-body">
-                      <Badge tone="danger" icon={X}>Don't</Badge>
-                      <h4>{g.title}</h4>
-                      <p>{g.text}</p>
-                    </figcaption>
-                  </figure>
-                ))}
-              </div>
-            </section>
-
-            <section aria-labelledby="accessibility">
-              <h2 id="accessibility">Accessibility</h2>
-              <ul class="a11y-list">
-                {d.accessibility.map((x) => (
-                  <li>
-                    <Icon name="check" size={16} />
-                    <span>{x}</span>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          </>
-        )
-      }
+      {d && <UsagePanelStatic docs={d} />}
 
       {
         !d && (
