@@ -113,15 +113,23 @@ export function requestSummary(description: string, fileName: string): string {
  * One request draft per checked component change, with the push description as its summary. When the description is
  * still the plugin's own draft (`descriptionIsDraft`), each request gets its own drafted summary instead: a line about
  * the variables says nothing about a component. Each request opens with its change line: Claude's (`lines`, by node
- * id) or the drafted one.
+ * id) or the drafted one, and is titled with Claude's title for it (`titles`, by node id) or the drafted title.
  */
-export function componentDrafts(components: ComponentChangeItem[], unchecked: ReadonlySet<string>, description: string, fileName: string, descriptionIsDraft = false, lines?: ReadonlyMap<string, string>): RequestDraft[] {
+export function componentDrafts(
+  components: ComponentChangeItem[],
+  unchecked: ReadonlySet<string>,
+  description: string,
+  fileName: string,
+  descriptionIsDraft = false,
+  lines?: ReadonlyMap<string, string>,
+  titles?: ReadonlyMap<string, string>,
+): RequestDraft[] {
   return components
     .filter((c) => !unchecked.has(componentKey(c.nodeId)))
     .map((c) => ({
       component: c.component,
       kind: c.kind,
-      title: suggestTitle(c),
+      title: titles?.get(c.nodeId) || suggestTitle(c),
       summary: (descriptionIsDraft && suggestSummary(c)) || requestSummary(description, fileName),
       line: lines?.get(c.nodeId) || suggestLine(c),
       changes: c.changes,
@@ -146,6 +154,8 @@ export interface PublishInput {
   descriptionIsDraft?: boolean | undefined;
   /** Change lines Claude wrote, by component node id; the others get the drafted line. */
   lines?: ReadonlyMap<string, string> | undefined;
+  /** Request titles Claude wrote, by component node id; the others get the drafted title. */
+  titles?: ReadonlyMap<string, string> | undefined;
   /** Pull request title; empty: the default title from the changes. */
   title: string;
   fileName: string;
@@ -166,10 +176,10 @@ export interface PublishResult {
 }
 
 /** What a push would send: the files of the pull request (empty when no variable is checked) and the request drafts. */
-export function publishPlan(input: Pick<PublishInput, 'proposal' | 'components' | 'unchecked' | 'description' | 'fileName' | 'descriptionIsDraft' | 'lines'>): { prFiles: number; drafts: RequestDraft[] } {
+export function publishPlan(input: Pick<PublishInput, 'proposal' | 'components' | 'unchecked' | 'description' | 'fileName' | 'descriptionIsDraft' | 'lines' | 'titles'>): { prFiles: number; drafts: RequestDraft[] } {
   return {
     prFiles: Object.keys(input.proposal.files).length + input.proposal.brandFiles.length,
-    drafts: componentDrafts(input.components, input.unchecked, input.description, input.fileName, input.descriptionIsDraft, input.lines),
+    drafts: componentDrafts(input.components, input.unchecked, input.description, input.fileName, input.descriptionIsDraft, input.lines, input.titles),
   };
 }
 

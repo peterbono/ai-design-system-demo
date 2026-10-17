@@ -311,8 +311,10 @@ both already reach with the designer's token.
    content (up to 8 images under 750 KB each; larger ones stay links), so Claude sees the before and after.
 3. Claude writes what changes for developers and why it matters (sentence case, no em dash, no invented numbers)
    and, per change line, one short sentence read from the images ("Icon added after the label in primary sm: Pencil,
-   16px"), then calls `bridge_write_drafts` `{ sessionId, results: [{ id, title, summary, lines?: [{ id, line }] }] }`.
-   Bridge cleans each text to the contract (no em dash, title at most 70 characters with no trailing period, summary
+   16px") and the title of the request it becomes ("Add an icon after the label"), then calls `bridge_write_drafts`
+   `{ sessionId, results: [{ id, title, summary, lines?: [{ id, line, title? }] }] }`. The plugin uses each line's
+   title for that component's request instead of its deterministic title; answers without line titles still work.
+   Bridge cleans each text to the contract (no em dash, titles at most 70 characters with no trailing period, summary
    at most 3 sentences, each line at most 120 characters with no trailing period, unknown line ids refused), adds
    `{ by: "claude", at }`, and sets `status: "drafted"` once every item has a result. Writers send the file sha and
    retry on 409, so a concurrent write is never lost.

@@ -349,7 +349,9 @@ How it works:
 3. **Request form**, inline: kind (prefilled), title and summary (prefilled drafts, see "Writing help"; "Draft with
    Claude" sits on the Title label line) and "Attach the selected variant" (a 2x PNG). The row above the form keeps
    the change line and its "Details" table. Each request opens with its change line ("**What changes:** ..."):
-   Claude's when it wrote one, else `draftChangeLine` from the diff. On send, images go to the
+   Claude's when it wrote one, else `draftChangeLine` from the diff. Its title is Claude's title for that component
+   (written with the change line, at most 70 characters) when there is one, else the drafted title (structure: "Add a
+   layer after Label"). On send, images go to the
    `bridge-requests` branch (created from the base branch head when missing, never moved) under
    `.bridge/requests/`, then the issue is created and the new baseline stored. "Request #N opened" links to it.
 4. **Request a component change**: for what the diff cannot see (behavior, a bug, an idea). Pick a coded
