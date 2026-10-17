@@ -2,7 +2,7 @@
   "version": 1,
   "sessionId": "y0hakmk2q2tizqhx",
   "createdAt": "2026-10-17T20:14:45.612Z",
-  "status": "pending",
+  "status": "drafted",
   "source": "figma",
   "items": [
     {
@@ -28,6 +28,15 @@
         "title": "",
         "summary": "Requests a change to Button."
       }
+    }
+  ],
+  "results": [
+    {
+      "id": "item-1",
+      "title": "Add a trailing icon to Button",
+      "summary": "Button now shows an icon after its label, a pencil in the primary example, where no variant, size or state had an icon before. Developers will need a way to pass an icon that renders after the label text. The after frame shows only the primary variant at one size, so how the icon applies to other variants and sizes is still to confirm.",
+      "by": "claude",
+      "at": "2026-10-17T20:15:21.548Z"
     }
   ]
 }
