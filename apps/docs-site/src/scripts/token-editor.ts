@@ -37,6 +37,17 @@ import {
   type Guardrails,
 } from '../lib/editor-model';
 import { esc, getToken, initGitHubConnect, paintGates, readRepo, setButtonDisabled } from './github-session';
+import { docsNotesForTokens } from '../lib/docs-draft-model';
+
+/** Components that paint with a token (build-time usage embedded by the explorer), for the docs notes of a proposal. */
+function usedByComponents(path: string): string[] {
+  try {
+    const usage = JSON.parse(document.getElementById('xp-usage')?.textContent || '{}') as Record<string, { usedBy?: { name: string }[] }>;
+    return (usage[path]?.usedBy ?? []).map((c) => c.name);
+  } catch {
+    return [];
+  }
+}
 
 /** The config's repository, or the one this site documents when the config names none. */
 function repoOf(config: BridgeConfig): { owner: string; name: string; defaultBranch: string } {
@@ -130,7 +141,8 @@ function paintTray() {
   // request, so it is the one gated action (data-gh-gate): without a connection a click opens Connect GitHub.
   const propose = $<HTMLButtonElement>('ed-propose');
   if (propose) {
-    setButtonDisabled(propose, !n || fails > 0);
+    // Docs edits share the draft but are proposed from the docs editor (Studio > Components > Edit docs).
+    setButtonDisabled(propose, !rows.some((r) => r.edit.kind !== 'docs') || fails > 0);
     paintGates(propose.parentElement ?? document);
   }
   const tray = $('ed-tray');
@@ -225,7 +237,7 @@ async function propose(title: string, notes: string): Promise<number> {
       authoredBy: 'Human designer in the Bridge web editor (no AI involved in the values)',
     },
     title: prTitle,
-    notes,
+    notes: [notes.trim(), docsNotesForTokens(applied.changes.map((c) => (c.target ?? c.current)!.path), usedByComponents)].filter(Boolean).join('\n\n'),
     upstreamPaths: [],
     resolvedConflicts: [],
   });
@@ -497,7 +509,8 @@ export function initTokenEditor() {
     out.textContent = 'Creating a branch, committing the token files and a changeset, opening the pull request';
     try {
       const n = await propose(field<HTMLInputElement>('propose-title')?.value ?? '', field<HTMLTextAreaElement>('propose-notes')?.value ?? '');
-      S!.draft = emptyDraft();
+      // Docs edits stay: they are proposed from the docs editor.
+      S!.draft = { edits: S!.draft.edits.filter((e) => e.kind === 'docs') };
       saveDraft();
       location.href = `/studio/changes/?pr=${n}`;
     } catch (err) {

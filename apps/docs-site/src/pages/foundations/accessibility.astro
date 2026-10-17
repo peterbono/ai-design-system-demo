@@ -50,7 +50,7 @@ const matrixRows = (g: (typeof groups)[number]): MatrixRow[] =>
 ---
 
 <Layout title="Accessibility" description="What Bridge commits to for accessibility, and every gated color pair checked in every brand and theme." sources={PAGE_SOURCES.accessibility} updated={updated}>
-  <LibraryHeader title="Accessibility" art="foundations" updated={updated} studio="/studio/checks/" studioLabel="Open in Studio">
+  <LibraryHeader title="Accessibility" art="foundations" updated={updated} studio="/studio/quality/" studioLabel="Open in Studio">
     <p class="a11y-status" data-state={summary.failing ? 'fail' : 'pass'}>
       <Icon icon={summary.failing ? CircleAlert : CircleCheck} size="md" className="a11y-status-icon" />
       <span>{statusSentence(summary)}</span>
@@ -185,7 +185,7 @@ const matrixRows = (g: (typeof groups)[number]): MatrixRow[] =>
         <li>Until it ships, avoid that pair in new places.</li>
       </ul>
       <p data-maintainer-only>
-        <Link href="/studio/checks/" variant="standalone">See every check in Studio Checks</Link>
+        <Link href="/studio/quality/" variant="standalone">See every check in Studio Quality</Link>
       </p>
     </div>
   </details>

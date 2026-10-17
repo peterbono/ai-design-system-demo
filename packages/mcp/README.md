@@ -50,6 +50,7 @@ and the full guide: [docs/AI.md](../../docs/AI.md).
 | `bridge_validate_tokens` | DTCG shapes, names, broken/circular aliases, type mismatches, light/dark parity |
 | `bridge_list_components` | Components with family and summary |
 | `bridge_get_component` | Props parsed from TypeScript, docs.json usage guidance, CSS variables used |
+| `bridge_draft_docs` | docs.json pre-fill from the code (props, tokens, anatomy, contrast, changelog line, missing keys) and a prompt to write the prose; writes nothing |
 | `bridge_get_design_language` | Sections of the design language doc |
 | `bridge_get_guidelines` | AGENTS.md rules, risk tiers, what Bridge enforces |
 | `bridge_propose_token_change` | Edits, validation, contrast, tier, changeset, PR body; branch (local) or PR (remote) |

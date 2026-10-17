@@ -6,7 +6,7 @@ import Icon from '../../components/Icon.astro';
 import Illustration from '../../components/Illustration.astro';
 import ButtonLink from '../../components/ds/ButtonLink';
 import { releases } from '../../lib/changelog';
-import { loadComponents } from '../../lib/components';
+import { docsEditHref, guidanceState, loadComponents } from '../../lib/components';
 import { mdTitleText, oneLineTitle } from '../../lib/markdown';
 import { PAGE_SOURCES, freshness } from '../../lib/sources';
 import { dashboard } from '../../lib/stats';
@@ -18,18 +18,28 @@ const health =
     ? `All ${s.contrast.total} contrast checks pass across ${s.brands} brands.`
     : `${failing} of ${s.contrast.total} contrast checks fail. The token build is blocked until they pass.`;
 
-// Second suggestion, from the repo at build time: components without usage guidance, else the first health item.
-const undocumented = loadComponents().filter((c) => !c.docs);
+// Second suggestion, from the repo at build time: components without usage guidance (or with a Claude draft that
+// waits for a review), else the first health item.
+const comps = loadComponents();
+const undocumented = comps.filter((c) => guidanceState(c) === 'missing');
+const drafted = comps.filter((c) => guidanceState(c) === 'review');
 const names = (list: { name: string }[]) =>
   list.length <= 2 ? list.map((c) => c.name).join(' and ') : `${list.slice(0, 2).map((c) => c.name).join(', ')} and ${list.length - 2} more`;
 const guide = undocumented.length
   ? {
       title: 'Add usage guidance',
-      text: `${names(undocumented)} ${undocumented.length === 1 ? 'has' : 'have'} no usage guidance yet. Add a docs file to fill ${undocumented.length === 1 ? 'its page' : 'their pages'}.`,
+      text: `${names(undocumented)} ${undocumented.length === 1 ? 'has' : 'have'} no usage guidance yet. Start from what the code tells: props, tokens and anatomy.`,
       cta: 'Write guidance',
-      href: `/components/${undocumented[0]!.slug}/`,
+      href: docsEditHref(undocumented[0]!.slug),
     }
-  : s.issues[0]
+  : drafted.length
+    ? {
+        title: 'Review usage guidance',
+        text: `Claude drafted the guidance of ${names(drafted)} from the code. Read it, fix it, then mark it reviewed.`,
+        cta: 'Review guidance',
+        href: docsEditHref(drafted[0]!.slug),
+      }
+    : s.issues[0]
     ? { title: s.issues[0].title, text: s.issues[0].detail, cta: 'Open', href: s.issues[0].href }
     : { title: 'Check visual impact', text: 'Every pull request gets screenshots of the stories and screens it changes. Look before you approve.', cta: 'Open Changes', href: '/studio/changes/' };
 
@@ -59,7 +69,7 @@ const merged = releases()
         <ButtonLink variant="primary" href="/studio/changes/" data-start-review data-keep-branch>Start reviewing</ButtonLink>
         <p class="t-ui ov-health">
           <span class:list={['ov-dot', { 'is-fail': failing > 0 }]} aria-hidden="true"></span>
-          {failing === 0 ? health : <a href="/studio/checks/">{health}</a>}
+          {failing === 0 ? health : <a href="/studio/quality/">{health}</a>}
         </p>
       </div>
       <Illustration name="review" class="ov-greet-art" />

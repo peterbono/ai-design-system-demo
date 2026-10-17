@@ -25,7 +25,7 @@ export function searchIndex(): SearchItem[] {
     '/studio/changes/': 'history versions releases revert undo drafts branches reviews pull requests visual impact',
     '/studio/settings/': 'settings integrations github token connection figma plugin mcp repository bridge.config.json governance approvals risk tiers owners',
     '/how-review-works/': 'governance review risk tiers approvals gates owner override agent rules',
-    '/studio/checks/': 'contrast gate validation',
+    '/studio/quality/': 'checks contrast gate token validation adoption audit docs completeness guidance',
   };
   const seen = new Set<string>();
   const pages: SearchItem[] = [

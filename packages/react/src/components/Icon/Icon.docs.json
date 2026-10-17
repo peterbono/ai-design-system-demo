@@ -1,0 +1,104 @@
+{
+  "summary": "Draws a Lucide icon at a token size with the system stroke width, in the color of the text around it. Decorative by default: pass a label only when the icon carries meaning on its own.",
+  "preview": {
+    "c": "Row",
+    "children": [
+      {
+        "c": "Icon",
+        "p": {
+          "icon": "GitPullRequest",
+          "size": "xs"
+        }
+      },
+      {
+        "c": "Icon",
+        "p": {
+          "icon": "GitPullRequest",
+          "size": "sm"
+        }
+      },
+      {
+        "c": "Icon",
+        "p": {
+          "icon": "GitPullRequest",
+          "size": "md"
+        }
+      },
+      {
+        "c": "Icon",
+        "p": {
+          "icon": "GitPullRequest",
+          "size": "lg"
+        }
+      }
+    ]
+  },
+  "whenToUse": [
+    "Next to a label, to help people scan: a menu item, a tab, a status line, a table cell.",
+    "Inside your own controls, at size sm (16), the size the system uses in controls.",
+    "In navigation at size md (20), so the side nav reads at a glance.",
+    "Any Lucide glyph: pass the component itself, for example icon={GitBranch} imported from lucide-react."
+  ],
+  "whenNotToUse": [
+    "As the only content of a button: use IconButton, which requires a label and sizes the hit area.",
+    "Inside Button or Badge when they place the icon for you: Button takes iconStart and iconEnd, Badge takes icon.",
+    "Emoji or Unicode glyphs standing in for icons: the system uses one family, Lucide.",
+    "Illustrations or logos: Icon draws 24px grid line icons only."
+  ],
+  "dos": [
+    {
+      "title": "Pair the icon with text",
+      "text": "The word carries the meaning and the icon helps people find it. The icon stays hidden from screen readers, so the label is read once.",
+      "example": {
+        "c": "Row",
+        "children": [
+          {
+            "c": "Icon",
+            "p": {
+              "icon": "GitPullRequest",
+              "size": "sm"
+            }
+          },
+          "Open pull request"
+        ]
+      }
+    },
+    {
+      "title": "Pick the size from the token scale",
+      "text": "xs 12, sm 16, md 20, lg 24. The stroke stays at icon.stroke on every size, so icons keep the weight of the text."
+    },
+    {
+      "title": "Give a label when the icon stands alone and means something",
+      "text": "With label, Icon becomes role=\"img\" with that accessible name. Say what it means (\"Merged\"), not what it shows (\"Purple circle\")."
+    }
+  ],
+  "donts": [
+    {
+      "title": "Set a color or a size by hand",
+      "text": "Icon inherits currentColor and takes its size from the icon size tokens. A hard-coded width or color drifts from the theme and the density."
+    },
+    {
+      "title": "Rely on the icon alone to say a status",
+      "text": "Color and shape are not enough for everyone. Put the status in words next to it, or use Badge."
+    }
+  ],
+  "accessibility": [
+    "Without label, the icon gets aria-hidden=\"true\": screen readers skip it and read the text next to it.",
+    "With label, it gets role=\"img\" and aria-label, so it is announced as an image with that name.",
+    "focusable=\"false\" keeps the SVG out of the tab order. Make the parent control focusable, never the icon.",
+    "The icon inherits the text color, so it gets the same contrast as the label it sits next to."
+  ],
+  "contentGuidelines": [
+    "A label names the meaning in sentence case: \"Merged\", \"Opens in a new tab\".",
+    "Do not add \"icon\" or \"image\" to the label: screen readers already announce the role."
+  ],
+  "anatomy": {
+    "icon": "The SVG, stroke width from icon.stroke",
+    "xs": "Size xs, 12px (icon.size.xs)",
+    "sm": "Size sm, 16px (icon.size.sm), the default",
+    "md": "Size md, 20px (icon.size.md)",
+    "lg": "Size lg, 24px (icon.size.lg)"
+  },
+  "draftedBy": "claude",
+  "needsReview": true
+}

@@ -65,10 +65,9 @@ export const LIBRARY_USE: NavItem[] = [
  * impact pages redirect to the right view (lib/redirects.ts). */
 export const STUDIO_CHANGES_HREF = '/studio/changes/';
 
-export const STUDIO_QUALITY: NavItem[] = [
-  { href: '/studio/checks/', label: 'Checks', icon: 'shield', meta: 'Contrast gate and token validation' },
-  { href: '/studio/adoption/', label: 'Adoption', icon: 'target', meta: 'How much product code uses the design system' },
-];
+/** Quality is one page: the contrast gate, token validation, docs completeness and adoption. The old Checks and
+ * Adoption pages redirect to it (lib/redirects.ts); each audit report opens under /studio/quality/audits/. */
+export const STUDIO_QUALITY_HREF = '/studio/quality/';
 
 /** Settings is one page: Connection, Repository, Approvals. The old Repository, Governance and Integrations pages
  * redirect to its sections (lib/redirects.ts); the governance prose lives in the Library (How review works). */
@@ -100,7 +99,7 @@ export function studioNav(): NavEntry[] {
     { href: '/studio/tokens/', label: 'Tokens', icon: 'grid', meta: 'Edit tokens into a draft, with live preview and guardrails' },
     { href: '/studio/components/', label: 'Components', icon: 'diamonds', meta: 'Status, tokens, code and Figma links per component' },
     { href: STUDIO_CHANGES_HREF, label: 'Changes', icon: 'branch', badge: 'reviews', meta: 'Open pull requests to review, other branches and the history of merged token changes, with undo' },
-    { label: 'Quality', icon: 'shield', children: STUDIO_QUALITY },
+    { href: STUDIO_QUALITY_HREF, label: 'Quality', icon: 'shield', meta: 'Contrast gate, token validation, docs completeness and adoption, most severe first' },
     { href: SETTINGS_HOME, label: 'Settings', icon: 'sliders', meta: 'GitHub connection, the repository this workspace reads, and who approves what' },
   ];
 }

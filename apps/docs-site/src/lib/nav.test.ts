@@ -80,6 +80,15 @@ describe('studio nav', () => {
     const hrefs = allPages().map((p) => p.href);
     for (const gone of ['/studio/drafts/', '/studio/branches/', '/studio/reviews/', '/studio/versions/', '/studio/visual-impact/']) expect(hrefs).not.toContain(gone);
   });
+
+  it('makes Quality one page without a chevron, and drops Checks and Adoption', () => {
+    const quality = navFor('studio').find((e) => e.label === 'Quality')!;
+    expect(quality).toMatchObject({ href: '/studio/quality/' });
+    expect(quality.children).toBeUndefined();
+    const hrefs = allPages().map((p) => p.href);
+    for (const gone of ['/studio/checks/', '/studio/adoption/']) expect(hrefs).not.toContain(gone);
+    expect(locate('/studio/quality/audits/admin-after/').entry?.label).toBe('Quality');
+  });
 });
 
 describe('settings', () => {

@@ -4,9 +4,9 @@ import { mkdir, writeFile, access } from 'node:fs/promises';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { buildAuditReport, compareWithBaseline, DesignSystemIndex, type AuditReport } from '@bridge-ds/core/audit';
 import { auditSnippet } from './audit.js';
-import { getComponent, listComponentNames, listComponents, scaffoldComponent, type ScaffoldInput } from './components.js';
+import { cssVarsUsed, getComponent, listComponentNames, listComponents, scaffoldComponent, type ScaffoldInput } from './components.js';
 import type { BridgeContext } from './context.js';
-import { baseBranchOf, protectedBranchesOf } from '@bridge-ds/core';
+import { baseBranchOf, cssModuleClasses, docsPrompt, prefillDocs, protectedBranchesOf, type DocsContrastInput } from '@bridge-ds/core';
 import { branchExists, collectAuditFiles, commitToNewLocalBranch, currentBranch, git } from '@bridge-ds/core/node';
 import { core, type Combo, type Issue, type PairInput, type TokenEdit, type TokenSet } from './core-adapter.js';
 import { bullets, findSection, toc } from './markdown.js';
@@ -231,6 +231,94 @@ export async function getComponentOp(ctx: BridgeContext, a: { name: string; incl
     c.docs = Object.fromEntries(Object.entries(c.docs).filter(([k]) => keep.has(k)));
   }
   return c;
+}
+
+const NATIVE_ELEMENTS: Record<string, string> = { Button: 'button', Input: 'input', Span: 'span', Div: 'div', Anchor: 'a', TextArea: 'textarea', Select: 'select', UList: 'ul', Paragraph: 'p', Heading: 'h2', Label: 'label', Image: 'img' };
+
+/** `ButtonHTMLAttributes<HTMLButtonElement>` -> button. Anything else (another component's props) -> undefined. */
+function nativeElementOf(ext?: string): string | undefined {
+  const m = ext && /<HTML(\w*)Element>/.exec(ext);
+  if (!m) return undefined;
+  return NATIVE_ELEMENTS[m[1]!] ?? (m[1] ? m[1].toLowerCase() : 'element');
+}
+
+/** JSDoc right above `export const|function Name`, flattened to one line. */
+function jsdocOf(src: string, name: string): string | undefined {
+  const m = new RegExp(`/\\*\\*((?:(?!\\*/)[\\s\\S])*)\\*/\\s*export (?:const|function) ${name}\\b`).exec(src);
+  return m?.[1]?.replace(/^\s*\*\s?/gm, '').replace(/\s+/g, ' ').trim() || undefined;
+}
+
+/**
+ * bridge_draft_docs: the deterministic pre-fill of a component's docs.json (props table, tokens, anatomy from the
+ * CSS module classes, contrast notes, changelog line, existing prose kept) and a prompt for the user's own Claude
+ * to write the prose that code cannot tell. Nothing is written.
+ */
+export async function draftDocsOp(ctx: BridgeContext, a: { name: string }) {
+  const { config } = await ctx.config();
+  if (!config.components) throw new Error('No components.dir in bridge.config.json.');
+  const set = await ctx.tokens();
+  const c = await getComponent(ctx.source, config, set, a.name);
+  const dir = `${config.components.dir}/${c.name}`;
+  const pick = (re: RegExp) => c.files.find((f) => re.test(f.split('/').pop()!));
+  const tsxPath = pick(new RegExp(`^${c.name}\\.(tsx|ts|vue|svelte)$`));
+  const cssPath = pick(new RegExp(`^${c.name}${config.components.styleSuffix.replace(/\./g, '\\.')}$`)) ?? pick(/\.css$/);
+  const [src, css] = await Promise.all([tsxPath ? ctx.source.read(tsxPath) : null, cssPath ? ctx.source.read(cssPath) : null]);
+  const known = new Map(set.allPaths().map((p) => [set.cssVarName(p), p] as const));
+  const own = c.tokens.used.filter((v) => known.has(v));
+  // Another component's stylesheet imported by this one (IconButton reads Button.module.css): its tokens count apart.
+  const inheritedTokens: Record<string, string[]> = {};
+  const suffix = config.components.styleSuffix.replace(/\./g, '\\.');
+  for (const m of (src ?? '').matchAll(new RegExp(`from\\s+['"]\\.\\./(\\w+)/(\\w+)${suffix}['"]`, 'g'))) {
+    const other = await ctx.source.read(`${config.components.dir}/${m[1]}/${m[2]}${config.components.styleSuffix}`);
+    if (!other) continue;
+    const extra = cssVarsUsed(other).filter((v) => known.has(v) && !own.includes(v));
+    if (extra.length) inheritedTokens[m[1]!] = extra;
+  }
+  // Contrast pairs of the gate that involve a token this component reads, worst ratio over every mode.
+  const paths = new Set([...own, ...Object.values(inheritedTokens).flat()].map((v) => known.get(v)!));
+  const pairs = (await core.readContrastPairs(ctx.source, config).catch(() => [])).filter((p) => paths.has(p.foreground) || paths.has(p.background));
+  const contrast: DocsContrastInput[] = [];
+  if (pairs.length) {
+    const worst = new Map<string, DocsContrastInput>();
+    for (const r of core.runContrast(set, pairs, config.contrast?.modes)) {
+      if (r.ratio === null) continue;
+      const key = `${r.fg}|${r.bg}`;
+      const prev = worst.get(key);
+      if (!prev || r.ratio < prev.ratio) worst.set(key, { foreground: r.fg, background: r.bg, ratio: r.ratio, min: r.min });
+    }
+    contrast.push(...worst.values());
+  }
+  const existing = c.docs && !('error' in c.docs) ? (c.docs as Record<string, unknown>) : null;
+  const description = src ? jsdocOf(src, c.name) : undefined;
+  const prefill = prefillDocs({
+    name: c.name,
+    description,
+    props: c.props.map((p) => ({ name: p.name, type: p.type, required: !p.optional, defaultValue: p.default, description: p.description })),
+    inherits: nativeElementOf((c as { extends?: string }).extends),
+    tokens: own,
+    inheritedTokens,
+    cssClasses: css ? cssModuleClasses(css) : [],
+    contrast,
+    existing,
+  });
+  const read = async (path?: string) => (path ? ((await ctx.source.read(path)) ?? undefined) : undefined);
+  const designLanguage = await read(config.docs.designLanguage);
+  const ref = config.components.reference;
+  const path = `${dir}/${c.name}${config.components.docsSuffix}`;
+  const prompt = docsPrompt(prefill, {
+    agents: await read(config.docs.guidelines),
+    voice: designLanguage ? findSection(designLanguage, 'voice')[0]?.body : undefined,
+    example: ref && ref !== c.name ? await read(`${config.components.dir}/${ref}/${ref}${config.components.docsSuffix}`) : undefined,
+    source: src ?? undefined,
+  });
+  return {
+    component: c.name,
+    path,
+    exists: Boolean(existing),
+    prefill,
+    prompt,
+    instruction: `Write the prose from \`prompt\`, set "draftedBy": "claude" and "needsReview": true, and save the JSON to ${path}. A reviewer accepts it in Bridge Studio (Changes, Docs) before needsReview turns false.`,
+  };
 }
 
 async function readDoc(ctx: BridgeContext, path: string | undefined, label: string) {

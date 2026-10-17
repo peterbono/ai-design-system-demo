@@ -1,0 +1,175 @@
+---
+// Studio Quality: one page for the checks and the adoption of the system (it replaced Checks and Adoption, which
+// redirect here). A Harbor opener with one sentence and one action, one list of findings most severe first, the
+// housekeeping collapsed, then adoption in two rows. Each audit report opens on its own route.
+import '../../../styles/quality.css';
+import Layout from '../../../layouts/Layout.astro';
+import StudioHeader from '../../../components/StudioHeader.astro';
+import Icon from '../../../components/Icon.astro';
+import ButtonLink from '../../../components/ds/ButtonLink';
+import ContrastFailTable from '../../../components/ds/studio/ContrastFailTable';
+import { GROUP_TONE } from '../../../lib/changes';
+import { docsEditHref, guidanceState, loadComponents } from '../../../lib/components';
+import { CONTRAST_FILE } from '../../../lib/contrast';
+import { formatPct, groupByApp, loadAudits } from '../../../lib/audits';
+import { adoptionRows, firstFindingTarget, openerSentence, qualityModel, type ComboResult } from '../../../lib/quality';
+import { PAGE_SOURCES, freshness } from '../../../lib/sources';
+import { dashboard } from '../../../lib/stats';
+import { BRAND_LABEL, TOKEN_SOURCE_FILES, type Brand } from '../../../lib/tokens';
+
+const s = dashboard();
+const combos: ComboResult[] = s.contrast.byCombo.map((c) => ({ label: `${BRAND_LABEL[c.brand as Brand]} ${c.mode}`, pass: c.pass, total: c.total }));
+const contrast = { total: s.contrast.total, fail: s.contrast.fail, combos };
+const components = loadComponents().map((c) => ({ name: c.name, slug: c.slug, state: guidanceState(c), docsPath: c.files.docs }));
+const { findings, cleanup } = qualityModel({ contrast, components, issues: s.issues, editHref: docsEditHref });
+const sentence = openerSentence(contrast, components, findings);
+const primary = firstFindingTarget(findings);
+const adoption = adoptionRows(groupByApp(loadAudits()).apps);
+const sources = [CONTRAST_FILE, ...TOKEN_SOURCE_FILES(), ...PAGE_SOURCES.components, ...PAGE_SOURCES.adoption];
+const updated = freshness(sources);
+// Failing pairs, one row per pair and brand/theme, shown inside the contrast line when the gate blocks.
+const failRows = s.contrast.failing.map(({ pair: p, brand, mode, result: r }) => ({
+  id: `fail-${p.fg}-${p.bg}-${brand}-${mode}`.replace(/[^a-z0-9-]+/gi, '-'),
+  fg: p.fg,
+  bg: p.bg,
+  where: `${BRAND_LABEL[brand as Brand]} ${mode}`,
+  ratio: `${r.ratio.toFixed(2)}:1`,
+  hexes: `${r.fgHex} / ${r.bgHex}`,
+  needs: `${p.min}:1 (${p.usage === 'text' ? 'text' : 'UI'})`,
+}));
+const tone = (g: keyof typeof GROUP_TONE) => GROUP_TONE[g];
+---
+
+<Layout title="Quality" description="The contrast gate, token validation, docs completeness and design system adoption, most severe first." sources={sources} updated={updated} wide>
+  <div class="ql">
+    <StudioHeader title="Quality" branch={false} />
+
+    <section class="zone ql-open" aria-label="Status">
+      <p class="ql-open-sentence">{sentence}</p>
+      <ButtonLink variant="primary" href={primary.href}>{primary.label}</ButtonLink>
+    </section>
+
+    <section aria-labelledby="ql-findings">
+      <h2 id="ql-findings" class="ql-h">Findings</h2>
+      <ul class="fg-card ql-list">
+        {
+          findings.map((f) =>
+            f.kind === 'contrast' ? (
+              <li class={`ql-row-wrap is-${f.severity}`}>
+                <details class="ql-more" open={f.severity === 'fail'}>
+                  <summary class="ql-row">
+                    <span class="ql-main">
+                      <span class="ql-title">{f.title}</span>
+                      <span class="ql-detail">{f.detail}</span>
+                    </span>
+                    <span class={`pill ${tone(f.status.group)}`}>{f.status.label}</span>
+                    <span class="ql-chev" aria-hidden="true"><Icon name="chevron" size={16} /></span>
+                  </summary>
+                  <div class="ql-more-body">
+                    <ul class="ql-combos" aria-label="Contrast checks per brand and theme">
+                      {f.combos!.map((c) => (
+                        <li>
+                          <span>{c.label}</span>
+                          <span class="num">{c.pass} of {c.total}</span>
+                          <span class={`pill ${c.pass === c.total ? 'is-pass' : 'is-fail'}`}>{c.pass === c.total ? 'Pass' : 'Fail'}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    {failRows.length > 0 && <ContrastFailTable rows={failRows} />}
+                    <p class="ql-muted">
+                      Pairs from <code>{CONTRAST_FILE}</code>. Text needs 4.5:1, UI edges and focus rings 3:1. <a href={f.action!.href}>{f.action!.label}</a>
+                    </p>
+                  </div>
+                </details>
+              </li>
+            ) : (
+              <li class={`ql-row-wrap is-${f.severity}`}>
+                <div class="ql-row">
+                  <span class="ql-main">
+                    <span class="ql-title">{f.title}</span>
+                    {f.detail && <span class="ql-detail">{f.detail}</span>}
+                  </span>
+                  <span class={`pill ${tone(f.status.group)}`}>{f.status.label}</span>
+                  {f.action ? (
+                    <a class="ql-act" href={f.action.href} aria-label={`${f.action.label}: ${f.title}`}>
+                      {f.action.label}
+                    </a>
+                  ) : (
+                    <span />
+                  )}
+                </div>
+              </li>
+            ),
+          )
+        }
+        {
+          cleanup.length > 0 && (
+            <li class="ql-row-wrap is-note">
+              <details class="ql-more">
+                <summary class="ql-row">
+                  <span class="ql-main">
+                    <span class="ql-title">Clean up ({cleanup.length})</span>
+                    <span class="ql-detail">Unused tokens. Nothing breaks: candidates for cleanup, or values waiting for a job.</span>
+                  </span>
+                  <span class="pill">Note</span>
+                  <span class="ql-chev" aria-hidden="true"><Icon name="chevron" size={16} /></span>
+                </summary>
+                <ul class="ql-more-body ql-cleanup">
+                  {cleanup.map((i) => (
+                    <li>
+                      <a href={i.href}>{i.title}</a>
+                      <span class="ql-detail">{i.detail}</span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            </li>
+          )
+        }
+      </ul>
+    </section>
+
+    {
+      adoption.length > 0 && (
+        <section aria-labelledby="ql-adoption">
+          <h2 id="ql-adoption" class="ql-h">Adoption</h2>
+          <p class="ql-muted ql-lead">How much product code uses the design system tokens and components, before and after.</p>
+          <ul class="fg-card ql-list">
+            {adoption.map((a) => (
+              <li class="ql-row-wrap">
+                <div class="ql-row ql-ad-row">
+                  <span class="ql-title">{a.label}</span>
+                  <span class="ql-ad">
+                    <span class="ql-ad-label">Tokens</span>
+                    <span class="num">{formatPct(a.token.from)}</span>
+                    <span aria-hidden="true">-&gt;</span>
+                    <span class="sr-only">, after:</span>
+                    <strong class="num">{formatPct(a.token.to)}</strong>
+                  </span>
+                  <span class="ql-ad">
+                    <span class="ql-ad-label">Components</span>
+                    <span class="num">{formatPct(a.component.from)}</span>
+                    <span aria-hidden="true">-&gt;</span>
+                    <span class="sr-only">, after:</span>
+                    <strong class="num">{formatPct(a.component.to)}</strong>
+                  </span>
+                  <a class="ql-act" href={a.href} aria-label={`See what is left in ${a.label}`}>
+                    See what is left
+                  </a>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )
+    }
+
+    <details class="ql-local">
+      <summary>Run these checks locally</summary>
+      <p class="ql-muted">CI runs them on every pull request. Run them before you push to see the same result.</p>
+      <pre class="ql-cmd"><code>npm run bridge -- check    # config, token validation, contrast gate
+npm run tokens:build       # DTCG to CSS and TS, fails on contrast
+npm run audit:docs         # adoption audit of this app, fails on regression</code></pre>
+    </details>
+  </div>
+</Layout>

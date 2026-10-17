@@ -1,0 +1,58 @@
+{
+  "summary": "Text for assistive technology only: screen readers read it, the screen does not show it. Use it to give a control or a symbol the words sighted users get from the layout.",
+  "whenToUse": [
+    "A control whose visible content is not enough on its own, like a checkbox in a table row: \"Select Button\".",
+    "Extra context a sighted user gets from the layout, like \" (opens in a new tab)\" after an external link.",
+    "A label for a loading region while Skeleton placeholders are shown, like \"Loading tokens\"."
+  ],
+  "whenNotToUse": [
+    "Hiding content from everyone: use the hidden attribute or do not render it.",
+    "Naming an icon-only button: IconButton takes a label prop for that.",
+    "Long text or anything interactive: it is a span clipped to one pixel, so a link or button inside it would take focus while staying invisible."
+  ],
+  "dos": [
+    {
+      "title": "Add the words the layout implies",
+      "text": "Link with external does it for you: it adds a VisuallyHidden \" (opens in a new tab)\" after the label.",
+      "example": {
+        "c": "Link",
+        "p": {
+          "href": "#",
+          "external": true
+        },
+        "children": [
+          "Release notes"
+        ]
+      }
+    },
+    {
+      "title": "Keep it short and specific",
+      "text": "Name the thing the control acts on: \"Select Button\" in a row, \"Select all tokens\" in the header."
+    }
+  ],
+  "donts": [
+    {
+      "title": "Repeat what is already visible",
+      "text": "If the visible label says it, screen readers read it twice."
+    },
+    {
+      "title": "Use it to hide content you want to remove",
+      "text": "Screen reader users still hear it. Remove the content, or use the hidden attribute."
+    }
+  ],
+  "accessibility": [
+    "Renders a span that stays in the accessibility tree: screen readers read its text in place.",
+    "Clipped to one pixel with clip-path and overflow hidden, positioned absolutely, so it takes no room in the layout.",
+    "white-space: nowrap keeps the words from being read one per line by some screen readers.",
+    "Accepts every native span attribute and spreads them, so an id for aria-describedby works."
+  ],
+  "contentGuidelines": [
+    "Write it as part of the sentence it completes, with the leading space when it follows other text: \" (opens in a new tab)\".",
+    "Sentence case, no trailing period unless it is a full sentence."
+  ],
+  "anatomy": {
+    "hidden": "The clipped span, one pixel wide (border.width.1)"
+  },
+  "draftedBy": "claude",
+  "needsReview": true
+}
