@@ -2,11 +2,12 @@
 // from the GitHub REST API, most urgent first, with a designer-friendly token diff and governance-aware actions.
 // Without a token every action deep-links to GitHub. When GitHub cannot be read, the last list this browser saw
 // stays on screen, labelled with its time (lib/changes.ts).
-import { classifyRisk, isActiveExploration } from '@bridge-ds/core';
+import { classifyRisk, isActiveExploration, type Rights } from '@bridge-ds/core';
 import { isRunningExploration, tierSlot } from '../lib/explorations-view';
 import {
   allowedMergeMethods,
   canWrite,
+  approverLists,
   mergeGate,
   NO_OVERRIDE,
   openPulls,
@@ -18,6 +19,7 @@ import {
   parseOverrideComment,
   parseTier,
   pullState,
+  shipPolicy,
   summarizeApprovals,
   summarizeCi,
   type MergeMethod,
@@ -106,12 +108,14 @@ const REPO_KEY = `${repo.owner}/${repo.repo}`;
 const R = `/repos/${repo.owner}/${repo.repo}`;
 const SITE = (() => {
   try {
-    return JSON.parse(document.getElementById('bridge-repo')?.textContent || '{}') as { owners?: { design: string[]; tech: string[] }; override?: OverridePolicy };
+    return JSON.parse(document.getElementById('bridge-repo')?.textContent || '{}') as { owners?: { design: string[]; tech: string[] }; override?: OverridePolicy; rights?: Rights | null };
   } catch {
     return {};
   }
 })();
-const OWNERS = SITE.owners ?? { design: [], tech: [] };
+// Approvals count against who holds each right (governance.rights), shipping against the ship right.
+const OWNERS = approverLists(SITE.owners ?? { design: [], tech: [] }, SITE.rights);
+const SHIP = shipPolicy(SITE.owners ?? { design: [], tech: [] }, SITE.rights);
 const OVERRIDE: OverridePolicy = SITE.override ?? NO_OVERRIDE;
 const BRANCHES: BranchesConfig = (() => {
   try {
@@ -171,7 +175,7 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 /** People around a pull request, for the who-acts line (lib/changes whoActs). */
 function people(author: string, extra: Partial<People> = {}): People {
-  return { owners: OWNERS, author, viewer: currentViewer()?.login ?? null, overrideBy: OVERRIDE.allowed, ...extra };
+  return { owners: OWNERS, author, viewer: currentViewer()?.login ?? null, overrideBy: OVERRIDE.allowed, shippers: SHIP?.logins, ...extra };
 }
 
 /** One chip per row: the status color and who acts now (pr-status whoChip, shared with the Overview). */
@@ -415,7 +419,7 @@ export async function openPr(n: number, push = true) {
     const tier = Math.max(labelled ?? 0, computed) as Tier;
     current = { pull, tier };
     const approvals = summarizeApprovals(reviews, OWNERS, pull.user.login);
-    const gate = mergeGate({ tier, ci, approvals, draft: pull.draft, mergeable: pull.mergeable, state: pull.state, merged_at: pull.merged_at, viewer: access?.login, override: OVERRIDE, exploration: isActiveExploration(pull.labels) });
+    const gate = mergeGate({ tier, ci, approvals, draft: pull.draft, mergeable: pull.mergeable, state: pull.state, merged_at: pull.merged_at, viewer: access?.login, override: OVERRIDE, exploration: isActiveExploration(pull.labels), ship: SHIP });
     const tokenFiles = files.filter((f) => isTokenFile(f.filename));
     const changesets = files.filter((f) => /^\.changeset\/(?!README).+\.md$/.test(f.filename) && f.status !== 'removed');
     const visual = touchesVisuals(files.map((f) => f.filename));
@@ -444,11 +448,11 @@ export async function openPr(n: number, push = true) {
         pr: pull.number,
         sha: pull.head.sha,
         actionsUrl: `https://github.com/${repo.owner}/${repo.repo}/actions/workflows/visual-impact.yml`,
-      })
+      }, $('rv-what-visual'))
         .then((v) => {
           if (seq !== openSeq) return;
           const meta = document.querySelector('#cg-sec-visual [data-sec-meta]');
-          if (meta) meta.innerHTML = v.changed === null ? 'Not run yet' : v.changed === 0 ? 'No change' : `${plural(v.changed, 'screen')} changed${v.thumb}`;
+          if (meta) meta.innerHTML = v.changed === null ? (v.asked ? 'Asked' : 'Not run yet') : v.changed === 0 ? 'No change' : `${plural(v.changed, 'screen')} changed${v.thumb}`;
           // The full list only adds something when there is more than the before/after on top.
           const sec = document.getElementById('cg-sec-visual');
           if (sec) sec.hidden = !v.changed || v.changed < 2;
@@ -551,7 +555,7 @@ function renderDetail(x: DetailInput) {
   const open = lifecycle === 'open';
   const who = whoActs(
     needFromDetail({ state: lifecycle, ci, gate, changesRequestedBy: approvals.changesRequested, exploration: isActiveExploration(pull.labels) }),
-    people(pull.user.login, { viewer: access?.login ?? null, approvers: approvals.approvers, canMerge: write, overridable: showOverride }),
+    people(pull.user.login, { viewer: access?.login ?? null, approvers: approvals.approvers, canMerge: write && gate.canShip, overridable: showOverride }),
   );
   const rows = approvalRows({ tier, approvals, people: people(pull.user.login, { viewer: access?.login ?? null }), open });
   const rowAction = rows.some((r) => r.canAct);

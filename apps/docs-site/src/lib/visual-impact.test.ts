@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { changeLabel, facet, filterShots, modeLabel, touchesVisuals, visualBase, visualState, type VisualManifest, type VisualShot } from './visual-impact';
+import { changeLabel, facet, filterShots, modeLabel, touchesVisuals, visualAsk, visualBase, visualState, type VisualManifest, type VisualShot } from './visual-impact';
 
 const shot = (over: Partial<VisualShot>): VisualShot => ({
   key: 'k',
@@ -52,5 +52,18 @@ describe('visual impact in Reviews', () => {
     expect(modeLabel(shots[2]!)).toBe('Harbor, ocean, light');
     expect(changeLabel(shot({ status: 'changed', percent: 0.004 }))).toBe('<0.01% changed');
     expect(changeLabel(shot({ status: 'changed', percent: 1.234 }))).toBe('1.23% changed');
+  });
+});
+
+describe('visualAsk (on-demand mode)', () => {
+  it('auto mode, or no mode, keeps the automatic run', () => {
+    expect(visualAsk({ mode: 'auto', labels: [], canWrite: true })).toBe('auto');
+    expect(visualAsk({ mode: undefined, labels: null, canWrite: false })).toBe('auto');
+  });
+
+  it('on demand: asked once labelled, a button with write access, GitHub otherwise', () => {
+    expect(visualAsk({ mode: 'on-demand', labels: [{ name: 'visual-check' }], canWrite: false })).toBe('asked');
+    expect(visualAsk({ mode: 'on-demand', labels: ['tokens'], canWrite: true })).toBe('ask');
+    expect(visualAsk({ mode: 'on-demand', labels: null, canWrite: false })).toBe('ask-on-github');
   });
 });

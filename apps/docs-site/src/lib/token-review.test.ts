@@ -138,7 +138,7 @@ describe('review rules', () => {
     const onlyDesign = summarizeApprovals([approve('dana')], owners, 'author');
     expect(mergeGate({ tier: 3, ci, approvals: onlyDesign, draft: false, state: 'open' })).toMatchObject({ allowed: false });
     const both = summarizeApprovals([approve('dana'), approve('theo')], owners, 'author');
-    expect(mergeGate({ tier: 3, ci, approvals: both, draft: false, state: 'open' })).toEqual({ allowed: true, reasons: [], overridable: false, missing: [] });
+    expect(mergeGate({ tier: 3, ci, approvals: both, draft: false, state: 'open' })).toEqual({ allowed: true, reasons: [], overridable: false, missing: [], canShip: true });
     const failing = summarizeCi([{ name: 'Guardrails', status: 'completed', conclusion: 'failure' }]);
     const gate = mergeGate({ tier: 3, ci: failing, approvals: both, draft: false, state: 'open' });
     expect(gate.allowed).toBe(false);

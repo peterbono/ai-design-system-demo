@@ -1,6 +1,12 @@
 // Governance rules for the Reviews section, as pure functions so they are unit tested and shared by the page
 // script. Same rules as docs/GOVERNANCE.md: the highest tier wins, Tier 3 needs a design and a tech approval,
-// nothing merges while CI fails.
+// nothing merges while CI fails. Who may ship (merge, which publishes to the products) comes from
+// `governance.rights` in bridge.config.json (@bridge-ds/core rights.ts); GitHub write access is checked as well.
+
+import { approverLists, canShip, holdersOf, shipPolicy, whoCanShipSentence, type ShipPolicy } from '@bridge-ds/core';
+
+// Shared with Reviews, Settings and the PR status chips: who approves, who ships, and the sentence a blocked viewer reads.
+export { approverLists, canShip, holdersOf, shipPolicy, whoCanShipSentence, type ShipPolicy };
 
 export type Tier = 1 | 2 | 3;
 
@@ -165,6 +171,8 @@ export interface MergeGate {
   overridable: boolean;
   /** Approvals still missing, in the words the override comment uses. */
   missing: MissingApproval[];
+  /** Whether the viewer holds the right to ship (true when no rule singles anyone out or the viewer is unknown). */
+  canShip: boolean;
 }
 
 const normLogin = (x: string) => x.trim().toLowerCase().replace(/^@/, '');
@@ -193,6 +201,8 @@ export function mergeGate(input: {
   override?: OverridePolicy | null;
   /** A running exploration (label `exploration`): never merged as is, whatever else is green. */
   exploration?: boolean;
+  /** Who may ship (shipPolicy from governance.rights). null or absent: anyone with write access. */
+  ship?: ShipPolicy | null;
 }): MergeGate {
   const blocking: string[] = [];
   const missing: MissingApproval[] = [];
@@ -220,11 +230,15 @@ export function mergeGate(input: {
     missing.push('approval');
   }
   const conflict = input.mergeable === false ? ['GitHub reports a merge conflict.'] : [];
-  // Order: state, draft, CI, changes requested, approvals, conflict.
-  const reasons = [...blocking, ...approvalReasons, ...conflict];
+  // Only a known viewer is checked: without a login the Merge button asks to connect first anyway.
+  const shipper = !input.viewer || canShip(input.viewer, input.ship);
+  const ship = !shipper && lifecycle !== 'merged' && lifecycle !== 'closed' ? [whoCanShipSentence(input.ship!)] : [];
+  // Order: state, draft, CI, changes requested, approvals, who ships, conflict.
+  const reasons = [...blocking, ...approvalReasons, ...ship, ...conflict];
   const allowed = reasons.length === 0;
-  const overridable = !allowed && blocking.length + conflict.length === 0 && missing.length > 0 && canOverride(input.viewer, input.override);
-  return { allowed, reasons, overridable, missing };
+  // The override skips approvals only: it never lets someone ship who does not hold the right.
+  const overridable = !allowed && blocking.length + conflict.length + ship.length === 0 && missing.length > 0 && canOverride(input.viewer, input.override);
+  return { allowed, reasons, overridable, missing, canShip: shipper };
 }
 
 export const OVERRIDE_HEADING = '**Bridge owner override**';

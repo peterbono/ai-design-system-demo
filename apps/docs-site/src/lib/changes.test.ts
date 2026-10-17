@@ -245,6 +245,12 @@ describe('who acts now', () => {
     expect(whoActs(ready, { owners, author: 'ann', viewer: 'zoe', canMerge: false }).yourTurn).toBe(false);
   });
 
+  it('names only who holds the ship right when the team set one', () => {
+    const ready = detail({ a: { approvers: ['dana', 'theo'], design: true, tech: true } });
+    expect(whoActs(ready, { owners, shippers: ['theo'], author: 'ann' }).sentence).toBe('Ready to publish: @theo can ship it.');
+    expect(whoActs(ready, { owners, shippers: ['theo'], author: 'ann', viewer: 'dana' }).yourTurn).toBe(false);
+  });
+
   it('asks for the owner override when the only owner wrote the change', () => {
     const solo = { design: ['pat'], tech: ['pat'] };
     expect(whoActs(detail({}), { owners: solo, author: 'pat', overrideBy: ['pat'] }).sentence).toBe('No other design owner can approve. @pat can merge it with the owner override.');

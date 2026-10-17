@@ -4,7 +4,10 @@
 import { currentViewer, esc, ghGet, hasWorkingToken, readRepo } from './github-session';
 import { needFromStatus, statusTone, whoActs } from '../lib/changes';
 import { planStatusReads, statusCacheKey, type CachedStatus } from '../lib/status-budget';
+import type { Rights } from '@bridge-ds/core';
 import {
+  approverLists,
+  shipPolicy,
   parseTier,
   reviewStatus,
   summarizeApprovals,
@@ -29,11 +32,21 @@ export interface PullForStatus {
   head: { sha: string; ref: string };
 }
 
-/** governance.owners from bridge.config.json, as the layout embeds it. */
+/** Who may ship (governance.rights), undefined without rights: the owners ship then. */
+export function shippers(): string[] | undefined {
+  try {
+    const site = JSON.parse(document.getElementById('bridge-repo')?.textContent || '{}') as { owners?: { design: string[]; tech: string[] }; rights?: Rights | null };
+    return shipPolicy(site.owners ?? { design: [], tech: [] }, site.rights)?.logins;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Who counts as the design and the tech approver: the owner lists, through governance.rights when it is set. */
 export function owners(): { design: string[]; tech: string[] } {
   try {
-    const site = JSON.parse(document.getElementById('bridge-repo')?.textContent || '{}') as { owners?: { design: string[]; tech: string[] } };
-    return site.owners ?? { design: [], tech: [] };
+    const site = JSON.parse(document.getElementById('bridge-repo')?.textContent || '{}') as { owners?: { design: string[]; tech: string[] }; rights?: Rights | null };
+    return approverLists(site.owners ?? { design: [], tech: [] }, site.rights);
   } catch {
     return { design: [], tech: [] };
   }
@@ -105,6 +118,7 @@ export function whoChip(
   if (o.skipped || !kind) return statusChip(null, { skipped: o.skipped });
   const who = whoActs(needFromStatus(kind, { failing: o.failing, changesRequestedBy: o.changesRequested }), {
     owners: owners(),
+    shippers: shippers(),
     author: o.author,
     viewer: currentViewer()?.login ?? null,
     approvers: o.approvers,

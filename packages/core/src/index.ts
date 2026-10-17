@@ -22,6 +22,7 @@ export * from './layered';
 export * from './token-edits';
 export * from './layered-review';
 export * from './governance';
+export * from './rights';
 export * from './usage';
 export * from './github-client';
 export * from './history';

@@ -61,6 +61,7 @@
       "packages/tokens/src/contrast.checks.json"
     ],
     "owners": { "design": ["peterbono"], "tech": ["peterbono"] },
+    "rights": { "approveDesign": ["design"], "approveTech": ["tech"], "ship": ["tech"] },
     "override": { "allowed": ["peterbono"], "requireReason": true, "minReasonLength": 20 }
   },
   "previews": {

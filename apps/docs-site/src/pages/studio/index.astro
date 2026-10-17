@@ -123,7 +123,7 @@ const merged = releases()
 
   <script>
     import { currentViewer, esc, ghGet, initGitHubConnect, readRepo, RateLimitError } from '../../scripts/github-session';
-    import { loadStatuses, owners, whoChip, type PullForStatus, type PullStatus } from '../../scripts/pr-status';
+    import { loadStatuses, owners, shippers, whoChip, type PullForStatus, type PullStatus } from '../../scripts/pr-status';
     import { mdTitleText, oneLineTitle } from '../../lib/markdown';
     import { openPulls } from '../../lib/review-rules';
     import { byUrgency, needFromStatus, whoActs, type WhoActs } from '../../lib/changes';
@@ -167,7 +167,7 @@ const merged = releases()
 
     /** Who acts now on a pull request, for the connected viewer (same rules as the pull request header). */
     const whoFor = (p: Pull, st: PullStatus | null | undefined): WhoActs | null =>
-      st ? whoActs(needFromStatus(st.kind, { failing: st.failing, changesRequestedBy: st.changesRequested }), { owners: owners(), author: p.user.login, viewer: currentViewer()?.login ?? null, approvers: st.approvers }) : null;
+      st ? whoActs(needFromStatus(st.kind, { failing: st.failing, changesRequestedBy: st.changesRequested }), { owners: owners(), shippers: shippers(), author: p.user.login, viewer: currentViewer()?.login ?? null, approvers: st.approvers }) : null;
 
     /**
      * Waiting for you: the changes where the connected viewer must act, first in the greeting. Nothing waiting: one

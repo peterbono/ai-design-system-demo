@@ -111,7 +111,10 @@ describe('settings', () => {
 
   it('opens Connection with one action per state, Repository with Source only at rest', () => {
     expect(page).toContain('Read only. Connect GitHub to approve, propose and undo.');
-    expect(page.match(/variant="primary"/g)).toHaveLength(1);
+    // At rest one primary (Connect GitHub). Roles' "Propose changes" is the primary of its edit mode only, inside
+    // the save bar that shows after Edit.
+    expect(page.match(/variant="primary"/g)).toHaveLength(2);
+    expect(page).toMatch(/<div class="set-savebar" data-edit>\s*<div class="rq-actions">\s*<Button variant="primary" type="submit" data-roles-submit/);
     expect(page).toMatch(/<details class="set-more" id="tiers-and-modes">/);
     expect(page).toMatch(/<details class="set-more" id="owners-and-previews">/);
     expect(page).not.toMatch(/<details[^>]* open/);

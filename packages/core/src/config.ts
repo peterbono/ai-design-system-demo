@@ -17,6 +17,7 @@
 
 import type { IntegrationsConfig } from './requests';
 import { PREVIEW_APP_LABELS, type PreviewApps, type PreviewsConfig } from './previews';
+import { normalizeRights, rightsProblems, visualImpactProblems, type Rights, type VisualImpactConfig } from './rights';
 
 /** File name Bridge looks for at the repository root. */
 export const CONFIG_FILE = 'bridge.config.json';
@@ -115,6 +116,11 @@ export interface GovernanceConfig {
   owners: Owners;
   /** Owner override for missing approvals only (never CI, changes requested or drafts). Absent: no override. */
   override?: OverridePolicy | undefined;
+  /**
+   * Which owner group may approve design, approve tech and ship (see rights.ts). Absent: approvals follow `owners`
+   * and anyone with write access may ship, as before the field existed.
+   */
+  rights?: Rights | undefined;
 }
 
 /** `bridge audit` settings: how product code that consumes the design system is measured. */
@@ -151,6 +157,8 @@ export interface BridgeConfig {
   previews?: PreviewsConfig | undefined;
   /** Where component change requests go besides the GitHub issue (see requests.ts). */
   integrations?: IntegrationsConfig | undefined;
+  /** Visual before and after on pull requests: automatic (default) or on demand (label `visual-check`). */
+  visualImpact?: VisualImpactConfig | undefined;
 }
 
 type Partialish<T> = { [K in keyof T]?: T[K] | undefined };
@@ -177,10 +185,11 @@ export interface BridgeConfigInput {
   changesets?: { dir?: string; package: string };
   changeset?: { package: string };
   cssVar?: Partial<BridgeConfig['cssVar']>;
-  governance?: Partial<Omit<GovernanceConfig, 'owners' | 'override'>> & { owners?: Partial<Owners>; override?: Partial<OverridePolicy> };
+  governance?: Partial<Omit<GovernanceConfig, 'owners' | 'override' | 'rights'>> & { owners?: Partial<Owners>; override?: Partial<OverridePolicy>; rights?: Partial<Rights> };
   audit?: AuditConfig;
   previews?: { packages?: string[]; apps?: PreviewApps; production?: PreviewApps };
   integrations?: IntegrationsConfig;
+  visualImpact?: Partial<VisualImpactConfig>;
 }
 
 export const DEFAULT_TOKEN_PATHS: TokenPaths = {
@@ -335,8 +344,10 @@ export function defineConfig(input: BridgeConfigInput): BridgeConfig {
             },
           }
         : {}),
+      ...(g.rights ? { rights: normalizeRights(g.rights) } : {}),
     },
     ...(input.audit ? { audit: { ...input.audit } } : {}),
+    ...(input.visualImpact ? { visualImpact: { mode: input.visualImpact.mode === 'on-demand' ? 'on-demand' : 'auto' } } : {}),
     ...(input.integrations ? { integrations: { ...input.integrations } } : {}),
     ...(input.previews
       ? {
@@ -464,8 +475,10 @@ export function loadConfig(source: string | unknown): BridgeConfig {
           if (ov.minReasonLength !== undefined && !(Number.isInteger(ov.minReasonLength) && (ov.minReasonLength as number) >= 0)) problems.push('"governance.override.minReasonLength" must be a whole number, 0 or more');
         }
       }
+      problems.push(...rightsProblems(gov.rights));
     }
   }
+  problems.push(...visualImpactProblems(d.visualImpact));
   const audit = d.audit;
   if (audit !== undefined) {
     if (!isObj(audit)) problems.push('"audit" must be an object');
@@ -520,5 +533,6 @@ export function toConfigJson(config: BridgeConfig, schema = './packages/core/bri
     governance: config.governance,
     ...(config.audit ? { audit: config.audit } : {}),
     ...(config.previews ? { previews: config.previews } : {}),
+    ...(config.visualImpact ? { visualImpact: config.visualImpact } : {}),
   };
 }

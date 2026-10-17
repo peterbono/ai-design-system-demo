@@ -1,8 +1,9 @@
 // Changes > pull request > Visual impact: reads the manifest the visual impact workflow published for the head
 // commit, then shows each changed story or screen with a before/after slider and a diff toggle. Returns what the
 // collapsed section header shows: the number of changed screens and a small before/after thumbnail.
-import { changeLabel, facet, filterShots, modeLabel, VISUAL_BRANCH, visualBase, visualState, type VisualFilter, type VisualManifest, type VisualShot } from '../../lib/visual-impact';
-import { esc, GitHubError, ghGet } from '../github-session';
+import { VISUAL_CHECK_LABEL } from '@bridge-ds/core';
+import { changeLabel, facet, filterShots, modeLabel, VISUAL_BRANCH, visualAsk, visualBase, visualState, type VisualFilter, type VisualManifest, type VisualShot } from '../../lib/visual-impact';
+import { esc, GitHubError, ghGet, ghWrite, hasWorkingToken, onAccess, showGhError } from '../github-session';
 
 const PAGE = 8;
 
@@ -32,6 +33,10 @@ export interface VisualSummary {
   changed: number | null;
   /** Before and after thumbnails of the biggest change, for the section header. */
   thumb: string;
+  /** On demand: someone already asked for this pull request (label visual-check), the run is on its way. */
+  asked?: boolean;
+  /** On demand: the ask (or its state) is already painted in the top slot, renderTopChange leaves it. */
+  paintedTop?: boolean;
   /** The biggest change (first in visualState order) and where its images live, for the before/after on top. */
   top?: VisualShot;
   base?: string;
@@ -39,7 +44,12 @@ export interface VisualSummary {
   error?: string;
 }
 
-export async function loadVisualImpact(slot: HTMLElement, o: { owner: string; repo: string; pr: number; sha: string; actionsUrl: string }): Promise<VisualSummary> {
+export async function loadVisualImpact(
+  slot: HTMLElement,
+  o: { owner: string; repo: string; pr: number; sha: string; actionsUrl: string },
+  /** The before/after slot on top of the pull request: on demand, the ask lives there, not in the collapsed list. */
+  topSlot?: HTMLElement,
+): Promise<VisualSummary> {
   const base = visualBase(o.owner, o.repo, o.pr, o.sha);
   let manifest: VisualManifest | null = null;
   try {
@@ -55,8 +65,9 @@ export async function loadVisualImpact(slot: HTMLElement, o: { owner: string; re
   }
   const state = visualState(manifest);
   if (state.kind === 'not-computed') {
-    slot.innerHTML = `<p class="cg-line">Not run yet for <span class="mono">${esc(o.sha.slice(0, 7))}</span>. <a href="${esc(o.actionsUrl)}" target="_blank" rel="noopener">Run it</a></p>`;
-    return { changed: null, thumb: '' };
+    const onTop = Boolean(topSlot) && visualMode() === 'on-demand';
+    const asked = await notRun(onTop ? topSlot! : slot, o);
+    return { changed: null, thumb: '', asked, paintedTop: onTop };
   }
   const m = state.manifest;
   const head = `<p class="small muted">${m.summary.shots} screenshot${m.summary.shots === 1 ? '' : 's'} compared, base <span class="mono">${esc(m.base.sha.slice(0, 7))}</span> to head <span class="mono">${esc(m.head.sha.slice(0, 7))}</span>, threshold ${m.options.threshold}.${
@@ -123,6 +134,7 @@ export function renderTopChange(slot: HTMLElement, v: VisualSummary, allHref: st
     return;
   }
   if (v.changed === null) {
+    if (v.paintedTop) return;
     slot.innerHTML = '<p class="cg-line rv-what-quiet">The before and after is being prepared. It runs on its own for every change to tokens or components.</p>';
     return;
   }
@@ -135,6 +147,60 @@ export function renderTopChange(slot: HTMLElement, v: VisualSummary, allHref: st
     n > 1 ? `<a href="${esc(allHref)}" data-open-visual>See all ${n}</a>` : ''
   }</div>${shotCard(v.top, v.base)}`;
   wire(slot);
+}
+
+/** visualImpact.mode from bridge.config.json, embedded by the layout. */
+function visualMode(): 'auto' | 'on-demand' {
+  try {
+    const site = JSON.parse(document.getElementById('bridge-repo')?.textContent || '{}') as { visualImpact?: { mode?: string } };
+    return site.visualImpact?.mode === 'on-demand' ? 'on-demand' : 'auto';
+  } catch {
+    return 'auto';
+  }
+}
+
+/**
+ * No manifest for this commit. Automatic mode: the run is on its way, link to it. On demand: one button that adds
+ * the visual-check label (the workflow runs on that label), or the way to do it on GitHub without a write token.
+ */
+async function notRun(slot: HTMLElement, o: { owner: string; repo: string; pr: number; sha: string; actionsUrl: string }): Promise<boolean> {
+  const mode = visualMode();
+  const run = `<a href="${esc(o.actionsUrl)}" target="_blank" rel="noopener">Follow the run</a>`;
+  let labels = mode === 'on-demand' ? await ghGet<{ name: string }[]>(`/repos/${o.owner}/${o.repo}/issues/${o.pr}/labels`).then((f) => f.data, () => null) : null;
+  const paint = (canWrite: boolean) => {
+    const ask = visualAsk({ mode, labels, canWrite, label: VISUAL_CHECK_LABEL });
+    const lead = '<p class="cg-line">Your team shows the before and after on demand.</p>';
+    slot.innerHTML =
+      ask === 'auto'
+        ? `<p class="cg-line">Not run yet for <span class="mono">${esc(o.sha.slice(0, 7))}</span>. <a href="${esc(o.actionsUrl)}" target="_blank" rel="noopener">Run it</a></p>`
+        : ask === 'asked'
+          ? `<p class="cg-line">The before and after shows here once the run on GitHub finishes. ${run}</p>`
+          : ask === 'ask'
+            ? `<div class="vi-ask">${lead}<button type="button" class="btn btn-secondary btn-lg" data-vi-ask>Show the visual impact</button></div><p class="rv-error" role="alert" data-vi-ask-error hidden></p>`
+            : `<div class="vi-ask">${lead}<a class="btn btn-secondary btn-lg" href="https://github.com/${esc(o.owner)}/${esc(o.repo)}/pull/${o.pr}" target="_blank" rel="noopener">Add the ${VISUAL_CHECK_LABEL} label on GitHub</a></div>`;
+    const btn = slot.querySelector<HTMLButtonElement>('[data-vi-ask]');
+    btn?.addEventListener('click', async () => {
+      const error = slot.querySelector<HTMLElement>('[data-vi-ask-error]')!;
+      btn.disabled = true;
+      btn.textContent = 'Asking GitHub';
+      try {
+        await ghWrite('POST', `/repos/${o.owner}/${o.repo}/issues/${o.pr}/labels`, { labels: [VISUAL_CHECK_LABEL] });
+        labels = [...(labels ?? []), { name: VISUAL_CHECK_LABEL }];
+        paint(true);
+        const meta = document.querySelector('#cg-sec-visual [data-sec-meta]');
+        if (meta) meta.textContent = 'Asked';
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = 'Show the visual impact';
+        showGhError(error, err, `GitHub did not add the ${VISUAL_CHECK_LABEL} label: ${(err as Error).message}`, 'add labels');
+        error.hidden = false;
+      }
+    });
+  };
+  paint(hasWorkingToken());
+  // A token that turns out read only gets the GitHub way instead of a button that would fail.
+  if (mode === 'on-demand') onAccess((a) => slot.isConnected && slot.querySelector('[data-vi-ask]') && a && !a.write && paint(false));
+  return visualAsk({ mode, labels, canWrite: false, label: VISUAL_CHECK_LABEL }) === 'asked';
 }
 
 function shotCard(s: VisualShot, base: string): string {

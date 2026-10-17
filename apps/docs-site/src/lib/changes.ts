@@ -254,6 +254,8 @@ export interface People {
   approvers?: string[];
   /** The viewer can merge (write access). Unknown in lists: owners merge there (docs/GOVERNANCE.md). */
   canMerge?: boolean;
+  /** governance.rights ship holders (shipPolicy). Absent: the owners ship. */
+  shippers?: string[];
   /** governance.override.allowed. */
   overrideBy?: string[];
   /** mergeGate says the viewer may merge past the missing approvals. */
@@ -389,7 +391,7 @@ export function whoActs(need: Need, p: People): WhoActs {
       return { who: role === 'approval' ? 'reviewer' : role, logins: e.logins, yourTurn: false, action: APPROVE_ACTION[role], sentence, short: SHORT_APPROVAL[role] };
     }
     case 'ready': {
-      const owners = uniq([...p.owners.design, ...p.owners.tech]).map((x) => x.replace(/^@/, ''));
+      const owners = (p.shippers?.length ? uniq(p.shippers) : uniq([...p.owners.design, ...p.owners.tech])).map((x) => x.replace(/^@/, ''));
       const mine = p.canMerge ?? owners.some((o) => same(o, p.viewer));
       if (p.viewer && mine) return { who: 'you', logins: [p.viewer], yourTurn: true, action: 'merge', sentence: 'Your turn: ready to publish. Merge it.', short: 'Your turn: ship it' };
       const who = owners.length ? at(owners) : 'an owner';

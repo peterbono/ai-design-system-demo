@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   allowedMergeMethods,
+  approverLists,
   canOverride,
   canWrite,
   mergeGate,
@@ -14,6 +15,7 @@ import {
   pullState,
   REVIEW_STATUS_ORDER,
   reviewStatus,
+  shipPolicy,
   summarizeApprovals,
   summarizeCi,
   type OverridePolicy,
@@ -109,7 +111,7 @@ describe('mergeGate owner override', () => {
       { design: ['dana'], tech: ['theo'] },
       'peterbono',
     );
-    expect(gate({ approvals: both })).toEqual({ allowed: true, reasons: [], overridable: false, missing: [] });
+    expect(gate({ approvals: both })).toEqual({ allowed: true, reasons: [], overridable: false, missing: [], canShip: true });
   });
 
   it('Tier 1 and 2 report one missing approval', () => {
@@ -298,5 +300,55 @@ describe('reviewStatus', () => {
     expect(REVIEW_STATUS_ORDER['needs-approval']).toBeLessThan(REVIEW_STATUS_ORDER.ready);
     expect(REVIEW_STATUS_ORDER['changes-requested']).toBeLessThan(REVIEW_STATUS_ORDER['needs-design']);
     expect(REVIEW_STATUS_ORDER.draft).toBeGreaterThan(REVIEW_STATUS_ORDER['ci-running']);
+  });
+});
+
+describe('mergeGate ship right (governance.rights)', () => {
+  const team = { design: ['dana'], tech: ['theo'] };
+  const approved = summarizeApprovals(
+    [
+      { user: { login: 'dana' }, state: 'APPROVED', submitted_at: '2026-10-16T10:00:00Z' },
+      { user: { login: 'theo' }, state: 'APPROVED', submitted_at: '2026-10-16T10:05:00Z' },
+    ],
+    team,
+    'agent',
+  );
+  const techShips = shipPolicy(team, { approveDesign: ['design'], approveTech: ['tech'], ship: ['tech'] });
+  const bothShip = shipPolicy(team, { approveDesign: ['design'], approveTech: ['tech'], ship: ['design', 'tech'] });
+
+  it('without rights anyone may ship, exactly as before', () => {
+    const g = gate({ approvals: approved, viewer: 'dana', override: null });
+    expect(g.allowed).toBe(true);
+    expect(g.canShip).toBe(true);
+  });
+
+  it('a design owner cannot ship when only tech owners hold the right, and the gate says who can', () => {
+    const g = gate({ approvals: approved, viewer: 'dana', override: null, ship: techShips });
+    expect(g.allowed).toBe(false);
+    expect(g.canShip).toBe(false);
+    expect(g.reasons).toEqual(['Only the tech owner can ship this (@theo).']);
+    expect(gate({ approvals: approved, viewer: 'Theo', override: null, ship: techShips }).allowed).toBe(true);
+  });
+
+  it('a team may let design owners ship too', () => {
+    expect(gate({ approvals: approved, viewer: 'dana', override: null, ship: bothShip }).allowed).toBe(true);
+  });
+
+  it('the owner override never lets someone ship without the right', () => {
+    const g = gate({ viewer: 'dana', override: { ...policy, allowed: ['dana'] }, ship: techShips });
+    expect(g.overridable).toBe(false);
+    expect(g.reasons).toContain('Only the tech owner can ship this (@theo).');
+  });
+
+  it('an unknown viewer or a merged pull request adds no ship reason', () => {
+    expect(gate({ approvals: approved, viewer: null, override: null, ship: techShips }).allowed).toBe(true);
+    expect(gate({ approvals: approved, viewer: 'dana', ship: techShips, state: 'closed', merged_at: '2026-10-17T00:00:00Z' }).reasons).toEqual(['This pull request is already merged.']);
+  });
+
+  it('approver lists follow the rights: tech owners may approve design when the team says so', () => {
+    const lists = approverLists(team, { approveDesign: ['design', 'tech'], approveTech: ['tech'], ship: ['tech'] });
+    const a = summarizeApprovals([{ user: { login: 'theo' }, state: 'APPROVED' }], lists, 'agent');
+    expect(a.design).toBe(true);
+    expect(approverLists(team, null)).toEqual(team);
   });
 });
