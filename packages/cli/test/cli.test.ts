@@ -41,7 +41,8 @@ describe('bridge CLI', () => {
     const r = bridge(REPO, 'docs', 'draft', 'Icon');
     expect(r.code).toBe(0);
     expect(r.out).toMatch(/Icon: packages\/react\/src\/components\/Icon\/Icon\.docs\.json/);
-    expect(r.out).toMatch(/Missing prose: summary, whenToUse/);
+    // Icon has docs (a Claude draft): nothing is missing, and the anatomy keeps the labels written there.
+    expect(r.out).toMatch(/Missing prose: none/);
     const j = JSON.parse(bridge(REPO, 'docs', 'draft', 'IconButton', '--json').out);
     expect(j.path).toBe('packages/react/src/components/IconButton/IconButton.docs.json');
     expect(Object.keys(j.prefill.inheritedTokens)).toEqual(['Button']);

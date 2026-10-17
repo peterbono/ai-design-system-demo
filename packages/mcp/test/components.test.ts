@@ -48,7 +48,9 @@ describe('components and docs (real repo)', () => {
     const icon = await ops.draftDocsOp(ctx, { name: 'Icon' });
     expect(icon.path).toBe('packages/react/src/components/Icon/Icon.docs.json');
     expect(icon.prefill.tokens).toContain('--icon-stroke');
-    expect(icon.prefill.anatomy).toMatchObject({ icon: 'Icon', sm: 'Size sm' });
+    // Keyed by the CSS module classes, in source order; labels written in the docs win over the derived ones.
+    expect(Object.keys(icon.prefill.anatomy)).toEqual(['icon', 'xs', 'sm', 'md', 'lg']);
+    expect(icon.prefill.anatomy.sm).toMatch(/16px/);
     expect(icon.prefill.propsTable).toContain('`icon` (required)');
     expect(icon.prompt).toContain('Never invent');
     expect(icon.prompt).toContain('<example-docs-json>');
