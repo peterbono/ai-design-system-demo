@@ -7,6 +7,9 @@ import type { ScannedComponent } from '../sync/components';
 // The repo's own bridge.config.json prefills the settings; every file can point elsewhere in Settings.
 import rootConfig from '../../../../bridge.config.json';
 
+/** Shared plugin data key (namespace dsbridge) of the "Experimental" mark, on a variable or a component set. */
+export const EXPERIMENTAL_KEY = 'experimental';
+
 export type FigmaResolvedType = 'COLOR' | 'FLOAT' | 'STRING' | 'BOOLEAN';
 
 export type FigmaValue =
@@ -48,6 +51,8 @@ export interface SnapshotVariable {
   scopes: string[];
   valuesByMode: Record<string, FigmaValue>;
   pluginData: VariablePluginData;
+  /** Marked "Experimental" (shared plugin data dsbridge / experimental): unchecked by default on every push. */
+  experimental?: boolean | undefined;
 }
 
 export interface SnapshotCollection {
@@ -168,6 +173,8 @@ export interface RequestMap {
   selection: { request: Record<string, never>; response: { nodeId: string; name: string } | null };
   /** Component sets DS Bridge generated (shared plugin data dsbridge / componentId). */
   'scan-generated': { request: Record<string, never>; response: GeneratedSet[] };
+  /** Marks variables or component sets "Experimental" (or clears the mark): unchecked by default on every push. */
+  'set-experimental': { request: { targets: { kind: 'variable' | 'component'; id: string }[]; value: boolean }; response: { updated: number } };
   /** Build or update the component sets of a plan on the Components page, bound to the variables. */
   'apply-components': { request: { plan: ComponentPullPlan }; response: ComponentApplyReport };
 }

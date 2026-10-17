@@ -2,7 +2,7 @@
 // shared plugin data, and exports PNGs to attach to requests. No network. The diff logic is in src/sync/components.ts.
 
 import { type RawBinding, type RawComponent, type RawVariant, buildSignature, fnv1a, bindingKind, parseSignature } from '../sync/components';
-import type { ScannedComponentsPayload } from '../shared/messages';
+import { EXPERIMENTAL_KEY, type ScannedComponentsPayload } from '../shared/messages';
 
 const NS = 'dsbridge';
 const SIGNATURE_KEY = 'signature';
@@ -153,9 +153,33 @@ export async function scanComponents(progress: Progress): Promise<ScannedCompone
     const node = nodes[i]!;
     if (i % 5 === 0) progress(`Reading components (${i + 1} of ${nodes.length})`);
     const raw = await readComponent(node, reader);
-    components.push({ nodeId: node.id, name: node.name, page: raw.page, signature: buildSignature(raw), baseline: parseSignature(node.getSharedPluginData(NS, SIGNATURE_KEY)) });
+    const experimental = node.getSharedPluginData(NS, EXPERIMENTAL_KEY) === 'true';
+    components.push({ nodeId: node.id, name: node.name, page: raw.page, signature: buildSignature(raw), baseline: parseSignature(node.getSharedPluginData(NS, SIGNATURE_KEY)), ...(experimental ? { experimental } : {}) });
   }
   return { components, fileKey: figma.fileKey };
+}
+
+/**
+ * The "Experimental" mark (like Figma's "Hide when publishing"), stored on the variable or the component set so it lasts
+ * across pushes and is shared with everyone working in the file. A variant marks its set.
+ */
+export async function setExperimental(targets: { kind: 'variable' | 'component'; id: string }[], value: boolean): Promise<number> {
+  let updated = 0;
+  for (const t of targets) {
+    if (t.kind === 'variable') {
+      const v = await figma.variables.getVariableByIdAsync(t.id);
+      if (!v) continue;
+      v.setSharedPluginData(NS, EXPERIMENTAL_KEY, value ? 'true' : '');
+      updated++;
+      continue;
+    }
+    let node = await figma.getNodeByIdAsync(t.id);
+    if (node?.type === 'COMPONENT' && node.parent?.type === 'COMPONENT_SET') node = node.parent;
+    if (!node || (node.type !== 'COMPONENT_SET' && node.type !== 'COMPONENT')) continue;
+    node.setSharedPluginData(NS, EXPERIMENTAL_KEY, value ? 'true' : '');
+    updated++;
+  }
+  return updated;
 }
 
 export async function saveSignatures(items: { nodeId: string; signature: string }[]): Promise<number> {

@@ -12,7 +12,7 @@ import {
 } from '../shared/messages';
 import { applyPullPlan } from './apply';
 import { applyComponentPlan, scanGenerated } from './build-components';
-import { exportImage, rebaseline, saveSignatures, scanComponents, selectionInfo } from './components';
+import { exportImage, rebaseline, saveSignatures, scanComponents, selectionInfo, setExperimental } from './components';
 import { takeSnapshot, writePluginData } from './snapshot';
 
 const NS = 'dsbridge';
@@ -114,6 +114,9 @@ const handlers: Handlers = {
   },
   async selection() {
     return selectionInfo() ?? null;
+  },
+  async 'set-experimental'({ targets, value }) {
+    return { updated: await setExperimental(targets, value) };
   },
   async 'scan-generated'() {
     return scanGenerated();

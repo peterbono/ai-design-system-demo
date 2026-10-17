@@ -7,6 +7,7 @@ import {
   PLUGIN_DATA_KEYS,
   type SnapshotVariable,
   type VariablePluginData,
+  EXPERIMENTAL_KEY,
 } from '../shared/messages';
 
 const SUPPORTED: FigmaResolvedType[] = ['COLOR', 'FLOAT', 'STRING', 'BOOLEAN'];
@@ -90,6 +91,7 @@ export async function takeSnapshot(): Promise<FigmaSnapshot> {
       scopes: [...v.scopes],
       valuesByMode,
       pluginData: readPluginData(v),
+      ...(v.getSharedPluginData('dsbridge', EXPERIMENTAL_KEY) === 'true' ? { experimental: true } : {}),
     });
   }
 

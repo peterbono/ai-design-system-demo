@@ -63,6 +63,14 @@ export class SimVariable {
   getPluginData(k: string) {
     return this.pd.get(k) ?? '';
   }
+  private shared = new Map<string, string>();
+  getSharedPluginData(ns: string, k: string) {
+    return this.shared.get(`${ns}|${k}`) ?? '';
+  }
+  setSharedPluginData(ns: string, k: string, v: string) {
+    if (v === '') this.shared.delete(`${ns}|${k}`);
+    else this.shared.set(`${ns}|${k}`, v);
+  }
   setPluginData(k: string, v: string) {
     this.pd.set(k, v);
   }

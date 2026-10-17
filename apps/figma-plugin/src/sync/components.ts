@@ -271,6 +271,8 @@ export interface ScannedComponent {
   page?: string | undefined;
   signature: ComponentSignature;
   baseline?: ComponentSignature | undefined;
+  /** Marked "Experimental" on the set (shared plugin data dsbridge / experimental). */
+  experimental?: boolean | undefined;
 }
 
 export interface ComponentChangeItem {
@@ -282,6 +284,7 @@ export interface ComponentChangeItem {
   kind: RequestKind;
   changes: RequestChange[];
   signature: ComponentSignature;
+  experimental?: boolean | undefined;
 }
 
 export interface ComponentScan {
@@ -333,7 +336,7 @@ export function classifyComponents(found: ScannedComponent[], coded: string[]): 
       continue;
     }
     const d = diffSignatures(f.baseline, f.signature);
-    if (d.kind) scan.changed.push({ nodeId: f.nodeId, component: codeName ?? pascalName(f.name), figmaName: f.name, page: f.page, kind: d.kind, changes: d.changes, signature: f.signature });
+    if (d.kind) scan.changed.push({ nodeId: f.nodeId, component: codeName ?? pascalName(f.name), figmaName: f.name, page: f.page, kind: d.kind, changes: d.changes, signature: f.signature, ...(f.experimental ? { experimental: true } : {}) });
     else if (d.figmaOnly) scan.figmaOnly.push(f.name);
     else if (d.explainedByVariables) scan.explained.push(f.name);
   }
