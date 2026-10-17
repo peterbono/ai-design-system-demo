@@ -99,7 +99,7 @@ Designers should not have to document every change by hand. Four levels, in this
    button does not show. Claude's text is marked "Drafted by Claude, review before sending" until you edit it.
    Errors (invalid key, rate limit, network) say what to do and keep the plugin draft.
 
-Whatever Claude writes, nothing is sent until you press Send request or Push for review.
+Whatever Claude writes, nothing is sent until you press Send request, Send for review or Send to exploration.
 
 ## How it works
 
@@ -242,7 +242,7 @@ touched, and new sets go on a **Components** page. After building, each set's si
    - Changed on both sides: **conflict**, shown side by side; you pick Figma or `main` for each one.
      Nothing is overwritten silently. Without a base (first sync), every difference is a conflict.
 3. Push screen: color swatches (old and new), contrast badges per brand and theme (AAA, AA, fail),
-   plain-language guardrail messages. Blocking problems disable the **Push for review**
+   plain-language guardrail messages. Blocking problems disable the **Send for review**
    button (**Push to pull request #N** when adding to your open PR).
 4. Opens the PR: one branch `tokens/<slug>-<yyyymmdd-hhmm>`, **one atomic commit** containing only
    the changed token files plus a changeset (`minor`, or `major` when a token is renamed or removed),
@@ -260,30 +260,43 @@ Compact edit in Density to `density/compact.tokens.json`, a new Component variab
 
 The Push screen mirrors Figma's Publish library dialog, so it reads like something designers already know:
 
+- **Where it goes**, the main decision at the top of the Changes: a segmented control, **Send for review** (default:
+  "Owners approve it, then it reaches the product.") or **Try in an exploration** ("Test it in a preview and a staging
+  build. It never reaches the product as is."). An exploration is picked in a select of the running ones (open draft
+  pull requests labeled `exploration` on `explore/*`, listed with `listExplorationsOnGitHub` from `@bridge-ds/core`)
+  or started with **New exploration** (a name and what you want to learn, `startExplorationOnGitHub`: the branch
+  from the base with its note and the draft pull request). See docs/EXPLORATIONS.md.
 - **Changes**, grouped **Variables** and **Components**. Each item has a checkbox, all checked by default, and a
   group of 2 or more items has a select-all checkbox in its header (tri-state when some are unchecked).
 - A component change row reads: the component name and the kind tag, then one sentence of what changed (its change
-  line, written by Claude from the before and after images when you draft with Claude, else drafted from the diff:
-  "Looks different in Size=sm, State=Default, Variant=primary; no variable explains it"), then a small **Details**
-  disclosure with the What / Now / Requested table.
+  line, written by Claude from the before and after images when you draft with Claude, else drafted from the diff),
+  then, only for concrete changes (a variant axis or its values, a prop, a token binding), a compact before and
+  after with the same value chips as variable rows ("Tone  info, neutral -> + danger"). Visual and structure changes
+  show the sentence only; the full table goes into the GitHub issue.
 - Checked variable edits go into the pull request. **Unchecked variable edits stay in Figma**, untouched, and show up
   again on the next scan. Unchecked component changes are not sent and keep their baseline.
-- **Experimental** (like Figma's "Hide when publishing"): the row menu has "Mark as experimental". The mark is stored
-  on the variable (every variable of the token in the split layout) or on the component set, as shared plugin data
-  `dsbridge` / `experimental` = `"true"`, so it lasts and the whole team sees it. Experimental items carry a neutral
-  "Experimental" tag and **start unchecked on every push**; they can still be checked. "Remove experimental mark"
-  clears it.
-- **Description**: one text field, with **Draft with Claude** on its label line, prefilled with the plugin's draft of the checked changes (see "Writing help").
-  It becomes the pull request's "What changed and why" and the summary of every request sent with it (a factual
-  line naming the file when it is empty). The pull request title is optional, under
-  "Pull request title".
-- One primary action, **Push for review**, with what it sends summed up once in the bar ("2 variables, 1 request"):
-  the pull request for the checked variables (none when no variable is
-  checked), then one request per checked component change, with the component attached. A failed request is listed;
-  the rest is still sent.
+- **Exploration only** (the experimental mark, like Figma's "Hide when publishing"): a checkable item of the row menu,
+  "Never sent for review. Goes to explorations only." The mark is stored on the variable (every variable of the token
+  in the split layout) or on the component set, as shared plugin data `dsbridge` / `experimental` = `"true"`, so it
+  lasts and the whole team sees it. Marked items carry an "Exploration only" tag, **start unchecked for review and
+  checked for an exploration**; switching the destination resets them to its default, other choices stay.
+- **Message to the team**: its own section after a divider, with **Draft with Claude** on its label line, prefilled
+  with the plugin's draft of the checked changes (see "Writing help"). It becomes the pull request's "What changed and
+  why" (or the comment on the exploration) and the summary of every request sent with it. The pull request title is
+  optional, under "Pull request title" ("Commit title" for an exploration).
+- One primary action that follows the destination, **Send for review** or **Send to exploration**, with what it sends
+  summed up once in the bar ("2 variables, 1 request"). For review: the pull request for the checked variables (none
+  when no variable is checked), then one request per checked component change, with the component attached. To an
+  exploration: the variable edits become one commit on `explore/<slug>` (composed again on the exploration's own
+  token files, so its earlier commits stay; no new pull request to main, a comment on its draft), and each request is
+  labeled `exploration` with `exploration: explore/<slug>`, to be built on that branch. The result screen says
+  "Sent to <name>" with `explore/<slug>`, the preview links and the snapshot install command, and Open on GitHub. A
+  failed request is listed; the rest is still sent.
 
-"Request a component change" (for what the scan cannot see) and "Not in the design system yet" stay under
-**Requests**, below the list. A detected change can also be edited and sent on its own from its row menu.
+At the very bottom, one quiet line: "Something the scan cannot see? Request a component change" (also on the idle
+screen). It opens the request form in its own region; while any request form is open, its **Send request** is the
+only primary action (the bar steps aside). "Not in the design system yet" sits under the Components group. A detected
+change can also be edited and sent on its own from its row menu (**Edit the request**).
 
 ### Two flows: variables become pull requests, components become requests
 
@@ -348,7 +361,7 @@ How it works:
      collapsed, each with "Request as new component". Nothing is sent on its own.
 3. **Request form**, inline: kind (prefilled), title and summary (prefilled drafts, see "Writing help"; "Draft with
    Claude" sits on the Title label line) and "Attach the selected variant" (a 2x PNG). The row above the form keeps
-   the change line and its "Details" table. Each request opens with its change line ("**What changes:** ..."):
+   the change line and its value chips. Each request opens with its change line ("**What changes:** ..."):
    Claude's when it wrote one, else `draftChangeLine` from the diff. Its title is Claude's title for that component
    (written with the change line, at most 70 characters) when there is one, else the drafted title (structure: "Add a
    layer after Label"). On send, images go to the

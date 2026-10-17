@@ -267,9 +267,6 @@ table.changes td.before { color: var(--text-3); }
 .row-hint > .icon { width: 14px; height: 14px; flex: none; }
 .row-hint > span { flex: 1 1 200px; }
 .row-hint > .btn { margin-right: calc(-1 * var(--s2)); }
-.row-details > summary { display: inline-flex; align-items: center; min-height: 24px; width: fit-content; cursor: pointer; color: var(--text-2); border-radius: var(--r-sm); }
-.row-details > summary:hover { color: var(--text); }
-.row-details[open] > summary { margin-bottom: var(--s1); }
 .req-form { display: flex; flex-direction: column; gap: var(--s3); padding: var(--s2) 0 var(--s1); }
 .req-form .field > span, .req-form .field-head > label { font-weight: 500; }
 .attach-hint { margin-top: calc(-1 * var(--s2)); padding-left: 21px; }
@@ -372,3 +369,38 @@ div.setup-steps { padding-left: 0; }
 .opt-status.ok { display: inline-flex; align-items: center; gap: 4px; color: var(--ok); font-weight: 600; }
 .opt-status.ok .icon { width: 14px; height: 14px; }
 .mono-line { font-family: var(--mono); font-size: 11px; overflow-wrap: anywhere; }
+
+/* Push destination: the main decision at the top of the Changes, a segmented control (native radios) and one line. */
+.destination { gap: var(--s2); }
+.segmented { display: grid; grid-template-columns: 1fr 1fr; padding: 2px; gap: 2px; border-radius: var(--r-md); background: var(--bg-sunken); border: 1px solid var(--border); }
+.segment { position: relative; display: flex; align-items: center; justify-content: center; height: 32px; padding: 0 var(--s2); border-radius: 6px; cursor: pointer; color: var(--text-2); font-weight: 500; text-align: center; }
+.segment input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.segment:hover { color: var(--text); }
+.segment.selected { background: var(--bg); color: var(--text); font-weight: 600; box-shadow: 0 1px 2px rgb(0 0 0 / 0.08), 0 0 0 1px var(--border); }
+.segment:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 1px; }
+.destination-fields { display: flex; flex-direction: column; gap: var(--s3); padding-top: var(--s1); }
+.destination-fields .form-error { font-weight: 400; }
+
+/* Component row: the concrete changes as before -> after value chips, like variable rows. */
+.chip-lines { display: flex; flex-direction: column; gap: var(--s1); }
+.chip-line { display: grid; grid-template-columns: minmax(56px, max-content) 1fr; gap: var(--s2); align-items: center; }
+.chip-line .mode-name small { font-size: inherit; }
+
+/* Message to the team: its own section after a divider, at the level of Changes. */
+.message { border-top: 1px solid var(--border); padding-top: var(--s4); gap: var(--s2); }
+.message .field-head h2 label { cursor: default; }
+
+/* "Something the scan cannot see?": one quiet line at the very bottom, the link is the only interactive part. */
+.request-line { margin-top: var(--s3); padding-top: var(--s3); }
+button.link { border: 0; background: none; padding: 0; min-height: 24px; color: var(--brand-text); font-weight: 500; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+button.link:hover { text-decoration-thickness: 2px; }
+.manual-request { border-top: 1px solid var(--border); padding-top: var(--s4); gap: var(--s1); }
+
+/* Row menu: a checkable item with one line that says what it does. */
+.menu-item { display: flex; align-items: center; gap: var(--s2); }
+.menu-item.two-line { height: auto; min-height: 28px; padding: 6px var(--s2); align-items: flex-start; white-space: normal; }
+.menu-check { flex: none; width: 14px; height: 14px; display: inline-flex; color: var(--brand-text); }
+.menu-check .icon { width: 14px; height: 14px; }
+.menu-text { display: flex; flex-direction: column; gap: 2px; }
+.menu { min-width: 240px; }
+.callout-title .callout-action { margin-left: auto; height: 24px; font-weight: 500; }

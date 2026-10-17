@@ -356,6 +356,70 @@ export async function openPullRequest(client: GitHubClient, a: Analysis, p: Push
 }
 
 // ---------------------------------------------------------------------------------------------
+// Push to an exploration: the checked variable edits as one commit on `explore/<slug>` (its draft pull request is the
+// place, never a new pull request to main). The edits are composed again on the exploration's own token files, so
+// earlier commits there are kept, and files that already hold the same content are left alone.
+
+export interface ExplorationTarget {
+  /** `explore/<slug>`. */
+  branch: string;
+  /** Its draft pull request. */
+  pr: PullRequest;
+}
+
+export interface ExplorationPushResult extends PushResult {
+  /** The exploration already had these edits: nothing was committed. */
+  unchanged: boolean;
+}
+
+export async function commitToExploration(client: GitHubClient, a: Analysis, p: PushProposal, opts: { target: ExplorationTarget; title: string; notes: string; now?: Date }): Promise<ExplorationPushResult> {
+  if (p.unresolvedConflicts.length) throw new Error('Resolve every conflict before sending.');
+  if (p.validation.blocking.length) throw new Error('Fix the blocking problems before sending.');
+  const { branch, pr } = opts.target;
+  const tip = await client.getBranchSha(branch);
+  if (!tip) throw new Error(`The exploration ${branch} is gone. Pick another one, or start a new one.`);
+  const there = await loadRepoFiles(client, tip, a.settings.tokensPath);
+  const config = there.config ?? a.headFiles.config;
+  const set = buildTokenSet(there.files, config ? layoutOptions(config) : a.head.options);
+  const onBranch = (t: LogicalToken | undefined) => (t ? (set.tokens.get(t.id) ?? set.byPath.get(t.path)) : undefined);
+  const changes: AcceptedChange[] = [];
+  for (const c of p.changes) {
+    const current = onBranch(c.current) ?? onBranch(c.target);
+    if (!c.target && !current) continue; // already removed there
+    changes.push({ target: c.target, current });
+  }
+  const { files } = composeFiles(set, there.files, changes);
+  const prefix = there.tokensPath;
+  const plans = p.brands.flatMap((b) => (b.plan ? [b.plan] : []));
+  const title = opts.title.trim() || (p.changes.length ? defaultTitle(p.changes) : plans.map((x) => x.title).join(', '));
+  const tokenFiles = Object.entries(files)
+    .filter(([rel, content]) => there.files[rel] !== content)
+    .map(([rel, content]) => ({ path: `${prefix}/${rel}`, content }));
+  const pkg = config?.changeset?.package;
+  const changeset = pkg && tokenFiles.length && p.changes.length ? composeChangeset(p.changes, { title, branch, packageName: pkg, source: 'from Figma via DS Bridge' }) : undefined;
+  const repoFiles = [...tokenFiles, ...(changeset ? [changeset] : []), ...p.brandFiles];
+  const tags: VariableTag[] = [];
+  for (const c of p.changes) {
+    if (!c.target) continue;
+    for (const variableId of a.figma.variableIds.get(c.target.id) ?? []) {
+      tags.push({ variableId, pluginData: { id: c.target.id, dtcgType: c.target.type, file: isMultiMode(c.target.tier) ? undefined : c.target.files[SINGLE_MODE] } });
+    }
+  }
+  if (!tokenFiles.length && !p.brandFiles.length) return { pr, branch, commitSha: tip, appended: true, tags, unchanged: true };
+  const baseTree = await client.getCommitTree(tip);
+  const blobs = [];
+  for (const f of repoFiles) blobs.push({ path: f.path, sha: await client.createBlob(f.content) });
+  const tree = await client.createTree(baseTree, blobs);
+  const message = `${p.changes.length ? commitMessage(title, p.changes, 'Exported from Figma with DS Bridge.') : title}\n\nExploration ${branch}: not merged as is.`;
+  const commitSha = await client.createCommit(message, tree, [tip]);
+  await client.updateBranch(branch, commitSha);
+  const lines = [...p.changes.map((c) => `- ${(c.target ?? c.current)!.path}`), ...plans.map((x) => `- New brand ${x.name} (\`${x.slug}\`)`)];
+  const why = opts.notes.trim();
+  await client.addComment(pr.number, `DS Bridge added a commit from Figma to this exploration:\n\n${lines.join('\n')}${why ? `\n\n${why}` : ''}`).catch(() => undefined);
+  return { pr, branch, commitSha, appended: true, tags, unchanged: false };
+}
+
+// ---------------------------------------------------------------------------------------------
 // Pull
 
 export interface PullProposal {

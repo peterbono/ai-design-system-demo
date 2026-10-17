@@ -86,6 +86,11 @@ Everything that writes takes the exploration branch instead of opening a pull re
 | Component work | A request with `--exploration explore/<name>` (labeled `exploration`), then `bridge request implement <n> --branch explore/<name>` | `bridge_create_request` with `exploration`, `bridge_get_request` with `branch` |
 | Docs drafts | `bridge docs draft <Component>` on the checked-out branch | `bridge_draft_docs` with `branch` |
 
+From Figma, the DS Bridge plugin's Push has **Try in an exploration** next to Send for review: pick a running
+exploration (or start a new one with a name and a purpose), and the checked variable edits become one commit on
+`explore/<name>` (no pull request to main) while component changes become requests labeled `exploration`. Items marked
+"Exploration only" start checked there.
+
 On GitHub (`--repo` mode with a token), token edits are one commit on the exploration branch. Locally, the branch
 must be checked out: Bridge writes the files to that working tree and you commit and push them. A request brief for
 an exploration says: work on that branch, commit there, never open a pull request to `main`, never mark it ready

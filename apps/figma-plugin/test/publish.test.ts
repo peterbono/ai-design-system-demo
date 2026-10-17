@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import { type RawComponent, buildSignature, classifyComponents, fnv1a } from '../src/sync/components';
 import { analyze, buildPull, buildPush } from '../src/sync/flows';
 import {
+  applyDestination,
   componentDrafts,
   componentKey,
   defaultUnchecked,
@@ -18,6 +19,7 @@ import {
   variableKey,
 } from '../src/sync/publish';
 import { setExperimental, scanComponents } from '../src/main/components';
+import { newExplorationProblems, runningExplorations, startExploration, targetOf } from '../src/sync/explorations';
 import { takeSnapshot } from '../src/main/snapshot';
 import { DEFAULT_SETTINGS } from '../src/shared/messages';
 import { applyPullPlan } from '../src/main/apply';
@@ -228,4 +230,77 @@ test("Claude's request title per component names the issue; components without o
   const proposal = buildPush(a, new Map(), new Set(), heldTokenIds(items, unchecked));
   await publish(client, { analysis: a, proposal, components: scan.changed, unchecked, description: '', descriptionIsDraft: true, title: '', fileName: 'Test', coded: ['Button', 'Card'], titles: new Map([['1:1', 'Use the hover fill for primary buttons']]) });
   assert.deepEqual(gh.issues.map((i) => i.title), ['Button: use the hover fill for primary buttons', 'Card: use color.bg.subtle for the fill']);
+});
+
+// ---------------------------------------------------------------------------------------------
+// Push to an exploration
+
+test('explorations: start one from Push, list the running ones with previews and the snapshot install', async () => {
+  const { gh, client } = await edited();
+  assert.deepEqual(await runningExplorations(client, undefined, 'main'), []);
+  assert.deepEqual(newExplorationProblems('', ''), ['Name the exploration, for example "Denser data tables".', 'Say what you want to learn, in one sentence.']);
+  const config = { previews: { packages: ['@bridge-ds/tokens', '@bridge-ds/react'], apps: { docs: 'https://docs-git-{branch}.example.app' } } } as unknown as Parameters<typeof startExploration>[1];
+  const started = await startExploration(client, config, 'main', { name: 'Pill buttons', purpose: 'Do rounder buttons feel friendlier?' });
+  assert.equal(started.branch, 'explore/pill-buttons');
+  assert.equal(gh.prs.length, 1);
+  assert.deepEqual(gh.prs[0]!.labels, ['exploration']);
+  assert.equal(gh.prs[0]!.draft, true);
+  assert.ok(gh.filesAt('explore/pill-buttons')['.bridge/explorations/pill-buttons.md']);
+  const list = await runningExplorations(client, config, 'main');
+  assert.deepEqual(list.map((e) => `${e.name} ${e.branch} #${e.number}`), ['Pill buttons explore/pill-buttons #1']);
+  assert.match(list[0]!.install.command, /^npm i @bridge-ds\/tokens@https:\/\/pkg\.pr\.new\/o\/r\/@bridge-ds\/tokens@1 /);
+  assert.deepEqual(list[0]!.previews.map((p) => p.url), ['https://docs-git-explore-pill-buttons.example.app/']);
+});
+
+test('push to an exploration: variable edits commit to explore/<slug>, no pull request to main, requests labeled exploration', async () => {
+  const { gh, client, snapshot, sync } = await edited();
+  const exploration = await startExploration(client, undefined, 'main', { name: 'Rounder corners', purpose: 'Try softer radii.' });
+  // Someone already tried another edit on the exploration: it must stay.
+  const radiusFile = `${PREFIX}/primitives/radius.tokens.json`;
+  const branchFiles = gh.filesAt('explore/rounder-corners');
+  const doc = JSON.parse(branchFiles[radiusFile]!);
+  doc.radius.lg.$value.value = 14;
+  const earlier = gh.commit({ ...branchFiles, [radiusFile]: `${JSON.stringify(doc, null, 2)}\n` }, [gh.branches.get('explore/rounder-corners')!], 'earlier');
+  gh.branches.set('explore/rounder-corners', earlier);
+  const mainBefore = gh.branches.get('main');
+  const a = await analyze(client, DEFAULT_SETTINGS, sync, snapshot);
+  const scan = componentScan();
+  const items = publishItems(a, new Set(), scan.changed);
+  const unchecked = defaultUnchecked(items, 'exploration');
+  assert.equal(unchecked.size, 0, 'experimental Card starts checked for an exploration');
+  const proposal = buildPush(a, new Map(), new Set(), heldTokenIds(items, unchecked));
+  const res = await publish(client, { analysis: a, proposal, components: scan.changed, unchecked, description: 'Softer radii for the checkout test.', title: '', fileName: 'Test', coded: ['Button', 'Card'], exploration: targetOf(exploration) });
+  assert.equal(gh.branches.get('main'), mainBefore, 'main untouched');
+  assert.equal(gh.prs.length, 1, 'no new pull request: the exploration draft is the place');
+  assert.equal(res.exploration?.branch, 'explore/rounder-corners');
+  assert.equal(res.exploration?.unchanged, false);
+  const radius = JSON.parse(gh.filesAt('explore/rounder-corners')[radiusFile]!).radius;
+  assert.equal(radius.sm.$value.value, 5, 'the Figma edit is on the exploration');
+  assert.equal(radius.lg.$value.value, 14, 'the earlier exploration commit is kept');
+  assert.equal(JSON.parse(gh.filesAt('main')[radiusFile]!).radius.sm.$value.value, 4);
+  assert.ok(gh.comments.some((c) => c.number === exploration.number && /added a commit from Figma to this exploration/.test(c.body)));
+  assert.equal(res.requests.length, 2);
+  for (const issue of gh.issues) {
+    assert.ok(issue.labels.includes('exploration'), issue.title);
+    assert.match(issue.body, /\*\*Exploration:\*\* `explore\/rounder-corners`/);
+  }
+  // Sending the same edits again commits nothing.
+  const again = await publish(client, { analysis: a, proposal, components: [], unchecked, description: '', title: '', fileName: 'Test', coded: [], exploration: targetOf(exploration) });
+  assert.equal(again.exploration?.unchanged, true);
+});
+
+test('destination: experimental items start checked for an exploration and unchecked for review', () => {
+  const items = [
+    { key: 'v:a', kind: 'variable' as const, id: 'a', label: 'a', experimental: true },
+    { key: 'v:b', kind: 'variable' as const, id: 'b', label: 'b', experimental: false },
+    { key: 'c:1', kind: 'component' as const, id: '1', label: 'Button', experimental: false, suggestSkip: true },
+  ];
+  assert.deepEqual([...defaultUnchecked(items)].sort(), ['c:1', 'v:a']);
+  assert.deepEqual([...defaultUnchecked(items, 'exploration')], ['c:1']);
+  const unchecked = defaultUnchecked(items);
+  unchecked.delete('c:1');
+  applyDestination(items, unchecked, 'exploration');
+  assert.deepEqual([...unchecked], [], 'only experimental items follow the destination; the designer\'s own choice stays');
+  applyDestination(items, unchecked, 'review');
+  assert.deepEqual([...unchecked], ['v:a']);
 });

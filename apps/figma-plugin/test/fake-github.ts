@@ -15,6 +15,8 @@ export class FakeGitHub {
   contents = new Map<string, { text: string; sha: string }>();
   /** Contents API calls, in order ("PUT path", "DELETE path"). */
   contentLog: string[] = [];
+  /** Comments on issues and pull requests, in order. */
+  comments: { number: number; body: string }[] = [];
   readonly owner = 'o';
   readonly name = 'r';
   n = 0;
@@ -150,7 +152,34 @@ export class FakeGitHub {
         self.prs[n - 1]!.labels.push(...labels);
         return true;
       },
-      async addComment() {},
+      async addComment(n: number, body: string) {
+        self.comments.push({ number: n, body });
+      },
+      // Explorations (core explorations-github.ts): open pull requests, one commit on a new branch, body updates.
+      canWrite: true,
+      fullName: `${self.owner}/${self.name}`,
+      withBranchPrefix() {
+        return api;
+      },
+      async listPullRequests() {
+        return self.prs.map((p) => ({ number: p.number, title: p.title, state: 'open', draft: p.draft, author: 'designer', headRef: p.headRef, headSha: self.branches.get(p.headRef) ?? '', baseRef: p.base, labels: p.labels, url: p.url, updatedAt: '', body: p.body }));
+      },
+      async getPullRequest(n: number) {
+        const p = self.prs[n - 1]!;
+        return { ...p, state: 'open', author: 'designer', headSha: self.branches.get(p.headRef) ?? '', baseRef: p.base, updatedAt: '', mergeable: null };
+      },
+      async updatePullRequest(n: number, patch: { title?: string; body?: string }) {
+        const p = self.prs[n - 1]!;
+        if (patch.title) p.title = patch.title;
+        if (patch.body) p.body = patch.body;
+      },
+      async commitToNewBranch(input: { base: string; branch: string; message: string; files: { path: string; content: string | null }[] }) {
+        const files = { ...self.filesAt(input.base) };
+        for (const f of input.files) (f.content === null ? delete files[f.path] : (files[f.path] = f.content));
+        const sha = self.commit(files, [self.branches.get(input.base)!], input.message);
+        self.branches.set(input.branch, sha);
+        return { sha, branch: input.branch };
+      },
     };
     return api as unknown as GitHubClient;
   }
