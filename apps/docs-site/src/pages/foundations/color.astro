@@ -1,7 +1,5 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import ButtonLink from '../../components/ds/ButtonLink';
-import { Pencil } from 'lucide-react';
 import CopyAs from '../../components/foundations/CopyAs.astro';
 import LibraryKit from '../../components/foundations/LibraryKit.astro';
 import TokenGroup from '../../components/foundations/TokenGroup.astro';
@@ -42,11 +40,8 @@ import PreviewScope from '../../components/PreviewScope.astro';
 
 <Layout title="Color" description="Semantic color tokens shown in context in light and dark, and the primitive palette behind them." sources={PAGE_SOURCES.color} updated={updated}>
   <div data-fd-page>
-    <LibraryHeader title="Color" art="paint" updated={updated}>
+    <LibraryHeader title="Color" art="paint" updated={updated} studio="/studio/tokens/?focus=color">
       Every color has a job. Each group shows its tokens at work in both themes, then lists them. Design and build with these semantic tokens.
-      <Fragment slot="actions">
-        <ButtonLink variant="secondary" size="sm" iconStart={Pencil} href="/studio/tokens/?focus=color">Edit in Studio</ButtonLink>
-      </Fragment>
     </LibraryHeader>
     <div class="fd-toolbar">
       <p class="fd-hint">Select a token to see its alias chain, contrast pairs and history. Click a name to copy it.</p>
@@ -92,7 +87,7 @@ import PreviewScope from '../../components/PreviewScope.astro';
         ))
       }
       <p>
-        Want to know exactly who uses a value? Paste a hex in search or in the <a href="/tokens/">token explorer</a>.
+        Want to know exactly who uses a value? Paste a hex in search, or filter <a href="/tokens/">All tokens</a>.
       </p>
     </section>
   </div>

@@ -1,7 +1,5 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import ButtonLink from '../../components/ds/ButtonLink';
-import { Pencil } from 'lucide-react';
 import CopyAs from '../../components/foundations/CopyAs.astro';
 import LibraryKit from '../../components/foundations/LibraryKit.astro';
 import TokenList from '../../components/foundations/TokenList.astro';
@@ -53,11 +51,8 @@ import PreviewScope from '../../components/PreviewScope.astro';
 
 <Layout title="Typography" description="The type scale at every step, weights, line heights, tracking and font families." sources={PAGE_SOURCES.typography} updated={updated}>
   <div data-fd-page>
-    <LibraryHeader title="Typography" art="foundations" updated={updated}>
+    <LibraryHeader title="Typography" art="foundations" updated={updated} studio="/studio/tokens/?focus=font">
       Fraunces for display and page titles, Instrument Sans for reading and interface text, IBM Plex Mono for code and token names. Seven roles set size, line height and weight together; a screen uses four sizes at most. If a design needs a step that is not here, propose a token instead of picking a value by eye.
-      <Fragment slot="actions">
-        <ButtonLink variant="secondary" size="sm" iconStart={Pencil} href="/studio/tokens/?focus=font">Edit in Studio</ButtonLink>
-      </Fragment>
     </LibraryHeader>
     <div class="fd-toolbar">
       <p class="fd-hint">Select a token to see where it is used and its history. Click a name to copy it.</p>

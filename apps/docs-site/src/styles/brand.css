@@ -129,8 +129,53 @@ a.fg-card {
   margin: 0;
 }
 
-.lib-zone .lib-page-header > div:first-child > div:first-of-type {
+/* Title, then (for maintainers) a small "Edit in Studio" right after it. Visitors get the plain title. */
+.lib-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-5);
+}
+
+.lib-title {
+  margin: 0;
   color: var(--color-text-default);
+  font-family: var(--typography-h1-family);
+  font-size: var(--typography-h2-size);
+  font-weight: var(--typography-h1-weight);
+  letter-spacing: var(--typography-h2-tracking);
+  line-height: var(--typography-h2-line-height);
+  text-wrap: balance;
+}
+
+@media (min-width: 900px) {
+  .lib-title {
+    font-size: var(--typography-h1-size);
+    letter-spacing: var(--typography-h1-tracking);
+    line-height: var(--typography-h1-line-height);
+  }
+}
+
+.lib-lead {
+  max-width: 65ch;
+  color: var(--color-text-default);
+  font-size: var(--typography-body-size);
+  line-height: var(--typography-body-line-height);
+  text-wrap: pretty;
+}
+
+.lib-lead > :first-child {
+  margin-top: 0;
+}
+
+.lib-lead > :last-child {
+  margin-bottom: 0;
+}
+
+.lib-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 
 .lib-zone-art {
@@ -150,33 +195,12 @@ a.fg-card {
   }
 }
 
-/* The DS PageHeader stacks inside the zone: title, lead, then actions under the text. */
+/* Inside the zone: title row, lead, then actions under the text. */
 .lib-zone .lib-page-header {
+  display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: var(--space-5);
-}
-
-.lib-zone .lib-page-header > * {
-  flex: 0 0 auto;
-}
-
-.lib-zone-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2) var(--space-4);
-  margin-top: var(--space-4);
-  margin-left: calc(var(--space-3) * -1);
-  color: var(--color-text-muted);
-}
-
-.lib-zone-meta .updated {
-  margin: 0;
-  padding: 0;
-  background-color: transparent;
-  color: var(--color-text-muted);
-  font-size: var(--typography-ui-size);
+  gap: var(--space-4);
 }
 
 /* Toolbars of the site use interface text (14px) for every control, so a screen keeps to four sizes. */

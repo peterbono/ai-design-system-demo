@@ -1,7 +1,5 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import ButtonLink from '../../components/ds/ButtonLink';
-import { Pencil } from 'lucide-react';
 import CopyAs from '../../components/foundations/CopyAs.astro';
 import LibraryKit from '../../components/foundations/LibraryKit.astro';
 import TokenList from '../../components/foundations/TokenList.astro';
@@ -20,11 +18,8 @@ import PreviewScope from '../../components/PreviewScope.astro';
 
 <Layout title="Spacing" description="The 4 px spacing scale and the density tokens built on it, shown in a real layout." sources={PAGE_SOURCES.spacing} updated={updated}>
   <div data-fd-page>
-    <LibraryHeader title="Spacing" art="foundations" updated={updated}>
+    <LibraryHeader title="Spacing" art="foundations" updated={updated} studio="/studio/tokens/?focus=space">
       A 4 px base scale: step n is n &times; 4 px, with half steps where controls need them. Tight inside groups, generous between them. Fewer choices means more consistent screens.
-      <Fragment slot="actions">
-        <ButtonLink variant="secondary" size="sm" iconStart={Pencil} href="/studio/tokens/?focus=space">Edit in Studio</ButtonLink>
-      </Fragment>
     </LibraryHeader>
     <div class="fd-toolbar">
       <p class="fd-hint">Select a token to see where it is used and its history. Click a name to copy it.</p>

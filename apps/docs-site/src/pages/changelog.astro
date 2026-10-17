@@ -28,6 +28,13 @@ const counts = (entries: { kind: string }[]) =>
   KINDS.map((k) => ({ ...k, n: entries.filter((e) => e.kind === k.kind).length })).filter((k) => k.n > 0);
 const visibleKinds = KINDS.filter((k) => all.some((r) => r.entries.some((e) => e.kind === k.kind)));
 import LibraryHeader from '../components/LibraryHeader.astro';
+import VersionMenu from '../components/ds/VersionMenu';
+import { versionInfo } from '../lib/changelog';
+import { repoStatus } from '../lib/stats';
+
+// The version picker lives here now: section headers stay title, lead and drawing.
+const version = versionInfo();
+const repo = repoStatus();
 ---
 
 <Layout title="Changelog" description="What changed in the design system, what it means for you, and a message ready to post." sources={['.changeset', 'git log']} updated={updated}>
@@ -35,6 +42,17 @@ import LibraryHeader from '../components/LibraryHeader.astro';
     Built from the changelog entries written in each pull request and from the commit history. Each change says what it means for you; each release
     has an announcement you can paste into Slack or an email. For the token-by-token history, compare and revert, open
     <a href="/studio/versions/">Versions in the Studio</a>.
+    <Fragment slot="actions">
+      <VersionMenu
+        client:idle
+        current={version.current}
+        past={version.past.map((r) => r.name)}
+        branch={repo.branch}
+        sha={repo.sha}
+        pending={version.pending}
+        builtFrom={`Built from ${repo.branch} at ${repo.sha}, ${humanDate(repo.lastChange)}`}
+      />
+    </Fragment>
   </LibraryHeader>
 
   <ul class="kind-legend" aria-label="Labels used in this changelog">

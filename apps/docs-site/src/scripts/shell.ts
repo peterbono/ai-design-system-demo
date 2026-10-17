@@ -2,6 +2,7 @@
 // theme toggle, copy buttons, the mobile navigation sheet, the Cmd+K command palette, header menus, the "On this
 // page" rail and, in the Studio, the branch scope, the nav counts and the GitHub connection.
 import { ghGet, initGitHubConnect, readRepo } from './github-session';
+import { initMaintainer } from './maintainer';
 import { mdTitleText } from '../lib/markdown';
 import { openPulls } from '../lib/review-rules';
 
@@ -494,6 +495,7 @@ export function draftCount(): number {
 }
 
 function setCount(kind: 'drafts' | 'reviews', n: number | null) {
+  // The nav shows one number, on Changes: open pull requests waiting for a review.
   document.querySelectorAll<HTMLElement>(`[data-nav-count="${kind}"]`).forEach((el) => {
     el.hidden = !n;
     const v = el.querySelector('[data-nav-count-value]');
@@ -597,6 +599,7 @@ function initStudio() {
 
 export function initShell() {
   initTheme();
+  initMaintainer();
   initSegmented();
   initMenus();
   initToc();

@@ -3,9 +3,7 @@ import '../../styles/component.css';
 import '../../styles/library.css';
 import Layout from '../../layouts/Layout.astro';
 import Example from '../../components/Example.tsx';
-import ButtonLink from '../../components/ds/ButtonLink';
 import { Badge } from '@bridge-ds/react';
-import { Pencil } from 'lucide-react';
 import { loadComponents, type ComponentInfo } from '../../lib/components';
 import { freshness, PAGE_SOURCES } from '../../lib/sources';
 
@@ -27,11 +25,8 @@ import LibraryHeader from '../../components/LibraryHeader.astro';
 ---
 
 <Layout title="Components" description="Every component, with usage guidance, accessibility notes and the tokens it reads." sources={PAGE_SOURCES.components} updated={updated}>
-  <LibraryHeader title="Components" art="components" updated={updated}>
+  <LibraryHeader title="Components" art="components" updated={updated} studio="/studio/components/" studioLabel="Open in Studio">
     {plural(components.length, 'component')} in {plural(groups.size, 'family', 'families')}. Each page has the same tabs: Usage (when to use it, do and don't, accessibility), Tokens, Code (props and a playground) and Changelog. Guidance first, specs second.
-    <Fragment slot="actions">
-      <ButtonLink variant="secondary" size="sm" href="/studio/components/" iconStart={Pencil}>Open in Studio</ButtonLink>
-    </Fragment>
   </LibraryHeader>
   <p class="gallery-stats">
     <Badge>{plural(components.length, 'component')}</Badge>

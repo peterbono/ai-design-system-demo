@@ -62,40 +62,68 @@ kept exactly as validated in the brand mockups and to be replaced later. Strokes
 
 ## Layout
 
-4px grid. App shell: a slim top bar and a left side nav.
+4px grid. The Library is the site; the Studio is a space inside it, with its own header. No Library | Studio switch.
 
 ```
+Library
 +--------------------------------------------------------------------------------+
-| [Bridge]   [Library | Studio]   [ Search tokens, components, pages ]     ◐  GH  |
+| [Bridge]          [ Search tokens, components, pages ]       ◐  GH | Open Studio|
 +-----------+--------------------------------------------------------------------+
 | Home      |  +--------------------------------------------------------------+  |
-| Foundat. v|  | Harbor block: page title, lead, actions        [drawing]    |  |
-|  Color    |  +--------------------------------------------------------------+  |
-|  Typogr.  |                                                                    |
-| Tokens    |  content, one 960px column on reading pages                        |
+| Foundat. v|  | Harbor block: page title [Edit in Studio], lead   [drawing]  |  |
+| | Color   |  +--------------------------------------------------------------+  |
+| | Typogr. |  content, one 960px column on reading pages                        |
+| | ...     |                                                                    |
+| | All tok.|  Updated Oct 16, 2026   <> View source                            |
+| Components|  ----------------------------------------------------------------  |
+| Use     > |  Bridge, Free and open source design system, MIT   GitHub  AI  Contribute |
++-----------+--------------------------------------------------------------------+
+
+Studio (header and nav on a soft ground, white canvas)
++--------------------------------------------------------------------------------+
+| [Bridge | Studio]     [ Search tokens, components, changes ]            ◐  (F) |
++-----------+--------------------------------------------------------------------+
+| Overview  |                                                                    |
+| Tokens    |                                                                    |
 | Components|                                                                    |
-| Use     > |                                                                    |
+| Changes 3>|                                                                    |
+| Quality  >|                                                                    |
+| Settings >|                                                                    |
+| --------- |                                                                    |
+| [Library ↗ View published library]                                            |
 +-----------+--------------------------------------------------------------------+
 ```
 
-Top bar: five items at most: logo, the Library | Studio switch, search, theme, GitHub (Library) or the account
-avatar (Studio). The version chip sits next to the page title (Library header block); the branch picker sits next
-to the Studio page title; the brand and density preview switch lives in each preview toolbar (foundations pages,
-component previews); Drafts is a Studio nav entry with a badge.
+Library header, five items at most: logo, search on the true center axis, theme and GitHub (4px apart), a hairline,
+then the team entry: a quiet outline "Open Studio" for visitors; for a reader signed in with a GitHub token, "Open
+Studio" and the avatar share one pill. Studio header: "Bridge Studio" ("Studio" in Fraunces, Deep Harbor), search,
+theme, then the account (avatar, or "Connect GitHub") in the same far-right slot.
 
-Side nav: at most 7 top-level entries, no group headings, no counts (the drafts badge is the one number), two
-levels at most. A group is a button with `aria-expanded`; only the current group starts open. Deeper levels (each
-component) appear as cards on their group page, not in the nav.
+Maintainer tools appear only with a GitHub token that has write access (`<html data-maintainer>`, set by
+`scripts/maintainer.ts` and painted before first render from the last check): "Edit in Studio" right after a Library page
+title (`LibraryHeader studio=`), and "View source" in the page meta line. Visitors see neither, and nothing else moves.
 
-- Library: Home, Foundations (Color, Typography, Spacing, Radius and borders, Elevation, Accessibility), Tokens (all
-  tokens reference), Components, Use (Install, Agents, Changelog). The theme playground is gone; `/playground/`
-  redirects to the Library home.
+Page end: one quiet meta line ("Updated <date>", then "View source" opening a small popover of the source files), then
+the site footer on the content column: wordmark and "Free and open source design system, MIT" on the start side;
+GitHub, For AI agents (llms.txt) and Contribute (Storybook workbench) on the end side, underlined on hover only. The
+Studio keeps the meta line and has no site footer. The version picker sits in the Changelog header.
+
+Side nav: at most 7 top-level entries, no group headings, one count (reviews waiting, on Changes), two levels at most.
+A group is a button with `aria-expanded` and a chevron; only the current group starts open. Its pages hang off a
+hairline guide; the current page gets a Deep Harbor marker on that line. Deeper levels (each component) appear as cards
+on their group page, not in the nav.
+
+- Library: Home, Foundations (Color, Typography, Spacing, Radius and borders, Elevation, Accessibility, then slightly
+  apart All tokens), Components, Use (Install, Agents, Changelog). All tokens (`/tokens/`) is a read-only reference:
+  filter, type chips, rows with light and dark values, a side panel per token. Editing happens in Studio Tokens.
 - Studio: Overview, Tokens, Components, Changes (Drafts, Branches, Reviews, Versions), Quality (Checks, Visual impact,
-  Adoption), Settings (Repository, Governance, Integrations).
+  Adoption), Settings (Repository, Governance, Integrations). Under a divider, in its own box: "Library ↗, View published
+  library".
 
 Library home: Harbor hero (display headline, one line on what Bridge is with the current release, one primary
-action, the bridge drawing), three topic cards (Foundations, Tokens, Components) with their drawings, then what
-changed (the latest release notes, real dates).
+action, the bridge drawing), three topic cards (Foundations, All tokens, Components, with counts from the data) with
+their drawings, then what changed: one line per change (the first sentence, plain text, ellipsis), real dates, and the
+full notes on the Changelog.
 
 Studio overview: Harbor greeting ("Hello Florian." when a GitHub login is known, else "Hello."; then how many
 changes need a review and one status sentence, both from the open pull requests and their live CI and review status),
@@ -103,8 +131,9 @@ changes need a review and one status sentence, both from the open pull requests 
 failing check, add missing usage guidance); then activity (open pull requests with their status, then merged changes
 waiting for the next release).
 
-At 390px the side nav becomes a sheet behind the menu button (it also carries the space switch, theme and GitHub),
-the top bar keeps logo, search and menu, drawings move above or out of the way, nothing scrolls sideways.
+At 390px the side nav becomes a sheet behind the menu button (it also carries Theme and GitHub with their names, and
+in the Library a quiet "Maintaining Bridge? Open Studio" box), the top bar keeps logo, search and menu, drawings move
+above or out of the way, nothing scrolls sideways.
 
 ## Principles
 

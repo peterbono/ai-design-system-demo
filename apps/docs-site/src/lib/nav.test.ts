@@ -45,9 +45,23 @@ describe('navigation data', () => {
 
   it('finds the group and entry for breadcrumbs, nested pages included', () => {
     expect(locate('/foundations/accessibility/')).toMatchObject({ space: 'library', group: 'Foundations', item: { label: 'Accessibility' } });
+    expect(locate('/tokens/')).toMatchObject({ space: 'library', group: 'Foundations', item: { label: 'All tokens' } });
     expect(locate('/studio/drafts/')).toMatchObject({ space: 'studio', group: 'Changes', item: { label: 'Drafts' } });
     expect(locate('/components/button/').entry?.label).toBe('Components');
     expect(locate('/studio/settings/integrations/')).toMatchObject({ space: 'studio', group: 'Settings', item: { label: 'Integrations' } });
+  });
+});
+
+describe('navigation shape', () => {
+  it('keeps the Library to Home, Foundations, Components and Use, with All tokens last under Foundations', () => {
+    expect(navFor('library').map((e) => e.label)).toEqual(['Home', 'Foundations', 'Components', 'Use']);
+    const found = navFor('library').find((e) => e.label === 'Foundations')!.children!;
+    expect(found.at(-1)).toMatchObject({ href: '/tokens/', label: 'All tokens', apart: true });
+  });
+
+  it('shows one count in the Studio nav: reviews, on Changes', () => {
+    const counted = navFor('studio').filter((e) => e.badge);
+    expect(counted.map((e) => [e.label, e.badge])).toEqual([['Changes', 'reviews']]);
   });
 });
 
