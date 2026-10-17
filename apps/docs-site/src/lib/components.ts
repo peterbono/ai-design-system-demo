@@ -384,3 +384,14 @@ export function playgroundSpec(c: ComponentInfo): PlaygroundSpec | null {
   }
   return { component: c.name, controls, initial, children: children ?? null, native, defaults, fixed };
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// Usage guidance state, shared by Studio Components, the docs editor and Studio Quality.
+
+/** ok: written and reviewed. review: drafted (by Claude) and waiting for a reviewer. missing: no docs.json yet. */
+export type GuidanceState = 'ok' | 'review' | 'missing';
+
+export const guidanceState = (c: Pick<ComponentInfo, 'docs'>): GuidanceState => (!c.docs ? 'missing' : c.docs.needsReview ? 'review' : 'ok');
+
+/** Studio docs editor for one component (Edit docs). */
+export const docsEditHref = (slug: string) => `/studio/components/docs/?c=${encodeURIComponent(slug)}`;
