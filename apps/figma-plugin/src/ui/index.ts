@@ -734,14 +734,14 @@ function viewPush(): View {
   if (!r) {
     return {
       body: [intro({
-        title: 'Send your edits for review',
+        title: 'Push your edits for review',
         text: `Your variable edits go to ${init.settings.branch} as a pull request, never straight in.`,
         meta: `To ${init.settings.repo}, for review by design and tech owners.`,
         art: 'paint',
       }), steps([
         ['Edit in Figma', 'Change values, aliases, names or descriptions of synced variables.'],
         ['Scan', 'See each change with its swatches and the contrast it moves. Failing pairs block the push.'],
-        ['Open a pull request', `A draft on its own branch. Nothing reaches ${init.settings.branch} until owners approve.`],
+        ['Push for review', `Opens a GitHub pull request on its own branch. Nothing reaches ${init.settings.branch} until owners approve.`],
       ])],
       bar: { label: 'Scan for changes', onClick: () => scanPush() },
     };
@@ -933,7 +933,7 @@ function viewPush(): View {
     bar: nothing
       ? { label: 'Scan again', onClick: () => scanPush(r) }
       : {
-          label: r.appendToOpen && r.openPr ? `Push to pull request #${r.openPr.number}` : 'Push and open pull request',
+          label: r.appendToOpen && r.openPr ? `Push to pull request #${r.openPr.number}` : 'Push for review',
           onClick: submitPr,
           disabled: !!open || !!blocked || noFiles,
           hint,

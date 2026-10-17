@@ -121,7 +121,7 @@ prefix in its description, so you can rebind layers before deleting it yourself.
    - Changed on both sides: **conflict**, shown side by side; you pick Figma or `main` for each one.
      Nothing is overwritten silently. Without a base (first sync), every difference is a conflict.
 3. Push screen: color swatches (old and new), contrast badges per brand and theme (AAA, AA, fail),
-   plain-language guardrail messages. Blocking problems disable the **Push and open pull request**
+   plain-language guardrail messages. Blocking problems disable the **Push for review**
    button (**Push to pull request #N** when adding to your open PR).
 4. Opens the PR: one branch `tokens/<slug>-<yyyymmdd-hhmm>`, **one atomic commit** containing only
    the changed token files plus a changeset (`minor`, or `major` when a token is renamed or removed),
