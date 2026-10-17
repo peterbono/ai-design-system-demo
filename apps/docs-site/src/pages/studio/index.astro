@@ -171,12 +171,13 @@ const merged = releases()
 
     /**
      * Waiting for you: the changes where the connected viewer must act, first in the greeting. Nothing waiting: one
-     * quiet line. Without a GitHub login nobody is "you", so the greeting keeps the plain review count.
+     * quiet line. Without a GitHub login nobody is "you", so the greeting keeps the plain review count. Returns the
+     * pull requests it lists, so the next-step cards below never repeat one of them.
      */
-    function waitingForYou(open: Pull[], statuses: Map<number, PullStatus | null>, done: boolean): boolean {
+    function waitingForYou(open: Pull[], statuses: Map<number, PullStatus | null>, done: boolean): Set<number> {
       const viewer = currentViewer()?.login;
       const box = $('[data-wait-list]');
-      if (!viewer || !box) return false;
+      if (!viewer || !box) return new Set();
       // Running explorations are tried, never reviewed as is: they never wait for anyone here.
       const order = byUrgency(open.map((p) => ({ number: p.number, kind: statuses.get(p.number)?.kind ?? null, updated_at: p.updated_at }))).map((o) => o.number);
       const pool = open.filter((p) => !isRunningExploration(p as never));
@@ -191,7 +192,7 @@ const merged = releases()
         if (line) line.textContent = 'Checking what waits for you.';
         if (sentence) sentence.textContent = `${pool.length} ${pool.length === 1 ? 'change is' : 'changes are'} open.`;
         box.hidden = true;
-        return true;
+        return new Set();
       }
       if (line) line.textContent = n === 0 ? 'Nothing waits for you.' : `${wait(n)} for you.`;
       if (sentence) {
@@ -213,7 +214,7 @@ const merged = releases()
           start.textContent = 'Start reviewing';
         }
       }
-      return true;
+      return new Set(mine.slice(0, 3).map((x) => x.p.number));
     }
 
     function summarize(open: Pull[], statuses: Map<number, PullStatus | null>, done = false) {
@@ -240,10 +241,16 @@ const merged = releases()
       else sentence.textContent = 'Open each one to see its checks and approvals.';
       const first = byUrgency(open.map((p) => ({ number: p.number, kind: statuses.get(p.number)?.kind ?? null, updated_at: p.updated_at })))[0]!;
       if (start) start.href = `/studio/changes/?pr=${first.number}`;
-      waitingForYou(open, statuses, done);
+      const listed = waitingForYou(open, statuses, done);
 
-      // First suggestion: unblock a failing pull request when there is one.
-      const fail = open.find((p) => statuses.get(p.number)?.kind === 'ci-failing');
+      // First suggestion: unblock a failing pull request when there is one, unless "Waiting for you" already lists
+      // it (one change, one place). Then the card goes and the other card takes the full width.
+      const failing = open.filter((p) => statuses.get(p.number)?.kind === 'ci-failing');
+      const fail = failing.find((p) => !listed.has(p.number));
+      const card = $('[data-unblock]');
+      const repeat = !fail && failing.length > 0;
+      if (card) card.hidden = repeat;
+      $('.ov-sugg')?.classList.toggle('is-single', repeat);
       const title = $('[data-unblock-title]');
       const text = $('[data-unblock-text]');
       const cta = document.querySelector<HTMLAnchorElement>('[data-unblock-cta]');

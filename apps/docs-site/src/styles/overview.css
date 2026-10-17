@@ -68,6 +68,15 @@
   margin-top: var(--space-8);
 }
 
+/* One card left (the other change already sits in "Waiting for you"): it takes the row, no empty column. */
+.ov-sugg.is-single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.ov-sugg > [hidden] {
+  display: none;
+}
+
 .ov-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
