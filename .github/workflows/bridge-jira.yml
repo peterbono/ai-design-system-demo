@@ -1,0 +1,73 @@
+name: "Bridge: Jira sync"
+
+# Optional. Mirrors component change requests (issues labeled component-change) to Jira with your own Jira
+# credentials: Bridge has no backend. Without the JIRA_EMAIL and JIRA_API_TOKEN repository secrets, or without
+# integrations.jira in bridge.config.json, it logs one notice line and passes.
+#   opened / labeled component-change: create the Jira issue, comment "Jira: KEY-12 <url>" on the GitHub issue and
+#     label it "jira: KEY-12" (skipped when the issue already has a jira: label).
+#   closed: comment "Closed in GitHub (#n), completed" (or "not planned") on the Jira issue. No workflow
+#     transition: transition names differ per Jira site. See docs/REQUESTS.md.
+
+on:
+  issues:
+    types: [opened, labeled, closed]
+
+# One run at a time per issue: the opened and labeled events of a new request queue, and the second one sees the
+# jira: label the first one added.
+concurrency:
+  group: bridge-jira-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read # checkout: bridge.config.json and the bridge CLI
+  issues: write # the "Jira: KEY" comment and the jira: label
+
+jobs:
+  sync:
+    name: "Jira sync"
+    if: contains(github.event.issue.labels.*.name, 'component-change') && (github.event.action != 'labeled' || github.event.label.name == 'component-change')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      HAS_SECRETS: ${{ secrets.JIRA_EMAIL != '' && secrets.JIRA_API_TOKEN != '' }}
+    steps:
+      - name: "Jira sync is off: no secrets"
+        if: env.HAS_SECRETS != 'true'
+        run: echo "::notice::Bridge Jira sync is off. Add the JIRA_EMAIL and JIRA_API_TOKEN repository secrets to turn it on."
+
+      - uses: actions/checkout@v4
+        if: env.HAS_SECRETS == 'true'
+
+      - name: "Jira sync is off: no integrations.jira"
+        id: config
+        if: env.HAS_SECRETS == 'true'
+        run: |
+          node -e '
+            let jira;
+            try { jira = JSON.parse(require("fs").readFileSync("bridge.config.json", "utf8")).integrations?.jira; } catch {}
+            if (!jira) console.log("::notice::Bridge Jira sync is off. Add integrations.jira (baseUrl, project) to bridge.config.json to turn it on.");
+            require("fs").appendFileSync(process.env.GITHUB_OUTPUT, `on=${jira ? "true" : "false"}\n`);
+          '
+
+      - uses: actions/setup-node@v4
+        if: steps.config.outputs.on == 'true'
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        if: steps.config.outputs.on == 'true'
+        run: npm ci
+
+      - name: Build the bridge CLI
+        if: steps.config.outputs.on == 'true'
+        run: npm run mcp:build
+
+      # In your own repo, once @bridge-ds/cli is on npm: npx -y @bridge-ds/cli request jira-sync
+      - name: Sync the request to Jira
+        if: steps.config.outputs.on == 'true'
+        env:
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node packages/cli/dist/index.js request jira-sync

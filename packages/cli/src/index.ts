@@ -7,6 +7,7 @@ import { auditMarkdown, type AuditReport } from '@bridge-ds/core/audit';
 import { findDesignSystemRoot, fixCss, loadDesignSystem, originRepo, runAudit } from '@bridge-ds/core/node';
 import { fileURLToPath } from 'node:url';
 import { runImpact, type Only } from '@bridge-ds/visual';
+import { runRequest } from './request.js';
 import { brand, BridgeContext, CONFIG_FILE, core, detectConfig, GitRefSource, history as hist, LocalSource, ops, optionsFromArgv, serveStdio, toConfigJson, VERSION, type BridgeConfig } from '@bridge-ds/mcp';
 
 const HELP = `bridge ${VERSION}: design system as code, for you and your Claude
@@ -47,12 +48,22 @@ Usage:
                                       docs.json pre-fill from the code (props, tokens, anatomy, contrast,
                                       changelog line, missing keys) and a prompt for Claude to write the
                                       prose. --json prints { path, prefill, prompt }. Writes nothing
+  bridge request list [--status requested|in-progress|done|declined|all] [--component Button] [--json]
+  bridge request show <number> [--json]
+  bridge request implement <number> [--claude]
+                                      component change requests (GitHub issues labeled component-change):
+                                      list them, read one, print the brief to implement it (--claude starts
+                                      Claude Code with it). \`bridge request help\` for create and jira-sync
+  bridge request create --component Button --kind new-variant --title "..." --summary "..."
+                 [--change field=before:after] [--figma url] [--dry-run]
+                                      file a request as a GitHub issue (needs a GitHub token)
   bridge mcp [--root dir | --repo owner/name]   start the MCP server on stdio
 
 Options:
   --root <dir>   repo root (default: current directory)
   --ds <dir>     audit: design system repo with bridge.config.json (default: --root, or the nearest one above)
-  GITHUB_TOKEN   env, optional: lets the MCP server open PRs on a remote repo. Never needed for local use.
+  GITHUB_TOKEN   env, optional: lets the MCP server open PRs on a remote repo, and bridge request create
+                 file issues (else \`gh auth token\`). Never needed for local token work.
 `;
 
 interface Args {
@@ -68,7 +79,7 @@ function parse(argv: string[]): Args {
       const next = argv[i + 1];
       // --json and --md print to stdout, or write a file when followed by one (bridge audit).
       const fileArg = (k === 'json' && /\.json$/i.test(next ?? '')) || (k === 'md' && /\.(md|markdown)$/i.test(next ?? ''));
-      const takesValue = inline === undefined && next !== undefined && !next.startsWith('--') && (fileArg || !['force', 'json', 'md', 'strict', 'dry-run', 'help', 'fix', 'write', 'no-regress', 'plan', 'keep-unchanged', 'restore-conflicts', 'breaking'].includes(k));
+      const takesValue = inline === undefined && next !== undefined && !next.startsWith('--') && (fileArg || !['force', 'json', 'md', 'strict', 'dry-run', 'help', 'fix', 'write', 'no-regress', 'plan', 'keep-unchanged', 'restore-conflicts', 'breaking', 'claude'].includes(k));
       (out.flags[k] ??= []).push(inline ?? (takesValue ? argv[++i]! : 'true'));
     } else out._.push(a);
   }
@@ -479,6 +490,7 @@ async function main(): Promise<number> {
   const a = parse(argv);
   const cmd = a._[0];
   const root = resolve(flag(a, 'root') ?? process.cwd());
+  if (cmd === 'request') return runRequest(a, root);
   if (!cmd || has(a, 'help') || cmd === 'help') {
     print(HELP);
     return cmd ? 0 : 2;

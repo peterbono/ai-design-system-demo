@@ -7,6 +7,8 @@ import { listComponentNames } from './components.js';
 import * as ops from './ops.js';
 import * as history from './history.js';
 import * as brand from './brand.js';
+import * as requests from './requests.js';
+import { REQUEST_KINDS } from '@bridge-ds/core';
 
 export const VERSION = '0.1.0';
 
@@ -51,6 +53,7 @@ export function createServer(ctx: BridgeContext): McpServer {
         'Adding, renaming or removing a token is Tier 3: tell the user it needs design and tech owner approval.',
         'New brands: bridge_plan_brand first (dry run with ramps and the contrast gate for every theme), then bridge_propose_brand. A new brand is Tier 3.',
         'To undo a merged token change use bridge_plan_revert first (it shows conflicts with later changes), then bridge_propose_revert; never revert by hand-editing files.',
+        'Component changes (new component, variant, prop, structure, visual, token binding) are requests: GitHub issues labeled component-change. bridge_list_requests finds them, bridge_get_request returns a brief to implement one in a pull request that says "Closes #n", bridge_create_request files a new one.',
       ].join(' '),
     },
   );
@@ -421,6 +424,59 @@ export function createServer(ctx: BridgeContext): McpServer {
       annotations: RO,
     },
     run((a) => ops.auditOp(ctx, a)),
+  );
+
+  // --- component change requests ---
+  const KindArg = z.enum(REQUEST_KINDS.map((k) => k.value) as [string, ...string[]]);
+  server.registerTool(
+    'bridge_list_requests',
+    {
+      title: 'List component change requests',
+      description:
+        'Component change requests: GitHub issues labeled component-change (from Figma, Bridge Studio, the CLI or Claude). Each row has the number, component, kind, title, status (requested: open, no pull request; in-progress: an open pull request says "Closes #n"; done: closed as completed or by a merged pull request; declined: closed otherwise), url and linked pull requests.',
+      inputSchema: {
+        status: z.enum(['requested', 'in-progress', 'done', 'declined', 'all']).optional().describe('Default all.'),
+        component: z.string().optional().describe('Only requests for this component, e.g. Button.'),
+        limit: z.number().int().min(1).max(100).optional().describe('Default 100.'),
+      },
+      annotations: { readOnlyHint: true, openWorldHint: true },
+    },
+    run((a) => requests.listRequests(ctx, a)),
+  );
+
+  server.registerTool(
+    'bridge_get_request',
+    {
+      title: 'Get a component change request',
+      description:
+        'One request, ready to implement: the parsed request (component, kind, summary, changes asked, Figma link, images), its status and linked pull requests, the component files found under the components directory, the agent rules file, and `brief`: the prompt to implement it in this repo. Then work on a branch named agent/request-<n> and open a pull request whose body says "Closes #<n>". If the request is unclear, comment on the issue instead of guessing.',
+      inputSchema: { number: z.number().int().positive().describe('Issue number.') },
+      annotations: { readOnlyHint: true, openWorldHint: true },
+    },
+    run((a) => requests.getRequest(ctx, a)),
+  );
+
+  server.registerTool(
+    'bridge_create_request',
+    {
+      title: 'Create a component change request',
+      description:
+        'File a component change request as a GitHub issue labeled component-change (source: mcp), in the same format as Figma and Bridge Studio requests. Use it for component work (new component, variant, prop, structure, visual, token binding, bug) that someone should implement in code; token value changes go through bridge_propose_token_change instead. Needs GITHUB_TOKEN with issues write. dryRun returns the issue without creating it. Only create one when the user asked for it.',
+      inputSchema: {
+        component: z.string().min(1).describe('Component name as exported (Button), or the proposed name of a new component.'),
+        kind: KindArg.describe(REQUEST_KINDS.map((k) => `${k.value}: ${k.hint}`).join(' ')),
+        title: z.string().min(3).describe('One line, sentence case: "Add a danger ghost variant".'),
+        summary: z.string().min(1).describe('What should change and why, in plain sentences. No em dash.'),
+        changes: z
+          .array(z.object({ field: z.string().min(1).describe('A prop, variant axis, token or part: "size", "radius", "color.action.primary.bg".'), before: z.string().optional(), after: z.string().optional() }))
+          .optional()
+          .describe('What changes, from what to what.'),
+        figmaUrl: z.string().url().optional().describe('Link to the design in Figma, when there is one.'),
+        dryRun: z.boolean().optional().describe('Return the issue title, body and labels without creating it.'),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    },
+    run((a) => requests.createRequest(ctx, { ...a, kind: a.kind as requests.CreateRequestInput['kind'], source: 'mcp' })),
   );
 
   // --- resources ---

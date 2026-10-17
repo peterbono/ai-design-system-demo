@@ -70,6 +70,8 @@ export interface PullRequestSummary {
   labels: string[];
   url: string;
   updatedAt: string;
+  /** Description, when the list endpoint returns it (component change requests read "Closes #n" from it). */
+  body?: string | undefined;
 }
 
 export interface ClientOptions {
@@ -617,6 +619,7 @@ function toSummary(r: Record<string, any>): PullRequestSummary & PullRequest {
     labels: (r.labels ?? []).map((l: { name: string }) => l.name),
     url: r.html_url,
     updatedAt: r.updated_at,
+    ...(typeof r.body === 'string' ? { body: r.body } : {}),
   };
 }
 

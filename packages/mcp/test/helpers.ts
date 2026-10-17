@@ -61,6 +61,10 @@ export function fakeGitHub(owner: string, repo: string, initial: Record<string, 
   refs.set('main', root);
   const pulls: Record<string, any>[] = [];
   const reviews = new Map<number, Record<string, any>[]>();
+  // Issues share GitHub's numbering with pull requests; here they start at 100 so tests read clearly.
+  const issues: Record<string, any>[] = [];
+  const comments = new Map<number, string[]>();
+  const issueAt = (k: number) => issues.find((i) => i.number === k);
   const log: { method: string; path: string; body?: any }[] = [];
 
   const resolveRef = (ref: string) => refs.get(ref) ?? (commits.has(ref) ? ref : undefined);
@@ -154,6 +158,32 @@ export function fakeGitHub(owner: string, repo: string, initial: Record<string, 
       reviews.set(k, [...(reviews.get(k) ?? []), r]);
       return json(200, r);
     }
+    if (method === 'POST' && path === '/issues') {
+      const number = 100 + issues.length;
+      const issue = { number, title: body.title, body: body.body, state: 'open', state_reason: null, labels: (body.labels ?? []).map((name: string) => ({ name })), assignees: body.assignees ?? [], user: { login: 'agent' }, html_url: `https://github.com/${owner}/${repo}/issues/${number}`, created_at: '2026-10-16T00:00:00Z', updated_at: '2026-10-16T00:00:00Z' };
+      issues.push(issue);
+      return json(201, issue);
+    }
+    if (method === 'GET' && path === '/issues') {
+      const state = u.searchParams.get('state') ?? 'open';
+      const label = u.searchParams.get('labels');
+      const list = issues.filter((i) => (state === 'all' || i.state === state) && (!label || i.labels.some((l: any) => l.name === label)));
+      return json(200, [...list].reverse());
+    }
+    if (method === 'GET' && (m = /^\/issues\/(\d+)$/.exec(path))) {
+      const issue = issueAt(Number(m[1]));
+      return issue ? json(200, issue) : json(404, { message: 'Not Found' });
+    }
+    if (method === 'POST' && (m = /^\/issues\/(\d+)\/comments$/.exec(path))) {
+      const k = Number(m[1]);
+      comments.set(k, [...(comments.get(k) ?? []), body.body]);
+      return json(201, { id: 1, body: body.body });
+    }
+    if ((m = /^\/issues\/(\d+)\/labels$/.exec(path)) && method === 'POST' && issueAt(Number(m[1]))) {
+      const issue = issueAt(Number(m[1]))!;
+      for (const name of body.labels) if (!issue.labels.some((l: any) => l.name === name)) issue.labels.push({ name });
+      return json(200, issue.labels);
+    }
     if ((m = /^\/issues\/(\d+)\/labels$/.exec(path)) && method === 'POST') {
       const pr = pulls[Number(m[1]) - 1]!;
       pr.labels = body.labels.map((name: string) => ({ name }));
@@ -161,5 +191,5 @@ export function fakeGitHub(owner: string, repo: string, initial: Record<string, 
     }
     return json(404, { message: `fake GitHub: no route ${method} ${path}` });
   };
-  return { fetch: f as typeof fetch, refs, commits, pulls, reviews, log, fileAt: (ref: string, p: string) => commits.get(resolveRef(ref)!)?.files.get(p) };
+  return { fetch: f as typeof fetch, refs, commits, pulls, reviews, issues, comments, log, fileAt: (ref: string, p: string) => commits.get(resolveRef(ref)!)?.files.get(p) };
 }
