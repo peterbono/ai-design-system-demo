@@ -1,4 +1,4 @@
-// Studio Components controller: filter the list (text, family chip, "need usage guidance"), move between rows with
+// Studio Components controller: filter the list (text, family menu, "need usage guidance"), move between rows with
 // the arrow keys (the list is one tab stop), and open a row's detail drawer. Deep links: ?c=<slug> opens that
 // component's drawer (the Library "Edit in Studio" door), ?guidance=needed shows only what needs guidance.
 
@@ -7,7 +7,7 @@ export function initComponentsStudio() {
   if (!root || root.dataset.ready) return;
   root.dataset.ready = '';
   const q = root.querySelector<HTMLInputElement>('[data-cm-q]');
-  const chips = [...root.querySelectorAll<HTMLButtonElement>('[data-cm-fam]')];
+  const famSelect = root.querySelector<HTMLSelectElement>('[data-cm-fam]');
   const guidanceBtn = root.querySelector<HTMLButtonElement>('[data-cm-guidance]');
   const rows = [...root.querySelectorAll<HTMLTableRowElement>('[data-cm-row]')];
   const bodies = [...root.querySelectorAll<HTMLElement>('[data-cm-family]')];
@@ -44,7 +44,7 @@ export function initComponentsStudio() {
       r.hidden = !hit;
     }
     for (const b of bodies) b.hidden = !b.querySelector('[data-cm-row]:not([hidden])');
-    chips.forEach((c) => c.setAttribute('aria-pressed', String((c.dataset.cmFam ?? '') === family)));
+    if (famSelect) famSelect.value = family;
     guidanceBtn?.setAttribute('aria-pressed', String(onlyGuidance));
     const shown = visibleRows();
     if (none) none.hidden = shown.length > 0;
@@ -110,12 +110,10 @@ export function initComponentsStudio() {
   });
 
   q?.addEventListener('input', apply);
-  chips.forEach((c) =>
-    c.addEventListener('click', () => {
-      family = c.dataset.cmFam ?? '';
-      apply();
-    }),
-  );
+  famSelect?.addEventListener('change', () => {
+    family = famSelect.value;
+    apply();
+  });
   guidanceBtn?.addEventListener('click', () => {
     onlyGuidance = !onlyGuidance;
     apply();
