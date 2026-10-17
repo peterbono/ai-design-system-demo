@@ -15,7 +15,7 @@ import type { Issue } from '@bridge-ds/core';
 import { formatValue, isAlias, parseColor, rgbaToHex } from '@bridge-ds/core';
 import { type ContrastResult, contextLabel, pairKey } from '@bridge-ds/core';
 import { type ApplyReport, type FigmaSnapshot, type InitPayload, type RepoSettings, modeDisplayName } from '../shared/messages';
-import { REQUEST_KINDS, type RequestKind, draftPushDescription, pushChangeRows } from '@bridge-ds/core';
+import { REQUEST_KINDS, type RequestKind, draftPushDescription, pushChangeRows, shortVariants } from '@bridge-ds/core';
 import { type ComponentChangeItem, type ComponentScan, type RequestDraft, classifyComponents, pullBaselines, suggestLine, suggestSummary, suggestTitle, toRequest } from '../sync/components';
 import { CLAUDE_MODELS, type ClaudeDraft, type ClaudeDraftInput, ClaudeDraftError, DRAFTED_NOTE, draftWithClaude } from '../sync/claude';
 import { loadCodedComponents, sendComponentRequest } from '../sync/requests';
@@ -23,7 +23,8 @@ import { DRAFT_PHRASE, type DraftField, DraftPoller, type MyClaudeTarget, finish
 import { type ComponentApplyReport, type ComponentPullPlan, type PlannedComponent, buildComponentPlan, loadComponentSpecs } from '../sync/component-pull';
 import { type ComponentReview, onlyComponent, reviewUpdates } from '../sync/component-review';
 import type { ComponentSignature } from '../sync/components';
-import { type PublishItem, type PublishResult, componentKey, defaultUnchecked, experimentalTokenIds, groupState, heldTokenIds, isChecked, publish, publishItems, setGroup, variableIdsOf, variableKey } from '../sync/publish';
+import { type Destination, type PublishItem, type PublishResult, applyDestination, componentKey, defaultUnchecked, experimentalTokenIds, groupState, heldTokenIds, isChecked, publish, publishItems, setGroup, variableIdsOf, variableKey } from '../sync/publish';
+import { type ExplorationChoice, newExplorationProblems, runningExplorations, startExploration, targetOf } from '../sync/explorations';
 import { type Selection, onProgress, onSelection, request } from './bridge';
 import { type Child, h } from './dom';
 import { icon } from './icons';
@@ -94,6 +95,17 @@ interface PushState {
   /** Who wrote the pull request title (Claude fills it only when the designer has not typed one). */
   titleSource: TextSource;
   assist: AssistState;
+  /** Where the push goes: for review (default) or to an exploration. */
+  destination: Destination;
+  /** Running explorations, loaded when the designer picks "Try in an exploration". */
+  explorations?: ExplorationChoice[] | undefined;
+  explorationsError?: string | undefined;
+  loadingExplorations?: boolean | undefined;
+  /** The exploration to send to: its branch, or "new" to start one. */
+  exploreTarget: string;
+  newExploration: { name: string; purpose: string };
+  /** The exploration the last push went to (result screen). */
+  sentTo?: ExplorationChoice | undefined;
   /**
    * Change lines and request titles Claude wrote, by component node id, with the changes they describe (a new scan
    * may change them).
@@ -618,7 +630,7 @@ function applyPull(): void {
   );
 }
 
-function scanPush(keep?: PushState): void {
+function scanPush(keep?: PushState, then?: () => void): void {
   // A fresh scan starts over: the previous Push description and request form stop waiting for Claude.
   if (!keep && state.push) {
     cancelMine(state.push.assist, false);
@@ -651,8 +663,9 @@ function scanPush(keep?: PushState): void {
       const items = publishItems(analysis, experimental, components?.changed ?? []);
       // A new scan starts like Figma's publish dialog: everything checked but experimental items. A re-scan from this
       // screen (a confirmed rename, a new mark) keeps what the designer unchecked.
-      const unchecked = keep ? new Set([...keep.unchecked].filter((k) => items.some((i) => i.key === k))) : defaultUnchecked(items);
-      if (keep) for (const i of items) if (i.experimental && !keep.items.some((x) => x.key === i.key && x.experimental)) unchecked.add(i.key);
+      const destination = keep?.destination ?? 'review';
+      const unchecked = keep ? new Set([...keep.unchecked].filter((k) => items.some((i) => i.key === k))) : defaultUnchecked(items, destination);
+      if (keep && destination === 'review') for (const i of items) if (i.experimental && !keep.items.some((x) => x.key === i.key && x.experimental)) unchecked.add(i.key);
       // A change that showed up with this re-scan starts like on a first scan (an optional part already covers it).
       if (keep) for (const i of items) if (i.suggestSkip && !keep.items.some((x) => x.key === i.key)) unchecked.add(i.key);
       state.push = {
@@ -672,6 +685,10 @@ function scanPush(keep?: PushState): void {
         titleSource: keep?.titleSource ?? 'draft',
         assist: keep?.assist ?? { pasteText: '' },
         lines: keep?.lines ?? new Map(),
+        destination,
+        explorations: keep?.explorations,
+        exploreTarget: keep?.exploreTarget ?? '',
+        newExploration: keep?.newExploration ?? { name: '', purpose: '' },
         openPr,
         appendToOpen: keep?.appendToOpen ?? !!openPr,
         components,
@@ -681,19 +698,71 @@ function scanPush(keep?: PushState): void {
       };
       if (state.push.descriptionSource === 'draft') state.push.description = pushDraft(state.push);
       state.expanded.clear();
+      then?.();
     },
-    () => scanPush(keep),
+    () => scanPush(keep, then),
   );
 }
 
-/** "Push for review": the pull request for the checked variables, then one request per checked component change. */
+/** The exploration a push to an exploration goes to, or undefined while none is picked. */
+const pickedExploration = (r: PushState) => r.explorations?.find((e) => e.branch === r.exploreTarget);
+
+/** Why "Send to exploration" cannot go yet: no exploration picked, or the new one needs a name and a purpose. */
+function explorationBlocker(r: PushState): string | undefined {
+  if (r.destination !== 'exploration') return undefined;
+  if (r.loadingExplorations) return 'Loading explorations';
+  if (r.exploreTarget === 'new') return newExplorationProblems(r.newExploration.name, r.newExploration.purpose).length ? 'Name the exploration and say what to learn' : undefined;
+  return pickedExploration(r) ? undefined : 'Pick an exploration';
+}
+
+/** "Send for review" or "Try in an exploration": experimental items follow the destination's default. */
+function setDestination(r: PushState, d: Destination): void {
+  if (r.destination === d) return;
+  r.destination = d;
+  applyDestination(r.items, r.unchecked, d);
+  if (d === 'exploration' && !r.explorations && !r.loadingExplorations) void loadExplorations(r);
+  refreshProposals();
+}
+
+/** Running explorations for the select, without blocking the screen (a small status in the field). */
+async function loadExplorations(r: PushState): Promise<void> {
+  r.loadingExplorations = true;
+  r.explorationsError = undefined;
+  render();
+  try {
+    r.explorations = await runningExplorations(getClient(), r.analysis.headFiles.config, state.init!.settings.branch);
+    if (!r.exploreTarget || (r.exploreTarget !== 'new' && !pickedExploration(r))) r.exploreTarget = r.explorations[0]?.branch ?? 'new';
+  } catch (err) {
+    r.explorationsError = err instanceof Error ? err.message : String(err);
+    r.exploreTarget = 'new';
+  } finally {
+    r.loadingExplorations = false;
+    render();
+  }
+}
+
+/** The bar's primary action: for review (a pull request and requests), or to the exploration picked. */
 function submitPush(): void {
   const r = state.push;
   if (!r) return;
   const withPr = Object.keys(r.proposal.files).length + r.proposal.brandFiles.length > 0;
+  const toExploration = r.destination === 'exploration';
   void run(
-    withPr ? (r.appendToOpen && r.openPr ? 'Adding a commit to the pull request' : 'Opening the pull request') : 'Sending the requests',
+    toExploration ? (r.exploreTarget === 'new' ? 'Starting the exploration' : 'Sending to the exploration') : withPr ? (r.appendToOpen && r.openPr ? 'Adding a commit to the pull request' : 'Opening the pull request') : 'Sending the requests',
     async () => {
+      let exploration: ExplorationChoice | undefined;
+      if (toExploration) {
+        exploration = pickedExploration(r);
+        if (r.exploreTarget === 'new') {
+          exploration = await startExploration(getClient(), r.analysis.headFiles.config, state.init!.settings.branch, r.newExploration);
+          r.explorations = [exploration, ...(r.explorations ?? [])];
+          r.exploreTarget = exploration.branch;
+          r.newExploration = { name: '', purpose: '' };
+          state.busy = 'Sending to the exploration';
+          render();
+        }
+        if (!exploration) throw new Error('Pick an exploration, or start a new one.');
+      }
       const result = await publish(getClient(), {
         analysis: r.analysis,
         proposal: r.proposal,
@@ -706,16 +775,19 @@ function submitPush(): void {
         title: r.title,
         fileName: state.init!.fileName,
         fileKey: r.fileKey,
-        appendTo: r.appendToOpen ? r.openPr : undefined,
+        appendTo: !toExploration && r.appendToOpen ? r.openPr : undefined,
+        exploration: exploration ? targetOf(exploration) : undefined,
         coded: r.components?.coded ?? [],
         image: async (nodeId) => (await request('export-image', { nodeId }).catch(() => null))?.base64,
       });
       r.result = result;
+      r.sentTo = exploration;
       cancelMine(r.assist, false);
       // What was sent exists now; local bookkeeping failures must not hide that.
       try {
         if (result.pr?.tags.length) await request('tag-variables', { tags: result.pr.tags });
-        if (result.pr) await request('save-sync', { sync: { lastPrBranch: result.pr.branch, lastPrUrl: result.pr.pr.url } });
+        // "Add to open pull request" follows review pull requests only; an exploration is picked in its own select.
+        if (result.pr && !exploration) await request('save-sync', { sync: { lastPrBranch: result.pr.branch, lastPrUrl: result.pr.pr.url } });
         // A request is the new reference for its component: the next scan compares against what was asked for.
         for (const x of result.requests) await request('rebaseline', { nodeId: x.nodeId }).catch(() => undefined);
         for (const x of result.requests) r.sent.unshift({ component: x.component, number: x.number, url: x.url });
@@ -723,7 +795,9 @@ function submitPush(): void {
       } catch (err) {
         state.error = { message: `Sent, but saving the links in this file failed: ${err instanceof Error ? err.message : String(err)}` };
       }
-      const parts = [result.pr ? `Pull request #${result.pr.pr.number} ${result.pr.appended ? 'updated' : 'opened'}` : '', result.requests.length ? `${plural(result.requests.length, 'request')} opened` : ''].filter(Boolean);
+      const parts = exploration
+        ? [`Sent to ${exploration.name}`]
+        : [result.pr ? `Pull request #${result.pr.pr.number} ${result.pr.appended ? 'updated' : 'opened'}` : '', result.requests.length ? `${plural(result.requests.length, 'request')} opened` : ''].filter(Boolean);
       void request('notify', { message: parts.join(', ') });
     },
     submitPush,
@@ -733,12 +807,13 @@ function submitPush(): void {
 /** Marks items "Experimental" (or clears the mark) on the variables or component sets, then re-scans keeping choices. */
 function markExperimental(r: PushState, item: PublishItem, value: boolean): void {
   void run(
-    value ? 'Marking as experimental' : 'Removing the experimental mark',
+    value ? 'Marking as exploration only' : 'Removing exploration only',
     async () => {
       const targets = item.kind === 'variable' ? variableIdsOf(r.analysis, item.id).map((id) => ({ kind: 'variable' as const, id })) : [{ kind: 'component' as const, id: item.id }];
       await request('set-experimental', { targets, value });
-      // Marking unchecks it, like Figma's "Hide when publishing"; removing the mark leaves the choice to the designer.
-      if (value) r.unchecked.add(item.key);
+      // Marking unchecks it for review, like Figma's "Hide when publishing", and checks it for an exploration (what it is
+      // for); removing the mark leaves the choice to the designer.
+      if (value) (r.destination === 'review' ? r.unchecked.add(item.key) : r.unchecked.delete(item.key));
       if (item.kind === 'variable') (value ? r.experimental.add(item.id) : r.experimental.delete(item.id));
       item.experimental = value;
       const comp = r.components?.changed.find((c) => c.nodeId === item.id);
@@ -1239,7 +1314,7 @@ function saveClaude(): void {
       await request('save-claude', { key: key || undefined, model: state.init!.claude.model });
       state.claudeKeyDraft = '';
       await loadInit();
-      state.claudeMessage = { kind: 'ok', text: key ? 'Key saved on this computer only. "Draft with Claude (API key)" now shows on requests and on the Push description.' : 'Claude settings saved.' };
+      state.claudeMessage = { kind: 'ok', text: key ? 'Key saved on this computer only. "Draft with Claude (API key)" now shows on requests and on the message to the team.' : 'Claude settings saved.' };
     } catch (err) {
       state.claudeMessage = { kind: 'error', text: err instanceof Error ? err.message : String(err) };
     }
@@ -1626,8 +1701,10 @@ function sendRequest(r: PushState): void {
       const sel = !f.item && f.attach ? state.selection : null;
       const draft = sel ? { ...d, nodeId: sel.nodeId, nodeName: sel.name } : f.item ? d : { ...d, nodeId: undefined, nodeName: undefined };
       const coded = (r.components?.coded ?? []).includes(d.component.trim());
+      // Sent on its own while the destination is an exploration: the request is built there too.
+      const exploration = r.destination === 'exploration' ? pickedExploration(r) : undefined;
       const res = await sendComponentRequest(getClient(), {
-        request: toRequest(draft, { fileKey: r.fileKey }),
+        request: { ...toRequest(draft, { fileKey: r.fileKey }), ...(exploration ? { exploration: exploration.branch } : {}) },
         images,
         baseBranch: state.init!.settings.branch,
         config: a.headFiles.config,
@@ -1667,20 +1744,67 @@ function changeTable(changes: { field: string; before?: string | undefined; afte
   );
 }
 
+/** One concrete change of a component (a variant axis, a prop, a token binding) as label, before and after chips. */
+interface ChipLine {
+  label: string;
+  where?: string | undefined;
+  before: string[];
+  after: string[];
+}
+
 /**
- * The body of a component change row: one sentence of what changed (Claude's line, or the drafted one), then the
- * detected changes behind a small "Details" disclosure (progressive disclosure).
+ * The concrete changes of a component row, the way variable rows show values: "Tone  primary, secondary -> + danger",
+ * "Fill  color.bg.default -> color.bg.raised". Visual and structure changes have none: their sentence and the attached
+ * image say it, and the full table goes into the GitHub issue.
  */
-function changeSummary(line: string, changes: { field: string; before?: string | undefined; after?: string | undefined }[], key: string, note?: Child): Child[] {
+function chipLines(changes: { field: string; before?: string | undefined; after?: string | undefined }[]): ChipLine[] {
+  const out: ChipLine[] = [];
+  const list = (v: string | undefined) => (v ?? '').split(', ').map((x) => x.trim()).filter(Boolean);
+  for (const c of changes) {
+    let m: RegExpExecArray | null;
+    if ((m = /^Variant (.+)$/.exec(c.field))) {
+      const before = list(c.before);
+      const after = list(c.after);
+      const added = after.filter((x) => !before.includes(x)).map((x) => `+ ${x}`);
+      const removed = before.filter((x) => !after.includes(x)).map((x) => `\u2212 ${x}`);
+      out.push({ label: m[1]!, before: before.length ? [before.join(', ')] : [], after: before.length ? [...added, ...removed] : [after.join(', ')] });
+    } else if ((m = /^Prop (.+)$/.exec(c.field))) {
+      out.push({ label: m[1]!, before: c.before ? [c.before] : [], after: c.after ? [c.after] : ['removed'] });
+    } else if (/^(Look of |Swapped instance|New layer |Removed layer |Moved layer )/.test(c.field)) {
+      continue;
+    } else {
+      m = /^(.*?)(?: \((.*)\))?$/.exec(c.field)!;
+      out.push({ label: m[1]!, ...(m[2] ? { where: shortVariants(m[2]) } : {}), before: c.before ? [c.before] : [], after: [c.after || 'none'] });
+    }
+  }
+  return out;
+}
+
+const CHIP_LINES = 4;
+
+/**
+ * The body of a component change row: one sentence of what changed (Claude's line, or the drafted one), an optional
+ * note, then only for concrete changes a compact before and after with value chips. No table here: a change reads once.
+ */
+function changeSummary(line: string, changes: { field: string; before?: string | undefined; after?: string | undefined }[], note?: Child): Child[] {
+  const chips = chipLines(changes);
+  const chip = (text: string, dim: boolean) => h('span', { class: `value${dim ? ' before' : ''}` }, h('span', { class: 'value-name' }, text));
   return [
     line ? h('p', { class: 'row-line' }, line) : null,
     note ?? null,
-    changes.length
+    chips.length
       ? h(
-          'details',
-          { class: 'row-details', open: state.expanded.has(key) },
-          h('summary', { 'data-focus-id': key, onClick: (e: Event) => { e.preventDefault(); state.expanded.has(key) ? state.expanded.delete(key) : state.expanded.add(key); render(); } }, 'Details'),
-          changeTable(changes),
+          'div',
+          { class: 'chip-lines' },
+          chips.slice(0, CHIP_LINES).map((x) =>
+            h(
+              'div',
+              { class: 'chip-line' },
+              h('span', { class: 'mode-name' }, x.label, x.where ? h('small', null, ` ${x.where}`) : null),
+              h('span', { class: 'change' }, x.before.map((b) => chip(b, true)), x.before.length && x.after.length ? icon('arrow') : null, x.after.map((a) => chip(a, false))),
+            ),
+          ),
+          chips.length > CHIP_LINES ? h('small', { class: 'muted' }, `${plural(chips.length - CHIP_LINES, 'more change')} in the request`) : null,
         )
       : null,
   ];
@@ -1816,7 +1940,7 @@ function componentRow(r: PushState, item: ComponentChangeItem, action: string, e
       h('span', { class: `kind ${item.kind === 'new-component' ? 'added' : ''}` }, kindName(item.kind)),
       edge ? edge.tail : open ? null : h('button', { class: 'btn ghost row-action', 'data-focus-id': `req-${item.nodeId}`, onClick: () => openForm(r, item) }, action),
     ),
-    changeSummary(lineOf(r, item), item.changes, `details-${item.nodeId}`, equivalentHint(r, item)),
+    changeSummary(lineOf(r, item), item.changes, equivalentHint(r, item)),
     open ? requestFormView(r, r.form!) : null,
   );
 }
@@ -1843,17 +1967,15 @@ function selectBox(r: PushState, item: PublishItem | undefined, name: string): C
   });
 }
 
-/** Neutral tag plus the row menu ("Mark as experimental", like Figma's "Hide when publishing"). */
+/**
+ * Neutral tag plus the row menu. "Exploration only" (the experimental mark, like Figma's "Hide when publishing") is a
+ * checkable item with one line that says what it does; "Edit the request" opens the request form of a component.
+ */
 function rowTail(r: PushState, item: PublishItem | undefined, name: string, extra: { label: string; onClick: () => void }[] = []): Child {
   if (!item) return null;
-  const actions = [
-    item.experimental
-      ? { label: 'Remove experimental mark', onClick: () => markExperimental(r, item, false) }
-      : { label: 'Mark as experimental', onClick: () => markExperimental(r, item, true) },
-    ...extra,
-  ];
+  const close = (e: Event) => (e.currentTarget as HTMLElement).closest('details')?.removeAttribute('open');
   return [
-    item.experimental ? h('span', { class: 'tag', title: 'Unchecked by default on every push. You can still check it.' }, 'Experimental') : null,
+    item.experimental ? h('span', { class: 'tag', title: 'Never sent for review. Goes to explorations only.' }, 'Exploration only') : null,
     h(
       'details',
       { class: 'row-menu' },
@@ -1861,7 +1983,13 @@ function rowTail(r: PushState, item: PublishItem | undefined, name: string, extr
       h(
         'div',
         { class: 'menu', role: 'menu' },
-        actions.map((x) => h('button', { class: 'menu-item', role: 'menuitem', onClick: (e: Event) => { (e.currentTarget as HTMLElement).closest('details')?.removeAttribute('open'); x.onClick(); } }, x.label)),
+        h(
+          'button',
+          { class: 'menu-item two-line', role: 'menuitemcheckbox', 'aria-checked': item.experimental ? 'true' : 'false', onClick: (e: Event) => { close(e); markExperimental(r, item, !item.experimental); } },
+          h('span', { class: 'menu-check', 'aria-hidden': 'true' }, item.experimental ? icon('check') : null),
+          h('span', { class: 'menu-text' }, h('span', null, 'Exploration only'), h('small', null, 'Never sent for review. Goes to explorations only.')),
+        ),
+        extra.map((x) => h('button', { class: 'menu-item', role: 'menuitem', onClick: (e: Event) => { close(e); x.onClick(); } }, h('span', { class: 'menu-check', 'aria-hidden': 'true' }), x.label)),
       ),
     ),
   ];
@@ -1908,7 +2036,8 @@ function variablesGroup(r: PushState): Child {
     });
   });
   if (!rows.length) return null;
-  return changeGroup(r, 'variable', 'Variables', `Checked edits go into one pull request. Unchecked ones stay in Figma for a later push.`, rows, 'push-local');
+  const lede = r.destination === 'exploration' ? 'Checked edits go into the exploration. Unchecked ones stay in Figma.' : 'Checked edits go together for review. Unchecked ones stay in Figma for later.';
+  return changeGroup(r, 'variable', 'Variables', lede, rows, 'push-local');
 }
 
 function componentChangesGroup(r: PushState): Child {
@@ -1918,35 +2047,22 @@ function componentChangesGroup(r: PushState): Child {
     const pi = itemOf(r, componentKey(item.nodeId));
     return componentRow(r, item, '', {
       lead: selectBox(r, pi, item.component),
-      tail: r.form?.key === item.nodeId ? null : rowTail(r, pi, item.component, [{ label: 'Edit and send on its own', onClick: () => openForm(r, item) }]),
+      tail: r.form?.key === item.nodeId ? null : rowTail(r, pi, item.component, [{ label: 'Edit the request', onClick: () => openForm(r, item) }]),
     });
   });
-  return changeGroup(r, 'component', 'Components', 'Each becomes a request for the team.', rows, 'push-components');
+  return changeGroup(r, 'component', 'Components', r.destination === 'exploration' ? 'Each becomes a request to build in the exploration.' : 'Each becomes a request for the team.', rows, 'push-components');
 }
 
-/** Requests that are not part of the push: sent ones, the manual request, components not in the design system yet. */
-function requestsSection(r: PushState): Child {
+/** What the component scan says besides the changes: read errors, Figma-only changes, components not in code yet. */
+function componentNotes(r: PushState): Child[] {
   const scan = r.components;
   const candidates = scan?.candidates ?? [];
-  const manualOpen = r.form?.key === 'manual';
-  const content: Child[] = [];
-  if (r.componentsError) content.push(h('div', { class: 'callout warn' }, h('div', { class: 'callout-title' }, icon('alert'), 'Components could not be read'), h('p', null, r.componentsError)));
-  for (const s of r.sent) {
-    content.push(
-      h(
-        'div',
-        { class: 'callout ok', role: 'status' },
-        h('div', { class: 'callout-title' }, icon('check'), `Request #${s.number} opened for ${s.component}`),
-        h('div', { class: 'inline-actions' }, h('button', { class: 'btn', onClick: () => void request('open-url', { url: s.url }) }, icon('external'), 'Open on GitHub')),
-      ),
-    );
-  }
-  if (manualOpen) content.push(h('div', { class: 'rows manual' }, h('div', { class: 'row' }, h('div', { class: 'row-head' }, h('span', { class: 'kind' }, 'Manual'), h('span', { class: 'comp-name' }, 'Request a component change')), requestFormView(r, r.form!))));
-  if (scan && !scan.changed.length) content.push(h('p', { class: 'muted' }, scan.figmaOnly.length ? 'Figma-only component changes, nothing to send.' : 'No component changes to request.'));
-  if (scan?.figmaOnly.length) content.push(h('p', { class: 'muted' }, `Layers or auto layout changed in ${scan.figmaOnly.join(', ')}, with the same props, variants, tokens and look. That stays in Figma.`));
-  if (scan?.explained.length) content.push(h('p', { class: 'muted' }, `${scan.explained.join(', ')} look${scan.explained.length === 1 ? 's' : ''} different because of variable edits. Those go in the variables pull request, not in a request.`));
+  const out: Child[] = [];
+  if (r.componentsError) out.push(h('div', { class: 'callout warn' }, h('div', { class: 'callout-title' }, icon('alert'), 'Components could not be read'), h('p', null, r.componentsError)));
+  if (scan?.figmaOnly.length) out.push(h('p', { class: 'muted' }, `Layers or auto layout changed in ${scan.figmaOnly.join(', ')}, with the same props, variants, tokens and look. That stays in Figma.`));
+  if (scan?.explained.length) out.push(h('p', { class: 'muted' }, `${scan.explained.join(', ')} look${scan.explained.length === 1 ? 's' : ''} different because of variable edits. Those go with the variables, not in a request.`));
   if (candidates.length) {
-    content.push(
+    out.push(
       h(
         'details',
         { class: 'notes candidates', open: candidates.some((c) => r.form?.key === c.nodeId) },
@@ -1956,18 +2072,141 @@ function requestsSection(r: PushState): Child {
       ),
     );
   }
-  return h(
-    'section',
-    { class: 'group components' },
+  return out;
+}
+
+/** Requests sent from this screen, one status line each with its link. */
+function sentNotes(r: PushState): Child[] {
+  return r.sent.map((s) =>
     h(
       'div',
-      { class: 'group-head' },
-      h('h2', null, 'Requests'),
-      manualOpen ? null : h('button', { class: 'btn ghost', 'data-focus-id': 'req-manual', onClick: () => openForm(r, undefined) }, 'Request a component change'),
+      { class: 'callout ok', role: 'status' },
+      h('div', { class: 'callout-title' }, icon('check'), `Request #${s.number} opened for ${s.component}`, h('button', { class: 'btn ghost callout-action', onClick: () => void request('open-url', { url: s.url }) }, 'Open on GitHub')),
     ),
-    h('p', { class: 'lede' }, 'For what the scan cannot see: behavior, a bug, an idea, or a component that is not in code yet.'),
-    content,
   );
+}
+
+/**
+ * The quiet way to a request the scan cannot see, at the very bottom: muted text and one link action (secondary,
+ * figure and ground). Once opened, the manual request form takes its place in its own region, with its own primary.
+ */
+function requestLine(r: PushState | undefined): HTMLElement {
+  if (r?.form?.key === 'manual') {
+    return h(
+      'section',
+      { class: 'manual-request', 'aria-label': 'Request a component change' },
+      h('h2', null, 'Request a component change'),
+      h('p', { class: 'lede' }, 'For what the scan cannot see: behavior, a bug, an idea.'),
+      requestFormView(r, r.form),
+    );
+  }
+  return h(
+    'p',
+    { class: 'request-line' },
+    h('span', { class: 'muted' }, 'Something the scan cannot see?'),
+    ' ',
+    h('button', { class: 'link', 'data-focus-id': 'req-manual', onClick: () => (r ? openForm(r, undefined) : scanPush(undefined, () => state.push && openForm(state.push, undefined))) }, 'Request a component change'),
+  );
+}
+
+/**
+ * Where the push goes, the main decision at the top of the Changes: a segmented control, one line under the chosen
+ * option, and for an exploration which one (or a new one). No branch or pull request words: designers pick a place.
+ */
+function destinationControl(r: PushState): HTMLElement {
+  const option = (d: Destination, label: string) =>
+    h(
+      'label',
+      { class: `segment${r.destination === d ? ' selected' : ''}` },
+      h('input', { type: 'radio', name: 'destination', value: d, 'data-focus-id': `dest-${d}`, checked: r.destination === d, onChange: () => setDestination(r, d) }),
+      h('span', null, label),
+    );
+  const exploring = r.destination === 'exploration';
+  const list = r.explorations ?? [];
+  const picked = pickedExploration(r);
+  return h(
+    'section',
+    { class: 'destination' },
+    h('div', { class: 'segmented', role: 'radiogroup', 'aria-label': 'Where your changes go' }, option('review', 'Send for review'), option('exploration', 'Try in an exploration')),
+    h('p', { class: 'muted' }, exploring ? 'Test it in a preview and a staging build. It never reaches the product as is.' : 'Owners approve it, then it reaches the product.'),
+    exploring
+      ? h(
+          'div',
+          { class: 'destination-fields' },
+          h(
+            'label',
+            { class: 'field' },
+            h('span', null, 'Exploration'),
+            h(
+              'select',
+              {
+                'data-focus-id': 'explore-target',
+                disabled: !!r.loadingExplorations,
+                onChange: (e: Event) => {
+                  r.exploreTarget = (e.target as HTMLSelectElement).value;
+                  render();
+                },
+              },
+              r.loadingExplorations ? h('option', { value: '' }, 'Loading explorations') : null,
+              list.map((x) => h('option', { value: x.branch, selected: r.exploreTarget === x.branch }, x.name)),
+              h('option', { value: 'new', selected: r.exploreTarget === 'new' }, 'New exploration'),
+            ),
+            r.explorationsError ? h('small', { class: 'form-error' }, `Could not list the explorations: ${r.explorationsError}`) : picked?.purpose ? h('small', null, picked.purpose) : null,
+          ),
+          r.exploreTarget === 'new'
+            ? [
+                h(
+                  'label',
+                  { class: 'field' },
+                  h('span', null, 'Name'),
+                  h('input', { type: 'text', 'data-focus-id': 'explore-name', value: r.newExploration.name, maxlength: '60', placeholder: 'Pill buttons', onInput: (e: Event) => { r.newExploration.name = (e.target as HTMLInputElement).value; refreshBar(); } }),
+                ),
+                h(
+                  'label',
+                  { class: 'field' },
+                  h('span', null, 'What do you want to learn?'),
+                  h('input', { type: 'text', 'data-focus-id': 'explore-purpose', value: r.newExploration.purpose, placeholder: 'Do rounder buttons feel friendlier in checkout?', onInput: (e: Event) => { r.newExploration.purpose = (e.target as HTMLInputElement).value; refreshBar(); } }),
+                ),
+              ]
+            : null,
+        )
+      : null,
+  );
+}
+
+/** Re-renders the bar only (typing in a field must not rebuild the screen under the caret). */
+function refreshBar(): void {
+  const view = state.tab === 'push' ? viewPush() : undefined;
+  const bar = document.querySelector('.bar');
+  const next = actionBar(view?.bar) as HTMLElement | null;
+  if (bar && next) bar.replaceWith(next);
+}
+
+/** Result of a push to an exploration: where it went, how to try it (previews, snapshot install), the link. */
+function explorationResult(r: PushState, e: ExplorationChoice, res: PublishResult): Child[] {
+  const vars = res.pr && !res.exploration?.unchanged ? plural(r.proposal.changes.length || 1, 'variable edit') : '';
+  const text = [
+    vars ? `${vars} added to the exploration.` : res.exploration?.unchanged ? 'The exploration already had these variable edits.' : '',
+    res.requests.length ? `${plural(res.requests.length, 'request')} for ${res.requests.map((x) => x.component).join(', ')}, to build there.` : '',
+    'It never reaches the product as is.',
+  ].filter(Boolean);
+  return [
+    intro({ title: `Sent to ${e.name}`, text: text.join(' '), meta: h('span', { class: 'url mono' }, e.branch), art: 'review' }),
+    h(
+      'section',
+      { class: 'try' },
+      h('h2', null, 'Try it'),
+      h('p', { class: 'lede' }, 'Previews rebuild from the exploration in a few minutes. A product staging build installs the snapshot.'),
+      e.previews.length
+        ? h(
+            'ul',
+            { class: 'rows' },
+            e.previews.map((p) => h('li', { class: 'row' }, h('div', { class: 'row-head' }, h('span', null, p.label), h('button', { class: 'btn ghost row-action', onClick: () => void request('open-url', { url: p.url }) }, icon('external'), 'Open preview')))),
+          )
+        : h('p', { class: 'muted' }, 'Previews are not set up for this repository (previews.apps in bridge.config.json).'),
+      e.install.packages.length ? snippet('explore-install', 'Install in a staging build', e.install.command) : null,
+    ),
+  ];
 }
 
 function viewPush(): View {
@@ -1976,16 +2215,20 @@ function viewPush(): View {
   const r = state.push;
   if (!r) {
     return {
-      body: [intro({
-        title: 'Push your edits for review',
-        text: `Variable edits go to ${init.settings.branch} as a pull request, never straight in. Component changes become requests for the team.`,
-        meta: `To ${init.settings.repo}, for review by design and tech owners.`,
-        art: 'paint',
-      }), steps([
-        ['Edit in Figma', 'Change synced variables, or change a component: a variant, a prop, the token a part uses.'],
-        ['Review the changes', 'Every change is listed and checked. Uncheck what is not ready; mark work in progress as experimental.'],
-        ['Push for review', `Checked variables open a pull request; checked components open requests (GitHub issues). Nothing reaches ${init.settings.branch} until owners approve.`],
-      ])],
+      body: [
+        intro({
+          title: 'Send your edits',
+          text: 'Variable edits and component changes go for review, or into an exploration to try them first. Nothing reaches the product until owners approve.',
+          meta: `To ${init.settings.repo}.`,
+          art: 'paint',
+        }),
+        steps([
+          ['Edit in Figma', 'Change synced variables, or change a component: a variant, a prop, a part, the token a part uses.'],
+          ['Review the changes', 'Every change is listed and checked. Uncheck what is not ready; mark work in progress as exploration only.'],
+          ['Send', 'For review, owners approve before anything ships. In an exploration, you try it in previews and a staging build first.'],
+        ]),
+        requestLine(undefined),
+      ],
       bar: { label: 'Scan for changes', onClick: () => scanPush() },
     };
   }
@@ -1995,24 +2238,29 @@ function viewPush(): View {
   if (r.result) {
     const res = r.result;
     const pr = res.pr;
+    const failed = res.failed.length ? issueList('error', 'Not sent', res.failed.map((f) => ({ code: 'file-problem', severity: 'error', message: `${f.component}: ${f.error}` }))) : null;
+    if (r.sentTo) {
+      const e = r.sentTo;
+      return {
+        body: [...explorationResult(r, e, res), failed, requestLine(r)],
+        bar: r.form ? undefined : { label: 'Open on GitHub', onClick: () => void request('open-url', { url: e.url }), secondary: { label: 'Scan again', onClick: () => scanPush() } },
+      };
+    }
     const text = [
-      pr ? `${pr.appended ? `Commit added to pull request #${pr.pr.number}` : `Pull request #${pr.pr.number} opened as a draft`} on ${pr.branch}. CI runs the usual checks, then a design owner and a tech owner approve.` : '',
+      pr ? `${pr.appended ? `Commit added to pull request #${pr.pr.number}` : `Pull request #${pr.pr.number} opened as a draft`}. CI runs the usual checks, then a design owner and a tech owner approve.` : '',
       res.requests.length ? `${plural(res.requests.length, 'request')} opened for ${res.requests.map((x) => x.component).join(', ')}.` : '',
       prop.held.length ? `${plural(prop.held.length, 'unchecked variable edit')} stay${prop.held.length === 1 ? 's' : ''} in Figma.` : '',
     ].filter(Boolean);
     const first = pr?.pr.url ?? res.requests[0]?.url;
     return {
-      body: [
-        intro({ title: 'Pushed for review', text: text.join(' '), meta: pr ? h('span', { class: 'url' }, pr.pr.url) : undefined, art: 'review' }),
-        res.failed.length ? issueList('error', 'Not sent', res.failed.map((f) => ({ code: 'file-problem', severity: 'error', message: `${f.component}: ${f.error}` }))) : null,
-        requestsSection(r),
-      ],
-      bar: first
+      body: [intro({ title: 'Sent for review', text: text.join(' '), meta: pr ? h('span', { class: 'url' }, pr.pr.url) : undefined, art: 'review' }), failed, requestLine(r)],
+      bar: r.form ? undefined : first
         ? { label: 'Open on GitHub', onClick: () => void request('open-url', { url: first }), secondary: { label: 'Scan again', onClick: () => scanPush() } }
         : { label: 'Scan again', onClick: () => scanPush() },
     };
   }
 
+  const exploring = r.destination === 'exploration';
   const suggestions = a.suggestions.filter((s) => !r.dismissed.has(s.figmaId));
   const compChanges = r.components?.changed ?? [];
   const nothing = !a.diff.local.length && !a.diff.conflicts.length && !a.newBrands.length && !compChanges.length;
@@ -2034,26 +2282,29 @@ function viewPush(): View {
 
   const body: Child[] = [];
   if (!nothing) {
-    // Summary first: what goes for review and whether contrast holds, in the screen's one Harbor zone.
+    // Summary first: what goes and whether contrast holds, in the screen's one Harbor zone.
     const fails = changedContrast.filter((x) => x.level === 'fail').length;
     const n = r.items.length;
     body.push(
       h(
         'section',
         { class: 'zone' },
-        h('h2', { class: 'headline' }, n ? `${plural(n, 'change')} to publish for review` : 'A new brand to propose'),
+        h('h2', { class: 'headline' }, n ? `${plural(n, 'change')} ready to send` : 'A new brand to propose'),
         h(
           'p',
           { class: 'muted' },
           fails
-            ? `${plural(fails, 'contrast pair')} fail${fails === 1 ? 's' : ''}. Fix ${fails === 1 ? 'it' : 'them'} or uncheck the edit before pushing.`
+            ? `${plural(fails, 'contrast pair')} fail${fails === 1 ? 's' : ''}. Fix ${fails === 1 ? 'it' : 'them'} or uncheck the edit before sending.`
             : changedContrast.length
               ? `All ${plural(changedContrast.length, 'contrast pair')} the checked edits move still pass.`
-              : `Nothing reaches ${init.settings.branch} until owners approve.`,
+              : exploring
+                ? 'Nothing reaches the product as is.'
+                : 'Nothing reaches the product until owners approve.',
         ),
       ),
     );
   }
+  body.push(...sentNotes(r));
   if (suggestions.length) {
     body.push(
       h(
@@ -2082,10 +2333,13 @@ function viewPush(): View {
     );
   }
   if (nothing) {
-    body.push(h('div', { class: 'empty' }, h('h2', null, 'Nothing to push'), h('p', null, `Your variables and components match ${init.settings.branch}.`)));
+    body.push(h('div', { class: 'empty' }, h('h2', null, 'Nothing to send'), h('p', null, `Your variables and components match ${init.settings.branch}.`)));
   }
   for (const b of prop.brands) body.push(newBrandCard(r, b));
-  if (r.items.length) body.push(h('h2', { class: 'section-title' }, 'Changes'));
+  if (r.items.length) {
+    body.push(h('h2', { class: 'section-title' }, 'Changes'));
+    body.push(destinationControl(r));
+  }
   body.push(variablesGroup(r));
   body.push(
     conflictSection(a, r.choices, (e) => {
@@ -2094,8 +2348,9 @@ function viewPush(): View {
     }),
   );
   body.push(componentChangesGroup(r));
+  body.push(...componentNotes(r));
   if (a.diff.remote.length) {
-    body.push(h('p', { class: 'muted' }, `${plural(a.diff.remote.length, 'token')} changed on main since your last pull. The pull request keeps main's version; pull to see them here.`));
+    body.push(h('p', { class: 'muted' }, `${plural(a.diff.remote.length, 'token')} changed on ${init.settings.branch} since your last pull. Your edits keep ${init.settings.branch}'s version of them; pull to see them here.`));
   }
   if (changedContrast.length) {
     body.push(
@@ -2133,19 +2388,21 @@ function viewPush(): View {
   if (prFiles) body.push(issueList('error', 'Fix before sending', prop.validation.blocking));
   body.push(issueList('warn', 'Warnings (not blocking)', prop.validation.warnings));
   if (!nothing) {
+    // The message is its own section after a divider: the words that go with everything sent, not a row detail.
     body.push(
       h(
         'section',
-        null,
+        { class: 'message' },
         h(
           'div',
           { class: 'field' },
-          fieldHead('push-description', 'Description', assistAction(r.assist, pushAssist(r))),
+          h('div', { class: 'field-head' }, h('h2', null, h('label', { for: 'push-description' }, 'Message to the team')), assistAction(r.assist, pushAssist(r))),
+          h('p', { class: 'lede' }, exploring ? 'Goes with the exploration and every request. Your words for the team.' : 'Opens the pull request and every request. Your words for the reviewers.'),
           h('textarea', {
             id: 'push-description',
             rows: '3',
             'data-focus-id': 'push-description',
-            placeholder: 'What changed and why. It opens the pull request and every request.',
+            placeholder: 'What changed and why it matters.',
             onInput: (e: Event) => {
               r.description = (e.target as HTMLTextAreaElement).value;
               r.descriptionSource = 'user';
@@ -2157,7 +2414,7 @@ function viewPush(): View {
           draftedNote('push-description', r.descriptionSource),
         ),
         assistStatus(r.assist, pushAssist(r)),
-        prFiles && r.openPr
+        !exploring && prFiles && r.openPr
           ? h(
               'label',
               { class: 'check' },
@@ -2169,10 +2426,10 @@ function viewPush(): View {
           ? h(
               'details',
               { class: 'notes', open: r.titleSource === 'claude' },
-              h('summary', null, 'Pull request title'),
+              h('summary', null, exploring ? 'Commit title' : 'Pull request title'),
               h('input', {
                 type: 'text',
-                'aria-label': 'Pull request title',
+                'aria-label': exploring ? 'Commit title' : 'Pull request title',
                 value: r.title,
                 placeholder: prop.changes.length ? defaultTitle(prop.changes) : prop.brands.find((b) => b.plan)?.plan?.title ?? '',
                 maxlength: '120',
@@ -2184,32 +2441,39 @@ function viewPush(): View {
               }),
             )
           : null,
-        // What the push sends is summed up once, in the bar ("2 variables, 1 request"); this only says how review goes.
-        prFiles ? h('p', { class: 'muted' }, `${plural(prFiles, 'file')} change in one commit, with a changeset. Token changes are risk tier 3: a design owner and a tech owner both approve.`) : null,
+        // What the push sends is summed up once, in the bar ("2 variables, 1 request"); this only says how it goes.
+        prFiles
+          ? h('p', { class: 'muted' }, exploring ? `${plural(prFiles, 'file')} change in one commit on the exploration. Owners review it only if it is promoted.` : `${plural(prFiles, 'file')} change in one commit, with a changeset. Token changes are risk tier 3: a design owner and a tech owner both approve.`)
+          : null,
       ),
     );
   }
-  body.push(requestsSection(r));
+  body.push(requestLine(r));
   body.push(notes(a));
 
+  // A request form is open: its "Send request" is the one primary action on screen, the bar steps aside.
+  if (r.form) return { body };
   const blocked = prFiles ? prop.validation.blocking.length : 0;
   const open = prop.unresolvedConflicts.length;
   const none = !prFiles && !checkedComps;
+  const waiting = explorationBlocker(r);
   const hint = open
     ? `Decide ${plural(open, 'conflict')} first`
     : blocked
       ? `Fix ${plural(blocked, 'problem')} first`
       : none
         ? 'Nothing checked'
-        : [checkedVars ? plural(checkedVars, 'variable') : '', newBrands ? plural(newBrands, 'new brand') : '', checkedComps ? plural(checkedComps, 'request') : ''].filter(Boolean).join(', ');
+        : waiting
+          ? waiting
+          : [checkedVars ? plural(checkedVars, 'variable') : '', newBrands ? plural(newBrands, 'new brand') : '', checkedComps ? plural(checkedComps, 'request') : ''].filter(Boolean).join(', ');
   return {
     body,
     bar: nothing
       ? { label: 'Scan again', onClick: () => scanPush(r) }
       : {
-          label: prFiles && r.appendToOpen && r.openPr ? `Push to pull request #${r.openPr.number}` : 'Push for review',
+          label: exploring ? 'Send to exploration' : 'Send for review',
           onClick: submitPush,
-          disabled: !!open || !!blocked || none,
+          disabled: !!open || !!blocked || none || !!waiting,
           hint,
           secondary: { label: 'Scan again', onClick: () => scanPush(r) },
         },

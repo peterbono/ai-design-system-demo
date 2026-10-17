@@ -1,11 +1,13 @@
 // Push, the way Figma publishes a library: one "Changes" list grouped Variables / Components, a checkbox per item (all
-// checked by default), a description, and one "Push for review". Pure: no DOM, no figma.* (the UI and the main thread
+// checked by default), a message, and one "Send for review" (or "Send to exploration"). Pure: no DOM, no figma.* (the UI and the main thread
 // wire it).
 //
 // Product rules (plugin README, "Push"):
 // - Checked variable edits go into the pull request. Unchecked ones stay in Figma, untouched, for a later push.
 // - Checked component changes each become a request (a GitHub issue). Unchecked ones are not sent and keep their
 //   baseline, so they show up again on the next scan.
+// - Destination: "Send for review" (default) or "Try in an exploration": then variable edits are one commit on the
+//   exploration branch and requests are labeled `exploration`, and experimental items start checked.
 // - "Experimental" (like Figma's "Hide when publishing") is a durable mark on the variable or the component set
 //   (shared plugin data dsbridge / experimental = "true"). Experimental items are listed with a tag and start unchecked
 //   on every push; they can still be checked.
@@ -16,7 +18,7 @@
 import type { DiffEntry, GitHubClient, PullRequest } from '@bridge-ds/core';
 import type { FigmaSnapshot } from '../shared/messages';
 import { type ComponentChangeItem, type RequestDraft, suggestLine, suggestSummary, suggestTitle, toRequest } from './components';
-import { type Analysis, type PushProposal, type PushResult, openPullRequest } from './flows';
+import { type Analysis, type ExplorationTarget, type PushProposal, type PushResult, commitToExploration, openPullRequest } from './flows';
 import { sendComponentRequest } from './requests';
 
 export { EXPERIMENTAL_KEY } from '../shared/messages';
@@ -78,11 +80,21 @@ export function publishItems(a: Pick<Analysis, 'diff'>, experimentalTokens: Read
   return [...vars, ...comps];
 }
 
+/** Where a push goes: for review (a pull request to the base branch, requests for the team) or to an exploration. */
+export type Destination = 'review' | 'exploration';
+
 /**
- * Every push starts with all items checked except the experimental ones and the component changes an optional part
- * already covers (the row says which property shows it; checking the item sends the request anyway).
+ * Every push starts with all items checked except the component changes an optional part already covers (the row says
+ * which property shows it; checking the item sends the request anyway) and, for review, the experimental ones.
+ * Experimental items are what explorations are for: sent to an exploration, they start checked.
  */
-export const defaultUnchecked = (items: PublishItem[]) => new Set(items.filter((i) => i.experimental || i.suggestSkip).map((i) => i.key));
+export const defaultUnchecked = (items: PublishItem[], destination: Destination = 'review') =>
+  new Set(items.filter((i) => (i.experimental && destination === 'review') || i.suggestSkip).map((i) => i.key));
+
+/** Switching the destination resets the experimental items to that destination's default; other choices stay. */
+export function applyDestination(items: PublishItem[], unchecked: Set<string>, destination: Destination): void {
+  for (const i of items) if (i.experimental) (destination === 'review' ? unchecked.add(i.key) : unchecked.delete(i.key));
+}
 
 export const isChecked = (unchecked: ReadonlySet<string>, item: Pick<PublishItem, 'key'>) => !unchecked.has(item.key);
 
@@ -139,7 +151,7 @@ export function componentDrafts(
 }
 
 // ---------------------------------------------------------------------------------------------
-// Push for review: the pull request for the checked variables, one request per checked component change
+// Send: the pull request (or the exploration commit) for the checked variables, one request per checked component change
 
 export interface PublishInput {
   analysis: Analysis;
@@ -161,6 +173,11 @@ export interface PublishInput {
   fileName: string;
   fileKey?: string | undefined;
   appendTo?: PullRequest | undefined;
+  /**
+   * Send to this exploration instead of for review: variable edits become one commit on its branch (its draft pull
+   * request, never a new one to main) and each request is labeled `exploration`, to be implemented on that branch.
+   */
+  exploration?: ExplorationTarget | undefined;
   /** Coded component names (a request links to the component folder). */
   coded: string[];
   /** PNG (base64) of a component to attach to its request; undefined to attach nothing. */
@@ -170,6 +187,8 @@ export interface PublishInput {
 
 export interface PublishResult {
   pr?: PushResult | undefined;
+  /** Sent to an exploration: its branch, and whether its files already held the variable edits. */
+  exploration?: { branch: string; pr: PullRequest; unchanged: boolean } | undefined;
   requests: { component: string; nodeId: string; number: number; url: string }[];
   /** Requests that failed: the rest was still sent. */
   failed: { component: string; error: string }[];
@@ -186,8 +205,12 @@ export function publishPlan(input: Pick<PublishInput, 'proposal' | 'components' 
 export async function publish(client: GitHubClient, input: PublishInput): Promise<PublishResult> {
   const { prFiles, drafts } = publishPlan(input);
   if (!prFiles && !drafts.length) throw new Error('Nothing is checked. Check a variable or a component to push.');
-  const out: PublishResult = { requests: [], failed: [] };
-  if (prFiles) {
+  const out: PublishResult = { requests: [], failed: [], ...(input.exploration ? { exploration: { branch: input.exploration.branch, pr: input.exploration.pr, unchanged: !prFiles } } : {}) };
+  if (prFiles && input.exploration) {
+    const res = await commitToExploration(client, input.analysis, input.proposal, { target: input.exploration, title: input.title, notes: input.description, ...(input.now ? { now: input.now } : {}) });
+    out.pr = res;
+    out.exploration = { branch: res.branch, pr: res.pr, unchanged: res.unchanged };
+  } else if (prFiles) {
     out.pr = await openPullRequest(client, input.analysis, input.proposal, {
       title: input.title,
       notes: input.description,
@@ -200,7 +223,7 @@ export async function publish(client: GitHubClient, input: PublishInput): Promis
     try {
       const img = input.image && d.nodeId ? await input.image(d.nodeId) : undefined;
       const res = await sendComponentRequest(client, {
-        request: toRequest(d, { fileKey: input.fileKey }),
+        request: { ...toRequest(d, { fileKey: input.fileKey }), ...(input.exploration ? { exploration: input.exploration.branch } : {}) },
         images: img ? [img] : [],
         baseBranch: input.analysis.settings.branch,
         config: input.analysis.headFiles.config,
