@@ -164,6 +164,32 @@ describe('bridge_pending_drafts and bridge_write_drafts', () => {
     await client.close();
   });
 
+  it('change lines: the brief lists them, line images are labeled, bridge_write_drafts writes them sanitized', async () => {
+    const gh = withDrafts();
+    const withLine: DraftItem = {
+      ...item('item-1', 'lines0001', false),
+      lines: [{ id: '12:34', component: 'Badge', kind: 'new-variant', changes: [{ field: 'Variant Tone', after: 'danger' }], line: 'Danger added to Tone' }],
+      images: [{ label: 'after', line: '12:34', path: draftImagePath('lines0001', 'item-1-change-1', 'after'), url: 'https://example.test/a.png' }],
+    };
+    gh.seed(session('lines0001', '2026-10-17T09:00:00Z', [withLine]));
+    const ctx = await BridgeContext.create({ repo: 'acme/ds', token: 't', fetch: gh.fetch });
+    const { answer, images } = await drafts.pendingDrafts(ctx, {});
+    expect(answer.sessions[0]!.briefs[0]).toMatch(/Line 12:34, Badge/);
+    expect(answer.contract.join(' ')).toMatch(/"lines": \[\{"id": "<line id>"/);
+    expect(images.map((i) => i.line)).toEqual(['12:34']);
+    const client = await connect(ctx);
+    const r = (await client.callTool({
+      name: 'bridge_write_drafts',
+      arguments: { sessionId: 'lines0001', results: [{ id: 'item-1', title: 'Add a danger tone', summary: 'For tables.', lines: [{ id: '12:34', line: 'Danger tone added — for destructive rows.' }] }] },
+    })) as any;
+    expect(r.isError).toBeFalsy();
+    expect(gh.read('lines0001').results![0]!.lines).toEqual([{ id: '12:34', line: 'Danger tone added, for destructive rows' }]);
+    const bad = (await client.callTool({ name: 'bridge_write_drafts', arguments: { sessionId: 'lines0001', results: [{ id: 'item-1', title: 'x', summary: 'y', lines: [{ id: 'nope', line: 'x' }] }] } })) as any;
+    expect(bad.isError).toBe(true);
+    expect(bad.content[0].text).toMatch(/no change line "nope"/);
+    await client.close();
+  });
+
   it('retries on 409 with the fresh file, keeping what the plugin wrote meanwhile', async () => {
     const gh = withDrafts({ raceOnce: true });
     gh.seed(session('newer0001', '2026-10-17T09:00:00Z'));

@@ -17,7 +17,7 @@ import {
   sanitizeDraft,
 } from '../src/sync/claude';
 import { CLAUDE_KEY, CLAUDE_MODEL_KEY, clearClaudeKey, readClaudeSettings, saveClaudeSettings } from '../src/main/claude-settings';
-import { type ComponentChangeItem, buildSignature } from '../src/sync/components';
+import { type ComponentChangeItem, buildSignature, toRequest } from '../src/sync/components';
 import { componentDrafts } from '../src/sync/publish';
 import { SimFigma } from './figma-api';
 
@@ -86,7 +86,7 @@ test('defaults to Sonnet, skips missing images, and keeps the voice rules in the
   assert.ok(!body.messages[0].content.some((c: { type: string }) => c.type === 'image'));
   assert.match(SYSTEM_PROMPT, /Never use an em dash/);
   assert.match(SYSTEM_PROMPT, /Never invent numbers/);
-  assert.match(SYSTEM_PROMPT, /\{"title": "\.\.\.", "summary": "\.\.\."\}/);
+  assert.match(SYSTEM_PROMPT, /\{"title": "\.\.\.", "summary": "\.\.\.", "lines": \[\{"id": "\.\.\.", "line": "\.\.\."\}\]\}/);
   assert.ok(!SYSTEM_PROMPT.includes(EM));
 });
 
@@ -197,4 +197,31 @@ test('push requests get their own drafted summary while the description is the p
   assert.equal(drafted[0]!.summary, 'Badge gets a new Tone value, danger.');
   const typed = componentDrafts([item], new Set(), 'Destructive states need it.', 'Library', false);
   assert.equal(typed[0]!.summary, 'Destructive states need it.');
+  // Each request opens with its change line: Claude's when it wrote one, else the drafted one.
+  assert.equal(drafted[0]!.line, 'Danger added to Tone');
+  assert.equal(componentDrafts([item], new Set(), '', 'Library', true, new Map([['1:1', 'Danger tone added for destructive states']]))[0]!.line, 'Danger tone added for destructive states');
+  assert.equal(toRequest(drafted[0]!, {}).line, 'Danger added to Tone');
+});
+
+test('change lines: listed by id in the prompt, images per line attached, answers sanitized, old answers still parse', () => {
+  const withLines: ClaudeDraftInput = {
+    target: 'push',
+    changes: [],
+    components: ['Button'],
+    lines: [{ id: '12:34', component: 'Button', kind: 'visual', changes: [{ field: 'Look of Size=sm', before: 'As in the baseline', after: 'Changed in Figma, no variable explains it' }], line: 'Looks different in Size=sm; no variable explains it' }],
+    lineImages: [{ id: '12:34', before: 'QkVGT1JF', after: 'QUZURVI=' }],
+  };
+  const req = buildClaudeRequest(KEY, DEFAULT_CLAUDE_MODEL, withLines);
+  const body = JSON.parse(req.init.body);
+  const content = body.messages[0].content as { type: string; text?: string }[];
+  assert.ok(content.some((c) => c.text === 'Line 12:34, before (baseline):'));
+  assert.equal(content.filter((c) => c.type === 'image').length, 2);
+  const text = content[content.length - 1]!.text!;
+  assert.match(text, /- id 12:34, Button \(Visual change\)\. Starting line: Looks different in Size=sm/);
+  assert.match(text, /Look of Size=sm: As in the baseline -> Changed in Figma/);
+  const d = parseClaudeAnswer(`{"title": "Add an icon", "summary": "Shows an icon.", "lines": [{"id": "12:34", "line": "Icon added ${EM} primary sm: Pencil, 16px."}, {"id": "", "line": "x"}]}`);
+  assert.deepEqual(d.lines, [{ id: '12:34', line: 'Icon added, primary sm: Pencil, 16px' }]);
+  assert.equal(parseClaudeAnswer('{"title": "Add an icon", "summary": "Shows an icon."}').lines, undefined);
+  assert.deepEqual(sanitizeDraft({ lines: [{ id: 'a', line: 'Only a line' }] }), { title: '', summary: '', lines: [{ id: 'a', line: 'Only a line' }] });
+  assert.doesNotMatch(copyPrompt(withLines), /QkVGT1JF/);
 });

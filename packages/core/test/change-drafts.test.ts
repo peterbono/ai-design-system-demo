@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { type DiffEntry, type FieldChange, type LogicalToken, cleanDraftText, draftPushDescription, draftRequestText, pushChangeRows } from '../src/index';
+import { type DiffEntry, type FieldChange, type LogicalToken, cleanDraftText, draftChangeLine, draftPushDescription, draftRequestText, pushChangeRows, sanitizeDraftLine } from '../src/index';
 
 const EM = '\u2014';
 
@@ -76,5 +76,23 @@ describe('push description drafts', () => {
   it('lists the edits as a change table', () => {
     expect(pushChangeRows([entry('changed', 'color.a')])).toEqual([{ field: 'color.a', before: 'Light #000000; Dark #ffffff', after: 'Light #111111; Dark #ffffff' }]);
     expect(pushChangeRows([entry('added', 'color.n')])[0]).toMatchObject({ field: 'color.n', before: undefined });
+  });
+});
+
+describe('draftChangeLine', () => {
+  it('says what changed in one sentence, from the diff only', () => {
+    expect(draftChangeLine('visual', [{ field: 'Look of Size=sm, State=Default, Variant=primary', before: 'As in the baseline', after: 'Changed in Figma, no variable explains it' }])).toBe('Looks different in Size=sm, State=Default, Variant=primary; no variable explains it');
+    expect(draftChangeLine('new-variant', [{ field: 'Variant Tone', before: 'info, neutral', after: 'danger, info, neutral' }])).toBe('Danger added to Tone');
+    expect(draftChangeLine('prop-change', [{ field: 'Prop Loading', after: 'boolean, default false' }])).toBe('New boolean prop Loading, default false');
+    expect(draftChangeLine('token-binding', [{ field: 'Fill (Size=sm)', before: 'color.action.bg', after: 'color.danger.bg' }, { field: 'Radius', before: 'radius.sm', after: 'radius.md' }])).toBe('Fill uses color.danger.bg instead of color.action.bg in Size=sm (and 1 more)');
+    expect(draftChangeLine('visual', [{ field: 'Swapped instance (Size=sm)', before: 'Icon/Plus', after: 'Icon/Pencil' }])).toBe('Shows Icon/Pencil instead of Icon/Plus in Size=sm');
+    expect(draftChangeLine('new-component', [{ field: 'Variant Size', after: 'sm, md' }, { field: 'Prop Label', after: 'text, default Go' }])).toBe('New component with 1 variant axis and 1 prop, not in code yet');
+    expect(draftChangeLine('bug', [])).toBe('');
+  });
+
+  it('sanitizeDraftLine: one line, no em dash, at most 120 characters, no trailing period', () => {
+    expect(sanitizeDraftLine(`icon added ${EM} after the label.\nSecond line.`)).toBe('Icon added, after the label. Second line');
+    expect(sanitizeDraftLine('word '.repeat(60)).length).toBeLessThanOrEqual(120);
+    expect(sanitizeDraftLine(42)).toBe('');
   });
 });

@@ -74,7 +74,7 @@ Designers should not have to document every change by hand. Four levels, in this
    the `bridge-requests` branch (protocol: `draft-exchange.ts` in `@bridge-ds/core`), then shows **Waiting for your
    Claude** with the sentence to say, "Draft my Bridge changes", a copy button and Cancel. In Claude Desktop or
    Claude Code with the Bridge MCP server, `bridge_pending_drafts` returns the changes and the images, Claude writes
-   the texts, and `bridge_write_drafts` puts them back. The plugin checks the file every 5 seconds while it is open,
+   the texts and one line per component change, and `bridge_write_drafts` puts them back. The plugin checks the file every 5 seconds while it is open,
    stops after 10 minutes ("Check again"), and fills the fields, marked "Drafted by Claude, review before sending".
    A field you edited after clicking is never overwritten: Claude's text for it shows under the buttons with
    **Use Claude's draft**. The file and its images are deleted once you send or cancel. Setup (once) is in
@@ -260,8 +260,12 @@ Compact edit in Density to `density/compact.tokens.json`, a new Component variab
 
 The Push screen mirrors Figma's Publish library dialog, so it reads like something designers already know:
 
-- **Changes**, grouped **Variables** and **Components**. Each item has a checkbox, all checked by default, and each
-  group has a select-all checkbox in its header (tri-state when some are unchecked).
+- **Changes**, grouped **Variables** and **Components**. Each item has a checkbox, all checked by default, and a
+  group of 2 or more items has a select-all checkbox in its header (tri-state when some are unchecked).
+- A component change row reads: the component name and the kind tag, then one sentence of what changed (its change
+  line, written by Claude from the before and after images when you draft with Claude, else drafted from the diff:
+  "Looks different in Size=sm, State=Default, Variant=primary; no variable explains it"), then a small **Details**
+  disclosure with the What / Now / Requested table.
 - Checked variable edits go into the pull request. **Unchecked variable edits stay in Figma**, untouched, and show up
   again on the next scan. Unchecked component changes are not sent and keep their baseline.
 - **Experimental** (like Figma's "Hide when publishing"): the row menu has "Mark as experimental". The mark is stored
@@ -269,11 +273,12 @@ The Push screen mirrors Figma's Publish library dialog, so it reads like somethi
   `dsbridge` / `experimental` = `"true"`, so it lasts and the whole team sees it. Experimental items carry a neutral
   "Experimental" tag and **start unchecked on every push**; they can still be checked. "Remove experimental mark"
   clears it.
-- **Description**: one text field, prefilled with the plugin's draft of the checked changes (see "Writing help").
+- **Description**: one text field, with **Draft with Claude** on its label line, prefilled with the plugin's draft of the checked changes (see "Writing help").
   It becomes the pull request's "What changed and why" and the summary of every request sent with it (a factual
   line naming the file when it is empty). The pull request title is optional, under
   "Pull request title".
-- One primary action, **Push for review**: the pull request for the checked variables (none when no variable is
+- One primary action, **Push for review**, with what it sends summed up once in the bar ("2 variables, 1 request"):
+  the pull request for the checked variables (none when no variable is
   checked), then one request per checked component change, with the component attached. A failed request is listed;
   the rest is still sent.
 
@@ -329,8 +334,10 @@ How it works:
      one silently on the first scan: nothing to send.
    - a component with no baseline and no folder in code is listed under "Not in the design system yet",
      collapsed, each with "Request as new component". Nothing is sent on its own.
-3. **Request form**, inline: kind (prefilled), title and summary (prefilled drafts, see "Writing help"), the changes table
-   (prefilled from the diff) and "Attach the selected variant" (a 2x PNG). On send, images go to the
+3. **Request form**, inline: kind (prefilled), title and summary (prefilled drafts, see "Writing help"; "Draft with
+   Claude" sits on the Title label line) and "Attach the selected variant" (a 2x PNG). The row above the form keeps
+   the change line and its "Details" table. Each request opens with its change line ("**What changes:** ..."):
+   Claude's when it wrote one, else `draftChangeLine` from the diff. On send, images go to the
    `bridge-requests` branch (created from the base branch head when missing, never moved) under
    `.bridge/requests/`, then the issue is created and the new baseline stored. "Request #N opened" links to it.
 4. **Request a component change**: for what the diff cannot see (behavior, a bug, an idea). Pick a coded

@@ -14,7 +14,7 @@
 //   then shows another component than the one code gives it (stored at pull as `slotDefaults`); swapping back to it
 //   is no change. A swap explains the bindings and render that move with it in that variant.
 
-import { type ComponentChangeRequest, type RequestChange, type RequestKind, draftRequestText } from '@bridge-ds/core';
+import { type ComponentChangeRequest, type RequestChange, type RequestKind, draftChangeLine, draftRequestText } from '@bridge-ds/core';
 
 /** One variable (or style) bound somewhere in a variant, wherever the layer sits. */
 export interface RawBinding {
@@ -396,11 +396,18 @@ export function suggestSummary(item: Pick<ComponentChangeItem, 'kind' | 'changes
   return draftRequestText(item.component, item.kind, item.changes).summary;
 }
 
+/** The change line of a detected change: one sentence of what changed (draftChangeLine in @bridge-ds/core). */
+export function suggestLine(item: Pick<ComponentChangeItem, 'kind' | 'changes'>): string {
+  return draftChangeLine(item.kind, item.changes);
+}
+
 export interface RequestDraft {
   component: string;
   kind: RequestKind;
   title: string;
   summary: string;
+  /** What changed in one sentence: Claude's line, or the drafted one. */
+  line?: string | undefined;
   changes: RequestChange[];
   nodeId?: string | undefined;
   nodeName?: string | undefined;
@@ -415,6 +422,7 @@ export function toRequest(d: RequestDraft, ctx: { fileKey?: string | undefined; 
     kind: d.kind,
     title: d.title.trim(),
     summary: d.summary.trim(),
+    ...(d.line?.trim() ? { line: d.line.trim() } : {}),
     changes: d.changes.filter((c) => c.field.trim()),
     ...(figma ? { figma } : {}),
     ...(ctx.images?.length ? { images: ctx.images } : {}),

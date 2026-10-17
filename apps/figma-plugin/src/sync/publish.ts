@@ -13,7 +13,7 @@
 
 import type { DiffEntry, GitHubClient, PullRequest } from '@bridge-ds/core';
 import type { FigmaSnapshot } from '../shared/messages';
-import { type ComponentChangeItem, type RequestDraft, suggestSummary, suggestTitle, toRequest } from './components';
+import { type ComponentChangeItem, type RequestDraft, suggestLine, suggestSummary, suggestTitle, toRequest } from './components';
 import { type Analysis, type PushProposal, type PushResult, openPullRequest } from './flows';
 import { sendComponentRequest } from './requests';
 
@@ -95,9 +95,10 @@ export function requestSummary(description: string, fileName: string): string {
 /**
  * One request draft per checked component change, with the push description as its summary. When the description is
  * still the plugin's own draft (`descriptionIsDraft`), each request gets its own drafted summary instead: a line about
- * the variables says nothing about a component.
+ * the variables says nothing about a component. Each request opens with its change line: Claude's (`lines`, by node
+ * id) or the drafted one.
  */
-export function componentDrafts(components: ComponentChangeItem[], unchecked: ReadonlySet<string>, description: string, fileName: string, descriptionIsDraft = false): RequestDraft[] {
+export function componentDrafts(components: ComponentChangeItem[], unchecked: ReadonlySet<string>, description: string, fileName: string, descriptionIsDraft = false, lines?: ReadonlyMap<string, string>): RequestDraft[] {
   return components
     .filter((c) => !unchecked.has(componentKey(c.nodeId)))
     .map((c) => ({
@@ -105,6 +106,7 @@ export function componentDrafts(components: ComponentChangeItem[], unchecked: Re
       kind: c.kind,
       title: suggestTitle(c),
       summary: (descriptionIsDraft && suggestSummary(c)) || requestSummary(description, fileName),
+      line: lines?.get(c.nodeId) || suggestLine(c),
       changes: c.changes,
       nodeId: c.nodeId,
       nodeName: c.figmaName,
@@ -125,6 +127,8 @@ export interface PublishInput {
   description: string;
   /** True while the description is the plugin's deterministic draft (nobody typed it). */
   descriptionIsDraft?: boolean | undefined;
+  /** Change lines Claude wrote, by component node id; the others get the drafted line. */
+  lines?: ReadonlyMap<string, string> | undefined;
   /** Pull request title; empty: the default title from the changes. */
   title: string;
   fileName: string;
@@ -145,10 +149,10 @@ export interface PublishResult {
 }
 
 /** What a push would send: the files of the pull request (empty when no variable is checked) and the request drafts. */
-export function publishPlan(input: Pick<PublishInput, 'proposal' | 'components' | 'unchecked' | 'description' | 'fileName' | 'descriptionIsDraft'>): { prFiles: number; drafts: RequestDraft[] } {
+export function publishPlan(input: Pick<PublishInput, 'proposal' | 'components' | 'unchecked' | 'description' | 'fileName' | 'descriptionIsDraft' | 'lines'>): { prFiles: number; drafts: RequestDraft[] } {
   return {
     prFiles: Object.keys(input.proposal.files).length + input.proposal.brandFiles.length,
-    drafts: componentDrafts(input.components, input.unchecked, input.description, input.fileName, input.descriptionIsDraft),
+    drafts: componentDrafts(input.components, input.unchecked, input.description, input.fileName, input.descriptionIsDraft, input.lines),
   };
 }
 

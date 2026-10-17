@@ -12,7 +12,7 @@
 // Writers update with the file sha (optimistic concurrency) and retry on 409. Pure helpers plus a few GitHubClient
 // helpers: no DOM, no figma.*, no Node-only API.
 
-import { cleanDraftText, type DraftText } from './change-drafts';
+import { DRAFT_LINE_MAX, cleanDraftText, sanitizeDraftLine, type DraftText } from './change-drafts';
 import { GitHubError, type GitHubClient } from './github-client';
 import { REQUESTS_BRANCH, type RequestChange, type RequestKind, REQUEST_KINDS } from './requests';
 
@@ -23,6 +23,7 @@ export const DRAFTS_DIR = '.bridge/drafts';
 export const DRAFT_PHRASE = 'Draft my Bridge changes';
 export const DRAFT_TITLE_MAX = 70;
 export const DRAFT_SUMMARY_SENTENCES = 3;
+export { DRAFT_LINE_MAX };
 const SUMMARY_MAX = 600;
 
 export type DraftScope = 'request' | 'push';
@@ -34,6 +35,22 @@ export interface DraftImage {
   url: string;
   /** Repo path on the requests branch, so tools can read it with the token. */
   path?: string | undefined;
+  /** The change line (DraftLine id) this image shows, when an item has several components (a push). */
+  line?: string | undefined;
+}
+
+/**
+ * One detected component change to describe in one sentence (its "change line"): the main line of its row in the
+ * plugin and the first line of its request. A request item has one, a push item one per component it requests.
+ */
+export interface DraftLine {
+  /** Stable id to answer with (the plugin uses the component's node id). */
+  id: string;
+  component?: string | undefined;
+  kind?: RequestKind | undefined;
+  changes: RequestChange[];
+  /** The deterministic line, from the changes only, as a starting point. */
+  line: string;
 }
 
 export interface DraftVariableRow {
@@ -58,12 +75,16 @@ export interface DraftItem {
   images?: DraftImage[] | undefined;
   /** The deterministic draft (from the detected changes only), as a starting point. */
   draft: DraftText;
+  /** Component changes to write one line each for. Missing in sessions from older plugins. */
+  lines?: DraftLine[] | undefined;
 }
 
 export interface DraftResult {
   id: string;
   title: string;
   summary: string;
+  /** One sentence per change line of the item (by DraftLine id). Optional: older writers send none. */
+  lines?: { id: string; line: string }[] | undefined;
   by: 'claude';
   at: string;
 }
@@ -88,12 +109,14 @@ export const DRAFT_VOICE_RULES = [
   'Keep the designer\'s intent from their notes.',
   'Never use an em dash: use a colon, a comma or parentheses. No exclamation marks, no emoji, no Markdown.',
   'A request title never repeats the component name: the issue title already starts with it.',
+  `For each change line, write one short sentence (at most ${DRAFT_LINE_MAX} characters, no trailing period) of what changed for developers, read from the before and after images: the part, the variant and the values when you can see them, for example "Icon added after the label in primary sm: Pencil, 16px". Never guess a value you cannot read.`,
 ];
 
 export const DRAFT_OUTPUT_CONTRACT = [
-  `Call bridge_write_drafts once per session with {"sessionId": "...", "results": [{"id": "<item id>", "title": "...", "summary": "..."}]}, one result per item.`,
+  `Call bridge_write_drafts once per session with {"sessionId": "...", "results": [{"id": "<item id>", "title": "...", "summary": "...", "lines": [{"id": "<line id>", "line": "..."}]}]}, one result per item.`,
   `title: one line, at most ${DRAFT_TITLE_MAX} characters, no trailing period.`,
   `summary: at most ${DRAFT_SUMMARY_SENTENCES} sentences, plain text.`,
+  `lines: one per change line the item lists (its "lines"), by line id: one sentence, at most ${DRAFT_LINE_MAX} characters, no trailing period. Leave lines out when the item lists none.`,
   'The designer reviews the text in Figma before anything is sent.',
 ];
 
@@ -178,10 +201,15 @@ export function validatePendingDrafts(x: unknown): string[] {
     if (i.variables !== undefined && i.scope !== 'push') out.push(`${at}: only a push item has variables.`);
     if (i.images !== undefined && (!Array.isArray(i.images) || i.images.some((m) => !m || (m.label !== 'before' && m.label !== 'after') || !str(m.url)))) out.push(`${at}: images must be a list of {label: before or after, url}.`);
     if (!i.draft || !str(i.draft.title) || !str(i.draft.summary)) out.push(`${at}: draft must hold a title and a summary.`);
+    if (i.lines !== undefined && (!Array.isArray(i.lines) || i.lines.some((l) => !l || !str(l.id) || !l.id || !str(l.line) || !Array.isArray(l.changes)))) out.push(`${at}: lines must be a list of {id, changes, line}.`);
   }
   if (p.results !== undefined) {
     if (!Array.isArray(p.results)) out.push('results must be a list.');
-    else for (const r of p.results) if (!r || !str(r.id) || !str(r.title) || !str(r.summary)) out.push('Each result needs an id, a title and a summary.');
+    else
+      for (const r of p.results) {
+        if (!r || !str(r.id) || !str(r.title) || !str(r.summary)) out.push('Each result needs an id, a title and a summary.');
+        else if (r.lines !== undefined && (!Array.isArray(r.lines) || r.lines.some((l) => !l || !str(l.id) || !str(l.line)))) out.push('Result lines must be a list of {id, line}.');
+      }
   }
   return out;
 }
@@ -230,18 +258,46 @@ export function sanitizeDraftText(raw: { title?: unknown; summary?: unknown }): 
   return { title, summary };
 }
 
+/** What a writer (bridge_write_drafts) sends for one item, before sanitizing. */
+export interface DraftResultInput {
+  id: string;
+  title?: unknown;
+  summary?: unknown;
+  lines?: unknown;
+}
+
+/**
+ * The change lines of a result kept to the contract: known line ids only (throws on an unknown one), one sentence of
+ * at most 120 characters each, empty ones dropped, the last one per id kept.
+ */
+export function sanitizeResultLines(item: Pick<DraftItem, 'id' | 'lines'>, raw: unknown): { id: string; line: string }[] {
+  if (raw === undefined || raw === null) return [];
+  if (!Array.isArray(raw)) throw new Error(`lines for "${item.id}" must be a list of {"id", "line"}.`);
+  const known = new Set((item.lines ?? []).map((l) => l.id));
+  const out = new Map<string, string>();
+  for (const l of raw as { id?: unknown; line?: unknown }[]) {
+    const id = typeof l?.id === 'string' ? l.id : '';
+    if (!known.has(id)) throw new Error(`Item "${item.id}" has no change line "${id}".${known.size ? ` Use the line ids from bridge_pending_drafts: ${[...known].join(', ')}.` : ' It lists no lines: leave lines out.'}`);
+    const line = sanitizeDraftLine(l.line);
+    if (line) out.set(id, line);
+  }
+  return [...out].map(([id, line]) => ({ id, line }));
+}
+
 /**
  * The session with these results added (a result for the same item replaces the earlier one). Results are sanitized.
  * Throws on an unknown item id or an empty result. Status is "drafted" once every item has a result.
  */
-export function mergeDraftResults(p: PendingDrafts, results: { id: string; title?: unknown; summary?: unknown }[], at: Date = new Date()): PendingDrafts {
+export function mergeDraftResults(p: PendingDrafts, results: DraftResultInput[], at: Date = new Date()): PendingDrafts {
   const ids = new Set(p.items.map((i) => i.id));
   const next = new Map((p.results ?? []).map((r) => [r.id, r]));
   for (const r of results) {
     if (!ids.has(r.id)) throw new Error(`Session ${p.sessionId} has no item "${r.id}". Use the ids from bridge_pending_drafts: ${[...ids].join(', ')}.`);
+    const item = p.items.find((i) => i.id === r.id)!;
     const clean = sanitizeDraftText(r);
-    if (!clean.title && !clean.summary) throw new Error(`The result for "${r.id}" has no title and no summary.`);
-    next.set(r.id, { id: r.id, title: clean.title, summary: clean.summary, by: 'claude', at: at.toISOString() });
+    const lines = sanitizeResultLines(item, r.lines);
+    if (!clean.title && !clean.summary && !lines.length) throw new Error(`The result for "${r.id}" has no title and no summary, and no line.`);
+    next.set(r.id, { id: r.id, title: clean.title, summary: clean.summary, ...(lines.length ? { lines } : {}), by: 'claude', at: at.toISOString() });
   }
   const merged = p.items.map((i) => next.get(i.id)).filter((r): r is DraftResult => !!r);
   return { ...p, results: merged, status: merged.length === p.items.length ? 'drafted' : 'pending' };
@@ -257,10 +313,17 @@ export function draftItemBrief(i: DraftItem): string {
   if (i.components?.length) lines.push(`Components with a change request: ${i.components.join(', ')}`);
   if (i.changes.length) lines.push('', '| What | Now | In Figma |', '| --- | --- | --- |', ...i.changes.map((c) => `| ${cell(c.field)} | ${cell(c.before) || 'none'} | ${cell(c.after) || 'removed'} |`));
   if (i.variables?.length) lines.push('', '| Token | Now | In Figma |', '| --- | --- | --- |', ...i.variables.map((v) => `| ${cell(v.path)} | ${cell(v.before) || 'none'} | ${cell(v.after) || 'removed'} |`));
-  if (!i.changes.length && !i.variables?.length) lines.push('', 'No change detected: rely on the notes and the images.');
+  if (!i.changes.length && !i.variables?.length && !i.lines?.length) lines.push('', 'No change detected: rely on the notes and the images.');
   if (i.draft.title || i.draft.summary) lines.push('', 'Starting draft, written from the changes only:', `Title: ${i.draft.title}`, `Summary: ${i.draft.summary}`);
   if (i.notes?.trim()) lines.push('', 'The designer\'s notes (keep their intent):', i.notes.trim());
-  if (i.images?.length) lines.push('', `Images: ${i.images.map((m) => `${m.label} ${m.url}`).join(', ')}`);
+  if (i.lines?.length) {
+    lines.push('', `Change lines to write (one sentence each, at most ${DRAFT_LINE_MAX} characters, from the before and after images):`);
+    for (const l of i.lines) {
+      lines.push(`- Line ${l.id}${l.component ? `, ${l.component}` : ''}${l.kind ? ` (${REQUEST_KINDS.find((k) => k.value === l.kind)?.label ?? l.kind})` : ''}. Starting line: ${l.line || '(none)'}`);
+      for (const c of l.changes) lines.push(`  - ${c.field}: ${c.before || 'none'} -> ${c.after || 'removed'}`);
+    }
+  }
+  if (i.images?.length) lines.push('', `Images: ${i.images.map((m) => `${m.label}${m.line ? ` (line ${m.line})` : ''} ${m.url}`).join(', ')}`);
   return lines.join('\n');
 }
 
@@ -327,7 +390,7 @@ export async function updatePendingDrafts(
 }
 
 /** Writes Claude's results into a session (sanitized, merged, status "drafted" when complete), retrying on 409. */
-export function writeDraftResults(client: DraftClient, sessionId: string, results: { id: string; title?: unknown; summary?: unknown }[], opts: { branch?: string; now?: Date; attempts?: number } = {}): Promise<PendingDrafts> {
+export function writeDraftResults(client: DraftClient, sessionId: string, results: DraftResultInput[], opts: { branch?: string; now?: Date; attempts?: number } = {}): Promise<PendingDrafts> {
   return updatePendingDrafts(client, sessionId, (p) => mergeDraftResults(p, results, opts.now), {
     ...opts,
     message: `Bridge drafts: ${results.length === 1 ? '1 text' : `${results.length} texts`} drafted by Claude`,
