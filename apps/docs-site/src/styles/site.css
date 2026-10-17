@@ -693,38 +693,6 @@ pre code {
   }
 }
 
-/* The way back from the Studio: its own box under a divider, outside the Studio sections. */
-.rail-exit {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
-  padding: var(--space-3);
-  border: var(--border-width-default) solid var(--color-border-default);
-  border-radius: var(--radius-control);
-  background-color: var(--color-surface-default);
-  color: var(--color-text-muted);
-  text-decoration: none;
-}
-
-.rail-exit > span {
-  display: grid;
-}
-
-.rail-exit strong {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1-5);
-  color: var(--color-text-default);
-  font-weight: var(--font-weight-semibold);
-}
-
-@media (hover: hover) {
-  .rail-exit:hover {
-    border-color: var(--color-border-hover);
-    color: var(--color-text-default);
-  }
-}
-
 :root[data-space="studio"] .rail-tools {
   padding-top: 0;
   border-top: 0;

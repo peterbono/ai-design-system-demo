@@ -1,6 +1,7 @@
 ---
-// GitHub status for the whole Studio, in the global header and nowhere else: "Connect GitHub" until a token is
-// checked, then the connected login and avatar with a menu (repository, permissions, change token, disconnect).
+// GitHub status for the whole Studio, at the bottom of the Studio side nav (and in the phone menu sheet): "Connect
+// GitHub" with "Read only until connected" until a token is checked, then the avatar, login and repository, opening
+// the account menu (repository, access, change token, disconnect). The header slot switches space instead.
 // Painted by scripts/github-session.ts (every [data-gh-connect] block gets data-state readonly|checking|connected).
 import Icon from './Icon.astro';
 import { siteRepo } from '../lib/config';
@@ -9,14 +10,20 @@ const r = siteRepo();
 ---
 
 <div class="gh-acct" data-gh-connect data-gh-acct data-state="checking">
-  <button type="button" class="hd-btn gh-acct-connect" data-gh-open aria-label="Connect GitHub">
-    <Icon name="github" size={16} />
-    <span class="hd-label">Connect GitHub</span>
-  </button>
+  <div class="gh-acct-connect">
+    <button type="button" class="hd-btn" data-gh-open>
+      <Icon name="github" size={16} />
+      <span>Connect GitHub</span>
+    </button>
+    <p class="gh-acct-note">Read only until connected</p>
+  </div>
   <details class="menu gh-acct-menu" data-menu>
-    <summary class="hd-btn" aria-label="GitHub account">
-      <img class="gh-acct-avatar" data-gh-avatar alt="" width="20" height="20" hidden />
-      <span class="gh-acct-login" data-gh-login></span>
+    <summary class="gh-acct-who" aria-label="GitHub account">
+      <img class="gh-acct-avatar" data-gh-avatar alt="" width="32" height="32" hidden />
+      <span class="gh-acct-text">
+        <span class="gh-acct-login" data-gh-login></span>
+        <span class="gh-acct-repo mono">{r.owner}/{r.repo}</span>
+      </span>
       <span class="scope-pick-chev" aria-hidden="true"><Icon name="chevron" size={12} /></span>
     </summary>
     <div class="menu-panel" role="group" aria-label="GitHub account">

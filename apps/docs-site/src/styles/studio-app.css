@@ -135,29 +135,10 @@
   }
 }
 
-.gh-acct-menu > .hd-btn {
-  width: var(--size-9);
-  padding: 0;
-  justify-content: center;
-  border-color: transparent;
-  border-radius: var(--radius-pill);
-  background-color: var(--color-surface-inverse);
-  color: var(--color-text-inverse);
-  overflow: hidden;
-}
-
-.gh-acct-menu > .hd-btn .gh-acct-login,
-.gh-acct-menu > .hd-btn .scope-pick-chev {
-  display: none;
-}
-
-.gh-acct-menu .menu-panel {
-  right: 0;
-  left: auto;
-}
-
+/* The account block at the bottom of the Studio side nav (and of the phone menu sheet). */
 .gh-acct {
-  display: inline-flex;
+  display: grid;
+  min-width: 0;
 }
 
 .gh-acct[data-state="connected"] .gh-acct-connect,
@@ -169,23 +150,80 @@
   visibility: hidden;
 }
 
+.gh-acct-connect {
+  display: grid;
+  gap: var(--space-1-5);
+}
+
+.gh-acct-connect .hd-btn {
+  justify-content: center;
+}
+
+.gh-acct-note {
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+  text-align: center;
+}
+
+.gh-acct-who {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-2);
+  border-radius: var(--radius-control);
+  color: var(--color-text-default);
+  cursor: pointer;
+  list-style: none;
+}
+
+.gh-acct-who::-webkit-details-marker {
+  display: none;
+}
+
+@media (hover: hover) {
+  .gh-acct-who:hover {
+    background-color: var(--color-surface-hover);
+  }
+}
+
 .gh-acct-avatar {
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
+  flex: none;
+  width: var(--size-8);
+  height: var(--size-8);
+  border-radius: var(--radius-pill);
   background-color: var(--color-bg-subtle);
 }
 
-.gh-acct-login {
-  max-width: calc(var(--size-40) - var(--space-4));
+.gh-acct-text {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+
+.gh-acct-login,
+.gh-acct-repo {
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gh-acct-login {
+  font-weight: var(--font-weight-semibold);
+}
+
+.gh-acct-repo {
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
 }
 
 .gh-acct .menu-panel {
+  position: absolute;
+  top: auto;
   right: 0;
-  left: auto;
-  width: var(--size-72);
+  bottom: calc(100% + var(--space-2));
+  left: 0;
+  width: auto;
 }
 
 .gh-facts {
@@ -280,7 +318,6 @@
 }
 
 @media (max-width: 960px) {
-  .gh-acct-login,
   .hd-label {
     display: none;
   }

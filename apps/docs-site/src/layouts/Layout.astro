@@ -116,7 +116,14 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
         <IconButton icon={Moon} label="Dark theme" id="theme-toggle" data-theme-toggle aria-pressed="false" title="Dark theme" className="shell-wide" />
         {
           isStudio ? (
-            <GitHubAccount />
+            <>
+              <span class="topbar-rule shell-wide" aria-hidden="true"></span>
+              <a class="hd-btn team-open lib-open" href={LIBRARY_HOME} aria-label="View published library" title="View published library">
+                <Icon name="book" size={16} />
+                <span class="hd-label">Library</span>
+                <Icon name="out" size={16} />
+              </a>
+            </>
           ) : (
             <>
               <IconLink href={GITHUB_URL} icon={GitHubMark} label="View the repository on GitHub" title="GitHub" className="shell-wide" />
@@ -152,6 +159,13 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
                     <a class="nav-link" href={entry.href} aria-current={current ? 'page' : undefined} data-active={inside || undefined} data-keep-branch={isStudio || undefined}>
                       <Icon name={entry.icon} size={20} />
                       <span>{entry.label}</span>
+                      {entry.badge && (
+                        <span class="rail-num" data-nav-count={entry.badge} hidden>
+                          <span class="sr-only">, </span>
+                          <span data-nav-count-value></span>
+                          <span class="sr-only"> waiting for a review</span>
+                        </span>
+                      )}
                     </a>
                   </li>
                 );
@@ -193,13 +207,7 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
           </div>
           {
             isStudio ? (
-              <a class="rail-exit" href={LIBRARY_HOME}>
-                <Icon name="book" size={20} />
-                <span>
-                  <strong>Library <Icon name="out" size={16} /></strong>
-                  <span>View published library</span>
-                </span>
-              </a>
+              <GitHubAccount />
             ) : (
               <div class="rail-team">
                 <p>Maintaining Bridge? Edit tokens and review changes.</p>
