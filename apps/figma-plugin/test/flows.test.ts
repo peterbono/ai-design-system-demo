@@ -282,6 +282,45 @@ test('pull keeps local edits and flags tokens removed on main as orphans', async
   assert.deepEqual(next.diff.local.map((e) => [e.path, e.local!.kind]).sort(), [['radius.3xl', 'added'], ['radius.sm', 'changed']]);
 });
 
+test('a pull recreates variables deleted in Figma that other tokens still alias, and keeps other deletions', async () => {
+  const { client, snapshot, sync } = await pulled();
+  // radius.md is aliased by the brand radius roles; space.24 is not aliased by anything.
+  const drop = (name: string) => {
+    const v = findIn(snapshot, 'Primitives', name);
+    snapshot.variables.splice(snapshot.variables.indexOf(v), 1);
+  };
+  drop('radius/md');
+  drop('space/24');
+  const a = await analyze(client, DEFAULT_SETTINGS, sync, snapshot);
+  const pull = buildPull(a, new Map());
+  // radius.inset comes back too: in Figma it pointed at the deleted variable.
+  assert.deepEqual(pull.restored.map((e) => e.path).sort(), ['radius.inset', 'radius.md']);
+  assert.deepEqual(pull.kept.map((e) => e.path), ['space.24']);
+  assert.equal(pull.plan.variables.some((v) => v.path === 'radius.md'), true);
+  assert.equal(pull.plan.variables.some((v) => v.path === 'space.24'), false);
+});
+
+test('an alias a pull could not set is not read as a Figma edit', async () => {
+  const { client, snapshot, sync } = await pulled();
+  // What a failed alias leaves behind: a default value, flagged as unlinked in that mode.
+  const v = findIn(snapshot, 'Brand', 'radius/inset');
+  for (const id of Object.keys(v.valuesByMode)) v.valuesByMode[id] = { kind: 'float', value: 0 };
+  v.pluginData.unlinkedModes = snapshot.collections.find((c) => c.name === 'Brand')!.modes.map((m) => m.modeId.split(':')[1]!);
+  const a = await analyze(client, DEFAULT_SETTINGS, sync, snapshot);
+  const pull = buildPull(a, new Map());
+  assert.equal(pull.kept.some((e) => e.path === 'radius.inset'), false);
+  assert.equal(pull.plan.variables.some((x) => x.path === 'radius.inset'), true);
+});
+
+test('a file whose synced collections were deleted pulls like a first pull, whatever the stored base', async () => {
+  const { client, sync } = await pulled();
+  const a = await analyze(client, DEFAULT_SETTINGS, sync, { fileName: 'Test', collections: [], variables: [] });
+  const pull = buildPull(a, new Map());
+  assert.equal(pull.kept.length, 0);
+  assert.ok(pull.plan.variables.some((x) => x.path === 'radius.md'));
+  assert.ok(pull.plan.variables.length > 500);
+});
+
 test('rename without plugin data is only a suggestion until confirmed', async () => {
   const { client, snapshot, sync } = await pulled();
   const v = findIn(snapshot, 'Semantic', 'color/text/muted');
