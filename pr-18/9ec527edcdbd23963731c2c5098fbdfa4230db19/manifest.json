@@ -1,15 +1,15 @@
 {
   "version": 1,
   "tool": "@bridge-ds/visual",
-  "createdAt": "2026-10-17T02:09:53.487Z",
-  "durationMs": 284628,
+  "createdAt": "2026-10-17T02:17:51.471Z",
+  "durationMs": 292737,
   "base": {
-    "ref": "b7537a65b7d586b70ddd6f852caf3258deb6e852",
-    "sha": "b7537a65b7d586b70ddd6f852caf3258deb6e852"
+    "ref": "d0f9473b477266433c3ec9263e4ac82ae6dc0737",
+    "sha": "d0f9473b477266433c3ec9263e4ac82ae6dc0737"
   },
   "head": {
-    "ref": "2f6c2f2ce2f6ca81a2867c65c7d13b5e70c4c8ad",
-    "sha": "2f6c2f2ce2f6ca81a2867c65c7d13b5e70c4c8ad"
+    "ref": "9ec527edcdbd23963731c2c5098fbdfa4230db19",
+    "sha": "9ec527edcdbd23963731c2c5098fbdfa4230db19"
   },
   "options": {
     "only": [
@@ -138,12 +138,12 @@
   },
   "summary": {
     "shots": 208,
-    "changed": 1,
-    "unchanged": 207,
+    "changed": 0,
+    "unchanged": 208,
     "added": 0,
     "removed": 0,
     "errors": 0,
-    "maxPercent": 3.58
+    "maxPercent": 0
   },
   "shots": [
     {
@@ -4041,18 +4041,11 @@
       "storyId": "overlays-dialog--all-states",
       "brand": "ocean",
       "theme": "dark",
-      "status": "changed",
-      "changedPixels": 29212,
+      "status": "unchanged",
+      "changedPixels": 0,
       "totalPixels": 815104,
-      "percent": 3.58,
-      "boxes": [
-        {
-          "x": 0,
-          "y": 704,
-          "width": 1024,
-          "height": 92
-        }
-      ],
+      "percent": 0,
+      "boxes": [],
       "size": {
         "before": {
           "width": 1024,
@@ -4063,12 +4056,7 @@
           "height": 796
         }
       },
-      "images": {
-        "before": "before/story__overlays-dialog--all-states__ocean-dark.png",
-        "after": "after/story__overlays-dialog--all-states__ocean-dark.png",
-        "diff": "diff/story__overlays-dialog--all-states__ocean-dark.png",
-        "composite": "composite/story__overlays-dialog--all-states__ocean-dark.png"
-      }
+      "images": {}
     },
     {
       "key": "story__overlays-drawer--all-states__ocean-dark",
