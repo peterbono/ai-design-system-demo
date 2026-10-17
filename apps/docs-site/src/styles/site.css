@@ -1475,6 +1475,12 @@ tr:target {
     padding: var(--space-4) var(--space-4) var(--space-8);
   }
 
+  /* Phones: the navigation sheet takes the whole width. */
+  .rail {
+    width: 100%;
+    border-right: 0;
+  }
+
   h2 {
     margin-top: var(--space-12);
   }
