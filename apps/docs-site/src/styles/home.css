@@ -55,7 +55,6 @@
 }
 
 .hm-week {
-  max-width: calc(var(--size-180) + var(--size-10));
   margin-top: var(--space-16);
 }
 
@@ -77,9 +76,10 @@
 }
 
 .hm-changes li {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-6);
+  display: grid;
+  grid-template-columns: var(--size-16) minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--space-4);
   margin: 0;
   padding: calc(var(--space-3) + var(--space-0-5)) 0;
   border-bottom: var(--border-width-default) solid var(--color-border-default);
@@ -92,8 +92,11 @@
   white-space: nowrap;
 }
 
+.hm-kind {
+  justify-self: start;
+}
+
 .hm-date {
-  flex: none;
   white-space: nowrap;
 }
 
@@ -126,7 +129,11 @@
   }
 
   .hm-changes li {
-    flex-direction: column;
-    gap: var(--space-0-5);
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: var(--space-1) var(--space-3);
+  }
+
+  .hm-date {
+    grid-column: 2;
   }
 }

@@ -165,37 +165,43 @@
 
 .fd-scope-label {
   color: var(--color-text-muted);
-  font-size: var(--typography-caption-size);
-  line-height: var(--typography-caption-line-height);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
   font-weight: var(--font-weight-medium);
 }
 
 .fd-scope {
+  /* Same metrics as the DS SegmentedControl (md): a 44px target on the subtle track, the selected option a
+     raised plate. Kept as static markup because scripts/shell.ts drives it with data-set-brand/density. */
   display: inline-flex;
-  align-items: center;
-  gap: var(--space-0-5);
+  align-items: stretch;
+  min-height: var(--control-height-md);
   padding: var(--space-0-5);
   border: var(--border-width-default) solid var(--color-border-default);
-  border-radius: var(--radius-pill);
-  background-color: var(--color-surface-default);
+  border-radius: var(--radius-control);
+  background-color: var(--color-bg-subtle);
 }
 
 .fd-scope-opt {
-  height: var(--size-6);
-  padding: 0 var(--space-2);
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--space-3);
   border: 0;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-inset);
   background-color: transparent;
   color: var(--color-text-muted);
   font: inherit;
-  font-size: var(--typography-caption-size);
+  font-size: var(--font-size-200);
   font-weight: var(--font-weight-medium);
+  line-height: var(--font-line-height-tight);
+  white-space: nowrap;
   cursor: pointer;
 }
 
 .fd-scope-opt[aria-checked="true"] {
-  background-color: var(--color-surface-inverse);
-  color: var(--color-text-inverse);
+  background-color: var(--color-surface-default);
+  color: var(--color-text-default);
+  box-shadow: var(--elevation-raised);
 }
 
 .fd-scope-opt:focus-visible {
@@ -205,6 +211,7 @@
 
 @media (hover: hover) {
   .fd-scope-opt:not([aria-checked="true"]):hover {
+    background-color: var(--color-surface-hover);
     color: var(--color-text-default);
   }
 }
