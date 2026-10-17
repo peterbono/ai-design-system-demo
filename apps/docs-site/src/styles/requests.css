@@ -1,0 +1,289 @@
+/* Component change requests (Field Guide): the Requests view of Changes, its detail, the Components drawer form and
+   the Settings Integrations card. Same four sizes as the pages they live in: h2, body, ui, and h3 for card titles.
+   Color only for status (pills); kinds and tiers stay grey. */
+
+/* Requests list: title with the component first, a quiet meta line, the status, the date. */
+.rq-row-link {
+  grid-template-columns: minmax(0, 1fr) minmax(0, auto) auto var(--size-16);
+}
+
+.rq-comp {
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-medium);
+}
+
+.rq-meta {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rq-rule {
+  max-width: 65ch;
+}
+
+.rq-empty-text {
+  max-width: 65ch;
+}
+
+/* Detail */
+.rq-summary {
+  max-width: 65ch;
+  white-space: pre-line;
+}
+
+.rq-imgs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.rq-img {
+  display: block;
+  max-width: 100%;
+  max-height: var(--size-80);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-inset);
+}
+
+.rq-prs {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rq-cmd-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.rq-cmd {
+  flex: 1 1 calc(var(--size-60) + var(--size-10));
+  margin-top: 0;
+  font-family: var(--font-family-mono);
+}
+
+/* Form fields (Components request form, Settings Integrations). */
+.rq-form {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.rq-form[hidden],
+.rq-done[hidden],
+.rq-error[hidden],
+[data-gh-only][hidden],
+[data-no-gh][hidden] {
+  display: none;
+}
+
+.rq-field {
+  display: grid;
+  gap: var(--space-1-5);
+  font-size: var(--typography-ui-size);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--typography-ui-line-height);
+}
+
+.rq-field input,
+.rq-field select,
+.rq-field textarea,
+.rq-change input {
+  width: 100%;
+  min-height: var(--control-height-md);
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width-default) solid var(--color-border-emphasis);
+  border-radius: var(--radius-control);
+  background-color: var(--color-surface-default);
+  color: var(--color-text-default);
+  font: inherit;
+  font-weight: var(--font-weight-regular);
+}
+
+.rq-field input:focus-visible,
+.rq-field select:focus-visible,
+.rq-field textarea:focus-visible,
+.rq-change input:focus-visible {
+  outline: var(--border-width-strong) solid var(--focus-ring-color);
+  outline-offset: var(--border-width-default);
+}
+
+.rq-field input[aria-invalid="true"],
+.rq-field textarea[aria-invalid="true"] {
+  border-color: var(--color-feedback-danger-text);
+}
+
+.rq-hint {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-regular);
+}
+
+.rq-pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(calc(var(--size-40) + var(--size-4)), 1fr));
+  gap: var(--space-3);
+}
+
+.rq-changes {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: var(--typography-ui-size);
+}
+
+.rq-changes legend {
+  margin-bottom: var(--space-1-5);
+  padding: 0;
+  font-size: var(--typography-ui-size);
+  font-weight: var(--font-weight-medium);
+}
+
+.rq-change {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.rq-change input {
+  min-height: var(--control-height-sm);
+}
+
+.rq-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.rq-error {
+  margin: 0;
+  color: var(--color-feedback-danger-text);
+  font-size: var(--typography-ui-size);
+}
+
+.rq-done {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-4);
+  border-radius: var(--radius-control);
+  background-color: var(--color-feedback-success-bg);
+  color: var(--color-feedback-success-text);
+  font-size: var(--typography-ui-size);
+}
+
+.rq-done a {
+  color: inherit;
+}
+
+.rq-done > * {
+  margin: 0;
+}
+
+/* Components drawer: the request block, and a focused drawer while the form is open. */
+.cm-req {
+  display: grid;
+  gap: var(--space-3);
+  padding-top: var(--space-5);
+  border-top: var(--border-width-default) solid var(--color-border-default);
+}
+
+.cm-req > p {
+  margin: 0;
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.cm-req-h {
+  margin: 0;
+  font-size: var(--typography-ui-size);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--typography-ui-line-height);
+}
+
+.cm-req-start {
+  justify-self: start;
+}
+
+.cm-drawer[data-mode="request"] .cm-d-actions,
+.cm-drawer[data-mode="request"] .cm-d-links,
+.cm-drawer[data-mode="request"] .cm-d-facts,
+.cm-drawer[data-mode="request"] .cm-d-guidance {
+  display: none;
+}
+
+/* Settings > Integrations */
+.set-int {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-6);
+}
+
+.set-int > p {
+  margin: 0;
+  max-width: 65ch;
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.set-int-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.set-int-head .set-row-title {
+  margin: 0;
+}
+
+.set-int-head .pill[hidden] {
+  display: none;
+}
+
+.set-int-lead {
+  max-width: 65ch;
+  margin: 0 0 var(--space-4);
+}
+
+.set-int .rq-form {
+  margin: var(--space-3) 0 var(--space-6);
+}
+
+.set-int-group {
+  margin: var(--space-2) 0 0;
+  font-size: var(--typography-ui-size);
+  font-weight: var(--font-weight-semibold);
+}
+
+.set-checklist {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-2) 0 var(--space-4);
+  padding-left: var(--space-5);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+@media (max-width: 760px) {
+  .rq-row-link .rq-meta {
+    display: none;
+  }
+
+  .rq-change {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .set-int {
+    padding: var(--space-4);
+  }
+}

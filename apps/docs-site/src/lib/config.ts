@@ -1,5 +1,6 @@
 // Which repository this Bridge workspace documents and reviews. Read from bridge.config.json at the repo root, so
 // the same site works on any design system repo; the demo repo is only the default.
+import type { IntegrationsConfig } from '@bridge-ds/core';
 import { exists, readJson } from './repo';
 
 export interface SiteRepo {
@@ -12,9 +13,11 @@ export interface SiteRepo {
   override: { allowed: string[]; requireReason: boolean; minReasonLength: number };
   /** Token root in the repo, for commits that predate bridge.config.json. */
   tokensRoot: string;
+  /** Where component change requests go besides the GitHub issue (labels, assignees, Jira). Empty: GitHub only. */
+  integrations: IntegrationsConfig;
 }
 
-const DEFAULT: SiteRepo = { owner: 'peterbono', repo: 'ai-design-system-demo', defaultBranch: 'main', owners: { design: [], tech: [] }, override: { allowed: [], requireReason: true, minReasonLength: 20 }, tokensRoot: 'packages/tokens/src' };
+const DEFAULT: SiteRepo = { owner: 'peterbono', repo: 'ai-design-system-demo', defaultBranch: 'main', owners: { design: [], tech: [] }, override: { allowed: [], requireReason: true, minReasonLength: 20 }, tokensRoot: 'packages/tokens/src', integrations: {} };
 
 interface RawConfig {
   repo?: string | { owner?: string; name?: string; repo?: string; defaultBranch?: string; branch?: string };
@@ -26,6 +29,7 @@ interface RawConfig {
   };
   tokens?: { root?: string };
   owners?: { design?: string[]; tech?: string[] };
+  integrations?: IntegrationsConfig;
 }
 
 let cache: SiteRepo | null = null;
@@ -51,6 +55,7 @@ export function siteRepo(): SiteRepo {
     const owners = c.governance?.owners ?? c.owners;
     if (c.tokens?.root) out.tokensRoot = c.tokens.root;
     if (owners) out.owners = { design: owners.design ?? [], tech: owners.tech ?? [] };
+    if (c.integrations && typeof c.integrations === 'object') out.integrations = c.integrations;
     const ov = c.governance?.override;
     if (ov)
       out.override = {

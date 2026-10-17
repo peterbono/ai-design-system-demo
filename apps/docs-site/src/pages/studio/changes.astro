@@ -1,10 +1,12 @@
 ---
-// Studio Changes: one page, two views. "In review": the open pull requests, most urgent first, with the local draft
+// Studio Changes: one page, three views. "In review": the open pull requests, most urgent first, with the local draft
 // and the branches without a pull request. "History": merged token changes by release, with undo. A pull request
-// opens in place (?pr=N). Replaces Drafts, Branches, Reviews, Versions and Visual impact (lib/redirects.ts).
+// opens in place (?pr=N). "Requests": component change requests (GitHub issues labeled component-change) that a pull
+// request implements, opened in place (?request=N). Replaces Drafts, Branches, Reviews, Versions and Visual impact (lib/redirects.ts).
 import '../../styles/reviews.css';
 import '../../styles/history.css';
 import '../../styles/changes.css';
+import '../../styles/requests.css';
 import Layout from '../../layouts/Layout.astro';
 import StudioHeader from '../../components/StudioHeader.astro';
 import HistoryPlanner from '../../components/HistoryPlanner.astro';
@@ -43,6 +45,9 @@ const sources = ['docs/GOVERNANCE.md', '.github/CODEOWNERS', 'docs/PREVIEWS.md',
         <a role="tab" id="cg-tab-review" href="/studio/changes/" aria-controls="cg-review" aria-selected="true" tabindex="0" data-cg-view="review">
           In review <span class="cg-tab-n num" id="rv-count" hidden></span>
         </a>
+        <a role="tab" id="cg-tab-requests" href="/studio/changes/?view=requests" aria-controls="cg-requests" aria-selected="false" tabindex="-1" data-cg-view="requests">
+          Requests <span class="cg-tab-n num" id="rq-count" hidden></span>
+        </a>
         <a role="tab" id="cg-tab-history" href="/studio/changes/?view=history" aria-controls="cg-history" aria-selected="false" tabindex="-1" data-cg-view="history">History</a>
       </div>
 
@@ -80,6 +85,34 @@ const sources = ['docs/GOVERNANCE.md', '.github/CODEOWNERS', 'docs/PREVIEWS.md',
           <p class="cg-muted">Branches without a pull request: deploy previews only.</p>
           <ul class="fg-card cg-list" id="cg-other-list"></ul>
         </details>
+      </section>
+
+      <section class="cg-panel" id="cg-requests" role="tabpanel" aria-labelledby="cg-tab-requests" hidden>
+        <section class="zone cg-open" id="rq-opener" aria-live="polite">
+          <p class="cg-open-sentence" id="rq-sentence">Component change requests load from GitHub.</p>
+          <p class="cg-asof rq-rule">Variables change through pull requests you approve. Components need code, so a change is a request that a pull request closes.</p>
+        </section>
+
+        <div class="fg-card cg-card" id="rq-table">
+          <ul class="cg-list" id="rq-list" aria-label="Component change requests" aria-busy="true">
+            <li class="cg-row cg-skel" aria-hidden="true"></li>
+            <li class="cg-row cg-skel" aria-hidden="true"></li>
+          </ul>
+        </div>
+
+        <details class="cg-other" id="rq-closed" hidden>
+          <summary class="cg-sec-head"><span class="cg-sec-title">Done and declined</span><span class="cg-sec-meta" id="rq-closed-n"></span><span class="cg-sec-chev" aria-hidden="true"></span></summary>
+          <ul class="fg-card cg-list" id="rq-closed-list" aria-label="Closed component change requests"></ul>
+        </details>
+
+        <div class="cg-empty" id="rq-empty" hidden>
+          <Illustration name="guide" width={200} />
+          <p class="cg-empty-title">No component change request yet.</p>
+          <p class="cg-muted rq-empty-text">
+            Designers ask for a new component or a change from the Push tab of the DS Bridge Figma plugin, or from a component in <a href="/studio/components/">Components</a>.
+            Each request is a GitHub issue labeled <span class="mono">component-change</span>.
+          </p>
+        </div>
       </section>
 
       <section class="cg-panel" id="cg-history" role="tabpanel" aria-labelledby="cg-tab-history" hidden>

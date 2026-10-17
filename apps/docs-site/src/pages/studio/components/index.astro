@@ -1,16 +1,19 @@
 ---
 // Studio Components: one sentence on the state of the catalog, one primary while guidance is missing, then every
 // component grouped by family (search and the family menu filter it). A row opens a drawer with the guidance status
-// and the doors: Edit docs, Edit tokens, Code, Workbench, Library page.
+// and the doors: Edit docs, Edit tokens, Code, Workbench, Library page, and "Request a change": code is the source
+// of truth, so a component change is a GitHub issue (label component-change) that a pull request closes.
 import '../../../styles/studio.css';
 import '../../../styles/components-studio.css';
+import '../../../styles/requests.css';
 import Layout from '../../../layouts/Layout.astro';
 import StudioHeader from '../../../components/StudioHeader.astro';
 import ButtonLink from '../../../components/ds/ButtonLink';
 import ComponentsSearch from '../../../components/ds/studio/ComponentsSearch';
 import ComponentsList, { exceptions, type ComponentListRow } from '../../../components/ds/studio/ComponentsList';
-import { Icon, IconButton, Link } from '@bridge-ds/react';
-import { BookOpen, FileText, Pencil, X } from 'lucide-react';
+import { Button, Icon, IconButton, Link } from '@bridge-ds/react';
+import { BookOpen, FileText, MessageSquarePlus, Pencil, X } from 'lucide-react';
+import { REQUEST_KINDS } from '@bridge-ds/core';
 import { GitHubMark, StorybookMark } from '../../../components/ds/studio/brand-icons';
 import { docsEditHref, editTokensHref, guidanceState, loadComponents, tokenCountLabel, type ComponentInfo } from '../../../lib/components';
 import { componentsLead, componentsPrimary } from '../../../lib/components-studio';
@@ -157,6 +160,46 @@ const docsLabel = (g: string) => (g === 'missing' ? 'Add guidance' : g === 'revi
         );
       })
     }
+    <section class="cm-req" data-cm-req aria-labelledby="cm-req-h">
+      <h3 id="cm-req-h" class="cm-req-h">Need a change?</h3>
+      <p data-cm-req-intro>Code is the source of truth, so a component change is a request: a GitHub issue that a developer, or Claude, implements in a pull request.</p>
+      <p data-no-gh>Connect GitHub to request changes.</p>
+      <Button variant="secondary" size="sm" className="cm-req-start" iconStart={GitHubMark} data-gh-open data-no-gh>Connect GitHub</Button>
+      <Button variant="secondary" size="sm" className="cm-req-start" iconStart={MessageSquarePlus} data-cm-req-open data-gh-only hidden aria-expanded="false" aria-controls="cm-req-form">Request a change</Button>
+
+      <form class="rq-form" id="cm-req-form" data-cm-req-form novalidate hidden>
+        <label class="rq-field">
+          <span>Kind</span>
+          <select name="kind" data-rq-kind>
+            {REQUEST_KINDS.map((k) => <option value={k.value}>{k.label}</option>)}
+          </select>
+          <span class="rq-hint" data-rq-kind-hint>{REQUEST_KINDS[0]!.hint}</span>
+        </label>
+        <label class="rq-field">
+          <span>Title</span>
+          <input name="title" type="text" autocomplete="off" placeholder="Add a danger ghost variant" required aria-required="true" />
+        </label>
+        <label class="rq-field">
+          <span>Summary</span>
+          <textarea name="summary" rows="4" placeholder="What should change, and why. Where you need it." required aria-required="true"></textarea>
+        </label>
+        <fieldset class="rq-changes" data-rq-changes>
+          <legend>Changes (optional)</legend>
+          <div class="rq-change" data-rq-change>
+            <input name="field" aria-label="What changes" placeholder="What: radius" autocomplete="off" />
+            <input name="before" aria-label="Now" placeholder="Now: 12" autocomplete="off" />
+            <input name="after" aria-label="Requested" placeholder="Requested: 6" autocomplete="off" />
+          </div>
+          <Button variant="ghost" size="sm" className="cm-req-start" type="button" data-rq-add-row>Add a row</Button>
+        </fieldset>
+        <p class="rq-error" role="alert" data-rq-error hidden></p>
+        <div class="rq-actions">
+          <Button variant="primary" type="submit" data-rq-submit>Open request</Button>
+          <Button variant="ghost" type="button" data-rq-cancel>Cancel</Button>
+        </div>
+      </form>
+      <div class="rq-done" role="status" data-rq-done hidden></div>
+    </section>
   </aside>
 
   <script>

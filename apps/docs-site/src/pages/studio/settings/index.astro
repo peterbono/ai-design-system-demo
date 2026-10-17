@@ -1,9 +1,11 @@
 ---
-// Studio Settings: one page, three sections in order. Connection (GitHub, then the Figma plugin and MCP as two
+// Studio Settings: one page, four sections in order. Connection (GitHub, then the Figma plugin and MCP as two
 // plain rows), Repository (one sentence, Source at rest, the rest collapsed with counts), Approvals (who approves
-// what, one line on the owner override). The old Repository, Governance and Integrations pages redirect to these
+// what, one line on the owner override), Integrations (where component change requests go: GitHub always, Jira
+// when the team wants it, proposed as a pull request on bridge.config.json). The old Repository, Governance and Integrations pages redirect to these
 // anchors (lib/redirects.ts); the governance prose lives in the Library (How review works).
 import '../../../styles/settings.css';
+import '../../../styles/requests.css';
 import Layout from '../../../layouts/Layout.astro';
 import StudioHeader from '../../../components/StudioHeader.astro';
 import ButtonLink from '../../../components/ds/ButtonLink';
@@ -17,6 +19,7 @@ import { mcpTools } from '../../../lib/mcp';
 import { HOW_REVIEW_WORKS } from '../../../lib/nav';
 import { exists, GITHUB_URL, lastUpdated, readText } from '../../../lib/repo';
 import { repoStatus } from '../../../lib/stats';
+import { REQUEST_LABEL } from '@bridge-ds/core';
 
 const r = siteRepo();
 const repoName = `${r.owner}/${r.repo}`;
@@ -68,6 +71,21 @@ const tools = mcpTools().length;
 // Approvals.
 const tiers = tierSummaries().map((t) => ({ ...t, approvalsHtml: inline(t.approvals), href: `/studio/changes/?tier=${t.tier}` }));
 const ov = r.override;
+
+// Integrations: GitHub issues always; Jira when bridge.config.json says so (the bridge-jira workflow does the sync).
+const jira = r.integrations.jira;
+const reqCfg = r.integrations.requests ?? {};
+const ghRepo = `https://github.com/${r.owner}/${r.repo}`;
+const secretsUrl = `${ghRepo}/settings/secrets/actions`;
+const workflowFile = '.github/workflows/bridge-jira.yml';
+const workflowUrl = `${ghRepo}/blob/${r.defaultBranch}/${workflowFile}`;
+const issuesUrl = `${ghRepo}/issues?q=${encodeURIComponent(`is:issue label:${REQUEST_LABEL}`)}`;
+const intData = JSON.stringify({
+  prefix: config.governance?.branchPrefix ?? '',
+  protectedBranches: config.governance?.protectedBranches ?? ['main', 'master'],
+  workflowUrl,
+  secretsUrl,
+}).replace(/</g, '\\u003c');
 const overrideLine = ov.allowed.length
   ? `Owner override: ${ov.allowed.map((l) => `@${l}`).join(', ')} may merge when only approvals are missing${ov.requireReason ? `, with a written reason of ${ov.minReasonLength} characters or more` : ''}.`
   : 'Owner override is off: every merge waits for its approvals.';
@@ -185,6 +203,67 @@ const overrideLine = ov.allowed.length
     <p class="set-muted">Gates, the merge rules and what the AI agent may do: <a href={HOW_REVIEW_WORKS}>How review works</a>.</p>
   </section>
 
+  <section class="set-block" id="integrations" aria-labelledby="set-integrations">
+    <h2 id="set-integrations" class="set-h">Integrations</h2>
+    <p class="set-muted set-int-lead">
+      Component change requests are GitHub issues labeled <span class="mono">{REQUEST_LABEL}</span>. Developers implement them in a pull request that closes them. Mirror them to Jira if your team plans there.
+    </p>
+
+    <div class="fg-card set-int" data-set-jira>
+      <div class="set-int-head">
+        <p class="set-row-title">Jira</p>
+        <span class="pill">Recommended</span>
+        <span class="pill is-pass" hidden={!jira}>Connected</span>
+      </div>
+      <p>
+        {
+          jira
+            ? `Each new request becomes a ${jira.issueType ?? 'Task'} in ${jira.project} on ${jira.baseUrl.replace(/^https:\/\//, '')}, with a link back to GitHub.`
+            : 'Each new request becomes a Jira issue in your project, with a link back to GitHub. Optional: skip it if your team follows requests in GitHub.'
+        }
+      </p>
+      <details class="set-more" id="jira-setup">
+        <summary><span class="set-more-title">{jira ? 'Change Jira settings' : 'Set up Jira'}</span><span class="set-chev" aria-hidden="true"></span></summary>
+        <form class="rq-form" data-int-form novalidate>
+          <div class="rq-pair">
+            <label class="rq-field"><span>Jira site</span><input name="baseUrl" type="url" inputmode="url" autocomplete="off" placeholder="https://acme.atlassian.net" value={jira?.baseUrl ?? ''} /></label>
+            <label class="rq-field"><span>Project key</span><input name="project" autocomplete="off" placeholder="DS" value={jira?.project ?? ''} /></label>
+          </div>
+          <div class="rq-pair">
+            <label class="rq-field"><span>Issue type</span><input name="issueType" autocomplete="off" value={jira?.issueType ?? 'Task'} /></label>
+            <label class="rq-field"><span>Jira labels</span><input name="jiraLabels" autocomplete="off" placeholder="design-system" value={(jira?.labels ?? []).join(', ')} /></label>
+          </div>
+          <p class="set-int-group">Every request, in GitHub</p>
+          <div class="rq-pair">
+            <label class="rq-field"><span>Labels</span><input name="requestLabels" autocomplete="off" placeholder="design" value={(reqCfg.labels ?? []).join(', ')} /></label>
+            <label class="rq-field"><span>Assignees</span><input name="assignees" autocomplete="off" placeholder="@login" value={(reqCfg.assignees ?? []).map((a) => `@${a}`).join(', ')} /></label>
+          </div>
+          <p class="rq-error" role="alert" data-int-error hidden></p>
+          <div class="rq-actions">
+            <Button variant="secondary" type="submit" data-int-submit data-gh-gate="propose integrations">Propose</Button>
+            <span class="set-muted">Opens a pull request on <span class="mono">{file}</span>. Nothing changes until it merges.</span>
+          </div>
+          <div class="rq-done" role="status" data-int-done hidden></div>
+        </form>
+        <p class="set-int-group">Then, once</p>
+        <ol class="set-checklist">
+          <li>Merge the pull request. <span class="mono">{file}</span> is a guarded file, so it gets the highest review tier.</li>
+          <li>Add the repository secrets <span class="mono">JIRA_EMAIL</span> and <span class="mono">JIRA_API_TOKEN</span> in <a href={secretsUrl}>Settings, Secrets and variables, Actions</a>.</li>
+          <li>The <a href={workflowUrl} class="mono">{workflowFile}</a> workflow creates the Jira issue for each new request and labels the GitHub issue with its key.</li>
+        </ol>
+      </details>
+    </div>
+
+    <p class="set-muted">
+      <strong>Use your own tools.</strong> Follow requests in GitHub by <a href={issuesUrl}>filtering issues by the {REQUEST_LABEL} label</a>, or link GitHub and Jira with Atlassian's <a href="https://github.com/marketplace/jira-software-github">GitHub for Jira</a> app.
+    </p>
+  </section>
+
+  <script type="application/json" id="set-int-data" set:html={intData} />
+  <script>
+    import { initIntegrations } from '../../../scripts/integrations';
+    initIntegrations();
+  </script>
   <script>
     import { currentViewer, initGitHubConnect, onAccess } from '../../../scripts/github-session';
     const login = () => document.querySelectorAll<HTMLElement>('[data-set-login]').forEach((el) => (el.textContent = currentViewer()?.login ?? ''));

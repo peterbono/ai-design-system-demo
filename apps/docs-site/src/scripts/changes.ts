@@ -1,16 +1,23 @@
-// Studio Changes page controller: the two views (In review, History) as tabs, a pull request opened in place
-// (?pr=N), the local draft strip, and the routes old pages redirect to (?view=history, #other-branches, ?branch=).
+// Studio Changes page controller: the three views (In review, Requests, History) as tabs, a pull request opened in
+// place (?pr=N), a component change request opened in place (?request=N), the local draft strip, and the routes old pages redirect to (?view=history, #other-branches, ?branch=).
 import { closePr, initReviewAuth, loadList, openPr } from './reviews';
 import { initHistory } from './history/page';
+import { loadRequests, openRequest } from './requests';
+import type { PullLike } from '../lib/requests-view';
 import { draftCount } from './shell';
 import { docsEdits, draftSummary, tokenEdits } from '../lib/docs-draft-model';
 import type { Draft } from '../lib/editor-model';
 
-type View = 'review' | 'history';
+type View = 'review' | 'requests' | 'history';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const tabs = () => [...document.querySelectorAll<HTMLAnchorElement>('[data-cg-view]')];
 let listLoaded: Promise<{ number: number; head: { ref: string } }[]> | null = null;
+const VIEW_QUERY: Record<View, string> = { review: '', requests: '?view=requests', history: '?view=history' };
+
+/** The open pull requests In review already read (with their bodies), so Requests links them at no request. */
+const openPullsForRequests = (): Promise<PullLike[] | null> | undefined =>
+  listLoaded?.then((pulls) => (pulls.every((p) => 'body' in p) ? (pulls as unknown as PullLike[]) : null));
 
 function selectTab(view: View) {
   for (const t of tabs()) {
@@ -19,6 +26,7 @@ function selectTab(view: View) {
     t.tabIndex = on ? 0 : -1;
   }
   $('cg-review').hidden = view !== 'review';
+  $('cg-requests').hidden = view !== 'requests';
   $('cg-history').hidden = view !== 'history';
 }
 
@@ -46,6 +54,7 @@ function showView(view: View) {
   $('cg-main').hidden = false;
   selectTab(view);
   if (view === 'history') initHistory();
+  else if (view === 'requests') void loadRequests(openPullsForRequests());
   else listLoaded ??= loadList();
 }
 
@@ -57,7 +66,15 @@ function route() {
     void openPr(n, false);
     return;
   }
-  const view: View = params.get('view') === 'history' ? 'history' : 'review';
+  const req = Number(params.get('request'));
+  if (req) {
+    closePr();
+    $('cg-main').hidden = true;
+    void openRequest(req, false, openPullsForRequests());
+    return;
+  }
+  const v = params.get('view');
+  const view: View = v === 'history' || v === 'requests' ? v : 'review';
   showView(view);
   // Branch scope from the Studio header: open the pull request of that branch, if it has one.
   const branch = params.get('branch');
@@ -89,6 +106,19 @@ export function initChanges() {
       void openPr(Number(pr.dataset.openPr));
       return;
     }
+    const rq = t.closest<HTMLAnchorElement>('[data-open-request]');
+    if (rq) {
+      e.preventDefault();
+      $('cg-main').hidden = true;
+      void openRequest(Number(rq.dataset.openRequest), true, openPullsForRequests());
+      return;
+    }
+    if (t.closest('[data-back-requests]')) {
+      e.preventDefault();
+      history.pushState({}, '', '?view=requests');
+      showView('requests');
+      return;
+    }
     if (t.closest('[data-back]')) {
       e.preventDefault();
       history.pushState({}, '', location.pathname);
@@ -99,7 +129,7 @@ export function initChanges() {
     if (tab) {
       e.preventDefault();
       const view = tab.dataset.cgView as View;
-      history.pushState({}, '', view === 'history' ? '?view=history' : location.pathname);
+      history.pushState({}, '', VIEW_QUERY[view] || location.pathname);
       showView(view);
     }
   });
