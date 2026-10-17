@@ -286,3 +286,15 @@ input.select, .group-check input { flex: none; width: 14px; height: 14px; margin
 }
 .menu-item { text-align: left; border: 0; background: none; height: 28px; padding: 0 var(--s2); border-radius: var(--r-sm); cursor: pointer; white-space: nowrap; }
 .menu-item:hover { background: var(--bg-hover); }
+
+/* Pull, "Review updates" like Figma: before and after thumbnails side by side, then what changes. */
+.row.review { gap: var(--s2); }
+.row-end { margin-left: auto; }
+.thumbs { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2); }
+.thumb { margin: 0; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.thumb img, .thumb-empty {
+  width: 100%; aspect-ratio: 4 / 3; object-fit: contain; border: 1px solid var(--border); border-radius: var(--r-md);
+  background: var(--bg-sunken);
+}
+.thumb-empty { display: flex; align-items: center; justify-content: center; color: var(--text-3); padding: var(--s2); text-align: center; }
+.thumb figcaption { color: var(--text-3); }
