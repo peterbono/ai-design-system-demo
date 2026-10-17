@@ -86,6 +86,9 @@
 }
 
 .ql-act {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--size-8);
   justify-self: end;
   color: var(--color-text-link);
   font-weight: var(--font-weight-semibold);
@@ -198,6 +201,9 @@
 }
 
 .ql-local > summary {
+  display: flex;
+  align-items: center;
+  min-height: var(--size-8);
   width: fit-content;
   color: var(--color-text-link);
   font-weight: var(--font-weight-semibold);

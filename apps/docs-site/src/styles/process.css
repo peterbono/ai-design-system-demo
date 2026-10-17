@@ -213,6 +213,7 @@
 .entry-ref a {
   display: inline-flex;
   align-items: center;
+  min-height: var(--size-8);
   gap: var(--space-1);
   color: var(--color-text-muted);
   text-decoration: none;
