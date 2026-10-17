@@ -222,6 +222,9 @@ details.notes ul { margin: 0; padding-left: var(--s4); color: var(--text-2); }
 
 /* Action bar */
 .bar { flex: none; display: flex; align-items: center; gap: var(--s2); padding: var(--s2) var(--s3); border-top: 1px solid var(--border); background: var(--bg); }
+.bar .btn { height: 36px; padding: 0 var(--s4); font-size: 13px; }
+.bar.lone .bar-status { display: none; }
+.bar.lone .btn.primary { flex: 1; }
 .bar-status { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--s2); color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .spinner { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--border); border-top-color: var(--brand); flex: none; animation: spin 700ms linear infinite; }
