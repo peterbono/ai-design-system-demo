@@ -61,10 +61,10 @@ export function pairSpecs(): PairSpec[] {
 
 let cache: PairResult[] | null = null;
 
-export function contrastPairs(): PairResult[] {
-  if (cache) return cache;
+/** Resolve pair specs against the tokens in every brand and theme. */
+export function evaluatePairs(specs: PairSpec[]): PairResult[] {
   const bySemantic = new Map(loadTokens().all.map((s) => [s.path, s]));
-  cache = pairSpecs().map((spec) => {
+  return specs.map((spec) => {
     const fgToken = bySemantic.get(spec.fg);
     const bgToken = bySemantic.get(spec.bg);
     if (!fgToken || !bgToken) {
@@ -84,5 +84,24 @@ export function contrastPairs(): PairResult[] {
     ) as Record<Brand, Record<Mode, ModeResult>>;
     return { ...spec, fgToken, bgToken, modes: brands[DEFAULT_BRAND], brands };
   });
+}
+
+export function contrastPairs(): PairResult[] {
+  cache ??= evaluatePairs(pairSpecs());
   return cache;
+}
+
+/**
+ * Screenshot and review fixture, dev server only: `BRIDGE_CONTRAST_FIXTURE=fail npm run docs:dev` adds pairs that
+ * really fail with today's tokens, so the failing state of the Accessibility page can be seen without breaking a
+ * token. Never set in a build, and the build gate (packages/tokens) never reads it.
+ */
+export const FAILING_FIXTURE: PairSpec[] = [
+  { fg: 'color.text.muted', bg: 'color.bg.muted', min: 4.5, usage: 'text' },
+  { fg: 'color.border.default', bg: 'color.surface.default', min: 3, usage: 'ui' },
+];
+
+export function pagePairs(dev: boolean): PairResult[] {
+  const extra = dev && process.env.BRIDGE_CONTRAST_FIXTURE === 'fail' ? evaluatePairs(FAILING_FIXTURE) : [];
+  return [...contrastPairs(), ...extra];
 }
