@@ -1,18 +1,15 @@
 ---
-// Bridge mark: two pillars and a suspended arc on a 32px grid. Pillars take the ink color, the arc the accent.
+// Bridge mark (Field Guide): a hand-set arch over a plank deck on three posts, with a Harbor strip of water below.
+// Ink strokes follow the text color; the strip uses the zone color. Wordmark in the display face.
+import Illustration from './Illustration.astro';
+
 interface Props {
-  size?: number;
   wordmark?: boolean;
 }
-const { size = 28, wordmark = true } = Astro.props;
+const { wordmark = true } = Astro.props;
 ---
 
 <span class="logo">
-  <svg class="logo-mark" width={size} height={size} viewBox="0 0 32 32" aria-hidden="true" focusable="false">
-    <rect x="5" y="5" width="4" height="23" rx="1" class="logo-pillar" />
-    <rect x="23" y="5" width="4" height="23" rx="1" class="logo-pillar" />
-    <path d="M3 8.5Q16 27 29 8.5" fill="none" class="logo-arc" stroke-width="2.75" stroke-linecap="round" />
-    <rect x="2" y="20.5" width="28" height="2.75" rx="1.375" class="logo-pillar" />
-  </svg>
+  <Illustration name="logo" class="logo-mark" />
   {wordmark && <span class="logo-word">Bridge</span>}
 </span>

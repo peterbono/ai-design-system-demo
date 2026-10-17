@@ -22,8 +22,8 @@ describe('navigation data', () => {
   });
 
   it('lists each page once per space', () => {
-    for (const space of ['library', 'studio', 'settings'] as const) {
-      const hrefs = navFor(space).flatMap((g) => g.items.map((i) => i.href));
+    for (const space of ['library', 'studio'] as const) {
+      const hrefs = navFor(space).flatMap((e) => (e.children ?? []).map((i) => i.href).concat(e.href ?? []));
       expect(new Set(hrefs).size).toBe(hrefs.length);
     }
   });
@@ -32,13 +32,22 @@ describe('navigation data', () => {
     expect(spaceOf('/')).toBe('library');
     expect(spaceOf('/components/button/')).toBe('library');
     expect(spaceOf('/studio/reviews')).toBe('studio');
-    expect(spaceOf('/studio/settings/governance/')).toBe('settings');
+    expect(spaceOf('/studio/settings/governance/')).toBe('studio');
+  });
+
+  it('keeps the side nav short: at most 7 top-level entries, two levels', () => {
+    for (const space of ['library', 'studio'] as const) {
+      const nav = navFor(space);
+      expect(nav.length).toBeLessThanOrEqual(7);
+      for (const e of nav) expect(Boolean(e.href) !== Boolean(e.children), e.label).toBe(true);
+    }
   });
 
   it('finds the group and entry for breadcrumbs, nested pages included', () => {
     expect(locate('/foundations/accessibility/')).toMatchObject({ space: 'library', group: 'Foundations', item: { label: 'Accessibility' } });
     expect(locate('/studio/drafts/')).toMatchObject({ space: 'studio', group: 'Changes', item: { label: 'Drafts' } });
-    expect(locate('/components/button/').group).toBe('Components');
+    expect(locate('/components/button/').entry?.label).toBe('Components');
+    expect(locate('/studio/settings/integrations/')).toMatchObject({ space: 'studio', group: 'Settings', item: { label: 'Integrations' } });
   });
 });
 

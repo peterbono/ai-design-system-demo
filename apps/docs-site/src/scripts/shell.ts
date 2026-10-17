@@ -27,21 +27,24 @@ export function announce(text: string) {
 
 function initTheme() {
   const root = document.documentElement;
-  const btn = $<HTMLButtonElement>('theme-toggle');
-  if (!btn) return;
-  const sync = () => btn.setAttribute('aria-pressed', String(root.getAttribute('data-theme') === 'dark'));
+  // One toggle in the top bar, one in the mobile navigation sheet: both stay in step.
+  const btns = [...document.querySelectorAll<HTMLButtonElement>('[data-theme-toggle]')];
+  if (!btns.length) return;
+  const sync = () => btns.forEach((b) => b.setAttribute('aria-pressed', String(root.getAttribute('data-theme') === 'dark')));
   sync();
-  btn.addEventListener('click', () => {
-    const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-    root.setAttribute('data-theme', next);
-    try {
-      localStorage.setItem('ds-theme', next);
-    } catch {
-      /* private mode: theme still applies for this page */
-    }
-    sync();
-    document.dispatchEvent(new CustomEvent('bridge:theme', { detail: next }));
-  });
+  btns.forEach((btn) =>
+    btn.addEventListener('click', () => {
+      const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      root.setAttribute('data-theme', next);
+      try {
+        localStorage.setItem('ds-theme', next);
+      } catch {
+        /* private mode: theme still applies for this page */
+      }
+      sync();
+      document.dispatchEvent(new CustomEvent('bridge:theme', { detail: next }));
+    }),
+  );
 }
 
 /**
@@ -242,6 +245,19 @@ function initRail() {
   });
   setInert();
   rail.querySelector('[aria-current="page"]')?.scrollIntoView({ block: 'nearest' });
+}
+
+/** Side nav groups: a button with aria-expanded shows or hides its list of pages. Only the current group starts open. */
+function initNavGroups() {
+  document.querySelectorAll<HTMLButtonElement>('[data-nav-group]').forEach((btn) => {
+    const list = document.getElementById(btn.getAttribute('aria-controls') ?? '');
+    if (!list) return;
+    btn.addEventListener('click', () => {
+      const open = btn.getAttribute('aria-expanded') !== 'true';
+      btn.setAttribute('aria-expanded', String(open));
+      list.hidden = !open;
+    });
+  });
 }
 
 /** Subsequence fuzzy score: consecutive and word-start hits score higher. -1 when not all characters match. */
@@ -588,5 +604,6 @@ export function initShell() {
   initScope();
   initCopy();
   initRail();
+  initNavGroups();
   initPalette();
 }

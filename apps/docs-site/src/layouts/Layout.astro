@@ -7,21 +7,18 @@ import '../styles/spaces.css';
 import '../styles/studio-app.css';
 import '../styles/ds-library.css';
 import '../styles/ds-studio.css';
+import '../styles/brand.css';
 import GitHubAccount from '../components/GitHubAccount.astro';
 import GitHubDialog from '../components/GitHubDialog.astro';
 import Icon from '../components/Icon.astro';
 import Logo from '../components/Logo.astro';
-import { LIBRARY_HOME, SETTINGS_HOME, SPACE_LABEL, STUDIO_HOME, locate, navFor, type Space } from '../lib/nav';
+import { LIBRARY_HOME, SPACE_LABEL, STUDIO_HOME, locate, navFor, type Space } from '../lib/nav';
 import { siteRepoJson } from '../lib/config';
-import { versionInfo } from '../lib/changelog';
-import { BRANDS, BRAND_LABEL, DENSITIES, DENSITY_LABEL } from '../lib/tokens';
 import { GITHUB_URL, STORYBOOK_URL, sourceUrl } from '../lib/repo';
-import { humanDate, repoStatus } from '../lib/stats';
+import { humanDate } from '../lib/stats';
 import { Breadcrumb, Button, IconButton, Kbd } from '@bridge-ds/react';
-import { Blocks, Menu as MenuIcon, Search, SunMoon, X } from 'lucide-react';
+import { Menu as MenuIcon, Moon, Search, X } from 'lucide-react';
 import IconLink from '../components/ds/IconLink';
-import ScopeMenu from '../components/ds/ScopeMenu';
-import VersionMenu from '../components/ds/VersionMenu';
 import { GitHubMark } from '../components/ds/brand-icons';
 
 export interface Crumb {
@@ -48,28 +45,17 @@ const path = Astro.url.pathname.replace(/\/?$/, '/');
 const here = locate(path);
 const space: Space = here.space;
 const nav = navFor(space);
-const repo = repoStatus();
-const version = versionInfo();
-const isStudio = space !== 'library';
+const isStudio = space === 'studio';
 const isHome = path === LIBRARY_HOME || path === STUDIO_HOME;
-const showToc = toc ?? (space === 'library' && !wide && !isHome);
+// The Field Guide reading template has no right rail; a long page can still opt in with toc.
+const showToc = toc ?? false;
 const isCurrent = (href: string) => path === href;
-const inSection = (href: string) => href !== LIBRARY_HOME && href !== STUDIO_HOME && href !== SETTINGS_HOME && href !== '/components/' && path !== href && path.startsWith(href);
-const spaceHome = space === 'library' ? LIBRARY_HOME : space === 'studio' ? STUDIO_HOME : SETTINGS_HOME;
 
-// Breadcrumb: Space / Group / Page (/ Sub-page). Hidden on the two home pages.
-const trail: Crumb[] = [{ label: SPACE_LABEL[space], href: spaceHome }];
-// Settings has a single group: the space name already says it.
-if (here.group && space !== 'settings') trail.push({ label: here.group });
-if (crumbs) trail.push(...crumbs);
-else if (here.item && here.item.href !== spaceHome) {
-  trail.push(here.item.href === path ? { label: here.item.label } : { label: here.item.label, href: here.item.href }, ...(here.item.href === path ? [] : [{ label: title }]));
-} else if (path !== spaceHome || space === 'settings') trail.push({ label: title });
-// The Studio is an app: its compact page headers say where you are, so no breadcrumb there.
-const showCrumbs = crumbs !== false && !isHome && !isStudio;
+// Breadcrumb only below the side nav's depth (a component page): the Harbor header and the nav say the rest.
+const nested = !!here.item && here.item.href !== path;
+const trail: Crumb[] = crumbs || (nested && here.item ? [{ label: here.item.label, href: here.item.href }, { label: title }] : []);
+const showCrumbs = crumbs !== false && !isStudio && trail.length > 1;
 const crumbItems = trail.map((c, i) => (c.href && i < trail.length - 1 ? { label: c.label, href: c.href } : { label: c.label }));
-const brandOptions = BRANDS.map((b) => ({ value: b, label: BRAND_LABEL[b] }));
-const densityOptions = DENSITIES.map((d) => ({ value: d, label: DENSITY_LABEL[d] }));
 const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of truth' : `${title} | ${SPACE_LABEL[space] === 'Library' ? 'Bridge' : `Bridge ${SPACE_LABEL[space]}`}`;
 ---
 
@@ -81,8 +67,8 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
     <title>{pageTitle}</title>
     {description && <meta name="description" content={description} />}
     <meta name="author" content="Florian Gouloubi" />
-    <meta name="theme-color" content="#f4f7fa" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#0d1826" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0b1825" media="(prefers-color-scheme: dark)" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="alternate" type="text/plain" href="/llms.txt" title="llms.txt" />
     <script is:inline>
@@ -103,83 +89,20 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
   <body>
     <a class="skip" href="#main">Skip to content</a>
     <header class="topbar">
-      <span class="rail-toggle-slot"><IconButton icon={MenuIcon} label="Open navigation" id="rail-toggle" aria-controls="rail" aria-expanded="false" /></span>
-      <a class="topbar-brand" href={LIBRARY_HOME} aria-label="Bridge Library, home"><Logo /></a>
-
-      {
-        space === 'settings' ? (
-          <a class="back-link" href={STUDIO_HOME} data-keep-branch>
-            <span class="back-icon" aria-hidden="true"><Icon name="chevron" size={14} /></span>
-            Back to Studio
-          </a>
-        ) : (
-          <nav class="space-switch topbar-switch" aria-label="Space">
-            <a href={LIBRARY_HOME} aria-current={space === 'library' ? 'page' : undefined}>Library</a>
-            <a href={STUDIO_HOME} aria-current={space === 'studio' ? 'page' : undefined} data-keep-branch>Studio</a>
-          </nav>
-        )
-      }
-
-      {
-        space === 'library' ? (
-          <VersionMenu
-            client:idle
-            current={version.current}
-            past={version.past.map((r) => r.name)}
-            branch={repo.branch}
-            sha={repo.sha}
-            pending={version.pending}
-            builtFrom={`Built from ${repo.branch} at ${repo.sha}, ${humanDate(repo.lastChange)}`}
-          />
-        ) : (
-          <details class="menu scope-pick" data-menu id="branch-menu">
-            <summary class="scope-pick-trigger" aria-label="Branch: main. Change branch" title="Branch this Studio view reads">
-              <Icon name="merge" size={14} />
-              <span class="mono" data-branch-label>main</span>
-              <span class="scope-pick-chev" aria-hidden="true"><Icon name="chevron" size={12} /></span>
-            </summary>
-            <div class="menu-panel" role="group" aria-label="Branches">
-              <p class="menu-title">Branch</p>
-              <ul class="menu-list" data-branch-list aria-busy="true">
-                <li>
-                  <a class="menu-item" href="?" data-branch="">
-                    <span class="mono">main</span>
-                    <span class="menu-note">Default branch</span>
-                  </a>
-                </li>
-              </ul>
-              <p class="menu-help" data-branch-note>
-                {here.item?.branchAware ? 'This page reads the branch you pick.' : 'This page reads main. Branch views for it are coming soon; Reviews and Visual impact follow the branch you pick.'}
-              </p>
-              <a class="menu-foot" href="/studio/branches/" data-keep-branch>All branches and previews</a>
-            </div>
-          </details>
-        )
-      }
-
-      <Button variant="secondary" iconStart={Search} className="shell-search" id="search-open" aria-haspopup="dialog" aria-controls="palette" aria-label="Search tokens, components, pages">
+      <a class="topbar-brand" href={space === 'studio' ? STUDIO_HOME : LIBRARY_HOME} aria-label={`Bridge ${SPACE_LABEL[space]}, home`}><Logo /></a>
+      <nav class="space-switch topbar-switch" aria-label="Space">
+        <a href={LIBRARY_HOME} aria-current={space === 'library' ? 'page' : undefined}>Library</a>
+        <a href={STUDIO_HOME} aria-current={space === 'studio' ? 'page' : undefined} data-keep-branch>Studio</a>
+      </nav>
+      <Button variant="ghost" iconStart={Search} className="shell-search" id="search-open" aria-haspopup="dialog" aria-controls="palette" aria-label="Search tokens, components, pages">
         <span class="shell-search-text">
           <span class="shell-search-label">Search tokens, components, pages</span>
-          <Kbd keys="⌘K" size="sm" className="shell-search-kbd" aria-hidden="true" />
         </span>
       </Button>
       <div class="topbar-actions">
-        {
-          isStudio && (
-            <div class="topbar-studio">
-              <a class="hd-btn hd-drafts" href="/studio/drafts/" data-keep-branch data-drafts-open data-count="0" aria-label="Drafts" title="Token edits waiting in this browser">
-                <Icon name="draft" size={16} />
-                <span class="hd-label">Drafts</span>
-                <span class="hd-n" data-nav-count-value-hd>0</span>
-              </a>
-              <GitHubAccount />
-            </div>
-          )
-        }
-        <IconLink href={STORYBOOK_URL} icon={Blocks} label="Component workbench (Storybook)" title="Component workbench (Storybook), for contributors" className="shell-ext" />
-        <IconLink href={GITHUB_URL} icon={GitHubMark} label="View the repository on GitHub" title="GitHub" className="shell-ext" />
-        <ScopeMenu client:idle brands={brandOptions} densities={densityOptions} />
-        <IconButton icon={SunMoon} label="Dark theme" id="theme-toggle" aria-pressed="false" title="Toggle dark theme" />
+        <IconButton icon={Moon} label="Dark theme" id="theme-toggle" data-theme-toggle aria-pressed="false" title="Dark theme" className="shell-wide" />
+        {isStudio ? <GitHubAccount /> : <IconLink href={GITHUB_URL} icon={GitHubMark} label="View the repository on GitHub" title="GitHub" className="shell-wide" />}
+        <span class="rail-toggle-slot"><IconButton icon={MenuIcon} label="Open navigation" id="rail-toggle" aria-controls="rail" aria-expanded="false" /></span>
       </div>
     </header>
 
@@ -189,70 +112,60 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
           <Logo />
           <IconButton icon={X} label="Close navigation" id="rail-close" />
         </div>
-        {
-          space === 'settings' ? (
-            <a class="back-link rail-back" href={STUDIO_HOME} data-keep-branch>
-              <span class="back-icon" aria-hidden="true"><Icon name="chevron" size={14} /></span>
-              Back to Studio
-            </a>
-          ) : (
-            <nav class="space-switch rail-switch" aria-label="Space">
-              <a href={LIBRARY_HOME} aria-current={space === 'library' ? 'page' : undefined}>Library</a>
-              <a href={STUDIO_HOME} aria-current={space === 'studio' ? 'page' : undefined} data-keep-branch>Studio</a>
-            </nav>
-          )
-        }
-        {
-          nav.map((section) => (
-            <div class="rail-section">
-              {section.label && <p class="rail-label">{section.label}</p>}
-              <ul>
-                {section.items.map((item) => (
+        <nav class="space-switch rail-switch" aria-label="Space">
+          <a href={LIBRARY_HOME} aria-current={space === 'library' ? 'page' : undefined}>Library</a>
+          <a href={STUDIO_HOME} aria-current={space === 'studio' ? 'page' : undefined} data-keep-branch>Studio</a>
+        </nav>
+        <ul class="nav">
+          {
+            nav.map((entry, n) => {
+              if (entry.href) {
+                const current = isCurrent(entry.href);
+                const inside = !current && here.entry?.label === entry.label;
+                return (
                   <li>
-                    <a href={item.href} aria-current={isCurrent(item.href) ? 'page' : undefined} data-active={inSection(item.href) || undefined} data-keep-branch={isStudio || undefined}>
-                      {item.icon && <Icon name={item.icon} size={18} />}
-                      <span>{item.label}</span>
-                      {item.count && (
-                        <span class="rail-num" data-nav-count={item.count} hidden>
-                          <span class="sr-only">, </span>
-                          <span data-nav-count-value></span>
-                          <span class="sr-only">{item.count === 'drafts' ? ' draft changes' : ' open'}</span>
-                        </span>
-                      )}
+                    <a class="nav-link" href={entry.href} aria-current={current ? 'page' : undefined} data-active={inside || undefined} data-keep-branch={isStudio || undefined}>
+                      <Icon name={entry.icon} size={20} />
+                      <span>{entry.label}</span>
                     </a>
                   </li>
-                ))}
-              </ul>
-              {section.families?.map((g) => (
-                <details class="rail-group" open={g.items.some((item) => isCurrent(item.href)) || undefined}>
-                  <summary class="rail-sublabel">
-                    <span>{g.label}</span>
-                    <span class="rail-count num">{g.items.length}</span>
-                  </summary>
-                  <ul class="rail-sub">
-                    {g.items.map((item) => (
+                );
+              }
+              const open = here.entry?.label === entry.label;
+              const id = `nav-group-${n}`;
+              return (
+                <li class="nav-group">
+                  <button type="button" class="nav-link nav-toggle" aria-expanded={open ? 'true' : 'false'} aria-controls={id} data-nav-group data-active={open || undefined}>
+                    <Icon name={entry.icon} size={20} />
+                    <span>{entry.label}</span>
+                    <span class="nav-chev" aria-hidden="true"><Icon name="chevron" size={16} /></span>
+                  </button>
+                  <ul class="nav-sub" id={id} hidden={!open}>
+                    {entry.children!.map((item) => (
                       <li>
-                        <a href={item.href} aria-current={isCurrent(item.href) ? 'page' : undefined}>
+                        <a href={item.href} aria-current={isCurrent(item.href) ? 'page' : undefined} data-keep-branch={isStudio || undefined}>
                           <span>{item.label}</span>
-                          {item.badge && <span class="rail-badge">{item.badge}</span>}
+                          {item.badge && (
+                            <span class="rail-num" data-nav-count={item.badge} hidden>
+                              <span class="sr-only">, </span>
+                              <span data-nav-count-value></span>
+                              <span class="sr-only"> draft changes</span>
+                            </span>
+                          )}
                         </a>
                       </li>
                     ))}
                   </ul>
-                </details>
-              ))}
-            </div>
-          ))
-        }
-        <div class="rail-foot">
-          {
-            space === 'studio' && (
-              <a href={SETTINGS_HOME} class="rail-settings" data-keep-branch>
-                <Icon name="settings" size={18} /> <span>Settings</span>
-              </a>
-            )
+                </li>
+              );
+            })
           }
-          <a href="/llms.txt" class="rail-foot-link"><Icon name="file" size={16} /> llms.txt</a>
+        </ul>
+        <div class="rail-foot">
+          <div class="rail-tools">
+            <IconButton icon={Moon} label="Dark theme" data-theme-toggle aria-pressed="false" title="Dark theme" />
+            {!isStudio && <IconLink href={GITHUB_URL} icon={GitHubMark} label="View the repository on GitHub" title="GitHub" />}
+          </div>
           <p>Bridge by Florian Gouloubi. Free and open source.</p>
         </div>
       </nav>
@@ -310,6 +223,11 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
                 )
               }
             </span>
+          </p>
+          <p class="page-footer-links">
+            <a href="/llms.txt" class="mono">llms.txt</a>
+            <a href={STORYBOOK_URL}>Storybook workbench</a>
+            <a href={GITHUB_URL}>GitHub</a>
           </p>
         </footer>
       </main>

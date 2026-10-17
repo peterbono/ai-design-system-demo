@@ -1,0 +1,11 @@
+---
+// Brand and density of the design system previews on this page, as a menu in the preview toolbar. The chrome stays
+// on the bridge brand; the picked brand and density reach every preview surface (scripts/shell.ts).
+import ScopeMenu from './ds/ScopeMenu';
+import { BRANDS, BRAND_LABEL, DENSITIES, DENSITY_LABEL } from '../lib/tokens';
+
+const brands = BRANDS.map((b) => ({ value: b, label: BRAND_LABEL[b] }));
+const densities = DENSITIES.map((d) => ({ value: d, label: DENSITY_LABEL[d] }));
+---
+
+<ScopeMenu client:idle brands={brands} densities={densities} />

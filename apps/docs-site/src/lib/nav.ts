@@ -1,36 +1,40 @@
-// The one navigation data file. Both spaces, their groups, the Settings view, breadcrumbs, the search index pages
-// and the page title of every route read from here. Components are grouped by the optional `category` in
-// <Name>.docs.json, so adding a component folder adds it to the catalog, the rail and search without touching this file.
+// The one navigation data file. Both spaces, their side nav, breadcrumbs, the search index pages and the page
+// title of every route read from here.
 //
 // Two spaces, one door:
 //   Library  reads the latest release of main. No token needed.
-//   Studio   changes it: drafts, branches, reviews, versions, checks. Needs a GitHub token to act, browsable without.
-// Scope (release in Library, branch in Studio) lives in the header and the URL, never in this list.
+//   Studio   changes it: drafts, branches, reviews, versions, checks, settings. Needs a GitHub token to act,
+//            browsable without.
+//
+// Side nav rules (apps/docs-site/DESIGN.md): at most 7 top-level entries per space, no group headings, no counts,
+// two levels at most. A top-level entry is either a page (href) or a group of pages (children); only the group you
+// are in starts expanded. Deeper levels (each component) live as cards on their group page, not in the nav.
 import type { IconName } from '../brand/icons';
 import { loadComponents } from './components';
 
-export type Space = 'library' | 'studio' | 'settings';
+export type Space = 'library' | 'studio';
 
 export interface NavItem {
   href: string;
   label: string;
   icon?: IconName;
-  /** Status badge (beta, deprecated) for component entries. */
-  badge?: string;
-  /** Live count filled in the browser: drafts from localStorage, reviews from GitHub. */
-  count?: 'drafts' | 'reviews';
-  /** Studio pages that read the branch chosen in the header (?branch=). Others show main and say so. */
+  /** Live badge filled in the browser: drafts waiting in localStorage. The one number the nav shows. */
+  badge?: 'drafts';
+  /** Studio pages that read the branch chosen next to the page title (?branch=). Others show main and say so. */
   branchAware?: boolean;
-  /** One line for search and the home shortcuts. */
+  /** One line for search, llms.txt and the group pages. */
   meta?: string;
 }
 
-export interface NavGroup {
-  /** Uppercase group label in the rail. No label: items sit at the top of the rail. */
-  label?: string;
-  items: NavItem[];
-  /** Collapsible sub-groups (component families). */
-  families?: { label: string; items: NavItem[] }[];
+/** A top-level side nav entry: a page, or a group of pages that expands in place. */
+export interface NavEntry {
+  label: string;
+  icon: IconName;
+  /** Page entry. */
+  href?: string;
+  meta?: string;
+  /** Group entry: its pages, shown when the group is expanded. */
+  children?: NavItem[];
 }
 
 export const LIBRARY_HOME = '/';
@@ -39,16 +43,11 @@ export const SETTINGS_HOME = '/studio/settings/';
 
 export const FOUNDATIONS: NavItem[] = [
   { href: '/foundations/color/', label: 'Color', icon: 'palette', meta: 'Palette ramps and the semantic roles in both themes' },
-  { href: '/foundations/typography/', label: 'Typography', icon: 'type', meta: 'Type scale, weights and samples' },
+  { href: '/foundations/typography/', label: 'Typography', icon: 'type', meta: 'Type roles, the scale and samples' },
   { href: '/foundations/spacing/', label: 'Spacing', icon: 'spacing', meta: 'The space scale' },
   { href: '/foundations/radius/', label: 'Radius and borders', icon: 'radius', meta: 'Radius roles and border widths' },
   { href: '/foundations/elevation/', label: 'Elevation', icon: 'elevation', meta: 'Shadows for floating layers' },
   { href: '/foundations/accessibility/', label: 'Accessibility', icon: 'contrast', meta: 'Contrast grid of every gated color pair, in every brand and theme' },
-];
-
-export const LIBRARY_TOKENS: NavItem[] = [
-  { href: '/tokens/', label: 'Explorer', icon: 'grid', meta: 'Every token with its alias chain, values, contrast and usage' },
-  { href: '/playground/', label: 'Theme playground', icon: 'play', meta: 'A sample product screen in every brand, theme and density' },
 ];
 
 export const LIBRARY_USE: NavItem[] = [
@@ -57,15 +56,10 @@ export const LIBRARY_USE: NavItem[] = [
   { href: '/changelog/', label: 'Changelog', icon: 'tag', meta: 'Release notes, ready to post' },
 ];
 
-export const STUDIO_DATA: NavItem[] = [
-  { href: '/studio/tokens/', label: 'Tokens', icon: 'grid', meta: 'Edit tokens into a draft, with live preview and guardrails' },
-  { href: '/studio/components/', label: 'Components', icon: 'components', meta: 'Status, tokens, code and Figma links per component' },
-];
-
 export const STUDIO_CHANGES: NavItem[] = [
-  { href: '/studio/drafts/', label: 'Drafts', icon: 'draft', count: 'drafts', meta: 'Token edits waiting in this browser' },
+  { href: '/studio/drafts/', label: 'Drafts', icon: 'draft', badge: 'drafts', meta: 'Token edits waiting in this browser' },
   { href: '/studio/branches/', label: 'Branches', icon: 'merge', branchAware: true, meta: 'Open branches with previews and snapshot packages' },
-  { href: '/studio/reviews/', label: 'Reviews', icon: 'review', count: 'reviews', branchAware: true, meta: 'Open pull requests with token diffs and contrast' },
+  { href: '/studio/reviews/', label: 'Reviews', icon: 'review', branchAware: true, meta: 'Open pull requests with token diffs and contrast' },
   { href: '/studio/versions/', label: 'Versions', icon: 'clock', meta: 'Releases and merged token changes, with revert' },
 ];
 
@@ -81,74 +75,76 @@ export const SETTINGS_NAV: NavItem[] = [
   { href: '/studio/settings/integrations/', label: 'Integrations', icon: 'link', meta: 'GitHub token, Figma plugin, MCP server' },
 ];
 
+/** Component families for the catalog page (cards), from the optional `category` in <Name>.docs.json. */
 export function componentFamilies() {
   const groups = new Map<string, NavItem[]>();
   for (const c of loadComponents()) {
     if (!groups.has(c.category)) groups.set(c.category, []);
-    const status = c.docs?.status;
-    groups.get(c.category)!.push({ href: `/components/${c.slug}/`, label: c.name, badge: status && status !== 'stable' ? status : undefined });
+    groups.get(c.category)!.push({ href: `/components/${c.slug}/`, label: c.name });
   }
   return [...groups.entries()].map(([label, items]) => ({ label, items }));
 }
 
-export function libraryNav(): NavGroup[] {
+export function libraryNav(): NavEntry[] {
   return [
-    { items: [{ href: LIBRARY_HOME, label: 'Home', icon: 'home', meta: "What's new and where to start" }] },
-    { label: 'Foundations', items: FOUNDATIONS },
-    { label: 'Tokens', items: LIBRARY_TOKENS },
-    {
-      label: 'Components',
-      items: [{ href: '/components/', label: 'Catalog', icon: 'components', meta: 'Every component with its guidance' }],
-      families: componentFamilies(),
-    },
-    { label: 'Use', items: LIBRARY_USE },
+    { href: LIBRARY_HOME, label: 'Home', icon: 'home', meta: "What's new and where to start" },
+    { label: 'Foundations', icon: 'layers', children: FOUNDATIONS },
+    { href: '/tokens/', label: 'Tokens', icon: 'grid', meta: 'Every token with its alias chain, values, contrast and usage' },
+    { href: '/components/', label: 'Components', icon: 'diamonds', meta: 'Every component with its guidance' },
+    { label: 'Use', icon: 'book', children: LIBRARY_USE },
   ];
 }
 
-export function studioNav(): NavGroup[] {
+export function studioNav(): NavEntry[] {
   return [
-    { items: [{ href: STUDIO_HOME, label: 'Overview', icon: 'home', meta: 'To review, health and activity' }] },
-    { label: 'Data', items: STUDIO_DATA },
-    { label: 'Changes', items: STUDIO_CHANGES },
-    { label: 'Quality', items: STUDIO_QUALITY },
+    { href: STUDIO_HOME, label: 'Overview', icon: 'gauge', meta: 'What waits for you, suggestions and activity' },
+    { href: '/studio/tokens/', label: 'Tokens', icon: 'grid', meta: 'Edit tokens into a draft, with live preview and guardrails' },
+    { href: '/studio/components/', label: 'Components', icon: 'diamonds', meta: 'Status, tokens, code and Figma links per component' },
+    { label: 'Changes', icon: 'branch', children: STUDIO_CHANGES },
+    { label: 'Quality', icon: 'shield', children: STUDIO_QUALITY },
+    { label: 'Settings', icon: 'sliders', children: SETTINGS_NAV },
   ];
 }
 
-export function settingsNav(): NavGroup[] {
-  return [{ label: 'Settings', items: SETTINGS_NAV }];
-}
-
-export const navFor = (space: Space) => (space === 'studio' ? studioNav() : space === 'settings' ? settingsNav() : libraryNav());
+export const navFor = (space: Space) => (space === 'studio' ? studioNav() : libraryNav());
 
 const norm = (path: string) => path.replace(/\/?$/, '/');
 
 export function spaceOf(path: string): Space {
-  const p = norm(path);
-  if (p.startsWith(SETTINGS_HOME)) return 'settings';
-  if (p.startsWith(STUDIO_HOME)) return 'studio';
-  return 'library';
+  return norm(path).startsWith(STUDIO_HOME) ? 'studio' : 'library';
 }
 
-/** Where a page sits: its group label and item, for breadcrumbs and the active rail entry. */
-export function locate(path: string): { space: Space; group?: string; item?: NavItem } {
+/** Every page entry of one top-level entry: itself when it is a page, else its children. */
+const pagesOf = (e: NavEntry): NavItem[] => (e.children ?? (e.href ? [{ href: e.href, label: e.label, icon: e.icon, meta: e.meta }] : []));
+
+/**
+ * Where a page sits: its top-level entry and page, for breadcrumbs, the expanded group and the current link.
+ * `group` is the label of a group entry (Foundations, Changes); page entries have none.
+ */
+export function locate(path: string): { space: Space; entry?: NavEntry; group?: string; item?: NavItem } {
   const p = norm(path);
   const space = spaceOf(p);
-  for (const g of navFor(space)) {
-    const exact = g.items.find((i) => i.href === p) ?? g.families?.flatMap((f) => f.items).find((i) => i.href === p);
-    if (exact) return { space, group: g.label, item: exact };
+  const nav = navFor(space);
+  const found = (entry: NavEntry, item: NavItem) => ({ space, entry, group: entry.children ? entry.label : undefined, item });
+  for (const e of nav) {
+    const exact = pagesOf(e).find((i) => i.href === p);
+    if (exact) return found(e, exact);
   }
   // Nested pages (a component page) belong to the closest parent entry.
-  for (const g of navFor(space)) {
-    const parent = g.items.filter((i) => i.href !== '/' && i.href !== STUDIO_HOME && p.startsWith(i.href)).sort((a, b) => b.href.length - a.href.length)[0];
-    if (parent) return { space, group: g.label, item: parent };
+  let best: { entry: NavEntry; item: NavItem } | undefined;
+  for (const e of nav) {
+    for (const i of pagesOf(e)) {
+      if (i.href === LIBRARY_HOME || i.href === STUDIO_HOME || !p.startsWith(i.href)) continue;
+      if (!best || i.href.length > best.item.href.length) best = { entry: e, item: i };
+    }
   }
-  return { space };
+  return best ? found(best.entry, best.item) : { space };
 }
 
-/** Every page entry of both spaces and Settings, for the command palette. */
+/** Every page entry of both spaces, for the command palette and llms.txt. */
 export function allPages(): (NavItem & { space: Space })[] {
-  const spaces: Space[] = ['library', 'studio', 'settings'];
-  return spaces.flatMap((space) => navFor(space).flatMap((g) => g.items.map((i) => ({ ...i, space }))));
+  const spaces: Space[] = ['library', 'studio'];
+  return spaces.flatMap((space) => navFor(space).flatMap((e) => pagesOf(e).map((i) => ({ ...i, space }))));
 }
 
-export const SPACE_LABEL: Record<Space, string> = { library: 'Library', studio: 'Studio', settings: 'Settings' };
+export const SPACE_LABEL: Record<Space, string> = { library: 'Library', studio: 'Studio' };
