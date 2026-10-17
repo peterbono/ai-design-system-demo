@@ -22,7 +22,10 @@ import {
   type UsageMap,
 } from '../../lib/explorer/model';
 import { initTokenHistoryPanel } from '../history/token-panel';
-import { editorReady, editorSnapshot, initTokenEditor, renderEditor, setEditing } from '../token-editor';
+import { editorReady, editorSnapshot, initTokenEditor, setEditing } from '../token-editor';
+import { cellValue } from '../../lib/explorer/model';
+import { codeSyntax } from '../../lib/explorer/format';
+import { initReview } from './review';
 import { loadExplorerData } from './data';
 import { renderDetail, syntaxes } from './detail';
 import { refreshRow, renderGrid } from './grid';
@@ -90,7 +93,8 @@ export function initTokenExplorer() {
     filters: emptyFilters(),
     view: { brand: params.get('brand') && modes.brands.includes(params.get('brand')!) ? params.get('brand')! : base.brand, theme: base.theme, density: base.density, allCombos: params.get('combos') === '1' },
     syntax: (syntaxes as string[]).includes(params.get('syntax') ?? '') ? (params.get('syntax') as Syntax) : 'css',
-    showCode: true,
+    // Studio shows Name and the mode columns only; the View menu brings a code column back.
+    showCode: root.dataset.surface !== 'app' || (syntaxes as string[]).includes(params.get('syntax') ?? ''),
     showDescription: params.get('desc') === '1',
     collapsed: new Set(),
     treeOpen: new Set(),
@@ -147,7 +151,7 @@ export function initTokenExplorer() {
     if (s.filters.categories.length) p.set('fc', s.filters.categories.join(','));
     if (s.view.brand !== base.brand) p.set('brand', s.view.brand);
     if (s.view.allCombos) p.set('combos', '1');
-    if (s.syntax !== 'css') p.set('syntax', s.syntax);
+    if (app ? s.showCode : s.syntax !== 'css') p.set('syntax', s.syntax);
     if (s.showDescription) p.set('desc', '1');
     if (s.selected) p.set('t', s.selected);
     if (params.get('edit') === '1') p.set('edit', '1');
@@ -239,7 +243,7 @@ export function initTokenExplorer() {
     filtersEl.querySelectorAll<HTMLInputElement>('input[name="xp-ft"]').forEach((i) => (i.checked = s.filters.tiers.includes(i.value as Tier)));
     filtersEl.querySelectorAll<HTMLInputElement>('input[name="xp-fc"]').forEach((i) => (i.checked = s.filters.categories.includes(i.value as TypeCategory)));
     filtersEl.querySelectorAll<HTMLInputElement>('input[name="xp-usage"]').forEach((i) => (i.checked = i.value === s.filters.usage));
-    syntaxSel.value = s.syntax;
+    syntaxSel.value = s.showCode ? s.syntax : '';
     descBtn.setAttribute(descBtn.getAttribute('role') === 'switch' ? 'aria-checked' : 'aria-pressed', String(s.showDescription));
 
     // Brand and density selectors and the combinations switch are rendered by TokenExplorer.astro; show the ones
@@ -364,7 +368,7 @@ export function initTokenExplorer() {
     }
     syncUrl();
   }
-  function closeDetail() {
+  function closeDetail(restoreFocus = true) {
     if (detail.hidden) return;
     detail.hidden = true;
     scrim.hidden = true;
@@ -375,7 +379,7 @@ export function initTokenExplorer() {
     syncUrl();
     const back = returnFocus ?? (s.active ? cellsOf(findRow(s.active.row) ?? grid)[s.active.col] : null);
     returnFocus = null;
-    back?.focus();
+    if (restoreFocus) back?.focus();
   }
 
   /** Shows a token: switches to its collection when the current view hides it, then selects and reveals it. */
@@ -405,9 +409,92 @@ export function initTokenExplorer() {
     if (s.mode !== 'edit' || !editorReady() || !row.dataset.path || !cell.classList.contains('is-mode')) return false;
     const col = view.columns[Number(cell.dataset.col) - 1];
     if (!col) return false;
-    openInlineEditor({ container: main, cell, d, path: row.dataset.path, col });
+    if (!detail.hidden) closeDetail(false);
+    openInlineEditor({ container: main, cell, d, path: row.dataset.path, col, columns: view.columns });
     return true;
   }
+
+  /** What C copies: the value of a value cell (hex for colors), the CSS variable of a name cell. */
+  function copyFrom(row: HTMLElement, cell: HTMLElement, button?: HTMLElement | null) {
+    const path = row.dataset.path;
+    if (!path) return;
+    const col = cell.classList.contains('is-mode') ? view.columns[Number(cell.dataset.col) - 1] : undefined;
+    const t = d.set.byPath.get(path);
+    if (col) {
+      const v = cellValue(d.set, path, col.ctx);
+      void copyText(t?.type === 'color' ? (v.hex ?? v.css) : v.css, button);
+    } else if (t) void copyText(codeSyntax(path, t.tier, 'css'), button);
+  }
+
+  // ---- row menu (Studio): copy, details and edit, one menu at a time
+  let rowMenu: HTMLElement | null = null;
+  function closeRowMenu(focusBack = true) {
+    if (!rowMenu) return;
+    const anchor = rowMenu.dataset.anchor ? grid.querySelector<HTMLElement>(`.xp-tr[data-path="${CSS.escape(rowMenu.dataset.anchor)}"] [data-xp-rowmenu]`) : null;
+    rowMenu.remove();
+    rowMenu = null;
+    anchor?.setAttribute('aria-expanded', 'false');
+    if (focusBack) anchor?.focus();
+  }
+  function openRowMenu(btn: HTMLElement) {
+    closeRowMenu(false);
+    const row = btn.closest<HTMLElement>('.xp-tr');
+    const path = row?.dataset.path;
+    const t = path ? d.set.byPath.get(path) : undefined;
+    if (!row || !path || !t) return;
+    const menu = document.createElement('div');
+    menu.className = 'xp-rowmenu-pop';
+    menu.setAttribute('role', 'menu');
+    menu.setAttribute('aria-label', `Actions for ${path}`);
+    menu.dataset.anchor = path;
+    const items = [
+      `<button type="button" role="menuitem" data-act="edit">${icon('pencil', 16)}Edit value</button>`,
+      `<button type="button" role="menuitem" data-act="details">${icon('info', 16)}Details</button>`,
+      `<button type="button" role="menuitem" data-act="copy-var">${icon('copy', 16)}Copy CSS variable</button>`,
+      ...view.columns.map((c, i) => `<button type="button" role="menuitem" data-act="copy-col" data-i="${i}">${icon('copy', 16)}Copy ${esc(c.label.toLowerCase())} value</button>`),
+    ];
+    menu.innerHTML = items.join('');
+    main.append(menu);
+    const m = main.getBoundingClientRect();
+    const r = btn.getBoundingClientRect();
+    menu.style.top = `${r.bottom - m.top + 4}px`;
+    menu.style.left = `${Math.max(8, r.right - m.left - menu.offsetWidth)}px`;
+    btn.setAttribute('aria-expanded', 'true');
+    rowMenu = menu;
+    const buttons = [...menu.querySelectorAll<HTMLElement>('button')];
+    buttons[0]?.focus();
+    menu.addEventListener('keydown', (e) => {
+      const i = buttons.indexOf(document.activeElement as HTMLElement);
+      if (e.key === 'ArrowDown') buttons[(i + 1) % buttons.length]?.focus();
+      else if (e.key === 'ArrowUp') buttons[(i - 1 + buttons.length) % buttons.length]?.focus();
+      else if (e.key === 'Escape' || e.key === 'Tab') closeRowMenu();
+      else return;
+      e.preventDefault();
+      e.stopPropagation();
+    });
+    menu.addEventListener('click', (e) => {
+      const b = (e.target as HTMLElement).closest<HTMLElement>('[data-act]');
+      if (!b) return;
+      const act = b.dataset.act;
+      closeRowMenu(act !== 'edit' && act !== 'details');
+      const cells = cellsOf(row);
+      if (act === 'edit') {
+        const cell = row.querySelector<HTMLElement>('.xp-td.is-mode');
+        if (cell) {
+          focusCell(row, Number(cell.dataset.col));
+          openEditorFor(row, cell);
+        }
+      } else if (act === 'details') openDetail(path, { focusTitle: true });
+      else if (act === 'copy-var') copyFrom(row, cells[0]!);
+      else if (act === 'copy-col') {
+        const cell = row.querySelectorAll<HTMLElement>('.xp-td.is-mode')[Number(b.dataset.i)];
+        if (cell) copyFrom(row, cell);
+      }
+    });
+  }
+  document.addEventListener('pointerdown', (e) => {
+    if (rowMenu && !rowMenu.contains(e.target as Node) && !(e.target as HTMLElement).closest('[data-xp-rowmenu]')) closeRowMenu(false);
+  });
 
   // ---- events: left pane
   const segValue = (e: Event) => (e as CustomEvent<{ value: string }>).detail.value;
@@ -499,7 +586,8 @@ export function initTokenExplorer() {
   densitySeg?.addEventListener('bridge:segment', (e) => changeView(() => (s.view.density = segValue(e))));
   combosBtn?.addEventListener('click', () => changeView(() => (s.view.allCombos = !s.view.allCombos)));
   syntaxSel.addEventListener('change', () => {
-    s.syntax = syntaxSel.value as Syntax;
+    s.showCode = syntaxSel.value !== '';
+    if (s.showCode) s.syntax = syntaxSel.value as Syntax;
     render({ keepScroll: true });
   });
   descBtn.addEventListener('click', () => {
@@ -557,6 +645,12 @@ export function initTokenExplorer() {
       void copyText(copy.dataset.copy!, copy);
       return;
     }
+    const menuBtn = target.closest<HTMLElement>('[data-xp-rowmenu]');
+    if (menuBtn) {
+      if (rowMenu?.dataset.anchor === menuBtn.closest<HTMLElement>('.xp-tr')?.dataset.path) closeRowMenu();
+      else openRowMenu(menuBtn);
+      return;
+    }
     const chip = target.closest<HTMLElement>('[data-goto]');
     if (chip) {
       goto(chip.dataset.goto!);
@@ -571,9 +665,9 @@ export function initTokenExplorer() {
     const cell = target.closest<HTMLElement>('[data-col]');
     if (cell) focusCell(row, Number(cell.dataset.col));
     const editing = s.mode === 'edit' && cell?.classList.contains('is-mode');
-    // Editing a cell on a narrow screen opens the editor sheet only, not the detail drawer on top of it.
-    if (row.dataset.path && !(editing && narrow.matches)) openDetail(row.dataset.path);
+    // Studio: a value opens its editor (one surface), the name opens the read-only details. Library: both open details.
     if (cell && editing) openEditorFor(row, cell);
+    else if (row.dataset.path) openDetail(row.dataset.path);
   });
 
   function toggleSection(row: HTMLElement) {
@@ -634,12 +728,13 @@ export function initTokenExplorer() {
       case ' ':
         e.preventDefault();
         if (row.classList.contains('is-section')) return toggleSection(row);
-        if (e.key === 'Enter' && openEditorFor(row, cell)) return;
-        if (row.dataset.path) openDetail(row.dataset.path, { focusTitle: e.key === 'Enter' && s.mode === 'read' });
+        if (openEditorFor(row, cell)) return;
+        if (row.dataset.path) openDetail(row.dataset.path, { focusTitle: e.key === 'Enter' });
         return;
       case 'c':
         if (e.metaKey || e.ctrlKey || e.altKey) return;
-        cell.querySelector<HTMLElement>('[data-copy]')?.click();
+        if (s.mode === 'edit') copyFrom(row, cell);
+        else cell.querySelector<HTMLElement>('[data-copy]')?.click();
         return;
       case 'Escape':
         if (!detail.hidden) {
@@ -659,15 +754,15 @@ export function initTokenExplorer() {
     if (go) return goto(go.dataset.goto!);
     if (target.closest('[data-xp-close]')) return closeDetail();
     if (target.closest('[data-xp-edit-cell]') && s.selected) {
+      // One editor in the product: Edit closes the details and opens the cell popover on the row.
       const row = findRow(s.selected);
       const cell = row?.querySelector<HTMLElement>('.xp-td.is-mode');
       if (row && cell) {
+        closeDetail(false);
         focusCell(row, Number(cell.dataset.col));
         openEditorFor(row, cell);
       }
-      return;
     }
-    if (target.closest('[data-xp-full-editor]') && s.selected) openFullEditor(s.selected);
   });
   detail.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
@@ -675,20 +770,7 @@ export function initTokenExplorer() {
       closeDetail();
     }
   });
-  scrim.addEventListener('click', closeDetail);
-
-  /** The previous drawer editor (live component preview, rename, delete), kept reachable from the detail panel. */
-  function openFullEditor(path: string) {
-    const dlg = document.getElementById('xp-full-editor') as HTMLDialogElement | null;
-    const slot = dlg?.querySelector<HTMLElement>('[data-xp-full-slot]');
-    if (!dlg || !slot) return;
-    slot.dispatchEvent(new Event('ed:dispose'));
-    const head = dlg.querySelector<HTMLElement>('[data-xp-full-title]');
-    if (head) head.textContent = path;
-    renderEditor(path, slot);
-    dlg.showModal();
-    dlg.addEventListener('close', () => slot.dispatchEvent(new Event('ed:dispose')), { once: true });
-  }
+  scrim.addEventListener('click', () => closeDetail());
 
   // ---- global keys: "/" stays the site-wide search palette everywhere. "F" focuses this explorer's search (from the
   // table, the tree or the page); Esc closes the inline editor, then the panel.
@@ -704,7 +786,8 @@ export function initTokenExplorer() {
     const el = e.target as HTMLElement;
     const typing = el.closest('input, textarea, select, [contenteditable="true"]');
     if (e.key === 'Escape' && !typing) {
-      if (inlineEditorOpen()) closeInlineEditor();
+      if (rowMenu) closeRowMenu();
+      else if (inlineEditorOpen()) closeInlineEditor();
       else if (!detail.hidden && (root.contains(el) || el === document.body)) closeDetail();
     }
   });
@@ -764,8 +847,11 @@ export function initTokenExplorer() {
   const wantsEdit = s.mode === 'edit';
   s.mode = 'read';
   root.dataset.mode = 'read';
-  if (document.getElementById('ed-tray')) initTokenEditor();
-  if (wantsEdit && editorReady()) setEditing(true);
+  if (document.querySelector('[data-xp-kit]') || document.getElementById('ed-tray')) initTokenEditor();
+  if (wantsEdit && editorReady()) {
+    setEditing(true);
+    initReview(d);
+  }
   started = true;
   render({ sync: Boolean(s.selected) });
   if (s.selected) {

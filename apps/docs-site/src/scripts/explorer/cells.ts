@@ -5,7 +5,8 @@
 import { aliasLabel, bezierPath, colorAlpha, cssText, isForeground, numericValue } from '../../lib/explorer/format';
 import { cellValue, pairedBackground, type CellValue, type Column } from '../../lib/explorer/model';
 import type { ExplorerData } from './types';
-import { copyButton, esc, inkOn } from './util';
+import { swatchLabel } from '../../lib/explorer/swatch-ramp';
+import { copyButton, esc, icon, inkOn } from './util';
 
 const CANVAS = 'color.bg.default';
 const SURFACE = 'color.surface.default';
@@ -91,6 +92,25 @@ export function cellHtml(d: ExplorerData, path: string, col: Column, editable: b
   return `<span class="xp-cv"${tip}>${preview(d, type, path, v, col)}<span class="xp-cv-text">${main}${err || line}${bar(type, path, v)}</span>${
     copyValue ? copyButton(copyValue, `value ${copyValue}`) : ''
   }${editable ? '<span class="xp-edit-hint" aria-hidden="true">Enter to edit</span>' : ''}</span>`;
+}
+
+/**
+ * Studio value cell: a field you click to edit. Swatch (or a small preview to scale), the alias as a short name, an
+ * edited dot when the draft changes this mode, the resolved value on the end side and a chevron that shows on hover
+ * and focus. No copy button: C copies, and so do the row menu and the detail panel.
+ */
+export function studioCellHtml(d: ExplorerData, path: string, col: Column, edited: boolean): string {
+  const t = d.set.byPath.get(path);
+  const type = t?.type ?? '';
+  const v = cellValue(d.set, path, col.ctx);
+  const lead =
+    type === 'color'
+      ? `<span class="xp-ms${v.hex ? '' : ' is-broken'}${colorAlpha(v.resolved) < 0.9995 ? ' has-alpha' : ''}" aria-hidden="true"><i style="background-color:${esc(v.css)}"></i></span>`
+      : preview(d, type, path, v, col);
+  const main = v.alias ? swatchLabel(v.alias) : v.line || cssText(type, v.raw);
+  const end = v.error ? 'Unresolved' : type === 'color' ? (v.hex ?? v.css) : v.alias ? v.line : '';
+  const dot = edited ? '<span class="xp-edot" aria-hidden="true"></span><span class="sr-only">, edited in your draft</span>' : '';
+  return `<span class="xp-field${v.error ? ' is-error' : ''}"${v.override ? ' data-override=""' : ''}>${lead}<span class="xp-field-main mono">${esc(main)}</span>${dot}<span class="xp-field-end mono">${esc(end)}</span><span class="xp-field-chev" aria-hidden="true">${icon('chevronDown', 16)}</span></span>`;
 }
 
 /** Accessible text of a cell for screen readers (the visual chip and line are aria-hidden duplicates otherwise). */

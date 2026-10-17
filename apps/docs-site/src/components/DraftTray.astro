@@ -1,7 +1,6 @@
 ---
 // Draft changes: the tray under Studio Tokens (variant "tray") and the Drafts page body (variant "page"), plus the
 // dialogs that act on the draft. Driven by scripts/token-editor.ts; the draft lives in this browser.
-import EditorPreview from './EditorPreview.tsx';
 import Icon from './Icon.astro';
 import { Alert, Button, IconButton, Input, Textarea } from '@bridge-ds/react';
 import { X } from 'lucide-react';
@@ -13,8 +12,6 @@ interface Props {
 const { variant = 'tray' } = Astro.props;
 const palette = explorerTokens().filter((t) => t.layer === 'brand' && t.type === 'color');
 ---
-
-<template id="ed-preview-tpl"><EditorPreview theme="light" /></template>
 
   <section class:list={['ed-tray', { 'is-page': variant === 'page' }]} id="ed-tray" data-open={variant === 'page' ? 'true' : 'false'} data-variant={variant === 'page' ? 'page' : undefined} aria-label="Draft changes" hidden={variant !== 'page'}>
     <div class="ed-tray-bar">

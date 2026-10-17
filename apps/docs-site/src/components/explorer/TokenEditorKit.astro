@@ -1,10 +1,10 @@
 ---
-// Everything token editing needs besides the explorer itself: the draft tray, the add and propose dialogs, the full
-// editor drawer (live component preview, rename, delete), the GitHub and revert dialogs. TokenExplorer includes it in
-// mode="edit"; a page that switches the explorer into edit mode at runtime (the token explorer page) includes it once.
+// Everything token editing needs besides the explorer itself: the slim draft bar, the review sheet (before and after,
+// impact, a visual preview of real components), the add and propose dialogs, the GitHub and revert dialogs.
+// TokenExplorer includes it in mode="edit". The cell editor popover is built by scripts/explorer/inline-edit.ts.
 import Icon from '../Icon.astro';
 import { Alert, Button, IconButton, Input, Textarea } from '@bridge-ds/react';
-import { X } from 'lucide-react';
+import { GitPullRequest, X } from 'lucide-react';
 import GitHubDialog from '../GitHubDialog.astro';
 import HistoryPlanner from '../HistoryPlanner.astro';
 import EditorPreview from '../EditorPreview.tsx';
@@ -16,30 +16,28 @@ const palette = explorerTokens()
 ---
 
 <div class="xp-kit" data-xp-kit>
-  <template id="ed-preview-tpl"><EditorPreview theme="light" /></template>
+  <template data-xe-samples><EditorPreview /></template>
 
-  <div class="ed-sheet-scrim" data-ed-sheet-scrim hidden></div>
-  <section class="ed-tray" id="ed-tray" data-open="false" aria-label="Draft changes" hidden>
-    <div class="ed-tray-bar">
-      <button type="button" class="ed-tray-toggle" id="ed-tray-toggle" aria-expanded="false" aria-controls="ed-tray-panel">
-        <span class="ed-tray-count" id="ed-tray-count">No draft changes yet</span>
-        <span class="ed-tray-status" id="ed-tray-status"></span>
-        <Icon name="chevron" size={14} />
-      </button>
-      <div class="ed-tray-actions">
-        <Button variant="secondary" size="sm" id="ed-export">Export JSON</Button>
-        <Button variant="primary" size="sm" id="ed-propose" data-gh-gate="open a pull request" disabled>Propose change</Button>
-        <IconButton icon={X} label="Close drafts" size="sm" className="st-hideable" data-ed-sheet-close hidden />
-      </div>
-    </div>
-    <div class="ed-tray-panel" id="ed-tray-panel">
-      <ul class="ed-tray-list" id="ed-tray-list"></ul>
-      <div class="ed-tray-foot">
-        <p class="small muted">Saved in this browser only, no GitHub needed. Proposing opens a Tier 3 pull request labeled <code>source: bridge-web</code> and needs GitHub.</p>
-        <Button variant="danger" size="sm" id="ed-discard">Discard draft</Button>
-      </div>
-    </div>
-  </section>
+  <div class="xe-bar" data-xe-bar role="region" aria-label="Draft" hidden>
+    <span class="xe-bar-dot" aria-hidden="true"></span>
+    <span class="xe-bar-count" data-xe-bar-count aria-live="polite">1 change</span>
+    <button type="button" class="xe-bar-review" data-xe-review>Review <Icon name="arrowRight" size={16} /></button>
+  </div>
+
+  <div class="xe-scrim" data-xe-scrim hidden></div>
+  <aside class="xe-sheet" data-xe-sheet role="dialog" aria-modal="true" aria-labelledby="xe-sheet-title" hidden>
+    <header class="xe-sheet-head">
+      <h2 id="xe-sheet-title" class="xe-sheet-title" data-xe-sheet-title tabindex="-1">Review changes</h2>
+      <IconButton icon={X} label="Close the review" size="sm" data-xe-close />
+    </header>
+    <div class="xe-sheet-body" data-xe-sheet-body></div>
+    <footer class="xe-sheet-foot">
+      <p class="xe-sheet-note" data-xe-note>Your draft is kept in this browser. Connect GitHub once, then propose.</p>
+      <Button variant="secondary" data-xe-discard>Discard</Button>
+      <span class="xe-grow"></span>
+      <Button variant="primary" iconStart={GitPullRequest} id="ed-propose" data-gh-open disabled>Connect GitHub to propose</Button>
+    </footer>
+  </aside>
 
   <dialog class="gh-dialog" id="ed-add-dialog" aria-labelledby="ed-add-title">
     <form method="dialog" class="gh-dialog-box">
@@ -77,16 +75,6 @@ const palette = explorerTokens()
         <Button variant="primary" size="sm" id="ed-propose-go">Open pull request</Button>
       </footer>
     </form>
-  </dialog>
-
-  <dialog class="gh-dialog xp-full-editor" id="xp-full-editor" aria-labelledby="xp-full-title">
-    <div class="gh-dialog-box">
-      <header class="gh-dialog-head">
-        <h2 id="xp-full-title" class="mono" data-xp-full-title>Edit token</h2>
-        <form method="dialog"><IconButton icon={X} label="Close the full editor" size="sm" type="submit" /></form>
-      </header>
-      <div data-xp-full-slot></div>
-    </div>
   </dialog>
 
   <GitHubDialog />

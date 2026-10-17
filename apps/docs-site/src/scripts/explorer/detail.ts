@@ -8,6 +8,7 @@ import { cellValue, studioHref, type Column } from '../../lib/explorer/model';
 import { activeReport, loadHistory } from '../history/state';
 import { cellHtml } from './cells';
 import type { ExplorerData, ExplorerState, View } from './types';
+import { swatchLabel } from '../../lib/explorer/swatch-ramp';
 import { copyButton, esc, icon } from './util';
 
 const SYNTAXES: Syntax[] = ['css', 'js', 'dtcg'];
@@ -30,7 +31,7 @@ function swatch(hex?: string) {
   return hex ? `<span class="xp-mini" style="background-color:${hex}" aria-hidden="true"></span>` : '';
 }
 
-function flow(d: ExplorerData, path: string, columns: Column[]): string {
+function flowParts(d: ExplorerData, path: string, columns: Column[]) {
   const lanes = upstreamLanes(d.set, path, columns);
   const type = d.set.byPath.get(path)?.type;
   const upstream = lanes
@@ -68,11 +69,66 @@ function flow(d: ExplorerData, path: string, columns: Column[]): string {
   const compList = comps.length
     ? `<ul class="xp-comps">${comps.map((c) => `<li><a href="${esc(c.href)}">${esc(c.name)}</a></li>`).join('')}</ul>`
     : '<p class="xp-empty-line">No component reads it, directly or through an alias.</p>';
+  const aliased = `<h4 class="xp-d-sub">Aliased by <span class="xp-d-n">${deps.length}</span>${all.length > deps.length ? `<span class="muted small"> (${all.length} through aliases)</span>` : ''}</h4>${depList}`;
+  const steps = Math.max(0, ...lanes.map((l) => l.nodes.length));
+  return { upstream, aliased, compList, comps, steps };
+}
+
+function flow(d: ExplorerData, path: string, columns: Column[]): string {
+  const f = flowParts(d, path, columns);
   return `<section class="xp-d-sec" aria-labelledby="xp-d-flow"><h3 id="xp-d-flow">Token flow</h3>
-    <h4 class="xp-d-sub">Upstream</h4>${upstream}
-    <h4 class="xp-d-sub">Aliased by <span class="xp-d-n">${deps.length}</span>${all.length > deps.length ? `<span class="muted small"> (${all.length} through aliases)</span>` : ''}</h4>${depList}
-    <h4 class="xp-d-sub">Used by components <span class="xp-d-n">${comps.length}</span></h4>${compList}
+    <h4 class="xp-d-sub">Upstream</h4>${f.upstream}
+    ${f.aliased}
+    <h4 class="xp-d-sub">Used by components <span class="xp-d-n">${f.comps.length}</span></h4>${f.compList}
   </section>`;
+}
+
+/**
+ * Studio: the details are read-only and compact. Name, one line of description, the value per mode, then Token flow,
+ * Used by and History collapsed with their counts, and one Edit that opens the cell editor (there is one editor).
+ */
+function renderStudioDetail(host: HTMLElement, d: ExplorerData, view: View, path: string) {
+  const x = d.byPath.get(path)!;
+  const columns = view.columns;
+  const f = flowParts(d, path, columns);
+  const val = (c: Column) => {
+    const v = cellValue(d.set, path, c.ctx);
+    const sw = v.hex ? `<span class="xp-d-ms" style="background-color:${esc(v.css)}" aria-hidden="true"></span>` : '';
+    return `<div class="xp-d-val">${sw}<span><span class="xp-d-val-label">${esc(c.label)}</span><span class="xp-d-val-main mono">${esc(v.alias ? swatchLabel(v.alias) : v.line)}</span>${
+      v.alias ? `<span class="xp-d-val-sub mono">${esc(v.hex ?? v.line)}</span>` : ''
+    }</span></div>`;
+  };
+  const acc = (key: string, ic: 'branch' | 'box' | 'clock', label: string, meta: string, content: string) =>
+    `<details class="xp-d-acc" data-acc="${key}"><summary>${icon(ic, 18)}<span class="xp-d-acc-label">${esc(label)}</span><span class="xp-d-acc-meta" data-acc-meta>${esc(meta)}</span><span class="xp-d-acc-chev">${icon(
+      'chevron',
+      16,
+    )}</span></summary><div class="xp-d-acc-body">${content}</div></details>`;
+  host.innerHTML = `
+    <div class="xp-d-bar is-studio">
+      <h2 class="xp-d-name mono" id="xp-d-title" tabindex="-1">${esc(path)}</h2>
+      <button type="button" class="icon-btn" data-xp-close aria-label="Close token details">${icon('close', 18)}</button>
+    </div>
+    <div class="xp-d-body is-studio" data-xp-detail-body>
+      ${x.description ? `<p class="xp-d-line" title="${esc(x.description)}">${esc(x.description)}</p>` : '<p class="xp-d-line muted">No description yet.</p>'}
+      <div class="xp-d-vals" style="--xp-n:${Math.min(columns.length, 2)}">${columns.map(val).join('')}</div>
+      <div class="xp-d-accs">
+        ${acc('flow', 'branch', 'Token flow', `${f.steps} step${f.steps === 1 ? '' : 's'}`, `<h4 class="xp-d-sub">Upstream</h4>${f.upstream}${f.aliased}`)}
+        ${acc('used', 'box', 'Used by', f.comps.length ? `${f.comps.length} component${f.comps.length > 1 ? 's' : ''}` : 'No component', f.compList)}
+        ${acc('history', 'clock', 'History', 'Reading', '<div class="tx-d-foot" hidden></div>')}
+      </div>
+    </div>
+    <div class="xp-d-editbar"><button type="button" class="btn btn-secondary" data-xp-edit-cell>${icon('pencil', 16)}Edit</button><span class="xp-d-editnote">Opens the value editor on the row.</span></div>`;
+  // The history panel (scripts/history/token-panel.ts) fills the History section; its count becomes the meta.
+  const histBody = host.querySelector<HTMLElement>('[data-acc="history"] .xp-d-acc-body')!;
+  const meta = host.querySelector<HTMLElement>('[data-acc="history"] [data-acc-meta]')!;
+  const obs = new MutationObserver(() => {
+    const n = histBody.querySelector('.tx-d-n')?.textContent?.trim();
+    const empty = histBody.querySelector('.tx-empty-line');
+    if (n) meta.textContent = `${n} change${n === '1' ? '' : 's'}`;
+    else if (empty && !/Reading/.test(empty.textContent ?? '')) meta.textContent = 'No change';
+  });
+  obs.observe(histBody, { childList: true, subtree: true, characterData: true });
+  document.dispatchEvent(new CustomEvent('bridge:token-detail', { detail: { path, body: histBody } }));
 }
 
 function pairRow(d: ExplorerData, r: PairRow, edit: boolean, through = false): string {
@@ -128,10 +184,10 @@ export function renderDetail(host: HTMLElement, d: ExplorerData, view: View, s: 
   }
   const columns = view.columns;
   const edit = s.mode === 'edit';
+  if (edit) return renderStudioDetail(host, d, view, path);
   const studio = studioHref(path);
-  const actions = edit
-    ? `<div class="xp-d-actions"><button type="button" class="btn btn-primary btn-sm" data-xp-edit-cell>${icon('sliders', 16)}Edit value</button><button type="button" class="btn btn-secondary btn-sm" data-xp-full-editor>Open full editor</button></div>`
-    : `<div class="xp-d-actions"><a class="btn btn-primary btn-sm" href="${esc(studio)}" data-xp-studio>${icon('sliders', 16)}Edit in Studio</a></div>`;
+  // Library: the one edit affordance, shown only to maintainers (a GitHub token with write access, see the shell).
+  const actions = `<div class="xp-d-actions" data-maintainer-only><a class="btn btn-secondary btn-sm" href="${esc(studio)}" data-xp-studio data-maintainer-only>${icon('pencil', 16)}Edit in Studio</a></div>`;
   const firstValue = cellValue(d.set, path, columns[0]!.ctx);
   host.innerHTML = `
     <div class="xp-d-bar">
