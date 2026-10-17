@@ -761,6 +761,7 @@ function saveSettings(): void {
         message = `Connected to ${info.fullName}.${newToken ? ' The token is saved on this computer only.' : ''}`;
       }
       state.tokenDraft = '';
+      state.expanded.delete('repo-edit');
       await request('save-settings', { settings: draft });
       await loadInit();
       state.pull = undefined;
@@ -2117,6 +2118,7 @@ function viewPush(): View {
 function viewSettings(): View {
   const d = state.settingsDraft;
   const init = state.init!;
+  const editingRepo = !init.hasToken || state.expanded.has('repo-edit');
   const field = (label: string, key: keyof RepoSettings, hint: string, placeholder: string) =>
     h(
       'label',
@@ -2128,14 +2130,30 @@ function viewSettings(): View {
   return {
     body: [
       init.hasToken ? null : intro({ title: 'Connect your repository', text: 'Point DS Bridge at the repository that holds your token files, then paste a token. Nothing is written until you push.', art: 'guide' }),
-      h(
-        'section',
-        { class: 'card' },
-        h('h2', null, 'Where the tokens live'),
-        field('Repository', 'repo', 'Owner and name, as in the GitHub URL.', 'owner/name'),
-        field('Base branch', 'branch', 'Pulls read from it; pull requests target it.', 'main'),
-        field('Tokens folder', 'tokensPath', 'Folder that holds the *.tokens.json files.', 'packages/tokens/src'),
-      ),
+      // Connected: where the tokens live is a state (one row, Edit). The fields show to set it up or after Edit.
+      editingRepo
+        ? h(
+            'section',
+            { class: 'card' },
+            h('h2', null, 'Where the tokens live'),
+            field('Repository', 'repo', 'Owner and name, as in the GitHub URL.', 'owner/name'),
+            field('Base branch', 'branch', 'Pulls read from it; pull requests target it.', 'main'),
+            field('Tokens folder', 'tokensPath', 'Folder that holds the *.tokens.json files.', 'packages/tokens/src'),
+            init.hasToken
+              ? h('div', { class: 'inline-actions' }, h('button', { class: 'btn ghost', onClick: () => { state.expanded.delete('repo-edit'); state.settingsDraft = { ...init.settings }; render(); } }, 'Cancel'))
+              : null,
+          )
+        : h(
+            'section',
+            { class: 'card' },
+            h(
+              'div',
+              { class: 'token-row' },
+              h('span', { class: 'opt-text' }, h('span', { class: 'opt-title' }, 'Repository'), h('small', { class: 'mono-line' }, `${init.settings.repo} · ${init.settings.branch} · ${init.settings.tokensPath}`)),
+              h('span', { class: 'opt-status ok' }, icon('check'), 'Connected'),
+            ),
+            h('div', { class: 'inline-actions' }, h('button', { class: 'btn ghost', 'data-focus-id': 'repo-edit', onClick: () => { state.expanded.add('repo-edit'); render(); } }, 'Edit')),
+          ),
       // A saved token is a state, not a question: one row with "Connected" and Remove. Removing it brings back the field.
       init.hasToken
         ? h(
@@ -2183,7 +2201,8 @@ function viewSettings(): View {
         : null,
       claudeCard(),
     ],
-    bar: { label: 'Save and check access', onClick: saveSettings },
+    // Nothing to save while everything is connected: the bar shows when there is something to set up or change.
+    bar: editingRepo || !init.hasToken ? { label: 'Save and check access', onClick: saveSettings } : undefined,
   };
 }
 
