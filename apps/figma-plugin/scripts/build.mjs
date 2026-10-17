@@ -35,6 +35,8 @@ async function buildUi() {
     bundle: true,
     conditions: ['source'],
     minify: !watch,
+    // Bridge brand faces, inlined: the plugin only reaches api.github.com.
+    loader: { '.woff2': 'dataurl' },
     write: false,
   });
   const template = await readFile(join(root, 'src/ui/template.html'), 'utf8');
