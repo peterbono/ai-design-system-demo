@@ -94,8 +94,11 @@ interface PushState {
   /** Who wrote the pull request title (Claude fills it only when the designer has not typed one). */
   titleSource: TextSource;
   assist: AssistState;
-  /** Change lines Claude wrote, by component node id, with the changes they describe (a new scan may change them). */
-  lines: Map<string, { line: string; key: string }>;
+  /**
+   * Change lines and request titles Claude wrote, by component node id, with the changes they describe (a new scan
+   * may change them).
+   */
+  lines: Map<string, { line: string; title?: string | undefined; key: string }>;
 }
 
 /** Where the text of a field comes from. Only "draft" text is rewritten by the plugin. */
@@ -699,6 +702,7 @@ function submitPush(): void {
         description: r.description,
         descriptionIsDraft: r.descriptionSource === 'draft',
         lines: new Map((r.components?.changed ?? []).flatMap((c) => { const l = claudeLine(r, c); return l ? [[c.nodeId, l] as [string, string]] : []; })),
+        titles: new Map((r.components?.changed ?? []).flatMap((c) => { const t = claudeTitle(r, c); return t ? [[c.nodeId, t] as [string, string]] : []; })),
         title: r.title,
         fileName: state.init!.fileName,
         fileKey: r.fileKey,
@@ -827,22 +831,31 @@ const changesKey = (item: Pick<ComponentChangeItem, 'changes'>) => JSON.stringif
 /** Claude's line for a component change while it still describes the same changes, else the drafted one. */
 function claudeLine(r: PushState | undefined, item: ComponentChangeItem): string | undefined {
   const x = r?.lines.get(item.nodeId);
-  return x && x.key === changesKey(item) ? x.line : undefined;
+  return x && x.key === changesKey(item) ? x.line || undefined : undefined;
 }
+
+/** Claude's request title for a component change while it still describes the same changes. */
+function claudeTitle(r: PushState | undefined, item: ComponentChangeItem): string | undefined {
+  const x = r?.lines.get(item.nodeId);
+  return x && x.key === changesKey(item) ? x.title || undefined : undefined;
+}
+
+/** The title a component change's request gets: Claude's, or the drafted one. */
+const titleOf = (r: PushState | undefined, item: ComponentChangeItem) => claudeTitle(r, item) || suggestTitle(item);
 
 /** The one sentence a change row and its request open with. */
 const lineOf = (r: PushState | undefined, item: ComponentChangeItem) => claudeLine(r, item) || suggestLine(item);
 
-/** Claude's lines for the items it answered for (unknown ids are ignored). */
+/** Claude's lines and request titles for the items it answered for (unknown ids are ignored). */
 function keepLines(r: PushState, items: ComponentChangeItem[], lines: ClaudeDraft['lines']): void {
   for (const l of lines ?? []) {
     const item = items.find((c) => c.nodeId === l.id);
-    if (item && l.line) r.lines.set(item.nodeId, { line: l.line, key: changesKey(item) });
+    if (item && (l.line || l.title)) r.lines.set(item.nodeId, { line: l.line, ...(l.title ? { title: l.title } : {}), key: changesKey(item) });
   }
 }
 
-/** The change lines Claude writes for these components: id, facts and the drafted line. */
-const draftLines = (r: PushState, items: ComponentChangeItem[]) => items.map((c) => ({ id: c.nodeId, component: c.component, kind: c.kind, changes: c.changes, line: lineOf(r, c) }));
+/** The change lines Claude writes for these components: id, facts, the drafted line and the drafted request title. */
+const draftLines = (r: PushState, items: ComponentChangeItem[]) => items.map((c) => ({ id: c.nodeId, component: c.component, kind: c.kind, changes: c.changes, line: lineOf(r, c), title: titleOf(r, c) }));
 
 /** Push images per component (at most 4, the first ones), so Claude writes each line from what changed on screen. */
 const LINE_IMAGES = 4;
@@ -1046,7 +1059,7 @@ function startMine(a: AssistState, t: AssistTarget): void {
 }
 
 /** Claude answered: fill the fields the designer did not touch since, offer the rest. */
-function receiveMine(a: AssistState, t: AssistTarget, result: { title: string; summary: string; lines?: { id: string; line: string }[] | undefined }): void {
+function receiveMine(a: AssistState, t: AssistTarget, result: Pick<ClaudeDraft, 'title' | 'summary' | 'lines'>): void {
   const mine = a.mine;
   if (!mine) return;
   const target = t.current();
@@ -1580,9 +1593,9 @@ function openForm(r: PushState, item: ComponentChangeItem | undefined): void {
   if (r.form) cancelMine(r.form.assist, false);
   const coded = r.components?.coded ?? [];
   const draft: RequestDraft = item
-    ? { component: item.component, kind: item.kind, title: suggestTitle(item), summary: suggestSummary(item), line: lineOf(r, item), changes: item.changes, nodeId: item.nodeId, nodeName: item.figmaName }
+    ? { component: item.component, kind: item.kind, title: titleOf(r, item), summary: suggestSummary(item), line: lineOf(r, item), changes: item.changes, nodeId: item.nodeId, nodeName: item.figmaName }
     : { component: coded[0] ?? '', kind: 'visual', title: '', summary: '', changes: [], nodeId: state.selection?.nodeId, nodeName: state.selection?.name };
-  r.form = { key: item?.nodeId ?? 'manual', item, draft, attach: item ? true : !!state.selection, titleSource: 'draft', summarySource: 'draft', assist: { pasteText: '' } };
+  r.form = { key: item?.nodeId ?? 'manual', item, draft, attach: item ? true : !!state.selection, titleSource: item && claudeTitle(r, item) ? 'claude' : 'draft', summarySource: 'draft', assist: { pasteText: '' } };
   void request('selection', {}).then((sel) => {
     state.selection = sel;
     render();

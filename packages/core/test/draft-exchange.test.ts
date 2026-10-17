@@ -117,6 +117,20 @@ describe('pure helpers', () => {
     expect(brief).toMatch(/Line 12:34, Badge \(New variant\)\. Starting line: Danger added to Tone/);
   });
 
+  it('change lines carry the request title: sanitized to the title contract, optional, a title alone is enough', () => {
+    const withLines: DraftItem = { ...item, lines: [{ id: '12:34', component: 'Button', kind: 'structure', changes: item.changes, line: 'New layer', title: 'Add a layer after Label' }] };
+    const p = composePendingDrafts({ items: [withLines], sessionId: 'session03', now: NOW });
+    const out = mergeDraftResults(p, [{ id: 'item-1', title: 'Add an icon', summary: 'S.', lines: [{ id: '12:34', line: 'Icon added after the label', title: `add an icon after the label ${EM} ${'for toolbars '.repeat(8)}.` }] }], NOW);
+    const t = out.results![0]!.lines![0]!.title!;
+    expect(t.startsWith('Add an icon after the label, for toolbars')).toBe(true);
+    expect(t.length).toBeLessThanOrEqual(70);
+    expect(t).not.toMatch(/\u2014|\.$/);
+    expect(parsePendingDrafts(JSON.stringify(out))).toBeDefined();
+    expect(mergeDraftResults(p, [{ id: 'item-1', title: '', summary: '', lines: [{ id: '12:34', line: '', title: 'Add an icon after the label' }] }], NOW).results![0]!.lines).toEqual([{ id: '12:34', line: '', title: 'Add an icon after the label' }]);
+    expect(draftItemBrief(withLines)).toMatch(/Starting title: Add a layer after Label/);
+    expect(validatePendingDrafts({ ...p, items: [{ ...withLines, lines: [{ ...withLines.lines![0]!, title: 4 }] }] }).join(' ')).toMatch(/lines must be a list/);
+  });
+
   it('brief: the change table, variables, starting draft, notes and image links', () => {
     const b = draftItemBrief(item);
     expect(b).toContain('Component: Badge');

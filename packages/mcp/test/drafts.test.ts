@@ -190,6 +190,30 @@ describe('bridge_pending_drafts and bridge_write_drafts', () => {
     await client.close();
   });
 
+  it('change lines carry the request title per component: optional, sanitized, older answers still work', async () => {
+    const gh = withDrafts();
+    const withLine: DraftItem = {
+      ...item('item-1', 'titles001', false),
+      lines: [{ id: '12:34', component: 'Button', kind: 'structure', changes: [{ field: 'New layer "Icon" (Size=sm)', after: 'instance Icon/Pencil, after "Label"' }], line: 'New instance layer "Icon" (Icon/Pencil) after "Label" in sm', title: 'Add a layer after Label' }],
+    };
+    gh.seed(session('titles001', '2026-10-17T09:00:00Z', [withLine]));
+    const ctx = await BridgeContext.create({ repo: 'acme/ds', token: 't', fetch: gh.fetch });
+    const { answer } = await drafts.pendingDrafts(ctx, {});
+    expect(answer.sessions[0]!.briefs[0]).toMatch(/Starting title: Add a layer after Label/);
+    expect(answer.contract.join(' ')).toMatch(/"title": "\.\.\."\}\]/);
+    const client = await connect(ctx);
+    const tools = await client.listTools();
+    const write = tools.tools.find((t) => t.name === 'bridge_write_drafts')!;
+    expect(JSON.stringify(write.inputSchema)).toMatch(/request this component change becomes/);
+    const r = (await client.callTool({
+      name: 'bridge_write_drafts',
+      arguments: { sessionId: 'titles001', results: [{ id: 'item-1', title: 'Add an icon', summary: 'For toolbars.', lines: [{ id: '12:34', line: 'Pencil icon added after the label in sm', title: 'add an icon after the label — for toolbars.' }] }] },
+    })) as any;
+    expect(r.isError).toBeFalsy();
+    expect(gh.read('titles001').results![0]!.lines).toEqual([{ id: '12:34', line: 'Pencil icon added after the label in sm', title: 'Add an icon after the label, for toolbars' }]);
+    await client.close();
+  });
+
   it('retries on 409 with the fresh file, keeping what the plugin wrote meanwhile', async () => {
     const gh = withDrafts({ raceOnce: true });
     gh.seed(session('newer0001', '2026-10-17T09:00:00Z'));

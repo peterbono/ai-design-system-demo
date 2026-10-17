@@ -51,6 +51,8 @@ export interface DraftLine {
   changes: RequestChange[];
   /** The deterministic line, from the changes only, as a starting point. */
   line: string;
+  /** The deterministic request title of this component change, as a starting point. Missing from older plugins. */
+  title?: string | undefined;
 }
 
 export interface DraftVariableRow {
@@ -83,10 +85,21 @@ export interface DraftResult {
   id: string;
   title: string;
   summary: string;
-  /** One sentence per change line of the item (by DraftLine id). Optional: older writers send none. */
-  lines?: { id: string; line: string }[] | undefined;
+  /**
+   * One sentence per change line of the item (by DraftLine id), and the title of the request it becomes. Optional:
+   * older writers send none, or lines without a title.
+   */
+  lines?: DraftResultLine[] | undefined;
   by: 'claude';
   at: string;
+}
+
+export interface DraftResultLine {
+  id: string;
+  /** May be empty when only the title was written. */
+  line: string;
+  /** The request title of this component change: short, sentence case, at most 70 characters ("Add an icon after the label"). */
+  title?: string | undefined;
 }
 
 export interface PendingDrafts {
@@ -110,13 +123,14 @@ export const DRAFT_VOICE_RULES = [
   'Never use an em dash: use a colon, a comma or parentheses. No exclamation marks, no emoji, no Markdown.',
   'A request title never repeats the component name: the issue title already starts with it.',
   `For each change line, write one short sentence (at most ${DRAFT_LINE_MAX} characters, no trailing period) of what changed for developers, read from the before and after images: the part, the variant and the values when you can see them, for example "Icon added after the label in primary sm: Pencil, 16px". Never guess a value you cannot read.`,
+  `For each change line, also write the title of the request it becomes: short, sentence case, starts with a verb, at most ${DRAFT_TITLE_MAX} characters, no trailing period, never the component name, for example "Add an icon after the label".`,
 ];
 
 export const DRAFT_OUTPUT_CONTRACT = [
-  `Call bridge_write_drafts once per session with {"sessionId": "...", "results": [{"id": "<item id>", "title": "...", "summary": "...", "lines": [{"id": "<line id>", "line": "..."}]}]}, one result per item.`,
+  `Call bridge_write_drafts once per session with {"sessionId": "...", "results": [{"id": "<item id>", "title": "...", "summary": "...", "lines": [{"id": "<line id>", "line": "...", "title": "..."}]}]}, one result per item.`,
   `title: one line, at most ${DRAFT_TITLE_MAX} characters, no trailing period.`,
   `summary: at most ${DRAFT_SUMMARY_SENTENCES} sentences, plain text.`,
-  `lines: one per change line the item lists (its "lines"), by line id: one sentence, at most ${DRAFT_LINE_MAX} characters, no trailing period. Leave lines out when the item lists none.`,
+  `lines: one per change line the item lists (its "lines"), by line id: line is one sentence, at most ${DRAFT_LINE_MAX} characters, no trailing period; title is the request title for that component change, at most ${DRAFT_TITLE_MAX} characters, no trailing period. Leave lines out when the item lists none.`,
   'The designer reviews the text in Figma before anything is sent.',
 ];
 
@@ -201,14 +215,14 @@ export function validatePendingDrafts(x: unknown): string[] {
     if (i.variables !== undefined && i.scope !== 'push') out.push(`${at}: only a push item has variables.`);
     if (i.images !== undefined && (!Array.isArray(i.images) || i.images.some((m) => !m || (m.label !== 'before' && m.label !== 'after') || !str(m.url)))) out.push(`${at}: images must be a list of {label: before or after, url}.`);
     if (!i.draft || !str(i.draft.title) || !str(i.draft.summary)) out.push(`${at}: draft must hold a title and a summary.`);
-    if (i.lines !== undefined && (!Array.isArray(i.lines) || i.lines.some((l) => !l || !str(l.id) || !l.id || !str(l.line) || !Array.isArray(l.changes)))) out.push(`${at}: lines must be a list of {id, changes, line}.`);
+    if (i.lines !== undefined && (!Array.isArray(i.lines) || i.lines.some((l) => !l || !str(l.id) || !l.id || !str(l.line) || !optStr(l.title) || !Array.isArray(l.changes)))) out.push(`${at}: lines must be a list of {id, changes, line, title}.`);
   }
   if (p.results !== undefined) {
     if (!Array.isArray(p.results)) out.push('results must be a list.');
     else
       for (const r of p.results) {
         if (!r || !str(r.id) || !str(r.title) || !str(r.summary)) out.push('Each result needs an id, a title and a summary.');
-        else if (r.lines !== undefined && (!Array.isArray(r.lines) || r.lines.some((l) => !l || !str(l.id) || !str(l.line)))) out.push('Result lines must be a list of {id, line}.');
+        else if (r.lines !== undefined && (!Array.isArray(r.lines) || r.lines.some((l) => !l || !str(l.id) || !str(l.line) || !optStr(l.title)))) out.push('Result lines must be a list of {id, line, title}.');
       }
   }
   return out;
@@ -270,18 +284,26 @@ export interface DraftResultInput {
  * The change lines of a result kept to the contract: known line ids only (throws on an unknown one), one sentence of
  * at most 120 characters each, empty ones dropped, the last one per id kept.
  */
-export function sanitizeResultLines(item: Pick<DraftItem, 'id' | 'lines'>, raw: unknown): { id: string; line: string }[] {
+export function sanitizeResultLines(item: Pick<DraftItem, 'id' | 'lines'>, raw: unknown): DraftResultLine[] {
   if (raw === undefined || raw === null) return [];
-  if (!Array.isArray(raw)) throw new Error(`lines for "${item.id}" must be a list of {"id", "line"}.`);
+  if (!Array.isArray(raw)) throw new Error(`lines for "${item.id}" must be a list of {"id", "line", "title"}.`);
   const known = new Set((item.lines ?? []).map((l) => l.id));
-  const out = new Map<string, string>();
-  for (const l of raw as { id?: unknown; line?: unknown }[]) {
+  const out = new Map<string, DraftResultLine>();
+  for (const l of raw as { id?: unknown; line?: unknown; title?: unknown }[]) {
     const id = typeof l?.id === 'string' ? l.id : '';
     if (!known.has(id)) throw new Error(`Item "${item.id}" has no change line "${id}".${known.size ? ` Use the line ids from bridge_pending_drafts: ${[...known].join(', ')}.` : ' It lists no lines: leave lines out.'}`);
     const line = sanitizeDraftLine(l.line);
-    if (line) out.set(id, line);
+    const title = sanitizeDraftTitle(l.title);
+    if (line || title) out.set(id, { id, line, ...(title ? { title } : {}) });
   }
-  return [...out].map(([id, line]) => ({ id, line }));
+  return [...out.values()];
+}
+
+/** A request title kept to the contract: one line, no em dash, sentence case, at most 70 characters, no trailing period. */
+export function sanitizeDraftTitle(raw: unknown): string {
+  if (typeof raw !== 'string') return '';
+  const t = clip(cleanDraftText(raw.replace(/[\r\n]+/g, ' ')), DRAFT_TITLE_MAX);
+  return t.charAt(0).toUpperCase() + t.slice(1);
 }
 
 /**
@@ -317,9 +339,9 @@ export function draftItemBrief(i: DraftItem): string {
   if (i.draft.title || i.draft.summary) lines.push('', 'Starting draft, written from the changes only:', `Title: ${i.draft.title}`, `Summary: ${i.draft.summary}`);
   if (i.notes?.trim()) lines.push('', 'The designer\'s notes (keep their intent):', i.notes.trim());
   if (i.lines?.length) {
-    lines.push('', `Change lines to write (one sentence each, at most ${DRAFT_LINE_MAX} characters, from the before and after images):`);
+    lines.push('', `Change lines to write (one sentence each, at most ${DRAFT_LINE_MAX} characters, from the before and after images), each with the title of its request (at most ${DRAFT_TITLE_MAX} characters):`);
     for (const l of i.lines) {
-      lines.push(`- Line ${l.id}${l.component ? `, ${l.component}` : ''}${l.kind ? ` (${REQUEST_KINDS.find((k) => k.value === l.kind)?.label ?? l.kind})` : ''}. Starting line: ${l.line || '(none)'}`);
+      lines.push(`- Line ${l.id}${l.component ? `, ${l.component}` : ''}${l.kind ? ` (${REQUEST_KINDS.find((k) => k.value === l.kind)?.label ?? l.kind})` : ''}. Starting line: ${l.line || '(none)'}${l.title ? `. Starting title: ${l.title}` : ''}`);
       for (const c of l.changes) lines.push(`  - ${c.field}: ${c.before || 'none'} -> ${c.after || 'removed'}`);
     }
   }

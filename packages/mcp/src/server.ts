@@ -502,8 +502,8 @@ export function createServer(ctx: BridgeContext): McpServer {
         `Change texts a designer asked their own Claude to write from the DS Bridge Figma plugin ("Draft with my Claude"), waiting on the bridge-requests branch. Call it when the user says "${DRAFT_PHRASE}".`,
         'Returns the pending sessions (newest first) with each item: scope (request: a component change request; push: a pull request description of token edits), component, kind, the change table, token edits, the designer\'s notes, the deterministic starting draft, the change lines to write (one per component change, with an id, its changes and a starting line), a brief, and the before and after image links; the images themselves follow as image content when small enough.',
         'Look at the before and after images, then write what changes for developers and why it matters for people who use the component. Sentence case, start the title with a verb, no em dash, no invented numbers, names or reasons: if the reason is unknown, leave it out.',
-        `Write one short sentence per change line from the images: what changed for developers (the part, the variant, the values you can read), for example "Icon added after the label in primary sm: Pencil, 16px".`,
-        `Then call bridge_write_drafts with one result per item id: title at most ${DRAFT_TITLE_MAX} characters, summary at most 3 sentences, lines (one per change line id) at most ${DRAFT_LINE_MAX} characters each.`,
+        `Write one short sentence per change line from the images: what changed for developers (the part, the variant, the values you can read), for example "Icon added after the label in primary sm: Pencil, 16px", and the title of the request it becomes, for example "Add an icon after the label".`,
+        `Then call bridge_write_drafts with one result per item id: title at most ${DRAFT_TITLE_MAX} characters, summary at most 3 sentences, lines (one per change line id) with a line of at most ${DRAFT_LINE_MAX} characters and a title of at most ${DRAFT_TITLE_MAX}.`,
       ].join(' '),
       inputSchema: {
         sessionId: z.string().optional().describe('One session only. Default: every pending session.'),
@@ -534,7 +534,7 @@ export function createServer(ctx: BridgeContext): McpServer {
     {
       title: 'Write change texts for Figma',
       description:
-        `Write the titles, summaries and change lines you drafted for a session from bridge_pending_drafts. The DS Bridge Figma plugin fills them in within seconds, marked "Drafted by Claude, review before sending"; it never overwrites text the designer typed meanwhile. Each change line becomes the main line of its component row and the first line of its request. Texts are cleaned to the contract (no em dash, title at most ${DRAFT_TITLE_MAX} characters without a trailing period, summary at most 3 sentences, each line at most ${DRAFT_LINE_MAX} characters). Results without lines still work. Needs GITHUB_TOKEN with contents write. Writes only the session file on the bridge-requests branch, never main.`,
+        `Write the titles, summaries and change lines you drafted for a session from bridge_pending_drafts. The DS Bridge Figma plugin fills them in within seconds, marked "Drafted by Claude, review before sending"; it never overwrites text the designer typed meanwhile. Each change line becomes the main line of its component row and the first line of its request; its title becomes that request's title. Texts are cleaned to the contract (no em dash, titles at most ${DRAFT_TITLE_MAX} characters without a trailing period, summary at most 3 sentences, each line at most ${DRAFT_LINE_MAX} characters). Results without lines, or lines without a title, still work. Needs GITHUB_TOKEN with contents write. Writes only the session file on the bridge-requests branch, never main.`,
       inputSchema: {
         sessionId: z.string().min(1).describe('The sessionId from bridge_pending_drafts.'),
         results: z
@@ -548,6 +548,10 @@ export function createServer(ctx: BridgeContext): McpServer {
                   z.object({
                     id: z.string().min(1).describe('A change line id from the item\'s "lines" in bridge_pending_drafts.'),
                     line: z.string().describe(`One sentence, at most ${DRAFT_LINE_MAX} characters, no trailing period: what changed for developers, read from the before and after images ("Icon added after the label in primary sm: Pencil, 16px").`),
+                    title: z
+                      .string()
+                      .optional()
+                      .describe(`The title of the request this component change becomes: short, sentence case, starts with a verb, at most ${DRAFT_TITLE_MAX} characters, no trailing period, never the component name ("Add an icon after the label").`),
                   }),
                 )
                 .optional()
