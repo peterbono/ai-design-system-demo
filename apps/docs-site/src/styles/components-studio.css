@@ -46,52 +46,20 @@
   flex: 0 1 calc(var(--size-60) + var(--size-10));
 }
 
-.cm-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1-5);
-}
-
-.cm-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1-5);
+.cm-fam select {
   height: var(--size-8);
-  padding: 0 var(--space-3);
-  border: var(--border-width-default) solid var(--color-border-default);
-  border-radius: var(--radius-pill);
+  padding: 0 var(--space-2);
+  border: var(--border-width-default) solid var(--color-border-emphasis);
+  border-radius: var(--radius-control);
   background-color: var(--color-surface-default);
   color: var(--color-text-default);
   font: inherit;
   font-size: var(--typography-ui-size);
-  font-weight: var(--font-weight-medium);
-  cursor: pointer;
 }
 
-.cm-chip-n {
-  color: var(--color-text-muted);
-  font-weight: var(--font-weight-regular);
-}
-
-.cm-chip[aria-pressed="true"] {
-  border-color: var(--color-surface-inverse);
-  background-color: var(--color-surface-inverse);
-  color: var(--color-text-inverse);
-}
-
-.cm-chip[aria-pressed="true"] .cm-chip-n {
-  color: inherit;
-}
-
-.cm-chip:focus-visible {
+.cm-fam select:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
   outline-offset: var(--focus-ring-offset);
-}
-
-@media (hover: hover) {
-  .cm-chip:not([aria-pressed="true"]):hover {
-    border-color: var(--color-border-emphasis);
-  }
 }
 
 .cm-count,

@@ -1,6 +1,6 @@
 ---
 // Studio Components: one sentence on the state of the catalog, one primary while guidance is missing, then every
-// component grouped by family (search and family chips filter it). A row opens a drawer with the guidance status
+// component grouped by family (search and the family menu filter it). A row opens a drawer with the guidance status
 // and the doors: Edit docs, Edit tokens, Code, Workbench, Library page.
 import '../../../styles/studio.css';
 import '../../../styles/components-studio.css';
@@ -66,16 +66,13 @@ const docsLabel = (g: string) => (g === 'missing' ? 'Add guidance' : g === 'revi
 
     <div class="cm-tools" role="search">
       <ComponentsSearch />
-      <div class="cm-chips" role="group" aria-label="Family">
-        <button type="button" class="cm-chip" data-cm-fam="" aria-pressed="true">All <span class="num cm-chip-n">{rows.length}</span></button>
-        {
-          families.map((f) => (
-            <button type="button" class="cm-chip" data-cm-fam={f.name} aria-pressed="false">
-              {f.name} <span class="num cm-chip-n">{f.n}</span>
-            </button>
-          ))
-        }
-      </div>
+      <label class="cm-fam">
+        <span class="sr-only">Family</span>
+        <select data-cm-fam>
+          <option value="">All families ({rows.length})</option>
+          {families.map((f) => <option value={f.name}>{f.name} ({f.n})</option>)}
+        </select>
+      </label>
     </div>
     <p class="cm-count" data-cm-count role="status" aria-live="polite"></p>
 
