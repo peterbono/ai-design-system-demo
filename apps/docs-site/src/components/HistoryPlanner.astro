@@ -1,25 +1,26 @@
 ---
-// The revert and restore planner. Include once per page that offers "Undo this change" or "Restore this value".
-// Native <dialog> driven by scripts/history/planner.ts; the controls inside are DS components.
+// The undo and restore planner, as a side panel the width of the token review sheet. Include once per page that
+// offers "Undo this change" or "Restore this value". A native modal <dialog> (focus trap, Escape) driven by
+// scripts/history/planner.ts: one sentence on top, the edits, contrast pairs collapsed with their count, and one
+// primary action pinned in the footer.
 import { Alert, Button, IconButton } from '@bridge-ds/react';
 import { X } from 'lucide-react';
 ---
 
-<dialog class="gh-dialog hp-dialog" id="hp-dialog" aria-labelledby="hp-title">
-  <div class="gh-dialog-box hp-box">
-    <header class="gh-dialog-head">
-      <h2 id="hp-title">Plan a revert</h2>
+<dialog class="hp-panel" id="hp-dialog" aria-labelledby="hp-title">
+  <div class="hp-box">
+    <header class="hp-head">
+      <h2 id="hp-title" class="hp-title">Undo this change</h2>
       <IconButton icon={X} label="Close the planner" size="sm" id="hp-close" />
     </header>
-    <Alert tone="warning" announce="off" className="st-hideable" id="hp-demo-flag" hidden>Demo data: this plan runs on a fixture change, not on this repository's history.</Alert>
-    <div id="hp-body" class="hp-body" aria-live="polite"></div>
-    <p class="small" id="hp-status" role="status" aria-live="polite"></p>
-    <footer class="gh-dialog-foot hp-foot">
-      <Button variant="secondary" size="sm" id="hp-download-json">Download patch</Button>
-      <Button variant="secondary" size="sm" id="hp-download-md">Download PR text</Button>
-      <span class="gh-spacer"></span>
-      <Button variant="secondary" size="sm" className="st-hideable" data-gh-open id="hp-connect" hidden>Connect GitHub</Button>
-      <Button variant="primary" size="sm" className="st-hideable" id="hp-propose">Propose revert</Button>
+    <div class="hp-scroll">
+      <Alert tone="warning" announce="off" className="st-hideable" id="hp-demo-flag" hidden>Demo data: this plan runs on a fixture change, not on this repository's history.</Alert>
+      <div id="hp-body" class="hp-body" aria-live="polite"></div>
+    </div>
+    <footer class="hp-foot">
+      <p class="hp-status" id="hp-status" role="status" aria-live="polite"></p>
+      <Button variant="primary" className="st-hideable" data-gh-open id="hp-connect" hidden>Connect GitHub to propose</Button>
+      <Button variant="primary" className="st-hideable" id="hp-propose">Propose undo</Button>
     </footer>
   </div>
 </dialog>

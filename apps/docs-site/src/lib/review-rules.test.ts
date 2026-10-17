@@ -281,8 +281,9 @@ describe('reviewStatus', () => {
     }
   });
 
-  it('sorts what blocks first and drafts last', () => {
+  it('sorts what blocks first, then what waits for approval, then ready, drafts last', () => {
     expect(REVIEW_STATUS_ORDER['ci-failing']).toBeLessThan(REVIEW_STATUS_ORDER.ready);
+    expect(REVIEW_STATUS_ORDER['needs-approval']).toBeLessThan(REVIEW_STATUS_ORDER.ready);
     expect(REVIEW_STATUS_ORDER['changes-requested']).toBeLessThan(REVIEW_STATUS_ORDER['needs-design']);
     expect(REVIEW_STATUS_ORDER.draft).toBeGreaterThan(REVIEW_STATUS_ORDER['ci-running']);
   });

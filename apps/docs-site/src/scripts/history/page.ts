@@ -1,15 +1,19 @@
-// History page: the version timeline with filters, an entry detail with the Reviews diff, and "Undo this change".
-// Real history by default; the demo toggle swaps in the fixture report and a banner, never both at once.
+// Changes > History: one timeline of merged token changes grouped by release, an entry detail with the designer
+// diff, and "Undo this change" (the side panel in ./planner). Real history by default; the demo switch at the bottom
+// swaps in the fixture report and a banner, never both at once. Filters wait behind the Filter button.
 import type { HistoryEntry, HistoryFilter, HistoryReport } from '@bridge-ds/core';
 import { authorsOf, countsLabel, shortDate, viewTimeline } from '../../lib/history-view';
+import { tierLabel } from '../../lib/changes';
 import { renderTokenReview } from '../reviews';
 import { esc, initGitHubConnect, readRepo } from '../github-session';
-import { mdTitleHtml } from '../../lib/markdown';
+import { mdTitleHtml, mdTitleText } from '../../lib/markdown';
+import { humanTitle } from '../../lib/pr-title';
 import { openRevertPlanner } from './planner';
 import { activeReport, DEMO_EVENT, demoOn, loadHistory, setDemo, type Loaded } from './state';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 let L: Loaded | null = null;
+const BASE = '/studio/changes/?view=history';
 
 const repoUrl = () => {
   const r = L?.config.repo;
@@ -29,30 +33,29 @@ function filter(): HistoryFilter {
   return { ...(token ? { token } : {}), ...(author ? { author } : {}), ...(tier ? { tier: tier as 1 | 2 | 3 } : {}) };
 }
 
-const tierPill = (t: number) => `<span class="pill rv-tier is-t${t}">Tier ${t}</span>`;
+const entryHref = (e: HistoryEntry) => `${BASE}&entry=${encodeURIComponent(e.id)}`;
+const dayMonth = (iso: string) => {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso.slice(0, 10) : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+};
+const title = (e: HistoryEntry) => humanTitle(mdTitleText(e.title));
 
-function refLink(e: HistoryEntry, demo: boolean): string {
-  if (demo) return `<span class="pill is-info">Demo</span>`;
-  const pr = e.pr ? `<a href="${esc(e.pr.url ?? `${repoUrl()}/pull/${e.pr.number}`)}">#${e.pr.number}</a>` : '';
-  return `${pr}<a href="${esc(`${repoUrl()}/commit/${e.sha}`)}" title="Commit"><code>${esc(e.sha.slice(0, 7))}</code></a>`;
+/** A row: title and #, a neutral tier label (or Demo), the date. Counts live in the detail, once. */
+function row(e: HistoryEntry, demo: boolean): string {
+  const num = e.pr ? ` <span class="cg-num">#${e.pr.number}</span>` : '';
+  const tag = e.bulk ? '<span class="pill cg-tier">Import</span>' : `<span class="pill cg-tier">${demo ? 'Demo, ' : ''}${tierLabel(e.tier)}</span>`;
+  return `<li class="cg-row"><a class="cg-row-link" href="${entryHref(e)}" data-hs-open="${esc(e.id)}">
+    <span class="cg-row-title"><span class="cg-row-name" title="${esc(title(e))}">${esc(title(e))}</span>${num}</span>
+    ${tag}
+    <time class="cg-date" datetime="${esc(e.date)}">${esc(dayMonth(e.date))}</time></a></li>`;
 }
 
-function row(e: HistoryEntry, demo: boolean): string {
-  const kind = e.bulk ? '<span class="pill">Import</span>' : e.breaking ? '<span class="pill is-fail">Breaking</span>' : tierPill(e.tier);
-  if (e.bulk) {
-    return `<li class="entry-row hs-row is-bulk">${kind}<div class="entry-main">
-      <details class="hs-bulk"><summary><span class="entry-title">${mdTitleHtml(e.title)}</span></summary>
-      <p class="entry-foryou">An import or a restructure of ${e.counts.total} tokens (${esc(countsLabel(e.counts))}), not a reviewable edit. Bridge does not offer to undo it.</p>
-      <p class="small"><a href="?entry=${encodeURIComponent(e.id)}" data-hs-open="${esc(e.id)}">See the tokens it touched</a></p></details>
-      <p class="entry-foryou">${esc(e.author)}, ${esc(shortDate(e.date))}</p></div>
-      <div class="entry-ref">${refLink(e, demo)}</div></li>`;
-  }
-  return `<li class="entry-row hs-row">${kind}<div class="entry-main">
-    <p class="entry-title"><a href="?entry=${encodeURIComponent(e.id)}" data-hs-open="${esc(e.id)}">${mdTitleHtml(e.title)}</a></p>
-    <p class="entry-foryou">${e.why !== e.title ? mdTitleHtml(e.why) : esc(countsLabel(e.counts))}</p>
-    <p class="entry-foryou">${esc(e.author)}, ${esc(shortDate(e.date))}, ${esc(countsLabel(e.counts))}</p>
-    <p class="hs-row-actions"><button type="button" class="btn btn-secondary btn-sm" data-hs-undo="${esc(e.id)}">Undo this change</button></p></div>
-    <div class="entry-ref">${refLink(e, demo)}</div></li>`;
+/** Imports and restructures fold into one line per release, opened on demand. */
+function importsRow(items: HistoryEntry[], demo: boolean): string {
+  if (!items.length) return '';
+  const edits = items.reduce((n, e) => n + e.counts.total, 0);
+  return `<li class="cg-row cg-imports"><details><summary class="cg-imports-sum"><span class="cg-row-title">${items.length} ${items.length === 1 ? 'import' : 'imports'}, ${edits.toLocaleString('en-US')} token edits</span><span class="cg-sec-chev" aria-hidden="true"></span></summary>
+    <ul class="cg-list">${items.map((e) => row(e, demo)).join('')}</ul></details></li>`;
 }
 
 function paintList() {
@@ -60,9 +63,7 @@ function paintList() {
   const tl = $('hs-timeline');
   tl.setAttribute('aria-busy', 'false');
   $('hs-banner').hidden = !demo;
-  $('hs-sparse').hidden = demo;
-  const sw = $('hs-demo');
-  sw.setAttribute('aria-checked', String(demo));
+  $('hs-demo').setAttribute('aria-checked', String(demo));
   const entries = report?.entries ?? [];
   // Filters follow the report on screen.
   const authorSel = $<HTMLSelectElement>('hs-author');
@@ -72,97 +73,96 @@ function paintList() {
   const paths = [...new Set(entries.filter((e) => !e.bulk).flatMap((e) => e.changes.map((c) => c.path)))].sort();
   $('hs-paths').innerHTML = paths.map((p) => `<option value="${esc(p)}"></option>`).join('');
 
-  if (!report) {
-    tl.innerHTML = '';
+  if (!report || !entries.length) {
+    tl.innerHTML = `<p class="cg-muted">No merged token change yet. Changes land here once a pull request from Tokens merges.</p>`;
     $('hs-none').hidden = true;
     return;
   }
   const groups = viewTimeline(report, filter());
-  $('hs-none').hidden = groups.length > 0 || !entries.length;
+  $('hs-none').hidden = groups.length > 0;
   tl.innerHTML = groups
     .map((g) => {
-      const meta = [
-        g.pending ? '<span class="pill is-warn">Not released yet</span>' : '<span class="pill is-pass">Released</span>',
-        g.breaking ? '<span class="pill is-fail">Breaking</span>' : '',
-        `<span class="pill">${esc(g.bump)}</span>`,
-        `<span class="muted small">${g.pending ? 'Latest change' : 'Released'} <time datetime="${esc(g.date)}">${esc(shortDate(g.date))}</time></span>`,
-      ].join('');
-      const prs = g.prs.length ? g.prs.map((n) => `#${n}`).join(', ') : 'none';
-      return `<li class="tl-item"${g.pending ? ' data-pending' : ''}><span class="tl-node" aria-hidden="true"></span>
-        <section class="release-card" aria-label="${esc(g.version)}">
-          <header class="release-head"><div class="release-title"><h2>${esc(g.version === 'Unreleased' ? 'Unreleased' : `Version ${g.version}`)}</h2><p class="release-meta">${meta}</p></div>
-            <ul class="release-counts" aria-label="In this version">
-              <li><strong class="num">${g.items.length}</strong> <span class="muted">change${g.items.length === 1 ? '' : 's'}</span></li>
-              <li><strong class="num">${g.tokenChanges}</strong> <span class="muted">token edits</span></li>
-              <li><span class="muted">Pull requests</span> <span class="small">${esc(prs)}</span></li>
-            </ul></header>
-          <ul class="entries">${g.items.map((e) => row(e, demo)).join('')}</ul>
-        </section></li>`;
+      const name = g.version === 'Unreleased' ? 'Unreleased' : `Version ${g.version}`;
+      const facts = [`${g.items.length} ${g.items.length === 1 ? 'change' : 'changes'}`, g.breaking ? 'breaking' : '', `${g.pending ? 'latest' : 'released'} ${shortDate(g.date)}`].filter(Boolean).join(', ');
+      const reviewable = g.items.filter((e) => !e.bulk);
+      const imports = g.items.filter((e) => e.bulk);
+      return `<section class="cg-rel" aria-label="${esc(name)}"><h2 class="cg-rel-h">${esc(name)} <span class="cg-rel-meta">${esc(facts)}</span></h2>
+        <ul class="fg-card cg-list">${reviewable.map((e) => row(e, demo)).join('')}${importsRow(imports, demo)}</ul></section>`;
     })
     .join('');
 }
 
-function paintDetail(e: HistoryEntry, report: HistoryReport, demo: boolean) {
+function paintDetail(e: HistoryEntry, demo: boolean) {
   const review = L!.data.reviews[`${demo ? 'demo' : 'real'}:${e.id}`];
   const diff = e.bulk
-    ? `<p class="small muted">Imports are listed, not diffed. First ${Math.min(40, e.changes.length)} of ${e.changes.length} tokens:</p><ul class="hs-paths">${e.changes
+    ? `<p class="cg-muted">Imports are listed, not diffed. First ${Math.min(40, e.changes.length)} of ${e.changes.length} tokens:</p><ul class="hs-paths">${e.changes
         .slice(0, 40)
-        .map((c) => `<li><span class="mono">${esc(c.path)}</span> <span class="rv-kind-tag is-${c.kind === 'renamed' ? 'changed' : c.kind}">${c.kind}</span></li>`)
+        .map((c) => `<li><span class="mono">${esc(c.path)}</span> <span class="cg-muted">${esc(c.kind)}</span></li>`)
         .join('')}</ul>`
     : review
       ? renderTokenReview(review)
-      : '<p class="small muted">No designer diff for this change.</p>';
-  const facts = [
-    e.bulk ? '<span class="pill">Import</span>' : tierPill(e.tier),
-    `<span class="pill">${esc(e.bump)}</span>`,
-    e.breaking ? '<span class="pill is-fail">Breaking</span>' : '',
-    `<span class="pill">${esc(e.version ?? 'Unreleased')}</span>`,
-    demo ? '<span class="pill is-info">Demo</span>' : '',
-  ].join(' ');
-  $('hs-detail').innerHTML = `<p><a href="/studio/versions/" data-hs-back>Back to the timeline</a></p>
-    <article class="rv-card hs-card">
-      <header class="hs-detail-head"><div><h2>${mdTitleHtml(e.title)}</h2>
-        <p class="small muted">${esc(e.author)}, ${esc(shortDate(e.date))}. ${demo ? 'Fixture change.' : `<span class="entry-ref hs-inline-ref">${refLink(e, false)}</span>`}</p>
-        <p class="hs-facts">${facts}</p></div>
-        ${e.bulk ? '' : `<button type="button" class="btn btn-primary btn-sm" data-hs-undo="${esc(e.id)}">Undo this change</button>`}</header>
-      <section><h3 class="rv-sub">Why</h3><p>${mdTitleHtml(e.why)}</p>${e.changesets.length ? `<p class="small muted">From ${e.changesets.map((c) => `<code>${esc(c.path)}</code>`).join(', ')}.</p>` : ''}</section>
-      <section><h3 class="rv-sub">Token changes <span class="tx-d-n">${e.counts.total}</span></h3>${diff}</section>
-    </article>`;
-  void report;
+      : '<p class="cg-muted">No designer diff for this change.</p>';
+  const ref = demo
+    ? 'Fixture change'
+    : [e.pr ? `<a href="${esc(e.pr.url ?? `${repoUrl()}/pull/${e.pr.number}`)}">#${e.pr.number}</a>` : '', `<a href="${esc(`${repoUrl()}/commit/${e.sha}`)}"><code>${esc(e.sha.slice(0, 7))}</code></a>`].filter(Boolean).join(' ');
+  const facts = [e.bulk ? 'Import' : tierLabel(e.tier), e.bump, e.breaking ? 'breaking' : '', e.version ?? 'Unreleased'].filter(Boolean).join(', ');
+  $('hs-detail').innerHTML = `<nav class="cg-crumbs" aria-label="Breadcrumb"><a href="${BASE}" data-hs-back>History</a><span aria-hidden="true">/</span><span>${esc(e.pr ? `#${e.pr.number}` : e.sha.slice(0, 7))}</span></nav>
+    <header class="zone cg-pr-open">
+      <h2 class="cg-pr-title" tabindex="-1">${mdTitleHtml(e.title)}</h2>
+      <p class="cg-pr-meta"><span>${esc(e.author)}, ${esc(shortDate(e.date))}</span><span>${ref}</span><span>${esc(facts)}</span></p>
+      <p class="cg-pr-state">${e.why !== e.title ? mdTitleHtml(e.why) : esc(countsLabel(e.counts))}</p>
+      ${e.bulk ? '' : `<p class="cg-pr-cta"><button type="button" class="btn btn-primary" data-hs-undo="${esc(e.id)}">Undo this change</button></p>`}
+    </header>
+    <div class="cg-secs">
+      <details class="cg-sec" open><summary class="cg-sec-head"><span class="cg-sec-title">Token changes</span><span class="cg-sec-meta">${esc(countsLabel(e.counts))}</span><span class="cg-sec-chev" aria-hidden="true"></span></summary><div class="cg-sec-body">${diff}${e.changesets.length ? `<p class="cg-muted">From ${e.changesets.map((c) => `<code>${esc(c.path)}</code>`).join(', ')}.</p>` : ''}</div></details>
+    </div>`;
 }
 
-function route() {
+/** Paints the History view from the URL (?view=history, &entry=). */
+export function routeHistory() {
   const id = new URLSearchParams(location.search).get('entry');
   const { report, demo } = current();
   const e = id && report ? report.entries.find((x) => x.id === id) : undefined;
+  const head = document.querySelector<HTMLElement>('.cg-hs-head');
   if (e && report) {
-    paintDetail(e, report, demo);
+    paintDetail(e, demo);
     $('hs-list-view').hidden = true;
+    if (head) head.hidden = true;
+    $('hs-filters').hidden = true;
     $('hs-detail').hidden = false;
-    $('hs-detail').querySelector('h2')?.setAttribute('tabindex', '-1');
     ($('hs-detail').querySelector('h2') as HTMLElement | null)?.focus();
   } else {
     $('hs-detail').hidden = true;
     $('hs-list-view').hidden = false;
+    if (head) head.hidden = false;
+    $('hs-filters').hidden = $('hs-filter-toggle').getAttribute('aria-expanded') !== 'true';
     paintList();
   }
 }
 
-export function initHistoryPage() {
+let started = false;
+
+/** Wires the History view once, the first time it is shown, then loads the history data. */
+export function initHistory() {
+  if (started) {
+    routeHistory();
+    return;
+  }
+  started = true;
   initGitHubConnect();
   document.addEventListener('click', (ev) => {
     const t = ev.target as HTMLElement;
     const open = t.closest<HTMLAnchorElement>('[data-hs-open]');
     if (open && !(ev as MouseEvent).metaKey && !(ev as MouseEvent).ctrlKey) {
       ev.preventDefault();
-      history.pushState({}, '', `?entry=${encodeURIComponent(open.dataset.hsOpen!)}`);
-      route();
+      history.pushState({}, '', `${BASE}&entry=${encodeURIComponent(open.dataset.hsOpen!)}`);
+      routeHistory();
       return;
     }
     if (t.closest('[data-hs-back]')) {
       ev.preventDefault();
-      history.pushState({}, '', location.pathname);
-      route();
+      history.pushState({}, '', BASE);
+      routeHistory();
       return;
     }
     if (t.closest('[data-hs-clear]')) {
@@ -177,10 +177,17 @@ export function initHistoryPage() {
       if (e && report) void openRevertPlanner(e, report, demo);
     }
   });
+  const toggle = $('hs-filter-toggle');
+  toggle.addEventListener('click', () => {
+    const on = toggle.getAttribute('aria-expanded') !== 'true';
+    toggle.setAttribute('aria-expanded', String(on));
+    $('hs-filters').hidden = !on;
+    if (on) $<HTMLInputElement>('hs-token').focus();
+  });
   $('hs-demo').addEventListener('click', () => setDemo(!demoOn()));
   document.addEventListener(DEMO_EVENT, () => {
-    history.replaceState({}, '', location.pathname);
-    route();
+    history.replaceState({}, '', BASE);
+    routeHistory();
   });
   let timer = 0;
   $('hs-filters').addEventListener('input', () => {
@@ -188,17 +195,19 @@ export function initHistoryPage() {
     timer = window.setTimeout(paintList, 100);
   });
   $('hs-filters').addEventListener('reset', () => setTimeout(paintList, 0));
-  window.addEventListener('popstate', route);
-  // Deep link from a token drawer: /studio/versions/?token=color.text.muted prefills the token filter.
+  // Deep link from a token drawer: ?view=history&token=color.text.muted opens the filters, prefilled.
   const token = new URLSearchParams(location.search).get('token');
   const tokenInput = document.getElementById('hs-token') as HTMLInputElement | null;
-  if (token && tokenInput) tokenInput.value = token;
+  if (token && tokenInput) {
+    tokenInput.value = token;
+    toggle.setAttribute('aria-expanded', 'true');
+  }
   loadHistory()
     .then((l) => {
       L = l;
-      route();
+      routeHistory();
     })
     .catch((err) => {
-      $('hs-timeline').innerHTML = `<li class="rv-notice is-fail">${esc((err as Error).message)}</li>`;
+      $('hs-timeline').innerHTML = `<p class="rv-notice is-fail">${esc((err as Error).message)}</p>`;
     });
 }

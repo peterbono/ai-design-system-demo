@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { allPages, locate, navFor, spaceOf } from './nav';
-import { REDIRECTS } from './redirects';
+import { REDIRECTS, redirectScript, redirectTarget } from './redirects';
 import { ROOT } from './repo';
 
 const PAGES = join(ROOT, 'apps/docs-site/src/pages');
@@ -31,7 +31,7 @@ describe('navigation data', () => {
   it('puts routes in the right space', () => {
     expect(spaceOf('/')).toBe('library');
     expect(spaceOf('/components/button/')).toBe('library');
-    expect(spaceOf('/studio/reviews')).toBe('studio');
+    expect(spaceOf('/studio/changes')).toBe('studio');
     expect(spaceOf('/studio/settings/governance/')).toBe('studio');
   });
 
@@ -46,7 +46,7 @@ describe('navigation data', () => {
   it('finds the group and entry for breadcrumbs, nested pages included', () => {
     expect(locate('/foundations/accessibility/')).toMatchObject({ space: 'library', group: 'Foundations', item: { label: 'Accessibility' } });
     expect(locate('/tokens/')).toMatchObject({ space: 'library', group: 'Foundations', item: { label: 'All tokens' } });
-    expect(locate('/studio/drafts/')).toMatchObject({ space: 'studio', group: 'Changes', item: { label: 'Drafts' } });
+    expect(locate('/studio/changes/')).toMatchObject({ space: 'studio', item: { label: 'Changes' } });
     expect(locate('/components/button/').entry?.label).toBe('Components');
     expect(locate('/studio/settings/integrations/')).toMatchObject({ space: 'studio', group: 'Settings', item: { label: 'Integrations' } });
   });
@@ -65,11 +65,49 @@ describe('navigation shape', () => {
   });
 });
 
+describe('studio nav', () => {
+  it('lists Overview, Tokens, Components, Changes, Quality, Settings', () => {
+    expect(navFor('studio').map((e) => e.label)).toEqual(['Overview', 'Tokens', 'Components', 'Changes', 'Quality', 'Settings']);
+  });
+
+  it('makes Changes one page with the review count, and drops the pages it replaced', () => {
+    const changes = navFor('studio').find((e) => e.label === 'Changes')!;
+    expect(changes).toMatchObject({ href: '/studio/changes/', badge: 'reviews' });
+    expect(changes.children).toBeUndefined();
+    const hrefs = allPages().map((p) => p.href);
+    for (const gone of ['/studio/drafts/', '/studio/branches/', '/studio/reviews/', '/studio/versions/', '/studio/visual-impact/']) expect(hrefs).not.toContain(gone);
+  });
+});
+
 describe('redirects', () => {
   it('sends every old URL to a page that exists', () => {
     for (const [from, to] of Object.entries(REDIRECTS)) {
-      expect(pageFile(to), `${from} -> ${to}`).not.toBeNull();
+      expect(pageFile(to.replace(/[?#].*$/, '')), `${from} -> ${to}`).not.toBeNull();
     }
+  });
+
+  it('sends the old Changes pages to the right view', () => {
+    expect(redirectTarget(REDIRECTS['/studio/drafts']!, '', '')).toBe('/studio/changes/');
+    expect(redirectTarget(REDIRECTS['/studio/reviews']!, '?pr=3', '')).toBe('/studio/changes/?pr=3');
+    expect(redirectTarget(REDIRECTS['/studio/branches']!, '', '')).toBe('/studio/changes/#other-branches');
+    expect(redirectTarget(REDIRECTS['/studio/visual-impact']!, '', '')).toBe('/studio/changes/');
+    expect(redirectTarget(REDIRECTS['/studio/versions']!, '', '')).toBe('/studio/changes/?view=history');
+    expect(redirectTarget(REDIRECTS['/studio/versions']!, '?token=color.text.muted', '')).toBe('/studio/changes/?view=history&token=color.text.muted');
+    expect(redirectTarget(REDIRECTS['/reviews']!, '?pr=12', '')).toBe('/studio/changes/?pr=12');
+  });
+
+  it('keeps the old hash over the target one', () => {
+    expect(redirectTarget('/studio/changes/#other-branches', '', '#top')).toBe('/studio/changes/#top');
+    expect(redirectTarget('/studio/changes/#other-branches', '?branch=x', '')).toBe('/studio/changes/?branch=x#other-branches');
+  });
+
+  it('inlines the same rules in the redirect page script', () => {
+    const script = redirectScript('/studio/changes/?view=history');
+    const body = script.replace(/^<script>|<\/script>$/g, '');
+    let landed = '';
+    const fakeLocation = { search: '?entry=abc', hash: '', replace: (u: string) => (landed = u) };
+    new Function('location', body)(fakeLocation);
+    expect(landed).toBe(redirectTarget('/studio/changes/?view=history', '?entry=abc', ''));
   });
 
   it('never shadows a real page', () => {

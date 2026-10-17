@@ -1,0 +1,170 @@
+import { describe, expect, it } from 'vitest';
+import {
+  asOf,
+  byUrgency,
+  cachedOpenCount,
+  currentPackageName,
+  detailSentence,
+  listSource,
+  openerFor,
+  primaryAction,
+  readSnapshot,
+  STATUS_GROUP,
+  statusTone,
+  tierLabel,
+  undoSentence,
+  writeSnapshot,
+  type CachedPull,
+  type StorageLike,
+} from './changes';
+import { mergeGate, REVIEW_STATUS, summarizeCi, type ApprovalSummary, type ReviewStatusKind } from './review-rules';
+
+const KINDS = Object.keys(REVIEW_STATUS) as ReviewStatusKind[];
+
+describe('status colors', () => {
+  it('maps every status to one of four tones: red blocked, violet waiting, green ready, grey the rest', () => {
+    expect(statusTone('ci-failing')).toBe('is-fail');
+    expect(statusTone('changes-requested')).toBe('is-fail');
+    expect(statusTone('conflict')).toBe('is-fail');
+    expect(statusTone('needs-design')).toBe('is-info');
+    expect(statusTone('needs-tech')).toBe('is-info');
+    expect(statusTone('needs-approval')).toBe('is-info');
+    expect(statusTone('ready')).toBe('is-pass');
+    for (const k of ['draft', 'unknown', 'ci-running', 'merged', 'closed'] as const) expect(statusTone(k), k).toBe('');
+    expect(statusTone(null)).toBe('');
+  });
+
+  it('keeps the chip tones of review-rules in step with the groups', () => {
+    for (const k of KINDS) expect(REVIEW_STATUS[k].tone, k).toBe(statusTone(k));
+    expect(new Set(Object.values(STATUS_GROUP))).toEqual(new Set(['blocked', 'waiting', 'ready', 'neutral']));
+  });
+
+  it('labels tiers in plain words, with no color', () => {
+    expect(tierLabel(3)).toBe('Tier 3');
+    expect(tierLabel(null)).toBe('Tier not set');
+  });
+});
+
+describe('urgency', () => {
+  const rows = [
+    { number: 1, kind: 'ready' as const, updated_at: '2026-10-16T10:00:00Z' },
+    { number: 2, kind: 'needs-design' as const, updated_at: '2026-10-16T09:00:00Z' },
+    { number: 3, kind: 'ci-failing' as const, updated_at: '2026-10-15T09:00:00Z' },
+    { number: 4, kind: 'draft' as const, updated_at: '2026-10-17T09:00:00Z' },
+    { number: 5, kind: 'ci-running' as const, updated_at: '2026-10-17T09:00:00Z' },
+    { number: 6, kind: null, updated_at: '2026-10-17T09:00:00Z' },
+  ];
+
+  it('puts blocked first, then waiting for approval, then ready, then running and unknown, drafts last', () => {
+    expect(byUrgency(rows).map((r) => r.number)).toEqual([3, 2, 1, 6, 5, 4]);
+  });
+
+  it('breaks ties by the most recent update', () => {
+    const tie = [
+      { number: 7, kind: 'needs-approval' as const, updated_at: '2026-10-10T00:00:00Z' },
+      { number: 8, kind: 'needs-design' as const, updated_at: '2026-10-12T00:00:00Z' },
+    ];
+    expect(byUrgency(tie).map((r) => r.number)).toEqual([8, 7]);
+  });
+
+  it('writes the opener about the most urgent change, with one action', () => {
+    expect(openerFor(rows.map((r) => ({ ...r, title: `PR ${r.number}` })))).toEqual({
+      sentence: '6 changes open. #3 is blocked by a failing check.',
+      action: { label: 'Review #3', pr: 3 },
+    });
+    expect(openerFor([{ number: 2, kind: 'needs-design', title: 'x' }]).sentence).toBe('1 change open. #2 waits for a design approval.');
+    expect(openerFor([{ number: 1, kind: 'ready', title: 'x' }]).sentence).toBe('1 change open. #1 is ready to merge.');
+    expect(openerFor([]).action).toBeNull();
+  });
+});
+
+const approvals = (a: Partial<ApprovalSummary> = {}): ApprovalSummary => ({ approvers: [], changesRequested: [], design: false, tech: false, ...a });
+
+describe('pull request opener', () => {
+  const red = summarizeCi([
+    { name: 'Guardrails', status: 'completed', conclusion: 'failure', html_url: 'https://github.com/run/1' },
+    { name: 'Build', status: 'completed', conclusion: 'success' },
+  ]);
+  const green = summarizeCi([{ name: 'Build', status: 'completed', conclusion: 'success' }]);
+
+  it('says what blocks it, then what it needs after that', () => {
+    const gate = mergeGate({ tier: 2, ci: red, approvals: approvals(), draft: false, state: 'open' });
+    expect(detailSentence({ state: 'open', ci: red, gate, changesRequestedBy: [] })).toBe('Blocked: the Guardrails check fails. After that it needs 1 approval.');
+    const t3 = mergeGate({ tier: 3, ci: green, approvals: approvals(), draft: false, state: 'open' });
+    expect(detailSentence({ state: 'open', ci: green, gate: t3, changesRequestedBy: [] })).toBe('Waiting for a design and a tech approval. Checks pass.');
+    const ok = mergeGate({ tier: 2, ci: green, approvals: approvals({ approvers: ['a'] }), draft: false, state: 'open' });
+    expect(detailSentence({ state: 'open', ci: green, gate: ok, changesRequestedBy: [] })).toMatch(/^Ready to merge/);
+  });
+
+  it('picks one primary: the failing run, connect, approve or merge', () => {
+    const gate = mergeGate({ tier: 2, ci: red, approvals: approvals(), draft: false, state: 'open' });
+    expect(primaryAction({ state: 'open', ci: red, gate, connected: false, canWrite: false })).toEqual({ kind: 'open-run', label: 'Open failing run', url: 'https://github.com/run/1' });
+    const waiting = mergeGate({ tier: 2, ci: green, approvals: approvals(), draft: false, state: 'open' });
+    expect(primaryAction({ state: 'open', ci: green, gate: waiting, connected: false, canWrite: false }).kind).toBe('connect');
+    expect(primaryAction({ state: 'open', ci: green, gate: waiting, connected: true, canWrite: true }).kind).toBe('approve');
+    expect(primaryAction({ state: 'open', ci: green, gate: waiting, connected: true, canWrite: true, isAuthor: true }).kind).toBe('github');
+    const ready = mergeGate({ tier: 2, ci: green, approvals: approvals({ approvers: ['a'] }), draft: false, state: 'open' });
+    expect(primaryAction({ state: 'open', ci: green, gate: ready, connected: true, canWrite: true }).kind).toBe('merge');
+    expect(primaryAction({ state: 'open', ci: green, gate: ready, connected: true, canWrite: false }).kind).toBe('github');
+  });
+
+  it('shows changesets under the current package scope', () => {
+    // Old scopes spelled in two parts: the repo guardrail (scripts/rename-scope.mjs) forbids them as literals.
+    const old = (scope: string, pkg: string) => `@${scope}/${pkg}`;
+    expect(currentPackageName(old('demo-ds', 'react'))).toBe('@bridge-ds/react');
+    expect(currentPackageName(old('bridge', 'core'))).toBe('@bridge-ds/core');
+    expect(currentPackageName('@bridge-ds/tokens')).toBe('@bridge-ds/tokens');
+  });
+});
+
+function memory(): StorageLike & { data: Map<string, string> } {
+  const data = new Map<string, string>();
+  return { data, getItem: (k) => data.get(k) ?? null, setItem: (k, v) => void data.set(k, v) };
+}
+
+describe('cached list fallback', () => {
+  const pull: CachedPull = { number: 3, title: 'feat(card): lift', updated_at: '2026-10-16T10:00:00Z', tier: 2, kind: 'ci-failing', head: { ref: 'agent/x', sha: 'abc' }, user: { login: 'p' } };
+
+  it('round-trips the last list and its open count', () => {
+    const s = memory();
+    writeSnapshot(s, 'o/r', [pull], new Date('2026-10-17T08:00:00Z'));
+    expect(readSnapshot(s, 'o/r')).toEqual({ at: '2026-10-17T08:00:00.000Z', pulls: [pull] });
+    expect(readSnapshot(s, 'other/repo')).toBeNull();
+    expect(cachedOpenCount(s)).toBe(1);
+  });
+
+  it('survives broken or missing storage', () => {
+    const s = memory();
+    s.data.set('bridge.changes.list:o/r', '{nope');
+    s.data.set('bridge.reviews.open', '"x"');
+    expect(readSnapshot(s, 'o/r')).toBeNull();
+    expect(cachedOpenCount(s)).toBeNull();
+    expect(readSnapshot(null, 'o/r')).toBeNull();
+    expect(() => writeSnapshot({ getItem: () => null, setItem: () => { throw new Error('quota'); } }, 'o/r', [pull], new Date())).not.toThrow();
+  });
+
+  it('prefers live data, then the request cache, then the snapshot, else says unavailable', () => {
+    const snap = { at: '2026-10-17T08:00:00Z', pulls: [pull] };
+    expect(listSource({ pulls: [1] }, snap)).toEqual({ kind: 'live', pulls: [1] });
+    expect(listSource({ pulls: [1], staleAt: '2026-10-17T07:00:00Z' }, snap)).toEqual({ kind: 'stale', pulls: [1], at: '2026-10-17T07:00:00Z' });
+    expect(listSource(null, snap)).toEqual({ kind: 'cached', pulls: [pull], at: snap.at });
+    expect(listSource(null, null)).toEqual({ kind: 'unavailable' });
+  });
+
+  it('labels the cached list with its time', () => {
+    const now = new Date('2026-10-17T15:00:00');
+    expect(asOf(new Date('2026-10-17T14:05:00').toISOString(), now)).toBe('as of 14:05');
+    expect(asOf(new Date('2026-10-16T09:30:00').toISOString(), now)).toBe('as of Oct 16, 09:30');
+  });
+});
+
+describe('undo sentence', () => {
+  const change = { path: 'color.text.muted', kind: 'changed' as const, tier: 'semantic', context: 'light', before: { alias: 'palette.neutral.600', css: '#5b6672', hex: '#5b6672' }, after: { alias: 'palette.neutral.700', css: '#495562', hex: '#495562' } };
+  const pair = (before: number, after: number) => ({ fg: 'a', bg: 'b', where: 'Bridge light', before, after, min: 4.5, fgHexAfter: '#000', bgHexAfter: '#fff' });
+
+  it('says what it restores and how contrast moves', () => {
+    expect(undoSentence({ changes: [change], contrast: [pair(4.6, 6), pair(5, 6.6)] })).toBe('Restores color.text.muted to {palette.neutral.700} in Light. 2 contrast pairs improve, none fail.');
+    expect(undoSentence({ changes: [change, { ...change, path: 'color.text.subtle' }], contrast: [pair(5, 4)] })).toBe('Restores 2 token values. 1 contrast pair gets lower, 1 fails.');
+    expect(undoSentence({ changes: [change], contrast: [] })).toBe('Restores color.text.muted to {palette.neutral.700} in Light. No checked contrast pair moves.');
+  });
+});

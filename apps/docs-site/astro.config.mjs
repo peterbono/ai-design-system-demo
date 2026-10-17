@@ -4,7 +4,7 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import react from '@astrojs/react';
 import { defineConfig } from 'astro/config';
-import { REDIRECTS } from './src/lib/redirects.ts';
+import { REDIRECTS, redirectScript } from './src/lib/redirects.ts';
 
 /**
  * Astro writes a meta refresh page for each redirect, which drops the query string and the hash. Old deep links
@@ -19,7 +19,7 @@ const keepQuery = {
         const file = fileURLToPath(new URL(`.${from}/index.html`, dir));
         if (!existsSync(file)) continue;
         const html = readFileSync(file, 'utf8');
-        const script = `<script>location.replace(${JSON.stringify(to)}+location.search+location.hash)</script>`;
+        const script = redirectScript(to);
         if (!html.includes(script)) writeFileSync(file, html.replace('<meta http-equiv', `${script}\n<meta http-equiv`));
       }
     },

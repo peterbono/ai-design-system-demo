@@ -499,7 +499,7 @@ export function initTokenEditor() {
       const n = await propose(field<HTMLInputElement>('propose-title')?.value ?? '', field<HTMLTextAreaElement>('propose-notes')?.value ?? '');
       S!.draft = emptyDraft();
       saveDraft();
-      location.href = `/studio/reviews/?pr=${n}`;
+      location.href = `/studio/changes/?pr=${n}`;
     } catch (err) {
       out.textContent = `Not proposed: ${(err as Error).message}`;
       setButtonDisabled(go, false);

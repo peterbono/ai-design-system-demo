@@ -47,9 +47,9 @@ const { title, subtitle, countId, countLabel, branch = !path.startsWith(SETTINGS
                 </li>
               </ul>
               <p class="menu-help" data-branch-note>
-                {here.item?.branchAware ? 'This page reads the branch you pick.' : 'This page reads main. Reviews, Branches and Visual impact follow the branch you pick.'}
+                {here.item?.branchAware ? 'This page reads the branch you pick.' : 'This page reads main. Changes opens the pull request of the branch you pick.'}
               </p>
-              <a class="menu-foot" href="/studio/branches/" data-keep-branch>All branches and previews</a>
+              <a class="menu-foot" href="/studio/changes/#other-branches" data-keep-branch>All branches and previews</a>
             </div>
           </details>
         )
