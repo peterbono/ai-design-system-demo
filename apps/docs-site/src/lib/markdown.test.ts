@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mdTitleHtml, mdTitleText } from './markdown';
+import { mdTitleHtml, mdTitleText, oneLineTitle, truncateWords } from './markdown';
 
 describe('mdTitleText', () => {
   it('drops backticks, bold markers and link targets', () => {
@@ -29,5 +29,35 @@ describe('mdTitleHtml', () => {
   });
   it('escapes HTML in prose and in code', () => {
     expect(mdTitleHtml('Fix <Select> and `a < b && "c"`')).toBe('Fix &lt;Select&gt; and <code>a &lt; b &amp;&amp; &quot;c&quot;</code>');
+  });
+});
+
+describe('oneLineTitle', () => {
+  it('keeps the first sentence as plain text', () => {
+    expect(oneLineTitle('`bridge audit` counts every instance. Router links outside a DS component now count too.')).toBe('bridge audit counts every instance.');
+  });
+  it('does not stop inside dotted names', () => {
+    expect(oneLineTitle('One `bridge.config.json` and one schema for every package')).toBe('One bridge.config.json and one schema for every package');
+  });
+  it('cuts long sentences at a word boundary with an ellipsis', () => {
+    const t = oneLineTitle('Packages are publishable under the scope with provenance and a changelog per package so teams can pin them', 60);
+    expect(t.length).toBeLessThanOrEqual(60);
+    expect(t.endsWith('…')).toBe(true);
+    expect(t).toBe('Packages are publishable under the scope with provenance…');
+  });
+  it('handles empty input', () => {
+    expect(oneLineTitle(null)).toBe('');
+  });
+});
+
+describe('truncateWords', () => {
+  it('returns short text unchanged', () => {
+    expect(truncateWords('Short title', 40)).toBe('Short title');
+  });
+  it('drops trailing punctuation before the ellipsis', () => {
+    expect(truncateWords('Alpha beta, gamma delta epsilon', 13)).toBe('Alpha beta…');
+  });
+  it('cuts a single long word hard', () => {
+    expect(truncateWords('abcdefghijklmnopqrstuvwxyz', 10)).toBe('abcdefghi…');
   });
 });

@@ -85,8 +85,11 @@
   border-bottom: var(--border-width-default) solid var(--color-border-default);
 }
 
-.hm-change code {
-  font-size: var(--typography-ui-size);
+.hm-change {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .hm-date {

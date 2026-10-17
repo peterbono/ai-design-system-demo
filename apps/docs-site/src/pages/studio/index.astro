@@ -7,7 +7,7 @@ import Illustration from '../../components/Illustration.astro';
 import ButtonLink from '../../components/ds/ButtonLink';
 import { releases } from '../../lib/changelog';
 import { loadComponents } from '../../lib/components';
-import { mdTitleHtml } from '../../lib/markdown';
+import { mdTitleText, oneLineTitle } from '../../lib/markdown';
 import { PAGE_SOURCES, freshness } from '../../lib/sources';
 import { dashboard } from '../../lib/stats';
 
@@ -95,7 +95,7 @@ const merged = releases()
           merged.map((e) => (
             <li class="ov-row">
               <span class="t-body ov-row-title">
-                <b set:html={mdTitleHtml(e.title)} /> <span class="t-muted">Merged</span>
+                <b title={mdTitleText(e.title)}>{oneLineTitle(e.title)}</b> <span class="t-muted">Merged</span>
               </span>
               <span class="pill is-pass">Next release</span>
               <span class="t-ui t-muted ov-row-date">{e.date ? new Date(`${e.date}T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }) : ''}</span>
@@ -109,7 +109,7 @@ const merged = releases()
   <script>
     import { currentViewer, esc, ghGet, initGitHubConnect, readRepo, RateLimitError } from '../../scripts/github-session';
     import { loadStatuses, statusChip, type PullForStatus } from '../../scripts/pr-status';
-    import { mdTitleHtml, mdTitleText } from '../../lib/markdown';
+    import { mdTitleText, oneLineTitle } from '../../lib/markdown';
     import { openPulls, REVIEW_STATUS_ORDER, type ReviewStatus } from '../../lib/review-rules';
     import { humanTitle } from '../../lib/pr-title';
 
@@ -140,7 +140,7 @@ const merged = releases()
 
     const row = (p: Pull, st: ReviewStatus | null, skipped: boolean) =>
       `<li class="ov-row" data-pr="${p.number}"><a class="ov-row-link" href="/studio/reviews/?pr=${p.number}">
-        <span class="t-body ov-row-title"><b>${mdTitleHtml(humanTitle(p.title))}</b> <span class="t-muted">#${p.number}</span></span>
+        <span class="t-body ov-row-title"><b title="${esc(mdTitleText(humanTitle(p.title)))}">${esc(oneLineTitle(humanTitle(p.title)))}</b> <span class="t-muted">#${p.number}</span></span>
         ${statusChip(st, { skipped })}
         <span class="t-ui t-muted ov-row-date">${esc(shortDate(p.updated_at))}</span></a></li>`;
 
