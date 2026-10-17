@@ -1,5 +1,19 @@
 # @bridge-ds/core
 
+## 0.3.0
+
+### Minor Changes
+
+- 537abd7: Push names structure changes. Each variant keeps a layer outline, so a layer added, removed or moved becomes a
+  "Structure change" request (new request kind `structure`) with a line like `New instance layer "Icon" (Icon/Pencil)
+after "Label" in primary sm` and the title "Add a layer after Label", instead of a vague visual change. Renames,
+  wrappers and hidden layers bound to nothing still send nothing. When an optional part already draws the added layer
+  (an icon after the label while "Icon end" exists), the row says "Icon end already does this: show it with the Icon end
+  property" and the item starts unchecked; "Keep it as a request" sends it anyway.
+- fb40ae8: Claude writes each change line. Draft sessions carry one change line per component change (`DraftItem.lines`, images labeled by line), results may answer `lines: [{ id, line }]` (one sentence, at most 120 characters, no em dash, unknown ids refused; results without lines still work), and `draftChangeLine` gives the deterministic default ("Looks different in Size=sm, State=Default, Variant=primary; no variable explains it"). Requests carry the line (`ComponentChangeRequest.line`, "**What changes:**" in the issue, the brief and Jira). `bridge_pending_drafts` and `bridge_write_drafts` describe and accept lines; the plugin's API-key path asks for and parses them too.
+
+  Push hierarchy in the Figma plugin: "Draft with Claude" is a ghost action on the Description (and request Title) label line, one "Drafted by Claude" status line under the field, each component change row reads name and kind, then one sentence, with the table behind "Details" in one font size, no group checkbox for a single item, the bar alone sums up what is sent ("1 request"), and a shorter Components intro.
+
 ## 0.2.0
 
 ### Minor Changes
