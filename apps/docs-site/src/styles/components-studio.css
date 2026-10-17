@@ -1,0 +1,296 @@
+/* Studio Components (pages/studio/components/index.astro): a sentence and one primary, a filter row, the list
+   grouped by family, and the detail drawer. Type: h2 (title), body (lead), ui (everything else), caption (none). */
+
+.cm {
+  max-width: calc(var(--size-240) + var(--size-20));
+}
+
+.cm-lead {
+  margin: 0;
+  font-size: var(--typography-body-size);
+  line-height: var(--typography-body-line-height);
+}
+
+.cm-lead-filter {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-text-link);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: var(--space-1);
+  cursor: pointer;
+}
+
+.cm-lead-filter[aria-pressed="true"] {
+  color: var(--color-text-default);
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+}
+
+.cm-lead-filter:focus-visible {
+  border-radius: var(--radius-inset);
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.cm-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.cm-search {
+  flex: 0 1 calc(var(--size-60) + var(--size-10));
+}
+
+.cm-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1-5);
+}
+
+.cm-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  height: var(--size-8);
+  padding: 0 var(--space-3);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface-default);
+  color: var(--color-text-default);
+  font: inherit;
+  font-size: var(--typography-ui-size);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+}
+
+.cm-chip-n {
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-regular);
+}
+
+.cm-chip[aria-pressed="true"] {
+  border-color: var(--color-surface-inverse);
+  background-color: var(--color-surface-inverse);
+  color: var(--color-text-inverse);
+}
+
+.cm-chip[aria-pressed="true"] .cm-chip-n {
+  color: inherit;
+}
+
+.cm-chip:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+@media (hover: hover) {
+  .cm-chip:not([aria-pressed="true"]):hover {
+    border-color: var(--color-border-emphasis);
+  }
+}
+
+.cm-count,
+.cm-none {
+  min-height: var(--typography-ui-line-height);
+  margin: 0 0 var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+}
+
+.cm-none[hidden] {
+  display: none;
+}
+
+/* The list: family names as small row-group headers, compact rows, the whole row clickable. */
+.cm-table .cm-fam th {
+  padding-top: var(--space-5);
+  border-bottom: 0;
+  background-color: transparent;
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+  font-weight: var(--font-weight-semibold);
+}
+
+.cm-table tbody:first-of-type .cm-fam th {
+  padding-top: var(--space-2);
+}
+
+.cm-row {
+  cursor: pointer;
+}
+
+.cm-row[hidden],
+.cm-table tbody[hidden] {
+  display: none;
+}
+
+@media (hover: hover) {
+  .cm-row:hover {
+    background-color: var(--color-bg-subtle);
+  }
+}
+
+.cm-row:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: calc(var(--focus-ring-width) * -1);
+}
+
+.cm-row[aria-expanded="true"] {
+  background-color: var(--color-signal-subtle);
+}
+
+.cm-name {
+  font-weight: var(--font-weight-semibold);
+}
+
+.cm-name-text {
+  margin-right: var(--space-2);
+}
+
+.cm-pill {
+  margin-right: var(--space-1);
+  font-weight: var(--font-weight-medium);
+}
+
+.cm-tokens {
+  white-space: nowrap;
+}
+
+/* Detail drawer */
+.cm-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: var(--layer-overlay);
+  background-color: var(--color-overlay-scrim);
+}
+
+.cm-scrim[hidden],
+.cm-drawer[hidden],
+.cm-d-panel[hidden] {
+  display: none;
+}
+
+.cm-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--layer-modal);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  width: min(100%, calc(var(--size-96) + var(--size-20)));
+  padding: var(--space-6);
+  overflow-y: auto;
+  border-left: var(--border-width-default) solid var(--color-border-default);
+  background-color: var(--color-surface-default);
+  box-shadow: var(--elevation-overlay);
+}
+
+.cm-d-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.cm-d-title {
+  margin: 0;
+  font-family: var(--typography-h2-family);
+  font-size: var(--typography-h2-size);
+  font-weight: var(--typography-h2-weight);
+  line-height: var(--typography-h2-line-height);
+}
+
+.cm-d-panel {
+  display: grid;
+  gap: var(--space-5);
+  font-size: var(--typography-ui-size);
+}
+
+.cm-d-panel > * {
+  margin: 0;
+}
+
+.cm-d-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+}
+
+.cm-d-summary {
+  font-size: var(--typography-body-size);
+  line-height: var(--typography-body-line-height);
+}
+
+.cm-d-guidance {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border-radius: var(--radius-container);
+  background-color: var(--color-bg-subtle);
+}
+
+.cm-d-guidance p {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.cm-d-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.cm-d-facts dt {
+  color: var(--color-text-muted);
+}
+
+.cm-d-facts dd {
+  margin: 0;
+  font-weight: var(--font-weight-semibold);
+}
+
+.cm-d-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.cm-d-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Phones: keep name, tokens and stories; the filter row wraps and scrolls nothing sideways. */
+@media (max-width: 640px) {
+  .cm-search {
+    flex-basis: 100%;
+  }
+
+  .cm-tokens {
+    white-space: normal;
+  }
+
+  .cm-pill {
+    display: inline-flex;
+    margin-top: var(--space-1);
+  }
+
+  .cm-drawer {
+    padding: var(--space-5) var(--space-4);
+  }
+}

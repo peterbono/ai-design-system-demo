@@ -445,4 +445,4 @@ export type GuidanceState = 'ok' | 'review' | 'missing';
 export const guidanceState = (c: Pick<ComponentInfo, 'docs'>): GuidanceState => (!c.docs ? 'missing' : c.docs.needsReview ? 'review' : 'ok');
 
 /** Studio docs editor for one component (Edit docs). */
-export const docsEditHref = (slug: string) => `/studio/components/docs/?c=${encodeURIComponent(slug)}`;
+export const docsEditHref = (slug: string) => `/studio/components/docs/${slug}/`;
