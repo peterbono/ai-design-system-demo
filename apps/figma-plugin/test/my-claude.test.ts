@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { DRAFTS_DIR, type PendingDrafts, REQUESTS_BRANCH, draftSessionPath, mergeDraftResults, parsePendingDrafts, serializePendingDrafts } from '@bridge-ds/core';
-import { DRAFT_PHRASE, DraftPoller, MCP_CLONE, POLL_INTERVAL_MS, POLL_TIMEOUT_MS, type MyClaudeTarget, finishMyClaudeDrafts, mcpSnippets, planFill, startMyClaudeDrafts } from '../src/sync/my-claude';
+import { DRAFT_PHRASE, DraftPoller, POLL_INTERVAL_MS, POLL_TIMEOUT_MS, type MyClaudeTarget, finishMyClaudeDrafts, mcpSnippets, planFill, startMyClaudeDrafts } from '../src/sync/my-claude';
 import { FakeGitHub } from './fake-github';
 
 const EM = '—';
@@ -200,11 +200,10 @@ test('the whole flow: request, designer types, Claude answers, the typed field i
 test('settings: MCP setup for Claude Desktop and Claude Code, with the repo and a placeholder token', () => {
   const s = mcpSnippets('acme/ds');
   const desktop = JSON.parse(s.desktop);
-  assert.deepEqual(desktop.mcpServers.bridge.args, ['/path/to/bridge/packages/mcp/dist/index.js', '--repo', 'acme/ds']);
-  assert.equal(desktop.mcpServers.bridge.command, 'node');
+  assert.deepEqual(desktop.mcpServers.bridge.args, ['-y', '@bridge-ds/mcp', '--repo', 'acme/ds']);
+  assert.equal(desktop.mcpServers.bridge.command, 'npx');
   assert.deepEqual(Object.keys(desktop.mcpServers.bridge.env), ['GITHUB_TOKEN']);
-  assert.equal(s.code, 'claude mcp add bridge -s user -e GITHUB_TOKEN=your-github-token -- node /path/to/bridge/packages/mcp/dist/index.js --repo acme/ds');
-  assert.match(MCP_CLONE, /npm run mcp:build$/);
+  assert.equal(s.code, 'claude mcp add bridge -s user -e GITHUB_TOKEN=your-github-token -- npx -y @bridge-ds/mcp --repo acme/ds');
   assert.equal(DRAFT_PHRASE, 'Draft my Bridge changes');
-  assert.ok(!`${s.desktop}${s.code}${MCP_CLONE}`.includes(EM));
+  assert.ok(!`${s.desktop}${s.code}`.includes(EM));
 });

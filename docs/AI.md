@@ -10,10 +10,18 @@ changes as pull requests that your design and tech owners review.
 - **Repo-agnostic**: point it at any DTCG token repo. `bridge.config.json` says where things are; without it
   Bridge detects them.
 
-> The packages (`@bridge-ds/mcp`, `@bridge-ds/cli`) are **not published to npm yet**. Use the local path commands
-> below. The `npx` forms are shown for when they are.
+> `@bridge-ds/mcp` is on npm: `npx -y @bridge-ds/mcp` runs it, nothing to build. `@bridge-ds/cli` is still in
+> npm's review; until it is listed, build it from this repository (below).
 
-## 1. Build once
+Quick start with Claude Code:
+
+```sh
+claude mcp add bridge -s user -e GITHUB_TOKEN=your-github-token -- npx -y @bridge-ds/mcp --repo owner/name
+# or a local checkout of your design system:
+claude mcp add bridge -- npx -y @bridge-ds/mcp --root /abs/path/to/your-ds
+```
+
+## 1. Build the CLI (until it is on npm)
 
 ```sh
 git clone https://github.com/peterbono/ai-design-system-demo && cd ai-design-system-demo

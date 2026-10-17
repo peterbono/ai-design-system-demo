@@ -19,7 +19,7 @@ import { REQUEST_KINDS, type RequestKind, draftPushDescription, pushChangeRows }
 import { type ComponentChangeItem, type ComponentScan, type RequestDraft, classifyComponents, pullBaselines, suggestSummary, suggestTitle, toRequest } from '../sync/components';
 import { CLAUDE_MODELS, type ClaudeDraft, type ClaudeDraftInput, ClaudeDraftError, DRAFTED_NOTE, draftWithClaude } from '../sync/claude';
 import { loadCodedComponents, sendComponentRequest } from '../sync/requests';
-import { DRAFT_PHRASE, type DraftField, DraftPoller, MCP_CLONE, type MyClaudeTarget, finishMyClaudeDrafts, mcpSnippets, planFill, startMyClaudeDrafts } from '../sync/my-claude';
+import { DRAFT_PHRASE, type DraftField, DraftPoller, type MyClaudeTarget, finishMyClaudeDrafts, mcpSnippets, planFill, startMyClaudeDrafts } from '../sync/my-claude';
 import { type ComponentApplyReport, type ComponentPullPlan, type PlannedComponent, buildComponentPlan, loadComponentSpecs } from '../sync/component-pull';
 import { type ComponentReview, onlyComponent, reviewUpdates } from '../sync/component-review';
 import type { ComponentSignature } from '../sync/components';
@@ -2261,9 +2261,8 @@ function claudeCard(): HTMLElement {
         h(
           'ol',
           { class: 'setup-steps' },
-          h('li', null, 'Build the Bridge MCP server once (it is not on npm yet).', snippet('clone', 'Terminal', MCP_CLONE)),
-          h('li', null, 'Add it to your Claude, in a terminal.', snippet('code', 'Terminal', mcp.code)),
-          h('li', null, `Use this plugin's GitHub token as GITHUB_TOKEN. Then click "Draft with Claude" and say "${DRAFT_PHRASE}" to your Claude.`),
+          h('li', null, 'Add Bridge to your Claude, once, in a terminal. Put this plugin\'s GitHub token in place of your-github-token.', snippet('code', 'Terminal', mcp.code)),
+          h('li', null, `Then click "Draft with Claude" and say "${DRAFT_PHRASE}" to your Claude.`),
         ),
       ),
       row(

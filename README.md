@@ -66,8 +66,7 @@ npm run admin:dev         # the back-office demo built on Bridge
 Connect your Claude (Claude Code shown; Claude Desktop and other MCP clients in [`docs/AI.md`](docs/AI.md)):
 
 ```sh
-npm run mcp:build
-claude mcp add bridge -- node "$PWD/packages/mcp/dist/index.js" --root "$PWD"
+claude mcp add bridge -- npx -y @bridge-ds/mcp --root "$PWD"
 ```
 
 Then ask: "Which token should I use for danger text?", "Darken muted text in light and show me the contrast

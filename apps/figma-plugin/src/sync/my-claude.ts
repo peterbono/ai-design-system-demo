@@ -206,14 +206,14 @@ export class DraftPoller {
 // Setup shown in Settings, "Claude (optional)"
 
 /** Where the Bridge MCP server runs from until it is on npm: a clone of the Bridge repo, built once. */
-export const MCP_CLONE = 'git clone https://github.com/peterbono/ai-design-system-demo bridge && cd bridge && npm install && npm run mcp:build';
-export const MCP_SERVER = '/path/to/bridge/packages/mcp/dist/index.js';
+/** The Bridge MCP server from npm: no clone, no build. */
+export const MCP_PACKAGE = '@bridge-ds/mcp';
 
 /** The Claude Desktop config and the Claude Code command for this repo. The token stays a placeholder: never copied. */
 export function mcpSnippets(repo: string): { desktop: string; code: string } {
   const r = repo.trim() || 'owner/name';
-  const desktop = JSON.stringify({ mcpServers: { bridge: { command: 'node', args: [MCP_SERVER, '--repo', r], env: { GITHUB_TOKEN: 'your GitHub token' } } } }, null, 2);
-  const code = `claude mcp add bridge -s user -e GITHUB_TOKEN=your-github-token -- node ${MCP_SERVER} --repo ${r}`;
+  const desktop = JSON.stringify({ mcpServers: { bridge: { command: 'npx', args: ['-y', MCP_PACKAGE, '--repo', r], env: { GITHUB_TOKEN: 'your GitHub token' } } } }, null, 2);
+  const code = `claude mcp add bridge -s user -e GITHUB_TOKEN=your-github-token -- npx -y ${MCP_PACKAGE} --repo ${r}`;
   return { desktop, code };
 }
 

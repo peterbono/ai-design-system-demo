@@ -7,8 +7,8 @@ propose token changes as reviewable branches and pull requests. It never writes 
 Free and open source (MIT). Local, no backend, no account: it reads files on your disk, or a GitHub repo
 with your own token.
 
-> Not published to npm yet. The `npx @bridge-ds/mcp` commands below work once it is; until then use the local
-> path form (`node packages/mcp/dist/index.js`).
+> On npm: `npx -y @bridge-ds/mcp` runs it, nothing to build. The local path form (`node packages/mcp/dist/index.js`)
+> is for working on the server itself.
 
 ## Run it
 
@@ -22,9 +22,9 @@ GITHUB_TOKEN=... node packages/mcp/dist/index.js --repo owner/name   # GitHub re
 Connect it to Claude Code:
 
 ```sh
-claude mcp add bridge -- node /abs/path/to/packages/mcp/dist/index.js --root /abs/path/to/your-ds
-# once published:
-claude mcp add bridge -- npx -y @bridge-ds/mcp
+claude mcp add bridge -- npx -y @bridge-ds/mcp --root /abs/path/to/your-ds
+# or a GitHub repo (pull requests need a token):
+claude mcp add bridge -s user -e GITHUB_TOKEN=your-github-token -- npx -y @bridge-ds/mcp --repo owner/name
 ```
 
 Or commit a project `.mcp.json` (this repo has one), or run `bridge init`. Claude Desktop, other clients

@@ -36,15 +36,15 @@ const prompts = mcpPrompts();
 const safety = safetyModel();
 
 const build = ['git clone https://github.com/peterbono/ai-design-system-demo', 'cd ai-design-system-demo', 'npm install', 'npm run mcp:build'].join('\n');
-const claudeCode = 'claude mcp add bridge -- node /abs/path/ai-design-system-demo/packages/mcp/dist/index.js --root /abs/path/to/your-ds';
+const claudeCode = 'claude mcp add bridge -- npx -y @bridge-ds/mcp --root /abs/path/to/your-ds';
 const projectJson = JSON.stringify({ mcpServers: { bridge: { command: 'node', args: ['packages/mcp/dist/index.js', '--root', '.'] } } }, null, 2);
 const desktopJson = JSON.stringify(
-  { mcpServers: { bridge: { command: 'node', args: ['/abs/path/ai-design-system-demo/packages/mcp/dist/index.js', '--root', '/abs/path/to/your-ds'] } } },
+  { mcpServers: { bridge: { command: 'npx', args: ['-y', '@bridge-ds/mcp', '--root', '/abs/path/to/your-ds'] } } },
   null,
   2,
 );
 const desktopRemote = JSON.stringify(
-  { mcpServers: { bridge: { command: 'node', args: ['/abs/path/packages/mcp/dist/index.js', '--repo', 'owner/name'], env: { GITHUB_TOKEN: 'github_pat_...' } } } },
+  { mcpServers: { bridge: { command: 'npx', args: ['-y', '@bridge-ds/mcp', '--repo', 'owner/name'], env: { GITHUB_TOKEN: 'github_pat_...' } } } },
   null,
   2,
 );
@@ -135,12 +135,12 @@ import LibraryHeader from '../components/LibraryHeader.astro';
     Tokens resolved in every brand, theme and density, the contrast gate, components with their props and usage docs, and the agent rules. Claude
     builds UI with real tokens and proposes token changes as pull requests your design and tech owners review.
   </p>
-  <Alert tone="warning" announce="off" title="Not published on npm yet" className="lib-note">
-    <code>@bridge-ds/mcp</code> and <code>@bridge-ds/cli</code> run from a local build of this repository, as shown below. The <code>npx</code> form
-    works once they are published.
+  <Alert tone="info" announce="off" title="On npm" className="lib-note">
+    <code>@bridge-ds/mcp</code> runs with <code>npx</code>, nothing to build. The <code>bridge</code> CLI is still in npm's review: until it is
+    listed, build it from this repository (step 1).
   </Alert>
 
-  <h3 id="build">1. Build once</h3>
+  <h3 id="build">1. The CLI (optional, until it is on npm)</h3>
   <div class="terminal">
     <div class="terminal-bar">
       <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
@@ -151,7 +151,7 @@ import LibraryHeader from '../components/LibraryHeader.astro';
     </div>
     <pre class="terminal-body cx-pre" tabindex="0" aria-label="Build commands">{build}</pre>
   </div>
-  <p class="small muted">The server is then at <code>packages/mcp/dist/index.js</code> and the CLI at <code>packages/cli/dist/index.js</code>.</p>
+  <p class="small muted">The CLI is then at <code>packages/cli/dist/index.js</code>. The MCP server needs no build: it runs from npm.</p>
 
   <h3 id="claude-code">2. Claude Code</h3>
   <p>Add the server for your user, pointing it at your design system folder:</p>

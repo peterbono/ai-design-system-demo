@@ -12,7 +12,9 @@ import * as explorations from './explorations.js';
 import * as drafts from './drafts.js';
 import { DRAFT_PHRASE, DRAFT_TITLE_MAX, EXPLORATION_USE_CASES, REQUEST_KINDS } from '@bridge-ds/core';
 
-export const VERSION = '0.1.0';
+declare const __BRIDGE_MCP_VERSION__: string | undefined;
+/** The package version, injected at build time; tests and source runs fall back to "dev". */
+export const VERSION = typeof __BRIDGE_MCP_VERSION__ === 'string' ? __BRIDGE_MCP_VERSION__ : 'dev';
 
 type Json = Record<string, unknown> | unknown[];
 const ok = (data: Json | string) => ({ content: [{ type: 'text' as const, text: typeof data === 'string' ? data : JSON.stringify(data, null, 2) }] });
