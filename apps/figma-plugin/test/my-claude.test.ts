@@ -207,3 +207,26 @@ test('settings: MCP setup for Claude Desktop and Claude Code, with the repo and 
   assert.equal(DRAFT_PHRASE, 'Draft my Bridge changes');
   assert.ok(!`${s.desktop}${s.code}`.includes(EM));
 });
+
+test('start: a push carries one change line per component, with its images labeled by line id', async () => {
+  const gh = new FakeGitHub({ 'a.json': '{}' });
+  const s = await startMyClaudeDrafts(gh.client(), {
+    targets: [{
+      scope: 'push',
+      changes: [],
+      components: ['Button'],
+      draft: { title: '', summary: 'Requests a change to Button.' },
+      lines: [{ id: '12:34', component: 'Button', kind: 'visual', changes: [{ field: 'Look of Size=sm' }], line: 'Looks different in Size=sm; no variable explains it' }],
+      lineImages: [{ id: '12:34', before: 'QkVGT1JF', after: 'QUZURVI=' }],
+    }],
+    baseBranch: 'main',
+  });
+  const item = fileOf(gh, s.sessionId)!.items[0]!;
+  assert.equal(item.lines![0]!.id, '12:34');
+  assert.deepEqual(item.images!.map((i) => [i.label, i.line, i.path]), [
+    ['before', '12:34', `${DRAFTS_DIR}/${s.sessionId}/item-1-change-1-before.png`],
+    ['after', '12:34', `${DRAFTS_DIR}/${s.sessionId}/item-1-change-1-after.png`],
+  ]);
+  const answered = mergeDraftResults(fileOf(gh, s.sessionId)!, [{ id: 'item-1', title: 'Add an icon', summary: 'Shows an icon.', lines: [{ id: '12:34', line: 'Icon added before the label in primary sm' }] }]);
+  assert.deepEqual(answered.results![0]!.lines, [{ id: '12:34', line: 'Icon added before the label in primary sm' }]);
+});

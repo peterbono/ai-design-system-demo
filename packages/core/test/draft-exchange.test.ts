@@ -97,6 +97,26 @@ describe('pure helpers', () => {
     expect(() => mergeDraftResults(p, [{ id: 'item-1', title: '', summary: '' }])).toThrow(/no title and no summary/);
   });
 
+  it('change lines: sanitized per line id, unknown ids refused, results without lines still work', () => {
+    const withLines: DraftItem = { ...item, lines: [{ id: '12:34', component: 'Badge', kind: 'new-variant', changes: item.changes, line: 'Danger added to Tone' }] };
+    const p = composePendingDrafts({ items: [withLines, push], sessionId: 'session02', now: NOW });
+    const long = `Icon added after the label ${EM} primary sm: Pencil, 16px. ${'and more words '.repeat(12)}`;
+    const out = mergeDraftResults(p, [{ id: 'item-1', title: 'Add a danger tone', summary: 'Badge gets danger.', lines: [{ id: '12:34', line: long }] }, { id: 'item-2', title: 'Darken muted text', summary: 'Better.' }], NOW);
+    const line = out.results![0]!.lines![0]!.line;
+    expect(line.startsWith('Icon added after the label, primary sm: Pencil, 16px')).toBe(true);
+    expect(line.length).toBeLessThanOrEqual(120);
+    expect(line).not.toMatch(/\u2014|\.$/);
+    expect(out.results![1]!.lines).toBeUndefined();
+    expect(out.status).toBe('drafted');
+    expect(parsePendingDrafts(JSON.stringify(out))).toBeDefined();
+    expect(mergeDraftResults(p, [{ id: 'item-1', title: '', summary: '', lines: [{ id: '12:34', line: 'Danger tone added' }] }], NOW).results![0]!.lines).toEqual([{ id: '12:34', line: 'Danger tone added' }]);
+    expect(() => mergeDraftResults(p, [{ id: 'item-1', title: 'x', summary: 'y', lines: [{ id: '99:1', line: 'x' }] }])).toThrow(/no change line "99:1".*12:34/);
+    expect(() => mergeDraftResults(p, [{ id: 'item-2', title: 'x', summary: 'y', lines: [{ id: '12:34', line: 'x' }] }])).toThrow(/lists no lines/);
+    const brief = draftItemBrief(withLines);
+    expect(brief).toMatch(/Change lines to write/);
+    expect(brief).toMatch(/Line 12:34, Badge \(New variant\)\. Starting line: Danger added to Tone/);
+  });
+
   it('brief: the change table, variables, starting draft, notes and image links', () => {
     const b = draftItemBrief(item);
     expect(b).toContain('Component: Badge');

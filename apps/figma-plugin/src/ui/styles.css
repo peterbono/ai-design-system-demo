@@ -204,8 +204,12 @@ table.contrast .num { text-align: right; }
 table.contrast .pair { font-family: var(--mono); }
 
 /* Forms */
-label.field { display: flex; flex-direction: column; gap: 4px; }
-label.field > span { font-weight: 500; }
+label.field, div.field { display: flex; flex-direction: column; gap: 4px; }
+label.field > span, .field-head > label { font-weight: 500; }
+/* A field label and the action that fills the field share one line (proximity): label left, action right. */
+.field-head { position: relative; display: flex; align-items: center; justify-content: space-between; gap: var(--s2); min-height: 28px; }
+.field-head > label { cursor: default; }
+.assist-action { position: relative; margin-right: calc(-1 * var(--s2)); }
 input[type="text"], input[type="password"], textarea, select {
   border: 1px solid var(--border); border-radius: var(--r-md); padding: 6px var(--s2); background: var(--bg); width: 100%; min-height: 28px;
 }
@@ -254,10 +258,15 @@ details.notes ul { margin: 0; padding-left: var(--s4); color: var(--text-2); }
 table.changes { border-collapse: collapse; width: 100%; }
 table.changes th { text-align: left; font-weight: 500; color: var(--text-3); padding: 0 var(--s2) 2px 0; }
 table.changes td { padding: 4px var(--s2) 4px 0; border-top: 1px solid var(--border); vertical-align: top; overflow-wrap: anywhere; }
-table.changes td.mono { font-family: var(--mono); font-size: 11px; }
+table.changes td.mono { font-family: var(--mono); }
 table.changes td.before { color: var(--text-3); }
+/* Component change row: one sentence of what changed, the table behind "Details" (one font size). */
+.row-line { color: var(--text); }
+.row-details > summary { display: inline-flex; align-items: center; min-height: 24px; width: fit-content; cursor: pointer; color: var(--text-2); border-radius: var(--r-sm); }
+.row-details > summary:hover { color: var(--text); }
+.row-details[open] > summary { margin-bottom: var(--s1); }
 .req-form { display: flex; flex-direction: column; gap: var(--s3); padding: var(--s2) 0 var(--s1); }
-.req-form .field > span { font-weight: 500; }
+.req-form .field > span, .req-form .field-head > label { font-weight: 500; }
 .attach-hint { margin-top: calc(-1 * var(--s2)); padding-left: 21px; }
 .form-error { display: flex; gap: 6px; align-items: center; color: var(--danger); font-weight: 500; }
 .form-error .icon { width: 14px; height: 14px; flex: none; }
@@ -311,9 +320,12 @@ textarea.mono-area, .paste textarea { font-family: var(--mono); font-size: 11px;
 small.drafted { display: flex; gap: 4px; align-items: center; color: var(--brand-text); font-weight: 500; }
 ul.ways { margin: 0; padding-left: var(--s4); display: flex; flex-direction: column; gap: var(--s1); color: var(--text-2); }
 ul.ways b { color: var(--text); font-weight: 600; }
-/* "Draft with Claude": one full-width control (Fitts: lone action, 36px) that discloses the three ways, MCP first. */
-.btn.assist-open { height: 36px; width: 100%; justify-content: space-between; padding: 0 var(--s3); }
-.ways-menu { display: flex; flex-direction: column; padding: var(--s1); border: 1px solid var(--border); border-radius: var(--r-md); background: var(--bg); }
+/* "Draft with Claude" with an API key: a menu of the two ways under the ghost action, MCP first. */
+.ways-menu {
+  position: absolute; right: 0; top: calc(100% + 4px); z-index: 10; width: 280px; display: flex; flex-direction: column; padding: var(--s1);
+  border: 1px solid var(--border); border-radius: var(--r-md); background: var(--bg);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.08), 0 6px 16px rgb(0 0 0 / 0.12);
+}
 .way-item { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-height: 44px; padding: var(--s2); border: 0; border-radius: var(--r-sm); background: none; text-align: left; cursor: pointer; color: var(--text); font: inherit; }
 .way-item:hover:not(:disabled) { background: var(--bg-hover); }
 .way-item:disabled { opacity: 0.4; cursor: not-allowed; }

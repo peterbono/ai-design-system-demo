@@ -11,6 +11,7 @@ import {
   listPendingDrafts,
   readPendingDrafts,
   writeDraftResults,
+  type DraftResultInput,
   type GitHubClient,
   type PendingDrafts,
 } from '@bridge-ds/core';
@@ -32,6 +33,8 @@ export interface InlineImage {
   sessionId: string;
   itemId: string;
   label: 'before' | 'after';
+  /** The change line this image shows (push items with several components). */
+  line?: string | undefined;
   base64: string;
 }
 
@@ -63,7 +66,7 @@ export async function pendingDrafts(ctx: BridgeContext, a: { sessionId?: string 
         for (const img of item.images ?? []) {
           if (images.length >= IMAGES_PER_CALL || !img.path) continue;
           const f = await gh.getFileBase64(img.path, REQUESTS_BRANCH).catch(() => undefined);
-          if (f && f.size <= IMAGE_INLINE_MAX) images.push({ sessionId: s.sessionId, itemId: item.id, label: img.label, base64: f.base64 });
+          if (f && f.size <= IMAGE_INLINE_MAX) images.push({ sessionId: s.sessionId, itemId: item.id, label: img.label, ...(img.line ? { line: img.line } : {}), base64: f.base64 });
         }
       }
     }
@@ -76,14 +79,14 @@ export async function pendingDrafts(ctx: BridgeContext, a: { sessionId?: string 
     voice: DRAFT_VOICE_RULES,
     contract: DRAFT_OUTPUT_CONTRACT,
     next: sessions.length
-      ? `Write a title and a summary for each item, then call bridge_write_drafts with the sessionId and one result per item id. The designer reviews them in Figma.`
+      ? `Write a title and a summary for each item, and one line per change line it lists, then call bridge_write_drafts with the sessionId and one result per item id. The designer reviews them in Figma.`
       : `Nothing is waiting. In the DS Bridge Figma plugin, click "Draft with my Claude" on a request or on the Push description, then say "${DRAFT_PHRASE}" again.`,
   };
   return { answer, images };
 }
 
 /** Writes Claude's texts into a session (sanitized, status "drafted" once every item has one), retrying on 409. */
-export async function writeDrafts(ctx: BridgeContext, a: { sessionId: string; results: { id: string; title: string; summary: string }[] }) {
+export async function writeDrafts(ctx: BridgeContext, a: { sessionId: string; results: (DraftResultInput & { title: string; summary: string })[] }) {
   if (!a.results.length) throw new Error('Send at least one result: {"id", "title", "summary"} per item.');
   const gh = await requireGitHub(ctx);
   if (!ctx.canWriteRemote) throw new Error('Writing drafts needs GITHUB_TOKEN (contents: read and write on this repository), the same token as the Figma plugin. Without it Bridge is read-only.');

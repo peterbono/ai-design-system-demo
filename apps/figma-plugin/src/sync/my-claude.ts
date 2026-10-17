@@ -13,6 +13,7 @@
 import {
   type DraftImage,
   type DraftItem,
+  type DraftLine,
   type DraftResult,
   type DraftScope,
   type DraftText,
@@ -46,6 +47,10 @@ export interface MyClaudeTarget {
   draft: DraftText;
   /** PNG base64 (no data: prefix), uploaded next to the session so Claude can see them. */
   images?: { before?: string | undefined; after?: string | undefined } | undefined;
+  /** Component changes Claude writes one line each for (the row line and the request's first line). */
+  lines?: DraftLine[] | undefined;
+  /** Push: images per change line (by line id), when the push requests several components. */
+  lineImages?: { id: string; before?: string | undefined; after?: string | undefined }[] | undefined;
 }
 
 type ExchangeClient = Pick<GitHubClient, 'owner' | 'name' | 'getBranchSha' | 'createBranch' | 'putBase64File' | 'getFile' | 'putFile' | 'deleteFile' | 'listDirectory'>;
@@ -66,6 +71,15 @@ export async function startMyClaudeDrafts(client: ExchangeClient, input: { targe
       await client.putBase64File({ path, base64: data, branch: REQUESTS_BRANCH, message: `Image for Claude drafts from Figma (${label})` });
       images.push({ label, path, url: requestImageUrl(client, path) });
     }
+    for (const [k, x] of (t.lineImages ?? []).entries()) {
+      for (const label of ['before', 'after'] as const) {
+        const data = x[label]?.replace(/^data:image\/png;base64,/, '');
+        if (!data) continue;
+        const path = draftImagePath(sessionId, `${id}-change-${k + 1}`, label);
+        await client.putBase64File({ path, base64: data, branch: REQUESTS_BRANCH, message: `Image for Claude drafts from Figma (${label})` });
+        images.push({ label, path, url: requestImageUrl(client, path), line: x.id });
+      }
+    }
     items.push({
       id,
       scope: t.scope,
@@ -77,6 +91,7 @@ export async function startMyClaudeDrafts(client: ExchangeClient, input: { targe
       ...(t.notes?.trim() ? { notes: t.notes.trim() } : {}),
       ...(images.length ? { images } : {}),
       draft: t.draft,
+      ...(t.lines?.length ? { lines: t.lines } : {}),
     });
   }
   return createPendingDrafts(client, composePendingDrafts({ items, sessionId, now: input.now }));

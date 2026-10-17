@@ -6,7 +6,7 @@
 //   is only ever sent to api.anthropic.com.
 // Pure: no DOM, no figma.*. The UI wires it; tests mock fetch.
 
-import { type RequestChange, type RequestKind, REQUEST_KINDS, cleanDraftText } from '@bridge-ds/core';
+import { DRAFT_LINE_MAX, type DraftLine, type RequestChange, type RequestKind, REQUEST_KINDS, cleanDraftText, sanitizeDraftLine } from '@bridge-ds/core';
 
 export const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 export const CLAUDE_MODELS = [
@@ -40,11 +40,17 @@ export interface ClaudeDraftInput {
   /** PNG base64 (no data: prefix): the component at its baseline and now. Skipped when missing. */
   before?: string | undefined;
   after?: string | undefined;
+  /** Component changes to write one line each for (by id), with the deterministic line as a starting point. */
+  lines?: DraftLine[] | undefined;
+  /** Push: before and after images per change line, when the item has several components. */
+  lineImages?: { id: string; before?: string | undefined; after?: string | undefined }[] | undefined;
 }
 
 export interface ClaudeDraft {
   title: string;
   summary: string;
+  /** One sentence per change line (by DraftLine id). Missing or empty when Claude wrote none. */
+  lines?: { id: string; line: string }[] | undefined;
 }
 
 /** The Bridge voice and the output contract, shared by the API call and the copied prompt. */
@@ -53,7 +59,8 @@ export const SYSTEM_PROMPT = [
   'Voice: a calm, precise colleague. Sentence case. Start with a verb. Plain words developers use: component, prop, variant, token, pull request.',
   'Say what changes for developers (props, variants, tokens, the look) and why it matters for people who use the component. Use only facts from the changes, the images and the designer\'s notes. Never invent numbers, names, usage or reasons; if the reason is unknown, say what changes and leave the reason out.',
   'Never use an em dash. Use a colon, a comma or parentheses instead. No exclamation marks, no emoji, no Markdown.',
-  `Return only a JSON object, with no text around it: {"title": "...", "summary": "..."}. title: one line, at most ${TITLE_MAX} characters, no trailing period, do not start with the component name. summary: at most ${SUMMARY_SENTENCES} sentences.`,
+  `Return only a JSON object, with no text around it: {"title": "...", "summary": "...", "lines": [{"id": "...", "line": "..."}]}. title: one line, at most ${TITLE_MAX} characters, no trailing period, do not start with the component name. summary: at most ${SUMMARY_SENTENCES} sentences.`,
+  `lines: one per change line listed (by its id), or an empty list when none is listed. Each is one short sentence, at most ${DRAFT_LINE_MAX} characters, no trailing period: what changed for developers, read from the before and after images (the part, the variant, the values you can see), for example "Icon added after the label in primary sm: Pencil, 16px". Never guess a value you cannot read.`,
 ].join('\n');
 
 const cell = (s: string | undefined) => (s ?? '').replace(/\|/g, '\\|').replace(/\n/g, ' ');
@@ -80,8 +87,17 @@ export function claudeUserText(input: ClaudeDraftInput): string {
   lines.push('', 'Changes detected:', table || '(none detected: rely on the notes and the images)');
   if (input.draft && (input.draft.title || input.draft.summary)) lines.push('', 'Starting draft, written from the changes only:', `Title: ${input.draft.title}`, `Summary: ${input.draft.summary}`);
   if (input.notes?.trim()) lines.push('', 'The designer\'s notes (keep their intent):', input.notes.trim());
+  if (input.lines?.length) {
+    lines.push('', 'Change lines to write, one sentence each:');
+    for (const l of input.lines) {
+      const kindLabel = l.kind ? REQUEST_KINDS.find((k) => k.value === l.kind)?.label : undefined;
+      lines.push(`- id ${l.id}${l.component ? `, ${l.component}` : ''}${kindLabel ? ` (${kindLabel})` : ''}. Starting line: ${l.line || '(none)'}`);
+      for (const c of l.changes) lines.push(`  - ${c.field}: ${c.before || 'none'} -> ${c.after || 'removed'}`);
+    }
+  }
   const imgs = [input.before ? 'before (baseline)' : '', input.after ? 'after (now in Figma)' : ''].filter(Boolean);
   if (imgs.length) lines.push('', `Images attached: ${imgs.join(', ')}.`);
+  if (input.lineImages?.some((x) => x.before || x.after)) lines.push('', 'Images attached per change line, labeled with the line id.');
   return lines.join('\n');
 }
 
@@ -90,7 +106,7 @@ export function copyPrompt(input: ClaudeDraftInput): string {
   return [
     SYSTEM_PROMPT,
     '',
-    claudeUserText({ ...input, before: undefined, after: undefined }),
+    claudeUserText({ ...input, before: undefined, after: undefined, lineImages: undefined }),
     '',
     'If I attach before and after screenshots of the component, use them to describe the visible change.',
     'Answer with the JSON object only.',
@@ -109,6 +125,10 @@ export function buildClaudeRequest(apiKey: string, model: string, input: ClaudeD
   const content: unknown[] = [];
   if (input.before) content.push({ type: 'text', text: 'Before (baseline):' }, image(input.before));
   if (input.after) content.push({ type: 'text', text: 'After (now in Figma):' }, image(input.after));
+  for (const x of input.lineImages ?? []) {
+    if (x.before) content.push({ type: 'text', text: `Line ${x.id}, before (baseline):` }, image(x.before));
+    if (x.after) content.push({ type: 'text', text: `Line ${x.id}, after (now in Figma):` }, image(x.after));
+  }
   content.push({ type: 'text', text: claudeUserText(input) });
   return {
     url: CLAUDE_API_URL,
@@ -166,15 +186,28 @@ function sentences(text: string): string {
   return out;
 }
 
-/** Title and summary from an object Claude returned: em dashes removed, lengths kept to the contract. */
+/** Change lines from Claude's answer: {id, line} pairs, each cleaned to one sentence of at most 120 characters. */
+function sanitizeLines(raw: unknown): { id: string; line: string }[] {
+  if (!Array.isArray(raw)) return [];
+  const out = new Map<string, string>();
+  for (const x of raw as { id?: unknown; line?: unknown }[]) {
+    const id = typeof x?.id === 'string' ? x.id.trim() : '';
+    const line = sanitizeDraftLine(x?.line);
+    if (id && line) out.set(id, line);
+  }
+  return [...out].map(([id, line]) => ({ id, line }));
+}
+
+/** Title, summary and change lines from an object Claude returned: em dashes removed, lengths kept to the contract. */
 export function sanitizeDraft(raw: unknown): ClaudeDraft {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new ClaudeDraftError('Claude\'s answer has no title and summary. Try again.');
-  const r = raw as { title?: unknown; summary?: unknown; description?: unknown };
+  const r = raw as { title?: unknown; summary?: unknown; description?: unknown; lines?: unknown };
   const title = typeof r.title === 'string' ? clip(cleanDraftText(r.title), TITLE_MAX) : '';
   const summaryRaw = typeof r.summary === 'string' ? r.summary : typeof r.description === 'string' ? r.description : '';
   const summary = sentences(cleanDraftText(summaryRaw));
-  if (!title && !summary) throw new ClaudeDraftError('Claude\'s answer has no title and summary. Try again.');
-  return { title, summary };
+  const lines = sanitizeLines(r.lines);
+  if (!title && !summary && !lines.length) throw new ClaudeDraftError('Claude\'s answer has no title and summary. Try again.');
+  return { title, summary, ...(lines.length ? { lines } : {}) };
 }
 
 /**

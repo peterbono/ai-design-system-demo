@@ -16,7 +16,7 @@ import { formatValue, isAlias, parseColor, rgbaToHex } from '@bridge-ds/core';
 import { type ContrastResult, contextLabel, pairKey } from '@bridge-ds/core';
 import { type ApplyReport, type FigmaSnapshot, type InitPayload, type RepoSettings, modeDisplayName } from '../shared/messages';
 import { REQUEST_KINDS, type RequestKind, draftPushDescription, pushChangeRows } from '@bridge-ds/core';
-import { type ComponentChangeItem, type ComponentScan, type RequestDraft, classifyComponents, pullBaselines, suggestSummary, suggestTitle, toRequest } from '../sync/components';
+import { type ComponentChangeItem, type ComponentScan, type RequestDraft, classifyComponents, pullBaselines, suggestLine, suggestSummary, suggestTitle, toRequest } from '../sync/components';
 import { CLAUDE_MODELS, type ClaudeDraft, type ClaudeDraftInput, ClaudeDraftError, DRAFTED_NOTE, draftWithClaude } from '../sync/claude';
 import { loadCodedComponents, sendComponentRequest } from '../sync/requests';
 import { DRAFT_PHRASE, type DraftField, DraftPoller, type MyClaudeTarget, finishMyClaudeDrafts, mcpSnippets, planFill, startMyClaudeDrafts } from '../sync/my-claude';
@@ -94,6 +94,8 @@ interface PushState {
   /** Who wrote the pull request title (Claude fills it only when the designer has not typed one). */
   titleSource: TextSource;
   assist: AssistState;
+  /** Change lines Claude wrote, by component node id, with the changes they describe (a new scan may change them). */
+  lines: Map<string, { line: string; key: string }>;
 }
 
 /** Where the text of a field comes from. Only "draft" text is rewritten by the plugin. */
@@ -664,6 +666,7 @@ function scanPush(keep?: PushState): void {
         descriptionSource: keep?.descriptionSource ?? 'draft',
         titleSource: keep?.titleSource ?? 'draft',
         assist: keep?.assist ?? { pasteText: '' },
+        lines: keep?.lines ?? new Map(),
         openPr,
         appendToOpen: keep?.appendToOpen ?? !!openPr,
         components,
@@ -693,6 +696,7 @@ function submitPush(): void {
         unchecked: r.unchecked,
         description: r.description,
         descriptionIsDraft: r.descriptionSource === 'draft',
+        lines: new Map((r.components?.changed ?? []).flatMap((c) => { const l = claudeLine(r, c); return l ? [[c.nodeId, l] as [string, string]] : []; })),
         title: r.title,
         fileName: state.init!.fileName,
         fileKey: r.fileKey,
@@ -796,7 +800,7 @@ interface AssistTarget {
   /** What Claude gets, without images (synchronous: the clipboard needs the click's user activation). */
   input: () => ClaudeDraftInput;
   /** Before and after images for "Draft with Claude"; empty when there are none. */
-  images?: (() => Promise<Pick<ClaudeDraftInput, 'before' | 'after'>>) | undefined;
+  images?: (() => Promise<Pick<ClaudeDraftInput, 'before' | 'after' | 'lineImages'>>) | undefined;
   apply: (d: ClaudeDraft) => void;
   /** The same target as the screen is now (a re-scan rebuilds the push state), or undefined once it is gone. */
   current: () => AssistTarget | undefined;
@@ -816,6 +820,31 @@ function pushDraft(r: PushState): string {
   return draftPushDescription(checkedEntries(r), checkedComponents(r));
 }
 
+const changesKey = (item: Pick<ComponentChangeItem, 'changes'>) => JSON.stringify(item.changes);
+
+/** Claude's line for a component change while it still describes the same changes, else the drafted one. */
+function claudeLine(r: PushState | undefined, item: ComponentChangeItem): string | undefined {
+  const x = r?.lines.get(item.nodeId);
+  return x && x.key === changesKey(item) ? x.line : undefined;
+}
+
+/** The one sentence a change row and its request open with. */
+const lineOf = (r: PushState | undefined, item: ComponentChangeItem) => claudeLine(r, item) || suggestLine(item);
+
+/** Claude's lines for the items it answered for (unknown ids are ignored). */
+function keepLines(r: PushState, items: ComponentChangeItem[], lines: ClaudeDraft['lines']): void {
+  for (const l of lines ?? []) {
+    const item = items.find((c) => c.nodeId === l.id);
+    if (item && l.line) r.lines.set(item.nodeId, { line: l.line, key: changesKey(item) });
+  }
+}
+
+/** The change lines Claude writes for these components: id, facts and the drafted line. */
+const draftLines = (r: PushState, items: ComponentChangeItem[]) => items.map((c) => ({ id: c.nodeId, component: c.component, kind: c.kind, changes: c.changes, line: lineOf(r, c) }));
+
+/** Push images per component (at most 4, the first ones), so Claude writes each line from what changed on screen. */
+const LINE_IMAGES = 4;
+
 function pushAssist(r: PushState): AssistTarget {
   return {
     id: 'push',
@@ -825,17 +854,21 @@ function pushAssist(r: PushState): AssistTarget {
       components: [...new Set(checkedComponents(r).map((c) => c.component))],
       draft: { title: r.title || (r.proposal.changes.length ? defaultTitle(r.proposal.changes) : ''), summary: pushDraft(r) },
       notes: r.descriptionSource === 'user' ? r.description : undefined,
+      lines: draftLines(r, checkedComponents(r)),
     }),
     images: async () => {
-      // The first checked component change, before and after, so Claude can see what the push does on screen.
-      const nodeId = checkedComponents(r)[0]?.nodeId;
-      if (!nodeId) return {};
-      const after = await request('export-image', { nodeId }).catch(() => null);
-      const before = await request('baseline-image', { nodeId }).catch(() => null);
-      return {
-        ...(after?.base64 && after.base64.length < CLAUDE_IMAGE_MAX ? { after: after.base64 } : {}),
-        ...(before && before.length < CLAUDE_IMAGE_MAX ? { before } : {}),
-      };
+      // Each checked component change (the first few), before and after, so Claude sees what changed on screen.
+      const lineImages: NonNullable<ClaudeDraftInput['lineImages']> = [];
+      for (const c of checkedComponents(r).slice(0, LINE_IMAGES)) {
+        const after = await request('export-image', { nodeId: c.nodeId }).catch(() => null);
+        const before = await request('baseline-image', { nodeId: c.nodeId }).catch(() => null);
+        lineImages.push({
+          id: c.nodeId,
+          ...(after?.base64 && after.base64.length < CLAUDE_IMAGE_MAX ? { after: after.base64 } : {}),
+          ...(before && before.length < CLAUDE_IMAGE_MAX ? { before } : {}),
+        });
+      }
+      return lineImages.length ? { lineImages } : {};
     },
     current: () => (state.push && state.push.assist === r.assist ? pushAssist(state.push) : undefined),
     apply: (d) => {
@@ -847,6 +880,7 @@ function pushAssist(r: PushState): AssistTarget {
         r.title = d.title;
         r.titleSource = 'claude';
       }
+      keepLines(r, checkedComponents(r), d.lines);
     },
   };
 }
@@ -862,6 +896,7 @@ function requestAssist(f: RequestForm): AssistTarget {
       changes: d.changes,
       draft: f.item ? { title: suggestTitle(f.item), summary: suggestSummary(f.item) } : undefined,
       notes: [f.titleSource === 'user' && d.title.trim() ? `Title: ${d.title.trim()}` : '', f.summarySource === 'user' ? d.summary.trim() : ''].filter(Boolean).join('\n') || undefined,
+      lines: f.item && state.push ? draftLines(state.push, [f.item]) : undefined,
     }),
     images: async () => {
       const nodeId = f.item?.nodeId;
@@ -881,6 +916,10 @@ function requestAssist(f: RequestForm): AssistTarget {
       if (x.summary) {
         d.summary = x.summary;
         f.summarySource = 'claude';
+      }
+      if (f.item && state.push) {
+        keepLines(state.push, [f.item], x.lines);
+        d.line = lineOf(state.push, f.item);
       }
       f.error = undefined;
     },
@@ -948,6 +987,8 @@ function toMyClaudeTarget(input: ClaudeDraftInput): MyClaudeTarget {
     notes: input.notes,
     draft: input.draft ?? { title: '', summary: '' },
     images: { before: input.before, after: input.after },
+    lines: input.lines,
+    lineImages: input.lineImages,
   };
 }
 
@@ -1003,16 +1044,18 @@ function startMine(a: AssistState, t: AssistTarget): void {
 }
 
 /** Claude answered: fill the fields the designer did not touch since, offer the rest. */
-function receiveMine(a: AssistState, t: AssistTarget, result: { title: string; summary: string }): void {
+function receiveMine(a: AssistState, t: AssistTarget, result: { title: string; summary: string; lines?: { id: string; line: string }[] | undefined }): void {
   const mine = a.mine;
   if (!mine) return;
   const target = t.current();
   const { fill, offer } = planFill(result, mine.edited);
   mine.status = 'drafted';
   mine.poller = undefined;
-  if (target) target.apply({ title: fill.title ?? '', summary: fill.summary ?? '' });
+  // Change lines are Claude's alone (nobody types them here): they always fill.
+  if (target) target.apply({ title: fill.title ?? '', summary: fill.summary ?? '', lines: result.lines });
   a.offer = offer.title || offer.summary ? offer : undefined;
-  a.message = { kind: 'ok', text: a.offer ? 'Your Claude answered. You edited a field meanwhile, so your text stays: use Claude\'s draft below if you prefer it.' : 'Your Claude drafted this. Review it before sending.' };
+  // One status line under the field ("Drafted by Claude, review before sending") says the rest.
+  a.message = a.offer ? { kind: 'ok', text: 'Your Claude answered. You edited a field meanwhile, so your text stays: use Claude\'s draft below if you prefer it.' } : undefined;
   render();
 }
 
@@ -1101,10 +1144,14 @@ function offerView(a: AssistState, t: AssistTarget): Child {
   );
 }
 
-/** The writing help under a field: the designer's own Claude through MCP, or the API key when one is saved. */
-function assistView(a: AssistState, t: AssistTarget): HTMLElement {
+/**
+ * "Draft with Claude": a ghost text action on the label line of the field it fills (proximity), right-aligned. Without
+ * an API key it starts the designer's own Claude (MCP) directly; with one it opens a small menu of the two ways. Hidden
+ * while the designer's Claude drafts or its text is offered: the status block under the field holds the actions then.
+ */
+function assistAction(a: AssistState, t: AssistTarget): Child {
   const withKey = !!state.init?.claude.hasKey;
-  const waiting = mineActive(a);
+  if (mineActive(a) || a.offer) return null;
   const pick = (fn: () => void) => () => {
     a.menuOpen = false;
     fn();
@@ -1118,18 +1165,16 @@ function assistView(a: AssistState, t: AssistTarget): HTMLElement {
     );
   return h(
     'div',
-    { class: 'assist' },
-    // One control for Claude's help: the plugin's own draft is already in the field above. While the designer's own
-    // Claude drafts (or its text is offered), the status block replaces it: one region, one set of actions.
-    waiting || a.offer ? null : h(
+    { class: 'assist-action' },
+    h(
       'button',
       {
-        class: 'btn assist-open',
+        type: 'button',
+        class: 'btn ghost',
         'data-focus-id': `${t.id}-assist`,
-        'aria-expanded': a.menuOpen ? 'true' : 'false',
-        'aria-haspopup': 'menu',
-        disabled: !!state.busy || waiting,
-        // Without an API key there is one way (the designer's own Claude): start it, no menu of one.
+        'aria-expanded': withKey ? (a.menuOpen ? 'true' : 'false') : undefined,
+        'aria-haspopup': withKey ? 'menu' : undefined,
+        disabled: !!state.busy,
         onClick: () => {
           if (!withKey) return startMine(a, t);
           a.menuOpen = !a.menuOpen;
@@ -1139,18 +1184,30 @@ function assistView(a: AssistState, t: AssistTarget): HTMLElement {
       'Draft with Claude',
       withKey ? icon(a.menuOpen ? 'chevron-up' : 'chevron-down') : null,
     ),
-    a.menuOpen
+    withKey && a.menuOpen
       ? h(
           'div',
           { class: 'ways-menu', role: 'menu', 'aria-label': 'Draft with Claude' },
           way('mine', 'With my Claude (MCP)', state.init?.hasToken ? 'Your plan, in Claude Desktop or Claude Code. Set up once in Settings.' : 'Add a GitHub token in Settings first.', pick(() => startMine(a, t)), { tag: 'Recommended', disabled: !state.init?.hasToken }),
-          withKey ? way('claude', 'With my API key', 'One click, billed to your Anthropic account.', pick(() => void runClaude(a, t))) : null,
+          way('claude', 'With my API key', 'One click, billed to your Anthropic account.', pick(() => void runClaude(a, t))),
         )
       : null,
+  );
+}
+
+/** Under the field: waiting for the designer's Claude, Claude's text offered for an edited field, or an error. */
+function assistStatus(a: AssistState, t: AssistTarget): Child {
+  const parts = [
     mineView(a, t),
     offerView(a, t),
     a.message ? h('p', { class: a.message.kind === 'error' ? 'form-error' : 'assist-note', role: a.message.kind === 'error' ? 'alert' : 'status' }, a.message.kind === 'error' ? icon('alert') : icon('check'), a.message.text) : null,
-  );
+  ].filter(Boolean);
+  return parts.length ? h('div', { class: 'assist' }, parts) : null;
+}
+
+/** A field label with the action that fills the field on the same line, right-aligned. */
+function fieldHead(forId: string, label: string, action: Child): HTMLElement {
+  return h('div', { class: 'field-head' }, h('label', { for: forId }, label), action);
 }
 
 /** "Drafted by Claude, review before sending" under a field Claude filled; removed as soon as the designer types. */
@@ -1397,7 +1454,7 @@ function reviewGroup(p: PullState, reviews: ComponentReview[], title = 'Componen
           : h('button', { class: 'btn row-end', 'data-focus-id': `update-${r.componentId}`, disabled: !!state.busy || p.proposal.unresolvedConflicts.length > 0, onClick: () => updateComponent(r.componentId) }, 'Update'),
       ),
       thumbs(p, r.nodeId, r.name),
-      changeLines(r.changes, ['What', 'In Figma', 'From code']),
+      changeTable(r.changes, ['What', 'In Figma', 'From code']),
     );
   });
   return group(
@@ -1521,7 +1578,7 @@ function openForm(r: PushState, item: ComponentChangeItem | undefined): void {
   if (r.form) cancelMine(r.form.assist, false);
   const coded = r.components?.coded ?? [];
   const draft: RequestDraft = item
-    ? { component: item.component, kind: item.kind, title: suggestTitle(item), summary: suggestSummary(item), changes: item.changes, nodeId: item.nodeId, nodeName: item.figmaName }
+    ? { component: item.component, kind: item.kind, title: suggestTitle(item), summary: suggestSummary(item), line: lineOf(r, item), changes: item.changes, nodeId: item.nodeId, nodeName: item.figmaName }
     : { component: coded[0] ?? '', kind: 'visual', title: '', summary: '', changes: [], nodeId: state.selection?.nodeId, nodeName: state.selection?.name };
   r.form = { key: item?.nodeId ?? 'manual', item, draft, attach: item ? true : !!state.selection, titleSource: 'draft', summarySource: 'draft', assist: { pasteText: '' } };
   void request('selection', {}).then((sel) => {
@@ -1580,26 +1637,37 @@ function sendRequest(r: PushState): void {
   );
 }
 
-function changeLines(changes: { field: string; before?: string | undefined; after?: string | undefined }[], head: [string, string, string] = ['What', 'Now', 'Requested']): Child {
+/** A value written as a sentence ("As in the baseline") reads in the text face; token and variant values in mono. */
+const isProse = (v: string) => /^[A-Z][a-z]+ [a-z]+ /.test(v);
+
+/** The detail of a change row: one font size, token and variant values in Plex Mono at that same size. */
+function changeTable(changes: { field: string; before?: string | undefined; after?: string | undefined }[], head: [string, string, string] = ['What', 'Now', 'Requested']): Child {
   if (!changes.length) return null;
+  const val = (v: string, cls: string) => h('td', { class: `${cls}${isProse(v) ? '' : ' mono'}` }, v);
   return h(
     'table',
     { class: 'changes' },
     h('thead', null, h('tr', null, head.map((x) => h('th', null, x)))),
-    h(
-      'tbody',
-      null,
-      changes.map((c) =>
-        h(
-          'tr',
-          null,
-          h('td', null, c.field),
-          h('td', { class: 'mono before' }, c.before || 'none'),
-          h('td', { class: 'mono' }, c.after || 'removed'),
-        ),
-      ),
-    ),
+    h('tbody', null, changes.map((c) => h('tr', null, h('td', null, c.field), val(c.before || 'none', 'before'), val(c.after || 'removed', 'after')))),
   );
+}
+
+/**
+ * The body of a component change row: one sentence of what changed (Claude's line, or the drafted one), then the
+ * detected changes behind a small "Details" disclosure (progressive disclosure).
+ */
+function changeSummary(line: string, changes: { field: string; before?: string | undefined; after?: string | undefined }[], key: string): Child[] {
+  return [
+    line ? h('p', { class: 'row-line' }, line) : null,
+    changes.length
+      ? h(
+          'details',
+          { class: 'row-details', open: state.expanded.has(key) },
+          h('summary', { 'data-focus-id': key, onClick: (e: Event) => { e.preventDefault(); state.expanded.has(key) ? state.expanded.delete(key) : state.expanded.add(key); render(); } }, 'Details'),
+          changeTable(changes),
+        )
+      : null,
+  ];
 }
 
 function requestFormView(r: PushState, f: RequestForm): HTMLElement {
@@ -1635,9 +1703,10 @@ function requestFormView(r: PushState, f: RequestForm): HTMLElement {
       h('small', null, REQUEST_KINDS.find((k) => k.value === d.kind)?.hint ?? ''),
     ),
     h(
-      'label',
+      'div',
       { class: 'field' },
-      h('span', null, 'Title'),
+      // "Draft with Claude" fills the title and the summary: it sits on the label line of the first of the two.
+      fieldHead('req-title', 'Title', assistAction(f.assist, requestAssist(f))),
       h('input', {
         type: 'text',
         id: 'req-title',
@@ -1649,15 +1718,14 @@ function requestFormView(r: PushState, f: RequestForm): HTMLElement {
           d.title = (e.target as HTMLInputElement).value;
           f.titleSource = 'user';
           noteEdit(f.assist, 'title');
-          clearDrafted('req-title');
+          if (f.summarySource !== 'claude') clearDrafted('req-drafted');
         },
       }),
-      draftedNote('req-title', f.titleSource),
     ),
     h(
-      'label',
+      'div',
       { class: 'field' },
-      h('span', null, 'Summary'),
+      fieldHead('req-summary', 'Summary', null),
       h(
         'textarea',
         {
@@ -1671,15 +1739,15 @@ function requestFormView(r: PushState, f: RequestForm): HTMLElement {
             d.summary = (e.target as HTMLTextAreaElement).value;
             f.summarySource = 'user';
             noteEdit(f.assist, 'summary');
-            clearDrafted('req-summary');
+            if (f.titleSource !== 'claude') clearDrafted('req-drafted');
           },
         },
         d.summary,
       ),
-      draftedNote('req-summary', f.summarySource),
+      // One status line for the pair, under the last field Claude fills.
+      draftedNote('req-drafted', f.titleSource === 'claude' || f.summarySource === 'claude' ? 'claude' : 'user'),
     ),
-    assistView(f.assist, requestAssist(f)),
-    d.changes.length ? h('div', { class: 'field' }, h('span', null, 'Changes'), changeLines(d.changes)) : null,
+    assistStatus(f.assist, requestAssist(f)),
     h(
       'label',
       { class: 'check' },
@@ -1702,16 +1770,18 @@ function componentRow(r: PushState, item: ComponentChangeItem, action: string, e
   return h(
     'li',
     { class: 'row' },
+    // Title row: what (the component) and the kind of change; then one sentence; the detail on demand.
     h(
       'div',
       { class: 'row-head' },
       edge?.lead,
-      h('span', { class: `kind ${item.kind === 'new-component' ? 'added' : ''}` }, kindName(item.kind)),
       h('span', { class: 'comp-name' }, item.component),
       item.figmaName !== item.component ? h('span', { class: 'muted' }, item.figmaName) : null,
+      h('span', { class: `kind ${item.kind === 'new-component' ? 'added' : ''}` }, kindName(item.kind)),
       edge ? edge.tail : open ? null : h('button', { class: 'btn ghost row-action', 'data-focus-id': `req-${item.nodeId}`, onClick: () => openForm(r, item) }, action),
     ),
-    open ? requestFormView(r, r.form!) : changeLines(item.changes),
+    changeSummary(lineOf(r, item), item.changes, `details-${item.nodeId}`),
+    open ? requestFormView(r, r.form!) : null,
   );
 }
 
@@ -1777,10 +1847,12 @@ function changeGroup(r: PushState, kind: 'variable' | 'component', title: string
     },
   }) as HTMLInputElement;
   box.indeterminate = st === 'some';
+  const heading = h('h2', null, title, h('span', { class: 'group-n' }, on === n ? String(n) : `${on} of ${n}`));
   return h(
     'section',
     { class: 'group' },
-    h('div', { class: 'group-head' }, h('label', { class: 'check group-check' }, box, h('h2', null, title, h('span', { class: 'group-n' }, on === n ? String(n) : `${on} of ${n}`)))),
+    // "Select all" only means something from 2 items: a lone item keeps its own checkbox, the group shows none.
+    h('div', { class: 'group-head' }, n > 1 ? h('label', { class: 'check group-check' }, box, heading) : heading),
     h('p', { class: 'lede' }, lede),
     rowList(key, rows, kind === 'component' ? 20 : PAGE),
   );
@@ -1813,7 +1885,7 @@ function componentChangesGroup(r: PushState): Child {
       tail: r.form?.key === item.nodeId ? null : rowTail(r, pi, item.component, [{ label: 'Edit and send on its own', onClick: () => openForm(r, item) }]),
     });
   });
-  return changeGroup(r, 'component', 'Components', 'Components need code: each checked change becomes a request (a GitHub issue) for the team. Unchecked ones are not sent.', rows, 'push-components');
+  return changeGroup(r, 'component', 'Components', 'Each becomes a request for the team.', rows, 'push-components');
 }
 
 /** Requests that are not part of the push: sent ones, the manual request, components not in the design system yet. */
@@ -2030,10 +2102,11 @@ function viewPush(): View {
         'section',
         null,
         h(
-          'label',
+          'div',
           { class: 'field' },
-          h('span', null, 'Description'),
+          fieldHead('push-description', 'Description', assistAction(r.assist, pushAssist(r))),
           h('textarea', {
+            id: 'push-description',
             rows: '3',
             'data-focus-id': 'push-description',
             placeholder: 'What changed and why. It opens the pull request and every request.',
@@ -2047,7 +2120,7 @@ function viewPush(): View {
           r.descriptionSource === 'draft' && r.description ? h('small', null, 'Drafted from the checked changes. Add why it matters.') : null,
           draftedNote('push-description', r.descriptionSource),
         ),
-        assistView(r.assist, pushAssist(r)),
+        assistStatus(r.assist, pushAssist(r)),
         prFiles && r.openPr
           ? h(
               'label',
@@ -2071,20 +2144,12 @@ function viewPush(): View {
                   r.title = (e.target as HTMLInputElement).value;
                   r.titleSource = 'user';
                   noteEdit(r.assist, 'title');
-                  clearDrafted('push-title');
                 },
               }),
-              draftedNote('push-title', r.titleSource),
             )
           : null,
-        h(
-          'p',
-          { class: 'muted' },
-          [
-            prFiles ? `${plural(prFiles, 'file')} change in one commit, with a changeset. Token changes are risk tier 3: a design owner and a tech owner both approve.` : '',
-            checkedComps ? `${plural(checkedComps, 'request')} for the team, with the component attached.` : '',
-          ].filter(Boolean).join(' '),
-        ),
+        // What the push sends is summed up once, in the bar ("2 variables, 1 request"); this only says how review goes.
+        prFiles ? h('p', { class: 'muted' }, `${plural(prFiles, 'file')} change in one commit, with a changeset. Token changes are risk tier 3: a design owner and a tech owner both approve.`) : null,
       ),
     );
   }
@@ -2100,7 +2165,7 @@ function viewPush(): View {
       ? `Fix ${plural(blocked, 'problem')} first`
       : none
         ? 'Nothing checked'
-        : [checkedVars ? plural(checkedVars, 'variable') : '', newBrands ? plural(newBrands, 'new brand') : '', checkedComps ? plural(checkedComps, 'component') : ''].filter(Boolean).join(', ');
+        : [checkedVars ? plural(checkedVars, 'variable') : '', newBrands ? plural(newBrands, 'new brand') : '', checkedComps ? plural(checkedComps, 'request') : ''].filter(Boolean).join(', ');
   return {
     body,
     bar: nothing

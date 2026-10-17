@@ -95,7 +95,7 @@ function firstChange(component: string, kind: RequestKind, c: RequestChange | un
     case 'visual':
       return {
         title: 'Update the look to match Figma',
-        summary: `${component} looks different in Figma${c?.field && c.field !== 'Look of every variant' ? ` (${lower(c.field)})` : ''}, and no variable edit explains it.`,
+        summary: `${component} looks different in Figma${c?.field.startsWith('Look of ') && c.field !== 'Look of every variant' ? ` in ${c.field.slice(8)}` : ''}, and no variable edit explains it.`,
       };
     default:
       return { title: '', summary: '' };
@@ -113,6 +113,81 @@ export function draftRequestText(component: string, kind: RequestKind, changes: 
   const rest = kind === 'new-component' ? 0 : changes.length - 1;
   const summary = rest > 0 ? `${d.summary} ${capital(plural(rest, 'other change'))} ${rest === 1 ? 'is' : 'are'} listed below.` : d.summary;
   return { title: cleanDraftText(d.title), summary: cleanDraftText(summary) };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Change lines: one sentence per detected component change, the main line of its row in the plugin and the first line
+// of its request. Claude rewrites it from the before and after images; this is the deterministic default.
+
+/** A change line is one sentence of at most this many characters, with no trailing period. */
+export const DRAFT_LINE_MAX = 120;
+
+/** Shortens to `max` characters at a word boundary, without a trailing period. */
+function clipText(text: string, max: number): string {
+  const t = text.replace(/\s+/g, ' ').trim().replace(/\.$/, '');
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max + 1);
+  const at = cut.lastIndexOf(' ');
+  return (at > max * 0.5 ? cut.slice(0, at) : t.slice(0, max)).replace(/[\s,;:(]+$/, '');
+}
+
+/** A change line kept to the contract: one line, no em dash, at most 120 characters, no trailing period. */
+export function sanitizeDraftLine(raw: unknown): string {
+  if (typeof raw !== 'string') return '';
+  return capital(clipText(cleanDraftText(raw.replace(/[\r\n]+/g, ' ')), DRAFT_LINE_MAX));
+}
+
+/** One change row as a short phrase a developer reads ("Fill uses color.x instead of color.y in Size=sm"). */
+function changePhrase(c: RequestChange): string {
+  let m: RegExpExecArray | null;
+  if ((m = /^Variant (.+)$/.exec(c.field))) {
+    const axis = m[1]!;
+    const before = values(c.before);
+    const after = values(c.after);
+    if (!before.length) return `New ${axis} variant axis: ${after.join(', ')}`;
+    if (!after.length) return `${axis} variant axis removed (${before.join(', ')})`;
+    const added = after.filter((x) => !before.includes(x));
+    const removed = before.filter((x) => !after.includes(x));
+    const parts = [added.length ? `${andList(added)} added to ${axis}` : '', removed.length ? `${andList(removed)} removed from ${axis}` : ''].filter(Boolean);
+    return parts.join('; ') || `${axis} values reordered: ${after.join(', ')}`;
+  }
+  if ((m = /^Prop (.+)$/.exec(c.field))) {
+    const name = m[1]!;
+    const b = propShape(c.before);
+    const a = propShape(c.after);
+    if (!b && a) return `New ${a.type} prop ${name}${a.def ? `, default ${a.def}` : ''}`;
+    if (b && !a) return `${name} prop removed`;
+    if (b && a && b.type === a.type) return `${name} default goes from ${b.def || 'empty'} to ${a.def || 'empty'}`;
+    return `${name} prop goes from ${c.before ?? 'none'} to ${c.after ?? 'none'}`;
+  }
+  if ((m = /^Swapped instance(?: \((.*)\))?$/.exec(c.field))) return `Shows ${c.after ?? 'another instance'} instead of ${c.before ?? 'the coded one'} ${m[1] ? `in ${m[1]}` : 'in every variant'}`;
+  if ((m = /^Look of (.+)$/.exec(c.field))) return `Looks different in ${m[1]}; no variable explains it`;
+  // A token binding: "Fill" or "Fill (Size=sm, Tone=primary)".
+  m = /^(.*?)(?: \((.*)\))?$/.exec(c.field)!;
+  const where = m[2] ? ` in ${m[2]}` : '';
+  const before = c.before && c.before !== 'none' ? c.before : '';
+  const after = c.after && c.after !== 'none' ? c.after : '';
+  if (!after) return `${m[1]} no longer uses ${before || 'a token'}${where}`;
+  if (!before) return `${m[1]} now uses ${after}${where}`;
+  return `${m[1]} uses ${after} instead of ${before}${where}`;
+}
+
+/**
+ * The deterministic change line of a detected component change: what changed, in one sentence, from the diff only.
+ * The first change is spelled out, the others counted ("and 2 more"). Empty when nothing was detected.
+ */
+export function draftChangeLine(kind: RequestKind, changes: RequestChange[]): string {
+  if (kind === 'new-component') {
+    const axes = changes.filter((x) => x.field.startsWith('Variant ')).length;
+    const props = changes.filter((x) => x.field.startsWith('Prop ')).length;
+    const parts = [axes ? plural(axes, 'variant axis', 'variant axes') : '', props ? plural(props, 'prop') : ''].filter(Boolean);
+    return `New component${parts.length ? ` with ${andList(parts)}` : ''}, not in code yet`;
+  }
+  if (!changes.length) return '';
+  const first = changePhrase(changes[0]!);
+  const rest = changes.length - 1;
+  const tail = rest ? ` (and ${rest} more)` : '';
+  return capital(clipText(cleanDraftText(first), DRAFT_LINE_MAX - tail.length)) + tail;
 }
 
 // ---------------------------------------------------------------------------------------------

@@ -61,3 +61,15 @@ describe('component change requests', () => {
     expect(f.labels).toEqual(['bridge', 'component-change', 'design-system']);
   });
 });
+
+describe('change line', () => {
+  it('opens the changes of the issue, the brief and the Jira description; optional', () => {
+    const withLine = { ...req, line: 'Icon added after the label in primary sm: Pencil, 16px' };
+    const issue = composeRequestIssue(withLine);
+    expect(issue.body).toContain('**What changes:** Icon added after the label in primary sm: Pencil, 16px');
+    expect(issue.body.indexOf('**What changes:**')).toBeLessThan(issue.body.indexOf('| What | Now | Requested |'));
+    expect(parseRequestIssue(issue.body)?.line).toBe(withLine.line);
+    expect(requestBrief(withLine, { issue: 7 })).toContain('What changes: Icon added after the label');
+    expect(composeRequestIssue(req).body).not.toContain('What changes:');
+  });
+});

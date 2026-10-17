@@ -131,7 +131,7 @@ audits, 3 for component change requests, 2 for explorations, 2 for change texts 
 | `bridge_start_exploration` | Start an exploration: an `explore/<name>` branch and a draft pull request labeled `exploration`, with previews and a snapshot package for a product staging branch, never merged as is (see [Explorations](#explorations)) |
 | `bridge_list_explorations` | List explorations: purpose, status (running, promoted, closed), previews, the snapshot install command and the requests implemented on each |
 | `bridge_pending_drafts` | Read the change texts a designer asked you to write from the Figma plugin ("Draft with my Claude"): the changes, the starting draft, their notes, the voice rules, the output contract, and the before and after images as image content (see [Change texts from Figma](#change-texts-from-figma)) |
-| `bridge_write_drafts` | Write the titles and summaries back; the plugin fills them in within seconds for the designer to review |
+| `bridge_write_drafts` | Write the titles, summaries and change lines back; the plugin fills them in within seconds for the designer to review |
 
 Resources: `bridge://tokens/resolved`, `bridge://design-language`, `bridge://guidelines`,
 `bridge://components/{name}`.
@@ -303,13 +303,17 @@ both already reach with the designer's token.
    `.bridge/drafts/<sessionId>.json` on the `bridge-requests` branch:
    `{ version: 1, sessionId, createdAt, status: "pending", source: "figma", items: [{ id, scope: "request" | "push",
    component, kind, changes: [{ field, before, after }], variables (push only), notes, images: [{ label: "before" |
-   "after", url, path }], draft: { title, summary } }] }`.
+   "after", url, path, line? }], draft: { title, summary }, lines?: [{ id, component, kind, changes, line }] }] }`.
+   `lines` are the component changes to describe in one sentence each (one for a request, one per requested
+   component for a push), with the deterministic line (`draftChangeLine`) as a starting point.
 2. The designer says **"Draft my Bridge changes"** to their Claude. `bridge_pending_drafts` returns the pending
    sessions (newest first) with a brief per item, the Bridge voice and the output contract, and the PNGs as MCP image
    content (up to 8 images under 750 KB each; larger ones stay links), so Claude sees the before and after.
 3. Claude writes what changes for developers and why it matters (sentence case, no em dash, no invented numbers)
-   and calls `bridge_write_drafts` `{ sessionId, results: [{ id, title, summary }] }`. Bridge cleans each text to the
-   contract (no em dash, title at most 70 characters with no trailing period, summary at most 3 sentences), adds
+   and, per change line, one short sentence read from the images ("Icon added after the label in primary sm: Pencil,
+   16px"), then calls `bridge_write_drafts` `{ sessionId, results: [{ id, title, summary, lines?: [{ id, line }] }] }`.
+   Bridge cleans each text to the contract (no em dash, title at most 70 characters with no trailing period, summary
+   at most 3 sentences, each line at most 120 characters with no trailing period, unknown line ids refused), adds
    `{ by: "claude", at }`, and sets `status: "drafted"` once every item has a result. Writers send the file sha and
    retry on 409, so a concurrent write is never lost.
 4. The plugin reads the file every 5 seconds while it is open (it stops after 10 minutes and offers "Check again"),

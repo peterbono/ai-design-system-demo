@@ -39,6 +39,11 @@ export interface ComponentChangeRequest {
   title: string;
   /** What and why, in the requester's words. */
   summary: string;
+  /**
+   * What changed for developers in one sentence ("Icon added after the label in primary sm: Pencil, 16px"): written
+   * by Claude from the before and after images, or drafted from the detected changes. Optional.
+   */
+  line?: string | undefined;
   changes: RequestChange[];
   /** Where the design lives, when it comes from Figma. */
   figma?: { fileKey?: string | undefined; nodeId?: string | undefined; nodeName?: string | undefined; url?: string | undefined } | undefined;
@@ -82,6 +87,7 @@ export function composeRequestIssue(r: ComponentChangeRequest, opts: { labels?: 
     '',
     r.summary.trim(),
     '',
+    ...(r.line?.trim() ? [`**What changes:** ${r.line.trim()}`, ''] : []),
     ...(rows.length ? [...rows, ''] : []),
     ...(r.images?.length ? [...r.images.map((u, i) => `![${r.component} design ${i + 1}](${u})`), ''] : []),
     ...(figma ? [`**Design:** ${figma}`, ''] : []),
@@ -153,6 +159,7 @@ export function requestBrief(r: ComponentChangeRequest, ctx: { issue: number; is
     `Component: ${r.component}`,
     `Kind: ${kindLabel(r.kind)}`,
     `Request: ${r.title}`,
+    ...(r.line?.trim() ? [`What changes: ${r.line.trim()}`] : []),
     '',
     r.summary.trim(),
     '',
@@ -215,6 +222,7 @@ export function jiraIssueFields(r: ComponentChangeRequest, jira: JiraIntegration
       version: 1,
       content: [
         para(text(r.summary.trim() || r.title)),
+        ...(r.line?.trim() ? [para(text(r.line.trim()))] : []),
         ...r.changes.map((c) => para(text(`${c.field}: ${c.before ?? '(none)'} -> ${c.after ?? '(removed)'}`))),
         para({ type: 'text', text: 'GitHub request', marks: [{ type: 'link', attrs: { href: issueUrl } }] }),
       ],
