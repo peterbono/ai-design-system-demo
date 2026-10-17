@@ -31,6 +31,8 @@ const PAGE = 60;
 interface PullState {
   analysis: Analysis;
   choices: Map<string, ConflictChoice>;
+  /** "Replace with main": main wins over the Figma edits of tokens that exist on main. */
+  overwrite: boolean;
   proposal: PullProposal;
   report?: ApplyReport | undefined;
 }
@@ -334,7 +336,7 @@ function conflictSection(a: Analysis, choices: Map<string, ConflictChoice>): Chi
 }
 
 function refreshProposals(): void {
-  if (state.pull) state.pull.proposal = buildPull(state.pull.analysis, state.pull.choices);
+  if (state.pull) state.pull.proposal = buildPull(state.pull.analysis, state.pull.choices, { overwrite: state.pull.overwrite });
   if (state.push) state.push.proposal = buildPush(state.push.analysis, state.push.choices, state.push.includeBrands);
   render();
 }
@@ -368,7 +370,7 @@ function checkPull(): void {
       const snapshot = await request('snapshot', {});
       const analysis = await analyze(getClient(), state.init!.settings, state.init!.sync, snapshot);
       const choices = new Map<string, ConflictChoice>();
-      state.pull = { analysis, choices, proposal: buildPull(analysis, choices) };
+      state.pull = { analysis, choices, overwrite: false, proposal: buildPull(analysis, choices) };
       state.expanded.clear();
     },
     checkPull,
@@ -534,7 +536,7 @@ function viewPull(): View {
   const prop = p.proposal;
   const fi = figmaIndex(a);
   const remote = a.diff.remote;
-  const upToDate = !remote.length && !a.diff.conflicts.length && !!a.baseSha;
+  const upToDate = !remote.length && !a.diff.conflicts.length && !prop.restored.length && !!a.baseSha;
 
   if (p.report) {
     const r = p.report;
@@ -590,8 +592,15 @@ function viewPull(): View {
       h(
         'section',
         null,
-        h('h2', null, `Recreated (${prop.restored.length})`),
-        h('p', { class: 'lede' }, 'Deleted in Figma, but other tokens still point to them. A pull puts them back so no alias is left empty. To remove one, delete it in code with the tokens that use it.'),
+        h('h2', null, p.overwrite ? `Replaced with main (${prop.restored.length})` : `Recreated (${prop.restored.length})`),
+        h(
+          'p',
+          { class: 'lede' },
+          p.overwrite
+            ? 'Your Figma edits to these tokens are replaced by the values on main when you apply. Variables that exist only in Figma stay.'
+            : 'Deleted in Figma, but other tokens still point to them. A pull puts them back so no alias is left empty. To remove one, delete it in code with the tokens that use it.',
+        ),
+        p.overwrite ? h('button', { class: 'btn ghost', onClick: () => { p.overwrite = false; refreshProposals(); } }, 'Keep my edits') : null,
         h('ul', { class: 'muted' }, prop.restored.slice(0, 8).map((e) => h('li', null, e.path)).concat(prop.restored.length > 8 ? [h('li', null, `And ${prop.restored.length - 8} more`)] : [])),
       ),
     );
@@ -603,6 +612,7 @@ function viewPull(): View {
         null,
         h('h2', null, `Your edits, kept (${prop.kept.length})`),
         h('p', { class: 'lede' }, 'Not on main yet. A pull leaves them alone; send them from Push.'),
+        prop.kept.some((e) => e.head) ? h('button', { class: 'btn ghost', onClick: () => { p.overwrite = true; refreshProposals(); } }, 'Replace with main') : null,
         rowList('pull-kept', prop.kept.map((e) => diffRow(a, e.local!.kind, { before: e.base, after: e.figma, beforeIndex: a.base?.byPath ?? a.head.byPath, afterIndex: fi }))),
       ),
     );

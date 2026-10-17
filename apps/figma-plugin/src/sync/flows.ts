@@ -372,7 +372,8 @@ function aliasTargetIds(set: TokenSet): Set<string> {
   return out;
 }
 
-export function buildPull(a: Analysis, choices: Map<string, ConflictChoice>): PullProposal {
+/** `overwrite`: main wins over every Figma edit to a token that exists on main (Figma-only variables stay). */
+export function buildPull(a: Analysis, choices: Map<string, ConflictChoice>, opts: { overwrite?: boolean } = {}): PullProposal {
   // A variable deleted in Figma stays deleted (a push proposes it) unless other tokens still alias it: keeping that
   // deletion leaves aliases with no target and a push that would break them. Those are recreated.
   // A file with no synced variable left (collections deleted) starts over like a first pull.
@@ -382,7 +383,7 @@ export function buildPull(a: Analysis, choices: Map<string, ConflictChoice>): Pu
   const brokenAlias = (t: LogicalToken | undefined) => !!t && Object.values(t.values).some((v) => isAlias(v) && !inFigma.has(aliasTarget(v)));
   // A mode with no value in Figma that has one in Git: an alias that could not be set (or whose target is gone).
   const lostValue = (e: DiffEntry) => !!e.figma && !!e.base && Object.keys(e.base.values).some((m) => e.figma!.values[m] === undefined);
-  const restored = a.diff.local.filter((e) => e.head && (emptied || (!e.figma && referenced.has(e.id)) || brokenAlias(e.figma) || lostValue(e)));
+  const restored = a.diff.local.filter((e) => e.head && (emptied || opts.overwrite || (!e.figma && referenced.has(e.id)) || brokenAlias(e.figma) || lostValue(e)));
   const restoredIds = new Set(restored.map((e) => e.id));
   const kept = a.diff.local.filter((e) => !restoredIds.has(e.id));
   const keep = new Set(kept.map((e) => e.id));
