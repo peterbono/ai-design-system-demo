@@ -1,6 +1,7 @@
 // Studio Components controller: filter the list (text, family menu, "need usage guidance"), move between rows with
 // the arrow keys (the list is one tab stop), and open a row's detail drawer. Deep links: ?c=<slug> opens that
 // component's drawer (the Library "Edit in Studio" door), ?guidance=needed shows only what needs guidance.
+import { initRequestForm, resetRequestForm } from './request-form';
 
 export function initComponentsStudio() {
   const root = document.querySelector<HTMLElement>('.cm');
@@ -61,6 +62,9 @@ export function initComponentsStudio() {
     if (!panel) return;
     panels.forEach((p) => (p.hidden = p !== panel));
     title.textContent = panel.dataset.name ?? slug;
+    drawer.dataset.component = panel.dataset.name ?? slug;
+    drawer.dataset.slug = slug;
+    resetRequestForm(drawer);
     openRow?.removeAttribute('aria-expanded');
     openRow = row;
     row.setAttribute('aria-expanded', 'true');
@@ -125,12 +129,18 @@ export function initComponentsStudio() {
     apply();
   });
   drawer.querySelector('[data-cm-close]')?.addEventListener('click', close);
+  initRequestForm(drawer);
   scrim.addEventListener('click', close);
   document.addEventListener('keydown', (e) => {
+    // Escape inside the request form closes the form first, not the drawer.
+    if (e.key === 'Escape' && drawer.dataset.mode === 'request') {
+      resetRequestForm(drawer, true);
+      return;
+    }
     if (e.key === 'Escape') close();
     // Keep Tab inside the open drawer.
     if (e.key === 'Tab' && !drawer.hidden) {
-      const focusables = [...drawer.querySelectorAll<HTMLElement>('a[href],button:not([disabled])')].filter((el) => el.offsetParent !== null);
+      const focusables = [...drawer.querySelectorAll<HTMLElement>('a[href],button:not([disabled]),input,select,textarea')].filter((el) => el.offsetParent !== null);
       const first = focusables[0];
       const last = focusables[focusables.length - 1];
       if (!first || !last) return;

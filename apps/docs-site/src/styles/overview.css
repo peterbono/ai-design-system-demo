@@ -43,6 +43,19 @@
   box-shadow: 0 0 0 var(--space-1) var(--color-feedback-success-bg);
 }
 
+.ov-dot.is-wait {
+  background-color: var(--color-feedback-info-icon);
+  box-shadow: 0 0 0 var(--space-1) var(--color-feedback-info-bg);
+}
+
+.ov-health + .ov-health {
+  margin-top: var(--space-2);
+}
+
+.ov-health[hidden] {
+  display: none;
+}
+
 .ov-dot.is-fail {
   background-color: var(--color-feedback-danger-icon);
   box-shadow: 0 0 0 var(--space-1) var(--color-feedback-danger-bg);

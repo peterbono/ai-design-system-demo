@@ -1,6 +1,6 @@
 ---
 // Library, Use: How review works. The governance prose that used to sit in Studio Settings: risk tiers at rest,
-// then collapsible sections (the journey of a change, review gates, owner override, approvals by area, the AI
+// then collapsible sections (the journey of a change, component change requests, review gates, owner override, approvals by area, the AI
 // agent's rules, what reviewers check on an agent's pull request). Read from docs/GOVERNANCE.md and AGENTS.md so
 // the page never drifts from the rules people and agents follow.
 import '../styles/library.css';
@@ -43,6 +43,11 @@ const ruleIntro = {
   'Ask before': 'It stops and asks a person first, and the pull request gets the higher tier.',
   Never: 'Hard limits. Most are also blocked by CI.',
 } as const;
+const requestSteps: { title: string; text: string }[] = [
+  { title: 'Request', text: 'A designer asks for a new component or a change (variant, prop, structure, visual, token binding) from the Push tab of the Figma plugin or from a component in Studio. It becomes a GitHub issue labeled component-change.' },
+  { title: 'Implement', text: 'A developer, or Claude with `bridge request implement <number>` or the `bridge_get_request` MCP tool, changes the code in a pull request that says `Closes #<number>`.' },
+  { title: 'Review and merge', text: 'The pull request goes through the same tiers and gates as any other change. When it merges, the request closes as done.' },
+];
 const allowed = r.override.allowed.map((l) => `@${l}`).join(', ');
 ---
 
@@ -64,6 +69,24 @@ const allowed = r.override.allowed.map((l) => `@${l}`).join(', ');
             <li>
               <p class="rw-step-title">{s.title}</p>
               <p>{s.text}</p>
+            </li>
+          ))
+        }
+      </ol>
+    </details>
+
+    <details class="rw-sec" id="requests">
+      <summary><h2>Component change requests</h2><span class="rw-n">3 steps</span></summary>
+      <p>
+        Variables are data: a variable edit is a pull request you approve. Components are code: a component change is a request, and a pull request that closes it does the work.
+        Follow requests in <a href="/studio/changes/?view=requests">Studio Changes</a>, in GitHub by the <code>component-change</code> label, or in Jira when Settings connects it.
+      </p>
+      <ol class="rw-steps">
+        {
+          requestSteps.map((s) => (
+            <li>
+              <p class="rw-step-title">{s.title}</p>
+              <p set:html={inline(s.text)} />
             </li>
           ))
         }

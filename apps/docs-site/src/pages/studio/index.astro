@@ -71,6 +71,10 @@ const merged = releases()
           <span class:list={['ov-dot', { 'is-fail': failing > 0 }]} aria-hidden="true"></span>
           {failing === 0 ? health : <a href="/studio/quality/">{health}</a>}
         </p>
+        <p class="t-ui ov-health" data-requests-line hidden>
+          <span class="ov-dot is-wait" aria-hidden="true"></span>
+          <a href="/studio/changes/?view=requests" data-keep-branch data-requests-link></a>
+        </p>
       </div>
       <Illustration name="review" class="ov-greet-art" />
     </section>
@@ -123,6 +127,8 @@ const merged = releases()
     import { openPulls, type ReviewStatus } from '../../lib/review-rules';
     import { byUrgency } from '../../lib/changes';
     import { humanTitle } from '../../lib/pr-title';
+    import { overviewRequestsLine, type PullLike } from '../../lib/requests-view';
+    import { loadRequestRows } from '../../scripts/requests';
 
     interface Pull extends PullForStatus {
       title: string;
@@ -209,6 +215,18 @@ const merged = releases()
         };
         placeholder?.setAttribute('hidden', '');
         paint();
+        // Component change requests that wait: one line under the health line, from the open pull requests read
+        // above plus one cached issues list (no closed pull requests needed to know what waits).
+        void loadRequestRows({ openPulls: f.data as unknown as PullLike[], closed: false })
+          .then((rows) => {
+            const text = overviewRequestsLine(rows);
+            const box = $('[data-requests-line]');
+            const link = $('[data-requests-link]');
+            if (!text || !box || !link) return;
+            link.textContent = `${text}.`;
+            box.hidden = false;
+          })
+          .catch(() => undefined);
         void loadStatuses(open, (p, st, isSkipped) => {
           statuses.set(p.number, st);
           if (isSkipped) skipped.add(p.number);
