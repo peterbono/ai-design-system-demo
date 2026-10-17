@@ -3,7 +3,7 @@ import '../../styles/studio.css';
 import Layout from '../../layouts/Layout.astro';
 import StudioHeader from '../../components/StudioHeader.astro';
 import ComponentsTable from '../../components/ds/studio/ComponentsTable';
-import { loadComponents, type ComponentInfo } from '../../lib/components';
+import { editTokensHref, loadComponents, type ComponentInfo } from '../../lib/components';
 import { sourceUrl, STORYBOOK_URL } from '../../lib/repo';
 import { PAGE_SOURCES, freshness } from '../../lib/sources';
 
@@ -11,12 +11,6 @@ const components = loadComponents();
 const updated = freshness(PAGE_SOURCES.components);
 const families = [...new Set(components.map((c) => c.category))];
 const statusOf = (c: ComponentInfo) => c.docs?.status ?? 'stable';
-// Component-tier tokens are named after the component or its family (--button-primary-bg, --popup-bg): filter the
-// editor on the first component-tier name the CSS reads, else on the component name.
-const tokenQuery = (c: ComponentInfo) => {
-  const own = c.tokensUsed.find((t) => t.kind === 'component');
-  return own ? own.name.replace(/^--/, '').split('-')[0]! : c.slug;
-};
 const documented = components.filter((c) => c.docs).length;
 const count = (s: string) => components.filter((c) => statusOf(c) === s).length;
 const rows = components.map((c) => ({
@@ -25,10 +19,11 @@ const rows = components.map((c) => ({
   status: statusOf(c),
   category: c.category,
   documented: Boolean(c.docs),
-  tokens: c.tokensUsed.length,
+  // Same set as the Studio Tokens ?component= filter the Edit tokens link opens, so the numbers match.
+  tokens: c.tokenPaths.length,
   props: c.props.length,
   stories: c.stories.length,
-  editHref: `/studio/tokens/?q=${encodeURIComponent(tokenQuery(c))}`,
+  editHref: editTokensHref(c),
   codeHref: sourceUrl(c.files.tsx),
   storyHref: c.stories[0] ? `${STORYBOOK_URL}/?path=/story/${c.stories[0].id}` : undefined,
 }));

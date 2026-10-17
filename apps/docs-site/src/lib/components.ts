@@ -58,6 +58,11 @@ export interface ComponentInfo {
   subcomponents: string[];
   rules: CssRule[];
   tokensUsed: { name: string; href?: string; known: boolean; kind?: string }[];
+  /**
+   * Paths of the tokens this component reads: the var(--*) of its CSS module that are tokens, in every tier
+   * (component, semantic, base, density, brand, primitive). One set for the Tokens counts and the Studio filter.
+   */
+  tokenPaths: string[];
   stories: { name: string; id: string }[];
   docs: ComponentDocs | null;
   /** Family from docs.json `category`, else from the grouped exports in packages/react/src/index.ts. */
@@ -245,6 +250,7 @@ export function loadComponents(): ComponentInfo[] {
         ...tsx,
         rules,
         tokensUsed: used.map((n) => ({ name: n, href: index.get(n)?.href, known: index.has(n), kind: index.get(n)?.kind })),
+        tokenPaths: [...new Set(used.flatMap((n) => index.get(n)?.path ?? []))].sort(),
         stories: exists(files.stories) ? parseStories(readText(files.stories)) : [],
         docs,
         category: docs?.category ?? familyOf(name) ?? 'Core',
@@ -258,6 +264,14 @@ export function loadComponents(): ComponentInfo[] {
   cache = result;
   return result;
 }
+
+/** Studio Tokens filtered on the tokens a component reads, or undefined when it reads none (no empty result). */
+export const editTokensHref = (c: Pick<ComponentInfo, 'slug' | 'tokenPaths'>): string | undefined =>
+  c.tokenPaths.length ? `/studio/tokens/?component=${encodeURIComponent(c.slug)}` : undefined;
+
+/** Component slug -> name and token paths, embedded for the Studio Tokens ?component= filter. */
+export const componentTokenIndex = (): Record<string, { name: string; paths: string[] }> =>
+  Object.fromEntries(loadComponents().map((c) => [c.slug, { name: c.name, paths: c.tokenPaths }]));
 
 /**
  * Which components a CSS variable reaches: read directly, or through any alias chain in any brand, theme or
