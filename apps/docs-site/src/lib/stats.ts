@@ -38,7 +38,11 @@ const CATEGORY: { key: string; label: string; match: (segments: string[]) => boo
 export const categoryOf = (segments: string[]) => CATEGORY.find((c) => c.match(segments))?.key ?? 'other';
 export const typeLabel = (t: string) => TYPE_LABEL[t] ?? t;
 
+/** What a validation finding is about, so Studio Quality can group it (lib/quality.ts). */
+export type IssueKind = 'contrast' | 'unknown-ref' | 'deprecated' | 'guidance' | 'unused';
+
 export interface Issue {
+  kind: IssueKind;
   severity: 'fail' | 'warn' | 'info';
   title: string;
   detail: string;
@@ -141,25 +145,29 @@ function compute() {
       .map((p) => {
         const bad = BRANDS.flatMap((b) => MODES.filter((m) => !p.brands[b][m].aa).map((m) => ({ b, m })));
         return {
+          kind: 'contrast' as const,
           severity: 'fail' as const,
           title: `${p.fg} on ${p.bg}`,
           detail: `${bad.map(({ b, m }) => `${p.brands[b][m].ratio.toFixed(2)}:1 in ${b} ${m}`).join(', ')}. Needs ${p.min}:1 (${p.usage === 'text' ? 'text' : 'UI'}).`,
-          href: '/studio/checks/',
+          href: '/studio/quality/',
         };
       }),
     ...unknownRefs.map((u) => ({
+      kind: 'unknown-ref' as const,
       severity: 'fail' as const,
       title: `${u.component.name} reads ${u.name}`,
       detail: 'This variable is not defined in the token sources and renders as nothing.',
       href: `/components/${u.component.slug}/#anatomy`,
     })),
     ...deprecated.map((t) => ({
+      kind: 'deprecated' as const,
       severity: 'warn' as const,
       title: `${t.path} is deprecated`,
       detail: typeof t.deprecated === 'string' ? t.deprecated : 'Marked $deprecated in the token sources.',
       href: hrefForVar(t.cssVar, t.type),
     })),
     ...undocumented.map((c) => ({
+      kind: 'guidance' as const,
       severity: 'warn' as const,
       title: `${c.name} has no usage guidance`,
       detail: `Add ${c.files.docs} to fill its page.`,
@@ -168,6 +176,7 @@ function compute() {
     ...(unusedSemantic.length
       ? [
           {
+            kind: 'unused' as const,
             severity: 'info' as const,
             title: `${unusedSemantic.length} semantic tokens not in use`,
             detail: unusedSemantic
@@ -181,6 +190,7 @@ function compute() {
     ...(orphanPrimitives.length
       ? [
           {
+            kind: 'unused' as const,
             severity: 'info' as const,
             title: `${orphanPrimitives.length} primitives not in use`,
             detail: 'No stylesheet reads them, directly or through an alias. Candidates for cleanup, or values waiting for a job.',

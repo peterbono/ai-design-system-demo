@@ -1,4 +1,4 @@
-// Studio Checks: the failing contrast checks, one row per pair and brand/theme combination, as a DS Table.
+// The failing contrast checks, one row per pair and brand/theme combination, as a DS Table.
 import { Link, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@bridge-ds/react';
 
 export interface ContrastFailRow {

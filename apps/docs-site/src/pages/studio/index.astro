@@ -59,7 +59,7 @@ const merged = releases()
         <ButtonLink variant="primary" href="/studio/changes/" data-start-review data-keep-branch>Start reviewing</ButtonLink>
         <p class="t-ui ov-health">
           <span class:list={['ov-dot', { 'is-fail': failing > 0 }]} aria-hidden="true"></span>
-          {failing === 0 ? health : <a href="/studio/checks/">{health}</a>}
+          {failing === 0 ? health : <a href="/studio/quality/">{health}</a>}
         </p>
       </div>
       <Illustration name="review" class="ov-greet-art" />

@@ -15,7 +15,10 @@ export const REDIRECTS: Record<string, string> = {
   '/studio/branches': '/studio/changes/#other-branches',
   '/studio/visual-impact': '/studio/changes/',
   '/studio/versions': '/studio/changes/?view=history',
-  '/adoption': '/studio/adoption/',
+  '/adoption': '/studio/quality/',
+  // Checks and Adoption became one Quality page; each audit report has its own route under it.
+  '/studio/checks': '/studio/quality/',
+  '/studio/adoption': '/studio/quality/',
   // Settings became one page (Connection, Repository, Approvals); the governance prose moved to the Library.
   '/governance': '/how-review-works/',
   '/studio/settings/repository': '/studio/settings/#repository',
