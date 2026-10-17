@@ -16,7 +16,7 @@ const shots = [
   // The draft tray is fixed to the viewport, so a full-page capture paints it over the table; it is empty in a
   // fresh browser, so it is hidden for the shot (only when empty: a real draft would stay visible).
   { name: 'web-tokens', url: `${bridge}/studio/tokens/`, hideEmptyDraftTray: true },
-  { name: 'web-review', url: `${bridge}/studio/reviews/?pr=4` },
+  { name: 'web-review', url: `${bridge}/studio/changes/?pr=4` },
   { name: 'web-github-pr', url: 'https://github.com/peterbono/ai-design-system-demo/pull/4' },
 ].filter((s) => !only || only.includes(s.name));
 const browser = await chromium.launch({ channel: 'chrome', headless: true });

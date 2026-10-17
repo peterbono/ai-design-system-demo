@@ -7,189 +7,195 @@
   Figma Community art for DS Bridge, rendered to PNG by render.mjs (one view per screenshot):
   ?view=icon (128x128), cover, gallery-plugin, gallery-review, gallery-tokens (1920x1080).
   Gallery views frame real screenshots (plugin-shots.mjs, web-shots.mjs) passed with ?shots=<folder URL>.
-  Colors and type follow docs/DESIGN-LANGUAGE.md: steel structure, International Orange only as the signal,
-  IBM Plex Sans and Mono. Marketing art, not product CSS: literal values are fine here.
+  Colors and type follow docs/DESIGN-LANGUAGE.md (Field Guide): white paper, ink text, one Harbor zone block per
+  canvas, Deep Harbor as the only strong color; Fraunces, Instrument Sans, IBM Plex Mono. Marketing art, not
+  product CSS: literal values are fine here.
 -->
 <style>
-  @font-face { font-family: "Plex Sans"; src: url("../../../../node_modules/@fontsource-variable/ibm-plex-sans/files/ibm-plex-sans-latin-wght-normal.woff2") format("woff2"); font-weight: 100 700; }
+  @font-face { font-family: "Fraunces"; src: url("../../../../node_modules/@fontsource-variable/fraunces/files/fraunces-latin-wght-normal.woff2") format("woff2"); font-weight: 100 900; }
+  @font-face { font-family: "Instrument Sans"; src: url("../../../../node_modules/@fontsource-variable/instrument-sans/files/instrument-sans-latin-wght-normal.woff2") format("woff2"); font-weight: 400 700; }
   @font-face { font-family: "Plex Mono"; src: url("../../../../node_modules/@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-400-normal.woff2") format("woff2"); font-weight: 400; }
   @font-face { font-family: "Plex Mono"; src: url("../../../../node_modules/@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-500-normal.woff2") format("woff2"); font-weight: 500; }
 
   :root {
-    --fog: #f4f7fa; --deck: #ffffff; --steel-100: #edeff2; --steel-200: #dce3eb; --steel-300: #c7ced8;
-    --steel-500: #818a96; --slate: #636d79; --steel-700: #4b5562; --steel-800: #333e4c; --ink: #1c2735;
-    --night: #0d1826; --signal: #e64611; --signal-soft: #fb8160; --cable: #22749e; --teal: #007e6a;
+    --paper: #ffffff; --ink: #15202b; --ink-2: #5b6672; --line: #e3e8ee; --subtle: #edeff2;
+    --harbor: #cfe8ff; --deep: #0b4a8b;
   }
   * { box-sizing: border-box; margin: 0; }
-  html, body { background: var(--fog); }
-  body { font-family: "Plex Sans", system-ui, sans-serif; color: var(--ink); -webkit-font-smoothing: antialiased; }
+  html, body { background: var(--paper); }
+  body { font-family: "Instrument Sans", system-ui, sans-serif; color: var(--ink); -webkit-font-smoothing: antialiased; }
   .mono { font-family: "Plex Mono", ui-monospace, monospace; }
   .view { display: none; position: relative; overflow: hidden; }
   .view.on { display: block; }
-  .canvas { width: 1920px; height: 1080px; }
+  .canvas { width: 1920px; height: 1080px; background: var(--paper); }
+  h1, h2 { font-family: "Fraunces", Georgia, serif; font-weight: 600; letter-spacing: -0.02em; font-variation-settings: "opsz" 96; }
 
-  /* Bridge mark: same geometry as apps/docs-site/src/components/Logo.astro (symbol #mark below) */
+  /* Bridge mark (Field Guide): same drawing as apps/docs-site/src/brand/illustrations.ts "logo" */
+  .mark { color: var(--ink); }
+  .mark .zone { fill: var(--harbor); }
+  .brand { display: flex; align-items: center; gap: 14px; font-family: "Fraunces", Georgia, serif; font-size: 34px; font-weight: 600; letter-spacing: -0.01em; }
+  .brand svg { width: 50px; height: 40px; }
+  .on-zone .mark .zone { fill: var(--deep); }
 
-  /* Icon */
-  #icon { width: 128px; height: 128px; background: var(--ink); color: var(--fog); }
-  #icon svg { position: absolute; left: 12px; top: 10px; width: 104px; height: 104px; }
+  /* Icon: ink drawing on a Harbor block, Deep Harbor water */
+  #icon { width: 128px; height: 128px; background: var(--harbor); }
+  #icon svg { position: absolute; left: 14px; top: 22px; width: 100px; height: 79px; }
 
-  /* Shared caption column */
-  .eyebrow { display: inline-flex; align-items: center; gap: 14px; font-size: 22px; font-weight: 500; color: var(--slate); letter-spacing: 0.01em; }
-  .eyebrow .step { font-family: "Plex Mono", monospace; font-size: 18px; color: var(--signal); border: 2px solid var(--signal); border-radius: 999px; padding: 2px 12px; }
-  h1, h2 { font-weight: 600; letter-spacing: -0.025em; }
-  .lead { font-size: 28px; line-height: 1.45; color: var(--steel-700); }
-  .brand { display: flex; align-items: center; gap: 16px; font-size: 30px; font-weight: 600; letter-spacing: -0.015em; color: var(--ink); }
-  .brand svg { width: 44px; height: 44px; color: var(--ink); }
+  /* Zone block: the one Harbor moment of each canvas */
+  .zone-block { position: absolute; background: var(--harbor); border-radius: 20px; }
+  .tag { font-size: 22px; color: var(--ink-2); }
+  .lead { font-size: 27px; line-height: 1.45; color: var(--ink); }
+  .step { display: inline-flex; align-items: center; gap: 12px; font-size: 22px; font-weight: 500; color: var(--ink); }
+  .step b { display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: 999px; background: var(--deep); color: #fff; font-size: 18px; font-weight: 600; }
 
   /* Cover */
-  #cover { background: var(--fog); }
-  #cover .top { position: absolute; left: 120px; top: 96px; right: 120px; display: flex; justify-content: space-between; align-items: center; }
-  #cover .tag { font-size: 22px; color: var(--slate); }
-  #cover h1 { position: absolute; left: 120px; top: 200px; width: 1300px; font-size: 92px; line-height: 1.04; }
-  #cover h1 em { font-style: normal; color: var(--signal); }
-  #cover .lead { position: absolute; left: 120px; top: 420px; width: 1100px; }
-  .bank { position: absolute; top: 600px; width: 540px; height: 370px; background: var(--deck); border: 2px solid var(--steel-200); border-radius: 20px; padding: 32px 36px; }
-  .bank.code { left: 120px; }
-  .bank.figma { right: 120px; }
-  .bank h3 { font-size: 22px; font-weight: 600; display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 22px; }
-  .bank h3 small { font-family: "Plex Mono", monospace; font-size: 17px; font-weight: 400; color: var(--slate); }
-  .bank .row { display: flex; align-items: center; gap: 14px; font-family: "Plex Mono", monospace; font-size: 18px; height: 50px; border-top: 1px solid var(--steel-100); color: var(--steel-800); }
-  .bank .row:first-of-type { border-top: 0; }
-  .sw { width: 26px; height: 26px; border-radius: 6px; border: 1px solid rgba(28, 39, 53, 0.14); flex: none; }
-  .bank .row .v { margin-left: auto; color: var(--slate); font-size: 16px; }
-  .bank .row.changed { color: var(--ink); }
-  .bank .row.changed .v { color: var(--signal); }
-  .span { position: absolute; left: 670px; right: 670px; top: 560px; height: 450px; }
+  #cover .zone-block { left: 64px; top: 64px; right: 64px; height: 500px; }
+  #cover .top { position: absolute; left: 120px; top: 112px; right: 120px; display: flex; justify-content: space-between; align-items: center; }
+  #cover h1 { position: absolute; left: 120px; top: 210px; width: 1400px; font-size: 92px; line-height: 1.04; }
+  #cover h1 em { font-style: italic; color: var(--deep); }
+  #cover .lead { position: absolute; left: 120px; top: 432px; width: 1180px; }
+  .plate { position: absolute; top: 620px; width: 560px; height: 396px; background: var(--paper); border: 2px solid var(--line); border-radius: 20px; padding: 30px 36px; }
+  .plate.code { left: 64px; }
+  .plate.figma { right: 64px; }
+  .plate h3 { font-size: 24px; font-weight: 600; display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 18px; }
+  .plate h3 small { font-family: "Plex Mono", monospace; font-size: 16px; font-weight: 400; color: var(--ink-2); }
+  .plate .row { display: flex; align-items: center; gap: 14px; font-family: "Plex Mono", monospace; font-size: 18px; height: 58px; border-top: 1px solid var(--line); }
+  .plate .row:first-of-type { border-top: 0; }
+  .sw { width: 26px; height: 26px; border-radius: 6px; border: 1px solid rgba(21, 32, 43, 0.16); flex: none; }
+  .plate .row .v { margin-left: auto; color: var(--ink-2); font-size: 16px; }
+  .plate .row.changed .v { color: var(--deep); font-weight: 500; }
+  .span { position: absolute; left: 640px; right: 640px; top: 620px; height: 396px; }
   .span svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
   .lane { position: absolute; left: 0; right: 0; text-align: center; }
-  .lane b { display: block; font-size: 30px; font-weight: 600; letter-spacing: -0.015em; }
-  .lane span { font-size: 21px; color: var(--slate); }
+  .lane b { display: block; font-family: "Fraunces", Georgia, serif; font-size: 32px; font-weight: 600; }
+  .lane span { font-size: 20px; color: var(--ink-2); }
   .lane.pull { top: 0; }
-  .lane.push { top: 372px; }
+  .lane.push { top: 318px; }
 
-  /* Gallery */
-  .gallery { background: var(--fog); }
-  .gallery .copy { position: absolute; left: 96px; top: 96px; width: 470px; }
-  .gallery .copy .brand { margin-bottom: 120px; }
-  .gallery h2 { font-size: 56px; line-height: 1.08; margin: 22px 0 28px; }
+  /* Gallery: Harbor column opens the space, the real UI sits on paper */
+  .gallery .zone-block { left: 48px; top: 48px; bottom: 48px; width: 560px; }
+  .gallery .copy { position: absolute; left: 104px; top: 104px; width: 450px; }
+  .gallery .copy .brand { margin-bottom: 150px; }
+  .gallery h2 { font-size: 60px; line-height: 1.06; margin: 26px 0 28px; }
   .gallery .lead { font-size: 25px; }
-  .gallery .foot { position: absolute; left: 96px; bottom: 80px; width: 470px; font-size: 19px; line-height: 1.5; color: var(--slate); }
-  .gallery .foot .mono { font-size: 17px; color: var(--steel-700); }
-  .shot { position: absolute; background: var(--deck); border: 2px solid var(--steel-300); overflow: hidden; }
+  .gallery .foot { position: absolute; left: 104px; bottom: 104px; width: 450px; font-size: 19px; line-height: 1.5; color: var(--ink-2); }
+  .gallery .foot .mono { font-size: 16px; color: var(--ink); }
+  .shot { position: absolute; background: var(--paper); border: 2px solid var(--line); overflow: hidden; }
   .shot img { display: block; width: 100%; }
-  .browser { left: 640px; top: 96px; width: 1360px; height: 1100px; border-radius: 18px 0 0 0; border-right: 0; border-bottom: 0; }
-  /* Fitted frame: the whole page width stays inside the canvas (no bleed on the right). */
-  .browser.fit { width: 1220px; border-right: 2px solid var(--steel-300); border-radius: 18px 18px 0 0; }
-  .browser .bar { height: 46px; display: flex; align-items: center; gap: 10px; padding: 0 20px; border-bottom: 2px solid var(--steel-200); background: var(--steel-100); }
-  .browser .page { height: calc(100% - 46px); overflow: hidden; }
-  .browser .bar i { width: 12px; height: 12px; border-radius: 99px; background: var(--steel-300); }
-  .browser .bar .url { margin-left: 18px; font-family: "Plex Mono", monospace; font-size: 16px; color: var(--steel-700); background: var(--deck); border-radius: 8px; padding: 5px 14px; }
-  .window { width: 600px; border-radius: 14px; box-shadow: 0 2px 4px rgba(13, 24, 38, 0.06), 0 24px 56px rgba(13, 24, 38, 0.16); }
-  .window .bar { height: 40px; display: flex; align-items: center; padding: 0 16px; font-size: 15px; font-weight: 600; color: var(--steel-800); border-bottom: 1px solid var(--steel-200); }
-  .window .bar span { margin-left: auto; font-weight: 400; color: var(--slate); }
-  .window img { width: 600px; }
-  .w-pull { left: 640px; top: 96px; }
-  .w-push { left: 1280px; top: 96px; }
-  .w-label { position: absolute; top: 970px; width: 600px; font-size: 22px; color: var(--steel-700); }
+  .browser { left: 664px; top: 176px; width: 1208px; border-radius: 20px; }
+  .browser .bar { height: 48px; display: flex; align-items: center; gap: 10px; padding: 0 20px; border-bottom: 2px solid var(--line); background: var(--subtle); }
+  .browser .bar i { width: 12px; height: 12px; border-radius: 99px; background: #c9d1da; }
+  .browser .bar .url { margin-left: 18px; font-family: "Plex Mono", monospace; font-size: 16px; color: var(--ink-2); background: var(--paper); border-radius: 8px; padding: 5px 14px; }
+  .window { width: 560px; border-radius: 20px; box-shadow: 0 2px 4px rgba(11, 24, 37, 0.05), 0 20px 48px rgba(11, 24, 37, 0.12); }
+  .window .bar { height: 44px; display: flex; align-items: center; padding: 0 18px; font-size: 16px; font-weight: 600; border-bottom: 1px solid var(--line); }
+  .window .bar span { margin-left: auto; font-weight: 400; color: var(--ink-2); }
+  .w-pull { left: 680px; top: 96px; }
+  .w-push { left: 1304px; top: 96px; }
+  .w-label { position: absolute; top: 966px; width: 560px; font-size: 22px; color: var(--ink-2); }
   .w-label b { color: var(--ink); font-weight: 600; }
   </style>
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute">
   <defs>
-    <symbol id="mark" viewBox="0 0 32 32">
-      <rect x="5" y="5" width="4" height="23" rx="1" fill="currentColor" />
-      <rect x="23" y="5" width="4" height="23" rx="1" fill="currentColor" />
-      <path d="M3 8.5Q16 27 29 8.5" fill="none" stroke="#e64611" stroke-width="2.75" stroke-linecap="round" />
-      <rect x="2" y="20.5" width="28" height="2.75" rx="1.375" fill="currentColor" />
+    <symbol id="mark" viewBox="0 0 28 22">
+      <path d="M3 16Q14 2 25 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+      <path d="M2 16h24" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+      <path class="zone" d="M5 18h18v2H5z" />
+      <path d="M9 16v-4M14 16v-7M19 16v-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
     </symbol>
   </defs>
 </svg>
 
-<div class="view" id="icon"><svg class="mark"><use href="#mark" /></svg></div>
+<div class="view on-zone" id="icon"><svg class="mark"><use href="#mark" /></svg></div>
 
 <div class="view canvas" id="cover">
-  <div class="top">
+  <div class="zone-block on-zone"></div>
+  <div class="top on-zone">
     <div class="brand"><svg class="mark"><use href="#mark" /></svg>DS Bridge</div>
     <div class="tag">Figma plugin · free and open source</div>
   </div>
   <h1>Figma Variables in.<br>Reviewed <em>pull requests</em> out.</h1>
   <p class="lead">Git stays the source of truth for your design tokens. Designers edit them in Figma, and every change goes back as a pull request with a contrast check.</p>
 
-  <div class="bank code">
+  <div class="plate code">
     <h3>Code <small>GitHub · DTCG JSON</small></h3>
-    <div class="row"><span class="sw" style="background:#1c2735"></span>color.text.default<span class="v">{palette.neutral.900}</span></div>
-    <div class="row changed"><span class="sw" style="background:#4b5562"></span>color.text.muted<span class="v">{palette.neutral.700}</span></div>
-    <div class="row"><span class="sw" style="background:#f4f7fa"></span>color.bg.default<span class="v">{palette.neutral.50}</span></div>
-    <div class="row"><span class="sw" style="background:#e64611"></span>focus.ring.color<span class="v">{palette.accent.500}</span></div>
-    <div class="row"><span class="sw" style="background:#22749e"></span>color.text.link<span class="v">{palette.link.600}</span></div>
+    <div class="row"><span class="sw" style="background:#15202b"></span>color.text.default<span class="v">{palette.neutral.900}</span></div>
+    <div class="row changed"><span class="sw" style="background:#5b6672"></span>color.text.muted<span class="v">{palette.neutral.600}</span></div>
+    <div class="row"><span class="sw" style="background:#cfe8ff"></span>color.bg.zone<span class="v">{palette.primary.200}</span></div>
+    <div class="row"><span class="sw" style="background:#0b4a8b"></span>color.action.primary.bg<span class="v">{palette.primary.700}</span></div>
+    <div class="row"><span class="sw" style="background:#ffffff"></span>color.bg.default<span class="v">{palette.neutral.0}</span></div>
   </div>
 
   <div class="span">
-    <svg viewBox="0 0 600 450" aria-hidden="true">
+    <svg viewBox="0 0 640 396" aria-hidden="true">
       <defs>
-        <marker id="head-ink" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="4" markerHeight="4" orient="auto"><path d="M0 0L10 5L0 10z" fill="#1c2735" /></marker>
-        <marker id="head-signal" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="4" markerHeight="4" orient="auto"><path d="M0 0L10 5L0 10z" fill="#e64611" /></marker>
+        <marker id="head-ink" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="4" markerHeight="4" orient="auto"><path d="M0 0L10 5L0 10z" fill="#15202b" /></marker>
+        <marker id="head-deep" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="4" markerHeight="4" orient="auto"><path d="M0 0L10 5L0 10z" fill="#0b4a8b" /></marker>
       </defs>
       <!-- Pull lane: code to Figma -->
-      <path d="M40 112 H548" stroke="#1c2735" stroke-width="6" stroke-linecap="round" marker-end="url(#head-ink)" />
-      <!-- the bridge mark, drawn large: two pillars, the deck, the suspended cable as the signal -->
-      <rect x="128" y="150" width="16" height="170" rx="4" fill="#1c2735" />
-      <rect x="456" y="150" width="16" height="170" rx="4" fill="#1c2735" />
-      <path d="M96 168 Q300 330 504 168" fill="none" stroke="#e64611" stroke-width="10" stroke-linecap="round" />
-      <rect x="70" y="270" width="460" height="12" rx="6" fill="#1c2735" />
+      <path d="M48 92 H586" stroke="#15202b" stroke-width="5" stroke-linecap="round" marker-end="url(#head-ink)" />
+      <!-- The Bridge mark, drawn large: arch, deck, three posts, Harbor water -->
+      <g transform="translate(194 92) scale(9)">
+        <path d="M3 16Q14 2 25 16" fill="none" stroke="#15202b" stroke-width="1" stroke-linecap="round" />
+        <path d="M2 16h24" stroke="#15202b" stroke-width="1" stroke-linecap="round" />
+        <path d="M9 16v-4M14 16v-7M19 16v-4" stroke="#15202b" stroke-width="0.75" stroke-linecap="round" />
+      </g>
+      <path d="M230 260 H410" stroke="#cfe8ff" stroke-width="14" stroke-linecap="round" />
       <!-- Push lane: Figma to pull request -->
-      <path d="M560 352 H52" stroke="#e64611" stroke-width="6" stroke-linecap="round" marker-end="url(#head-signal)" />
+      <path d="M592 300 H54" stroke="#0b4a8b" stroke-width="5" stroke-linecap="round" marker-end="url(#head-deep)" />
     </svg>
     <div class="lane pull"><b>Pull</b><span>code to Figma</span></div>
     <div class="lane push"><b>Push</b><span>Figma to a reviewed pull request</span></div>
   </div>
 
-  <div class="bank figma">
+  <div class="plate figma">
     <h3>Figma <small>Variables · 6 collections</small></h3>
-    <div class="row"><span class="sw" style="background:#1c2735"></span>color/text/default<span class="v">Semantic</span></div>
-    <div class="row changed"><span class="sw" style="background:#4b5562"></span>color/text/muted<span class="v">edited</span></div>
-    <div class="row"><span class="sw" style="background:#f4f7fa"></span>color/bg/default<span class="v">Semantic</span></div>
-    <div class="row"><span class="sw" style="background:#e64611"></span>palette/accent/500<span class="v">Brand</span></div>
-    <div class="row"><span class="sw" style="background:#22749e"></span>color/cable/600<span class="v">Primitives</span></div>
+    <div class="row"><span class="sw" style="background:#15202b"></span>color/text/default<span class="v">Semantic</span></div>
+    <div class="row changed"><span class="sw" style="background:#495562"></span>color/text/muted<span class="v">edited</span></div>
+    <div class="row"><span class="sw" style="background:#cfe8ff"></span>color/bg/zone<span class="v">Semantic</span></div>
+    <div class="row"><span class="sw" style="background:#0b4a8b"></span>palette/primary/700<span class="v">Brand</span></div>
+    <div class="row"><span class="sw" style="background:#cfe8ff"></span>color/harbor/200<span class="v">Primitives</span></div>
   </div>
 </div>
 
 <div class="view canvas gallery" id="gallery-plugin">
-  <div class="copy">
+  <div class="zone-block"></div>
+  <div class="copy on-zone">
     <div class="brand"><svg class="mark"><use href="#mark" /></svg>DS Bridge</div>
-    <div class="eyebrow"><span class="step">1</span>Pull and push</div>
+    <div class="step"><b>1</b>Pull and push</div>
     <h2>Tokens from main in. Your edits out.</h2>
     <p class="lead">Pull creates one collection per tier, with its modes. Push shows every edit with swatches and the contrast it moves, then opens the pull request.</p>
   </div>
-  <p class="foot">The plugin UI as it ships, reading this repository's real tokens from GitHub (497 variables). Outside Figma, the Figma side (two re-pointed variables) comes from the plugin's test simulator.</p>
+  <p class="foot">The plugin UI as it ships, reading this repository's real tokens from GitHub (595 variables). Outside Figma, the Figma side (two re-pointed variables) comes from the plugin's test simulator.</p>
   <div class="shot window w-pull"><div class="bar">DS Bridge<span>Bridge tokens</span></div><img data-shot="plugin-pull.png" alt=""></div>
   <div class="shot window w-push"><div class="bar">DS Bridge<span>Bridge tokens</span></div><img data-shot="plugin-push.png" alt=""></div>
-  <div class="w-label" style="left:640px"><b>Pull</b>: code to Figma, first pull</div>
-  <div class="w-label" style="left:1280px"><b>Push</b>: Figma to pull request</div>
+  <div class="w-label" style="left:680px"><b>Pull</b>: code to Figma, first pull</div>
+  <div class="w-label" style="left:1304px"><b>Push</b>: Figma to pull request</div>
 </div>
 
 <div class="view canvas gallery" id="gallery-review">
-  <div class="copy">
+  <div class="zone-block"></div>
+  <div class="copy on-zone">
     <div class="brand"><svg class="mark"><use href="#mark" /></svg>DS Bridge</div>
-    <div class="eyebrow"><span class="step">2</span>Reviewed, never pushed to main</div>
+    <div class="step"><b>2</b>Reviewed, never pushed to main</div>
     <h2>Every change becomes a pull request.</h2>
     <p class="lead">One branch, one commit, a changeset and a draft PR with the change table, contrast before and after, and the risk tier. CI and code owners decide.</p>
   </div>
-  <p class="foot">Pull request #4, opened by the plugin, in Bridge Reviews.<br><span class="mono">bridge.floriangouloubi.com/studio/reviews</span></p>
-  <div class="shot browser"><div class="bar"><i></i><i></i><i></i><span class="url">bridge.floriangouloubi.com/studio/reviews/?pr=4</span></div><div class="page"><img data-shot="web-review-full.png" alt="" style="margin-top:-150px"></div></div>
+  <p class="foot">Pull request #4, opened by the plugin, in Bridge Studio, Changes.<br><span class="mono">bridge.floriangouloubi.com/studio/changes</span></p>
+  <div class="shot browser"><div class="bar"><i></i><i></i><i></i><span class="url">bridge.floriangouloubi.com/studio/changes/?pr=4</span></div><div class="page"><img data-shot="web-review.png" alt=""></div></div>
 </div>
 
 <div class="view canvas gallery" id="gallery-tokens">
-  <div class="copy">
+  <div class="zone-block"></div>
+  <div class="copy on-zone">
     <div class="brand"><svg class="mark"><use href="#mark" /></svg>DS Bridge</div>
-    <div class="eyebrow"><span class="step">3</span>Any DTCG repository</div>
+    <div class="step"><b>3</b>Any DTCG repository</div>
     <h2>Tiered collections, straight from Git.</h2>
     <p class="lead">Primitives, Brand, Base, Semantic, Density and Component, with aliases kept across collections. Point <span class="mono" style="font-size:22px">bridge.config.json</span> at your own token files.</p>
   </div>
   <p class="foot">The same tokens in the Bridge Studio token explorer.<br><span class="mono">bridge.floriangouloubi.com/studio/tokens</span></p>
-  <div class="shot browser fit"><div class="bar"><i></i><i></i><i></i><span class="url">bridge.floriangouloubi.com/studio/tokens/</span></div><div class="page"><img data-shot="web-tokens-full.png" alt="" style="margin-top:-170px"></div></div>
+  <div class="shot browser"><div class="bar"><i></i><i></i><i></i><span class="url">bridge.floriangouloubi.com/studio/tokens/</span></div><div class="page"><img data-shot="web-tokens.png" alt=""></div></div>
 </div>
 
 <script>
