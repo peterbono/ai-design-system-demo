@@ -61,6 +61,21 @@ describe('SegmentedControl', () => {
     expect(screen.getByRole('radio', { name: 'Both' })).toHaveAttribute('data-view', 'both');
   });
 
+  it('takes its name from a visible label outside the track; the track holds only the options', async () => {
+    render(
+      <div>
+        <span id="preview-brand-label">Preview brand</span>
+        <SegmentedControl aria-labelledby="preview-brand-label" items={items} defaultValue="light" />
+      </div>,
+    );
+    const group = screen.getByRole('radiogroup', { name: 'Preview brand' });
+    expect(group).toHaveAttribute('aria-labelledby', 'preview-brand-label');
+    expect(group).not.toHaveAttribute('aria-label');
+    expect(group).not.toHaveTextContent('Preview brand');
+    expect(screen.getAllByRole('radio')).toHaveLength(items.length);
+    await expectNoAxeViolations();
+  });
+
   it('renders a static contract a script can drive', () => {
     const html = renderToStaticMarkup(<SegmentedControl label="Brand" items={items} defaultValue="dark" />);
     expect(html).toContain('data-segmented-control=""');
