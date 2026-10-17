@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "sessionId": "y0hakmk2q2tizqhx",
+  "createdAt": "2026-10-17T20:14:45.612Z",
+  "status": "pending",
+  "source": "figma",
+  "items": [
+    {
+      "id": "item-1",
+      "scope": "push",
+      "changes": [],
+      "components": [
+        "Button"
+      ],
+      "images": [
+        {
+          "label": "before",
+          "path": ".bridge/drafts/y0hakmk2q2tizqhx/item-1-before.png",
+          "url": "https://github.com/peterbono/ai-design-system-demo/blob/bridge-requests/.bridge/drafts/y0hakmk2q2tizqhx/item-1-before.png?raw=true"
+        },
+        {
+          "label": "after",
+          "path": ".bridge/drafts/y0hakmk2q2tizqhx/item-1-after.png",
+          "url": "https://github.com/peterbono/ai-design-system-demo/blob/bridge-requests/.bridge/drafts/y0hakmk2q2tizqhx/item-1-after.png?raw=true"
+        }
+      ],
+      "draft": {
+        "title": "",
+        "summary": "Requests a change to Button."
+      }
+    }
+  ]
+}
