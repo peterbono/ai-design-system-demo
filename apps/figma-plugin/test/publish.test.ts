@@ -184,3 +184,37 @@ test('the experimental mark is durable shared plugin data on the variable and th
   await setExperimental([{ kind: 'component', id: set.id }], false);
   assert.equal((await scanComponents(() => {})).components.find((x) => x.nodeId === set.id)!.experimental, undefined);
 });
+
+test('a component change an optional part already covers starts unchecked, with its hint; checking it sends it anyway', async () => {
+  const { gh, client, snapshot, sync } = await edited();
+  const a = await analyze(client, DEFAULT_SETTINGS, sync, snapshot);
+  const label = { name: 'Label', type: 'TEXT', visible: true, part: 'text' };
+  const iconEnd = { name: 'Icon end', type: 'INSTANCE', main: 'Icon/Plus', visible: false, part: 'icon-end', visibleProp: 'Icon end' };
+  const raw = (added: boolean): RawComponent => ({
+    nodeId: '1:1',
+    name: 'Button',
+    definitions: [{ name: 'Size', type: 'VARIANT', default: 'md', options: ['md'] }],
+    variants: [
+      {
+        props: { Size: 'md' },
+        bindings: [],
+        render: added ? 'r2' : 'r1',
+        layers: added ? [label, { name: 'Icon', type: 'INSTANCE', main: 'Icon/Pencil', visible: true }, iconEnd] : [label, iconEnd],
+      },
+    ],
+  });
+  const scan = classifyComponents([{ nodeId: '1:1', name: 'Button', signature: buildSignature(raw(true)), baseline: buildSignature(raw(false)) }], ['Button']);
+  const items = publishItems(a, new Set(), scan.changed);
+  const button = items.find((i) => i.kind === 'component')!;
+  assert.equal(button.hint, 'Icon end already does this: show it with the Icon end property');
+  const unchecked = defaultUnchecked(items);
+  assert.ok(unchecked.has(componentKey('1:1')), 'starts unchecked');
+  const proposal = buildPush(a, new Map(), new Set(), heldTokenIds(items, unchecked));
+  assert.equal(publishPlan({ proposal, components: scan.changed, unchecked, description: '', fileName: 'Test' }).drafts.length, 0);
+  // "Keep it as a request": checked, it becomes a structure request.
+  unchecked.delete(componentKey('1:1'));
+  const res = await publish(client, { analysis: a, proposal, components: scan.changed, unchecked, description: '', descriptionIsDraft: true, title: '', fileName: 'Test', coded: ['Button'] });
+  assert.equal(res.requests.length, 1);
+  assert.deepEqual(gh.issues[0]!.labels.slice(0, 2), ['component-change', 'request: structure']);
+  assert.equal(gh.issues[0]!.title, 'Button: add a layer after Label');
+});

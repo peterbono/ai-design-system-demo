@@ -1,7 +1,7 @@
 // Main thread: reads local components (sets and single components) into raw signatures data, stores baselines in
 // shared plugin data, and exports PNGs to attach to requests. No network. The diff logic is in src/sync/components.ts.
 
-import { type RawBinding, type RawComponent, type RawVariant, buildSignature, fnv1a, bindingKind, parseSignature } from '../sync/components';
+import { type RawBinding, type RawComponent, type RawLayer, type RawVariant, buildSignature, fnv1a, bindingKind, parseSignature, propName } from '../sync/components';
 import { EXPERIMENTAL_KEY, type ScannedComponentsPayload } from '../shared/messages';
 
 const NS = 'dsbridge';
@@ -98,6 +98,30 @@ function structureOf(node: SceneNode): string {
   return fnv1a(parts.join('\n'));
 }
 
+/** The children of a variant for its structure outline: two levels (wrappers are flattened by outlineOf). */
+async function layersOf(variant: ComponentNode): Promise<RawLayer[]> {
+  const read = async (n: SceneNode, depth: number): Promise<RawLayer> => {
+    const refs = (n as { componentPropertyReferences?: Record<string, string> | null }).componentPropertyReferences ?? {};
+    const main = n.type === 'INSTANCE' ? (await n.getMainComponentAsync().catch(() => null))?.name : undefined;
+    const part = n.getSharedPluginData(NS, 'part');
+    const kids = depth < 1 && n.type !== 'INSTANCE' && 'children' in n ? await Promise.all((n as ChildrenMixin).children.map((c) => read(c as SceneNode, depth + 1))) : undefined;
+    return {
+      name: n.name,
+      type: n.type,
+      ...(main ? { main } : {}),
+      visible: n.visible !== false,
+      ...(part ? { part } : {}),
+      ...(refs.visible ? { visibleProp: propName(refs.visible) } : {}),
+      ...(refs.characters ? { textProp: propName(refs.characters) } : {}),
+      ...('layoutMode' in n ? { layout: n.layoutMode } : {}),
+      ...(kids ? { children: kids } : {}),
+    };
+  };
+  const out: RawLayer[] = [];
+  for (const c of variant.children) out.push(await read(c, 0));
+  return out;
+}
+
 async function renderHash(node: SceneNode): Promise<string | undefined> {
   try {
     return fnv1a(await node.exportAsync({ format: 'PNG', constraint: { type: 'SCALE', value: HASH_SCALE } }));
@@ -171,6 +195,7 @@ export async function readComponent(node: ComponentSetNode | ComponentNode, read
       render: await renderHash(v),
       structure: structureOf(v),
       ...(await slotsOf(v)),
+      layers: await layersOf(v).catch(() => undefined),
     });
   }
   return { nodeId: node.id, name: node.name, page: pageOf(node), definitions: await readDefinitions(node), variants };

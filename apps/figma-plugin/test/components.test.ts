@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import { REQUESTS_BRANCH, parseRequestIssue } from '@bridge-ds/core';
 import {
   type RawComponent,
+  type RawLayer,
   type RawVariant,
   buildSignature,
   classifyComponents,
@@ -12,6 +13,7 @@ import {
   diffSignatures,
   fnv1a,
   pullBaselines,
+  suggestLine,
   suggestTitle,
   toRequest,
 } from '../src/sync/components';
@@ -255,4 +257,93 @@ test('send: Figma link when the file key is known; no images means no branch; su
   assert.equal(gh.branches.has(REQUESTS_BRANCH), false);
   assert.match(gh.issues[0]!.body, /\[Card\]\(https:\/\/www\.figma\.com\/design\/ABC\/\?node-id=12-34\)/);
   await assert.rejects(sendComponentRequest(client, { request: { ...req, summary: '  ' }, baseBranch: 'main' }), /summary/);
+});
+
+// ---------------------------------------------------------------------------------------------
+// Structure: layers added, removed or moved
+
+const L = (name: string, type: string, extra: Partial<RawLayer> = {}): RawLayer => ({ name, type, visible: true, ...extra });
+const buttonLayers = (): RawLayer[] => [
+  L('Icon start', 'INSTANCE', { main: 'Icon/Plus', visible: false, part: 'icon-start', visibleProp: 'Icon start' }),
+  L('Label', 'TEXT', { part: 'text', textProp: 'Label' }),
+  L('Icon end', 'INSTANCE', { main: 'Icon/Plus', visible: false, part: 'icon-end', visibleProp: 'Icon end' }),
+];
+function withLayers(edit?: (layers: RawLayer[], size: string, tone: string) => RawLayer[] | void, render?: (size: string, tone: string) => string | undefined): RawComponent {
+  return button((c) => {
+    for (const v of c.variants) {
+      const size = v.props!.Size!;
+      const tone = v.props!.Tone!;
+      const layers = buttonLayers();
+      v.layers = (edit?.(layers, size, tone) as RawLayer[] | undefined) ?? layers;
+      const r = render?.(size, tone);
+      if (r) v.render = r;
+    }
+  });
+}
+const smPrimary = (size: string, tone: string) => size === 'sm' && tone === 'primary';
+
+test('structure: an instance before the label is a structure change, with the Icon start hint', () => {
+  const cur = withLayers((ls, size, tone) => (smPrimary(size, tone) ? [ls[0]!, L('Leading', 'INSTANCE', { main: 'Icon/Pencil' }), ls[1]!, ls[2]!] : undefined), (s, t) => (smPrimary(s, t) ? 'new-render' : undefined));
+  const d = diffSignatures(sig(withLayers()), sig(cur));
+  assert.equal(d.kind, 'structure');
+  assert.deepEqual(d.changes, [{ field: 'New layer "Leading" (Size=sm, Tone=primary)', after: 'instance Icon/Pencil, before "Label"' }]);
+  assert.deepEqual(d.equivalents, ['Icon start already does this: show it with the Icon start property']);
+  assert.equal(d.onlyEquivalents, true);
+  assert.equal(suggestLine({ kind: d.kind!, changes: d.changes }), 'New instance layer "Leading" (Icon/Pencil) before "Label" in primary sm');
+});
+
+test('structure: a layer removed or moved in every variant', () => {
+  const moved = withLayers((ls) => [ls[1]!, ls[0]!, ls[2]!], () => 'moved');
+  const m = diffSignatures(sig(withLayers()), sig(moved));
+  assert.equal(m.kind, 'structure');
+  assert.equal(m.changes.length, 1);
+  assert.match(m.changes[0]!.field, /^Moved layer "(Label|Icon start)"$/);
+  assert.equal(m.onlyEquivalents, false);
+  const removed = withLayers((ls) => [ls[0]!, ls[2]!], () => 'removed');
+  const r = diffSignatures(sig(withLayers()), sig(removed));
+  assert.deepEqual(r.changes, [{ field: 'Removed layer "Label"', before: 'text, after "Icon start"' }]);
+  assert.equal(suggestTitle({ component: 'Button', kind: r.kind!, changes: r.changes }), 'Remove the Label layer');
+});
+
+test('structure: renames, wrappers and hidden unbound layers send nothing', () => {
+  const renamed = withLayers((ls) => {
+    ls[1]!.name = 'Text';
+    return [L('Content', 'FRAME', { layout: 'HORIZONTAL', children: ls }), L('Note', 'TEXT', { visible: false })];
+  });
+  const d = diffSignatures(sig(withLayers()), sig(renamed));
+  assert.equal(d.kind, undefined);
+  assert.deepEqual(d.changes, []);
+});
+
+test('structure: a layer added with the same render and no property binding is not a change; old baselines fall back to visual', () => {
+  const same = withLayers((ls) => [...ls, L('Spacer', 'FRAME')]);
+  assert.equal(diffSignatures(sig(withLayers()), sig(same)).kind, undefined);
+  // A baseline from an older plugin has no outline: the render change stays a visual change.
+  const old = sig(button());
+  const cur = sig(withLayers((ls, s, t) => (smPrimary(s, t) ? [...ls, L('Icon', 'INSTANCE', { main: 'Icon/Pencil' })] : undefined), (s, t) => (smPrimary(s, t) ? 'new' : undefined)));
+  assert.equal(diffSignatures(old, cur).kind, 'visual');
+});
+
+test('structure: a text where an optional text exists gets the hint; other changes keep the item checked', () => {
+  const base = withLayers((ls) => [...ls, L('Helper', 'TEXT', { visible: false, visibleProp: 'Show helper', textProp: 'Helper' })]);
+  const cur = withLayers((ls, s, t) => [L('Note', 'TEXT'), ...ls, L('Helper', 'TEXT', { visible: false, visibleProp: 'Show helper', textProp: 'Helper' })].slice(smPrimary(s, t) ? 0 : 1), (s, t) => (smPrimary(s, t) ? 'r' : undefined));
+  const d = diffSignatures(sig(base), sig(cur));
+  assert.deepEqual(d.equivalents, ['Helper already does this: show it with the Show helper property']);
+  const scan = classifyComponents(
+    [{ nodeId: '1:2', name: 'Button', signature: sig(cur), baseline: sig(base) }],
+    ['Button'],
+  );
+  assert.equal(scan.changed[0]!.suggestSkip, true);
+  // Plus a prop change: the item stays checked, the hint still shows.
+  const withProp = button((c) => {
+    c.definitions.push({ name: 'Loading#3:0', type: 'BOOLEAN', default: 'false' });
+    for (const [i, v] of c.variants.entries()) {
+      v.layers = cur.variants[i]!.layers;
+      v.render = cur.variants[i]!.render;
+    }
+  });
+  const scan2 = classifyComponents([{ nodeId: '1:2', name: 'Button', signature: sig(withProp), baseline: sig(base) }], ['Button']);
+  assert.equal(scan2.changed[0]!.kind, 'prop-change');
+  assert.ok(scan2.changed[0]!.equivalent);
+  assert.equal(scan2.changed[0]!.suggestSkip, undefined);
 });

@@ -14,7 +14,7 @@ import { onlyComponent, plannedSignature, reviewUpdates, withoutComponents } fro
 import { takeSnapshot } from '../src/main/snapshot';
 import { DEFAULT_SETTINGS } from '../src/shared/messages';
 import { buildComponentPlan, evaluateCalc, loadComponentSpecs, pendingComponents, writablePlan } from '../src/sync/component-pull';
-import { classifyComponents, pullBaselines } from '../src/sync/components';
+import { classifyComponents, pullBaselines, suggestLine, suggestTitle } from '../src/sync/components';
 import { analyze, buildPull } from '../src/sync/flows';
 import { FakeGitHub } from './fake-github';
 import { SimFigma, type SimNode } from './figma-api';
@@ -588,4 +588,40 @@ test('migration: a file pulled before swaps gets instances in place of placehold
   assert.equal(scanned.components.length, 6, 'icon and slot components are never Push candidates');
   const scan = classifyComponents(scanned.components, CODED);
   assert.deepEqual([scan.changed.length, scan.candidates.length], [0, 0]);
+});
+
+test('real case: a third icon layer after Label in Button primary sm is a structure change, with the Icon end hint', async () => {
+  const { sim, plan } = await pulledFile();
+  await applyComponentPlan(writablePlan(plan));
+  const button = sim.sets().find((s) => s.name === 'Button')!;
+  const v = variantOf(button, 'Variant=primary, Size=sm, State=Default');
+  const label = partOf(v, 'text');
+  const pencil = pageNamed(sim, 'Icons')[0]!.children.find((c) => c.name === 'Icon/Pencil')!;
+  // The designer drops an instance of an icon after the label; Icon start and Icon end stay hidden.
+  const icon = pencil.createInstance();
+  icon.name = 'Icon';
+  label.parent!.insertChild(label.parent!.children.indexOf(label) + 1, icon);
+  // As in the owner's file: both optional icons hidden by their BOOLEAN default.
+  partOf(v, 'icon-start').visible = false;
+  partOf(v, 'icon-end').visible = false;
+  const scan = classifyComponents((await scanComponents(() => {})).components, CODED);
+  assert.equal(scan.changed.length, 1);
+  const item = scan.changed[0]!;
+  assert.equal(item.component, 'Button');
+  assert.equal(item.kind, 'structure', 'not a vague visual change');
+  assert.deepEqual(item.changes, [{ field: 'New layer "Icon" (Size=sm, State=Default, Variant=primary)', after: 'instance Icon/Pencil, after "Label"' }]);
+  assert.equal(suggestLine(item), 'New instance layer "Icon" (Icon/Pencil) after "Label" in primary sm');
+  assert.equal(suggestTitle(item), 'Add a layer after Label');
+  assert.equal(item.equivalent, 'Icon end already does this: show it with the Icon end property');
+  assert.equal(item.suggestSkip, true, 'starts unchecked: the designer may only need the Icon end property');
+});
+
+test('structure: renaming or wrapping layers of a generated variant sends nothing', async () => {
+  const { sim, plan } = await pulledFile();
+  await applyComponentPlan(writablePlan(plan));
+  const button = sim.sets().find((s) => s.name === 'Button')!;
+  const v = variantOf(button, 'Variant=primary, Size=md, State=Default');
+  partOf(v, 'text').name = 'Text';
+  const scan = classifyComponents((await scanComponents(() => {})).components, CODED);
+  assert.equal(scan.changed.length, 0);
 });

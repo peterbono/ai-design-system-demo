@@ -41,6 +41,73 @@ function propShape(s: string | undefined): { type: string; def: string } | undef
   return m ? { type: m[1]!, def: m[2]! } : { type: s, def: '' };
 }
 
+// ---------------------------------------------------------------------------------------------
+// Structure changes: a layer added, removed or moved in a variant. The scan writes them as rows
+// `New layer "Icon" (Size=sm, Variant=primary)` with the kind and the place as values:
+// added `instance Icon/Pencil, after "Label"`, removed the same as `before`, moved `after "A"` -> `before "B"`.
+
+const VARIANT_FIRST = ['variant', 'tone', 'intent', 'appearance', 'kind', 'type', 'style'];
+
+/** "Size=sm, State=Default, Variant=primary" -> "primary sm": the values a designer says, default states left out. */
+export function shortVariant(key: string): string {
+  const pairs = key.split(', ').map((p) => {
+    const at = p.indexOf('=');
+    return at < 0 ? { k: '', v: p.trim() } : { k: p.slice(0, at).trim(), v: p.slice(at + 1).trim() };
+  });
+  const kept = pairs.filter((p) => p.v && !/^default$/i.test(p.v));
+  if (!kept.length) return key;
+  const rank = (k: string) => {
+    const i = VARIANT_FIRST.indexOf(k.toLowerCase());
+    return i < 0 ? VARIANT_FIRST.length : i;
+  };
+  return kept
+    .map((p, i) => ({ ...p, i }))
+    .sort((a, b) => rank(a.k) - rank(b.k) || a.i - b.i)
+    .map((p) => p.v)
+    .join(' ');
+}
+
+/** "Size=sm, Variant=primary; Size=md, Variant=primary" -> "primary sm and primary md"; empty -> "every variant". */
+export const shortVariants = (list: string | undefined) => (list ? andList(list.split('; ').map(shortVariant)) : 'every variant');
+
+export interface StructureRow {
+  op: 'added' | 'removed' | 'moved';
+  name: string;
+  /** "in primary sm" or "in every variant". */
+  where: string;
+  /** Layer type in words ("instance", "text", "frame"), when known. */
+  type?: string | undefined;
+  /** Main component of an instance ("Icon/Pencil"). */
+  main?: string | undefined;
+  /** Where it sits now (added, moved) or sat (removed): `after "Label"`, `before "Label"`, `alone`. */
+  at?: string | undefined;
+  /** Moved: where it sat before. */
+  from?: string | undefined;
+}
+
+/** A structure row read back, or undefined when the field is not one. */
+export function parseStructureChange(c: RequestChange): StructureRow | undefined {
+  const m = /^(New|Removed|Moved) layer "(.*)"(?: \((.*)\))?$/.exec(c.field);
+  if (!m) return undefined;
+  const op = m[1] === 'New' ? 'added' : m[1] === 'Removed' ? 'removed' : 'moved';
+  const where = `in ${shortVariants(m[3])}`;
+  if (op === 'moved') return { op, name: m[2]!, where, at: c.after, from: c.before };
+  const shape = (op === 'added' ? c.after : c.before) ?? '';
+  const sm = /^(\S+)(?: (.*?))?, ((?:after|before) ".*"|alone)$/.exec(shape);
+  return { op, name: m[2]!, where, ...(sm ? { type: sm[1], ...(sm[2] ? { main: sm[2] } : {}), at: sm[3] } : {}) };
+}
+
+function structurePhrase(r: StructureRow): string {
+  const type = r.type ? `${r.type} ` : '';
+  const main = r.main ? ` (${r.main})` : '';
+  const at = r.at && r.at !== 'alone' ? ` ${r.at}` : '';
+  if (r.op === 'added') return `New ${type}layer "${r.name}"${main}${at} ${r.where}`;
+  if (r.op === 'removed') return `Removed ${type}layer "${r.name}"${main}${at} ${r.where}`;
+  return `Moved layer "${r.name}" ${r.at ?? ''}${r.from ? ` (was ${r.from})` : ''} ${r.where}`.replace(/\s+/g, ' ');
+}
+
+const bare = (at: string | undefined) => (at ?? '').replace(/"/g, '');
+
 /** Title and summary for the first change of a detected component change. */
 function firstChange(component: string, kind: RequestKind, c: RequestChange | undefined, all: RequestChange[]): DraftText {
   switch (kind) {
@@ -91,6 +158,16 @@ function firstChange(component: string, kind: RequestKind, c: RequestChange | un
         title: `Use ${after} for the ${part}`,
         summary: `The ${part} of ${component}${where} ${before ? `moves from ${before} to ${after}` : `now uses ${after}`}.`,
       };
+    }
+    case 'structure': {
+      const r = c ? parseStructureChange(c) : undefined;
+      if (!r) return { title: 'Change the layers to match Figma', summary: `The layers of ${component} changed in Figma.` };
+      if (r.op === 'added') {
+        const at = r.at && r.at !== 'alone' ? ` ${bare(r.at)}` : '';
+        return { title: `Add a layer${at}`, summary: `${component} gets ${article(r.type ?? 'layer')} ${r.type ?? 'layer'}${r.type ? ' layer' : ''}, ${r.name}${r.main ? ` (${r.main})` : ''}${at} ${r.where}.` };
+      }
+      if (r.op === 'removed') return { title: `Remove the ${r.name} layer`, summary: `${component} no longer has the ${r.name} layer ${r.where}.` };
+      return { title: `Move the ${r.name} layer`, summary: `The ${r.name} layer of ${component} moves ${bare(r.at) || 'elsewhere'}${r.from ? ` (it was ${bare(r.from)})` : ''} ${r.where}.` };
     }
     case 'visual':
       return {
@@ -162,6 +239,8 @@ function changePhrase(c: RequestChange): string {
   }
   if ((m = /^Swapped instance(?: \((.*)\))?$/.exec(c.field))) return `Shows ${c.after ?? 'another instance'} instead of ${c.before ?? 'the coded one'} ${m[1] ? `in ${m[1]}` : 'in every variant'}`;
   if ((m = /^Look of (.+)$/.exec(c.field))) return `Looks different in ${m[1]}; no variable explains it`;
+  const layer = parseStructureChange(c);
+  if (layer) return structurePhrase(layer);
   // A token binding: "Fill" or "Fill (Size=sm, Tone=primary)".
   m = /^(.*?)(?: \((.*)\))?$/.exec(c.field)!;
   const where = m[2] ? ` in ${m[2]}` : '';
