@@ -6,7 +6,6 @@ import {
   composeRequestIssue,
   EXPLORATION_LABEL,
   explorationBranch,
-  explorationInstall,
   explorationNote,
   explorationPrBody,
   explorationPrTitle,
@@ -87,13 +86,6 @@ describe('exploration pull request', () => {
     expect(parseExplorationBody('no block')).toBeUndefined();
     // Before the pull request exists the body says where the command will appear.
     expect(explorationPrBody(e, { owner: 'acme', repo: 'ds', packages, apps: {} })).toMatch(/comment below[\s\S]*Preview deploys are not set up/);
-  });
-
-  it('install: name@snapshot by pull request number, and the prerelease tarballs as a fallback', () => {
-    const i = explorationInstall({ owner: 'acme', repo: 'ds', pr: 12, packages, sha: SHA });
-    expect(i.packages[1]).toEqual({ name: '@bridge-ds/react', url: 'https://pkg.pr.new/acme/ds/@bridge-ds/react@12' });
-    expect(i.fallback!.command).toBe('npm i @bridge-ds/tokens@https://github.com/acme/ds/releases/download/preview-pr-12/bridge-ds-tokens-0123456.tgz @bridge-ds/react@https://github.com/acme/ds/releases/download/preview-pr-12/bridge-ds-react-0123456.tgz');
-    expect(explorationInstall({ owner: 'acme', repo: 'ds', pr: 12, packages }).fallback).toBeUndefined();
   });
 
   it('note file names the branch and how it ends', () => {
@@ -280,7 +272,9 @@ describe('explorations on GitHub', () => {
     expect(pr.labels.map((l: any) => l.name)).toEqual(['exploration']);
     expect(pr.body).toContain('"Try this exploration in your product" comment');
     expect(pr.body).not.toContain('pkg.pr.new');
-    expect(s.install.command).toContain('@bridge-ds/tokens@https://pkg.pr.new/acme/ds/@bridge-ds/tokens@1');
+    // Just started: no command until the preview workflow posts it, never a guessed pkg.pr.new URL.
+    expect(s.tryIt).toEqual({ state: 'building' });
+    expect(JSON.stringify(s)).not.toContain('pkg.pr.new');
     expect(s.previews[0]!.url).toBe('https://bridge-docs-git-explore-pill-buttons-acme.vercel.app/');
     // Same name again: refused, nothing created.
     await expect(startExplorationOnGitHub(gh.client(), { name: 'Pill buttons', purpose: 'Again.' }, settings)).rejects.toThrow(/already exists/);

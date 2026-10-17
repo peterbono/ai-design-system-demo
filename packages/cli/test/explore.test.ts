@@ -47,7 +47,9 @@ describe('bridge explore', () => {
     const s = io(gh);
     expect(await runExplore(args('explore', 'start', 'Pill', 'buttons', '--purpose', 'Rounder buttons in checkout.', '--use-case', 'stakeholder-demo'), dir, s.io)).toBe(0);
     expect(s.out()).toContain(`Started explore/pill-buttons: draft pull request #1 https://github.com/${OWNER}/${NAME}/pull/1`);
-    expect(s.out()).toContain(`npm i @bridge-ds/tokens@https://pkg.pr.new/${OWNER}/${NAME}/@bridge-ds/tokens@1`);
+    // No guessed install command: the test build is not published yet.
+    expect(s.out()).toContain('The test build is being prepared');
+    expect(s.out()).not.toContain('pkg.pr.new');
     expect(s.out()).toContain('Docs: https://bridge-docs-git-explore-pill-buttons-peterbonos-projects.vercel.app/');
     expect(gh.pulls[0]!.labels.map((l: any) => l.name)).toEqual(['exploration']);
 
@@ -67,6 +69,8 @@ describe('bridge explore', () => {
     expect(l.out()).toMatch(/^1 exploration running\./);
     expect(l.out()).toMatch(/#1 Pill buttons {2}Running {2}explore\/pill-buttons/);
     expect(l.out()).toContain('Requests: #100');
+    expect(l.out()).toContain('Install: The test build is being prepared');
+    expect(l.out()).not.toContain('pkg.pr.new');
     const lj = io(gh);
     expect(await runExplore(args('explore', 'list', '--json'), dir, lj.io)).toBe(0);
     expect(JSON.parse(lj.out()).running).toBe(1);

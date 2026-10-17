@@ -89,11 +89,23 @@ goes, and the production URL of each app under `production`. This repository's v
 example to link and embed Storybook; `appUrl()` in `@bridge-ds/core` makes that choice.
 
 Placeholders: `{branch}` (Vercel slug: lowercase, every run of other characters becomes `-`), `{rawBranch}`
-(URL-encoded name), `{pr}`, `{sha}`, `{sha7}`. When a branch URL would exceed 63 characters in one DNS label,
-Vercel shortens it with a hash nobody can predict; Bridge then leaves that link out and the Vercel bot comment on
-the PR has the exact URL. Keep project and branch names short: with `-peterbonos-projects` as the scope, a branch slug of up to 22
-characters gets predictable links for all three apps (`bridge-storybook-git-` is the longest prefix; docs allows
-27, admin 26).
+(URL-encoded name), `{pr}`, `{sha}`, `{sha7}`.
+
+The templates are a fallback. When a branch URL would exceed 63 characters in one DNS label, Vercel shortens it with a
+hash nobody can predict (`explore/button-normal-again` gives `bridge-admin-git-explore-button-norm-0ed5ba-peterbonos-projects.vercel.app`),
+so every Bridge surface (the sticky PR comment, Studio, the DS Bridge plugin, the CLI and the MCP server) reads the
+URL Vercel reports instead, with `branchPreviewUrls()` in `@bridge-ds/core`, in this order:
+
+1. GitHub deployments of the head commit (environment `Preview – <project>`, the status's `environment_url`).
+2. Vercel commit statuses (`Vercel – <project>`): their state says whether the deploy of that commit is ready; their
+   link is used only when it is the deployment, not the Vercel inspector.
+3. The Vercel bot comment on the pull request: its hidden `[vc]: #...:<base64 JSON>` header lists each project's
+   `previewUrl`.
+4. The template, only when its first host label fits in 63 characters (Vercel does not shorten those).
+
+A Vercel project maps to an app by its template's host: project `bridge-admin` is the app whose template starts with
+`https://bridge-admin-git-`. When nothing reports a URL yet and the template is too long, Bridge shows "link not
+reported yet" rather than a guess.
 
 Commit this on a branch and open a PR: the comment and the Branches page pick it up.
 

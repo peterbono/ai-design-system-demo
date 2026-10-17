@@ -7,7 +7,8 @@
 #      attached to a `preview-pr-<n>` GitHub prerelease (latest commit only), installable by URL.
 #
 # Then one sticky PR comment, "Try this DS branch in your product", with the install commands and the per-branch
-# preview links configured in bridge.config.json (`previews.apps`). Closing the PR deletes the prerelease.
+# preview links as Vercel reports them (deployments, commit statuses, its PR comment); a `previews.apps` template from
+# bridge.config.json only when Vercel cannot have shortened it. Closing the PR deletes the prerelease.
 # Nothing here publishes to the npm registry.
 #
 # Explorations (docs/EXPLORATIONS.md): `explore/<slug>` branches with a DRAFT pull request labeled `exploration` get the
@@ -26,6 +27,8 @@ concurrency:
 permissions:
   contents: write # fallback prerelease
   pull-requests: write # sticky comment
+  statuses: read # Vercel commit statuses (real preview URLs)
+  deployments: read # GitHub deployments (real preview URLs)
 
 env:
   PACKAGE_DIRS: ./packages/tokens ./packages/core ./packages/react
@@ -125,11 +128,21 @@ jobs:
             }
 
             const exploration = pr.head.ref.startsWith('explore/') || (pr.labels ?? []).some((l) => l.name === 'exploration');
-            const body = core_.previewComment({
-              owner, repo, pr: pr.number, branch: pr.head.ref, sha, packages, source, exploration,
-              apps: config.previews?.apps ?? {},
-            });
             const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number: pr.number, per_page: 100 });
+            // Real preview URLs: Vercel shortens long branch aliases with a hash, so read what it reports (deployments,
+            // commit statuses, its own PR comment). A template is used only when Vercel cannot have shortened it.
+            const apps = config.previews?.apps ?? {};
+            const statuses = await github.rest.repos.listCommitStatusesForRef({ owner, repo, ref: sha, per_page: 100 }).then((r) => r.data).catch(() => []);
+            const deployments = await github.rest.repos.listDeployments({ owner, repo, sha, per_page: 30 })
+              .then((r) => Promise.all(r.data.map(async (d) => {
+                const st = await github.rest.repos.listDeploymentStatuses({ owner, repo, deployment_id: d.id, per_page: 1 }).then((x) => x.data[0]).catch(() => undefined);
+                return { environment: d.environment, state: st?.state ?? null, environmentUrl: st?.environment_url || null };
+              })))
+              .catch(() => []);
+            const previews = core_.resolveBranchPreviews(apps, { branch: pr.head.ref, pr: pr.number, sha }, { comments, statuses, deployments });
+            const body = core_.previewComment({
+              owner, repo, pr: pr.number, branch: pr.head.ref, sha, packages, source, exploration, apps, previews,
+            });
             const mine = comments.find((c) => c.user?.type === 'Bot' && c.body?.startsWith(core_.PREVIEW_COMMENT_MARKER));
             if (mine) await github.rest.issues.updateComment({ owner, repo, comment_id: mine.id, body });
             else await github.rest.issues.createComment({ owner, repo, issue_number: pr.number, body });

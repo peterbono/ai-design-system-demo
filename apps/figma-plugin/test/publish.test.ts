@@ -19,8 +19,8 @@ import {
   variableKey,
 } from '../src/sync/publish';
 import { setExperimental, scanComponents } from '../src/main/components';
-import { explorationTryIt, newExplorationProblems, runningExplorations, shareMessage, startExploration, targetOf, tryItLinks } from '../src/sync/explorations';
-import { previewComment } from '@bridge-ds/core';
+import { explorationTestBuild, explorationTryIt, newExplorationProblems, runningExplorations, shareMessage, startExploration, targetOf, TestBuildPoller, tryItLinks } from '../src/sync/explorations';
+import { type BridgeConfig, type ExplorationTestBuild, previewComment } from '@bridge-ds/core';
 import { takeSnapshot } from '../src/main/snapshot';
 import { DEFAULT_SETTINGS } from '../src/shared/messages';
 import { applyPullPlan } from '../src/main/apply';
@@ -348,6 +348,113 @@ test('try it: the product first, then Library and Workbench; one share message f
   assert.match(building, /being prepared/);
   assert.doesNotMatch(building, /npm i|pkg\.pr\.new/);
   assert.doesNotMatch(ready + building, /\u2014/);
+});
+
+// PR #64's real shape: Vercel shortened the admin and storybook aliases of explore/button-normal-again with a hash.
+const REAL_ADMIN = 'bridge-admin-git-explore-button-norm-0ed5ba-peterbonos-projects.vercel.app';
+const REAL_STORYBOOK = 'bridge-storybook-git-explore-button-8a43de-peterbonos-projects.vercel.app';
+const vercelComment = (admin: string | null, status = 'DEPLOYED') =>
+  `[vc]: #h:${Buffer.from(JSON.stringify({ projects: [{ name: 'bridge-storybook', previewUrl: REAL_STORYBOOK, nextCommitStatus: status }, ...(admin ? [{ name: 'bridge-admin', previewUrl: admin, nextCommitStatus: status }] : [])] })).toString('base64')}\nThe latest updates on your projects.`;
+
+test('try it: the preview URLs Vercel reports, never the template it shortened; settled when everything is ready', async () => {
+  const { gh, client } = await edited();
+  const config = JSON.parse(realConfigText()) as BridgeConfig;
+  const e = await startExploration(client, config, 'main', { name: 'Button normal again', purpose: 'Back to the regular button.' });
+  // Templates: only docs fits in 63 characters. Admin (64) and storybook (68) are never guessed.
+  assert.deepEqual(e.previews.map((p) => p.app), ['docs']);
+  const before = await explorationTestBuild(client, config, e);
+  assert.deepEqual(before.previews.map((p) => [p.app, p.url]), [
+    ['docs', 'https://bridge-docs-git-explore-button-normal-again-peterbonos-projects.vercel.app/'],
+    ['storybook', null],
+    ['admin', null],
+  ]);
+  assert.equal(before.settled, false);
+  assert.deepEqual(tryItLinks(e, before.previews).map((l) => [l.label, l.url]), [
+    ['Admin demo', null],
+    ['Library', 'https://bridge-docs-git-explore-button-normal-again-peterbonos-projects.vercel.app/'],
+    ['Workbench', null],
+  ]);
+  // Vercel comments, builds, then reports success; the workflow posts the command.
+  gh.comments.push({ number: e.number, body: vercelComment(REAL_ADMIN, 'BUILDING') });
+  const head = gh.branches.get(e.branch)!;
+  gh.statuses.set(head, ['admin', 'storybook', 'docs'].map((app) => ({ context: `Vercel – bridge-${app}`, state: 'pending', target_url: `https://vercel.com/peterbonos-projects/bridge-${app}/x`, description: null })));
+  const building = await explorationTestBuild(client, config, e);
+  assert.deepEqual(building.previews.map((p) => [p.url, p.state]), [
+    ['https://bridge-docs-git-explore-button-normal-again-peterbonos-projects.vercel.app/', 'building'],
+    [`https://${REAL_STORYBOOK}/`, 'building'],
+    [`https://${REAL_ADMIN}/`, 'building'],
+  ]);
+  assert.equal(building.settled, false);
+  gh.statuses.set(head, ['admin', 'storybook', 'docs'].map((app) => ({ context: `Vercel – bridge-${app}`, state: 'success', target_url: `https://vercel.com/peterbonos-projects/bridge-${app}/x`, description: null })));
+  stickyComment(gh, e.number, e.branch, head, 'release');
+  const ready = await explorationTestBuild(client, config, e);
+  assert.equal(ready.tryIt.state, 'ready');
+  assert.equal(ready.settled, true);
+  const msg = shareMessage(e, ready.tryIt, ready.previews);
+  assert.match(msg, new RegExp(`Admin demo https://${REAL_ADMIN.replace(/\./g, '\\.')}/`));
+  assert.doesNotMatch(msg, /bridge-admin-git-explore-button-normal-again|pkg\.pr\.new/);
+});
+
+test('try it: polls every 15 seconds while the screen is open, stops when settled, gives up after 10 minutes', async () => {
+  let now = 0;
+  const timers: { fn: () => void; at: number }[] = [];
+  const clock = {
+    now: () => now,
+    setTimer: (fn: () => void, ms: number) => {
+      const t = { fn, at: now + ms };
+      timers.push(t);
+      return t;
+    },
+    clearTimer: (h: unknown) => {
+      const i = timers.indexOf(h as never);
+      if (i >= 0) timers.splice(i, 1);
+    },
+  };
+  const advance = async (ms: number) => {
+    now += ms;
+    for (const t of timers.filter((x) => x.at <= now)) {
+      timers.splice(timers.indexOf(t), 1);
+      t.fn();
+      await new Promise((r) => setImmediate(r));
+    }
+  };
+  const build = (settled: boolean): ExplorationTestBuild => ({ tryIt: settled ? { state: 'ready', command: 'npm i x', source: 'release', sha7: null } : { state: 'building' }, previews: [], settled });
+  let reads = 0;
+  let settleAt = 3;
+  let open = true;
+  const updates: boolean[] = [];
+  let timedOut = 0;
+  const p = new TestBuildPoller({ ...clock, isOpen: () => open, read: async () => build(++reads >= settleAt), onUpdate: (t) => updates.push(t.settled), onTimeout: () => timedOut++ });
+  p.start();
+  await advance(14_999);
+  assert.equal(reads, 0, 'nothing before 15 seconds');
+  await advance(1);
+  assert.equal(reads, 1);
+  // Screen closed: the tick reads nothing.
+  open = false;
+  await advance(15_000);
+  assert.equal(reads, 1);
+  open = true;
+  await advance(15_000);
+  await advance(15_000);
+  assert.equal(reads, 3);
+  assert.deepEqual(updates, [false, false, true]);
+  assert.equal(p.active, false, 'settled: polling stopped');
+  await advance(60_000);
+  assert.equal(reads, 3);
+
+  // Never settles: stops after 10 minutes (40 reads at most), "Check again" starts it over.
+  reads = 0;
+  settleAt = Infinity;
+  p.start();
+  for (let i = 0; i < 45; i++) await advance(15_000);
+  assert.equal(timedOut, 1);
+  assert.equal(p.active, false);
+  assert.ok(reads <= 40, `${reads} reads in 10 minutes`);
+  p.start();
+  assert.equal(await p.check(), false);
+  assert.equal(p.active, true);
+  p.stop();
 });
 
 test('destination: experimental items start checked for an exploration and unchecked for review', () => {

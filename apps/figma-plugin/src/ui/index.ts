@@ -24,8 +24,8 @@ import { type ComponentApplyReport, type ComponentPullPlan, type PlannedComponen
 import { type ComponentReview, onlyComponent, reviewUpdates } from '../sync/component-review';
 import type { ComponentSignature } from '../sync/components';
 import { type Destination, type PublishItem, type PublishResult, applyDestination, componentKey, defaultUnchecked, experimentalTokenIds, groupState, heldTokenIds, isChecked, publish, publishItems, setGroup, variableIdsOf, variableKey } from '../sync/publish';
-import { type ExplorationChoice, explorationTryIt, newExplorationProblems, runningExplorations, shareMessage, startExploration, targetOf, tryItLinks } from '../sync/explorations';
-import type { ExplorationTryIt } from '@bridge-ds/core';
+import { type ExplorationChoice, explorationTestBuild, newExplorationProblems, runningExplorations, shareMessage, startExploration, targetOf, TestBuildPoller, tryItLinks } from '../sync/explorations';
+import type { BranchPreview, ExplorationTryIt } from '@bridge-ds/core';
 import { type Selection, onProgress, onSelection, request } from './bridge';
 import { type Child, h } from './dom';
 import { icon } from './icons';
@@ -109,8 +109,14 @@ interface PushState {
   sentTo?: ExplorationChoice | undefined;
   /** Its test build: the install command from the pull request's preview comment, or still building. */
   tryIt?: ExplorationTryIt | undefined;
+  /** Its previews as Vercel reports them (real URLs, build state), read with the command. */
+  previews?: BranchPreview[] | undefined;
   tryItError?: string | undefined;
   checkingTryIt?: boolean | undefined;
+  /** Reads the test build every 15 seconds for up to 10 minutes while the result screen is open. */
+  tryItPoller?: TestBuildPoller | undefined;
+  /** The poller stopped after 10 minutes with something still building: "Check again" starts it over. */
+  tryItTimedOut?: boolean | undefined;
   /** "Share with a developer" copied the message (the button says so). */
   shared?: boolean | undefined;
   /**
@@ -640,6 +646,7 @@ function applyPull(): void {
 function scanPush(keep?: PushState, then?: () => void): void {
   // A fresh scan starts over: the previous Push description and request form stop waiting for Claude.
   if (!keep && state.push) {
+    state.push.tryItPoller?.stop();
     cancelMine(state.push.assist, false);
     if (state.push.form) cancelMine(state.push.form.assist, false);
   }
@@ -790,8 +797,9 @@ function submitPush(): void {
       r.result = result;
       r.sentTo = exploration;
       r.tryIt = undefined;
+      r.previews = undefined;
       r.shared = false;
-      if (exploration) void checkTryIt(r);
+      if (exploration) startTryItPolling(r);
       cancelMine(r.assist, false);
       // What was sent exists now; local bookkeeping failures must not hide that.
       try {
@@ -2192,30 +2200,99 @@ function refreshBar(): void {
   if (bar && next) bar.replaceWith(next);
 }
 
+/** True while the exploration result screen of this push is on screen. */
+const tryItOpen = (r: PushState) => state.tab === 'push' && state.push === r && !!r.result && !!r.sentTo;
+
 /**
- * Reads the exploration's test build from its pull request (the preview comment the workflow posts): the command that
- * works, or "being prepared" until the comment matches the latest commit. Never a guessed command.
+ * Starts reading the exploration's test build: the command from the preview comment the workflow posts (never a
+ * guessed one) and the preview URLs Vercel reports. One read now, then every 15 seconds for up to 10 minutes while
+ * the result screen is open, until everything is ready. Each read updates the screen in place.
  */
-async function checkTryIt(r: PushState): Promise<void> {
+function startTryItPolling(r: PushState): void {
   const e = r.sentTo;
-  if (!e || r.checkingTryIt) return;
+  if (!e) return;
+  r.tryItPoller?.stop();
+  r.tryItTimedOut = false;
+  const poller = new TestBuildPoller({
+    read: () => explorationTestBuild(getClient(), r.analysis.headFiles.config, e),
+    isOpen: () => tryItOpen(r),
+    onUpdate: (t) => {
+      if (state.push !== r) return poller.stop();
+      r.tryIt = t.tryIt;
+      r.previews = t.previews;
+      r.tryItError = undefined;
+      refreshTryIt(r);
+    },
+    onError: (message) => {
+      if (state.push !== r) return poller.stop();
+      r.tryItError = message;
+      refreshTryIt(r);
+    },
+    onTimeout: () => {
+      r.tryItTimedOut = true;
+      refreshTryIt(r);
+    },
+  });
+  r.tryItPoller = poller;
+  poller.start();
+  void checkTryIt(r);
+}
+
+/** "Check again": one read now, and polling starts over (another 10 minutes) when something is still building. */
+async function checkTryIt(r: PushState): Promise<void> {
+  const poller = r.tryItPoller;
+  if (!r.sentTo || !poller || r.checkingTryIt) return;
   r.checkingTryIt = true;
-  r.tryItError = undefined;
-  render();
-  try {
-    r.tryIt = await explorationTryIt(getClient(), e);
-  } catch (err) {
-    r.tryItError = err instanceof Error ? err.message : String(err);
-  } finally {
-    r.checkingTryIt = false;
-    render();
-  }
+  r.tryItTimedOut = false;
+  if (!poller.active) poller.start();
+  refreshTryIt(r);
+  const settled = await poller.check();
+  r.checkingTryIt = false;
+  if (settled) poller.stop();
+  refreshTryIt(r);
+}
+
+/**
+ * Updates the result screen in place: only the regions whose content changed (`data-region`, `data-sig`) are
+ * replaced, so nothing flickers, an open "Show the command" stays open and keyboard focus stays where it was.
+ */
+function refreshTryIt(r: PushState): void {
+  if (!tryItOpen(r)) return;
+  const main = document.querySelector('main');
+  const view = viewPush();
+  const next = h('div', null, view.body);
+  const fresh = [...next.querySelectorAll<HTMLElement>('[data-region]')];
+  const old = main ? [...main.querySelectorAll<HTMLElement>('[data-region]')] : [];
+  // A region appeared or went away: the layout changed, render once.
+  if (!main || fresh.length !== old.length || fresh.some((el, i) => el.dataset.region !== old[i]!.dataset.region)) return render();
+  const active = document.activeElement as HTMLElement | null;
+  const focusId = active?.matches?.(':focus-visible') ? active.dataset?.focusId : undefined;
+  fresh.forEach((el, i) => {
+    const cur = old[i]!;
+    if (cur.dataset.sig === el.dataset.sig) return;
+    const wasOpen = cur.querySelector('details')?.open ?? (cur instanceof HTMLDetailsElement && cur.open);
+    cur.replaceWith(el);
+    const details = el instanceof HTMLDetailsElement ? el : el.querySelector('details');
+    if (wasOpen && details) details.open = true;
+  });
+  const bar = document.querySelector('.bar');
+  const nextBar = actionBar(view.bar) as HTMLElement | null;
+  if (bar && nextBar && bar.outerHTML !== nextBar.outerHTML) bar.replaceWith(nextBar);
+  if (focusId && document.activeElement !== document.querySelector(`[data-focus-id="${focusId}"]`)) (document.querySelector(`[data-focus-id="${focusId}"]`) as HTMLElement | null)?.focus();
+}
+
+/** The hint under a preview: what it shows, or where its build stands. */
+function linkHint(l: { hint: string; url: string | null; state: string }): string {
+  if (!l.url) return 'Link not ready yet';
+  if (l.state === 'building') return 'Rebuilding with your edits';
+  if (l.state === 'failed') return 'This deploy failed, the pull request says why';
+  return l.hint;
 }
 
 /**
  * Result of a push to an exploration, for designers: what was sent (the zone), where to try it (previews, the product
- * first), and one way to hand it to a developer (a ready message with the command that works). The command itself
- * stays collapsed.
+ * first, with the URLs Vercel reports), and one way to hand it to a developer (a ready message with the command that
+ * works). The command itself stays collapsed.
  */
 function explorationResult(r: PushState, e: ExplorationChoice, res: PublishResult): Child[] {
   const vars = res.pr && !res.exploration?.unchanged ? plural(r.proposal.changes.length || 1, 'variable edit') : '';
@@ -2224,22 +2301,33 @@ function explorationResult(r: PushState, e: ExplorationChoice, res: PublishResul
     res.requests.length ? `${plural(res.requests.length, 'request')} for ${res.requests.map((x) => x.component).join(', ')}, to build there.` : '',
     'It never reaches the product as is.',
   ].filter(Boolean);
-  const links = tryItLinks(e);
+  const links = tryItLinks(e, r.previews);
   const t = r.tryIt;
-  const status = r.checkingTryIt && !t
-    ? h('p', { class: 'row-hint' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), h('span', null, 'Checking the test build'))
+  const polling = !!r.tryItPoller?.active;
+  const statusText = r.checkingTryIt && !t
+    ? null
     : r.tryItError
-      ? statusLine(`Could not check the test build: ${r.tryItError}`, r)
+      ? `Could not check the test build: ${r.tryItError}`
       : !t || t.state === 'building'
-        ? statusLine('The test build is being prepared, a few minutes.', r)
+        ? r.tryItTimedOut
+          ? 'Still being prepared after 10 minutes.'
+          : polling
+            ? 'The test build is being prepared, a few minutes. Checking every 15 seconds.'
+            : 'The test build is being prepared, a few minutes.'
         : t.state === 'failed'
-          ? statusLine('The test build did not finish. The pull request on GitHub says why.', r)
-          : h('p', { class: 'lede' }, 'A developer installs it in a staging branch of your product. The message has the command, the previews and the link.');
+          ? 'The test build did not finish. The pull request on GitHub says why.'
+          : null;
+  const status = statusText === null && r.checkingTryIt && !t
+    ? h('p', { class: 'row-hint', 'data-region': 'tryit-status', 'data-sig': 'checking' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), h('span', null, 'Checking the test build'))
+    : statusText !== null
+      ? statusLine(statusText, r)
+      : h('p', { class: 'lede', 'data-region': 'tryit-status', 'data-sig': 'ready' }, 'A developer installs it in a staging branch of your product. The message has the command, the previews and the link.');
+  const linksSig = JSON.stringify(links.map((l) => [l.app, l.url, l.state]));
   return [
     intro({ title: `Sent to ${e.name}`, text: text.join(' '), meta: h('span', { class: 'url mono' }, e.branch), art: 'review' }),
     h(
       'section',
-      { class: 'try' },
+      { class: 'try', 'data-region': 'tryit-links', 'data-sig': linksSig },
       h('h2', null, 'Try it'),
       h('p', { class: 'lede' }, 'Previews rebuild from the exploration in a few minutes.'),
       links.length
@@ -2253,8 +2341,10 @@ function explorationResult(r: PushState, e: ExplorationChoice, res: PublishResul
                 h(
                   'div',
                   { class: 'row-head' },
-                  h('span', { class: 'row-label' }, h('span', null, l.label), l.hint ? h('small', null, l.hint) : null),
-                  h('button', { class: 'btn ghost row-action', 'aria-label': `Open ${l.label} preview`, onClick: () => void request('open-url', { url: l.url }) }, icon('external'), 'Open'),
+                  h('span', { class: 'row-label' }, h('span', null, l.label), h('small', null, linkHint(l))),
+                  l.url
+                    ? h('button', { class: 'btn ghost row-action', 'data-focus-id': `tryit-open-${l.app}`, 'aria-label': `Open ${l.label} preview`, title: l.url, onClick: () => void request('open-url', { url: l.url! }) }, icon('external'), 'Open')
+                    : h('span', { class: 'spinner row-wait', role: 'img', 'aria-label': `Waiting for the ${l.label} link` }),
                 ),
               ),
             ),
@@ -2268,13 +2358,16 @@ function explorationResult(r: PushState, e: ExplorationChoice, res: PublishResul
       status,
       h(
         'button',
-        { class: 'btn share-action', 'data-focus-id': 'share-dev', onClick: () => void copyText(shareMessage(e, t)).then((ok) => { r.shared = ok; render(); }) },
+        { class: 'btn share-action', 'data-focus-id': 'share-dev', onClick: () => void copyText(shareMessage(e, r.tryIt, r.previews)).then((ok) => { r.shared = ok; render(); }) },
         icon(r.shared ? 'check' : 'copy'),
         r.shared ? 'Message copied' : 'Share with a developer',
       ),
-      t?.state === 'ready'
-        ? h('details', { class: 'notes command' }, h('summary', null, 'Show the command'), h('pre', { class: 'mono-area', tabindex: '0', 'aria-label': 'Install command' }, t.command))
-        : null,
+      // Always a region (empty until the command is ready), so the update that brings the command stays in place.
+      h(
+        'div',
+        { class: 'command-slot', 'data-region': 'tryit-command', 'data-sig': t?.state === 'ready' ? t.command : '' },
+        t?.state === 'ready' ? h('details', { class: 'notes command' }, h('summary', null, 'Show the command'), h('pre', { class: 'mono-area', tabindex: '0', 'aria-label': 'Install command' }, t.command)) : null,
+      ),
     ),
   ];
 }
@@ -2283,7 +2376,7 @@ function explorationResult(r: PushState, e: ExplorationChoice, res: PublishResul
 function statusLine(text: string, r: PushState): HTMLElement {
   return h(
     'p',
-    { class: 'row-hint', role: 'status' },
+    { class: 'row-hint', role: 'status', 'data-region': 'tryit-status', 'data-sig': `${text}|${r.checkingTryIt ? 1 : 0}` },
     h('span', null, text),
     h('button', { class: 'btn ghost', 'data-focus-id': 'tryit-check', disabled: !!r.checkingTryIt, onClick: () => void checkTryIt(r) }, icon('refresh'), r.checkingTryIt ? 'Checking' : 'Check again'),
   );
@@ -2322,7 +2415,7 @@ function viewPush(): View {
     if (r.sentTo) {
       const e = r.sentTo;
       // One primary: the product with the edits when its preview exists, else the pull request.
-      const product = tryItLinks(e).find((l) => l.app === 'admin');
+      const product = tryItLinks(e, r.previews).find((l) => l.app === 'admin' && l.url);
       const github = { label: 'Open on GitHub', onClick: () => void request('open-url', { url: e.url }) };
       return {
         body: [
@@ -2334,7 +2427,7 @@ function viewPush(): View {
         bar: r.form
           ? undefined
           : product
-            ? { label: 'Open in the product', onClick: () => void request('open-url', { url: product.url }), secondary: github }
+            ? { label: 'Open in the product', onClick: () => void request('open-url', { url: product.url! }), secondary: github }
             : { ...github, secondary: { label: 'Scan again', onClick: () => scanPush() } },
       };
     }

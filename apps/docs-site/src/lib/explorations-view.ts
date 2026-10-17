@@ -17,6 +17,9 @@ import {
   findPreviewComment,
   isActiveExploration,
   isExplorationPull,
+  resolveBranchPreviews,
+  type BranchPreview,
+  type BranchPreviewSources,
   type ExplorationStatus,
   type ExplorationTryIt,
   type PreviewApps,
@@ -212,4 +215,18 @@ export function tryItCopy(t: ExplorationTryIt): { sentence: string; command: str
   }
   if (t.state === 'failed') return { sentence: 'The test build did not finish for the latest commit. The Preview packages run on the pull request says why.', command: null };
   return { sentence: 'The test build is being prepared, a few minutes. The command appears here and on the pull request when it is ready.', command: null };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Previews: the URLs Vercel reports (its pull request comment, the commit statuses), never a template it shortened.
+
+/** Every configured app of an exploration with its real URL (null while Vercel has not reported it) and build state. */
+export const explorationPreviews = (r: Pick<ExplorationRow, 'branch' | 'number' | 'headSha'>, apps: PreviewApps, sources: BranchPreviewSources = {}): BranchPreview[] =>
+  resolveBranchPreviews(apps, { branch: r.branch, pr: r.number, sha: r.headSha }, sources);
+
+/** One preview row as the detail shows it: the link, or what is missing. */
+export function previewRowCopy(p: BranchPreview): { label: string; url: string | null; host: string | null; note: string | null } {
+  const host = p.url ? new URL(p.url).host : null;
+  const note = !p.url ? 'Link not reported by Vercel yet' : p.state === 'building' ? 'Building the latest commit' : p.state === 'failed' ? 'The latest deploy failed' : null;
+  return { label: p.label, url: p.url, host, note };
 }

@@ -19,6 +19,7 @@ import {
   explorationProblems,
   explorationRules,
   explorationSlug,
+  explorationTestBuildOnGitHub,
   findExplorationOnGitHub,
   isExplorationBranch,
   listExplorationsOnGitHub,
@@ -28,6 +29,7 @@ import {
   startExplorationOnGitHub,
   type BridgeConfig,
   type Exploration,
+  type ExplorationTryIt,
   type ExplorationUseCase,
   type GitHubClient,
 } from '@bridge-ds/core';
@@ -98,7 +100,16 @@ export async function startExploration(ctx: BridgeContext, a: StartExplorationIn
   const work = `Work on it: \`git fetch origin && git switch ${branch}\`. Token edits: bridge_propose_token_change with "branch": "${branch}". Requests: bridge_create_request with "exploration": "${branch}", then bridge_get_request with "branch": "${branch}". It is never merged as is: promote it (\`bridge explore promote ${slug}\`) or close it.`;
   if (gh && ctx.canWriteRemote) {
     const r = await startExplorationOnGitHub(gh, e, s);
-    return { status: 'started' as const, ...preview, pr: r.pr, url: r.url, commit: r.commit, install: r.install, previews: r.previews, next: work };
+    return {
+      status: 'started' as const,
+      ...preview,
+      pr: r.pr,
+      url: r.url,
+      commit: r.commit,
+      install: installOf(r.tryIt),
+      previews: r.previews,
+      next: `${work} The install command and the preview links appear on the pull request a few minutes after each push: \`bridge explore list\` reads them.`,
+    };
   }
   if (ctx.mode === 'local' && ctx.isGit) {
     if (await branchExists(ctx.root!, branch)) throw new Error(`Branch ${branch} already exists here. Pick another name, or continue it with \`git switch ${branch}\`.`);
@@ -122,6 +133,16 @@ export async function startExploration(ctx: BridgeContext, a: StartExplorationIn
   throw new Error('Starting an exploration needs GITHUB_TOKEN (contents and pull requests: write), or a local git repo. Without them Bridge is read-only. Use dryRun to preview it.');
 }
 
+/**
+ * The install command of an exploration as tools show it: the one the preview workflow published (its sticky comment
+ * on the pull request), or why there is none yet. Never a guessed pkg.pr.new URL.
+ */
+export function installOf(t: ExplorationTryIt): { state: ExplorationTryIt['state']; command: string | null; note: string } {
+  if (t.state === 'ready') return { state: 'ready', command: t.command, note: `Snapshot of ${t.sha7 ?? 'the latest commit'}, ${t.source === 'release' ? 'tarballs from the preview prerelease' : t.source === 'pkg.pr.new' ? 'pkg.pr.new' : 'from the preview comment'}. Install it in a product branch that deploys to staging.` };
+  if (t.state === 'failed') return { state: 'failed', command: null, note: 'The test build did not finish for the latest commit. The Preview packages run on the pull request says why.' };
+  return { state: 'building', command: null, note: 'The test build is being prepared, a few minutes after each push. The command then appears in the "Try this exploration in your product" comment.' };
+}
+
 /** Open request issues (label exploration) by exploration branch. A failed listing links nothing. */
 async function requestsByExploration(gh: GitHubClient): Promise<Map<string, { number: number; title: string; url: string; state: string }[]>> {
   const out = new Map<string, { number: number; title: string; url: string; state: string }[]>();
@@ -142,7 +163,16 @@ export async function listExplorations(ctx: BridgeContext, a: { state?: 'open' |
   const { config } = await ctx.config();
   const gh = await requireGitHub(ctx);
   const [list, linked] = await Promise.all([listExplorationsOnGitHub(gh, settingsOf(config), { state: a.state ?? 'open' }), requestsByExploration(gh)]);
-  const explorations = list.map((x) => ({ ...x, requests: linked.get(x.branch) ?? [] }));
+  // Running ones: the real preview URLs (Vercel shortens long branch aliases) and the published install command.
+  const explorations = await Promise.all(
+    list.map(async (x) => {
+      const requests = linked.get(x.branch) ?? [];
+      if (x.status !== 'active') return { ...x, install: null, requests };
+      const t = await explorationTestBuildOnGitHub(gh, { number: x.number, branch: x.branch }, config).catch(() => null);
+      if (!t) return { ...x, install: installOf({ state: 'building' }), requests };
+      return { ...x, previews: t.previews.map((p) => ({ app: p.app, label: p.label, url: p.url, state: p.state })), install: installOf(t.tryIt), requests };
+    }),
+  );
   let localBranches: string[] = [];
   if (ctx.mode === 'local' && ctx.isGit) {
     const refs = (await git(ctx.root!, ['for-each-ref', '--format=%(refname:short)', `refs/heads/${EXPLORATION_PREFIX}`]).catch(() => '')).split('\n').filter(Boolean);

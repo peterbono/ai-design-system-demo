@@ -54,7 +54,8 @@ Every push to the exploration publishes the design system packages (see [PREVIEW
 setup). The sticky comment "Try this exploration in your product" (`<!-- bridge-branch-preview -->`) gives the command
 that works for the latest commit: pkg.pr.new when its app is installed, otherwise the prerelease tarballs. The DS Bridge
 plugin and Studio read the command from that comment (`installCommandFromPreviewComment` in `@bridge-ds/core`) and never
-guess one: until the comment matches the latest commit they say the test build is being prepared. In the product repo,
+guess one: until the comment matches the latest commit they say the test build is being prepared. `bridge explore list`
+and `bridge_list_explorations` read it the same way (`install.state` is `building` until then). In the product repo,
 on a branch that deploys to staging:
 
 ```sh
@@ -94,7 +95,9 @@ exploration (or start a new one with a name and a purpose), and the checked vari
 `explore/<name>` (no pull request to main) while component changes become requests labeled `exploration`. Items marked
 "Exploration only" start checked there. After sending, the result screen opens the previews (the product first), says whether the
 test build is ready, and "Share with a developer" copies a message with the working install command, the previews and
-the pull request.
+the pull request. The preview links are the ones Vercel reports (long branch names get a shortened alias, see
+[PREVIEWS.md](PREVIEWS.md)); while the screen is open the plugin checks every 15 seconds for up to 10 minutes and
+updates the links and the command in place, with "Check again" after that.
 
 On GitHub (`--repo` mode with a token), token edits are one commit on the exploration branch. Locally, the branch
 must be checked out: Bridge writes the files to that working tree and you commit and push them. A request brief for

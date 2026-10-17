@@ -375,12 +375,14 @@ export async function openPr(n: number, push = true) {
     const pf = await ghGet<Pull>(`${R}/pulls/${n}`);
     if (pf.stale) showNotice('warn', `GitHub cannot be read right now, so this shows pull request #${n} ${asOf(pf.cachedAt ?? '')}. Connect GitHub for live status.`);
     const pull = pf.data;
-    const [files, reviews, comments, ci, access] = await Promise.all([
+    const [files, reviews, comments, ci, access, statuses] = await Promise.all([
       ghGet<PrFile[]>(`${R}/pulls/${n}/files?per_page=100`).then((f) => f.data),
       ghGet<Review[]>(`${R}/pulls/${n}/reviews?per_page=100`).then((f) => f.data).catch(() => [] as Review[]),
       ghGet<Comment[]>(`${R}/issues/${n}/comments?per_page=100`).then((f) => f.data).catch(() => [] as Comment[]),
       ciFor(pull.head.sha).catch(() => summarizeCi([])),
       readAccess(),
+      // Same request as ciFor's commit status (shared in flight): the Vercel statuses say which previews are built.
+      ghGet<{ statuses: { context: string; state: string; target_url?: string | null }[] }>(`${R}/commits/${pull.head.sha}/status`).then((f) => f.data.statuses).catch(() => []),
     ]);
     // A newer openPr (other PR, or the viewer changed) owns the page now.
     if (seq !== openSeq) return;
@@ -397,7 +399,7 @@ export async function openPr(n: number, push = true) {
     const visual = touchesVisuals(files.map((f) => f.filename));
 
     const docsPaths = files.filter((f) => isDocsFile(f.filename) && f.status !== 'removed').map((f) => f.filename);
-    d.innerHTML = renderDetail({ pull, tier, files, reviews, comments, ci, approvals, gate, tokenCount: tokenFiles.length, changesetCount: changesets.length, visual, access, docsPaths });
+    d.innerHTML = renderDetail({ pull, tier, files, reviews, comments, ci, approvals, gate, tokenCount: tokenFiles.length, changesetCount: changesets.length, visual, access, docsPaths, statuses });
     wireActions(pull, gate, access);
 
     if (docsPaths.length) {
@@ -477,6 +479,8 @@ interface DetailInput {
   access: Access | null;
   /** docs.json files the pull request adds or changes. */
   docsPaths: string[];
+  /** Commit statuses of the head (Vercel reports each preview there). */
+  statuses?: { context: string; state: string; target_url?: string | null }[];
 }
 
 function renderDetail(x: DetailInput) {
@@ -530,14 +534,22 @@ function renderDetail(x: DetailInput) {
         .join('')}<li class="is-pass"><span class="rv-check" aria-hidden="true"></span>${plural(ci.passed, 'check')} passing</li></ul>`
     : '<p class="cg-muted">No checks reported for the head commit yet.</p>';
 
-  const entry = pullEntry(pull as never, BRANCHES);
-  const previewLinks = entry.previews.map((p) => `<a class="btn btn-secondary btn-sm" href="${esc(p.url)}">${esc(p.label)}</a>`).join('');
-  const install = entry.install
-    ? `<div class="cg-install"><button type="button" class="btn btn-secondary btn-sm" data-copy-from="cg-install-cmd" data-copy><span data-copy-label>Copy install command</span></button>
+  // Real URLs (the Vercel comment and statuses, never a template Vercel shortened) and the install command the
+  // Preview packages workflow published for the head commit, never a guessed one.
+  const entry = pullEntry(pull as never, BRANCHES, { comments, statuses: x.statuses });
+  const previewLinks = entry.previews.map((p) => `<a class="btn btn-secondary btn-sm" href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.label)}</a>`).join('');
+  const pending = entry.pendingPreviews.length ? `<p class="cg-muted">${esc(entry.pendingPreviews.join(' and '))}: link not reported by Vercel yet. Its comment on <a href="${esc(pull.html_url)}" target="_blank" rel="noopener">the pull request</a> has it once the deploy starts.</p>` : '';
+  const install =
+    entry.installState === 'ready' && entry.install
+      ? `<div class="cg-install"><button type="button" class="btn btn-secondary btn-sm" data-copy-from="cg-install-cmd" data-copy><span data-copy-label>Copy install command</span></button>
         <details class="cg-more"><summary>Show the command</summary><code class="cg-cmd" id="cg-install-cmd">${esc(entry.install)}</code></details></div>`
-    : '';
-  const previewBody = previewLinks || install ? `${previewLinks ? `<p class="cg-links">${previewLinks}</p>` : ''}${install}<p class="cg-muted">Snapshots exist once the Preview packages workflow ran on this commit.</p>` : `<p class="cg-muted">${entry.fromFork ? 'Pull request from a fork: no preview deploys or snapshots.' : 'No preview deploys configured for this repository.'}</p>`;
-  const previewMeta = entry.previews.length ? entry.previews.map((p) => p.label).join(', ') : entry.install ? 'install only' : 'none';
+      : entry.installState === 'failed'
+        ? '<p class="cg-muted">The test build did not finish for the latest commit. The Preview packages run on the pull request says why.</p>'
+        : entry.installState === 'building'
+          ? '<p class="cg-muted">The test build of the latest commit is being prepared. The install command appears here when the Preview packages workflow posts it.</p>'
+          : '';
+  const previewBody = previewLinks || pending || install ? `${previewLinks ? `<p class="cg-links">${previewLinks}</p>` : ''}${pending}${install}` : `<p class="cg-muted">${entry.fromFork ? 'Pull request from a fork: no preview deploys or snapshots.' : 'No preview deploys configured for this repository.'}</p>`;
+  const previewMeta = entry.previews.length ? entry.previews.map((p) => p.label).join(', ') : entry.install ? 'install only' : entry.pendingPreviews.length ? 'waiting for Vercel' : 'none';
 
   const convBody = conversation.length
     ? `<ol class="rv-conv">${conversation
