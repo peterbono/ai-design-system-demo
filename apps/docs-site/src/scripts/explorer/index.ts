@@ -359,7 +359,8 @@ export function initTokenExplorer() {
     // Brand and density selectors and the combinations switch are rendered by TokenExplorer.astro; show the ones
     // this selection's columns need and sync their state.
     const plan = view.plan;
-    const showBrand = plan.selectors.includes('brand') && !s.view.allCombos;
+    // Studio always shows the brand switch in Options (with New brand under it); the Library only when a column needs it.
+    const showBrand = (plan.selectors.includes('brand') || app) && !s.view.allCombos;
     const showDensity = plan.selectors.includes('density');
     if (brandField) brandField.hidden = !showBrand;
     if (densityField) densityField.hidden = !showDensity;

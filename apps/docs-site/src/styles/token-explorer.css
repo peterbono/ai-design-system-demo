@@ -1846,6 +1846,17 @@
   gap: var(--space-3);
 }
 
+/* Studio Options: "New brand" under the brand switch, after a hairline divider. */
+.xp-opt-newbrand {
+  display: flex;
+  padding-block-start: var(--space-2);
+  border-block-start: var(--border-width-default) solid var(--color-border-subtle);
+}
+
+.xp-opt-newbrand > * {
+  margin-inline-start: calc(var(--control-padding-x-sm) * -1);
+}
+
 .xp-menu-field {
   display: grid;
   gap: var(--space-1-5);

@@ -11,7 +11,7 @@ import { Alert, Badge, SegmentedControl, PageHeader } from '@bridge-ds/react';
 import { BookOpen, Check, Columns2, FileCode, Moon, Pencil, Sun, X } from 'lucide-react';
 import { loadComponents, playgroundSpec, type ComponentInfo } from '../../lib/components';
 import { lastUpdated, sourceUrl, STORYBOOK_URL } from '../../lib/repo';
-import { MODES } from '../../lib/tokens';
+import { BRANDS, BRAND_LABEL, MODES } from '../../lib/tokens';
 import { releases } from '../../lib/changelog';
 import { mdTitleHtml } from '../../lib/markdown';
 import { humanDate } from '../../lib/stats';
@@ -307,7 +307,7 @@ import PreviewScope from '../../components/PreviewScope.astro';
               <p class="muted">
                 Change the props and see the real {c.name} update. Controls are generated from the TypeScript props; nothing here changes the system.
               </p>
-              <PropsPlayground client:visible spec={spec} />
+              <PropsPlayground client:visible spec={spec} brands={BRANDS.map((b) => ({ value: b, label: BRAND_LABEL[b] ?? b }))} />
             </>
           ) : (
             <>

@@ -142,6 +142,15 @@ surfaces. Its zones use the palest sea step (`primary.50`), since `sea.200` is t
 links. Ocean sets every type role in IBM Plex Sans and keeps tighter radii (4 / 10 / 16 / 20): bridge is now
 the rounder brand. Components do not change.
 
+### Adding a brand
+
+Studio (Tokens, Options, New brand), `bridge brand create`, the MCP tool `bridge_propose_brand` and a new mode in
+the Figma Brand collection all run one planner (`planNewBrand` in `@bridge-ds/core`). It copies a starting brand,
+generates the primary and neutral ramps with the same engine as `scripts/ramps.mjs`, pins a hex primary at the
+step primary buttons use (700 from Bridge, 600 from Ocean), keeps the neutral's text and line steps at the ink
+anchors' lightness, and runs every contrast pair for the new brand in light and dark. A new brand is Tier 3 and
+lands only through a reviewed pull request; the token build and the Library pick it up from `bridge.config.json`.
+
 ## 5. Typography
 
 Three families, each with one job:

@@ -59,6 +59,8 @@ function initTheme() {
 type Scope = { brand: string; density: string };
 const SCOPE_DEFAULT: Scope = { brand: 'bridge', density: 'comfortable' };
 const LABELS: Record<string, string> = { bridge: 'Bridge', ocean: 'Ocean', comfortable: 'Comfortable', compact: 'Compact' };
+/** A label for any brand or density, including brands added after this script was written. */
+const labelOf = (v: string) => LABELS[v] ?? v.split('-').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
 export function currentScope(): Scope {
   const root = document.documentElement;
@@ -83,7 +85,7 @@ function applyScope(scope: Scope, within: ParentNode = document) {
   document.querySelectorAll<HTMLElement>('[data-set-density]').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.setDensity === scope.density)));
   document.querySelectorAll<HTMLElement>('[data-scope-label]').forEach((l) => {
     const key = l.dataset.scopeLabel as keyof Scope;
-    l.textContent = LABELS[scope[key]] ?? scope[key];
+    l.textContent = labelOf(scope[key]);
   });
 }
 
@@ -98,7 +100,7 @@ function initScope() {
       /* private mode: applies to this page only */
     }
     applyScope(next);
-    announce(`Previews: ${LABELS[next.brand]}, ${LABELS[next.density]}`);
+    announce(`Previews: ${labelOf(next.brand)}, ${labelOf(next.density)}`);
     document.dispatchEvent(new CustomEvent('bridge:scope', { detail: next }));
   };
   // React islands (scope menu, props playground) ask for a change with an event; see components/ds/scope.ts.

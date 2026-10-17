@@ -1,17 +1,37 @@
 // Reads the DTCG token sources directly (not the generated CSS) so every page can show the full alias chain:
 // component -> semantic -> brand palette role -> primitive -> resolved value, per brand x theme (and density).
 // Resolution order mirrors packages/tokens/build.mjs.
-import { exists, listDir, readJson } from './repo';
+import { loadConfig } from '@bridge-ds/core';
+import { exists, listDir, readJson, readText } from './repo';
 
 export type Mode = 'light' | 'dark';
 export const MODES: Mode[] = ['light', 'dark'];
-export type Brand = 'bridge' | 'ocean';
-export const BRANDS: Brand[] = ['bridge', 'ocean'];
-export const DEFAULT_BRAND: Brand = 'bridge';
+// Brands come from bridge.config.json (modes.brand): a brand merged from the Studio, the CLI, the MCP server or the
+// Figma plugin shows up in every page, menu and contrast table of the next build, with no template to edit.
+const brandAxis = (() => {
+  try {
+    return loadConfig(readText('bridge.config.json')).axes.brand;
+  } catch {
+    return undefined;
+  }
+})();
+export type Brand = string;
+export const BRANDS: Brand[] = brandAxis?.values.length ? brandAxis.values : ['bridge', 'ocean'];
+export const DEFAULT_BRAND: Brand = brandAxis?.default ?? BRANDS[0]!;
 export type Density = 'comfortable' | 'compact';
 export const DENSITIES: Density[] = ['comfortable', 'compact'];
 export const DEFAULT_DENSITY: Density = 'comfortable';
-export const BRAND_LABEL: Record<Brand, string> = { bridge: 'Bridge', ocean: 'Ocean' };
+/** Display name: the name a brand file records ($extensions dev.bridge.brand.name), else the slug in title case. */
+const brandName = (b: Brand): string => {
+  try {
+    const name = (readJson<{ $extensions?: Record<string, { name?: unknown }> }>(`packages/tokens/src/brands/${b}.tokens.json`).$extensions?.['dev.bridge.brand']?.name);
+    if (typeof name === 'string' && name) return name;
+  } catch {
+    /* no brand file yet: fall back to the slug */
+  }
+  return b.split('-').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+};
+export const BRAND_LABEL: Record<Brand, string> = Object.fromEntries(BRANDS.map((b) => [b, brandName(b)]));
 export const DENSITY_LABEL: Record<Density, string> = { comfortable: 'Comfortable', compact: 'Compact' };
 
 /** Token tiers, in resolution order: primitive <- brand <- semantic <- component. Density sits beside semantic. */

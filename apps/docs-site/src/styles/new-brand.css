@@ -1,0 +1,513 @@
+/* Studio, New brand (components/ds/studio/NewBrandFlow.tsx). Four sizes on every step: the page title (h2 role),
+   the step title (h3 role), ui and caption. Tokens only. */
+
+.nb {
+  max-inline-size: var(--layout-content-max-width);
+  margin-block-start: var(--space-6);
+}
+
+/* Step indicator: a quiet ordered list, not navigation. */
+.nb-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-8);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+  color: var(--color-text-muted);
+}
+
+.nb-steps li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.nb-step-n {
+  display: inline-grid;
+  place-items: center;
+  inline-size: var(--size-6);
+  block-size: var(--size-6);
+  border: var(--border-width-default) solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  font-size: var(--typography-caption-size);
+  line-height: var(--typography-caption-line-height);
+}
+
+.nb-steps li[data-done] .nb-step-n {
+  border-color: var(--color-action-primary-bg);
+  color: var(--color-text-signal);
+}
+
+.nb-steps li[aria-current='step'] {
+  color: var(--color-text-default);
+  font-weight: var(--font-weight-semibold);
+}
+
+.nb-steps li[aria-current='step'] .nb-step-n {
+  border-color: var(--color-action-primary-bg);
+  background: var(--color-action-primary-bg);
+  color: var(--color-action-primary-text);
+}
+
+/* Lists here are layout, not prose: no inherited item spacing. */
+.nb li {
+  margin: 0;
+}
+
+.nb-step-title:focus {
+  outline: none;
+}
+
+.nb-body {
+  display: grid;
+  gap: var(--space-8);
+  margin-block-start: var(--space-10);
+}
+
+.nb-done .nb-step-title {
+  margin: var(--space-10) 0 0;
+  font-family: var(--typography-h3-family);
+  font-size: var(--typography-h3-size);
+  font-weight: var(--typography-h3-weight);
+  line-height: var(--typography-h3-line-height);
+}
+
+.nb-narrow {
+  max-inline-size: var(--size-160);
+}
+
+.nb-field {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+}
+
+.nb-field > * {
+  inline-size: 100%;
+}
+
+.nb-field > .nb-inline-action {
+  inline-size: auto;
+  margin-block-start: calc(var(--space-2) * -1);
+  margin-inline-start: calc(var(--control-padding-x-sm) * -1);
+}
+
+/* Choice cards: DS radios laid out as plates. The whole card is the label. */
+.nb-cards [role='radiogroup'] {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--size-60)), 1fr));
+  gap: var(--space-3);
+}
+
+.nb-cards-row [role='radiogroup'] {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+}
+
+.nb-card {
+  align-items: flex-start;
+  padding: var(--space-4);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-container);
+  background: var(--color-surface-default);
+  cursor: pointer;
+}
+
+.nb-card:has([data-checked]) {
+  border-color: var(--color-action-primary-bg);
+  box-shadow: inset 0 0 0 var(--border-width-default) var(--color-action-primary-bg);
+}
+
+@media (hover: hover) {
+  .nb-card:hover:not(:has([data-checked])) {
+    border-color: var(--color-border-hover);
+  }
+}
+
+/* The radio's text column takes the card width, so the swatch or corner sample sits on the end side. */
+.nb-card > span:last-child {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.nb-card > span:last-child > span:first-child {
+  display: block;
+}
+
+.nb-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  inline-size: 100%;
+}
+
+.nb-card-name {
+  font-weight: var(--font-weight-semibold);
+}
+
+.nb-chips {
+  display: inline-flex;
+  gap: var(--space-1);
+}
+
+.nb-chip {
+  display: inline-block;
+  inline-size: var(--size-4);
+  block-size: var(--size-4);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-inset);
+}
+
+/* Corner sample: one quarter of a control with the preset's radius. */
+.nb-corner {
+  inline-size: var(--size-8);
+  block-size: var(--size-6);
+  border-block-start: var(--border-width-2) solid var(--color-text-default);
+  border-inline-start: var(--border-width-2) solid var(--color-text-default);
+  border-start-start-radius: var(--nb-corner);
+}
+
+/* Colors and shape: controls on the start side, the live preview on the end side. */
+.nb-split {
+  grid-template-columns: minmax(0, var(--size-96)) minmax(0, 1fr);
+  gap: var(--space-10);
+  align-items: start;
+}
+
+.nb-controls {
+  display: grid;
+  gap: var(--space-8);
+  align-content: start;
+}
+
+.nb-color {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-inline-size: 0;
+}
+
+.nb-color-legend {
+  padding: 0;
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+  font-weight: var(--font-weight-semibold);
+}
+
+.nb-color-desc,
+.nb-color-warn {
+  margin: 0;
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+  color: var(--color-text-muted);
+}
+
+.nb-color-warn {
+  color: var(--color-feedback-warning-text);
+}
+
+.nb-color-row {
+  display: grid;
+  grid-template-columns: minmax(0, var(--size-40)) minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.nb-ramp {
+  display: flex;
+  gap: var(--space-0-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nb-ramp li {
+  flex: 1;
+  display: flex;
+}
+
+.nb-swatch {
+  flex: 1;
+  block-size: var(--size-8);
+}
+
+.nb-ramp li:first-child .nb-swatch {
+  border-start-start-radius: var(--radius-inset);
+  border-end-start-radius: var(--radius-inset);
+}
+
+.nb-ramp li:last-child .nb-swatch {
+  border-start-end-radius: var(--radius-inset);
+  border-end-end-radius: var(--radius-inset);
+}
+
+.nb-ramp li[data-mark] .nb-swatch {
+  outline: var(--border-width-2) solid var(--color-text-default);
+  outline-offset: var(--space-0-5);
+  border-radius: var(--radius-inset);
+}
+
+.nb-more {
+  display: grid;
+  gap: var(--space-4);
+}
+
+/* Live preview: two stages, light and dark, scoped to the draft brand. */
+.nb-stage {
+  position: sticky;
+  inset-block-start: var(--space-6);
+  display: grid;
+  gap: var(--space-4);
+}
+
+.nb-previews {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--size-72)), 1fr));
+  gap: var(--space-4);
+}
+
+.nb-pv {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.nb-pv-cap {
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+  color: var(--color-text-muted);
+}
+
+.nb-pv-stage {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-container);
+  background: var(--color-bg-default);
+  color: var(--color-text-default);
+  font-family: var(--typography-ui-family);
+}
+
+.nb-pv-zone {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-4);
+  border-radius: var(--radius-container);
+  background: var(--color-bg-zone);
+}
+
+.nb-pv-title {
+  margin: 0;
+  font-family: var(--font-family-display);
+  font-size: var(--typography-body-size);
+  line-height: var(--typography-body-line-height);
+  font-weight: var(--font-weight-semibold);
+}
+
+.nb-pv-muted {
+  margin: 0;
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+  color: var(--color-text-muted);
+}
+
+.nb-pv-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* The one contrast line. */
+.nb-contrast {
+  display: grid;
+  gap: var(--space-2);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.nb-contrast-line {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-feedback-danger-text);
+}
+
+.nb-contrast[data-ok] .nb-contrast-line {
+  color: var(--color-text-default);
+}
+
+.nb-contrast-icon {
+  inline-size: var(--size-4);
+  block-size: var(--size-4);
+  flex: none;
+  color: var(--color-feedback-danger-icon);
+}
+
+.nb-contrast[data-ok] .nb-contrast-icon {
+  color: var(--color-feedback-success-icon);
+}
+
+.nb-pairs {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-control);
+  background: var(--color-bg-subtle);
+  list-style: none;
+}
+
+.nb-pairs li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-4);
+}
+
+.nb-pair-meta {
+  color: var(--color-text-muted);
+}
+
+/* Review. */
+.nb-review {
+  grid-template-columns: minmax(0, 1fr) minmax(0, var(--size-96));
+  gap: var(--space-10);
+  align-items: start;
+}
+
+.nb-review > .nb-summary {
+  grid-row: span 3;
+}
+
+.nb-summary {
+  margin: 0;
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.nb-summary > div {
+  display: grid;
+  grid-template-columns: minmax(0, var(--size-40)) minmax(0, 1fr);
+  gap: var(--space-4);
+  padding-block: var(--space-4);
+  border-block-end: var(--border-width-default) solid var(--color-border-subtle);
+}
+
+.nb-summary > div:first-child {
+  padding-block-start: 0;
+}
+
+.nb-summary dt {
+  color: var(--color-text-muted);
+}
+
+.nb-summary dd {
+  margin: 0;
+}
+
+.nb-summary-ramps {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.nb-summary-ramps .nb-swatch {
+  block-size: var(--size-6);
+}
+
+.nb-tier {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.nb-files {
+  display: grid;
+  gap: var(--space-3);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.nb-files-title {
+  margin: 0;
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+  font-weight: var(--font-weight-semibold);
+}
+
+.nb-files ul,
+.nb-issues {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nb-files li {
+  display: grid;
+  grid-template-columns: var(--size-10) minmax(0, 1fr);
+  gap: var(--space-2);
+  overflow-wrap: anywhere;
+}
+
+.nb-file-kind {
+  color: var(--color-text-muted);
+}
+
+.nb-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-block-start: var(--space-10);
+  padding-block-start: var(--space-6);
+  border-block-start: var(--border-width-default) solid var(--color-border-subtle);
+}
+
+.nb-actions-note {
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+  color: var(--color-text-muted);
+}
+
+.nb-done {
+  display: grid;
+  gap: var(--space-4);
+  max-inline-size: var(--size-160);
+}
+
+.nb-lead {
+  margin: 0;
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+  color: var(--color-text-muted);
+}
+
+.nb-done .nb-actions {
+  margin-block-start: var(--space-4);
+}
+
+@media (max-width: 1024px) {
+  .nb-split,
+  .nb-review {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .nb-stage {
+    position: static;
+  }
+
+  .nb-review > .nb-summary {
+    grid-row: auto;
+  }
+}
