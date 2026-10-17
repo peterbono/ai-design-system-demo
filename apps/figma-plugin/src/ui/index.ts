@@ -761,7 +761,6 @@ function saveSettings(): void {
         message = `Connected to ${info.fullName}.${newToken ? ' The token is saved on this computer only.' : ''}`;
       }
       state.tokenDraft = '';
-      state.expanded.delete('token-replace');
       await request('save-settings', { settings: draft });
       await loadInit();
       state.pull = undefined;
@@ -2137,8 +2136,8 @@ function viewSettings(): View {
         field('Base branch', 'branch', 'Pulls read from it; pull requests target it.', 'main'),
         field('Tokens folder', 'tokensPath', 'Folder that holds the *.tokens.json files.', 'packages/tokens/src'),
       ),
-      // A saved token is a state, not a question: one row with "Connected", the field only after "Replace".
-      init.hasToken && !state.expanded.has('token-replace')
+      // A saved token is a state, not a question: one row with "Connected" and Remove. Removing it brings back the field.
+      init.hasToken
         ? h(
             'section',
             { class: 'card' },
@@ -2151,14 +2150,13 @@ function viewSettings(): View {
             h(
               'div',
               { class: 'inline-actions' },
-              h('button', { class: 'btn ghost', 'data-focus-id': 'token-replace', onClick: () => { state.expanded.add('token-replace'); render(); } }, 'Replace'),
-              h('button', { class: 'btn ghost danger', onClick: removeToken }, 'Remove'),
+              h('button', { class: 'btn ghost danger', onClick: removeToken }, 'Remove token'),
             ),
           )
         : h(
             'section',
             { class: 'card' },
-            h('div', { class: 'group-head' }, h('h2', null, init.hasToken ? 'Replace the GitHub token' : 'GitHub token'), h('button', { class: 'btn ghost', onClick: () => void request('open-url', { url: 'https://github.com/settings/personal-access-tokens/new' }) }, 'Create one on GitHub')),
+            h('div', { class: 'group-head' }, h('h2', null, 'GitHub token'), h('button', { class: 'btn ghost', onClick: () => void request('open-url', { url: 'https://github.com/settings/personal-access-tokens/new' }) }, 'Create one on GitHub')),
             h('p', { class: 'lede' }, 'A fine-grained token for this repository only, with "Contents", "Pull requests" and "Issues" set to "Read and write".'),
             h(
               'label',
@@ -2175,7 +2173,6 @@ function viewSettings(): View {
               }),
               h('small', null, 'Stays on this computer, never in the file, never shown again.'),
             ),
-            init.hasToken ? h('div', { class: 'inline-actions' }, h('button', { class: 'btn ghost', onClick: () => { state.expanded.delete('token-replace'); state.tokenDraft = ''; render(); } }, 'Cancel')) : null,
           ),
       state.settingsMessage
         ? h(
@@ -2239,15 +2236,14 @@ function claudeCard(): HTMLElement {
       row(
         'mcp-setup',
         'Your Claude plan',
-        'Claude Desktop or Claude Code, through MCP. No API key.',
+        'Through MCP, from your terminal. No API key.',
         'Set up once',
         'Recommended',
         h(
           'ol',
           { class: 'setup-steps' },
           h('li', null, 'Build the Bridge MCP server once (it is not on npm yet).', snippet('clone', 'Terminal', MCP_CLONE)),
-          h('li', null, 'Add it to Claude Desktop (Settings, Developer, Edit config), then restart it.', snippet('desktop', 'claude_desktop_config.json', mcp.desktop)),
-          h('li', null, 'Or add it to Claude Code.', snippet('code', 'Terminal', mcp.code)),
+          h('li', null, 'Add it to your Claude, in a terminal.', snippet('code', 'Terminal', mcp.code)),
           h('li', null, `Use this plugin's GitHub token as GITHUB_TOKEN. Then click "Draft with Claude" and say "${DRAFT_PHRASE}" to your Claude.`),
         ),
       ),
