@@ -35,7 +35,7 @@
   --zone-text-2: #3d4854;
   --mono: "Plex Mono", "SF Mono", ui-monospace, Menlo, monospace;
   --r-sm: 4px;
-  --r-md: 6px;
+  --r-md: 8px;
   --r-lg: 12px;
   --s1: 4px;
   --s2: 8px;
@@ -77,7 +77,7 @@ button, input, textarea { font: inherit; color: inherit; }
   border-bottom: 2px solid transparent; display: inline-flex; align-items: center; gap: 6px; border-radius: 0;
 }
 .tab:hover { color: var(--text); }
-.tab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--text); font-weight: 600; }
+.tab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--brand); font-weight: 600; }
 .count { min-width: 16px; height: 16px; padding: 0 5px; border-radius: 8px; background: var(--brand); color: var(--on-brand); font-size: 10px; line-height: 16px; text-align: center; font-variant-numeric: tabular-nums; }
 .repo { margin-left: auto; align-self: center; display: inline-flex; gap: 4px; align-items: center; color: var(--text-3); max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .repo .icon { width: 12px; height: 12px; flex: none; }
@@ -89,6 +89,19 @@ h2 { font-size: 13px; line-height: 20px; font-weight: 600; margin: 0; text-wrap:
 /* Summary zone: the one Harbor block of the screen */
 .zone { background: var(--zone); color: var(--zone-text); border-radius: var(--r-lg); padding: var(--s3) var(--s4); gap: var(--s1); }
 .zone .muted { color: var(--zone-text-2); }
+.zone p { max-width: none; }
+/* Intro: the zone that opens an idle, connect or result screen, with a Field Guide drawing on the right. */
+.intro { flex-direction: row; align-items: center; gap: var(--s4); padding: var(--s4); }
+.intro-text { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 0; }
+.intro .headline { font-size: 19px; line-height: 26px; }
+.intro .url { font-family: var(--mono); font-size: 11px; word-break: break-all; }
+.ill { display: block; flex: none; width: 76px; height: 76px; color: var(--zone-text); }
+.ill svg { width: 100%; height: 100%; display: block; }
+.ill [data-fill="paper"], .ill [data-fill="zone"] { fill: var(--bg); }
+.ill [data-fill="deep"] { fill: var(--brand); }
+.ill [data-stroke="paper"] { stroke: var(--bg); }
+/* Card: a common region for related fields (Settings). */
+.card { border: 1px solid var(--border); border-radius: var(--r-lg); padding: var(--s3) var(--s4) var(--s4); gap: var(--s3); }
 h2.headline { font-family: Fraunces, Georgia, serif; font-size: 17px; line-height: 24px; font-weight: 600; letter-spacing: -0.005em; }
 /* Pull groups: title, count and action share one line (proximity); the rows sit in one bordered region. */
 .group { gap: var(--s1); }
@@ -122,7 +135,7 @@ small { color: var(--text-3); font-size: 11px; }
 .inline-actions { display: flex; gap: var(--s2); align-items: center; flex-wrap: wrap; }
 
 /* Change rows: the core of the plugin */
-.rows { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: var(--r-md); }
+.rows { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: var(--r-lg); }
 .row, .conflict { padding: var(--s2) var(--s3) 10px; display: flex; flex-direction: column; gap: 6px; }
 .row + .row, .conflict + .conflict { border-top: 1px solid var(--border); }
 .row-head { display: flex; align-items: center; gap: var(--s2); min-width: 0; }
@@ -223,3 +236,9 @@ details.notes ul { margin: 0; padding-left: var(--s4); color: var(--text-2); }
 .brand-result.ok { color: var(--ok); }
 .brand-result.fail { color: var(--danger); }
 .brand-result ul { margin: 0; padding-left: 20px; color: var(--text-2); font-family: var(--mono); }
+
+/* Facts: label over value, two per row (Source card). */
+.facts { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3) var(--s4); margin: 0; }
+.facts div:first-child { grid-column: 1 / -1; }
+.facts dt { color: var(--text-2); }
+.facts dd { margin: 2px 0 0; font-family: var(--mono); font-size: 11px; overflow-wrap: anywhere; }
