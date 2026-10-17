@@ -6,7 +6,7 @@
 //   is only ever sent to api.anthropic.com.
 // Pure: no DOM, no figma.*. The UI wires it; tests mock fetch.
 
-import { DRAFT_LINE_MAX, type DraftLine, type RequestChange, type RequestKind, REQUEST_KINDS, cleanDraftText, sanitizeDraftLine } from '@bridge-ds/core';
+import { DRAFT_LINE_MAX, type DraftLine, type DraftResultLine, type RequestChange, type RequestKind, REQUEST_KINDS, cleanDraftText, sanitizeDraftLine, sanitizeDraftTitle } from '@bridge-ds/core';
 
 export const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 export const CLAUDE_MODELS = [
@@ -49,8 +49,8 @@ export interface ClaudeDraftInput {
 export interface ClaudeDraft {
   title: string;
   summary: string;
-  /** One sentence per change line (by DraftLine id). Missing or empty when Claude wrote none. */
-  lines?: { id: string; line: string }[] | undefined;
+  /** One sentence per change line (by DraftLine id), with its request title. Missing or empty when Claude wrote none. */
+  lines?: DraftResultLine[] | undefined;
 }
 
 /** The Bridge voice and the output contract, shared by the API call and the copied prompt. */
@@ -59,8 +59,8 @@ export const SYSTEM_PROMPT = [
   'Voice: a calm, precise colleague. Sentence case. Start with a verb. Plain words developers use: component, prop, variant, token, pull request.',
   'Say what changes for developers (props, variants, tokens, the look) and why it matters for people who use the component. Use only facts from the changes, the images and the designer\'s notes. Never invent numbers, names, usage or reasons; if the reason is unknown, say what changes and leave the reason out.',
   'Never use an em dash. Use a colon, a comma or parentheses instead. No exclamation marks, no emoji, no Markdown.',
-  `Return only a JSON object, with no text around it: {"title": "...", "summary": "...", "lines": [{"id": "...", "line": "..."}]}. title: one line, at most ${TITLE_MAX} characters, no trailing period, do not start with the component name. summary: at most ${SUMMARY_SENTENCES} sentences.`,
-  `lines: one per change line listed (by its id), or an empty list when none is listed. Each is one short sentence, at most ${DRAFT_LINE_MAX} characters, no trailing period: what changed for developers, read from the before and after images (the part, the variant, the values you can see), for example "Icon added after the label in primary sm: Pencil, 16px". Never guess a value you cannot read.`,
+  `Return only a JSON object, with no text around it: {"title": "...", "summary": "...", "lines": [{"id": "...", "line": "...", "title": "..."}]}. title: one line, at most ${TITLE_MAX} characters, no trailing period, do not start with the component name. summary: at most ${SUMMARY_SENTENCES} sentences.`,
+  `lines: one per change line listed (by its id), or an empty list when none is listed. Each is one short sentence, at most ${DRAFT_LINE_MAX} characters, no trailing period: what changed for developers, read from the before and after images (the part, the variant, the values you can see), for example "Icon added after the label in primary sm: Pencil, 16px". Never guess a value you cannot read. Each line also gets "title": the title of the request that component change becomes, short, sentence case, starts with a verb, at most ${TITLE_MAX} characters, no trailing period, never the component name, for example "Add an icon after the label".`,
 ].join('\n');
 
 const cell = (s: string | undefined) => (s ?? '').replace(/\|/g, '\\|').replace(/\n/g, ' ');
@@ -88,10 +88,10 @@ export function claudeUserText(input: ClaudeDraftInput): string {
   if (input.draft && (input.draft.title || input.draft.summary)) lines.push('', 'Starting draft, written from the changes only:', `Title: ${input.draft.title}`, `Summary: ${input.draft.summary}`);
   if (input.notes?.trim()) lines.push('', 'The designer\'s notes (keep their intent):', input.notes.trim());
   if (input.lines?.length) {
-    lines.push('', 'Change lines to write, one sentence each:');
+    lines.push('', 'Change lines to write, one sentence and one request title each:');
     for (const l of input.lines) {
       const kindLabel = l.kind ? REQUEST_KINDS.find((k) => k.value === l.kind)?.label : undefined;
-      lines.push(`- id ${l.id}${l.component ? `, ${l.component}` : ''}${kindLabel ? ` (${kindLabel})` : ''}. Starting line: ${l.line || '(none)'}`);
+      lines.push(`- id ${l.id}${l.component ? `, ${l.component}` : ''}${kindLabel ? ` (${kindLabel})` : ''}. Starting line: ${l.line || '(none)'}${l.title ? `. Starting title: ${l.title}` : ''}`);
       for (const c of l.changes) lines.push(`  - ${c.field}: ${c.before || 'none'} -> ${c.after || 'removed'}`);
     }
   }
@@ -186,16 +186,17 @@ function sentences(text: string): string {
   return out;
 }
 
-/** Change lines from Claude's answer: {id, line} pairs, each cleaned to one sentence of at most 120 characters. */
-function sanitizeLines(raw: unknown): { id: string; line: string }[] {
+/** Change lines from Claude's answer: {id, line, title}, the line one sentence of at most 120 characters, the title at most 70. */
+function sanitizeLines(raw: unknown): DraftResultLine[] {
   if (!Array.isArray(raw)) return [];
-  const out = new Map<string, string>();
-  for (const x of raw as { id?: unknown; line?: unknown }[]) {
+  const out = new Map<string, DraftResultLine>();
+  for (const x of raw as { id?: unknown; line?: unknown; title?: unknown }[]) {
     const id = typeof x?.id === 'string' ? x.id.trim() : '';
     const line = sanitizeDraftLine(x?.line);
-    if (id && line) out.set(id, line);
+    const title = sanitizeDraftTitle(x?.title);
+    if (id && (line || title)) out.set(id, { id, line, ...(title ? { title } : {}) });
   }
-  return [...out].map(([id, line]) => ({ id, line }));
+  return [...out.values()];
 }
 
 /** Title, summary and change lines from an object Claude returned: em dashes removed, lengths kept to the contract. */

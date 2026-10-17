@@ -218,3 +218,14 @@ test('a component change an optional part already covers starts unchecked, with 
   assert.deepEqual(gh.issues[0]!.labels.slice(0, 2), ['component-change', 'request: structure']);
   assert.equal(gh.issues[0]!.title, 'Button: add a layer after Label');
 });
+
+test("Claude's request title per component names the issue; components without one keep the drafted title", async () => {
+  const { gh, client, snapshot, sync } = await edited();
+  const a = await analyze(client, DEFAULT_SETTINGS, sync, snapshot);
+  const scan = componentScan();
+  const items = publishItems(a, new Set(), scan.changed);
+  const unchecked = new Set(items.filter((i) => i.kind === 'variable').map((i) => i.key));
+  const proposal = buildPush(a, new Map(), new Set(), heldTokenIds(items, unchecked));
+  await publish(client, { analysis: a, proposal, components: scan.changed, unchecked, description: '', descriptionIsDraft: true, title: '', fileName: 'Test', coded: ['Button', 'Card'], titles: new Map([['1:1', 'Use the hover fill for primary buttons']]) });
+  assert.deepEqual(gh.issues.map((i) => i.title), ['Button: use the hover fill for primary buttons', 'Card: use color.bg.subtle for the fill']);
+});

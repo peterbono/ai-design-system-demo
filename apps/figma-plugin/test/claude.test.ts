@@ -11,6 +11,7 @@ import {
   TITLE_MAX,
   buildClaudeRequest,
   claudeErrorMessage,
+  claudeUserText,
   copyPrompt,
   draftWithClaude,
   parseClaudeAnswer,
@@ -86,7 +87,7 @@ test('defaults to Sonnet, skips missing images, and keeps the voice rules in the
   assert.ok(!body.messages[0].content.some((c: { type: string }) => c.type === 'image'));
   assert.match(SYSTEM_PROMPT, /Never use an em dash/);
   assert.match(SYSTEM_PROMPT, /Never invent numbers/);
-  assert.match(SYSTEM_PROMPT, /\{"title": "\.\.\.", "summary": "\.\.\.", "lines": \[\{"id": "\.\.\.", "line": "\.\.\."\}\]\}/);
+  assert.match(SYSTEM_PROMPT, /\{"title": "\.\.\.", "summary": "\.\.\.", "lines": \[\{"id": "\.\.\.", "line": "\.\.\.", "title": "\.\.\."\}\]\}/);
   assert.ok(!SYSTEM_PROMPT.includes(EM));
 });
 
@@ -200,6 +201,9 @@ test('push requests get their own drafted summary while the description is the p
   // Each request opens with its change line: Claude's when it wrote one, else the drafted one.
   assert.equal(drafted[0]!.line, 'Danger added to Tone');
   assert.equal(componentDrafts([item], new Set(), '', 'Library', true, new Map([['1:1', 'Danger tone added for destructive states']]))[0]!.line, 'Danger tone added for destructive states');
+  // Claude's request title per component replaces the deterministic one; without it the drafted title stays.
+  assert.equal(componentDrafts([item], new Set(), '', 'Library', true, undefined, new Map([['1:1', 'Add a danger tone for destructive rows']]))[0]!.title, 'Add a danger tone for destructive rows');
+  assert.equal(componentDrafts([item], new Set(), '', 'Library', true)[0]!.title, 'Add a danger tone');
   assert.equal(toRequest(drafted[0]!, {}).line, 'Danger added to Tone');
 });
 
@@ -224,4 +228,17 @@ test('change lines: listed by id in the prompt, images per line attached, answer
   assert.equal(parseClaudeAnswer('{"title": "Add an icon", "summary": "Shows an icon."}').lines, undefined);
   assert.deepEqual(sanitizeDraft({ lines: [{ id: 'a', line: 'Only a line' }] }), { title: '', summary: '', lines: [{ id: 'a', line: 'Only a line' }] });
   assert.doesNotMatch(copyPrompt(withLines), /QkVGT1JF/);
+});
+
+test('change lines carry the request title per component: asked in the prompt, sanitized, optional', () => {
+  const input = {
+    target: 'push' as const,
+    changes: [],
+    lines: [{ id: '12:34', component: 'Button', kind: 'structure' as const, changes: [{ field: 'New layer "Icon" (Size=sm)', after: 'instance Icon/Pencil, after "Label"' }], line: 'New instance layer "Icon" (Icon/Pencil) after "Label" in sm', title: 'Add a layer after Label' }],
+  };
+  assert.match(SYSTEM_PROMPT, /Add an icon after the label/);
+  assert.match(claudeUserText(input), /Starting title: Add a layer after Label/);
+  const d = parseClaudeAnswer(`{"title": "t", "summary": "s.", "lines": [{"id": "12:34", "line": "Pencil icon after the label in sm", "title": "add an icon after the label \u2014 small sizes."}]}`);
+  assert.deepEqual(d.lines, [{ id: '12:34', line: 'Pencil icon after the label in sm', title: 'Add an icon after the label, small sizes' }]);
+  assert.deepEqual(sanitizeDraft({ lines: [{ id: 'a', title: 'Add an icon after the label' }] }).lines, [{ id: 'a', line: '', title: 'Add an icon after the label' }]);
 });
