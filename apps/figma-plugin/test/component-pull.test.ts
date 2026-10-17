@@ -9,7 +9,8 @@ import { type ComponentSpecsFile, hashSpec, parseComponentSpecs } from '@bridge-
 import { SPEC_COMPONENTS, generateRepoComponentSpecs } from '@bridge-ds/core/node';
 import { applyPullPlan } from '../src/main/apply';
 import { applyComponentPlan, layoutVariants, scanGenerated } from '../src/main/build-components';
-import { scanComponents } from '../src/main/components';
+import { exportThumbnails, scanComponents } from '../src/main/components';
+import { onlyComponent, plannedSignature, reviewUpdates, withoutComponents } from '../src/sync/component-review';
 import { takeSnapshot } from '../src/main/snapshot';
 import { DEFAULT_SETTINGS } from '../src/shared/messages';
 import { buildComponentPlan, evaluateCalc, loadComponentSpecs, pendingComponents, writablePlan } from '../src/sync/component-pull';
@@ -328,4 +329,76 @@ test('grid: rows of different heights are evenly spaced, columns as wide as thei
   const cols = [...new Set(set.children.map((c) => c.x))].sort((x, y) => x - y);
   assert.deepEqual(cols, [24, 148, 292, 416]);
   assert.equal(set.height, rows[11]! + 48 + 24);
+});
+
+// ---------------------------------------------------------------------------------------------
+// Review updates (like Figma): what an update changes per set, before and after, one by one or all
+
+/** Code changes after a first pull: Badge drops its danger tone, Card's plate uses color.bg.subtle. */
+async function changedInCode() {
+  const first = await pulledFile();
+  await applyComponentPlan(writablePlan(first.plan));
+  const specs: ComponentSpecsFile = structuredClone(first.specs);
+  const badge = specs.components.find((c) => c.name === 'Badge')!;
+  badge.axes[0]!.values = badge.axes[0]!.values.filter((v) => v !== 'danger');
+  badge.variants = badge.variants.filter((v) => v.props.Tone !== 'danger');
+  badge.hash = hashSpec(badge);
+  const card = specs.components.find((c) => c.name === 'Card')!;
+  for (const v of card.variants) v.values.root!.fill = 'color.bg.subtle';
+  card.hash = hashSpec(card);
+  const next = await pulledFile({ sim: first.sim, gh: new FakeGitHub(repoFiles(JSON.stringify(specs))) });
+  return { first, next };
+}
+
+test('review: a fresh build matches its planned signature, so unchanged sets have nothing to review', async () => {
+  const { sim, plan } = await pulledFile();
+  await applyComponentPlan(writablePlan(plan));
+  const scanned = await scanComponents(() => {});
+  const forced = { ...plan, components: plan.components.map((c) => ({ ...c, status: 'updated' as const, nodeId: sim.sets().find((s) => s.name === c.name)!.id })) };
+  const reviews = reviewUpdates(forced, new Map(scanned.components.map((c) => [c.nodeId, c.signature])));
+  assert.equal(reviews.length, 6);
+  for (const r of reviews) assert.deepEqual(r.changes.map((c) => c.field), ['Values set from code'], `${r.name}: no variant, prop or binding difference`);
+  assert.deepEqual(plannedSignature(forced.components[0]!).variantAxes.Size, ['lg', 'md', 'sm']);
+});
+
+test('review: per set, the variants, props and bound variables an update changes', async () => {
+  const { next } = await changedInCode();
+  assert.deepEqual(next.plan.components.filter((c) => c.status === 'updated').map((c) => c.name), ['Badge', 'Card']);
+  const scanned = await scanComponents(() => {});
+  const reviews = reviewUpdates(next.plan, new Map(scanned.components.map((c) => [c.nodeId, c.signature])));
+  assert.deepEqual(reviews.map((r) => r.name), ['Badge', 'Card']);
+  const badge = reviews[0]!;
+  assert.deepEqual(badge.changes[0], { field: 'Variant Tone', before: 'danger, info, neutral, success, warning', after: 'info, neutral, success, warning' });
+  assert.equal(badge.removedVariants.length, 4);
+  const card = reviews[1]!;
+  assert.deepEqual(card.changes, [{ field: 'Fill', before: 'card.bg, color.bg.subtle, color.text.default', after: 'color.bg.subtle, color.text.default' }]);
+});
+
+test('update one by one: only that set is rebuilt; Update all builds the rest, never twice', async () => {
+  const { first, next } = await changedInCode();
+  const ids = first.sim.sets().map((s) => s.id);
+  const one = await applyComponentPlan(onlyComponent(next.plan, 'Card'));
+  assert.deepEqual([one.created, one.updated], [0, 1]);
+  const card = first.sim.sets().find((s) => s.name === 'Card')!;
+  assert.equal(boundName(first.sim, variantOf(card, 'Padding=default'), 'fills'), 'Semantic:color/bg/subtle');
+  // Badge waits: still the old variants, still to update on the next check.
+  const badge = first.sim.sets().find((s) => s.name === 'Badge')!;
+  assert.equal(badge.children.filter((c) => c.getSharedPluginData('dsbridge', 'orphan') === 'true').length, 0);
+  const again = await pulledFile({ sim: first.sim, gh: next.gh });
+  assert.deepEqual(again.plan.components.map((c) => `${c.name}:${c.status}`).filter((x) => !x.endsWith(':unchanged')), ['Badge:updated']);
+  // Update all after that: the updated Card is not built twice.
+  const rest = withoutComponents(writablePlan(next.plan), new Set(['Card']));
+  assert.deepEqual(rest.components.map((c) => c.name), ['Badge']);
+  const all = await applyComponentPlan(rest);
+  assert.deepEqual([all.created, all.updated, all.orphaned], [0, 1, 4]);
+  assert.deepEqual(first.sim.sets().map((s) => s.id), ids, 'updated in place, same nodes');
+});
+
+test('thumbnails: a PNG per set for the before and after previews', async () => {
+  const { sim, plan } = await pulledFile();
+  await applyComponentPlan(writablePlan(plan));
+  const sets = sim.sets().slice(0, 2).map((s) => s.id);
+  const thumbs = await exportThumbnails([...sets, '999:999'], 196);
+  assert.deepEqual(Object.keys(thumbs).sort(), [...sets].sort(), 'a missing node has no thumbnail');
+  assert.ok(Object.values(thumbs).every((b) => typeof b === 'string' && b.length > 0));
 });

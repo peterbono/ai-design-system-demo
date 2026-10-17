@@ -175,6 +175,8 @@ export interface RequestMap {
   'scan-generated': { request: Record<string, never>; response: GeneratedSet[] };
   /** Marks variables or component sets "Experimental" (or clears the mark): unchecked by default on every push. */
   'set-experimental': { request: { targets: { kind: 'variable' | 'component'; id: string }[]; value: boolean }; response: { updated: number } };
+  /** PNG thumbnails (base64, 2x) of nodes, for the Pull "Review updates" before and after. */
+  thumbnails: { request: { nodeIds: string[]; width: number }; response: Record<string, string> };
   /** Build or update the component sets of a plan on the Components page, bound to the variables. */
   'apply-components': { request: { plan: ComponentPullPlan }; response: ComponentApplyReport };
 }

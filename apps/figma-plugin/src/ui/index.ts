@@ -18,7 +18,9 @@ import { type ApplyReport, type FigmaSnapshot, type InitPayload, type RepoSettin
 import { REQUEST_KINDS, type RequestKind } from '@bridge-ds/core';
 import { type ComponentChangeItem, type ComponentScan, type RequestDraft, classifyComponents, pullBaselines, suggestTitle, toRequest } from '../sync/components';
 import { loadCodedComponents, sendComponentRequest } from '../sync/requests';
-import { type ComponentApplyReport, type ComponentPullPlan, buildComponentPlan, loadComponentSpecs, pendingComponents, writablePlan } from '../sync/component-pull';
+import { type ComponentApplyReport, type ComponentPullPlan, type PlannedComponent, buildComponentPlan, loadComponentSpecs } from '../sync/component-pull';
+import { type ComponentReview, onlyComponent, reviewUpdates } from '../sync/component-review';
+import type { ComponentSignature } from '../sync/components';
 import { type PublishItem, type PublishResult, componentKey, defaultUnchecked, experimentalTokenIds, groupState, heldTokenIds, isChecked, publish, publishItems, setGroup, variableIdsOf, variableKey } from '../sync/publish';
 import { type Selection, onProgress, onSelection, request } from './bridge';
 import { type Child, h } from './dom';
@@ -44,10 +46,20 @@ interface PullState {
   /** Component sets from component-specs.json on the branch; undefined when the repo has none. */
   components?: ComponentPullPlan | undefined;
   componentsError?: string | undefined;
-  /** Opt-in: also build the component sets ("Also pull components"). */
+  /** Opt-in: also build the component sets code added ("Also pull new components"). Updates are always offered. */
   includeComponents: boolean;
   componentsReport?: ComponentApplyReport | undefined;
+  /** "Review updates": what an update changes in each generated set that changed in code. */
+  reviews: ComponentReview[];
+  /** Thumbnails (base64 PNG) per set node id, before and after its update. */
+  before: Record<string, string>;
+  after: Record<string, string>;
+  /** Component ids updated one by one (or by "Update all"), with their review, kept across re-checks. */
+  done: Map<string, ComponentReview>;
 }
+
+/** Thumbnail width in the review, CSS pixels (two side by side in the 480px plugin). */
+const THUMB_W = 196;
 
 interface PushState {
   analysis: Analysis;
@@ -420,27 +432,113 @@ async function loadInit(): Promise<void> {
   client = undefined;
 }
 
+/** Reads main and the file into a pull preview. `prev` carries what the designer already did on this screen. */
+async function loadPull(prev?: PullState): Promise<PullState> {
+  const snapshot = await request('snapshot', {});
+  const analysis = await analyze(getClient(), state.init!.settings, state.init!.sync, snapshot);
+  const choices = new Map<string, ConflictChoice>();
+  // Components are a separate step: a problem reading them never blocks the variables.
+  let components: ComponentPullPlan | undefined;
+  let componentsError: string | undefined;
+  let reviews: ComponentReview[] = [];
+  const before: Record<string, string> = { ...(prev?.before ?? {}) };
+  try {
+    const loaded = await loadComponentSpecs(getClient(), analysis.headFiles.treeSha, analysis.headFiles.config);
+    if (loaded) components = buildComponentPlan(loaded.specs, loaded.path, await request('scan-generated', {}), analysis.head);
+    const updated = components?.components.filter((c) => c.status === 'updated' && c.nodeId) ?? [];
+    if (components && updated.length) {
+      // Review updates: the sets as they are now, compared with what the update builds, and their thumbnails.
+      const scanned = await request('scan-components', {});
+      reviews = reviewUpdates(components, new Map<string, ComponentSignature>(scanned.components.map((c) => [c.nodeId, c.signature])));
+      const missing = updated.map((c) => c.nodeId!).filter((id) => !before[id]);
+      if (missing.length) Object.assign(before, await request('thumbnails', { nodeIds: missing, width: THUMB_W }).catch(() => ({})));
+    }
+  } catch (err) {
+    componentsError = err instanceof Error ? err.message : String(err);
+  }
+  return {
+    analysis,
+    choices,
+    overwrite: false,
+    proposal: buildPull(analysis, choices),
+    components,
+    componentsError,
+    includeComponents: prev?.includeComponents ?? false,
+    reviews,
+    before,
+    after: prev?.after ?? {},
+    done: prev?.done ?? new Map(),
+  };
+}
+
 function checkPull(): void {
   void run(
     'Reading main and your variables',
     async () => {
-      const snapshot = await request('snapshot', {});
-      const analysis = await analyze(getClient(), state.init!.settings, state.init!.sync, snapshot);
-      const choices = new Map<string, ConflictChoice>();
-      // Components are a separate, opt-in step: a problem reading them never blocks the variables.
-      let components: ComponentPullPlan | undefined;
-      let componentsError: string | undefined;
-      try {
-        const loaded = await loadComponentSpecs(getClient(), analysis.headFiles.treeSha, analysis.headFiles.config);
-        if (loaded) components = buildComponentPlan(loaded.specs, loaded.path, await request('scan-generated', {}), analysis.head);
-      } catch (err) {
-        componentsError = err instanceof Error ? err.message : String(err);
-      }
-      const includeComponents = state.pull?.includeComponents ?? false;
-      state.pull = { analysis, choices, overwrite: false, proposal: buildPull(analysis, choices), components, componentsError, includeComponents };
+      state.pull = await loadPull();
       state.expanded.clear();
     },
     checkPull,
+  );
+}
+
+/** Component sets "Update all" builds: every updated set not updated yet, and new ones when opted in. */
+function componentsToBuild(p: PullState): PlannedComponent[] {
+  return (p.components?.components ?? []).filter((c) => (c.status === 'updated' && !p.done.has(c.componentId)) || (c.status === 'new' && p.includeComponents));
+}
+
+/** After a pull: components now render with main's values, so refresh their baselines (pending changes are kept). */
+async function refreshBaselines(p: PullState): Promise<void> {
+  try {
+    const scanned = await request('scan-components', {});
+    const coded = await loadCodedComponents(getClient(), p.analysis.headFiles.treeSha, p.analysis.headFiles.config);
+    const items = pullBaselines(scanned.components, coded);
+    if (items.length) await request('save-signatures', { items: items.map((x) => ({ nodeId: x.nodeId, signature: JSON.stringify(x.signature) })) });
+  } catch {
+    /* the pull itself succeeded; baselines are taken again on the next scan */
+  }
+}
+
+/** Builds components, then takes the "after" thumbnails of the updated ones and moves their review to `done`. */
+async function buildComponents(p: PullState, list: PlannedComponent[]): Promise<ComponentApplyReport> {
+  const report = await request('apply-components', { plan: { ...p.components!, components: list } });
+  const updated = list.filter((c) => c.status === 'updated' && c.nodeId);
+  if (updated.length) Object.assign(p.after, await request('thumbnails', { nodeIds: updated.map((c) => c.nodeId!), width: THUMB_W }).catch(() => ({})));
+  for (const c of updated) {
+    const review = p.reviews.find((r) => r.componentId === c.componentId);
+    if (review) p.done.set(c.componentId, review);
+  }
+  return report;
+}
+
+/**
+ * "Update" on one component (Figma lets you take updates one by one). Variables stay all-or-nothing: when main has
+ * variable changes, they are applied first, so the component binds to the variables it expects.
+ */
+function updateComponent(componentId: string): void {
+  const p = state.pull;
+  if (!p?.components) return;
+  const comp = p.components.components.find((c) => c.componentId === componentId);
+  if (!comp) return;
+  void run(
+    `Updating ${comp.name}`,
+    async () => {
+      const withVariables = !variablesUpToDate(p);
+      if (withVariables) {
+        const report = await request('apply-pull', { plan: p.proposal.plan });
+        if (report.errors.length) throw new Error(`Variables were written with problems, so ${comp.name} was not updated: ${report.errors[0]}`);
+      }
+      const report = await buildComponents(p, onlyComponent(p.components!, componentId).components);
+      await refreshBaselines(p);
+      if (withVariables) await loadInit();
+      // Re-read main and the file: the updated set is now up to date; what is left stays to review.
+      const next = await loadPull(p);
+      if (report.problems.length) next.componentsReport = undefined;
+      state.pull = next;
+      if (report.problems.length) state.error = { message: `${comp.name} updated, with problems: ${report.problems.slice(0, 3).join('; ')}` };
+      void request('notify', { message: `${comp.name} updated${withVariables ? ', with the variables from main' : ''}` });
+    },
+    () => updateComponent(componentId),
   );
 }
 
@@ -453,23 +551,15 @@ function variablesUpToDate(p: PullState): boolean {
 function applyPull(): void {
   const p = state.pull;
   if (!p) return;
-  const withComponents = p.includeComponents && !!p.components && pendingComponents(p.components).length > 0;
+  const build = componentsToBuild(p);
   void run(
-    variablesUpToDate(p) && withComponents ? 'Building components' : 'Writing variables',
+    variablesUpToDate(p) && build.length ? 'Building components' : 'Writing variables',
     async () => {
-      if (!variablesUpToDate(p) || !withComponents) p.report = await request('apply-pull', { plan: p.proposal.plan });
+      if (!variablesUpToDate(p) || !build.length) p.report = await request('apply-pull', { plan: p.proposal.plan });
       // Components after the variables, so every binding finds its variable.
-      if (withComponents) p.componentsReport = await request('apply-components', { plan: writablePlan(p.components!) });
+      if (build.length) p.componentsReport = await buildComponents(p, build);
       const report = p.report;
-      // Components now render with main's values: refresh their baselines (pending component changes are kept).
-      try {
-        const scanned = await request('scan-components', {});
-        const coded = await loadCodedComponents(getClient(), p.analysis.headFiles.treeSha, p.analysis.headFiles.config);
-        const items = pullBaselines(scanned.components, coded);
-        if (items.length) await request('save-signatures', { items: items.map((x) => ({ nodeId: x.nodeId, signature: JSON.stringify(x.signature) })) });
-      } catch {
-        /* the pull itself succeeded; baselines are taken again on the next scan */
-      }
+      await refreshBaselines(p);
       await loadInit();
       state.push = undefined;
       const cr = p.componentsReport;
@@ -707,8 +797,8 @@ function viewPull(): View {
   const fi = figmaIndex(a);
   const remote = a.diff.remote;
   const upToDate = variablesUpToDate(p);
-  const pending = pendingComponents(p.components);
-  const withComponents = p.includeComponents && pending.length > 0;
+  const pending = componentsToBuild(p);
+  const withComponents = pending.length > 0;
 
   if (p.report || p.componentsReport) {
     const r = p.report;
@@ -730,6 +820,7 @@ function viewPull(): View {
           art: problems.length ? 'fix' : 'tokens',
         }),
         cr?.fontNote ? h('div', { class: 'callout warn' }, h('div', { class: 'callout-title' }, icon('alert'), 'Font replaced'), h('p', null, cr.fontNote)) : null,
+        p.done.size ? reviewGroup(p, [...p.done.values()], 'Updated components') : null,
         problems.length
           ? h(
               'section',
@@ -759,7 +850,7 @@ function viewPull(): View {
     a.diff.conflicts.length ? plural(a.diff.conflicts.length, 'conflict') : '',
     prop.restored.length ? (p.overwrite ? `${prop.restored.length} replaced with ${init.settings.branch}` : `${prop.restored.length} to recreate`) : '',
     prop.kept.length ? `${plural(prop.kept.length, 'Figma edit')} kept` : '',
-    pending.length ? `${plural(pending.length, 'component')} to build` : '',
+    pending.length ? `${plural(pending.length, 'component')} to ${pending.every((c) => c.status === 'updated') ? 'update' : 'build'}` : '',
   ].filter(Boolean);
   const headline = upToDate && !status.length ? 'Already up to date' : !a.baseSha ? 'First pull' : status.join(', ') || 'Already up to date';
   const meta = a.baseSha
@@ -811,7 +902,7 @@ function viewPull(): View {
     bar: upToDate && !withComponents
       ? { label: 'Check again', onClick: checkPull }
       : {
-          label: `Apply to Figma`,
+          label: pending.some((c) => c.status === 'updated') ? 'Update all' : 'Apply to Figma',
           onClick: applyPull,
           disabled: open > 0,
           hint: open
@@ -822,58 +913,105 @@ function viewPull(): View {
   };
 }
 
-const STATUS_LABEL = { new: 'New', updated: 'Updated', unchanged: 'Unchanged' } as const;
-
 /** "Button: loading prop, not drawn in this version." or "Badge, root: min-height, calc() has no Figma equivalent." */
 function problemText(x: { component: string; part: string; property: string; reason: string }): string {
   if (x.property.startsWith('prop ')) return `${x.component}: ${x.property.slice(5)} prop, ${x.reason}.`;
   return `${x.component}, ${x.part}: ${x.property}, ${x.reason}.`;
 }
 
-/** Pull preview: the coded components as component sets, opt-in. Lists what each would get and what cannot be bound. */
+/** Before and after thumbnails side by side; "after" exists once the set is updated. */
+function thumbs(p: PullState, nodeId: string, name: string): HTMLElement {
+  const img = (b64: string | undefined, label: string, empty: string) =>
+    h(
+      'figure',
+      { class: 'thumb' },
+      b64 ? h('img', { src: `data:image/png;base64,${b64}`, alt: `${name}, ${label.toLowerCase()}` }) : h('div', { class: 'thumb-empty' }, empty),
+      h('figcaption', null, label),
+    );
+  return h('div', { class: 'thumbs' }, img(p.before[nodeId], 'Before', 'No preview'), img(p.after[nodeId], 'After', 'Shown once updated'));
+}
+
+/** Figma's "Review updates": one card per changed set, before and after, what changes, and "Update" on its own. */
+function reviewGroup(p: PullState, reviews: ComponentReview[], title = 'Component updates'): HTMLElement {
+  const rows = reviews.map((r) => {
+    const done = p.done.has(r.componentId);
+    const variants = [r.addedVariants.length ? `${r.addedVariants.length} new ${r.addedVariants.length === 1 ? 'variant' : 'variants'}` : '', r.removedVariants.length ? `${r.removedVariants.length} removed in code` : ''].filter(Boolean).join(', ');
+    return h(
+      'li',
+      { class: 'row review' },
+      h(
+        'div',
+        { class: 'row-head' },
+        h('span', { class: 'comp-name' }, r.name),
+        variants ? h('span', { class: 'muted' }, variants) : null,
+        done
+          ? h('span', { class: 'kind added row-end' }, 'Updated')
+          : h('button', { class: 'btn row-end', 'data-focus-id': `update-${r.componentId}`, disabled: !!state.busy || p.proposal.unresolvedConflicts.length > 0, onClick: () => updateComponent(r.componentId) }, 'Update'),
+      ),
+      thumbs(p, r.nodeId, r.name),
+      changeLines(r.changes, ['What', 'In Figma', 'From code']),
+    );
+  });
+  return group(
+    title,
+    reviews.length,
+    null,
+    title === 'Component updates' ? 'Changed in code since your last pull. Update one at a time, or all of them with Update all. Instances keep their overrides.' : 'Updated in place: same layers, so instances keep their overrides.',
+    rowList(`review-${title}`, rows, 10),
+  );
+}
+
+/** Pull preview: updates to review for the generated sets, new sets opt-in, and what cannot be bound. */
 function componentsGroup(p: PullState): Child {
   if (p.componentsError) {
     return h('div', { class: 'callout warn' }, h('div', { class: 'callout-title' }, icon('alert'), 'Components could not be read'), h('p', null, `${p.componentsError} Variables still pull as usual.`));
   }
   const plan = p.components;
   if (!plan) return null;
-  const pending = pendingComponents(plan);
-  const rows = plan.components.map((c) => {
-    const extra = [plural(c.variants.length, 'variant'), c.addedVariants.length ? `${c.addedVariants.length} new` : '', c.removedVariants.length ? `${c.removedVariants.length} removed in code` : ''].filter(Boolean).join(', ');
-    return h(
-      'li',
-      { class: 'row' },
-      h('div', { class: 'row-head' }, h('span', { class: `kind ${c.status === 'new' ? 'added' : ''}` }, STATUS_LABEL[c.status]), h('span', { class: 'comp-name' }, c.name), h('span', { class: 'muted' }, extra)),
-    );
-  });
+  const reviews = [...p.reviews.filter((r) => !p.done.has(r.componentId)), ...p.done.values()];
+  const fresh = plan.components.filter((c) => c.status === 'new');
+  const upToDate = plan.components.filter((c) => c.status === 'unchanged' && !p.done.has(c.componentId));
   const problems = plan.problems;
-  return group(
-    'Components',
-    plan.components.length,
-    pending.length
-      ? h(
-          'label',
-          { class: 'check' },
-          h('input', { type: 'checkbox', checked: p.includeComponents, 'data-focus-id': 'pull-components', onChange: (e: Event) => { p.includeComponents = (e.target as HTMLInputElement).checked; render(); } }),
-          `Also pull components (${pending.length})`,
-        )
-      : null,
-    pending.length
-      ? 'Component sets on a "Components" page, built from the code and bound to these variables. Sets are updated in place on the next pull, never duplicated.'
-      : 'The component sets in this file match the code.',
-    [
-      rowList('pull-components', rows, 10),
-      problems.length
+  const out: Child[] = [];
+  if (reviews.length) out.push(reviewGroup(p, reviews));
+  out.push(
+    group(
+      fresh.length ? 'New components' : 'Components',
+      fresh.length || plan.components.length,
+      fresh.length
         ? h(
-            'details',
-            { class: 'notes' },
-            h('summary', null, `Not bound or not drawn (${problems.length})`),
-            h('p', { class: 'muted' }, 'Drawn without a variable, or not drawn, because Figma has no equivalent in this version.'),
-            h('ul', null, problems.map((x) => h('li', null, problemText(x)))),
+            'label',
+            { class: 'check' },
+            h('input', { type: 'checkbox', checked: p.includeComponents, 'data-focus-id': 'pull-components', onChange: (e: Event) => { p.includeComponents = (e.target as HTMLInputElement).checked; render(); } }),
+            `Also pull new components (${fresh.length})`,
           )
         : null,
-    ],
+      fresh.length
+        ? 'Component sets on a "Components" page, built from the code and bound to these variables. Sets are updated in place on the next pull, never duplicated.'
+        : reviews.length
+          ? `${upToDate.length ? `Up to date: ${upToDate.map((c) => c.name).join(', ')}.` : ''}`.trim() || 'The other component sets match the code.'
+          : 'The component sets in this file match the code.',
+      [
+        fresh.length
+          ? rowList(
+              'pull-components',
+              fresh.map((c) => h('li', { class: 'row' }, h('div', { class: 'row-head' }, h('span', { class: 'kind added' }, 'New'), h('span', { class: 'comp-name' }, c.name), h('span', { class: 'muted' }, plural(c.variants.length, 'variant'))))),
+              10,
+            )
+          : null,
+        problems.length
+          ? h(
+              'details',
+              { class: 'notes' },
+              h('summary', null, `Not bound or not drawn (${problems.length})`),
+              h('p', { class: 'muted' }, 'Drawn without a variable, or not drawn, because Figma has no equivalent in this version.'),
+              h('ul', null, problems.map((x) => h('li', null, problemText(x)))),
+            )
+          : null,
+      ],
+    ),
   );
+  return out;
 }
 
 /** "New brand detected" card: a Brand mode with no file in Git, offered as a new brand (opt-in). */
@@ -1001,12 +1139,12 @@ function sendRequest(r: PushState): void {
   );
 }
 
-function changeLines(changes: { field: string; before?: string | undefined; after?: string | undefined }[]): Child {
+function changeLines(changes: { field: string; before?: string | undefined; after?: string | undefined }[], head: [string, string, string] = ['What', 'Now', 'Requested']): Child {
   if (!changes.length) return null;
   return h(
     'table',
     { class: 'changes' },
-    h('thead', null, h('tr', null, h('th', null, 'What'), h('th', null, 'Now'), h('th', null, 'Requested'))),
+    h('thead', null, h('tr', null, head.map((x) => h('th', null, x)))),
     h(
       'tbody',
       null,

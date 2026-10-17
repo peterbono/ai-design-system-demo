@@ -220,6 +220,22 @@ export async function exportImage(nodeId: string | undefined): Promise<{ base64:
   return { base64: figma.base64Encode(bytes), name: target.name };
 }
 
+/** PNG thumbnails (base64) of nodes, `width` CSS pixels wide at 2x, for the Pull "Review updates" before and after. */
+export async function exportThumbnails(nodeIds: string[], width: number): Promise<Record<string, string>> {
+  const out: Record<string, string> = {};
+  for (const id of nodeIds) {
+    const node = await figma.getNodeByIdAsync(id);
+    if (!node || !('exportAsync' in node)) continue;
+    try {
+      const bytes = await (node as SceneNode).exportAsync({ format: 'PNG', constraint: { type: 'WIDTH', value: Math.round(width * 2) } });
+      out[id] = figma.base64Encode(bytes);
+    } catch {
+      /* a node Figma cannot export: no thumbnail, the change list still shows */
+    }
+  }
+  return out;
+}
+
 export function selectionInfo(): { nodeId: string; name: string } | undefined {
   const s = figma.currentPage.selection[0];
   return s ? { nodeId: s.id, name: s.name } : undefined;

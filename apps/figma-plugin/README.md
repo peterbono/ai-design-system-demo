@@ -155,6 +155,18 @@ and Density modes like any layer. Exceptions, listed in the preview:
   installed in Figma is used, never bound. When none is, text uses Inter and the report says so once.
 - Shadows, focus rings, transforms and slot props (`prefix`, `hint`, `loading`...) are not drawn.
 
+**Review updates**, like Figma's library updates. When sets DS Bridge generated changed in code since the last pull,
+the preview lists each one under **Component updates**:
+
+- **Before**: a thumbnail of the set as it is now (`exportAsync`, 2x). **After**: shown once the set is updated (a
+  thumbnail cannot exist before the build).
+- **What changes**: the variants, props and bound variables an update changes, by comparing the set's signature in
+  Figma (read like Push reads it) with the signature the plan builds, using the same diff as Push. Changes that are
+  not bindings (sizes, layout, set values) read "Values set from code".
+- **Update** on a row updates that set alone; **Update all** (the primary action) updates the rest with the variables.
+  Variables stay all-or-nothing: if main has variable changes, Update on one set applies them first, so the set binds
+  to the variables it expects. New sets stay opt-in ("Also pull new components").
+
 Idempotent: a set is found again by shared plugin data (`dsbridge` / `componentId`), a variant by `variant`, a layer by
 `part`. A re-pull updates them in place (same node ids, so instances keep their overrides), adds new variants, and
 flags variants removed in code with an `[orphan] ` description, like variables. Nothing outside generated sets is
