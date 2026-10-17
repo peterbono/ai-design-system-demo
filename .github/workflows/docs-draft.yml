@@ -1,0 +1,58 @@
+name: Docs drafts
+
+# Drafts missing or stale component docs (docs.json prose) with Claude on pull requests that touch components or
+# tokens. Optional: without the ANTHROPIC_API_KEY repository secret it only posts one comment saying drafts are
+# off, and passes. With it, scripts/docs-draft.mjs asks Claude for the prose of each touched component whose docs
+# are missing, incomplete or older than its code, commits it to the PR branch marked "draftedBy": "claude" and
+# "needsReview": true, and updates the comment. A reviewer accepts each draft in Bridge Studio (Changes, Docs).
+# Never blocks the pull request: the script exits 0 on any drafting error. Pushes made with GITHUB_TOKEN do not
+# trigger new workflow runs, and the script skips a head that is already a docs draft.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'packages/react/src/components/**'
+      - 'packages/tokens/src/**'
+
+concurrency:
+  group: docs-draft-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write # commit drafts to the PR branch
+  pull-requests: write # the one docs-draft comment
+
+jobs:
+  draft:
+    name: Docs drafts
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.ref }}
+          # The script diffs the PR against its base commit.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        if: env.HAS_KEY == 'true'
+        run: npm ci
+
+      - name: Build the bridge CLI
+        if: env.HAS_KEY == 'true'
+        run: npm run mcp:build
+
+      - name: Draft docs with Claude (or say drafts are off)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/docs-draft.mjs
