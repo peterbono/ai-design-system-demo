@@ -1,8 +1,7 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import Icon from '../components/Icon.astro';
-import Updated from '../components/Updated.astro';
-import { Alert, Button, PageHeader } from '@bridge-ds/react';
+import { Alert, Button } from '@bridge-ds/react';
 import AgentToolsTable from '../components/ds/AgentToolsTable';
 import { Copy } from 'lucide-react';
 import { GITHUB_URL, sourceUrl } from '../lib/repo';
@@ -68,6 +67,7 @@ const asks = [
   'Review PR 42 for the design owner.',
   "Audit this component's CSS for hardcoded values.",
 ];
+import LibraryHeader from '../components/LibraryHeader.astro';
 ---
 
 <Layout
@@ -76,10 +76,9 @@ const asks = [
   sources={sources}
   updated={updated}
 >
-  <PageHeader className="lib-page-header" title="Agents">
+  <LibraryHeader title="Agents" art="guide" updated={updated}>
     Three ways in, all generated from the same token files, components and rules. <a href="#mcp">The MCP server</a> gives Claude Code, Claude Desktop or any MCP client a structured view and proposes changes as pull requests. <a href="#cli">The bridge CLI</a> does the same from a terminal or CI. <a href="#llms">llms.txt</a> is the whole documentation as plain text, for any agent that can read a URL.
-    <Updated slot="meta" date={updated} />
-  </PageHeader>
+  </LibraryHeader>
 
   <ul class="cx-facts" aria-label="At a glance">
     <li><Icon name="check" size={16} /> Free and open source, MIT</li>

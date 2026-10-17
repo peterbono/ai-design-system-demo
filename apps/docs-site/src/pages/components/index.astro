@@ -3,9 +3,8 @@ import '../../styles/component.css';
 import '../../styles/library.css';
 import Layout from '../../layouts/Layout.astro';
 import Example from '../../components/Example.tsx';
-import Updated from '../../components/Updated.astro';
 import ButtonLink from '../../components/ds/ButtonLink';
-import { Badge, PageHeader } from '@bridge-ds/react';
+import { Badge } from '@bridge-ds/react';
 import { Pencil } from 'lucide-react';
 import { loadComponents, type ComponentInfo } from '../../lib/components';
 import { freshness, PAGE_SOURCES } from '../../lib/sources';
@@ -24,16 +23,16 @@ const toneOf = (s: string) => (s === 'stable' ? 'success' : s === 'beta' ? 'info
 const label = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const famSlug = (label: string) => label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 const plural = (n: number, w: string, many = `${w}s`) => `${n} ${n === 1 ? w : many}`;
+import LibraryHeader from '../../components/LibraryHeader.astro';
 ---
 
 <Layout title="Components" description="Every component, with usage guidance, accessibility notes and the tokens it reads." sources={PAGE_SOURCES.components} updated={updated}>
-  <PageHeader className="lib-page-header" title="Components">
+  <LibraryHeader title="Components" art="components" updated={updated}>
     {plural(components.length, 'component')} in {plural(groups.size, 'family', 'families')}. Each page has the same tabs: Usage (when to use it, do and don't, accessibility), Tokens, Code (props and a playground) and Changelog. Guidance first, specs second.
-    <Updated slot="meta" date={updated} />
     <Fragment slot="actions">
-      <ButtonLink variant="secondary" href="/studio/components/" iconStart={Pencil}>Open in Studio</ButtonLink>
+      <ButtonLink variant="secondary" size="sm" href="/studio/components/" iconStart={Pencil}>Open in Studio</ButtonLink>
     </Fragment>
-  </PageHeader>
+  </LibraryHeader>
   <p class="gallery-stats">
     <Badge>{plural(components.length, 'component')}</Badge>
     <Badge tone="success">{documented} with usage guidance</Badge>

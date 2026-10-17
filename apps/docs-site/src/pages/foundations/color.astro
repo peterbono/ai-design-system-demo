@@ -1,9 +1,7 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import ButtonLink from '../../components/ds/ButtonLink';
-import { Kbd, PageHeader } from '@bridge-ds/react';
 import { Pencil } from 'lucide-react';
-import Updated from '../../components/Updated.astro';
 import CopyAs from '../../components/foundations/CopyAs.astro';
 import LibraryKit from '../../components/foundations/LibraryKit.astro';
 import TokenGroup from '../../components/foundations/TokenGroup.astro';
@@ -38,20 +36,24 @@ const sections = groups.map((g) => ({ group: g, rows: groupRows(g).filter((r) =>
 const labelOn = (hex?: string) => (hex && luminance(hex) > 0.36 ? 'var(--color-neutral-950)' : 'var(--color-neutral-0)');
 const semanticUsing = (primitivePath: string) =>
   colors.filter((s) => MODES.some((m) => s.modes[m].chain.includes(primitivePath))).map((s) => s.path);
+import LibraryHeader from '../../components/LibraryHeader.astro';
+import PreviewScope from '../../components/PreviewScope.astro';
 ---
 
 <Layout title="Color" description="Semantic color tokens shown in context in light and dark, and the primitive palette behind them." sources={PAGE_SOURCES.color} updated={updated}>
   <div data-fd-page>
-    <PageHeader className="lib-page-header" title="Color">
-      Every color has a job. Each group below shows its tokens at work in both themes, then lists them. Design and build with these semantic tokens; the primitive palette at the end is what they point to.
-      <Updated slot="meta" date={updated} />
+    <LibraryHeader title="Color" art="paint" updated={updated}>
+      Every color has a job. Each group shows its tokens at work in both themes, then lists them. Design and build with these semantic tokens.
       <Fragment slot="actions">
-        <ButtonLink variant="secondary" iconStart={Pencil} href="/studio/tokens/?focus=color">Edit in Studio</ButtonLink>
+        <ButtonLink variant="secondary" size="sm" iconStart={Pencil} href="/studio/tokens/?focus=color">Edit in Studio</ButtonLink>
       </Fragment>
-    </PageHeader>
+    </LibraryHeader>
     <div class="fd-toolbar">
       <p class="fd-hint">Select a token to see its alias chain, contrast pairs and history. Click a name to copy it.</p>
-      <CopyAs />
+      <div class="fd-tools">
+        <PreviewScope />
+        <CopyAs />
+      </div>
     </div>
 
     {sections.map((s) => <TokenGroup group={s.group} rows={s.rows} preview="color" specimen={SPECIMEN[s.group]} />)}
@@ -90,7 +92,7 @@ const semanticUsing = (primitivePath: string) =>
         ))
       }
       <p>
-        Want to know exactly who uses a value? Paste a hex in search (<Kbd keys={['⌘', 'K']} size="sm" />) or in the <a href="/tokens/">token explorer</a>.
+        Want to know exactly who uses a value? Paste a hex in search or in the <a href="/tokens/">token explorer</a>.
       </p>
     </section>
   </div>

@@ -1,8 +1,7 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import Icon from '../components/Icon.astro';
-import Updated from '../components/Updated.astro';
-import { Alert, Button, PageHeader } from '@bridge-ds/react';
+import { Alert, Button } from '@bridge-ds/react';
 import { Copy } from 'lucide-react';
 import { GITHUB_URL, PLUGIN_URL, readJson, sourceUrl } from '../lib/repo';
 import { freshness } from '../lib/sources';
@@ -42,13 +41,13 @@ export function App() {
 }`;
 const html = `<html data-theme="light" data-brand="bridge" data-density="comfortable">`;
 const plugin = ['npm install', 'npm run plugin:build'].join('\n');
+import LibraryHeader from '../components/LibraryHeader.astro';
 ---
 
 <Layout title="Install" description="Install the Bridge packages in a product, or the DS Bridge Figma plugin." sources={sources} updated={updated}>
-  <PageHeader className="lib-page-header" title="Install">
+  <LibraryHeader title="Install" art="guide" updated={updated}>
     Two ways to use the system: the packages in a product codebase, and the DS Bridge plugin in Figma. Both read the same token files, so code and Figma never drift. For AI agents, see <a href="/agents/">Agents</a>.
-    <Updated slot="meta" date={updated} />
-  </PageHeader>
+  </LibraryHeader>
 
   <Alert tone="warning" announce="off" title="Not published on npm yet" className="lib-note">
     The packages are built and checked, and the release workflow publishes them under the
@@ -118,7 +117,7 @@ const plugin = ['npm install', 'npm run plugin:build'].join('\n');
   </p>
   <pre class="cx-code" tabindex="0" aria-label="Scope attributes">{html}</pre>
   <p class="small muted">
-    Themes: light, dark. Brands: bridge, ocean. Densities: comfortable, compact. See every combination in the <a href="/playground/">theme playground</a>.
+    Themes: light, dark. Brands: bridge, ocean. Densities: comfortable, compact. Every component page lets you switch brand and density in its preview toolbar.
   </p>
 
   <h2 id="figma">Figma plugin</h2>

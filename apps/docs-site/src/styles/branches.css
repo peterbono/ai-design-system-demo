@@ -46,7 +46,7 @@
 .br-cmd-label {
   grid-column: 1 / -1;
   color: var(--color-text-muted);
-  font-size: var(--font-size-100);
+  font-size: var(--typography-ui-size);
   font-weight: var(--font-weight-semibold);
 }
 
@@ -58,14 +58,14 @@
   border-radius: var(--radius-control);
   background-color: var(--color-bg-subtle);
   font-family: var(--font-family-mono);
-  font-size: var(--font-size-100);
+  font-size: var(--typography-ui-size);
   white-space: nowrap;
 }
 
 .br-hint {
   margin: 0;
   color: var(--color-text-muted);
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
 }
 
 .br-pill-link {
@@ -88,7 +88,7 @@
 
 .br-other h2 {
   margin: 0 0 var(--space-1);
-  font-size: var(--font-size-300);
+  font-size: var(--typography-body-size);
 }
 
 .br-other .br-hint {

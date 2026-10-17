@@ -28,7 +28,7 @@
   border-radius: var(--radius-pill);
   background-color: var(--color-signal-subtle);
   color: var(--color-text-signal);
-  font-size: var(--font-size-300);
+  font-size: var(--typography-body-size);
   vertical-align: middle;
 }
 
@@ -40,7 +40,7 @@
 
 .rv-error {
   color: var(--color-feedback-danger-text);
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
 }
 
 
@@ -51,7 +51,7 @@
   border-radius: var(--radius-control);
   background-color: var(--color-feedback-info-bg);
   color: var(--color-text-default);
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
 }
 
 .rv-notice.is-warn {
@@ -110,7 +110,7 @@
 
 .rv-row-title {
   overflow: hidden;
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
   font-weight: var(--font-weight-semibold);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -122,7 +122,7 @@
   align-items: center;
   gap: var(--space-1-5);
   color: var(--color-text-muted);
-  font-size: var(--font-size-100);
+  font-size: var(--typography-ui-size);
 }
 
 .rv-row-pills {
@@ -143,7 +143,7 @@
   padding: calc(var(--space-0-5) / 2) var(--space-1-5);
   border-radius: var(--radius-control);
   background-color: var(--color-bg-subtle);
-  font-size: var(--font-size-100);
+  font-size: var(--typography-ui-size);
   overflow-wrap: anywhere;
 }
 
@@ -208,7 +208,7 @@
   gap: var(--space-3);
   margin-top: var(--space-5);
   color: var(--color-text-muted);
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
 }
 
 .rv-howto p {
@@ -222,7 +222,7 @@
   gap: var(--space-2);
   margin-bottom: var(--space-3);
   color: var(--color-text-muted);
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
 }
 
 .rv-head {
@@ -231,7 +231,7 @@
 
 .rv-title {
   margin: 0 0 var(--space-3);
-  font-size: var(--font-size-700);
+  font-size: var(--typography-h2-size);
   line-height: var(--font-line-height-tight);
   overflow-wrap: anywhere;
 }
@@ -246,7 +246,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2) var(--space-2);
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
 }
 
 .rv-by {
@@ -295,7 +295,7 @@
 
 .rv-card h2 {
   margin: 0;
-  font-size: var(--font-size-300);
+  font-size: var(--typography-body-size);
 }
 
 .rv-card-head {
@@ -308,12 +308,12 @@
 
 .rv-sub {
   margin: var(--space-6) 0 var(--space-1);
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
 }
 
 .rv-loading {
   color: var(--color-text-muted);
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
 }
 
 .rv-loading::after {
@@ -323,7 +323,7 @@
 .rv-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
 }
 
 .rv-table th,
@@ -336,7 +336,7 @@
 
 .rv-table thead th {
   color: var(--color-text-muted);
-  font-size: var(--font-size-100);
+  font-size: var(--typography-ui-size);
   font-weight: var(--font-weight-semibold);
 }
 
@@ -352,7 +352,7 @@
   border-radius: var(--radius-control);
   background-color: var(--color-bg-subtle);
   color: var(--color-text-muted);
-  font-size: var(--font-size-100);
+  font-size: var(--typography-ui-size);
 }
 
 .rv-kind-tag.is-added {
@@ -417,7 +417,7 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
 }
 
 .rv-files li {
@@ -442,7 +442,7 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
 }
 
 .rv-checks li,
@@ -486,13 +486,13 @@
   padding: var(--space-3) var(--space-3) var(--space-3) var(--space-7);
   border-radius: var(--radius-control);
   background-color: var(--color-feedback-warning-bg);
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
 }
 
 .rv-warnline {
   margin: 0;
   color: var(--color-feedback-warning-text);
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
 }
 
 .rv-cs + .rv-cs {
@@ -516,7 +516,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-1-5);
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
 }
 
 .rv-kind {
@@ -536,7 +536,7 @@
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-control);
   background-color: var(--color-bg-default);
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
   overflow-wrap: anywhere;
 }
 
@@ -572,7 +572,7 @@
   padding: var(--space-2) var(--space-3) var(--space-2) var(--space-7);
   border-radius: var(--radius-control);
   background-color: var(--color-feedback-warning-bg);
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
 }
 
 .rv-ov-dialog textarea {
@@ -592,7 +592,7 @@
   background-color: var(--color-surface-default);
   color: var(--color-text-default);
   font: inherit;
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
 }
 
 .rv-ov-dialog select:focus-visible {
@@ -611,7 +611,7 @@
 .rv-label {
   display: block;
   margin-bottom: var(--space-1-5);
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
   font-weight: var(--font-weight-medium);
 }
 
@@ -639,7 +639,7 @@
 .rv-act-status {
   min-height: var(--size-5);
   margin: var(--space-2) 0 0;
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
 }
 
 @media (max-width: 1080px) {
@@ -655,7 +655,7 @@
 
 @media (max-width: 640px) {
   .rv-title {
-    font-size: var(--font-size-600);
+    font-size: var(--typography-h2-size);
   }
 
   .rv-card {
@@ -741,7 +741,7 @@
   background-color: transparent;
   color: var(--color-text-muted);
   font: inherit;
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
   font-weight: var(--font-weight-medium);
   text-transform: capitalize;
   cursor: pointer;
@@ -798,7 +798,7 @@
 
 .vi-filter-label {
   color: var(--color-text-muted);
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
 }
 
 .vi-list {
@@ -820,7 +820,7 @@
 
 .vi-shot-head h3 {
   margin: 0;
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
 }
 
 .vi-shot-head .pill {
@@ -869,7 +869,7 @@
   border-radius: var(--radius-pill);
   background-color: var(--color-surface-inverse);
   color: var(--color-text-inverse);
-  font-size: var(--font-size-100);
+  font-size: var(--typography-ui-size);
   font-weight: var(--font-weight-semibold);
   pointer-events: none;
 }
@@ -918,7 +918,7 @@
   align-items: center;
   gap: var(--space-2);
   color: var(--color-text-muted);
-  font-size: var(--font-size-100);
+  font-size: var(--typography-ui-size);
 }
 
 .vi-range input {
@@ -941,13 +941,13 @@
 
 .rv-row-pills .pill {
   height: var(--size-5);
-  font-size: var(--font-size-100);
+  font-size: var(--typography-ui-size);
 }
 
 .rv-foot-note {
   margin: var(--space-3) 0 0;
   color: var(--color-text-muted);
-  font-size: var(--font-size-100);
+  font-size: var(--typography-ui-size);
 }
 
 .rv-connect-line {

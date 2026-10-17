@@ -1,0 +1,46 @@
+---
+// Library section page header: a Harbor zone block with the DS PageHeader (title, lead, actions), the release this
+// page documents next to the freshness line, and an optional ink drawing on the end side.
+//   title  the page name, as in the side nav
+//   art    one of src/brand/illustrations.ts
+//   updated  freshness date of the page sources
+// Slots: default (the lead), "actions" (one or two buttons).
+import { PageHeader } from '@bridge-ds/react';
+import Illustration from './Illustration.astro';
+import Updated from './Updated.astro';
+import VersionMenu from './ds/VersionMenu';
+import type { IllustrationName } from '../brand/illustrations';
+import { versionInfo } from '../lib/changelog';
+import { humanDate, repoStatus } from '../lib/stats';
+
+interface Props {
+  title: string;
+  art?: IllustrationName;
+  updated?: string | null;
+}
+const { title, art, updated } = Astro.props;
+const version = versionInfo();
+const repo = repoStatus();
+---
+
+<section class="zone lib-zone">
+  <div class="lib-zone-text">
+    <PageHeader className="lib-page-header" title={title}>
+      <slot />
+      {Astro.slots.has('actions') && <Fragment slot="actions"><slot name="actions" /></Fragment>}
+    </PageHeader>
+    <div class="lib-zone-meta">
+      <VersionMenu
+        client:idle
+        current={version.current}
+        past={version.past.map((r) => r.name)}
+        branch={repo.branch}
+        sha={repo.sha}
+        pending={version.pending}
+        builtFrom={`Built from ${repo.branch} at ${repo.sha}, ${humanDate(repo.lastChange)}`}
+      />
+      {updated !== undefined && <Updated date={updated} />}
+    </div>
+  </div>
+  {art && <Illustration name={art} width={112} class="lib-zone-art" />}
+</section>
