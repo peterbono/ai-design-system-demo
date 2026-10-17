@@ -48,7 +48,7 @@ test('planNewBrand from bridge: files, generated ramps pinned at the action step
   assert.equal(plan.ok, true, JSON.stringify([plan.issues, plan.contrast.failing], null, 1));
   assert.deepEqual(
     plan.files.map((f) => `${f.action} ${f.path}`),
-    ['create packages/tokens/src/brands/acme.tokens.json', 'modify bridge.config.json', 'create .changeset/bridge-brand-acme.md'],
+    ['create packages/tokens/src/primitives/acme.tokens.json', 'create packages/tokens/src/brands/acme.tokens.json', 'modify bridge.config.json', 'create .changeset/bridge-brand-acme.md'],
   );
   // Bridge buttons use primary 700: the brand hex is pinned there.
   assert.equal(plan.actionStep, 700);
@@ -63,11 +63,18 @@ test('planNewBrand from bridge: files, generated ramps pinned at the action step
   assert.equal(plan.risk.bump, 'minor');
   assert.ok(plan.risk.reasons.some((r) => /Guardrail file changed: bridge.config.json/.test(r)));
   assert.match(plan.changeset!.content, /"@bridge-ds\/tokens": minor/);
-  // The brand file: literal palette, aliased radius and fonts kept from bridge, metadata on top.
-  const doc = JSON.parse(plan.files[0]!.content);
+  // Two tiers: the ramps are primitives, the brand file only aliases them (no literal values).
+  const prim = JSON.parse(plan.files[0]!.content);
+  assert.equal(prim.color['acme-primary']['700'].$value.hex, '#1f5f3a');
+  assert.deepEqual(Object.keys(prim.color).filter((k) => !k.startsWith('$')), ['acme-primary', 'acme-neutral']);
+  const doc = JSON.parse(plan.files[1]!.content);
+  const literals = JSON.stringify(doc).match(/"hex"/g);
+  assert.equal(literals, null, 'no literal colors in the brand file');
   assert.deepEqual(Object.keys(doc).slice(0, 2), ['$description', '$extensions']);
   assert.equal(doc.$extensions['dev.bridge.brand'].name, 'Acme');
-  assert.equal(doc.palette.primary['700'].$value.hex, '#1f5f3a');
+  assert.equal(doc.palette.primary['700'].$value, '{color.acme-primary.700}');
+  assert.equal(doc.palette.accent['700'].$value, '{color.acme-primary.700}');
+  assert.equal(doc.palette.neutral['900'].$value, '{color.acme-neutral.900}');
   assert.equal(doc.palette.neutral['0'].$value, '{color.white}');
   assert.equal(doc.palette.success['500'].$value, '{color.teal.500}');
   assert.equal(doc.radius.control.$value, '{radius.xl}');
@@ -83,15 +90,15 @@ test('planNewBrand from ocean copies its theme overrides and pins at ocean actio
   assert.equal(plan.actionStep, 600);
   assert.deepEqual(
     plan.files.filter((f) => f.path.endsWith('.tokens.json')).map((f) => f.path),
-    ['packages/tokens/src/brands/north-star.tokens.json', 'packages/tokens/src/brands/north-star.light.tokens.json', 'packages/tokens/src/brands/north-star.dark.tokens.json'],
+    ['packages/tokens/src/primitives/north-star.tokens.json', 'packages/tokens/src/brands/north-star.tokens.json', 'packages/tokens/src/brands/north-star.light.tokens.json', 'packages/tokens/src/brands/north-star.dark.tokens.json'],
   );
   assert.equal(plan.ok, true, JSON.stringify([plan.issues, plan.contrast.failing.slice(0, 3)], null, 1));
-  const doc = JSON.parse(plan.files[0]!.content);
+  const doc = JSON.parse(plan.files[1]!.content);
   assert.equal(doc.radius.control.$value, '{radius.sm}');
   assert.equal(doc.typography.h2.family.$value, '{font.family.fraunces}');
   assert.equal(doc.typography.body.family.$value, '{font.family.plex-sans}');
   assert.equal(doc.font.family.display.$value, '{font.family.fraunces}');
-  const light = JSON.parse(plan.files[1]!.content);
+  const light = JSON.parse(plan.files[2]!.content);
   assert.match(light.$description, /North Star overrides on top of semantic\/light/);
 });
 
@@ -117,8 +124,8 @@ test('input problems are reported, not thrown: bad slug, off-scale radius, unkno
 test('blank brand: default structure, Instrument Sans everywhere, soft radius, no overrides', () => {
   const plan = planNewBrand(source(), { slug: 'plain', from: 'blank', primaryHue: 160, neutralHue: '#6B6B6B' });
   assert.equal(plan.ok, true, JSON.stringify(plan.contrast.failing.slice(0, 3)));
-  assert.equal(plan.files.filter((f) => f.path.endsWith('.tokens.json')).length, 1);
-  const doc = JSON.parse(plan.files[0]!.content);
+  assert.equal(plan.files.filter((f) => f.path.endsWith('.tokens.json')).length, 2);
+  const doc = JSON.parse(plan.files[1]!.content);
   assert.equal(doc.typography.h1.family.$value, '{font.family.instrument-sans}');
   // A pure grey neutral has no chroma.
   const n = plan.ramps.neutral!.find((x) => x.step === 500)!.hex;
@@ -127,8 +134,11 @@ test('blank brand: default structure, Instrument Sans everywhere, soft radius, n
 
 test('overrides set exact values (the Figma plugin path) and unknown paths are errors', () => {
   const plan = planNewBrand(source(), { slug: 'figma-brand', from: 'bridge', overrides: { 'palette.primary.700': '#123456', 'radius.control': '{radius.lg}', 'palette.nope.1': '#000000' } });
-  const doc = JSON.parse(plan.files[0]!.content);
-  assert.equal(doc.palette.primary['700'].$value.hex, '#123456');
+  const prim = JSON.parse(plan.files[0]!.content);
+  assert.deepEqual(Object.keys(prim.color['figma-brand-primary']).filter((k) => !k.startsWith('$')), ['700']);
+  assert.equal(prim.color['figma-brand-primary']['700'].$value.hex, '#123456');
+  const doc = JSON.parse(plan.files[1]!.content);
+  assert.equal(doc.palette.primary['700'].$value, '{color.figma-brand-primary.700}');
   assert.equal(doc.radius.control.$value, '{radius.lg}');
   assert.ok(plan.issues.some((i) => i.code === 'unknown-token' && i.path === 'palette.nope.1'));
 });

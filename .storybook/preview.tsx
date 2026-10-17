@@ -7,7 +7,10 @@ import './preview.css';
 import { ThemeProvider } from '../packages/react/src/theme';
 import { ToastProvider } from '../packages/react/src/components/Toast';
 import { TooltipProvider } from '../packages/react/src/components/Tooltip';
-import type { Brand, Density, Theme } from '@bridge-ds/tokens';
+import { type Brand, type Density, type Theme, brands, defaults } from '@bridge-ds/tokens';
+
+// Brands come from bridge.config.json through the token build, so a merged brand shows up in the toolbar.
+const brandTitle = (b: string) => b.split('-').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
 // Applies the scope the way a product does: all three attributes on <html> (for portaled overlays and the
 // page background) and a ThemeProvider around the story.
@@ -52,10 +55,7 @@ const preview: Preview = {
       toolbar: {
         title: 'Brand',
         icon: 'paintbrush',
-        items: [
-          { value: 'bridge', title: 'Bridge' },
-          { value: 'ocean', title: 'Ocean' },
-        ],
+        items: brands.map((b) => ({ value: b, title: brandTitle(b) })),
         dynamicTitle: true,
       },
     },
@@ -72,7 +72,7 @@ const preview: Preview = {
       },
     },
   },
-  initialGlobals: { theme: 'light', brand: 'bridge', density: 'comfortable' },
+  initialGlobals: { theme: 'light', brand: defaults.brand, density: 'comfortable' },
   parameters: {
     layout: 'padded',
     controls: { expanded: true },

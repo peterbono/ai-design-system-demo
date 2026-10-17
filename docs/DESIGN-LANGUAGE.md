@@ -146,7 +146,9 @@ the rounder brand. Components do not change.
 
 Studio (Tokens, Options, New brand), `bridge brand create`, the MCP tool `bridge_propose_brand` and a new mode in
 the Figma Brand collection all run one planner (`planNewBrand` in `@bridge-ds/core`). It copies a starting brand,
-generates the primary and neutral ramps with the same engine as `scripts/ramps.mjs`, pins a hex primary at the
+generates the primary and neutral ramps with the same engine as `scripts/ramps.mjs` into
+`primitives/<slug>.tokens.json` (`color.<slug>-primary`, `color.<slug>-neutral`; the brand file only aliases them,
+never a literal value, Figma values included), pins a hex primary at the
 step primary buttons use (700 from Bridge, 600 from Ocean), keeps the neutral's text and line steps at the ink
 anchors' lightness, and runs every contrast pair for the new brand in light and dark. A new brand is Tier 3 and
 lands only through a reviewed pull request; the token build and the Library pick it up from `bridge.config.json`.

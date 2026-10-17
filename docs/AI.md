@@ -145,7 +145,7 @@ Things to ask:
 
 A brand re-points palette, radius and font roles; components never change. `bridge_plan_brand` starts from
 an existing brand (or `blank`), generates the primary and neutral ramps with the same engine as
-`packages/tokens/scripts/ramps.mjs`, copies the starting brand's theme overrides, adds the slug to
+`packages/tokens/scripts/ramps.mjs` as primitives (`primitives/<slug>.tokens.json`, aliased by the brand file), copies the starting brand's theme overrides, adds the slug to
 `modes.brand` in `bridge.config.json` and runs every contrast pair for the new brand in light and dark. A hex
 primary is pinned at the step primary buttons use (700 in Bridge, 600 in Ocean), so a color too light for
 white button text fails the gate and says which pairs break. `bridge_propose_brand` writes the same plan to a

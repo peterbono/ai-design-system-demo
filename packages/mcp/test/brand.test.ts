@@ -29,7 +29,7 @@ describe('brands', () => {
     expect(p.contrast.line).toMatch(/^All \d+ checks pass$/);
     expect(p.contrast.themes).toEqual(['light', 'dark']);
     expect(p.ramps.primary![700]).toBe('#1f5f3a');
-    expect(p.files.map((f) => f.path)).toEqual(['packages/tokens/src/brands/acme.tokens.json', 'bridge.config.json', '.changeset/bridge-brand-acme.md']);
+    expect(p.files.map((f) => f.path)).toEqual(['packages/tokens/src/primitives/acme.tokens.json', 'packages/tokens/src/brands/acme.tokens.json', 'bridge.config.json', '.changeset/bridge-brand-acme.md']);
     expect(p.prBody).toContain('## New brand');
     expect(p.prBody).toMatch(/AI agent \(Claude\)/);
     expect(p.prBody).not.toMatch(/—/);
@@ -54,10 +54,11 @@ describe('brands', () => {
     expect(git(dir, 'rev-parse', '--abbrev-ref', 'HEAD').trim()).toBe('main');
     expect(git(dir, 'status', '--porcelain').trim()).toBe('');
     const changed = git(dir, 'diff', '--name-only', 'main', 'bridge/brand-acme').trim().split('\n').sort();
-    expect(changed).toEqual(['.changeset/bridge-brand-acme.md', 'bridge.config.json', 'packages/tokens/src/brands/acme.tokens.json']);
+    expect(changed).toEqual(['.changeset/bridge-brand-acme.md', 'bridge.config.json', 'packages/tokens/src/brands/acme.tokens.json', 'packages/tokens/src/primitives/acme.tokens.json']);
     expect(git(dir, 'show', 'bridge/brand-acme:bridge.config.json')).toContain('"values": ["bridge", "ocean", "acme"]');
     const doc = JSON.parse(git(dir, 'show', 'bridge/brand-acme:packages/tokens/src/brands/acme.tokens.json'));
     expect(doc.radius.control.$value).toBe('{radius.lg}');
+    expect(doc.palette.primary['700'].$value).toBe('{color.acme-primary.700}');
     expect(git(dir, 'log', '-1', '--format=%B', 'bridge/brand-acme')).toMatch(/Tier 3\. Proposed through Bridge MCP \(source: mcp\)\./);
     // The working copy still has no acme file.
     expect(() => readFileSync(join(dir, 'packages/tokens/src/brands/acme.tokens.json'))).toThrow();

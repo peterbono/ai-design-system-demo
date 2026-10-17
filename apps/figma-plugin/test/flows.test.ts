@@ -370,11 +370,17 @@ for (const layout of ['single', 'split'] as const) {
     assert.deepEqual(push.validation.blocking, []);
     const plan = push.brands[0]!.plan!;
     assert.equal(plan.ok, true);
-    assert.deepEqual(push.brandFiles.map((f) => f.path), ['packages/tokens/src/brands/acme.tokens.json', 'bridge.config.json', '.changeset/bridge-brand-acme.md']);
-    const brand = JSON.parse(push.brandFiles[0]!.content);
+    // A literal Figma color becomes a primitive the brand aliases (two tiers); aliases to synced primitives stay.
+    const brandPath = 'packages/tokens/src/brands/acme.tokens.json';
+    const primPath = 'packages/tokens/src/primitives/acme.tokens.json';
+    assert.deepEqual(push.brandFiles.map((f) => f.path), [...(layout === 'single' ? [primPath] : []), brandPath, 'bridge.config.json', '.changeset/bridge-brand-acme.md']);
+    const brand = JSON.parse(push.brandFiles.find((f) => f.path === brandPath)!.content);
     assert.equal(brand.$extensions['dev.bridge.brand'].name, 'Acme');
-    if (layout === 'single') assert.equal(brand.palette.primary['700'].$value.hex, '#1f5f3a');
-    else assert.equal(brand.palette.primary['700'].$value, '{color.harbor.700}');
+    assert.equal(JSON.stringify(brand).includes('"hex"'), false, 'no literal colors in the brand file');
+    if (layout === 'single') {
+      assert.equal(brand.palette.primary['700'].$value, '{color.acme-primary.700}');
+      assert.equal(JSON.parse(push.brandFiles[0]!.content).color['acme-primary']['700'].$value.hex, '#1f5f3a');
+    } else assert.equal(brand.palette.primary['700'].$value, '{color.harbor.700}');
 
     const result = await openPullRequest(client, a, push, { title: '', notes: 'Acme launch', fileName: 'Test' });
     const pr = gh.prs[0]!;
@@ -387,7 +393,7 @@ for (const layout of ['single', 'split'] as const) {
     const commit = gh.commits.get(result.commitSha)!;
     const main = gh.filesAt('main');
     const changed = Object.keys(commit.files).filter((f) => commit.files[f] !== main[f]).sort();
-    assert.deepEqual(changed, ['.changeset/bridge-brand-acme.md', 'bridge.config.json', 'packages/tokens/src/brands/acme.tokens.json']);
+    assert.deepEqual(changed, ['.changeset/bridge-brand-acme.md', 'bridge.config.json', 'packages/tokens/src/brands/acme.tokens.json', ...(layout === 'single' ? ['packages/tokens/src/primitives/acme.tokens.json'] : [])]);
     assert.match(commit.files['bridge.config.json']!, /"values": \["bridge", "ocean", "acme"\]/);
   });
 }
