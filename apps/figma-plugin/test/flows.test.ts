@@ -93,9 +93,9 @@ for (const layout of ['single', 'split'] as const) {
 test('push: edits in Figma become a minimal PR with only the changed files', async () => {
   const { gh, client, snapshot, sync } = await pulled();
   // 1. Re-point a semantic token (light) to another palette role.
-  alias(snapshot, 'Semantic', 'color/action/primary/bg', 'Light', 'Brand', 'palette/primary/700');
+  alias(snapshot, 'Semantic', 'color/action/primary/bg', 'Light', 'Brand', 'palette/primary/600');
   // 2. Change a primitive value (float32 noise included) and its description.
-  const s50 = findIn(snapshot, 'Primitives', 'color/steel/50');
+  const s50 = findIn(snapshot, 'Primitives', 'color/ink/100');
   s50.valuesByMode['Primitives:value'] = { kind: 'color', r: Math.fround(0.94), g: Math.fround(0.95), b: Math.fround(0.96), a: 1 };
   s50.description = 'Subtle background';
   // 3. Rename a variable (keeps its plugin data id).
@@ -114,12 +114,13 @@ test('push: edits in Figma become a minimal PR with only the changed files', asy
 
   const a = await analyze(client, DEFAULT_SETTINGS, sync, snapshot);
   const kinds = Object.fromEntries(a.diff.local.map((e) => [e.path, e.local!.kind]));
-  // Ocean's radius.overlay aliases radius.3xl: the rename reaches it through the alias.
-  assert.deepEqual(kinds, { 'color.action.primary.bg': 'changed', 'color.steel.50': 'changed', 'radius.4xl': 'renamed', 'radius.overlay': 'changed', 'space.32': 'added' });
+  // Bridge's radius.container and radius.overlay and ocean's radius.overlay alias radius.3xl: the rename reaches them.
+  assert.deepEqual(kinds, { 'color.action.primary.bg': 'changed', 'color.ink.100': 'changed', 'radius.4xl': 'renamed', 'radius.container': 'changed', 'radius.overlay': 'changed', 'space.32': 'added' });
 
   const push = buildPush(a, new Map());
   assert.deepEqual(push.validation.blocking, []);
   assert.deepEqual(Object.keys(push.files).sort(), [
+    'brands/bridge.tokens.json',
     'brands/ocean.tokens.json',
     'primitives/color.tokens.json',
     'primitives/radius.tokens.json',
@@ -131,7 +132,7 @@ test('push: edits in Figma become a minimal PR with only the changed files', asy
     const before = original[file]!.split('\n');
     return push.files[file]!.split('\n').filter((l, i) => l !== before[i]);
   };
-  assert.deepEqual(changedLines('semantic/light.tokens.json').map((l) => l.trim()), ['"$value": "{palette.primary.700}",']);
+  assert.deepEqual(changedLines('semantic/light.tokens.json').map((l) => l.trim()), ['"$value": "{palette.primary.600}",']);
   assert.match(push.files['primitives/space.tokens.json']!, /"32": \{\n\s+"\$value": \{\n\s+"value": 128,\n\s+"unit": "px"\n\s+\}\n\s+\}\n  \}\n\}\n$/);
   assert.match(push.files['primitives/radius.tokens.json']!, /"4xl": \{\n\s+"\$value": \{\n\s+"value": 20,\n\s+"unit": "px"\n\s+\},\n\s+"\$extensions": \{\n\s+"com\.dsbridge\.id": "path:radius\.3xl"/);
   assert.match(push.files['primitives/color.tokens.json']!, /"\$description": "Subtle background",\n\s+"\$value": \{\n\s+"colorSpace": "srgb",\n\s+"components": \[\n\s+0\.94,/);
@@ -146,18 +147,18 @@ test('push: edits in Figma become a minimal PR with only the changed files', asy
   assert.match(pr.body, /Tier 3: token change, needs design \+ tech approval/);
   const primary = row(pr.body, 'color.action.primary.bg');
   assert.equal(primary[1], 'Semantic');
-  assert.match(primary[3]!, /^Light: `palette\.primary\.\d+ \(#[0-9a-f]{6}\)` -> `palette\.primary\.700 \(#4b5562\)`<br>Dark: `palette\.primary\.\d+ \(#[0-9a-f]{6}\)`/);
+  assert.match(primary[3]!, /^Light: `palette\.primary\.\d+ \(#[0-9a-f]{6}\)` -> `palette\.primary\.600 \(#1b6eb9\)`<br>Dark: `palette\.primary\.\d+ \(#[0-9a-f]{6}\)`/);
   assert.match(primary[4]!, /Bridge light, color\.action\.primary\.text on color\.action\.primary\.bg: \d+(\.\d+)? -> \d+(\.\d+)? (AAA|AA|fail)/);
   assert.doesNotMatch(primary[4]!, /Ocean|dark/, 'ocean overrides it; dark did not change');
   // A primitive change shows the pairs it reaches through palette roles.
-  assert.match(row(pr.body, 'color.steel.50')[4]!, /Bridge light, color\.text\.\w+ on color\.bg\.default: \d+(\.\d+)? -> \d+(\.\d+)?/);
+  assert.match(row(pr.body, 'color.ink.100')[4]!, /Bridge light, color\.text\.\w+ on color\.bg\.subtle: \d+(\.\d+)? -> \d+(\.\d+)?/);
   assert.equal(pr.body.includes(String.fromCharCode(0x2014)), false, 'no em dash in the PR body');
   // One commit on top of main holding only the changed files plus a changeset.
   const commit = gh.commits.get(result.commitSha)!;
   assert.deepEqual(commit.parents, [a.headSha]);
   const mainFiles = gh.filesAt('main');
   const changed = Object.keys(commit.files).filter((f) => commit.files[f] !== mainFiles[f]).sort();
-  assert.equal(changed.length, 6);
+  assert.equal(changed.length, 7);
   assert.ok(changed.some((f) => /^\.changeset\/ds-bridge-.*\.md$/.test(f)));
   const changeset = commit.files[changed.find((f) => f.startsWith('.changeset/'))!]!;
   assert.match(changeset, /"@bridge-ds\/tokens": major/, 'a rename is a breaking change');
@@ -168,7 +169,7 @@ test('push: edits in Figma become a minimal PR with only the changed files', asy
 test('push writes each tier back to its own file and mode', async () => {
   const { client, snapshot, sync } = await pulled();
   alias(snapshot, 'Brand', 'palette/accent/600', 'Ocean', 'Primitives', 'color/sea/700');
-  alias(snapshot, 'Density', 'control/height/md', 'Compact', 'Primitives', 'size/9');
+  alias(snapshot, 'Density', 'control/height/md', 'Compact', 'Primitives', 'size/10');
   alias(snapshot, 'Component', 'button/secondary/text', 'Value', 'Semantic', 'color/text/default');
   findIn(snapshot, 'Base', 'icon/stroke').valuesByMode['Base:value'] = { kind: 'float', value: 2.25 };
   const a = await analyze(client, DEFAULT_SETTINGS, sync, snapshot);
@@ -176,25 +177,25 @@ test('push writes each tier back to its own file and mode', async () => {
   assert.deepEqual(push.validation.blocking, []);
   assert.deepEqual(Object.keys(push.files).sort(), ['brands/ocean.tokens.json', 'components/button.tokens.json', 'density/compact.tokens.json', 'semantic/base.tokens.json']);
   assert.match(push.files['brands/ocean.tokens.json']!, /"\{color\.sea\.700\}"/);
-  assert.match(push.files['density/compact.tokens.json']!, /"\{size\.9\}"/);
+  assert.match(push.files['density/compact.tokens.json']!, /"\{size\.10\}"/);
   assert.match(push.files['components/button.tokens.json']!, /"\{color\.text\.default\}"/);
   assert.match(push.files['semantic/base.tokens.json']!, /2\.25/);
 });
 
 test('PR #4 regression: changing color.bg.default fills the contrast column with before -> after ratios', async () => {
   const { gh, client, snapshot, sync } = await pulled();
-  alias(snapshot, 'Semantic', 'color/bg/default', 'Light', 'Brand', 'palette/neutral/0');
+  alias(snapshot, 'Semantic', 'color/bg/default', 'Light', 'Brand', 'palette/neutral/50');
   const a = await analyze(client, DEFAULT_SETTINGS, sync, snapshot);
   const push = buildPush(a, new Map());
   assert.deepEqual(push.validation.blocking, []);
   await openPullRequest(client, a, push, { title: 'Canvas tint', notes: '', fileName: 'Test' });
   const cell = row(gh.prs[0]!.body, 'color.bg.default')[4]!;
   assert.notEqual(cell.trim(), '', 'contrast column is filled');
-  // Every pair with color.bg.default as foreground or background, in both brands, light only. The cell lists the
-  // biggest moves and points to the Contrast impact table for the rest, which lists every pair.
-  for (const brand of ['Bridge', 'Ocean']) {
-    assert.match(gh.prs[0]!.body, new RegExp(`\\| \`color\\.text\\.default\` on \`color\\.bg\\.default\` \\| ${brand} light \\| \\d+(\\.\\d+)? \\| \\d+(\\.\\d+)? \\| 4\\.5 \\| (AAA|AA) \\|`));
-  }
+  // Every pair with color.bg.default as foreground or background, light only. Ocean overrides color.bg.default in
+  // light, so only Bridge moves. The cell lists the biggest moves and points to the Contrast impact table for the
+  // rest, which lists every pair.
+  assert.match(gh.prs[0]!.body, /\| `color\.text\.default` on `color\.bg\.default` \| Bridge light \| \d+(\.\d+)? \| \d+(\.\d+)? \| 4\.5 \| (AAA|AA) \|/);
+  assert.doesNotMatch(gh.prs[0]!.body, /\| `color\.text\.default` on `color\.bg\.default` \| Ocean light \|/);
   assert.doesNotMatch(cell, /dark/);
   const lines = cell.split('<br>');
   const more = /^and \d+ more \(see Contrast impact\)( \|)?$/;
@@ -205,17 +206,17 @@ test('PR #4 regression: changing color.bg.default fills the contrast column with
 
 test('PR #4 regression: a brand palette change shows the pairs it reaches through semantic aliases', async () => {
   const { gh, client, snapshot, sync } = await pulled();
-  // color.bg.default (light) -> palette.neutral.50 -> primitive. Change the Bridge palette role only.
-  alias(snapshot, 'Brand', 'palette/neutral/50', 'Bridge', 'Primitives', 'color/white');
+  // color.bg.subtle (light) -> palette.neutral.100 -> primitive. Change the Bridge palette role only.
+  alias(snapshot, 'Brand', 'palette/neutral/100', 'Bridge', 'Primitives', 'color/white');
   const a = await analyze(client, DEFAULT_SETTINGS, sync, snapshot);
   const push = buildPush(a, new Map());
   assert.deepEqual(Object.keys(push.files), ['brands/bridge.tokens.json']);
   assert.deepEqual(push.validation.blocking, []);
   await openPullRequest(client, a, push, { title: 'Bridge canvas', notes: '', fileName: 'Test' });
-  const cells = row(gh.prs[0]!.body, 'palette.neutral.50');
+  const cells = row(gh.prs[0]!.body, 'palette.neutral.100');
   assert.equal(cells[1], 'Brand');
-  assert.match(cells[3]!, /^Bridge: `color\.steel\.50 \(#[0-9a-f]{6}\)` -> `color\.white \(#ffffff\)`<br>Ocean: .* \(unchanged\)$/);
-  assert.match(gh.prs[0]!.body, /\| `color\.text\.default` on `color\.bg\.default` \| Bridge light \| \d+(\.\d+)? \| \d+(\.\d+)? \|/);
+  assert.match(cells[3]!, /^Bridge: `color\.ink\.100 \(#[0-9a-f]{6}\)` -> `color\.white \(#ffffff\)`<br>Ocean: .* \(unchanged\)$/);
+  assert.match(gh.prs[0]!.body, /\| `color\.text\.muted` on `color\.bg\.subtle` \| Bridge light \| \d+(\.\d+)? \| \d+(\.\d+)? \|/);
   assert.match(cells[4]!, /^Bridge light, /);
   assert.doesNotMatch(cells[4]!, /Ocean/, 'the ocean palette did not change');
 });
@@ -239,7 +240,7 @@ test('guardrails block raw values, wrong tiers, broken contrast and ALL_SCOPES',
 test('conflicts are surfaced and nothing is overwritten until the user picks', async () => {
   const { gh, client, snapshot, sync } = await pulled();
   gh.pushToMain((files) => setValue(files, 'semantic/dark.tokens.json', 'color.action.primary.bg', '{palette.primary.500}'));
-  alias(snapshot, 'Semantic', 'color/action/primary/bg', 'Dark', 'Brand', 'palette/primary/300');
+  alias(snapshot, 'Semantic', 'color/action/primary/bg', 'Dark', 'Brand', 'palette/primary/400');
   const a = await analyze(client, DEFAULT_SETTINGS, sync, snapshot);
   assert.deepEqual(a.diff.conflicts.map((c) => c.path), ['color.action.primary.bg']);
 
@@ -249,7 +250,7 @@ test('conflicts are surfaced and nothing is overwritten until the user picks', a
   await assert.rejects(openPullRequest(client, a, unresolved, { title: 't', notes: '', fileName: 'x' }), /conflict/);
 
   const keepFigma = buildPush(a, new Map([[a.diff.conflicts[0]!.id, 'figma']]));
-  assert.match(keepFigma.files['semantic/dark.tokens.json']!, /"\$value": "\{palette\.primary\.300\}"/);
+  assert.match(keepFigma.files['semantic/dark.tokens.json']!, /"\$value": "\{palette\.primary\.400\}"/);
 
   const pullMain = buildPull(a, new Map([[a.diff.conflicts[0]!.id, 'main']]));
   const planned = pullMain.plan.variables.find((v) => v.path === 'color.action.primary.bg')!;

@@ -1,0 +1,30 @@
+---
+// A Field Guide line drawing (src/brand/illustrations.ts). Decorative unless `label` is given.
+import { ILLUSTRATIONS, type IllustrationName } from '../brand/illustrations';
+
+interface Props {
+  name: IllustrationName;
+  /** Rendered width in px; height follows the drawing's ratio. */
+  width?: number;
+  /** Accessible name. Without it the drawing is hidden from assistive tech. */
+  label?: string;
+  class?: string;
+}
+const { name, width, label, class: className } = Astro.props;
+const art = ILLUSTRATIONS[name];
+const w = width ?? art.width;
+const h = Math.round((w * art.height) / art.width);
+---
+
+<svg
+  class:list={['ill', className]}
+  width={w}
+  height={h}
+  viewBox={art.viewBox}
+  fill="none"
+  role={label ? 'img' : undefined}
+  aria-label={label}
+  aria-hidden={label ? undefined : 'true'}
+  focusable="false"
+  set:html={art.svg}
+/>

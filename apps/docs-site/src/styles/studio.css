@@ -66,7 +66,7 @@
   flex-wrap: wrap;
   gap: var(--space-1) var(--space-3);
   color: var(--color-text-muted);
-  font-size: var(--font-size-100);
+  font-size: var(--typography-ui-size);
 }
 
 .st-review-meta .mono {
@@ -85,7 +85,7 @@
   border: var(--border-width-default) dashed var(--color-border-default);
   border-radius: var(--radius-control);
   color: var(--color-text-muted);
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
 }
 
 .st-review-empty.is-fail {
@@ -118,14 +118,14 @@
 .st-gate-label {
   margin: 0;
   color: var(--color-text-muted);
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
   font-weight: var(--font-weight-semibold);
 }
 
 .st-gate-value {
   margin: 0;
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-700);
+  font-size: var(--typography-h2-size);
   font-weight: var(--font-weight-bold);
   letter-spacing: var(--font-tracking-tighter);
   line-height: var(--font-line-height-none);
@@ -161,7 +161,7 @@
   border: var(--border-width-default) solid var(--color-border-default);
   border-radius: var(--radius-control);
   background-color: var(--color-surface-default);
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
 }
 
 .st-combos li span:first-child {
@@ -181,7 +181,7 @@
   margin: 0 0 var(--space-5);
   padding: 0;
   color: var(--color-text-muted);
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
   list-style: none;
 }
 
@@ -204,7 +204,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
 }
 
 /* Visual impact list */
@@ -289,12 +289,12 @@
 
 .ov-kpi-label {
   color: var(--color-text-muted);
-  font-size: var(--font-size-100);
+  font-size: var(--typography-ui-size);
   font-weight: var(--font-weight-medium);
 }
 
 .ov-kpi-value {
-  font-size: var(--font-size-400);
+  font-size: var(--typography-h3-size);
   font-weight: var(--font-weight-semibold);
   letter-spacing: var(--font-tracking-tighter);
   line-height: var(--font-line-height-tight);
@@ -303,7 +303,7 @@
 .ov-kpi-sub {
   overflow: hidden;
   color: var(--color-text-muted);
-  font-size: var(--font-size-100);
+  font-size: var(--typography-ui-size);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -334,7 +334,7 @@
 .ov-panel-link,
 .ov-panel-meta {
   color: var(--color-text-muted);
-  font-size: var(--font-size-100);
+  font-size: var(--typography-ui-size);
   font-weight: var(--font-weight-medium);
 }
 
@@ -383,7 +383,7 @@
 
 .ov-pr-title {
   overflow: hidden;
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
   font-weight: var(--font-weight-semibold);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -394,12 +394,12 @@
   flex-wrap: wrap;
   gap: var(--space-0-5) var(--space-2);
   color: var(--color-text-muted);
-  font-size: var(--font-size-100);
+  font-size: var(--typography-ui-size);
 }
 
 .ov-pr-meta .mono {
   font-family: var(--font-family-mono);
-  font-size: var(--font-size-100);
+  font-size: var(--typography-ui-size);
 }
 
 .ov-pr-pills {
@@ -412,7 +412,7 @@
 
 .ov-pr-pills .pill {
   height: var(--size-5);
-  font-size: var(--font-size-100);
+  font-size: var(--typography-ui-size);
 }
 
 .ov-skel {
@@ -429,7 +429,7 @@
   margin: 0;
   padding: var(--space-3) var(--space-4);
   color: var(--color-text-muted);
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
 }
 
 .ov-empty.is-fail {
@@ -445,7 +445,7 @@
   padding: var(--space-2) var(--space-4);
   border-top: var(--border-width-default) solid var(--color-border-default);
   color: var(--color-text-muted);
-  font-size: var(--font-size-100);
+  font-size: var(--typography-ui-size);
 }
 
 .ov-drafts[hidden] {
@@ -472,7 +472,7 @@
   gap: var(--space-3);
   min-height: var(--size-10);
   padding: var(--space-1) var(--space-4);
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
 }
 
 .ov-act-title {
@@ -485,14 +485,14 @@
   max-width: var(--size-40);
   overflow: hidden;
   color: var(--color-text-muted);
-  font-size: var(--font-size-100);
+  font-size: var(--typography-ui-size);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .ov-act-date {
   color: var(--color-text-muted);
-  font-size: var(--font-size-100);
+  font-size: var(--typography-ui-size);
   white-space: nowrap;
 }
 
@@ -501,7 +501,7 @@
   align-items: flex-start;
   gap: var(--space-2);
   padding: var(--space-2) var(--space-4);
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
 }
 
 .ov-issue-icon {
@@ -536,7 +536,7 @@
 
 .ov-issue-detail {
   color: var(--color-text-muted);
-  font-size: var(--font-size-100);
+  font-size: var(--typography-ui-size);
 }
 
 .ov-charts {
@@ -603,7 +603,7 @@
 .st-h2 {
   margin: var(--space-8) 0 var(--space-3);
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
   font-weight: var(--font-weight-semibold);
   letter-spacing: var(--font-tracking-snug);
   line-height: var(--font-line-height-snug);
@@ -619,13 +619,13 @@
 }
 
 .section-head:has(.st-h2) p {
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
 }
 
 /* Checks: the gate numbers sit at KPI size. */
 .st-gate-value {
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-500);
+  font-size: var(--typography-h3-size);
   font-weight: var(--font-weight-semibold);
   letter-spacing: var(--font-tracking-tighter);
 }

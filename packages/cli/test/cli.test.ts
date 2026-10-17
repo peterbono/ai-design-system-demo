@@ -15,7 +15,7 @@ describe('bridge CLI', () => {
   it('check passes on the real repo (exit 0)', () => {
     const r = bridge(REPO, 'check');
     expect(r.code).toBe(0);
-    expect(r.out).toMatch(/contrast: 276 checks, 0 failing/);
+    expect(r.out).toMatch(/contrast: 296 checks, 0 failing/);
     expect(r.out).toMatch(/OK$/m);
   });
 
@@ -52,7 +52,7 @@ describe('bridge CLI', () => {
     const r = bridge(dir, 'diff', 'main');
     expect(r.code).toBe(0);
     expect(r.out).toMatch(/1 token change\(s\) since main\s+\(Tier 3, minor\)/);
-    expect(r.out).toMatch(/~ color\.text\.muted\s+#636d79\s+->\s+#4b5562/);
+    expect(r.out).toMatch(/~ color\.text\.muted\s+#5b6672\s+->\s+#495562/);
     expect(r.out).toMatch(/other token\(s\) change value through aliases/);
     const md = bridge(dir, 'diff', 'main', '--md');
     expect(md.out).toContain('| `color.text.muted` | value |');
@@ -121,7 +121,7 @@ describe('bridge CLI', () => {
       const css = readFileSync(join(dir, 'src/styles.css'), 'utf8');
       const dry = bridge(REPO, 'audit', dir, '--fix');
       expect(dry.code).toBe(0);
-      expect(dry.out).toMatch(/src\/styles.css:3:10\s+#1c2735 -> var\(--color-text-default\)/);
+      expect(dry.out).toMatch(/src\/styles.css:3:10\s+#15202b -> var\(--color-text-default\)/);
       expect(dry.out).toMatch(/Would replace 5 value/);
       expect(readFileSync(join(dir, 'src/styles.css'), 'utf8')).toBe(css);
       expect(bridge(REPO, 'audit', dir, '--fix', '--write').out).toMatch(/Replaced 5 value/);

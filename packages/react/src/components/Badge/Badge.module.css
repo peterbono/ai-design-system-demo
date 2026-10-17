@@ -15,17 +15,20 @@
   background-color: var(--_bg);
   color: var(--_text);
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-100);
+  font-size: var(--typography-caption-size);
   font-weight: var(--font-weight-medium);
-  line-height: var(--font-line-height-tight);
+  line-height: var(--typography-caption-line-height);
   letter-spacing: var(--font-tracking-wide);
   white-space: nowrap;
   vertical-align: middle;
 }
 
 .md {
-  min-height: var(--size-6);
-  padding: 0 var(--space-2);
+  min-height: calc(var(--size-6) + var(--space-0-5));
+  padding: 0 calc(var(--space-2) + var(--space-0-5));
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+  letter-spacing: normal;
 }
 
 .sm {

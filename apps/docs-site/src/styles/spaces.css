@@ -1,14 +1,14 @@
 /* Two spaces, one shell: the Library | Studio switch, the scope chip (version or branch), header menus, the
    page header, and the reading template (breadcrumb + right "On this page" rail). */
 
-/* Space switch: a two-way segmented link pair. Ink marks the space you are in; orange stays for focus. */
+/* Space switch: a two-way segmented link pair. The space you are in sits on a white plate. */
 .space-switch {
   display: inline-grid;
   grid-auto-columns: 1fr;
   grid-auto-flow: column;
+  gap: var(--space-1);
   flex: none;
-  padding: var(--space-0-5);
-  border: var(--border-width-default) solid var(--color-border-default);
+  padding: var(--space-1);
   border-radius: var(--radius-control);
   background-color: var(--color-bg-subtle);
 }
@@ -17,12 +17,13 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: var(--size-8);
+  min-height: var(--size-7);
   padding: 0 var(--space-3);
-  border-radius: var(--radius-control);
+  border-radius: calc(var(--radius-control) - var(--space-1));
   color: var(--color-text-muted);
-  font-size: var(--font-size-200);
-  font-weight: var(--font-weight-semibold);
+  font-size: var(--typography-ui-size);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--typography-ui-line-height);
   text-decoration: none;
   white-space: nowrap;
 }
@@ -58,7 +59,7 @@
   border-radius: var(--radius-pill);
   background-color: var(--color-surface-default);
   color: var(--color-text-default);
-  font-size: var(--font-size-100);
+  font-size: var(--typography-ui-size);
   list-style: none;
   cursor: pointer;
 }
@@ -78,7 +79,7 @@
 .scope-pick-trigger .mono {
   overflow: hidden;
   font-family: var(--font-family-mono);
-  font-size: var(--font-size-100);
+  font-size: var(--typography-ui-size);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -109,7 +110,7 @@
 .menu-title {
   margin: var(--space-1) var(--space-2) var(--space-1-5);
   color: var(--color-text-muted);
-  font-size: var(--font-size-100);
+  font-size: var(--typography-ui-size);
   font-weight: var(--font-weight-semibold);
 }
 
@@ -133,14 +134,14 @@
   padding: var(--space-2);
   border-radius: var(--radius-control);
   color: var(--color-text-default);
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
   text-decoration: none;
 }
 
 .menu-item .mono {
   overflow: hidden;
   font-family: var(--font-family-mono);
-  font-size: var(--font-size-100);
+  font-size: var(--typography-ui-size);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -155,7 +156,7 @@
   grid-column: 1;
   overflow: hidden;
   color: var(--color-text-muted);
-  font-size: var(--font-size-100);
+  font-size: var(--typography-ui-size);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -177,7 +178,7 @@ a.menu-item:hover {
 .menu-help {
   margin: var(--space-2) var(--space-2) var(--space-1);
   color: var(--color-text-muted);
-  font-size: var(--font-size-100);
+  font-size: var(--typography-ui-size);
   line-height: var(--font-line-height-normal);
 }
 
@@ -186,7 +187,7 @@ a.menu-item:hover {
   margin-top: var(--space-1-5);
   padding: var(--space-2) var(--space-2) var(--space-1);
   border-top: var(--border-width-default) solid var(--color-border-default);
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
   font-weight: var(--font-weight-medium);
 }
 
@@ -199,7 +200,7 @@ a.menu-item:hover {
   padding: 0 var(--space-3) 0 var(--space-2);
   border-radius: var(--radius-control);
   color: var(--color-text-default);
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
   font-weight: var(--font-weight-semibold);
   text-decoration: none;
   white-space: nowrap;
@@ -215,48 +216,25 @@ a.menu-item:hover {
   transform: rotate(180deg);
 }
 
-.rail .rail-back {
-  display: none;
-}
-
-/* Rail additions: live counts and the Settings door at the foot of the Studio rail. */
+/* The one number in the side nav: drafts waiting in this browser, a pale Harbor pill. */
 .rail-num {
-  min-width: calc(var(--size-5) + var(--space-0-5));
+  min-width: var(--size-6);
   margin-left: auto;
-  padding: 0 var(--space-1-5);
+  padding: var(--space-0-5) var(--space-2);
   border-radius: var(--radius-pill);
-  background-color: var(--color-bg-subtle);
-  color: var(--color-text-default);
-  font-size: var(--font-size-100);
-  font-weight: var(--font-weight-semibold);
-  font-variant-numeric: tabular-nums;
-  line-height: var(--font-line-height-relaxed);
-  text-align: center;
-}
-
-.rail a[aria-current="page"] .rail-num {
   background-color: var(--color-signal-subtle);
   color: var(--color-text-signal);
+  font-size: var(--typography-caption-size);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--typography-caption-line-height);
+  text-align: center;
 }
 
 .rail-num[hidden] {
   display: none;
 }
 
-.rail .rail-settings {
-  margin: 0 calc(var(--space-2) * -1) var(--space-3);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-200);
-}
-
-.rail .rail-settings .icon {
-  color: var(--color-text-muted);
-}
-
-/* Component families sit under the Catalog entry: indent them past its icon. */
-.rail-group .rail-sub {
-  margin-left: var(--space-10);
-}
 
 /* Page tabs: the first heading of a panel sits close to the tab bar. */
 .cp-panel > :first-child,
@@ -295,14 +273,14 @@ a.menu-item:hover {
     align-self: start;
     max-height: calc(100vh - var(--layout-header-height) - var(--size-16));
     overflow-y: auto;
-    font-size: var(--font-size-200);
+    font-size: var(--typography-ui-size);
   }
 }
 
 .page-toc-title {
   margin: 0 0 var(--space-2);
   color: var(--color-text-muted);
-  font-size: var(--font-size-100);
+  font-size: var(--typography-ui-size);
   font-weight: var(--font-weight-semibold);
 }
 
@@ -360,7 +338,7 @@ a.menu-item:hover {
   position: relative;
   padding: var(--space-2) var(--space-3);
   color: var(--color-text-muted);
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
   font-weight: var(--font-weight-semibold);
   text-decoration: none;
   white-space: nowrap;
@@ -392,34 +370,18 @@ a.menu-item:hover {
   gap: var(--space-1-5);
 }
 
-@media (max-width: 1100px) {
-  .topbar-switch a {
-    padding: 0 var(--space-2);
-  }
-}
-
 @media (max-width: 960px) {
-  .topbar-brand .logo-word {
+  .topbar-switch {
     display: none;
   }
 
   .rail-switch {
     display: grid;
-    margin: 0 0 var(--space-5);
-  }
-
-  .rail .rail-back {
-    display: inline-flex;
-    margin: 0 0 var(--space-5);
+    margin: 0 var(--space-3) var(--space-5);
   }
 }
 
 @media (max-width: 640px) {
-  .topbar-switch,
-  .topbar > .back-link {
-    display: none;
-  }
-
   .scope-pick-trigger {
     max-width: calc(var(--size-40) - var(--space-4));
   }

@@ -54,7 +54,7 @@ test('layered set resolves the real tokens in every mode and validates clean', (
   const set = realSet();
   assert.equal(set.combos().length, 8);
   const r = set.resolve('color.text.muted', { brand: 'bridge', theme: 'light', density: 'comfortable' });
-  assert.deepEqual(r.chain, ['color.text.muted', 'palette.neutral.600', 'color.steel.600']);
+  assert.deepEqual(r.chain, ['color.text.muted', 'palette.neutral.600', 'color.ink.600']);
   assert.match(r.css, /^#[0-9a-f]{6}$/);
   assert.equal(set.tierOf('color.text.muted'), 'semantic');
   assert.equal(set.tierOfFile('semantic/base.tokens.json'), 'base');
@@ -97,7 +97,7 @@ test('edits are minimal diffs; diff and tier use the shared rules', () => {
   const ren = applyTokenEdits(set, [{ op: 'rename', path: 'color.text.link', newPath: 'color.text.anchor' }]);
   const renSet = new LayeredTokenSet(set.config, ren.files);
   const rc = diffLayered(set, renSet);
-  assert.deepEqual(rc.filter((c) => c.kind === 'renamed').map((c) => c.from), ['color.text.link', 'color.text.link']);
+  assert.deepEqual(rc.filter((c) => c.kind === 'renamed').map((c) => c.from), ['color.text.link', 'color.text.link', 'color.text.link'], 'light, dark and the ocean light override');
   assert.deepEqual([classifyLayered(rc).tier, classifyLayered(rc).bump], [3, 'major']);
   assert.deepEqual(validateLayered(renSet).filter((i) => i.level === 'error'), []);
 

@@ -51,6 +51,7 @@ const tabs = [
   { id: 'code', label: 'Code' },
   { id: 'changelog', label: 'Changelog' },
 ];
+import PreviewScope from '../../components/PreviewScope.astro';
 ---
 
 <Layout title={c.name} description={d?.summary ?? c.description} sources={sources} updated={updated} crumbs={[{ label: 'Catalog', href: '/components/' }, { label: c.name }]} toc={false}>
@@ -94,6 +95,7 @@ const tabs = [
             ]}
           />
           <span class="hero-stage-note">Rendered with the real component</span>
+          <PreviewScope />
         </div>
         <div class="hero-stage-panes">
           {MODES.map((m) => (

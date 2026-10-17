@@ -1,9 +1,7 @@
 ---
-import { PageHeader } from '@bridge-ds/react';
 import Layout from '../../layouts/Layout.astro';
 import ButtonLink from '../../components/ds/ButtonLink';
 import { Pencil } from 'lucide-react';
-import Updated from '../../components/Updated.astro';
 import CopyAs from '../../components/foundations/CopyAs.astro';
 import LibraryKit from '../../components/foundations/LibraryKit.astro';
 import TokenList from '../../components/foundations/TokenList.astro';
@@ -16,20 +14,24 @@ const roles = groupRows('radius');
 const radii = primitiveRows('radius');
 const widths = [...groupRows('border-width'), ...primitiveRows('border.width')];
 const focus = groupRows('focus').filter((r) => r.type !== 'color');
+import LibraryHeader from '../../components/LibraryHeader.astro';
+import PreviewScope from '../../components/PreviewScope.astro';
 ---
 
 <Layout title="Radius and borders" description="Radius roles by rank, the radius scale, border widths and the focus ring width." sources={PAGE_SOURCES.radius} updated={updated}>
   <div data-fd-page>
-    <PageHeader className="lib-page-header" title="Radius and borders">
+    <LibraryHeader title="Radius and borders" art="foundations" updated={updated}>
       Radius tells you what kind of object you are looking at: small parts inside controls get the smallest, controls a little more, containers and overlays more again, pills are round. Design with the roles; brands set their values.
-      <Updated slot="meta" date={updated} />
       <Fragment slot="actions">
-        <ButtonLink variant="secondary" iconStart={Pencil} href="/studio/tokens/?focus=radius">Edit in Studio</ButtonLink>
+        <ButtonLink variant="secondary" size="sm" iconStart={Pencil} href="/studio/tokens/?focus=radius">Edit in Studio</ButtonLink>
       </Fragment>
-    </PageHeader>
+    </LibraryHeader>
     <div class="fd-toolbar">
       <p class="fd-hint">Select a token to see where it is used and its history. Click a name to copy it.</p>
-      <CopyAs />
+      <div class="fd-tools">
+        <PreviewScope />
+        <CopyAs />
+      </div>
     </div>
 
     <section class="fd-group" aria-labelledby="roles">

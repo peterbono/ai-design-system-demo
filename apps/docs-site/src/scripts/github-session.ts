@@ -169,6 +169,8 @@ export const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;')
 export interface Viewer {
   login: string;
   avatar_url: string;
+  /** Profile name, when the user set one. */
+  name?: string | null;
 }
 
 let viewer: Viewer | null = null;

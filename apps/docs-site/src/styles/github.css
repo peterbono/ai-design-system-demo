@@ -11,7 +11,7 @@
   align-items: center;
   gap: var(--space-2);
   color: var(--color-text-muted);
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
 }
 
 .gh-dot {
@@ -57,12 +57,12 @@
 
 .gh-dialog-head h2 {
   margin: 0;
-  font-size: var(--font-size-400);
+  font-size: var(--typography-h3-size);
 }
 
 .gh-dialog p {
   margin: 0;
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
   line-height: var(--font-line-height-normal);
 }
 
@@ -72,13 +72,13 @@
   margin: 0;
   padding-left: var(--space-5);
   color: var(--color-text-muted);
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
 }
 
 .gh-field {
   display: grid;
   gap: var(--space-1-5);
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
   font-weight: var(--font-weight-medium);
 }
 
@@ -93,7 +93,7 @@
   background-color: var(--color-surface-default);
   color: var(--color-text-default);
   font: inherit;
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
 }
 
 .gh-field input {
@@ -109,7 +109,7 @@
 
 .gh-error {
   color: var(--color-feedback-danger-text);
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
 }
 
 .gh-dialog-foot {

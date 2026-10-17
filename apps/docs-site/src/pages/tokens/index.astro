@@ -1,15 +1,14 @@
 ---
-import { PageHeader } from '@bridge-ds/react';
 import Layout from '../../layouts/Layout.astro';
 import ButtonLink from '../../components/ds/ButtonLink';
 import { Pencil } from 'lucide-react';
 import TokenExplorerSlot from '../../components/TokenExplorerSlot.astro';
-import Updated from '../../components/Updated.astro';
 import { explorerTokens } from '../../lib/explorer';
 import { PAGE_SOURCES, freshness } from '../../lib/sources';
 
 const updated = freshness(PAGE_SOURCES.explorer);
 const total = explorerTokens().length;
+import LibraryHeader from '../../components/LibraryHeader.astro';
 ---
 
 <Layout title="Token explorer" description="Every token in the system by collection or type, with its value in every mode, alias chain, contrast and usage." sources={PAGE_SOURCES.explorer} updated={updated} wide>
@@ -20,12 +19,11 @@ const total = explorerTokens().length;
       if (p.get('edit') === '1') { p.delete('edit'); var q = p.toString(); location.replace('/studio/tokens/' + (q ? '?' + q : '') + location.hash); }
     })();
   </script>
-  <PageHeader className="lib-page-header" title="Token explorer">
+  <LibraryHeader title="Token explorer" art="tokens" updated={updated}>
     All {total} tokens from the token files of the latest release, in the same collections the Figma plugin creates, one column per mode. Search by name, CSS variable or a hex from a mockup, then select a token to follow its alias chain, check its contrast pairs and see which components use it.
-    <Updated slot="meta" date={updated} />
     <Fragment slot="actions">
-      <ButtonLink variant="secondary" iconStart={Pencil} href="/studio/tokens/" data-xp-studio-link>Edit in Studio</ButtonLink>
+      <ButtonLink variant="secondary" size="sm" iconStart={Pencil} href="/studio/tokens/" data-xp-studio-link>Edit in Studio</ButtonLink>
     </Fragment>
-  </PageHeader>
+  </LibraryHeader>
   <TokenExplorerSlot mode="read" />
 </Layout>

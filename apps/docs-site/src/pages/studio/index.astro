@@ -1,253 +1,214 @@
 ---
-import '../../styles/dashboard.css';
 import '../../styles/reviews.css';
-import '../../styles/studio.css';
+import '../../styles/overview.css';
 import Layout from '../../layouts/Layout.astro';
 import Icon from '../../components/Icon.astro';
-import { Badge, type BadgeTone } from '@bridge-ds/react';
-import StudioHeader from '../../components/StudioHeader.astro';
-import Donut from '../../components/charts/Donut.astro';
-import StackedBars from '../../components/charts/StackedBars.astro';
-import ContrastWaffle from '../../components/charts/ContrastWaffle.astro';
+import Illustration from '../../components/Illustration.astro';
+import ButtonLink from '../../components/ds/ButtonLink';
 import { releases } from '../../lib/changelog';
-import { mdTitleHtml, mdTitleText } from '../../lib/markdown';
-import { GITHUB_URL } from '../../lib/repo';
+import { loadComponents } from '../../lib/components';
+import { mdTitleHtml } from '../../lib/markdown';
 import { PAGE_SOURCES, freshness } from '../../lib/sources';
-import { dashboard, humanDate, repoStatus } from '../../lib/stats';
+import { dashboard } from '../../lib/stats';
 
 const s = dashboard();
-const repo = repoStatus();
 const failing = s.contrast.fail;
-const ratePct = Math.round(s.contrast.rate * 1000) / 10;
+const health =
+  failing === 0
+    ? `All ${s.contrast.total} contrast checks pass across ${s.brands} brands.`
+    : `${failing} of ${s.contrast.total} contrast checks fail. The token build is blocked until they pass.`;
 
-const recent = releases()
-  .flatMap((r) => r.entries.map((e) => ({ ...e, release: r.name, pending: r.pending, date: e.date ?? r.date })))
-  .slice(0, 8);
-const kindTone: Record<string, BadgeTone> = { Breaking: 'danger', New: 'info', Fix: 'success', Docs: 'neutral' };
+// Second suggestion, from the repo at build time: components without usage guidance, else the first health item.
+const undocumented = loadComponents().filter((c) => !c.docs);
+const names = (list: { name: string }[]) =>
+  list.length <= 2 ? list.map((c) => c.name).join(' and ') : `${list.slice(0, 2).map((c) => c.name).join(', ')} and ${list.length - 2} more`;
+const guide = undocumented.length
+  ? {
+      title: 'Add usage guidance',
+      text: `${names(undocumented)} ${undocumented.length === 1 ? 'has' : 'have'} no usage guidance yet. Add a docs file to fill ${undocumented.length === 1 ? 'its page' : 'their pages'}.`,
+      cta: 'Write guidance',
+      href: `/components/${undocumented[0]!.slug}/`,
+    }
+  : s.issues[0]
+    ? { title: s.issues[0].title, text: s.issues[0].detail, cta: 'Open', href: s.issues[0].href }
+    : { title: 'Check visual impact', text: 'Every pull request gets screenshots of the stories and screens it changes. Look before you approve.', cta: 'Open Visual impact', href: '/studio/visual-impact/' };
 
-
+// Merged, not released yet: the bottom of the activity list. Open pull requests are added on top in the browser.
+const merged = releases()
+  .filter((r) => r.pending)
+  .flatMap((r) => r.entries)
+  .filter((e) => e.kind !== 'Internal')
+  .slice(0, 3);
 ---
 
 <Layout
   title="Overview"
-  description="What waits for review, the health of the design system and recent activity: the Studio's starting point."
+  description="What waits for review, what to do next and recent activity: the Studio's starting point."
   sources={PAGE_SOURCES.home}
   updated={freshness(PAGE_SOURCES.home)}
   wide
 >
-  <StudioHeader title="Overview" />
-
-  <section class="ov-kpis" aria-label="System at a glance">
-    <a class="ov-kpi" href="/studio/tokens/" data-keep-branch>
-      <span class="ov-kpi-label">Tokens</span>
-      <strong class="ov-kpi-value num">{s.total}</strong>
-      <span class="ov-kpi-sub num">{s.semantic} semantic, {s.componentTokens} component</span>
-    </a>
-    <a class="ov-kpi" href="/playground/">
-      <span class="ov-kpi-label">Modes</span>
-      <strong class="ov-kpi-value num">{s.brands * s.themes * s.densities}</strong>
-      <span class="ov-kpi-sub num">{s.brands} brands, {s.themes} themes, {s.densities} densities</span>
-    </a>
-    <a class="ov-kpi" href="/studio/components/" data-keep-branch>
-      <span class="ov-kpi-label">Components</span>
-      <strong class="ov-kpi-value num">{s.components}</strong>
-      <span class="ov-kpi-sub num">{s.documented} with guidance</span>
-    </a>
-    <a class="ov-kpi" href="/studio/checks/" data-keep-branch>
-      <span class="ov-kpi-label">Contrast AA</span>
-      <strong class="ov-kpi-value num">{ratePct}%</strong>
-      <span class:list={['ov-kpi-sub', 'num', { 'is-fail': failing > 0 }]}>
-        {failing > 0 ? `${failing} of ${s.contrast.total} failing` : `All ${s.contrast.total} pass`}
-      </span>
-    </a>
-    <a class="ov-kpi" href="/studio/reviews/" data-open-reviews data-keep-branch>
-      <span class="ov-kpi-label">Open reviews</span>
-      <strong class="ov-kpi-value num" data-open-count>&nbsp;</strong>
-      <span class="ov-kpi-sub num" data-open-sub>Last change {humanDate(repo.lastChange)}</span>
-    </a>
-  </section>
-
-  <section class="ov-panel" aria-labelledby="ov-needs-title">
-    <header class="ov-panel-head">
-      <h2 id="ov-needs-title" class="st-section-title">Needs you</h2>
-      <a href="/studio/reviews/" class="ov-panel-link" data-keep-branch>All reviews</a>
-    </header>
-    <ul class="ov-list" id="st-review-list" aria-busy="true" aria-live="polite">
-      <li class="ov-skel" aria-hidden="true"></li>
-      <li class="ov-skel" aria-hidden="true"></li>
-    </ul>
-    <p class="ov-drafts" id="st-drafts-line" hidden>
-      <Icon name="draft" size={14} />
-      <a href="/studio/drafts/" data-keep-branch><span class="num" data-drafts-count>0</span> <span data-drafts-word>draft changes</span> in this browser</a>
-    </p>
-  </section>
-
-  <div class="ov-duo">
-    <section class="ov-panel" aria-labelledby="ov-activity-title">
-      <header class="ov-panel-head">
-        <h2 id="ov-activity-title" class="st-section-title">Recent activity</h2>
-        <a href="/studio/versions/" class="ov-panel-link" data-keep-branch>Versions</a>
-      </header>
-      {
-        recent.length === 0 ? (
-          <p class="ov-empty">No changes recorded yet.</p>
-        ) : (
-          <ul class="ov-list">
-            {recent.map((e) => (
-              <li class="ov-act">
-                <Badge size="sm" tone={kindTone[e.kind] ?? 'neutral'} className="st-act-kind">{e.kind}</Badge>
-                <span class="ov-act-title" title={mdTitleText(e.title)} set:html={mdTitleHtml(e.title)} />
-                {e.source === 'commit' && e.ref ? (
-                  <a href={`${GITHUB_URL}/commit/${e.ref}`} class="mono ov-act-ref">{e.ref}</a>
-                ) : (
-                  <span class="ov-act-ref" title={e.release}>{e.pending ? 'Unreleased' : e.release}</span>
-                )}
-                <span class="ov-act-date num">{e.date ? humanDate(e.date) : e.pending ? 'Unreleased' : ''}</span>
-              </li>
-            ))}
-          </ul>
-        )
-      }
+  <div class="ov">
+    <section class="zone ov-greet" aria-labelledby="ov-hello">
+      <div class="ov-greet-copy">
+        <h1 id="ov-hello" class="ov-hello">
+          <span data-hello>Hello.</span>
+          <span class="ov-hello-line" data-review-line>Here is what waits for you.</span>
+        </h1>
+        <p class="t-body" data-review-sentence>Open pull requests load from GitHub.</p>
+        <ButtonLink variant="primary" href="/studio/reviews/" data-start-review data-keep-branch>Start reviewing</ButtonLink>
+        <p class="t-ui ov-health">
+          <span class:list={['ov-dot', { 'is-fail': failing > 0 }]} aria-hidden="true"></span>
+          {failing === 0 ? health : <a href="/studio/checks/">{health}</a>}
+        </p>
+      </div>
+      <Illustration name="review" class="ov-greet-art" />
     </section>
 
-    <section class="ov-panel" aria-labelledby="ov-health-title">
-      <header class="ov-panel-head">
-        <h2 id="ov-health-title" class="st-section-title">Health</h2>
-        <span class="ov-panel-meta num">{s.issues.length} {s.issues.length === 1 ? 'item' : 'items'}</span>
+    <section class="ov-sugg" aria-label="Suggested next steps">
+      <article class="fg-card ov-card" data-unblock>
+        <div>
+          <h2 class="t-h3" data-unblock-title>Review open changes</h2>
+          <p class="t-body t-muted" data-unblock-text>Each pull request shows its token diff, contrast and visual impact before it can merge.</p>
+          <ButtonLink size="sm" href="/studio/reviews/" data-unblock-cta data-keep-branch>Open Reviews</ButtonLink>
+        </div>
+        <Illustration name="fix" width={96} />
+      </article>
+      <article class="fg-card ov-card">
+        <div>
+          <h2 class="t-h3">{guide.title}</h2>
+          <p class="t-body t-muted">{guide.text}</p>
+          <ButtonLink size="sm" href={guide.href} data-keep-branch>{guide.cta}</ButtonLink>
+        </div>
+        <Illustration name="guide" width={96} />
+      </article>
+    </section>
+
+    <section class="ov-activity" aria-labelledby="ov-activity-title">
+      <header class="ov-activity-head">
+        <h2 id="ov-activity-title" class="t-h3">Activity</h2>
+        <a href="/studio/reviews/" class="fg-link" data-keep-branch>See all</a>
       </header>
-      {
-        s.issues.length === 0 ? (
-          <p class="ov-empty"><Icon name="check" size={16} /> Nothing to fix. Every contrast pair passes, every token is used and nothing is deprecated.</p>
-        ) : (
-          <ul class="ov-list">
-            {s.issues.map((i) => (
-              <li class={`ov-issue is-${i.severity}`}>
-                <span class="ov-issue-icon">
-                  <Icon name={i.severity === 'fail' ? 'x' : i.severity === 'warn' ? 'alert' : 'info'} size={16} />
-                </span>
-                <span class="ov-issue-body">
-                  <a href={i.href} class="ov-issue-title">{i.title}</a>
-                  <span class="ov-issue-detail">{i.detail}</span>
-                </span>
-              </li>
-            ))}
-          </ul>
-        )
-      }
+      <ul class="fg-card ov-list" aria-live="polite">
+        <li class="ov-row ov-skel" data-pulls-placeholder aria-hidden="true"></li>
+        {
+          merged.map((e) => (
+            <li class="ov-row">
+              <span class="t-body ov-row-title">
+                <b set:html={mdTitleHtml(e.title)} /> <span class="t-muted">Merged</span>
+              </span>
+              <span class="pill is-pass">Next release</span>
+              <span class="t-ui t-muted ov-row-date">{e.date ? new Date(`${e.date}T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }) : ''}</span>
+            </li>
+          ))
+        }
+      </ul>
     </section>
   </div>
 
-  <section class="ov-charts" aria-labelledby="charts-title">
-    <h2 id="charts-title" class="sr-only">Token and contrast charts</h2>
-    <article class="ov-panel chart-panel">
-      <header class="ov-panel-head">
-        <h3 class="st-section-title">Tokens by type</h3>
-        <a href="/studio/tokens/" class="ov-panel-link" data-keep-branch>Tokens</a>
-      </header>
-      <Donut data={s.byType} total={s.total} centerLabel="tokens" label="Tokens by type" />
-    </article>
-    <article class="ov-panel chart-panel">
-      <header class="ov-panel-head">
-        <h3 class="st-section-title">Categories and layers</h3>
-      </header>
-      <StackedBars rows={s.byCategory} />
-    </article>
-    <article class="ov-panel chart-panel">
-      <header class="ov-panel-head">
-        <h3 class="st-section-title">Contrast checks</h3>
-        <a href="/studio/checks/" class="ov-panel-link" data-keep-branch>Checks</a>
-      </header>
-      <ContrastWaffle />
-    </article>
-  </section>
-
   <script>
-    import { esc, ghGet, readRepo, relativeTime, RateLimitError } from '../../scripts/github-session';
-    import { draftCount } from '../../scripts/shell';
+    import { currentViewer, esc, ghGet, initGitHubConnect, readRepo, RateLimitError } from '../../scripts/github-session';
     import { loadStatuses, statusChip, type PullForStatus } from '../../scripts/pr-status';
-    import { mdTitleHtml } from '../../lib/markdown';
-    import { openPulls, parseTier, REVIEW_STATUS_ORDER, type ReviewStatus } from '../../lib/review-rules';
+    import { mdTitleHtml, mdTitleText } from '../../lib/markdown';
+    import { openPulls, REVIEW_STATUS_ORDER, type ReviewStatus } from '../../lib/review-rules';
+    import { humanTitle } from '../../lib/pr-title';
 
     interface Pull extends PullForStatus {
       title: string;
       updated_at: string;
     }
 
-    const draftsLine = document.getElementById('st-drafts-line');
-    const drafts = document.querySelector<HTMLElement>('[data-drafts-count]');
-    const draftsWord = document.querySelector<HTMLElement>('[data-drafts-word]');
-    const paintDrafts = () => {
-      const n = draftCount();
-      if (drafts) drafts.textContent = String(n);
-      if (draftsWord) draftsWord.textContent = n === 1 ? 'draft change' : 'draft changes';
-      if (draftsLine) draftsLine.hidden = n === 0;
-    };
-    paintDrafts();
-    document.addEventListener('bridge:draft', paintDrafts);
+    const $ = (sel: string) => document.querySelector<HTMLElement>(sel);
+    const hello = $('[data-hello]');
+    const line = $('[data-review-line]');
+    const sentence = $('[data-review-sentence]');
+    const start = document.querySelector<HTMLAnchorElement>('[data-start-review]');
+    const list = $('.ov-list');
+    const placeholder = $('[data-pulls-placeholder]');
 
-    // Open pull requests: "Needs you" and the KPI. Same list request as the nav count, so both share one fetch.
-    // Each row gets its real status from CI and reviews; rows that wait on someone sort first. Without a token the
-    // page stays within a small budget (lib/status-budget): the 3 most recently updated rows, read one after the
-    // other and cached for 10 minutes per head commit; the other rows say "Status unknown".
+    // "Hello Florian." only when a GitHub login is known (first word of the profile name, else the login).
+    initGitHubConnect((v) => {
+      const viewer = v ?? currentViewer();
+      if (!hello) return;
+      const name = viewer ? (viewer.name?.trim().split(/\s+/)[0] ?? viewer.login) : '';
+      hello.textContent = name ? `Hello ${name}.` : 'Hello.';
+    });
+
+    const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const BLOCKED = new Set(['ci-failing', 'conflict', 'changes-requested']);
+    const WAITING = new Set(['needs-design', 'needs-tech', 'needs-approval', 'ready', 'ci-running']);
+
+    const row = (p: Pull, st: ReviewStatus | null, skipped: boolean) =>
+      `<li class="ov-row" data-pr="${p.number}"><a class="ov-row-link" href="/studio/reviews/?pr=${p.number}">
+        <span class="t-body ov-row-title"><b>${mdTitleHtml(humanTitle(p.title))}</b> <span class="t-muted">#${p.number}</span></span>
+        ${statusChip(st, { skipped })}
+        <span class="t-ui t-muted ov-row-date">${esc(shortDate(p.updated_at))}</span></a></li>`;
+
+    function summarize(open: Pull[], statuses: Map<number, ReviewStatus | null>) {
+      const n = open.length;
+      if (line) line.textContent = n === 0 ? 'Nothing waits for a review.' : `${n} ${n === 1 ? 'change needs' : 'changes need'} a review.`;
+      if (!sentence) return;
+      if (n === 0) {
+        sentence.textContent = 'Every change is merged. Start a draft from Tokens when you need the next one.';
+        if (start) {
+          start.href = '/studio/tokens/';
+          start.textContent = 'Edit tokens';
+        }
+        return;
+      }
+      const blocked = open.filter((p) => BLOCKED.has(statuses.get(p.number)?.kind ?? ''));
+      const waiting = open.filter((p) => WAITING.has(statuses.get(p.number)?.kind ?? ''));
+      const known = blocked.length + waiting.length;
+      const rest = n - blocked.length;
+      const others = rest === 1 ? 'The other one waits for approval.' : `The other ${rest} wait for approval.`;
+      if (blocked.length === 1) sentence.textContent = `${humanTitle(mdTitleText(blocked[0]!.title))} (#${blocked[0]!.number}) is blocked by a failing check.${rest ? ` ${others}` : ''}`;
+      else if (blocked.length > 1) sentence.textContent = `${blocked.length} are blocked by failing checks.${rest ? ` ${others}` : ''}`;
+      else if (known === n) sentence.textContent = n === 1 ? 'It waits for approval.' : 'They all wait for approval.';
+      else sentence.textContent = 'Open each one to see its checks and approvals.';
+      const first = blocked[0] ?? open[0]!;
+      if (start) start.href = `/studio/reviews/?pr=${first.number}`;
+
+      // First suggestion: unblock a failing pull request when there is one.
+      const fail = open.find((p) => statuses.get(p.number)?.kind === 'ci-failing');
+      const title = $('[data-unblock-title]');
+      const text = $('[data-unblock-text]');
+      const cta = document.querySelector<HTMLAnchorElement>('[data-unblock-cta]');
+      if (fail && title && text && cta) {
+        title.textContent = `Unblock pull request #${fail.number}`;
+        text.textContent = `${humanTitle(mdTitleText(fail.title))} has a failing CI check. Open the run to see which check broke, then push a fix.`;
+        cta.href = `/studio/reviews/?pr=${fail.number}`;
+        cta.textContent = `Open PR #${fail.number}`;
+      }
+    }
+
     const r = readRepo();
-    const list = document.getElementById('st-review-list');
-    const tile = document.querySelector<HTMLElement>('[data-open-reviews]');
-    const out = tile?.querySelector<HTMLElement>('[data-open-count]');
-    const MAX = 6;
-
-    const row = (p: Pull, st: ReviewStatus | null, skipped = false) => {
-      const tier = parseTier(p.labels ?? [], p.body);
-      return `<li data-pr="${p.number}"><a class="ov-pr" href="/studio/reviews/?pr=${p.number}">
-        <span class="ov-pr-main"><span class="ov-pr-title">${mdTitleHtml(p.title)}</span>
-        <span class="ov-pr-meta"><span class="num">#${p.number}</span><span>${esc(p.user.login)}</span><span class="mono">${esc(p.head.ref)}</span><span>updated ${esc(relativeTime(p.updated_at))}</span></span></span>
-        <span class="ov-pr-pills">${tier ? `<span class="pill">Tier ${tier}</span>` : ''}${statusChip(st, { skipped })}</span>
-      </a></li>`;
-    };
-
     ghGet<Pull[]>(`/repos/${r.owner}/${r.repo}/pulls?state=open&per_page=100`)
       .then((f) => {
-        const open = openPulls(f.data);
-        if (out) out.textContent = String(open.length);
-        if (f.stale && tile) tile.title = "From this browser's cache: GitHub rate limit reached.";
-        if (!list) return;
-        if (!open.length) {
-          list.innerHTML = '<li class="ov-empty">Nothing needs you. No open pull requests.</li>';
-          return;
-        }
-        const byUpdate = [...open].sort((a, b) => b.updated_at.localeCompare(a.updated_at));
-        const statuses = new Map<number, ReviewStatus | null>(byUpdate.map((p) => [p.number, null]));
+        const open = openPulls(f.data).sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+        const statuses = new Map<number, ReviewStatus | null>(open.map((p) => [p.number, null]));
         const skipped = new Set<number>();
+        const MAX = 5;
         const paint = () => {
-          const sorted = [...byUpdate].sort((a, b) => {
-            const sa = statuses.get(a.number);
-            const sb = statuses.get(b.number);
-            return (sa ? REVIEW_STATUS_ORDER[sa.kind] : 50) - (sb ? REVIEW_STATUS_ORDER[sb.kind] : 50);
-          });
-          list.innerHTML =
-            sorted
-              .slice(0, MAX)
-              .map((p) => row(p, statuses.get(p.number) ?? null, skipped.has(p.number)))
-              .join('') + (open.length > MAX ? `<li class="ov-more"><a href="/studio/reviews/">${open.length - MAX} more open</a></li>` : '');
+          const sorted = [...open].sort((a, b) => (REVIEW_STATUS_ORDER[statuses.get(a.number)?.kind ?? 'unknown'] ?? 50) - (REVIEW_STATUS_ORDER[statuses.get(b.number)?.kind ?? 'unknown'] ?? 50));
+          list?.querySelectorAll('[data-pr]').forEach((el) => el.remove());
+          placeholder?.insertAdjacentHTML('beforebegin', sorted.slice(0, MAX).map((p) => row(p, statuses.get(p.number) ?? null, skipped.has(p.number))).join(''));
+          summarize(open, statuses);
         };
+        placeholder?.setAttribute('hidden', '');
         paint();
-        // Statuses arrive one by one; sort once they are all known so rows do not jump while you read.
-        void loadStatuses(byUpdate, (p, st, isSkipped) => {
+        void loadStatuses(open, (p, st, isSkipped) => {
           statuses.set(p.number, st);
           if (isSkipped) skipped.add(p.number);
-          const slot = list.querySelector(`[data-pr="${p.number}"] .rv-status`);
-          if (slot) slot.outerHTML = statusChip(st, { skipped: isSkipped });
         }).then(paint);
       })
       .catch((err) => {
-        if (out) out.textContent = '?';
-        if (tile) tile.title = 'GitHub could not be reached. Open Reviews to retry.';
-        if (list)
-          list.innerHTML = `<li class="ov-empty is-fail">${
+        placeholder?.setAttribute('hidden', '');
+        if (line) line.textContent = 'Reviews are out of reach for now.';
+        if (sentence)
+          sentence.textContent =
             err instanceof RateLimitError
               ? 'GitHub limits anonymous reads to 60 an hour and this browser has used them. Connect GitHub, or try again later.'
-              : 'Could not reach GitHub. Open Reviews to retry.'
-          }</li>`;
-      })
-      .finally(() => list?.removeAttribute('aria-busy'));
+              : 'GitHub could not be reached. Open Reviews to retry.';
+      });
   </script>
 </Layout>

@@ -65,6 +65,7 @@
       ],
       "font-family": [
         "/^var\\(--font-family-/",
+        "/^var\\(--typography-[a-z0-9]+-family\\)$/",
         "inherit"
       ],
       "font-weight": [

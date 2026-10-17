@@ -18,7 +18,7 @@
   background: none;
   color: var(--color-text-default);
   font: inherit;
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
   font-weight: var(--font-weight-semibold);
   cursor: pointer;
 }
@@ -74,7 +74,7 @@
   border-radius: var(--radius-control);
   background-color: var(--color-feedback-warning-bg);
   color: var(--color-text-default);
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
 }
 
 .hs-filters {
@@ -102,7 +102,7 @@
   background-color: var(--color-surface-default);
   color: var(--color-text-default);
   font: inherit;
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
 }
 
 .hs-sparse {
@@ -172,7 +172,7 @@
 
 .hs-detail-head h2 {
   margin: 0 0 var(--space-1-5);
-  font-size: var(--font-size-400);
+  font-size: var(--typography-h3-size);
   overflow-wrap: anywhere;
 }
 
@@ -193,7 +193,7 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
 }
 
 .hs-paths li {
@@ -287,7 +287,7 @@
 .hp-list {
   margin: 0;
   padding-left: var(--space-5);
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
   overflow-wrap: anywhere;
 }
 
@@ -319,12 +319,12 @@
   flex-wrap: wrap;
   gap: var(--space-2) var(--space-6);
   margin: var(--space-1) 0;
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
 }
 
 .hp-vals dt {
   color: var(--color-text-muted);
-  font-size: var(--font-size-100);
+  font-size: var(--typography-ui-size);
 }
 
 .hp-vals dd {
@@ -338,7 +338,7 @@
   margin: var(--space-1) 0 0;
   padding: 0;
   border: 0;
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
 }
 
 .hp-choice label {
@@ -358,7 +358,7 @@
   padding: var(--space-3);
   border-radius: var(--radius-control);
   background-color: var(--color-bg-subtle);
-  font-size: var(--font-size-100);
+  font-size: var(--typography-ui-size);
   white-space: pre-wrap;
 }
 

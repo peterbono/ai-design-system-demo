@@ -9,15 +9,24 @@ const BELL = { 50: 0.12, 100: 0.22, 200: 0.4, 300: 0.62, 400: 0.85, 500: 1, 600:
 
 // name: [hue, chroma(step) , lightness offset(step), description]
 const RAMPS = {
-  steel: [255, (s) => (s <= 100 ? 0.005 : 0.008 + 0.024 * (s / 950)), () => 0, 'Bridge neutral. Cool steel blue, faint at the light end, inky at the dark end.'],
-  orange: [36, (s) => 0.205 * BELL[s], (s) => (s === 500 ? -0.01 : 0), 'International Orange. The Bridge signal color: focus, active, progress.'],
-  crimson: [12, (s) => 0.2 * BELL[s], () => 0, 'Danger. A raspberry red pushed away from the orange signal.'],
+  steel: [255, (s) => (s <= 100 ? 0.005 : 0.008 + 0.024 * (s / 950)), () => 0, 'Former bridge neutral (before Field Guide). Kept for products that alias it.'],
+  orange: [36, (s) => 0.205 * BELL[s], (s) => (s === 500 ? -0.01 : 0), 'Orange. Categorical chart hue in both brands.'],
+  crimson: [12, (s) => 0.2 * BELL[s], () => 0, 'Danger. A raspberry red, kept apart from the orange chart hue.'],
   teal: [176, (s) => 0.11 * BELL[s], () => 0, 'Success.'],
   ochre: [78, (s) => 0.15 * BELL[s], (s) => ({ 300: 0.03, 400: 0.06, 500: 0.06 })[s] ?? 0, 'Warning.'],
-  cable: [236, (s) => 0.1 * BELL[s], () => 0, 'Links and info in the bridge brand.'],
+  cable: [236, (s) => 0.1 * BELL[s], () => 0, 'Former bridge link and info blue (before Field Guide). Kept for products that alias it.'],
   slate: [248, (s) => (s <= 100 ? 0.006 : 0.012 + 0.03 * (s / 950)), () => 0, 'Ocean brand neutral.'],
   sea: [228, (s) => 0.15 * BELL[s], () => 0, 'Ocean brand primary and signal.'],
-  plum: [305, (s) => 0.14 * BELL[s], () => 0, 'Ocean brand info tone.'],
+  plum: [305, (s) => 0.14 * BELL[s], () => 0, 'Info tone (both brands) and the ocean categorical hue.'],
+  ink: [250, (s) => (s <= 100 ? 0.004 : 0.01 + 0.022 * (s / 950)), () => 0, 'Bridge neutral (Field Guide). Ink navy text, quiet blue-grey lines, deep navy at the dark end.'],
+  harbor: [251, (s) => 0.14 * BELL[s], () => 0, 'Bridge primary (Field Guide). Harbor 200 is the zone blue, Harbor 700 (Deep Harbor) the one strong color.'],
+};
+
+// Brand anchors: steps pinned to the exact brand hex, so the named brand colors survive the generator.
+// Every pin sits within 0.04 OKLCH lightness of its ladder step, so the ramp stays monotonic.
+const PINS = {
+  ink: { 200: '#E3E8EE', 600: '#5B6672', 900: '#15202B' },
+  harbor: { 200: '#CFE8FF', 700: '#0B4A8B' },
 };
 
 function oklchToLinear(L, C, h) {
@@ -47,6 +56,7 @@ function oklch(L, C, h) {
   }
   return lin.map(encode);
 }
+const fromHex = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
 const round = (x) => Math.round(x * 1000) / 1000;
 const toHex = (rgb) => '#' + rgb.map((x) => Math.round(x * 255).toString(16).padStart(2, '0')).join('');
 const color = (rgb, alpha) => {
@@ -65,7 +75,10 @@ const out = {
 };
 for (const [name, [hue, chroma, offset, description]] of Object.entries(RAMPS)) {
   out.color[name] = { $description: description };
-  for (const s of STEPS) out.color[name][s] = color(oklch(LIGHTNESS[s] + offset(s), chroma(s), hue));
+  for (const s of STEPS) {
+    const pin = PINS[name]?.[s];
+    out.color[name][s] = color(pin ? fromHex(pin) : oklch(LIGHTNESS[s] + offset(s), chroma(s), hue));
+  }
 }
 // Translucent primitives for scrims and shadows (steel 950 and black).
 const steel950 = out.color.steel[950].$value.components;

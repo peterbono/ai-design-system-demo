@@ -26,14 +26,14 @@ const lineDiff = (a: string, b: string) => {
 describe('token editor model', () => {
   it('writes one semantic alias edit back to one file, changing one line only', () => {
     const before = head.byPath.get('color.bg.default')!.values.light;
-    const draft: Draft = { edits: [{ kind: 'value', id: 'x', path: 'color.bg.default', mode: 'light', before, after: '{palette.neutral.0}' }] };
+    const draft: Draft = { edits: [{ kind: 'value', id: 'x', path: 'color.bg.default', mode: 'light', before, after: '{palette.neutral.50}' }] };
     const { files, changes } = applyDraft(head, originals, draft, options);
     expect(changes).toHaveLength(1);
     expect(Object.keys(files)).toEqual(['semantic/light.tokens.json']);
     const d = lineDiff(originals['semantic/light.tokens.json']!, files['semantic/light.tokens.json']!);
     expect(d.lengthDelta).toBe(0);
     expect(d.changed).toHaveLength(1);
-    expect(d.changed[0]).toContain('{palette.neutral.50}');
+    expect(d.changed[0]).toContain('{palette.neutral.0}');
   });
 
   it('keeps key order and indentation when a brand palette role changes', () => {
@@ -100,14 +100,14 @@ describe('token editor model', () => {
   });
 
   it('previews a draft as resolved CSS variables, including tokens that alias the edited one', () => {
-    const before = head.byPath.get('palette.neutral.50')!.values.bridge;
-    const draft: Draft = { edits: [{ kind: 'value', id: 'x', path: 'palette.neutral.50', mode: 'bridge', before, after: '{color.orange.50}' }] };
+    const before = head.byPath.get('palette.neutral.0')!.values.bridge;
+    const draft: Draft = { edits: [{ kind: 'value', id: 'x', path: 'palette.neutral.0', mode: 'bridge', before, after: '{color.orange.50}' }] };
     const { proposed } = applyDraft(head, originals, draft, options);
     const vars = previewOverrides(head, proposed, { brand: 'bridge', theme: 'light', density: 'comfortable' });
-    expect(vars['--palette-neutral-50']).toMatch(/^#/);
-    // color.bg.default aliases palette.neutral.50 in light, so it moves too.
-    expect(vars['--color-bg-default']).toBe(vars['--palette-neutral-50']);
-    expect(trayRows(head, proposed, draft)[0]).toMatchObject({ label: 'palette.neutral.50', context: 'bridge' });
+    expect(vars['--palette-neutral-0']).toMatch(/^#/);
+    // color.bg.default aliases palette.neutral.0 in light, so it moves too.
+    expect(vars['--color-bg-default']).toBe(vars['--palette-neutral-0']);
+    expect(trayRows(head, proposed, draft)[0]).toMatchObject({ label: 'palette.neutral.0', context: 'bridge' });
   });
 
   it('offers palette roles, not primitives, as alias targets for semantic colors', () => {

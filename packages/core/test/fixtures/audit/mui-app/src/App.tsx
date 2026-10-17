@@ -15,7 +15,7 @@ const styles = {
 
 export function App() {
   return (
-    <Box sx={{ p: 2, bgcolor: 'background.paper', color: '#1c2735', marginTop: '13px' }}>
+    <Box sx={{ p: 2, bgcolor: 'background.paper', color: '#15202b', marginTop: '13px' }}>
       <Header>Orders</Header>
       <Card style={styles.card}>
         <CardContent>

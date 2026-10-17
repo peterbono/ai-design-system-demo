@@ -1,0 +1,192 @@
+/* Field Guide patterns shared by both spaces (docs/DESIGN-LANGUAGE.md): Harbor zone blocks, ink line drawings,
+   quiet cards and the type role classes. Tokens only. */
+
+/* Type role helpers, for elements whose tag does not match their visual role. */
+.t-display {
+  font-family: var(--typography-display-family);
+  font-size: var(--typography-h1-size);
+  font-weight: var(--typography-display-weight);
+  letter-spacing: var(--typography-display-tracking);
+  line-height: var(--typography-h1-line-height);
+  text-wrap: balance;
+}
+
+@media (min-width: 900px) {
+  .t-display {
+    font-size: var(--typography-display-size);
+    line-height: var(--typography-display-line-height);
+  }
+}
+
+.t-h3 {
+  font-family: var(--typography-h3-family);
+  font-size: var(--typography-h3-size);
+  font-weight: var(--typography-h3-weight);
+  letter-spacing: var(--typography-h3-tracking);
+  line-height: var(--typography-h3-line-height);
+}
+
+.t-body {
+  font-size: var(--typography-body-size);
+  line-height: var(--typography-body-line-height);
+}
+
+.t-ui {
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.t-muted {
+  color: var(--color-text-muted);
+}
+
+/* Fraunces in its soft optical style for every display role. */
+:where(h1, .t-display, .t-h1, .logo-word) {
+  font-variation-settings: "SOFT" 50;
+}
+
+/* Ink line drawings: strokes follow the text color, fills come from data-fill. */
+.ill {
+  display: block;
+  flex: none;
+  color: var(--color-text-default);
+}
+
+.ill [data-fill="paper"] {
+  fill: var(--color-surface-default);
+}
+
+.ill [data-fill="zone"] {
+  fill: var(--color-bg-zone);
+}
+
+.ill [data-fill="deep"] {
+  fill: var(--color-action-primary-bg);
+}
+
+.ill [data-stroke="paper"] {
+  stroke: var(--color-surface-default);
+}
+
+/* Inside a zone, the zone-colored fills switch to paper so they stay visible. */
+.zone .ill [data-fill="zone"] {
+  fill: var(--color-surface-default);
+}
+
+.logo-mark {
+  color: var(--color-text-default);
+}
+
+/* Harbor zone: a large flat block that opens a space. Only for the home hero, section page headers, the Studio
+   greeting and onboarding; never behind dense UI. */
+.zone {
+  border-radius: var(--radius-container);
+  background-color: var(--color-bg-zone);
+  color: var(--color-text-default);
+}
+
+/* Quiet card: white plate, hairline edge, no shadow. */
+.fg-card {
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-container);
+  background-color: var(--color-surface-default);
+  color: var(--color-text-default);
+}
+
+a.fg-card {
+  text-decoration: none;
+  transition: border-color var(--motion-duration-instant) var(--motion-easing-standard);
+}
+
+@media (hover: hover) {
+  a.fg-card:hover {
+    border-color: var(--color-border-hover);
+  }
+}
+
+/* Underlined standalone link (All release notes, See all). */
+.fg-link {
+  color: var(--color-text-link);
+  font-size: var(--typography-ui-size);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--typography-ui-line-height);
+  text-decoration: underline;
+  text-decoration-thickness: var(--border-width-default);
+  text-underline-offset: 0.25em;
+}
+
+/* Library section pages: the page header is a Harbor block with an optional drawing on the end side. */
+.lib-zone {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--space-8);
+  margin: 0 0 var(--space-16);
+  padding: var(--space-8) var(--space-10) var(--space-8) var(--space-12);
+}
+
+.lib-zone .lib-page-header {
+  margin: 0;
+}
+
+.lib-zone .lib-page-header > div:first-child > div:first-of-type {
+  color: var(--color-text-default);
+}
+
+.lib-zone-art {
+  align-self: end;
+}
+
+@media (max-width: 760px) {
+  .lib-zone {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-4);
+    margin-bottom: var(--space-12);
+    padding: var(--space-6);
+  }
+
+  .lib-zone > .lib-zone-art {
+    display: none;
+  }
+}
+
+/* The DS PageHeader stacks inside the zone: title, lead, then actions under the text. */
+.lib-zone .lib-page-header {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-5);
+}
+
+.lib-zone .lib-page-header > * {
+  flex: 0 0 auto;
+}
+
+.lib-zone-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  margin-top: var(--space-4);
+  margin-left: calc(var(--space-3) * -1);
+  color: var(--color-text-muted);
+}
+
+.lib-zone-meta .updated {
+  margin: 0;
+  padding: 0;
+  background-color: transparent;
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+}
+
+/* Toolbars of the site use interface text (14px) for every control, so a screen keeps to four sizes. */
+.fd-toolbar [data-segmented-control] [data-segment],
+.hero-stage-bar [data-segmented-control] [data-segment],
+.shell-pop [data-segmented-control] [data-segment] {
+  font-size: var(--typography-ui-size);
+}
+
+/* Segmented controls of the chrome (toolbars, filters) use interface text; DS previews keep their own sizes. */
+[data-segmented-control]:not([data-theme]:not(html) [data-segmented-control]) [data-segment] {
+  font-size: var(--typography-ui-size);
+}

@@ -21,34 +21,44 @@
 .title {
   margin: 0;
   color: var(--color-text-default);
-  font-family: var(--font-family-sans);
-  font-size: var(--font-size-700);
-  font-weight: var(--font-weight-bold);
-  letter-spacing: var(--font-tracking-tighter);
-  line-height: var(--font-line-height-none);
+  font-family: var(--typography-h2-family);
+  font-size: var(--typography-h2-size);
+  font-weight: var(--typography-h1-weight);
+  letter-spacing: var(--typography-h2-tracking);
+  line-height: var(--typography-h2-line-height);
   text-wrap: balance;
 }
 
 .titleSm {
-  font-size: var(--font-size-500);
+  font-family: var(--typography-h3-family);
+  font-size: var(--typography-h3-size);
+  font-weight: var(--typography-h3-weight);
+  letter-spacing: var(--typography-h3-tracking);
+  line-height: var(--typography-h3-line-height);
 }
 
-/* Titles step up one size on wide screens. */
+/* Titles take the h1 role on wide screens (h2 for a level-2 header). */
 @media (min-width: 900px) {
   .title {
-    font-size: var(--font-size-800);
+    font-size: var(--typography-h1-size);
+    letter-spacing: var(--typography-h1-tracking);
+    line-height: var(--typography-h1-line-height);
   }
 
   .titleSm {
-    font-size: var(--font-size-600);
+    font-family: var(--typography-h2-family);
+    font-size: var(--typography-h2-size);
+    font-weight: var(--typography-h2-weight);
+    letter-spacing: var(--typography-h2-tracking);
+    line-height: var(--typography-h2-line-height);
   }
 }
 
 .lead {
-  max-width: 68ch;
+  max-width: 65ch;
   color: var(--color-text-muted);
-  font-size: var(--font-size-300);
-  line-height: var(--font-line-height-normal);
+  font-size: var(--typography-body-size);
+  line-height: var(--typography-body-line-height);
   text-wrap: pretty;
 }
 

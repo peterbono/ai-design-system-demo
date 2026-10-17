@@ -2,11 +2,23 @@
 
 /* == Shell (Layout.astro) == */
 
-/* Search trigger: a DS secondary Button that takes the free width of the top bar. */
-.shell-search {
-  flex: 0 1 var(--size-120);
+/* Search trigger: a DS ghost Button drawn as a quiet field (36px, subtle fill), up to 384px wide. */
+.topbar .shell-search {
+  --_height: var(--size-9);
+  --_bg: var(--color-bg-subtle);
+  --_bg-hover: var(--color-bg-muted);
+  --_bg-active: var(--color-bg-muted);
+
+  flex: 0 1 var(--size-96);
   justify-content: flex-start;
   min-width: 0;
+  margin-inline-start: var(--space-2);
+  font-weight: var(--font-weight-regular);
+}
+
+/* Top bar icon buttons: 36px, like the search field. */
+.topbar-actions > :where(button, a) {
+  --_height: var(--size-9);
 }
 
 .shell-search-text {
@@ -52,7 +64,7 @@
 .shell-pop-label {
   margin: var(--space-2) 0 0;
   color: var(--color-text-muted);
-  font-size: var(--font-size-100);
+  font-size: var(--typography-ui-size);
   font-weight: var(--font-weight-semibold);
 }
 
@@ -89,7 +101,7 @@
 .shell-version-note,
 .shell-pop-help {
   color: var(--color-text-muted);
-  font-size: var(--font-size-100);
+  font-size: var(--typography-ui-size);
 }
 
 .shell-version-check {
@@ -104,21 +116,15 @@
 }
 
 @media (max-width: 960px) {
-  .shell-search {
-    flex: 1 1 auto;
-    margin-inline-start: var(--space-2);
-  }
-}
+  .topbar .shell-search {
+    --_bg: transparent;
 
-@media (max-width: 640px) {
-  .shell-search-text,
-  .shell-ext {
-    display: none;
-  }
-
-  .shell-search {
     flex: none;
     margin-inline-start: auto;
+  }
+
+  .shell-search-text {
+    display: none;
   }
 }
 
@@ -184,13 +190,3 @@
   }
 }
 
-/* Phones: the workbench and GitHub icon links leave the top bar, as before the DS swap, so it fits 390 px. */
-@media (max-width: 640px) {
-  .topbar-actions .shell-ext {
-    display: none;
-  }
-
-  .topbar {
-    gap: var(--space-1-5);
-  }
-}

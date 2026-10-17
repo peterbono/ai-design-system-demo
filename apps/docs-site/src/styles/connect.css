@@ -7,7 +7,7 @@
   margin: 0 0 var(--space-6);
   padding: 0;
   list-style: none;
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
   font-weight: var(--font-weight-semibold);
 }
 
@@ -53,7 +53,7 @@
 
 .cx-details p {
   margin: var(--space-3) 0;
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
 }
 
 .cx-code {
@@ -90,7 +90,7 @@
 
 .cx-cli dd {
   margin: 0;
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
   color: var(--color-text-muted);
 }
 

@@ -3,8 +3,8 @@
     "bg": {
       "default": {
         "$type": "color",
-        "$value": "{palette.neutral.50}",
-        "$description": "Page canvas behind panels."
+        "$value": "{palette.neutral.0}",
+        "$description": "Page canvas. White in bridge, so content sits on paper; ocean keeps a tinted canvas."
       },
       "subtle": {
         "$type": "color",
@@ -15,6 +15,11 @@
         "$type": "color",
         "$value": "{palette.neutral.200}",
         "$description": "Tracks, skeletons, neutral fills."
+      },
+      "zone": {
+        "$type": "color",
+        "$value": "{palette.primary.200}",
+        "$description": "Large flat color blocks that open a space: the home hero, section page headers, the Studio greeting, onboarding. Never behind dense UI."
       }
     },
     "surface": {
@@ -81,11 +86,11 @@
       },
       "link": {
         "$type": "color",
-        "$value": "{palette.link.600}"
+        "$value": "{palette.link.700}"
       },
       "link-hover": {
         "$type": "color",
-        "$value": "{palette.link.700}"
+        "$value": "{palette.link.800}"
       },
       "signal": {
         "$type": "color",
@@ -124,7 +129,7 @@
       "primary": {
         "bg": {
           "$type": "color",
-          "$value": "{palette.primary.900}",
+          "$value": "{palette.primary.700}",
           "$description": "Primary action fill (steel ink in the bridge brand)."
         },
         "bg-hover": {
@@ -133,7 +138,7 @@
         },
         "bg-active": {
           "$type": "color",
-          "$value": "{palette.primary.950}"
+          "$value": "{palette.primary.900}"
         },
         "text": {
           "$type": "color",
@@ -214,7 +219,7 @@
       "checked": {
         "bg": {
           "$type": "color",
-          "$value": "{palette.primary.900}",
+          "$value": "{palette.primary.700}",
           "$description": "Checked checkbox, radio, switch track. Selection is ink."
         },
         "bg-hover": {
@@ -240,7 +245,7 @@
     "signal": {
       "default": {
         "$type": "color",
-        "$value": "{palette.accent.500}",
+        "$value": "{palette.accent.600}",
         "$description": "The signal: active indicators, progress, slider range."
       },
       "subtle": {
@@ -400,7 +405,7 @@
     "ring": {
       "color": {
         "$type": "color",
-        "$value": "{palette.accent.500}",
+        "$value": "{palette.accent.700}",
         "$description": "Keyboard focus ring. 3:1 against every surface."
       },
       "width": {

@@ -1,34 +1,33 @@
 ---
-import '../styles/dashboard.css';
 import '../styles/home.css';
 import Layout from '../layouts/Layout.astro';
-import HeroBridge from '../components/HeroBridge.astro';
-import Icon from '../components/Icon.astro';
+import Illustration from '../components/Illustration.astro';
 import ButtonLink from '../components/ds/ButtonLink';
-import { LayoutGrid, Pencil } from 'lucide-react';
-import { Badge, type BadgeTone } from '@bridge-ds/react';
 import { releases, versionInfo } from '../lib/changelog';
 import { mdTitleHtml } from '../lib/markdown';
-import { FOUNDATIONS, LIBRARY_USE, componentFamilies } from '../lib/nav';
-import { GITHUB_URL, PLUGIN_URL } from '../lib/repo';
 import { PAGE_SOURCES, freshness } from '../lib/sources';
-import { dashboard, humanDate } from '../lib/stats';
-import type { IconName } from '../brand/icons';
+import { repoStatus } from '../lib/stats';
+import type { IllustrationName } from '../brand/illustrations';
 
-const s = dashboard();
 const version = versionInfo();
-const kindTone: Record<string, BadgeTone> = { Breaking: 'danger', New: 'info', Fix: 'success', Docs: 'neutral', Improvement: 'neutral' };
-// What's new: the latest entries people notice (internal tooling left out), newest first.
-const recent = releases()
-  .flatMap((r) => r.entries.map((e) => ({ ...e, pending: r.pending, date: e.date ?? r.date })))
-  .filter((e) => e.kind !== 'Internal')
-  .slice(0, 6);
-const families = componentFamilies();
+const repo = repoStatus();
 
-const starts: { icon: IconName; title: string; text: string; href: string; cta: string }[] = [
-  { icon: 'palette', title: 'Designers', text: 'Color roles, type and spacing, with every value shown in both themes. Pull the same tokens into Figma with the plugin.', href: '/foundations/color/', cta: 'Start with color' },
-  { icon: 'terminal', title: 'Engineers', text: 'Install the packages, then build with components that read CSS variables only. Props come straight from the TypeScript.', href: '/install/', cta: 'Install' },
-  { icon: 'agent', title: 'AI agents', text: 'The same docs as plain text in llms.txt, and an MCP server so your Claude builds with real tokens and proposes changes by pull request.', href: '/agents/', cta: 'Connect an agent' },
+// What changed: the latest entries people notice (internal tooling left out), newest first.
+const recent = releases()
+  .flatMap((r) => r.entries.map((e) => ({ ...e, date: e.date ?? r.date })))
+  .filter((e) => e.kind !== 'Internal')
+  .slice(0, 3);
+// "This week" only when every entry shown is less than 7 days older than the build's last commit.
+const DAY = 86_400_000;
+const ref = repo.lastChange ? Date.parse(`${repo.lastChange}T00:00:00Z`) : Date.now();
+const thisWeek = recent.length > 0 && recent.every((e) => e.date && ref - Date.parse(`${e.date}T00:00:00Z`) < 7 * DAY);
+const shortDate = (iso?: string) =>
+  iso ? new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(new Date(`${iso.slice(0, 10)}T00:00:00Z`)) : 'Next release';
+
+const topics: { art: IllustrationName; title: string; text: string; href: string }[] = [
+  { art: 'foundations', title: 'Foundations', text: 'Color, type, spacing and the accessibility rules underneath.', href: '/foundations/color/' },
+  { art: 'tokens', title: 'Tokens', text: 'Every value with a name, an alias chain and a history.', href: '/tokens/' },
+  { art: 'components', title: 'Components', text: 'React components with examples, props and guidance.', href: '/components/' },
 ];
 ---
 
@@ -39,121 +38,49 @@ const starts: { icon: IconName; title: string; text: string; href: string; cta: 
   updated={freshness(PAGE_SOURCES.home)}
   wide
 >
-  <section class="hero" aria-labelledby="hero-title">
-    <div class="hero-copy">
-      <h1 id="hero-title" class="hero-title">Your design system, one source of truth.</h1>
-      <p class="hero-lead">
-        This Library shows the latest release, <span class="mono">{version.current}</span>, rebuilt from the repository on every merge. What you read
-        here is what ships. To change something, open it in the Studio: every change goes through a draft, a review and a merge.
+  <section class="zone hm-hero" aria-labelledby="hero-title">
+    <div class="hm-hero-copy">
+      <h1 id="hero-title" class="t-display">Your design system, one source of truth.</h1>
+      <p class="t-body">
+        Bridge keeps your tokens, components and docs in one repository. This Library always shows the latest release, <span class="mono">{version.current}</span>.
       </p>
-      <div class="hero-ctas">
-        <ButtonLink variant="primary" href="/components/" iconStart={LayoutGrid}>Browse components</ButtonLink>
-        <ButtonLink variant="secondary" href="/tokens/" iconStart={LayoutGrid}>Explore tokens</ButtonLink>
-        <ButtonLink variant="secondary" href="/studio/" iconStart={Pencil}>Open the Studio</ButtonLink>
-      </div>
-      <p class="hero-note">
-        Free and open source, by Florian Gouloubi. {s.total} tokens, {s.components} components, {s.brands} brands, {s.themes} themes and {s.densities}
-        densities.
-      </p>
+      <ButtonLink variant="primary" href="/components/">Browse components</ButtonLink>
     </div>
-    <HeroBridge />
+    <div class="hm-hero-art">
+      <Illustration name="hero" width={400} label="Two people finishing a plank bridge" />
+    </div>
   </section>
 
-  <div class="home-grid">
-    <section class="home-news" aria-labelledby="news-title">
-      <header class="home-head">
-        <h2 id="news-title">What's new</h2>
-        <a href="/changelog/" class="panel-link">All release notes</a>
-      </header>
-      {
-        recent.length === 0 ? (
-          <p class="empty">No changes recorded yet.</p>
-        ) : (
-          <ol class="news">
-            {recent.map((e) => (
-              <li class="news-item">
-                <Badge tone={kindTone[e.kind] ?? 'neutral'} className="news-kind">{e.kind}</Badge>
-                <div>
-                  <p class="news-title" set:html={mdTitleHtml(e.title)} />
-                  <p class="news-meta">
-                    {e.date ? humanDate(e.date) : 'Not released yet'}
-                    {e.pending && <Badge tone="warning" size="sm">Next release</Badge>}
-                    {e.source === 'commit' && (
-                      <a href={`${GITHUB_URL}/commit/${e.ref}`} class="mono">
-                        {e.ref}
-                      </a>
-                    )}
-                  </p>
-                </div>
-              </li>
-            ))}
-          </ol>
-        )
-      }
-    </section>
+  <section class="hm-topics" aria-label="In the Library">
+    {
+      topics.map((t) => (
+        <a class="fg-card hm-topic" href={t.href}>
+          <h2 class="t-h3">{t.title}</h2>
+          <p class="t-body t-muted">{t.text}</p>
+          <Illustration name={t.art} width={104} class="hm-topic-art" />
+        </a>
+      ))
+    }
+  </section>
 
-    <section class="home-index" aria-labelledby="index-title">
-      <h2 id="index-title">In the Library</h2>
-      <div class="index-cols">
-        <div>
-          <p class="index-label">Foundations</p>
-          <ul class="index-list">
-            {FOUNDATIONS.map((f) => (
-              <li>
-                <a href={f.href}>{f.icon && <Icon name={f.icon} size={16} />}{f.label}</a>
-              </li>
-            ))}
-          </ul>
-          <p class="index-label">Tokens</p>
-          <ul class="index-list">
-            <li><a href="/tokens/"><Icon name="grid" size={16} />Explorer <span class="index-n num">{s.total}</span></a></li>
-            <li><a href="/playground/"><Icon name="play" size={16} />Theme playground</a></li>
-          </ul>
-        </div>
-        <div>
-          <p class="index-label">Components</p>
-          <ul class="index-list">
-            {families.map((f) => (
-              <li>
-                <a href={`/components/#fam-${f.label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`}><Icon name="components" size={16} />{f.label} <span class="index-n num">{f.items.length}</span></a>
-              </li>
-            ))}
-          </ul>
-          <p class="index-label">Use</p>
-          <ul class="index-list">
-            {LIBRARY_USE.map((f) => (
-              <li>
-                <a href={f.href}>{f.icon && <Icon name={f.icon} size={16} />}{f.label}</a>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </div>
-    </section>
-  </div>
-
-  <section class="home-starts" aria-labelledby="starts-title">
-    <h2 id="starts-title">Where to start</h2>
-    <ul class="starts">
-      {
-        starts.map((x) => (
-          <li>
-            <span class="path-icon"><Icon name={x.icon} /></span>
-            <div>
-              <h3>{x.title}</h3>
-              <p>{x.text}</p>
-              <a href={x.href}>{x.cta}</a>
-            </div>
-          </li>
-        ))
-      }
-    </ul>
-    <p class="home-door">
-      <Icon name="edit" size={16} />
-      <span>
-        Want to change a token or a component? Every page here has an <strong>Edit in Studio</strong> action that opens it in a draft. Designers can also
-        propose from Figma with the <a href={PLUGIN_URL}>DS Bridge plugin</a>.
-      </span>
-    </p>
+  <section class="hm-week" aria-labelledby="week-title">
+    <header class="hm-week-head">
+      <h2 id="week-title" class="t-h3">{thisWeek ? 'What changed this week' : 'What changed lately'}</h2>
+      <a href="/changelog/" class="fg-link">All release notes</a>
+    </header>
+    {
+      recent.length === 0 ? (
+        <p class="t-body t-muted">No changes recorded yet.</p>
+      ) : (
+        <ul class="hm-changes">
+          {recent.map((e) => (
+            <li>
+              <span class="t-body hm-change" set:html={mdTitleHtml(e.title)} />
+              <span class="t-ui t-muted hm-date">{shortDate(e.date)}</span>
+            </li>
+          ))}
+        </ul>
+      )
+    }
   </section>
 </Layout>

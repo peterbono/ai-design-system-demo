@@ -4,48 +4,54 @@
 
 :root:is([data-space="studio"], [data-space="settings"]) main {
   max-width: none;
-  padding: var(--space-5) var(--space-7) var(--space-8);
+  padding: var(--space-8) var(--space-10) var(--space-16);
 }
 
 :root:is([data-space="studio"], [data-space="settings"]) .page-footer {
   margin-top: var(--space-12);
 }
 
-/* Compact page header (components/StudioHeader.astro). */
+/* Page header (components/StudioHeader.astro): Fraunces title in the h2 role, the branch chip beside it. */
 .st-head {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
-  gap: var(--space-2) var(--space-4);
-  min-height: var(--size-9);
-  margin-bottom: var(--space-4);
+  gap: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-8);
 }
 
 .st-head-main {
   display: flex;
   flex: 1 1 var(--size-80);
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-1) var(--space-3);
+  flex-direction: column;
+  gap: var(--space-2);
   min-width: 0;
+}
+
+.st-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
 }
 
 .st-title {
   display: inline-flex;
   align-items: baseline;
-  gap: var(--space-2);
+  gap: var(--space-3);
   margin: 0;
-  font-family: var(--font-family-sans);
-  font-size: var(--font-size-400);
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: var(--font-tracking-snug);
-  line-height: var(--font-line-height-snug);
+  font-family: var(--typography-h2-family);
+  font-size: var(--typography-h2-size);
+  font-weight: var(--typography-h2-weight);
+  letter-spacing: var(--typography-h2-tracking);
+  line-height: var(--typography-h2-line-height);
 }
 
 .st-count {
   color: var(--color-text-muted);
-  font-size: var(--font-size-200);
+  font-family: var(--font-family-sans);
+  font-size: var(--typography-ui-size);
   font-weight: var(--font-weight-medium);
 }
 
@@ -54,13 +60,12 @@
 }
 
 .st-sub {
+  max-width: 65ch;
   min-width: 0;
   margin: 0;
-  overflow: hidden;
   color: var(--color-text-muted);
-  font-size: var(--font-size-200);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: var(--typography-body-size);
+  line-height: var(--typography-body-line-height);
 }
 
 .st-head-actions {
@@ -70,62 +75,50 @@
   gap: var(--space-2);
 }
 
-/* Section titles inside Studio pages: UI type, not display. */
+/* Section titles inside Studio pages: the h3 role. */
 .st-section-title {
   margin: 0;
-  font-family: var(--font-family-sans);
-  font-size: var(--font-size-200);
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: var(--font-tracking-snug);
-  line-height: var(--font-line-height-snug);
+  font-family: var(--typography-h3-family);
+  font-size: var(--typography-h3-size);
+  font-weight: var(--typography-h3-weight);
+  letter-spacing: var(--typography-h3-tracking);
+  line-height: var(--typography-h3-line-height);
 }
 
 /* Section heads inside Studio pages: UI type, one short line under it. */
 :root:is([data-space="studio"], [data-space="settings"]) main .section-head h2 {
-  margin-top: var(--space-8);
+  margin-top: var(--space-10);
   margin-bottom: var(--space-1);
-  font-family: var(--font-family-sans);
-  font-size: var(--font-size-200);
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: var(--font-tracking-snug);
-  line-height: var(--font-line-height-snug);
 }
 
 :root:is([data-space="studio"], [data-space="settings"]) main .section-head p {
-  max-width: 80ch;
+  max-width: 65ch;
   color: var(--color-text-muted);
-  font-size: var(--font-size-200);
 }
 
 /* Studio pages share smaller controls. */
 :root:is([data-space="studio"], [data-space="settings"]) main .btn:not(.btn-lg) {
   min-height: var(--size-8);
   padding: 0 var(--space-3);
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
 }
 
-/* ---- Global header: Drafts counter and GitHub account (Studio only) */
-
-.topbar-studio {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1-5);
-  margin-right: var(--space-1);
-}
+/* ---- Global header: GitHub account (Studio only). Connected: a 36px avatar with a menu. */
 
 .hd-btn {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-1-5);
-  height: var(--size-8);
-  padding: 0 var(--space-2);
+  gap: var(--space-2);
+  height: var(--size-9);
+  padding: 0 var(--space-3);
   border: var(--border-width-default) solid var(--color-border-default);
   border-radius: var(--radius-control);
   background-color: var(--color-surface-default);
   color: var(--color-text-default);
   font: inherit;
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
   font-weight: var(--font-weight-medium);
+  line-height: var(--typography-ui-line-height);
   text-decoration: none;
   white-space: nowrap;
   cursor: pointer;
@@ -136,44 +129,31 @@
   display: none;
 }
 
-.hd-btn:hover {
-  border-color: var(--color-border-emphasis);
+@media (hover: hover) {
+  .hd-btn:hover {
+    border-color: var(--color-border-hover);
+  }
 }
 
-.hd-btn .icon {
-  color: var(--color-text-muted);
-}
-
-.hd-n {
-  min-width: var(--size-5);
-  padding: 0 var(--space-1);
+.gh-acct-menu > .hd-btn {
+  width: var(--size-9);
+  padding: 0;
+  justify-content: center;
+  border-color: transparent;
   border-radius: var(--radius-pill);
-  background-color: var(--color-bg-subtle);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-100);
-  font-weight: var(--font-weight-semibold);
-  font-variant-numeric: tabular-nums;
-  line-height: var(--font-line-height-relaxed);
-  text-align: center;
+  background-color: var(--color-surface-inverse);
+  color: var(--color-text-inverse);
+  overflow: hidden;
 }
 
-.hd-drafts[data-count]:not([data-count="0"]) .hd-n {
-  background-color: var(--color-signal-subtle);
-  color: var(--color-text-signal);
+.gh-acct-menu > .hd-btn .gh-acct-login,
+.gh-acct-menu > .hd-btn .scope-pick-chev {
+  display: none;
 }
 
-.hd-btn.is-primary {
-  border-color: var(--color-action-primary-bg);
-  background-color: var(--color-action-primary-bg);
-  color: var(--color-action-primary-text);
-}
-
-.hd-btn.is-primary .icon {
-  color: inherit;
-}
-
-.hd-btn.is-primary:hover {
-  background-color: var(--color-action-primary-bg-hover);
+.gh-acct-menu .menu-panel {
+  right: 0;
+  left: auto;
 }
 
 .gh-acct {
@@ -190,8 +170,8 @@
 }
 
 .gh-acct-avatar {
-  width: var(--size-5);
-  height: var(--size-5);
+  width: 100%;
+  height: 100%;
   border-radius: 50%;
   background-color: var(--color-bg-subtle);
 }
@@ -213,7 +193,7 @@
   grid-template-columns: auto minmax(0, 1fr);
   gap: var(--space-1-5) var(--space-3);
   margin: var(--space-1) var(--space-2) var(--space-2);
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
 }
 
 .gh-facts dt {
@@ -255,7 +235,7 @@
   background-color: transparent;
   color: var(--color-text-default);
   font: inherit;
-  font-size: var(--font-size-200);
+  font-size: var(--typography-ui-size);
   text-align: left;
   text-decoration: none;
   cursor: pointer;
@@ -292,7 +272,7 @@
   border-radius: var(--radius-control);
   background-color: var(--color-text-default);
   color: var(--color-bg-default);
-  font-size: var(--font-size-100);
+  font-size: var(--typography-ui-size);
   font-weight: var(--font-weight-medium);
   line-height: var(--font-line-height-snug);
   white-space: normal;
@@ -311,7 +291,4 @@
     padding: var(--space-4) var(--space-4) var(--space-8);
   }
 
-  .topbar-studio .hd-drafts {
-    display: none;
-  }
 }

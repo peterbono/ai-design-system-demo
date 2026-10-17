@@ -3,11 +3,10 @@ import '../../styles/foundations.css';
 import '../../styles/library.css';
 import Layout from '../../layouts/Layout.astro';
 import ButtonLink from '../../components/ds/ButtonLink';
-import { Badge, PageHeader } from '@bridge-ds/react';
+import { Badge } from '@bridge-ds/react';
 import ContrastTable, { type ContrastRow } from '../../components/foundations/ContrastTable';
 import { CircleAlert, CircleCheck, ShieldCheck } from 'lucide-react';
 import Icon from '../../components/Icon.astro';
-import Updated from '../../components/Updated.astro';
 import { contrastPairs, THRESHOLDS } from '../../lib/contrast';
 import { PAGE_SOURCES, freshness } from '../../lib/sources';
 import { anchorOf, BRAND_LABEL, BRANDS, MODES, type Brand, type Mode } from '../../lib/tokens';
@@ -42,16 +41,16 @@ const tableRows: ContrastRow[] = [...pairs]
       return { ratio: r.ratio, fgHex: r.fgHex, bgHex: r.bgHex, aa: r.aa, aaa: r.aaa };
     }),
   }));
+import LibraryHeader from '../../components/LibraryHeader.astro';
 ---
 
 <Layout title="Accessibility" description="What Bridge commits to for accessibility, and the contrast grid of every gated color pair in every brand and theme." sources={PAGE_SOURCES.accessibility} updated={updated}>
-  <PageHeader className="lib-page-header" title="Accessibility">
+  <LibraryHeader title="Accessibility" art="foundations" updated={updated}>
     Bridge targets WCAG 2.2 AA: text needs {THRESHOLDS.text.aa}:1 against its background, control edges, icons and focus rings need {THRESHOLDS.ui.aa}:1. The token build checks every gated color pair in both brands and both themes, so a token change that breaks a pair fails the build before it ships.
-    <Updated slot="meta" date={updated} />
     <Fragment slot="actions">
-      <ButtonLink variant="secondary" iconStart={ShieldCheck} href="/studio/checks/">Open in Studio Checks</ButtonLink>
+      <ButtonLink variant="secondary" size="sm" iconStart={ShieldCheck} href="/studio/checks/">Open in Studio Checks</ButtonLink>
     </Fragment>
-  </PageHeader>
+  </LibraryHeader>
 
   <h2>What every component guarantees</h2>
   <ul class="a11y-floor">
