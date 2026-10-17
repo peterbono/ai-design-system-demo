@@ -86,9 +86,9 @@ Any client that speaks MCP over stdio works: run `node packages/mcp/dist/index.j
 
 ## What Claude can do
 
-30 tools: 6 for tokens (config, browse, read, search, contrast, validation), 6 for components and guidance,
+32 tools: 6 for tokens (config, browse, read, search, contrast, validation), 6 for components and guidance,
 5 for proposals and reviews (visual impact included), 3 for brands, 4 for history and revert, 1 for adoption
-audits, 3 for component change requests, 2 for explorations.
+audits, 3 for component change requests, 2 for explorations, 2 for change texts from Figma.
 
 | Tool | Use it to |
 | --- | --- |
@@ -122,6 +122,8 @@ audits, 3 for component change requests, 2 for explorations.
 | `bridge_create_request` | File a request as an issue labeled `component-change` (`source: mcp`); needs `GITHUB_TOKEN`; `dryRun` previews it; `exploration` implements it on an exploration branch |
 | `bridge_start_exploration` | Start an exploration: an `explore/<name>` branch and a draft pull request labeled `exploration`, with previews and a snapshot package for a product staging branch, never merged as is (see [Explorations](#explorations)) |
 | `bridge_list_explorations` | List explorations: purpose, status (running, promoted, closed), previews, the snapshot install command and the requests implemented on each |
+| `bridge_pending_drafts` | Read the change texts a designer asked you to write from the Figma plugin ("Draft with my Claude"): the changes, the starting draft, their notes, the voice rules, the output contract, and the before and after images as image content (see [Change texts from Figma](#change-texts-from-figma)) |
+| `bridge_write_drafts` | Write the titles and summaries back; the plugin fills them in within seconds for the designer to review |
 
 Resources: `bridge://tokens/resolved`, `bridge://design-language`, `bridge://guidelines`,
 `bridge://components/{name}`.
@@ -281,6 +283,55 @@ bridge request create --component Button --kind new-variant --title "Add a dange
 ```
 
 Ask Claude: "Which component requests are waiting?", "Implement request 42."
+
+## Change texts from Figma
+
+A designer can have their own Claude (Claude Desktop or Claude Code, on their own plan, no API key) write the title
+and summary of a component change request or the Push description, from the DS Bridge Figma plugin. Third-party
+apps cannot use a Claude plan and Bridge has no backend, so the plugin and the MCP server meet in the GitHub repo
+both already reach with the designer's token.
+
+1. In Figma, "Draft with my Claude" uploads the before and after PNGs and writes
+   `.bridge/drafts/<sessionId>.json` on the `bridge-requests` branch:
+   `{ version: 1, sessionId, createdAt, status: "pending", source: "figma", items: [{ id, scope: "request" | "push",
+   component, kind, changes: [{ field, before, after }], variables (push only), notes, images: [{ label: "before" |
+   "after", url, path }], draft: { title, summary } }] }`.
+2. The designer says **"Draft my Bridge changes"** to their Claude. `bridge_pending_drafts` returns the pending
+   sessions (newest first) with a brief per item, the Bridge voice and the output contract, and the PNGs as MCP image
+   content (up to 8 images under 750 KB each; larger ones stay links), so Claude sees the before and after.
+3. Claude writes what changes for developers and why it matters (sentence case, no em dash, no invented numbers)
+   and calls `bridge_write_drafts` `{ sessionId, results: [{ id, title, summary }] }`. Bridge cleans each text to the
+   contract (no em dash, title at most 70 characters with no trailing period, summary at most 3 sentences), adds
+   `{ by: "claude", at }`, and sets `status: "drafted"` once every item has a result. Writers send the file sha and
+   retry on 409, so a concurrent write is never lost.
+4. The plugin reads the file every 5 seconds while it is open (it stops after 10 minutes and offers "Check again"),
+   fills the fields it may fill and offers Claude's text for any field the designer edited meanwhile. It deletes
+   the file and its images once the request or push is sent, or cancelled.
+
+Setup, once. The server is not on npm yet, so build it from a clone, then connect it with the same GitHub token as
+the plugin (`GITHUB_TOKEN`, Contents read and write on the design system repo):
+
+```sh
+git clone https://github.com/peterbono/ai-design-system-demo bridge && cd bridge && npm install && npm run mcp:build
+claude mcp add bridge -s user -e GITHUB_TOKEN=your-github-token -- node /path/to/bridge/packages/mcp/dist/index.js --repo owner/name
+```
+
+Claude Desktop (Settings, Developer, Edit config, then restart):
+
+```json
+{
+  "mcpServers": {
+    "bridge": {
+      "command": "node",
+      "args": ["/path/to/bridge/packages/mcp/dist/index.js", "--repo", "owner/name"],
+      "env": { "GITHUB_TOKEN": "your GitHub token" }
+    }
+  }
+}
+```
+
+The plugin's Settings, **Claude (optional)**, shows both with the repository filled in. Nothing reaches `main`: the
+session files live on `bridge-requests`, next to the request images.
 
 ## Explorations
 

@@ -11,6 +11,8 @@ const PATHS: Record<string, string> = {
   info: 'M8 7.5V11M8 5h.01M8 14A6 6 0 1 0 8 2a6 6 0 0 0 0 12z',
   more: 'M3.75 8h.5M7.75 8h.5M11.75 8h.5',
   copy: 'M5.5 5.5h8v8h-8zM10.5 5.5v-3h-8v8h3',
+  'chevron-down': 'M4.5 6.5 8 10l3.5-3.5',
+  'chevron-up': 'M4.5 9.5 8 6l3.5 3.5',
   branch: 'M5 3v10M5 13a1.5 1.5 0 1 0 0-.01M11 6a1.5 1.5 0 1 0 0-.01M11 6c0 3-6 2-6 5',
 };
 

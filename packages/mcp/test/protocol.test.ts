@@ -25,6 +25,7 @@ const TOOLS = [
   'bridge_list_requests',
   'bridge_list_reviews',
   'bridge_list_tokens',
+  'bridge_pending_drafts',
   'bridge_plan_brand',
   'bridge_plan_revert',
   'bridge_propose_brand',
@@ -36,6 +37,7 @@ const TOOLS = [
   'bridge_start_exploration',
   'bridge_validate_tokens',
   'bridge_visual_impact',
+  'bridge_write_drafts',
 ];
 
 let client: Client;
@@ -56,7 +58,7 @@ describe('MCP over stdio', () => {
     expect(client.getInstructions()).toMatch(/never writes to main/);
   });
 
-  it('lists the 30 tools with JSON schemas and read-only hints', async () => {
+  it('lists the 32 tools with JSON schemas and read-only hints', async () => {
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual(TOOLS);
     const getToken = tools.find((t) => t.name === 'bridge_get_token')!;
@@ -67,6 +69,9 @@ describe('MCP over stdio', () => {
     expect(tools.find((t) => t.name === 'bridge_create_request')!.annotations?.readOnlyHint).toBe(false);
     expect(tools.find((t) => t.name === 'bridge_list_explorations')!.annotations?.readOnlyHint).toBe(true);
     expect(tools.find((t) => t.name === 'bridge_start_exploration')!.annotations?.readOnlyHint).toBe(false);
+    expect(tools.find((t) => t.name === 'bridge_pending_drafts')!.annotations?.readOnlyHint).toBe(true);
+    expect(tools.find((t) => t.name === 'bridge_write_drafts')!.annotations?.readOnlyHint).toBe(false);
+    expect(tools.find((t) => t.name === 'bridge_pending_drafts')!.description).toMatch(/before and after images.*no em dash, no invented numbers/);
     expect(Object.keys((tools.find((t) => t.name === 'bridge_propose_token_change')!.inputSchema.properties ?? {}) as object)).toContain('branch');
     for (const t of tools) expect(t.description, t.name).not.toMatch(/\u2014/);
   });

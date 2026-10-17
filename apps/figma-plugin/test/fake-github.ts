@@ -11,9 +11,13 @@ export class FakeGitHub {
   issues: (IssueSummary & { assignees: string[] })[] = [];
   /** Binary files written through the contents API (putBase64File): branch -> path -> base64. */
   binaries = new Map<string, Map<string, string>>();
+  /** Files through the contents API (getFile, putFile, deleteFile, listDirectory): "branch:path" -> text and sha. */
+  contents = new Map<string, { text: string; sha: string }>();
+  /** Contents API calls, in order ("PUT path", "DELETE path"). */
+  contentLog: string[] = [];
   readonly owner = 'o';
   readonly name = 'r';
-  private n = 0;
+  n = 0;
 
   constructor(files: Record<string, string>, branch = 'main') {
     const sha = this.commit(files, [], 'initial');
@@ -57,7 +61,37 @@ export class FakeGitHub {
         const files = self.binaries.get(input.branch) ?? new Map<string, string>();
         files.set(input.path, input.base64);
         self.binaries.set(input.branch, files);
+        self.contents.set(`${input.branch}:${input.path}`, { text: input.base64, sha: `f${++self.n}` });
+        self.contentLog.push(`PUT ${input.path}`);
         return `c-put-${files.size}`;
+      },
+      async getFile(path: string, ref = 'main') {
+        const f = self.contents.get(`${ref}:${path}`);
+        return f ? { text: f.text, sha: f.sha } : undefined;
+      },
+      async putFile(input: { path: string; content: string; branch: string; message: string; sha?: string }) {
+        if (!self.branches.has(input.branch)) throw Object.assign(new Error(`No branch ${input.branch}`), { status: 404 });
+        const key = `${input.branch}:${input.path}`;
+        const cur = self.contents.get(key);
+        if (cur && cur.sha !== input.sha) throw Object.assign(new Error('conflict'), { status: 409 });
+        self.contents.set(key, { text: input.content, sha: `f${++self.n}` });
+        self.contentLog.push(`PUT ${input.path}`);
+        return `c-file-${self.n}`;
+      },
+      async deleteFile(input: { path: string; branch: string; message: string; sha: string }) {
+        const key = `${input.branch}:${input.path}`;
+        const cur = self.contents.get(key);
+        if (!cur) throw Object.assign(new Error('not found'), { status: 404 });
+        if (cur.sha !== input.sha) throw Object.assign(new Error('conflict'), { status: 409 });
+        self.contents.delete(key);
+        self.contentLog.push(`DELETE ${input.path}`);
+        return `c-del-${++self.n}`;
+      },
+      async listDirectory(path: string, ref = 'main') {
+        const prefix = `${ref}:${path}/`;
+        return [...self.contents.entries()]
+          .filter(([k]) => k.startsWith(prefix) && !k.slice(prefix.length).includes('/'))
+          .map(([k, f]) => ({ name: k.slice(prefix.length), path: k.slice(ref.length + 1), type: 'file', sha: f.sha, size: f.text.length }));
       },
       async getBranchSha(branch: string) {
         return self.branches.get(branch);
