@@ -141,7 +141,14 @@ config); custom properties (`--_bg`) are resolved through the cascade per varian
 Semantic, Density, Base, Primitives; the split `Semantic/Light` layout too), so the sets follow the Brand, Semantic
 and Density modes like any layer. Exceptions, listed in the preview:
 
-- `calc()`, percentages and literals have no variable: not bound (Badge's paddings and min height, Input's width).
+- A `calc()` of tokens (Badge md: `calc(var(--space-2) + var(--space-0-5))`) is resolved from the tokens' values in the
+  default brand, theme and density and set as a number, not bound ("set, not bound" in the preview). A `calc()` of a
+  single token is bound like the token. Percentages and literals have no variable: not bound.
+- A root that is block-level in code (`display: flex | block | grid` or `width: 100%`: Card, Input) fills its container
+  there; Figma draws it at the width of `size.80` (bound), and its stretched children fill it (`layoutSizingHorizontal`
+  FILL, wrapping text). `overflow: hidden` clips the frame (Card's footer stays inside the rounded corners).
+- A wrapper frame that only adds padding and gap to the root (Tag's label) is merged into the root, so the text is one
+  `Label` layer like Badge and Button. A re-pull moves the existing layers out of the old wrapper and removes it.
 - Unitless line heights and em letter spacing (`font.line-height.*`, `font.tracking.*`) are set as a percent, not
   bound: Figma's line height and letter spacing variables are pixels.
 - The font family is a CSS stack (`Instrument Sans Variable, Instrument Sans, system-ui...`): the first family
@@ -336,7 +343,8 @@ these defaults.
   compared, not per layer: moving a binding from one layer to another within a variant is not seen.
 - **Components from a library** (remote) are not scanned; only local components of the file are.
 - **Pulled components** are rebuilt from CSS, not rendered by a browser: hover, pressed and disabled are the only
-  states; icons are placeholders (swap in your icon instances); `calc()` values, shadows and focus rings are not drawn.
+  states; icons are placeholders (swap in your icon instances); `calc()` values are set, not bound, so they do not follow a
+  density or brand switch; shadows and focus rings are not drawn.
   The generator is tested on the 6 base components; it runs on the other component folders but their output has not
   been reviewed yet.
 

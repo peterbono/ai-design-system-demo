@@ -621,9 +621,39 @@ function resolveValue(raw: string | undefined, values: Map<string, string>, toke
     if (m[2] !== undefined) return resolveValue(m[2], values, tokens, depth + 1, parent, forColor);
     return { unmapped: `${name} is not a token` };
   }
-  if (/^calc\(/i.test(v)) return { unmapped: 'calc() has no Figma equivalent' };
+  if (/^calc\(/i.test(v)) return calcValue(v, values, tokens, depth, parent);
+  if (v === '100%') return { unmapped: 'fills its container: Figma draws it at a fixed width' };
   if (/%$/.test(v)) return { unmapped: 'relative size: the Figma part hugs its content' };
   return { unmapped: 'literal value, not a token' };
+}
+
+/**
+ * A calc() of tokens ("calc(var(--space-2) + var(--space-0-5))") as an expression of token paths: "calc(space.2 + space.0-5)".
+ * A calc() of a single token is that token (bound in Figma). Literals other than plain numbers and px are not mapped.
+ */
+function calcValue(v: string, values: Map<string, string>, tokens: Map<string, TokenInfo>, depth: number, parent?: Map<string, string>): Resolved {
+  const inner = v.slice(v.indexOf('(') + 1, v.lastIndexOf(')'));
+  let failed: string | undefined;
+  const substituted = inner.replace(/var\(\s*--[\w-]+\s*(?:,[^()]*)?\)/g, (m) => {
+    const r = resolveValue(m, values, tokens, depth + 1, parent);
+    if (!r || r.unmapped !== undefined || r.value === null || r.value === undefined) {
+      failed ??= r?.unmapped ?? `${m} has no value`;
+      return '0';
+    }
+    if (r.value === 0) return '0';
+    return r.value.startsWith('calc(') ? `(${r.value.slice(5, -1)})` : r.value;
+  });
+  if (failed) return { unmapped: `calc(): ${failed}` };
+  const types = typesOf(tokens);
+  const parts = substituted.match(/[()*/]|[^\s()*/]+/g) ?? [];
+  for (const t of parts) {
+    if (/^[()*/+-]$/.test(t) || /^-?\d+(\.\d+)?(px)?$/.test(t) || types.has(t)) continue;
+    return { unmapped: `calc() with ${t}: only tokens, numbers and px are mapped` };
+  }
+  const paths = parts.filter((t) => types.has(t));
+  if (!paths.length) return { unmapped: 'calc() of literals, not a token' };
+  if (parts.length === 1) return { value: paths[0]! };
+  return { value: `calc(${parts.join(' ').replace(/\( /g, '(').replace(/ \)/g, ')')})` };
 }
 
 const FRAME_FIELDS: [string, SpecField][] = [
@@ -736,6 +766,17 @@ function layoutOf(computed: Map<string, string>): SpecLayout {
   return { direction: flex && !/column/.test(dir) ? 'HORIZONTAL' : 'VERTICAL', primary, counter: flex ? counter : 'STRETCH' };
 }
 
+/** `overflow: hidden | clip`: the frame clips its content (a card's footer fill inside its rounded corners). */
+const clips = (c: Map<string, string> | undefined) => /^(hidden|clip)\b/.test(c?.get('overflow') ?? c?.get('overflow-x') ?? '');
+
+/** A block-level root (display block, flex, grid) or `width: 100%`: in code it fills its container's width. */
+function fillsContainer(c: Map<string, string> | undefined): boolean {
+  if (!c) return false;
+  if (c.get('width') === '100%') return true;
+  const display = c.get('display') ?? 'block';
+  return /^(block|flex|grid|flow-root)$/.test(display);
+}
+
 interface Evaluated {
   built: Built;
   values: SpecVariant['values'];
@@ -743,6 +784,8 @@ interface Evaluated {
   layouts: Map<string, SpecLayout>;
   /** Fingerprint of the classes rendered, to tell whether a prop changes anything. */
   classes: string;
+  /** Part id -> computed CSS values. */
+  computed: Map<string, Map<string, string>>;
 }
 
 function evaluateVariant(reader: Reader, src: ComponentSource, rules: CssRule[], props: Record<string, Value>, state: CssState, tokens: Map<string, TokenInfo>): Evaluated | undefined {
@@ -771,7 +814,7 @@ function evaluateVariant(reader: Reader, src: ComponentSource, rules: CssRule[],
     if (node.kind === 'frame') layouts.set(id, layoutOf(computed));
   }
   const classes = [...built.parts].map(([id, n]) => `${id}:${n.classes.join(',')}:${n.visible?.prop ?? ''}`).join(';');
-  return { built, values, unmapped, layouts, classes };
+  return { built, values, unmapped, layouts, classes, computed: computedById };
 }
 
 function product(axes: { name: string; values: string[] }[]): Record<string, string>[] {
@@ -781,6 +824,39 @@ function product(axes: { name: string; values: string[] }[]): Record<string, str
 }
 
 const sameValues = (a: SpecVariant['values'], b: SpecVariant['values']) => JSON.stringify(a) === JSON.stringify(b);
+
+const BOX_FIELDS: SpecField[] = ['paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft', 'itemSpacing'];
+const PAINT_FIELDS: SpecField[] = ['fill', 'stroke', 'strokeWeight', 'strokeTopWeight', 'strokeRightWeight', 'strokeBottomWeight', 'strokeLeftWeight', 'cornerRadius', 'width', 'height', 'minWidth', 'minHeight'];
+const empty = (v: SpecValue | undefined) => v === undefined || v === 0 || v === null;
+
+/**
+ * A root whose only child is a plain frame that only adds padding and gap (Tag's `<span class="label">`): the wrapper
+ * is merged into the root, so Figma gets one auto layout frame with the icon and the text, like Badge. Only when the CSS
+ * allows it: the root has no padding or gap of its own, and the wrapper has no paint, border, radius or size, in every
+ * variant.
+ */
+function flattenWrapper(parts: SpecPart[], variants: SpecVariant[], unmapped: SpecUnmapped[]): void {
+  const root = parts.find((p) => !p.parent);
+  const children = parts.filter((p) => p.parent === root?.id);
+  const w = children[0];
+  if (!root || root.kind !== 'frame' || children.length !== 1 || !w || w.kind !== 'frame' || w.visible || w.clip) return;
+  for (const v of variants) {
+    const r = v.values[root.id] ?? {};
+    const x = v.values[w.id] ?? {};
+    if (BOX_FIELDS.some((f) => !empty(r[f])) || PAINT_FIELDS.some((f) => !empty(x[f]))) return;
+  }
+  for (const v of variants) {
+    const r = (v.values[root.id] ??= {});
+    const x = v.values[w.id] ?? {};
+    for (const f of BOX_FIELDS) if (x[f] !== undefined) r[f] = x[f];
+    delete v.values[w.id];
+  }
+  if (w.layout) root.layout = w.layout;
+  if (w.source) root.source = root.source ? `${root.source}, ${w.source}` : w.source;
+  for (const p of parts) if (p.parent === w.id) p.parent = root.id;
+  for (const u of unmapped) if (u.part === w.id) u.part = root.id;
+  parts.splice(parts.indexOf(w), 1);
+}
 
 /** The spec of one component, or an error message when it cannot be derived. */
 export function generateComponentSpec(name: string, opts: SpecGeneratorOptions): ComponentSpec {
@@ -899,6 +975,8 @@ export function generateComponentSpec(name: string, opts: SpecGeneratorOptions):
       ...(parent ? { parent } : {}),
       ...(n.classes.length ? { source: n.classes.map((c) => c.split('|').map((x, i) => (i === 0 ? posix.basename(x) : `.${x}`)).join(' ')).join(', ') } : {}),
       ...(n.kind === 'frame' ? { layout: base.layouts.get(id) } : {}),
+      ...(n.kind === 'frame' && clips(base.computed.get(id)) ? { clip: true } : {}),
+      ...(!parent && fillsContainer(base.computed.get(id)) ? { fill: true } : {}),
       ...(n.text ? { text: n.text.property } : {}),
       ...(n.visible ? { visible: n.visible.property } : {}),
     };
@@ -915,6 +993,8 @@ export function generateComponentSpec(name: string, opts: SpecGeneratorOptions):
     unmappedProps.push({ part: 'root', property: `prop ${p.name}`, value: p.kind, reason: p.kind === 'node' ? 'slot content is not drawn' : p.kind === 'icon' ? 'required icon drawn as a placeholder' : 'not drawn in this version' });
   }
   for (const e of cssErrors) unmappedProps.push({ part: 'root', property: 'css', value: e, reason: 'selector not understood' });
+
+  flattenWrapper(parts, variants, unmapped);
 
   const seen = new Set<string>();
   const dedup = [...unmappedProps, ...unmapped].filter((u) => {

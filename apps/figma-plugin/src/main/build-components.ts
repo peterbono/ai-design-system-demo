@@ -297,6 +297,40 @@ function setupFrame(node: Box, part: SpecPart): void {
   node.counterAxisAlignItems = l.counter === 'STRETCH' ? 'MIN' : l.counter;
   node.primaryAxisSizingMode = 'AUTO';
   node.counterAxisSizingMode = 'AUTO';
+  // overflow: hidden in code (a card): the footer fill stays inside the rounded corners.
+  node.clipsContent = !!part.clip;
+}
+
+/**
+ * A child of a frame whose children stretch (align-items: stretch, a block's children) fills its parent on the cross
+ * axis. Set last: the child's own hug sizing (setupFrame) would otherwise undo it, and FILL needs the node to be inside
+ * its auto layout parent already. A text that fills the width wraps: fixed width, height grows.
+ */
+function sizeInParent(node: SceneNode, parentPart: SpecPart | undefined): void {
+  if (!parentPart?.layout || parentPart.layout.counter !== 'STRETCH' || !('layoutSizingHorizontal' in node)) return;
+  if (parentPart.layout.direction === 'VERTICAL') {
+    node.layoutSizingHorizontal = 'FILL';
+    if (node.type === 'TEXT') node.textAutoResize = 'HEIGHT';
+  } else if (node.type !== 'TEXT') node.layoutSizingVertical = 'FILL';
+}
+
+/** Generated parts sit under the parent the spec names, in spec order (a re-pull after code removed a wrapper moves them). */
+function placeParts(variant: ComponentNode, comp: PlannedComponent, nodes: Map<string, SceneNode>): void {
+  for (const parent of comp.parts) {
+    const box = nodes.get(parent.id);
+    if (!box || !('children' in box)) continue;
+    const kids = comp.parts.filter((p) => p.parent === parent.id).map((p) => nodes.get(p.id)).filter((n): n is SceneNode => !!n);
+    kids.forEach((kid, i) => {
+      if ((box as Box).children[i] !== kid) (box as Box).insertChild(i, kid);
+    });
+  }
+  // Layers DS Bridge generated for parts code no longer has (a wrapper merged into the root): removed once empty.
+  const ids = new Set(comp.parts.map((p) => p.id));
+  const stale = variant.findAll((n) => {
+    const id = n.getSharedPluginData(NS, 'part');
+    return !!id && !ids.has(id);
+  });
+  for (const n of stale.reverse()) if (!('children' in n) || !(n as FrameNode).children.length) n.remove();
 }
 
 function createPart(part: SpecPart): SceneNode {
@@ -325,15 +359,14 @@ async function configureVariant(variant: ComponentNode, comp: PlannedComponent, 
   const nodes = new Map<string, SceneNode>();
   for (const part of comp.parts) {
     let node = findPart(variant, part.id);
+    const parent = ((part.parent ? nodes.get(part.parent) : variant) ?? variant) as Box;
     if (!node) {
       node = createPart(part);
-      const parent = (part.parent ? nodes.get(part.parent) : variant) as Box | undefined;
-      (parent ?? variant).appendChild(node);
-    }
+      parent.appendChild(node);
+    } else if (part.id !== 'root' && node.parent !== parent) parent.appendChild(node);
     nodes.set(part.id, node);
     if (part.id !== 'root' && node.name !== part.name) node.name = part.name;
     const parentPart = comp.parts.find((p) => p.id === part.parent);
-    if (parentPart?.layout?.counter === 'STRETCH' && 'layoutAlign' in node) node.layoutAlign = 'STRETCH';
     ctx.where = `${comp.name} ${pv.name}, ${part.name}`;
     const fields = pv.parts[part.id] ?? [];
     if (part.kind === 'text' && node.type === 'TEXT') {
@@ -366,7 +399,13 @@ async function configureVariant(variant: ComponentNode, comp: PlannedComponent, 
       }
     }
     for (const f of fields) apply(node, f, ctx);
+    try {
+      sizeInParent(node, parentPart);
+    } catch (err) {
+      ctx.problems.push(`${ctx.where}, fill container: ${errorText(err)}`);
+    }
   }
+  placeParts(variant, comp, nodes);
 }
 
 /** Ensures the set's TEXT and BOOLEAN properties exist with the spec's defaults; returns name -> Figma property key. */
@@ -384,8 +423,12 @@ function ensureProperties(set: ComponentSetNode, comp: PlannedComponent): Map<st
   return keys;
 }
 
-/** Grid: one column per value of the last axis (usually State), one row per combination of the others. */
-function layoutVariants(set: ComponentSetNode, comp: PlannedComponent): void {
+/**
+ * Grid: one column per value of the last axis (usually State), one row per combination of the others. Each row is as tall
+ * as its tallest variant and each column as wide as its widest, with the same gap between all of them, so rows of
+ * different sizes (sm, md, lg) are evenly spaced.
+ */
+export function layoutVariants(set: ComponentSetNode, comp: PlannedComponent): void {
   const byKey = new Map(set.children.filter((c): c is ComponentNode => c.type === 'COMPONENT').map((c) => [c.getSharedPluginData(NS, 'variant'), c]));
   const last = comp.axes[comp.axes.length - 1];
   const cols = last ? last.values : ['Default'];
@@ -398,21 +441,27 @@ function layoutVariants(set: ComponentSetNode, comp: PlannedComponent): void {
     if (!rows.includes(rowKey)) rows.push(rowKey);
     cells.push({ node, row: rows.indexOf(rowKey), col: last ? Math.max(0, cols.indexOf(v.props[last.name]!)) : 0 });
   }
-  const w = Math.max(1, ...cells.map((c) => c.node.width));
-  const h = Math.max(1, ...cells.map((c) => c.node.height));
+  const orphans = set.children.filter((c) => c.type === 'COMPONENT' && c.getSharedPluginData(NS, 'orphan') === 'true');
+  const colW = cols.map((_, i) => Math.max(1, ...cells.filter((c) => c.col === i).map((c) => c.node.width)));
+  const rowH = rows.map((_, i) => Math.max(1, ...cells.filter((c) => c.row === i).map((c) => c.node.height)));
+  const offsets = (sizes: number[]) => sizes.reduce<number[]>((acc, _, i) => [...acc, i ? acc[i - 1]! + sizes[i - 1]! + GAP : GAP], []);
+  const xs = offsets(colW);
+  const ys = offsets(rowH);
   for (const c of cells) {
-    c.node.x = GAP + c.col * (w + GAP);
-    c.node.y = GAP + c.row * (h + GAP);
+    c.node.x = xs[c.col]!;
+    c.node.y = ys[c.row]!;
   }
   // Orphans go after the grid, in one row.
-  const orphans = set.children.filter((c) => c.type === 'COMPONENT' && c.getSharedPluginData(NS, 'orphan') === 'true');
-  orphans.forEach((o, i) => {
-    o.x = GAP + i * (w + GAP);
-    o.y = GAP + rows.length * (h + GAP);
-  });
-  const width = GAP + Math.max(1, cols.length, orphans.length) * (w + GAP);
-  const height = GAP + (rows.length + (orphans.length ? 1 : 0)) * (h + GAP);
-  set.resizeWithoutConstraints(width, height);
+  const gridH = rows.length ? ys[rows.length - 1]! + rowH[rows.length - 1]! + GAP : GAP;
+  let x = GAP;
+  for (const o of orphans) {
+    o.x = x;
+    o.y = gridH;
+    x += o.width + GAP;
+  }
+  const orphanH = orphans.length ? Math.max(...orphans.map((o) => o.height)) + GAP : 0;
+  const width = Math.max(cols.length ? xs[cols.length - 1]! + colW[cols.length - 1]! + GAP : GAP, x);
+  set.resizeWithoutConstraints(Math.max(1, width), Math.max(1, gridH + orphanH));
 }
 
 async function componentsPage(): Promise<PageNode> {
@@ -445,7 +494,6 @@ export async function applyComponentPlan(plan: ComponentPullPlan, progress: Prog
     progress(`Building ${comp.name} (${i + 1} of ${plan.components.length})`);
     let set = existing.get(comp.componentId);
     const isNew = !set;
-    let grew = isNew;
     if (!set) {
       page ??= await componentsPage();
       // Variants first (combineAsVariants needs them), then properties on the set, then wiring.
@@ -474,7 +522,6 @@ export async function applyComponentPlan(plan: ComponentPullPlan, progress: Prog
       if (!node) {
         node = figma.createComponent();
         set.appendChild(node);
-        grew = true;
       }
       await configureVariant(node, comp, pv, propKeys, ctx);
       if (pv === comp.variants[comp.variants.length - 1] || comp.variants.indexOf(pv) % 12 === 0) await tick();
@@ -487,10 +534,10 @@ export async function applyComponentPlan(plan: ComponentPullPlan, progress: Prog
         node.setSharedPluginData(NS, 'orphan', 'true');
         if (!node.description.startsWith(ORPHAN_PREFIX)) node.description = ORPHAN_PREFIX + node.description;
         report.orphaned++;
-        grew = true;
       }
     }
-    if (grew) layoutVariants(set, comp);
+    // Always: an update can change variant sizes (a padding, a fixed width), not only add variants.
+    layoutVariants(set, comp);
     set.setSharedPluginData(NS, 'specHash', comp.hash);
     // The generated set is the baseline: a Push right after a pull sends nothing.
     set.setSharedPluginData(NS, 'signature', JSON.stringify(buildSignature(await readComponent(set))));

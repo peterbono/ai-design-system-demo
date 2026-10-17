@@ -72,7 +72,10 @@ export const SPEC_FIELDS: readonly SpecField[] = [
 /** Fields whose token must be a color. */
 export const COLOR_FIELDS: ReadonlySet<SpecField> = new Set(['fill', 'stroke', 'textFill']);
 
-/** A token path ("button.primary.bg"), a literal zero (`padding: 0`), or null: no paint (`transparent`). */
+/**
+ * A token path ("button.primary.bg"), a literal zero (`padding: 0`), null: no paint (`transparent`), or a calc() of token
+ * paths ("calc(space.2 + space.0-5)", operators + - * / and px numbers): resolved to a number, set but not bound.
+ */
 export type SpecValue = string | 0 | null;
 
 export interface SpecLayout {
@@ -98,6 +101,10 @@ export interface SpecPart {
   text?: string | undefined;
   /** Optional parts (an icon prop): the BOOLEAN component property that shows them. */
   visible?: string | undefined;
+  /** Frames with `overflow: hidden` or `clip`: clip their content in Figma. */
+  clip?: boolean | undefined;
+  /** Root only: block-level in code (display block, flex or grid, or width 100%), so it fills its container. Figma draws it at a fixed width. */
+  fill?: boolean | undefined;
 }
 
 /** A variant axis from a string-literal union prop (variant, size, tone) or the State axis. */
