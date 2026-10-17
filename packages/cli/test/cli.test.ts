@@ -37,6 +37,19 @@ describe('bridge CLI', () => {
     expect(bridge(REPO, 'nope').code).toBe(2);
   });
 
+  it('docs draft <Component>: pre-fill and prompt, --json for the docs-draft Action', () => {
+    const r = bridge(REPO, 'docs', 'draft', 'Icon');
+    expect(r.code).toBe(0);
+    expect(r.out).toMatch(/Icon: packages\/react\/src\/components\/Icon\/Icon\.docs\.json/);
+    expect(r.out).toMatch(/Missing prose: summary, whenToUse/);
+    const j = JSON.parse(bridge(REPO, 'docs', 'draft', 'IconButton', '--json').out);
+    expect(j.path).toBe('packages/react/src/components/IconButton/IconButton.docs.json');
+    expect(Object.keys(j.prefill.inheritedTokens)).toEqual(['Button']);
+    expect(j.prompt).toContain('IconButton.docs.json');
+    expect(bridge(REPO, 'docs', 'draft').code).toBe(2);
+    expect(bridge(REPO, 'docs', 'draft', 'Nope').code).toBe(2);
+  });
+
   it('tokens <query>', () => {
     const r = bridge(REPO, 'tokens', 'danger', 'text');
     expect(r.code).toBe(0);

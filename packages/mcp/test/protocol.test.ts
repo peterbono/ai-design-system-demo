@@ -8,6 +8,7 @@ import { MCP_DIST, REPO } from './helpers.js';
 const TOOLS = [
   'bridge_audit',
   'bridge_check_contrast',
+  'bridge_draft_docs',
   'bridge_get_component',
   'bridge_get_config',
   'bridge_get_design_language',
@@ -50,7 +51,7 @@ describe('MCP over stdio', () => {
     expect(client.getInstructions()).toMatch(/never writes to main/);
   });
 
-  it('lists the 24 tools with JSON schemas and read-only hints', async () => {
+  it('lists the 25 tools with JSON schemas and read-only hints', async () => {
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual(TOOLS);
     const getToken = tools.find((t) => t.name === 'bridge_get_token')!;

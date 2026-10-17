@@ -44,6 +44,29 @@ describe('components and docs (real repo)', () => {
     expect([...runtime].filter((v) => /^--(color|space|size|radius|font|motion|shadow|layer|z|focus)-/.test(v))).toEqual([]);
   });
 
+  it('bridge_draft_docs: deterministic pre-fill, inherited tokens and a prompt, nothing written', async () => {
+    const icon = await ops.draftDocsOp(ctx, { name: 'Icon' });
+    expect(icon.path).toBe('packages/react/src/components/Icon/Icon.docs.json');
+    expect(icon.prefill.tokens).toContain('--icon-stroke');
+    expect(icon.prefill.anatomy).toMatchObject({ icon: 'Icon', sm: 'Size sm' });
+    expect(icon.prefill.propsTable).toContain('`icon` (required)');
+    expect(icon.prompt).toContain('Never invent');
+    expect(icon.prompt).toContain('<example-docs-json>');
+    expect(icon.prompt).toMatch(/Voice and tone/);
+    expect(icon.instruction).toMatch(/"draftedBy": "claude" and "needsReview": true/);
+    expect(await ops.draftDocsOp(ctx, { name: 'Icon' })).toEqual(icon);
+    const ib = await ops.draftDocsOp(ctx, { name: 'IconButton' });
+    expect(ib.prefill.tokens).toEqual(['--font-line-height-none']);
+    expect(ib.prefill.inheritedTokens.Button!.length).toBeGreaterThan(20);
+    expect(ib.prefill.propsTable).toContain('native <button> attribute');
+    const button = await ops.draftDocsOp(ctx, { name: 'Button' });
+    expect(button.exists).toBe(true);
+    expect(button.prefill.missing).toEqual([]);
+    expect(button.prefill.anatomy.primary).toMatch(/Primary variant/);
+    expect(button.prefill.contrastNotes.length).toBeGreaterThan(0);
+    expect(icon.prompt).not.toMatch(/\u2014/);
+  });
+
   it('bridge_get_design_language: toc, by number, by title', async () => {
     const toc = (await ops.getDesignLanguage(ctx, {})) as any;
     expect(toc.sections.length).toBeGreaterThan(10);

@@ -43,6 +43,10 @@ Usage:
                                       Exit 0 ok, 1 under --fail-under or regressed, 2 setup error
   bridge audit <path> --fix [--write] safe autofix: CSS values equal to a token become var(--token).
                                       Dry run unless --write
+  bridge docs draft <Component> [--json]
+                                      docs.json pre-fill from the code (props, tokens, anatomy, contrast,
+                                      changelog line, missing keys) and a prompt for Claude to write the
+                                      prose. --json prints { path, prefill, prompt }. Writes nothing
   bridge mcp [--root dir | --repo owner/name]   start the MCP server on stdio
 
 Options:
@@ -441,6 +445,33 @@ async function audit(a: Args, root: string): Promise<number> {
   return code;
 }
 
+async function docsCmd(a: Args, root: string): Promise<number> {
+  const [, sub, name] = a._;
+  if (sub !== 'draft' || !name) throw new UsageError('Usage: bridge docs draft <Component> [--json]');
+  const ctx = await BridgeContext.create({ root });
+  const d = await ops.draftDocsOp(ctx, { name });
+  if (has(a, 'json')) {
+    print(JSON.stringify({ component: d.component, path: d.path, exists: d.exists, prefill: d.prefill, prompt: d.prompt }, null, 2));
+    return 0;
+  }
+  const p = d.prefill;
+  print(`${d.component}: ${d.path}${d.exists ? '' : ' (not written yet)'}`);
+  print(`\nProps\n${p.propsTable || '  none of its own'}`);
+  print(`\nTokens (${p.tokens.length}): ${p.tokens.join(', ') || 'none'}`);
+  for (const [from, list] of Object.entries(p.inheritedTokens)) print(`  plus ${list.length} through ${from}'s stylesheet`);
+  print('\nAnatomy');
+  for (const [k, v] of Object.entries(p.anatomy)) print(`  .${k}  ${v}`);
+  if (p.contrastNotes.length) {
+    print('\nContrast');
+    for (const n of p.contrastNotes) print(`  ${n}`);
+  }
+  print(`\nChangelog line: ${p.changelogLine}`);
+  print(`Missing prose: ${p.missing.join(', ') || 'none'}`);
+  print('\nPrompt for Claude (write the prose, set "draftedBy": "claude" and "needsReview": true):\n');
+  print(d.prompt);
+  return 0;
+}
+
 class UsageError extends Error {}
 
 async function main(): Promise<number> {
@@ -476,6 +507,8 @@ async function main(): Promise<number> {
       return revertCmd(a, root);
     case 'audit':
       return audit(a, root);
+    case 'docs':
+      return docsCmd(a, root);
     case 'mcp':
       await serveStdio(optionsFromArgv(argv.slice(1)));
       return -1;

@@ -154,6 +154,18 @@ export function createServer(ctx: BridgeContext): McpServer {
   );
 
   server.registerTool(
+    'bridge_draft_docs',
+    {
+      title: 'Draft component docs',
+      description:
+        "Start or refresh a component's docs.json. Returns what the code tells (props table from TypeScript, tokens its stylesheet reads, tokens it reads through another component's stylesheet, anatomy from the CSS module classes, contrast checks those tokens take part in, a changelog line, existing prose kept, the keys still missing), the target path, and a prompt for you to write the missing prose in the repo conventions. Nothing is written: save the result with \"draftedBy\": \"claude\" and \"needsReview\": true so a reviewer accepts it in Bridge Studio.",
+      inputSchema: { name: z.string().describe('Component name, e.g. Icon.') },
+      annotations: RO,
+    },
+    run((a) => ops.draftDocsOp(ctx, a)),
+  );
+
+  server.registerTool(
     'bridge_get_design_language',
     {
       title: 'Get design language',
