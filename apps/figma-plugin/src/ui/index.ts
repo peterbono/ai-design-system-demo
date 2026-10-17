@@ -15,7 +15,10 @@ import type { Issue } from '@bridge-ds/core';
 import { formatValue, isAlias, parseColor, rgbaToHex } from '@bridge-ds/core';
 import { type ContrastResult, contextLabel, pairKey } from '@bridge-ds/core';
 import { type ApplyReport, type FigmaSnapshot, type InitPayload, type RepoSettings, modeDisplayName } from '../shared/messages';
-import { onProgress, request } from './bridge';
+import { REQUEST_KINDS, type RequestKind } from '@bridge-ds/core';
+import { type ComponentChangeItem, type ComponentScan, type RequestDraft, classifyComponents, pullBaselines, suggestTitle, toRequest } from '../sync/components';
+import { loadCodedComponents, sendComponentRequest } from '../sync/requests';
+import { type Selection, onProgress, onSelection, request } from './bridge';
 import { type Child, h } from './dom';
 import { icon } from './icons';
 import { ILLUSTRATIONS, type IllustrationName } from './illustrations';
@@ -52,6 +55,21 @@ interface PushState {
   /** Slugs of new brand candidates the designer chose to create in this pull request (opt-in, see planBrands). */
   includeBrands: Set<string>;
   result?: PushResult | undefined;
+  /** Component changes: requests (GitHub issues), separate from the variables pull request. */
+  components?: ComponentScan | undefined;
+  componentsError?: string | undefined;
+  fileKey?: string | undefined;
+  form?: RequestForm | undefined;
+  sent: { component: string; number: number; url: string }[];
+}
+
+/** The inline request form: one detected change, a new component candidate, or a manual request ("manual"). */
+interface RequestForm {
+  key: string;
+  item?: ComponentChangeItem | undefined;
+  draft: RequestDraft;
+  attach: boolean;
+  error?: string | undefined;
 }
 
 interface State {
@@ -65,6 +83,8 @@ interface State {
   tokenDraft: string;
   settingsMessage?: { kind: 'ok' | 'error'; text: string } | undefined;
   expanded: Set<string>;
+  /** Current Figma selection, for "Attach the current selection". */
+  selection: Selection;
 }
 
 interface ActionBar {
@@ -75,9 +95,18 @@ interface ActionBar {
   secondary?: { label: string; onClick: () => void } | undefined;
 }
 
-const state: State = { tab: 'pull', settingsDraft: { repo: '', branch: '', tokensPath: '' }, tokenDraft: '', expanded: new Set() };
+const state: State = { tab: 'pull', settingsDraft: { repo: '', branch: '', tokensPath: '' }, tokenDraft: '', expanded: new Set(), selection: null };
 let client: GitHubClient | undefined;
 const app = document.getElementById('app')!;
+
+onSelection((selection) => {
+  state.selection = selection;
+  // Only the request form shows the selection: re-render it, never the whole screen while typing.
+  const el = document.getElementById('attach-hint');
+  if (el) el.textContent = attachHint();
+  const box = document.getElementById('attach-box') as HTMLInputElement | null;
+  if (box && state.push?.form?.key === 'manual') box.disabled = !selection;
+});
 
 onProgress((message) => {
   if (!state.busy) return;
@@ -397,6 +426,15 @@ function applyPull(): void {
     async () => {
       const report = await request('apply-pull', { plan: p.proposal.plan });
       p.report = report;
+      // Components now render with main's values: refresh their baselines (pending component changes are kept).
+      try {
+        const scanned = await request('scan-components', {});
+        const coded = await loadCodedComponents(getClient(), p.analysis.headFiles.treeSha, p.analysis.headFiles.config);
+        const items = pullBaselines(scanned.components, coded);
+        if (items.length) await request('save-signatures', { items: items.map((x) => ({ nodeId: x.nodeId, signature: JSON.stringify(x.signature) })) });
+      } catch {
+        /* the pull itself succeeded; baselines are taken again on the next scan */
+      }
       await loadInit();
       state.push = undefined;
       void request('notify', { message: `Pulled ${state.init!.settings.branch}: ${report.created} created, ${report.updated} updated.` });
@@ -417,6 +455,18 @@ function scanPush(keep?: PushState): void {
       const lastBranch = state.init!.sync.lastPrBranch;
       const openPr = lastBranch ? await c.findOpenPullRequest(lastBranch).catch(() => undefined) : undefined;
       const includeBrands = keep?.includeBrands ?? new Set<string>();
+      let components: ComponentScan | undefined;
+      let componentsError: string | undefined;
+      let fileKey: string | undefined;
+      try {
+        const scanned = await request('scan-components', {});
+        fileKey = scanned.fileKey;
+        components = classifyComponents(scanned.components, await loadCodedComponents(c, analysis.headFiles.treeSha, analysis.headFiles.config));
+        // Coded components seen for the first time: take their baseline silently (nothing to send).
+        if (components.adopt.length) await request('save-signatures', { items: components.adopt.map((x) => ({ nodeId: x.nodeId, signature: JSON.stringify(x.signature) })) });
+      } catch (err) {
+        componentsError = err instanceof Error ? err.message : String(err);
+      }
       state.push = {
         analysis,
         snapshot,
@@ -429,6 +479,10 @@ function scanPush(keep?: PushState): void {
         notes: keep?.notes ?? '',
         openPr,
         appendToOpen: keep?.appendToOpen ?? !!openPr,
+        components,
+        componentsError,
+        fileKey,
+        sent: keep?.sent ?? [],
       };
       state.expanded.clear();
     },
@@ -478,7 +532,7 @@ function saveSettings(): void {
         const gh = new GitHubClient(draft.repo, token);
         const info = await gh.getRepo();
         if (info.permissions && info.permissions.push === false) {
-          throw new Error(`This token can read ${info.fullName} but cannot write to it. Give it "Contents: Read and write" and "Pull requests: Read and write".`);
+          throw new Error(`This token can read ${info.fullName} but cannot write to it. Give it "Contents", "Pull requests" and "Issues" set to "Read and write".`);
         }
         if (!(await gh.getBranchSha(draft.branch.trim()))) throw new Error(`Branch "${draft.branch.trim()}" does not exist in ${info.fullName}.`);
         if (newToken) await request('save-token', { token: newToken });
@@ -727,6 +781,239 @@ function newBrandCard(r: PushState, b: PushBrand): HTMLElement {
   );
 }
 
+// ---------------------------------------------------------------------------------------------
+// Components: requests (GitHub issues), never a pull request from Figma
+
+const kindName = (k: RequestKind) => REQUEST_KINDS.find((x) => x.value === k)?.label ?? 'Other';
+
+function attachHint(): string {
+  const f = state.push?.form;
+  const sel = state.selection;
+  if (f?.item) return sel ? `Attaches ${sel.name} if it is a variant of ${f.item.figmaName}, otherwise the whole component.` : `Nothing selected: attaches the whole component. Select a variant to attach only it.`;
+  return sel ? `Attaches ${sel.name}.` : 'Select a layer in Figma to attach it.';
+}
+
+function openForm(r: PushState, item: ComponentChangeItem | undefined): void {
+  const coded = r.components?.coded ?? [];
+  const draft: RequestDraft = item
+    ? { component: item.component, kind: item.kind, title: suggestTitle(item), summary: '', changes: item.changes, nodeId: item.nodeId, nodeName: item.figmaName }
+    : { component: coded[0] ?? '', kind: 'visual', title: '', summary: '', changes: [], nodeId: state.selection?.nodeId, nodeName: state.selection?.name };
+  r.form = { key: item?.nodeId ?? 'manual', item, draft, attach: item ? true : !!state.selection };
+  void request('selection', {}).then((sel) => {
+    state.selection = sel;
+    render();
+  });
+  render();
+}
+
+function sendRequest(r: PushState): void {
+  const f = r.form;
+  if (!f) return;
+  const d = f.draft;
+  f.error = !d.component.trim() ? 'Pick the component this request is about.' : !d.title.trim() ? 'Add a title.' : !d.summary.trim() ? 'Add a summary: say what should change and why.' : undefined;
+  if (f.error) {
+    render();
+    document.getElementById(d.summary.trim() ? 'req-title' : 'req-summary')?.focus();
+    return;
+  }
+  void run(
+    'Sending the request',
+    async () => {
+      const a = r.analysis;
+      const images: string[] = [];
+      if (f.attach) {
+        const img = await request('export-image', { nodeId: f.item?.nodeId });
+        if (img) images.push(img.base64);
+      }
+      // Manual requests point at the selection they attach, when there is one.
+      const sel = !f.item && f.attach ? state.selection : null;
+      const draft = sel ? { ...d, nodeId: sel.nodeId, nodeName: sel.name } : f.item ? d : { ...d, nodeId: undefined, nodeName: undefined };
+      const coded = (r.components?.coded ?? []).includes(d.component.trim());
+      const res = await sendComponentRequest(getClient(), {
+        request: toRequest(draft, { fileKey: r.fileKey }),
+        images,
+        baseBranch: state.init!.settings.branch,
+        config: a.headFiles.config,
+        coded,
+      });
+      r.sent.unshift({ component: d.component.trim(), number: res.issue.number, url: res.issue.url });
+      r.form = undefined;
+      // The request is the new reference: the next scan compares against what was just asked for.
+      if (f.item) {
+        const done = f.item.nodeId;
+        if (r.components) {
+          r.components.changed = r.components.changed.filter((x) => x.nodeId !== done);
+          r.components.candidates = r.components.candidates.filter((x) => x.nodeId !== done);
+        }
+        await request('rebaseline', { nodeId: done }).catch(() => undefined);
+      }
+      void request('notify', { message: `Request #${res.issue.number} opened` });
+    },
+    () => sendRequest(r),
+  );
+}
+
+function changeLines(changes: { field: string; before?: string | undefined; after?: string | undefined }[]): Child {
+  if (!changes.length) return null;
+  return h(
+    'table',
+    { class: 'changes' },
+    h('thead', null, h('tr', null, h('th', null, 'What'), h('th', null, 'Now'), h('th', null, 'Requested'))),
+    h(
+      'tbody',
+      null,
+      changes.map((c) =>
+        h(
+          'tr',
+          null,
+          h('td', null, c.field),
+          h('td', { class: 'mono before' }, c.before || 'none'),
+          h('td', { class: 'mono' }, c.after || 'removed'),
+        ),
+      ),
+    ),
+  );
+}
+
+function requestFormView(r: PushState, f: RequestForm): HTMLElement {
+  const d = f.draft;
+  const coded = r.components?.coded ?? [];
+  const manual = !f.item;
+  return h(
+    'div',
+    { class: 'req-form', role: 'group', 'aria-label': 'Request' },
+    manual
+      ? h(
+          'label',
+          { class: 'field' },
+          h('span', null, 'Component'),
+          coded.length
+            ? h(
+                'select',
+                { 'data-focus-id': 'req-component', onChange: (e: Event) => (d.component = (e.target as HTMLSelectElement).value) },
+                coded.map((c) => h('option', { value: c, selected: c === d.component }, c)),
+              )
+            : h('input', { type: 'text', value: d.component, placeholder: 'Button', onInput: (e: Event) => (d.component = (e.target as HTMLInputElement).value) }),
+        )
+      : null,
+    h(
+      'label',
+      { class: 'field' },
+      h('span', null, 'Kind'),
+      h(
+        'select',
+        { 'data-focus-id': 'req-kind', onChange: (e: Event) => (d.kind = (e.target as HTMLSelectElement).value as RequestKind) },
+        REQUEST_KINDS.filter((k) => manual ? k.value !== 'new-component' : true).map((k) => h('option', { value: k.value, selected: k.value === d.kind }, k.label)),
+      ),
+      h('small', null, REQUEST_KINDS.find((k) => k.value === d.kind)?.hint ?? ''),
+    ),
+    h(
+      'label',
+      { class: 'field' },
+      h('span', null, 'Title'),
+      h('input', { type: 'text', id: 'req-title', 'data-focus-id': 'req-title', value: d.title, maxlength: '100', placeholder: 'Add a danger ghost variant', onInput: (e: Event) => (d.title = (e.target as HTMLInputElement).value) }),
+    ),
+    h(
+      'label',
+      { class: 'field' },
+      h('span', null, 'Summary'),
+      h(
+        'textarea',
+        {
+          id: 'req-summary',
+          'data-focus-id': 'req-summary',
+          rows: '3',
+          required: true,
+          'aria-invalid': f.error && !d.summary.trim() ? 'true' : undefined,
+          placeholder: manual ? 'What should change, and why. The diff cannot see this one, so be specific.' : 'Why this change, and where it is used',
+          onInput: (e: Event) => (d.summary = (e.target as HTMLTextAreaElement).value),
+        },
+        d.summary,
+      ),
+    ),
+    d.changes.length ? h('div', { class: 'field' }, h('span', null, 'Changes'), changeLines(d.changes)) : null,
+    h(
+      'label',
+      { class: 'check' },
+      h('input', { type: 'checkbox', id: 'attach-box', checked: f.attach, disabled: manual && !state.selection, onChange: (e: Event) => (f.attach = (e.target as HTMLInputElement).checked) }),
+      manual ? 'Attach the current selection' : 'Attach the selected variant',
+    ),
+    h('small', { id: 'attach-hint', class: 'attach-hint' }, attachHint()),
+    f.error ? h('p', { class: 'form-error', role: 'alert' }, icon('alert'), f.error) : null,
+    h(
+      'div',
+      { class: 'inline-actions' },
+      h('button', { class: 'btn primary', disabled: !!state.busy, onClick: () => sendRequest(r) }, 'Send request'),
+      h('button', { class: 'btn ghost', onClick: () => { r.form = undefined; render(); } }, 'Cancel'),
+    ),
+  );
+}
+
+function componentRow(r: PushState, item: ComponentChangeItem, action: string): HTMLElement {
+  const open = r.form?.key === item.nodeId;
+  return h(
+    'li',
+    { class: 'row' },
+    h(
+      'div',
+      { class: 'row-head' },
+      h('span', { class: `kind ${item.kind === 'new-component' ? 'added' : ''}` }, kindName(item.kind)),
+      h('span', { class: 'comp-name' }, item.component),
+      item.figmaName !== item.component ? h('span', { class: 'muted' }, item.figmaName) : null,
+      open ? null : h('button', { class: 'btn ghost row-action', 'data-focus-id': `req-${item.nodeId}`, onClick: () => openForm(r, item) }, action),
+    ),
+    open ? requestFormView(r, r.form!) : changeLines(item.changes),
+  );
+}
+
+function componentsSection(r: PushState): Child {
+  const scan = r.components;
+  const init = state.init!;
+  const changed = scan?.changed ?? [];
+  const candidates = scan?.candidates ?? [];
+  const manualOpen = r.form?.key === 'manual';
+  const content: Child[] = [];
+  for (const s of r.sent) {
+    content.push(
+      h(
+        'div',
+        { class: 'callout ok', role: 'status' },
+        h('div', { class: 'callout-title' }, icon('check'), `Request #${s.number} opened for ${s.component}`),
+        h('div', { class: 'inline-actions' }, h('button', { class: 'btn', onClick: () => void request('open-url', { url: s.url }) }, icon('external'), 'Open on GitHub')),
+      ),
+    );
+  }
+  if (r.componentsError) content.push(h('div', { class: 'callout warn' }, h('div', { class: 'callout-title' }, icon('alert'), 'Components could not be read'), h('p', null, r.componentsError)));
+  if (manualOpen) content.push(h('div', { class: 'rows manual' }, h('div', { class: 'row' }, h('div', { class: 'row-head' }, h('span', { class: 'kind' }, 'Manual'), h('span', { class: 'comp-name' }, 'Request a component change')), requestFormView(r, r.form!))));
+  if (changed.length) content.push(rowList('push-components', changed.map((item) => componentRow(r, item, 'Request change')), 20));
+  else if (scan) content.push(h('p', { class: 'muted' }, scan.figmaOnly.length ? 'Figma-only changes, nothing to send.' : 'No component changes to request.'));
+  if (scan?.figmaOnly.length) content.push(h('p', { class: 'muted' }, `Layers or auto layout changed in ${scan.figmaOnly.join(', ')}, with the same props, variants, tokens and look. That stays in Figma.`));
+  if (scan?.explained.length) content.push(h('p', { class: 'muted' }, `${scan.explained.join(', ')} look${scan.explained.length === 1 ? 's' : ''} different because of variable edits. Those go in the variables pull request, not in a request.`));
+  if (candidates.length) {
+    content.push(
+      h(
+        'details',
+        { class: 'notes candidates', open: candidates.some((c) => r.form?.key === c.nodeId) },
+        h('summary', null, `Not in the design system yet (${candidates.length})`),
+        h('p', { class: 'muted' }, `Components in this file with no folder in ${scan?.coded.length ? 'the code' : 'code'}. Nothing is sent unless you ask for it.`),
+        h('ul', { class: 'rows' }, candidates.map((item) => componentRow(r, item, 'Request as new component'))),
+      ),
+    );
+  }
+  return h(
+    'section',
+    { class: 'group components' },
+    h(
+      'div',
+      { class: 'group-head' },
+      h('h2', null, 'Components', h('span', { class: 'group-n' }, String(changed.length))),
+      manualOpen ? null : h('button', { class: 'btn ghost', 'data-focus-id': 'req-manual', onClick: () => openForm(r, undefined) }, 'Request a component change'),
+    ),
+    h('p', { class: 'lede' }, `Components need code, so a change becomes a request (a GitHub issue) for the team, never a pull request. It does not change ${init.settings.branch}.`),
+    content,
+  );
+}
+
 function viewPush(): View {
   const init = state.init!;
   if (!init.hasToken) return needToken();
@@ -735,13 +1022,13 @@ function viewPush(): View {
     return {
       body: [intro({
         title: 'Push your edits for review',
-        text: `Your variable edits go to ${init.settings.branch} as a pull request, never straight in.`,
+        text: `Variable edits go to ${init.settings.branch} as a pull request, never straight in. Component changes become requests for the team.`,
         meta: `To ${init.settings.repo}, for review by design and tech owners.`,
         art: 'paint',
       }), steps([
-        ['Edit in Figma', 'Change values, aliases, names or descriptions of synced variables.'],
+        ['Edit in Figma', 'Change synced variables, or change a component: a variant, a prop, the token a part uses.'],
         ['Scan', 'See each change with its swatches and the contrast it moves. Failing pairs block the push.'],
-        ['Push for review', `Opens a GitHub pull request on its own branch. Nothing reaches ${init.settings.branch} until owners approve.`],
+        ['Send', `Variables open a pull request. Components need code, so they open a request (a GitHub issue). Nothing reaches ${init.settings.branch} until owners approve.`],
       ])],
       bar: { label: 'Scan for changes', onClick: () => scanPush() },
     };
@@ -830,7 +1117,7 @@ function viewPush(): View {
     );
   }
   if (nothing) {
-    body.push(h('div', { class: 'empty' }, h('h2', null, 'Nothing to propose'), h('p', null, `Your variables match ${init.settings.branch}.`)));
+    body.push(h('div', { class: 'empty' }, h('h2', null, 'No variable edits'), h('p', null, `Your variables match ${init.settings.branch}.`)));
   }
   for (const b of prop.brands) body.push(newBrandCard(r, b));
   if (a.diff.local.length) {
@@ -915,6 +1202,7 @@ function viewPush(): View {
       ),
     );
   }
+  body.push(componentsSection(r));
   body.push(notes(a));
 
   const blocked = prop.validation.blocking.length;
@@ -973,7 +1261,7 @@ function viewSettings(): View {
           { class: 'lede' },
           init.hasToken
             ? 'A token is saved on this computer. Paste a new one to replace it.'
-            : 'Create a fine-grained personal access token for this repository only, with "Contents: Read and write" and "Pull requests: Read and write".',
+            : 'Create a fine-grained personal access token for this repository only, with "Contents", "Pull requests" and "Issues" set to "Read and write".',
         ),
         h(
           'label',
@@ -1040,7 +1328,7 @@ function render(): void {
     );
     return;
   }
-  const pushCount = state.push && !state.push.result ? state.push.analysis.diff.local.length + state.push.analysis.diff.conflicts.length : 0;
+  const pushCount = state.push && !state.push.result ? state.push.analysis.diff.local.length + state.push.analysis.diff.conflicts.length + (state.push.components?.changed.length ?? 0) : 0;
   const view = state.tab === 'pull' ? viewPull() : state.tab === 'push' ? viewPush() : viewSettings();
 
   const tabs = h(

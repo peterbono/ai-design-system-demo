@@ -1,6 +1,6 @@
 // In-memory GitHub used by the flow tests. Implements only what DS Bridge calls.
 
-import type { GitHubClient, PullRequest, TreeEntry } from '@bridge-ds/core';
+import type { GitHubClient, IssueSummary, PullRequest, TreeEntry } from '@bridge-ds/core';
 
 export class FakeGitHub {
   commits = new Map<string, { files: Record<string, string>; parents: string[]; message: string }>();
@@ -8,6 +8,11 @@ export class FakeGitHub {
   blobs = new Map<string, string>();
   trees = new Map<string, Record<string, string>>();
   prs: (PullRequest & { body: string; base: string; labels: string[] })[] = [];
+  issues: (IssueSummary & { assignees: string[] })[] = [];
+  /** Binary files written through the contents API (putBase64File): branch -> path -> base64. */
+  binaries = new Map<string, Map<string, string>>();
+  readonly owner = 'o';
+  readonly name = 'r';
   private n = 0;
 
   constructor(files: Record<string, string>, branch = 'main') {
@@ -39,6 +44,21 @@ export class FakeGitHub {
   client(): GitHubClient {
     const self = this;
     const api = {
+      owner: self.owner,
+      name: self.name,
+      async createIssue(input: { title: string; body: string; labels?: string[]; assignees?: string[] }) {
+        const n = self.issues.length + self.prs.length + 1;
+        const issue = { number: n, title: input.title, body: input.body, url: `https://github.com/o/r/issues/${n}`, state: 'open' as const, stateReason: null, labels: input.labels ?? [], assignees: input.assignees ?? [], author: 'designer', createdAt: '', updatedAt: '' };
+        self.issues.push(issue);
+        return issue;
+      },
+      async putBase64File(input: { path: string; base64: string; branch: string; message: string }) {
+        if (!self.branches.has(input.branch)) throw Object.assign(new Error(`No branch ${input.branch}`), { status: 404 });
+        const files = self.binaries.get(input.branch) ?? new Map<string, string>();
+        files.set(input.path, input.base64);
+        self.binaries.set(input.branch, files);
+        return `c-put-${files.size}`;
+      },
       async getBranchSha(branch: string) {
         return self.branches.get(branch);
       },

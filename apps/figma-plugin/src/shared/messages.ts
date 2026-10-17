@@ -2,6 +2,7 @@
 // The main thread never talks to the network; the UI never touches figma.variables.
 
 import { TIER_NAMES, type Tier, defineConfig } from '@bridge-ds/core';
+import type { ScannedComponent } from '../sync/components';
 // The repo's own bridge.config.json prefills the settings; every file can point elsewhere in Settings.
 import rootConfig from '../../../../bridge.config.json';
 
@@ -136,6 +137,13 @@ export interface VariableTag {
   pluginData: VariablePluginData;
 }
 
+/** Local components with their current signature and stored baseline. */
+export interface ScannedComponentsPayload {
+  components: ScannedComponent[];
+  /** Often undefined in published plugins: requests then name the node without a link. */
+  fileKey: string | undefined;
+}
+
 /** Request name -> payload sent by the UI and payload returned by the main thread. */
 export interface RequestMap {
   init: { request: Record<string, never>; response: InitPayload };
@@ -149,6 +157,14 @@ export interface RequestMap {
   'open-url': { request: { url: string }; response: { opened: true } };
   notify: { request: { message: string; error?: boolean }; response: { shown: true } };
   resize: { request: { width: number; height: number }; response: { resized: true } };
+  'scan-components': { request: Record<string, never>; response: ScannedComponentsPayload };
+  /** Store signatures (JSON) as baselines on component nodes. */
+  'save-signatures': { request: { items: { nodeId: string; signature: string }[] }; response: { saved: number } };
+  /** Re-read one component and store it as the baseline (after its request is sent). */
+  rebaseline: { request: { nodeId: string }; response: { saved: boolean } };
+  /** PNG 2x as base64: the selected variant of `nodeId`, the component itself, or the selection without `nodeId`. */
+  'export-image': { request: { nodeId?: string | undefined }; response: { base64: string; name: string } | null };
+  selection: { request: Record<string, never>; response: { nodeId: string; name: string } | null };
 }
 
 export type RequestType = keyof RequestMap;
