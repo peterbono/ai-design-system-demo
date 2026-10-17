@@ -321,6 +321,20 @@ test('a file whose synced collections were deleted pulls like a first pull, what
   assert.ok(pull.plan.variables.length > 500);
 });
 
+test('Replace with main: main wins over Figma edits and deletions, Figma-only variables stay', async () => {
+  const { client, snapshot, sync } = await pulled();
+  findIn(snapshot, 'Primitives', 'radius/sm').valuesByMode['Primitives:value'] = { kind: 'float', value: 3 };
+  snapshot.variables.splice(snapshot.variables.indexOf(findIn(snapshot, 'Primitives', 'space/24')), 1);
+  const extra = { ...findIn(snapshot, 'Primitives', 'radius/xs'), id: 'v-extra', name: 'radius/huge', pluginData: {} };
+  snapshot.variables.push(extra);
+  const a = await analyze(client, DEFAULT_SETTINGS, sync, snapshot);
+  assert.deepEqual(buildPull(a, new Map()).kept.map((e) => e.path).sort(), ['radius.huge', 'radius.sm', 'space.24']);
+  const pull = buildPull(a, new Map(), { overwrite: true });
+  assert.deepEqual(pull.restored.map((e) => e.path).sort(), ['radius.sm', 'space.24']);
+  assert.deepEqual(pull.kept.map((e) => e.path), ['radius.huge']);
+  assert.ok(pull.plan.variables.some((v) => v.path === 'radius.sm'));
+});
+
 test('rename without plugin data is only a suggestion until confirmed', async () => {
   const { client, snapshot, sync } = await pulled();
   const v = findIn(snapshot, 'Semantic', 'color/text/muted');
