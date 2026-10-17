@@ -4,6 +4,10 @@
 // shared plugin data, variable bindings, component properties, variants, fonts that must be loaded before text is
 // set), not Figma's renderer: exportAsync returns a hash-friendly description of the node tree with bound values
 // resolved, so a render hash moves when a bound value moves.
+//
+// Icons and slots: createNodeFromSvg (one VECTOR per SVG shape in a 24x24 frame), flatten, instances (children are
+// copies of the main component's, swapComponent keeps the overrides of same-named layers, as Figma does when names
+// match) and INSTANCE_SWAP properties (default must be a component id, preferred values kept).
 
 type Dict = Record<string, unknown>;
 
@@ -81,6 +85,8 @@ export class SimVariable {
 }
 
 const CONTAINERS = new Set(['DOCUMENT', 'PAGE', 'FRAME', 'COMPONENT', 'COMPONENT_SET']);
+/** Fields a copy never shares with its source. */
+const OWN = new Set(['id', 'parent', 'children', 'api', 'mainId']);
 
 export class SimNode {
   id: string;
@@ -98,7 +104,9 @@ export class SimNode {
   componentPropertyReferences: Record<string, string> | null = null;
   private shared = new Map<string, string>();
   private bound = new Map<string, Alias>();
-  private props = new Map<string, { type: string; defaultValue: string | boolean }>();
+  private props = new Map<string, { type: string; defaultValue: string | boolean; preferredValues?: { type: string; key: string }[] }>();
+  /** INSTANCE: id of its main component. */
+  mainId = '';
   private _characters = '';
   private _fontName: { family: string; style: string } = { family: 'Inter', style: 'Regular' };
   [key: string]: unknown;
@@ -200,6 +208,68 @@ export class SimNode {
     else this.shared.set(`${ns}|${key}`, value);
   }
 
+  /** Components have a key (published or not); preferred values reference it. */
+  get key(): string {
+    if (this.type !== 'COMPONENT' && this.type !== 'COMPONENT_SET') throw new Error('Only components have a key');
+    return `key-${this.id}`;
+  }
+
+  /** A copy of this node and its subtree, everything but identity (shared plugin data, bindings, paints, text). */
+  copy(): SimNode {
+    const n = new SimNode(this.type, this.api);
+    for (const k of Object.keys(this)) {
+      if (OWN.has(k)) continue;
+      const v = (this as Dict)[k];
+      (n as Dict)[k] = v && typeof v === 'object' ? structuredClone(v) : v;
+    }
+    n.mainId = this.mainId;
+    for (const c of this.children) {
+      const cc = c.copy();
+      cc.parent = n;
+      n.children.push(cc);
+    }
+    return n;
+  }
+
+  // Instances
+  createInstance(): SimNode {
+    if (this.type !== 'COMPONENT') throw new Error('createInstance needs a COMPONENT');
+    const inst = this.copy();
+    inst.type = 'INSTANCE';
+    inst.mainId = this.id;
+    // An instance carries the main component's look, not its identity or its properties.
+    inst.props = new Map();
+    inst.description = '';
+    for (const k of ['iconId', 'slotId', 'iconHash', 'slotHash']) inst.setSharedPluginData('dsbridge', k, '');
+    return inst;
+  }
+  async getMainComponentAsync(): Promise<SimNode | null> {
+    if (this.type !== 'INSTANCE') throw new Error('Not an instance');
+    return this.api.nodes.get(this.mainId) ?? null;
+  }
+  set mainComponent(_v: unknown) {
+    throw new Error('mainComponent cannot be read or set with documentAccess dynamic-page: use getMainComponentAsync / swapComponent');
+  }
+  swapComponent(main: SimNode) {
+    if (this.type !== 'INSTANCE' || main.type !== 'COMPONENT') throw new Error('swapComponent needs an instance and a component');
+    const overrides = new Map<string, SimNode>();
+    for (const c of this.findAll()) overrides.set(c.name, c);
+    for (const c of [...this.children]) c.remove();
+    const fresh = main.createInstance();
+    for (const c of [...fresh.children]) {
+      c.parent = this;
+      this.children.push(c);
+    }
+    fresh.remove();
+    for (const c of this.findAll()) {
+      const old = overrides.get(c.name);
+      if (!old || old.type !== c.type) continue;
+      c.strokes = structuredClone(old.strokes);
+      c.bound = new Map(old.bound);
+    }
+    this.mainId = main.id;
+  }
+
   // Tree
   appendChild(child: SimNode) {
     if (!CONTAINERS.has(this.type)) throw new Error(`${this.type} cannot have children`);
@@ -208,6 +278,7 @@ export class SimNode {
     this.children.push(child);
   }
   insertChild(index: number, child: SimNode) {
+    if (!CONTAINERS.has(this.type)) throw new Error(`${this.type} cannot have children`);
     child.detach();
     child.parent = this;
     this.children.splice(index, 0, child);
@@ -290,27 +361,48 @@ export class SimNode {
         .filter((p) => p.length === 2) as [string, string][],
     );
   }
-  get componentPropertyDefinitions(): Record<string, { type: string; defaultValue: string | boolean; variantOptions?: string[] }> {
+  get componentPropertyDefinitions(): Record<string, { type: string; defaultValue: string | boolean; variantOptions?: string[]; preferredValues?: { type: string; key: string }[] }> {
     if (this.type !== 'COMPONENT_SET' && this.type !== 'COMPONENT') throw new Error('Not a component');
-    const out: Record<string, { type: string; defaultValue: string | boolean; variantOptions?: string[] }> = {};
+    const out: Record<string, { type: string; defaultValue: string | boolean; variantOptions?: string[]; preferredValues?: { type: string; key: string }[] }> = {};
     if (this.type === 'COMPONENT_SET') {
       const axes = new Map<string, string[]>();
       for (const c of this.children) for (const [k, v] of Object.entries(c.variantProperties ?? {})) axes.set(k, [...new Set([...(axes.get(k) ?? []), v])]);
       for (const [k, values] of axes) out[k] = { type: 'VARIANT', defaultValue: values[0]!, variantOptions: values };
     }
-    for (const [k, d] of this.props) out[k] = { ...d };
+    for (const [k, d] of this.props) out[k] = structuredClone(d);
     return out;
   }
-  addComponentProperty(name: string, type: string, defaultValue: string | boolean) {
+  private checkSwap(type: string, defaultValue: unknown, preferred?: { type: string; key: string }[]) {
+    if (type !== 'INSTANCE_SWAP') {
+      if (preferred) throw new Error('preferredValues is only supported for INSTANCE_SWAP properties');
+      return;
+    }
+    if (this.api.nodes.get(String(defaultValue))?.type !== 'COMPONENT') throw new Error('The default of an INSTANCE_SWAP property must be a component id');
+    for (const p of preferred ?? []) if (![...this.api.nodes.values()].some((n) => n.type === 'COMPONENT' && n.key === p.key)) throw new Error(`No component with key ${p.key}`);
+  }
+  addComponentProperty(name: string, type: string, defaultValue: string | boolean, options?: { preferredValues?: { type: string; key: string }[] }) {
+    this.checkSwap(type, defaultValue, options?.preferredValues);
     const key = `${name}#${++seq}:0`;
-    this.props.set(key, { type, defaultValue });
+    this.props.set(key, { type, defaultValue, ...(options?.preferredValues ? { preferredValues: structuredClone(options.preferredValues) } : {}) });
     return key;
   }
-  editComponentProperty(key: string, patch: { defaultValue?: string | boolean }) {
+  editComponentProperty(key: string, patch: { defaultValue?: string | boolean; preferredValues?: { type: string; key: string }[] }) {
     const d = this.props.get(key);
     if (!d) throw new Error(`No property ${key}`);
+    this.checkSwap(d.type, patch.defaultValue ?? d.defaultValue, patch.preferredValues);
     if (patch.defaultValue !== undefined) d.defaultValue = patch.defaultValue;
+    if (patch.preferredValues) d.preferredValues = structuredClone(patch.preferredValues);
     return key;
+  }
+  deleteComponentProperty(key: string) {
+    if (!this.props.delete(key)) throw new Error(`No property ${key}`);
+    // Layers that referenced it lose the reference, as in Figma.
+    for (const n of this.findAll()) {
+      const refs = n.componentPropertyReferences;
+      if (!refs) continue;
+      const kept = Object.fromEntries(Object.entries(refs).filter(([, v]) => v !== key));
+      n.componentPropertyReferences = Object.keys(kept).length ? kept : null;
+    }
   }
 
   // Export: a description of what Figma would draw, bound values resolved.
@@ -356,6 +448,35 @@ export class SimFigma {
       createFrame: () => new SimNode('FRAME', self),
       createComponent: () => new SimNode('COMPONENT', self),
       createText: () => new SimNode('TEXT', self),
+      createNodeFromSvg: (svg: string) => {
+        const shapes = svg.match(/<(path|circle|rect|line|polyline|polygon|ellipse)\b[^>]*>/g);
+        if (!/^<svg[\s>]/.test(svg) || !shapes) throw new Error('Invalid SVG');
+        const frame = new SimNode('FRAME', self);
+        frame.resize(24, 24);
+        self.currentPage.appendChild(frame);
+        for (const shape of shapes) {
+          const v = new SimNode('VECTOR', self);
+          v.name = 'Vector';
+          v.strokes = [{ type: 'SOLID', color: { r: 0, g: 0, b: 0 } }];
+          v.strokeWeight = 2;
+          v.svgShape = shape;
+          frame.appendChild(v);
+        }
+        return frame;
+      },
+      flatten: (nodes: SimNode[], parent?: SimNode) => {
+        if (!nodes.length) throw new Error('flatten needs at least one node');
+        if (nodes.some((n) => n.parent?.type === 'INSTANCE')) throw new Error('Cannot flatten children of instances');
+        const v = new SimNode('VECTOR', self);
+        v.name = 'Vector';
+        v.strokes = structuredClone(nodes[0]!.strokes);
+        v.strokeWeight = nodes[0]!.strokeWeight;
+        v.paths = nodes.map((n) => n.svgShape ?? n.paths).join('');
+        v.resize(24, 24);
+        (parent ?? self.currentPage).appendChild(v);
+        for (const n of nodes) n.remove();
+        return v;
+      },
       combineAsVariants: (nodes: SimNode[], parent: SimNode) => {
         if (!nodes.length) throw new Error('combineAsVariants needs at least one component');
         const set = new SimNode('COMPONENT_SET', self);
@@ -437,6 +558,8 @@ export class SimFigma {
       own: Object.fromEntries(fields.map((f) => [f, n[f]]).filter(([, v]) => v !== undefined)),
       bound: Object.fromEntries(Object.entries(n.boundVariables).filter(([k]) => k !== 'fills' && k !== 'strokes').map(([k, a]) => [k, value(a)])),
       text: n.type === 'TEXT' ? [n.characters, n.fontName] : undefined,
+      paths: n.type === 'VECTOR' ? n.paths : undefined,
+      size: n.type === 'INSTANCE' || n.type === 'VECTOR' ? [n.width, n.height] : undefined,
       children: n.children.map((c) => this.render(c)),
     };
   }

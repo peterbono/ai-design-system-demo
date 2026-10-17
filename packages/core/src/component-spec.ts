@@ -105,6 +105,58 @@ export interface SpecPart {
   clip?: boolean | undefined;
   /** Root only: block-level in code (display block, flex or grid, or width 100%), so it fills its container. Figma draws it at a fixed width. */
   fill?: boolean | undefined;
+  /**
+   * A swappable part: drawn as an instance of a generated component ("Icon/Plus", "Slot/Media") and swapped through an
+   * INSTANCE_SWAP property. Icon parts swap between every icon of `icons`; content slots between `options`.
+   */
+  swap?: SpecSwap | undefined;
+}
+
+export interface SpecSwap {
+  /** INSTANCE_SWAP property name ("Icon", "Icon start", "Body"). */
+  property: string;
+  /** Component the property defaults to (the default variant's): "Icon/Pencil", "Slot/Card body text". */
+  default: string;
+  /** Preferred values. Undefined for icon parts: every icon of the file. */
+  options?: string[] | undefined;
+  /** Code prop it stands for ("icon", "iconStart"); undefined for a compound part's content. */
+  prop?: string | undefined;
+}
+
+/** A Lucide icon the specs use, drawn as a component "Icon/<name>" on the Icons page. */
+export interface SpecIcon {
+  /** Name as code imports it from lucide-react ("Trash2"), the first one referenced. */
+  name: string;
+  /** Lucide icon id (file name in lucide-react): "trash". */
+  lucide: string;
+  /** Other names of the same icon referenced by the components or the common set ("AlertTriangle"). */
+  aliases?: string[] | undefined;
+  /** Normalized SVG markup, 24x24 viewBox, stroke="currentColor". */
+  svg: string;
+}
+
+/** Tokens of the icon components (Icon/<name>) themselves; instances in components use their variant's tokens. */
+export interface SpecIconStyle {
+  /** Size token of the master frame. */
+  size: string;
+  /** Stroke color token. */
+  color: string;
+  /** Stroke width token. */
+  stroke: string;
+}
+
+/** A generated content component a slot swaps to ("Slot/Card body text", "Slot/Media"), on the Slots page. */
+export interface SpecSlot {
+  name: string;
+  kind: 'text' | 'media';
+  /** Fields of the slot's own layer: text fields for a text slot, fill and width for media. */
+  values: Partial<Record<SpecField, SpecValue>>;
+  /** Text slots: the TEXT property and its default. */
+  text?: { property: string; default: string } | undefined;
+  /** Media: width / height ratio, and the centered icon with its fields. */
+  aspect?: [number, number] | undefined;
+  icon?: string | undefined;
+  iconValues?: Partial<Record<SpecField, SpecValue>> | undefined;
 }
 
 /** A variant axis from a string-literal union prop (variant, size, tone) or the State axis. */
@@ -130,6 +182,8 @@ export interface SpecVariant {
   props: Record<string, string>;
   /** Part id -> Figma field -> value. */
   values: Record<string, Partial<Record<SpecField, SpecValue>>>;
+  /** Swappable part id -> the component this variant shows by default ("Icon/Plus", "Slot/Media"). */
+  slots?: Record<string, string> | undefined;
 }
 
 /** A declaration, prop or part that has no Figma equivalent in this version, with the reason. */
@@ -158,7 +212,15 @@ export interface ComponentSpecsFile {
   /** Human note at the top of the file. */
   generated: string;
   components: ComponentSpec[];
+  /** Icons the components use (slot defaults, docs and stories) plus a common set, sorted by name. */
+  icons?: SpecIcon[] | undefined;
+  iconStyle?: SpecIconStyle | undefined;
+  /** Content components slots swap to. */
+  slots?: SpecSlot[] | undefined;
 }
+
+/** Figma component name of an icon: "Icon/Plus". */
+export const iconComponentName = (name: string) => `Icon/${name}`;
 
 /** FNV-1a, 32 bits, 8 hex digits. */
 export function specHash(text: string): string {

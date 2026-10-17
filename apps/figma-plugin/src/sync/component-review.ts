@@ -17,12 +17,15 @@ const sortedUnique = (xs: string[]) => [...new Set(xs)].sort();
 export function plannedSignature(c: PlannedComponent): ComponentSignature {
   const variantAxes: Record<string, string[]> = {};
   for (const a of [...c.axes].sort((x, y) => (x.name < y.name ? -1 : 1))) variantAxes[a.name] = sortedUnique(a.values);
-  const properties = c.properties.map((p) => ({ name: p.name, type: p.type, default: String(p.default) })).sort((a, b) => (a.name < b.name ? -1 : 1));
+  const swaps = c.parts.filter((p) => p.swap).map((p) => ({ name: p.swap!.property, type: 'INSTANCE_SWAP', default: p.swap!.default }));
+  const properties = [...c.properties.map((p) => ({ name: p.name, type: p.type as string, default: String(p.default) })), ...swaps].sort((a, b) =>
+    a.name < b.name ? -1 : a.name > b.name ? 1 : a.type < b.type ? -1 : a.type > b.type ? 1 : 0,
+  );
   const variants: Record<string, VariantSignature> = {};
   const all: Record<string, string[]> = {};
   for (const v of c.variants) {
     const by: Record<string, string[]> = {};
-    for (const fields of Object.values(v.parts))
+    for (const fields of [...Object.values(v.parts), v.inner ?? []])
       for (const f of fields) {
         if (f.value.kind !== 'variable') continue;
         (by[bindingKind(FIGMA_FIELD[f.field] ?? f.field)] ??= []).push(f.value.name);
@@ -32,7 +35,7 @@ export function plannedSignature(c: PlannedComponent): ComponentSignature {
       bindings[k] = sortedUnique(by[k]!);
       all[k] = sortedUnique([...(all[k] ?? []), ...by[k]!]);
     }
-    variants[v.key] = { bindings, values: '' };
+    variants[v.key] = { bindings, values: '', ...(v.slots ? { slots: { ...v.slots }, slotDefaults: { ...v.slots } } : {}) };
   }
   return { v: 1, name: c.name, variantAxes, properties, bindings: all, variants };
 }

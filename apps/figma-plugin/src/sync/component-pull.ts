@@ -19,12 +19,15 @@ import {
   type SpecField,
   type SpecPart,
   type SpecProperty,
+  type SpecSlot,
   type TokenSet,
   defaultContext,
   parseColor,
   parseComponentSpecs,
+  iconComponentName,
   parseDimension,
   resolve,
+  specHash,
   variantKeyOf,
   variantName,
 } from '@bridge-ds/core';
@@ -72,8 +75,34 @@ export interface PlannedVariant {
   /** Figma variant name, axis order: "Variant=primary, Size=md, State=Default". */
   name: string;
   props: Record<string, string>;
-  /** Part id -> fields. */
+  /** Part id -> fields. Swappable parts: the fields set on the instance (its own size, its vector or text overrides). */
   parts: Record<string, PlannedField[]>;
+  /** Swappable part id -> component the variant shows ("Icon/Plus", "Slot/Media"). */
+  slots?: Record<string, string> | undefined;
+  /** Variables bound inside a swapped-in instance that the variant does not override (a media slot's fill and icon). */
+  inner?: PlannedField[] | undefined;
+}
+
+/** An icon component to build on the Icons page ("Icon/Plus"). */
+export interface PlannedIcon {
+  name: string;
+  /** "Icon/Plus". */
+  component: string;
+  svg: string;
+  /** FNV-1a of the SVG: unchanged, nothing to rebuild. */
+  hash: string;
+}
+
+/** A content component to build on the Slots page ("Slot/Media"). */
+export interface PlannedSlot {
+  name: string;
+  kind: SpecSlot['kind'];
+  fields: PlannedField[];
+  text?: { property: string; default: string } | undefined;
+  /** Media: icon component and its fields, height from the aspect ratio. */
+  icon?: string | undefined;
+  iconFields?: PlannedField[] | undefined;
+  hash: string;
 }
 
 export type ComponentStatus = 'new' | 'updated' | 'unchanged';
@@ -108,6 +137,11 @@ export interface ComponentPullPlan {
   components: PlannedComponent[];
   /** Parts or properties that will not be bound, with the reason. Shown before anything is written. */
   problems: ComponentProblem[];
+  /** Icon components (Icons page) and the fields of the masters (size, stroke color and width). */
+  icons?: PlannedIcon[] | undefined;
+  iconFields?: PlannedField[] | undefined;
+  /** Content slot components (Slots page). */
+  slots?: PlannedSlot[] | undefined;
 }
 
 export interface ComponentApplyReport {
@@ -123,6 +157,8 @@ export interface ComponentApplyReport {
   fontNote?: string | undefined;
   /** Component set ids, created or updated. */
   nodeIds: string[];
+  /** Icon and slot components created or redrawn (Icons and Slots pages). */
+  parts?: { created: number; updated: number } | undefined;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -275,6 +311,43 @@ export function buildComponentPlan(specs: ComponentSpecsFile, source: string, ge
     seen.add(k);
     problems.push(p);
   };
+  const plannedFields = (owner: string, part: string, values: Partial<Record<SpecField, string | 0 | null>>, text: boolean): PlannedField[] => {
+    const fields: PlannedField[] = [];
+    for (const [field, value] of Object.entries(values) as [SpecField, string | 0 | null][]) {
+      if (TEXT_ONLY.has(field) !== text) continue;
+      const pv = planValue(field, value, head);
+      if ('problem' in pv) problem({ component: owner, part, property: field, reason: pv.problem });
+      else fields.push({ field, value: pv });
+    }
+    return fields;
+  };
+  const icons: PlannedIcon[] = (specs.icons ?? []).map((i) => ({ name: i.name, component: iconComponentName(i.name), svg: i.svg, hash: specHash(i.svg) }));
+  const style = specs.iconStyle;
+  const iconFields = style ? plannedFields('Icons', 'icon', { width: style.size, height: style.size, stroke: style.color, strokeWeight: style.stroke }, false) : undefined;
+  const slots: PlannedSlot[] = (specs.slots ?? []).map((sl) => {
+    const fields = plannedFields(sl.name, 'root', sl.values, sl.kind === 'text');
+    // A text slot is as wide as a card in Figma (it fills its card in use): the size scale, like a block-level root.
+    if (sl.kind === 'text') {
+      const w = planValue('width', FILL_WIDTH_TOKEN, head);
+      if (!('problem' in w)) fields.push({ field: 'width', value: w });
+    }
+    if (sl.kind === 'media' && sl.aspect) {
+      const w = fields.find((f) => f.field === 'width')?.value;
+      const width = w?.kind === 'variable' && typeof w.value === 'number' ? w.value : undefined;
+      if (width !== undefined) fields.push({ field: 'height', value: { kind: 'number', value: Math.round((width * sl.aspect[1]) / sl.aspect[0]) } });
+    }
+    const iconFieldsOf = sl.iconValues ? plannedFields(sl.name, 'icon', sl.iconValues, false) : undefined;
+    return {
+      name: sl.name,
+      kind: sl.kind,
+      fields,
+      ...(sl.text ? { text: sl.text } : {}),
+      ...(sl.icon ? { icon: iconComponentName(sl.icon) } : {}),
+      ...(iconFieldsOf ? { iconFields: iconFieldsOf } : {}),
+      hash: specHash(JSON.stringify(sl)),
+    };
+  });
+  const slotByName = new Map(slots.map((sl) => [sl.name, sl]));
   const components: PlannedComponent[] = [];
   for (const spec of specs.components) {
     for (const u of spec.unmapped) problem({ component: spec.name, part: u.part, property: u.property, reason: u.reason });
@@ -302,7 +375,15 @@ export function buildComponentPlan(specs: ComponentSpecsFile, source: string, ge
       }
       // A block-level root fills its container in code: drawn at a fixed width from the size scale.
       if (rootFill && !(parts.root ?? []).some((f) => f.field === 'width')) (parts.root ??= []).push({ field: 'width', value: rootFill });
-      return { key: variantKeyOf(v.props), name: variantName(v.props), props: v.props, parts };
+      // A content slot showing media: the text fields do not apply; the media's own bindings stay inside the instance.
+      let inner: PlannedField[] | undefined;
+      for (const [part, comp] of Object.entries(v.slots ?? {})) {
+        const sl = slotByName.get(comp);
+        if (!sl || sl.kind === 'text') continue;
+        parts[part] = [];
+        inner = [...(inner ?? []), ...sl.fields.filter((f) => f.field !== 'width' && f.field !== 'height'), ...(sl.iconFields ?? [])];
+      }
+      return { key: variantKeyOf(v.props), name: variantName(v.props), props: v.props, parts, ...(v.slots ? { slots: { ...v.slots } } : {}), ...(inner ? { inner } : {}) };
     });
     const existing = generated.find((g) => g.componentId === spec.name);
     const keys = new Set(variants.map((v) => v.key));
@@ -325,7 +406,7 @@ export function buildComponentPlan(specs: ComponentSpecsFile, source: string, ge
       addedVariants,
     });
   }
-  return { source, components, problems };
+  return { source, components, problems, ...(icons.length ? { icons } : {}), ...(iconFields ? { iconFields } : {}), ...(slots.length ? { slots } : {}) };
 }
 
 /** Components a pull would write (new or updated). */

@@ -354,3 +354,15 @@ props, nested DS components such as Icon) and runs a small CSS cascade (`spec-cs
 `:active`, `:not()`, `:has()`, combinators, `@media (hover: hover)`, specificity, inheritance, custom properties).
 Union props that change the styles become axes; a `State` axis lists the states (Hover, Pressed, Disabled) that look
 different. Values that are not a token (`calc()`, percentages) and props it does not draw are listed in `unmapped`.
+
+Swappable parts carry a `swap` (INSTANCE_SWAP property name, default component, options) and each variant lists the
+component it shows in `slots`:
+
+- Icon parts (`LucideIcon` props) default to the icon the docs preview, then the `AllStates` story, passes to the
+  prop (else Plus, Info for Badge). The file's `icons` section holds the normalized 24x24 SVG (`stroke="currentColor"`)
+  of every icon a slot defaults to, every icon the components' docs and stories reference, and a common set
+  (`COMMON_ICONS`), read from the installed `lucide-react`; aliases of one Lucide icon fold into the first name seen.
+  `iconStyle` names the tokens of the icon components themselves (size, stroke color, stroke width).
+- A compound part's text that code draws full-bleed in some variant (no inline padding: Card `padding="none"`) is a
+  content slot: `Slot/<Component> <part> text` or `Slot/Media`, Media where it is full-bleed. The `slots` section
+  describes both components.

@@ -128,12 +128,26 @@ when the committed JSON is out of date.
 | A string-literal union prop that changes the styles (`variant`, `size`, `tone`, `appearance`, `padding`) | A variant property with the code values (`Variant=primary`) |
 | `:hover`, `:active`, `[data-disabled]` / `:disabled` rules that change a value | A `State` axis (Default, Hover, Pressed, Disabled), only the states that differ |
 | `children` (or a compound component's parts: CardHeader, CardBody, CardFooter) | A text layer with a TEXT property (`Label`, `Header`...) |
-| An optional `LucideIcon` prop (`iconStart`) | An icon placeholder layer shown by a BOOLEAN property (`Icon start`) |
+| A `LucideIcon` prop (`icon`, `iconStart`) | An instance of an icon component (`Icon/Plus`) with an INSTANCE_SWAP property (`Icon`, `Icon start`); optional icons keep their BOOLEAN property (`Icon start`) |
+| A compound part drawn full-bleed in some variant (Card body with `padding="none"`) | An instance of a slot component (`Slot/Card body text` or `Slot/Media`) with an INSTANCE_SWAP property (`Body`) |
 | `background-color`, `color` | Fill, text fill |
 | `border` (width and color), `border-top` | Stroke and stroke weight, or one side's weight |
 | `border-radius`, `padding*`, `gap`, `width`, `height`, `min-width`, `min-height` | Corner radius, padding, item spacing, sizes |
 | `font-size`, `font-weight`, `line-height` (px), `letter-spacing` | Text properties |
 | `display: flex`, `flex-direction`, `justify-content`, `align-items` | Auto layout direction and alignment |
+
+**Icons and slots, like a Figma library.** A pull draws the spec's icons on an **Icons** page: one component per
+Lucide icon, `Icon/<Name>`, made with `createNodeFromSvg` and flattened into one vector named `Icon` (so color
+overrides survive a swap), its stroke bound to `color.text.default` and `icon.stroke`, its size to `icon.size.lg`
+(Lucide's 24 grid). Content slots go on a **Slots** page: `Slot/Card body text` (the body text, bound like the card's,
+TEXT property `Text`) and `Slot/Media` (a `color.bg.muted` plate at 16:9, `size.80` wide, with `Icon/Image` centered).
+They are found again by shared plugin data (`dsbridge` / `iconId`, `slotId`), redrawn only when their SVG or spec
+changed, and never listed by Push. In every variant, the swappable part is an instance of the default component
+(IconButton: `Icon/Pencil` from its docs preview; Button: `Icon/Plus` and `Icon/ChevronDown`; Badge: `Icon/CircleCheck`;
+Tag: `Icon/Layers`; Card: `Slot/Media` for `Padding=none`, `Slot/Card body text` otherwise), sized and colored by the
+variant's tokens (instance size bound to `icon.size.*`, vector stroke bound to the variant's text color), with an
+INSTANCE_SWAP property whose preferred values are every icon (or the slot's options). A re-pull swaps a part back to
+its code default and replaces placeholder frames from earlier pulls in place.
 
 Only `var(--token)` values are recorded, as token paths (the CSS variable is the path joined by `-`, `cssVar` in the
 config); custom properties (`--_bg`) are resolved through the cascade per variant. Every value is bound with
@@ -236,10 +250,17 @@ What counts as a component change, and its suggested kind:
 | Change in Figma | Kind |
 | --- | --- |
 | A variant value or axis added or removed | New variant |
-| A component property added, removed, or its type or default changed | Prop change |
+| A component property added, removed, or its type or default changed (an INSTANCE_SWAP default too) | Prop change |
+| Another icon or slot swapped in a variant, when the variant then differs from its code default | Visual change |
 | Another variable bound to a part (fill, stroke, radius, padding, gap, typography...) | Token change |
 | The render changed, with the same bound variables and the same variable values | Visual change |
 | A component with no folder under `components.dir` in the repo | New component (opt-in) |
+
+**Rule: swaps.** The INSTANCE_SWAP property is part of the API (its name, type and default are in the signature).
+Swapping the instance inside a variant is a visual change only when the variant then shows another component than
+the one code gives it (stored on the instance at pull, `dsbridge` / `slotDefault`); swapping back to it is no change.
+A swap explains the bindings and render that move with it in that variant (Media brings its own fill), so it is never
+read as a token change.
 
 **Rule: a Figma-only restructure triggers nothing.** Layers renamed or regrouped, auto layout refactored, with
 the same API, the same bound variables and the same render: the scan says "Figma-only changes, nothing to
@@ -378,7 +399,9 @@ these defaults.
   compared, not per layer: moving a binding from one layer to another within a variant is not seen.
 - **Components from a library** (remote) are not scanned; only local components of the file are.
 - **Pulled components** are rebuilt from CSS, not rendered by a browser: hover, pressed and disabled are the only
-  states; icons are placeholders (swap in your icon instances); `calc()` values are set, not bound, so they do not follow a
+  states; icons are Lucide SVGs imported by Figma (`createNodeFromSvg`), flattened; an icon's stroke width is bound
+  to `icon.stroke` at every size, as the token says; when Figma refuses an INSTANCE_SWAP property named like the
+  BOOLEAN of the same part, it is added as `<name> (swap)`; `calc()` values are set, not bound, so they do not follow a
   density or brand switch; shadows and focus rings are not drawn.
   The generator is tested on the 6 base components; it runs on the other component folders but their output has not
   been reviewed yet.
