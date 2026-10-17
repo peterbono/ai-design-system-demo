@@ -17,6 +17,7 @@
         "$description": "Tracks, skeletons, neutral fills."
       },
       "zone": {
+        "$type": "color",
         "$value": "{palette.primary.200}",
         "$description": "Large flat color blocks that open a space: the home hero, section page headers, the Studio greeting, onboarding. Never behind dense UI."
       }

@@ -67,7 +67,7 @@ describe('MCP over stdio', () => {
 
   it('calls bridge_check_contrast, with and without edits', async () => {
     const all = JSON.parse(text(await client.callTool({ name: 'bridge_check_contrast', arguments: {} })));
-    expect(all.checks).toBe(276);
+    expect(all.checks).toBe(296);
     expect(all.failing).toBe(0);
     const edit = JSON.parse(text(await client.callTool({ name: 'bridge_check_contrast', arguments: { edits: [{ op: 'set', path: 'color.text.muted', value: '{palette.neutral.300}', mode: { theme: 'light' } }] } })));
     expect(edit.newFailures.length).toBeGreaterThan(0);
@@ -83,8 +83,8 @@ describe('MCP over stdio', () => {
     const { resources } = await client.listResources();
     expect(resources.map((r) => r.uri)).toEqual(expect.arrayContaining(['bridge://tokens/resolved', 'bridge://design-language', 'bridge://guidelines', 'bridge://components/Button']));
     const resolved = JSON.parse((await client.readResource({ uri: 'bridge://tokens/resolved' })).contents[0]!.text as string);
-    expect(resolved.values['color.text.muted']).toBe('#636d79');
-    expect(resolved.overrides['brand=bridge,theme=dark,density=comfortable']['color.text.muted']).toBe('#a2aab5');
+    expect(resolved.values['color.text.muted']).toBe('#5b6672');
+    expect(resolved.overrides['brand=bridge,theme=dark,density=comfortable']['color.text.muted']).toBe('#a0aab5');
     const button = JSON.parse((await client.readResource({ uri: 'bridge://components/Button' })).contents[0]!.text as string);
     expect(button.name).toBe('Button');
   });
@@ -94,7 +94,7 @@ describe('MCP over stdio', () => {
     expect(prompts.map((p) => p.name).sort()).toEqual(['add-component', 'audit-ui-for-tokens', 'migrate-file-to-ds', 'review-token-pr']);
     const p = await client.getPrompt({ name: 'audit-ui-for-tokens', arguments: { code: '.card { background: #ffffff; padding: 16px; }' } });
     const body = (p.messages[0]!.content as { text: string }).text;
-    expect(body).toContain('var(--color-surface-default)');
+    expect(body).toContain('var(--color-bg-default)');
     expect(body).toContain('var(--space-4)');
   });
 

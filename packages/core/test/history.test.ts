@@ -40,7 +40,7 @@ test('local history: first-parent entries, PR numbers, why from the changeset, b
   assert.equal(e5.title, 'Add subtle text token');
   assert.deepEqual(e5.counts, { added: 2, changed: 0, removed: 0, renamed: 0, total: 2 });
   assert.equal(entry('pr-8').breaking, true);
-  assert.equal(entry('pr-8').counts.renamed, 2);
+  assert.equal(entry('pr-8').counts.renamed, 3, 'light, dark and the ocean light override');
   assert.equal(report.entries.at(-1)!.bulk, true);
   assert.equal(report.currentVersion, '0.2.0');
   assert.equal(report.truncated, false);
@@ -124,7 +124,7 @@ test('revert a rename: one rename back that repoints aliases', () => {
   const plan = planRevert({ current: current(), entry: entry('pr-8'), later: [] });
   assert.equal(plan.status, 'ready');
   assert.deepEqual(plan.edits, [{ op: 'rename', path: 'color.text.anchor', newPath: 'color.text.link' }]);
-  assert.equal(plan.skipped.length, 1);
+  assert.equal(plan.skipped.length, 2, 'the dark and ocean light renames are covered by the one rename back');
   assert.deepEqual(plan.newErrors, []);
 });
 

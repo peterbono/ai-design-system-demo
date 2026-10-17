@@ -29,7 +29,7 @@ const ratioLine = /^(Bridge|Ocean) (light|dark), \S+ on \S+: [\d.]+ -> [\d.]+/;
 test('PR body: changing color.bg.default fills the contrast column (PR #4 regression)', () => {
   const p = propose((head) => {
     const t = head.byPath.get('color.bg.default')!;
-    return [{ current: t, target: clone(t, { values: { ...t.values, light: '{palette.neutral.0}' } }) }];
+    return [{ current: t, target: clone(t, { values: { ...t.values, light: '{palette.neutral.50}' } }) }];
   });
   assert.deepEqual(Object.keys(p.files), ['semantic/light.tokens.json']);
   const body = composePrBody({ ...p, baseBranch: 'main', headSha: 'a'.repeat(40), baseSha: undefined, origin, title: 't', notes: '', upstreamPaths: [], resolvedConflicts: [] });
@@ -40,7 +40,8 @@ test('PR body: changing color.bg.default fills the contrast column (PR #4 regres
   const more = /^and \d+ more \(see Contrast impact\)( \|)?$/;
   assert.ok(lines.length >= 2 && lines.every((l, i) => ratioLine.test(l) || (i === lines.length - 1 && more.test(l))), cell);
   assert.match(body, /`color\.text\.default` on `color\.bg\.default` \| Bridge light/);
-  assert.match(body, /`color\.text\.default` on `color\.bg\.default` \| Ocean light/);
+  // Ocean overrides color.bg.default in light, so the edit does not reach it.
+  assert.doesNotMatch(body, /`color\.text\.default` on `color\.bg\.default` \| Ocean light/);
   assert.doesNotMatch(cell, /dark/);
   assert.match(body, /Opened from the Bridge CLI\. the terminal is the editing surface/i);
   assert.match(body, /- \[x\] Tier 3: token change/);
@@ -48,12 +49,12 @@ test('PR body: changing color.bg.default fills the contrast column (PR #4 regres
 
 test('PR body: a primitive change reaches pairs through palette roles, only in the brands that use it', () => {
   const p = propose((head) => {
-    const t = head.byPath.get('color.steel.50')!;
+    const t = head.byPath.get('color.ink.100')!;
     return [{ current: t, target: clone(t, { values: { value: { colorSpace: 'srgb', components: [1, 1, 1], hex: '#ffffff' } } }) }];
   });
   const affected = affectedContrast(p.changes[0]!, p.validation.contrastBefore, p.validation.contrastAfter);
   assert.ok(affected.length > 0);
-  // Ocean maps its neutral palette to another ramp: steel only reaches Bridge.
+  // Ocean maps its neutral palette to another ramp: ink only reaches Bridge.
   assert.ok(affected.every((x) => x.after!.brand === 'bridge'));
   assert.ok(affected.some((x) => x.before!.ratio !== x.after!.ratio));
 });
@@ -61,7 +62,7 @@ test('PR body: a primitive change reaches pairs through palette roles, only in t
 test('a semantic edit a brand overrides does not count for that brand', () => {
   const p = propose((head) => {
     const t = head.byPath.get('color.action.primary.bg')!;
-    return [{ current: t, target: clone(t, { values: { ...t.values, light: '{palette.primary.700}' } }) }];
+    return [{ current: t, target: clone(t, { values: { ...t.values, light: '{palette.primary.800}' } }) }];
   });
   const affected = affectedContrast(p.changes[0]!, p.validation.contrastBefore, p.validation.contrastAfter);
   assert.ok(affected.length > 0);

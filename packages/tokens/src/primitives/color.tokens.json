@@ -146,7 +146,7 @@
           "hex": "#0d1826"
         }
       },
-      "$description": "Bridge neutral. Cool steel blue, faint at the light end, inky at the dark end."
+      "$description": "Former bridge neutral (before Field Guide). Kept for products that alias it."
     },
     "orange": {
       "50": {
@@ -270,7 +270,7 @@
           "hex": "#320400"
         }
       },
-      "$description": "International Orange. The Bridge signal color: focus, active, progress."
+      "$description": "Orange. Categorical chart hue in both brands."
     },
     "crimson": {
       "50": {
@@ -394,7 +394,7 @@
           "hex": "#34000c"
         }
       },
-      "$description": "Danger. A raspberry red pushed away from the orange signal."
+      "$description": "Danger. A raspberry red, kept apart from the orange chart hue."
     },
     "teal": {
       "50": {
@@ -766,7 +766,7 @@
           "hex": "#001a29"
         }
       },
-      "$description": "Links and info in the bridge brand."
+      "$description": "Former bridge link and info blue (before Field Guide). Kept for products that alias it."
     },
     "slate": {
       "50": {

@@ -74,7 +74,7 @@ describe('real repo tokens', () => {
     expect(comp.tokens.every((t) => t.tier === 'component')).toBe(true);
     const dark = await ops.listTokens(ctx, { prefix: 'color.text', type: 'color', mode: { theme: 'dark' } });
     const muted = dark.tokens.find((t) => t.path === 'color.text.muted');
-    expect(muted?.value).toBe('#a2aab5');
+    expect(muted?.value).toBe('#a0aab5');
     expect(muted?.alias).toBe('{palette.neutral.400}');
     const page = await ops.listTokens(ctx, { limit: 10, offset: 10 });
     expect(page.tokens).toHaveLength(10);
@@ -87,7 +87,7 @@ describe('real repo tokens', () => {
     expect(t.path).toBe('color.text.muted');
     expect(t.tier).toBe('semantic');
     expect(t.values).toHaveLength(4);
-    expect(t.values[0]!.chain).toEqual(['color.text.muted', 'palette.neutral.600', 'color.steel.600']);
+    expect(t.values[0]!.chain).toEqual(['color.text.muted', 'palette.neutral.600', 'color.ink.600']);
     expect(t.definedIn.map((d) => d.file)).toContain('packages/tokens/src/semantic/dark.tokens.json');
     expect(t.referencedBy.length).toBeGreaterThan(0);
     expect(t.usedIn.length).toBeGreaterThan(0);
@@ -101,7 +101,7 @@ describe('real repo tokens', () => {
     expect(words.results[0]!.path).toMatch(/^focus\.ring\./);
     const v = await ops.searchTokens(ctx, { query: '--color-text-muted' });
     expect(v.results[0]!.path).toBe('color.text.muted');
-    const hex = await ops.searchTokens(ctx, { query: '#636d79', type: 'color' });
+    const hex = await ops.searchTokens(ctx, { query: '#5b6672', type: 'color' });
     expect(hex.results.map((r) => r.path)).toContain('color.text.muted');
   });
 });

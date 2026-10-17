@@ -9,12 +9,12 @@ const BELL = { 50: 0.12, 100: 0.22, 200: 0.4, 300: 0.62, 400: 0.85, 500: 1, 600:
 
 // name: [hue, chroma(step) , lightness offset(step), description]
 const RAMPS = {
-  steel: [255, (s) => (s <= 100 ? 0.005 : 0.008 + 0.024 * (s / 950)), () => 0, 'Bridge neutral. Cool steel blue, faint at the light end, inky at the dark end.'],
-  orange: [36, (s) => 0.205 * BELL[s], (s) => (s === 500 ? -0.01 : 0), 'International Orange. The Bridge signal color: focus, active, progress.'],
-  crimson: [12, (s) => 0.2 * BELL[s], () => 0, 'Danger. A raspberry red pushed away from the orange signal.'],
+  steel: [255, (s) => (s <= 100 ? 0.005 : 0.008 + 0.024 * (s / 950)), () => 0, 'Former bridge neutral (before Field Guide). Kept for products that alias it.'],
+  orange: [36, (s) => 0.205 * BELL[s], (s) => (s === 500 ? -0.01 : 0), 'Orange. Categorical chart hue in both brands.'],
+  crimson: [12, (s) => 0.2 * BELL[s], () => 0, 'Danger. A raspberry red, kept apart from the orange chart hue.'],
   teal: [176, (s) => 0.11 * BELL[s], () => 0, 'Success.'],
   ochre: [78, (s) => 0.15 * BELL[s], (s) => ({ 300: 0.03, 400: 0.06, 500: 0.06 })[s] ?? 0, 'Warning.'],
-  cable: [236, (s) => 0.1 * BELL[s], () => 0, 'Links and info in the bridge brand.'],
+  cable: [236, (s) => 0.1 * BELL[s], () => 0, 'Former bridge link and info blue (before Field Guide). Kept for products that alias it.'],
   slate: [248, (s) => (s <= 100 ? 0.006 : 0.012 + 0.03 * (s / 950)), () => 0, 'Ocean brand neutral.'],
   sea: [228, (s) => 0.15 * BELL[s], () => 0, 'Ocean brand primary and signal.'],
   plum: [305, (s) => 0.14 * BELL[s], () => 0, 'Info tone (both brands) and the ocean categorical hue.'],

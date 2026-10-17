@@ -67,7 +67,7 @@ describe('bridge_propose_token_change (local)', () => {
     expect(p.bump).toBe('minor');
     expect(p.files).toEqual([LIGHT, '.changeset/bridge-darken-muted-text.md']);
     expect(p.prBody).toContain('- [x] Tier 3');
-    expect(p.prBody).toContain('| `color.text.muted` | value | `#636d79` (');
+    expect(p.prBody).toContain('| `color.text.muted` | value | `#5b6672` (');
     expect(p.prBody).toContain('## Contrast before and after');
     expect(p.prBody).not.toMatch(/\u2014/);
     expect(git(dir, 'branch', '--list', 'bridge/*').trim()).toBe('');
@@ -126,7 +126,7 @@ describe('bridge_propose_token_change (local)', () => {
     const r = core.applyEdits(before, [{ op: 'rename', path: 'color.text.link', newPath: 'color.text.anchor' }]);
     const after = core.tokenSetFromFiles(before.config, r.files);
     const changes = core.diff(before, after);
-    expect(changes.filter((c) => c.kind === 'renamed').map((c) => c.from)).toEqual(['color.text.link', 'color.text.link']);
+    expect(changes.filter((c) => c.kind === 'renamed').map((c) => c.from)).toEqual(['color.text.link', 'color.text.link', 'color.text.link']);
     expect(core.classify(changes).bump).toBe('major');
   });
 });

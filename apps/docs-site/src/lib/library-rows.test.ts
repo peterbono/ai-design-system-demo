@@ -79,7 +79,7 @@ describe('foundation rows on this repo', () => {
     expect(row.used).toBe(true);
     expect(row.base).toContain('base.css');
     expect(row.chip.kind).not.toBe('unused');
-    expect(row.alias).toBe('neutral 50 · 950');
+    expect(row.alias).toBe('neutral 0 · 950');
   });
   it('lists the components the explorer lists for a token', () => {
     const row = foundationRow('color.action.primary.bg');
@@ -88,7 +88,7 @@ describe('foundation rows on this repo', () => {
   });
   it('builds group and primitive rows without raw hex in the alias line', () => {
     const rows = groupRows('color.bg');
-    expect(rows.map((r) => r.path)).toEqual(['color.bg.default', 'color.bg.subtle', 'color.bg.muted']);
+    expect(rows.map((r) => r.path)).toEqual(['color.bg.default', 'color.bg.subtle', 'color.bg.muted', 'color.bg.zone']);
     for (const r of rows) expect(r.alias).not.toMatch(/#[0-9a-f]{3,8}/i);
     expect(primitiveRows('space').length).toBeGreaterThan(10);
   });

@@ -21,8 +21,8 @@ test('resolves semantic -> palette -> primitive per brand x theme, with brand ov
   assert.equal(oceanLight.via[0], 'override');
   assert.equal(oceanLight.chain[1], 'palette.primary.600');
   // Same semantic alias, different brand: the palette role re-points to another ramp.
-  const bridgeBg = resolve(set.byPath, 'color.bg.default', ctx('bridge', 'light'));
-  const oceanBg = resolve(set.byPath, 'color.bg.default', ctx('ocean', 'light'));
+  const bridgeBg = resolve(set.byPath, 'color.bg.subtle', ctx('bridge', 'light'));
+  const oceanBg = resolve(set.byPath, 'color.bg.subtle', ctx('ocean', 'light'));
   assert.equal(bridgeBg.chain[1], oceanBg.chain[1]);
   assert.notEqual(bridgeBg.chain[2], oceanBg.chain[2]);
   assert.deepEqual(findReferenceProblems(set.byPath, { brand: ['bridge', 'ocean'], theme: ['light', 'dark'], density: ['comfortable', 'compact'] }), []);
