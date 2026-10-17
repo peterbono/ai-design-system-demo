@@ -422,6 +422,41 @@ export class GitHubClient {
     await this.request('POST', `${this.repoPath}/issues/${issueNumber}/comments`, { body });
   }
 
+  // --- Issues (component change requests) ---------------------------------------------------
+
+  async createIssue(input: { title: string; body: string; labels?: string[]; assignees?: string[] }): Promise<IssueSummary> {
+    const r = await this.request<RawIssue>('POST', `${this.repoPath}/issues`, {
+      title: input.title,
+      body: input.body,
+      ...(input.labels?.length ? { labels: input.labels } : {}),
+      ...(input.assignees?.length ? { assignees: input.assignees } : {}),
+    });
+    return toIssue(r);
+  }
+
+  /** Issues (not pull requests) with a label, newest first. */
+  async listIssues(opts: { label?: string; state?: 'open' | 'closed' | 'all'; perPage?: number } = {}): Promise<IssueSummary[]> {
+    const q = new URLSearchParams({ state: opts.state ?? 'all', per_page: String(opts.perPage ?? 50), sort: 'created', direction: 'desc' });
+    if (opts.label) q.set('labels', opts.label);
+    const r = await this.request<RawIssue[]>('GET', `${this.repoPath}/issues?${q}`);
+    return r.filter((i) => !i.pull_request).map(toIssue);
+  }
+
+  async getIssue(n: number): Promise<IssueSummary> {
+    return toIssue(await this.request<RawIssue>('GET', `${this.repoPath}/issues/${n}`));
+  }
+
+  /** Create or update a binary file (base64 content) on a branch, e.g. a Figma export attached to a request. */
+  async putBase64File(input: { path: string; base64: string; branch: string; message: string }): Promise<string> {
+    this.assertWritableBranch(input.branch);
+    const r = await this.request<{ commit: { sha: string } }>('PUT', `${this.repoPath}/contents/${encodeRef(input.path)}`, {
+      message: input.message,
+      content: input.base64,
+      branch: input.branch,
+    });
+    return r.commit.sha;
+  }
+
   // --- Contents API: single files -----------------------------------------------------------
 
   /** Text of one file at a ref (branch, tag or sha), or undefined when it does not exist. */
@@ -665,4 +700,46 @@ export async function loadRepoFiles(client: GitHubClient, commitSha: string, fal
   };
   await Promise.all([worker(), worker(), worker(), worker()]);
   return { commitSha, treeSha, files, contrastChecks, config, ...(config ? { configText } : {}), tokensPath, warnings };
+}
+
+export interface IssueSummary {
+  number: number;
+  title: string;
+  body: string;
+  url: string;
+  state: 'open' | 'closed';
+  stateReason: string | null;
+  labels: string[];
+  author: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface RawIssue {
+  number: number;
+  title: string;
+  body: string | null;
+  html_url: string;
+  state: 'open' | 'closed';
+  state_reason?: string | null;
+  labels: (string | { name?: string })[];
+  user?: { login?: string } | null;
+  created_at: string;
+  updated_at: string;
+  pull_request?: unknown;
+}
+
+function toIssue(r: RawIssue): IssueSummary {
+  return {
+    number: r.number,
+    title: r.title,
+    body: r.body ?? '',
+    url: r.html_url,
+    state: r.state,
+    stateReason: r.state_reason ?? null,
+    labels: r.labels.map((l) => (typeof l === 'string' ? l : (l.name ?? ''))).filter(Boolean),
+    author: r.user?.login ?? '',
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
 }

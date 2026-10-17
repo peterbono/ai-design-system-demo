@@ -15,6 +15,7 @@
 // modes.brands/themes/densities/defaults) is still read, so commits from before the merge load too.
 // loadConfig normalizes both into one BridgeConfig.
 
+import type { IntegrationsConfig } from './requests';
 import { PREVIEW_APP_LABELS, type PreviewApps, type PreviewsConfig } from './previews';
 
 /** File name Bridge looks for at the repository root. */
@@ -146,6 +147,8 @@ export interface BridgeConfig {
   audit?: AuditConfig | undefined;
   /** Branch previews: snapshot packages, per-branch deploy URL templates and production URLs (see previews.ts). */
   previews?: PreviewsConfig | undefined;
+  /** Where component change requests go besides the GitHub issue (see requests.ts). */
+  integrations?: IntegrationsConfig | undefined;
 }
 
 type Partialish<T> = { [K in keyof T]?: T[K] | undefined };
@@ -175,6 +178,7 @@ export interface BridgeConfigInput {
   governance?: Partial<Omit<GovernanceConfig, 'owners' | 'override'>> & { owners?: Partial<Owners>; override?: Partial<OverridePolicy> };
   audit?: AuditConfig;
   previews?: { packages?: string[]; apps?: PreviewApps; production?: PreviewApps };
+  integrations?: IntegrationsConfig;
 }
 
 export const DEFAULT_TOKEN_PATHS: TokenPaths = {
@@ -330,6 +334,7 @@ export function defineConfig(input: BridgeConfigInput): BridgeConfig {
         : {}),
     },
     ...(input.audit ? { audit: { ...input.audit } } : {}),
+    ...(input.integrations ? { integrations: { ...input.integrations } } : {}),
     ...(input.previews
       ? {
           previews: {
