@@ -6,6 +6,13 @@ import { EXPERIMENTAL_KEY, type ScannedComponentsPayload } from '../shared/messa
 
 const NS = 'dsbridge';
 const SIGNATURE_KEY = 'signature';
+/**
+ * Private plugin data: a small PNG (base64) of the component when its baseline was taken, the "before" image Claude
+ * sees when it drafts a request. Kept under Figma's plugin data size limit; skipped when larger.
+ */
+const BASELINE_IMAGE_KEY = 'baselineImage';
+const BASELINE_IMAGE_WIDTH = 400;
+const BASELINE_IMAGE_MAX = 90000;
 /** Scale of the render hash export: small enough to stay fast, large enough to see a 1px change. */
 const HASH_SCALE = 1;
 
@@ -212,6 +219,7 @@ export async function saveSignatures(items: { nodeId: string; signature: string 
     const node = await figma.getNodeByIdAsync(item.nodeId);
     if (!node || (node.type !== 'COMPONENT_SET' && node.type !== 'COMPONENT')) continue;
     node.setSharedPluginData(NS, SIGNATURE_KEY, item.signature);
+    await storeBaselineImage(node);
     saved++;
   }
   return saved;
@@ -222,7 +230,26 @@ export async function rebaseline(nodeId: string): Promise<boolean> {
   const node = await figma.getNodeByIdAsync(nodeId);
   if (!node || (node.type !== 'COMPONENT_SET' && node.type !== 'COMPONENT')) return false;
   node.setSharedPluginData(NS, SIGNATURE_KEY, JSON.stringify(buildSignature(await readComponent(node))));
+  await storeBaselineImage(node);
   return true;
+}
+
+/** Stores the baseline thumbnail next to the signature. A failed export only means no "before" image later. */
+async function storeBaselineImage(node: ComponentSetNode | ComponentNode): Promise<void> {
+  try {
+    const bytes = await node.exportAsync({ format: 'PNG', constraint: { type: 'WIDTH', value: BASELINE_IMAGE_WIDTH } });
+    const base64 = figma.base64Encode(bytes);
+    node.setPluginData(BASELINE_IMAGE_KEY, base64.length <= BASELINE_IMAGE_MAX ? base64 : '');
+  } catch {
+    /* no thumbnail: drafts go without a before image */
+  }
+}
+
+/** The thumbnail stored with a component's baseline, or undefined when none was taken. */
+export async function baselineImage(nodeId: string): Promise<string | undefined> {
+  const node = await figma.getNodeByIdAsync(nodeId);
+  if (!node || (node.type !== 'COMPONENT_SET' && node.type !== 'COMPONENT')) return undefined;
+  return node.getPluginData(BASELINE_IMAGE_KEY) || undefined;
 }
 
 /**

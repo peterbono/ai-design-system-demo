@@ -15,8 +15,9 @@ import type { Issue } from '@bridge-ds/core';
 import { formatValue, isAlias, parseColor, rgbaToHex } from '@bridge-ds/core';
 import { type ContrastResult, contextLabel, pairKey } from '@bridge-ds/core';
 import { type ApplyReport, type FigmaSnapshot, type InitPayload, type RepoSettings, modeDisplayName } from '../shared/messages';
-import { REQUEST_KINDS, type RequestKind } from '@bridge-ds/core';
-import { type ComponentChangeItem, type ComponentScan, type RequestDraft, classifyComponents, pullBaselines, suggestTitle, toRequest } from '../sync/components';
+import { REQUEST_KINDS, type RequestKind, draftPushDescription, pushChangeRows } from '@bridge-ds/core';
+import { type ComponentChangeItem, type ComponentScan, type RequestDraft, classifyComponents, pullBaselines, suggestSummary, suggestTitle, toRequest } from '../sync/components';
+import { CLAUDE_MODELS, type ClaudeDraft, type ClaudeDraftInput, ClaudeDraftError, DRAFTED_NOTE, copyPrompt, draftWithClaude, parseClaudeAnswer } from '../sync/claude';
 import { loadCodedComponents, sendComponentRequest } from '../sync/requests';
 import { type ComponentApplyReport, type ComponentPullPlan, type PlannedComponent, buildComponentPlan, loadComponentSpecs } from '../sync/component-pull';
 import { type ComponentReview, onlyComponent, reviewUpdates } from '../sync/component-review';
@@ -87,6 +88,23 @@ interface PushState {
   fileKey?: string | undefined;
   form?: RequestForm | undefined;
   sent: { component: string; number: number; url: string }[];
+  /** Who wrote the Description: the plugin's draft (kept in sync with the checked changes), Claude, or the designer. */
+  descriptionSource: TextSource;
+  /** Who wrote the pull request title (Claude fills it only when the designer has not typed one). */
+  titleSource: TextSource;
+  assist: AssistState;
+}
+
+/** Where the text of a field comes from. Only "draft" text is rewritten by the plugin. */
+type TextSource = 'draft' | 'claude' | 'user';
+
+/** "Copy for Claude", "Paste Claude's answer" and "Draft with Claude" under a field. */
+interface AssistState {
+  pasteOpen?: boolean | undefined;
+  pasteText: string;
+  /** The prompt, shown to copy by hand when the clipboard is blocked. */
+  prompt?: string | undefined;
+  message?: { kind: 'ok' | 'error'; text: string } | undefined;
 }
 
 /** The inline request form: one detected change, a new component candidate, or a manual request ("manual"). */
@@ -96,6 +114,9 @@ interface RequestForm {
   draft: RequestDraft;
   attach: boolean;
   error?: string | undefined;
+  titleSource: TextSource;
+  summarySource: TextSource;
+  assist: AssistState;
 }
 
 interface State {
@@ -107,6 +128,8 @@ interface State {
   push?: PushState | undefined;
   settingsDraft: RepoSettings;
   tokenDraft: string;
+  claudeKeyDraft: string;
+  claudeMessage?: { kind: 'ok' | 'error'; text: string } | undefined;
   settingsMessage?: { kind: 'ok' | 'error'; text: string } | undefined;
   expanded: Set<string>;
   /** Current Figma selection, for "Attach the current selection". */
@@ -121,7 +144,7 @@ interface ActionBar {
   secondary?: { label: string; onClick: () => void } | undefined;
 }
 
-const state: State = { tab: 'pull', settingsDraft: { repo: '', branch: '', tokensPath: '' }, tokenDraft: '', expanded: new Set(), selection: null };
+const state: State = { tab: 'pull', settingsDraft: { repo: '', branch: '', tokensPath: '' }, tokenDraft: '', claudeKeyDraft: '', expanded: new Set(), selection: null };
 let client: GitHubClient | undefined;
 const app = document.getElementById('app')!;
 
@@ -406,7 +429,10 @@ function conflictSection(a: Analysis, choices: Map<string, ConflictChoice>, edge
 
 function refreshProposals(): void {
   if (state.pull) state.pull.proposal = buildPull(state.pull.analysis, state.pull.choices, { overwrite: state.pull.overwrite });
-  if (state.push) state.push.proposal = buildPush(state.push.analysis, state.push.choices, state.push.includeBrands, heldTokenIds(state.push.items, state.push.unchecked));
+  if (state.push) {
+    state.push.proposal = buildPush(state.push.analysis, state.push.choices, state.push.includeBrands, heldTokenIds(state.push.items, state.push.unchecked));
+    if (state.push.descriptionSource === 'draft') state.push.description = pushDraft(state.push);
+  }
   render();
 }
 
@@ -613,6 +639,9 @@ function scanPush(keep?: PushState): void {
         experimental,
         title: keep?.title ?? '',
         description: keep?.description ?? '',
+        descriptionSource: keep?.descriptionSource ?? 'draft',
+        titleSource: keep?.titleSource ?? 'draft',
+        assist: keep?.assist ?? { pasteText: '' },
         openPr,
         appendToOpen: keep?.appendToOpen ?? !!openPr,
         components,
@@ -620,6 +649,7 @@ function scanPush(keep?: PushState): void {
         fileKey,
         sent: keep?.sent ?? [],
       };
+      if (state.push.descriptionSource === 'draft') state.push.description = pushDraft(state.push);
       state.expanded.clear();
     },
     () => scanPush(keep),
@@ -640,6 +670,7 @@ function submitPush(): void {
         components: r.components?.changed ?? [],
         unchecked: r.unchecked,
         description: r.description,
+        descriptionIsDraft: r.descriptionSource === 'draft',
         title: r.title,
         fileName: state.init!.fileName,
         fileKey: r.fileKey,
@@ -725,6 +756,230 @@ function removeToken(): void {
     state.pull = undefined;
     state.push = undefined;
     state.settingsMessage = { kind: 'ok', text: 'Token removed from this computer.' };
+  });
+}
+
+// ---------------------------------------------------------------------------------------------
+// Writing help: the plugin's own draft (always), "Copy for Claude" and "Paste Claude's answer" (any Claude plan, no
+// key), "Draft with Claude" (only with an API key in Settings, billed to the designer's Anthropic account).
+
+/** Images larger than this (base64 characters) are not sent to Claude: the API refuses images over 5 MB. */
+const CLAUDE_IMAGE_MAX = 6_500_000;
+
+interface AssistTarget {
+  /** Prefix of the focus ids of this block. */
+  id: string;
+  /** What Claude gets, without images (synchronous: the clipboard needs the click's user activation). */
+  input: () => ClaudeDraftInput;
+  /** Before and after images for "Draft with Claude"; empty when there are none. */
+  images?: (() => Promise<Pick<ClaudeDraftInput, 'before' | 'after'>>) | undefined;
+  apply: (d: ClaudeDraft) => void;
+}
+
+/** Checked variable edits, in the order of the Changes list. */
+function checkedEntries(r: PushState): DiffEntry[] {
+  return r.analysis.diff.local.filter((e) => isChecked(r.unchecked, { key: variableKey(e.id) }));
+}
+
+function checkedComponents(r: PushState): ComponentChangeItem[] {
+  return (r.components?.changed ?? []).filter((c) => isChecked(r.unchecked, { key: componentKey(c.nodeId) }));
+}
+
+/** The deterministic Description: what the checked edits do, which components get a request. */
+function pushDraft(r: PushState): string {
+  return draftPushDescription(checkedEntries(r), checkedComponents(r));
+}
+
+function pushAssist(r: PushState): AssistTarget {
+  return {
+    id: 'push',
+    input: () => ({
+      target: 'push',
+      changes: pushChangeRows(checkedEntries(r)),
+      components: [...new Set(checkedComponents(r).map((c) => c.component))],
+      draft: { title: r.title || (r.proposal.changes.length ? defaultTitle(r.proposal.changes) : ''), summary: pushDraft(r) },
+      notes: r.descriptionSource === 'user' ? r.description : undefined,
+    }),
+    apply: (d) => {
+      if (d.summary) {
+        r.description = d.summary;
+        r.descriptionSource = 'claude';
+      }
+      if (d.title && r.titleSource !== 'user') {
+        r.title = d.title;
+        r.titleSource = 'claude';
+      }
+    },
+  };
+}
+
+function requestAssist(f: RequestForm): AssistTarget {
+  const d = f.draft;
+  return {
+    id: 'req',
+    input: () => ({
+      target: 'request',
+      component: d.component,
+      kind: d.kind,
+      changes: d.changes,
+      draft: f.item ? { title: suggestTitle(f.item), summary: suggestSummary(f.item) } : undefined,
+      notes: [f.titleSource === 'user' && d.title.trim() ? `Title: ${d.title.trim()}` : '', f.summarySource === 'user' ? d.summary.trim() : ''].filter(Boolean).join('\n') || undefined,
+    }),
+    images: async () => {
+      const nodeId = f.item?.nodeId;
+      const after = nodeId ? await request('export-image', { nodeId }).catch(() => null) : f.attach && state.selection ? await request('export-image', {}).catch(() => null) : null;
+      const before = nodeId ? await request('baseline-image', { nodeId }).catch(() => null) : null;
+      return {
+        ...(after?.base64 && after.base64.length < CLAUDE_IMAGE_MAX ? { after: after.base64 } : {}),
+        ...(before && before.length < CLAUDE_IMAGE_MAX ? { before } : {}),
+      };
+    },
+    apply: (x) => {
+      if (x.title) {
+        d.title = x.title;
+        f.titleSource = 'claude';
+      }
+      if (x.summary) {
+        d.summary = x.summary;
+        f.summarySource = 'claude';
+      }
+      f.error = undefined;
+    },
+  };
+}
+
+/** Copies text from the plugin iframe: a hidden textarea and execCommand (navigator.clipboard is often blocked there). */
+async function copyText(text: string): Promise<boolean> {
+  const back = document.activeElement as HTMLElement | null;
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.setAttribute('readonly', '');
+  ta.setAttribute('aria-hidden', 'true');
+  ta.style.position = 'fixed';
+  ta.style.top = '0';
+  ta.style.left = '0';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  let ok = false;
+  try {
+    ok = document.execCommand('copy');
+  } catch {
+    ok = false;
+  }
+  ta.remove();
+  back?.focus();
+  if (ok) return true;
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function copyForClaude(a: AssistState, t: AssistTarget): Promise<void> {
+  const prompt = copyPrompt(t.input());
+  const ok = await copyText(prompt);
+  a.pasteOpen = true;
+  a.prompt = ok ? undefined : prompt;
+  a.message = ok
+    ? { kind: 'ok', text: 'Prompt copied. Paste it in Claude.ai or Claude Desktop, attach before and after screenshots if you have them, then paste the answer here.' }
+    : { kind: 'error', text: 'Copying was blocked by Figma. Select the prompt below, copy it, and paste it in Claude.' };
+  render();
+}
+
+function usePasted(a: AssistState, t: AssistTarget): void {
+  try {
+    t.apply(parseClaudeAnswer(a.pasteText));
+    a.pasteText = '';
+    a.pasteOpen = false;
+    a.prompt = undefined;
+    a.message = undefined;
+  } catch (err) {
+    a.message = { kind: 'error', text: err instanceof ClaudeDraftError ? err.message : String(err) };
+  }
+  render();
+}
+
+async function runClaude(a: AssistState, t: AssistTarget): Promise<void> {
+  const c = state.init?.claude;
+  if (!c?.key || state.busy) return;
+  state.busy = 'Drafting with Claude';
+  a.message = undefined;
+  render();
+  try {
+    const input = { ...t.input(), ...(t.images ? await t.images() : {}) };
+    t.apply(await draftWithClaude((url, init) => fetch(url, init), c.key, c.model, input));
+  } catch (err) {
+    a.message = { kind: 'error', text: err instanceof ClaudeDraftError ? err.message : 'Claude could not draft this. Your text is unchanged.' };
+  } finally {
+    state.busy = undefined;
+    render();
+  }
+}
+
+/** The writing help under a field: Copy for Claude, Paste Claude's answer, and Draft with Claude when a key is saved. */
+function assistView(a: AssistState, t: AssistTarget): HTMLElement {
+  const withKey = !!state.init?.claude.hasKey;
+  return h(
+    'div',
+    { class: 'assist' },
+    h(
+      'div',
+      { class: 'inline-actions' },
+      h('button', { class: 'btn ghost', 'data-focus-id': `${t.id}-copy`, title: 'Copies a prompt for Claude.ai or Claude Desktop. No key needed.', onClick: () => void copyForClaude(a, t) }, icon('copy'), 'Copy for Claude'),
+      h(
+        'button',
+        { class: 'btn ghost', 'data-focus-id': `${t.id}-paste-toggle`, 'aria-expanded': a.pasteOpen ? 'true' : 'false', onClick: () => { a.pasteOpen = !a.pasteOpen; render(); } },
+        "Paste Claude's answer",
+      ),
+      withKey ? h('button', { class: 'btn assist-claude', 'data-focus-id': `${t.id}-claude`, disabled: !!state.busy, onClick: () => void runClaude(a, t) }, 'Draft with Claude') : null,
+    ),
+    a.message ? h('p', { class: a.message.kind === 'error' ? 'form-error' : 'assist-note', role: a.message.kind === 'error' ? 'alert' : 'status' }, a.message.kind === 'error' ? icon('alert') : icon('check'), a.message.text) : null,
+    a.prompt ? h('textarea', { class: 'mono-area', rows: '4', readonly: true, 'aria-label': 'Prompt for Claude', onFocus: (e: Event) => (e.target as HTMLTextAreaElement).select() }, a.prompt) : null,
+    a.pasteOpen
+      ? h(
+          'div',
+          { class: 'paste' },
+          h(
+            'label',
+            { class: 'field' },
+            h('span', null, "Claude's answer"),
+            h('textarea', { rows: '3', 'data-focus-id': `${t.id}-paste`, spellcheck: 'false', placeholder: '{"title": "...", "summary": "..."}', onInput: (e: Event) => (a.pasteText = (e.target as HTMLTextAreaElement).value) }, a.pasteText),
+          ),
+          h('div', { class: 'inline-actions' }, h('button', { class: 'btn', 'data-focus-id': `${t.id}-use`, onClick: () => usePasted(a, t) }, 'Use this answer')),
+        )
+      : null,
+  );
+}
+
+/** "Drafted by Claude, review before sending" under a field Claude filled; removed as soon as the designer types. */
+function draftedNote(id: string, source: TextSource): Child {
+  return source === 'claude' ? h('small', { class: 'drafted', id: `${id}-drafted` }, icon('info'), DRAFTED_NOTE) : null;
+}
+
+const clearDrafted = (id: string) => document.getElementById(`${id}-drafted`)?.remove();
+
+function saveClaude(): void {
+  const key = state.claudeKeyDraft.trim();
+  void run('Saving the Claude settings', async () => {
+    try {
+      await request('save-claude', { key: key || undefined, model: state.init!.claude.model });
+      state.claudeKeyDraft = '';
+      await loadInit();
+      state.claudeMessage = { kind: 'ok', text: key ? 'Key saved on this computer only. "Draft with Claude" now shows on requests and on the Push description.' : 'Claude settings saved.' };
+    } catch (err) {
+      state.claudeMessage = { kind: 'error', text: err instanceof Error ? err.message : String(err) };
+    }
+  });
+}
+
+function removeClaudeKey(): void {
+  void run('Removing the key', async () => {
+    await request('clear-claude-key', {});
+    await loadInit();
+    state.claudeMessage = { kind: 'ok', text: 'Key removed from this computer. Copy for Claude still works with your Claude plan.' };
   });
 }
 
@@ -1082,9 +1337,9 @@ function attachHint(): string {
 function openForm(r: PushState, item: ComponentChangeItem | undefined): void {
   const coded = r.components?.coded ?? [];
   const draft: RequestDraft = item
-    ? { component: item.component, kind: item.kind, title: suggestTitle(item), summary: '', changes: item.changes, nodeId: item.nodeId, nodeName: item.figmaName }
+    ? { component: item.component, kind: item.kind, title: suggestTitle(item), summary: suggestSummary(item), changes: item.changes, nodeId: item.nodeId, nodeName: item.figmaName }
     : { component: coded[0] ?? '', kind: 'visual', title: '', summary: '', changes: [], nodeId: state.selection?.nodeId, nodeName: state.selection?.name };
-  r.form = { key: item?.nodeId ?? 'manual', item, draft, attach: item ? true : !!state.selection };
+  r.form = { key: item?.nodeId ?? 'manual', item, draft, attach: item ? true : !!state.selection, titleSource: 'draft', summarySource: 'draft', assist: { pasteText: '' } };
   void request('selection', {}).then((sel) => {
     state.selection = sel;
     render();
@@ -1197,7 +1452,20 @@ function requestFormView(r: PushState, f: RequestForm): HTMLElement {
       'label',
       { class: 'field' },
       h('span', null, 'Title'),
-      h('input', { type: 'text', id: 'req-title', 'data-focus-id': 'req-title', value: d.title, maxlength: '100', placeholder: 'Add a danger ghost variant', onInput: (e: Event) => (d.title = (e.target as HTMLInputElement).value) }),
+      h('input', {
+        type: 'text',
+        id: 'req-title',
+        'data-focus-id': 'req-title',
+        value: d.title,
+        maxlength: '100',
+        placeholder: 'Add a danger ghost variant',
+        onInput: (e: Event) => {
+          d.title = (e.target as HTMLInputElement).value;
+          f.titleSource = 'user';
+          clearDrafted('req-title');
+        },
+      }),
+      draftedNote('req-title', f.titleSource),
     ),
     h(
       'label',
@@ -1212,11 +1480,17 @@ function requestFormView(r: PushState, f: RequestForm): HTMLElement {
           required: true,
           'aria-invalid': f.error && !d.summary.trim() ? 'true' : undefined,
           placeholder: manual ? 'What should change, and why. The diff cannot see this one, so be specific.' : 'Why this change, and where it is used',
-          onInput: (e: Event) => (d.summary = (e.target as HTMLTextAreaElement).value),
+          onInput: (e: Event) => {
+            d.summary = (e.target as HTMLTextAreaElement).value;
+            f.summarySource = 'user';
+            clearDrafted('req-summary');
+          },
         },
         d.summary,
       ),
+      draftedNote('req-summary', f.summarySource),
     ),
+    assistView(f.assist, requestAssist(f)),
     d.changes.length ? h('div', { class: 'field' }, h('span', null, 'Changes'), changeLines(d.changes)) : null,
     h(
       'label',
@@ -1575,9 +1849,16 @@ function viewPush(): View {
             rows: '3',
             'data-focus-id': 'push-description',
             placeholder: 'What changed and why. It opens the pull request and every request.',
-            onInput: (e: Event) => (r.description = (e.target as HTMLTextAreaElement).value),
+            onInput: (e: Event) => {
+              r.description = (e.target as HTMLTextAreaElement).value;
+              r.descriptionSource = 'user';
+              clearDrafted('push-description');
+            },
           }, r.description),
+          r.descriptionSource === 'draft' && r.description ? h('small', null, 'Drafted from the checked changes. Add why it matters.') : null,
+          draftedNote('push-description', r.descriptionSource),
         ),
+        assistView(r.assist, pushAssist(r)),
         prFiles && r.openPr
           ? h(
               'label',
@@ -1589,9 +1870,21 @@ function viewPush(): View {
         prFiles
           ? h(
               'details',
-              { class: 'notes' },
+              { class: 'notes', open: r.titleSource === 'claude' },
               h('summary', null, 'Pull request title'),
-              h('input', { type: 'text', 'aria-label': 'Pull request title', value: r.title, placeholder: prop.changes.length ? defaultTitle(prop.changes) : prop.brands.find((b) => b.plan)?.plan?.title ?? '', maxlength: '120', onInput: (e: Event) => (r.title = (e.target as HTMLInputElement).value) }),
+              h('input', {
+                type: 'text',
+                'aria-label': 'Pull request title',
+                value: r.title,
+                placeholder: prop.changes.length ? defaultTitle(prop.changes) : prop.brands.find((b) => b.plan)?.plan?.title ?? '',
+                maxlength: '120',
+                onInput: (e: Event) => {
+                  r.title = (e.target as HTMLInputElement).value;
+                  r.titleSource = 'user';
+                  clearDrafted('push-title');
+                },
+              }),
+              draftedNote('push-title', r.titleSource),
             )
           : null,
         h(
@@ -1688,9 +1981,66 @@ function viewSettings(): View {
             h('div', { class: 'callout-title' }, icon(state.settingsMessage.kind === 'ok' ? 'check' : 'alert'), state.settingsMessage.text),
           )
         : null,
+      claudeCard(),
     ],
     bar: { label: 'Save and check access', onClick: saveSettings },
   };
+}
+
+/** Settings, "Claude (optional)": both ways to get Claude's help, and the optional API key. */
+function claudeCard(): HTMLElement {
+  const c = state.init!.claude;
+  return h(
+    'section',
+    { class: 'card' },
+    h(
+      'div',
+      { class: 'group-head' },
+      h('h2', null, 'Claude (optional)'),
+      c.hasKey ? null : h('button', { class: 'btn ghost', onClick: () => void request('open-url', { url: 'https://console.anthropic.com/settings/keys' }) }, icon('external'), 'Create a key'),
+    ),
+    h('p', { class: 'lede' }, 'Claude can write request and pull request text from the detected changes and the before and after images. You review it before anything is sent.'),
+    h(
+      'ul',
+      { class: 'ways' },
+      h('li', null, h('b', null, 'Use your Claude plan: '), 'copy the prompt into Claude.ai or Claude Desktop, no key needed. "Copy for Claude" is on every request and on the Push description.'),
+      h('li', null, h('b', null, 'Or add an API key '), 'to draft in one click (billed to your Anthropic account). Each draft sends the changes and the before and after images to Anthropic.'),
+    ),
+    h(
+      'label',
+      { class: 'field' },
+      h('span', null, 'Anthropic API key'),
+      h('input', {
+        type: 'password',
+        value: '',
+        autocomplete: 'off',
+        spellcheck: 'false',
+        'data-focus-id': 'claude-key',
+        placeholder: c.hasKey ? 'Saved, hidden' : 'sk-ant-...',
+        onInput: (e: Event) => (state.claudeKeyDraft = (e.target as HTMLInputElement).value),
+      }),
+      h('small', null, 'Kept in Figma client storage on this computer. Never shown again, never written into the file, only sent to api.anthropic.com.'),
+    ),
+    h(
+      'label',
+      { class: 'field' },
+      h('span', null, 'Model'),
+      h(
+        'select',
+        { 'data-focus-id': 'claude-model', onChange: (e: Event) => (c.model = (e.target as HTMLSelectElement).value as typeof c.model) },
+        CLAUDE_MODELS.map((m) => h('option', { value: m.value, selected: m.value === c.model }, m.label)),
+      ),
+    ),
+    h(
+      'div',
+      { class: 'inline-actions' },
+      h('button', { class: 'btn', 'data-focus-id': 'claude-save', onClick: saveClaude }, c.hasKey ? 'Save Claude settings' : 'Save key'),
+      c.hasKey ? h('button', { class: 'btn ghost danger', onClick: removeClaudeKey }, 'Remove key') : null,
+    ),
+    state.claudeMessage
+      ? h('p', { class: state.claudeMessage.kind === 'error' ? 'form-error' : 'assist-note', role: state.claudeMessage.kind === 'error' ? 'alert' : 'status' }, icon(state.claudeMessage.kind === 'error' ? 'alert' : 'check'), state.claudeMessage.text)
+      : null,
+  );
 }
 
 function actionBar(bar: ActionBar | undefined): Child {

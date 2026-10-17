@@ -14,7 +14,7 @@
 //   then shows another component than the one code gives it (stored at pull as `slotDefaults`); swapping back to it
 //   is no change. A swap explains the bindings and render that move with it in that variant.
 
-import type { ComponentChangeRequest, RequestChange, RequestKind } from '@bridge-ds/core';
+import { type ComponentChangeRequest, type RequestChange, type RequestKind, draftRequestText } from '@bridge-ds/core';
 
 /** One variable (or style) bound somewhere in a variant, wherever the layer sits. */
 export interface RawBinding {
@@ -386,38 +386,14 @@ export function newComponentChanges(s: ComponentSignature): RequestChange[] {
   return rows;
 }
 
-/** Prefilled one-line title for a detected change, in sentence case. */
+/** Prefilled one-line title for a detected change, in sentence case (draftRequestText in @bridge-ds/core). */
 export function suggestTitle(item: Pick<ComponentChangeItem, 'kind' | 'changes' | 'component'>): string {
-  const first = item.changes[0];
-  switch (item.kind) {
-    case 'new-component':
-      return `Add the ${item.component} component`;
-    case 'new-variant': {
-      if (!first) return 'Update variants';
-      const axis = first.field.replace(/^Variant /, '');
-      const b = new Set((first.before ?? '').split(', ').filter(Boolean));
-      const c = new Set((first.after ?? '').split(', ').filter(Boolean));
-      const added = [...c].filter((x) => !b.has(x));
-      const removed = [...b].filter((x) => !c.has(x));
-      if (!first.before) return `Add a ${axis} variant axis`;
-      if (!first.after) return `Remove the ${axis} variant axis`;
-      if (added.length && !removed.length) return `Add ${added.join(', ')} to ${axis}`;
-      if (removed.length && !added.length) return `Remove ${removed.join(', ')} from ${axis}`;
-      return `Change the ${axis} variants`;
-    }
-    case 'prop-change': {
-      const name = first?.field.replace(/^Prop /, '') ?? 'a prop';
-      if (first && !first.before) return `Add the ${name} prop`;
-      if (first && !first.after) return `Remove the ${name} prop`;
-      return `Change the ${name} prop`;
-    }
-    case 'token-binding':
-      return first ? `Use ${first.after} for ${first.field.split(' (')[0]!.toLowerCase()}` : 'Use another token';
-    case 'visual':
-      return 'Update the look to match Figma';
-    default:
-      return 'Change requested from Figma';
-  }
+  return draftRequestText(item.component, item.kind, item.changes).title || 'Change requested from Figma';
+}
+
+/** Prefilled summary for a detected change: what changes, from the diff only (never a reason). */
+export function suggestSummary(item: Pick<ComponentChangeItem, 'kind' | 'changes' | 'component'>): string {
+  return draftRequestText(item.component, item.kind, item.changes).summary;
 }
 
 export interface RequestDraft {

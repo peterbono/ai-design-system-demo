@@ -298,3 +298,16 @@ input.select, .group-check input { flex: none; width: 14px; height: 14px; margin
 }
 .thumb-empty { display: flex; align-items: center; justify-content: center; color: var(--text-3); padding: var(--s2); text-align: center; }
 .thumb figcaption { color: var(--text-3); }
+
+/* Writing help under a field: Copy for Claude, Paste Claude's answer, Draft with Claude (with an API key). */
+.assist { display: flex; flex-direction: column; gap: var(--s2); }
+.assist > .inline-actions { gap: var(--s1); margin-left: calc(-1 * var(--s2)); }
+.assist > .inline-actions .btn.assist-claude { margin-left: var(--s1); }
+.assist .btn .icon { width: 14px; height: 14px; }
+.assist-note { display: flex; gap: 6px; align-items: flex-start; color: var(--text-2); }
+.assist-note .icon, small.drafted .icon { width: 14px; height: 14px; flex: none; }
+.paste { display: flex; flex-direction: column; gap: var(--s2); padding: var(--s2) var(--s3); border-radius: var(--r-md); background: var(--bg-sunken); }
+textarea.mono-area, .paste textarea { font-family: var(--mono); font-size: 11px; }
+small.drafted { display: flex; gap: 4px; align-items: center; color: var(--brand-text); font-weight: 500; }
+ul.ways { margin: 0; padding-left: var(--s4); display: flex; flex-direction: column; gap: var(--s1); color: var(--text-2); }
+ul.ways b { color: var(--text); font-weight: 600; }
