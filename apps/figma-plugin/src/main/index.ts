@@ -14,10 +14,10 @@ import { applyPullPlan } from './apply';
 import { applyComponentPlan, scanGenerated } from './build-components';
 import { clearClaudeKey, readClaudeSettings, saveClaudeSettings } from './claude-settings';
 import { baselineImage, exportImage, exportThumbnails, rebaseline, saveSignatures, scanComponents, selectionInfo, setExperimental } from './components';
+import { clearGitHubToken, readGitHubToken, saveGitHubToken, setGitHubTokenState } from './github-token';
 import { takeSnapshot, writePluginData } from './snapshot';
 
 const NS = 'dsbridge';
-const TOKEN_KEY = 'github-token';
 
 figma.showUI(__html__, { width: 480, height: 640, themeColors: true, title: 'DS Bridge' });
 
@@ -49,8 +49,8 @@ type Handlers = { [K in RequestType]: (payload: RequestMap[K]['request']) => Pro
 const handlers: Handlers = {
   async init() {
     const { settings, sync } = readShared();
-    const token = (await figma.clientStorage.getAsync(TOKEN_KEY)) as string | undefined;
-    return { settings, sync, hasToken: !!token, token: token || undefined, fileName: figma.root.name, claude: await readClaudeSettings() };
+    const { token, tokenState } = await readGitHubToken();
+    return { settings, sync, hasToken: !!token, token, tokenState, fileName: figma.root.name, claude: await readClaudeSettings() };
   },
   async 'save-settings'({ settings }) {
     const repoChanged = settings.repo !== readShared().settings.repo || settings.branch !== readShared().settings.branch;
@@ -60,12 +60,13 @@ const handlers: Handlers = {
     return readShared().settings;
   },
   async 'save-token'({ token }) {
-    await figma.clientStorage.setAsync(TOKEN_KEY, token.trim());
-    return { saved: true };
+    return saveGitHubToken(token);
   },
   async 'clear-token'() {
-    await figma.clientStorage.deleteAsync(TOKEN_KEY);
-    return { cleared: true };
+    return clearGitHubToken();
+  },
+  async 'token-state'({ state }) {
+    return setGitHubTokenState(state);
   },
   async 'save-claude'(input) {
     return saveClaudeSettings(input);

@@ -102,7 +102,8 @@ const overrideLine = ov.allowed.length
       <p class="set-open-line" data-when="connected">
         Connected as <span data-set-login></span> <span data-set-access>with write access to</span> {repoName}.
       </p>
-      <Button variant="primary" iconStart={GitHubMark} data-gh-open data-when="readonly">Connect GitHub</Button>
+      <p class="set-open-line" data-when="rejected">Your GitHub token stopped working. GitHub no longer accepts it: it was revoked, regenerated or has expired.</p>
+      <Button variant="primary" iconStart={GitHubMark} data-gh-open data-when="readonly rejected"><span data-gh-open-label>Connect GitHub</span></Button>
       <Button variant="secondary" data-gh-open data-when="connected">Change token</Button>
     </div>
 

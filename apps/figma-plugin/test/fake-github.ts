@@ -1,6 +1,6 @@
 // In-memory GitHub used by the flow tests. Implements only what DS Bridge calls.
 
-import type { GitHubClient, IssueSummary, PullRequest, TreeEntry } from '@bridge-ds/core';
+import { type GitHubClient, GitHubError, type IssueSummary, type PullRequest, type TreeEntry, classifyAuth, friendlyMessage } from '@bridge-ds/core';
 
 export class FakeGitHub {
   commits = new Map<string, { files: Record<string, string>; parents: string[]; message: string }>();
@@ -22,6 +22,16 @@ export class FakeGitHub {
   readonly owner = 'o';
   readonly name = 'r';
   n = 0;
+  /** Every call fails with this error (a token GitHub stopped accepting answers 401 to everything). */
+  failAll: GitHubError | undefined;
+  /** Calls by method name that fail with an error (a token missing one permission). */
+  failures = new Map<string, GitHubError>();
+
+  /** The GitHubError the real client throws for this answer (status, GitHub's message, the endpoint). */
+  static httpError(status: number, message: string, path: string): GitHubError {
+    const info = classifyAuth(status, message, { path });
+    return new GitHubError(status, friendlyMessage(status, message, info), message, info);
+  }
 
   constructor(files: Record<string, string>, branch = 'main') {
     const sha = this.commit(files, [], 'initial');
@@ -53,6 +63,9 @@ export class FakeGitHub {
   client(): GitHubClient {
     const self = this;
     const api = {
+      async getRepo() {
+        return { fullName: 'o/r', defaultBranch: 'main', private: false, permissions: { push: true, pull: true } };
+      },
       owner: self.owner,
       name: self.name,
       async createIssue(input: { title: string; body: string; labels?: string[]; assignees?: string[] }) {
@@ -170,8 +183,9 @@ export class FakeGitHub {
       // Explorations (core explorations-github.ts): open pull requests, one commit on a new branch, body updates.
       canWrite: true,
       fullName: `${self.owner}/${self.name}`,
-      withBranchPrefix() {
-        return api;
+      withBranchPrefix(this: unknown) {
+        // Called through the proxy below: the same failures apply.
+        return this;
       },
       async listPullRequests() {
         return self.prs.map((p) => ({ number: p.number, title: p.title, state: 'open', draft: p.draft, author: 'designer', headRef: p.headRef, headSha: self.branches.get(p.headRef) ?? '', baseRef: p.base, labels: p.labels, url: p.url, updatedAt: '', body: p.body }));
@@ -193,7 +207,15 @@ export class FakeGitHub {
         return { sha, branch: input.branch };
       },
     };
-    return api as unknown as GitHubClient;
+    const failing = new Proxy(api, {
+      get(target, prop, receiver) {
+        const value = Reflect.get(target, prop, receiver) as unknown;
+        if (typeof value !== 'function' || typeof prop !== 'string') return value;
+        const err = self.failAll ?? self.failures.get(prop);
+        return err ? async () => Promise.reject(err) : value;
+      },
+    });
+    return failing as unknown as GitHubClient;
   }
 }
 

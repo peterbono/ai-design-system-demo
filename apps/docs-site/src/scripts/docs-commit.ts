@@ -1,9 +1,9 @@
 // Docs changes that go to GitHub from the browser, with the reader's own token: propose the docs edits of the draft
 // as a pull request (Tier 1, patch changeset), commit an edited docs.json to an open pull request's branch, and
 // accept a Claude draft there (needsReview false). Pure parts live in lib/docs-draft-model.ts and @bridge-ds/core.
-import { GitHubClient, acceptDocsText } from '@bridge-ds/core';
+import { acceptDocsText, classifyAuth, friendlyMessage, GitHubError } from '@bridge-ds/core';
 import { docsProposal, type DocsEdit } from '../lib/docs-draft-model';
-import { getToken, readRepo } from './github-session';
+import { getToken, readRepo, studioClient, studioFetch } from './github-session';
 
 const API = 'https://api.github.com';
 
@@ -11,17 +11,19 @@ function client() {
   const token = getToken();
   if (!token) throw new Error('Connect GitHub first.');
   const r = readRepo();
-  return { token, repo: r, gh: new GitHubClient(`${r.owner}/${r.repo}`, token) };
+  return { token, repo: r, gh: studioClient(`${r.owner}/${r.repo}`, token) };
 }
 
 async function api<T>(token: string, method: string, path: string, body?: unknown): Promise<T> {
-  const res = await fetch(`${API}${path}`, {
+  const res = await studioFetch(`${API}${path}`, {
     method,
-    headers: { authorization: `Bearer ${token}`, accept: 'application/vnd.github+json', ...(body ? { 'content-type': 'application/json' } : {}) },
-    body: body ? JSON.stringify(body) : undefined,
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', ...(body ? { 'Content-Type': 'application/json' } : {}) },
+    ...(body ? { body: JSON.stringify(body) } : {}),
   });
   if (!res.ok) {
-    const msg = ((await res.json().catch(() => ({}))) as { message?: string }).message ?? res.statusText;
+    const msg = ((await res.json().catch(() => ({}))) as { message?: string }).message ?? `GitHub answered ${res.status}`;
+    const info = classifyAuth(res.status, msg, { path, acceptedPermissions: res.headers?.get('x-accepted-github-permissions') });
+    if (info.auth) throw new GitHubError(res.status, friendlyMessage(res.status, msg, info), msg, info);
     throw new Error(res.status === 403 || res.status === 404 ? `GitHub refused it (${res.status}): your token needs write access to this repository.` : msg);
   }
   return (await res.json()) as T;

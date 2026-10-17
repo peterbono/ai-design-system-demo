@@ -61,7 +61,7 @@ test('missing branch returns undefined; auth errors become plain-language messag
   const { fetchImpl } = stub({ 'GET /repos/o/r': { status: 401, body: { message: 'Bad credentials' } } });
   const client = new GitHubClient('o/r', 'bad', fetchImpl);
   assert.equal(await client.getBranchSha('nope'), undefined);
-  await assert.rejects(client.getRepo(), (err: unknown) => err instanceof GitHubError && err.status === 401 && /expired or mistyped/.test(err.message));
+  await assert.rejects(client.getRepo(), (err: unknown) => err instanceof GitHubError && err.status === 401 && err.auth === 'rejected' && /stopped working/.test(err.message));
 });
 
 test('write calls: blob, tree, commit, ref, PR', async () => {

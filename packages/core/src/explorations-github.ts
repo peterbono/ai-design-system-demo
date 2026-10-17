@@ -201,6 +201,8 @@ export async function promoteExplorationOnGitHub(
   const x = gh.withBranchPrefix(EXPLORATION_PREFIX);
   if (plan.removeFiles.length) {
     await x.commitToBranch({ branch: p.headRef, message: 'chore(explore): promote to review, remove the exploration note', files: plan.removeFiles.map((path) => ({ path, content: null })) }).catch((e: Error) => {
+      // A refused token is not a partial success: nothing else would go through either.
+      if (e instanceof GitHubError && e.auth === 'rejected') throw e;
       out.warnings.push(`The exploration note stays on the branch (${e.message}). Delete ${plan.removeFiles.join(', ')} before merging.`);
     });
   }

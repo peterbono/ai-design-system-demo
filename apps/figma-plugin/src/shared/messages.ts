@@ -130,12 +130,17 @@ export interface SyncState {
   lastPrUrl?: string | undefined;
 }
 
+/** What GitHub last said about the saved token: "rejected" after a 401 (revoked, regenerated or expired). */
+export type TokenState = 'ok' | 'rejected';
+
 export interface InitPayload {
   settings: RepoSettings;
   sync: SyncState;
   hasToken: boolean;
   /** Sent to the UI so it can call GitHub. The UI keeps it in memory and never renders it. */
   token: string | undefined;
+  /** Undefined without a token. "rejected" until a new token is saved or a check with this one succeeds. */
+  tokenState: TokenState | undefined;
   fileName: string;
   /** Optional "Draft with Claude": the designer's own Anthropic API key (client storage) and model. */
   claude: { hasKey: boolean; key: string | undefined; model: ClaudeModel };
@@ -159,6 +164,8 @@ export interface RequestMap {
   'save-settings': { request: { settings: RepoSettings }; response: RepoSettings };
   'save-token': { request: { token: string }; response: { saved: true } };
   'clear-token': { request: Record<string, never>; response: { cleared: true } };
+  /** Records what the last GitHub call with the saved token showed ("rejected" after a 401). */
+  'token-state': { request: { state: TokenState }; response: { tokenState: TokenState | undefined } };
   /** Anthropic API key (optional, kept when empty) and model, in client storage on this computer. */
   'save-claude': { request: { key?: string | undefined; model?: string | undefined }; response: { hasKey: boolean; model: ClaudeModel } };
   'clear-claude-key': { request: Record<string, never>; response: { cleared: true } };

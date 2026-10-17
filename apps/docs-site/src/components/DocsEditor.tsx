@@ -104,11 +104,15 @@ export default function DocsEditor(p: DocsEditorProps) {
   const [dirty, setDirty] = useState(false);
   const ready = useRef(false);
   const [connected, setConnected] = useState(false);
+  const [rejected, setRejected] = useState(false);
   useEffect(() => {
-    let getToken: (() => string | null) | null = null;
-    const check = () => setConnected(Boolean(getToken?.()));
+    let session: typeof import('../scripts/github-session') | null = null;
+    const check = () => {
+      setConnected(Boolean(session?.hasWorkingToken()));
+      setRejected(Boolean(session?.tokenRejected()));
+    };
     import('../scripts/github-session').then((m) => {
-      getToken = m.getToken;
+      session = m;
       check();
     });
     document.addEventListener('bridge:auth', check);
@@ -258,7 +262,8 @@ export default function DocsEditor(p: DocsEditorProps) {
       writeDraft({ edits: readDraft().edits.filter((e) => !(e.kind === 'docs' && e.path === p.path)) });
       location.href = `/studio/changes/?pr=${n}`;
     } catch (err) {
-      setStatus(`Not sent: ${(err as Error).message}`);
+      const { errorText } = await import('../lib/token-session');
+      setStatus(errorText(err, `Not sent: ${(err as Error).message}`, source === 'pr' ? 'commit to this branch' : 'open pull requests'));
     } finally {
       setBusy(false);
     }
@@ -394,7 +399,7 @@ export default function DocsEditor(p: DocsEditorProps) {
           </Button>
         ) : (
           <Button variant="primary" disabled={blocking || !changed} data-gh-open="">
-            Connect GitHub to propose
+            {rejected ? 'Reconnect GitHub to propose' : 'Connect GitHub to propose'}
           </Button>
         )}
       </footer>

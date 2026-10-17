@@ -1,7 +1,7 @@
 // Status chip of an open pull request, read live from GitHub: CI (check runs + commit statuses) and reviews, then
 // reviewStatus() from lib/review-rules. Shared by the Studio Overview ("Needs you") and the Reviews list.
 // Reads go through ghGet, so they are cached in this browser and survive a rate limit.
-import { esc, getToken, ghGet, readRepo } from './github-session';
+import { esc, ghGet, hasWorkingToken, readRepo } from './github-session';
 import { planStatusReads, statusCacheKey, type CachedStatus } from '../lib/status-budget';
 import {
   parseTier,
@@ -118,7 +118,7 @@ export async function loadStatuses(
   pulls: PullForStatus[],
   onStatus: (p: PullForStatus, status: ReviewStatus | null, skipped: boolean) => void,
 ): Promise<void> {
-  const connected = Boolean(getToken());
+  const connected = hasWorkingToken();
   const plan = planStatusReads(pulls, { connected, read: readCached, now: Date.now() });
   const byNumber = new Map(pulls.map((p) => [p.number, p]));
   for (const [n, st] of plan.cached) onStatus(byNumber.get(n)!, st, false);
