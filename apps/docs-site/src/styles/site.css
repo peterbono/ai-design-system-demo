@@ -789,6 +789,7 @@ main.wide .page-end {
 }
 
 .page-meta {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -824,7 +825,12 @@ main.wide .page-end {
   color: var(--color-text-default);
 }
 
-/* Opens upward: the meta line sits at the end of the page. */
+/* Opens upward from the start of the meta line: the line sits at the end of the page, and the popover never
+   pushes past the content column on phones. */
+.page-meta .page-source {
+  position: static;
+}
+
 .page-source .page-source-panel {
   position: absolute;
   top: auto;
