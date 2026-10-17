@@ -51,6 +51,8 @@ import { ciFor, loadStatuses, SKIPPED_HINT } from './pr-status';
 import { mdTitleHtml, mdTitleText } from '../lib/markdown';
 import { humanTitle } from '../lib/pr-title';
 import { touchesVisuals } from '../lib/visual-impact';
+import { isDocsFile } from '../lib/pr-docs';
+import { loadDocsSection, renderDocsSection } from './reviews/docs-section';
 
 interface User {
   login: string;
@@ -390,8 +392,20 @@ export async function openPr(n: number, push = true) {
     const changesets = files.filter((f) => /^\.changeset\/(?!README).+\.md$/.test(f.filename) && f.status !== 'removed');
     const visual = touchesVisuals(files.map((f) => f.filename));
 
-    d.innerHTML = renderDetail({ pull, tier, files, reviews, comments, ci, approvals, gate, tokenCount: tokenFiles.length, changesetCount: changesets.length, visual, access });
+    const docsPaths = files.filter((f) => isDocsFile(f.filename) && f.status !== 'removed').map((f) => f.filename);
+    d.innerHTML = renderDetail({ pull, tier, files, reviews, comments, ci, approvals, gate, tokenCount: tokenFiles.length, changesetCount: changesets.length, visual, access, docsPaths });
     wireActions(pull, gate, access);
+
+    if (docsPaths.length) {
+      const branch = pull.head.ref;
+      const sameRepo = !(pull.head as { repo?: { full_name?: string } }).repo?.full_name || (pull.head as { repo?: { full_name?: string } }).repo!.full_name === `${repo.owner}/${repo.repo}`;
+      loadDocsSection(
+        $('rv-docs'),
+        docsPaths,
+        { owner: repo.owner, repo: repo.repo, pr: pull.number, sha: pull.head.sha, branch, canWrite: Boolean(access?.write) && sameRepo && pullState(pull) === 'open' },
+        (path, name) => import('./docs-commit').then((m) => m.acceptDocsOnBranch(path, branch, name)),
+      ).catch((err) => ($('rv-docs').innerHTML = `<p class="rv-error">Could not read the docs: ${esc((err as Error).message)}</p>`));
+    }
 
     if (visual) {
       const slot = $('rv-visual');
@@ -457,6 +471,8 @@ interface DetailInput {
   changesetCount: number;
   visual: boolean;
   access: Access | null;
+  /** docs.json files the pull request adds or changes. */
+  docsPaths: string[];
 }
 
 function renderDetail(x: DetailInput) {
@@ -562,6 +578,7 @@ function renderDetail(x: DetailInput) {
   </header>
   <div class="cg-secs">
     ${section('cg-sec-files', 'Files', String(files.length), filesBody)}
+    ${x.docsPaths.length ? section('cg-sec-docs', 'Docs', 'Reading', renderDocsSection(x.docsPaths)) : ''}
     ${section('cg-sec-checks', 'Checks', checksMeta, checksBody, failing > 0)}
     ${x.visual ? section('cg-sec-visual', 'Visual impact', 'Reading', `<div id="rv-visual"><p class="rv-loading">Reading the visual impact for ${esc(pull.head.sha.slice(0, 7))}</p></div>`) : ''}
     ${section('cg-sec-preview', 'Preview and install', previewMeta, previewBody)}
