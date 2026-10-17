@@ -111,10 +111,27 @@
 
 /* Body layout with sticky table of contents */
 
+/* Component page: the reading column (header, preview, tabs, panels) and, from 1320px, the On this page rail on
+   the right from the top of the page, like the Library reading pages. */
+.cp-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .cp-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) calc(var(--size-40) + var(--size-8));
-  gap: var(--space-12);
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 1320px) {
+  main:not(.wide):has(> .cp-page) {
+    max-width: calc(var(--layout-content-max-width) + var(--size-80));
+  }
+
+  .cp-page {
+    grid-template-columns: minmax(0, 1fr) calc(var(--size-40) + var(--size-12));
+    column-gap: var(--space-20);
+  }
 }
 
 .cp-body > section:first-child h2 {
@@ -125,7 +142,6 @@
   position: sticky;
   top: calc(var(--layout-header-height) + var(--space-8));
   align-self: start;
-  margin-top: var(--space-12);
   font-size: var(--typography-ui-size);
 }
 
@@ -644,11 +660,7 @@ a.tchip:hover {
 
 /* Responsive */
 
-@media (max-width: 1280px) {
-  .cp-layout {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
+@media (max-width: 1319px) {
   .cp-toc {
     display: none;
   }
