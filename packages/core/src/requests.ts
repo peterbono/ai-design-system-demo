@@ -5,6 +5,8 @@
 // Shared by the Figma plugin, Studio, the MCP server, the CLI and the Jira Action, so a request reads the same
 // everywhere. The issue body is plain Markdown for people plus one hidden JSON block for tools.
 
+import { EXPLORATION_LABEL, explorationRules } from './explorations';
+
 export type RequestKind = 'new-component' | 'new-variant' | 'prop-change' | 'visual' | 'token-binding' | 'bug' | 'other';
 export type RequestSource = 'figma' | 'studio' | 'cli' | 'mcp';
 export type RequestStatus = 'requested' | 'in-progress' | 'done' | 'declined';
@@ -45,6 +47,11 @@ export interface ComponentChangeRequest {
   source: RequestSource;
   /** GitHub login, when known. */
   requestedBy?: string | undefined;
+  /**
+   * Exploration branch (`explore/<slug>`) to implement it on instead of a pull request to main. The issue gets the
+   * `exploration` label and the brief says to work on that branch (docs/EXPLORATIONS.md).
+   */
+  exploration?: string | undefined;
 }
 
 export interface RequestIssue {
@@ -79,15 +86,18 @@ export function composeRequestIssue(r: ComponentChangeRequest, opts: { labels?: 
     ...(r.images?.length ? [...r.images.map((u, i) => `![${r.component} design ${i + 1}](${u})`), ''] : []),
     ...(figma ? [`**Design:** ${figma}`, ''] : []),
     ...(opts.componentUrl ? [`**Component:** ${opts.componentUrl}`, ''] : []),
+    ...(r.exploration ? [`**Exploration:** \`${r.exploration}\`. Implement it on that branch, not in a pull request to main: it ships to product staging as a snapshot and is promoted to review only when the idea is validated.`, ''] : []),
     '## How to implement',
     '',
-    `Code is the source of truth: change the component in a pull request that says \`Closes #<this issue>\`, so this request closes when it merges. With Claude: \`bridge request implement <number>\` (CLI) or the \`bridge_get_request\` MCP tool.`,
+    r.exploration
+      ? `Commit the change to \`${r.exploration}\` (its draft pull request is the place). With Claude: \`bridge request implement <number>\` (CLI) or the \`bridge_get_request\` MCP tool. Promoting the exploration closes this request when it merges.`
+      : `Code is the source of truth: change the component in a pull request that says \`Closes #<this issue>\`, so this request closes when it merges. With Claude: \`bridge request implement <number>\` (CLI) or the \`bridge_get_request\` MCP tool.`,
     '',
     `<sub>Requested from ${sourceLabel(r.source)}${r.requestedBy ? ` by @${r.requestedBy}` : ''} with Bridge.</sub>`,
     '',
     `<!-- ${MARK} ${JSON.stringify(r)} -->`,
   ].join('\n');
-  const labels = [...new Set([REQUEST_LABEL, kindSlug(r.kind), `source: ${r.source}`, ...(opts.labels ?? [])])];
+  const labels = [...new Set([REQUEST_LABEL, kindSlug(r.kind), `source: ${r.source}`, ...(r.exploration ? [EXPLORATION_LABEL] : []), ...(opts.labels ?? [])])];
   return { title: requestIssueTitle(r), body, labels, assignees: opts.assignees ?? [] };
 }
 
@@ -135,7 +145,8 @@ export function requestImagePath(component: string, date: Date): string {
  * The brief Claude gets to implement a request (CLI `bridge request implement`, MCP `bridge_get_request`): the request,
  * the component's files, the repo rules, and how to open the pull request so it closes the issue.
  */
-export function requestBrief(r: ComponentChangeRequest, ctx: { issue: number; issueUrl?: string; files?: string[]; agentsFile?: string }): string {
+export function requestBrief(r: ComponentChangeRequest, ctx: { issue: number; issueUrl?: string; files?: string[]; agentsFile?: string; exploration?: string | undefined }): string {
+  const exploration = ctx.exploration ?? r.exploration;
   return [
     `Implement Bridge component change request #${ctx.issue}${ctx.issueUrl ? ` (${ctx.issueUrl})` : ''}.`,
     '',
@@ -152,7 +163,9 @@ export function requestBrief(r: ComponentChangeRequest, ctx: { issue: number; is
     'Rules:',
     `- Follow ${ctx.agentsFile ?? 'AGENTS.md'}: tokens only in component CSS, Base UI for behavior, states, tests, story, docs.json, changeset.`,
     '- A new component, prop or variant is Tier 2: open the pull request as a draft (new component: follow the new component checklist). A token add or rename is Tier 3: describe it, do not invent values.',
-    `- Work on a branch named agent/request-${ctx.issue}. The pull request body must contain "Closes #${ctx.issue}".`,
+    ...(exploration
+      ? [`- This request is part of the exploration ${exploration}.`, ...explorationRules(exploration), `- Reference the request in the commit message ("Refs #${ctx.issue}"). Promoting the exploration closes it.`]
+      : [`- Work on a branch named agent/request-${ctx.issue}. The pull request body must contain "Closes #${ctx.issue}".`]),
     '- If the request is unclear or conflicts with the guidance, comment on the issue instead of guessing.',
   ].join('\n');
 }

@@ -2,11 +2,13 @@
 // Studio Changes: one page, three views. "In review": the open pull requests, most urgent first, with the local draft
 // and the branches without a pull request. "History": merged token changes by release, with undo. A pull request
 // opens in place (?pr=N). "Requests": component change requests (GitHub issues labeled component-change) that a pull
-// request implements, opened in place (?request=N). Replaces Drafts, Branches, Reviews, Versions and Visual impact (lib/redirects.ts).
+// request implements, opened in place (?request=N). "Explorations": draft pull requests labeled exploration on
+// explore/<slug> branches, tried in a product staging branch and never merged as is, opened in place (?exploration=N). Replaces Drafts, Branches, Reviews, Versions and Visual impact (lib/redirects.ts).
 import '../../styles/reviews.css';
 import '../../styles/history.css';
 import '../../styles/changes.css';
 import '../../styles/requests.css';
+import '../../styles/explorations.css';
 import Layout from '../../layouts/Layout.astro';
 import StudioHeader from '../../components/StudioHeader.astro';
 import HistoryPlanner from '../../components/HistoryPlanner.astro';
@@ -15,6 +17,7 @@ import Icon from '../../components/Icon.astro';
 import ButtonLink from '../../components/ds/ButtonLink';
 import { Alert, Button } from '@bridge-ds/react';
 import { siteRepo } from '../../lib/config';
+import { EXPLORATION_USE_CASES } from '@bridge-ds/core';
 import { lastUpdated, PREVIEW_APPS, PREVIEW_PACKAGES, readText } from '../../lib/repo';
 import { CONTRAST_FILE } from '../../lib/contrast';
 import { versionInfo } from '../../lib/changelog';
@@ -27,7 +30,7 @@ const cfgJson = JSON.stringify(cfg).replace(/</g, '\\u003c');
 const version = versionInfo();
 const waiting = version.pending;
 const historyLine = `${version.current} is live. ${waiting === 0 ? 'Nothing waits for the next release.' : `${waiting} ${waiting === 1 ? 'change waits' : 'changes wait'} for the next release.`}`;
-const sources = ['docs/GOVERNANCE.md', '.github/CODEOWNERS', 'docs/PREVIEWS.md', '.changeset'];
+const sources = ['docs/GOVERNANCE.md', '.github/CODEOWNERS', 'docs/PREVIEWS.md', 'docs/EXPLORATIONS.md', '.changeset'];
 ---
 
 <Layout
@@ -47,6 +50,9 @@ const sources = ['docs/GOVERNANCE.md', '.github/CODEOWNERS', 'docs/PREVIEWS.md',
         </a>
         <a role="tab" id="cg-tab-requests" href="/studio/changes/?view=requests" aria-controls="cg-requests" aria-selected="false" tabindex="-1" data-cg-view="requests">
           Requests <span class="cg-tab-n num" id="rq-count" hidden></span>
+        </a>
+        <a role="tab" id="cg-tab-explore" href="/studio/changes/?view=explorations" aria-controls="cg-explore" aria-selected="false" tabindex="-1" data-cg-view="explorations">
+          Explorations <span class="cg-tab-n num" id="ex-count" hidden></span>
         </a>
         <a role="tab" id="cg-tab-history" href="/studio/changes/?view=history" aria-controls="cg-history" aria-selected="false" tabindex="-1" data-cg-view="history">History</a>
       </div>
@@ -112,6 +118,61 @@ const sources = ['docs/GOVERNANCE.md', '.github/CODEOWNERS', 'docs/PREVIEWS.md',
             Designers ask for a new component or a change from the Push tab of the DS Bridge Figma plugin, or from a component in <a href="/studio/components/">Components</a>.
             Each request is a GitHub issue labeled <span class="mono">component-change</span>.
           </p>
+        </div>
+      </section>
+
+      <section class="cg-panel" id="cg-explore" role="tabpanel" aria-labelledby="cg-tab-explore" hidden>
+        <section class="zone cg-open" id="ex-opener" aria-live="polite">
+          <p class="cg-open-sentence" id="ex-sentence">Explorations load from GitHub.</p>
+          <p class="cg-asof ex-rule">Try variables and components in a product staging branch without touching main. An exploration is never merged as is: promote it to review when the idea is validated, or close it.</p>
+          <Button variant="primary" id="ex-start-open" aria-expanded="false" aria-controls="ex-start">Start an exploration</Button>
+        </section>
+
+        <form class="fg-card rq-form ex-form" id="ex-start" aria-label="Start an exploration" novalidate hidden>
+          <label class="rq-field">Name
+            <input name="name" autocomplete="off" maxlength="60" placeholder="Pill buttons" aria-describedby="ex-branch" />
+            <span class="rq-hint" id="ex-branch"></span>
+          </label>
+          <label class="rq-field">What do you want to learn?
+            <textarea name="purpose" rows="2" placeholder="Do rounder buttons read as friendlier in checkout?"></textarea>
+          </label>
+          <label class="rq-field">Use case
+            <select name="useCase" aria-describedby="ex-uc-hint">
+              <option value="">Not set</option>
+              {EXPLORATION_USE_CASES.map((u) => <option value={u.value}>{u.label}</option>)}
+            </select>
+            <span class="rq-hint" id="ex-uc-hint"></span>
+          </label>
+          <p class="gh-error" id="ex-start-error" role="alert" hidden></p>
+          <div class="ex-no-gh" data-no-gh>
+            <p class="rq-hint">Connect GitHub to start it here, or run this in the design system repo:</p>
+            <div class="rq-cmd-row"><code class="cg-cmd rq-cmd" id="ex-start-cmd"></code><button type="button" class="btn btn-secondary btn-sm" data-copy data-copy-from="ex-start-cmd"><span data-copy-label>Copy command</span></button></div>
+          </div>
+          <p class="ex-actions">
+            <Button type="submit" variant="primary" id="ex-start-submit" data-gh-only hidden>Start exploration</Button>
+            <Button variant="secondary" data-no-gh data-gh-open>Connect GitHub</Button>
+            <Button variant="ghost" data-ex-cancel>Cancel</Button>
+          </p>
+        </form>
+        <div class="ex-done" id="ex-done" role="status" hidden></div>
+
+        <div class="fg-card cg-card" id="ex-table">
+          <ul class="cg-list" id="ex-list" aria-label="Explorations" aria-busy="true">
+            <li class="cg-row cg-skel" aria-hidden="true"></li>
+            <li class="cg-row cg-skel" aria-hidden="true"></li>
+          </ul>
+        </div>
+
+        <div class="cg-empty" id="ex-empty" hidden>
+          <Illustration name="guide" width={200} />
+          <p class="cg-empty-title">No exploration running.</p>
+          <p class="cg-muted ex-rule">Start one when an idea needs real screens before it becomes a change:</p>
+          <ul class="ex-uses">
+            <li>A coded prototype for a user test, on a product staging branch.</li>
+            <li>A stakeholder demo of a new look, with real components.</li>
+            <li>An A/B idea, next to what ships today.</li>
+            <li>A designer exploring from the terminal with Claude Code, on an explore branch instead of main.</li>
+          </ul>
         </div>
       </section>
 

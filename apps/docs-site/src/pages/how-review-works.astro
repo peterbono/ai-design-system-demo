@@ -1,6 +1,6 @@
 ---
 // Library, Use: How review works. The governance prose that used to sit in Studio Settings: risk tiers at rest,
-// then collapsible sections (the journey of a change, component change requests, review gates, owner override, approvals by area, the AI
+// then collapsible sections (the journey of a change, component change requests, explorations, review gates, owner override, approvals by area, the AI
 // agent's rules, what reviewers check on an agent's pull request). Read from docs/GOVERNANCE.md and AGENTS.md so
 // the page never drifts from the rules people and agents follow.
 import '../styles/library.css';
@@ -48,6 +48,11 @@ const requestSteps: { title: string; text: string }[] = [
   { title: 'Implement', text: 'A developer, or Claude with `bridge request implement <number>` or the `bridge_get_request` MCP tool, changes the code in a pull request that says `Closes #<number>`.' },
   { title: 'Review and merge', text: 'The pull request goes through the same tiers and gates as any other change. When it merges, the request closes as done.' },
 ];
+const exploreSteps: { title: string; text: string }[] = [
+  { title: 'Start', text: 'From Studio Changes, `bridge explore start <name>` or Claude (`bridge_start_exploration`): a branch `explore/<name>` from main and a draft pull request labeled `exploration`. Token edits and requests filed on it land there, never on main.' },
+  { title: 'Try it in a product staging branch', text: 'Every push publishes snapshot packages (`npm i @bridge-ds/react@<snapshot>`) and per-branch previews: a coded prototype for a user test, a stakeholder demo or an A/B idea on real screens.' },
+  { title: 'Promote or close', text: 'It is never merged as is: the `Exploration not merged as is` check fails while the label is on. Promote to review removes the label, adds the tier labels and marks it ready, then the usual gates apply. Otherwise, close it.' },
+];
 const allowed = r.override.allowed.map((l) => `@${l}`).join(', ');
 ---
 
@@ -84,6 +89,24 @@ const allowed = r.override.allowed.map((l) => `@${l}`).join(', ');
       <ol class="rw-steps">
         {
           requestSteps.map((s) => (
+            <li>
+              <p class="rw-step-title">{s.title}</p>
+              <p set:html={inline(s.text)} />
+            </li>
+          ))
+        }
+      </ol>
+    </details>
+
+    <details class="rw-sec" id="explorations">
+      <summary><h2>Explorations</h2><span class="rw-n">3 steps</span></summary>
+      <p>
+        An exploration tries experimental variables and components in a real product staging branch without touching main. Follow them in{' '}
+        <a href="/studio/changes/?view=explorations">Studio Changes, Explorations</a>, or in GitHub by the <code>exploration</code> label.
+      </p>
+      <ol class="rw-steps">
+        {
+          exploreSteps.map((s) => (
             <li>
               <p class="rw-step-title">{s.title}</p>
               <p set:html={inline(s.text)} />

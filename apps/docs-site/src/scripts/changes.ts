@@ -1,23 +1,31 @@
-// Studio Changes page controller: the three views (In review, Requests, History) as tabs, a pull request opened in
+// Studio Changes page controller: the four views (In review, Requests, Explorations, History) as tabs, a pull request opened in
 // place (?pr=N), a component change request opened in place (?request=N), the local draft strip, and the routes old pages redirect to (?view=history, #other-branches, ?branch=).
 import { closePr, initReviewAuth, loadList, openPr } from './reviews';
 import { initHistory } from './history/page';
 import { loadRequests, openRequest } from './requests';
+import { initExplorations, loadExplorations, openExploration, paintExplorationCount } from './explorations';
+import type { ExplorationPullLike } from '../lib/explorations-view';
 import type { PullLike } from '../lib/requests-view';
 import { draftCount } from './shell';
 import { docsEdits, draftSummary, tokenEdits } from '../lib/docs-draft-model';
 import type { Draft } from '../lib/editor-model';
 
-type View = 'review' | 'requests' | 'history';
+type View = 'review' | 'requests' | 'explorations' | 'history';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const tabs = () => [...document.querySelectorAll<HTMLAnchorElement>('[data-cg-view]')];
 let listLoaded: Promise<{ number: number; head: { ref: string } }[]> | null = null;
-const VIEW_QUERY: Record<View, string> = { review: '', requests: '?view=requests', history: '?view=history' };
+const VIEW_QUERY: Record<View, string> = { review: '', requests: '?view=requests', explorations: '?view=explorations', history: '?view=history' };
 
 /** The open pull requests In review already read (with their bodies), so Requests links them at no request. */
 const openPullsForRequests = (): Promise<PullLike[] | null> | undefined =>
   listLoaded?.then((pulls) => (pulls.every((p) => 'body' in p) ? (pulls as unknown as PullLike[]) : null));
+
+/** The same open pull requests for Explorations (the In review list is read once, explorations included). */
+const openPullsForExplorations = () => {
+  listLoaded ??= loadList();
+  return listLoaded.then((pulls) => (pulls.every((p) => 'body' in p) ? (pulls as unknown as ExplorationPullLike[]) : null));
+};
 
 function selectTab(view: View) {
   for (const t of tabs()) {
@@ -27,6 +35,7 @@ function selectTab(view: View) {
   }
   $('cg-review').hidden = view !== 'review';
   $('cg-requests').hidden = view !== 'requests';
+  $('cg-explore').hidden = view !== 'explorations';
   $('cg-history').hidden = view !== 'history';
 }
 
@@ -55,7 +64,9 @@ function showView(view: View) {
   selectTab(view);
   if (view === 'history') initHistory();
   else if (view === 'requests') void loadRequests(openPullsForRequests());
+  else if (view === 'explorations') void loadExplorations(openPullsForExplorations);
   else listLoaded ??= loadList();
+  void listLoaded?.then((pulls) => paintExplorationCount(pulls as unknown as ExplorationPullLike[]));
 }
 
 function route() {
@@ -73,8 +84,16 @@ function route() {
     void openRequest(req, false, openPullsForRequests());
     return;
   }
+  const ex = Number(params.get('exploration'));
+  if (ex) {
+    closePr();
+    $('cg-main').hidden = true;
+    void openExploration(ex, false);
+    void loadExplorations(openPullsForExplorations);
+    return;
+  }
   const v = params.get('view');
-  const view: View = v === 'history' || v === 'requests' ? v : 'review';
+  const view: View = v === 'history' || v === 'requests' || v === 'explorations' ? v : 'review';
   showView(view);
   // Branch scope from the Studio header: open the pull request of that branch, if it has one.
   const branch = params.get('branch');
@@ -90,6 +109,7 @@ function route() {
 
 export function initChanges() {
   initReviewAuth();
+  initExplorations();
   paintDraft();
   document.addEventListener('bridge:draft', paintDraft);
   window.addEventListener('storage', paintDraft);
@@ -111,6 +131,19 @@ export function initChanges() {
       e.preventDefault();
       $('cg-main').hidden = true;
       void openRequest(Number(rq.dataset.openRequest), true, openPullsForRequests());
+      return;
+    }
+    const ex = t.closest<HTMLAnchorElement>('[data-open-exploration]');
+    if (ex) {
+      e.preventDefault();
+      $('cg-main').hidden = true;
+      void openExploration(Number(ex.dataset.openExploration));
+      return;
+    }
+    if (t.closest('[data-back-explorations]')) {
+      e.preventDefault();
+      history.pushState({}, '', '?view=explorations');
+      showView('explorations');
       return;
     }
     if (t.closest('[data-back-requests]')) {

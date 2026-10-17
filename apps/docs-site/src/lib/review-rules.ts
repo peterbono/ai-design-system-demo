@@ -191,6 +191,8 @@ export function mergeGate(input: {
   /** Login of the connected viewer (GitHub /user). */
   viewer?: string | null;
   override?: OverridePolicy | null;
+  /** A running exploration (label `exploration`): never merged as is, whatever else is green. */
+  exploration?: boolean;
 }): MergeGate {
   const blocking: string[] = [];
   const missing: MissingApproval[] = [];
@@ -198,6 +200,7 @@ export function mergeGate(input: {
   const lifecycle = pullState(input);
   if (lifecycle === 'merged') blocking.push('This pull request is already merged.');
   else if (lifecycle === 'closed') blocking.push('This pull request is closed.');
+  if (input.exploration && lifecycle !== 'merged' && lifecycle !== 'closed') blocking.push('It is an exploration: promote it to review first.');
   if (input.draft) blocking.push('It is a draft. Mark it ready for review on GitHub first.');
   if (input.ci.state === 'fail') blocking.push(`CI fails: ${input.ci.failed.map((f) => f.name).join(', ')}.`);
   if (input.ci.state === 'pending') blocking.push('CI is still running.');

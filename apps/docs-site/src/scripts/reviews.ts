@@ -2,7 +2,8 @@
 // from the GitHub REST API, most urgent first, with a designer-friendly token diff and governance-aware actions.
 // Without a token every action deep-links to GitHub. When GitHub cannot be read, the last list this browser saw
 // stays on screen, labelled with its time (lib/changes.ts).
-import { classifyRisk } from '@bridge-ds/core';
+import { classifyRisk, isActiveExploration } from '@bridge-ds/core';
+import { isRunningExploration, tierSlot } from '../lib/explorations-view';
 import {
   allowedMergeMethods,
   canWrite,
@@ -254,7 +255,7 @@ const toRow = (p: Pull | CachedPull, kind: ReviewStatusKind | null): Row => ({
   draft: p.draft,
 });
 
-/** Loads and paints the In review list. Returns the open pull requests it shows (live, stale or cached). */
+/** Loads and paints the In review list. Returns every open pull request (running explorations included, which the list leaves out). */
 export async function loadList(): Promise<{ number: number; head: { ref: string } }[]> {
   const list = $('rv-list');
   list.setAttribute('aria-busy', 'true');
@@ -262,9 +263,12 @@ export async function loadList(): Promise<{ number: number; head: { ref: string 
   const known = new Map<number, ReviewStatusKind | null>((snapshot?.pulls ?? []).map((p) => [p.number, p.kind]));
   let live: { pulls: Pull[]; staleAt?: string | null } | null = null;
   let failure: unknown = null;
+  let allOpen: Pull[] = [];
   try {
     const f = await ghGet<Pull[]>(`${R}/pulls?state=open&per_page=100`);
-    live = { pulls: openPulls(f.data), staleAt: f.stale ? (f.cachedAt ?? new Date(0).toISOString()) : null };
+    allOpen = openPulls(f.data);
+    // Running explorations live in the Explorations view: never merged as is, so they are not waiting for review.
+    live = { pulls: allOpen.filter((p) => !isRunningExploration(p)), staleAt: f.stale ? (f.cachedAt ?? new Date(0).toISOString()) : null };
   } catch (err) {
     failure = err;
   }
@@ -296,8 +300,8 @@ export async function loadList(): Promise<{ number: number; head: { ref: string 
   if (!pulls.length) {
     $('rv-count').hidden = true;
     writeSnapshot(storage(), REPO_KEY, [], new Date());
-    void loadOtherBranches(pulls);
-    return pulls;
+    void loadOtherBranches(allOpen);
+    return allOpen;
   }
   // A stale list starts from the statuses saved with the snapshot; a live one starts from "Checking".
   const rows = new Map(pulls.map((p) => [p.number, toRow(p, src.kind === 'stale' ? (known.get(p.number) ?? null) : null)]));
@@ -320,8 +324,8 @@ export async function loadList(): Promise<{ number: number; head: { ref: string 
       new Date(),
     );
   }
-  void loadOtherBranches(pulls);
-  return pulls;
+  void loadOtherBranches(allOpen);
+  return allOpen;
 }
 
 function branchRow(e: BranchEntry) {
@@ -387,7 +391,7 @@ export async function openPr(n: number, push = true) {
     const tier = Math.max(labelled ?? 0, computed) as Tier;
     current = { pull, tier };
     const approvals = summarizeApprovals(reviews, OWNERS, pull.user.login);
-    const gate = mergeGate({ tier, ci, approvals, draft: pull.draft, mergeable: pull.mergeable, state: pull.state, merged_at: pull.merged_at, viewer: access?.login, override: OVERRIDE });
+    const gate = mergeGate({ tier, ci, approvals, draft: pull.draft, mergeable: pull.mergeable, state: pull.state, merged_at: pull.merged_at, viewer: access?.login, override: OVERRIDE, exploration: isActiveExploration(pull.labels) });
     const tokenFiles = files.filter((f) => isTokenFile(f.filename));
     const changesets = files.filter((f) => /^\.changeset\/(?!README).+\.md$/.test(f.filename) && f.status !== 'removed');
     const visual = touchesVisuals(files.map((f) => f.filename));
@@ -572,7 +576,7 @@ function renderDetail(x: DetailInput) {
   <nav class="cg-crumbs" aria-label="Breadcrumb"><a href="./" data-back>Changes</a><span aria-hidden="true">/</span><span class="mono">#${pull.number}</span></nav>
   <header class="zone cg-pr-open">
     <h1 class="cg-pr-title">${esc(humanTitle(mdTitleText(pull.title)))} <span class="cg-num">#${pull.number}</span></h1>
-    <p class="cg-pr-meta">${avatar(pull.user, 20)}<span>${esc(pull.user.login)}</span><span class="mono">${esc(pull.head.ref)}</span>${tierTag(tier)}<a href="${esc(pull.html_url)}" target="_blank" rel="noopener">Open on GitHub</a><a href="/how-review-works/">How review works</a></p>
+    <p class="cg-pr-meta">${avatar(pull.user, 20)}<span>${esc(pull.user.login)}</span><span class="mono">${esc(pull.head.ref)}</span><span class="pill cg-tier">${esc(tierSlot(pull.labels, tier))}</span><a href="${esc(pull.html_url)}" target="_blank" rel="noopener">Open on GitHub</a><a href="/how-review-works/">How review works</a></p>
     <p class="cg-pr-state">${esc(sentence)}${esc(approved)}</p>
     <p class="cg-pr-cta">${primaryHtml}</p>
   </header>

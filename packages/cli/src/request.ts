@@ -29,10 +29,12 @@ export const REQUEST_HELP = `bridge request: component change requests (GitHub i
 Usage:
   bridge request list [--status requested|in-progress|done|declined|all] [--component Button] [--json]
   bridge request show <number> [--json]
-  bridge request implement <number> [--claude]
-                     print the brief Claude needs to implement the request; --claude starts Claude Code with it
+  bridge request implement <number> [--claude] [--branch explore/<name>]
+                     print the brief Claude needs to implement the request; --claude starts Claude Code with it;
+                     --branch: implement it on that exploration, never in a pull request to main
   bridge request create --component Button --kind new-variant --title "Add a danger ghost variant"
-                     --summary "..." [--change field=before:after ...] [--figma url] [--dry-run] [--json]
+                     --summary "..." [--change field=before:after ...] [--figma url]
+                     [--exploration explore/<name>] [--dry-run] [--json]
   bridge request jira-sync
                      GitHub Action step: mirror a request issue to Jira (see docs/REQUESTS.md)
 
@@ -96,9 +98,9 @@ export function parseChange(s: string): { field: string; before?: string; after?
 }
 
 /** The request, or undefined (message on stderr) when the issue is not one: exit 1, not a setup error. */
-async function getOrExplain(ctx: BridgeContext, n: number, io: RequestIO) {
+async function getOrExplain(ctx: BridgeContext, n: number, io: RequestIO, branch?: string) {
   try {
-    return await requests.getRequest(ctx, { number: n });
+    return await requests.getRequest(ctx, { number: n, ...(branch ? { branch } : {}) });
   } catch (e) {
     if (/is not a component change request/.test((e as Error).message)) {
       io.error(`bridge: ${(e as Error).message}`);
@@ -151,13 +153,15 @@ export async function runRequest(a: RequestArgs, root: string, io: RequestIO = d
         io.print('Pull requests:');
         for (const p of r.linkedPrs) io.print(`  #${p.number} ${p.state}  ${p.title}  ${p.url}`);
       }
+      if (r.exploration) io.print(`Exploration: ${r.exploration} (implement it there, not in a pull request to main)`);
       io.print(`\nNext: bridge request implement ${r.number} --claude`);
       return 0;
     }
     case 'implement': {
-      const n = issueNumber(a, 'bridge request implement <number> [--claude]');
+      const n = issueNumber(a, 'bridge request implement <number> [--claude] [--branch explore/<name>]');
       const ctx = await context(root, io, false);
-      const r = await getOrExplain(ctx, n, io);
+      const branch = flag(a, 'branch');
+      const r = await getOrExplain(ctx, n, io, branch);
       if (!r) return 1;
       if (!has(a, 'claude')) return io.print(r.brief), 0;
       if (!io.hasClaude()) {
@@ -178,6 +182,7 @@ export async function runRequest(a: RequestArgs, root: string, io: RequestIO = d
       const dryRun = has(a, 'dry-run');
       const ctx = await context(root, io, !dryRun);
       const figma = flag(a, 'figma');
+      const exploration = flag(a, 'exploration');
       const r = await requests.createRequest(ctx, {
         component,
         kind: kind as RequestKind,
@@ -185,6 +190,7 @@ export async function runRequest(a: RequestArgs, root: string, io: RequestIO = d
         summary,
         changes: (a.flags.change ?? []).map(parseChange),
         ...(figma ? { figmaUrl: figma } : {}),
+        ...(exploration ? { exploration } : {}),
         source: 'cli',
         dryRun,
       });

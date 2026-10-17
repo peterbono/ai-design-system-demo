@@ -13,9 +13,12 @@ to it as pull requests that people review.
   playground, theme playground, and the process pages: Reviews, History, Branches, Adoption, Governance, Changelog.
 - **DS Bridge Figma plugin** (`apps/figma-plugin`): **Pull** tokens into Figma Variables, **Push** variable edits
   back as a draft pull request with a three-way diff and the contrast gate. Free Figma plan, Plugin API only.
-- **MCP server and CLI for your own Claude**: 21 MCP tools and the `bridge` command. Claude reads tokens and
+- **MCP server and CLI for your own Claude**: 30 MCP tools and the `bridge` command. Claude reads tokens and
   components, checks contrast, proposes changes on a branch or a draft PR, reviews PRs, audits product code.
   It never writes to `main`.
+- **Explorations**: try experimental variables and components in a product staging branch without touching
+  `main` (an `explore/<name>` branch with a draft pull request, previews and a snapshot package), then promote it
+  to review or close it ([docs/EXPLORATIONS.md](docs/EXPLORATIONS.md)).
 - **Reviews**: token PRs reviewed from Bridge with a diff table, contrast before and after, downstream impact,
   risk tier, CI status and approvals.
 - **History and revert**: every merged token change with who, when, why and the version it shipped in; a revert
@@ -120,7 +123,7 @@ flowchart LR
 
   core --> docs["Bridge web platform<br/>apps/docs-site"]
   core --> plugin["DS Bridge Figma plugin<br/>Pull / Push"]
-  core --> mcp["MCP server<br/>28 tools"]
+  core --> mcp["MCP server<br/>30 tools"]
   core --> cli["bridge CLI"]
   core --> lint["Stylelint and ESLint plugins"]
   visual["@bridge-ds/visual<br/>screenshots, pixel diff"] --> cli
@@ -149,7 +152,7 @@ packages/react            46 components: Base UI, CSS Modules on tokens, stories
 packages/core             shared logic: config, token loading, contrast, diffs, edits, risk tiers, GitHub client,
                           history and revert planner, usage index, adoption audit, previews
 packages/visual           visual impact: selection, deterministic capture, pixel diff, manifest
-packages/mcp              MCP server (stdio), 28 tools, resources and prompts
+packages/mcp              MCP server (stdio), 30 tools, resources and prompts
 packages/cli              bridge CLI: init, check, tokens, diff, propose, history, revert, impact, audit, mcp
 packages/stylelint-plugin bridge/use-tokens for product CSS
 packages/eslint-plugin    bridge/no-hardcoded-style-values and bridge/prefer-ds-components

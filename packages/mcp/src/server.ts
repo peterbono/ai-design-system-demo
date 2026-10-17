@@ -8,7 +8,8 @@ import * as ops from './ops.js';
 import * as history from './history.js';
 import * as brand from './brand.js';
 import * as requests from './requests.js';
-import { REQUEST_KINDS } from '@bridge-ds/core';
+import * as explorations from './explorations.js';
+import { EXPLORATION_USE_CASES, REQUEST_KINDS } from '@bridge-ds/core';
 
 export const VERSION = '0.1.0';
 
@@ -54,6 +55,7 @@ export function createServer(ctx: BridgeContext): McpServer {
         'New brands: bridge_plan_brand first (dry run with ramps and the contrast gate for every theme), then bridge_propose_brand. A new brand is Tier 3.',
         'To undo a merged token change use bridge_plan_revert first (it shows conflicts with later changes), then bridge_propose_revert; never revert by hand-editing files.',
         'Component changes (new component, variant, prop, structure, visual, token binding) are requests: GitHub issues labeled component-change. bridge_list_requests finds them, bridge_get_request returns a brief to implement one in a pull request that says "Closes #n", bridge_create_request files a new one.',
+        'Explorations try experimental variables and components in a product staging branch without touching main: an explore/<slug> branch with a draft pull request labeled exploration, previews and a snapshot package. bridge_start_exploration starts one, bridge_list_explorations lists them. To work on one, pass "branch": "explore/<slug>" to bridge_propose_token_change, bridge_draft_docs and bridge_get_request, and never open a pull request to main from it: a person promotes it to review or closes it.',
       ].join(' '),
     },
   );
@@ -162,7 +164,10 @@ export function createServer(ctx: BridgeContext): McpServer {
       title: 'Draft component docs',
       description:
         "Start or refresh a component's docs.json. Returns what the code tells (props table from TypeScript, tokens its stylesheet reads, tokens it reads through another component's stylesheet, anatomy from the CSS module classes, contrast checks those tokens take part in, a changelog line, existing prose kept, the keys still missing), the target path, and a prompt for you to write the missing prose in the repo conventions. Nothing is written: save the result with \"draftedBy\": \"claude\" and \"needsReview\": true so a reviewer accepts it in Bridge Studio.",
-      inputSchema: { name: z.string().describe('Component name, e.g. Icon.') },
+      inputSchema: {
+        name: z.string().describe('Component name, e.g. Icon.'),
+        branch: z.string().optional().describe('Exploration branch (explore/<slug>): read the component there (GitHub) and save the draft on that branch, not in a pull request to main.'),
+      },
       annotations: RO,
     },
     run((a) => ops.draftDocsOp(ctx, a)),
@@ -202,6 +207,7 @@ export function createServer(ctx: BridgeContext): McpServer {
         summary: z.string().optional().describe('Why: the problem and the intent, for the reviewers. Plain sentences, no em dash.'),
         edits: z.array(EditArg).min(1),
         dryRun: z.boolean().optional().describe('Return the diff, tier, files and PR body without writing.'),
+        branch: z.string().optional().describe('Exploration branch (explore/<slug>) to commit the edits to instead of opening a new pull request. GitHub: one commit on that branch. Local: written to the working tree, which must have that branch checked out. Never main.'),
       },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     },
@@ -450,7 +456,10 @@ export function createServer(ctx: BridgeContext): McpServer {
       title: 'Get a component change request',
       description:
         'One request, ready to implement: the parsed request (component, kind, summary, changes asked, Figma link, images), its status and linked pull requests, the component files found under the components directory, the agent rules file, and `brief`: the prompt to implement it in this repo. Then work on a branch named agent/request-<n> and open a pull request whose body says "Closes #<n>". If the request is unclear, comment on the issue instead of guessing.',
-      inputSchema: { number: z.number().int().positive().describe('Issue number.') },
+      inputSchema: {
+        number: z.number().int().positive().describe('Issue number.'),
+        branch: z.string().optional().describe('Exploration branch (explore/<slug>) to implement it on: the brief then says to work there and never open a pull request to main. Default: the exploration the request names, if any.'),
+      },
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
     run((a) => requests.getRequest(ctx, a)),
@@ -472,11 +481,43 @@ export function createServer(ctx: BridgeContext): McpServer {
           .optional()
           .describe('What changes, from what to what.'),
         figmaUrl: z.string().url().optional().describe('Link to the design in Figma, when there is one.'),
+        exploration: z.string().optional().describe('Exploration branch (explore/<slug>) to implement it on instead of a pull request to main. Adds the exploration label.'),
         dryRun: z.boolean().optional().describe('Return the issue title, body and labels without creating it.'),
       },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     },
     run((a) => requests.createRequest(ctx, { ...a, kind: a.kind as requests.CreateRequestInput['kind'], source: 'mcp' })),
+  );
+
+  // --- explorations ---
+  server.registerTool(
+    'bridge_start_exploration',
+    {
+      title: 'Start an exploration',
+      description:
+        'Start an exploration: a branch explore/<slug> from the default branch with a note file, and a DRAFT pull request labeled exploration that gets per-branch previews and a snapshot package a product staging branch installs (npm i @bridge-ds/react@<snapshot>). For a coded prototype for a user test, a stakeholder demo, an A/B idea, or a designer exploring from the terminal instead of main. Never merged as is: a person promotes it to review or closes it. GitHub with GITHUB_TOKEN: branch and draft pull request. Local without a token: a local branch only, nothing pushed. dryRun previews it. Only start one when the user asked for it.',
+      inputSchema: {
+        name: z.string().min(1).describe('Short name, sentence case: "Pill buttons". Becomes explore/pill-buttons.'),
+        purpose: z.string().min(1).describe('What the team wants to learn, one or two plain sentences. No em dash.'),
+        useCase: z.enum(EXPLORATION_USE_CASES.map((u) => u.value) as [string, ...string[]]).optional().describe(EXPLORATION_USE_CASES.map((u) => `${u.value}: ${u.hint}`).join(' ')),
+        experimental: z.array(z.string()).optional().describe('What is experimental, one line each: "color.action.primary.bg", "Button: pill radius".'),
+        dryRun: z.boolean().optional().describe('Return the branch, note and pull request body without writing.'),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    },
+    run((a) => explorations.startExploration(ctx, a)),
+  );
+
+  server.registerTool(
+    'bridge_list_explorations',
+    {
+      title: 'List explorations',
+      description:
+        'Explorations of the repo (draft pull requests labeled exploration on explore/* branches): name, purpose, status (active: running; promoted: ready for review; closed), author, last update, preview links, the snapshot install command for a product staging branch (and the tarball fallback), and the component requests implemented on each. Locally, also explore/* branches without a pull request.',
+      inputSchema: { state: z.enum(['open', 'closed', 'all']).optional().describe('Pull request state. Default open: running and promoted ones.') },
+      annotations: { readOnlyHint: true, openWorldHint: true },
+    },
+    run((a) => explorations.listExplorations(ctx, a)),
   );
 
   // --- resources ---

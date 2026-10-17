@@ -19,6 +19,7 @@ import {
   type RequestStatus,
 } from '@bridge-ds/core';
 import { listComponentNames } from './components.js';
+import { toExplorationBranch } from './explorations.js';
 import type { BridgeContext } from './context.js';
 
 export type RequestStatusFilter = RequestStatus | 'all';
@@ -39,6 +40,8 @@ export interface RequestRow {
   status: RequestStatus;
   url: string;
   linkedPrs: LinkedPr[];
+  /** Exploration branch it is implemented on, when it is part of one. */
+  exploration?: string | undefined;
 }
 
 const KINDS = new Set<string>(REQUEST_KINDS.map((k) => k.value));
@@ -99,7 +102,7 @@ function statusOf(issue: Pick<IssueSummary, 'state' | 'stateReason'>, prs: Linke
 function toRow(issue: IssueSummary, linked: Map<number, LinkedPr[]>): RequestRow {
   const r = requestFromIssue(issue);
   const prs = linked.get(issue.number) ?? [];
-  return { number: issue.number, component: r.component, kind: r.kind, title: r.title, status: statusOf(issue, prs), url: issue.url, linkedPrs: prs };
+  return { number: issue.number, component: r.component, kind: r.kind, title: r.title, status: statusOf(issue, prs), url: issue.url, linkedPrs: prs, ...(r.exploration ? { exploration: r.exploration } : {}) };
 }
 
 export async function listRequests(ctx: BridgeContext, a: { status?: RequestStatusFilter; component?: string; limit?: number }) {
@@ -118,7 +121,7 @@ export async function listRequests(ctx: BridgeContext, a: { status?: RequestStat
   return { repo: gh.fullName, label: REQUEST_LABEL, status, total, requests: rows };
 }
 
-export async function getRequest(ctx: BridgeContext, a: { number: number }) {
+export async function getRequest(ctx: BridgeContext, a: { number: number; branch?: string | undefined }) {
   const gh = await requireGitHub(ctx);
   const [issue, linked] = await Promise.all([gh.getIssue(a.number), linkedPullRequests(gh)]);
   const isRequest = issue.labels.includes(REQUEST_LABEL) || Boolean(parseRequestIssue(issue.body));
@@ -130,7 +133,8 @@ export async function getRequest(ctx: BridgeContext, a: { number: number }) {
   const entry = dir ? (await listComponentNames(ctx.source, config)).find((c) => c.name.toLowerCase() === request.component.toLowerCase()) : undefined;
   const files = entry?.files ?? [];
   const agentsFile = config.docs.guidelines ?? 'AGENTS.md';
-  const brief = requestBrief(request, { issue: issue.number, issueUrl: issue.url, files, agentsFile });
+  const exploration = a.branch ? toExplorationBranch(a.branch) : request.exploration;
+  const brief = requestBrief(request, { issue: issue.number, issueUrl: issue.url, files, agentsFile, exploration });
   return {
     number: issue.number,
     url: issue.url,
@@ -143,7 +147,10 @@ export async function getRequest(ctx: BridgeContext, a: { number: number }) {
     component: { name: entry?.name ?? request.component, exists: Boolean(entry), dir: dir ? `${dir}/${entry?.name ?? request.component}` : undefined, files },
     agentsFile,
     brief,
-    next: `Implement it on a branch named agent/request-${issue.number} and open a pull request whose body says "Closes #${issue.number}".`,
+    ...(exploration ? { exploration } : {}),
+    next: exploration
+      ? `Implement it on the exploration branch ${exploration} (git fetch origin && git switch ${exploration}) and commit there. Do not open a pull request to main.`
+      : `Implement it on a branch named agent/request-${issue.number} and open a pull request whose body says "Closes #${issue.number}".`,
   };
 }
 
@@ -155,6 +162,8 @@ export interface CreateRequestInput {
   changes?: RequestChange[] | undefined;
   figmaUrl?: string | undefined;
   source?: RequestSource | undefined;
+  /** Exploration branch to implement it on (`explore/<slug>`), instead of a pull request to main. */
+  exploration?: string | undefined;
   dryRun?: boolean | undefined;
 }
 
@@ -175,6 +184,7 @@ export async function createRequest(ctx: BridgeContext, a: CreateRequestInput) {
     changes: (a.changes ?? []).filter((c) => c.field.trim()),
     ...(a.figmaUrl ? { figma: { url: a.figmaUrl } } : {}),
     source: a.source ?? 'mcp',
+    ...(a.exploration ? { exploration: toExplorationBranch(a.exploration) } : {}),
   };
   const settings = config.integrations?.requests;
   const issue = composeRequestIssue(req, { labels: settings?.labels ?? [], assignees: settings?.assignees ?? [] });
@@ -188,6 +198,6 @@ export async function createRequest(ctx: BridgeContext, a: CreateRequestInput) {
     url: created.url,
     title: created.title,
     labels: created.labels.length ? created.labels : issue.labels,
-    next: `Implement it with bridge_get_request {"number": ${created.number}} (or \`bridge request implement ${created.number}\`).`,
+    next: `Implement it with bridge_get_request {"number": ${created.number}} (or \`bridge request implement ${created.number}\`).${req.exploration ? ` It is part of ${req.exploration}: work on that branch, not in a pull request to main.` : ''}`,
   };
 }

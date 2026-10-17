@@ -391,6 +391,46 @@ export class GitHubClient {
     return { sha, branch: input.branch };
   }
 
+  /** The same client (token, fetch, retry, protected branches) with another required branch prefix (`explore/`). */
+  withBranchPrefix(branchPrefix: string | undefined): GitHubClient {
+    return new GitHubClient(this.fullName, this.token, this.fetchImpl, this.retry, { ...this.options, protectedBranches: this.protectedBranches, branchPrefix });
+  }
+
+  /**
+   * One commit with `files` on top of an existing branch, fast-forwarded (never forced). Refuses protected
+   * branches and, with a branch prefix, branches without it: explorations take token edits this way.
+   */
+  async commitToBranch(input: { branch: string; message: string; files: CommitFile[] }): Promise<{ sha: string; branch: string }> {
+    this.assertToken('Committing to a branch');
+    this.assertWritableBranch(input.branch);
+    const head = await this.getBranchSha(input.branch);
+    if (!head) throw new GitHubError(404, `Branch "${input.branch}" not found. Start it first.`);
+    const baseTree = await this.getCommitTree(head);
+    const tree = await this.createTree(baseTree, input.files.map((f) => (f.content === null ? { path: f.path, sha: null } : { path: f.path, content: f.content })));
+    const sha = await this.createCommit(input.message, tree, [head]);
+    await this.updateBranch(input.branch, sha);
+    return { sha, branch: input.branch };
+  }
+
+  /**
+   * Marks a draft pull request ready for review. REST cannot unset `draft`, so this is the GraphQL mutation
+   * markPullRequestReadyForReview, with the same token (pull requests: write).
+   */
+  async markReadyForReview(n: number): Promise<void> {
+    this.assertToken('Marking a pull request ready for review');
+    const pr = await this.request<{ node_id?: string; draft?: boolean }>('GET', `${this.repoPath}/pulls/${n}`);
+    if (pr.draft === false) return;
+    if (!pr.node_id) throw new GitHubError(422, `Pull request #${n} has no node id: mark it ready for review on GitHub.`);
+    const r = await this.request<{ data?: unknown; errors?: { message?: string }[] }>('POST', '/graphql', {
+      query: 'mutation($id: ID!) { markPullRequestReadyForReview(input: { pullRequestId: $id }) { pullRequest { number isDraft } } }',
+      variables: { id: pr.node_id },
+    });
+    if (r?.errors?.length) {
+      const detail = r.errors.map((e) => e.message).filter(Boolean).join(' ');
+      throw new GitHubError(422, `GitHub refused to mark #${n} ready for review${detail ? `: ${detail}` : '.'} Use "Ready for review" on GitHub instead.`, detail);
+    }
+  }
+
   async createPullRequest(input: { title: string; head: string; base: string; body: string; draft: boolean }): Promise<PullRequest> {
     this.assertWritableBranch(input.head, input.base);
     const r = await this.request<{ number: number; html_url: string; title: string; draft?: boolean; head: { ref: string } }>(

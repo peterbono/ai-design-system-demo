@@ -137,16 +137,20 @@ export interface PreviewCommentInput {
   /** Where the snapshots come from, for the note under the table. */
   source: 'pkg.pr.new' | 'release' | 'none';
   apps: PreviewApps;
+  /** An exploration (`explore/*` branch or `exploration` label): staging only, never merged as is (docs/EXPLORATIONS.md). */
+  exploration?: boolean | undefined;
 }
 
 /** The sticky PR comment: install commands for each package, then the per-branch previews. Markdown, no HTML. */
 export function previewComment(input: PreviewCommentInput): string {
   const sha7 = input.sha.slice(0, 7);
-  const lines = [PREVIEW_COMMENT_MARKER, '## Try this DS branch in your product', ''];
+  const lines = [PREVIEW_COMMENT_MARKER, input.exploration ? '## Try this exploration in your product' : '## Try this DS branch in your product', ''];
   lines.push(`Snapshot of \`${sha7}\` on \`${input.branch}\`. Install it in a product branch that deploys to staging; production keeps the released version.`, '');
+  if (input.exploration) lines.push('This is an exploration: it is never merged as is. Use it for a prototype, a user test, a demo or an A/B idea, then promote it to review or close it.', '');
 
   if (input.packages.length) {
-    lines.push('```sh', installCommand(input.packages.map((p) => p.url)), '```', '');
+    // Explorations install as `name@url`, so the product's package.json keeps the package names.
+    lines.push('```sh', installCommand(input.packages.map((p) => (input.exploration ? `${p.name}@${p.url}` : p.url))), '```', '');
     lines.push('| Package | Install this package only |', '| --- | --- |');
     for (const p of input.packages) lines.push(`| \`${p.name}\` | \`npm i ${p.url}\` |`);
     lines.push('');

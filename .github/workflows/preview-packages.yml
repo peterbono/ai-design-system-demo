@@ -9,6 +9,10 @@
 # Then one sticky PR comment, "Try this DS branch in your product", with the install commands and the per-branch
 # preview links configured in bridge.config.json (`previews.apps`). Closing the PR deletes the prerelease.
 # Nothing here publishes to the npm registry.
+#
+# Explorations (docs/EXPLORATIONS.md): `explore/<slug>` branches with a DRAFT pull request labeled `exploration` get the
+# same snapshots on every push (pull_request events fire for drafts too), and a comment titled "Try this exploration in
+# your product" with `npm i @bridge-ds/react@<snapshot>` commands for a product staging branch.
 name: Preview packages
 
 on:
@@ -120,8 +124,9 @@ jobs:
               source = 'release';
             }
 
+            const exploration = pr.head.ref.startsWith('explore/') || (pr.labels ?? []).some((l) => l.name === 'exploration');
             const body = core_.previewComment({
-              owner, repo, pr: pr.number, branch: pr.head.ref, sha, packages, source,
+              owner, repo, pr: pr.number, branch: pr.head.ref, sha, packages, source, exploration,
               apps: config.previews?.apps ?? {},
             });
             const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number: pr.number, per_page: 100 });

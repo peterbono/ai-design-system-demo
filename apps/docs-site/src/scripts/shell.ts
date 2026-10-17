@@ -540,6 +540,7 @@ interface Pull {
   draft?: boolean;
   state?: string;
   merged_at?: string | null;
+  labels?: { name: string }[];
   head: { ref: string };
 }
 
@@ -604,10 +605,12 @@ function initStudio() {
   ghGet<Pull[]>(`/repos/${repo.owner}/${repo.repo}/pulls?state=open&per_page=100`)
     .then((f) => {
       const open = openPulls(f.data);
-      setCount('reviews', open.length);
+      // Running explorations are never merged as is: they do not wait for review (Changes > Explorations).
+      const inReview = open.filter((p) => !(p.labels ?? []).some((l) => l.name === 'exploration')).length;
+      setCount('reviews', inReview);
       if (!f.stale) {
         try {
-          localStorage.setItem(OPEN_COUNT_KEY, JSON.stringify({ n: open.length, at: new Date().toISOString() }));
+          localStorage.setItem(OPEN_COUNT_KEY, JSON.stringify({ n: inReview, at: new Date().toISOString() }));
         } catch {
           /* private mode: the count just will not survive a rate limit */
         }

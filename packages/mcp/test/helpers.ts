@@ -86,6 +86,14 @@ export function fakeGitHub(owner: string, repo: string, initial: Record<string, 
       log.push({ method, path: `raw:${path}` });
       return content === undefined ? new Response('404', { status: 404 }) : new Response(content, { status: 200 });
     }
+    if (url === 'https://api.github.com/graphql' && method === 'POST') {
+      log.push({ method, path: 'graphql', body });
+      if (!headers.authorization) return json(401, { message: 'Requires authentication' });
+      const pr = pulls.find((p) => p.node_id === body.variables?.id);
+      if (!pr) return json(200, { errors: [{ message: 'Could not resolve to a node' }] });
+      pr.draft = false;
+      return json(200, { data: { markPullRequestReadyForReview: { pullRequest: { number: pr.number, isDraft: false } } } });
+    }
     if (!url.startsWith(api)) return json(404, { message: `unexpected ${url}` });
     const u = new URL(url);
     const path = u.pathname.slice(`/repos/${owner}/${repo}`.length);
@@ -125,6 +133,12 @@ export function fakeGitHub(owner: string, repo: string, initial: Record<string, 
       commits.set(c, { files: trees.get(body.tree)!, parents: body.parents });
       return json(201, { sha: c });
     }
+    if (method === 'PATCH' && (m = /^\/git\/refs\/heads\/(.+)$/.exec(path))) {
+      const name = decodeURIComponent(m[1]!);
+      if (!refs.has(name)) return json(422, { message: 'Reference does not exist' });
+      refs.set(name, body.sha);
+      return json(200, { ref: `refs/heads/${name}` });
+    }
     if (method === 'POST' && path === '/git/refs') {
       const name = String(body.ref).replace(/^refs\/heads\//, '');
       if (refs.has(name)) return json(422, { message: 'Reference already exists' });
@@ -133,18 +147,24 @@ export function fakeGitHub(owner: string, repo: string, initial: Record<string, 
     }
     if (method === 'POST' && path === '/pulls') {
       const number = pulls.length + 1;
-      const pr = { number, title: body.title, body: body.body, state: 'open', draft: body.draft, user: { login: 'agent' }, head: { ref: body.head, sha: refs.get(body.head) }, base: { ref: body.base }, labels: [], html_url: `https://github.com/${owner}/${repo}/pull/${number}`, updated_at: '2026-10-16T00:00:00Z' };
+      const pr = { number, node_id: `PR_node_${number}`, title: body.title, body: body.body, state: 'open', draft: body.draft, user: { login: 'agent' }, head: { ref: body.head, sha: refs.get(body.head) }, base: { ref: body.base }, labels: [], html_url: `https://github.com/${owner}/${repo}/pull/${number}`, updated_at: '2026-10-16T00:00:00Z' };
       pulls.push(pr);
       return json(201, pr);
     }
-    if (method === 'GET' && path === '/pulls') return json(200, pulls);
-    if ((m = /^\/pulls\/(\d+)$/.exec(path)) && method === 'GET') {
+    if (method === 'GET' && path === '/pulls') {
+      // state=open hides closed and merged ones; head=owner:branch filters by branch, like GitHub.
+      const state = u.searchParams.get('state');
+      const head = u.searchParams.get('head')?.split(':')[1];
+      return json(200, pulls.filter((p) => (!state || state === 'all' || p.state === state) && (!head || p.head.ref === head)));
+    }
+    if ((m = /^\/pulls\/(\d+)$/.exec(path)) && (method === 'GET' || method === 'PATCH')) {
       const pr = pulls[Number(m[1]) - 1];
+      if (pr && method === 'PATCH') Object.assign(pr, body);
       return pr ? json(200, pr) : json(404, {});
     }
     if ((m = /^\/pulls\/(\d+)\/files$/.exec(path))) {
       const pr = pulls[Number(m[1]) - 1]!;
-      const head = commits.get(pr.head.sha)!.files;
+      const head = commits.get(refs.get(pr.head.ref) ?? pr.head.sha)!.files;
       const base = commits.get(refs.get(pr.base.ref)!)!.files;
       const changed = [...new Set([...head.keys(), ...base.keys()])].filter((p) => head.get(p) !== base.get(p));
       return json(200, changed.map((filename) => ({ filename, status: base.has(filename) ? (head.has(filename) ? 'modified' : 'removed') : 'added' })));
@@ -186,8 +206,16 @@ export function fakeGitHub(owner: string, repo: string, initial: Record<string, 
     }
     if ((m = /^\/issues\/(\d+)\/labels$/.exec(path)) && method === 'POST') {
       const pr = pulls[Number(m[1]) - 1]!;
-      pr.labels = body.labels.map((name: string) => ({ name }));
+      for (const name of body.labels) if (!pr.labels.some((l: any) => l.name === name)) pr.labels.push({ name });
       return json(200, pr.labels);
+    }
+    if ((m = /^\/issues\/(\d+)\/labels\/(.+)$/.exec(path)) && method === 'DELETE') {
+      const k = Number(m[1]);
+      const item = issueAt(k) ?? pulls[k - 1];
+      const name = decodeURIComponent(m[2]!);
+      if (!item || !item.labels.some((l: any) => l.name === name)) return json(404, { message: 'Label does not exist' });
+      item.labels = item.labels.filter((l: any) => l.name !== name);
+      return json(200, item.labels);
     }
     return json(404, { message: `fake GitHub: no route ${method} ${path}` });
   };
