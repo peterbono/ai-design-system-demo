@@ -9,15 +9,121 @@
 import { type BridgeConfig, CONFIG_FILE, ConfigError, DEFAULT_TOKEN_PATHS, loadConfig } from './config';
 import { assertSafeBranch, DEFAULT_PROTECTED_BRANCHES, ProtectedBranchError } from './governance';
 
+/**
+ * What an auth failure means for the token:
+ * - "rejected": GitHub refused the token itself (401). It was revoked, regenerated or has expired; every call
+ *   with it will fail until it is replaced.
+ * - "missing-permission": the token works but lacks a permission this call needs (403 "Resource not accessible
+ *   by personal access token", or a permission GitHub names in X-Accepted-GitHub-Permissions).
+ * Undefined for everything else, including rate limits and a missing token.
+ */
+export type GitHubAuthState = 'rejected' | 'missing-permission';
+
+/** Fine-grained token permission names, as GitHub spells them (issues, pull_requests, contents...). */
+export type GitHubPermission = string;
+
+export interface GitHubErrorInfo {
+  auth?: GitHubAuthState | undefined;
+  /** The permission the call needed, when GitHub or the endpoint tells (only with auth "missing-permission"). */
+  permission?: GitHubPermission | undefined;
+}
+
 export class GitHubError extends Error {
+  /** Set when the failure is about the token: rejected (401) or missing a permission (403). */
+  readonly auth: GitHubAuthState | undefined;
+  /** With auth "missing-permission": the permission the call needed, when known. */
+  readonly permission: GitHubPermission | undefined;
+
   constructor(
     readonly status: number,
     message: string,
     readonly detail?: string,
+    info: GitHubErrorInfo = {},
   ) {
     super(message);
     this.name = 'GitHubError';
+    this.auth = info.auth;
+    this.permission = info.permission;
   }
+}
+
+/** True when `err` says GitHub refused the token itself (revoked, regenerated or expired). */
+export const isTokenRejected = (err: unknown): boolean => err instanceof GitHubError && err.auth === 'rejected';
+
+/** True when `err` says the token works but lacks a permission for that call. */
+export const isMissingPermission = (err: unknown): boolean => err instanceof GitHubError && err.auth === 'missing-permission';
+
+const PERMISSION_LABELS: Record<string, string> = {
+  issues: 'Issues',
+  pull_requests: 'Pull requests',
+  contents: 'Contents',
+  checks: 'Checks',
+  statuses: 'Commit statuses',
+  metadata: 'Metadata',
+  actions: 'Actions',
+  deployments: 'Deployments',
+  workflows: 'Workflows',
+  administration: 'Administration',
+};
+
+/** "pull_requests" -> "Pull requests", as GitHub labels it on the token page. */
+export function permissionLabel(permission: GitHubPermission): string {
+  return PERMISSION_LABELS[permission] ?? permission.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
+}
+
+/** Where a fine-grained token's permissions are edited. */
+export const TOKEN_SETTINGS_URL = 'https://github.com/settings/personal-access-tokens';
+
+/** The one sentence for a token GitHub no longer accepts. */
+export const TOKEN_REJECTED_MESSAGE = 'Your GitHub token stopped working. It was revoked, regenerated or has expired: replace it with a new one.';
+
+/**
+ * "This token cannot create issues. Add Issues: Read and write on GitHub." `action` is a verb phrase
+ * ("create issues"); without it the sentence names only the permission.
+ */
+export function missingPermissionMessage(permission: GitHubPermission | undefined, action?: string): string {
+  const what = action ? `This token cannot ${action}.` : 'This token is missing a permission for this.';
+  if (!permission) return `${what} Check its repository permissions on GitHub (Contents and Pull requests need Read and write).`;
+  return `${what} Add ${permissionLabel(permission)}: Read and write on GitHub.`;
+}
+
+/**
+ * The permission a refused call needed. GitHub names it in X-Accepted-GitHub-Permissions ("issues=write",
+ * alternatives split by ";"); otherwise the endpoint says it (/issues, /pulls, /contents, /git...).
+ */
+export function requiredPermission(path: string, acceptedHeader?: string | null): GitHubPermission | undefined {
+  if (acceptedHeader) {
+    const first = acceptedHeader.split(';')[0]!.split(',').map((p) => p.trim().split('=')[0]!.trim()).filter((p) => p && p !== 'metadata');
+    if (first.length) return first[0];
+  }
+  const p = path.replace(/[?#].*$/, '');
+  if (/\/repos\/[^/]+\/[^/]+\/(issues|labels|milestones)(\/|$)/.test(p)) return 'issues';
+  if (/\/repos\/[^/]+\/[^/]+\/pulls(\/|$)/.test(p)) return 'pull_requests';
+  if (/\/repos\/[^/]+\/[^/]+\/(contents|git|commits|branches|merges)(\/|$)/.test(p)) return 'contents';
+  if (/\/repos\/[^/]+\/[^/]+\/(check-runs|check-suites)(\/|$)/.test(p)) return 'checks';
+  if (/\/repos\/[^/]+\/[^/]+\/statuses(\/|$)/.test(p)) return 'statuses';
+  if (/\/repos\/[^/]+\/[^/]+\/deployments(\/|$)/.test(p)) return 'deployments';
+  if (/\/repos\/[^/]+\/[^/]+\/actions(\/|$)/.test(p)) return 'actions';
+  return undefined;
+}
+
+const PERMISSION_DENIED = /not accessible by (personal access token|integration)|must have (admin|push|write) (rights|access)|write access to repository not granted|permission to .* denied/i;
+
+/**
+ * Classifies a GitHub error response for the token. 401 with a token sent = rejected. 403 (not a rate limit,
+ * not archived) where GitHub names a permission or says the resource is not accessible = missing permission.
+ */
+export function classifyAuth(
+  status: number,
+  detail: string,
+  opts: { path?: string; acceptedPermissions?: string | null; withToken?: boolean } = {},
+): GitHubErrorInfo {
+  if (status === 401 && opts.withToken !== false) return { auth: 'rejected' };
+  if (status !== 403 || /rate limit|archived/i.test(detail)) return {};
+  if (opts.acceptedPermissions || PERMISSION_DENIED.test(detail)) {
+    return { auth: 'missing-permission', permission: requiredPermission(opts.path ?? '', opts.acceptedPermissions) };
+  }
+  return {};
 }
 
 export interface RepoInfo {
@@ -205,7 +311,7 @@ export class GitHubClient {
   }
 
   private assertToken(what: string): void {
-    if (!this.token) throw new GitHubError(401, `${what} needs a GitHub token (contents and pull requests, read and write, on this repository only). Without one Bridge is read-only.`);
+    if (!this.token) throw new GitHubError(401, `${what} needs a GitHub token (contents and pull requests, read and write, on this repository only). Without one Bridge is read-only.`, 'no-token');
   }
 
   private get repoPath() {
@@ -257,7 +363,12 @@ export class GitHubClient {
           detail,
         );
       }
-      throw new GitHubError(res.status, friendlyMessage(res.status, detail), detail);
+      const info = classifyAuth(res.status, detail, {
+        path,
+        acceptedPermissions: res.headers?.get('x-accepted-github-permissions'),
+        withToken: Boolean(this.token),
+      });
+      throw new GitHubError(res.status, friendlyMessage(res.status, detail, info), detail, info);
     }
     return (await res.json()) as T;
   }
@@ -750,7 +861,9 @@ function toSummary(r: Record<string, any>): PullRequestSummary & PullRequest {
   };
 }
 
-export function friendlyMessage(status: number, detail: string): string {
+export function friendlyMessage(status: number, detail: string, info: GitHubErrorInfo = {}): string {
+  if (info.auth === 'rejected') return TOKEN_REJECTED_MESSAGE;
+  if (info.auth === 'missing-permission') return missingPermissionMessage(info.permission);
   switch (status) {
     case 401:
       return 'GitHub rejected the token. It may be expired or mistyped: create a new one and save it in Settings.';

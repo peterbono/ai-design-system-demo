@@ -44,9 +44,11 @@
   line-height: var(--typography-body-line-height);
 }
 
-.set-open[data-state="readonly"] [data-when]:not([data-when="readonly"]),
-.set-open[data-state="checking"] [data-when]:not([data-when="checking"]),
-.set-open[data-state="connected"] [data-when]:not([data-when="connected"]) {
+/* data-when lists the states an element shows in ("readonly rejected"). */
+.set-open[data-state="readonly"] [data-when]:not([data-when~="readonly"]),
+.set-open[data-state="checking"] [data-when]:not([data-when~="checking"]),
+.set-open[data-state="connected"] [data-when]:not([data-when~="connected"]),
+.set-open[data-state="rejected"] [data-when]:not([data-when~="rejected"]) {
   display: none;
 }
 

@@ -4,7 +4,6 @@
 // new bridge/* branch with the user's token, like the token editor; main is never written. Without a token the
 // plan downloads as a patch JSON and the PR text as Markdown.
 import {
-  GitHubClient,
   LayeredTokenSet,
   fileModes,
   loadRepoFiles,
@@ -21,7 +20,7 @@ import {
 import { reviewTokenChange, type TokenReview } from '../../lib/token-review';
 import { undoSentence } from '../../lib/changes';
 import { humanAuthored, laterThan, shortDate } from '../../lib/history-view';
-import { esc, getToken, readRepo, setButtonDisabled, setButtonLabel } from '../github-session';
+import { esc, getToken, hasWorkingToken, readRepo, setButtonDisabled, setButtonLabel, showGhError, studioClient, tokenRejected } from '../github-session';
 import { mdTitleHtml } from '../../lib/markdown';
 import { loadHistory, type Loaded } from './state';
 
@@ -57,7 +56,7 @@ async function loadBase(l: Loaded, demo: boolean): Promise<Base> {
   if (demo || !token) return built;
   try {
     const { owner, name, defaultBranch } = repoOf(l);
-    const client = new GitHubClient(`${owner}/${name}`, token);
+    const client = studioClient(`${owner}/${name}`, token);
     const sha = await client.getBranchSha(defaultBranch);
     if (!sha) return built;
     const latest = await loadRepoFiles(client, sha, l.config.tokens.root);
@@ -195,19 +194,24 @@ function syncFoot() {
   const status = $('hp-status');
   const dl = [$<HTMLButtonElement>('hp-download-json'), $<HTMLButtonElement>('hp-download-md')];
   const ready = plan?.status === 'ready';
-  const token = Boolean(getToken());
+  const token = hasWorkingToken();
   for (const b of dl) if (b) setButtonDisabled(b, !plan || !plan.files.length);
   if (go) {
     setButtonLabel(go, req?.kind === 'restore' ? 'Propose restore' : 'Propose undo');
     go.hidden = !token && !req?.demo;
     setButtonDisabled(go, !ready || Boolean(req?.demo));
   }
-  if (connect) connect.hidden = token || Boolean(req?.demo);
+  if (connect) {
+    connect.hidden = token || Boolean(req?.demo);
+    setButtonLabel(connect, tokenRejected() ? 'Reconnect GitHub to propose' : 'Connect GitHub to propose');
+  }
   if (status) {
     status.textContent = req?.demo
       ? 'Demo plans cannot be proposed: the change never happened in this repository.'
       : !token
-        ? 'Read only until connected. Details has the patch and the PR text.'
+        ? tokenRejected()
+          ? 'Your GitHub token stopped working. Details has the patch and the PR text.'
+          : 'Read only until connected. Details has the patch and the PR text.'
         : base && !base.live
           ? 'Could not read main from GitHub; this plan uses the files the site was built from. Bridge re-reads main when you propose.'
           : '';
@@ -236,7 +240,7 @@ async function propose(): Promise<number> {
   if (!p || p.status !== 'ready') throw new Error(p?.why ?? 'The plan is not ready on the latest main.');
   const { owner, name, defaultBranch } = repoOf(ctx);
   const gov = ctx.config.governance;
-  const client = new GitHubClient(`${owner}/${name}`, token, undefined, undefined, { protectedBranches: [...new Set([...gov.protectedBranches, 'main', 'master', defaultBranch])], branchPrefix: gov.branchPrefix });
+  const client = studioClient(`${owner}/${name}`, token, { protectedBranches: [...new Set([...gov.protectedBranches, 'main', 'master', defaultBranch])], branchPrefix: gov.branchPrefix });
   let branch = p.branch;
   for (let i = 2; await client.getBranchSha(branch); i++) branch = `${p.branch}-${i}`;
   await client.commitToNewBranch({ base: defaultBranch, branch, message: p.commitMessage, files: p.files });
@@ -283,7 +287,7 @@ function wire() {
       const n = await propose();
       location.href = `/studio/changes/?pr=${n}`;
     } catch (err) {
-      out.textContent = `Not proposed: ${(err as Error).message}`;
+      showGhError(out, err, `Not proposed: ${(err as Error).message}`, 'open pull requests');
       setButtonDisabled(go, false);
     }
   });

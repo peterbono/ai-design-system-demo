@@ -3,7 +3,6 @@
 // token. The cell editor (scripts/explorer/inline-edit.ts) and the review sheet (scripts/explorer/review.ts) read and
 // write it through the API below; the Drafts page shows it as a tray. Nothing is written to the repo without review.
 import {
-  GitHubClient,
   buildTokenSet,
   branchName,
   classifyRisk,
@@ -36,7 +35,7 @@ import {
   type DraftEdit,
   type Guardrails,
 } from '../lib/editor-model';
-import { esc, getToken, initGitHubConnect, paintGates, readRepo, setButtonDisabled } from './github-session';
+import { esc, getToken, hasWorkingToken, initGitHubConnect, paintGates, readRepo, setButtonDisabled, showGhError, studioClient } from './github-session';
 import { docsNotesForTokens } from '../lib/docs-draft-model';
 
 /** Components that paint with a token (build-time usage embedded by the explorer), for the docs notes of a proposal. */
@@ -207,7 +206,7 @@ async function propose(title: string, notes: string): Promise<number> {
   const token = getToken();
   if (!token) throw new Error('Connect GitHub first.');
   const { owner, name, defaultBranch } = repoOf(S.config);
-  const client = new GitHubClient(`${owner}/${name}`, token);
+  const client = studioClient(`${owner}/${name}`, token);
   const mainSha = await client.getBranchSha(defaultBranch);
   if (!mainSha) throw new Error(`Branch ${defaultBranch} not found.`);
   // Re-read the latest token files so the change applies on top of main as it is now.
@@ -498,7 +497,7 @@ export function initTokenEditor() {
     ($<HTMLDialogElement>('ed-add-dialog') as HTMLDialogElement).close();
   });
   $('ed-propose')?.addEventListener('click', () => {
-    if (!S?.draft.edits.length || !getToken()) return;
+    if (!S?.draft.edits.length || !hasWorkingToken()) return;
     ($<HTMLDialogElement>('ed-propose-dialog') as HTMLDialogElement | null)?.showModal();
   });
   $('ed-export')?.addEventListener('click', downloadDraft);
@@ -514,7 +513,7 @@ export function initTokenEditor() {
       saveDraft();
       location.href = `/studio/changes/?pr=${n}`;
     } catch (err) {
-      out.textContent = `Not proposed: ${(err as Error).message}`;
+      showGhError(out, err, `Not proposed: ${(err as Error).message}`, 'open pull requests');
       setButtonDisabled(go, false);
     }
   });

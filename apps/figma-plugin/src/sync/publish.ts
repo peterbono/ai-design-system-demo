@@ -20,6 +20,7 @@ import type { FigmaSnapshot } from '../shared/messages';
 import { type ComponentChangeItem, type RequestDraft, suggestLine, suggestSummary, suggestTitle, toRequest } from './components';
 import { type Analysis, type ExplorationTarget, type PushProposal, type PushResult, commitToExploration, openPullRequest } from './flows';
 import { sendComponentRequest } from './requests';
+import { type TokenProblem, errorText, tokenProblem } from './token-health';
 
 export { EXPERIMENTAL_KEY } from '../shared/messages';
 
@@ -191,7 +192,7 @@ export interface PublishResult {
   exploration?: { branch: string; pr: PullRequest; unchanged: boolean } | undefined;
   requests: { component: string; nodeId: string; number: number; url: string }[];
   /** Requests that failed: the rest was still sent. */
-  failed: { component: string; error: string }[];
+  failed: { component: string; error: string; problem?: TokenProblem['kind'] | undefined }[];
 }
 
 /** What a push would send: the files of the pull request (empty when no variable is checked) and the request drafts. */
@@ -232,7 +233,7 @@ export async function publish(client: GitHubClient, input: PublishInput): Promis
       });
       out.requests.push({ component: d.component, nodeId: d.nodeId!, number: res.issue.number, url: res.issue.url });
     } catch (err) {
-      out.failed.push({ component: d.component, error: err instanceof Error ? err.message : String(err) });
+      out.failed.push({ component: d.component, error: errorText(err), problem: tokenProblem(err)?.kind });
     }
   }
   return out;

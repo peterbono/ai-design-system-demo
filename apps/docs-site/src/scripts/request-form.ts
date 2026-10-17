@@ -1,9 +1,9 @@
 // "Request a change" in the Studio Components drawer: an inline form that opens a GitHub issue labeled
 // component-change with the reader's own token (composeRequestIssue from @bridge-ds/core, source "studio"), with the
 // labels and assignees of bridge.config.json integrations.requests. Without a token it only says how to connect.
-import { GitHubClient, REQUEST_KINDS, composeRequestIssue } from '@bridge-ds/core';
+import { REQUEST_KINDS, composeRequestIssue } from '@bridge-ds/core';
 import { requestFormProblems, requestFromForm, type RequestForm } from '../lib/requests-view';
-import { currentViewer, esc, getToken, initGitHubConnect, readRepo, setButtonBusy } from './github-session';
+import { currentViewer, esc, getToken, hasWorkingToken, initGitHubConnect, readRepo, setButtonBusy, showGhError, studioClient } from './github-session';
 import { forgetRequests, integrations } from './requests';
 
 const q = <T extends HTMLElement>(root: ParentNode, sel: string) => root.querySelector<T>(sel);
@@ -45,7 +45,7 @@ export function resetRequestForm(drawer: HTMLElement, focusOpener = false) {
 }
 
 function paintAuth(drawer: HTMLElement) {
-  const on = Boolean(getToken() && currentViewer());
+  const on = Boolean(hasWorkingToken() && currentViewer());
   drawer.querySelectorAll<HTMLElement>('[data-gh-only]').forEach((el) => (el.hidden = !on || (el.matches('[data-cm-req-open]') && drawer.dataset.mode === 'request')));
   drawer.querySelectorAll<HTMLElement>('[data-no-gh]').forEach((el) => (el.hidden = on));
   if (!on && drawer.dataset.mode === 'request') resetRequestForm(drawer);
@@ -116,7 +116,7 @@ export function initRequestForm(drawer: HTMLElement) {
     const cfg = integrations().requests ?? {};
     setButtonBusy(submit, true, 'Opening request');
     try {
-      const gh = new GitHubClient(`${repo.owner}/${repo.repo}`, token);
+      const gh = studioClient(`${repo.owner}/${repo.repo}`, token);
       const issue = composeRequestIssue(requestFromForm(component, values, currentViewer()?.login), {
         labels: cfg.labels ?? [],
         assignees: cfg.assignees ?? [],
@@ -129,7 +129,7 @@ export function initRequestForm(drawer: HTMLElement) {
         <p><a href="${esc(created.url)}" target="_blank" rel="noopener">Open #${created.number} on GitHub</a> · <a href="/studio/changes/?request=${created.number}">See it in Changes</a></p>`;
       done.hidden = false;
     } catch (err) {
-      error.textContent = `GitHub did not open the request: ${(err as Error).message} Check that your token can write issues on ${repo.owner}/${repo.repo}, then try again.`;
+      showGhError(error, err, `GitHub did not open the request: ${(err as Error).message} Check that your token can write issues on ${repo.owner}/${repo.repo}, then try again.`, 'create issues');
       error.hidden = false;
     } finally {
       setButtonBusy(submit, false, 'Open request');

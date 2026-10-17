@@ -5,7 +5,7 @@
 // <html data-signed-in> and <html data-maintainer> drive the CSS. The head script of Layout.astro paints them from
 // the last check (localStorage, keyed to the token's last characters) so nothing jumps on load; this module checks
 // the token again at most every ten minutes, and on every connect or disconnect.
-import { API, getToken, readRepo } from './github-session';
+import { API, getToken, markTokenRejected, readRepo, tokenRejected } from './github-session';
 
 const KEY = 'bridge.gh.maintainer';
 const FRESH_MS = 10 * 60 * 1000;
@@ -56,6 +56,8 @@ function paint(m: MaintainerState | null) {
 async function check(token: string): Promise<MaintainerState | null> {
   const headers = { Accept: 'application/vnd.github+json', Authorization: `Bearer ${token}` };
   const user = await fetch(`${API}/user`, { headers });
+  // GitHub refused the token (revoked, regenerated or expired): the Studio says so in its account block.
+  if (user.status === 401) markTokenRejected();
   if (!user.ok) return null;
   const u = (await user.json()) as { login: string; avatar_url: string };
   const r = readRepo();
@@ -66,6 +68,10 @@ async function check(token: string): Promise<MaintainerState | null> {
 
 async function refresh(force = false) {
   const token = getToken();
+  if (token && tokenRejected()) {
+    write(null);
+    return paint(null);
+  }
   const cached = read(token);
   paint(cached);
   if (!token) return write(null);

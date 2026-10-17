@@ -16,6 +16,7 @@ import {
   startExplorationOnGitHub,
 } from '@bridge-ds/core';
 import type { ExplorationTarget } from './flows';
+import { errorText } from './token-health';
 
 /**
  * A running exploration as Push shows it: its name, its branch and draft pull request, its previews. The install
@@ -116,8 +117,8 @@ export interface TestBuildPollerOptions {
   onUpdate: (t: ExplorationTestBuild) => void;
   /** 10 minutes without everything ready. Polling has stopped; start() polls again. */
   onTimeout: () => void;
-  /** A read failed; polling goes on. */
-  onError?: ((message: string) => void) | undefined;
+  /** A read failed; polling goes on. The message to show (a missing permission named), and the error itself (a rejected token marks the session). */
+  onError?: ((message: string, err: unknown) => void) | undefined;
   /** False while the result screen is not shown: the tick reads nothing (and keeps counting toward the timeout). */
   isOpen?: (() => boolean) | undefined;
   intervalMs?: number | undefined;
@@ -189,7 +190,7 @@ export class TestBuildPoller {
       this.o.onUpdate(t);
       return t.settled;
     } catch (err) {
-      this.o.onError?.(err instanceof Error ? err.message : String(err));
+      this.o.onError?.(errorText(err), err);
       return false;
     } finally {
       this.busy = false;

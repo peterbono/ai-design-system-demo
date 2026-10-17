@@ -45,7 +45,7 @@ import {
   type CachedPull,
 } from '../lib/changes';
 import { orphanBranches, branchEntry, pullEntry, type BranchEntry, type BranchesConfig } from '../lib/branches';
-import { currentViewer, esc, getToken, ghGet, ghWrite, initGitHubConnect, RateLimitError, readRepo, relativeTime } from './github-session';
+import { currentViewer, esc, ghGet, ghWrite, hasWorkingToken, initGitHubConnect, RateLimitError, readRepo, relativeTime, showGhError } from './github-session';
 import { analyzeTokenFiles, isTokenFile, type TokenReview } from './reviews/token-review';
 import { loadVisualImpact } from './reviews/visual-impact';
 import { ciFor, loadStatuses, SKIPPED_HINT } from './pr-status';
@@ -142,7 +142,7 @@ interface Access {
 
 async function readAccess(): Promise<Access | null> {
   const v = currentViewer();
-  if (!getToken() || !v) return null;
+  if (!hasWorkingToken() || !v) return null;
   try {
     const info = (await ghGet<RepoInfo>(R)).data;
     return { login: v.login, write: canWrite(info.permissions), methods: allowedMergeMethods(info) };
@@ -640,7 +640,7 @@ function overrideDialog(pull: Pull, gate: ReturnType<typeof mergeGate>, access: 
 }
 
 function syncAuthViews() {
-  const has = Boolean(getToken() && currentViewer());
+  const has = Boolean(hasWorkingToken() && currentViewer());
   document.querySelectorAll<HTMLElement>('[data-needs-token]').forEach((el) => (el.hidden = !has));
   document.querySelectorAll<HTMLElement>('[data-no-token]').forEach((el) => (el.hidden = has));
 }
@@ -684,7 +684,8 @@ function wireOverride(pull: Pull, access: Access, gate: ReturnType<typeof mergeG
     try {
       comment = await ghWrite<{ id: number }>('POST', `${R}/issues/${pull.number}/comments`, { body });
     } catch (err) {
-      fail(`GitHub did not take the comment, so nothing was merged: ${(err as Error).message}`);
+      showGhError(error, err, `GitHub did not take the comment, so nothing was merged: ${(err as Error).message}`, 'comment on pull requests');
+      error.hidden = false;
       go.disabled = false;
       go.textContent = 'Post reason and merge';
       return;
@@ -700,7 +701,8 @@ function wireOverride(pull: Pull, access: Access, gate: ReturnType<typeof mergeG
     } catch (err) {
       const msg = (err as Error).message.trim().replace(/[.\s]+$/, '');
       await ghWrite('PATCH', `${R}/issues/comments/${comment.id}`, { body: overrideRefusedComment(body, msg) }).catch(() => undefined);
-      fail(`GitHub refused the merge: ${msg}. Your reason stays on the pull request, marked not merged. Branch protection may need an approving review or an admin bypass.`);
+      showGhError(error, err, `GitHub refused the merge: ${msg}. Your reason stays on the pull request, marked not merged. Branch protection may need an approving review or an admin bypass.`, 'merge pull requests');
+      error.hidden = false;
       go.disabled = false;
       go.textContent = 'Post reason and merge';
       return;
@@ -748,7 +750,8 @@ function wireActions(pull: Pull, gate: ReturnType<typeof mergeGate>, access: Acc
         if (body) body.value = '';
         await openPr(pull.number, false);
       } catch (err) {
-        status.textContent = `GitHub refused: ${(err as Error).message}`;
+        const verb = act === 'MERGE' ? 'merge pull requests' : act === 'CLOSE' ? 'close pull requests' : 'review pull requests';
+        showGhError(status, err, `GitHub refused: ${(err as Error).message}`, verb);
         b.disabled = false;
       }
     }),

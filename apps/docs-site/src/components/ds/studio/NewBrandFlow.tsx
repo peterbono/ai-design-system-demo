@@ -37,7 +37,7 @@ import {
   saveDraft,
   withHue,
 } from '../../../lib/new-brand';
-import { getToken } from '../../../scripts/github-session';
+import { ghAuthFailure, hasWorkingToken, tokenRejected } from '../../../scripts/github-session';
 import { type ProposedBrand, proposeBrand } from '../../../scripts/new-brand';
 
 export interface NewBrandFlowProps {
@@ -58,10 +58,12 @@ export default function NewBrandFlow({ files, configText, contrastText }: NewBra
   const [draft, setDraft] = useState<BrandDraft>(() => emptyDraft(defaultBrand, facts[defaultBrand]));
   const [restored, setRestored] = useState(false);
   const [connected, setConnected] = useState(false);
+  const [rejected, setRejected] = useState(false);
   const [slugOpen, setSlugOpen] = useState(false);
   const [pairsOpen, setPairsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorHref, setErrorHref] = useState<string | null>(null);
   const [done, setDone] = useState<ProposedBrand | null>(null);
   const headingId = useId();
 
@@ -72,7 +74,10 @@ export default function NewBrandFlow({ files, configText, contrastText }: NewBra
       if (d.slug !== undefined) setSlugOpen(true);
     }
     setRestored(true);
-    const sync = () => setConnected(Boolean(getToken()));
+    const sync = () => {
+      setConnected(hasWorkingToken());
+      setRejected(tokenRejected());
+    };
     sync();
     document.addEventListener('bridge:auth', sync);
     return () => document.removeEventListener('bridge:auth', sync);
@@ -110,7 +115,9 @@ export default function NewBrandFlow({ files, configText, contrastText }: NewBra
       setDone(pr);
       saveDraft(null);
     } catch (e) {
-      setError((e as Error).message);
+      const auth = ghAuthFailure(e, 'open pull requests');
+      setError(auth?.text ?? (e as Error).message);
+      setErrorHref(auth?.href ?? null);
     } finally {
       setBusy(false);
     }
@@ -395,6 +402,14 @@ export default function NewBrandFlow({ files, configText, contrastText }: NewBra
           {error && (
             <Alert tone="danger" title="The pull request was not opened">
               {error}
+              {errorHref && (
+                <>
+                  {' '}
+                  <Link href={errorHref} external>
+                    Edit the token on GitHub
+                  </Link>
+                </>
+              )}
             </Alert>
           )}
         </div>
@@ -421,7 +436,7 @@ export default function NewBrandFlow({ files, configText, contrastText }: NewBra
           </Button>
         ) : (
           <Button key="connect" variant="primary" data-gh-open="">
-            Connect GitHub to propose
+            {rejected ? 'Reconnect GitHub to propose' : 'Connect GitHub to propose'}
           </Button>
         )}
         {draft.step === 3 && !ready && <span className="nb-actions-note">{plan.contrast.failing.length ? 'Proposing needs every contrast pair to pass.' : 'Fix the problems above to propose.'}</span>}

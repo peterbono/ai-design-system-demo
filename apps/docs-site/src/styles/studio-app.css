@@ -142,8 +142,51 @@
 }
 
 .gh-acct[data-state="connected"] .gh-acct-connect,
-.gh-acct:not([data-state="connected"]) .gh-acct-menu {
+.gh-acct[data-state="rejected"] .gh-acct-connect,
+.gh-acct:not([data-state="connected"]) .gh-acct-menu,
+.gh-acct:not([data-state="rejected"]) .gh-acct-rejected {
   display: none;
+}
+
+/* GitHub refused the saved token: one warning sentence and the way out, in place of the account. */
+.gh-acct-rejected {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: var(--border-width-default) solid var(--color-feedback-warning-border);
+  border-radius: var(--radius-control);
+  background-color: var(--color-feedback-warning-bg);
+}
+
+.gh-acct-rejected-text {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-feedback-warning-text);
+  font-size: var(--typography-ui-size);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--typography-ui-line-height);
+}
+
+.gh-acct-rejected-text .icon {
+  flex: none;
+  color: var(--color-feedback-warning-icon);
+}
+
+.gh-acct-rejected .hd-btn {
+  justify-content: center;
+}
+
+/* "Reconnect" inside an error sentence: reads as a link, opens the Connect dialog. */
+.gh-inline-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-text-link);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
 }
 
 .gh-acct[data-state="checking"] .gh-acct-connect {

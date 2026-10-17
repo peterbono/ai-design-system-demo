@@ -3,7 +3,7 @@
 // `explore/<slug>` branch; starting, promoting and closing go through the core helpers (explorations-github.ts) with
 // the viewer's token, the same code the MCP server and the CLI run. Reads stay inside the anonymous budget: the open
 // pull requests In review already read, plus the request list the Requests view caches. Pure rules: lib/explorations-view.ts.
-import { type BranchPreview, type BranchPreviewSources, closeExplorationOnGitHub, EXPLORATION_PREFIX, EXPLORATION_TIER_LABEL, EXPLORATION_USE_CASES, GitHubClient, promoteExplorationOnGitHub, startExplorationOnGitHub, type ExplorationUseCase } from '@bridge-ds/core';
+import { type BranchPreview, type BranchPreviewSources, closeExplorationOnGitHub, EXPLORATION_PREFIX, EXPLORATION_TIER_LABEL, EXPLORATION_USE_CASES, promoteExplorationOnGitHub, startExplorationOnGitHub, type ExplorationUseCase } from '@bridge-ds/core';
 import {
   branchFor,
   explorationPreviews,
@@ -23,7 +23,7 @@ import {
   tryItFromComments,
 } from '../lib/explorations-view';
 import type { PullLike } from '../lib/requests-view';
-import { currentViewer, esc, getToken, ghGet, initGitHubConnect, RateLimitError, readRepo, relativeTime, setButtonBusy } from './github-session';
+import { currentViewer, esc, getToken, ghGet, hasWorkingToken, initGitHubConnect, RateLimitError, readRepo, relativeTime, setButtonBusy, showGhError, studioClient } from './github-session';
 import { loadRequestRows } from './requests';
 
 const repo = readRepo();
@@ -40,8 +40,8 @@ const CFG: ExplorationsConfig = (() => {
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 const pill = (text: string, tone = '') => `<span class="pill ${tone}">${esc(text)}</span>`;
-const connected = () => Boolean(getToken() && currentViewer());
-const client = () => new GitHubClient(`${CFG.owner}/${CFG.repo}`, getToken() ?? '', undefined, undefined, { protectedBranches: [CFG.defaultBranch], branchPrefix: EXPLORATION_PREFIX });
+const connected = () => Boolean(hasWorkingToken() && currentViewer());
+const client = () => studioClient(`${CFG.owner}/${CFG.repo}`, getToken() ?? '', { protectedBranches: [CFG.defaultBranch], branchPrefix: EXPLORATION_PREFIX });
 
 let rows: ExplorationRow[] = [];
 let loaded: Promise<ExplorationRow[]> | null = null;
@@ -178,7 +178,7 @@ function wireStart() {
       form.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
       return;
     }
-    if (!getToken()) {
+    if (!hasWorkingToken()) {
       error.textContent = 'Connect GitHub to start it here, or run the command below in the design system repo.';
       error.hidden = false;
       return;
@@ -199,7 +199,7 @@ function wireStart() {
         if (!rows.some((r) => r.number === s.pr)) $('ex-sentence').textContent = `${explorationsSummary(rows)} #${s.pr} appears here in a moment.`;
       });
     } catch (err) {
-      error.textContent = (err as Error).message;
+      showGhError(error, err, (err as Error).message, 'start explorations');
       error.hidden = false;
     } finally {
       setButtonBusy(submit, false, 'Start exploration');
@@ -337,10 +337,11 @@ export async function openExploration(n: number, push = true) {
   if (r) void paintTryIt(r);
 }
 
-function actionError(message: string | null) {
+function actionError(message: string | null, err?: unknown, action?: string) {
   const el = document.getElementById('ex-action-error');
   if (!el) return;
-  el.textContent = message ?? '';
+  if (message !== null && err !== undefined) showGhError(el, err, message, action);
+  else el.textContent = message ?? '';
   el.hidden = message === null;
 }
 
@@ -356,7 +357,7 @@ async function promote(btn: HTMLButtonElement) {
     $('ex-actions').insertAdjacentHTML('afterend', `<p class="ex-done" role="status"><strong>Promoted to review.</strong> Tier ${p.tier}, ready for review${p.addLabels.length ? `, labeled ${esc(p.addLabels.join(', '))}` : ''}.</p>${warn}`);
     void loadExplorations(undefined, true);
   } catch (err) {
-    actionError(`${(err as Error).message} You can also use "Ready for review" on GitHub, or ${promoteCommand(r.slug)}.`);
+    actionError(`${(err as Error).message} You can also use "Ready for review" on GitHub, or ${promoteCommand(r.slug)}.`, err, 'promote explorations');
     setButtonBusy(btn, false, 'Promote to review');
   }
 }
@@ -373,7 +374,7 @@ async function close(btn: HTMLButtonElement) {
     $('ex-actions').insertAdjacentHTML('afterend', '<p class="ex-done" role="status"><strong>Closed.</strong> The branch stays for reference.</p>');
     void loadExplorations(undefined, true);
   } catch (err) {
-    actionError((err as Error).message);
+    actionError((err as Error).message, err, 'close pull requests');
     setButtonBusy(btn, false, 'Close exploration');
   }
 }

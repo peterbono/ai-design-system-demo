@@ -24,6 +24,7 @@ import { type ComponentApplyReport, type ComponentPullPlan, type PlannedComponen
 import { type ComponentReview, onlyComponent, reviewUpdates } from '../sync/component-review';
 import type { ComponentSignature } from '../sync/components';
 import { type Destination, type PublishItem, type PublishResult, applyDestination, componentKey, defaultUnchecked, experimentalTokenIds, groupState, heldTokenIds, isChecked, publish, publishItems, setGroup, variableIdsOf, variableKey } from '../sync/publish';
+import { NEW_TOKEN_REFUSED, TOKEN_REJECTED_CALLOUT, TOKEN_REJECTED_DETAIL, TOKEN_SETTINGS_URL, type TokenProblem, checkToken, errorText, tokenProblem } from '../sync/token-health';
 import { type ExplorationChoice, explorationTestBuild, newExplorationProblems, runningExplorations, shareMessage, startExploration, targetOf, TestBuildPoller, tryItLinks } from '../sync/explorations';
 import type { BranchPreview, ExplorationTryIt } from '@bridge-ds/core';
 import { type Selection, onProgress, onSelection, request } from './bridge';
@@ -170,7 +171,8 @@ interface State {
   tab: Tab;
   init?: InitPayload | undefined;
   busy?: string | undefined;
-  error?: { message: string; retry?: (() => void) | undefined } | undefined;
+  /** `problem`: the failure was about the token (rejected, or a missing permission named with its GitHub link). */
+  error?: { message: string; retry?: (() => void) | undefined; problem?: TokenProblem | undefined } | undefined;
   pull?: PullState | undefined;
   push?: PushState | undefined;
   settingsDraft: RepoSettings;
@@ -231,11 +233,59 @@ async function run(label: string, task: () => Promise<void>, retry?: () => void)
   try {
     await task();
   } catch (err) {
-    state.error = { message: err instanceof Error ? err.message : String(err), retry };
+    const problem = noteTokenProblem(err);
+    state.error = { message: problem?.text ?? errorText(err), retry, problem };
   } finally {
     state.busy = undefined;
     render();
   }
+}
+
+/**
+ * A 401 means GitHub no longer accepts the saved token: record it (kept on this computer until a new token is saved),
+ * so Settings says "Stopped working" and Pull and Push show one callout instead of their own errors.
+ */
+function noteTokenProblem(err: unknown): TokenProblem | undefined {
+  const problem = tokenProblem(err);
+  if (problem?.kind === 'rejected') setTokenState('rejected');
+  return problem;
+}
+
+function setTokenState(next: 'ok' | 'rejected'): void {
+  const init = state.init;
+  if (!init?.hasToken || init.tokenState === next) return;
+  init.tokenState = next;
+  void request('token-state', { state: next }).catch(() => undefined);
+}
+
+const tokenRejected = () => state.init?.tokenState === 'rejected';
+
+/** An error shown inside a screen (components, explorations, previews): none when the token callout already says it. */
+function inlineError(err: unknown): string | undefined {
+  return noteTokenProblem(err)?.kind === 'rejected' ? undefined : errorText(err);
+}
+
+/** Settings, with the token field open and focused: "Replace token". */
+function replaceToken(): void {
+  state.tab = 'settings';
+  state.error = undefined;
+  state.settingsMessage = undefined;
+  state.expanded.add('token-replace');
+  render();
+  (document.querySelector('[data-focus-id="token-input"]') as HTMLInputElement | null)?.focus();
+}
+
+const openTokenSettings = () => void request('open-url', { url: TOKEN_SETTINGS_URL });
+
+/** The one callout every GitHub screen shows while the saved token is rejected. */
+function tokenRejectedCallout(): HTMLElement {
+  return h(
+    'div',
+    { class: 'callout warn', role: 'alert' },
+    h('div', { class: 'callout-title' }, icon('alert'), TOKEN_REJECTED_CALLOUT),
+    h('p', null, TOKEN_REJECTED_DETAIL),
+    h('div', { class: 'inline-actions' }, h('button', { class: 'btn', 'data-focus-id': 'token-replace-go', onClick: replaceToken }, 'Replace token')),
+  );
 }
 
 const short = (sha: string | undefined) => (sha ? sha.slice(0, 7) : '');
@@ -527,7 +577,7 @@ async function loadPull(prev?: PullState): Promise<PullState> {
       if (missing.length) Object.assign(before, await request('thumbnails', { nodeIds: missing, width: THUMB_W }).catch(() => ({})));
     }
   } catch (err) {
-    componentsError = err instanceof Error ? err.message : String(err);
+    componentsError = inlineError(err);
   }
   return {
     analysis,
@@ -672,7 +722,7 @@ function scanPush(keep?: PushState, then?: () => void): void {
         // Coded components seen for the first time: take their baseline silently (nothing to send).
         if (components.adopt.length) await request('save-signatures', { items: components.adopt.map((x) => ({ nodeId: x.nodeId, signature: JSON.stringify(x.signature) })) });
       } catch (err) {
-        componentsError = err instanceof Error ? err.message : String(err);
+        componentsError = inlineError(err);
       }
       const items = publishItems(analysis, experimental, components?.changed ?? []);
       // A new scan starts like Figma's publish dialog: everything checked but experimental items. A re-scan from this
@@ -747,7 +797,7 @@ async function loadExplorations(r: PushState): Promise<void> {
     r.explorations = await runningExplorations(getClient(), r.analysis.headFiles.config, state.init!.settings.branch);
     if (!r.exploreTarget || (r.exploreTarget !== 'new' && !pickedExploration(r))) r.exploreTarget = r.explorations[0]?.branch ?? 'new';
   } catch (err) {
-    r.explorationsError = err instanceof Error ? err.message : String(err);
+    r.explorationsError = inlineError(err);
     r.exploreTarget = 'new';
   } finally {
     r.loadingExplorations = false;
@@ -855,23 +905,34 @@ function saveSettings(): void {
       let message = 'Settings saved. Add a token to connect.';
       if (token) {
         const gh = new GitHubClient(draft.repo, token);
-        const info = await gh.getRepo();
+        const info = await gh.getRepo().catch((err: unknown) => {
+          // A token just pasted that GitHub refuses never worked; the saved one stopped working.
+          if (tokenProblem(err)?.kind === 'rejected') {
+            if (newToken) throw new Error(NEW_TOKEN_REFUSED);
+            setTokenState('rejected');
+            state.expanded.add('token-replace');
+            throw new Error(`${TOKEN_REJECTED_DETAIL} Paste a new token to replace it.`);
+          }
+          throw err;
+        });
         if (info.permissions && info.permissions.push === false) {
           throw new Error(`This token can read ${info.fullName} but cannot write to it. Give it "Contents", "Pull requests" and "Issues" set to "Read and write".`);
         }
         if (!(await gh.getBranchSha(draft.branch.trim()))) throw new Error(`Branch "${draft.branch.trim()}" does not exist in ${info.fullName}.`);
         if (newToken) await request('save-token', { token: newToken });
+        else setTokenState('ok');
         message = `Connected to ${info.fullName}.${newToken ? ' The token is saved on this computer only.' : ''}`;
       }
       state.tokenDraft = '';
       state.expanded.delete('repo-edit');
+      state.expanded.delete('token-replace');
       await request('save-settings', { settings: draft });
       await loadInit();
       state.pull = undefined;
       state.push = undefined;
       state.settingsMessage = { kind: 'ok', text: message };
     } catch (err) {
-      state.settingsMessage = { kind: 'error', text: err instanceof Error ? err.message : String(err) };
+      state.settingsMessage = { kind: 'error', text: errorText(err) };
     }
   });
 }
@@ -879,6 +940,7 @@ function saveSettings(): void {
 function removeToken(): void {
   void run('Removing the token', async () => {
     await request('clear-token', {});
+    state.expanded.delete('token-replace');
     await loadInit();
     state.pull = undefined;
     state.push = undefined;
@@ -1145,7 +1207,8 @@ function startMine(a: AssistState, t: AssistTarget): void {
       });
       mine.poller.start();
     } catch (err) {
-      a.mine = { status: 'error', edited: {}, error: err instanceof Error ? err.message : String(err) };
+      const message = inlineError(err);
+      a.mine = message === undefined ? undefined : { status: 'error', edited: {}, error: message };
     }
     render();
   })();
@@ -2223,8 +2286,13 @@ function startTryItPolling(r: PushState): void {
       r.tryItError = undefined;
       refreshTryIt(r);
     },
-    onError: (message) => {
+    onError: (message, err) => {
       if (state.push !== r) return poller.stop();
+      if (noteTokenProblem(err)?.kind === 'rejected') {
+        poller.stop();
+        render();
+        return;
+      }
       r.tryItError = message;
       refreshTryIt(r);
     },
@@ -2411,7 +2479,13 @@ function viewPush(): View {
   if (r.result) {
     const res = r.result;
     const pr = res.pr;
-    const failed = res.failed.length ? issueList('error', 'Not sent', res.failed.map((f) => ({ code: 'file-problem', severity: 'error', message: `${f.component}: ${f.error}` }))) : null;
+    // A rejected token shows as the one token callout; a missing permission names it, with the token page one click away.
+    if (res.failed.some((f) => f.problem === 'rejected')) setTokenState('rejected');
+    const shown = res.failed.filter((f) => f.problem !== 'rejected');
+    const failed = shown.length ? issueList('error', 'Not sent', shown.map((f) => ({ code: 'file-problem', severity: 'error', message: `${f.component}: ${f.error}` }))) : null;
+    if (failed && shown.some((f) => f.problem === 'missing-permission')) {
+      (failed as HTMLElement).append(h('div', { class: 'inline-actions' }, h('button', { class: 'btn', onClick: openTokenSettings }, icon('external'), 'Edit token on GitHub')));
+    }
     if (r.sentTo) {
       const e = r.sentTo;
       // One primary: the product with the edits when its preview exists, else the pull request.
@@ -2670,6 +2744,9 @@ function viewSettings(): View {
   const d = state.settingsDraft;
   const init = state.init!;
   const editingRepo = !init.hasToken || state.expanded.has('repo-edit');
+  const rejected = init.tokenState === 'rejected';
+  // The token field shows without a token, or after "Replace token".
+  const tokenField = !init.hasToken || state.expanded.has('token-replace');
   const field = (label: string, key: keyof RepoSettings, hint: string, placeholder: string) =>
     h(
       'label',
@@ -2705,7 +2782,8 @@ function viewSettings(): View {
             ),
             h('div', { class: 'inline-actions' }, h('button', { class: 'btn ghost', 'data-focus-id': 'repo-edit', onClick: () => { state.expanded.add('repo-edit'); render(); } }, 'Edit')),
           ),
-      // A saved token is a state, not a question: one row with "Connected" and Remove. Removing it brings back the field.
+      // A saved token is a state, not a question: one row with "Connected" (or "Stopped working") and its actions.
+      // "Replace token" opens the field below it; saving replaces the token and clears the state.
       init.hasToken
         ? h(
             'section',
@@ -2713,12 +2791,24 @@ function viewSettings(): View {
             h(
               'div',
               { class: 'token-row' },
-              h('span', { class: 'opt-text' }, h('span', { class: 'opt-title' }, 'GitHub token'), h('small', null, 'Saved on this computer, never in the file.')),
-              h('span', { class: 'opt-status ok' }, icon('check'), 'Connected'),
+              h(
+                'span',
+                { class: 'opt-text' },
+                h('span', { class: 'opt-title' }, 'GitHub token'),
+                h('small', null, rejected ? TOKEN_REJECTED_DETAIL : 'Saved on this computer, never in the file.'),
+              ),
+              rejected ? h('span', { class: 'opt-status warn' }, icon('alert'), 'Stopped working') : h('span', { class: 'opt-status ok' }, icon('check'), 'Connected'),
             ),
+            tokenField
+              ? tokenInput('New fine-grained token', 'Replaces the saved one when you save. Stays on this computer, never in the file.')
+              : null,
             h(
               'div',
               { class: 'inline-actions' },
+              tokenField
+                ? h('button', { class: 'btn ghost', onClick: () => { state.expanded.delete('token-replace'); state.tokenDraft = ''; render(); } }, 'Cancel')
+                : h('button', { class: rejected ? 'btn' : 'btn ghost', 'data-focus-id': 'token-replace', onClick: replaceToken }, 'Replace token'),
+              tokenField ? h('button', { class: 'btn ghost', onClick: () => void request('open-url', { url: 'https://github.com/settings/personal-access-tokens/new' }) }, 'Create one on GitHub') : null,
               h('button', { class: 'btn ghost danger', onClick: removeToken }, 'Remove token'),
             ),
           )
@@ -2727,21 +2817,7 @@ function viewSettings(): View {
             { class: 'card' },
             h('div', { class: 'group-head' }, h('h2', null, 'GitHub token'), h('button', { class: 'btn ghost', onClick: () => void request('open-url', { url: 'https://github.com/settings/personal-access-tokens/new' }) }, 'Create one on GitHub')),
             h('p', { class: 'lede' }, 'A fine-grained token for this repository only, with "Contents", "Pull requests" and "Issues" set to "Read and write".'),
-            h(
-              'label',
-              { class: 'field' },
-              h('span', null, 'Fine-grained token'),
-              h('input', {
-                type: 'password',
-                value: '',
-                autocomplete: 'off',
-                spellcheck: 'false',
-                'data-focus-id': 'token-input',
-                placeholder: 'github_pat_...',
-                onInput: (e: Event) => (state.tokenDraft = (e.target as HTMLInputElement).value),
-              }),
-              h('small', null, 'Stays on this computer, never in the file, never shown again.'),
-            ),
+            tokenInput('Fine-grained token', 'Stays on this computer, never in the file, never shown again.'),
           ),
       state.settingsMessage
         ? h(
@@ -2753,8 +2829,26 @@ function viewSettings(): View {
       claudeCard(),
     ],
     // Nothing to save while everything is connected: the bar shows when there is something to set up or change.
-    bar: editingRepo || !init.hasToken ? { label: 'Save and check access', onClick: saveSettings } : undefined,
+    bar: editingRepo || tokenField ? { label: tokenField && init.hasToken && !editingRepo ? 'Replace and check access' : 'Save and check access', onClick: saveSettings } : undefined,
   };
+}
+
+function tokenInput(label: string, hint: string): HTMLElement {
+  return h(
+    'label',
+    { class: 'field' },
+    h('span', null, label),
+    h('input', {
+      type: 'password',
+      value: state.tokenDraft,
+      autocomplete: 'off',
+      spellcheck: 'false',
+      'data-focus-id': 'token-input',
+      placeholder: 'github_pat_...',
+      onInput: (e: Event) => (state.tokenDraft = (e.target as HTMLInputElement).value),
+    }),
+    h('small', null, hint),
+  );
 }
 
 function snippet(id: string, label: string, text: string): HTMLElement {
@@ -2937,26 +3031,40 @@ function render(): void {
     h('span', { class: 'repo', title: `${state.init.settings.repo}, branch ${state.init.settings.branch}` }, icon('branch'), state.init.settings.branch),
   );
 
-  const error = state.error
+  // A rejected token: one callout on Pull and Push whatever failed (Settings shows it on the token row).
+  const tokenCallout = tokenRejected() && state.tab !== 'settings' && state.init.hasToken ? tokenRejectedCallout() : null;
+  const shownError = state.error && !(tokenCallout && state.error.problem?.kind === 'rejected') && !(state.tab === 'settings' && state.error.problem?.kind === 'rejected') ? state.error : undefined;
+  const permission = shownError?.problem?.kind === 'missing-permission';
+  const error = shownError
     ? h(
         'div',
         { class: 'callout error', role: 'alert' },
-        h('div', { class: 'callout-title' }, icon('alert'), state.error.message),
-        state.error.retry
+        h('div', { class: 'callout-title' }, icon('alert'), shownError.message),
+        shownError.retry || permission
           ? h(
               'div',
               { class: 'inline-actions' },
-              h('button', { class: 'btn', onClick: () => { const retry = state.error?.retry; state.error = undefined; retry?.(); } }, icon('refresh'), 'Try again'),
+              permission ? h('button', { class: 'btn', onClick: openTokenSettings }, icon('external'), 'Edit token on GitHub') : null,
+              shownError.retry ? h('button', { class: permission ? 'btn ghost' : 'btn', onClick: () => { const retry = state.error?.retry; state.error = undefined; retry?.(); } }, icon('refresh'), 'Try again') : null,
             )
           : null,
       )
     : null;
 
-  app.replaceChildren(tabs, h('main', { id: 'panel', role: 'tabpanel', 'aria-labelledby': `tab-${state.tab}`, 'aria-busy': state.busy ? 'true' : 'false' }, error, view.body), ...([actionBar(view.bar)].filter(Boolean) as Node[]));
+  app.replaceChildren(tabs, h('main', { id: 'panel', role: 'tabpanel', 'aria-labelledby': `tab-${state.tab}`, 'aria-busy': state.busy ? 'true' : 'false' }, tokenCallout, error, view.body), ...([actionBar(view.bar)].filter(Boolean) as Node[]));
 
   const main = document.querySelector('main');
   if (main) main.scrollTop = scrollTop;
   if (focusedId) (document.querySelector(`[data-focus-id="${focusedId}"]`) as HTMLElement | null)?.focus();
+}
+
+/** One call at start (the repository) so a token GitHub stopped accepting shows before the designer tries an action. */
+async function checkAccessOnStart(): Promise<void> {
+  if (!state.init?.hasToken) return;
+  const result = await checkToken(getClient());
+  if (!result || result === state.init.tokenState) return;
+  setTokenState(result);
+  render();
 }
 
 render();
@@ -2964,6 +3072,7 @@ loadInit()
   .then(() => {
     if (!state.init!.hasToken) state.tab = 'settings';
     render();
+    void checkAccessOnStart();
   })
   .catch((err: unknown) => {
     state.error = { message: err instanceof Error ? err.message : String(err) };

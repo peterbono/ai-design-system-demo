@@ -2,9 +2,9 @@
 // reader's own token. The file is read from the default branch as it is now and only `integrations` changes
 // (format-preserving writer in lib/requests-view.ts), so the diff is that block. The tier comes from the shared
 // classifier: bridge.config.json is a guardrail file. Secrets never go in the file.
-import { GitHubClient, classifyRisk } from '@bridge-ds/core';
+import { classifyRisk } from '@bridge-ds/core';
 import { integrationsFromForm, integrationsProblems, integrationsProposal, withIntegrations, type IntegrationsForm } from '../lib/requests-view';
-import { esc, getToken, readRepo, setButtonBusy } from './github-session';
+import { esc, getToken, readRepo, setButtonBusy, showGhError, studioClient } from './github-session';
 
 const FILE = 'bridge.config.json';
 
@@ -50,7 +50,7 @@ export function initIntegrations() {
     setButtonBusy(submit, true, 'Opening pull request');
     done.hidden = true;
     try {
-      const gh = new GitHubClient(`${repo.owner}/${repo.repo}`, token, undefined, undefined, {
+      const gh = studioClient(`${repo.owner}/${repo.repo}`, token, {
         protectedBranches: [...new Set([...d.protectedBranches, 'main', 'master', repo.defaultBranch])],
         branchPrefix: d.prefix || undefined,
       });
@@ -69,7 +69,8 @@ export function initIntegrations() {
         <p><a href="/studio/changes/?pr=${pr.number}">Review #${pr.number}</a> · <a href="${esc(pr.url)}" target="_blank" rel="noopener">Open on GitHub</a></p>`;
       done.hidden = false;
     } catch (err) {
-      fail(`GitHub did not open the pull request: ${(err as Error).message}`);
+      showGhError(error, err, `GitHub did not open the pull request: ${(err as Error).message}`, 'open pull requests');
+      error.hidden = false;
     } finally {
       setButtonBusy(submit, false, 'Propose');
     }
