@@ -28,7 +28,12 @@ export interface ComponentDocs {
   dos: GuidanceItem[];
   donts: GuidanceItem[];
   accessibility: string[];
+  contentGuidelines?: string[];
   anatomy?: Record<string, string>;
+  /** "claude" when an AI drafted the prose (docs-draft Action, bridge_draft_docs). */
+  draftedBy?: string;
+  /** True while drafted prose waits for a reviewer (Studio Quality lists it, Changes offers Accept). */
+  needsReview?: boolean;
 }
 
 export interface Prop {
