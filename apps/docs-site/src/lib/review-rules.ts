@@ -41,10 +41,10 @@ export function pullState(p: PullStateLike): PullState {
 
 /** Label and pill tone of each state, for list and detail views. */
 export const PULL_STATE_PILL: Record<PullState, { label: string; cls: string }> = {
-  merged: { label: 'Merged', cls: 'is-accent' },
-  closed: { label: 'Closed', cls: 'is-fail' },
+  merged: { label: 'Merged', cls: '' },
+  closed: { label: 'Closed', cls: '' },
   draft: { label: 'Draft', cls: '' },
-  open: { label: 'Open', cls: 'is-pass' },
+  open: { label: 'Open', cls: '' },
 };
 
 /** Pull requests still waiting for review (open or draft): merged and closed ones never count as open reviews. */
@@ -310,13 +310,18 @@ export interface ReviewStatus {
   tone: string;
 }
 
+/**
+ * Label and tone of each status. Color means status only (lib/changes.ts): red when something blocks the merge,
+ * violet while it waits for an approval, green when it is ready, grey for drafts, running checks, unknown, merged
+ * and closed. Risk tiers never take a color.
+ */
 export const REVIEW_STATUS: Record<ReviewStatusKind, { label: string; tone: string }> = {
-  merged: { label: 'Merged', tone: 'is-accent' },
-  closed: { label: 'Closed', tone: 'is-fail' },
+  merged: { label: 'Merged', tone: '' },
+  closed: { label: 'Closed', tone: '' },
   draft: { label: 'Draft', tone: '' },
   'ci-failing': { label: 'CI failing', tone: 'is-fail' },
-  'changes-requested': { label: 'Changes requested', tone: 'is-warn' },
-  'ci-running': { label: 'CI running', tone: 'is-warn' },
+  'changes-requested': { label: 'Changes requested', tone: 'is-fail' },
+  'ci-running': { label: 'CI running', tone: '' },
   'needs-design': { label: 'Needs design approval', tone: 'is-info' },
   'needs-tech': { label: 'Needs tech approval', tone: 'is-info' },
   'needs-approval': { label: 'Needs approval', tone: 'is-info' },
@@ -326,17 +331,17 @@ export const REVIEW_STATUS: Record<ReviewStatusKind, { label: string; tone: stri
 };
 
 /**
- * Sort order for a "needs you" list: what blocks or waits on a person first, drafts and finished ones last.
- * Lower comes first.
+ * Sort order for a "needs you" list, most urgent first: what blocks the merge, then what waits for an approval,
+ * then what is ready, then running checks and unknown ones, drafts and finished ones last. Lower comes first.
  */
 export const REVIEW_STATUS_ORDER: Record<ReviewStatusKind, number> = {
   'ci-failing': 0,
   conflict: 1,
   'changes-requested': 2,
-  ready: 3,
-  'needs-design': 4,
-  'needs-tech': 5,
-  'needs-approval': 6,
+  'needs-design': 3,
+  'needs-tech': 4,
+  'needs-approval': 5,
+  ready: 6,
   'ci-running': 7,
   unknown: 8,
   draft: 9,

@@ -31,7 +31,7 @@ const guide = undocumented.length
     }
   : s.issues[0]
     ? { title: s.issues[0].title, text: s.issues[0].detail, cta: 'Open', href: s.issues[0].href }
-    : { title: 'Check visual impact', text: 'Every pull request gets screenshots of the stories and screens it changes. Look before you approve.', cta: 'Open Visual impact', href: '/studio/visual-impact/' };
+    : { title: 'Check visual impact', text: 'Every pull request gets screenshots of the stories and screens it changes. Look before you approve.', cta: 'Open Changes', href: '/studio/changes/' };
 
 // Merged, not released yet: the bottom of the activity list. Open pull requests are added on top in the browser.
 const merged = releases()
@@ -56,7 +56,7 @@ const merged = releases()
           <span class="ov-hello-line" data-review-line>Here is what waits for you.</span>
         </h1>
         <p class="t-body" data-review-sentence>Open pull requests load from GitHub.</p>
-        <ButtonLink variant="primary" href="/studio/reviews/" data-start-review data-keep-branch>Start reviewing</ButtonLink>
+        <ButtonLink variant="primary" href="/studio/changes/" data-start-review data-keep-branch>Start reviewing</ButtonLink>
         <p class="t-ui ov-health">
           <span class:list={['ov-dot', { 'is-fail': failing > 0 }]} aria-hidden="true"></span>
           {failing === 0 ? health : <a href="/studio/checks/">{health}</a>}
@@ -70,7 +70,7 @@ const merged = releases()
         <div>
           <h2 class="t-h3" data-unblock-title>Review open changes</h2>
           <p class="t-body t-muted" data-unblock-text>Each pull request shows its token diff, contrast and visual impact before it can merge.</p>
-          <ButtonLink size="sm" href="/studio/reviews/" data-unblock-cta data-keep-branch>Open Reviews</ButtonLink>
+          <ButtonLink size="sm" href="/studio/changes/" data-unblock-cta data-keep-branch>Open Changes</ButtonLink>
         </div>
         <Illustration name="fix" width={96} />
       </article>
@@ -87,7 +87,7 @@ const merged = releases()
     <section class="ov-activity" aria-labelledby="ov-activity-title">
       <header class="ov-activity-head">
         <h2 id="ov-activity-title" class="t-h3">Activity</h2>
-        <a href="/studio/reviews/" class="fg-link" data-keep-branch>See all</a>
+        <a href="/studio/changes/" class="fg-link" data-keep-branch>See all</a>
       </header>
       <ul class="fg-card ov-list" aria-live="polite">
         <li class="ov-row ov-skel" data-pulls-placeholder aria-hidden="true"></li>
@@ -97,7 +97,7 @@ const merged = releases()
               <span class="t-body ov-row-title">
                 <b title={mdTitleText(e.title)}>{oneLineTitle(e.title)}</b> <span class="t-muted">Merged</span>
               </span>
-              <span class="pill is-pass">Next release</span>
+              <span class="pill">Next release</span>
               <span class="t-ui t-muted ov-row-date">{e.date ? new Date(`${e.date}T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }) : ''}</span>
             </li>
           ))
@@ -110,7 +110,8 @@ const merged = releases()
     import { currentViewer, esc, ghGet, initGitHubConnect, readRepo, RateLimitError } from '../../scripts/github-session';
     import { loadStatuses, statusChip, type PullForStatus } from '../../scripts/pr-status';
     import { mdTitleText, oneLineTitle } from '../../lib/markdown';
-    import { openPulls, REVIEW_STATUS_ORDER, type ReviewStatus } from '../../lib/review-rules';
+    import { openPulls, type ReviewStatus } from '../../lib/review-rules';
+    import { byUrgency } from '../../lib/changes';
     import { humanTitle } from '../../lib/pr-title';
 
     interface Pull extends PullForStatus {
@@ -139,7 +140,7 @@ const merged = releases()
     const WAITING = new Set(['needs-design', 'needs-tech', 'needs-approval', 'ready', 'ci-running']);
 
     const row = (p: Pull, st: ReviewStatus | null, skipped: boolean) =>
-      `<li class="ov-row" data-pr="${p.number}"><a class="ov-row-link" href="/studio/reviews/?pr=${p.number}">
+      `<li class="ov-row" data-pr="${p.number}"><a class="ov-row-link" href="/studio/changes/?pr=${p.number}">
         <span class="t-body ov-row-title"><b title="${esc(mdTitleText(humanTitle(p.title)))}">${esc(oneLineTitle(humanTitle(p.title)))}</b> <span class="t-muted">#${p.number}</span></span>
         ${statusChip(st, { skipped })}
         <span class="t-ui t-muted ov-row-date">${esc(shortDate(p.updated_at))}</span></a></li>`;
@@ -165,8 +166,8 @@ const merged = releases()
       else if (blocked.length > 1) sentence.textContent = `${blocked.length} are blocked by failing checks.${rest ? ` ${others}` : ''}`;
       else if (known === n) sentence.textContent = n === 1 ? 'It waits for approval.' : 'They all wait for approval.';
       else sentence.textContent = 'Open each one to see its checks and approvals.';
-      const first = blocked[0] ?? open[0]!;
-      if (start) start.href = `/studio/reviews/?pr=${first.number}`;
+      const first = byUrgency(open.map((p) => ({ number: p.number, kind: statuses.get(p.number)?.kind ?? null, updated_at: p.updated_at })))[0]!;
+      if (start) start.href = `/studio/changes/?pr=${first.number}`;
 
       // First suggestion: unblock a failing pull request when there is one.
       const fail = open.find((p) => statuses.get(p.number)?.kind === 'ci-failing');
@@ -176,7 +177,7 @@ const merged = releases()
       if (fail && title && text && cta) {
         title.textContent = `Unblock pull request #${fail.number}`;
         text.textContent = `${humanTitle(mdTitleText(fail.title))} has a failing CI check. Open the run to see which check broke, then push a fix.`;
-        cta.href = `/studio/reviews/?pr=${fail.number}`;
+        cta.href = `/studio/changes/?pr=${fail.number}`;
         cta.textContent = `Open PR #${fail.number}`;
       }
     }
@@ -189,7 +190,9 @@ const merged = releases()
         const skipped = new Set<number>();
         const MAX = 5;
         const paint = () => {
-          const sorted = [...open].sort((a, b) => (REVIEW_STATUS_ORDER[statuses.get(a.number)?.kind ?? 'unknown'] ?? 50) - (REVIEW_STATUS_ORDER[statuses.get(b.number)?.kind ?? 'unknown'] ?? 50));
+          const order = byUrgency(open.map((p) => ({ number: p.number, kind: statuses.get(p.number)?.kind ?? null, updated_at: p.updated_at })));
+          const byNum = new Map(open.map((p) => [p.number, p]));
+          const sorted = order.map((o) => byNum.get(o.number)!);
           list?.querySelectorAll('[data-pr]').forEach((el) => el.remove());
           placeholder?.insertAdjacentHTML('beforebegin', sorted.slice(0, MAX).map((p) => row(p, statuses.get(p.number) ?? null, skipped.has(p.number))).join(''));
           summarize(open, statuses);

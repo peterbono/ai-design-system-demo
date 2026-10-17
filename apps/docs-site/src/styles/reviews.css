@@ -183,20 +183,7 @@
   color: var(--color-text-muted);
 }
 
-.rv-tier.is-t3 {
-  background-color: var(--color-feedback-danger-bg);
-  color: var(--color-feedback-danger-text);
-}
-
-.rv-tier.is-t2 {
-  background-color: var(--color-feedback-warning-bg);
-  color: var(--color-feedback-warning-text);
-}
-
-.rv-tier.is-t1 {
-  background-color: var(--color-feedback-success-bg);
-  color: var(--color-feedback-success-text);
-}
+/* Risk tiers are neutral labels: color is for status only (lib/changes.ts). */
 
 .rv-ci.is-loading {
   opacity: 0.5;
@@ -960,4 +947,10 @@
 
 .rv-connect-alt {
   margin: var(--space-1-5) 0 0;
+}
+
+/* Token names in diff tables stay on one line; the change kind and mode wrap under them. */
+.rv-table th[scope="row"] > .mono {
+  display: block;
+  white-space: nowrap;
 }
