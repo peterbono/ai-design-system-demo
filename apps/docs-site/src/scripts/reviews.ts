@@ -1,5 +1,7 @@
-// Reviews: open pull requests of the configured repo, read client-side from the GitHub REST API, with a
-// designer-friendly token diff and governance-aware actions. Without a token every action deep-links to GitHub.
+// Changes > In review and the pull request detail: open pull requests of the configured repo, read client-side
+// from the GitHub REST API, most urgent first, with a designer-friendly token diff and governance-aware actions.
+// Without a token every action deep-links to GitHub. When GitHub cannot be read, the last list this browser saw
+// stays on screen, labelled with its time (lib/changes.ts).
 import { classifyRisk } from '@bridge-ds/core';
 import {
   allowedMergeMethods,
@@ -14,20 +16,38 @@ import {
   parseChangeset,
   parseOverrideComment,
   parseTier,
-  PULL_STATE_PILL,
   pullState,
+  REVIEW_STATUS,
   summarizeApprovals,
   summarizeCi,
   type MergeMethod,
   type OverridePolicy,
   type ReviewLike,
+  type ReviewStatus,
+  type ReviewStatusKind,
   type Tier,
 } from '../lib/review-rules';
-import { currentViewer, esc, getToken, ghGet, ghWrite, initGitHubConnect, RateLimitError, readRepo, relativeTime, type Fetched } from './github-session';
+import {
+  asOf,
+  byUrgency,
+  currentPackageName,
+  detailSentence,
+  listSource,
+  openerFor,
+  primaryAction,
+  readSnapshot,
+  statusTone,
+  tierLabel,
+  writeSnapshot,
+  type CachedPull,
+} from '../lib/changes';
+import { orphanBranches, branchEntry, pullEntry, type BranchEntry, type BranchesConfig } from '../lib/branches';
+import { currentViewer, esc, getToken, ghGet, ghWrite, initGitHubConnect, RateLimitError, readRepo, relativeTime } from './github-session';
 import { analyzeTokenFiles, isTokenFile, type TokenReview } from './reviews/token-review';
 import { loadVisualImpact } from './reviews/visual-impact';
-import { ciFor, loadStatuses, statusChip } from './pr-status';
-import { mdTitleHtml } from '../lib/markdown';
+import { ciFor, loadStatuses, SKIPPED_HINT } from './pr-status';
+import { mdTitleHtml, mdTitleText } from '../lib/markdown';
+import { humanTitle } from '../lib/pr-title';
 import { touchesVisuals } from '../lib/visual-impact';
 
 interface User {
@@ -44,7 +64,7 @@ interface Pull {
   user: User;
   body: string | null;
   labels: { name: string; color?: string }[];
-  head: { ref: string; sha: string };
+  head: { ref: string; sha: string; repo: { full_name: string } | null };
   base: { ref: string; sha: string };
   created_at: string;
   updated_at: string;
@@ -75,6 +95,7 @@ interface Review extends ReviewLike {
 }
 
 const repo = readRepo();
+const REPO_KEY = `${repo.owner}/${repo.repo}`;
 const R = `/repos/${repo.owner}/${repo.repo}`;
 const SITE = (() => {
   try {
@@ -85,6 +106,21 @@ const SITE = (() => {
 })();
 const OWNERS = SITE.owners ?? { design: [], tech: [] };
 const OVERRIDE: OverridePolicy = SITE.override ?? NO_OVERRIDE;
+const BRANCHES: BranchesConfig = (() => {
+  try {
+    return JSON.parse(document.getElementById('bridge-branches')?.textContent || '{}') as BranchesConfig;
+  } catch {
+    return { owner: repo.owner, repo: repo.repo, defaultBranch: repo.defaultBranch, apps: {}, packages: [] };
+  }
+})();
+
+const storage = () => {
+  try {
+    return localStorage;
+  } catch {
+    return null;
+  }
+};
 
 interface RepoInfo {
   permissions?: { admin?: boolean; maintain?: boolean; push?: boolean };
@@ -113,16 +149,8 @@ async function readAccess(): Promise<Access | null> {
 const METHOD_LABEL: Record<MergeMethod, string> = { squash: 'Squash and merge', merge: 'Create a merge commit', rebase: 'Rebase and merge' };
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
-const listEl = () => $('rv-list');
 const detailEl = () => $('rv-detail');
 const notice = () => $('rv-notice');
-
-function staleNotice(f: Fetched<unknown>) {
-  if (!f.stale) return;
-  const when = f.cachedAt ? relativeTime(f.cachedAt) : 'earlier';
-  const reset = f.resetAt ? ` GitHub lets this browser read again ${relativeTime(f.resetAt.toISOString()).replace('in ', 'in ')}, around ${f.resetAt.toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' })}.` : '';
-  showNotice('warn', `GitHub's limit for anonymous reads (60 an hour) is reached, so this shows data saved in this browser ${when}.${reset} Connect a token to lift the limit to 5,000.`);
-}
 
 function showNotice(tone: 'warn' | 'fail' | 'info', text: string) {
   const n = notice();
@@ -131,26 +159,14 @@ function showNotice(tone: 'warn' | 'fail' | 'info', text: string) {
   n.textContent = text;
 }
 
-function tierPill(t: Tier | null) {
-  if (!t) return '<span class="pill">Tier not set</span>';
-  return `<span class="pill rv-tier is-t${t}">Tier ${t}</span>`;
-}
+const tierTag = (t: Tier | null) => `<span class="pill cg-tier">${tierLabel(t)}</span>`;
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
-function statePill(p: Pull) {
-  const { label, cls } = PULL_STATE_PILL[pullState(p)];
-  return `<span class="pill ${cls}">${label}</span>`;
-}
-
-function ciPill(state: string, loading = false) {
-  if (loading) return '<span class="pill rv-ci is-loading">CI</span>';
-  const map: Record<string, [string, string]> = {
-    pass: ['is-pass', 'CI passing'],
-    fail: ['is-fail', 'CI failing'],
-    pending: ['is-warn', 'CI running'],
-    none: ['', 'No CI yet'],
-  };
-  const [cls, label] = map[state] ?? ['', state];
-  return `<span class="pill rv-ci ${cls}">${label}</span>`;
+/** One status chip: color only says blocked (red), waiting for approval (violet), ready (green); the rest is grey. */
+function chip(kind: ReviewStatusKind | null, skipped = false) {
+  if (skipped) return `<span class="pill rv-status has-tip" data-status="unknown" data-tip="${SKIPPED_HINT}." aria-label="Status unknown. ${SKIPPED_HINT}.">Status unknown</span>`;
+  if (!kind) return '<span class="pill rv-status is-loading" aria-label="Checking status">Checking</span>';
+  return `<span class="pill rv-status ${statusTone(kind)}" data-status="${esc(kind)}">${esc(REVIEW_STATUS[kind].label)}</span>`;
 }
 
 function avatar(u: User | null, size = 24) {
@@ -158,74 +174,169 @@ function avatar(u: User | null, size = 24) {
   return `<img class="rv-avatar" src="${esc(u.avatar_url)}&s=${size * 2}" alt="" width="${size}" height="${size}" loading="lazy" />`;
 }
 
-// ---------------------------------------------------------------------------------------------------------------
-// List
+const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
-async function loadList(): Promise<Pull[]> {
-  const el = listEl();
-  el.setAttribute('aria-busy', 'true');
-  try {
-    // Same request as the header's open count, so one page load reads the list once.
-    const f = await ghGet<Pull[]>(`${R}/pulls?state=open&per_page=100`);
-    staleNotice(f);
-    // state=open already excludes merged and closed ones; filter again so a cached list never counts them.
-    const pulls = openPulls(f.data).sort((a, b) => b.updated_at.localeCompare(a.updated_at));
-    $('rv-count').textContent = String(pulls.length);
-    try {
-      localStorage.setItem('bridge.reviews.open', JSON.stringify({ n: pulls.length, at: new Date().toISOString() }));
-    } catch {
-      /* ignore */
-    }
-    if (!pulls.length) {
-      el.innerHTML = `<div class="rv-empty"><h2>No open pull requests</h2><p>When someone proposes a change from Figma, the token explorer or an agent, it shows up here for review.</p></div>`;
-      return pulls;
-    }
-    el.innerHTML = pulls
-      .map((p) => {
-        const tier = parseTier(p.labels, p.body);
-        const tokens = /^tokens\//.test(p.head.ref) || p.labels.some((l) => /token/i.test(l.name));
-        return `<li class="rv-row" data-pr="${p.number}">
-          <a class="rv-row-link" href="?pr=${p.number}" data-open-pr="${p.number}">
-            <span class="rv-row-main">
-              <span class="rv-row-title">${mdTitleHtml(p.title)}</span>
-              <span class="rv-row-meta">
-                <span class="mono">#${p.number}</span>
-                ${avatar(p.user, 18)}<span>${esc(p.user.login)}</span>
-                <span class="rv-sep" aria-hidden="true"></span>
-                <span class="mono rv-branch">${esc(p.head.ref)}</span>
-                <span class="rv-sep" aria-hidden="true"></span>
-                <span>updated ${relativeTime(p.updated_at)}</span>
-              </span>
-            </span>
-            <span class="rv-row-pills">
-              ${tokens ? '<span class="pill is-accent">Tokens</span>' : ''}
-              ${tierPill(tier)}
-              <span data-status-slot="${p.number}">${statusChip(null)}</span>
-            </span>
-          </a>
-        </li>`;
-      })
-      .join('');
-    // Status per row (CI and reviews), in the background, within the request budget (lib/status-budget): every
-    // row with a token, the 3 most recent without. A failed read shows "Status unknown", never "Ready".
-    void loadStatuses(pulls, (p, st, skipped) => {
-      const slot = el.querySelector(`[data-status-slot="${p.number}"]`);
-      if (slot) slot.innerHTML = statusChip(st, { skipped });
-    });
-    return pulls;
-  } catch (err) {
-    el.innerHTML = '';
-    if (err instanceof RateLimitError) {
-      showNotice('warn', 'GitHub limits anonymous reads to 60 an hour and this browser has used them, with nothing saved yet. Connect a token, or try again later.');
-    } else {
-      showNotice('fail', `Could not load pull requests: ${(err as Error).message}`);
-    }
-  } finally {
-    el.removeAttribute('aria-busy');
-  }
-  return [];
+// ---------------------------------------------------------------------------------------------------------------
+// In review
+
+interface Row {
+  number: number;
+  title: string;
+  updated_at: string;
+  tier: Tier | null;
+  kind: ReviewStatusKind | null;
+  skipped: boolean;
+  head: { ref: string; sha: string };
+  user: { login: string };
+  draft?: boolean;
 }
 
+function rowHtml(r: Row) {
+  const title = humanTitle(mdTitleText(r.title));
+  return `<li class="cg-row" data-pr="${r.number}"><a class="cg-row-link" href="?pr=${r.number}" data-open-pr="${r.number}">
+    <span class="cg-row-title"><span class="cg-row-name" title="${esc(title)}">${esc(title)}</span> <span class="cg-num">#${r.number}</span></span>
+    ${tierTag(r.tier)}
+    ${chip(r.kind, r.skipped)}
+    <time class="cg-date" datetime="${esc(r.updated_at)}">${esc(shortDate(r.updated_at))}</time></a></li>`;
+}
+
+function paintRows(rows: Row[], loading: boolean) {
+  const list = $('rv-list');
+  const sorted = byUrgency(rows);
+  list.innerHTML = sorted.map(rowHtml).join('');
+  const count = $('rv-count');
+  count.textContent = String(rows.length);
+  count.hidden = rows.length === 0;
+  const opener = openerFor(rows);
+  const sentence = $('cg-open-sentence');
+  const cta = document.getElementById('cg-open-cta') as HTMLAnchorElement | null;
+  sentence.textContent = loading ? `${plural(rows.length, 'change')} open. Checking their checks and approvals.` : opener.sentence;
+  if (cta && opener.action) {
+    cta.href = `?pr=${opener.action.pr}`;
+    cta.dataset.openPr = String(opener.action.pr);
+    cta.textContent = opener.action.label;
+    cta.hidden = false;
+  }
+}
+
+function showEmpty(empty: boolean) {
+  $('cg-opener').hidden = empty;
+  $('cg-table').hidden = empty;
+  $('cg-empty').hidden = !empty;
+}
+
+function paintAsOf(at: string | null) {
+  const el = $('cg-asof');
+  el.hidden = !at;
+  if (at) el.textContent = `Showing the list ${asOf(at)}: GitHub cannot be read right now. Connect GitHub for live status.`;
+}
+
+const toRow = (p: Pull | CachedPull, kind: ReviewStatusKind | null): Row => ({
+  number: p.number,
+  title: p.title,
+  updated_at: p.updated_at,
+  tier: 'labels' in p ? parseTier(p.labels, p.body) : p.tier,
+  kind,
+  skipped: false,
+  head: { ref: p.head.ref, sha: p.head.sha },
+  user: { login: p.user.login },
+  draft: p.draft,
+});
+
+/** Loads and paints the In review list. Returns the open pull requests it shows (live, stale or cached). */
+export async function loadList(): Promise<{ number: number; head: { ref: string } }[]> {
+  const list = $('rv-list');
+  list.setAttribute('aria-busy', 'true');
+  const snapshot = readSnapshot(storage(), REPO_KEY);
+  const known = new Map<number, ReviewStatusKind | null>((snapshot?.pulls ?? []).map((p) => [p.number, p.kind]));
+  let live: { pulls: Pull[]; staleAt?: string | null } | null = null;
+  let failure: unknown = null;
+  try {
+    const f = await ghGet<Pull[]>(`${R}/pulls?state=open&per_page=100`);
+    live = { pulls: openPulls(f.data), staleAt: f.stale ? (f.cachedAt ?? new Date(0).toISOString()) : null };
+  } catch (err) {
+    failure = err;
+  }
+  const src = listSource(live, snapshot);
+  list.removeAttribute('aria-busy');
+
+  if (src.kind === 'unavailable') {
+    showEmpty(false);
+    $('cg-table').hidden = true;
+    $('cg-open-sentence').textContent =
+      failure instanceof RateLimitError
+        ? 'GitHub limits anonymous reads to 60 an hour and this browser has used them, with no saved list yet. Connect GitHub, or try again later.'
+        : `Could not load pull requests: ${(failure as Error | null)?.message ?? 'GitHub did not answer'}.`;
+    return [];
+  }
+
+  if (src.kind === 'cached') {
+    const rows = src.pulls.map((p) => ({ ...toRow(p, p.kind), skipped: !p.kind }));
+    showEmpty(rows.length === 0);
+    paintRows(rows, false);
+    paintAsOf(src.at);
+    void loadOtherBranches(src.pulls);
+    return src.pulls;
+  }
+
+  const pulls = src.pulls;
+  paintAsOf(src.kind === 'stale' ? src.at : null);
+  showEmpty(pulls.length === 0);
+  if (!pulls.length) {
+    $('rv-count').hidden = true;
+    writeSnapshot(storage(), REPO_KEY, [], new Date());
+    void loadOtherBranches(pulls);
+    return pulls;
+  }
+  // A stale list starts from the statuses saved with the snapshot; a live one starts from "Checking".
+  const rows = new Map(pulls.map((p) => [p.number, toRow(p, src.kind === 'stale' ? (known.get(p.number) ?? null) : null)]));
+  paintRows([...rows.values()], src.kind === 'live');
+  // Status per row (CI and reviews), in the background, within the request budget (lib/status-budget). A failed
+  // read never replaces a status this browser already knows.
+  await loadStatuses(pulls, (p, st: ReviewStatus | null, skipped) => {
+    const r = rows.get(p.number)!;
+    const prior = r.kind;
+    r.kind = st && st.kind === 'unknown' && prior ? prior : (st?.kind ?? (skipped ? (known.get(p.number) ?? null) : null));
+    r.skipped = skipped && !r.kind;
+    paintRows([...rows.values()], false);
+  });
+  paintRows([...rows.values()], false);
+  if (src.kind === 'live') {
+    writeSnapshot(
+      storage(),
+      REPO_KEY,
+      pulls.map((p) => ({ number: p.number, title: p.title, html_url: p.html_url, updated_at: p.updated_at, tier: rows.get(p.number)!.tier, kind: rows.get(p.number)!.kind, head: { ref: p.head.ref, sha: p.head.sha }, user: { login: p.user.login }, draft: p.draft })),
+      new Date(),
+    );
+  }
+  void loadOtherBranches(pulls);
+  return pulls;
+}
+
+function branchRow(e: BranchEntry) {
+  const links = e.previews.map((p) => `<a href="${esc(p.url)}">${esc(p.label)}</a>`);
+  return `<li class="cg-row cg-branch"><span class="cg-row-title"><span class="mono cg-row-name">${esc(e.branch)}</span> <span class="cg-num mono">${esc(e.sha.slice(0, 7))}</span></span>
+    <span class="cg-branch-links">${[...links, `<a href="${esc(e.url)}">View on GitHub</a>`].join('')}</span></li>`;
+}
+
+/** Branches without a pull request (the old Branches page): one more request, skipped quietly when it fails. */
+async function loadOtherBranches(pulls: { head: { ref: string } }[]) {
+  try {
+    const b = await ghGet<{ name: string; commit: { sha: string } }[]>(`${R}/branches?per_page=100`);
+    const rest = orphanBranches(b.data, pulls as never, BRANCHES.defaultBranch).map((x) => branchEntry(x, BRANCHES));
+    const box = $<HTMLDetailsElement>('other-branches');
+    if (!rest.length) return;
+    $('cg-other-n').textContent = String(rest.length);
+    $('cg-other-list').innerHTML = rest.map(branchRow).join('');
+    box.hidden = false;
+    if (location.hash === '#other-branches') {
+      box.open = true;
+      box.scrollIntoView({ block: 'start' });
+    }
+  } catch {
+    /* rate limited with nothing saved: the section stays hidden */
+  }
+}
 
 // ---------------------------------------------------------------------------------------------------------------
 // Detail
@@ -233,17 +344,21 @@ async function loadList(): Promise<Pull[]> {
 let current: { pull: Pull; tier: Tier | null } | null = null;
 let openSeq = 0;
 
-async function openPr(n: number, push = true) {
+function section(id: string, title: string, meta: string, body: string, open = false) {
+  return `<details class="cg-sec" id="${id}"${open ? ' open' : ''}><summary class="cg-sec-head"><span class="cg-sec-title">${title}</span><span class="cg-sec-meta" data-sec-meta>${meta}</span><span class="cg-sec-chev" aria-hidden="true"></span></summary><div class="cg-sec-body">${body}</div></details>`;
+}
+
+export async function openPr(n: number, push = true) {
   const seq = ++openSeq;
   if (push) history.pushState({ pr: n }, '', `?pr=${n}`);
-  $('rv-list-view').hidden = true;
+  document.dispatchEvent(new CustomEvent('bridge:changes-view', { detail: 'detail' }));
   const d = detailEl();
   d.hidden = false;
-  d.innerHTML = `<p class="rv-loading">Loading pull request #${n}</p>`;
+  d.innerHTML = `<nav class="cg-crumbs" aria-label="Breadcrumb"><a href="./" data-back>Changes</a><span aria-hidden="true">/</span><span class="mono">#${n}</span></nav><p class="rv-loading">Loading pull request #${n}</p>`;
   window.scrollTo({ top: 0 });
   try {
     const pf = await ghGet<Pull>(`${R}/pulls/${n}`);
-    staleNotice(pf);
+    if (pf.stale) showNotice('warn', `GitHub cannot be read right now, so this shows pull request #${n} ${asOf(pf.cachedAt ?? '')}. Connect GitHub for live status.`);
     const pull = pf.data;
     const [files, reviews, comments, ci, access] = await Promise.all([
       ghGet<PrFile[]>(`${R}/pulls/${n}/files?per_page=100`).then((f) => f.data),
@@ -264,19 +379,25 @@ async function openPr(n: number, push = true) {
     const gate = mergeGate({ tier, ci, approvals, draft: pull.draft, mergeable: pull.mergeable, state: pull.state, merged_at: pull.merged_at, viewer: access?.login, override: OVERRIDE });
     const tokenFiles = files.filter((f) => isTokenFile(f.filename));
     const changesets = files.filter((f) => /^\.changeset\/(?!README).+\.md$/.test(f.filename) && f.status !== 'removed');
-
     const visual = touchesVisuals(files.map((f) => f.filename));
-    d.innerHTML = renderDetail(pull, tier, files, reviews, comments, ci, approvals, gate, tokenFiles.length, changesets.length, visual, access);
+
+    d.innerHTML = renderDetail({ pull, tier, files, reviews, comments, ci, approvals, gate, tokenCount: tokenFiles.length, changesetCount: changesets.length, visual, access });
     wireActions(pull, gate, access);
 
     if (visual) {
-      loadVisualImpact($('rv-visual'), {
+      const slot = $('rv-visual');
+      loadVisualImpact(slot, {
         owner: repo.owner,
         repo: repo.repo,
         pr: pull.number,
         sha: pull.head.sha,
         actionsUrl: `https://github.com/${repo.owner}/${repo.repo}/actions/workflows/visual-impact.yml`,
-      }).catch((err) => ($('rv-visual').innerHTML = `<p class="rv-error">Could not read the visual impact: ${esc((err as Error).message)}</p>`));
+      })
+        .then((v) => {
+          const meta = document.querySelector('#cg-sec-visual [data-sec-meta]');
+          if (meta) meta.innerHTML = v.changed === null ? 'Not run yet' : v.changed === 0 ? 'No change' : `${plural(v.changed, 'screen')} changed${v.thumb}`;
+        })
+        .catch((err) => (slot.innerHTML = `<p class="rv-error">Could not read the visual impact: ${esc((err as Error).message)}</p>`));
     }
 
     if (tokenFiles.length) {
@@ -292,43 +413,61 @@ async function openPr(n: number, push = true) {
           ghGet<string>(`https://raw.githubusercontent.com/${repo.owner}/${repo.repo}/${pull.head.sha}/${f.filename}`, { raw: true }).then((r) => ({ f, text: r.data })),
         ),
       )
-        .then((all) =>
-          (slot.innerHTML = all
-            .map(({ f, text }) => {
-              const c = parseChangeset(text);
-              return `<div class="rv-cs"><p class="mono small muted">${esc(f.filename)}</p><p>${c.bumps
-                .map((b) => `<span class="pill ${b.bump === 'major' ? 'is-fail' : b.bump === 'minor' ? 'is-warn' : 'is-pass'}">${esc(b.pkg)} ${b.bump}</span>`)
-                .join(' ')}</p><p>${esc(c.summary)}</p></div>`;
-            })
-            .join('')),
-        )
-        .catch(() => (slot.innerHTML = '<p class="muted">Could not read the changeset.</p>'));
+        .then((all) => {
+          const parsed = all.map(({ f, text }) => ({ f, c: parseChangeset(text) }));
+          const bumps = parsed.flatMap((x) => x.c.bumps.map((b) => ({ ...b, pkg: currentPackageName(b.pkg) })));
+          const meta = document.querySelector('#cg-sec-changeset [data-sec-meta]');
+          if (meta) meta.textContent = [...new Set(bumps.map((b) => b.bump))].join(', ') || 'no bump';
+          slot.innerHTML = parsed
+            .map(
+              ({ f, c }) =>
+                `<div class="rv-cs"><p class="cg-cs-bumps">${c.bumps.map((b) => `<span class="mono">${esc(currentPackageName(b.pkg))}</span> ${esc(b.bump)}`).join(', ')}</p><p>${mdTitleHtml(c.summary)}</p><p class="cg-muted mono">${esc(f.filename)}</p></div>`,
+            )
+            .join('');
+        })
+        .catch(() => (slot.innerHTML = '<p class="cg-muted">Could not read the changeset.</p>'));
     }
   } catch (err) {
-    d.innerHTML = `<p><a href="./" data-back>Back to reviews</a></p>`;
-    if (err instanceof RateLimitError) showNotice('warn', 'GitHub limits anonymous reads to 60 an hour. Connect a token, or open this pull request on GitHub.');
+    if (seq !== openSeq) return;
+    d.innerHTML = `<nav class="cg-crumbs" aria-label="Breadcrumb"><a href="./" data-back>Changes</a><span aria-hidden="true">/</span><span class="mono">#${n}</span></nav>`;
+    if (err instanceof RateLimitError) showNotice('warn', 'GitHub limits anonymous reads to 60 an hour. Connect GitHub, or open this pull request on GitHub.');
     else showNotice('fail', `Could not load pull request #${n}: ${(err as Error).message}`);
   }
 }
 
-function renderDetail(
-  pull: Pull,
-  tier: Tier | null,
-  files: PrFile[],
-  reviews: Review[],
-  comments: Comment[],
-  ci: ReturnType<typeof summarizeCi>,
-  approvals: ReturnType<typeof summarizeApprovals>,
-  gate: ReturnType<typeof mergeGate>,
-  tokenCount: number,
-  changesetCount: number,
-  visual = false,
-  access: Access | null = null,
-) {
+interface DetailInput {
+  pull: Pull;
+  tier: Tier | null;
+  files: PrFile[];
+  reviews: Review[];
+  comments: Comment[];
+  ci: ReturnType<typeof summarizeCi>;
+  approvals: ReturnType<typeof summarizeApprovals>;
+  gate: ReturnType<typeof mergeGate>;
+  tokenCount: number;
+  changesetCount: number;
+  visual: boolean;
+  access: Access | null;
+}
+
+function renderDetail(x: DetailInput) {
+  const { pull, tier, files, reviews, comments, ci, approvals, gate, access } = x;
   const write = Boolean(access?.write);
   const showOverride = gate.overridable && write;
-  const owners = OWNERS.design.length || OWNERS.tech.length;
-  const check = (ok: boolean, label: string) => `<li class="${ok ? 'is-pass' : 'is-pending'}"><span class="rv-check" aria-hidden="true"></span>${label}</li>`;
+  const lifecycle = pullState(pull);
+  const sentence = detailSentence({ state: lifecycle, ci, gate, changesRequestedBy: approvals.changesRequested });
+  const primary = primaryAction({ state: lifecycle, ci, gate, connected: Boolean(access), canWrite: write, isAuthor: access?.login === pull.user.login });
+  const primaryHtml =
+    primary.kind === 'open-run'
+      ? `<a class="btn btn-primary" href="${esc(primary.url!)}" target="_blank" rel="noopener">${primary.label}</a>`
+      : primary.kind === 'connect'
+        ? `<button type="button" class="btn btn-primary" data-gh-open>${primary.label}</button>`
+        : primary.kind === 'approve'
+          ? `<button type="button" class="btn btn-primary" data-act="APPROVE">${primary.label}</button>`
+          : primary.kind === 'merge'
+            ? `<button type="button" class="btn btn-primary" data-act="MERGE">${primary.label}</button>`
+            : `<a class="btn btn-primary" href="${esc(pull.html_url)}" target="_blank" rel="noopener">${primary.label}</a>`;
+
   const conversation = [
     ...reviews
       .filter((r) => r.state !== 'PENDING')
@@ -338,129 +477,93 @@ function renderDetail(
       return { at: c.created_at, user: c.user, kind: ov ? (ov.merged ? 'OVERRIDE' : 'OVERRIDE_REFUSED') : 'COMMENT', body: ov ? c.body.replace(OVERRIDE_HEADING, '').trim() : c.body, url: c.html_url };
     }),
   ].sort((a, b) => a.at.localeCompare(b.at));
-  const kindLabel: Record<string, [string, string]> = {
-    APPROVED: ['is-pass', 'approved'],
-    CHANGES_REQUESTED: ['is-fail', 'requested changes'],
-    COMMENTED: ['', 'reviewed'],
-    DISMISSED: ['', 'review dismissed'],
-    COMMENT: ['', 'commented'],
-    OVERRIDE: ['is-warn', 'merged as owner override'],
-    OVERRIDE_REFUSED: ['is-fail', 'tried an owner override'],
+  const kindLabel: Record<string, string> = {
+    APPROVED: 'approved',
+    CHANGES_REQUESTED: 'requested changes',
+    COMMENTED: 'reviewed',
+    DISMISSED: 'review dismissed',
+    COMMENT: 'commented',
+    OVERRIDE: 'merged as owner override',
+    OVERRIDE_REFUSED: 'tried an owner override',
   };
+
+  const fileList = `<ul class="rv-files">${files
+    .slice(0, 40)
+    .map((f) => `<li><span class="mono">${esc(f.filename)}</span><span class="rv-delta"><span class="is-add">+${f.additions}</span> <span class="is-del">-${f.deletions}</span></span></li>`)
+    .join('')}</ul>${files.length > 40 ? `<p class="cg-muted">${files.length - 40} more on <a href="${esc(pull.html_url)}/files">GitHub</a>.</p>` : ''}`;
+  const filesBody = x.tokenCount ? `<div id="rv-tokens"><p class="rv-loading">Resolving tokens at both commits</p></div>${fileList}` : fileList;
+
+  const failing = ci.failed.length;
+  const checksMeta = ci.total === 0 ? 'none yet' : failing ? `${failing} failing` : ci.pending.length ? `${ci.pending.length} running` : `all ${ci.total} pass`;
+  const checksBody = ci.total
+    ? `<ul class="rv-checks">${[...ci.failed.map((c) => ({ ...c, s: 'fail' })), ...ci.pending.map((c) => ({ ...c, s: 'pending' }))]
+        .map((c) => `<li class="is-${c.s}"><span class="rv-check" aria-hidden="true"></span>${c.url ? `<a href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.name)}</a>` : esc(c.name)}<span class="cg-muted">${c.s === 'fail' ? 'failing' : 'running'}</span></li>`)
+        .join('')}<li class="is-pass"><span class="rv-check" aria-hidden="true"></span>${plural(ci.passed, 'check')} passing</li></ul>`
+    : '<p class="cg-muted">No checks reported for the head commit yet.</p>';
+
+  const entry = pullEntry(pull as never, BRANCHES);
+  const previewLinks = entry.previews.map((p) => `<a class="btn btn-secondary btn-sm" href="${esc(p.url)}">${esc(p.label)}</a>`).join('');
+  const install = entry.install
+    ? `<div class="cg-install"><button type="button" class="btn btn-secondary btn-sm" data-copy-from="cg-install-cmd" data-copy><span data-copy-label>Copy install command</span></button>
+        <details class="cg-more"><summary>Show the command</summary><code class="cg-cmd" id="cg-install-cmd">${esc(entry.install)}</code></details></div>`
+    : '';
+  const previewBody = previewLinks || install ? `${previewLinks ? `<p class="cg-links">${previewLinks}</p>` : ''}${install}<p class="cg-muted">Snapshots exist once the Preview packages workflow ran on this commit.</p>` : `<p class="cg-muted">${entry.fromFork ? 'Pull request from a fork: no preview deploys or snapshots.' : 'No preview deploys configured for this repository.'}</p>`;
+  const previewMeta = entry.previews.length ? entry.previews.map((p) => p.label).join(', ') : entry.install ? 'install only' : 'none';
+
+  const convBody = conversation.length
+    ? `<ol class="rv-conv">${conversation
+        .map(
+          (c) =>
+            `<li><div class="rv-conv-head">${avatar(c.user, 20)}<strong>${esc(c.user?.login ?? 'someone')}</strong> <span class="rv-kind">${kindLabel[c.kind] ?? c.kind.toLowerCase()}</span> <a class="cg-muted" href="${esc(c.url)}" target="_blank" rel="noopener">${c.at ? relativeTime(c.at) : ''}</a></div>${c.body ? `<div class="rv-conv-body">${esc(c.body).replace(/\n/g, '<br>')}</div>` : ''}</li>`,
+        )
+        .join('')}</ol>`
+    : '<p class="cg-muted">No reviews or comments yet.</p>';
+
+  const reviewForm = `<div data-needs-token class="cg-act-review">
+      <details class="cg-more"><summary>Write a review</summary>
+        <label class="rv-label" for="rv-body">Comment</label>
+        <textarea id="rv-body" rows="4" placeholder="Say what to change and why. Required for Request changes."></textarea>
+        <div class="rv-btns">
+          ${primary.kind === 'approve' ? '' : '<button type="button" class="btn btn-secondary btn-sm" data-act="APPROVE">Approve</button>'}
+          <button type="button" class="btn btn-secondary btn-sm" data-act="REQUEST_CHANGES">Request changes</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-act="COMMENT">Comment</button>
+        </div>
+      </details>
+    </div>
+    <p data-no-token class="cg-muted">Read only until connected. Or <a href="${esc(pull.html_url)}/files#submit-review" target="_blank" rel="noopener">review on GitHub</a>.</p>`;
+  const mergeBits = write
+    ? `<div class="cg-act-end">
+        ${showOverride ? '<button type="button" class="btn btn-secondary btn-sm" data-override-open>Merge as owner override</button>' : ''}
+        <button type="button" class="btn btn-secondary btn-sm rv-danger" data-act="CLOSE">Close</button>
+        ${primary.kind === 'merge' ? '' : `<button type="button" class="btn btn-secondary btn-sm" data-act="MERGE" ${gate.allowed ? '' : 'disabled aria-describedby="rv-merge-why"'}>Merge</button>`}
+      </div>`
+    : access
+      ? `<p class="cg-muted">@${esc(access.login)} cannot write to ${esc(repo.owner)}/${esc(repo.repo)}, so merge and close are off.</p>`
+      : '';
+  const why = gate.allowed || lifecycle === 'merged' || lifecycle === 'closed' ? '' : `<p class="cg-muted" id="rv-merge-why">Merge unlocks when: ${gate.reasons.map((r) => esc(r)).join(' ')}${showOverride ? ' Only approvals are missing: as a listed owner you can merge with the owner override.' : ''}</p>`;
+
+  const approved = approvals.approvers.length ? ` Approved by @${approvals.approvers.map(esc).join(', @')}.` : '';
   return `
-  <nav class="rv-crumbs"><a href="./" data-back>Reviews</a><span aria-hidden="true">/</span><span class="mono">#${pull.number}</span></nav>
-  <header class="rv-head">
-    <h1 class="rv-title">${esc(pull.title)} <span class="rv-num mono">#${pull.number}</span></h1>
-    <div class="rv-head-meta">
-      ${statePill(pull)}
-      ${tierPill(tier)}
-      ${ciPill(ci.state)}
-      <span class="rv-by">${avatar(pull.user, 20)}<strong>${esc(pull.user.login)}</strong> ${pullState(pull) === 'merged' ? 'merged' : 'wants to merge'} <span class="mono rv-branch">${esc(pull.head.ref)}</span> into <span class="mono rv-branch">${esc(pull.base.ref)}</span></span>
-      <a class="rv-gh-link" href="${esc(pull.html_url)}" target="_blank" rel="noopener">Open on GitHub</a>
-    </div>
+  <nav class="cg-crumbs" aria-label="Breadcrumb"><a href="./" data-back>Changes</a><span aria-hidden="true">/</span><span class="mono">#${pull.number}</span></nav>
+  <header class="zone cg-pr-open">
+    <h1 class="cg-pr-title">${esc(humanTitle(mdTitleText(pull.title)))} <span class="cg-num">#${pull.number}</span></h1>
+    <p class="cg-pr-meta">${avatar(pull.user, 20)}<span>${esc(pull.user.login)}</span><span class="mono">${esc(pull.head.ref)}</span>${tierTag(tier)}<a href="${esc(pull.html_url)}" target="_blank" rel="noopener">Open on GitHub</a></p>
+    <p class="cg-pr-state">${esc(sentence)}${esc(approved)}</p>
+    <p class="cg-pr-cta">${primaryHtml}</p>
   </header>
-  <div class="rv-layout">
-    <div class="rv-main">
-      ${
-        tokenCount
-          ? `<section class="rv-card" aria-labelledby="rv-tok-h"><header class="rv-card-head"><h2 id="rv-tok-h">Token changes</h2><span class="muted small">${tokenCount} token file${tokenCount > 1 ? 's' : ''}</span></header><div id="rv-tokens"><p class="rv-loading">Resolving tokens at both commits</p></div></section>`
-          : `<section class="rv-card"><header class="rv-card-head"><h2>Files</h2><span class="muted small">${files.length} changed</span></header><ul class="rv-files">${files
-              .slice(0, 40)
-              .map((f) => `<li><span class="mono">${esc(f.filename)}</span><span class="rv-delta"><span class="is-add">+${f.additions}</span> <span class="is-del">-${f.deletions}</span></span></li>`)
-              .join('')}</ul></section>`
-      }
-      ${
-        visual
-          ? `<section class="rv-card" aria-labelledby="rv-vi-h"><header class="rv-card-head"><h2 id="rv-vi-h">Visual impact</h2><span class="muted small">stories and admin screens, before and after</span></header><div id="rv-visual"><p class="rv-loading">Reading the visual impact for ${esc(pull.head.sha.slice(0, 7))}</p></div></section>`
-          : ''
-      }
-      <section class="rv-card" aria-labelledby="rv-ci-h">
-        <header class="rv-card-head"><h2 id="rv-ci-h">Checks</h2>${ciPill(ci.state)}</header>
-        ${
-          ci.total
-            ? `<ul class="rv-checks">${[
-                ...ci.failed.map((x) => ({ ...x, s: 'fail' })),
-                ...ci.pending.map((x) => ({ ...x, s: 'pending' })),
-              ]
-                .map((x) => `<li class="is-${x.s}"><span class="rv-check" aria-hidden="true"></span>${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.name)}</a>` : esc(x.name)}<span class="muted small">${x.s === 'fail' ? 'failing' : 'running'}</span></li>`)
-                .join('')}<li class="is-pass"><span class="rv-check" aria-hidden="true"></span>${ci.passed} check${ci.passed === 1 ? '' : 's'} passing</li></ul>`
-            : '<p class="muted">No checks reported for the head commit yet.</p>'
-        }
-      </section>
-      <section class="rv-card" aria-labelledby="rv-cs-h">
-        <header class="rv-card-head"><h2 id="rv-cs-h">Changeset</h2></header>
-        <div id="rv-changeset">${changesetCount ? '<p class="rv-loading">Reading changeset</p>' : '<p class="rv-warnline">No changeset in this pull request. CI asks for one when a package changes.</p>'}</div>
-      </section>
-      <section class="rv-card" aria-labelledby="rv-conv-h">
-        <header class="rv-card-head"><h2 id="rv-conv-h">Conversation</h2><span class="muted small">${conversation.length}</span></header>
-        ${
-          conversation.length
-            ? `<ol class="rv-conv">${conversation
-                .map((c) => {
-                  const [cls, label] = kindLabel[c.kind] ?? ['', c.kind.toLowerCase()];
-                  return `<li><div class="rv-conv-head">${avatar(c.user, 20)}<strong>${esc(c.user?.login ?? 'someone')}</strong> <span class="rv-kind ${cls}">${label}</span> <a class="muted small" href="${esc(c.url)}" target="_blank" rel="noopener">${c.at ? relativeTime(c.at) : ''}</a></div>${c.body ? `<div class="rv-conv-body">${esc(c.body).replace(/\n/g, '<br>')}</div>` : ''}</li>`;
-                })
-                .join('')}</ol>`
-            : '<p class="muted">No reviews or comments yet.</p>'
-        }
-      </section>
-    </div>
-    <aside class="rv-side" aria-label="Review actions">
-      <section class="rv-card rv-gate">
-        <h2>Ready to merge?</h2>
-        <ul class="rv-gate-list">
-          ${check(ci.state === 'pass', ci.state === 'pass' ? 'CI passing' : ci.state === 'fail' ? 'CI failing' : ci.state === 'pending' ? 'CI running' : 'No CI result yet')}
-          ${
-            (tier ?? 3) === 3
-              ? check(approvals.design, `Design approval${owners ? '' : ' (first approver)'}`) + check(approvals.tech, `Tech approval${owners ? '' : ' (second approver)'}`)
-              : check(approvals.approvers.length > 0, 'One approval')
-          }
-          ${check(!pull.draft, pull.draft ? 'Marked ready for review (still a draft)' : 'Marked ready for review')}
-        </ul>
-        ${approvals.approvers.length ? `<p class="small muted">Approved by @${approvals.approvers.map(esc).join(', @')}</p>` : ''}
-        ${gate.allowed ? '' : `<ul class="rv-reasons">${gate.reasons.map((r) => `<li>${esc(r)}</li>`).join('')}</ul>`}
-        ${
-          showOverride
-            ? `<div class="rv-override" data-needs-token>
-                <p class="small">Only approvals are missing. As a listed owner (<span class="mono">governance.override</span>), you can merge without them. Your reason goes on the pull request first.</p>
-                <button type="button" class="btn btn-secondary btn-sm" data-override-open>Merge as owner override</button>
-              </div>`
-            : ''
-        }
-      </section>
-      <section class="rv-card rv-actions" id="rv-actions">
-        <h2>Your review</h2>
-        <div data-needs-token>
-          <label class="rv-label" for="rv-body">Comment</label>
-          <textarea id="rv-body" rows="4" placeholder="Say what to change and why. Required for Request changes."></textarea>
-          <div class="rv-btns">
-            <button type="button" class="btn btn-primary btn-sm" data-act="APPROVE">Approve</button>
-            <button type="button" class="btn btn-secondary btn-sm" data-act="REQUEST_CHANGES">Request changes</button>
-            <button type="button" class="btn btn-secondary btn-sm" data-act="COMMENT">Comment</button>
-          </div>
-          ${
-            write
-              ? `<div class="rv-btns rv-btns-end">
-            <button type="button" class="btn btn-secondary btn-sm rv-danger" data-act="CLOSE">Close pull request</button>
-            <button type="button" class="btn btn-primary btn-sm" data-act="MERGE" ${gate.allowed ? '' : 'disabled aria-describedby="rv-merge-why"'}>Merge</button>
-          </div>
-          ${gate.allowed ? '' : `<p class="small muted" id="rv-merge-why">Merge unlocks when the checks above pass${showOverride ? ', or use the owner override above' : ''}.</p>`}`
-              : access
-                ? `<p class="small rv-warnline">@${esc(access.login)} cannot write to ${esc(repo.owner)}/${esc(repo.repo)}, so merge and close are off. Ask a maintainer for write access, or use a token with Contents and Pull requests set to read and write.</p>`
-                : ''
-          }
-        </div>
-        <div data-no-token>
-          <p class="small rv-connect-line">
-            <span>Connect GitHub to approve, comment or merge.</span>
-            <button type="button" class="btn btn-secondary btn-sm" data-gh-open>Connect GitHub</button>
-          </p>
-          <p class="small muted rv-connect-alt">Or <a href="${esc(pull.html_url)}/files#submit-review" target="_blank" rel="noopener">review on GitHub</a>.</p>
-        </div>
-        <p class="rv-act-status" id="rv-act-status" role="status" aria-live="polite"></p>
-      </section>
-    </aside>
+  <div class="cg-secs">
+    ${section('cg-sec-files', 'Files', String(files.length), filesBody)}
+    ${section('cg-sec-checks', 'Checks', checksMeta, checksBody, failing > 0)}
+    ${x.visual ? section('cg-sec-visual', 'Visual impact', 'Reading', `<div id="rv-visual"><p class="rv-loading">Reading the visual impact for ${esc(pull.head.sha.slice(0, 7))}</p></div>`) : ''}
+    ${section('cg-sec-preview', 'Preview and install', previewMeta, previewBody)}
+    ${section('cg-sec-changeset', 'Changeset', x.changesetCount ? 'Reading' : 'missing', `<div id="rv-changeset">${x.changesetCount ? '<p class="rv-loading">Reading changeset</p>' : '<p class="cg-muted">No changeset in this pull request. CI asks for one when a package changes.</p>'}</div>`)}
+    ${section('cg-sec-conv', 'Conversation', String(conversation.length), convBody)}
   </div>
+  <footer class="cg-actbar" id="rv-actions" aria-label="Review actions">
+    ${why}
+    <div class="cg-actbar-row">${reviewForm}${mergeBits}</div>
+    <p class="rv-act-status" id="rv-act-status" role="status" aria-live="polite"></p>
+  </footer>
   ${showOverride ? overrideDialog(pull, gate, access!) : ''}`;
 }
 
@@ -571,19 +674,19 @@ function wireActions(pull: Pull, gate: ReturnType<typeof mergeGate>, access: Acc
   syncAuthViews();
   if (access && gate.overridable && access.write) wireOverride(pull, access, gate);
   const status = $('rv-act-status');
-  const body = $<HTMLTextAreaElement>('rv-body');
-  document.querySelectorAll<HTMLButtonElement>('#rv-actions [data-act]').forEach((b) =>
+  const body = document.getElementById('rv-body') as HTMLTextAreaElement | null;
+  document.querySelectorAll<HTMLButtonElement>('#rv-detail [data-act]').forEach((b) =>
     b.addEventListener('click', async () => {
       const act = b.dataset.act!;
-      const text = body.value.trim();
+      const text = body?.value.trim() ?? '';
       if (act === 'REQUEST_CHANGES' && !text) {
         status.textContent = 'Add a comment that says what to change.';
-        body.focus();
+        body?.focus();
         return;
       }
       if (act === 'COMMENT' && !text) {
         status.textContent = 'Write a comment first.';
-        body.focus();
+        body?.focus();
         return;
       }
       if (act === 'MERGE' && !gate.allowed) return;
@@ -600,7 +703,7 @@ function wireActions(pull: Pull, gate: ReturnType<typeof mergeGate>, access: Acc
           await ghWrite('PATCH', `${R}/pulls/${pull.number}`, { state: 'closed' });
         }
         status.textContent = { APPROVE: 'Approved.', REQUEST_CHANGES: 'Changes requested.', COMMENT: 'Comment posted.', MERGE: 'Merged.', CLOSE: 'Closed.' }[act] ?? 'Done.';
-        body.value = '';
+        if (body) body.value = '';
         await openPr(pull.number, false);
       } catch (err) {
         status.textContent = `GitHub refused: ${(err as Error).message}`;
@@ -653,52 +756,25 @@ export function renderTokenReview(review: TokenReview): string {
 
 // ---------------------------------------------------------------------------------------------------------------
 
-export function initReviews() {
+/** Back from a pull request to the list (the page controller repaints the view). */
+export function closePr() {
+  openSeq++;
+  current = null;
+  detailEl().hidden = true;
+  detailEl().innerHTML = '';
+  notice().hidden = true;
+}
+
+/** Repaint an open pull request when the viewer changes: the gate depends on who is connected. */
+export function initReviewAuth() {
   let lastLogin: string | null | undefined;
   initGitHubConnect((v) => {
     syncAuthViews();
-    // The gate depends on who is connected (owner override, write access): repaint an open pull request.
     const login = v?.login ?? null;
     const n = Number(new URLSearchParams(location.search).get('pr'));
-    if (n && login !== (lastLogin ?? null)) openPr(n, false);
+    if (n && login !== (lastLogin ?? null)) void openPr(n, false);
     lastLogin = login;
   });
-  document.addEventListener('click', (e) => {
-    const a = (e.target as HTMLElement).closest<HTMLAnchorElement>('[data-open-pr]');
-    if (a && !(e as MouseEvent).metaKey && !(e as MouseEvent).ctrlKey) {
-      e.preventDefault();
-      openPr(Number(a.dataset.openPr));
-      return;
-    }
-    const back = (e.target as HTMLElement).closest<HTMLAnchorElement>('[data-back]');
-    if (back) {
-      e.preventDefault();
-      history.pushState({}, '', location.pathname);
-      showList();
-    }
-  });
-  window.addEventListener('popstate', () => route());
-  route();
-}
-
-function showList() {
-  detailEl().hidden = true;
-  $('rv-list-view').hidden = false;
-  current = null;
-  return loadList();
-}
-
-function route() {
-  const params = new URLSearchParams(location.search);
-  const n = Number(params.get('pr'));
-  // Branch scope from the Studio header: open the pull request of that branch, if it has one.
-  const branch = params.get('branch');
-  if (n) openPr(n, false);
-  else
-    void showList().then((pulls) => {
-      const match = branch ? pulls.find((p) => p.head.ref === branch) : undefined;
-      if (match) openPr(match.number, false);
-    });
 }
 
 export const _current = () => current;

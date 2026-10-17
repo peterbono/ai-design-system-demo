@@ -81,23 +81,24 @@ Library
 
 Studio (header and nav on a soft ground, white canvas)
 +--------------------------------------------------------------------------------+
-| [Bridge | Studio]     [ Search tokens, components, changes ]            ◐  (F) |
+| [Bridge | Studio]     [ Search tokens, components, changes ]     ◐ | Library ↗ |
 +-----------+--------------------------------------------------------------------+
 | Overview  |                                                                    |
 | Tokens    |                                                                    |
 | Components|                                                                    |
-| Changes 3>|                                                                    |
+| Changes 3 |                                                                    |
 | Quality  >|                                                                    |
 | Settings >|                                                                    |
 | --------- |                                                                    |
-| [Library ↗ View published library]                                            |
+| [GitHub] Connect GitHub, Read only until connected                             |
 +-----------+--------------------------------------------------------------------+
 ```
 
 Library header, five items at most: logo, search on the true center axis, theme and GitHub (4px apart), a hairline,
 then the team entry: a quiet outline "Open Studio" for visitors; for a reader signed in with a GitHub token, "Open
 Studio" and the avatar share one pill. Studio header: "Bridge Studio" ("Studio" in Fraunces, Deep Harbor), search,
-theme, then the account (avatar, or "Connect GitHub") in the same far-right slot.
+theme, then a quiet "Library ↗" in the same far-right slot as "Open Studio" (that slot always switches space; icon
+only on narrow screens). The GitHub account sits at the bottom of the Studio nav.
 
 Maintainer tools appear only with a GitHub token that has write access (`<html data-maintainer>`, set by
 `scripts/maintainer.ts` and painted before first render from the last check): "Edit in Studio" right after a Library page
@@ -116,9 +117,19 @@ on their group page, not in the nav.
 - Library: Home, Foundations (Color, Typography, Spacing, Radius and borders, Elevation, Accessibility, then slightly
   apart All tokens), Components, Use (Install, Agents, Changelog). All tokens (`/tokens/`) is a read-only reference:
   filter, type chips, rows with light and dark values, a side panel per token. Editing happens in Studio Tokens.
-- Studio: Overview, Tokens, Components, Changes (Drafts, Branches, Reviews, Versions), Quality (Checks, Visual impact,
-  Adoption), Settings (Repository, Governance, Integrations). Under a divider, in its own box: "Library ↗, View published
-  library".
+- Studio: Overview, Tokens, Components, Changes (one page: In review and History tabs, a pull request opens in place),
+  Quality (Checks, Adoption), Settings (Repository, Governance, Integrations). Under a divider, the GitHub account:
+  "Connect GitHub" and "Read only until connected", or the avatar, login and repository opening the account menu.
+
+Studio Changes: In review opens with a Harbor block (one status sentence about the most urgent pull request, one
+primary "Review #N"); a draft strip only when this browser holds a draft; the pull requests on one card (plain title
+and #, one status chip, date, the tier as a grey label), most urgent first; "Other branches (N)" collapsed at the end.
+Without GitHub, the last list stays "as of" its time. A pull request: a compact Harbor opener (title, one sentence
+on its state, one primary), then collapsed sections with counts (Files, Checks, Visual impact, Preview and install,
+Changeset, Conversation) and a footer action bar. History: one sentence on the release, one timeline grouped by
+release, imports folded, filters behind "Filter", the demo switch at the bottom; undo is a side panel. Status colors
+everywhere in the Studio: red blocked, violet waiting for approval, green ready to merge, grey for the rest. Risk
+tiers never take a color.
 
 Library home: Harbor hero (display headline, one line on what Bridge is with the current release, one primary
 action, the bridge drawing), three topic cards (Foundations, All tokens, Components, with counts from the data) with

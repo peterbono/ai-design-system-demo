@@ -22,7 +22,7 @@ export function searchIndex(): SearchItem[] {
     '/tokens/': 'token lookup hex reverse lookup',
     '/foundations/accessibility/': 'contrast matrix wcag',
     '/agents/': 'for ai agents connect mcp claude',
-    '/studio/versions/': 'history releases revert undo',
+    '/studio/changes/': 'history versions releases revert undo drafts branches reviews pull requests visual impact',
     '/studio/settings/governance/': 'governance risk tiers approvals',
     '/studio/checks/': 'contrast gate validation',
   };

@@ -1,5 +1,6 @@
-// Reviews > pull request > Visual impact: reads the manifest the visual impact workflow published for the
-// head commit, then shows each changed story or screen with a before/after slider and a diff toggle.
+// Changes > pull request > Visual impact: reads the manifest the visual impact workflow published for the head
+// commit, then shows each changed story or screen with a before/after slider and a diff toggle. Returns what the
+// collapsed section header shows: the number of changed screens and a small before/after thumbnail.
 import { changeLabel, facet, filterShots, modeLabel, VISUAL_BRANCH, visualBase, visualState, type VisualFilter, type VisualManifest, type VisualShot } from '../../lib/visual-impact';
 import { esc, GitHubError, ghGet } from '../github-session';
 
@@ -26,7 +27,14 @@ export async function manifestPublished(owner: string, repo: string, pr: number,
   return leaf.data.tree.some((e) => e.path === 'manifest.json' && e.type === 'blob');
 }
 
-export async function loadVisualImpact(slot: HTMLElement, o: { owner: string; repo: string; pr: number; sha: string; actionsUrl: string }): Promise<void> {
+export interface VisualSummary {
+  /** Changed screens and stories; null when the workflow has not run for this commit. */
+  changed: number | null;
+  /** Before and after thumbnails of the biggest change, for the section header. */
+  thumb: string;
+}
+
+export async function loadVisualImpact(slot: HTMLElement, o: { owner: string; repo: string; pr: number; sha: string; actionsUrl: string }): Promise<VisualSummary> {
   const base = visualBase(o.owner, o.repo, o.pr, o.sha);
   let manifest: VisualManifest | null = null;
   try {
@@ -37,21 +45,21 @@ export async function loadVisualImpact(slot: HTMLElement, o: { owner: string; re
   } catch (err) {
     if (!(err instanceof GitHubError && err.status === 404)) {
       slot.innerHTML = `<p class="rv-error">Could not read the visual impact: ${esc((err as Error).message)}</p>`;
-      return;
+      return { changed: null, thumb: '' };
     }
   }
   const state = visualState(manifest);
   if (state.kind === 'not-computed') {
-    slot.innerHTML = `<div class="vi-empty"><p><strong>Not computed yet.</strong> The visual impact workflow screenshots the impacted stories and admin screens at the base and at <span class="mono">${esc(o.sha.slice(0, 7))}</span>, then publishes the diffs here. It runs on pull requests that change tokens or components and takes a few minutes.</p><p><a href="${esc(o.actionsUrl)}" target="_blank" rel="noopener">Check the workflow runs</a></p></div>`;
-    return;
+    slot.innerHTML = `<p class="cg-line">Not run yet for <span class="mono">${esc(o.sha.slice(0, 7))}</span>. <a href="${esc(o.actionsUrl)}" target="_blank" rel="noopener">Run it</a></p>`;
+    return { changed: null, thumb: '' };
   }
   const m = state.manifest;
   const head = `<p class="small muted">${m.summary.shots} screenshot${m.summary.shots === 1 ? '' : 's'} compared, base <span class="mono">${esc(m.base.sha.slice(0, 7))}</span> to head <span class="mono">${esc(m.head.sha.slice(0, 7))}</span>, threshold ${m.options.threshold}.${
     m.selection.components.length ? ` Components in scope: ${m.selection.components.map((c) => esc(c.id)).join(', ')}.` : ''
   }${m.selection.fallback ? ` ${esc(m.selection.fallback)}` : ''}</p>`;
   if (state.kind === 'no-change') {
-    slot.innerHTML = `<div class="vi-empty is-pass"><p><strong>No visual change.</strong> Every captured story and screen renders the same before and after this pull request.</p>${head}</div>`;
-    return;
+    slot.innerHTML = `<p class="cg-line">No visual change: every captured story and screen renders the same.</p>${head}`;
+    return { changed: 0, thumb: '' };
   }
   const shots = state.shots;
   const filter: VisualFilter = { brand: 'all', theme: 'all', kind: 'all' };
@@ -94,6 +102,10 @@ export async function loadVisualImpact(slot: HTMLElement, o: { owner: string; re
     render();
   });
   render();
+  const top = shots[0]!;
+  const img = (p: string | undefined, label: string) => (p ? `<img src="${esc(`${base}/${p}`)}" alt="" loading="lazy" title="${label}" />` : '');
+  const thumb = top.images.before && top.images.after ? `<span class="cg-thumb" aria-hidden="true">${img(top.images.before, 'Before')}${img(top.images.after, 'After')}</span>` : '';
+  return { changed: shots.length, thumb };
 }
 
 function shotCard(s: VisualShot, base: string): string {
@@ -103,7 +115,7 @@ function shotCard(s: VisualShot, base: string): string {
   const boxes = s.boxes
     .map((b) => `<i style="left:${(b.x / size.width) * 100}%;top:${(b.y / size.height) * 100}%;width:${(b.width / size.width) * 100}%;height:${(b.height / size.height) * 100}%"></i>`)
     .join('');
-  const tone = s.status === 'changed' ? (s.percent >= 1 ? 'is-warn' : '') : s.status === 'error' ? 'is-fail' : 'is-info';
+  const tone = s.status === 'error' ? 'is-fail' : '';
   const compare =
     s.images.before && s.images.after
       ? `<div class="vi-compare" style="--pos:50%;aspect-ratio:${size.width} / ${size.height}">

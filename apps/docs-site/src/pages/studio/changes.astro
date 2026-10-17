@@ -1,0 +1,125 @@
+---
+// Studio Changes: one page, two views. "In review": the open pull requests, most urgent first, with the local draft
+// and the branches without a pull request. "History": merged token changes by release, with undo. A pull request
+// opens in place (?pr=N). Replaces Drafts, Branches, Reviews, Versions and Visual impact (lib/redirects.ts).
+import '../../styles/reviews.css';
+import '../../styles/history.css';
+import '../../styles/changes.css';
+import Layout from '../../layouts/Layout.astro';
+import StudioHeader from '../../components/StudioHeader.astro';
+import HistoryPlanner from '../../components/HistoryPlanner.astro';
+import Illustration from '../../components/Illustration.astro';
+import Icon from '../../components/Icon.astro';
+import ButtonLink from '../../components/ds/ButtonLink';
+import { Alert, Button } from '@bridge-ds/react';
+import { siteRepo } from '../../lib/config';
+import { lastUpdated, PREVIEW_APPS, PREVIEW_PACKAGES, readText } from '../../lib/repo';
+import { CONTRAST_FILE } from '../../lib/contrast';
+import { versionInfo } from '../../lib/changelog';
+import type { BranchesConfig } from '../../lib/branches';
+
+const r = siteRepo();
+const checks = readText(CONTRAST_FILE).replace(/</g, '\\u003c');
+const cfg: BranchesConfig = { owner: r.owner, repo: r.repo, defaultBranch: r.defaultBranch, apps: PREVIEW_APPS, packages: PREVIEW_PACKAGES };
+const cfgJson = JSON.stringify(cfg).replace(/</g, '\\u003c');
+const version = versionInfo();
+const waiting = version.pending;
+const historyLine = `${version.current} is live. ${waiting === 0 ? 'Nothing waits for the next release.' : `${waiting} ${waiting === 1 ? 'change waits' : 'changes wait'} for the next release.`}`;
+const sources = ['docs/GOVERNANCE.md', '.github/CODEOWNERS', 'docs/PREVIEWS.md', '.changeset'];
+---
+
+<Layout
+  title="Changes"
+  description="Open pull requests to review, most urgent first, the local draft, branches with previews, and the history of merged token changes with a safe undo."
+  sources={sources}
+  updated={lastUpdated(sources)}
+  wide
+>
+  <div class="rv cg">
+    <p class="rv-notice" id="rv-notice" role="status" hidden></p>
+    <div id="cg-main">
+      <StudioHeader title="Changes" branch={false} />
+      <div class="page-tabs cg-tabs" role="tablist" aria-label="Changes">
+        <a role="tab" id="cg-tab-review" href="/studio/changes/" aria-controls="cg-review" aria-selected="true" tabindex="0" data-cg-view="review">
+          In review <span class="cg-tab-n num" id="rv-count" hidden></span>
+        </a>
+        <a role="tab" id="cg-tab-history" href="/studio/changes/?view=history" aria-controls="cg-history" aria-selected="false" tabindex="-1" data-cg-view="history">History</a>
+      </div>
+
+      <section class="cg-panel" id="cg-review" role="tabpanel" aria-labelledby="cg-tab-review">
+        <section class="zone cg-open" id="cg-opener" aria-live="polite">
+          <p class="cg-open-sentence" id="cg-open-sentence">Open pull requests load from GitHub.</p>
+          <p class="cg-asof" id="cg-asof" hidden></p>
+          <ButtonLink variant="primary" href="/studio/changes/" id="cg-open-cta" hidden>Review</ButtonLink>
+        </section>
+
+        <div class="cg-draft" id="cg-draft" hidden>
+          <Icon name="draft" size={20} />
+          <p><strong>Your draft:</strong> <span id="cg-draft-n">token edits</span>, only in this browser.</p>
+          <ButtonLink size="sm" href="/studio/tokens/#review" data-keep-branch>Review and propose</ButtonLink>
+        </div>
+
+        <div class="fg-card cg-card" id="cg-table">
+          <ul class="cg-list" id="rv-list" aria-label="Open pull requests" aria-busy="true">
+            <li class="cg-row cg-skel" aria-hidden="true"></li>
+            <li class="cg-row cg-skel" aria-hidden="true"></li>
+            <li class="cg-row cg-skel" aria-hidden="true"></li>
+          </ul>
+        </div>
+
+        <div class="cg-empty" id="cg-empty" hidden>
+          <Illustration name="review" width={200} />
+          <p class="cg-empty-title">Nothing to review.</p>
+          <p class="cg-muted">Changes proposed from <a href="/studio/tokens/" data-keep-branch>Tokens</a> land here.</p>
+        </div>
+
+        <details class="cg-other" id="other-branches" hidden>
+          <summary class="cg-sec-head"><span class="cg-sec-title">Other branches</span><span class="cg-sec-meta" id="cg-other-n"></span><span class="cg-sec-chev" aria-hidden="true"></span></summary>
+          <p class="cg-muted">Branches without a pull request: deploy previews only.</p>
+          <ul class="fg-card cg-list" id="cg-other-list"></ul>
+        </details>
+      </section>
+
+      <section class="cg-panel" id="cg-history" role="tabpanel" aria-labelledby="cg-tab-history" hidden>
+        <div class="cg-hs-head">
+          <p class="cg-hs-line">{historyLine}</p>
+          <Button variant="secondary" size="sm" id="hs-filter-toggle" aria-expanded="false" aria-controls="hs-filters">Filter</Button>
+        </div>
+        <form class="hs-filters" id="hs-filters" role="search" aria-label="Filter history" hidden>
+          <label class="gh-field"><span>Token</span><input id="hs-token" list="hs-paths" placeholder="color.text.muted or color.text" autocomplete="off" spellcheck="false" /></label>
+          <datalist id="hs-paths"></datalist>
+          <label class="gh-field"><span>Author</span><select id="hs-author"><option value="">Anyone</option></select></label>
+          <label class="gh-field"><span>Tier</span><select id="hs-tier"><option value="">Any tier</option><option value="3">Tier 3</option><option value="2">Tier 2</option><option value="1">Tier 1</option></select></label>
+          <Button type="reset" variant="secondary" size="sm" id="hs-clear">Clear filters</Button>
+        </form>
+        <Alert tone="warning" announce="off" title="Demo data: fixture changes, not this repository's history." className="st-hideable st-hs-banner" id="hs-banner" hidden>Nothing here can be proposed.</Alert>
+
+        <div id="hs-list-view">
+          <div class="cg-timeline" id="hs-timeline" aria-busy="true">
+            <div class="fg-card cg-card"><ul class="cg-list"><li class="cg-row cg-skel" aria-hidden="true"></li></ul></div>
+          </div>
+          <p class="hs-none" id="hs-none" hidden>No change matches these filters. <Button variant="ghost" size="sm" data-hs-clear>Clear filters</Button></p>
+        </div>
+        <div id="hs-detail" class="hs-detail" hidden></div>
+
+        <div class="hs-bar cg-hs-foot">
+          <button type="button" class="hs-switch" id="hs-demo" role="switch" aria-checked="false">
+            <span class="hs-switch-track" aria-hidden="true"><span class="hs-switch-thumb"></span></span>
+            <span>Show demo history</span>
+          </button>
+          <span class="cg-muted">Fixture changes, to try the timeline and undo.</span>
+          <a class="cg-hs-log" href="/changelog/">Library changelog</a>
+        </div>
+      </section>
+    </div>
+    <div id="rv-detail" class="rv-detail" hidden></div>
+  </div>
+
+  <HistoryPlanner />
+  <script type="application/json" id="bridge-contrast" set:html={checks} />
+  <script type="application/json" id="bridge-branches" set:html={cfgJson} />
+  <script>
+    import { initChanges } from '../../scripts/changes';
+    initChanges();
+  </script>
+</Layout>

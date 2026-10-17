@@ -5,6 +5,7 @@ import { ghGet, initGitHubConnect, readRepo } from './github-session';
 import { initMaintainer } from './maintainer';
 import { mdTitleText } from '../lib/markdown';
 import { openPulls } from '../lib/review-rules';
+import { cachedOpenCount, OPEN_COUNT_KEY } from '../lib/changes';
 
 interface SearchItem {
   kind: 'page' | 'component' | 'token';
@@ -540,6 +541,34 @@ interface Pull {
   head: { ref: string };
 }
 
+const safeStorage = () => {
+  try {
+    return localStorage;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Changes > "Review and propose" lands on Studio Tokens with #review: open the draft review sheet once the
+ * explorer has painted its draft bar (it loads its data first), then drop the hash.
+ */
+function openReviewFromHash() {
+  if (location.hash !== '#review') return;
+  let tries = 0;
+  const tick = () => {
+    const bar = document.querySelector<HTMLElement>('[data-xe-bar]');
+    const review = bar?.querySelector<HTMLElement>('[data-xe-review]');
+    if (bar && review && !bar.hidden) {
+      review.click();
+      history.replaceState(null, '', location.pathname + location.search);
+      return;
+    }
+    if (++tries < 60) window.setTimeout(tick, 100);
+  };
+  tick();
+}
+
 function initStudio() {
   if (document.documentElement.dataset.space === 'library') return;
   initGitHubConnect();
@@ -556,6 +585,9 @@ function initStudio() {
   }
 
   setCount('drafts', draftCount());
+  // Paint the last known count at once, so the nav does not jump while GitHub answers (or when it cannot).
+  setCount('reviews', cachedOpenCount(safeStorage()));
+  openReviewFromHash();
   document.addEventListener('bridge:draft', () => setCount('drafts', draftCount()));
   window.addEventListener('storage', (e) => {
     if (e.key === DRAFT_KEY) setCount('drafts', draftCount());
@@ -571,6 +603,13 @@ function initStudio() {
     .then((f) => {
       const open = openPulls(f.data);
       setCount('reviews', open.length);
+      if (!f.stale) {
+        try {
+          localStorage.setItem(OPEN_COUNT_KEY, JSON.stringify({ n: open.length, at: new Date().toISOString() }));
+        } catch {
+          /* private mode: the count just will not survive a rate limit */
+        }
+      }
       if (!list) return;
       const seen = new Set<string>();
       for (const p of open) {
@@ -598,6 +637,8 @@ function initStudio() {
       }
     })
     .catch(() => {
+      // Rate limited with nothing in the request cache: keep the last count this browser saw on Changes.
+      setCount('reviews', cachedOpenCount(safeStorage()));
       const note = document.querySelector('[data-branch-note]');
       if (note) note.textContent = 'GitHub could not be reached, so only main is listed. Connect GitHub or try again in a minute.';
     })
