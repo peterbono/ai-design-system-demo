@@ -2,6 +2,7 @@
 // The main thread never talks to the network; the UI never touches figma.variables.
 
 import { TIER_NAMES, type Tier, defineConfig } from '@bridge-ds/core';
+import type { ComponentApplyReport, ComponentPullPlan, GeneratedSet } from '../sync/component-pull';
 import type { ScannedComponent } from '../sync/components';
 // The repo's own bridge.config.json prefills the settings; every file can point elsewhere in Settings.
 import rootConfig from '../../../../bridge.config.json';
@@ -165,6 +166,10 @@ export interface RequestMap {
   /** PNG 2x as base64: the selected variant of `nodeId`, the component itself, or the selection without `nodeId`. */
   'export-image': { request: { nodeId?: string | undefined }; response: { base64: string; name: string } | null };
   selection: { request: Record<string, never>; response: { nodeId: string; name: string } | null };
+  /** Component sets DS Bridge generated (shared plugin data dsbridge / componentId). */
+  'scan-generated': { request: Record<string, never>; response: GeneratedSet[] };
+  /** Build or update the component sets of a plan on the Components page, bound to the variables. */
+  'apply-components': { request: { plan: ComponentPullPlan }; response: ComponentApplyReport };
 }
 
 export type RequestType = keyof RequestMap;

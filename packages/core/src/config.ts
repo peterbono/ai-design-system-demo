@@ -81,6 +81,8 @@ export interface ComponentsConfig {
   reference?: string | undefined;
   /** Barrel file new components are exported from. */
   index?: string | undefined;
+  /** Generated component specs the Figma plugin pulls (default packages/react/component-specs.json). */
+  specs?: string | undefined;
 }
 
 export interface Owners {
@@ -311,6 +313,7 @@ export function defineConfig(input: BridgeConfigInput): BridgeConfig {
           styleSuffix: input.components.styleSuffix ?? '.module.css',
           reference: input.components.reference,
           index: input.components.index,
+          specs: input.components.specs,
         }
       : undefined,
     docs: { ...input.docs },

@@ -32,3 +32,4 @@ export * from './ramps';
 export * from './brand';
 export * from './docs-draft';
 export * from './requests';
+export * from './component-spec';

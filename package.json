@@ -24,6 +24,7 @@
   ],
   "scripts": {
     "tokens:build": "npm run build -w @bridge-ds/tokens",
+    "specs": "node scripts/component-specs.mjs",
     "typecheck": "npm run tokens:build && npm run typecheck -w @bridge-ds/core && npm run typecheck -w @bridge-ds/react && npm run typecheck -w @bridge-ds/docs-site && npm run plugin:typecheck && npm run typecheck -w @bridge-ds/visual && npm run typecheck -w @bridge-ds/mcp && npm run typecheck -w @bridge-ds/cli && npm run typecheck -w @bridge-ds/stylelint-plugin && npm run typecheck -w @bridge-ds/eslint-plugin",
     "lint:css": "npm run plugins:build && stylelint \"packages/react/src/**/*.css\" \"apps/docs-site/src/**/*.css\"",
     "test": "npm run tokens:build && vitest run",

@@ -112,6 +112,48 @@ kept, and tokens changed on both sides are shown as conflicts for you to decide.
 `main` are **not deleted** in Figma: the variable gets plugin data `orphan=true` and an `[orphan] `
 prefix in its description, so you can rebind layers before deleting it yourself.
 
+### Pull components (code to Figma component sets)
+
+The Pull preview has a **Components** group when the repo has `packages/react/component-specs.json` (or
+`components.specs` in `bridge.config.json`). It lists each coded component as new, updated or unchanged, and
+what cannot be bound. Nothing is written unless you tick **Also pull components (N)** and apply. Version 1 covers
+Button, IconButton, Badge, Tag, Input and Card.
+
+The specs are derived from code, never written by hand: `npm run specs` (root) reads each component's TSX and CSS
+module with the generator in `@bridge-ds/core/node` (`component-specs.ts`, `spec-css.ts`), and a core test fails
+when the committed JSON is out of date.
+
+| From code | In Figma |
+| --- | --- |
+| A string-literal union prop that changes the styles (`variant`, `size`, `tone`, `appearance`, `padding`) | A variant property with the code values (`Variant=primary`) |
+| `:hover`, `:active`, `[data-disabled]` / `:disabled` rules that change a value | A `State` axis (Default, Hover, Pressed, Disabled), only the states that differ |
+| `children` (or a compound component's parts: CardHeader, CardBody, CardFooter) | A text layer with a TEXT property (`Label`, `Header`...) |
+| An optional `LucideIcon` prop (`iconStart`) | An icon placeholder layer shown by a BOOLEAN property (`Icon start`) |
+| `background-color`, `color` | Fill, text fill |
+| `border` (width and color), `border-top` | Stroke and stroke weight, or one side's weight |
+| `border-radius`, `padding*`, `gap`, `width`, `height`, `min-width`, `min-height` | Corner radius, padding, item spacing, sizes |
+| `font-size`, `font-weight`, `line-height` (px), `letter-spacing` | Text properties |
+| `display: flex`, `flex-direction`, `justify-content`, `align-items` | Auto layout direction and alignment |
+
+Only `var(--token)` values are recorded, as token paths (the CSS variable is the path joined by `-`, `cssVar` in the
+config); custom properties (`--_bg`) are resolved through the cascade per variant. Every value is bound with
+`setBoundVariable` / `setBoundVariableForPaint` to the variable of the token in its tier's collection (Component,
+Semantic, Density, Base, Primitives; the split `Semantic/Light` layout too), so the sets follow the Brand, Semantic
+and Density modes like any layer. Exceptions, listed in the preview:
+
+- `calc()`, percentages and literals have no variable: not bound (Badge's paddings and min height, Input's width).
+- Unitless line heights and em letter spacing (`font.line-height.*`, `font.tracking.*`) are set as a percent, not
+  bound: Figma's line height and letter spacing variables are pixels.
+- The font family is a CSS stack (`Instrument Sans Variable, Instrument Sans, system-ui...`): the first family
+  installed in Figma is used, never bound. When none is, text uses Inter and the report says so once.
+- Shadows, focus rings, transforms and slot props (`prefix`, `hint`, `loading`...) are not drawn.
+
+Idempotent: a set is found again by shared plugin data (`dsbridge` / `componentId`), a variant by `variant`, a layer by
+`part`. A re-pull updates them in place (same node ids, so instances keep their overrides), adds new variants, and
+flags variants removed in code with an `[orphan] ` description, like variables. Nothing outside generated sets is
+touched, and new sets go on a **Components** page. After building, each set's signature is stored as its baseline
+(`signature`, the one Push compares), so a Push right after a pull sends no component request.
+
 ### Push (Figma to Git)
 
 1. Snapshot of the variables, converted back to DTCG.
@@ -293,6 +335,10 @@ these defaults.
   variant is read as a variable change (the render is explained by the value). Variant-level bindings are
   compared, not per layer: moving a binding from one layer to another within a variant is not seen.
 - **Components from a library** (remote) are not scanned; only local components of the file are.
+- **Pulled components** are rebuilt from CSS, not rendered by a browser: hover, pressed and disabled are the only
+  states; icons are placeholders (swap in your icon instances); `calc()` values, shadows and focus rings are not drawn.
+  The generator is tested on the 6 base components; it runs on the other component folders but their output has not
+  been reviewed yet.
 
 ## Why not Tokens Studio or the native export
 
@@ -326,6 +372,7 @@ apps/figma-plugin/
     mapping.ts           tiers <-> Figma collections and modes, pull plan, snapshot back to tokens
     flows.ts             pull and push orchestration (analyze, buildPull, buildPush, openPullRequest)
     components.ts        component signatures, diff, classification (changed, new, Figma-only)
+    component-pull.ts    pull components: load component-specs.json, plan sets and bindings (main/build-components.ts builds them)
     requests.ts          send a component change request (image on bridge-requests, then the issue)
   test/                  end-to-end pull/edit/push flows against an in-memory GitHub and a simulated
                          Figma (single and split layouts), including the PR #4 contrast regressions

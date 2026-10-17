@@ -11,6 +11,7 @@ import {
   isRequest,
 } from '../shared/messages';
 import { applyPullPlan } from './apply';
+import { applyComponentPlan, scanGenerated } from './build-components';
 import { exportImage, rebaseline, saveSignatures, scanComponents, selectionInfo } from './components';
 import { takeSnapshot, writePluginData } from './snapshot';
 
@@ -113,6 +114,12 @@ const handlers: Handlers = {
   },
   async selection() {
     return selectionInfo() ?? null;
+  },
+  async 'scan-generated'() {
+    return scanGenerated();
+  },
+  async 'apply-components'({ plan }) {
+    return applyComponentPlan(plan, (message) => figma.ui.postMessage({ kind: 'progress', message }));
   },
 };
 

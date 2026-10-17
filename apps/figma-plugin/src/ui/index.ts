@@ -18,6 +18,7 @@ import { type ApplyReport, type FigmaSnapshot, type InitPayload, type RepoSettin
 import { REQUEST_KINDS, type RequestKind } from '@bridge-ds/core';
 import { type ComponentChangeItem, type ComponentScan, type RequestDraft, classifyComponents, pullBaselines, suggestTitle, toRequest } from '../sync/components';
 import { loadCodedComponents, sendComponentRequest } from '../sync/requests';
+import { type ComponentApplyReport, type ComponentPullPlan, buildComponentPlan, loadComponentSpecs, pendingComponents, writablePlan } from '../sync/component-pull';
 import { type Selection, onProgress, onSelection, request } from './bridge';
 import { type Child, h } from './dom';
 import { icon } from './icons';
@@ -39,6 +40,12 @@ interface PullState {
   overwrite: boolean;
   proposal: PullProposal;
   report?: ApplyReport | undefined;
+  /** Component sets from component-specs.json on the branch; undefined when the repo has none. */
+  components?: ComponentPullPlan | undefined;
+  componentsError?: string | undefined;
+  /** Opt-in: also build the component sets ("Also pull components"). */
+  includeComponents: boolean;
+  componentsReport?: ComponentApplyReport | undefined;
 }
 
 interface PushState {
@@ -411,21 +418,40 @@ function checkPull(): void {
       const snapshot = await request('snapshot', {});
       const analysis = await analyze(getClient(), state.init!.settings, state.init!.sync, snapshot);
       const choices = new Map<string, ConflictChoice>();
-      state.pull = { analysis, choices, overwrite: false, proposal: buildPull(analysis, choices) };
+      // Components are a separate, opt-in step: a problem reading them never blocks the variables.
+      let components: ComponentPullPlan | undefined;
+      let componentsError: string | undefined;
+      try {
+        const loaded = await loadComponentSpecs(getClient(), analysis.headFiles.treeSha, analysis.headFiles.config);
+        if (loaded) components = buildComponentPlan(loaded.specs, loaded.path, await request('scan-generated', {}), analysis.head);
+      } catch (err) {
+        componentsError = err instanceof Error ? err.message : String(err);
+      }
+      const includeComponents = state.pull?.includeComponents ?? false;
+      state.pull = { analysis, choices, overwrite: false, proposal: buildPull(analysis, choices), components, componentsError, includeComponents };
       state.expanded.clear();
     },
     checkPull,
   );
 }
 
+/** Variables match main: nothing to write for them (components may still be pending). */
+function variablesUpToDate(p: PullState): boolean {
+  const a = p.analysis;
+  return !a.diff.remote.length && !a.diff.conflicts.length && !p.proposal.restored.length && !!a.baseSha;
+}
+
 function applyPull(): void {
   const p = state.pull;
   if (!p) return;
+  const withComponents = p.includeComponents && !!p.components && pendingComponents(p.components).length > 0;
   void run(
-    'Writing variables',
+    variablesUpToDate(p) && withComponents ? 'Building components' : 'Writing variables',
     async () => {
-      const report = await request('apply-pull', { plan: p.proposal.plan });
-      p.report = report;
+      if (!variablesUpToDate(p) || !withComponents) p.report = await request('apply-pull', { plan: p.proposal.plan });
+      // Components after the variables, so every binding finds its variable.
+      if (withComponents) p.componentsReport = await request('apply-components', { plan: writablePlan(p.components!) });
+      const report = p.report;
       // Components now render with main's values: refresh their baselines (pending component changes are kept).
       try {
         const scanned = await request('scan-components', {});
@@ -437,7 +463,9 @@ function applyPull(): void {
       }
       await loadInit();
       state.push = undefined;
-      void request('notify', { message: `Pulled ${state.init!.settings.branch}: ${report.created} created, ${report.updated} updated.` });
+      const cr = p.componentsReport;
+      const parts = [report ? `${report.created} variables created, ${report.updated} updated` : '', cr ? `${plural(cr.created + cr.updated, 'component')} built` : ''].filter(Boolean);
+      void request('notify', { message: `Pulled ${state.init!.settings.branch}: ${parts.join(', ')}.` });
     },
     applyPull,
   );
@@ -628,25 +656,37 @@ function viewPull(): View {
   const prop = p.proposal;
   const fi = figmaIndex(a);
   const remote = a.diff.remote;
-  const upToDate = !remote.length && !a.diff.conflicts.length && !prop.restored.length && !!a.baseSha;
+  const upToDate = variablesUpToDate(p);
+  const pending = pendingComponents(p.components);
+  const withComponents = p.includeComponents && pending.length > 0;
 
-  if (p.report) {
+  if (p.report || p.componentsReport) {
     const r = p.report;
+    const cr = p.componentsReport;
+    const problems = [...(r?.errors ?? []), ...(cr?.problems ?? [])];
+    const text = [
+      r ? `${plural(r.created, 'variable')} created, ${r.updated} updated${r.orphaned ? `, ${r.orphaned} flagged as orphan` : ''}.` : '',
+      cr
+        ? `${[cr.created ? `${plural(cr.created, 'component set')} created` : '', cr.updated ? `${plural(cr.updated, 'component set')} updated` : '', cr.orphaned ? `${plural(cr.orphaned, 'variant')} flagged as orphan` : ''].filter(Boolean).join(', ') || 'Component sets already matched the code'} on the ${cr.page} page.`
+        : '',
+      prop.kept.length ? `${plural(prop.kept.length, 'Figma edit')} kept: send them from Push.` : '',
+    ].filter(Boolean);
     return {
       body: [
         intro({
-          title: r.errors.length ? 'Pulled, with problems' : 'Figma is up to date',
-          text: `${plural(r.created, 'variable')} created, ${r.updated} updated${r.orphaned ? `, ${r.orphaned} flagged as orphan` : ''}.${prop.kept.length ? ` ${plural(prop.kept.length, 'Figma edit')} kept: send them from Push.` : ''}`,
-          meta: r.layout === 'single-collection' ? 'Themes are modes of the Semantic collection.' : 'This file allows one mode per collection, so each theme has its own Semantic collection.',
-          art: r.errors.length ? 'fix' : 'tokens',
+          title: problems.length ? 'Pulled, with problems' : 'Figma is up to date',
+          text: text.join(' '),
+          meta: r ? (r.layout === 'single-collection' ? 'Themes are modes of the Semantic collection.' : 'This file allows one mode per collection, so each theme has its own Semantic collection.') : undefined,
+          art: problems.length ? 'fix' : 'tokens',
         }),
-        r.errors.length
+        cr?.fontNote ? h('div', { class: 'callout warn' }, h('div', { class: 'callout-title' }, icon('alert'), 'Font replaced'), h('p', null, cr.fontNote)) : null,
+        problems.length
           ? h(
               'section',
               { class: 'group' },
-              h('div', { class: 'group-head' }, h('h2', null, 'Problems', h('span', { class: 'group-n' }, String(r.errors.length)))),
+              h('div', { class: 'group-head' }, h('h2', null, 'Problems', h('span', { class: 'group-n' }, String(problems.length)))),
               h('p', { class: 'lede' }, 'Nothing else was skipped. Fix these in code or pull again.'),
-              rowList('pull-errors', r.errors.map((e) => h('li', { class: 'row' }, h('p', null, e))), 5),
+              rowList('pull-errors', problems.map((e) => h('li', { class: 'row' }, h('p', null, e))), 5),
             )
           : null,
       ],
@@ -669,6 +709,7 @@ function viewPull(): View {
     a.diff.conflicts.length ? plural(a.diff.conflicts.length, 'conflict') : '',
     prop.restored.length ? (p.overwrite ? `${prop.restored.length} replaced with ${init.settings.branch}` : `${prop.restored.length} to recreate`) : '',
     prop.kept.length ? `${plural(prop.kept.length, 'Figma edit')} kept` : '',
+    pending.length ? `${plural(pending.length, 'component')} to build` : '',
   ].filter(Boolean);
   const headline = upToDate && !status.length ? 'Already up to date' : !a.baseSha ? 'First pull' : status.join(', ') || 'Already up to date';
   const meta = a.baseSha
@@ -710,22 +751,79 @@ function viewPull(): View {
       ),
     );
   }
+  body.push(componentsGroup(p));
   if (prop.skipped.length) body.push(issueList('warn', 'Not written', prop.skipped.map((s) => ({ code: 'file-problem', severity: 'warning', message: `${s.path}: ${s.reason}` }))));
   body.push(notes(a));
 
   const open = prop.unresolvedConflicts.length;
   return {
     body,
-    bar: upToDate
+    bar: upToDate && !withComponents
       ? { label: 'Check again', onClick: checkPull }
       : {
           label: `Apply to Figma`,
           onClick: applyPull,
           disabled: open > 0,
-          hint: open ? `Decide ${plural(open, 'conflict')} first` : `${plural(prop.plan.variables.length, 'variable')}${prop.plan.orphans.length ? `, ${prop.plan.orphans.length} orphaned` : ''}`,
+          hint: open
+            ? `Decide ${plural(open, 'conflict')} first`
+            : [upToDate ? '' : `${plural(prop.plan.variables.length, 'variable')}${prop.plan.orphans.length ? `, ${prop.plan.orphans.length} orphaned` : ''}`, withComponents ? plural(pending.length, 'component') : ''].filter(Boolean).join(', '),
           secondary: { label: 'Check again', onClick: checkPull },
         },
   };
+}
+
+const STATUS_LABEL = { new: 'New', updated: 'Updated', unchanged: 'Unchanged' } as const;
+
+/** "Button: loading prop, not drawn in this version." or "Badge, root: min-height, calc() has no Figma equivalent." */
+function problemText(x: { component: string; part: string; property: string; reason: string }): string {
+  if (x.property.startsWith('prop ')) return `${x.component}: ${x.property.slice(5)} prop, ${x.reason}.`;
+  return `${x.component}, ${x.part}: ${x.property}, ${x.reason}.`;
+}
+
+/** Pull preview: the coded components as component sets, opt-in. Lists what each would get and what cannot be bound. */
+function componentsGroup(p: PullState): Child {
+  if (p.componentsError) {
+    return h('div', { class: 'callout warn' }, h('div', { class: 'callout-title' }, icon('alert'), 'Components could not be read'), h('p', null, `${p.componentsError} Variables still pull as usual.`));
+  }
+  const plan = p.components;
+  if (!plan) return null;
+  const pending = pendingComponents(plan);
+  const rows = plan.components.map((c) => {
+    const extra = [plural(c.variants.length, 'variant'), c.addedVariants.length ? `${c.addedVariants.length} new` : '', c.removedVariants.length ? `${c.removedVariants.length} removed in code` : ''].filter(Boolean).join(', ');
+    return h(
+      'li',
+      { class: 'row' },
+      h('div', { class: 'row-head' }, h('span', { class: `kind ${c.status === 'new' ? 'added' : ''}` }, STATUS_LABEL[c.status]), h('span', { class: 'comp-name' }, c.name), h('span', { class: 'muted' }, extra)),
+    );
+  });
+  const problems = plan.problems;
+  return group(
+    'Components',
+    plan.components.length,
+    pending.length
+      ? h(
+          'label',
+          { class: 'check' },
+          h('input', { type: 'checkbox', checked: p.includeComponents, 'data-focus-id': 'pull-components', onChange: (e: Event) => { p.includeComponents = (e.target as HTMLInputElement).checked; render(); } }),
+          `Also pull components (${pending.length})`,
+        )
+      : null,
+    pending.length
+      ? 'Component sets on a "Components" page, built from the code and bound to these variables. Sets are updated in place on the next pull, never duplicated.'
+      : 'The component sets in this file match the code.',
+    [
+      rowList('pull-components', rows, 10),
+      problems.length
+        ? h(
+            'details',
+            { class: 'notes' },
+            h('summary', null, `Not bound or not drawn (${problems.length})`),
+            h('p', { class: 'muted' }, 'Drawn without a variable, or not drawn, because Figma has no equivalent in this version.'),
+            h('ul', null, problems.map((x) => h('li', null, problemText(x)))),
+          )
+        : null,
+    ],
+  );
 }
 
 /** "New brand detected" card: a Brand mode with no file in Git, offered as a new brand (opt-in). */
