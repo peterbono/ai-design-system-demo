@@ -5,7 +5,7 @@
 import '../../styles/all-tokens.css';
 import Layout from '../../layouts/Layout.astro';
 import { Button, Icon, IconButton, Input } from '@bridge-ds/react';
-import { ClipboardCopy, Hash, Ruler, Search, Timer, X } from 'lucide-react';
+import { ClipboardCopy, Search, X } from 'lucide-react';
 import { allTokenRows, typeChips } from '../../lib/all-tokens';
 import { versionInfo } from '../../lib/changelog';
 import { PAGE_SOURCES, freshness } from '../../lib/sources';
@@ -16,10 +16,8 @@ const updated = freshness(PAGE_SOURCES.explorer);
 const rows = allTokenRows(loadTokens().all);
 const chips = typeChips(rows);
 const version = versionInfo().current;
-const TYPE_ICON: Record<string, typeof Hash> = { dimension: Ruler, motion: Timer, number: Hash, typography: Hash };
 const MODES = ['light', 'dark'];
 const searchIcon = createElement(Icon, { icon: Search, size: 'sm' });
-const glyph = (type: string) => TYPE_ICON[type] ?? Hash;
 // What the panel needs, keyed by path. Everything else is in the rendered rows.
 const panelData = Object.fromEntries(rows.map((r) => [r.path, { cssVar: r.cssVar, type: r.type, description: r.description, light: r.light, dark: r.dark }]));
 ---
@@ -69,14 +67,14 @@ const panelData = Object.fromEntries(rows.map((r) => [r.path, { cssVar: r.cssVar
         <div class="at-lh" aria-hidden="true">
           <span></span>
           <span>Name</span>
-          <span>Light</span>
-          <span>Dark</span>
+          <span data-at-h-light>Light</span>
+          <span data-at-h-dark>Dark</span>
           <span></span>
         </div>
         <ul class="at-rows" data-at-rows>
           {
             rows.map((r) => (
-              <li class="at-row" data-at-row={r.path} data-type={r.type} data-search={r.search}>
+              <li class="at-row" data-at-row={r.path} data-type={r.type} data-search={r.search} data-same={r.light.short === r.dark.short ? '' : undefined}>
                 <button type="button" class="at-row-main" aria-controls="at-panel" aria-pressed="false" data-at-open={r.path}>
                   {r.type === 'color' ? (
                     <span class="at-sw" aria-hidden="true">
@@ -87,10 +85,12 @@ const panelData = Object.fromEntries(rows.map((r) => [r.path, { cssVar: r.cssVar
                     <span class="at-sw at-sw-shadow" aria-hidden="true">
                       <i style={`box-shadow: var(${r.cssVar})`} />
                     </span>
-                  ) : (
-                    <span class="at-sw at-sw-glyph" aria-hidden="true">
-                      <Icon icon={glyph(r.type)} size="sm" />
+                  ) : r.type === 'dimension' ? (
+                    <span class="at-sw at-sw-dim" aria-hidden="true">
+                      <i style={`width: min(var(${r.cssVar}), 100%)`} />
                     </span>
+                  ) : (
+                    <span class="at-sw" aria-hidden="true" />
                   )}
                   <span class="at-name mono">
                     {r.cssVar}

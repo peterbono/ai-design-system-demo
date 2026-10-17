@@ -36,6 +36,15 @@ export function initAllTokens() {
       if (hit) shown++;
     }
     if (empty) empty.hidden = shown > 0;
+    // One Value column when no visible token changes between light and dark (dimensions, motion, numbers).
+    const visible = rows.filter((r) => !r.hidden);
+    const single = visible.length > 0 && visible.every((r) => r.hasAttribute('data-same'));
+    root.toggleAttribute('data-single', single);
+    const hLight = root.querySelector('[data-at-h-light]');
+    if (hLight) hLight.textContent = single ? 'Value' : 'Light';
+    // The panel follows the list: a selected token the filter hides gives way to the first one shown.
+    const selected = rows.find((r) => r.hasAttribute('data-selected'));
+    if (visible.length && (!selected || selected.hidden)) select(visible[0]!.dataset.atRow!, { url: false });
     announce(shown === 1 ? '1 token' : `${shown} tokens`);
   };
 

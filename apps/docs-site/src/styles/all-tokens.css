@@ -3,7 +3,22 @@
    inside fixed light and dark bridge scopes, so the page never writes a color value. */
 
 .at {
-  max-width: calc(var(--size-240) + var(--size-40));
+  max-width: none;
+}
+
+/* One Value column when every visible token is the same in light and dark. */
+.at[data-single] [data-at-h-dark],
+.at[data-single] .at-val + .at-val {
+  visibility: hidden;
+}
+
+/* Dimension rows: a bar at the token's real size, capped by the column. */
+.at-sw-dim i {
+  display: block;
+  height: var(--space-2);
+  min-width: var(--border-width-default);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-action-primary-bg);
 }
 
 .at-head h1 {
@@ -216,8 +231,17 @@
   flex: 1;
 }
 
-.at-sw-shadow,
-.at-sw-glyph {
+.at-sw:empty,
+.at-sw-dim {
+  align-items: center;
+  box-shadow: none;
+}
+
+.at-sw-dim i {
+  flex: none;
+}
+
+.at-sw-shadow {
   align-items: center;
   justify-content: center;
   background-color: var(--color-bg-subtle);
