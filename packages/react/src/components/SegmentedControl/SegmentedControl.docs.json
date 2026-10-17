@@ -43,6 +43,28 @@
       }
     },
     {
+      "title": "Label outside the track",
+      "text": "Put a visible label to the left of the track, as a caption on its center line, and name the group with it (aria-labelledby, or the same words in label). The track holds the options and nothing else.",
+      "example": {
+        "c": "Row",
+        "children": [
+          "Preview brand",
+          {
+            "c": "SegmentedControl",
+            "p": {
+              "label": "Preview brand",
+              "defaultValue": "bridge",
+              "size": "sm",
+              "items": [
+                { "value": "bridge", "label": "Bridge" },
+                { "value": "ocean", "label": "Ocean" }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
       "title": "Always start with a selection",
       "text": "A segmented control shows the current mode. Pass value or defaultValue so one segment is always selected.",
       "example": {
@@ -76,6 +98,23 @@
       }
     },
     {
+      "title": "The label inside the track",
+      "text": "Never put the group's label in the same pill as the options. Inside one container it reads as one more option (\"Brand\" next to \"Bridge\" and \"Ocean\"). Keep it outside, to the left.",
+      "example": {
+        "c": "SegmentedControl",
+        "p": {
+          "label": "Brand",
+          "defaultValue": "bridge",
+          "size": "sm",
+          "items": [
+            { "value": "label", "label": "Brand", "disabled": true },
+            { "value": "bridge", "label": "Bridge" },
+            { "value": "ocean", "label": "Ocean" }
+          ]
+        }
+      }
+    },
+    {
       "title": "Too many or too long options",
       "text": "Past five segments or two words each, the row wraps or truncates and stops reading as one control. Use Select.",
       "example": {
@@ -99,7 +138,7 @@
   "accessibility": [
     "Base UI RadioGroup with native button radios: role radiogroup on the row, role radio and aria-checked on each segment.",
     "Tab enters the group on the selected segment and leaves it; arrow keys move the selection, Home and End jump to the ends.",
-    "Give the group a name: label, or aria-labelledby pointing at a visible heading.",
+    "Give the group a name: aria-labelledby pointing at the visible label outside the track, or label (aria-label) when the context already names it.",
     "The selected segment is marked by a raised plate and a darker text color, not by color alone.",
     "The focus ring (focus.ring.color) shows on keyboard focus only.",
     "Rendered without JavaScript, the HTML keeps role, aria-checked and data-value, so a small script can drive it: flip aria-checked and tabindex, and handle arrow keys."
@@ -107,7 +146,8 @@
   "contentGuidelines": [
     "Sentence case nouns or adjectives: \"Compact\", \"Dark\", \"Grid\". No verbs: segments are states, not actions.",
     "One or two words. Drop the shared word: \"Light, Dark\", not \"Light theme, Dark theme\".",
-    "Name the group with what is being chosen: \"Density\", \"Brand\", \"Themes shown\"."
+    "Name the group with what is being chosen: \"Density\", \"Brand\", \"Themes shown\". When it changes only a preview, say so: \"Preview brand\".",
+    "A visible label is a caption to the left of the track (caption size, muted text color), never a segment inside it."
   ],
   "anatomy": {
     "root": "Track holding the segments",

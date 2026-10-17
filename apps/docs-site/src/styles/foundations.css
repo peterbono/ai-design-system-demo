@@ -350,6 +350,23 @@
   margin-bottom: var(--space-2);
 }
 
+/* Label outside the track, as a caption on its center line: inside the pill it would read as one more option. */
+.fd-scope-field {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.fd-scope-label {
+  color: var(--color-text-muted);
+  font-size: var(--typography-caption-size);
+  line-height: var(--typography-caption-line-height);
+  font-weight: var(--font-weight-medium);
+}
+
 .fd-scope {
   display: inline-flex;
   align-items: center;
@@ -358,13 +375,6 @@
   border: var(--border-width-default) solid var(--color-border-default);
   border-radius: var(--radius-pill);
   background-color: var(--color-surface-default);
-}
-
-.fd-scope-label {
-  padding: 0 var(--space-1-5) 0 var(--space-2);
-  color: var(--color-text-muted);
-  font-size: var(--typography-caption-size);
-  font-weight: var(--font-weight-semibold);
 }
 
 .fd-scope-opt {

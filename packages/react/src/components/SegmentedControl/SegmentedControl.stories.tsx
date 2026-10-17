@@ -44,6 +44,29 @@ export const ThreeOptions: Story = {
 export const FullWidth: Story = { args: { fullWidth: true }, decorators: [(S) => <div style={{ maxWidth: 320 }}><S /></div>] };
 export const Disabled: Story = { args: { disabled: true } };
 
+/** A visible label sits outside the track, to its left, as a caption on the track's center line. Inside the track it
+ * would read as one more option. The group takes its name from it with aria-labelledby. */
+function ExternalLabel({ id, text, size = 'sm' }: { id: string; text: string; size?: 'sm' | 'md' }) {
+  return (
+    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+      <span id={id} style={{ color: 'var(--color-text-muted)', fontSize: 'var(--typography-caption-size)', fontWeight: 'var(--font-weight-medium)' }}>
+        {text}
+      </span>
+      <SegmentedControl
+        aria-labelledby={id}
+        size={size}
+        defaultValue="bridge"
+        items={[
+          { value: 'bridge', label: 'Bridge' },
+          { value: 'ocean', label: 'Ocean' },
+        ]}
+      />
+    </div>
+  );
+}
+
+export const WithVisibleLabel: Story = { render: () => <ExternalLabel id="story-preview-brand" text="Preview brand" /> };
+
 type Row = 'md' | 'sm' | 'icons' | 'disabled' | 'disabledItem';
 
 export const AllStates: Story = {
@@ -72,6 +95,12 @@ export const AllStates: Story = {
           />
         )}
       />
+      <Specimen label="External label (sm and md)">
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-6)', alignItems: 'center' }}>
+          <ExternalLabel id="all-states-label-sm" text="Preview brand" />
+          <ExternalLabel id="all-states-label-md" text="Preview brand" size="md" />
+        </div>
+      </Specimen>
       <Specimen label="Full width">
         <div style={{ maxWidth: 320 }}>
           <SegmentedControl label="Density" items={density} defaultValue="compact" fullWidth />

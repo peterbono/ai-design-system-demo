@@ -2,6 +2,8 @@
 // Compact brand or density switch in a specimen header, only on specimens it changes. The preview scope is one
 // state for the site (scripts/shell.ts reads [data-set-brand] / [data-set-density] clicks and keeps aria-checked in
 // step); scripts/foundations.ts adds arrow keys.
+// The label sits outside the track, as a caption to its left: inside the same pill it would read as one more option.
+// The track holds the options only and takes its accessible name from the label (aria-labelledby).
 import { BRANDS, BRAND_LABEL, DENSITIES, DENSITY_LABEL } from '../../lib/tokens';
 
 interface Props {
@@ -9,22 +11,26 @@ interface Props {
 }
 const { axis } = Astro.props;
 const options = axis === 'brand' ? BRANDS.map((b) => ({ value: b, label: BRAND_LABEL[b] })) : DENSITIES.map((d) => ({ value: d, label: DENSITY_LABEL[d] }));
-const name = axis === 'brand' ? 'Brand' : 'Density';
+const name = axis === 'brand' ? 'Preview brand' : 'Preview density';
+// Several switches can share a page (one per color group): each label needs its own id.
+const labelId = `fd-scope-${axis}-${Math.random().toString(36).slice(2, 8)}`;
 ---
 
-<div class="fd-scope" role="radiogroup" aria-label={`${name} of this preview`} data-fd-scope>
-  <span class="fd-scope-label" aria-hidden="true">{name}</span>
-  {
-    options.map((o, i) =>
-      axis === 'brand' ? (
-        <button type="button" role="radio" class="fd-scope-opt" aria-checked={i === 0 ? 'true' : 'false'} data-set-brand={o.value}>
-          {o.label}
-        </button>
-      ) : (
-        <button type="button" role="radio" class="fd-scope-opt" aria-checked={i === 0 ? 'true' : 'false'} data-set-density={o.value}>
-          {o.label}
-        </button>
-      ),
-    )
-  }
+<div class="fd-scope-field">
+  <span class="fd-scope-label" id={labelId}>{name}</span>
+  <div class="fd-scope" role="radiogroup" aria-labelledby={labelId} data-fd-scope>
+    {
+      options.map((o, i) =>
+        axis === 'brand' ? (
+          <button type="button" role="radio" class="fd-scope-opt" aria-checked={i === 0 ? 'true' : 'false'} data-set-brand={o.value}>
+            {o.label}
+          </button>
+        ) : (
+          <button type="button" role="radio" class="fd-scope-opt" aria-checked={i === 0 ? 'true' : 'false'} data-set-density={o.value}>
+            {o.label}
+          </button>
+        ),
+      )
+    }
+  </div>
 </div>
