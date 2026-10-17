@@ -761,6 +761,7 @@ function saveSettings(): void {
         message = `Connected to ${info.fullName}.${newToken ? ' The token is saved on this computer only.' : ''}`;
       }
       state.tokenDraft = '';
+      state.expanded.delete('token-replace');
       await request('save-settings', { settings: draft });
       await loadInit();
       state.pull = undefined;
@@ -2136,33 +2137,46 @@ function viewSettings(): View {
         field('Base branch', 'branch', 'Pulls read from it; pull requests target it.', 'main'),
         field('Tokens folder', 'tokensPath', 'Folder that holds the *.tokens.json files.', 'packages/tokens/src'),
       ),
-      h(
-        'section',
-        { class: 'card' },
-        h('div', { class: 'group-head' }, h('h2', null, 'GitHub token'), init.hasToken ? null : h('button', { class: 'btn ghost', onClick: () => void request('open-url', { url: 'https://github.com/settings/personal-access-tokens/new' }) }, 'Create one on GitHub')),
-        h(
-          'p',
-          { class: 'lede' },
-          init.hasToken
-            ? 'A token is saved on this computer. Paste a new one to replace it.'
-            : 'Create a fine-grained personal access token for this repository only, with "Contents", "Pull requests" and "Issues" set to "Read and write".',
-        ),
-        h(
-          'label',
-          { class: 'field' },
-          h('span', null, 'Fine-grained token'),
-          h('input', {
-            type: 'password',
-            value: '',
-            autocomplete: 'off',
-            spellcheck: 'false',
-            placeholder: init.hasToken ? 'Saved, hidden' : 'github_pat_...',
-            onInput: (e: Event) => (state.tokenDraft = (e.target as HTMLInputElement).value),
-          }),
-          h('small', null, 'Kept in Figma client storage on this computer. Never shown again and never written into the file.'),
-        ),
-        init.hasToken ? h('div', { class: 'inline-actions' }, h('button', { class: 'btn ghost danger', onClick: removeToken }, 'Remove token')) : null,
-      ),
+      // A saved token is a state, not a question: one row with "Connected", the field only after "Replace".
+      init.hasToken && !state.expanded.has('token-replace')
+        ? h(
+            'section',
+            { class: 'card' },
+            h(
+              'div',
+              { class: 'token-row' },
+              h('span', { class: 'opt-text' }, h('span', { class: 'opt-title' }, 'GitHub token'), h('small', null, 'Saved on this computer, never in the file.')),
+              h('span', { class: 'opt-status ok' }, icon('check'), 'Connected'),
+            ),
+            h(
+              'div',
+              { class: 'inline-actions' },
+              h('button', { class: 'btn ghost', 'data-focus-id': 'token-replace', onClick: () => { state.expanded.add('token-replace'); render(); } }, 'Replace'),
+              h('button', { class: 'btn ghost danger', onClick: removeToken }, 'Remove'),
+            ),
+          )
+        : h(
+            'section',
+            { class: 'card' },
+            h('div', { class: 'group-head' }, h('h2', null, init.hasToken ? 'Replace the GitHub token' : 'GitHub token'), h('button', { class: 'btn ghost', onClick: () => void request('open-url', { url: 'https://github.com/settings/personal-access-tokens/new' }) }, 'Create one on GitHub')),
+            h('p', { class: 'lede' }, 'A fine-grained token for this repository only, with "Contents", "Pull requests" and "Issues" set to "Read and write".'),
+            h(
+              'label',
+              { class: 'field' },
+              h('span', null, 'Fine-grained token'),
+              h('input', {
+                type: 'password',
+                value: '',
+                autocomplete: 'off',
+                spellcheck: 'false',
+                'data-focus-id': 'token-input',
+                placeholder: 'github_pat_...',
+                onInput: (e: Event) => (state.tokenDraft = (e.target as HTMLInputElement).value),
+              }),
+              h('small', null, 'Stays on this computer, never in the file, never shown again.'),
+            ),
+            init.hasToken ? h('div', { class: 'inline-actions' }, h('button', { class: 'btn ghost', onClick: () => { state.expanded.delete('token-replace'); state.tokenDraft = ''; render(); } }, 'Cancel')) : null,
+          ),
       state.settingsMessage
         ? h(
             'div',

@@ -350,3 +350,8 @@ div.setup-steps { padding-left: 0; }
 .opt-status { flex: none; color: var(--text-2); }
 .opt-body { padding: 0 var(--s3) var(--s3); }
 
+/* Settings, GitHub token saved: a state row (title, one line, Connected on the right), actions below. */
+.token-row { display: flex; align-items: center; gap: var(--s3); min-height: 44px; }
+.opt-status.ok { display: inline-flex; align-items: center; gap: 4px; color: var(--ok); font-weight: 600; }
+.opt-status.ok .icon { width: 14px; height: 14px; }
+
