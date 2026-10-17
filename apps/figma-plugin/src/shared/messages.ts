@@ -4,6 +4,7 @@
 import { TIER_NAMES, type Tier, defineConfig } from '@bridge-ds/core';
 import type { ComponentApplyReport, ComponentPullPlan, GeneratedSet } from '../sync/component-pull';
 import type { ScannedComponent } from '../sync/components';
+import type { ClaudeModel } from '../sync/claude';
 // The repo's own bridge.config.json prefills the settings; every file can point elsewhere in Settings.
 import rootConfig from '../../../../bridge.config.json';
 
@@ -136,6 +137,8 @@ export interface InitPayload {
   /** Sent to the UI so it can call GitHub. The UI keeps it in memory and never renders it. */
   token: string | undefined;
   fileName: string;
+  /** Optional "Draft with Claude": the designer's own Anthropic API key (client storage) and model. */
+  claude: { hasKey: boolean; key: string | undefined; model: ClaudeModel };
 }
 
 export interface VariableTag {
@@ -156,6 +159,11 @@ export interface RequestMap {
   'save-settings': { request: { settings: RepoSettings }; response: RepoSettings };
   'save-token': { request: { token: string }; response: { saved: true } };
   'clear-token': { request: Record<string, never>; response: { cleared: true } };
+  /** Anthropic API key (optional, kept when empty) and model, in client storage on this computer. */
+  'save-claude': { request: { key?: string | undefined; model?: string | undefined }; response: { hasKey: boolean; model: ClaudeModel } };
+  'clear-claude-key': { request: Record<string, never>; response: { cleared: true } };
+  /** PNG (base64) of a component when its baseline was taken: the "before" image of a Claude draft. */
+  'baseline-image': { request: { nodeId: string }; response: string | null };
   snapshot: { request: Record<string, never>; response: FigmaSnapshot };
   'apply-pull': { request: { plan: PullPlan }; response: ApplyReport };
   'save-sync': { request: { sync: SyncState }; response: SyncState };

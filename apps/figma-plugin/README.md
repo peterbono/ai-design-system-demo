@@ -52,8 +52,42 @@ this plugin; it is not stored in the Figma file and is never displayed again (th
 showing only that a token is saved). Repository, base branch (`main`) and tokens path
 (`packages/tokens/src`) are stored in the file's shared plugin data so the whole team uses the same ones.
 
-The manifest only allows `https://api.github.com`. File contents are read through the git trees and
-blobs endpoints, never from `raw.githubusercontent.com`.
+The manifest allows `https://api.github.com` and, for the optional "Draft with Claude" (below),
+`https://api.anthropic.com`. File contents are read through the git trees and blobs endpoints, never from
+`raw.githubusercontent.com`. Without an Anthropic API key, the plugin never calls Anthropic.
+
+## Writing help: drafts, optionally written by Claude
+
+Designers should not have to document every change by hand. Three levels, in this order on screen:
+
+1. **Plugin draft (always on, no AI, offline).** The request form prefills its title and summary, and the Push
+   **Description** prefills, from the detected changes only (`draftRequestText` and `draftPushDescription` in
+   `@bridge-ds/core`, `change-drafts.ts`). Example: a new `danger` value on Badge's Tone axis gives "Add a danger
+   tone" / "Badge gets a new Tone value, danger." The title never repeats the component, because the issue title
+   already starts with it ("Badge: add a danger tone"). Drafts never give a reason or a number the diff does not
+   show, use sentence case and no em dash. They stay editable and are never rewritten once you type: the Push
+   description follows the checked changes only while it is still the plugin's draft (while it is, each request
+   sent with the push gets its own drafted summary instead of the variables line).
+2. **Copy for Claude (always on, no key).** A ghost button under the request summary and the Push Description copies
+   a ready prompt (the Bridge voice rules, the component, the kind, the change table in Markdown, the plugin draft,
+   your own notes, and "return only `{"title": ..., "summary": ...}`") to paste into Claude.ai or Claude Desktop
+   with your own Claude plan; you can attach before and after screenshots there. Third-party apps cannot use a
+   Claude.ai subscription, so this is the way to use it without API credits. **Paste Claude's answer** takes the
+   reply (plain JSON, fenced JSON or JSON inside text), removes em dashes, keeps the title to 70 characters and the
+   summary to 3 sentences, and fills the fields. When the Figma iframe blocks the clipboard, the prompt is shown
+   to copy by hand.
+3. **Draft with Claude (only with your own Anthropic API key, billed to your Anthropic account).** Settings,
+   **Claude (optional)**: paste a key from [console.anthropic.com](https://console.anthropic.com/settings/keys) and
+   pick a model (Claude Sonnet 5.5 by default, or Claude Opus 5.5, Claude Haiku 5.5). The key is stored with
+   `figma.clientStorage` like the GitHub token: on this computer only, never in the file, never shown again, and
+   only sent to `api.anthropic.com` ("Remove key" deletes it). With a key, a **Draft with Claude** button appears
+   next to Copy for Claude. The UI iframe calls the Messages API directly (`anthropic-dangerous-direct-browser-access`)
+   with the change table and, for a request, the component's before image (a small PNG stored in private plugin data
+   when its baseline is taken) and after image (the current export), skipping either when missing. Without a key the
+   button does not show. Claude's text is marked "Drafted by Claude, review before sending" until you edit it.
+   Errors (invalid key, rate limit, network) say what to do and keep the plugin draft.
+
+Whatever Claude writes, nothing is sent until you press Send request or Push for review.
 
 ## How it works
 
@@ -223,8 +257,9 @@ The Push screen mirrors Figma's Publish library dialog, so it reads like somethi
   `dsbridge` / `experimental` = `"true"`, so it lasts and the whole team sees it. Experimental items carry a neutral
   "Experimental" tag and **start unchecked on every push**; they can still be checked. "Remove experimental mark"
   clears it.
-- **Description**: one text field. It becomes the pull request's "What changed and why" and the summary of every
-  request sent with it (a factual line naming the file when it is empty). The pull request title is optional, under
+- **Description**: one text field, prefilled with the plugin's draft of the checked changes (see "Writing help").
+  It becomes the pull request's "What changed and why" and the summary of every request sent with it (a factual
+  line naming the file when it is empty). The pull request title is optional, under
   "Pull request title".
 - One primary action, **Push for review**: the pull request for the checked variables (none when no variable is
   checked), then one request per checked component change, with the component attached. A failed request is listed;
@@ -282,7 +317,7 @@ How it works:
      one silently on the first scan: nothing to send.
    - a component with no baseline and no folder in code is listed under "Not in the design system yet",
      collapsed, each with "Request as new component". Nothing is sent on its own.
-3. **Request form**, inline: kind (prefilled), title (prefilled), summary (required), the changes table
+3. **Request form**, inline: kind (prefilled), title and summary (prefilled drafts, see "Writing help"), the changes table
    (prefilled from the diff) and "Attach the selected variant" (a 2x PNG). On send, images go to the
    `bridge-requests` branch (created from the base branch head when missing, never moved) under
    `.bridge/requests/`, then the issue is created and the new baseline stored. "Request #N opened" links to it.
@@ -428,11 +463,11 @@ npm run plugin:build                         # same build, from the repo root
 
 ```
 apps/figma-plugin/
-  manifest.json          name, editorType, dynamic-page access, network allowlist (api.github.com only)
+  manifest.json          name, editorType, dynamic-page access, network allowlist (api.github.com, api.anthropic.com)
   community/             Figma Community listing (listing.md), icon, cover and gallery PNGs, and their sources
   scripts/               esbuild build and test runner (both bundle @bridge-ds/core from source)
   src/main/              main thread: figma.variables, clientStorage, plugin data (no network)
-  src/ui/                UI iframe: Pull, Push and Settings tabs, rendering, GitHub calls
+  src/ui/                UI iframe: Pull, Push and Settings tabs, rendering, GitHub calls, Anthropic calls (with a key)
   src/shared/messages.ts typed message protocol between the two, collection names, default settings
   src/sync/              Figma glue on top of @bridge-ds/core:
     mapping.ts           tiers <-> Figma collections and modes, pull plan, snapshot back to tokens
@@ -440,6 +475,7 @@ apps/figma-plugin/
     components.ts        component signatures, diff, classification (changed, new, Figma-only)
     component-pull.ts    pull components: load component-specs.json, plan sets and bindings (main/build-components.ts builds them)
     requests.ts          send a component change request (image on bridge-requests, then the issue)
+    claude.ts            writing help: Copy for Claude prompt, answer parsing, the Messages API call (user's key)
   test/                  end-to-end pull/edit/push flows against an in-memory GitHub and a simulated
                          Figma (single and split layouts), including the PR #4 contrast regressions
 ```

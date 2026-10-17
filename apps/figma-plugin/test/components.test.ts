@@ -94,7 +94,7 @@ test('variant added: new-variant', () => {
   const d = diffSignatures(sig(button()), sig(next));
   assert.equal(d.kind, 'new-variant');
   assert.deepEqual(d.changes, [{ field: 'Variant Tone', before: 'primary, secondary', after: 'danger, primary, secondary' }]);
-  assert.equal(suggestTitle({ kind: d.kind!, changes: d.changes, component: 'Button' }), 'Add danger to Tone');
+  assert.equal(suggestTitle({ kind: d.kind!, changes: d.changes, component: 'Button' }), 'Add a danger tone');
 });
 
 test('variant removed: new-variant, with the removed value', () => {
@@ -104,7 +104,7 @@ test('variant removed: new-variant, with the removed value', () => {
   });
   const d = diffSignatures(sig(button()), sig(next));
   assert.equal(d.kind, 'new-variant');
-  assert.equal(suggestTitle({ kind: d.kind!, changes: d.changes, component: 'Button' }), 'Remove sm from Size');
+  assert.equal(suggestTitle({ kind: d.kind!, changes: d.changes, component: 'Button' }), 'Remove the sm size');
 });
 
 test('property default changed: prop-change', () => {
@@ -225,7 +225,7 @@ test('send: image on the requests branch (created from main), then one issue wit
   assert.equal(gh.issues.length, 1);
   assert.equal(gh.prs.length, 0, 'never a pull request');
   const issue = gh.issues[0]!;
-  assert.equal(issue.title, 'Button: add danger to Tone');
+  assert.equal(issue.title, 'Button: add a danger tone');
   assert.deepEqual(issue.labels, ['component-change', 'request: new-variant', 'source: figma', 'design']);
   assert.deepEqual(issue.assignees, ['peterbono']);
   assert.match(issue.body, /\| Variant Tone \| primary, secondary \| danger, primary, secondary \|/);

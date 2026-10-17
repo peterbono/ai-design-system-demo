@@ -12,7 +12,8 @@ import {
 } from '../shared/messages';
 import { applyPullPlan } from './apply';
 import { applyComponentPlan, scanGenerated } from './build-components';
-import { exportImage, exportThumbnails, rebaseline, saveSignatures, scanComponents, selectionInfo, setExperimental } from './components';
+import { clearClaudeKey, readClaudeSettings, saveClaudeSettings } from './claude-settings';
+import { baselineImage, exportImage, exportThumbnails, rebaseline, saveSignatures, scanComponents, selectionInfo, setExperimental } from './components';
 import { takeSnapshot, writePluginData } from './snapshot';
 
 const NS = 'dsbridge';
@@ -49,7 +50,7 @@ const handlers: Handlers = {
   async init() {
     const { settings, sync } = readShared();
     const token = (await figma.clientStorage.getAsync(TOKEN_KEY)) as string | undefined;
-    return { settings, sync, hasToken: !!token, token: token || undefined, fileName: figma.root.name };
+    return { settings, sync, hasToken: !!token, token: token || undefined, fileName: figma.root.name, claude: await readClaudeSettings() };
   },
   async 'save-settings'({ settings }) {
     const repoChanged = settings.repo !== readShared().settings.repo || settings.branch !== readShared().settings.branch;
@@ -65,6 +66,15 @@ const handlers: Handlers = {
   async 'clear-token'() {
     await figma.clientStorage.deleteAsync(TOKEN_KEY);
     return { cleared: true };
+  },
+  async 'save-claude'(input) {
+    return saveClaudeSettings(input);
+  },
+  async 'clear-claude-key'() {
+    return clearClaudeKey();
+  },
+  async 'baseline-image'({ nodeId }) {
+    return (await baselineImage(nodeId)) ?? null;
   },
   async snapshot() {
     return takeSnapshot();
@@ -89,7 +99,7 @@ const handlers: Handlers = {
     return { tagged };
   },
   async 'open-url'({ url }) {
-    if (/^https:\/\/github\.com\//.test(url)) figma.openExternal(url);
+    if (/^https:\/\/(github\.com|console\.anthropic\.com|claude\.ai)\//.test(url)) figma.openExternal(url);
     return { opened: true };
   },
   async notify({ message, error }) {

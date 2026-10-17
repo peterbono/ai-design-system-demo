@@ -10,6 +10,7 @@ const PATHS: Record<string, string> = {
   external: 'M9.5 2.5h4v4M13.5 2.5 7.5 8.5M11.5 9.5v4h-9v-9h4',
   info: 'M8 7.5V11M8 5h.01M8 14A6 6 0 1 0 8 2a6 6 0 0 0 0 12z',
   more: 'M3.75 8h.5M7.75 8h.5M11.75 8h.5',
+  copy: 'M5.5 5.5h8v8h-8zM10.5 5.5v-3h-8v8h3',
   branch: 'M5 3v10M5 13a1.5 1.5 0 1 0 0-.01M11 6a1.5 1.5 0 1 0 0-.01M11 6c0 3-6 2-6 5',
 };
 
