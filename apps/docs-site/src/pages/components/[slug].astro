@@ -33,6 +33,7 @@ const spec = playgroundSpec(c);
 const semanticCount = c.tokensUsed.filter((t) => t.kind === 'semantic' || t.kind === 'component').length;
 const densityCount = c.tokensUsed.filter((t) => t.kind === 'density').length;
 const primitiveCount = c.tokensUsed.filter((t) => t.kind === 'primitive' || t.kind === 'brand').length;
+const inheritedVia = c.inherited.filter((i) => i.paths.length);
 const tokenHref = (v: { path?: string; href?: string }) => (v.path ? `/tokens/?t=${encodeURIComponent(v.path)}` : v.href);
 const fileLinks = [
   { label: `${c.name}.tsx`, href: sourceUrl(c.files.tsx) },
@@ -227,7 +228,8 @@ import PreviewScope from '../../components/PreviewScope.astro';
           alias chain in both themes.
         </p>
         <div class="token-summary">
-          <Badge>{c.tokenPaths.length} tokens</Badge>
+          <Badge>{c.tokenPaths.length} {inheritedVia.length ? 'own tokens' : 'tokens'}</Badge>
+          {inheritedVia.map((i) => <Badge>{i.paths.length} from {i.from}</Badge>)}
           <Badge tone="info">{semanticCount} semantic or component, change with theme and brand</Badge>
           {densityCount > 0 && <Badge>{densityCount} density, change with comfortable or compact</Badge>}
           <Badge>{primitiveCount} from the shared scales</Badge>
@@ -262,6 +264,23 @@ import PreviewScope from '../../components/PreviewScope.astro';
             ))
           }
         </ul>
+        {
+          inheritedVia.map((i) => (
+            <section class="cp-inherited" aria-labelledby={`inherited-${i.slug}`}>
+              <h3 id={`inherited-${i.slug}`}>From {i.from}</h3>
+              <p class="muted">
+                {c.name} reuses the stylesheet of <a href={`/components/${i.slug}/#tokens`}>{i.from}</a>, so it also paints with these {i.paths.length} tokens. Changing them changes both.
+              </p>
+              <div class="anatomy-tokens">
+                {i.paths.map((p) => (
+                  <a class="tchip is-semantic" href={`/tokens/?t=${encodeURIComponent(p)}`}>
+                    --{p.replace(/\./g, '-')}
+                  </a>
+                ))}
+              </div>
+            </section>
+          ))
+        }
       </section>
 
       </div>

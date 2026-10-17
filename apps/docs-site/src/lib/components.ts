@@ -68,6 +68,13 @@ export interface ComponentInfo {
    * (component, semantic, base, density, brand, primitive). One set for the Tokens counts and the Studio filter.
    */
   tokenPaths: string[];
+  /**
+   * Tokens it reads through another component's stylesheet it imports (IconButton imports Button.module.css), by
+   * that component, without the ones its own stylesheet already reads. Followed transitively.
+   */
+  inherited: { from: string; slug: string; paths: string[] }[];
+  /** Own and inherited token paths: what the component actually paints with. The Studio filter shows this set. */
+  allTokenPaths: string[];
   stories: { name: string; id: string }[];
   docs: ComponentDocs | null;
   /** Family from docs.json `category`, else from the grouped exports in packages/react/src/index.ts. */
@@ -244,7 +251,10 @@ export function loadComponents(): ComponentInfo[] {
         docs: `${dir}/${name}.docs.json`,
       };
       const docs = exists(files.docs) ? readJson<ComponentDocs>(files.docs) : null;
-      const tsx = parseTsx(name, readText(files.tsx));
+      const tsxSrc = readText(files.tsx);
+      const tsx = parseTsx(name, tsxSrc);
+      // Another component's stylesheet imported as is: import buttonStyles from '../Button/Button.module.css'.
+      const reuses = [...tsxSrc.matchAll(/from\s+'\.\.\/(\w+)\/(\w+)\.module\.css'/g)].filter((m) => m[1] === m[2] && m[1] !== name).map((m) => m[1]!);
       const rules = exists(files.css) ? parseCss(readText(files.css), docs?.anatomy ?? {}) : [];
       const used = [...new Set(rules.flatMap((r) => r.vars.map((v) => v.name)))].sort();
       return {
@@ -256,6 +266,9 @@ export function loadComponents(): ComponentInfo[] {
         rules,
         tokensUsed: used.map((n) => ({ name: n, href: index.get(n)?.href, known: index.has(n), kind: index.get(n)?.kind })),
         tokenPaths: [...new Set(used.flatMap((n) => index.get(n)?.path ?? []))].sort(),
+        inherited: [] as ComponentInfo['inherited'],
+        allTokenPaths: [] as string[],
+        reuses,
         stories: exists(files.stories) ? parseStories(readText(files.stories)) : [],
         docs,
         category: docs?.category ?? familyOf(name) ?? 'Core',
@@ -266,17 +279,55 @@ export function loadComponents(): ComponentInfo[] {
     return i < 0 ? fam.length : i;
   };
   result.sort((a, b) => order(a) - order(b) || a.name.localeCompare(b.name));
+  resolveInherited(result as (ComponentInfo & { reuses: string[] })[]);
   cache = result;
   return result;
 }
 
-/** Studio Tokens filtered on the tokens a component reads, or undefined when it reads none (no empty result). */
-export const editTokensHref = (c: Pick<ComponentInfo, 'slug' | 'tokenPaths'>): string | undefined =>
-  c.tokenPaths.length ? `/studio/tokens/?component=${encodeURIComponent(c.slug)}` : undefined;
+/**
+ * Fills `inherited` and `allTokenPaths` from the stylesheets each component imports from another component,
+ * transitively (A imports B's stylesheet, B imports C's: A inherits from B and C). Exported for tests.
+ */
+export function resolveInherited(list: (Pick<ComponentInfo, 'name' | 'slug' | 'tokenPaths' | 'inherited' | 'allTokenPaths'> & { reuses: string[] })[]) {
+  const byName = new Map(list.map((c) => [c.name, c]));
+  for (const c of list) {
+    const own = new Set(c.tokenPaths);
+    const seen = new Set<string>([c.name]);
+    const queue = [...c.reuses];
+    const inherited: ComponentInfo['inherited'] = [];
+    const taken = new Set(own);
+    while (queue.length) {
+      const from = byName.get(queue.shift()!);
+      if (!from || seen.has(from.name)) continue;
+      seen.add(from.name);
+      const paths = from.tokenPaths.filter((p) => !taken.has(p));
+      paths.forEach((p) => taken.add(p));
+      inherited.push({ from: from.name, slug: from.slug, paths });
+      queue.push(...from.reuses);
+    }
+    c.inherited = inherited;
+    c.allTokenPaths = [...taken].sort();
+  }
+  for (const c of list) delete (c as { reuses?: string[] }).reuses;
+}
 
-/** Component slug -> name and token paths, embedded for the Studio Tokens ?component= filter. */
-export const componentTokenIndex = (): Record<string, { name: string; paths: string[] }> =>
-  Object.fromEntries(loadComponents().map((c) => [c.slug, { name: c.name, paths: c.tokenPaths }]));
+/** "1 own · 39 from Button", or just the count when nothing is inherited. */
+export function tokenCountLabel(c: Pick<ComponentInfo, 'tokenPaths' | 'inherited'>): string {
+  const via = c.inherited.filter((i) => i.paths.length);
+  if (!via.length) return String(c.tokenPaths.length);
+  return [`${c.tokenPaths.length} own`, ...via.map((i) => `${i.paths.length} from ${i.from}`)].join(' · ');
+}
+
+/** Studio Tokens filtered on the tokens a component paints with (own and inherited), or undefined when none. */
+export const editTokensHref = (c: Pick<ComponentInfo, 'slug' | 'allTokenPaths'>): string | undefined =>
+  c.allTokenPaths.length ? `/studio/tokens/?component=${encodeURIComponent(c.slug)}` : undefined;
+
+/**
+ * Component slug -> name, token paths (own and inherited) and the components it inherits from, embedded for the
+ * Studio Tokens ?component= filter ("Used by IconButton (incl. Button)").
+ */
+export const componentTokenIndex = (): Record<string, { name: string; paths: string[]; via: string[] }> =>
+  Object.fromEntries(loadComponents().map((c) => [c.slug, { name: c.name, paths: c.allTokenPaths, via: c.inherited.map((i) => i.from) }]));
 
 /**
  * Which components a CSS variable reaches: read directly, or through any alias chain in any brand, theme or

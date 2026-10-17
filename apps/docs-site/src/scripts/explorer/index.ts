@@ -151,13 +151,15 @@ export function initTokenExplorer() {
   }
   // Studio ?component=<slug> (Studio > Components, Edit tokens): exactly the tokens that component reads, across every
   // collection, shown as a removable chip in the chip row. Clearing it returns to the default scope.
-  const componentIndex = readJson<Record<string, { name: string; paths: string[] }>>('xp-components', {});
+  const componentIndex = readJson<Record<string, { name: string; paths: string[]; via?: string[] }>>('xp-components', {});
   const compSlug = params.get('component') ?? '';
   let comp = app && componentIndex[compSlug] ? { slug: compSlug, ...componentIndex[compSlug]! } : null;
   if (comp && !params.get('ft')) {
     s.filters.tiers = [...TIER_ORDER];
     s.selection = { lens: 'collections', tier: 'all' };
   }
+  /** "IconButton (incl. Button)" when the component paints with another component's stylesheet too. */
+  const compLabel = (c: { name: string; via?: string[] }) => (c.via?.length ? `${c.name} (incl. ${c.via.join(', ')})` : c.name);
   const isAllTiers = (t: Tier[]) => TIER_ORDER.every((x) => t.includes(x));
   function clearComponent() {
     comp = null;
@@ -295,7 +297,7 @@ export function initTokenExplorer() {
     const chip = (value: string, label: string, n: number) =>
       `<button type="button" class="xp-chip-btn" aria-pressed="${current === value}" data-xp-chip="${value}">${esc(label)} <span class="xp-chip-n num">${n}</span></button>`;
     const used = comp
-      ? `<button type="button" class="xp-chip-btn xp-chip-filter" data-xp-chip-clear aria-label="Remove filter: used by ${esc(comp.name)}" title="Show every token again">Used by ${esc(comp.name)} ${icon('close', 12)}</button>`
+      ? `<button type="button" class="xp-chip-btn xp-chip-filter" data-xp-chip-clear aria-label="Remove filter: used by ${esc(compLabel(comp))}" title="Show every token again">Used by ${esc(compLabel(comp))} ${icon('close', 12)}</button>`
       : '';
     chips.innerHTML = [used, chip('all', 'All', matching.length), ...cats.map(({ c, label }) => chip(c, label, matching.filter((t) => t.category === c).length))].join('');
   }
@@ -307,7 +309,7 @@ export function initTokenExplorer() {
     const tierWord = (t: Tier) => (t === 'primitive' ? 'Primitive' : TIER_NAMES[t]);
     const names = tiers.map((t, i) => (i ? tierWord(t).toLowerCase() : tierWord(t)));
     const which = comp
-      ? `Tokens used by ${comp.name}`
+      ? `Tokens used by ${compLabel(comp)}`
       : sel.lens === 'collections' && sel.group
         ? `${TIER_NAMES[sel.tier as Tier] ?? 'All'} tokens in ${sel.group}`
         : !names.length || names.length === TIER_ORDER.length
