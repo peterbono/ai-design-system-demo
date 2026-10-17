@@ -369,7 +369,7 @@ export function snapshotToTokens(snapshot: FigmaSnapshot, repoLayout: RepoLayout
     const ids = variableIds.get(t.id) ?? [];
     if (!ids.includes(v.id)) ids.push(v.id);
     variableIds.set(t.id, ids);
-    if (pd.absentModes?.includes(mode)) return;
+    if (pd.absentModes?.includes(mode) || pd.unlinkedModes?.includes(mode)) return;
     if (figmaValue === undefined) return;
     const value = figmaToDtcg(t.type, figmaValue, pd, aliasPath);
     if (value === undefined) return;

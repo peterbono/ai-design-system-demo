@@ -17,7 +17,7 @@ export function readPluginData(v: PluginDataMixin): VariablePluginData {
     const raw = v.getPluginData(key);
     if (!raw) continue;
     if (key === 'orphan') pd.orphan = raw === 'true';
-    else if (key === 'absentModes') pd.absentModes = raw.split(',').filter(Boolean);
+    else if (key === 'absentModes' || key === 'unlinkedModes') pd[key] = raw.split(',').filter(Boolean);
     else pd[key] = raw;
   }
   return pd;

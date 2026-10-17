@@ -12,6 +12,7 @@ import { type TokenSet, buildTokenSet, layoutOptions, loadConfig } from '@bridge
 import { type LogicalToken, SINGLE_MODE, type ThemeOverride, type TokenMap, isMultiMode } from '@bridge-ds/core';
 import { type ProposalValidation, type TypeChange, shadowedEdits, validateProposal } from '@bridge-ds/core';
 import { CONTRAST_CHECKS_FILE, type ContrastPair, parseContrastChecks } from '@bridge-ds/core';
+import { aliasTarget, isAlias } from '@bridge-ds/core';
 import { type Issue, type NewBrandPlan, composeNewBrandBody, newBrandSection, planNewBrand, slugify } from '@bridge-ds/core';
 
 export interface Analysis {
@@ -354,11 +355,37 @@ export interface PullProposal {
   skipped: Unmappable[];
   /** Local Figma edits a pull leaves in place (they are not on main yet). */
   kept: DiffEntry[];
+  /** Variables deleted in Figma that a pull recreates: other tokens still point to them, so the deletion cannot stand. */
+  restored: DiffEntry[];
   unresolvedConflicts: DiffEntry[];
 }
 
+/** Ids of tokens that another token aliases, in any mode. */
+function aliasTargetIds(set: TokenSet): Set<string> {
+  const out = new Set<string>();
+  for (const t of set.tokens.values())
+    for (const v of Object.values(t.values)) {
+      if (!isAlias(v)) continue;
+      const target = set.byPath.get(aliasTarget(v));
+      if (target) out.add(target.id);
+    }
+  return out;
+}
+
 export function buildPull(a: Analysis, choices: Map<string, ConflictChoice>): PullProposal {
-  const keep = new Set(a.diff.local.map((e) => e.id));
+  // A variable deleted in Figma stays deleted (a push proposes it) unless other tokens still alias it: keeping that
+  // deletion leaves aliases with no target and a push that would break them. Those are recreated.
+  // A file with no synced variable left (collections deleted) starts over like a first pull.
+  const referenced = aliasTargetIds(a.head);
+  const inFigma = new Set(a.figmaTokens.map((t) => t.path));
+  const emptied = a.figmaTokens.length === 0;
+  const brokenAlias = (t: LogicalToken | undefined) => !!t && Object.values(t.values).some((v) => isAlias(v) && !inFigma.has(aliasTarget(v)));
+  // A mode with no value in Figma that has one in Git: an alias that could not be set (or whose target is gone).
+  const lostValue = (e: DiffEntry) => !!e.figma && !!e.base && Object.keys(e.base.values).some((m) => e.figma!.values[m] === undefined);
+  const restored = a.diff.local.filter((e) => e.head && (emptied || (!e.figma && referenced.has(e.id)) || brokenAlias(e.figma) || lostValue(e)));
+  const restoredIds = new Set(restored.map((e) => e.id));
+  const kept = a.diff.local.filter((e) => !restoredIds.has(e.id));
+  const keep = new Set(kept.map((e) => e.id));
   const unresolvedConflicts: DiffEntry[] = [];
   const orphans: string[] = [];
   for (const e of a.diff.remote) if (!e.head && e.figma) orphans.push(e.id);
@@ -379,5 +406,5 @@ export function buildPull(a: Analysis, choices: Map<string, ConflictChoice>): Pu
     variableIds: a.figma.variableIds,
     variableNames: a.figma.variableNames,
   });
-  return { plan, skipped, kept: a.diff.local, unresolvedConflicts };
+  return { plan, skipped, kept, restored, unresolvedConflicts };
 }

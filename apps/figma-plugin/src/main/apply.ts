@@ -153,7 +153,7 @@ export async function applyPullPlan(plan: PullPlan, progress: (message: string) 
   let created = 0;
   let updated = 0;
   let ops = 0;
-  const deferred: { variable: Variable; modeId: string; ref: { path: string; tokenId?: string | undefined; tier?: Tier | undefined }; owner: string; collectionId: string }[] = [];
+  const deferred: { variable: Variable; modeId: string; mode: string; ref: { path: string; tokenId?: string | undefined; tier?: Tier | undefined }; owner: string; collectionId: string }[] = [];
 
   for (const planned of plan.variables) {
     const slots = slotsByTier.get(planned.tier) ?? [];
@@ -171,7 +171,7 @@ export async function applyPullPlan(plan: PullPlan, progress: (message: string) 
         for (const [mode, modeId] of slot.modes) {
           const value = planned.values[mode] ?? fallbackValue; // absent theme: keep a value so the mode is not empty
           if (!value) continue;
-          if (value.kind === 'alias-token') deferred.push({ variable: variable.variable, modeId, ref: value, owner: planned.path, collectionId: slot.collection.id });
+          if (value.kind === 'alias-token') deferred.push({ variable: variable.variable, modeId, mode, ref: value, owner: planned.path, collectionId: slot.collection.id });
           else variable.variable.setValueForMode(modeId, toVariableValue(value));
         }
       } catch (err) {
@@ -190,6 +190,9 @@ export async function applyPullPlan(plan: PullPlan, progress: (message: string) 
 
   // Pass 2: aliases, now that every target exists.
   progress(`Linking ${deferred.length} aliases`);
+  // Modes left without their alias, per variable: recorded so the next pull does not read them as Figma edits.
+  const unlinked = new Map<Variable, Set<string>>();
+  for (const d of deferred) if (!unlinked.has(d.variable)) unlinked.set(d.variable, new Set());
   for (const d of deferred) {
     // Look in the target's tier first (its first slot in the split layout), then in every synced collection.
     const name = d.ref.path.split('.').join('/');
@@ -203,6 +206,7 @@ export async function applyPullPlan(plan: PullPlan, progress: (message: string) 
     }
     if (!target) {
       errors.push(`${d.owner} points to ${d.ref.path}, which has no variable in Figma (it may be a code-only token). The alias was not set.`);
+      unlinked.get(d.variable)!.add(d.mode);
       continue;
     }
     if (target.resolvedType !== d.variable.resolvedType) {
@@ -216,6 +220,8 @@ export async function applyPullPlan(plan: PullPlan, progress: (message: string) 
     }
     if (++ops % BATCH === 0) await tick();
   }
+
+  for (const [variable, modes] of unlinked) writePluginData(variable, { unlinkedModes: [...modes] });
 
   // Orphans: removed on main, kept in Figma with a visible flag.
   let orphaned = 0;

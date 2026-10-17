@@ -585,6 +585,17 @@ function viewPull(): View {
     body.push(h('p', { class: 'muted' }, `${plural(prop.plan.variables.length, 'variable')} will be created or linked to the tokens on main.`));
   }
   body.push(conflictSection(a, p.choices));
+  if (prop.restored.length) {
+    body.push(
+      h(
+        'section',
+        null,
+        h('h2', null, `Recreated (${prop.restored.length})`),
+        h('p', { class: 'lede' }, 'Deleted in Figma, but other tokens still point to them. A pull puts them back so no alias is left empty. To remove one, delete it in code with the tokens that use it.'),
+        h('ul', { class: 'muted' }, prop.restored.slice(0, 8).map((e) => h('li', null, e.path)).concat(prop.restored.length > 8 ? [h('li', null, `And ${prop.restored.length - 8} more`)] : [])),
+      ),
+    );
+  }
   if (prop.kept.length) {
     body.push(
       h(

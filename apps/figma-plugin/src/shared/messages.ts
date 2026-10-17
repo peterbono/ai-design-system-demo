@@ -31,9 +31,11 @@ export interface VariablePluginData {
   orphan?: boolean | undefined;
   /** Modes in which the token does not exist in Git (single-collection layout only). */
   absentModes?: string[] | undefined;
+  /** Modes whose alias a pull could not set (target missing): the value there is not a Figma edit. */
+  unlinkedModes?: string[] | undefined;
 }
 
-export const PLUGIN_DATA_KEYS = ['id', 'dtcgType', 'file', 'unit', 'shape', 'orphan', 'absentModes'] as const;
+export const PLUGIN_DATA_KEYS = ['id', 'dtcgType', 'file', 'unit', 'shape', 'orphan', 'absentModes', 'unlinkedModes'] as const;
 
 export interface SnapshotVariable {
   id: string;
