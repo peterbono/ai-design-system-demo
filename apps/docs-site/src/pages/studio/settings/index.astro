@@ -1,121 +1,199 @@
 ---
+// Studio Settings: one page, three sections in order. Connection (GitHub, then the Figma plugin and MCP as two
+// plain rows), Repository (one sentence, Source at rest, the rest collapsed with counts), Approvals (who approves
+// what, one line on the owner override). The old Repository, Governance and Integrations pages redirect to these
+// anchors (lib/redirects.ts); the governance prose lives in the Library (How review works).
 import '../../../styles/settings.css';
 import Layout from '../../../layouts/Layout.astro';
 import StudioHeader from '../../../components/StudioHeader.astro';
 import ButtonLink from '../../../components/ds/ButtonLink';
+import ApprovalsTable from '../../../components/ds/studio/ApprovalsTable';
 import { GitHubMark } from '../../../components/ds/studio/brand-icons';
-import { Badge } from '@bridge-ds/react';
+import { Button } from '@bridge-ds/react';
 import { siteRepo } from '../../../lib/config';
-import { exists, GITHUB_URL, lastUpdated, readText, sourceUrl } from '../../../lib/repo';
-import { humanDate, repoStatus } from '../../../lib/stats';
+import { GOVERNANCE_FILE, pluginListing, tierSummaries } from '../../../lib/governance';
+import { inline } from '../../../lib/markdown';
+import { mcpTools } from '../../../lib/mcp';
+import { HOW_REVIEW_WORKS } from '../../../lib/nav';
+import { exists, GITHUB_URL, lastUpdated, readText } from '../../../lib/repo';
+import { repoStatus } from '../../../lib/stats';
 
 const r = siteRepo();
+const repoName = `${r.owner}/${r.repo}`;
 const build = repoStatus();
 const file = 'bridge.config.json';
-const raw = exists(file) ? readText(file) : null;
+const pluginReadme = 'apps/figma-plugin/README.md';
+const sources = [file, GOVERNANCE_FILE, pluginReadme];
+
 let config: Record<string, any> = {};
 try {
-  config = raw ? JSON.parse(raw) : {};
+  config = exists(file) ? JSON.parse(readText(file)) : {};
 } catch {
   config = {};
 }
-const modes = Object.entries((config.modes ?? {}) as Record<string, { values: string[]; default?: string }>);
-const tiers = Object.entries((config.tokens?.tiers ?? {}) as Record<string, string[]>);
-const previewApps = Object.keys(config.previews?.apps ?? {});
-const previewPkgs: string[] = config.previews?.packages ?? [];
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const list = (xs: string[]) => (xs.length ? xs.join(', ') : 'none');
-const rows: { label: string; value: string; mono?: boolean; href?: string }[] = [
-  { label: 'Repository', value: `${r.owner}/${r.repo}`, mono: true, href: GITHUB_URL },
-  { label: 'Default branch', value: r.defaultBranch, mono: true },
-  { label: 'This site was built from', value: `${build.branch} at ${build.sha}, ${humanDate(build.lastChange)}`, mono: false },
-  { label: 'Token root', value: r.tokensRoot, mono: true, href: `${GITHUB_URL}/tree/${r.defaultBranch}/${r.tokensRoot}` },
-  { label: 'Contrast gate', value: config.contrast?.path ?? 'not configured', mono: true, href: config.contrast?.path ? sourceUrl(config.contrast.path) : undefined },
-  { label: 'Components', value: config.components?.dir ?? 'not configured', mono: true },
-  { label: 'Changesets', value: config.changesets?.dir ?? '.changeset', mono: true },
+
+// Repository: one mono style for every value; "(default)" is plain muted text.
+type Row = { label: string; value: string; defaultValue?: string; values?: string[] };
+const source: Row[] = [
+  { label: 'Config', value: file },
+  { label: 'Token root', value: r.tokensRoot },
+  { label: 'Contrast gate', value: config.contrast?.path ?? 'not configured' },
+  { label: 'Components', value: config.components?.dir ?? 'not configured' },
+  { label: 'Changesets', value: config.changesets?.dir ?? '.changeset' },
 ];
+const tiersAndModes: Row[] = [
+  ...Object.entries((config.tokens?.tiers ?? {}) as Record<string, string[]>).map(([tier, folders]) => ({ label: cap(tier), value: folders.join(', ') })),
+  ...Object.entries((config.modes ?? {}) as Record<string, { values: string[]; default?: string }>).map(([axis, m]) => ({
+    label: `${cap(axis)} modes`,
+    value: '',
+    values: m.values,
+    defaultValue: m.default,
+  })),
+];
+const previewApps = Object.keys(config.previews?.apps ?? {});
+const owners: Row[] = [
+  { label: 'Design owners', value: list(r.owners.design) },
+  { label: 'Tech owners', value: list(r.owners.tech) },
+  { label: 'Owner override', value: list(r.override.allowed) },
+  { label: 'Preview deploys', value: list(previewApps) },
+  { label: 'Snapshot packages', value: list(config.previews?.packages ?? []) },
+];
+
+// Connection rows.
+const plugin = pluginListing(exists(pluginReadme) ? readText(pluginReadme) : '');
+const tools = mcpTools().length;
+
+// Approvals.
+const tiers = tierSummaries().map((t) => ({ ...t, approvalsHtml: inline(t.approvals), href: `/studio/changes/?tier=${t.tier}` }));
+const ov = r.override;
+const overrideLine = ov.allowed.length
+  ? `Owner override: ${ov.allowed.map((l) => `@${l}`).join(', ')} may merge when only approvals are missing${ov.requireReason ? `, with a written reason of ${ov.minReasonLength} characters or more` : ''}.`
+  : 'Owner override is off: every merge waits for its approvals.';
 ---
 
-<Layout title="Repository" description="The repository and bridge.config.json this Bridge workspace reads: token tiers, modes, contrast gate, owners and previews." sources={[file]} updated={lastUpdated([file])}>
-  <StudioHeader title="Repository" subtitle="Read from bridge.config.json. Change it in a pull request: it is a guarded file, reviewed at the highest tier.">
-    <Fragment slot="actions"><ButtonLink variant="secondary" size="sm" iconStart={GitHubMark} href={sourceUrl(file)}>Open on GitHub</ButtonLink></Fragment>
-  </StudioHeader>
+<Layout title="Settings" description="Connect GitHub, the repository this Studio reads, and who approves what." sources={sources} updated={lastUpdated(sources)}>
+  <StudioHeader title="Settings" />
 
-  <section class="set-section" aria-labelledby="set-source">
-    <h2 id="set-source">Source</h2>
-    <dl class="set-rows">
+  <section class="set-block" id="connection" aria-labelledby="set-connection">
+    <h2 id="set-connection" class="set-h">Connection</h2>
+    <div class="zone set-open" data-gh-connect data-state="readonly">
+      <p class="set-open-line" data-when="readonly">Read only. Connect GitHub to approve, propose and undo.</p>
+      <p class="set-open-line" data-when="checking">Checking your GitHub token.</p>
+      <p class="set-open-line" data-when="connected">
+        Connected as <span data-set-login></span> <span data-set-access>with write access to</span> {repoName}.
+      </p>
+      <Button variant="primary" iconStart={GitHubMark} data-gh-open data-when="readonly">Connect GitHub</Button>
+      <Button variant="secondary" data-gh-open data-when="connected">Change token</Button>
+    </div>
+
+    <ul class="set-rows-plain">
+      <li>
+        <div>
+          <p class="set-row-title">DS Bridge Figma plugin</p>
+          <p class="set-row-text">Pull tokens into Figma Variables and send variable edits back as a pull request.</p>
+        </div>
+        <p class="set-row-link">
+          {
+            plugin.url ? (
+              <>
+                <a href={plugin.url}>Community page</a>
+                {plugin.inReview && <span class="set-note">in review</span>}
+              </>
+            ) : (
+              <a href="/install/#figma-plugin">Install it</a>
+            )
+          }
+        </p>
+      </li>
+      <li>
+        <div>
+          <p class="set-row-title">MCP server</p>
+          <p class="set-row-text">Give your own Claude {tools} tools on this design system. It proposes changes on a branch, never on {r.defaultBranch}.</p>
+        </div>
+        <p class="set-row-link"><a href="/agents/#mcp">Connect your Claude</a></p>
+      </li>
+    </ul>
+  </section>
+
+  <section class="set-block" id="repository" aria-labelledby="set-repository">
+    <h2 id="set-repository" class="set-h">Repository</h2>
+    <div class="set-lead">
+      <p>
+        Reading <span class="mono">{repoName}</span>, <span class="mono">{r.defaultBranch}</span>, built at <span class="mono">{build.sha}</span>.
+      </p>
+      <ButtonLink variant="secondary" size="sm" iconStart={GitHubMark} href={GITHUB_URL}>Open on GitHub</ButtonLink>
+    </div>
+
+    <h3 class="set-group">Source</h3>
+    <dl class="set-dl">
       {
-        rows.map((x) => (
+        source.map((x) => (
           <div>
             <dt>{x.label}</dt>
-            <dd class:list={{ mono: x.mono }}>{x.href ? <a href={x.href}>{x.value}</a> : x.value}</dd>
+            <dd class="mono">{x.value}</dd>
           </div>
         ))
       }
     </dl>
+
+    <details class="set-more" id="tiers-and-modes">
+      <summary><span class="set-more-title">Tiers and modes</span> <span class="set-more-n">({tiersAndModes.length})</span><span class="set-chev" aria-hidden="true"></span></summary>
+      <dl class="set-dl">
+        {
+          tiersAndModes.map((x) => (
+            <div>
+              <dt>{x.label}</dt>
+              <dd class="mono">
+                {x.values
+                  ? x.values.map((v, i) => (
+                      <>
+                        {i > 0 && ', '}
+                        {v}
+                        {v === x.defaultValue && <span class="set-default"> (default)</span>}
+                      </>
+                    ))
+                  : x.value}
+              </dd>
+            </div>
+          ))
+        }
+      </dl>
+    </details>
+
+    <details class="set-more" id="owners-and-previews">
+      <summary><span class="set-more-title">Owners and previews</span> <span class="set-more-n">({owners.length})</span><span class="set-chev" aria-hidden="true"></span></summary>
+      <dl class="set-dl">
+        {
+          owners.map((x) => (
+            <div>
+              <dt>{x.label}</dt>
+              <dd class="mono">{x.value}</dd>
+            </div>
+          ))
+        }
+      </dl>
+      <p class="set-muted">Change these in a pull request on <span class="mono">{file}</span>: it is a guarded file, reviewed at the highest tier.</p>
+    </details>
   </section>
 
-  <section class="set-section" aria-labelledby="set-tiers">
-    <h2 id="set-tiers">Token tiers and modes</h2>
-    <dl class="set-rows">
-      {
-        tiers.map(([tier, folders]) => (
-          <div>
-            <dt>{tier.charAt(0).toUpperCase() + tier.slice(1)}</dt>
-            <dd class="mono">{folders.join(', ')}</dd>
-          </div>
-        ))
-      }
-      {
-        modes.map(([axis, m]) => (
-          <div>
-            <dt>{axis.charAt(0).toUpperCase() + axis.slice(1)} modes</dt>
-            <dd>
-              {m.values.map((v) => (
-                <Badge size="sm" tone={v === m.default ? 'info' : 'neutral'}>{v}{v === m.default ? ', default' : ''}</Badge>
-              ))}
-            </dd>
-          </div>
-        ))
-      }
-    </dl>
+  <section class="set-block" id="approvals" aria-labelledby="set-approvals">
+    <h2 id="set-approvals" class="set-h">Approvals</h2>
+    <ApprovalsTable rows={tiers} />
+    <p class="set-muted">{overrideLine}</p>
+    <p class="set-muted">Gates, the merge rules and what the AI agent may do: <a href={HOW_REVIEW_WORKS}>How review works</a>.</p>
   </section>
 
-  <section class="set-section" aria-labelledby="set-gov">
-    <h2 id="set-gov">Owners and previews</h2>
-    <dl class="set-rows">
-      <div>
-        <dt>Design owners</dt>
-        <dd class="mono">{list(r.owners.design)}</dd>
-      </div>
-      <div>
-        <dt>Tech owners</dt>
-        <dd class="mono">{list(r.owners.tech)}</dd>
-      </div>
-      <div>
-        <dt>May merge past missing approvals</dt>
-        <dd>
-          <span class="mono">{list(r.override.allowed)}</span>
-          {r.override.allowed.length > 0 && r.override.requireReason && <span class="muted small">, with a reason of {r.override.minReasonLength} characters or more</span>}
-        </dd>
-      </div>
-      <div>
-        <dt>Preview deploys</dt>
-        <dd>{previewApps.length ? <span class="mono">{previewApps.join(', ')}</span> : <span class="muted">Not configured. See <a href={sourceUrl('docs/PREVIEWS.md')}>docs/PREVIEWS.md</a>.</span>}</dd>
-      </div>
-      <div>
-        <dt>Snapshot packages</dt>
-        <dd class="mono">{list(previewPkgs)}</dd>
-      </div>
-    </dl>
-    <p class="small muted">Risk tiers and approval rules: <a href="/studio/settings/governance/">Governance</a>.</p>
-  </section>
-
-  {
-    raw && (
-      <details class="set-raw">
-        <summary>Show bridge.config.json</summary>
-        <pre tabindex="0" aria-label="Contents of bridge.config.json"><code>{raw}</code></pre>
-      </details>
-    )
-  }
+  <script>
+    import { currentViewer, initGitHubConnect, onAccess } from '../../../scripts/github-session';
+    const login = () => document.querySelectorAll<HTMLElement>('[data-set-login]').forEach((el) => (el.textContent = currentViewer()?.login ?? ''));
+    initGitHubConnect(login);
+    onAccess((a) => {
+      login();
+      document.querySelectorAll<HTMLElement>('[data-set-access]').forEach((el) => {
+        el.textContent = !a ? 'on' : a.write ? 'with write access to' : 'with read access only to';
+      });
+    });
+  </script>
 </Layout>

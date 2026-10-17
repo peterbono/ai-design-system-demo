@@ -1,7 +1,8 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { allPages, locate, navFor, spaceOf } from './nav';
+import { readFileSync } from 'node:fs';
+import { allPages, HOW_REVIEW_WORKS, locate, navFor, SETTINGS_HOME, SETTINGS_SECTIONS, spaceOf } from './nav';
 import { REDIRECTS, redirectScript, redirectTarget } from './redirects';
 import { ROOT } from './repo';
 
@@ -32,7 +33,8 @@ describe('navigation data', () => {
     expect(spaceOf('/')).toBe('library');
     expect(spaceOf('/components/button/')).toBe('library');
     expect(spaceOf('/studio/changes')).toBe('studio');
-    expect(spaceOf('/studio/settings/governance/')).toBe('studio');
+    expect(spaceOf('/studio/settings/')).toBe('studio');
+    expect(spaceOf(HOW_REVIEW_WORKS)).toBe('library');
   });
 
   it('keeps the side nav short: at most 7 top-level entries, two levels', () => {
@@ -48,7 +50,8 @@ describe('navigation data', () => {
     expect(locate('/tokens/')).toMatchObject({ space: 'library', group: 'Foundations', item: { label: 'All tokens' } });
     expect(locate('/studio/changes/')).toMatchObject({ space: 'studio', item: { label: 'Changes' } });
     expect(locate('/components/button/').entry?.label).toBe('Components');
-    expect(locate('/studio/settings/integrations/')).toMatchObject({ space: 'studio', group: 'Settings', item: { label: 'Integrations' } });
+    expect(locate('/studio/settings/')).toMatchObject({ space: 'studio', item: { label: 'Settings' } });
+    expect(locate(HOW_REVIEW_WORKS)).toMatchObject({ space: 'library', group: 'Use', item: { label: 'How review works' } });
   });
 });
 
@@ -79,7 +82,50 @@ describe('studio nav', () => {
   });
 });
 
+describe('settings', () => {
+  const page = readFileSync(join(PAGES, 'studio/settings/index.astro'), 'utf8');
+
+  it('is one page in the nav, without a group or chevron', () => {
+    const settings = navFor('studio').find((e) => e.label === 'Settings')!;
+    expect(settings).toMatchObject({ href: SETTINGS_HOME });
+    expect(settings.children).toBeUndefined();
+    const hrefs = allPages().map((p) => p.href);
+    for (const gone of ['/studio/settings/governance/', '/studio/settings/integrations/']) expect(hrefs).not.toContain(gone);
+  });
+
+  it('has the sections Connection, Repository, Approvals, in that order', () => {
+    const at = SETTINGS_SECTIONS.map((id) => page.indexOf(`id="${id}"`));
+    expect(at.every((i) => i > 0)).toBe(true);
+    expect([...at].sort((a, b) => a - b)).toEqual(at);
+    expect(SETTINGS_SECTIONS).toEqual(['connection', 'repository', 'approvals']);
+  });
+
+  it('opens Connection with one action per state, Repository with Source only at rest', () => {
+    expect(page).toContain('Read only. Connect GitHub to approve, propose and undo.');
+    expect(page.match(/variant="primary"/g)).toHaveLength(1);
+    expect(page).toMatch(/<details class="set-more" id="tiers-and-modes">/);
+    expect(page).toMatch(/<details class="set-more" id="owners-and-previews">/);
+    expect(page).not.toMatch(/<details[^>]* open/);
+    expect(page).not.toContain('<Badge');
+  });
+
+  it('links Approvals to the Library guide and each tier to the Changes filter', () => {
+    expect(page).toContain('href={HOW_REVIEW_WORKS}');
+    expect(page).toContain('/studio/changes/?tier=${t.tier}');
+  });
+});
+
 describe('redirects', () => {
+  it('sends the old Settings pages to the sections of the one page', () => {
+    expect(redirectTarget(REDIRECTS['/studio/settings/repository']!, '', '')).toBe('/studio/settings/#repository');
+    expect(redirectTarget(REDIRECTS['/studio/settings/governance']!, '', '')).toBe('/studio/settings/#approvals');
+    expect(redirectTarget(REDIRECTS['/studio/settings/integrations']!, '', '')).toBe('/studio/settings/#connection');
+    expect(redirectTarget(REDIRECTS['/governance']!, '', '')).toBe(HOW_REVIEW_WORKS);
+    for (const [from, to] of Object.entries(REDIRECTS).filter(([f]) => f.startsWith(SETTINGS_HOME))) {
+      expect(SETTINGS_SECTIONS as readonly string[], from).toContain(to.split('#')[1]);
+    }
+  });
+
   it('sends every old URL to a page that exists', () => {
     for (const [from, to] of Object.entries(REDIRECTS)) {
       expect(pageFile(to.replace(/[?#].*$/, '')), `${from} -> ${to}`).not.toBeNull();

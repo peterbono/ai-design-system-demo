@@ -88,7 +88,7 @@ Studio (header and nav on a soft ground, white canvas)
 | Components|                                                                    |
 | Changes 3 |                                                                    |
 | Quality  >|                                                                    |
-| Settings >|                                                                    |
+| Settings  |                                                                    |
 | --------- |                                                                    |
 | [GitHub] Connect GitHub, Read only until connected                             |
 +-----------+--------------------------------------------------------------------+
@@ -115,10 +115,10 @@ hairline guide; the current page gets a Deep Harbor marker on that line. Deeper 
 on their group page, not in the nav.
 
 - Library: Home, Foundations (Color, Typography, Spacing, Radius and borders, Elevation, Accessibility, then slightly
-  apart All tokens), Components, Use (Install, Agents, Changelog). All tokens (`/tokens/`) is a read-only reference:
+  apart All tokens), Components, Use (Install, Agents, How review works, Changelog). All tokens (`/tokens/`) is a read-only reference:
   filter, type chips, rows with light and dark values, a side panel per token. Editing happens in Studio Tokens.
 - Studio: Overview, Tokens, Components, Changes (one page: In review and History tabs, a pull request opens in place),
-  Quality (Checks, Adoption), Settings (Repository, Governance, Integrations). Under a divider, the GitHub account:
+  Quality (Checks, Adoption), Settings (one page). Under a divider, the GitHub account:
   "Connect GitHub" and "Read only until connected", or the avatar, login and repository opening the account menu.
 
 Studio Changes: In review opens with a Harbor block (one status sentence about the most urgent pull request, one
@@ -135,6 +135,16 @@ Library home: Harbor hero (display headline, one line on what Bridge is with the
 action, the bridge drawing), three topic cards (Foundations, All tokens, Components, with counts from the data) with
 their drawings, then what changed: one line per change (the first sentence, plain text, ellipsis), real dates, and the
 full notes on the Changelog.
+
+Studio Settings: one page, three sections in order. Connection: a compact Harbor opener with one sentence and one
+action for the state ("Read only. Connect GitHub to approve, propose and undo." with a filled "Connect GitHub", or
+"Connected as <login> with write access to <repo>." with a secondary "Change token"), then the Figma plugin and the
+MCP server as two plain rows with one link each. Repository: one sentence (repo, branch, build SHA) and "Open on
+GitHub"; Source at rest, "Tiers and modes (N)" and "Owners and previews (N)" collapsed; every value in one mono style,
+"(default)" in plain muted text. Approvals: "Who approves what", one row per tier (grey label linking to Changes at that
+tier, approvals required, an example), the owner override in one line, and a link to the Library page How review
+works, which holds the governance prose (journey, gates, override, agent rules, reviewer checklist) in collapsible
+sections. The old Repository, Governance and Integrations URLs redirect to the sections.
 
 Studio overview: Harbor greeting ("Hello Florian." when a GitHub login is known, else "Hello."; then how many
 changes need a review and one status sentence, both from the open pull requests and their live CI and review status),

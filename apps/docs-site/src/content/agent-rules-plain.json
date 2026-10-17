@@ -1,9 +1,10 @@
 {
   "Always": [
     { "match": "Work on a branch named", "plain": "Works on its own branch, one topic at a time, so every change can be reviewed on its own." },
-    { "match": "Use semantic tokens for color, elevation and focus", "plain": "Uses the named color, shadow and focus tokens (like action/primary/bg), never a raw color value." },
-    { "match": "Use the spacing, radius and type scales", "plain": "Uses the existing spacing, corner and type steps. If the value it needs is not in the scale, it stops and asks." },
-    { "match": "Keep components accessible by default", "plain": "Keeps components accessible: real HTML buttons and inputs, a visible keyboard focus ring, labels linked to fields, and never color as the only signal." },
+    { "match": "Use semantic or component tokens for color, elevation and focus", "plain": "Uses the named color, shadow and focus tokens (like action/primary/bg), never a raw color value." },
+    { "match": "Use the space, size, radius, type and motion scales", "plain": "Uses the existing spacing, size, corner, type and motion steps. If the value it needs is not in the scale, it stops and asks." },
+    { "match": "Accessible by default", "plain": "Keeps components accessible: real HTML buttons and inputs, a visible keyboard focus ring, labels linked to fields, and never color as the only signal." },
+    { "match": "Write UI copy in the Bridge voice", "plain": "Writes interface text the Bridge way: sentence case, buttons that start with a verb, errors that say how to fix them, no em dashes." },
     { "match": "Add or update stories", "plain": "Shows every new state in Storybook and checks it in both light and dark." },
     { "match": "Add a changeset", "plain": "Writes a changelog entry and says how big the change is (patch, minor, major)." },
     { "match": "Fill the PR template", "plain": "Fills in the review form: risk tier and what reviewers should look at." },

@@ -57,6 +57,7 @@ export const FOUNDATIONS: NavItem[] = [
 export const LIBRARY_USE: NavItem[] = [
   { href: '/install/', label: 'Install', icon: 'box', meta: 'Packages, fonts and the DS Bridge Figma plugin' },
   { href: '/agents/', label: 'Agents', icon: 'agent', meta: 'MCP server, bridge CLI and llms.txt for AI agents' },
+  { href: '/how-review-works/', label: 'How review works', icon: 'review', meta: 'Risk tiers, review gates, the owner override and the rules the AI agent follows' },
   { href: '/changelog/', label: 'Changelog', icon: 'tag', meta: 'Release notes, ready to post' },
 ];
 
@@ -69,11 +70,10 @@ export const STUDIO_QUALITY: NavItem[] = [
   { href: '/studio/adoption/', label: 'Adoption', icon: 'target', meta: 'How much product code uses the design system' },
 ];
 
-export const SETTINGS_NAV: NavItem[] = [
-  { href: '/studio/settings/', label: 'Repository', icon: 'github', meta: 'The repository and bridge.config.json this workspace reads' },
-  { href: '/studio/settings/governance/', label: 'Governance', icon: 'shield', meta: 'Risk tiers, approvals and agent rules' },
-  { href: '/studio/settings/integrations/', label: 'Integrations', icon: 'link', meta: 'GitHub token, Figma plugin, MCP server' },
-];
+/** Settings is one page: Connection, Repository, Approvals. The old Repository, Governance and Integrations pages
+ * redirect to its sections (lib/redirects.ts); the governance prose lives in the Library (How review works). */
+export const SETTINGS_SECTIONS = ['connection', 'repository', 'approvals'] as const;
+export const HOW_REVIEW_WORKS = '/how-review-works/';
 
 /** Component families for the catalog page (cards), from the optional `category` in <Name>.docs.json. */
 export function componentFamilies() {
@@ -101,7 +101,7 @@ export function studioNav(): NavEntry[] {
     { href: '/studio/components/', label: 'Components', icon: 'diamonds', meta: 'Status, tokens, code and Figma links per component' },
     { href: STUDIO_CHANGES_HREF, label: 'Changes', icon: 'branch', badge: 'reviews', meta: 'Open pull requests to review, other branches and the history of merged token changes, with undo' },
     { label: 'Quality', icon: 'shield', children: STUDIO_QUALITY },
-    { label: 'Settings', icon: 'sliders', children: SETTINGS_NAV },
+    { href: SETTINGS_HOME, label: 'Settings', icon: 'sliders', meta: 'GitHub connection, the repository this workspace reads, and who approves what' },
   ];
 }
 

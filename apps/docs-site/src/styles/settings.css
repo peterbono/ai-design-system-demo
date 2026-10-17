@@ -1,105 +1,254 @@
-/* Settings: definition rows for the repository view, one card per integration. */
+/* Studio Settings: one page, three sections (Connection, Repository, Approvals).
+   Four sizes on the screen: h2 (page title), h3 (section titles), body (the opener sentence), ui (everything else).
+   Values in one mono style; "(default)" in plain muted text; tiers are grey labels, color only for status. */
 
-.set-section {
+.set-block {
+  max-width: calc(var(--size-240) - var(--size-40));
   margin-top: var(--space-10);
 }
 
-.set-section h2 {
-  margin: 0 0 var(--space-3);
+.set-block:first-of-type {
+  margin-top: var(--space-6);
 }
 
-.set-rows {
+.set-h {
+  margin: 0 0 var(--space-4);
+  font-family: var(--typography-h3-family);
+  font-size: var(--typography-h3-size);
+  font-weight: var(--typography-h3-weight);
+  letter-spacing: var(--typography-h3-tracking);
+  line-height: var(--typography-h3-line-height);
+}
+
+.set-muted {
+  margin: var(--space-3) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+/* Connection: a compact Harbor opener, one sentence and one action for the current state. */
+.set-open {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-6);
+  padding: var(--space-6) var(--space-7);
+}
+
+.set-open-line {
+  flex: 1 1 calc(var(--size-64) + var(--size-20));
+  margin: 0;
+  font-size: var(--typography-body-size);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--typography-body-line-height);
+}
+
+.set-open[data-state="readonly"] [data-when]:not([data-when="readonly"]),
+.set-open[data-state="checking"] [data-when]:not([data-when="checking"]),
+.set-open[data-state="connected"] [data-when]:not([data-when="connected"]) {
+  display: none;
+}
+
+/* Figma plugin and MCP: two plain rows on hairlines, no card frames. */
+.set-rows-plain {
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.set-rows-plain > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-6);
+  padding: var(--space-3) 0;
+  border-bottom: var(--border-width-default) solid var(--color-border-default);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.set-rows-plain > li > div {
+  flex: 1 1 calc(var(--size-64) + var(--size-20));
+  min-width: 0;
+}
+
+.set-row-title {
+  margin: 0;
+  font-weight: var(--font-weight-semibold);
+}
+
+.set-row-text {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.set-row-link {
+  display: flex;
+  gap: var(--space-2);
+  align-items: baseline;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.set-note {
+  color: var(--color-text-muted);
+}
+
+/* Repository: one sentence and the way to GitHub, then Source at rest and two collapsed groups. */
+.set-lead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-5);
+}
+
+.set-lead p {
+  margin: 0;
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.set-group {
+  margin: var(--space-6) 0 var(--space-2);
+  font-family: var(--font-family-sans);
+  font-size: var(--typography-ui-size);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: normal;
+  line-height: var(--typography-ui-line-height);
+}
+
+.set-dl {
   margin: 0;
   border-top: var(--border-width-default) solid var(--color-border-default);
 }
 
-.set-rows > div {
+.set-dl > div {
   display: grid;
-  grid-template-columns: minmax(var(--size-40), var(--size-64)) minmax(0, 1fr);
+  grid-template-columns: minmax(var(--size-40), var(--size-60)) minmax(0, 1fr);
   gap: var(--space-1) var(--space-6);
-  padding: var(--space-3) 0;
+  padding: var(--space-2) 0;
   border-bottom: var(--border-width-default) solid var(--color-border-default);
-}
-
-.set-rows dt {
-  color: var(--color-text-muted);
   font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
 }
 
-.set-rows dd {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1-5);
-  align-items: baseline;
-  margin: 0;
+.set-dl dt {
+  color: var(--color-text-muted);
+}
+
+.set-dl dd {
   min-width: 0;
+  margin: 0;
   overflow-wrap: anywhere;
 }
 
-.set-rows dd.mono {
+.set-dl dd.mono {
   font-family: var(--font-family-mono);
   font-size: var(--typography-ui-size);
 }
 
-.set-raw {
-  margin-top: var(--space-10);
-}
-
-.set-raw pre {
-  max-height: calc(var(--size-120) - var(--size-8));
-  overflow: auto;
-}
-
-.set-card {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: var(--space-4);
-  max-width: 72ch;
-  margin-top: var(--space-6);
-  padding: var(--space-5);
-  border: var(--border-width-default) solid var(--color-border-default);
-  border-radius: var(--radius-container);
-  background-color: var(--color-surface-default);
-}
-
-.set-card h2 {
-  margin: var(--space-1) 0 var(--space-1-5);
-  font-size: var(--typography-body-size);
-}
-
-.set-card p {
-  margin: 0;
+.set-default {
   color: var(--color-text-muted);
+  font-family: var(--font-family-sans);
 }
 
-.set-actions {
+.set-more {
+  margin-top: var(--space-2);
+  border-bottom: var(--border-width-default) solid var(--color-border-default);
+}
+
+.set-more > summary {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-3) var(--space-4);
-  margin-top: var(--space-4);
+  gap: var(--space-1-5);
+  margin: 0;
+  padding: var(--space-3) 0;
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+  list-style: none;
+}
+
+.set-more > summary::-webkit-details-marker {
+  display: none;
+}
+
+.set-more-title {
+  font-weight: var(--font-weight-semibold);
+}
+
+.set-more-n {
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-regular);
+  font-variant-numeric: tabular-nums;
+}
+
+.set-chev {
+  width: var(--space-2);
+  height: var(--space-2);
+  margin-left: auto;
+  border-right: var(--border-width-strong) solid var(--color-text-muted);
+  border-bottom: var(--border-width-strong) solid var(--color-text-muted);
+  transform: rotate(-45deg);
+  transition: transform var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.set-more[open] > summary .set-chev {
+  transform: rotate(45deg);
+}
+
+.set-more[open] > summary {
+  margin-bottom: 0;
+}
+
+.set-more > .set-dl {
+  margin-bottom: var(--space-3);
+}
+
+.set-more > .set-muted {
+  margin-bottom: var(--space-4);
+}
+
+/* Approvals: header cells in the ui role, so the screen keeps four sizes. */
+.set-table th {
+  font-size: var(--typography-ui-size);
+}
+
+.set-table td {
+  padding-block: var(--space-2);
+}
+
+/* Approvals: the tier is a grey label that opens Changes at that tier. */
+.pill.set-tier {
+  color: var(--color-text-default);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+@media (hover: hover) {
+  .pill.set-tier:hover {
+    text-decoration: underline;
+  }
+}
+
+.pill.set-tier:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
 }
 
 @media (max-width: 640px) {
-  .set-rows > div {
+  .set-open {
+    padding: var(--space-5);
+  }
+
+  .set-dl > div {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .set-card {
-    grid-template-columns: minmax(0, 1fr);
+  /* Phones: tier and approvals only; the example is one tap away in How review works. */
+  .set-table th:nth-child(3),
+  .set-table td:nth-child(3) {
+    display: none;
   }
-}
-
-/* Studio density: section and card titles in UI type. */
-.set-section {
-  margin-top: var(--space-7);
-}
-
-.set-section h2,
-.set-card h2 {
-  font-family: var(--font-family-sans);
-  font-size: var(--typography-ui-size);
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: var(--font-tracking-snug);
-  line-height: var(--font-line-height-snug);
 }

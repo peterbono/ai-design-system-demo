@@ -36,6 +36,17 @@ export const statusTone = (kind: ReviewStatusKind | null | undefined): string =>
 /** The neutral risk label. Never colored: color is for status. */
 export const tierLabel = (t: Tier | null | undefined) => (t ? `Tier ${t}` : 'Tier not set');
 
+/** The tier filter of the In review list (?tier=1|2|3, linked from Settings Approvals), or null for all. */
+export function tierParam(search: string): Tier | null {
+  const n = Number(new URLSearchParams(search).get('tier'));
+  return n === 1 || n === 2 || n === 3 ? n : null;
+}
+
+/** Rows at that tier only. A pull request without a tier label or checkbox is left out of a filtered list. */
+export function filterByTier<R extends { tier: Tier | null }>(rows: R[], tier: Tier | null): R[] {
+  return tier ? rows.filter((r) => r.tier === tier) : rows;
+}
+
 /** Most urgent first: blocked, then waiting for approval, then ready, then the rest. */
 const URGENCY: Record<StatusGroup, number> = { blocked: 0, waiting: 1, ready: 2, neutral: 3 };
 

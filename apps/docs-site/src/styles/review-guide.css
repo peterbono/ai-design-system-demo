@@ -1,0 +1,135 @@
+/* Library, How review works: risk tiers at rest, the rest in collapsible sections on hairlines.
+   Four sizes: h1 (header), h2 role h3 (section titles), body (reading text), ui (counts, tables). */
+
+.rw-secs {
+  margin-top: var(--space-10);
+  border-top: var(--border-width-default) solid var(--color-border-default);
+}
+
+.rw-sec {
+  border-bottom: var(--border-width-default) solid var(--color-border-default);
+}
+
+.rw-sec > summary {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-4) 0;
+  list-style: none;
+}
+
+.rw-sec > summary::-webkit-details-marker {
+  display: none;
+}
+
+.rw-sec > summary::before {
+  flex-shrink: 0;
+  align-self: center;
+  width: var(--space-2);
+  height: var(--space-2);
+  border-right: var(--border-width-strong) solid var(--color-text-muted);
+  border-bottom: var(--border-width-strong) solid var(--color-text-muted);
+  content: "";
+  transform: rotate(-45deg);
+  transition: transform var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.rw-sec[open] > summary::before {
+  transform: rotate(45deg);
+}
+
+.rw-sec > summary h2 {
+  margin: 0;
+}
+
+.rw-sec[open] > summary {
+  margin-bottom: 0;
+}
+
+.rw-sec > :not(summary) {
+  max-width: 65ch;
+}
+
+.rw-sec > :last-child {
+  margin-bottom: var(--space-6);
+}
+
+.rw-n {
+  color: var(--color-text-muted);
+  font-family: var(--font-family-sans);
+  font-size: var(--typography-ui-size);
+  font-weight: var(--font-weight-regular);
+  font-variant-numeric: tabular-nums;
+}
+
+.rw-muted {
+  color: var(--color-text-muted);
+}
+
+.rw-steps,
+.rw-list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding-left: var(--space-6);
+}
+
+.rw-steps p {
+  margin: 0;
+}
+
+.rw-step-title {
+  font-weight: var(--font-weight-semibold);
+}
+
+.rw-rules {
+  margin-top: var(--space-6);
+}
+
+.rw-rules h3 {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.rw-rules > .rw-muted {
+  margin: var(--space-1) 0 var(--space-3);
+}
+
+.rw-rule > summary {
+  font-weight: var(--font-weight-regular);
+}
+
+.rw-rule[open] > summary {
+  margin-bottom: var(--space-1);
+}
+
+.rw-rule > p {
+  margin: 0;
+}
+
+.rw-rule[open] > summary,
+.rw-rule > summary {
+  margin-bottom: 0;
+}
+
+/* Tables: header cells in the ui role, so the screen keeps four sizes. */
+.rw-table th {
+  font-size: var(--typography-ui-size);
+}
+
+.rw-table td {
+  padding-block: var(--space-2);
+}
+
+/* Agent rules: each rule is its own disclosure, so no list bullet next to the marker. */
+.rw-rule-list {
+  gap: var(--space-2);
+  padding-left: 0;
+  list-style: none;
+}
+
+.rw-rule > p {
+  padding-left: var(--space-5);
+}

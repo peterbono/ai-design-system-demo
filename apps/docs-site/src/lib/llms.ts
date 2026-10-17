@@ -22,7 +22,7 @@ export function buildLlmsTxt(): string {
     `> component tiers) and ${components.length} React components that read CSS variables only. The repo is the source of truth, not Figma.`,
     '',
     `Generated from the repository on ${today()}. Source: ${GITHUB_URL}`,
-    'Human version of the same content: the docs site pages /foundations/, /tokens/, /components/, /agents/ (Library) and /studio/settings/governance/.',
+    'Human version of the same content: the docs site pages /foundations/, /tokens/, /components/, /agents/ and /how-review-works/ (Library).',
     '',
   );
   // Where the human pages are: the Library reads the latest release, the Studio changes it (drafts, reviews).

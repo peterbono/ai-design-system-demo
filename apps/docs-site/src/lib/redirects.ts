@@ -16,7 +16,11 @@ export const REDIRECTS: Record<string, string> = {
   '/studio/visual-impact': '/studio/changes/',
   '/studio/versions': '/studio/changes/?view=history',
   '/adoption': '/studio/adoption/',
-  '/governance': '/studio/settings/governance/',
+  // Settings became one page (Connection, Repository, Approvals); the governance prose moved to the Library.
+  '/governance': '/how-review-works/',
+  '/studio/settings/repository': '/studio/settings/#repository',
+  '/studio/settings/governance': '/studio/settings/#approvals',
+  '/studio/settings/integrations': '/studio/settings/#connection',
   // The theme playground left with the Field Guide redesign: brand and density now switch inside each preview.
   '/playground': '/',
 };
