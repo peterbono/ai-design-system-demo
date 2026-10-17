@@ -86,8 +86,9 @@ Any client that speaks MCP over stdio works: run `node packages/mcp/dist/index.j
 
 ## What Claude can do
 
-21 tools: 6 for tokens (config, browse, read, search, contrast, validation), 5 for components and guidance,
-5 for proposals and reviews (visual impact included), 4 for history and revert, 1 for adoption audits.
+24 tools: 6 for tokens (config, browse, read, search, contrast, validation), 5 for components and guidance,
+5 for proposals and reviews (visual impact included), 3 for brands, 4 for history and revert, 1 for adoption
+audits.
 
 | Tool | Use it to |
 | --- | --- |
@@ -103,6 +104,9 @@ Any client that speaks MCP over stdio works: run `node packages/mcp/dist/index.j
 | `bridge_get_design_language` | Read the relevant section of the design language |
 | `bridge_get_guidelines` | Read the agent rules (always, ask before, never) and the risk tiers |
 | `bridge_propose_token_change` | Turn token edits into a branch (local) or a draft PR (GitHub), with a designer-friendly body |
+| `bridge_list_brands` | See the brands: slug, name, default, primary action color, theme overrides |
+| `bridge_plan_brand` | Dry run of a new brand: generated ramps, every contrast pair in light and dark, files, tier, PR body |
+| `bridge_propose_brand` | Turn that plan into a `bridge/brand-<slug>` branch (local) or a draft PR (GitHub), never `main` |
 | `bridge_list_reviews` | List open PRs and local proposal branches |
 | `bridge_get_review` | Review a token PR: diff table, contrast before and after, downstream impact, tier, CI, approvals |
 | `bridge_review_pr` | Comment, approve or request changes on a PR, as you |
@@ -135,6 +139,30 @@ Things to ask:
 - "Audit this component's CSS for hardcoded values."
 - "When did muted text change, and why?"
 - "Undo PR 12, but show me what changed since first."
+- "Plan a brand called Acme from Ocean with #1F5F3A as primary, and tell me which contrast pairs fail."
+
+## New brands
+
+A brand re-points palette, radius and font roles; components never change. `bridge_plan_brand` starts from
+an existing brand (or `blank`), generates the primary and neutral ramps with the same engine as
+`packages/tokens/scripts/ramps.mjs` as primitives (`primitives/<slug>.tokens.json`, aliased by the brand file), copies the starting brand's theme overrides, adds the slug to
+`modes.brand` in `bridge.config.json` and runs every contrast pair for the new brand in light and dark. A hex
+primary is pinned at the step primary buttons use (700 in Bridge, 600 in Ocean), so a color too light for
+white button text fails the gate and says which pairs break. `bridge_propose_brand` writes the same plan to a
+new branch, and is blocked when a pair fails. A new brand is Tier 3 (minor bump of `@bridge-ds/tokens`): it
+needs design and tech owner approval.
+
+```sh
+bridge brand list
+bridge brand create acme --from bridge --primary "#1F5F3A" --neutral "#2A2F2C" --dry-run
+bridge brand create acme --name "Acme" --from ocean --primary "#1F5F3A" --neutral 230 \
+  --radius crisp --heading fraunces --text plex-sans   # new local bridge/brand-acme branch
+```
+
+`--primary`, `--neutral`, `--accent` and `--link` take `#rrggbb` or an OKLCH hue in degrees. `--radius` takes
+`soft`, `balanced`, `crisp` or four px values on the radius scale (inset, control, container, overlay). Fonts
+are the ones the tokens package self-hosts: `fraunces` (headings only), `instrument-sans`, `plex-sans`,
+`system`. Exit 1 when blocked.
 
 ## History and rollback
 

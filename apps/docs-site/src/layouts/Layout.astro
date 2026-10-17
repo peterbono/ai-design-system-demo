@@ -16,6 +16,7 @@ import { LIBRARY_HOME, SPACE_LABEL, STUDIO_HOME, locate, navFor, type Space } fr
 import { siteRepoJson } from '../lib/config';
 import { GITHUB_URL, STORYBOOK_URL, sourceUrl } from '../lib/repo';
 import { humanDate } from '../lib/stats';
+import { BRANDS, DEFAULT_BRAND } from '../lib/tokens';
 import { Breadcrumb, Button, IconButton, Kbd } from '@bridge-ds/react';
 import { Menu as MenuIcon, Moon, Search, X } from 'lucide-react';
 import IconLink from '../components/ds/IconLink';
@@ -64,7 +65,7 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
 ---
 
 <!doctype html>
-<html lang="en" data-theme="light" data-brand="bridge" data-density="comfortable" data-space={space}>
+<html lang="en" data-theme="light" data-brand="bridge" data-density="comfortable" data-space={space} data-brands={[DEFAULT_BRAND, ...BRANDS.filter((b) => b !== DEFAULT_BRAND)].join(' ')}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -85,7 +86,8 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
         try { b = localStorage.getItem('ds-brand'); d = localStorage.getItem('ds-density'); } catch (e) {}
         // The chrome stays on the bridge brand and comfortable density (attributes above); the picked brand and
         // density only reach the design system previews (scripts/shell.ts copies them onto every data-theme scope).
-        document.documentElement.setAttribute('data-preview-brand', b === 'ocean' ? 'ocean' : 'bridge');
+        var brands = (document.documentElement.getAttribute('data-brands') || 'bridge').split(' ');
+        document.documentElement.setAttribute('data-preview-brand', b && brands.indexOf(b) >= 0 ? b : brands[0]);
         document.documentElement.setAttribute('data-preview-density', d === 'compact' ? 'compact' : 'comfortable');
         // Maintainer tools (Edit in Studio, View source, the avatar next to Open Studio) paint before first render
         // from the last check of this browser's GitHub token; scripts/maintainer.ts checks it again.

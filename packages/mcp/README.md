@@ -53,6 +53,9 @@ and the full guide: [docs/AI.md](../../docs/AI.md).
 | `bridge_get_design_language` | Sections of the design language doc |
 | `bridge_get_guidelines` | AGENTS.md rules, risk tiers, what Bridge enforces |
 | `bridge_propose_token_change` | Edits, validation, contrast, tier, changeset, PR body; branch (local) or PR (remote) |
+| `bridge_list_brands` | Brands: slug, name, default, primary action color, theme override files |
+| `bridge_plan_brand` | Dry run of a new brand: generated ramps, contrast for every theme, files, tier 3, PR body |
+| `bridge_propose_brand` | The new brand as a local `bridge/brand-<slug>` branch or a draft PR; blocked when a pair fails |
 | `bridge_list_reviews` | Open PRs (Bridge ones flagged) and local `bridge/*` branches |
 | `bridge_get_review` | Diff table, contrast before/after, impact, tier check, CI status, approvals |
 | `bridge_review_pr` | Comment, approve or request changes (token required) |

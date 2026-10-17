@@ -615,6 +615,8 @@ export interface RepoFiles {
   contrastChecks: string | undefined;
   /** bridge.config.json at the repository root, parsed; undefined when the repo has none. */
   config: BridgeConfig | undefined;
+  /** bridge.config.json as written, for minimal-diff edits (a new brand); undefined when the repo has none. */
+  configText?: string | undefined;
   /** Tokens root actually used (from the config when present, else the fallback). */
   tokensPath: string;
   /** Problems reading the config (it is then ignored and the fallback is used). */
@@ -632,10 +634,12 @@ export async function loadRepoFiles(client: GitHubClient, commitSha: string, fal
   if (truncated) throw new Error('The repository tree is too large to read in one request.');
   const warnings: string[] = [];
   let config: BridgeConfig | undefined;
+  let configText: string | undefined;
   const configEntry = entries.find((e) => e.type === 'blob' && e.path === CONFIG_FILE);
   if (configEntry) {
     try {
-      config = loadConfig(await client.getBlobText(configEntry.sha));
+      configText = await client.getBlobText(configEntry.sha);
+      config = loadConfig(configText);
     } catch (err) {
       warnings.push(err instanceof ConfigError ? `${err.message}. Using ${fallbackTokensPath} instead.` : `${CONFIG_FILE} could not be read.`);
     }
@@ -660,5 +664,5 @@ export async function loadRepoFiles(client: GitHubClient, commitSha: string, fal
     }
   };
   await Promise.all([worker(), worker(), worker(), worker()]);
-  return { commitSha, treeSha, files, contrastChecks, config, tokensPath, warnings };
+  return { commitSha, treeSha, files, contrastChecks, config, ...(config ? { configText } : {}), tokensPath, warnings };
 }

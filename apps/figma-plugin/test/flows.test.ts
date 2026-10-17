@@ -6,7 +6,7 @@ import { analyze, buildPull, buildPush, openPullRequest } from '../src/sync/flow
 import type { RenameSuggestion } from '@bridge-ds/core';
 import { DEFAULT_SETTINGS, type FigmaSnapshot } from '../src/shared/messages';
 import { FakeGitHub } from './fake-github';
-import { applyPlanToSnapshot, findIn, modeId } from './figma-sim';
+import { addBrandMode, applyPlanToSnapshot, findIn, modeId, setBrandColor } from './figma-sim';
 import { realChecksText, realConfigText, realFiles } from './helpers';
 
 const PREFIX = DEFAULT_SETTINGS.tokensPath;
@@ -338,4 +338,106 @@ test('appending to an open PR adds a commit on its branch', async () => {
   const radius = parseTokenFile('r', gh.filesAt(first.branch)[`${PREFIX}/primitives/radius.tokens.json`]!);
   assert.deepEqual(readTokenAt(radius, 'radius.md')!.value, { value: 7, unit: 'px' });
   assert.deepEqual(readTokenAt(radius, 'radius.sm')!.value, { value: 3, unit: 'px' });
+});
+
+// ---------------------------------------------------------------------------------------------
+// New brand: a Brand mode in Figma with no brand file in Git.
+
+test('a new Brand mode is listed as a new brand candidate, and excluded by default it changes nothing', async () => {
+  const { client, snapshot, sync } = await pulled();
+  addBrandMode(snapshot, 'Acme');
+  const a = await analyze(client, DEFAULT_SETTINGS, sync, snapshot);
+  assert.deepEqual(a.newBrands.map((b) => [b.name, b.slug, b.blocked]), [['Acme', 'acme', undefined]]);
+  assert.equal(a.newBrands[0]!.values['palette.neutral.0'], '{color.white}');
+  assert.equal(a.newBrands[0]!.values['palette.primary.700'], '{color.harbor.700}');
+  assert.ok(!a.warnings.some((w) => /Mode "acme" in the Brand collection .* ignored/.test(w)));
+  assert.deepEqual([a.diff.local.length, a.diff.conflicts.length], [0, 0]);
+  const push = buildPush(a, new Map());
+  assert.deepEqual(push.files, {});
+  assert.deepEqual(push.brandFiles, []);
+  assert.equal(push.brands[0]!.included, false);
+  assert.ok(push.validation.warnings.some((w) => /Mode "Acme" in the Brand collection has no brand file in Git/.test(w.message)));
+});
+
+for (const layout of ['single', 'split'] as const) {
+  test(`an included new brand adds its file and the config line to the pull request (${layout} layout)`, async () => {
+    const { gh, client, snapshot, sync } = await pulled(layout);
+    addBrandMode(snapshot, 'Acme', layout);
+    if (layout === 'single') setBrandColor(snapshot, 'palette/primary/700', 'Acme', '#1F5F3A');
+    const a = await analyze(client, DEFAULT_SETTINGS, sync, snapshot);
+    assert.deepEqual(a.newBrands.map((b) => b.slug), ['acme']);
+    const push = buildPush(a, new Map(), new Set(['acme']));
+    assert.deepEqual(push.validation.blocking, []);
+    const plan = push.brands[0]!.plan!;
+    assert.equal(plan.ok, true);
+    // A literal Figma color becomes a primitive the brand aliases (two tiers); aliases to synced primitives stay.
+    const brandPath = 'packages/tokens/src/brands/acme.tokens.json';
+    const primPath = 'packages/tokens/src/primitives/acme.tokens.json';
+    assert.deepEqual(push.brandFiles.map((f) => f.path), [...(layout === 'single' ? [primPath] : []), brandPath, 'bridge.config.json', '.changeset/bridge-brand-acme.md']);
+    const brand = JSON.parse(push.brandFiles.find((f) => f.path === brandPath)!.content);
+    assert.equal(brand.$extensions['dev.bridge.brand'].name, 'Acme');
+    assert.equal(JSON.stringify(brand).includes('"hex"'), false, 'no literal colors in the brand file');
+    if (layout === 'single') {
+      assert.equal(brand.palette.primary['700'].$value, '{color.acme-primary.700}');
+      assert.equal(JSON.parse(push.brandFiles[0]!.content).color['acme-primary']['700'].$value.hex, '#1f5f3a');
+    } else assert.equal(brand.palette.primary['700'].$value, '{color.harbor.700}');
+
+    const result = await openPullRequest(client, a, push, { title: '', notes: 'Acme launch', fileName: 'Test' });
+    const pr = gh.prs[0]!;
+    assert.equal(pr.title, 'Add the Acme brand');
+    assert.match(pr.body, /## New brand/);
+    assert.match(pr.body, /All \d+ contrast checks pass for Acme in light and dark/);
+    assert.match(pr.body, /Acme launch/);
+    assert.deepEqual(pr.labels, ['tokens', 'tier: 3']);
+    assert.equal(pr.body.includes(String.fromCharCode(0x2014)), false, 'no em dash in the PR body');
+    const commit = gh.commits.get(result.commitSha)!;
+    const main = gh.filesAt('main');
+    const changed = Object.keys(commit.files).filter((f) => commit.files[f] !== main[f]).sort();
+    assert.deepEqual(changed, ['.changeset/bridge-brand-acme.md', 'bridge.config.json', 'packages/tokens/src/brands/acme.tokens.json', ...(layout === 'single' ? ['packages/tokens/src/primitives/acme.tokens.json'] : [])]);
+    assert.match(commit.files['bridge.config.json']!, /"values": \["bridge", "ocean", "acme"\]/);
+  });
+}
+
+test('a token edit plus a new brand: one PR, token body with a New brand section, two changesets', async () => {
+  const { gh, client, snapshot, sync } = await pulled();
+  alias(snapshot, 'Semantic', 'color/action/primary/bg', 'Light', 'Brand', 'palette/primary/800');
+  addBrandMode(snapshot, 'Acme');
+  const a = await analyze(client, DEFAULT_SETTINGS, sync, snapshot);
+  const push = buildPush(a, new Map(), new Set(['acme']));
+  assert.deepEqual(push.validation.blocking, []);
+  const result = await openPullRequest(client, a, push, { title: 'Darker buttons and Acme', notes: '', fileName: 'Test' });
+  const body = gh.prs[0]!.body;
+  assert.match(body, /\| `color\.action\.primary\.bg` \|/);
+  assert.match(body, /## New brand/);
+  const files = Object.keys(gh.commits.get(result.commitSha)!.files).filter((f) => f.startsWith('.changeset/'));
+  assert.ok(files.some((f) => /ds-bridge-/.test(f)) && files.includes('.changeset/bridge-brand-acme.md'));
+});
+
+test('a new brand whose primary is too light for white button text blocks the push', async () => {
+  const { client, snapshot, sync } = await pulled();
+  addBrandMode(snapshot, 'Sunny');
+  setBrandColor(snapshot, 'palette/primary/700', 'Sunny', '#9FD3FF');
+  const a = await analyze(client, DEFAULT_SETTINGS, sync, snapshot);
+  const push = buildPush(a, new Map(), new Set(['sunny']));
+  assert.equal(push.brands[0]!.plan!.ok, false);
+  assert.ok(
+    push.validation.blocking.some((i) => i.code === 'contrast' && /New brand Sunny, light: color\.action\.primary\.text on color\.action\.primary\.bg/.test(i.message)),
+    push.validation.blocking.map((i) => i.message).join('\n'),
+  );
+  await assert.rejects(openPullRequest(client, a, push, { title: '', notes: '', fileName: 'Test' }), /Fix the blocking problems/);
+});
+
+test('without bridge.config.json a new Brand mode cannot be created from Figma, and says why', async () => {
+  const files = repoFiles();
+  delete files['bridge.config.json'];
+  const gh = new FakeGitHub(files);
+  const client = gh.client();
+  const first = await analyze(client, DEFAULT_SETTINGS, {}, { fileName: 'Test', collections: [], variables: [] });
+  const snapshot = applyPlanToSnapshot(buildPull(first, new Map()).plan);
+  addBrandMode(snapshot, 'Acme');
+  const a = await analyze(client, DEFAULT_SETTINGS, { baseSha: first.headSha }, snapshot);
+  assert.match(a.newBrands[0]!.blocked!, /no bridge\.config\.json/);
+  const push = buildPush(a, new Map(), new Set(['acme']));
+  assert.deepEqual(push.brandFiles, []);
+  assert.equal(push.brands[0]!.included, false);
 });

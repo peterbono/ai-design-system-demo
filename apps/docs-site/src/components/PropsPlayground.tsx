@@ -78,7 +78,13 @@ function PropControl({ control, value, onChange }: { control: Control; value: st
   );
 }
 
-export default function PropsPlayground({ spec }: { spec: PlaygroundSpec }) {
+const DEFAULT_BRANDS = [
+  { value: 'bridge', label: 'Bridge' },
+  { value: 'ocean', label: 'Ocean' },
+];
+
+/** `brands`: every brand of this build (bridge.config.json), so a merged brand shows up here too. */
+export default function PropsPlayground({ spec, brands = DEFAULT_BRANDS }: { spec: PlaygroundSpec; brands?: { value: string; label: string }[] }) {
   const [values, setValues] = useState<Values>(spec.initial);
   const [children, setChildren] = useState(spec.children ?? '');
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
@@ -117,10 +123,7 @@ export default function PropsPlayground({ spec }: { spec: PlaygroundSpec }) {
           <SegmentedControl
             label="Brand"
             size="sm"
-            items={[
-              { value: 'bridge', label: 'Bridge' },
-              { value: 'ocean', label: 'Ocean' },
-            ]}
+            items={brands}
             value={scope.brand}
             onValueChange={(brand) => requestScope({ brand })}
           />

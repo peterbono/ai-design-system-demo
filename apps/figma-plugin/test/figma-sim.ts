@@ -92,3 +92,24 @@ export function findVar(snap: FigmaSnapshot, name: string): SnapshotVariable {
 export function primId(snap: FigmaSnapshot, name: string): string {
   return findVar(snap, name).id;
 }
+
+/** Adds mode `name` to the Brand collection with Bridge's values (single layout) or a "Brand/<name>" copy (split). */
+export function addBrandMode(snap: FigmaSnapshot, name: string, layout: 'single' | 'split' = 'single') {
+  if (layout === 'single') {
+    const c = snap.collections.find((x) => x.name === 'Brand')!;
+    const id = `Brand:${name.toLowerCase()}`;
+    c.modes.push({ modeId: id, name });
+    for (const v of snap.variables) if (v.collectionId === c.id) v.valuesByMode[id] = structuredClone(v.valuesByMode['Brand:bridge']!);
+    return;
+  }
+  const src = snap.collections.find((x) => x.name === 'Brand/Bridge')!;
+  const c = { ...structuredClone(src), id: `c:Brand/${name}`, name: `Brand/${name}`, modes: [{ modeId: `Brand/${name}:x`, name }], defaultModeId: `Brand/${name}:x` };
+  snap.collections.push(c);
+  for (const v of snap.variables.filter((x) => x.collectionId === src.id)) {
+    snap.variables.push({ ...structuredClone(v), id: `${v.id}-${name}`, collectionId: c.id, valuesByMode: { [c.defaultModeId]: structuredClone(v.valuesByMode[src.defaultModeId]!) } });
+  }
+}
+export const setBrandColor = (snap: FigmaSnapshot, name: string, mode: string, hex: string) => {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255) as [number, number, number];
+  findIn(snap, 'Brand', name).valuesByMode[modeId(snap, 'Brand', mode)] = { kind: 'color', r, g, b, a: 1 };
+};

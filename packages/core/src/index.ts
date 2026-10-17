@@ -28,3 +28,5 @@ export * from './history';
 export * from './history-github';
 export * from './history-demo';
 export * from './previews';
+export * from './ramps';
+export * from './brand';

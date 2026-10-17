@@ -4,7 +4,7 @@
 // what the primary button will do (or why it is disabled).
 
 import type { ConflictChoice, DiffEntry } from '@bridge-ds/core';
-import { type Analysis, type PullProposal, type PushProposal, type PushResult, analyze, buildPull, buildPush, openPullRequest } from '../sync/flows';
+import { type Analysis, type PullProposal, type PushBrand, type PushProposal, type PushResult, analyze, buildPull, buildPush, openPullRequest } from '../sync/flows';
 import { GitHubClient, type PullRequest, parseRepo } from '@bridge-ds/core';
 import type { RenameSuggestion } from '@bridge-ds/core';
 import { affectedContrast, defaultTitle } from '@bridge-ds/core';
@@ -46,6 +46,8 @@ interface PushState {
   notes: string;
   openPr: PullRequest | undefined;
   appendToOpen: boolean;
+  /** Slugs of new brand candidates the designer chose to create in this pull request (opt-in, see planBrands). */
+  includeBrands: Set<string>;
   result?: PushResult | undefined;
 }
 
@@ -333,7 +335,7 @@ function conflictSection(a: Analysis, choices: Map<string, ConflictChoice>): Chi
 
 function refreshProposals(): void {
   if (state.pull) state.pull.proposal = buildPull(state.pull.analysis, state.pull.choices);
-  if (state.push) state.push.proposal = buildPush(state.push.analysis, state.push.choices);
+  if (state.push) state.push.proposal = buildPush(state.push.analysis, state.push.choices, state.push.includeBrands);
   render();
 }
 
@@ -400,13 +402,15 @@ function scanPush(keep?: PushState): void {
       const choices = keep?.choices ?? new Map<string, ConflictChoice>();
       const lastBranch = state.init!.sync.lastPrBranch;
       const openPr = lastBranch ? await c.findOpenPullRequest(lastBranch).catch(() => undefined) : undefined;
+      const includeBrands = keep?.includeBrands ?? new Set<string>();
       state.push = {
         analysis,
         snapshot,
         choices,
         confirmed,
         dismissed: keep?.dismissed ?? new Set(),
-        proposal: buildPush(analysis, choices),
+        proposal: buildPush(analysis, choices, includeBrands),
+        includeBrands,
         title: keep?.title ?? '',
         notes: keep?.notes ?? '',
         openPr,
@@ -610,6 +614,59 @@ function viewPull(): View {
   };
 }
 
+/** "New brand detected" card: a Brand mode with no file in Git, offered as a new brand (opt-in). */
+function newBrandCard(r: PushState, b: PushBrand): HTMLElement {
+  const c = b.candidate;
+  const plan = b.plan;
+  const failing = plan?.contrast.failing ?? [];
+  const errors = plan?.issues.filter((i) => i.level === 'error') ?? [];
+  const id = `brand-${c.slug}`;
+  const result = !plan
+    ? null
+    : errors.length
+      ? h('p', { class: 'brand-result fail' }, icon('alert'), `${plural(errors.length, 'problem')} to fix: ${errors[0]!.message}`)
+      : failing.length
+        ? h(
+            'div',
+            { class: 'brand-result fail' },
+            h('p', null, icon('alert'), `${plural(failing.length, 'pair')} fail${failing.length === 1 ? 's' : ''}`),
+            h(
+              'ul',
+              null,
+              failing.slice(0, 3).map((x) => h('li', null, `${x.fg.replace(/^color\./, '')} on ${x.bg.replace(/^color\./, '')}, ${/theme=([^,]+)/.exec(x.modes)?.[1] ?? ''}: ${x.ratio ?? 'n/a'}:1, needs ${x.min}:1`)),
+            ),
+          )
+        : h('p', { class: 'brand-result ok' }, icon('check'), `All ${plan.contrast.checks} contrast checks pass`);
+  return h(
+    'section',
+    { class: 'brand-card' },
+    h('h2', null, `New brand detected: ${c.name}`),
+    h('p', { class: 'lede' }, `Mode ${c.name} in the Brand collection has no brand file in Git.`),
+    c.blocked
+      ? h('p', { class: 'muted' }, c.blocked)
+      : [
+          h(
+            'label',
+            { class: 'check' },
+            h('input', {
+              type: 'checkbox',
+              id,
+              'data-focus-id': id,
+              checked: b.included,
+              onChange: (e: Event) => {
+                if ((e.target as HTMLInputElement).checked) r.includeBrands.add(c.slug);
+                else r.includeBrands.delete(c.slug);
+                refreshProposals();
+              },
+            }),
+            'Create it in this pull request',
+          ),
+          b.included && plan ? h('p', { class: 'muted' }, `Adds ${plan.files.filter((f) => f.action === 'create' && f.path.endsWith('.tokens.json')).map((f) => f.path.split('/').slice(-2).join('/')).join(', ')} and lists ${c.slug} in bridge.config.json. Tier 3: a design owner and a tech owner approve.`) : null,
+          b.included ? result : null,
+        ],
+  );
+}
+
 function viewPush(): View {
   const init = state.init!;
   if (!init.hasToken) return needToken();
@@ -649,7 +706,7 @@ function viewPush(): View {
   }
 
   const suggestions = a.suggestions.filter((s) => !r.dismissed.has(s.figmaId));
-  const nothing = !a.diff.local.length && !a.diff.conflicts.length;
+  const nothing = !a.diff.local.length && !a.diff.conflicts.length && !a.newBrands.length;
   const before = prop.validation.contrastBefore;
   const after = prop.validation.contrastAfter;
   const beforeByKey = new Map(before.map((x) => [pairKey(x), x]));
@@ -692,6 +749,7 @@ function viewPush(): View {
   if (nothing) {
     body.push(h('div', { class: 'empty' }, h('h2', null, 'Nothing to propose'), h('p', null, `Your variables match ${init.settings.branch}.`)));
   }
+  for (const b of prop.brands) body.push(newBrandCard(r, b));
   if (a.diff.local.length) {
     body.push(
       h(
@@ -754,7 +812,7 @@ function viewPush(): View {
           'label',
           { class: 'field' },
           h('span', null, 'Title'),
-          h('input', { type: 'text', value: r.title, placeholder: defaultTitle(prop.changes), maxlength: '120', onInput: (e: Event) => (r.title = (e.target as HTMLInputElement).value) }),
+          h('input', { type: 'text', value: r.title, placeholder: prop.changes.length ? defaultTitle(prop.changes) : prop.brands.find((b) => b.plan)?.plan?.title ?? defaultTitle(prop.changes), maxlength: '120', onInput: (e: Event) => (r.title = (e.target as HTMLInputElement).value) }),
         ),
         h(
           'label',
@@ -770,7 +828,7 @@ function viewPush(): View {
               `Add to open pull request #${r.openPr.number}`,
             )
           : null,
-        h('p', { class: 'muted' }, `${plural(Object.keys(prop.files).length, 'file')} change in one commit, with a changeset. Token changes are risk tier 3: a design owner and a tech owner both approve.`),
+        h('p', { class: 'muted' }, `${plural(Object.keys(prop.files).length + prop.brandFiles.length, 'file')} change in one commit, with a changeset. Token changes are risk tier 3: a design owner and a tech owner both approve.`),
       ),
     );
   }
@@ -778,14 +836,15 @@ function viewPush(): View {
 
   const blocked = prop.validation.blocking.length;
   const open = prop.unresolvedConflicts.length;
-  const noFiles = Object.keys(prop.files).length === 0;
+  const newBrands = prop.brands.filter((b) => b.plan).length;
+  const noFiles = Object.keys(prop.files).length === 0 && prop.brandFiles.length === 0;
   const hint = open
     ? `Decide ${plural(open, 'conflict')} first`
     : blocked
       ? `Fix ${plural(blocked, 'problem')} first`
       : noFiles
         ? 'Nothing to send'
-        : `${plural(prop.changes.length, 'token')} to ${init.settings.branch}`;
+        : [prop.changes.length ? plural(prop.changes.length, 'token') : '', newBrands ? plural(newBrands, 'new brand') : ''].filter(Boolean).join(' and ') + ` to ${init.settings.branch}`;
   return {
     body,
     bar: nothing

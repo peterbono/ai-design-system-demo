@@ -8,10 +8,11 @@ import { type CompareResult, GitHubClient, GitHubError, type PullRequest, type R
 import { type RenameSuggestion, applyConfirmedRenames, reconcileIds } from '@bridge-ds/core';
 import { type FigmaReadResult, type Unmappable, buildPullPlan, isUnmappable, snapshotToTokens, tokenToPlanned } from './mapping';
 import { branchName, changedModes, commitMessage, composeChangeset, composePrBody, defaultTitle } from '@bridge-ds/core';
-import { type TokenSet, buildTokenSet, layoutOptions } from '@bridge-ds/core';
+import { type TokenSet, buildTokenSet, layoutOptions, loadConfig } from '@bridge-ds/core';
 import { type LogicalToken, SINGLE_MODE, type ThemeOverride, type TokenMap, isMultiMode } from '@bridge-ds/core';
 import { type ProposalValidation, type TypeChange, shadowedEdits, validateProposal } from '@bridge-ds/core';
 import { CONTRAST_CHECKS_FILE, type ContrastPair, parseContrastChecks } from '@bridge-ds/core';
+import { type Issue, type NewBrandPlan, composeNewBrandBody, newBrandSection, planNewBrand, slugify } from '@bridge-ds/core';
 
 export interface Analysis {
   settings: RepoSettings;
@@ -30,7 +31,28 @@ export interface Analysis {
   codeOnly: Unmappable[];
   /** Brand x theme overrides of semantic tokens. Figma has no brand x theme mode: they stay code-only. */
   overrides: ThemeOverride[];
+  /** Brand modes in Figma with no brand file in Git: each can become a new brand in the pull request. */
+  newBrands: NewBrandCandidate[];
   warnings: string[];
+}
+
+export interface NewBrandCandidate {
+  /** Figma mode name ("Acme"). */
+  name: string;
+  /** Brand slug the file would get ("acme" -> brands/acme.tokens.json). */
+  slug: string;
+  modeKey: string;
+  /** Brand token path -> value in that mode, as planNewBrand overrides. */
+  values: Record<string, unknown>;
+  /** Why it cannot be created from here (no bridge.config.json). Undefined when it can. */
+  blocked?: string | undefined;
+}
+
+/** A new brand candidate in a push: included or not, and the core plan when included. */
+export interface PushBrand {
+  candidate: NewBrandCandidate;
+  included: boolean;
+  plan?: NewBrandPlan | undefined;
 }
 
 /** Tokens a Figma variable can represent. Others are left alone by both pull and push. */
@@ -109,6 +131,13 @@ export async function analyze(
       `${head.overrides.length} brand theme override(s) (${files}) stay code-only: Figma shows the shared semantic value for every brand. Contrast checks still use them.`,
     );
   }
+  const newBrands: NewBrandCandidate[] = figma.extraBrandModes.map((m) => ({
+    name: m.name,
+    slug: slugify(m.name, 24),
+    modeKey: m.modeKey,
+    values: m.values,
+    blocked: headFiles.config ? undefined : `This repo has no bridge.config.json, so DS Bridge cannot list a new brand in it. Add the config (bridge init), or create brands/${slugify(m.name, 24)}.tokens.json in code.`,
+  }));
   return {
     settings,
     headSha,
@@ -124,6 +153,7 @@ export async function analyze(
     pairs,
     codeOnly: headMappable.codeOnly,
     overrides: head.overrides,
+    newBrands,
     warnings: [...warnings, ...figma.warnings, ...head.problems],
   };
 }
@@ -135,13 +165,61 @@ export interface PushProposal {
   changes: AcceptedChange[];
   /** Changed token files (relative to the tokens path). */
   files: Record<string, string>;
+  /** New brand candidates and, for included ones, their plan. */
+  brands: PushBrand[];
+  /** Repo-relative files new brands add or modify (brand files, bridge.config.json, their changesets). */
+  brandFiles: { path: string; content: string }[];
   proposed: TokenSet;
   validation: ProposalValidation;
   unresolvedConflicts: DiffEntry[];
   resolvedConflicts: { path: string; choice: ConflictChoice }[];
 }
 
-export function buildPush(a: Analysis, choices: Map<string, ConflictChoice>): PushProposal {
+/**
+ * Plans the included new brands with the same core planner as the CLI, the MCP server and the Studio. A new
+ * brand is Tier 3 and edits bridge.config.json (a guardrail), so it is opt-in: a designer adding a mode to try
+ * an idea must not turn every push into a brand proposal. Excluded candidates only leave a warning.
+ */
+export function planBrands(a: Analysis, included: ReadonlySet<string>): { brands: PushBrand[]; files: { path: string; content: string }[]; blocking: Issue[]; warnings: Issue[] } {
+  const brands: PushBrand[] = [];
+  const files = new Map<string, string>();
+  const blocking: Issue[] = [];
+  const warnings: Issue[] = [];
+  let configText = a.headFiles.configText;
+  let config = a.headFiles.config;
+  let tokenFiles: Record<string, string> = a.headFiles.files;
+  for (const candidate of a.newBrands) {
+    const on = included.has(candidate.slug) && !candidate.blocked;
+    if (!on || !config) {
+      brands.push({ candidate, included: false });
+      warnings.push({ code: 'file-problem', severity: 'warning', message: candidate.blocked ?? `Mode "${candidate.name}" in the Brand collection has no brand file in Git. It stays in Figma until you create it as a new brand.` });
+      continue;
+    }
+    // Several new brands in one push stack: each plans on top of the previous one's config and files.
+    const plan = planNewBrand(
+      { config, configText, files: tokenFiles, contrastText: a.headFiles.contrastChecks },
+      { slug: candidate.slug, name: candidate.name, from: config.modes.defaults.brand ?? config.modes.brands[0] ?? 'blank', overrides: candidate.values },
+    );
+    brands.push({ candidate, included: true, plan });
+    for (const i of plan.issues) (i.level === 'error' ? blocking : warnings).push({ code: 'file-problem', severity: i.level, message: `New brand ${candidate.name}: ${i.message}`, path: i.path });
+    for (const r of plan.contrast.failing.slice(0, 10)) {
+      const theme = /theme=([^,]+)/.exec(r.modes)?.[1] ?? r.modes;
+      blocking.push({ code: 'contrast', severity: 'error', message: `New brand ${candidate.name}, ${theme}: ${r.fg} on ${r.bg} is ${r.ratio ?? 'n/a'}:1, needs ${r.min}:1.`, path: r.fg });
+    }
+    if (plan.contrast.failing.length > 10) blocking.push({ code: 'contrast', severity: 'error', message: `New brand ${candidate.name}: ${plan.contrast.failing.length - 10} more pairs fail.` });
+    for (const f of plan.files) files.set(f.path, f.content);
+    configText = plan.configText;
+    tokenFiles = plan.tokenFiles;
+    try {
+      config = loadConfig(plan.configText);
+    } catch {
+      /* the plan already reports config problems */
+    }
+  }
+  return { brands, files: [...files].map(([path, content]) => ({ path, content })), blocking, warnings };
+}
+
+export function buildPush(a: Analysis, choices: Map<string, ConflictChoice>, includeBrands: ReadonlySet<string> = new Set()): PushProposal {
   const changes: AcceptedChange[] = [];
   const typeChanges: TypeChange[] = [];
   const unresolvedConflicts: DiffEntry[] = [];
@@ -167,7 +245,10 @@ export function buildPush(a: Analysis, choices: Map<string, ConflictChoice>): Pu
     .filter((c) => c.target)
     .map((c) => ({ path: c.target!.path, tier: c.target!.tier, modes: [...(changedModes(c) ?? Object.keys(c.target!.values))] }));
   validation.warnings.push(...shadowedEdits(proposed, edits));
-  return { changes, files, proposed, validation, unresolvedConflicts, resolvedConflicts };
+  const nb = planBrands(a, includeBrands);
+  validation.blocking.push(...nb.blocking);
+  validation.warnings.push(...nb.warnings);
+  return { changes, files, brands: nb.brands, brandFiles: nb.files, proposed, validation, unresolvedConflicts, resolvedConflicts };
 }
 
 export interface PushOptions {
@@ -191,15 +272,17 @@ export interface PushResult {
 export async function openPullRequest(client: GitHubClient, a: Analysis, p: PushProposal, opts: PushOptions): Promise<PushResult> {
   if (p.unresolvedConflicts.length) throw new Error('Resolve every conflict before opening a pull request.');
   if (p.validation.blocking.length) throw new Error('Fix the blocking problems before opening a pull request.');
-  if (!Object.keys(p.files).length) throw new Error('Nothing to send: the Figma variables match main.');
-  const title = opts.title.trim() || defaultTitle(p.changes);
+  if (!Object.keys(p.files).length && !p.brandFiles.length) throw new Error('Nothing to send: the Figma variables match main.');
+  const plans = p.brands.flatMap((b) => (b.plan ? [b.plan] : []));
+  const title = opts.title.trim() || (p.changes.length ? defaultTitle(p.changes) : plans.map((x) => x.title).join(', '));
   const prefix = a.headFiles.tokensPath;
   const appended = !!opts.appendTo;
   const branch = opts.appendTo?.headRef ?? branchName(title, opts.now ?? new Date());
   // A changeset only when the repo's bridge.config.json names the package to bump.
   const pkg = a.headFiles.config?.changeset?.package;
-  const changeset = pkg ? composeChangeset(p.changes, { title, branch, packageName: pkg, source: 'from Figma via DS Bridge' }) : undefined;
-  const repoFiles = [...Object.entries(p.files).map(([rel, content]) => ({ path: `${prefix}/${rel}`, content })), ...(changeset ? [changeset] : [])];
+  // Token edits get their changeset; each new brand brings its own (minor) one, under another name.
+  const changeset = pkg && p.changes.length ? composeChangeset(p.changes, { title, branch, packageName: pkg, source: 'from Figma via DS Bridge' }) : undefined;
+  const repoFiles = [...Object.entries(p.files).map(([rel, content]) => ({ path: `${prefix}/${rel}`, content })), ...(changeset ? [changeset] : []), ...p.brandFiles];
 
   const parent = appended ? await client.getBranchSha(branch) : a.headSha;
   if (!parent) throw new Error(`Branch ${branch} no longer exists.`);
@@ -207,16 +290,24 @@ export async function openPullRequest(client: GitHubClient, a: Analysis, p: Push
   const blobs = [];
   for (const f of repoFiles) blobs.push({ path: f.path, sha: await client.createBlob(f.content) });
   const tree = await client.createTree(baseTree, blobs);
-  const commitSha = await client.createCommit(commitMessage(title, p.changes, 'Exported from Figma with DS Bridge.'), tree, [parent]);
+  const message = p.changes.length ? commitMessage(title, p.changes, 'Exported from Figma with DS Bridge.') : `${title}\n\n${plans.map((x) => `New brand ${x.name} (${x.slug}) from a Figma Brand mode.`).join('\n')}\n\nExported from Figma with DS Bridge.`;
+  const commitSha = await client.createCommit(message, tree, [parent]);
 
   let pr: PullRequest;
   if (appended) {
     await client.updateBranch(branch, commitSha);
     pr = opts.appendTo!;
-    await client.addComment(pr.number, `DS Bridge added a commit from Figma:\n\n${p.changes.map((c) => `- ${(c.target ?? c.current)!.path}`).join('\n')}`).catch(() => undefined);
+    const lines = [...p.changes.map((c) => `- ${(c.target ?? c.current)!.path}`), ...plans.map((x) => `- New brand ${x.name} (\`${x.slug}\`)`)];
+    await client.addComment(pr.number, `DS Bridge added a commit from Figma:\n\n${lines.join('\n')}`).catch(() => undefined);
   } else {
     await client.createBranch(branch, commitSha);
-    const body = composePrBody({
+    const origin = {
+      tool: 'the DS Bridge Figma plugin',
+      surface: 'Figma',
+      location: opts.fileName,
+      authoredBy: 'Human designer in Figma, via the DS Bridge plugin (no AI involved in the values)',
+    };
+    const tokenBody = () => composePrBody({
       changes: p.changes,
       head: a.head,
       proposed: p.proposed,
@@ -224,17 +315,16 @@ export async function openPullRequest(client: GitHubClient, a: Analysis, p: Push
       baseBranch: a.settings.branch,
       headSha: a.headSha,
       baseSha: a.baseSha,
-      origin: {
-        tool: 'the DS Bridge Figma plugin',
-        surface: 'Figma',
-        location: opts.fileName,
-        authoredBy: 'Human designer in Figma, via the DS Bridge plugin (no AI involved in the values)',
-      },
+      origin,
       title,
       notes: opts.notes,
       upstreamPaths: a.diff.remote.map((e) => e.path),
       resolvedConflicts: p.resolvedConflicts,
     });
+    // A push that only adds brands gets the brand body; token edits plus brands get one New brand section each.
+    const body = p.changes.length
+      ? [tokenBody(), ...plans.map(newBrandSection)].join('\n\n')
+      : plans.map((x, i) => (i === 0 ? composeNewBrandBody(x, { tool: `${origin.tool} (${origin.location})`, notes: opts.notes }) : newBrandSection(x))).join('\n\n');
     try {
       pr = await client.createPullRequest({ title, head: branch, base: a.settings.branch, body, draft: true });
     } catch (err) {
@@ -243,7 +333,7 @@ export async function openPullRequest(client: GitHubClient, a: Analysis, p: Push
         pr = await client.createPullRequest({ title, head: branch, base: a.settings.branch, body, draft: false });
       } else throw err;
     }
-    await client.addLabels(pr.number, ['tokens']);
+    await client.addLabels(pr.number, plans.length ? ['tokens', 'tier: 3'] : ['tokens']);
   }
 
   const tags: VariableTag[] = [];

@@ -1,0 +1,22 @@
+---
+// Studio, New brand: a focused four-step flow on its own page (the preview needs two themes side by side, which a
+// side sheet over the token table would cramp). Drafting needs no GitHub; only "Propose brand" does. The Library
+// shows a brand once its pull request is merged: brands come from bridge.config.json at build time.
+import Layout from '../../../layouts/Layout.astro';
+import StudioHeader from '../../../components/StudioHeader.astro';
+import NewBrandFlow from '../../../components/ds/studio/NewBrandFlow';
+import { tokenFiles } from '../../../lib/explorer';
+import { readText } from '../../../lib/repo';
+import { CONTRAST_FILE } from '../../../lib/contrast';
+import { PAGE_SOURCES, freshness } from '../../../lib/sources';
+
+const sources = ['bridge.config.json', 'packages/tokens/src/brands', 'packages/core/src/brand.ts', CONTRAST_FILE];
+const updated = freshness(sources);
+void PAGE_SOURCES;
+import '../../../styles/new-brand.css';
+---
+
+<Layout title="New brand" description="Draft a brand in this browser, check it with real components in light and dark, then propose it as a pull request." sources={sources} updated={updated} wide>
+  <StudioHeader title="New brand" subtitle="Draft it in this browser, check it with real components, then propose it for review." branch={false} />
+  <NewBrandFlow client:load files={tokenFiles()} configText={readText('bridge.config.json')} contrastText={readText(CONTRAST_FILE)} />
+</Layout>

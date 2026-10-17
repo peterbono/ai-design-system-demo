@@ -183,3 +183,12 @@ details.notes ul { margin: 0; padding-left: var(--s4); color: var(--text-2); }
 .spinner { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--border); border-top-color: var(--brand); flex: none; animation: spin 700ms linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2s; } .btn { transition: none; } }
+
+/* New brand card: a Brand mode with no file in Git */
+.brand-card { border: 1px solid var(--border); border-radius: var(--r-md); padding: var(--s3); }
+.brand-result { display: flex; flex-direction: column; gap: 2px; }
+.brand-result p, p.brand-result { display: flex; gap: 6px; align-items: center; font-weight: 500; }
+.brand-result .icon { width: 14px; height: 14px; flex: none; }
+.brand-result.ok { color: var(--ok); }
+.brand-result.fail { color: var(--danger); }
+.brand-result ul { margin: 0; padding-left: 20px; color: var(--text-2); font-family: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace; }

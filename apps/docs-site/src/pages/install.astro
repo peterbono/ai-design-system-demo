@@ -5,6 +5,7 @@ import { Alert, Button } from '@bridge-ds/react';
 import { Copy } from 'lucide-react';
 import { GITHUB_URL, PLUGIN_URL, readJson, sourceUrl } from '../lib/repo';
 import { freshness } from '../lib/sources';
+import { BRANDS } from '../lib/tokens';
 import '../styles/process.css';
 import '../styles/connect.css';
 import '../styles/library.css';
@@ -117,7 +118,7 @@ import LibraryHeader from '../components/LibraryHeader.astro';
   </p>
   <pre class="cx-code" tabindex="0" aria-label="Scope attributes">{html}</pre>
   <p class="small muted">
-    Themes: light, dark. Brands: bridge, ocean. Densities: comfortable, compact. Every component page lets you switch brand and density in its preview toolbar.
+    Themes: light, dark. Brands: {BRANDS.join(', ')}. Densities: comfortable, compact. Every component page lets you switch brand and density in its preview toolbar.
   </p>
 
   <h2 id="figma">Figma plugin</h2>
