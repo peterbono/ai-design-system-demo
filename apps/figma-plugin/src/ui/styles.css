@@ -237,8 +237,8 @@ details.notes ul { margin: 0; padding-left: var(--s4); color: var(--text-2); }
 .brand-result.fail { color: var(--danger); }
 .brand-result ul { margin: 0; padding-left: 20px; color: var(--text-2); font-family: var(--mono); }
 
-/* Facts: label over value, two per row (Source card). */
-.facts { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3) var(--s4); margin: 0; }
-.facts div:first-child { grid-column: 1 / -1; }
-.facts dt { color: var(--text-2); }
-.facts dd { margin: 2px 0 0; font-family: var(--mono); font-size: 11px; overflow-wrap: anywhere; }
+/* Steps: numbered, one line of title and one of detail (idle screens). */
+.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--s3); }
+.steps li { display: flex; gap: var(--s3); align-items: flex-start; }
+.steps b { font-weight: 600; }
+.step-n { flex: none; width: 20px; height: 20px; border-radius: 999px; background: var(--zone); color: var(--zone-text); font-size: 11px; font-weight: 600; line-height: 20px; text-align: center; }

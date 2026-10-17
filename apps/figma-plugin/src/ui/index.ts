@@ -532,14 +532,13 @@ function intro(o: { title: string; text?: string; meta?: Child; art?: Illustrati
   );
 }
 
-/** Where the tokens come from, as a card under the intro of the idle screens. */
-function sourceCard(init: InitPayload): HTMLElement {
-  const fact = (k: string, v: string) => h('div', null, h('dt', null, k), h('dd', null, v));
+/** What happens next, as numbered steps under the intro of an idle screen. Explains; asks for nothing. */
+function steps(items: [string, string][]): HTMLElement {
   return h(
     'section',
     { class: 'card' },
-    h('div', { class: 'group-head' }, h('h2', null, 'Source'), h('button', { class: 'btn ghost', onClick: () => { state.tab = 'settings'; render(); } }, 'Change')),
-    h('dl', { class: 'facts' }, fact('Repository', init.settings.repo), fact('Branch', init.settings.branch), fact('Tokens folder', init.settings.tokensPath)),
+    h('h2', null, 'How it works'),
+    h('ol', { class: 'steps' }, items.map(([t, d], i) => h('li', null, h('span', { class: 'step-n', 'aria-hidden': 'true' }, String(i + 1)), h('div', null, h('b', null, t), h('p', { class: 'muted' }, d))))),
   );
 }
 
@@ -560,10 +559,14 @@ function viewPull(): View {
         title: `Bring ${init.settings.branch} into Figma`,
         text: 'See every change before anything is written. Your own edits are kept, nothing is deleted.',
         meta: init.sync.baseSha
-          ? `Last pulled ${short(init.sync.baseSha)}${init.sync.lastPullAt ? ` on ${when(init.sync.lastPullAt)}` : ''}`
-          : 'First pull: one collection per tier, with its modes.',
+          ? `Last pulled ${short(init.sync.baseSha)} from ${init.settings.repo}${init.sync.lastPullAt ? ` on ${when(init.sync.lastPullAt)}` : ''}`
+          : `From ${init.settings.repo}. First pull: one collection per tier, with its modes.`,
         art: 'tokens',
-      }), sourceCard(init)],
+      }), steps([
+        ['Check', `DS Bridge reads the token files on ${init.settings.branch}.`],
+        ['Review', 'Every new, edited or deleted token is listed with its value. Nothing is written yet.'],
+        ['Apply', 'Figma variables are created or updated. Your own edits stay until you push them.'],
+      ])],
       bar: { label: 'Check for updates', onClick: checkPull },
     };
   }
@@ -732,10 +735,14 @@ function viewPush(): View {
     return {
       body: [intro({
         title: 'Send your edits for review',
-        text: `Edit values, aliases, names or descriptions in any synced collection, then scan. Every change goes to ${init.settings.branch} as a draft pull request.`,
-        meta: 'Design and tech owners approve before anything ships.',
+        text: `Your variable edits go to ${init.settings.branch} as a pull request, never straight in.`,
+        meta: `To ${init.settings.repo}, for review by design and tech owners.`,
         art: 'paint',
-      }), sourceCard(init)],
+      }), steps([
+        ['Edit in Figma', 'Change values, aliases, names or descriptions of synced variables.'],
+        ['Scan', 'See each change with its swatches and the contrast it moves. Failing pairs block the push.'],
+        ['Open a pull request', `A draft on its own branch. Nothing reaches ${init.settings.branch} until owners approve.`],
+      ])],
       bar: { label: 'Scan for changes', onClick: () => scanPush() },
     };
   }
