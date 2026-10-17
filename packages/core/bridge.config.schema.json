@@ -516,9 +516,77 @@
           "additionalProperties": false,
           "description": "Production URL of each app (what the default branch deploys). Fixed URLs, no placeholders. Used for links on the default branch and in local builds.",
           "properties": {
-            "docs": { "type": "string", "pattern": "^https?://[^{}]*$", "description": "Docs site production URL." },
-            "storybook": { "type": "string", "pattern": "^https?://[^{}]*$", "description": "Storybook production URL." },
-            "admin": { "type": "string", "pattern": "^https?://[^{}]*$", "description": "Admin demo production URL." }
+            "docs": {
+              "type": "string",
+              "pattern": "^https?://[^{}]*$",
+              "description": "Docs site production URL."
+            },
+            "storybook": {
+              "type": "string",
+              "pattern": "^https?://[^{}]*$",
+              "description": "Storybook production URL."
+            },
+            "admin": {
+              "type": "string",
+              "pattern": "^https?://[^{}]*$",
+              "description": "Admin demo production URL."
+            }
+          }
+        }
+      }
+    },
+    "integrations": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Where component change requests go besides the GitHub issue (label component-change).",
+      "properties": {
+        "requests": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "labels": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Extra labels on every request issue."
+            },
+            "assignees": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "GitHub logins assigned to every request issue."
+            }
+          }
+        },
+        "jira": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "baseUrl",
+            "project"
+          ],
+          "description": "Mirror each request to Jira with the bridge-jira GitHub Action. Secrets JIRA_EMAIL and JIRA_API_TOKEN live in the repo settings, never here.",
+          "properties": {
+            "baseUrl": {
+              "type": "string",
+              "pattern": "^https://"
+            },
+            "project": {
+              "type": "string",
+              "pattern": "^[A-Z][A-Z0-9_]{1,9}$"
+            },
+            "issueType": {
+              "type": "string",
+              "default": "Task"
+            },
+            "labels": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
           }
         }
       }
