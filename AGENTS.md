@@ -47,6 +47,22 @@ Run all five checks before you open a PR. CI runs the same ones.
 8. `Name.test.tsx` for anything interactive: keyboard path, ARIA state, `expectNoAxeViolations()`.
 9. Export from `packages/react/src/index.ts` under its family. Add a changeset.
 
+## UI quality bar (every screen and every new feature)
+
+Check each item on a real screenshot before opening the PR, and say in the PR how the screen meets it.
+
+- Progressive disclosure: one summary sentence first, details collapsed or on demand, never every option at once.
+- Gestalt: an action sits on the same line as what it acts on (proximity); the same kind of thing uses the same row
+  component (similarity); related content shares a region (common region); sections share one width.
+- Fitts: main actions at the DS control height (36 to 44px), a lone action fills its bar, no target under 24px,
+  no homemade controls where a DS component exists.
+- One primary action per view, at most 4 font sizes and 20 interactive elements on the first screen, no empty
+  column on wide screens.
+- Bridge brand (docs/DESIGN-LANGUAGE.md): Fraunces display, Instrument Sans, Plex Mono for tokens and code, one
+  Harbor zone per screen, Deep Harbor the only strong color, the Field Guide drawings, the Bridge voice.
+- When users already know a pattern from their tools (Figma library publish and review updates, GitHub reviews),
+  mirror it.
+
 ## Always
 
 - Work on a branch named `agent/<short-topic>`. One concern per PR.
