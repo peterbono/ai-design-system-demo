@@ -4,6 +4,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { MCP_DIST, REPO } from './helpers.js';
+import pkg from '../package.json' with { type: 'json' };
 
 const TOOLS = [
   'bridge_audit',
@@ -54,7 +55,7 @@ const text = (r: any) => r.content[0].text as string;
 
 describe('MCP over stdio', () => {
   it('initializes with server info and instructions', () => {
-    expect(client.getServerVersion()).toMatchObject({ name: 'bridge', version: '0.1.0' });
+    expect(client.getServerVersion()).toMatchObject({ name: 'bridge', version: pkg.version });
     expect(client.getInstructions()).toMatch(/never writes to main/);
   });
 

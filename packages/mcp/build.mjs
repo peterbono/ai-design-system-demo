@@ -1,7 +1,9 @@
 // Bundles the server (dist/index.js) and the library the CLI uses (dist/lib.js) with esbuild.
 // @bridge-ds/core ships TypeScript sources, so it is compiled into the bundle; npm dependencies stay external.
 import { build } from 'esbuild';
-import { chmod, rm } from 'node:fs/promises';
+import { chmod, readFile, rm } from 'node:fs/promises';
+
+const pkg = JSON.parse(await readFile(new URL('./package.json', import.meta.url), 'utf8'));
 
 await rm(new URL('./dist', import.meta.url), { recursive: true, force: true });
 await build({
@@ -15,6 +17,8 @@ await build({
   conditions: ['source'],
   target: 'node20',
   external: ['typescript', 'playwright-core', 'pixelmatch', 'pngjs', '@modelcontextprotocol/sdk', '@modelcontextprotocol/sdk/*', 'zod', 'zod/*'],
+  // The version people see (stderr banner, serverInfo) is the published one.
+  define: { __BRIDGE_MCP_VERSION__: JSON.stringify(pkg.version) },
   logLevel: 'warning',
   absWorkingDir: new URL('.', import.meta.url).pathname,
 });
