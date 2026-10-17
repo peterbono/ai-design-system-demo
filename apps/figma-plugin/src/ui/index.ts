@@ -1005,9 +1005,11 @@ function viewSettings(): View {
 
 function actionBar(bar: ActionBar | undefined): Child {
   if (!bar && !state.busy) return null;
+  // Fitts: a lone action takes the whole bar; with a secondary or a status it stays on the right.
+  const lone = !!bar && !bar.secondary && !bar.hint && !state.busy;
   return h(
     'div',
-    { class: 'bar' },
+    { class: lone ? 'bar lone' : 'bar' },
     h(
       'div',
       { class: 'bar-status', 'aria-live': 'polite' },
@@ -1022,7 +1024,9 @@ function render(): void {
   // Keep focus and scroll stable across re-renders.
   const scroller = document.querySelector('main');
   const scrollTop = scroller?.scrollTop ?? 0;
-  const focusedId = (document.activeElement as HTMLElement | null)?.dataset?.focusId;
+  // Restore focus only when it was keyboard focus: after a mouse click it would draw a ring nobody asked for.
+  const active = document.activeElement as HTMLElement | null;
+  const focusedId = active?.matches?.(':focus-visible') ? active.dataset?.focusId : undefined;
 
   if (!state.init) {
     app.replaceChildren(
