@@ -207,7 +207,7 @@ interface RowSides {
   afterIndex: PathIndex;
 }
 
-const KIND_LABEL: Record<string, string> = { added: 'New', changed: 'Edited', renamed: 'Renamed', removed: 'Deleted' };
+const KIND_LABEL: Record<string, string> = { added: 'New', changed: 'Edited', renamed: 'Renamed', removed: 'Deleted', restored: 'Recreated', replaced: 'From main' };
 
 function diffRow(a: Analysis, kind: string, sides: RowSides, extra?: Child): HTMLElement {
   const t = (sides.after ?? sides.before)!;
@@ -255,9 +255,9 @@ function diffRow(a: Analysis, kind: string, sides: RowSides, extra?: Child): HTM
   );
 }
 
-function rowList(key: string, rows: HTMLElement[]): HTMLElement {
+function rowList(key: string, rows: HTMLElement[], limit = PAGE): HTMLElement {
   const all = state.expanded.has(key);
-  const shown = all ? rows : rows.slice(0, PAGE);
+  const shown = all ? rows : rows.slice(0, limit);
   return h(
     'div',
     null,
@@ -265,6 +265,17 @@ function rowList(key: string, rows: HTMLElement[]): HTMLElement {
     rows.length > shown.length
       ? h('button', { class: 'btn ghost more', onClick: () => { state.expanded.add(key); render(); } }, `Show all ${rows.length}`)
       : null,
+  );
+}
+
+/** One group of the Pull screen: title and count with its action on the same line, one sentence, then its rows. */
+function group(title: string, count: number, action: Child, lede: string, content: Child): HTMLElement {
+  return h(
+    'section',
+    { class: 'group' },
+    h('div', { class: 'group-head' }, h('h2', null, title, h('span', { class: 'group-n' }, String(count))), action),
+    h('p', { class: 'lede' }, lede),
+    content,
   );
 }
 
@@ -570,50 +581,50 @@ function viewPull(): View {
     counts.removed ? `${counts.removed} deleted on main` : '',
   ].filter(Boolean);
 
-  const body: Child[] = [
-    h('section', null, h('h2', null, upToDate ? 'Already up to date' : 'Changes on main'), where, a.compare?.aheadBy ? h('p', { class: 'muted' }, `${init.settings.branch} has ${plural(a.compare.aheadBy, 'new commit')} since then.`) : null),
-  ];
+  // Summary first: one sentence for the whole screen, then one line of where it comes from.
+  const status = [
+    summary.length ? `${summary.join(', ')} on ${init.settings.branch}` : '',
+    a.diff.conflicts.length ? plural(a.diff.conflicts.length, 'conflict') : '',
+    prop.restored.length ? (p.overwrite ? `${prop.restored.length} replaced with ${init.settings.branch}` : `${prop.restored.length} to recreate`) : '',
+    prop.kept.length ? `${plural(prop.kept.length, 'Figma edit')} kept` : '',
+  ].filter(Boolean);
+  const headline = upToDate && !status.length ? 'Already up to date' : !a.baseSha ? 'First pull' : status.join(', ') || 'Already up to date';
+  const meta = a.baseSha
+    ? [`Last pulled ${short(a.baseSha)}${init.sync.lastPullAt ? ` on ${when(init.sync.lastPullAt)}` : ''}`, a.compare?.aheadBy ? `${plural(a.compare.aheadBy, 'new commit')} on ${init.settings.branch}` : ''].filter(Boolean).join(' · ')
+    : `${plural(prop.plan.variables.length, 'variable')} from ${init.settings.repo}, in the Primitives, Brand, Base, Semantic, Density and Component collections.`;
+  const body: Child[] = [h('section', { class: 'zone' }, h('h2', { class: 'headline' }, upToDate && status.length ? `Up to date with ${init.settings.branch}. ${status.join(', ')}.` : headline), h('p', { class: 'muted' }, meta))];
+
   if (remote.length) {
     body.push(
-      h(
-        'section',
+      group(
+        `Changes on ${init.settings.branch}`,
+        remote.length,
         null,
-        h('h2', null, summary.join(', ')),
-        counts.removed ? h('p', { class: 'lede' }, 'Tokens deleted on main stay in Figma with an "[orphan]" note so nothing in your designs breaks. Delete them yourself when ready.') : null,
+        counts.removed ? 'Tokens deleted on main stay in Figma with an "[orphan]" note, so nothing in your designs breaks.' : 'Written to Figma when you apply.',
         rowList('pull-remote', remote.map((e) => diffRow(a, e.remote!.kind, { before: e.figma ?? e.base, after: e.head, beforeIndex: fi, afterIndex: a.head.byPath }))),
       ),
     );
-  } else if (!a.baseSha && !a.diff.conflicts.length) {
-    body.push(h('p', { class: 'muted' }, `${plural(prop.plan.variables.length, 'variable')} will be created or linked to the tokens on main.`));
   }
   body.push(conflictSection(a, p.choices));
   if (prop.restored.length) {
     body.push(
-      h(
-        'section',
-        null,
-        h('h2', null, p.overwrite ? `Replaced with main (${prop.restored.length})` : `Recreated (${prop.restored.length})`),
-        h(
-          'p',
-          { class: 'lede' },
-          p.overwrite
-            ? 'Your Figma edits to these tokens are replaced by the values on main when you apply. Variables that exist only in Figma stay.'
-            : 'Deleted in Figma, but other tokens still point to them. A pull puts them back so no alias is left empty. To remove one, delete it in code with the tokens that use it.',
-        ),
+      group(
+        p.overwrite ? `Replaced with ${init.settings.branch}` : 'To recreate',
+        prop.restored.length,
         p.overwrite ? h('button', { class: 'btn ghost', onClick: () => { p.overwrite = false; refreshProposals(); } }, 'Keep my edits') : null,
-        h('ul', { class: 'muted' }, prop.restored.slice(0, 8).map((e) => h('li', null, e.path)).concat(prop.restored.length > 8 ? [h('li', null, `And ${prop.restored.length - 8} more`)] : [])),
+        p.overwrite ? 'Main wins over your Figma edits. Variables that exist only in Figma stay.' : 'Deleted in Figma, but other tokens still point to them.',
+        rowList('pull-restored', prop.restored.map((e) => diffRow(a, p.overwrite ? 'replaced' : 'restored', { before: e.figma, after: e.head, beforeIndex: fi, afterIndex: a.head.byPath })), 5),
       ),
     );
   }
   if (prop.kept.length) {
     body.push(
-      h(
-        'section',
-        null,
-        h('h2', null, `Your edits, kept (${prop.kept.length})`),
-        h('p', { class: 'lede' }, 'Not on main yet. A pull leaves them alone; send them from Push.'),
-        prop.kept.some((e) => e.head) ? h('button', { class: 'btn ghost', onClick: () => { p.overwrite = true; refreshProposals(); } }, 'Replace with main') : null,
-        rowList('pull-kept', prop.kept.map((e) => diffRow(a, e.local!.kind, { before: e.base, after: e.figma, beforeIndex: a.base?.byPath ?? a.head.byPath, afterIndex: fi }))),
+      group(
+        'Your Figma edits, kept',
+        prop.kept.length,
+        prop.kept.some((e) => e.head) ? h('button', { class: 'btn ghost', onClick: () => { p.overwrite = true; refreshProposals(); } }, `Replace with ${init.settings.branch}`) : null,
+        'Not on main yet. Send them from Push.',
+        rowList('pull-kept', prop.kept.map((e) => diffRow(a, e.local!.kind, { before: e.base, after: e.figma, beforeIndex: a.base?.byPath ?? a.head.byPath, afterIndex: fi })), 5),
       ),
     );
   }
@@ -740,6 +751,27 @@ function viewPush(): View {
   const contrastShown = state.expanded.has(contrastKey) ? changedContrast : changedContrast.slice(0, 8);
 
   const body: Child[] = [];
+  if (!nothing) {
+    // Summary first: what goes to main and whether contrast holds, in the screen's one Harbor zone.
+    const fails = changedContrast.filter((x) => x.level === 'fail').length;
+    const n = a.diff.local.length + a.diff.conflicts.length;
+    body.push(
+      h(
+        'section',
+        { class: 'zone' },
+        h('h2', { class: 'headline' }, n ? `${plural(n, 'change')} to propose to ${init.settings.branch}` : 'A new brand to propose'),
+        h(
+          'p',
+          { class: 'muted' },
+          fails
+            ? `${plural(fails, 'contrast pair')} fail${fails === 1 ? 's' : ''}. Fix ${fails === 1 ? 'it' : 'them'} before pushing.`
+            : changedContrast.length
+              ? `All ${plural(changedContrast.length, 'contrast pair')} it moves still pass. Opens a draft pull request for review.`
+              : 'Opens a draft pull request for review.',
+        ),
+      ),
+    );
+  }
   if (suggestions.length) {
     body.push(
       h(

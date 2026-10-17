@@ -1,8 +1,14 @@
 /* DS Bridge UI.
    Operate surface inside Figma: it borrows Figma's own theme (themeColors: true exposes
-   var(--figma-color-*), switching with the editor's light/dark theme) and Figma's 11/12px Inter
-   rhythm, so it feels native. The one expressive element is the change row: real color swatches,
+   var(--figma-color-*), switching with the editor's light/dark theme) and Figma's compact
+   rhythm, so it feels native. Bridge brand on top (Field Guide, docs/DESIGN-LANGUAGE.md): Deep Harbor for
+   actions, links and focus, Instrument Sans, Plex Mono for token names, Fraunces for the summary, and one
+   Harbor zone that opens the screen. The one expressive element is the change row: real color swatches,
    old value dimmed, new value at full strength. */
+
+@font-face { font-family: "Instrument Sans"; src: url("../../../../node_modules/@fontsource-variable/instrument-sans/files/instrument-sans-latin-wght-normal.woff2") format("woff2"); font-weight: 400 700; font-display: block; }
+@font-face { font-family: "Fraunces"; src: url("../../../../node_modules/@fontsource-variable/fraunces/files/fraunces-latin-wght-normal.woff2") format("woff2"); font-weight: 100 900; font-display: block; }
+@font-face { font-family: "Plex Mono"; src: url("../../../../node_modules/@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-400-normal.woff2") format("woff2"); font-weight: 400; font-display: block; }
 
 :root {
   --bg: var(--figma-color-bg, #ffffff);
@@ -13,24 +19,39 @@
   --text-3: var(--figma-color-text-tertiary, #7a7a7a);
   --border: var(--figma-color-border, #e6e6e6);
   --border-strong: var(--figma-color-border-strong, #c4c4c4);
-  --brand: var(--figma-color-bg-brand, #0d99ff);
-  --brand-hover: var(--figma-color-bg-brand-hover, #007be5);
-  --brand-text: var(--figma-color-text-brand, #007be5);
-  --on-brand: var(--figma-color-text-onbrand, #ffffff);
+  --brand: #0b4a8b; /* Deep Harbor */
+  --brand-hover: #043e70;
+  --brand-text: #0b4a8b;
+  --on-brand: #ffffff;
   --danger-bg: var(--figma-color-bg-danger-tertiary, #fff1ee);
   --danger: var(--figma-color-text-danger, #dc3412);
   --warn-bg: var(--figma-color-bg-warning-tertiary, #fff6e0);
   --warn: var(--figma-color-text-warning, #b86200);
   --ok-bg: var(--figma-color-bg-success-tertiary, #ebffee);
   --ok: var(--figma-color-text-success, #009951);
-  --focus: var(--figma-color-border-selected, #0d99ff);
+  --focus: #0b4a8b;
+  --zone: #cfe8ff; /* Harbor */
+  --zone-text: #15202b;
+  --zone-text-2: #3d4854;
+  --mono: "Plex Mono", "SF Mono", ui-monospace, Menlo, monospace;
   --r-sm: 4px;
   --r-md: 6px;
+  --r-lg: 12px;
   --s1: 4px;
   --s2: 8px;
   --s3: 12px;
   --s4: 16px;
   --s5: 24px;
+}
+html.figma-dark {
+  --brand: #aad2fe;
+  --brand-hover: #cfe8ff;
+  --brand-text: #aad2fe;
+  --on-brand: #001732;
+  --focus: #6eaef2;
+  --zone: #00274b;
+  --zone-text: #f5f7f9;
+  --zone-text-2: #c6d3e0;
 }
 
 * { box-sizing: border-box; }
@@ -38,8 +59,7 @@ html, body { margin: 0; height: 100%; }
 body {
   background: var(--bg);
   color: var(--text);
-  font: 400 11px/16px Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
-  font-feature-settings: 'cv11', 'ss01';
+  font: 400 12px/18px "Instrument Sans", Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 button, input, textarea { font: inherit; color: inherit; }
@@ -66,6 +86,16 @@ button, input, textarea { font: inherit; color: inherit; }
 main { flex: 1; overflow-y: auto; padding: var(--s4) var(--s4) var(--s5); display: flex; flex-direction: column; gap: var(--s5); }
 section { display: flex; flex-direction: column; gap: var(--s2); }
 h2 { font-size: 13px; line-height: 20px; font-weight: 600; margin: 0; text-wrap: balance; }
+/* Summary zone: the one Harbor block of the screen */
+.zone { background: var(--zone); color: var(--zone-text); border-radius: var(--r-lg); padding: var(--s3) var(--s4); gap: var(--s1); }
+.zone .muted { color: var(--zone-text-2); }
+h2.headline { font-family: Fraunces, Georgia, serif; font-size: 17px; line-height: 24px; font-weight: 600; letter-spacing: -0.005em; }
+/* Pull groups: title, count and action share one line (proximity); the rows sit in one bordered region. */
+.group { gap: var(--s1); }
+.group .rows { margin-top: var(--s1); }
+.group-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); min-height: 28px; }
+.group-head .btn.ghost { margin-right: calc(-1 * var(--s2)); }
+.group-n { margin-left: 6px; color: var(--text-3); font-weight: 400; font-variant-numeric: tabular-nums; }
 p { margin: 0; max-width: 68ch; }
 .lede { color: var(--text-2); }
 .muted { color: var(--text-2); }
@@ -96,11 +126,12 @@ small { color: var(--text-3); font-size: 11px; }
 .row, .conflict { padding: var(--s2) var(--s3) 10px; display: flex; flex-direction: column; gap: 6px; }
 .row + .row, .conflict + .conflict { border-top: 1px solid var(--border); }
 .row-head { display: flex; align-items: center; gap: var(--s2); min-width: 0; }
-.path { font-family: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace; font-size: 11px; display: inline-flex; align-items: center; gap: 4px; min-width: 0; flex-wrap: wrap; }
+.path { font-family: var(--mono); font-size: 11px; display: inline-flex; align-items: center; gap: 4px; min-width: 0; flex-wrap: wrap; }
 .path .icon { width: 12px; height: 12px; color: var(--text-3); flex: none; }
 .path-old { color: var(--text-3); text-decoration: line-through; text-decoration-color: var(--border-strong); }
 .kind { flex: none; font-size: 10px; line-height: 16px; font-weight: 600; padding: 0 6px; border-radius: var(--r-sm); background: var(--bg-sunken); color: var(--text-2); }
 .kind.added { background: var(--ok-bg); color: var(--ok); }
+.kind.restored, .kind.replaced { background: var(--bg-sunken); color: var(--text-2); }
 .kind.removed { background: var(--danger-bg); color: var(--danger); }
 .kind.conflict { background: var(--warn-bg); color: var(--warn); }
 
@@ -110,7 +141,7 @@ small { color: var(--text-3); font-size: 11px; }
 .change > .icon { width: 12px; height: 12px; color: var(--text-3); flex: none; }
 .value { display: inline-flex; align-items: center; gap: 6px; min-width: 0; padding: 2px 6px 2px 2px; border-radius: var(--r-sm); background: var(--bg-sunken); }
 .value.before { opacity: 0.6; }
-.value-name { font-family: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace; }
+.value-name { font-family: var(--mono); }
 .value-resolved { color: var(--text-3); font-variant-numeric: tabular-nums; }
 .note { color: var(--text-2); font-style: italic; }
 .swatch {
@@ -157,7 +188,7 @@ table.contrast { border-collapse: collapse; width: 100%; font-variant-numeric: t
 table.contrast th { text-align: left; font-weight: 500; color: var(--text-3); padding: 0 var(--s2) 4px 0; }
 table.contrast td { padding: 6px var(--s2) 6px 0; border-top: 1px solid var(--border); vertical-align: middle; }
 table.contrast .num { text-align: right; }
-table.contrast .pair { font-family: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace; }
+table.contrast .pair { font-family: var(--mono); }
 
 /* Forms */
 label.field { display: flex; flex-direction: column; gap: 4px; }
@@ -191,4 +222,4 @@ details.notes ul { margin: 0; padding-left: var(--s4); color: var(--text-2); }
 .brand-result .icon { width: 14px; height: 14px; flex: none; }
 .brand-result.ok { color: var(--ok); }
 .brand-result.fail { color: var(--danger); }
-.brand-result ul { margin: 0; padding-left: 20px; color: var(--text-2); font-family: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace; }
+.brand-result ul { margin: 0; padding-left: 20px; color: var(--text-2); font-family: var(--mono); }
