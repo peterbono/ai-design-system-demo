@@ -1,0 +1,122 @@
+{
+  "version": 1,
+  "tool": "@bridge-ds/visual",
+  "createdAt": "2026-10-17T02:40:22.408Z",
+  "durationMs": 948,
+  "base": {
+    "ref": "338cd0e47ebe10155b25b71ffd4abb479f87457d",
+    "sha": "338cd0e47ebe10155b25b71ffd4abb479f87457d"
+  },
+  "head": {
+    "ref": "1d899c1868d18df08bc3bf85c392418cc6560b0e",
+    "sha": "1d899c1868d18df08bc3bf85c392418cc6560b0e"
+  },
+  "options": {
+    "only": [
+      "stories",
+      "app"
+    ],
+    "threshold": 0.03,
+    "viewport": {
+      "stories": {
+        "width": 1024,
+        "height": 768
+      },
+      "app": {
+        "width": 1280,
+        "height": 800
+      }
+    }
+  },
+  "selection": {
+    "tokens": [],
+    "vars": [],
+    "files": [
+      ".changeset/docs-drafts.md",
+      ".changeset/icon-visually-hidden-docs.md",
+      ".github/workflows/docs-draft.yml",
+      "README.md",
+      "apps/docs-site/DESIGN.md",
+      "apps/docs-site/src/components/DocsEditor.tsx",
+      "apps/docs-site/src/components/UsagePanel.tsx",
+      "apps/docs-site/src/components/UsagePanelStatic.tsx",
+      "apps/docs-site/src/components/ds/studio/ComponentsList.tsx",
+      "apps/docs-site/src/components/ds/studio/ComponentsSearch.tsx",
+      "apps/docs-site/src/components/ds/studio/ComponentsTable.tsx",
+      "apps/docs-site/src/components/ds/studio/ContrastFailTable.tsx",
+      "apps/docs-site/src/lib/component-tokens.test.ts",
+      "apps/docs-site/src/lib/components-studio.test.ts",
+      "apps/docs-site/src/lib/components-studio.ts",
+      "apps/docs-site/src/lib/components.ts",
+      "apps/docs-site/src/lib/docs-draft-model.test.ts",
+      "apps/docs-site/src/lib/docs-draft-model.ts",
+      "apps/docs-site/src/lib/docs-prefill.ts",
+      "apps/docs-site/src/lib/editor-model.ts",
+      "apps/docs-site/src/lib/nav.test.ts",
+      "apps/docs-site/src/lib/nav.ts",
+      "apps/docs-site/src/lib/pr-docs.test.ts",
+      "apps/docs-site/src/lib/pr-docs.ts",
+      "apps/docs-site/src/lib/quality.test.ts",
+      "apps/docs-site/src/lib/quality.ts",
+      "apps/docs-site/src/lib/redirects.test.ts",
+      "apps/docs-site/src/lib/redirects.ts",
+      "apps/docs-site/src/lib/search.ts",
+      "apps/docs-site/src/lib/stats.ts",
+      "apps/docs-site/src/pages/components/[slug].astro",
+      "apps/docs-site/src/pages/components/index.astro",
+      "apps/docs-site/src/pages/foundations/accessibility.astro",
+      "apps/docs-site/src/pages/studio/checks.astro",
+      "apps/docs-site/src/pages/studio/components.astro",
+      "apps/docs-site/src/pages/studio/components/docs/[slug].astro",
+      "apps/docs-site/src/pages/studio/components/index.astro",
+      "apps/docs-site/src/pages/studio/index.astro",
+      "apps/docs-site/src/pages/studio/quality/audits/[id].astro",
+      "apps/docs-site/src/pages/studio/quality/index.astro",
+      "apps/docs-site/src/scripts/changes.ts",
+      "apps/docs-site/src/scripts/components-studio.ts",
+      "apps/docs-site/src/scripts/docs-commit.ts",
+      "apps/docs-site/src/scripts/explorer/index.ts",
+      "apps/docs-site/src/scripts/explorer/review.ts",
+      "apps/docs-site/src/scripts/reviews.ts",
+      "apps/docs-site/src/scripts/reviews/docs-section.ts",
+      "apps/docs-site/src/scripts/token-editor.ts",
+      "apps/docs-site/src/styles/changes.css",
+      "apps/docs-site/src/styles/component.css",
+      "apps/docs-site/src/styles/components-studio.css",
+      "apps/docs-site/src/styles/docs-editor.css",
+      "apps/docs-site/src/styles/quality.css",
+      "docs/AI.md",
+      "packages/cli/src/index.ts",
+      "packages/cli/test/cli.test.ts",
+      "packages/core/src/docs-draft.ts",
+      "packages/core/src/index.ts",
+      "packages/core/test/docs-draft.test.ts",
+      "packages/mcp/README.md",
+      "packages/mcp/src/ops.ts",
+      "packages/mcp/src/server.ts",
+      "packages/mcp/test/components.test.ts",
+      "packages/mcp/test/protocol.test.ts",
+      "packages/react/src/components/Icon/Icon.docs.json",
+      "packages/react/src/components/VisuallyHidden/VisuallyHidden.docs.json",
+      "scripts/docs-draft.mjs",
+      "scripts/docs-draft.test.mjs"
+    ],
+    "components": [],
+    "stories": [],
+    "fallback": null,
+    "app": {
+      "include": false,
+      "reason": "No token, component or app change"
+    }
+  },
+  "summary": {
+    "shots": 0,
+    "changed": 0,
+    "unchanged": 0,
+    "added": 0,
+    "removed": 0,
+    "errors": 0,
+    "maxPercent": 0
+  },
+  "shots": []
+}
