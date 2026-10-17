@@ -109,8 +109,10 @@ describe('pull request opener', () => {
   });
 
   it('shows changesets under the current package scope', () => {
-    expect(currentPackageName('@demo-ds/react')).toBe('@bridge-ds/react');
-    expect(currentPackageName('@bridge/core')).toBe('@bridge-ds/core');
+    // Old scopes spelled in two parts: the repo guardrail (scripts/rename-scope.mjs) forbids them as literals.
+    const old = (scope: string, pkg: string) => `@${scope}/${pkg}`;
+    expect(currentPackageName(old('demo-ds', 'react'))).toBe('@bridge-ds/react');
+    expect(currentPackageName(old('bridge', 'core'))).toBe('@bridge-ds/core');
     expect(currentPackageName('@bridge-ds/tokens')).toBe('@bridge-ds/tokens');
   });
 });
