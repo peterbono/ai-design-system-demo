@@ -1,5 +1,14 @@
 # @bridge-ds/cli
 
+## 0.2.1
+
+### Patch Changes
+
+- Updated dependencies [9574d19]
+- Updated dependencies [fb40ae8]
+  - @bridge-ds/mcp@0.3.0
+  - @bridge-ds/visual@0.2.1
+
 ## 0.2.0
 
 ### Minor Changes
