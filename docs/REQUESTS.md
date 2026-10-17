@@ -37,7 +37,7 @@ Bridge reads `Closes`, `Fixes` and `Resolves` in pull request bodies, like GitHu
 
 ## Kinds
 
-`new-component`, `new-variant`, `prop-change`, `visual`, `token-binding`, `bug`, `other`. A new component, prop or
+`new-component`, `new-variant`, `prop-change`, `structure`, `visual`, `token-binding`, `bug`, `other`. A new component, prop or
 variant is Tier 2 (draft pull request, design review). If the request needs a new token, that part is Tier 3:
 describe it in the pull request, do not invent a value.
 

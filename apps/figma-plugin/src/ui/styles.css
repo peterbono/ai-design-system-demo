@@ -262,6 +262,11 @@ table.changes td.mono { font-family: var(--mono); }
 table.changes td.before { color: var(--text-3); }
 /* Component change row: one sentence of what changed, the table behind "Details" (one font size). */
 .row-line { color: var(--text); }
+/* An optional part already does what was added: a neutral note on the row, its one action on the same line. */
+.row-hint { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s1) var(--s2); color: var(--text-2); }
+.row-hint > .icon { width: 14px; height: 14px; flex: none; }
+.row-hint > span { flex: 1 1 200px; }
+.row-hint > .btn { margin-right: calc(-1 * var(--s2)); }
 .row-details > summary { display: inline-flex; align-items: center; min-height: 24px; width: fit-content; cursor: pointer; color: var(--text-2); border-radius: var(--r-sm); }
 .row-details > summary:hover { color: var(--text); }
 .row-details[open] > summary { margin-bottom: var(--s1); }

@@ -650,6 +650,8 @@ function scanPush(keep?: PushState): void {
       // screen (a confirmed rename, a new mark) keeps what the designer unchecked.
       const unchecked = keep ? new Set([...keep.unchecked].filter((k) => items.some((i) => i.key === k))) : defaultUnchecked(items);
       if (keep) for (const i of items) if (i.experimental && !keep.items.some((x) => x.key === i.key && x.experimental)) unchecked.add(i.key);
+      // A change that showed up with this re-scan starts like on a first scan (an optional part already covers it).
+      if (keep) for (const i of items) if (i.suggestSkip && !keep.items.some((x) => x.key === i.key)) unchecked.add(i.key);
       state.push = {
         analysis,
         snapshot,
@@ -1656,9 +1658,10 @@ function changeTable(changes: { field: string; before?: string | undefined; afte
  * The body of a component change row: one sentence of what changed (Claude's line, or the drafted one), then the
  * detected changes behind a small "Details" disclosure (progressive disclosure).
  */
-function changeSummary(line: string, changes: { field: string; before?: string | undefined; after?: string | undefined }[], key: string): Child[] {
+function changeSummary(line: string, changes: { field: string; before?: string | undefined; after?: string | undefined }[], key: string, note?: Child): Child[] {
   return [
     line ? h('p', { class: 'row-line' }, line) : null,
+    note ?? null,
     changes.length
       ? h(
           'details',
@@ -1765,6 +1768,26 @@ function requestFormView(r: PushState, f: RequestForm): HTMLElement {
   );
 }
 
+/**
+ * "Icon end already does this: show it with the Icon end property": an optional part of the component already draws
+ * what was added. Neutral, on the row it is about; the item starts unchecked and "Keep it as a request" checks it.
+ * DS Bridge never changes the designer's file for it.
+ */
+function equivalentHint(r: PushState, item: ComponentChangeItem): Child {
+  if (!item.equivalent) return null;
+  const key = componentKey(item.nodeId);
+  const checked = isChecked(r.unchecked, { key });
+  return h(
+    'div',
+    { class: 'row-hint', role: 'note' },
+    icon('info'),
+    h('span', null, item.equivalent),
+    checked
+      ? null
+      : h('button', { class: 'btn ghost', 'data-focus-id': `keep-${item.nodeId}`, onClick: () => { r.unchecked.delete(key); refreshProposals(); } }, 'Keep it as a request'),
+  );
+}
+
 function componentRow(r: PushState, item: ComponentChangeItem, action: string, edge?: { lead?: Child; tail?: Child }): HTMLElement {
   const open = r.form?.key === item.nodeId;
   return h(
@@ -1780,7 +1803,7 @@ function componentRow(r: PushState, item: ComponentChangeItem, action: string, e
       h('span', { class: `kind ${item.kind === 'new-component' ? 'added' : ''}` }, kindName(item.kind)),
       edge ? edge.tail : open ? null : h('button', { class: 'btn ghost row-action', 'data-focus-id': `req-${item.nodeId}`, onClick: () => openForm(r, item) }, action),
     ),
-    changeSummary(lineOf(r, item), item.changes, `details-${item.nodeId}`),
+    changeSummary(lineOf(r, item), item.changes, `details-${item.nodeId}`, equivalentHint(r, item)),
     open ? requestFormView(r, r.form!) : null,
   );
 }

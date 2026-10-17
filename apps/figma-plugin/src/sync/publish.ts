@@ -9,6 +9,8 @@
 // - "Experimental" (like Figma's "Hide when publishing") is a durable mark on the variable or the component set
 //   (shared plugin data dsbridge / experimental = "true"). Experimental items are listed with a tag and start unchecked
 //   on every push; they can still be checked.
+// - A component change that only adds a part an optional part already draws (an icon after the label while "Icon end"
+//   exists) shows a hint and starts unchecked. The plugin never changes the designer's file for them.
 // - The description is the pull request's "What changed and why" and the summary of every request sent with it.
 
 import type { DiffEntry, GitHubClient, PullRequest } from '@bridge-ds/core';
@@ -32,6 +34,10 @@ export interface PublishItem {
   experimental: boolean;
   /** Edits on both sides: needs a decision before it can go in the pull request. */
   conflict?: boolean | undefined;
+  /** An optional part of the component already does what was added: the hint on the row ("Icon end already does this..."). */
+  hint?: string | undefined;
+  /** Every change is such an addition: starts unchecked, like an experimental item. */
+  suggestSkip?: boolean | undefined;
 }
 
 export const variableKey = (tokenId: string) => `v:${tokenId}`;
@@ -60,12 +66,23 @@ export function publishItems(a: Pick<Analysis, 'diff'>, experimentalTokens: Read
     experimental: experimentalTokens.has(e.id),
     ...(a.diff.conflicts.includes(e) ? { conflict: true } : {}),
   }));
-  const comps: PublishItem[] = components.map((c) => ({ key: componentKey(c.nodeId), kind: 'component', id: c.nodeId, label: c.component, experimental: !!c.experimental }));
+  const comps: PublishItem[] = components.map((c) => ({
+    key: componentKey(c.nodeId),
+    kind: 'component',
+    id: c.nodeId,
+    label: c.component,
+    experimental: !!c.experimental,
+    ...(c.equivalent ? { hint: c.equivalent } : {}),
+    ...(c.suggestSkip ? { suggestSkip: true } : {}),
+  }));
   return [...vars, ...comps];
 }
 
-/** Every push starts with all items checked except the experimental ones. */
-export const defaultUnchecked = (items: PublishItem[]) => new Set(items.filter((i) => i.experimental).map((i) => i.key));
+/**
+ * Every push starts with all items checked except the experimental ones and the component changes an optional part
+ * already covers (the row says which property shows it; checking the item sends the request anyway).
+ */
+export const defaultUnchecked = (items: PublishItem[]) => new Set(items.filter((i) => i.experimental || i.suggestSkip).map((i) => i.key));
 
 export const isChecked = (unchecked: ReadonlySet<string>, item: Pick<PublishItem, 'key'>) => !unchecked.has(item.key);
 

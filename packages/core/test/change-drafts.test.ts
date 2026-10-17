@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { type DiffEntry, type FieldChange, type LogicalToken, cleanDraftText, draftChangeLine, draftPushDescription, draftRequestText, pushChangeRows, sanitizeDraftLine } from '../src/index';
+import { type DiffEntry, type FieldChange, type LogicalToken, REQUEST_KINDS, cleanDraftText, draftChangeLine, draftPushDescription, draftRequestText, parseStructureChange, pushChangeRows, sanitizeDraftLine, shortVariant } from '../src/index';
 
 const EM = '\u2014';
 
@@ -94,5 +94,36 @@ describe('draftChangeLine', () => {
     expect(sanitizeDraftLine(`icon added ${EM} after the label.\nSecond line.`)).toBe('Icon added, after the label. Second line');
     expect(sanitizeDraftLine('word '.repeat(60)).length).toBeLessThanOrEqual(120);
     expect(sanitizeDraftLine(42)).toBe('');
+  });
+});
+
+describe('structure changes', () => {
+  const added = { field: 'New layer "Icon" (Size=sm, State=Default, Variant=primary)', after: 'instance Icon/Pencil, after "Label"' };
+
+  it('is a request kind with its label and hint', () => {
+    expect(REQUEST_KINDS.find((k) => k.value === 'structure')).toEqual({ value: 'structure', label: 'Structure change', hint: 'A part was added, removed or moved.' });
+  });
+
+  it('shortens variant keys the way designers say them', () => {
+    expect(shortVariant('Size=sm, State=Default, Variant=primary')).toBe('primary sm');
+    expect(shortVariant('Size=md, Tone=danger')).toBe('danger md');
+    expect(shortVariant('Default')).toBe('Default');
+  });
+
+  it('reads the rows back', () => {
+    expect(parseStructureChange(added)).toEqual({ op: 'added', name: 'Icon', where: 'in primary sm', type: 'instance', main: 'Icon/Pencil', at: 'after "Label"' });
+    expect(parseStructureChange({ field: 'Fill', before: 'a', after: 'b' })).toBeUndefined();
+  });
+
+  it('names the new layer, its component and its place in one line', () => {
+    expect(draftChangeLine('structure', [added])).toBe('New instance layer "Icon" (Icon/Pencil) after "Label" in primary sm');
+    expect(draftChangeLine('structure', [{ field: 'Removed layer "Helper"', before: 'text, after "Label"' }])).toBe('Removed text layer "Helper" after "Label" in every variant');
+    expect(draftChangeLine('structure', [{ field: 'Moved layer "Icon start" (Size=md)', before: 'before "Label"', after: 'after "Label"' }])).toBe('Moved layer "Icon start" after "Label" (was before "Label") in md');
+  });
+
+  it('drafts a title and a summary for each kind of layer change', () => {
+    expect(draftRequestText('Button', 'structure', [added])).toEqual({ title: 'Add a layer after Label', summary: 'Button gets an instance layer, Icon (Icon/Pencil) after Label in primary sm.' });
+    expect(draftRequestText('Button', 'structure', [{ field: 'Removed layer "Helper"', before: 'text, after "Label"' }]).title).toBe('Remove the Helper layer');
+    expect(draftRequestText('Button', 'structure', [{ field: 'Moved layer "Icon start"', before: 'before "Label"', after: 'after "Label"' }]).title).toBe('Move the Icon start layer');
   });
 });

@@ -13,8 +13,34 @@
 //   are compared like any property. Swapping the instance inside a variant is a visual change only when the variant
 //   then shows another component than the one code gives it (stored at pull as `slotDefaults`); swapping back to it
 //   is no change. A swap explains the bindings and render that move with it in that variant.
+// - Structure: each variant keeps a normalized layer outline (the root's children, wrappers one level deep flattened,
+//   so a regroup is not a change). A layer added, removed or moved is a "structure" request when the variant's render
+//   moved with it or the layer is part of the API (its visibility or text is bound to a property). Renames, and hidden
+//   layers bound to nothing, are not. Parts DS Bridge generated are known by their part id (a swap or rename of one is
+//   not a structure change: swaps are compared above). An added part that an optional part of the component already
+//   draws in that place (an icon after the label while "Icon end" exists) gets a hint, and starts unchecked.
 
 import { type ComponentChangeRequest, type RequestChange, type RequestKind, draftChangeLine, draftRequestText } from '@bridge-ds/core';
+
+/** One layer of a variant as the main thread reads it, for the structure outline. */
+export interface RawLayer {
+  name: string;
+  /** Figma node type: INSTANCE, TEXT, FRAME, GROUP, VECTOR... */
+  type: string;
+  /** Main component name of an instance ("Icon/Pencil"). */
+  main?: string | undefined;
+  visible: boolean;
+  /** Part id when DS Bridge generated the layer (shared plugin data dsbridge / part). */
+  part?: string | undefined;
+  /** BOOLEAN property its visibility is bound to ("Icon end"), without Figma's "#id". */
+  visibleProp?: string | undefined;
+  /** TEXT property its characters are bound to. */
+  textProp?: string | undefined;
+  /** Auto layout of a frame (HORIZONTAL, VERTICAL, NONE). */
+  layout?: string | undefined;
+  /** Children of a frame or group (not of an instance). */
+  children?: RawLayer[] | undefined;
+}
 
 /** One variable (or style) bound somewhere in a variant, wherever the layer sits. */
 export interface RawBinding {
@@ -39,6 +65,8 @@ export interface RawVariant {
   slots?: Record<string, string> | undefined;
   /** Swappable part -> the component code gives this variant, as the pull stored it. */
   slotDefaults?: Record<string, string> | undefined;
+  /** Children of the variant: the structure outline is built from them. */
+  layers?: RawLayer[] | undefined;
 }
 
 export interface RawDefinition {
@@ -70,6 +98,8 @@ export interface VariantSignature {
   /** Swappable part -> component its instance shows, and the one code gives the variant. */
   slots?: Record<string, string> | undefined;
   slotDefaults?: Record<string, string> | undefined;
+  /** Normalized layer outline, in order (see outlineOf). Missing in baselines taken by older plugins. */
+  outline?: string[] | undefined;
 }
 
 export interface ComponentSignature {
@@ -142,6 +172,156 @@ function groupBindings(bindings: RawBinding[]): Record<string, string[]> {
   return out;
 }
 
+// ---------------------------------------------------------------------------------------------
+// Structure outline
+
+/** One outline entry, read back from its compact form. */
+export interface OutlineItem {
+  /** What the layer is, renames aside: "part:<id>" for a generated part, else "<type>:<main component>". */
+  id: string;
+  type: string;
+  main?: string | undefined;
+  visible: boolean;
+  /** BOOLEAN property that shows it: an optional part. */
+  visibleProp?: string | undefined;
+  /** TEXT property its characters come from. */
+  textProp?: string | undefined;
+  name: string;
+}
+
+const CONTAINERS = new Set(['FRAME', 'GROUP', 'SECTION']);
+const enc = (s: string | undefined) => (s ?? '').replace(/[|\n]/g, ' ');
+
+export function encodeOutlineItem(i: OutlineItem): string {
+  return [i.id, i.type, i.main, i.visible ? '1' : '0', i.visibleProp, i.textProp, i.name].map(enc).join('|');
+}
+
+export function decodeOutlineItem(s: string): OutlineItem {
+  const [id = '', type = '', main = '', vis = '1', visibleProp = '', textProp = '', ...name] = s.split('|');
+  return { id, type, ...(main ? { main } : {}), visible: vis === '1', ...(visibleProp ? { visibleProp } : {}), ...(textProp ? { textProp } : {}), name: name.join('|') };
+}
+
+/**
+ * The structure outline of a variant: its children in order, with the children of a wrapper (a frame or group with
+ * children, auto layout or not) listed in its place one level deep, so wrapping or unwrapping layers is not a change.
+ * Hidden layers bound to no property are left out: they neither render nor belong to the API.
+ */
+export function outlineOf(layers: RawLayer[] | undefined): string[] | undefined {
+  if (!layers) return undefined;
+  const out: OutlineItem[] = [];
+  const add = (l: RawLayer) => {
+    if (!l.visible && !l.visibleProp) return;
+    const id = l.part ? `part:${l.part}` : `${l.type}:${l.type === 'INSTANCE' ? (l.main ?? '') : ''}`;
+    out.push({ id, type: l.type, ...(l.main ? { main: l.main } : {}), visible: l.visible, ...(l.visibleProp ? { visibleProp: l.visibleProp } : {}), ...(l.textProp ? { textProp: l.textProp } : {}), name: l.name });
+  };
+  for (const l of layers) {
+    if (CONTAINERS.has(l.type) && l.children?.length && !l.part && !l.visibleProp) {
+      if (!l.visible) continue;
+      for (const c of l.children) add(c);
+    } else add(l);
+  }
+  return out.map(encodeOutlineItem);
+}
+
+export interface StructureChange {
+  op: 'added' | 'removed' | 'moved';
+  item: OutlineItem;
+  /** Where it sits (added, moved) or sat (removed): `after "Label"`, `before "Label"`, `alone`. */
+  at: string;
+  /** Moved: where it sat before. */
+  from?: string | undefined;
+  /** An optional part already draws this (added only): the hint for the designer. */
+  equivalent?: { name: string; property: string } | undefined;
+}
+
+/** Longest common subsequence of two id lists: index pairs, in order. */
+function lcs(a: string[], b: string[]): [number, number][] {
+  const n = a.length;
+  const m = b.length;
+  const t: number[][] = Array.from({ length: n + 1 }, () => new Array<number>(m + 1).fill(0));
+  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) t[i]![j] = a[i] === b[j] ? t[i + 1]![j + 1]! + 1 : Math.max(t[i + 1]![j]!, t[i]![j + 1]!);
+  const out: [number, number][] = [];
+  for (let i = 0, j = 0; i < n && j < m; ) {
+    if (a[i] === b[j]) {
+      out.push([i, j]);
+      i++;
+      j++;
+    } else if (t[i + 1]![j]! >= t[i]![j + 1]!) i++;
+    else j++;
+  }
+  return out;
+}
+
+/** `after "Label"`: the nearest neighbour that renders, else any neighbour, else `alone`. */
+function placeIn(list: OutlineItem[], index: number): string {
+  const shown = (x: OutlineItem | undefined) => !!x && x.visible;
+  for (let i = index - 1; i >= 0; i--) if (shown(list[i])) return `after "${list[i]!.name}"`;
+  for (let i = index + 1; i < list.length; i++) if (shown(list[i])) return `before "${list[i]!.name}"`;
+  if (index > 0) return `after "${list[index - 1]!.name}"`;
+  if (index + 1 < list.length) return `before "${list[index + 1]!.name}"`;
+  return 'alone';
+}
+
+/** Same kind of slot: an instance for an instance part, a text for a text part. */
+const sameSlot = (a: OutlineItem, b: OutlineItem) => (a.type === 'INSTANCE' ? b.type === 'INSTANCE' : a.type === 'TEXT' ? b.type === 'TEXT' : a.type === b.type);
+
+/**
+ * An optional part of the baseline (shown by a BOOLEAN property) that already draws an added layer: same kind of
+ * slot, in the same place between the layers both sides keep (an icon after the label vs "Icon end").
+ */
+function equivalentPart(base: OutlineItem[], cur: OutlineItem[], kept: [number, number][], added: number): { name: string; property: string } | undefined {
+  const item = cur[added]!;
+  if (item.visibleProp) return undefined;
+  const keptCur = new Map(kept.map(([b, c]) => [c, b]));
+  const anchor = (from: number, step: number) => {
+    for (let j = from; j >= 0 && j < cur.length; j += step) {
+      const b = keptCur.get(j);
+      if (b !== undefined && !cur[j]!.visibleProp) return b;
+    }
+    return undefined;
+  };
+  const prev = anchor(added - 1, -1);
+  const next = anchor(added + 1, 1);
+  const lo = prev ?? -1;
+  const hi = next ?? base.length;
+  const optional = (x: OutlineItem) => !!x.visibleProp && sameSlot(item, x);
+  const between = base.slice(lo + 1, hi).find(optional);
+  // A text can also go where the component already has an optional text, wherever it sits.
+  const hit = between ?? (item.type === 'TEXT' ? base.find(optional) : undefined);
+  return hit ? { name: hit.name, property: hit.visibleProp! } : undefined;
+}
+
+/** Layers added, removed or moved between two outlines (renames are not changes: ids leave names out). */
+export function diffOutlines(base: string[], cur: string[]): StructureChange[] {
+  const b = base.map(decodeOutlineItem);
+  const c = cur.map(decodeOutlineItem);
+  const kept = lcs(b.map((x) => x.id), c.map((x) => x.id));
+  const keptB = new Set(kept.map(([i]) => i));
+  const keptC = new Set(kept.map(([, j]) => j));
+  const removed = b.map((x, i) => ({ x, i })).filter(({ i }) => !keptB.has(i));
+  const added = c.map((x, j) => ({ x, j })).filter(({ j }) => !keptC.has(j));
+  const out: StructureChange[] = [];
+  const movedB = new Set<number>();
+  for (const a of added) {
+    const r = removed.find((x) => x.x.id === a.x.id && !movedB.has(x.i));
+    if (r) {
+      movedB.add(r.i);
+      out.push({ op: 'moved', item: a.x, at: placeIn(c, a.j), from: placeIn(b, r.i) });
+      continue;
+    }
+    const eq = equivalentPart(b, c, kept, a.j);
+    out.push({ op: 'added', item: a.x, at: placeIn(c, a.j), ...(eq ? { equivalent: eq } : {}) });
+  }
+  for (const r of removed) if (!movedB.has(r.i)) out.push({ op: 'removed', item: r.x, at: placeIn(b, r.i) });
+  return out;
+}
+
+/** True when a structure change touches the API: the layer's visibility or text is bound to a property. */
+const touchesApi = (s: StructureChange) => !!(s.item.visibleProp || s.item.textProp);
+
+/** "instance Icon/Pencil": the kind of layer in words, for a change row. */
+const layerShape = (i: OutlineItem) => `${i.type.toLowerCase().replace(/_/g, ' ')}${i.type === 'INSTANCE' && i.main ? ` ${i.main}` : ''}`;
+
 export function buildSignature(raw: RawComponent): ComponentSignature {
   const variantAxes: Record<string, string[]> = {};
   const properties: ComponentSignature['properties'] = [];
@@ -171,6 +351,7 @@ export function buildSignature(raw: RawComponent): ComponentSignature {
       ...(v.structure ? { structure: v.structure } : {}),
       ...(v.slots && Object.keys(v.slots).length ? { slots: sortedRecord(v.slots) } : {}),
       ...(v.slotDefaults && Object.keys(v.slotDefaults).length ? { slotDefaults: sortedRecord(v.slotDefaults) } : {}),
+      ...(v.layers ? { outline: outlineOf(v.layers) } : {}),
     };
   }
   return { v: 1, name: raw.name, variantAxes: axes, properties, bindings: groupBindings(raw.variants.flatMap((v) => v.bindings)), variants };
@@ -197,13 +378,20 @@ export interface SignatureDiff {
   figmaOnly: boolean;
   /** Renders moved only because bound variable values changed: that is the variables pull request. */
   explainedByVariables: boolean;
+  /**
+   * Added layers an optional part of the component already draws, one sentence each ("Icon end already does this:
+   * show it with the Icon end property"). Empty when there are none.
+   */
+  equivalents: string[];
+  /** Every change is an added layer an optional part already draws: the item starts unchecked. */
+  onlyEquivalents: boolean;
 }
 
 const list = (xs: string[] | undefined) => (xs?.length ? xs.join(', ') : '');
 /** Figma variable name to token path: "color/action/primary/bg" -> "color.action.primary.bg". */
 export const tokenName = (variable: string) => (variable.startsWith('style:') ? `${variable.slice(6)} (style)` : variable.replace(/\//g, '.'));
 
-const KIND_ORDER: RequestKind[] = ['new-variant', 'prop-change', 'token-binding', 'visual'];
+const KIND_ORDER: RequestKind[] = ['new-variant', 'prop-change', 'structure', 'token-binding', 'visual'];
 
 /** Changes between a baseline and the current signature, and the request kind to suggest. Equal => no request. */
 export function diffSignatures(base: ComponentSignature, cur: ComponentSignature): SignatureDiff {
@@ -241,6 +429,7 @@ export function diffSignatures(base: ComponentSignature, cur: ComponentSignature
   const swapRows = new Map<string, { before: string; after: string; variants: string[] }>();
   let explained = false;
   let structure = false;
+  const layerRows = new Map<string, { change: StructureChange; variants: string[] }>();
   for (const key of common) {
     const b = base.variants[key]!;
     const c = cur.variants[key]!;
@@ -258,23 +447,56 @@ export function diffSignatures(base: ComponentSignature, cur: ComponentSignature
       if (b.structure && c.structure && b.structure !== c.structure) structure = true;
       continue;
     }
+    // Layers added, removed or moved: a change when the render moved with them or they belong to the API.
+    const renderMoved = !b.render || !c.render || b.render !== c.render;
+    const layers = b.outline && c.outline ? diffOutlines(b.outline, c.outline).filter((x) => renderMoved || touchesApi(x)) : [];
+    for (const x of layers) {
+      const id = [x.op, x.item.id, x.item.name, x.at, x.from ?? ''].join('\u0000');
+      const row = layerRows.get(id) ?? { change: x, variants: [] };
+      row.variants.push(key);
+      layerRows.set(id, row);
+    }
     let rebound = false;
     for (const kind of sortedUnique([...Object.keys(b.bindings), ...Object.keys(c.bindings)])) {
       const before = list(b.bindings[kind]?.map(tokenName));
       const after = list(c.bindings[kind]?.map(tokenName));
       if (before === after) continue;
+      // Variables an added layer brings (or a removed one takes away) move with that layer: not a rebinding.
+      const bs = b.bindings[kind] ?? [];
+      const cs = c.bindings[kind] ?? [];
+      if (layers.some((x) => x.op === 'added') && bs.every((v) => cs.includes(v))) continue;
+      if (layers.some((x) => x.op === 'removed') && cs.every((v) => bs.includes(v))) continue;
       rebound = true;
       const id = `${kind}\u0000${before}\u0000${after}`;
       const row = bindingRows.get(id) ?? { kind, before, after, variants: [] };
       row.variants.push(key);
       bindingRows.set(id, row);
     }
-    if (rebound) continue;
+    // A layer change explains the new render of its variant, like a rebinding does.
+    if (rebound || layers.length) continue;
     if (b.render && c.render && b.render !== c.render) {
       if (b.values !== c.values) explained = true;
       else visual.push(key);
     }
     if (b.structure && c.structure && b.structure !== c.structure) structure = true;
+  }
+  const equivalents: string[] = [];
+  let layerChanges = 0;
+  let equivalentChanges = 0;
+  for (const { change: x, variants } of layerRows.values()) {
+    kinds.add('structure');
+    layerChanges++;
+    const all = variants.length === common.length && common.length > 1;
+    const where = all ? '' : ` (${variants.join('; ')})`;
+    const field = `${x.op === 'added' ? 'New' : x.op === 'removed' ? 'Removed' : 'Moved'} layer "${x.item.name}"${where}`;
+    if (x.op === 'moved') changes.push({ field, before: x.from, after: x.at });
+    else if (x.op === 'added') changes.push({ field, after: `${layerShape(x.item)}, ${x.at}` });
+    else changes.push({ field, before: `${layerShape(x.item)}, ${x.at}` });
+    if (x.equivalent) {
+      equivalentChanges++;
+      const text = `${x.equivalent.name} already does this: show it with the ${x.equivalent.property} property`;
+      if (!equivalents.includes(text)) equivalents.push(text);
+    }
   }
   for (const row of bindingRows.values()) {
     kinds.add('token-binding');
@@ -292,7 +514,14 @@ export function diffSignatures(base: ComponentSignature, cur: ComponentSignature
     changes.push({ field: all ? 'Look of every variant' : `Look of ${visual.join('; ')}`, before: 'As in the baseline', after: 'Changed in Figma, no variable explains it' });
   }
   const kind = KIND_ORDER.find((k) => kinds.has(k));
-  return { changes, kind, figmaOnly: !kind && structure, explainedByVariables: !kind && explained };
+  return {
+    changes,
+    kind,
+    figmaOnly: !kind && structure,
+    explainedByVariables: !kind && explained,
+    equivalents,
+    onlyEquivalents: equivalentChanges > 0 && equivalentChanges === layerChanges && changes.length === layerChanges,
+  };
 }
 
 const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -321,6 +550,10 @@ export interface ComponentChangeItem {
   changes: RequestChange[];
   signature: ComponentSignature;
   experimental?: boolean | undefined;
+  /** An optional part already draws what was added: shown on the row as a hint (never applied to the file). */
+  equivalent?: string | undefined;
+  /** Every change is such an addition: the item starts unchecked, checking it sends the request anyway. */
+  suggestSkip?: boolean | undefined;
 }
 
 export interface ComponentScan {
@@ -372,7 +605,19 @@ export function classifyComponents(found: ScannedComponent[], coded: string[]): 
       continue;
     }
     const d = diffSignatures(f.baseline, f.signature);
-    if (d.kind) scan.changed.push({ nodeId: f.nodeId, component: codeName ?? pascalName(f.name), figmaName: f.name, page: f.page, kind: d.kind, changes: d.changes, signature: f.signature, ...(f.experimental ? { experimental: true } : {}) });
+    if (d.kind)
+      scan.changed.push({
+        nodeId: f.nodeId,
+        component: codeName ?? pascalName(f.name),
+        figmaName: f.name,
+        page: f.page,
+        kind: d.kind,
+        changes: d.changes,
+        signature: f.signature,
+        ...(f.experimental ? { experimental: true } : {}),
+        ...(d.equivalents.length ? { equivalent: d.equivalents.join('. ') } : {}),
+        ...(d.onlyEquivalents ? { suggestSkip: true } : {}),
+      });
     else if (d.figmaOnly) scan.figmaOnly.push(f.name);
     else if (d.explainedByVariables) scan.explained.push(f.name);
   }
