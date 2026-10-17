@@ -287,47 +287,13 @@
    only the documented system's tokens (--color-*, --space-*, --radius-*...). Orange stays the signal: the current
    row marker and focus, nothing else. */
 
-.fd-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3) var(--space-6);
-  margin: calc(var(--space-10) * -1) 0 var(--space-2);
-}
-
-.fd-tools {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2) var(--space-4);
-}
-
-.fd-hint {
-  margin: 0;
-  max-width: 60ch;
-  color: var(--color-text-muted);
-  font-size: var(--typography-ui-size);
-}
-
-.fd-copyas {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.fd-copyas-label {
-  color: var(--color-text-muted);
-  font-size: var(--typography-ui-size);
-}
-
 /* Group: heading, note, specimen, list */
 
 .fd-group {
   margin-top: calc(var(--space-12) + var(--space-2));
 }
 
-.fd-toolbar + .fd-group {
+.lib-zone + .fd-group {
   margin-top: calc(var(--space-8) + var(--space-1));
 }
 
@@ -374,6 +340,60 @@
   margin: var(--space-6) 0 var(--space-2);
   font-size: var(--typography-ui-size);
   text-transform: capitalize;
+}
+
+/* Specimen header: the compact brand or density switch, only on specimens it changes. */
+
+.fd-spec-bar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--space-2);
+}
+
+.fd-scope {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-0-5);
+  padding: var(--space-0-5);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface-default);
+}
+
+.fd-scope-label {
+  padding: 0 var(--space-1-5) 0 var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--typography-caption-size);
+  font-weight: var(--font-weight-semibold);
+}
+
+.fd-scope-opt {
+  height: var(--size-6);
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background-color: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: var(--typography-caption-size);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+}
+
+.fd-scope-opt[aria-checked="true"] {
+  background-color: var(--color-surface-inverse);
+  color: var(--color-text-inverse);
+}
+
+.fd-scope-opt:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+@media (hover: hover) {
+  .fd-scope-opt:not([aria-checked="true"]):hover {
+    color: var(--color-text-default);
+  }
 }
 
 /* Specimen: one panel per theme, stacked when there is no room for two. */
@@ -1084,6 +1104,132 @@
 
 .fd-name[data-copied] {
   color: var(--color-feedback-success-text);
+}
+
+/* Row copy: a copy button (CSS variable by default, or the last format picked) with a menu for the other formats.
+   On pointer devices it shows on row hover or focus; touch screens always show it. */
+
+.fd-name-line {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: 100%;
+}
+
+.fd-copy {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-control);
+  background-color: var(--color-surface-default);
+}
+
+@media (hover: hover) {
+  .fd-copy {
+    opacity: 0;
+  }
+
+  .fd-row:hover .fd-copy,
+  .fd-row:focus-within .fd-copy,
+  .fd-copy:has(details[open]) {
+    opacity: 1;
+  }
+}
+
+.fd-copy-btn,
+.fd-copy-chev {
+  display: inline-grid;
+  place-items: center;
+  height: var(--size-6);
+  border: 0;
+  background-color: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.fd-copy-btn {
+  width: var(--size-6);
+  border-radius: var(--radius-control) 0 0 var(--radius-control);
+}
+
+.fd-copy-btn[data-copied] {
+  color: var(--color-feedback-success-text);
+}
+
+.fd-copy-more {
+  position: static;
+}
+
+.fd-copy-chev {
+  width: var(--size-5);
+  border-left: var(--border-width-default) solid var(--color-border-default);
+  border-radius: 0 var(--radius-control) var(--radius-control) 0;
+  list-style: none;
+}
+
+.fd-copy-chev::-webkit-details-marker {
+  display: none;
+}
+
+.fd-copy-btn:focus-visible,
+.fd-copy-chev:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+@media (hover: hover) {
+  .fd-copy-btn:hover,
+  .fd-copy-chev:hover {
+    background-color: var(--color-bg-subtle);
+    color: var(--color-text-default);
+  }
+}
+
+.fd-copy-menu {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  left: 0;
+  z-index: var(--layer-dropdown);
+  display: grid;
+  min-width: var(--size-40);
+  padding: var(--space-1);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-container);
+  background-color: var(--color-surface-default);
+  box-shadow: var(--elevation-overlay);
+  cursor: default;
+}
+
+.fd-copy-menu button {
+  display: flex;
+  align-items: center;
+  min-height: var(--size-8);
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-control);
+  background-color: transparent;
+  color: var(--color-text-default);
+  font: inherit;
+  font-size: var(--typography-ui-size);
+  text-align: left;
+  cursor: pointer;
+}
+
+.fd-copy-menu button[aria-checked="true"] {
+  font-weight: var(--font-weight-semibold);
+}
+
+.fd-copy-menu button:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: calc(var(--focus-ring-width) * -1);
+}
+
+@media (hover: hover) {
+  .fd-copy-menu button:hover {
+    background-color: var(--color-bg-subtle);
+  }
 }
 
 .fd-role {

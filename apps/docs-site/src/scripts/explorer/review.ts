@@ -4,7 +4,7 @@
 // Propose change (Connect GitHub to propose without a token). Proposing still goes through scripts/token-editor.ts.
 import type { ContrastResult } from '@bridge-ds/core';
 import { contrastCountLine, shortName, summarizePairs } from '../../lib/explorer/contrast-summary';
-import { componentsUsing, transitiveDependents } from '../../lib/explorer/flow';
+import { componentsUsing, stylesUsing, transitiveDependents, usedByLine } from '../../lib/explorer/flow';
 import { cellValue, tierAxis } from '../../lib/explorer/model';
 import { swatchLabel } from '../../lib/explorer/swatch-ramp';
 import { isAlias, aliasTarget } from '@bridge-ds/core';
@@ -132,10 +132,14 @@ export function initReview(d: ExplorerData) {
       .join('');
 
     const comps = [...new Map(paths.flatMap((p) => componentsUsing(p, transitiveDependents(snap.proposed, p), d.usage)).map((c) => [c.name, c])).values()];
-    const usedMeta = comps.length ? `${comps.length} component${comps.length > 1 ? 's' : ''}` : 'No component';
-    const usedBody = comps.length
-      ? `<ul class="xe-comps">${comps.map((c) => `<li><a href="${esc(c.href)}">${esc(c.name)}</a></li>`).join('')}</ul>`
-      : '<p class="xe-empty">No component reads it in its CSS. It can still be used by global styles and product code.</p>';
+    const styles = [...new Set(paths.flatMap((p) => stylesUsing(p, transitiveDependents(snap.proposed, p), d.usage)))].sort();
+    const usedMeta = usedByLine(comps.length, styles);
+    const compBody = comps.length ? `<ul class="xe-comps">${comps.map((c) => `<li><a href="${esc(c.href)}">${esc(c.name)}</a></li>`).join('')}</ul>` : '';
+    const styleBody = styles.length ? `<p class="xe-sublab">Global styles</p><ul class="xe-comps">${styles.map((f) => `<li><span class="mono">${esc(f)}</span></li>`).join('')}</ul>` : '';
+    const usedBody =
+      compBody || styleBody
+        ? `${compBody}${styleBody}`
+        : '<p class="xe-empty">No component or global stylesheet reads it. It can still be used by product code.</p>';
 
     const available = samples ? [...samples.content.querySelectorAll<HTMLElement>('[data-sample]')].map((x) => x.dataset.sample!) : [];
     const picked = comps.map((c) => c.name).filter((n) => available.includes(n)).slice(0, 3);

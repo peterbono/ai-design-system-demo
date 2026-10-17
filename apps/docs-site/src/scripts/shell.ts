@@ -68,6 +68,11 @@ function applyScope(scope: Scope, within: ParentNode = document) {
   const root = document.documentElement;
   root.dataset.previewBrand = scope.brand;
   root.dataset.previewDensity = scope.density;
+  // Specimen stages on the page's own theme (Library foundation pages): they follow the page theme and the scope.
+  const theme = root.dataset.theme ?? 'light';
+  within.querySelectorAll<HTMLElement>('[data-scope-stage]').forEach((el) => {
+    if (el.dataset.theme !== theme) el.dataset.theme = theme;
+  });
   within.querySelectorAll<HTMLElement>('[data-theme]').forEach((el) => {
     if (el === root || el.hasAttribute('data-scope-fixed')) return;
     if (el.dataset.brand !== scope.brand) el.dataset.brand = scope.brand;
@@ -113,6 +118,8 @@ function initScope() {
       applyScope(currentScope());
     });
   }).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-theme'] });
+  // The page theme lives on <html>: specimen stages follow it.
+  new MutationObserver(() => applyScope(currentScope())).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
   const menu = document.getElementById('scope-menu') as HTMLDetailsElement | null;
   if (menu) {
     document.addEventListener('click', (e) => {

@@ -1,5 +1,5 @@
 ---
-// Token explorer: lens and collection tree, a Figma-like grid with one column per relevant mode, and a detail panel
+// Token explorer: lens and collection tree (Library), a Figma-like grid with one column per relevant mode, and a detail panel
 // with the token flow, contrast and history. Public API: { mode, focus }. Mount it once per page.
 //   mode  'read' shows no edit affordances and links to Studio; 'edit' edits cells through the token editor
 //         (draft, guardrails, tray, pull request) and brings its own editing kit.
@@ -12,7 +12,7 @@ import '../../styles/token-explorer.css';
 import Icon from '../Icon.astro';
 import SummaryButton from '../ds/studio/SummaryButton';
 import { Button, EmptyState, Kbd, SegmentedControl } from '@bridge-ds/react';
-import { Eye, Layers, Plus, Search, SlidersHorizontal } from 'lucide-react';
+import { Plus, Search, SlidersHorizontal } from 'lucide-react';
 import TokenEditorKit from './TokenEditorKit.astro';
 import ExplorerData from './ExplorerData.astro';
 import XpKeys from './XpKeys.astro';
@@ -28,8 +28,9 @@ interface Props {
   focus?: string;
 }
 const { mode, focus } = Astro.props;
-// Studio (mode "edit") renders the explorer as the page itself: full bleed, one compact header, one toolbar row,
-// compact rows. The Library (mode "read") keeps its card, heading and inline controls.
+// Studio (mode "edit") renders the explorer as the page itself: a page header, ONE toolbar row (filter field, type
+// chips with counts, one Options menu for collections, usage, brand and modes, columns; New token), then the table at
+// full width with flat rows. The Library (mode "read") keeps its lens and tree, card, heading and inline controls.
 const app = mode === 'edit';
 // The brand and density selectors render here, statically, from the same token set the browser builds
 // (scripts/explorer/data.ts); the script only shows, hides and selects them.
@@ -45,110 +46,127 @@ const lensLabel = (text: string) => createElement(RFragment, null, `${text} `, c
       <header class="xp-apphead">
         <h1 class="st-title">Tokens</h1>
         <p class="xp-apphead-sub">
-          <span class="xp-crumb" id="xp-title" data-xp-title>Tokens</span><span class="xp-count num" data-xp-count aria-live="polite"></span><span class="xp-apphead-hint">Click a value to change it.</span>
+          <span class="xp-crumb" id="xp-title" data-xp-title>Tokens</span> <span class="xp-apphead-hint">Click a value to change it.</span><span class="sr-only" data-xp-count aria-live="polite"></span>
         </p>
       </header>
     )
   }
-  <aside class="xp-left" aria-label="Browse tokens">
-    <SegmentedControl
-      label="Browse by"
-      data-vanilla
-      data-xp-lens
-      size={app ? 'sm' : 'md'}
-      fullWidth
-      defaultValue="collections"
-      items={[
-        { value: 'collections', label: lensLabel('Collections') },
-        { value: 'types', label: lensLabel('By type') },
-      ]}
-    />
-    <nav class="xp-tree" aria-label="Collections and groups" data-xp-tree></nav>
-  </aside>
+  {
+    !app && (
+      <aside class="xp-left" aria-label="Browse tokens">
+        <SegmentedControl
+          label="Browse by"
+          data-vanilla
+          data-xp-lens
+          size="md"
+          fullWidth
+          defaultValue="collections"
+          items={[
+            { value: 'collections', label: lensLabel('Collections') },
+            { value: 'types', label: lensLabel('By type') },
+          ]}
+        />
+        <nav class="xp-tree" aria-label="Collections and groups" data-xp-tree></nav>
+      </aside>
+    )
+  }
 
   <section class="xp-main" aria-labelledby="xp-title" data-xp-main>
     <div class="xp-toolbar">
       {
-        !app && (
-          <div class="xp-heading">
-            <h2 class="xp-title" id="xp-title" data-xp-title>Tokens</h2>
-            <span class="xp-count num" data-xp-count aria-live="polite"></span>
-          </div>
-        )
-      }
-      <div class="xp-tools">
-        <div class="xp-search" role="search">
-          <Icon name="search" size={16} />
-          <label class="sr-only" for="xp-q">Search tokens</label>
-          <input id="xp-q" type="search" placeholder={app ? 'Filter by name, variable or hex' : 'Name, CSS variable or hex'} autocomplete="off" spellcheck="false" aria-keyshortcuts="F" data-xp-q />
-          {!app && <Kbd keys="F" size="sm" className="xp-slash" aria-hidden="true" />}
-          <button type="button" class="xp-exact" aria-pressed="false" data-xp-exact title="Match the whole name, variable or hex">Exact</button>
-        </div>
-        <details class="xp-filters" data-xp-filters>
-          <SummaryButton variant="secondary" size="sm" iconStart={SlidersHorizontal}>Filters <span class="xp-filter-n num" data-xp-filter-n hidden>0</span></SummaryButton>
-          <div class="xp-filters-panel">
-            <fieldset>
-              <legend>Collection</legend>
-              {TIER_ORDER.map((t) => <label><input type="checkbox" name="xp-ft" value={t} />{TIER_NAMES[t]}</label>)}
-            </fieldset>
-            <fieldset>
-              <legend>Type</legend>
-              {CATEGORY_ORDER.map((c) => <label><input type="checkbox" name="xp-fc" value={c} />{CATEGORY_LABEL[c]}</label>)}
-            </fieldset>
-            <fieldset>
-              <legend>Usage</legend>
-              <label><input type="radio" name="xp-usage" value="" checked />Any</label>
-              <label><input type="radio" name="xp-usage" value="used" />In use</label>
-              <label><input type="radio" name="xp-usage" value="unused" />Unused</label>
-            </fieldset>
-            <Button variant="secondary" size="sm" className="st-xp-clear-filters" data-xp-clear-filters>Clear filters</Button>
-          </div>
-        </details>
-        {
-          app ? (
-            <>
-              <details class="xp-menu" data-xp-modes-menu hidden>
-                <SummaryButton variant="secondary" size="sm" iconStart={Layers} title="Brand, density and combinations shown in the value columns">
-                  <span data-xp-modes-label>Modes</span>
-                </SummaryButton>
-                <div class="xp-menu-panel">
-                  <div class="xp-modebar" data-xp-modebar>
-                    <div class="xp-menu-field" data-xp-mode-field="brand" hidden>
-                      <span aria-hidden="true">Brand</span>
-                      <SegmentedControl label="Brand" data-vanilla data-xp-brand size="sm" fullWidth defaultValue={modes.brands[0]} items={modes.brands.map((b) => ({ value: b, label: modeName(b) }))} />
-                    </div>
-                    <div class="xp-menu-field" data-xp-mode-field="density" hidden>
-                      <span aria-hidden="true">Density</span>
-                      <SegmentedControl label="Density" data-vanilla data-xp-density size="sm" fullWidth defaultValue={modes.densities[0]} items={modes.densities.map((x) => ({ value: x, label: modeName(x) }))} />
-                    </div>
-                    <button type="button" class="xp-switch" role="switch" aria-checked="false" data-combos hidden>
-                      <span class="xp-switch-track" aria-hidden="true"><span class="xp-switch-thumb"></span></span>
-                      <span>All {combos} combinations</span>
-                    </button>
+        app ? (
+          <div class="xp-tools">
+            <div class="xp-search" role="search">
+              <Icon name="search" size={16} />
+              <label class="sr-only" for="xp-q">Filter tokens by name, CSS variable or hex</label>
+              <input id="xp-q" type="search" placeholder="Filter tokens" autocomplete="off" spellcheck="false" aria-keyshortcuts="F" data-xp-q />
+            </div>
+            <div class="xp-chips" role="group" aria-label="Filter by type" data-xp-chips></div>
+            <span class="xp-grow" aria-hidden="true"></span>
+            <details class="xp-menu xp-options" data-xp-filters>
+              <SummaryButton variant="secondary" size="sm" iconStart={SlidersHorizontal} title="Collections, usage, brand and modes, columns">
+                Options <span class="xp-filter-n num" data-xp-filter-n hidden>0</span>
+              </SummaryButton>
+              <div class="xp-menu-panel xp-options-panel">
+                <fieldset class="xp-opt-set">
+                  <legend>Collections</legend>
+                  {TIER_ORDER.map((t) => <label><input type="checkbox" name="xp-ft" value={t} />{TIER_NAMES[t]}</label>)}
+                </fieldset>
+                <fieldset class="xp-opt-set">
+                  <legend>Usage</legend>
+                  <label><input type="radio" name="xp-usage" value="" checked />Any</label>
+                  <label><input type="radio" name="xp-usage" value="used" />In use</label>
+                  <label><input type="radio" name="xp-usage" value="unused" />Unused</label>
+                </fieldset>
+                <div class="xp-modebar" data-xp-modebar>
+                  <div class="xp-menu-field" data-xp-mode-field="brand" hidden>
+                    <span aria-hidden="true">Brand</span>
+                    <SegmentedControl label="Brand" data-vanilla data-xp-brand size="sm" fullWidth defaultValue={modes.brands[0]} items={modes.brands.map((b) => ({ value: b, label: modeName(b) }))} />
                   </div>
-                </div>
-              </details>
-              <details class="xp-menu" data-xp-view-menu>
-                <SummaryButton variant="secondary" size="sm" iconStart={Eye} aria-label="View options">View</SummaryButton>
-                <div class="xp-menu-panel xp-view-panel">
-                  <label class="xp-menu-field">
-                    <span>Code column</span>
-                    <select data-xp-syntax>
-                      <option value="">Hidden</option>
-                      {Object.entries(SYNTAX_LABEL).map(([k, v]) => <option value={k}>{v}</option>)}
-                    </select>
-                  </label>
-                  <button type="button" class="xp-switch" role="switch" aria-checked="false" data-xp-desc>
+                  <div class="xp-menu-field" data-xp-mode-field="density" hidden>
+                    <span aria-hidden="true">Density</span>
+                    <SegmentedControl label="Density" data-vanilla data-xp-density size="sm" fullWidth defaultValue={modes.densities[0]} items={modes.densities.map((x) => ({ value: x, label: modeName(x) }))} />
+                  </div>
+                  <button type="button" class="xp-switch" role="switch" aria-checked="false" data-combos hidden>
                     <span class="xp-switch-track" aria-hidden="true"><span class="xp-switch-thumb"></span></span>
-                    <span>Description column</span>
+                    <span>All {combos} combinations</span>
                   </button>
                 </div>
+                <label class="xp-menu-field">
+                  <span>Code column</span>
+                  <select data-xp-syntax>
+                    <option value="">Hidden</option>
+                    {Object.entries(SYNTAX_LABEL).map(([k, v]) => <option value={k}>{v}</option>)}
+                  </select>
+                </label>
+                <button type="button" class="xp-switch" role="switch" aria-checked="false" data-xp-desc>
+                  <span class="xp-switch-track" aria-hidden="true"><span class="xp-switch-thumb"></span></span>
+                  <span>Description column</span>
+                </button>
+                <button type="button" class="xp-switch" role="switch" aria-checked="false" data-xp-exact title="Match the whole name, variable or hex">
+                  <span class="xp-switch-track" aria-hidden="true"><span class="xp-switch-thumb"></span></span>
+                  <span>Exact match</span>
+                </button>
+                <Button variant="secondary" size="sm" className="st-xp-clear-filters" data-xp-clear-filters>Reset options</Button>
+                <p class="xp-menu-keys small muted"><XpKeys /></p>
+              </div>
+            </details>
+            <Button variant="primary" size="sm" iconStart={Plus} className="xp-new has-tip" id="ed-add" data-tip="Adds a draft in this browser. No GitHub needed." aria-label="New token">New token</Button>
+          </div>
+        ) : (
+          <>
+            <div class="xp-heading">
+              <h2 class="xp-title" id="xp-title" data-xp-title>Tokens</h2>
+              <span class="xp-count num" data-xp-count aria-live="polite"></span>
+            </div>
+            <div class="xp-tools">
+              <div class="xp-search" role="search">
+                <Icon name="search" size={16} />
+                <label class="sr-only" for="xp-q">Search tokens</label>
+                <input id="xp-q" type="search" placeholder="Name, CSS variable or hex" autocomplete="off" spellcheck="false" aria-keyshortcuts="F" data-xp-q />
+                <Kbd keys="F" size="sm" className="xp-slash" aria-hidden="true" />
+                <button type="button" class="xp-exact" aria-pressed="false" data-xp-exact title="Match the whole name, variable or hex">Exact</button>
+              </div>
+              <details class="xp-filters" data-xp-filters>
+                <SummaryButton variant="secondary" size="sm" iconStart={SlidersHorizontal}>Filters <span class="xp-filter-n num" data-xp-filter-n hidden>0</span></SummaryButton>
+                <div class="xp-filters-panel">
+                  <fieldset>
+                    <legend>Collection</legend>
+                    {TIER_ORDER.map((t) => <label><input type="checkbox" name="xp-ft" value={t} />{TIER_NAMES[t]}</label>)}
+                  </fieldset>
+                  <fieldset>
+                    <legend>Type</legend>
+                    {CATEGORY_ORDER.map((c) => <label><input type="checkbox" name="xp-fc" value={c} />{CATEGORY_LABEL[c]}</label>)}
+                  </fieldset>
+                  <fieldset>
+                    <legend>Usage</legend>
+                    <label><input type="radio" name="xp-usage" value="" checked />Any</label>
+                    <label><input type="radio" name="xp-usage" value="used" />In use</label>
+                    <label><input type="radio" name="xp-usage" value="unused" />Unused</label>
+                  </fieldset>
+                  <Button variant="secondary" size="sm" className="st-xp-clear-filters" data-xp-clear-filters>Clear filters</Button>
+                </div>
               </details>
-              <button type="button" class="xp-keyhelp has-tip" data-tip="Shortcuts: F filter, arrows move, Enter edits the value or opens the name, C copies, Esc closes." aria-label="Keyboard shortcuts: F filter, arrows move, Enter edits the value or opens the name, C copies, Esc closes."><Icon name="info" size={16} /></button>
-              <Button variant="primary" size="sm" iconStart={Plus} className="xp-new has-tip" id="ed-add" data-tip="Adds a draft in this browser. No GitHub needed." aria-label="New token">New token</Button>
-            </>
-          ) : (
-            <>
               <div class="xp-modebar" data-xp-modebar hidden>
                 <div data-xp-mode-field="brand" hidden>
                   <SegmentedControl label="Brand" data-vanilla data-xp-brand size="sm" defaultValue={modes.brands[0]} items={modes.brands.map((b) => ({ value: b, label: modeName(b) }))} />
@@ -169,15 +187,15 @@ const lensLabel = (text: string) => createElement(RFragment, null, `${text} `, c
                 </label>
                 <button type="button" class="btn btn-secondary btn-sm xp-toggle" aria-pressed="false" data-xp-desc>Description</button>
               </div>
-            </>
-          )
-        }
-      </div>
+            </div>
+          </>
+        )
+      }
     </div>
 
     <div class="xp-scroll" data-xp-scroll>
       <div class="xp-grid" role="grid" aria-labelledby="xp-title" aria-readonly="true" data-xp-grid></div>
-      <EmptyState icon={Search} title="No token matches." description="Try a shorter name, a hex like #1c2735, or clear the filters." className="st-hideable st-xp-empty" data-xp-empty hidden>
+      <EmptyState icon={Search} title="No token matches." description="Try a shorter name, a hex like #1c2735, or another type or collection." className="st-hideable st-xp-empty" data-xp-empty hidden>
         <Fragment slot="actions"><Button variant="secondary" size="sm" data-xp-clear>Clear search and filters</Button></Fragment>
       </EmptyState>
     </div>

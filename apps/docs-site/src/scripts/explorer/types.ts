@@ -13,6 +13,8 @@ export interface ExplorerState {
   syntax: Syntax;
   showCode: boolean;
   showDescription: boolean;
+  /** One flat table, full token names, no section rows (Studio). */
+  flat: boolean;
   /** Collapsed section keys. */
   collapsed: Set<string>;
   /** Collapsed tree nodes in the left pane (collection tier or group key). */

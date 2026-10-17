@@ -3,7 +3,7 @@
 // badges per brand and theme, and the token's history (the existing history panel fills itself in).
 import { contextLabel, TIER_NAMES, tokenHistory } from '@bridge-ds/core';
 import { aliasLabel, CATEGORY_LABEL, codeSyntax, SYNTAX_LABEL, type Syntax } from '../../lib/explorer/format';
-import { componentsUsing, contrastFor, directDependents, introducedIn, transitiveDependents, upstreamLanes, type PairRow } from '../../lib/explorer/flow';
+import { componentsUsing, contrastFor, stylesUsing, usedByLine, directDependents, introducedIn, transitiveDependents, upstreamLanes, type PairRow } from '../../lib/explorer/flow';
 import { cellValue, studioHref, type Column } from '../../lib/explorer/model';
 import { activeReport, loadHistory } from '../history/state';
 import { cellHtml } from './cells';
@@ -60,6 +60,7 @@ function flowParts(d: ExplorerData, path: string, columns: Column[]) {
   const deps = directDependents(d.set, path);
   const all = transitiveDependents(d.set, path);
   const comps = componentsUsing(path, all, d.usage);
+  const styles = stylesUsing(path, all, d.usage);
   const depList = deps.length
     ? `<ul class="xp-deps">${deps
         .slice(0, MAX_DOWNSTREAM)
@@ -69,9 +70,12 @@ function flowParts(d: ExplorerData, path: string, columns: Column[]) {
   const compList = comps.length
     ? `<ul class="xp-comps">${comps.map((c) => `<li><a href="${esc(c.href)}">${esc(c.name)}</a></li>`).join('')}</ul>`
     : '<p class="xp-empty-line">No component reads it, directly or through an alias.</p>';
+  const styleList = styles.length
+    ? `<h4 class="xp-d-sub">Global styles <span class="xp-d-n">${styles.length}</span></h4><ul class="xp-comps">${styles.map((f) => `<li><span class="mono">${esc(f)}</span></li>`).join('')}</ul>`
+    : '';
   const aliased = `<h4 class="xp-d-sub">Aliased by <span class="xp-d-n">${deps.length}</span>${all.length > deps.length ? `<span class="muted small"> (${all.length} through aliases)</span>` : ''}</h4>${depList}`;
   const steps = Math.max(0, ...lanes.map((l) => l.nodes.length));
-  return { upstream, aliased, compList, comps, steps };
+  return { upstream, aliased, compList, comps, styles, styleList, steps };
 }
 
 function flow(d: ExplorerData, path: string, columns: Column[]): string {
@@ -80,6 +84,7 @@ function flow(d: ExplorerData, path: string, columns: Column[]): string {
     <h4 class="xp-d-sub">Upstream</h4>${f.upstream}
     ${f.aliased}
     <h4 class="xp-d-sub">Used by components <span class="xp-d-n">${f.comps.length}</span></h4>${f.compList}
+    ${f.styleList}
   </section>`;
 }
 
@@ -113,7 +118,7 @@ function renderStudioDetail(host: HTMLElement, d: ExplorerData, view: View, path
       <div class="xp-d-vals" style="--xp-n:${Math.min(columns.length, 2)}">${columns.map(val).join('')}</div>
       <div class="xp-d-accs">
         ${acc('flow', 'branch', 'Token flow', `${f.steps} step${f.steps === 1 ? '' : 's'}`, `<h4 class="xp-d-sub">Upstream</h4>${f.upstream}${f.aliased}`)}
-        ${acc('used', 'box', 'Used by', f.comps.length ? `${f.comps.length} component${f.comps.length > 1 ? 's' : ''}` : 'No component', f.compList)}
+        ${acc('used', 'box', 'Used by', usedByLine(f.comps.length, f.styles), `${f.comps.length || !f.styles.length ? f.compList : ''}${f.styleList}`)}
         ${acc('history', 'clock', 'History', 'Reading', '<div class="tx-d-foot" hidden></div>')}
       </div>
     </div>

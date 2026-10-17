@@ -39,6 +39,7 @@ export function initTokenDrawer() {
       syntax: 'css',
       showCode: false,
       showDescription: false,
+      flat: false,
       collapsed: new Set(),
       treeOpen: new Set(),
       selected: path,

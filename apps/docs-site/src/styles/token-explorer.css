@@ -1322,6 +1322,17 @@
   border-color: var(--color-border-emphasis);
 }
 
+/* Global stylesheets in "Used by": a file name, not a link. */
+.xp-comps li > .mono {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--size-6);
+  padding: 0 var(--space-2);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-pill);
+  font-size: var(--typography-ui-size);
+}
+
 .xp-pairs {
   display: grid;
   gap: var(--space-3);
@@ -2512,9 +2523,11 @@
   transform: translateX(-50%);
 }
 
+/* The hovered or focused swatch's name and hex, under the ramp where the step ticks sit (never over the family
+   tabs above it). The ticks hide while it shows. */
 .xe-tip {
   position: absolute;
-  bottom: calc(100% + var(--space-1-5));
+  top: calc(100% + var(--space-1-5));
   left: 50%;
   z-index: var(--layer-tooltip);
   display: none;
@@ -2532,6 +2545,10 @@
 
 .xe-sw:is(:hover, :focus-visible) .xe-tip {
   display: block;
+}
+
+.xe-ramp:has(.xe-sw:is(:hover, :focus-visible)) + .xe-ticks {
+  visibility: hidden;
 }
 
 .xe-sw:first-child .xe-tip {
@@ -3091,6 +3108,18 @@
   color: var(--color-text-muted);
 }
 
+.xe-sublab {
+  margin: var(--space-3) 0 var(--space-1);
+  color: var(--color-text-muted);
+  font-size: var(--typography-caption-size);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--typography-caption-line-height);
+}
+
+.xe-sublab:first-child {
+  margin-top: 0;
+}
+
 .xe-pv {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3258,4 +3287,224 @@
 
 .xp-d-editnote {
   color: var(--color-text-muted);
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+   Studio Tokens layout: a page header, ONE toolbar row (filter field, type chips with counts, Options, New token),
+   then the table at full width in a card. No collections column: collections, usage, brand and modes and the
+   columns live in the Options menu. */
+
+.xp[data-surface="app"],
+.xp[data-surface="app"].has-detail {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  height: calc(100dvh - var(--layout-header-height) - var(--space-5));
+  margin: 0;
+  overflow: visible;
+  background-color: transparent;
+}
+
+.xp[data-surface="app"].has-detail {
+  grid-template-columns: minmax(0, 1fr) var(--xp-right);
+  column-gap: var(--space-4);
+}
+
+.xp[data-surface="app"] > .xp-main,
+.xp[data-surface="app"] > .xp-detail {
+  grid-row: 2;
+  padding-bottom: var(--space-5);
+}
+
+.xp[data-surface="app"] .xp-apphead {
+  min-height: 0;
+  padding: var(--space-2) 0 var(--space-5);
+  border-bottom: 0;
+  background-color: transparent;
+}
+
+.xp[data-surface="app"] .xp-crumb {
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-regular);
+}
+
+.xp[data-surface="app"] .xp-apphead-hint::before {
+  content: none;
+}
+
+.xp[data-surface="app"] .xp-apphead-sub {
+  display: block;
+}
+
+.xp[data-surface="app"] .xp-toolbar {
+  padding: 0 0 var(--space-4);
+  border-bottom: 0;
+}
+
+.xp[data-surface="app"] .xp-tools {
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.xp[data-surface="app"] .xp-search {
+  flex: 0 1 var(--size-80);
+  min-width: var(--size-40);
+}
+
+@media (min-width: 861px) {
+  .xp[data-surface="app"]:not(.has-detail) .xp-chips {
+    flex: 0 0 auto;
+  }
+}
+
+.xp-grow {
+  flex: 1;
+}
+
+.xp-chips {
+  display: flex;
+  flex: 0 1 auto;
+  gap: var(--space-1-5);
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.xp-chip-btn {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1-5);
+  height: var(--size-8);
+  padding: 0 var(--space-3);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface-default);
+  color: var(--color-text-default);
+  font: inherit;
+  font-size: var(--typography-ui-size);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+}
+
+.xp-chip-n {
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-regular);
+}
+
+.xp-chip-btn[aria-pressed="true"] {
+  border-color: var(--color-surface-inverse);
+  background-color: var(--color-surface-inverse);
+  color: var(--color-text-inverse);
+}
+
+.xp-chip-btn[aria-pressed="true"] .xp-chip-n {
+  color: inherit;
+  opacity: 0.75;
+}
+
+.xp-chip-btn:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+@media (hover: hover) {
+  .xp-chip-btn:not([aria-pressed="true"]):hover {
+    border-color: var(--color-border-emphasis);
+  }
+}
+
+.xp-options {
+  height: var(--size-8);
+}
+
+.xp-options-panel {
+  min-width: var(--size-64);
+}
+
+.xp-opt-set {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 var(--space-3);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.xp-opt-set legend {
+  margin-bottom: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+  font-weight: var(--font-weight-semibold);
+}
+
+.xp-opt-set label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--size-7);
+  font-size: var(--typography-ui-size);
+  cursor: pointer;
+}
+
+.xp-opt-set input {
+  accent-color: var(--color-action-primary-bg);
+}
+
+.xp-options-panel > .btn {
+  justify-self: start;
+}
+
+.xp[data-surface="app"] .xp-scroll {
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-container);
+  background-color: var(--color-surface-default);
+}
+
+/* Details: a full-height panel on the right edge under the header; the table keeps its column free. */
+@media (min-width: 1100px) {
+  .xp[data-surface="app"] > .xp-detail {
+    position: fixed;
+    top: var(--layout-header-height);
+    right: 0;
+    bottom: 0;
+    width: var(--xp-right);
+    padding-bottom: 0;
+  }
+}
+
+@media (max-width: 1099px) {
+  .xp[data-surface="app"].has-detail {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .xp[data-surface="app"] > .xp-detail {
+    padding-bottom: 0;
+  }
+
+}
+
+@media (max-width: 860px) {
+  .xp[data-surface="app"],
+  .xp[data-surface="app"].has-detail {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .xp[data-surface="app"] > .xp-main {
+    grid-row: 2;
+  }
+
+  .xp[data-surface="app"] .xp-search {
+    flex: 1 1 100%;
+  }
+
+  .xp-chips {
+    flex: 1 1 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .xp[data-surface="app"] {
+    margin: 0;
+  }
 }

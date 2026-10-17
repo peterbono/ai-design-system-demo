@@ -204,7 +204,6 @@ a.fg-card {
 }
 
 /* Toolbars of the site use interface text (14px) for every control, so a screen keeps to four sizes. */
-.fd-toolbar [data-segmented-control] [data-segment],
 .hero-stage-bar [data-segmented-control] [data-segment],
 .shell-pop [data-segmented-control] [data-segment] {
   font-size: var(--typography-ui-size);

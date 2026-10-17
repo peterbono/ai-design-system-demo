@@ -47,7 +47,7 @@ function subLabel(c: Column): string {
 
 function rowHtml(d: ExplorerData, t: XToken, view: View, s: ExplorerState, section: Section, index: number): string {
   const editable = s.mode === 'edit';
-  const rel = section.key === t.group ? t.name : t.path;
+  const rel = !s.flat && section.key === t.group ? t.name : t.path;
   const unused = t.used ? '' : '<span class="xp-flag">Unused</span>';
   // Studio: the name opens the read-only details, the value cells open the editor. No copy buttons in the cells
   // (C copies, and the row menu); the row menu sits at the end of the name cell.
@@ -104,31 +104,31 @@ let generation = 0;
 export function renderGrid(host: HTMLElement, d: ExplorerData, view: View, s: ExplorerState, opts: { sync?: boolean; firstRows?: number } = {}): RenderResult {
   const t0 = performance.now();
   const gen = ++generation;
-  const sections = sectionsFor(view.visible, s.selection);
+  // Flat (Studio): one group without a section row, full token names.
+  // Chunks of 50 rows keep content-visibility cheap on long scopes.
+  const sections: Section[] = s.flat
+    ? Array.from({ length: Math.ceil(view.visible.length / 50) }, (_, i) => ({ key: `rows-${i}`, label: '', tokens: view.visible.slice(i * 50, i * 50 + 50) }))
+    : sectionsFor(view.visible, s.selection);
   host.style.setProperty('--xp-cols', gridTemplate(view, s));
   host.style.setProperty('--xp-n', String(view.columns.length));
   host.style.setProperty('--xp-minw', `${9.5 + modeMin(s) * view.columns.length + (s.showCode ? 13 : 0) + (s.showDescription ? 16 : 0)}rem`);
   host.setAttribute('aria-colcount', String(colCount(view, s)));
-  host.setAttribute('aria-rowcount', String(1 + sections.length + view.visible.length));
+  host.setAttribute('aria-rowcount', String(1 + (s.flat ? 0 : sections.length) + view.visible.length));
   host.setAttribute('aria-readonly', String(s.mode !== 'edit'));
   // Placeholder height of groups not painted yet: the row height of the current density (--xp-row on the explorer).
   const rowH = parseFloat(getComputedStyle(host).getPropertyValue('--xp-row')) || ROW_HEIGHT;
 
-  let rowIndex = 2;
+  let rowIndex = s.flat ? 1 : 2;
   const groups = sections.map((sec) => {
     const start = rowIndex;
-    rowIndex += 1 + sec.tokens.length;
+    rowIndex += (s.flat ? 0 : 1) + sec.tokens.length;
     return { sec, start };
   });
   const groupHtml = ({ sec, start }: (typeof groups)[number]) => {
-    const collapsed = s.collapsed.has(sec.key);
+    const collapsed = !s.flat && s.collapsed.has(sec.key);
     const rows = collapsed ? '' : sec.tokens.map((t, i) => rowHtml(d, t, view, s, sec, start + 1 + i)).join('');
-    return `<div role="rowgroup" class="xp-group" data-group="${esc(sec.key)}" style="contain-intrinsic-size:auto ${(collapsed ? 1 : 1 + sec.tokens.length) * rowH}px">${sectionHead(
-      sec,
-      view,
-      s,
-      start,
-    )}${rows}</div>`;
+    const head = s.flat ? '' : sectionHead(sec, view, s, start);
+    return `<div role="rowgroup" class="xp-group" data-group="${esc(sec.key)}" style="contain-intrinsic-size:auto ${(collapsed ? 1 : (s.flat ? 0 : 1) + sec.tokens.length) * rowH}px">${head}${rows}</div>`;
   };
 
   const budget = opts.sync ? Infinity : (opts.firstRows ?? 80);

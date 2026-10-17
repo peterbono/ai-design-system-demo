@@ -1,6 +1,5 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import CopyAs from '../../components/foundations/CopyAs.astro';
 import LibraryKit from '../../components/foundations/LibraryKit.astro';
 import TokenGroup from '../../components/foundations/TokenGroup.astro';
 import type { SpecimenGroup } from '../../components/foundations/Specimens.tsx';
@@ -35,7 +34,6 @@ const labelOn = (hex?: string) => (hex && luminance(hex) > 0.36 ? 'var(--color-n
 const semanticUsing = (primitivePath: string) =>
   colors.filter((s) => MODES.some((m) => s.modes[m].chain.includes(primitivePath))).map((s) => s.path);
 import LibraryHeader from '../../components/LibraryHeader.astro';
-import PreviewScope from '../../components/PreviewScope.astro';
 ---
 
 <Layout title="Color" description="Semantic color tokens shown in context in light and dark, and the primitive palette behind them." sources={PAGE_SOURCES.color} updated={updated}>
@@ -43,15 +41,8 @@ import PreviewScope from '../../components/PreviewScope.astro';
     <LibraryHeader title="Color" art="paint" updated={updated} studio="/studio/tokens/?focus=color">
       Every color has a job. Each group shows its tokens at work in both themes, then lists them. Design and build with these semantic tokens.
     </LibraryHeader>
-    <div class="fd-toolbar">
-      <p class="fd-hint">Select a token to see its alias chain, contrast pairs and history. Click a name to copy it.</p>
-      <div class="fd-tools">
-        <PreviewScope />
-        <CopyAs />
-      </div>
-    </div>
 
-    {sections.map((s) => <TokenGroup group={s.group} rows={s.rows} preview="color" specimen={SPECIMEN[s.group]} />)}
+    {sections.map((s) => <TokenGroup group={s.group} rows={s.rows} preview="color" specimen={SPECIMEN[s.group]} scope="brand" />)}
 
     <section class="fd-group" aria-labelledby="primitives">
       <header class="fd-group-head">

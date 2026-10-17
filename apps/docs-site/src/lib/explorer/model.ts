@@ -11,8 +11,11 @@ export interface ComponentLink {
   name: string;
   href: string;
 }
-/** Build-time usage per token path: does a component read it (directly or through an alias), and which ones. */
-export type UsageMap = Record<string, { used: boolean; usedBy: ComponentLink[] }>;
+/**
+ * Build-time usage per token path: is it in use, which components read it (directly or through an alias), and which
+ * global stylesheets (base styles, theme) read its variable directly, by file name ("base.css").
+ */
+export type UsageMap = Record<string, { used: boolean; usedBy: ComponentLink[]; styles?: string[] }>;
 
 export interface Modes {
   brands: string[];

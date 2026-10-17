@@ -1,6 +1,6 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import CopyAs from '../../components/foundations/CopyAs.astro';
+import ScopeSwitch from '../../components/foundations/ScopeSwitch.astro';
 import LibraryKit from '../../components/foundations/LibraryKit.astro';
 import TokenList from '../../components/foundations/TokenList.astro';
 import { groupRows, primitiveRows, type FoundationRow } from '../../lib/foundations';
@@ -46,7 +46,6 @@ const families = [...groupRows('font.family'), ...primitiveRows('font.family')];
 const px = (css: string) => css.replace('px', ' px');
 const lh = (name: string) => primitiveRows('font.line-height').find((r) => r.path.endsWith(`.${name}`))?.values.light ?? '';
 import LibraryHeader from '../../components/LibraryHeader.astro';
-import PreviewScope from '../../components/PreviewScope.astro';
 ---
 
 <Layout title="Typography" description="The type scale at every step, weights, line heights, tracking and font families." sources={PAGE_SOURCES.typography} updated={updated}>
@@ -54,13 +53,6 @@ import PreviewScope from '../../components/PreviewScope.astro';
     <LibraryHeader title="Typography" art="foundations" updated={updated} studio="/studio/tokens/?focus=font">
       Fraunces for display and page titles, Instrument Sans for reading and interface text, IBM Plex Mono for code and token names. Seven roles set size, line height and weight together; a screen uses four sizes at most. If a design needs a step that is not here, propose a token instead of picking a value by eye.
     </LibraryHeader>
-    <div class="fd-toolbar">
-      <p class="fd-hint">Select a token to see where it is used and its history. Click a name to copy it.</p>
-      <div class="fd-tools">
-        <PreviewScope />
-        <CopyAs />
-      </div>
-    </div>
 
     <section class="fd-group" aria-labelledby="scale">
       <header class="fd-group-head">
@@ -69,7 +61,8 @@ import PreviewScope from '../../components/PreviewScope.astro';
         <span class="fd-group-n">{sizes.length} tokens</span>
       </header>
       <p class="fd-group-note">Each step at its size, with the line height and tracking it pairs with.</p>
-      <div class="fd-stage" role="group" aria-label="Type scale specimen">
+      <div class="fd-spec-bar"><ScopeSwitch axis="brand" /></div>
+      <div class="fd-stage" data-scope-stage role="group" aria-label="Type scale specimen">
         {
           sizeRows.map((r) => {
             const step = r.path.split('.').pop()!;

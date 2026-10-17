@@ -1,0 +1,30 @@
+---
+// Compact brand or density switch in a specimen header, only on specimens it changes. The preview scope is one
+// state for the site (scripts/shell.ts reads [data-set-brand] / [data-set-density] clicks and keeps aria-checked in
+// step); scripts/foundations.ts adds arrow keys.
+import { BRANDS, BRAND_LABEL, DENSITIES, DENSITY_LABEL } from '../../lib/tokens';
+
+interface Props {
+  axis: 'brand' | 'density';
+}
+const { axis } = Astro.props;
+const options = axis === 'brand' ? BRANDS.map((b) => ({ value: b, label: BRAND_LABEL[b] })) : DENSITIES.map((d) => ({ value: d, label: DENSITY_LABEL[d] }));
+const name = axis === 'brand' ? 'Brand' : 'Density';
+---
+
+<div class="fd-scope" role="radiogroup" aria-label={`${name} of this preview`} data-fd-scope>
+  <span class="fd-scope-label" aria-hidden="true">{name}</span>
+  {
+    options.map((o, i) =>
+      axis === 'brand' ? (
+        <button type="button" role="radio" class="fd-scope-opt" aria-checked={i === 0 ? 'true' : 'false'} data-set-brand={o.value}>
+          {o.label}
+        </button>
+      ) : (
+        <button type="button" role="radio" class="fd-scope-opt" aria-checked={i === 0 ? 'true' : 'false'} data-set-density={o.value}>
+          {o.label}
+        </button>
+      ),
+    )
+  }
+</div>

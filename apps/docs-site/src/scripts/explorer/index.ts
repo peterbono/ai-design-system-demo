@@ -2,7 +2,7 @@
 // column per relevant mode in the center, a detail panel with the token flow on the right. Builds the token set in
 // the browser with @bridge-ds/core from the embedded token files. In edit mode, cells edit through the existing
 // token editor (draft, guardrails, tray, pull request); the page's "Edit tokens" toggle switches modes at runtime.
-import { TIER_ORDER, type Tier } from '@bridge-ds/core';
+import { TIER_NAMES, TIER_ORDER, type Tier } from '@bridge-ds/core';
 import { CATEGORY_LABEL, CATEGORY_ORDER, modeName, typeCategory, type Syntax, type TypeCategory } from '../../lib/explorer/format';
 import {
   activeFilterCount,
@@ -54,7 +54,8 @@ export function initTokenExplorer() {
   const grid = $<HTMLElement>('[data-xp-grid]');
   const scroller = $<HTMLElement>('[data-xp-scroll]');
   const main = $<HTMLElement>('[data-xp-main]');
-  const tree = $<HTMLElement>('[data-xp-tree]');
+  // The Library's lens and collections tree; Studio has none (type chips and the Options menu instead).
+  const tree = root.querySelector<HTMLElement>('[data-xp-tree]');
   const detail = $<HTMLElement>('[data-xp-detail]');
   const scrim = $<HTMLElement>('[data-xp-scrim]');
   const q = $<HTMLInputElement>('[data-xp-q]');
@@ -69,7 +70,8 @@ export function initTokenExplorer() {
   const empty = $<HTMLElement>('[data-xp-empty]');
   // Static DS SegmentedControls (data-vanilla): scripts/shell.ts handles clicks and arrow keys and reports a change
   // with a bubbling bridge:segment event; this script keeps the state and selects with selectSegment().
-  const lens = $<HTMLElement>('[data-xp-lens]');
+  const lens = root.querySelector<HTMLElement>('[data-xp-lens]');
+  const chips = root.querySelector<HTMLElement>('[data-xp-chips]');
   const brandSeg = root.querySelector<HTMLElement>('[data-xp-brand]');
   const densitySeg = root.querySelector<HTMLElement>('[data-xp-density]');
   const brandField = root.querySelector<HTMLElement>('[data-xp-mode-field="brand"]');
@@ -82,6 +84,11 @@ export function initTokenExplorer() {
   const rowsSeg = root.querySelector<HTMLElement>('[data-xp-rows]');
   const menus = [...root.querySelectorAll<HTMLDetailsElement>('details.xp-menu, details[data-xp-filters]')];
   const narrow = window.matchMedia(NARROW);
+
+  // Studio's default scope: the tokens a product team edits, Semantic and Base (theme-independent semantics).
+  const APP_TIERS: Tier[] = ['semantic', 'base'];
+  const tierRank = (t: Tier) => (APP_TIERS.includes(t) ? APP_TIERS.indexOf(t) - APP_TIERS.length : TIER_ORDER.indexOf(t));
+  const isDefaultTiers = (t: Tier[]) => t.length === APP_TIERS.length && APP_TIERS.every((x) => t.includes(x));
 
   // ---- state (URL first, then the focus prop, then defaults)
   const params = new URLSearchParams(location.search);
@@ -96,6 +103,7 @@ export function initTokenExplorer() {
     // Studio shows Name and the mode columns only; the View menu brings a code column back.
     showCode: root.dataset.surface !== 'app' || (syntaxes as string[]).includes(params.get('syntax') ?? ''),
     showDescription: params.get('desc') === '1',
+    flat: app,
     collapsed: new Set(),
     treeOpen: new Set(),
     selected: null,
@@ -123,6 +131,23 @@ export function initTokenExplorer() {
   } else if (target?.kind === 'group') {
     s.selection = { lens: 'collections', tier: target.tier, group: target.group };
   }
+  // Studio: one flat table over every collection, scoped by the Options collections (Semantic and Base by default) and
+  // the type chips. Older links (?c=, ?lens=types&cat=) map onto those; a group focus (?focus=color.text) stays a
+  // selection so the table shows that group only.
+  if (app) {
+    const sel = s.selection;
+    if (sel.lens === 'types') {
+      if (sel.category !== 'all' && !s.filters.categories.length) s.filters.categories = [sel.category];
+      s.selection = { lens: 'collections', tier: 'all' };
+    } else if (sel.tier !== 'all' && !sel.group) {
+      // An explicit ?c= link scopes to that collection; the built-in default (Semantic) gives way to APP_TIERS.
+      if (!s.filters.tiers.length && tierParam && tierParam !== 'all' && target?.kind !== 'token') s.filters.tiers = [sel.tier];
+      s.selection = { lens: 'collections', tier: 'all' };
+    }
+    if (!s.filters.tiers.length && !params.get('ft') && s.selection.lens === 'collections' && !s.selection.group) s.filters.tiers = [...APP_TIERS];
+    if (target?.kind === 'token' && s.filters.tiers.length && !s.filters.tiers.includes(target.tier)) s.filters.tiers = [...s.filters.tiers, target.tier];
+    s.filters.categories = s.filters.categories.slice(0, 1);
+  }
   q.value = s.filters.query;
 
   // ---- derived view
@@ -130,8 +155,22 @@ export function initTokenExplorer() {
   function computeView(): View {
     const inSel = d.tokens.filter((t) => inSelection(t, s.selection));
     const visible = applyFilters(inSel, s.filters);
-    const plan = planColumns(s.selection, d.modes, s.view, varyingOf(inSel));
+    if (!app) {
+      const plan = planColumns(s.selection, d.modes, s.view, varyingOf(inSel));
+      return { visible, plan, columns: plan.columns };
+    }
+    // Studio: Semantic rows first, then Base, then the other collections in order (a stable sort keeps token order).
+    visible.sort((x, y) => tierRank(x.tier) - tierRank(y.tier));
+    // The columns follow the collections in scope (one collection: its own modes, like the Library tree).
+    const scope = scoped();
+    const sel = s.selection;
+    const planSel = sel.lens === 'collections' && sel.tier === 'all' && s.filters.tiers.length === 1 ? { lens: 'collections' as const, tier: s.filters.tiers[0]! } : sel;
+    const plan = planColumns(planSel, d.modes, s.view, varyingOf(scope));
     return { visible, plan, columns: plan.columns };
+  }
+  /** Studio: tokens in the selection and the Options collections, before the type chip, usage and the filter field. */
+  function scoped() {
+    return d.tokens.filter((t) => inSelection(t, s.selection) && (!s.filters.tiers.length || s.filters.tiers.includes(t.tier)));
   }
 
   const syncUrl = () => {
@@ -140,14 +179,15 @@ export function initTokenExplorer() {
     if (sel.lens === 'types') {
       p.set('lens', 'types');
       p.set('cat', sel.category);
-    } else {
+    } else if (!app || sel.tier !== 'all' || sel.group) {
       p.set('c', sel.tier);
       if (sel.group) p.set('g', sel.group);
     }
     if (s.filters.query) p.set('q', s.filters.query);
     if (s.filters.exact) p.set('exact', '1');
     if (s.filters.usage) p.set('usage', s.filters.usage);
-    if (s.filters.tiers.length) p.set('ft', s.filters.tiers.join(','));
+    const grouped = sel.lens === 'collections' && Boolean(sel.group);
+    if (s.filters.tiers.length ? !(app && isDefaultTiers(s.filters.tiers)) : app && !grouped) p.set('ft', s.filters.tiers.join(',') || 'all');
     if (s.filters.categories.length) p.set('fc', s.filters.categories.join(','));
     if (s.view.brand !== base.brand) p.set('brand', s.view.brand);
     if (s.view.allCombos) p.set('combos', '1');
@@ -174,6 +214,7 @@ export function initTokenExplorer() {
     return applyFilters(d.tokens, f);
   }
   function renderTree() {
+    if (!tree || !lens) return;
     const matching = counts();
     const n = (pred: (t: (typeof d.tokens)[number]) => boolean) => matching.filter(pred).length;
     selectSegment(lens, s.selection.lens);
@@ -223,6 +264,43 @@ export function initTokenExplorer() {
   }
 
   // ---- toolbar
+  /** Type chips of the Studio toolbar: All, then each type in scope, with counts that follow the filter field. */
+  const CHIP_LABEL: Partial<Record<TypeCategory, string>> = { motion: 'Motion' };
+  function renderChips() {
+    if (!chips) return;
+    const scope = scoped();
+    const matching = applyFilters(scope, { ...s.filters, categories: [] });
+    const cats = [...new Set(scope.map((t) => t.category))]
+      .map((c) => ({ c, label: CHIP_LABEL[c] ?? CATEGORY_LABEL[c] }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+    const current = s.filters.categories[0] ?? 'all';
+    const chip = (value: string, label: string, n: number) =>
+      `<button type="button" class="xp-chip-btn" aria-pressed="${current === value}" data-xp-chip="${value}">${esc(label)} <span class="xp-chip-n num">${n}</span></button>`;
+    chips.innerHTML = [chip('all', 'All', matching.length), ...cats.map(({ c, label }) => chip(c, label, matching.filter((t) => t.category === c).length))].join('');
+  }
+
+  function renderAppToolbar() {
+    const sel = s.selection;
+    const scope = scoped();
+    const tiers = s.filters.tiers.length ? [...s.filters.tiers].sort((a, b) => tierRank(a) - tierRank(b)) : [];
+    const tierWord = (t: Tier) => (t === 'primitive' ? 'Primitive' : TIER_NAMES[t]);
+    const names = tiers.map((t, i) => (i ? tierWord(t).toLowerCase() : tierWord(t)));
+    const which =
+      sel.lens === 'collections' && sel.group
+        ? `${TIER_NAMES[sel.tier as Tier] ?? 'All'} tokens in ${sel.group}`
+        : !names.length || names.length === TIER_ORDER.length
+          ? 'All tokens'
+          : `${names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0]} tokens`;
+    const brandMatters = view.plan.selectors.includes('brand') || view.plan.combos;
+    title.textContent = `${which}${brandMatters ? (s.view.allCombos ? ', every brand and theme.' : ` of the ${modeName(s.view.brand)} brand.`) : '.'}`;
+    q.placeholder = `Filter ${scope.length} tokens`;
+    count.textContent = `${view.visible.length} of ${scope.length} tokens shown`;
+    const n = (isDefaultTiers(s.filters.tiers) || sel.lens !== 'collections' || sel.group ? 0 : 1) + (s.filters.usage ? 1 : 0) + (s.filters.exact ? 1 : 0);
+    filterN.textContent = String(n);
+    filterN.hidden = n === 0;
+    renderChips();
+  }
+
   function renderToolbar() {
     const sel = s.selection;
     const label =
@@ -233,14 +311,23 @@ export function initTokenExplorer() {
         : sel.tier === 'all'
           ? 'All collections'
           : `${collectionTree(d.tokens).find((c) => c.tier === sel.tier)?.label ?? sel.tier}${sel.group ? ` / ${sel.group.split('.').join(' / ')}` : ''}`;
-    title.textContent = label;
-    const total = d.tokens.filter((t) => inSelection(t, sel)).length;
-    count.textContent = view.visible.length === total ? `${total} tokens` : `${view.visible.length} of ${total} tokens`;
-    const fN = activeFilterCount(s.filters);
-    filterN.textContent = String(fN);
-    filterN.hidden = fN === 0;
-    exact.setAttribute('aria-pressed', String(s.filters.exact));
-    filtersEl.querySelectorAll<HTMLInputElement>('input[name="xp-ft"]').forEach((i) => (i.checked = s.filters.tiers.includes(i.value as Tier)));
+    if (app) renderAppToolbar();
+    else {
+      title.textContent = label;
+      const total = d.tokens.filter((t) => inSelection(t, sel)).length;
+      count.textContent = view.visible.length === total ? `${total} tokens` : `${view.visible.length} of ${total} tokens`;
+      const fN = activeFilterCount(s.filters);
+      filterN.textContent = String(fN);
+      filterN.hidden = fN === 0;
+    }
+    exact.setAttribute(exact.getAttribute('role') === 'switch' ? 'aria-checked' : 'aria-pressed', String(s.filters.exact));
+    filtersEl.querySelectorAll<HTMLInputElement>('input[name="xp-ft"]').forEach(
+      (i) =>
+        (i.checked =
+          !app || s.filters.tiers.length
+            ? s.filters.tiers.includes(i.value as Tier)
+            : sel.lens !== 'collections' || sel.tier === 'all' || sel.tier === i.value),
+    );
     filtersEl.querySelectorAll<HTMLInputElement>('input[name="xp-fc"]').forEach((i) => (i.checked = s.filters.categories.includes(i.value as TypeCategory)));
     filtersEl.querySelectorAll<HTMLInputElement>('input[name="xp-usage"]').forEach((i) => (i.checked = i.value === s.filters.usage));
     syntaxSel.value = s.showCode ? s.syntax : '';
@@ -387,8 +474,14 @@ export function initTokenExplorer() {
     const x = d.byPath.get(path);
     if (!x) return;
     if (!view.visible.some((t) => t.path === path)) {
-      s.selection = { lens: 'collections', tier: x.tier };
-      s.filters = { ...emptyFilters() };
+      if (app) {
+        s.selection = { lens: 'collections', tier: 'all' };
+        const tiers = s.filters.tiers.length ? s.filters.tiers : [...APP_TIERS];
+        s.filters = { ...emptyFilters(), tiers: tiers.includes(x.tier) ? tiers : [...tiers, x.tier] };
+      } else {
+        s.selection = { lens: 'collections', tier: x.tier };
+        s.filters = { ...emptyFilters() };
+      }
       q.value = '';
       s.collapsed.clear();
       render({ sync: true });
@@ -498,19 +591,19 @@ export function initTokenExplorer() {
 
   // ---- events: left pane
   const segValue = (e: Event) => (e as CustomEvent<{ value: string }>).detail.value;
-  lens.addEventListener('bridge:segment', (e) => {
+  lens?.addEventListener('bridge:segment', (e) => {
     s.selection = segValue(e) === 'types' ? { lens: 'types', category: 'color' } : { lens: 'collections', tier: 'semantic' };
     s.collapsed.clear();
     render();
   });
-  tree.addEventListener('click', (e) => {
+  tree?.addEventListener('click', (e) => {
     const twist = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-twist]');
     if (twist) {
       const k = twist.dataset.twist!;
       if (s.treeOpen.has(k)) s.treeOpen.delete(k);
       else s.treeOpen.add(k);
       renderTree();
-      tree.querySelector<HTMLElement>(`[data-twist="${CSS.escape(k)}"]`)?.focus();
+      tree?.querySelector<HTMLElement>(`[data-twist="${CSS.escape(k)}"]`)?.focus();
       return;
     }
     const b = (e.target as HTMLElement).closest<HTMLButtonElement>('.xp-tree-btn');
@@ -520,7 +613,7 @@ export function initTokenExplorer() {
     if (b.dataset.group && b.dataset.tier) s.treeOpen.add(`${b.dataset.tier}:${b.dataset.group.split('.')[0]}`);
     s.collapsed.clear();
     render();
-    const sel = tree.querySelector<HTMLElement>('[aria-current="true"]');
+    const sel = tree?.querySelector<HTMLElement>('[aria-current="true"]');
     sel?.focus();
   });
 
@@ -549,16 +642,32 @@ export function initTokenExplorer() {
     s.filters.exact = !s.filters.exact;
     render();
   });
+  chips?.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLElement>('[data-xp-chip]');
+    if (!b) return;
+    const c = b.dataset.xpChip!;
+    s.filters.categories = c === 'all' ? [] : [c as TypeCategory];
+    render();
+    chips.querySelector<HTMLElement>(`[data-xp-chip="${CSS.escape(c)}"]`)?.focus();
+  });
   filtersEl.addEventListener('change', (e) => {
     const el = e.target as HTMLInputElement;
-    if (el.name === 'xp-ft') s.filters.tiers = el.checked ? [...s.filters.tiers, el.value as Tier] : s.filters.tiers.filter((x) => x !== el.value);
+    if (!['xp-ft', 'xp-fc', 'xp-usage'].includes(el.name)) return;
+    if (el.name === 'xp-ft' && app) {
+      // Studio: the collections are the table's scope; a group focus gives way to them.
+      const all = s.filters.tiers.length ? s.filters.tiers : TIER_ORDER.filter((t) => s.selection.lens !== 'collections' || s.selection.tier === 'all' || t === s.selection.tier);
+      s.filters.tiers = el.checked ? [...new Set([...all, el.value as Tier])] : all.filter((x) => x !== el.value);
+      if (!s.filters.tiers.length) s.filters.tiers = [el.value as Tier];
+      s.selection = { lens: 'collections', tier: 'all' };
+    } else if (el.name === 'xp-ft') s.filters.tiers = el.checked ? [...s.filters.tiers, el.value as Tier] : s.filters.tiers.filter((x) => x !== el.value);
     if (el.name === 'xp-fc') s.filters.categories = el.checked ? [...s.filters.categories, el.value as TypeCategory] : s.filters.categories.filter((x) => x !== el.value);
     if (el.name === 'xp-usage') s.filters.usage = el.value as '' | 'used' | 'unused';
     render();
   });
   filtersEl.addEventListener('click', (e) => {
     if (!(e.target as HTMLElement).closest('[data-xp-clear-filters]')) return;
-    s.filters = { ...emptyFilters(), query: s.filters.query, exact: s.filters.exact };
+    s.filters = app ? { ...emptyFilters(), query: s.filters.query, tiers: [...APP_TIERS], categories: s.filters.categories } : { ...emptyFilters(), query: s.filters.query, exact: s.filters.exact };
+    if (app) s.selection = { lens: 'collections', tier: 'all' };
     render();
   });
   filtersEl.addEventListener('keydown', (e) => {
@@ -569,7 +678,8 @@ export function initTokenExplorer() {
     }
   });
   root.querySelector('[data-xp-clear]')?.addEventListener('click', () => {
-    s.filters = emptyFilters();
+    s.filters = app ? { ...emptyFilters(), tiers: [...APP_TIERS] } : emptyFilters();
+    if (app) s.selection = { lens: 'collections', tier: 'all' };
     q.value = '';
     render();
     q.focus();

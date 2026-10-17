@@ -1,6 +1,5 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import CopyAs from '../../components/foundations/CopyAs.astro';
 import LibraryKit from '../../components/foundations/LibraryKit.astro';
 import TokenGroup from '../../components/foundations/TokenGroup.astro';
 import TokenList from '../../components/foundations/TokenList.astro';
@@ -11,7 +10,6 @@ const updated = freshness(PAGE_SOURCES.elevation);
 const elevation = groupRows('elevation');
 const shadows = primitiveRows('shadow');
 import LibraryHeader from '../../components/LibraryHeader.astro';
-import PreviewScope from '../../components/PreviewScope.astro';
 ---
 
 <Layout title="Elevation" description="Elevation levels on real surfaces in light and dark, and the shadow primitives behind them." sources={PAGE_SOURCES.elevation} updated={updated}>
@@ -19,15 +17,8 @@ import PreviewScope from '../../components/PreviewScope.astro';
     <LibraryHeader title="Elevation" art="foundations" updated={updated} studio="/studio/tokens/?focus=shadow">
       Things that float cast shadows; things that sit do not. Cards and panels are flat plates with a hairline edge. Only popovers, menus, dialogs, drawers and toasts get elevation, and dark mode uses darker, tighter shadows so edges stay visible.
     </LibraryHeader>
-    <div class="fd-toolbar">
-      <p class="fd-hint">Select a token to see where it is used and its history. Click a name to copy it.</p>
-      <div class="fd-tools">
-        <PreviewScope />
-        <CopyAs />
-      </div>
-    </div>
 
-    <TokenGroup group="elevation" title="Levels" rows={elevation} preview="shadow" specimen="elevation" />
+    <TokenGroup group="elevation" title="Levels" rows={elevation} preview="shadow" specimen="elevation" scope="brand" />
 
     <section class="fd-group" aria-labelledby="primitives">
       <header class="fd-group-head">

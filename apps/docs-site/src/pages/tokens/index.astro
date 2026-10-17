@@ -36,7 +36,7 @@ const panelData = Object.fromEntries(rows.map((r) => [r.path, { cssVar: r.cssVar
     <header class="at-head">
       <h1>All tokens</h1>
       <p class="at-lead">
-        Every semantic token in the latest release, <span class="mono">{version}</span>, with its light and dark value. Read only: copy a name, or open a token to see where its value comes from.
+        Every semantic token in the latest release, <span class="mono">{version}</span>, with its light and dark value. Read only: copy a token's CSS variable, or open a token to see where its value comes from.
       </p>
     </header>
 
@@ -107,7 +107,7 @@ const panelData = Object.fromEntries(rows.map((r) => [r.path, { cssVar: r.cssVar
                   </span>
                   </span>
                 </button>
-                <IconButton icon={ClipboardCopy} label={`Copy value var(${r.cssVar})`} size="sm" variant="secondary" className="at-copy has-tip" data-tip="Copy value" data-copy={`var(${r.cssVar})`} />
+                <IconButton icon={ClipboardCopy} label={`Copy variable var(${r.cssVar})`} size="sm" variant="secondary" className="at-copy has-tip" data-tip="Copy variable" data-copy={`var(${r.cssVar})`} />
               </li>
             ))
           }
@@ -143,7 +143,7 @@ const panelData = Object.fromEntries(rows.map((r) => [r.path, { cssVar: r.cssVar
         <div class="at-var">
           <span class="mono" id="at-p-var" data-at-p-var></span>
           <Button variant="secondary" size="sm" iconStart={ClipboardCopy} data-copy-from="at-p-var">
-            <span data-copy-label>Copy</span>
+            <span data-copy-label>Copy variable</span>
           </Button>
         </div>
       </aside>
