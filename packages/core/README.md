@@ -333,3 +333,24 @@ const report = runAudit('apps/admin/src', { ds: ds.root, label: 'admin', baselin
 The report schema is `packages/core/audit-report.schema.json` (also exported as
 `@bridge-ds/core/audit-report.schema.json`). `bridge.config.json` takes an optional `audit` section:
 `packages`, `foreignLibraries`, `nativeElements`, `exclude`.
+
+## component specs (`component-spec.ts`, generator in `@bridge-ds/core/node`)
+
+A declarative description of a coded component that a design tool can rebuild: variant axes, TEXT and BOOLEAN
+properties, parts (frames, text, icons with auto layout) and, per variant, the token path behind every fill, stroke,
+radius, padding, gap, size and text property. The DS Bridge Figma plugin pulls it as component sets bound to variables.
+
+```ts
+import { parseComponentSpecs, variantKeyOf, type ComponentSpec } from '@bridge-ds/core';
+import { generateRepoComponentSpecs, serializeComponentSpecs } from '@bridge-ds/core/node';
+
+const file = generateRepoComponentSpecs('/path/to/repo', ['Button']); // reads bridge.config.json, tokens, TSX, CSS modules
+```
+
+Derived from code, never hand-maintained: `npm run specs` writes `packages/react/component-specs.json` (path:
+`components.specs` in the config), and `packages/core/test/component-specs.test.ts` fails when it is out of date.
+The generator reads the component with the TypeScript parser (props interface, defaults, the JSX it returns for given
+props, nested DS components such as Icon) and runs a small CSS cascade (`spec-css.ts`: classes, attributes, `:hover`,
+`:active`, `:not()`, `:has()`, combinators, `@media (hover: hover)`, specificity, inheritance, custom properties).
+Union props that change the styles become axes; a `State` axis lists the states (Hover, Pressed, Disabled) that look
+different. Values that are not a token (`calc()`, percentages) and props it does not draw are listed in `unmapped`.

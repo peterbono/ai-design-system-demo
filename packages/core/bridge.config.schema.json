@@ -276,6 +276,11 @@
         "index": {
           "type": "string",
           "description": "Barrel file new components are exported from."
+        },
+        "specs": {
+          "type": "string",
+          "description": "Generated component specs (npm run specs) the Figma plugin pulls as component sets, repo-relative.",
+          "default": "packages/react/component-specs.json"
         }
       }
     },
