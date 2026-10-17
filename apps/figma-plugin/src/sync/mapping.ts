@@ -206,6 +206,18 @@ export interface FigmaReadResult {
   untagged: Set<string>;
   layout: 'single-collection' | 'split-collections' | 'none';
   warnings: string[];
+  /** Modes of the Brand collection with no brand file in Git: candidates for a new brand (see flows.ts). */
+  extraBrandModes: ExtraBrandMode[];
+}
+
+/** A Brand mode Figma has and Git does not, read back as brand-file token values. */
+export interface ExtraBrandMode {
+  /** Figma mode name, as typed ("Acme"). */
+  name: string;
+  /** Lowercase mode key ("acme"). */
+  modeKey: string;
+  /** Token path -> DTCG value in that mode (aliases to synced variables become "{path}"). */
+  values: Record<string, unknown>;
 }
 
 /** Managed collections of one tier: a single collection, or one collection per mode (split layout). */
@@ -368,6 +380,13 @@ export function snapshotToTokens(snapshot: FigmaSnapshot, repoLayout: RepoLayout
     }
   };
 
+  // Values of Brand modes with no file in Git, converted once every token (and its type) is known.
+  const extra = new Map<string, { name: string; items: { v: SnapshotVariable; value: FigmaValue | undefined }[] }>();
+  const collectExtra = (modeKey: string, name: string, v: SnapshotVariable, value: FigmaValue | undefined) => {
+    const e = extra.get(modeKey) ?? extra.set(modeKey, { name, items: [] }).get(modeKey)!;
+    e.items.push({ v, value });
+  };
+
   let sawSingle = false;
   let sawSplit = false;
   for (const tier of TIER_ORDER) {
@@ -383,28 +402,44 @@ export function snapshotToTokens(snapshot: FigmaSnapshot, repoLayout: RepoLayout
     if (m.single) {
       sawSingle = true;
       const modeKeyOf = new Map(m.single.modes.map((x) => [x.modeId, x.name.trim().toLowerCase()]));
-      for (const [, key] of modeKeyOf) if (!modes.includes(key)) warnings.push(`Mode "${key}" in the ${name} collection has no file in Git and is ignored.`);
+      // A new Brand mode is a new brand candidate (flows.ts decides); other tiers ignore unknown modes.
+      for (const [, key] of modeKeyOf) if (!modes.includes(key) && tier !== 'brand') warnings.push(`Mode "${key}" in the ${name} collection has no file in Git and is ignored.`);
       for (const v of snapshot.variables) {
         if (v.collectionId !== m.single.id) continue;
         for (const x of m.single.modes) {
           const key = modeKeyOf.get(x.modeId)!;
           if (modes.includes(key)) take(v, tier, key, v.valuesByMode[x.modeId]);
+          else if (tier === 'brand') collectExtra(key, x.name.trim(), v, v.valuesByMode[x.modeId]);
         }
       }
     } else if (m.split.size) {
       sawSplit = true;
       for (const [mode, c] of m.split) {
         if (!modes.includes(mode)) {
-          warnings.push(`Collection "${c.name}" has no file in Git and is ignored.`);
+          if (tier === 'brand') {
+            const modeName = c.name.slice(name.length + 1).trim();
+            for (const v of snapshot.variables) if (v.collectionId === c.id) collectExtra(mode, modeName, v, v.valuesByMode[c.defaultModeId]);
+          } else warnings.push(`Collection "${c.name}" has no file in Git and is ignored.`);
           continue;
         }
         for (const v of snapshot.variables) if (v.collectionId === c.id) take(v, tier, mode, v.valuesByMode[c.defaultModeId]);
       }
     }
   }
+  const extraBrandModes: ExtraBrandMode[] = [...extra].map(([modeKey, { name, items }]) => {
+    const values: Record<string, unknown> = {};
+    for (const { v, value } of items) {
+      const path = nameToPath(v.name);
+      if (!path || value === undefined) continue;
+      const type = tokenByPath.get(path)?.type ?? v.pluginData.dtcgType ?? inferType(path, v.resolvedType, context);
+      const dtcg = figmaToDtcg(type, value, v.pluginData, aliasPath);
+      if (dtcg !== undefined) values[path] = dtcg;
+    }
+    return { name, modeKey, values };
+  });
   const layout: FigmaReadResult['layout'] = sawSplit ? 'split-collections' : sawSingle ? 'single-collection' : 'none';
 
   const otherCount = snapshot.variables.filter((v) => !managedIds.has(v.collectionId)).length;
   if (otherCount) warnings.push(`${otherCount} variable(s) in other collections are not synced.`);
-  return { tokens: [...tokens.values()], variableIds, variableNames, untagged, layout, warnings: [...new Set(warnings)] };
+  return { tokens: [...tokens.values()], variableIds, variableNames, untagged, layout, warnings: [...new Set(warnings)], extraBrandModes };
 }
