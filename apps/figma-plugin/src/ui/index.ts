@@ -17,7 +17,7 @@ import { type ContrastResult, contextLabel, pairKey } from '@bridge-ds/core';
 import { type ApplyReport, type FigmaSnapshot, type InitPayload, type RepoSettings, modeDisplayName } from '../shared/messages';
 import { REQUEST_KINDS, type RequestKind, draftPushDescription, pushChangeRows } from '@bridge-ds/core';
 import { type ComponentChangeItem, type ComponentScan, type RequestDraft, classifyComponents, pullBaselines, suggestSummary, suggestTitle, toRequest } from '../sync/components';
-import { CLAUDE_MODELS, type ClaudeDraft, type ClaudeDraftInput, ClaudeDraftError, DRAFTED_NOTE, copyPrompt, draftWithClaude, parseClaudeAnswer } from '../sync/claude';
+import { CLAUDE_MODELS, type ClaudeDraft, type ClaudeDraftInput, ClaudeDraftError, DRAFTED_NOTE, draftWithClaude } from '../sync/claude';
 import { loadCodedComponents, sendComponentRequest } from '../sync/requests';
 import { DRAFT_PHRASE, type DraftField, DraftPoller, MCP_CLONE, type MyClaudeTarget, finishMyClaudeDrafts, mcpSnippets, planFill, startMyClaudeDrafts } from '../sync/my-claude';
 import { type ComponentApplyReport, type ComponentPullPlan, type PlannedComponent, buildComponentPlan, loadComponentSpecs } from '../sync/component-pull';
@@ -455,18 +455,16 @@ function refreshProposals(): void {
   render();
 }
 
+/** What stays in code by design (brand x theme overrides): not something the designer acts on, so not shown. */
+const isCodeOnlyNote = (w: string) => w.includes('stay code-only');
+
+/** Notes the designer may act on. What stays in code by design (code-only tokens, overrides, undrawn parts) is not shown. */
 function notes(a: Analysis): Child {
-  if (!a.warnings.length && !a.codeOnly.length) return null;
-  return h(
-    'details',
-    { class: 'notes' },
-    h('summary', null, a.warnings.length ? plural(a.warnings.length, 'note') : 'Details'),
-    a.warnings.length ? h('ul', null, a.warnings.map((w) => h('li', null, w))) : null,
-    a.codeOnly.length
-      ? h('p', { class: 'muted' }, `${plural(a.codeOnly.length, 'token')} stay in code only because Figma variables cannot hold them: ${a.codeOnly.map((u) => u.path).join(', ')}.`)
-      : null,
-  );
+  const shown = a.warnings.filter((w) => !isCodeOnlyNote(w));
+  if (!shown.length) return null;
+  return h('details', { class: 'notes' }, h('summary', null, plural(shown.length, 'note')), h('ul', null, shown.map((w) => h('li', null, w))));
 }
+
 
 // ---------------------------------------------------------------------------------------------
 // Actions
@@ -918,29 +916,6 @@ async function copyText(text: string): Promise<boolean> {
   }
 }
 
-async function copyForClaude(a: AssistState, t: AssistTarget): Promise<void> {
-  const prompt = copyPrompt(t.input());
-  const ok = await copyText(prompt);
-  a.pasteOpen = true;
-  a.prompt = ok ? undefined : prompt;
-  a.message = ok
-    ? { kind: 'ok', text: 'Prompt copied. Paste it in Claude.ai or Claude Desktop, attach before and after screenshots if you have them, then paste the answer here.' }
-    : { kind: 'error', text: 'Copying was blocked by Figma. Select the prompt below, copy it, and paste it in Claude.' };
-  render();
-}
-
-function usePasted(a: AssistState, t: AssistTarget): void {
-  try {
-    t.apply(parseClaudeAnswer(a.pasteText));
-    a.pasteText = '';
-    a.pasteOpen = false;
-    a.prompt = undefined;
-    a.message = undefined;
-  } catch (err) {
-    a.message = { kind: 'error', text: err instanceof ClaudeDraftError ? err.message : String(err) };
-  }
-  render();
-}
 
 async function runClaude(a: AssistState, t: AssistTarget): Promise<void> {
   const c = state.init?.claude;
@@ -1125,7 +1100,7 @@ function offerView(a: AssistState, t: AssistTarget): Child {
   );
 }
 
-/** The writing help under a field: Copy for Claude, Paste Claude's answer, and Draft with Claude when a key is saved. */
+/** The writing help under a field: the designer's own Claude through MCP, or the API key when one is saved. */
 function assistView(a: AssistState, t: AssistTarget): HTMLElement {
   const withKey = !!state.init?.claude.hasKey;
   const waiting = mineActive(a);
@@ -1153,42 +1128,27 @@ function assistView(a: AssistState, t: AssistTarget): HTMLElement {
         'aria-expanded': a.menuOpen ? 'true' : 'false',
         'aria-haspopup': 'menu',
         disabled: !!state.busy || waiting,
-        onClick: () => { a.menuOpen = !a.menuOpen; render(); },
+        // Without an API key there is one way (the designer's own Claude): start it, no menu of one.
+        onClick: () => {
+          if (!withKey) return startMine(a, t);
+          a.menuOpen = !a.menuOpen;
+          render();
+        },
       },
       'Draft with Claude',
-      icon(a.menuOpen ? 'chevron-up' : 'chevron-down'),
+      withKey ? icon(a.menuOpen ? 'chevron-up' : 'chevron-down') : null,
     ),
     a.menuOpen
       ? h(
           'div',
           { class: 'ways-menu', role: 'menu', 'aria-label': 'Draft with Claude' },
           way('mine', 'With my Claude (MCP)', state.init?.hasToken ? 'Your plan, in Claude Desktop or Claude Code. Set up once in Settings.' : 'Add a GitHub token in Settings first.', pick(() => startMine(a, t)), { tag: 'Recommended', disabled: !state.init?.hasToken }),
-          way('copy', 'Copy a prompt', 'Paste it in Claude.ai, then paste the answer back here.', pick(() => void copyForClaude(a, t))),
           withKey ? way('claude', 'With my API key', 'One click, billed to your Anthropic account.', pick(() => void runClaude(a, t))) : null,
         )
       : null,
     mineView(a, t),
     offerView(a, t),
     a.message ? h('p', { class: a.message.kind === 'error' ? 'form-error' : 'assist-note', role: a.message.kind === 'error' ? 'alert' : 'status' }, a.message.kind === 'error' ? icon('alert') : icon('check'), a.message.text) : null,
-    a.prompt ? h('textarea', { class: 'mono-area', rows: '4', readonly: true, 'aria-label': 'Prompt for Claude', onFocus: (e: Event) => (e.target as HTMLTextAreaElement).select() }, a.prompt) : null,
-    a.pasteOpen
-      ? h(
-          'div',
-          { class: 'paste' },
-          h(
-            'label',
-            { class: 'field' },
-            h('span', null, "Claude's answer"),
-            h('textarea', { rows: '3', 'data-focus-id': `${t.id}-paste`, spellcheck: 'false', placeholder: '{"title": "...", "summary": "..."}', onInput: (e: Event) => (a.pasteText = (e.target as HTMLTextAreaElement).value) }, a.pasteText),
-          ),
-          h(
-            'div',
-            { class: 'inline-actions' },
-            h('button', { class: 'btn', 'data-focus-id': `${t.id}-use`, onClick: () => usePasted(a, t) }, 'Use this answer'),
-            h('button', { class: 'btn ghost', onClick: () => { a.pasteOpen = false; a.prompt = undefined; a.message = undefined; render(); } }, 'Cancel'),
-          ),
-        )
-      : null,
   );
 }
 
@@ -1406,12 +1366,6 @@ function viewPull(): View {
   };
 }
 
-/** "Button: loading prop, not drawn in this version." or "Badge, root: min-height, calc() has no Figma equivalent." */
-function problemText(x: { component: string; part: string; property: string; reason: string }): string {
-  if (x.property.startsWith('prop ')) return `${x.component}: ${x.property.slice(5)} prop, ${x.reason}.`;
-  return `${x.component}, ${x.part}: ${x.property}, ${x.reason}.`;
-}
-
 /** Before and after thumbnails side by side; "after" exists once the set is updated. */
 function thumbs(p: PullState, nodeId: string, name: string): HTMLElement {
   const img = (b64: string | undefined, label: string, empty: string) =>
@@ -1464,7 +1418,6 @@ function componentsGroup(p: PullState): Child {
   const reviews = [...p.reviews.filter((r) => !p.done.has(r.componentId)), ...p.done.values()];
   const fresh = plan.components.filter((c) => c.status === 'new');
   const upToDate = plan.components.filter((c) => c.status === 'unchanged' && !p.done.has(c.componentId));
-  const problems = plan.problems;
   const out: Child[] = [];
   if (reviews.length) out.push(reviewGroup(p, reviews));
   out.push(
@@ -1490,15 +1443,6 @@ function componentsGroup(p: PullState): Child {
               'pull-components',
               fresh.map((c) => h('li', { class: 'row' }, h('div', { class: 'row-head' }, h('span', { class: 'kind added' }, 'New'), h('span', { class: 'comp-name' }, c.name), h('span', { class: 'muted' }, plural(c.variants.length, 'variant'))))),
               10,
-            )
-          : null,
-        problems.length
-          ? h(
-              'details',
-              { class: 'notes' },
-              h('summary', null, `Not bound or not drawn (${problems.length})`),
-              h('p', { class: 'muted' }, 'Drawn without a variable, or not drawn, because Figma has no equivalent in this version.'),
-              h('ul', null, problems.map((x) => h('li', null, problemText(x)))),
             )
           : null,
       ],
@@ -2242,51 +2186,63 @@ function snippet(id: string, label: string, text: string): HTMLElement {
   );
 }
 
-/** Settings, "Claude (optional)": your own Claude through MCP (recommended), Copy for Claude, or an API key. Summary first, setup behind disclosures. */
+/**
+ * Settings, Claude: two ways as rows of one region (the designer's own Claude through MCP, recommended; or an API
+ * key), each with its state on the right. A row opens its setup: summary first, details on demand.
+ */
 function claudeCard(): HTMLElement {
   const c = state.init!.claude;
   const repo = state.init!.settings.repo;
   const mcp = mcpSnippets(repo);
   const msg = state.claudeMessage;
+  const toggle = (key: string) => () => {
+    state.expanded.has(key) ? state.expanded.delete(key) : state.expanded.add(key);
+    render();
+  };
+  const row = (key: string, title: string, hint: string, status: string, tag: string | null, body: Child) => {
+    const open = state.expanded.has(key) || (key === 'claude-key' && !!msg);
+    return h(
+      'li',
+      { class: 'opt' },
+      h(
+        'button',
+        { class: 'opt-head', 'aria-expanded': open ? 'true' : 'false', 'data-focus-id': key, onClick: toggle(key) },
+        h('span', { class: 'opt-text' }, h('span', { class: 'opt-title' }, title, tag ? h('span', { class: 'tag' }, tag) : null), h('small', null, hint)),
+        h('span', { class: 'opt-status' }, status),
+        icon(open ? 'chevron-up' : 'chevron-down'),
+      ),
+      open ? h('div', { class: 'opt-body' }, body) : null,
+    );
+  };
   return h(
     'section',
     { class: 'card' },
-    h('div', { class: 'group-head' }, h('h2', null, 'Claude (optional)')),
-    h('p', { class: 'lede' }, 'Claude writes request and pull request text from the detected changes and the before and after images. You review it before anything is sent.'),
+    h('div', { class: 'group-head' }, h('h2', null, 'Claude', h('span', { class: 'group-n' }, 'Optional'))),
+    h('p', { class: 'lede' }, 'Writes your request and pull request text from the changes it sees. You review it before anything is sent.'),
     h(
-      'div',
-      { class: 'way' },
-      h('div', { class: 'way-title' }, h('b', null, 'With my Claude (MCP)'), h('span', { class: 'tag' }, 'Recommended')),
-      h('p', { class: 'muted' }, `Your own plan in Claude Desktop or Claude Code, no API key. Click "Draft with Claude", pick this, then say "${DRAFT_PHRASE}" to your Claude.`),
-      h(
-        'details',
-        { class: 'setup', open: state.expanded.has('mcp-setup') },
-        h('summary', { class: 'btn ghost', 'data-focus-id': 'mcp-setup', onClick: (e: Event) => { e.preventDefault(); state.expanded.has('mcp-setup') ? state.expanded.delete('mcp-setup') : state.expanded.add('mcp-setup'); render(); } }, state.expanded.has('mcp-setup') ? 'Hide setup' : 'Show setup'),
+      'ul',
+      { class: 'opts' },
+      row(
+        'mcp-setup',
+        'Your Claude plan',
+        'Claude Desktop or Claude Code, through MCP. No API key.',
+        'Set up once',
+        'Recommended',
         h(
           'ol',
           { class: 'setup-steps' },
-          h('li', null, 'The Bridge MCP server is not on npm yet. Build it once in a terminal:', snippet('clone', 'Terminal', MCP_CLONE)),
-          h('li', null, 'Claude Desktop: Settings, Developer, Edit config. Add this to claude_desktop_config.json, then restart Claude Desktop.', snippet('desktop', 'claude_desktop_config.json', mcp.desktop)),
-          h('li', null, 'Or Claude Code: run this in a terminal.', snippet('code', 'Terminal', mcp.code)),
-          h('li', null, `Replace /path/to/bridge with the folder you cloned. Use the same GitHub token as this plugin, as GITHUB_TOKEN, with Contents read and write on ${repo || 'this repository'}.`),
+          h('li', null, 'Build the Bridge MCP server once (it is not on npm yet).', snippet('clone', 'Terminal', MCP_CLONE)),
+          h('li', null, 'Add it to Claude Desktop (Settings, Developer, Edit config), then restart it.', snippet('desktop', 'claude_desktop_config.json', mcp.desktop)),
+          h('li', null, 'Or add it to Claude Code.', snippet('code', 'Terminal', mcp.code)),
+          h('li', null, `Use this plugin's GitHub token as GITHUB_TOKEN. Then click "Draft with Claude" and say "${DRAFT_PHRASE}" to your Claude.`),
         ),
       ),
-    ),
-    h(
-      'div',
-      { class: 'way' },
-      h('div', { class: 'way-title' }, h('b', null, 'Copy a prompt')),
-      h('p', { class: 'muted' }, 'No setup. Paste the prompt in Claude.ai, then paste the answer back in the plugin.'),
-    ),
-    h(
-      'div',
-      { class: 'way' },
-      h('div', { class: 'way-title' }, h('b', null, 'With an API key'), c.hasKey ? h('span', { class: 'tag' }, 'Key saved') : null),
-      h('p', { class: 'muted' }, 'One click, billed to your Anthropic account. Each draft sends the changes and the images to Anthropic.'),
-      h(
-        'details',
-        { class: 'setup', open: state.expanded.has('claude-key') || !!msg },
-        h('summary', { class: 'btn ghost', 'data-focus-id': 'claude-key-toggle', onClick: (e: Event) => { e.preventDefault(); state.expanded.has('claude-key') ? state.expanded.delete('claude-key') : state.expanded.add('claude-key'); render(); } }, state.expanded.has('claude-key') || msg ? 'Hide key settings' : 'Show key settings'),
+      row(
+        'claude-key',
+        'An API key',
+        'One click, billed to your Anthropic account.',
+        c.hasKey ? 'Key saved' : 'Not set up',
+        null,
         h(
           'div',
           { class: 'setup-steps' },
@@ -2299,11 +2255,11 @@ function claudeCard(): HTMLElement {
               value: '',
               autocomplete: 'off',
               spellcheck: 'false',
-              'data-focus-id': 'claude-key',
+              'data-focus-id': 'claude-key-input',
               placeholder: c.hasKey ? 'Saved, hidden' : 'sk-ant-...',
               onInput: (e: Event) => (state.claudeKeyDraft = (e.target as HTMLInputElement).value),
             }),
-            h('small', null, 'Kept in Figma client storage on this computer. Never shown again, never written into the file, only sent to api.anthropic.com.'),
+            h('small', null, 'Stays on this computer, never in the file. Each draft sends the changes and images to Anthropic.'),
           ),
           h(
             'label',
@@ -2318,7 +2274,7 @@ function claudeCard(): HTMLElement {
           h(
             'div',
             { class: 'inline-actions' },
-            h('button', { class: 'btn', 'data-focus-id': 'claude-save', onClick: saveClaude }, c.hasKey ? 'Save Claude settings' : 'Save key'),
+            h('button', { class: 'btn', 'data-focus-id': 'claude-save', onClick: saveClaude }, c.hasKey ? 'Save' : 'Save key'),
             c.hasKey ? h('button', { class: 'btn ghost danger', onClick: removeClaudeKey }, 'Remove key') : h('button', { class: 'btn ghost', onClick: () => void request('open-url', { url: 'https://console.anthropic.com/settings/keys' }) }, icon('external'), 'Create a key'),
           ),
           msg ? h('p', { class: msg.kind === 'error' ? 'form-error' : 'assist-note', role: msg.kind === 'error' ? 'alert' : 'status' }, icon(msg.kind === 'error' ? 'alert' : 'check'), msg.text) : null,

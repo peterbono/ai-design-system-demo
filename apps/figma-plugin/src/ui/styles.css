@@ -337,3 +337,16 @@ div.setup-steps { padding-left: 0; }
 .snippet { display: flex; flex-direction: column; gap: var(--s1); margin-top: var(--s1); }
 .snippet-head { display: flex; align-items: center; justify-content: space-between; color: var(--text-3); font-size: 11px; }
 .snippet pre { font-family: var(--mono); font-size: 11px; line-height: 16px; margin: 0; padding: var(--s2); border-radius: var(--r-sm); background: var(--bg-sunken); border: 1px solid var(--border); white-space: pre-wrap; word-break: break-all; color: var(--text); }
+
+/* Settings, Claude: options as rows of one region; a row opens its setup (progressive disclosure). */
+.opts { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: var(--r-lg); }
+.opt + .opt { border-top: 1px solid var(--border); }
+.opt-head { display: flex; align-items: center; gap: var(--s3); width: 100%; min-height: 56px; padding: var(--s2) var(--s3); border: 0; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; border-radius: var(--r-lg); }
+.opt-head:hover { background: var(--bg-hover); }
+.opt-head .icon { width: 14px; height: 14px; flex: none; color: var(--text-3); }
+.opt-text { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.opt-title { display: flex; align-items: center; gap: var(--s2); font-weight: 600; }
+.opt-text small { color: var(--text-2); font-size: 12px; }
+.opt-status { flex: none; color: var(--text-2); }
+.opt-body { padding: 0 var(--s3) var(--s3); }
+
