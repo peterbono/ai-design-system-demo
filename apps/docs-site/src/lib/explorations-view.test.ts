@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { composeRequestIssue, explorationPrBody } from '@bridge-ds/core';
+import { composeRequestIssue, explorationPrBody, previewComment } from '@bridge-ds/core';
 import {
   branchFor,
   explorationRows,
@@ -12,6 +12,8 @@ import {
   startProblems,
   tierSlot,
   type ExplorationPullLike,
+  tryItCopy,
+  tryItFromComments,
 } from './explorations-view';
 import type { IssueLike } from './requests-view';
 
@@ -52,8 +54,9 @@ describe('explorations view', () => {
     ]);
     const pill = rows.find((r) => r.number === 1)!;
     expect(pill).toMatchObject({ name: 'Pill buttons', slug: 'pill-buttons', branch: 'explore/pill-buttons', purpose: 'Learn 1.', useCaseLabel: 'Prototype for a user test', author: 'designer', tone: '' });
-    expect(pill.install.command).toBe('npm i @bridge-ds/tokens@https://pkg.pr.new/acme/ds/@bridge-ds/tokens@1 @bridge-ds/react@https://pkg.pr.new/acme/ds/@bridge-ds/react@1');
-    expect(pill.install.fallback?.command).toContain('releases/download/preview-pr-1/bridge-ds-react-1111111.tgz');
+    // No guessed install command on the row: the detail reads it from the preview comment (tryItFromComments).
+    expect('install' in pill).toBe(false);
+    expect(pill.headSha.startsWith('1111111')).toBe(true);
     expect(pill.previews).toEqual([{ app: 'docs', label: 'Docs', url: 'https://docs-git-explore-pill-buttons-acme.vercel.app/' }]);
     expect(pill.requests.map((q) => q.number)).toEqual([40]);
     expect(openRequestNumbers(pill)).toEqual([40]);
@@ -87,5 +90,19 @@ describe('explorations view', () => {
     expect(startCommand({ name: 'Pill "round" buttons', purpose: 'Costs $5?' })).toBe('bridge explore start "Pill \\"round\\" buttons" --purpose "Costs \\$5?"');
     expect(implementOnCommand(40, 'explore/pill-buttons')).toBe('bridge request implement 40 --branch explore/pill-buttons');
     expect(implementOnCommand(null, 'explore/x')).toBe('bridge request implement <number> --branch explore/x');
+  });
+
+  it('try it: the command from the preview comment of the head commit, never a guessed pkg.pr.new URL', () => {
+    const sha = '0123456789abcdef0123456789abcdef01234567';
+    const tarball = 'https://github.com/acme/ds/releases/download/preview-pr-1/bridge-ds-react-0123456.tgz';
+    const comment = previewComment({ owner: 'acme', repo: 'ds', pr: 1, branch: 'explore/pill-buttons', sha, packages: [{ name: '@bridge-ds/react', url: tarball }], source: 'release', apps: {}, exploration: true });
+    const ready = tryItCopy(tryItFromComments([{ body: 'DS Bridge added a commit' }, { body: comment }], sha));
+    expect(ready.command).toBe(`npm i @bridge-ds/react@${tarball}`);
+    expect(ready.sentence).toMatch(/Tarballs of the latest commit/);
+    // No comment yet, or a comment about an older commit: being prepared, no command.
+    expect(tryItCopy(tryItFromComments([], sha))).toEqual({ sentence: expect.stringMatching(/being prepared/), command: null });
+    expect(tryItCopy(tryItFromComments([{ body: comment }], 'fedcba9876543210')).command).toBeNull();
+    const failed = previewComment({ owner: 'acme', repo: 'ds', pr: 1, branch: 'explore/pill-buttons', sha, packages: [], source: 'none', apps: {}, exploration: true });
+    expect(tryItCopy(tryItFromComments([{ body: failed }], sha)).sentence).toMatch(/did not finish/);
   });
 });

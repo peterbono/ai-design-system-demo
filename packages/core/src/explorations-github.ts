@@ -14,16 +14,18 @@ import {
   explorationProblems,
   explorationSlug,
   explorationStatus,
+  explorationTryIt,
   isExplorationPull,
   parseExplorationBody,
   promotionPlan,
   type Exploration,
   type ExplorationInstall,
   type ExplorationStatus,
+  type ExplorationTryIt,
   type PromotionPlan,
 } from './explorations';
 import { GitHubError, type GitHubClient, type PullRequestSummary } from './github-client';
-import { previewLinks, type PreviewApps } from './previews';
+import { findPreviewComment, previewLinks, type PreviewApps } from './previews';
 
 export interface ExplorationSettings {
   /** Branch explorations start from and pull requests target (the default branch). */
@@ -121,6 +123,15 @@ export async function startExplorationOnGitHub(gh: GitHubClient, e: Exploration,
     install: explorationInstall({ owner: gh.owner, repo: gh.name, pr: pr.number, packages: s.packages, sha: commit.sha }),
     previews: previewLinks(s.apps, { branch, pr: pr.number, sha: commit.sha }),
   };
+}
+
+/**
+ * Where the test build of an exploration stands: the install command from its sticky preview comment when it matches
+ * the branch head, "building" while the workflow has not caught up, "failed" when the publish failed. Two reads.
+ */
+export async function explorationTryItOnGitHub(gh: GitHubClient, e: { number: number; branch: string }): Promise<ExplorationTryIt> {
+  const [comments, head] = await Promise.all([gh.listIssueComments(e.number), gh.getBranchSha(e.branch).catch(() => undefined)]);
+  return explorationTryIt({ comment: findPreviewComment(comments)?.body, headSha: head });
 }
 
 /** The open exploration pull request of a branch, slug or number. */

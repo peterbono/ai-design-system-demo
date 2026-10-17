@@ -13,10 +13,12 @@ import {
   explorationProblems,
   explorationSlug,
   explorationSummary,
+  explorationTryIt,
+  findPreviewComment,
   isActiveExploration,
   isExplorationPull,
-  type ExplorationInstall,
   type ExplorationStatus,
+  type ExplorationTryIt,
   type PreviewApps,
   type PullRequestSummary,
 } from '@bridge-ds/core';
@@ -71,7 +73,8 @@ export interface ExplorationRow {
   author: string;
   updatedAt: string;
   previews: { app: string; label: string; url: string }[];
-  install: ExplorationInstall;
+  /** Head commit: the preview comment's snapshot must match it before its install command is shown. */
+  headSha: string;
   requests: LinkedRequest[];
 }
 
@@ -136,7 +139,7 @@ export function explorationRows(pulls: ExplorationPullLike[], cfg: ExplorationsC
         author: s.author,
         updatedAt: s.updatedAt,
         previews: s.previews,
-        install: s.install,
+        headSha: p.head.sha,
         requests: linkedRequests(s.branch, reqs),
       };
     })
@@ -191,3 +194,22 @@ export function startCommand(f: Pick<StartForm, 'name' | 'purpose'>): string {
 /** What Claude runs to implement a request on this exploration. */
 export const implementOnCommand = (request: number | null, branch: string) => `bridge request implement ${request ?? '<number>'} --branch ${branch}`;
 export const promoteCommand = (slug: string) => `bridge explore promote ${slug}`;
+
+// ---------------------------------------------------------------------------------------------------------------
+// Try it in a product staging branch: the command the preview workflow actually published (its sticky comment),
+// never a guessed pkg.pr.new URL.
+
+/** Where the test build stands, from the pull request's comments and the head commit. */
+export const tryItFromComments = (comments: { body?: string | null }[], headSha: string): ExplorationTryIt => explorationTryIt({ comment: findPreviewComment(comments)?.body, headSha });
+
+/** The sentence and the command (when there is one) the detail shows. */
+export function tryItCopy(t: ExplorationTryIt): { sentence: string; command: string | null } {
+  if (t.state === 'ready') {
+    return {
+      sentence: `In the product repo, on a branch that deploys to staging (production keeps the released version). ${t.source === 'release' ? 'Tarballs of the latest commit, from the preview prerelease.' : t.source === 'pkg.pr.new' ? 'pkg.pr.new snapshot of the latest commit.' : 'Snapshot of the latest commit.'}`,
+      command: t.command,
+    };
+  }
+  if (t.state === 'failed') return { sentence: 'The test build did not finish for the latest commit. The Preview packages run on the pull request says why.', command: null };
+  return { sentence: 'The test build is being prepared, a few minutes. The command appears here and on the pull request when it is ready.', command: null };
+}
