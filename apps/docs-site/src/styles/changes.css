@@ -86,6 +86,17 @@
   margin: 0;
 }
 
+/* Tier filter (?tier=N, from Settings Approvals): one quiet line above the list. */
+.cg-filter {
+  margin-top: var(--space-4);
+}
+
+.cg-none {
+  padding: var(--space-3) var(--space-5);
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+}
+
 /* The table: one card, one line per pull request. */
 .cg-card {
   margin-top: var(--space-4);

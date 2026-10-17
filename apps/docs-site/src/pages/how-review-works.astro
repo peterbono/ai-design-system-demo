@@ -1,0 +1,152 @@
+---
+// Library, Use: How review works. The governance prose that used to sit in Studio Settings: risk tiers at rest,
+// then collapsible sections (the journey of a change, review gates, owner override, approvals by area, the AI
+// agent's rules, what reviewers check on an agent's pull request). Read from docs/GOVERNANCE.md and AGENTS.md so
+// the page never drifts from the rules people and agents follow.
+import '../styles/library.css';
+import '../styles/review-guide.css';
+import Layout from '../layouts/Layout.astro';
+import LibraryHeader from '../components/LibraryHeader.astro';
+import MarkdownTable from '../components/ds/MarkdownTable';
+import { siteRepo } from '../lib/config';
+import { agentRules, approvals, reviewGates, reviewingAgentPrs, riskTiers } from '../lib/governance';
+import { inline } from '../lib/markdown';
+import { PAGE_SOURCES, freshness } from '../lib/sources';
+
+const sources = PAGE_SOURCES.governance;
+const updated = freshness(sources);
+const r = siteRepo();
+const tiers = riskTiers();
+const who = approvals();
+const gates = reviewGates();
+const agentChecks = reviewingAgentPrs();
+const rules = agentRules();
+const ruleCount = rules.reduce((n, g) => n + g.rules.length, 0);
+
+const tierRows = tiers ? tiers.rows.map((row) => [`Tier ${inline(row[0] ?? '')}`, ...row.slice(1).map(inline)]) : [];
+const tierIds = tiers ? tiers.rows.map((row) => `tier-${(row[0] ?? '').split(',')[0]!.trim()}`) : [];
+const whoRows = who ? who.rows.map((row) => row.map(inline)) : [];
+
+const journey: { title: string; text: string }[] = [
+  { title: 'Explore in Figma', text: 'A designer tries the change on real screens. Nothing in Figma reaches the product by itself.' },
+  { title: 'Propose with Bridge', text: 'The DS Bridge Figma plugin, or Studio Tokens, turns the proposal into a pull request against the token files. An issue works too; then the AI agent or a maintainer writes the pull request.' },
+  { title: 'Pull request', text: 'The change is a diff on a branch, with a risk tier, a changelog entry and a note on what to review.' },
+  { title: 'CI guardrails', text: 'Checks run on every pull request: tokens build, types check, no raw colors or shadows in components, Storybook builds, a changelog entry exists.' },
+  { title: 'Design and tech review', text: 'The design owner checks both themes, contrast and keyboard focus. The tech owner checks naming, API and version bump. Token changes need both.' },
+  { title: 'Merge', text: 'A person who owns that area merges. The AI agent never merges.' },
+  { title: 'Release', text: 'Changesets bumps the version and writes the changelog from the entries collected in each pull request.' },
+  { title: 'Docs update themselves', text: 'This site rebuilds from the repo: color tables, contrast checks, component pages, the changelog and llms.txt. Figma variables are re-imported from the same files.' },
+];
+
+const ruleIntro = {
+  Always: 'On every change.',
+  'Ask before': 'It stops and asks a person first, and the pull request gets the higher tier.',
+  Never: 'Hard limits. Most are also blocked by CI.',
+} as const;
+const allowed = r.override.allowed.map((l) => `@${l}`).join(', ');
+---
+
+<Layout title="How review works" description="Risk tiers, review gates, the owner override and the rules the AI agent follows. Same gates for every change, whoever writes it." sources={sources} updated={updated}>
+  <LibraryHeader title="How review works" art="guide" updated={updated} studio="/studio/settings/#approvals" studioLabel="Open in Studio">
+    Every change goes through the same gates, whoever writes it: a designer, an engineer or an AI agent. The riskier the change, the more review it gets.
+  </LibraryHeader>
+
+  <h2 id="tiers">Risk tiers</h2>
+  <p>The tier decides who approves. If a change spans tiers, the highest one applies, and Bridge computes it the same way in the plugin, the Studio, the CLI and the MCP server.</p>
+  {tiers && <MarkdownTable className="rw-table" label="Risk tiers" head={tiers.head} rows={tierRows} rowIds={tierIds} />}
+
+  <div class="rw-secs">
+    <details class="rw-sec" id="journey">
+      <summary><h2>How a change travels</h2><span class="rw-n">8 steps</span></summary>
+      <ol class="rw-steps">
+        {
+          journey.map((s) => (
+            <li>
+              <p class="rw-step-title">{s.title}</p>
+              <p>{s.text}</p>
+            </li>
+          ))
+        }
+      </ol>
+    </details>
+
+    <details class="rw-sec" id="gates">
+      <summary><h2>Review gates</h2><span class="rw-n">{gates.length}</span></summary>
+      <ol class="rw-list">{gates.map((g) => <li set:html={inline(g)} />)}</ol>
+    </details>
+
+    <details class="rw-sec" id="owner-override">
+      <summary><h2>Owner override</h2><span class="rw-n">{allowed ? 'on' : 'off'}</span></summary>
+      <p>
+        GitHub never lets authors approve their own pull request, so a solo maintainer can never collect a design and a tech approval. The owner override is the
+        audited way through, and it is off unless <code>bridge.config.json</code> turns it on.
+      </p>
+      <ul class="rw-list">
+        <li><strong>Who.</strong> {allowed ? `${allowed}, with a token that has write access.` : 'Nobody in this repository.'} Agents never use it.</li>
+        <li><strong>When.</strong> Only when approvals are the one thing missing: never while CI fails or runs, after a request for changes, on a draft, or with a merge conflict.</li>
+        <li><strong>Trail.</strong> Bridge posts the reason on the pull request{r.override.requireReason ? ` (${r.override.minReasonLength} characters or more)` : ''} before it merges, and History shows it.</li>
+        <li><strong>Branch protection still wins.</strong> The override changes what Bridge allows, not what GitHub enforces.</li>
+      </ul>
+    </details>
+
+    {
+      who && (
+        <details class="rw-sec" id="by-area">
+          <summary>
+            <h2>Who approves by area</h2>
+            <span class="rw-n">{who.rows.length}</span>
+          </summary>
+          <MarkdownTable className="rw-table" label="Who approves by area" head={who.head} rows={whoRows} />
+        </details>
+      )
+    }
+
+    <details class="rw-sec" id="agent">
+      <summary><h2>Rules the AI agent follows</h2><span class="rw-n">{ruleCount}</span></summary>
+      <p>The agent reads <code>AGENTS.md</code> before every task. Its rules in plain language; open a rule for its exact wording.</p>
+      {
+        rules.map((group) => (
+          <section class="rw-rules" aria-labelledby={`rw-${group.heading.replace(' ', '-').toLowerCase()}`}>
+            <h3 id={`rw-${group.heading.replace(' ', '-').toLowerCase()}`}>
+              {group.heading} <span class="rw-n">{group.rules.length}</span>
+            </h3>
+            <p class="rw-muted">{ruleIntro[group.heading]}</p>
+            <ul class="rw-list rw-rule-list">
+              {group.rules.map((rule) =>
+                rule.rewritten ? (
+                  <li>
+                    <details class="rw-rule">
+                      <summary>{rule.plain}</summary>
+                      <p class="rw-muted" set:html={inline(rule.original)} />
+                    </details>
+                  </li>
+                ) : (
+                  <li set:html={inline(rule.original)} />
+                ),
+              )}
+            </ul>
+          </section>
+        ))
+      }
+    </details>
+
+    <details class="rw-sec" id="agent-prs">
+      <summary><h2>Reviewing an agent's pull request</h2><span class="rw-n">{agentChecks.length}</span></summary>
+      <ul class="rw-list">{agentChecks.map((c) => <li set:html={inline(c)} />)}</ul>
+    </details>
+  </div>
+
+  <script>
+    // A link to a section (#agent, #owner-override) opens it.
+    const open = () => {
+      const el = location.hash ? document.getElementById(decodeURIComponent(location.hash.slice(1))) : null;
+      const box = el?.closest('details.rw-sec') as HTMLDetailsElement | null;
+      if (box && !box.open) {
+        box.open = true;
+        el!.scrollIntoView({ block: 'start' });
+      }
+    };
+    open();
+    window.addEventListener('hashchange', open);
+  </script>
+</Layout>

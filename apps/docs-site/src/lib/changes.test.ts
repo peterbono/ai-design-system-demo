@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  filterByTier,
+  tierParam,
   asOf,
   byUrgency,
   cachedOpenCount,
@@ -166,5 +168,20 @@ describe('undo sentence', () => {
     expect(undoSentence({ changes: [change], contrast: [pair(4.6, 6), pair(5, 6.6)] })).toBe('Restores color.text.muted to {palette.neutral.700} in Light. 2 contrast pairs improve, none fail.');
     expect(undoSentence({ changes: [change, { ...change, path: 'color.text.subtle' }], contrast: [pair(5, 4)] })).toBe('Restores 2 token values. 1 contrast pair gets lower, 1 fails.');
     expect(undoSentence({ changes: [change], contrast: [] })).toBe('Restores color.text.muted to {palette.neutral.700} in Light. No checked contrast pair moves.');
+  });
+});
+
+describe('tier filter', () => {
+  it('reads ?tier=1|2|3 and ignores anything else', () => {
+    expect(tierParam('?tier=2')).toBe(2);
+    expect(tierParam('?pr=4&tier=3')).toBe(3);
+    expect(tierParam('?tier=4')).toBeNull();
+    expect(tierParam('')).toBeNull();
+  });
+
+  it('keeps rows at that tier only, or all rows without a filter', () => {
+    const rows = [{ n: 1, tier: 1 as const }, { n: 2, tier: 3 as const }, { n: 3, tier: null }];
+    expect(filterByTier(rows, 3).map((r) => r.n)).toEqual([2]);
+    expect(filterByTier(rows, null)).toHaveLength(3);
   });
 });

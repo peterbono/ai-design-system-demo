@@ -32,12 +32,14 @@ import {
   byUrgency,
   currentPackageName,
   detailSentence,
+  filterByTier,
   listSource,
   openerFor,
   primaryAction,
   readSnapshot,
   statusTone,
   tierLabel,
+  tierParam,
   writeSnapshot,
   type CachedPull,
 } from '../lib/changes';
@@ -202,8 +204,15 @@ function rowHtml(r: Row) {
 
 function paintRows(rows: Row[], loading: boolean) {
   const list = $('rv-list');
-  const sorted = byUrgency(rows);
-  list.innerHTML = sorted.map(rowHtml).join('');
+  const tier = tierParam(location.search);
+  const sorted = filterByTier(byUrgency(rows), tier);
+  list.innerHTML = sorted.length ? sorted.map(rowHtml).join('') : `<li class="cg-row cg-none">No open pull request at ${esc(tierLabel(tier))}.</li>`;
+  const filter = document.getElementById('cg-tier-filter');
+  if (filter) {
+    filter.hidden = !tier;
+    const label = filter.querySelector('[data-tier-label]');
+    if (label) label.textContent = tierLabel(tier);
+  }
   const count = $('rv-count');
   count.textContent = String(rows.length);
   count.hidden = rows.length === 0;
@@ -547,7 +556,7 @@ function renderDetail(x: DetailInput) {
   <nav class="cg-crumbs" aria-label="Breadcrumb"><a href="./" data-back>Changes</a><span aria-hidden="true">/</span><span class="mono">#${pull.number}</span></nav>
   <header class="zone cg-pr-open">
     <h1 class="cg-pr-title">${esc(humanTitle(mdTitleText(pull.title)))} <span class="cg-num">#${pull.number}</span></h1>
-    <p class="cg-pr-meta">${avatar(pull.user, 20)}<span>${esc(pull.user.login)}</span><span class="mono">${esc(pull.head.ref)}</span>${tierTag(tier)}<a href="${esc(pull.html_url)}" target="_blank" rel="noopener">Open on GitHub</a></p>
+    <p class="cg-pr-meta">${avatar(pull.user, 20)}<span>${esc(pull.user.login)}</span><span class="mono">${esc(pull.head.ref)}</span>${tierTag(tier)}<a href="${esc(pull.html_url)}" target="_blank" rel="noopener">Open on GitHub</a><a href="/how-review-works/">How review works</a></p>
     <p class="cg-pr-state">${esc(sentence)}${esc(approved)}</p>
     <p class="cg-pr-cta">${primaryHtml}</p>
   </header>

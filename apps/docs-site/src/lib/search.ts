@@ -23,7 +23,8 @@ export function searchIndex(): SearchItem[] {
     '/foundations/accessibility/': 'contrast matrix wcag',
     '/agents/': 'for ai agents connect mcp claude',
     '/studio/changes/': 'history versions releases revert undo drafts branches reviews pull requests visual impact',
-    '/studio/settings/governance/': 'governance risk tiers approvals',
+    '/studio/settings/': 'settings integrations github token connection figma plugin mcp repository bridge.config.json governance approvals risk tiers owners',
+    '/how-review-works/': 'governance review risk tiers approvals gates owner override agent rules',
     '/studio/checks/': 'contrast gate validation',
   };
   const seen = new Set<string>();

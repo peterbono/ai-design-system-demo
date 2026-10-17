@@ -315,6 +315,13 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
 
 /** What the connected token may do on this repository: null until known, or without a token. */
 let access: { write: boolean } | null = null;
+const accessListeners: ((a: { write: boolean } | null) => void)[] = [];
+
+/** Calls `fn` each time the token's access to the repository is read (after connect) or cleared (disconnect). */
+export function onAccess(fn: (a: { write: boolean } | null) => void) {
+  accessListeners.push(fn);
+  if (access) fn(access);
+}
 
 async function readAccess(): Promise<{ write: boolean } | null> {
   if (!viewer || !getToken()) return (access = null);
@@ -336,6 +343,7 @@ function paintAccess() {
     el.className = `gh-perm${access ? (access.write ? ' is-write' : ' is-read') : ''}`;
   });
   document.querySelectorAll<HTMLElement>('[data-gh-perm-help]').forEach((el) => (el.hidden = !viewer || !access || access.write));
+  accessListeners.forEach((fn) => fn(access));
 }
 
 /** Marks every [data-gh-gate="verb phrase"] action as unavailable until GitHub is connected, with a tooltip. */
