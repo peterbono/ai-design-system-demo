@@ -213,3 +213,29 @@
     white-space: nowrap;
   }
 }
+
+/* Waiting for you: up to three changes where the connected viewer acts now, as plain links on the greeting. */
+.ov-wait {
+  display: grid;
+  gap: var(--space-2);
+  max-width: 65ch;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ov-wait[hidden] {
+  display: none;
+}
+
+.ov-wait li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  min-height: var(--size-6);
+}
+
+.ov-wait a {
+  font-weight: var(--font-weight-semibold);
+}

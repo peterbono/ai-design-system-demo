@@ -6,8 +6,13 @@ import {
   byUrgency,
   cachedOpenCount,
   currentPackageName,
+  approvalRows,
   detailSentence,
   listSource,
+  needFromDetail,
+  needFromStatus,
+  requiredApprovals,
+  whoActs,
   openerFor,
   primaryAction,
   readSnapshot,
@@ -183,5 +188,123 @@ describe('tier filter', () => {
     const rows = [{ n: 1, tier: 1 as const }, { n: 2, tier: 3 as const }, { n: 3, tier: null }];
     expect(filterByTier(rows, 3).map((r) => r.n)).toEqual([2]);
     expect(filterByTier(rows, null)).toHaveLength(3);
+  });
+});
+
+describe('who acts now', () => {
+  const owners = { design: ['dana'], tech: ['theo'] };
+  const red = summarizeCi([
+    { name: 'Guardrails', status: 'completed', conclusion: 'failure', html_url: 'https://github.com/run/1' },
+    { name: 'Build', status: 'completed', conclusion: 'failure' },
+  ]);
+  const green = summarizeCi([{ name: 'Build', status: 'completed', conclusion: 'success' }]);
+  const running = summarizeCi([{ name: 'Build', status: 'in_progress', conclusion: null }]);
+  const detail = (o: { tier?: 1 | 2 | 3; ci?: typeof green; a?: Partial<ApprovalSummary>; state?: 'open' | 'draft' | 'merged' | 'closed'; mergeable?: boolean; exploration?: boolean }) => {
+    const a = approvals(o.a);
+    const gate = mergeGate({ tier: o.tier ?? 3, ci: o.ci ?? green, approvals: a, draft: o.state === 'draft', mergeable: o.mergeable, state: o.state === 'merged' || o.state === 'closed' ? 'closed' : 'open', merged_at: o.state === 'merged' ? '2026-10-01' : null });
+    return needFromDetail({ state: o.state ?? 'open', ci: o.ci ?? green, gate, changesRequestedBy: a.changesRequested, exploration: o.exploration });
+  };
+
+  it('names the design owner first when a Tier 3 change waits for both approvals', () => {
+    const w = whoActs(detail({}), { owners, author: 'ann' });
+    expect(w.sentence).toBe('Waiting for the design owner (@dana) and the tech owner (@theo) to approve.');
+    expect(w).toMatchObject({ who: 'design', yourTurn: false, action: 'approve-design', short: 'Design owner to approve' });
+    const one = whoActs(detail({ a: { approvers: ['dana'], design: true } }), { owners, author: 'ann', approvers: ['dana'] });
+    expect(one.sentence).toBe('Waiting for the tech owner (@theo) to approve.');
+  });
+
+  it('says one owner holding both roles once', () => {
+    const w = whoActs(detail({}), { owners: { design: ['pat'], tech: ['pat'] }, author: 'ann' });
+    expect(w.sentence).toBe('Waiting for the design and tech owners (@pat) to approve.');
+  });
+
+  it('turns to the viewer with "Your turn" and the action they hold', () => {
+    expect(whoActs(detail({}), { owners, author: 'ann', viewer: 'dana' })).toMatchObject({ yourTurn: true, who: 'you', action: 'approve-design', sentence: 'Your turn: approve the design.', short: 'Your turn: approve design' });
+    expect(whoActs(detail({}), { owners, author: 'ann', viewer: 'THEO' })).toMatchObject({ yourTurn: true, action: 'approve-tech', sentence: 'Your turn: approve the tech side.' });
+    // Someone outside the roles is not asked.
+    expect(whoActs(detail({}), { owners, author: 'ann', viewer: 'zoe' }).yourTurn).toBe(false);
+  });
+
+  it('asks the author to fix failing checks before anything else', () => {
+    expect(whoActs(detail({ ci: red }), { owners, author: 'ann', viewer: 'dana' }).sentence).toBe('Waiting for @ann to fix 2 failing checks.');
+    expect(whoActs(detail({ ci: red }), { owners, author: 'ann', viewer: 'ann' })).toMatchObject({ yourTurn: true, action: 'fix-checks', sentence: 'Your turn: fix 2 failing checks.' });
+    expect(whoActs(detail({ a: { changesRequested: ['dana'] } }), { owners, author: 'ann' }).sentence).toBe('Waiting for @ann to address the changes @dana requested.');
+    expect(whoActs(detail({ state: 'draft' }), { owners, author: 'ann' }).sentence).toBe('Waiting for @ann to mark this draft ready for review.');
+    expect(whoActs(detail({ mergeable: false, a: { approvers: ['dana', 'theo'], design: true, tech: true } }), { owners, author: 'ann' }).action).toBe('resolve-conflict');
+    expect(whoActs(detail({ state: 'draft', exploration: true }), { owners, author: 'ann' }).action).toBe('promote');
+  });
+
+  it('waits for running checks, then names who approves', () => {
+    expect(whoActs(detail({ ci: running }), { owners, author: 'ann' }).sentence).toBe('Checks are still running. Then the design owner (@dana) approves.');
+  });
+
+  it('says who ships a ready change, and gives the viewer the merge when they can', () => {
+    const ready = detail({ a: { approvers: ['dana', 'theo'], design: true, tech: true } });
+    expect(whoActs(ready, { owners, author: 'ann' }).sentence).toBe('Ready to publish: @dana or @theo can ship it.');
+    expect(whoActs(ready, { owners, author: 'ann', viewer: 'ann', canMerge: true })).toMatchObject({ yourTurn: true, action: 'merge', short: 'Your turn: ship it' });
+    expect(whoActs(ready, { owners, author: 'ann', viewer: 'zoe', canMerge: false }).yourTurn).toBe(false);
+  });
+
+  it('asks for the owner override when the only owner wrote the change', () => {
+    const solo = { design: ['pat'], tech: ['pat'] };
+    expect(whoActs(detail({}), { owners: solo, author: 'pat', overrideBy: ['pat'] }).sentence).toBe('No other design owner can approve. @pat can merge it with the owner override.');
+    expect(whoActs(detail({}), { owners: solo, author: 'pat', viewer: 'pat', overridable: true })).toMatchObject({ yourTurn: true, action: 'override' });
+  });
+
+  it('asks any reviewer when the config names no owner, never the author', () => {
+    const none = { design: [], tech: [] };
+    expect(whoActs(detail({ tier: 2 }), { owners: none, author: 'ann' }).sentence).toBe('Waiting for a reviewer to approve.');
+    expect(whoActs(detail({ tier: 2 }), { owners: none, author: 'ann', viewer: 'zoe' }).yourTurn).toBe(true);
+    expect(whoActs(detail({ tier: 2 }), { owners: none, author: 'ann', viewer: 'ann' }).yourTurn).toBe(false);
+  });
+
+  it('gives list rows the same short line from their status alone', () => {
+    const p = { owners, author: 'ann' };
+    expect(whoActs(needFromStatus('needs-design'), p).short).toBe('Design owner to approve');
+    expect(whoActs(needFromStatus('needs-tech'), p).short).toBe('Tech owner to approve');
+    expect(whoActs(needFromStatus('ci-failing'), p).short).toBe('Author to fix checks');
+    expect(whoActs(needFromStatus('ready'), p).short).toBe('Ready to ship');
+    expect(whoActs(needFromStatus('ci-running'), p).short).toBe('Checks running');
+    expect(whoActs(needFromStatus('needs-design'), { ...p, viewer: 'dana' }).short).toBe('Your turn: approve design');
+    // An owner who already approved is not asked again.
+    expect(whoActs(needFromStatus('needs-tech'), { owners: { design: ['pat'], tech: ['pat'] }, author: 'ann', viewer: 'pat', approvers: ['pat'] }).yourTurn).toBe(false);
+    for (const k of [null, 'unknown', 'merged', 'closed'] as const) expect(whoActs(needFromStatus(k), p).short, String(k)).toBeNull();
+  });
+});
+
+describe('approval rows', () => {
+  const owners = { design: ['dana'], tech: ['theo'] };
+
+  it('shows the rows the tier needs, as mergeGate counts them', () => {
+    expect(requiredApprovals(3)).toEqual(['design', 'tech']);
+    expect(requiredApprovals(null)).toEqual(['design', 'tech']);
+    expect(requiredApprovals(2)).toEqual(['approval']);
+    expect(requiredApprovals(1)).toEqual(['approval']);
+  });
+
+  it('says who approved, who asked for changes and who it waits for', () => {
+    const rows = approvalRows({ tier: 3, approvals: approvals({ approvers: ['dana'], design: true, changesRequested: ['theo'] }), people: { owners, author: 'ann' }, open: true });
+    expect(rows.map((r) => [r.label, r.state, r.text])).toEqual([
+      ['Design', 'approved', 'Approved by @dana'],
+      ['Tech', 'changes', 'Changes requested by @theo'],
+    ]);
+    const waiting = approvalRows({ tier: 3, approvals: approvals(), people: { owners, author: 'ann' }, open: true });
+    expect(waiting.map((r) => r.text)).toEqual(['Waiting for @dana', 'Waiting for @theo']);
+    expect(waiting.some((r) => r.canAct)).toBe(false);
+  });
+
+  it('puts the action on the row the viewer holds, once', () => {
+    const rows = approvalRows({ tier: 3, approvals: approvals(), people: { owners, author: 'ann', viewer: 'theo' }, open: true });
+    expect(rows.map((r) => r.canAct)).toEqual([false, true]);
+    expect(rows[1]).toMatchObject({ actionLabel: 'Approve tech', text: 'Waiting for you' });
+    const both = approvalRows({ tier: 3, approvals: approvals(), people: { owners: { design: ['pat'], tech: ['pat'] }, author: 'ann', viewer: 'pat' }, open: true });
+    expect(both.map((r) => r.canAct)).toEqual([true, false]);
+    expect(approvalRows({ tier: 3, approvals: approvals(), people: { owners, author: 'dana', viewer: 'dana' }, open: true })[0]).toMatchObject({ canAct: false, text: 'Waiting: no other design owner can approve' });
+    expect(approvalRows({ tier: 3, approvals: approvals(), people: { owners, author: 'ann', viewer: 'dana' }, open: false })[0]!.canAct).toBe(false);
+  });
+
+  it('shows one Approval row below Tier 3', () => {
+    const rows = approvalRows({ tier: 1, approvals: approvals({ approvers: ['zoe'] }), people: { owners, author: 'ann' }, open: true });
+    expect(rows).toEqual([expect.objectContaining({ label: 'Approval', state: 'approved', text: 'Approved by @zoe' })]);
   });
 });

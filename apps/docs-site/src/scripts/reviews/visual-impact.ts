@@ -28,10 +28,15 @@ export async function manifestPublished(owner: string, repo: string, pr: number,
 }
 
 export interface VisualSummary {
-  /** Changed screens and stories; null when the workflow has not run for this commit. */
+  /** Changed screens and stories; null when the workflow has not run for this commit (or could not be read). */
   changed: number | null;
   /** Before and after thumbnails of the biggest change, for the section header. */
   thumb: string;
+  /** The biggest change (first in visualState order) and where its images live, for the before/after on top. */
+  top?: VisualShot;
+  base?: string;
+  /** The manifest could not be read (not a 404). */
+  error?: string;
 }
 
 export async function loadVisualImpact(slot: HTMLElement, o: { owner: string; repo: string; pr: number; sha: string; actionsUrl: string }): Promise<VisualSummary> {
@@ -45,7 +50,7 @@ export async function loadVisualImpact(slot: HTMLElement, o: { owner: string; re
   } catch (err) {
     if (!(err instanceof GitHubError && err.status === 404)) {
       slot.innerHTML = `<p class="rv-error">Could not read the visual impact: ${esc((err as Error).message)}</p>`;
-      return { changed: null, thumb: '' };
+      return { changed: null, thumb: '', error: (err as Error).message };
     }
   }
   const state = visualState(manifest);
@@ -105,7 +110,31 @@ export async function loadVisualImpact(slot: HTMLElement, o: { owner: string; re
   const top = shots[0]!;
   const img = (p: string | undefined, label: string) => (p ? `<img src="${esc(`${base}/${p}`)}" alt="" loading="lazy" title="${label}" />` : '');
   const thumb = top.images.before && top.images.after ? `<span class="cg-thumb" aria-hidden="true">${img(top.images.before, 'Before')}${img(top.images.after, 'After')}</span>` : '';
-  return { changed: shots.length, thumb };
+  return { changed: shots.length, thumb, top, base };
+}
+
+/**
+ * The before/after on top of a pull request: the biggest visual change, with the same slider and diff toggle as
+ * the full list, and a link to every changed screen. Without a manifest yet: one quiet line.
+ */
+export function renderTopChange(slot: HTMLElement, v: VisualSummary, allHref: string): void {
+  if (v.error) {
+    slot.innerHTML = `<p class="rv-error">Could not read the before and after: ${esc(v.error)}</p>`;
+    return;
+  }
+  if (v.changed === null) {
+    slot.innerHTML = '<p class="cg-line rv-what-quiet">The before and after is being prepared. It runs on its own for every change to tokens or components.</p>';
+    return;
+  }
+  if (v.changed === 0 || !v.top || !v.base) {
+    slot.innerHTML = '<p class="cg-line rv-what-quiet">No visual change.</p>';
+    return;
+  }
+  const n = v.changed;
+  slot.innerHTML = `<div class="rv-what-head"><p class="cg-line">${n} ${n === 1 ? 'screen' : 'screens'} changed. The biggest one:</p>${
+    n > 1 ? `<a href="${esc(allHref)}" data-open-visual>See all ${n}</a>` : ''
+  }</div>${shotCard(v.top, v.base)}`;
+  wire(slot);
 }
 
 function shotCard(s: VisualShot, base: string): string {

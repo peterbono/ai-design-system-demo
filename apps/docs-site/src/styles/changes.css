@@ -589,3 +589,168 @@ details[open] > summary .cg-sec-chev {
   display: inline-flex;
   gap: var(--space-2);
 }
+
+/* Pull request header, designer first: who acts now, then the title, then the approval checklist. */
+.cg-pr-who {
+  max-width: 65ch;
+  font-size: var(--typography-body-size);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--typography-body-line-height);
+}
+
+/* Approvals: one row per approval the tier needs, like the reviewers box of a pull request. A plate on the zone,
+   never dense UI straight on Harbor. State is an icon plus words, never color alone. */
+.rv-ap {
+  display: grid;
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  overflow: hidden;
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-container);
+  background-color: var(--color-surface-default);
+  list-style: none;
+}
+
+.rv-ap-row {
+  display: grid;
+  grid-template-columns: var(--size-6) var(--size-20) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: calc(var(--control-height-md) + var(--space-4));
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.rv-ap-row + .rv-ap-row {
+  border-top: var(--border-width-default) solid var(--color-border-default);
+}
+
+.rv-ap-icon {
+  display: grid;
+  place-items: center;
+  width: var(--size-6);
+  height: var(--size-6);
+  border-radius: var(--radius-pill);
+}
+
+.rv-ap-icon.is-approved {
+  background-color: var(--color-feedback-success-bg);
+  color: var(--color-feedback-success-text);
+}
+
+.rv-ap-icon.is-changes {
+  background-color: var(--color-feedback-danger-bg);
+  color: var(--color-feedback-danger-text);
+}
+
+.rv-ap-icon.is-waiting {
+  width: var(--size-5);
+  height: var(--size-5);
+  margin: var(--space-0-5);
+  border: var(--border-width-strong) solid var(--color-border-emphasis);
+}
+
+.rv-ap-role {
+  font-weight: var(--font-weight-semibold);
+}
+
+.rv-ap-text {
+  min-width: 0;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.rv-ap-row[data-state="approved"] .rv-ap-text {
+  color: var(--color-text-default);
+}
+
+/* Main actions at the DS control height (44px comfortable): the Studio shrinks plain .btn to 32px. */
+.rv-ap .rv-ap-act,
+.cg-pr-cta .btn-lg {
+  min-height: var(--control-height-md);
+}
+
+.rv-ap + .cg-pr-cta {
+  margin-top: var(--space-1);
+}
+
+/* What it looks like: the biggest before/after right under the header, then the token diff. */
+.rv-what {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+  margin-top: var(--space-6);
+  font-size: var(--typography-ui-size);
+}
+
+.rv-what > * {
+  min-width: 0;
+  margin: 0;
+}
+
+.rv-what-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  margin-bottom: var(--space-3);
+}
+
+.rv-what-head a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--size-6);
+}
+
+.rv-what-quiet {
+  color: var(--color-text-muted);
+}
+
+.rv-what-sub {
+  margin: 0 0 var(--space-2);
+  font-family: var(--typography-ui-family);
+  font-size: var(--typography-ui-size);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--typography-ui-line-height);
+}
+
+.rv-what .table-wrap {
+  margin-bottom: var(--space-3);
+}
+
+/* For developers: files, checks, changeset and previews, one disclosure, inner sections as flat rows. */
+.cg-dev-body {
+  gap: 0;
+  padding-bottom: var(--space-2);
+}
+
+.cg-dev-body > .cg-sec {
+  border: 0;
+  border-top: var(--border-width-default) solid var(--color-border-default);
+  border-radius: 0;
+  background-color: transparent;
+}
+
+.cg-dev-body > .cg-sec > .cg-sec-head,
+.cg-dev-body > .cg-sec > .cg-sec-body {
+  padding-inline: 0;
+}
+
+@media (max-width: 760px) {
+  .rv-ap-row {
+    grid-template-columns: var(--size-6) minmax(0, 1fr);
+    gap: var(--space-1) var(--space-3);
+    padding-inline: var(--space-3);
+  }
+
+  .rv-ap-text {
+    grid-column: 2;
+  }
+
+  .rv-ap-act {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+}

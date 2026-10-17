@@ -1,7 +1,8 @@
 // Status chip of an open pull request, read live from GitHub: CI (check runs + commit statuses) and reviews, then
 // reviewStatus() from lib/review-rules. Shared by the Studio Overview ("Needs you") and the Reviews list.
 // Reads go through ghGet, so they are cached in this browser and survive a rate limit.
-import { esc, ghGet, hasWorkingToken, readRepo } from './github-session';
+import { currentViewer, esc, ghGet, hasWorkingToken, readRepo } from './github-session';
+import { needFromStatus, statusTone, whoActs } from '../lib/changes';
 import { planStatusReads, statusCacheKey, type CachedStatus } from '../lib/status-budget';
 import {
   parseTier,
@@ -12,7 +13,9 @@ import {
   type LabelLike,
   type ReviewLike,
   type ReviewStatus,
+  type ReviewStatusKind,
   type StatusLike,
+  REVIEW_STATUS,
 } from '../lib/review-rules';
 
 export interface PullForStatus {
@@ -26,7 +29,8 @@ export interface PullForStatus {
   head: { sha: string; ref: string };
 }
 
-function owners(): { design: string[]; tech: string[] } {
+/** governance.owners from bridge.config.json, as the layout embeds it. */
+export function owners(): { design: string[]; tech: string[] } {
   try {
     const site = JSON.parse(document.getElementById('bridge-repo')?.textContent || '{}') as { owners?: { design: string[]; tech: string[] } };
     return site.owners ?? { design: [], tech: [] };
@@ -54,8 +58,15 @@ export async function ciFor(sha: string, opts: { lean?: boolean } = {}) {
   return summarizeCi(runs.data.check_runs, statuses);
 }
 
+/** A status plus the review facts the who-acts line needs (lib/changes whoActs). */
+export interface PullStatus extends ReviewStatus {
+  approvers?: string[];
+  changesRequested?: string[];
+  failing?: number;
+}
+
 /** The status of one pull request. Never throws: a failed read gives "Status unknown", never "Ready to merge". */
-export async function pullStatus(p: PullForStatus, opts: { lean?: boolean } = {}): Promise<ReviewStatus> {
+export async function pullStatus(p: PullForStatus, opts: { lean?: boolean } = {}): Promise<PullStatus> {
   const { owner, repo } = readRepo();
   const [ci, reviews] = await Promise.all([
     ciFor(p.head.sha, opts).catch(() => null),
@@ -63,14 +74,9 @@ export async function pullStatus(p: PullForStatus, opts: { lean?: boolean } = {}
       .then((f) => f.data)
       .catch(() => null),
   ]);
-  return reviewStatus({
-    state: p.state,
-    draft: p.draft,
-    merged_at: p.merged_at,
-    ci,
-    approvals: reviews ? summarizeApprovals(reviews, owners(), p.user.login) : null,
-    tier: parseTier(p.labels ?? [], p.body),
-  });
+  const approvals = reviews ? summarizeApprovals(reviews, owners(), p.user.login) : null;
+  const status = reviewStatus({ state: p.state, draft: p.draft, merged_at: p.merged_at, ci, approvals, tier: parseTier(p.labels ?? [], p.body) });
+  return { ...status, approvers: approvals?.approvers, changesRequested: approvals?.changesRequested, failing: ci?.failed.length };
 }
 
 /** Shown on rows left out of the anonymous budget. */
@@ -87,6 +93,26 @@ export function statusChip(s: ReviewStatus | null, opts: { skipped?: boolean } =
   return `<span class="pill rv-status ${s.tone}" data-status="${esc(s.kind)}">${esc(s.label)}</span>`;
 }
 
+/**
+ * The row chip of a pull request in every list (In review, Overview): color says the status group, the words say
+ * who acts now ("Design owner to approve", "Your turn: approve design"), from the same whoActs as the pull request
+ * header. Falls back to the plain status label when the who-acts line adds nothing (unknown, merged, closed).
+ */
+export function whoChip(
+  kind: ReviewStatusKind | null,
+  o: { author: string; approvers?: string[]; changesRequested?: string[]; failing?: number; skipped?: boolean },
+): string {
+  if (o.skipped || !kind) return statusChip(null, { skipped: o.skipped });
+  const who = whoActs(needFromStatus(kind, { failing: o.failing, changesRequestedBy: o.changesRequested }), {
+    owners: owners(),
+    author: o.author,
+    viewer: currentViewer()?.login ?? null,
+    approvers: o.approvers,
+  });
+  const label = who.short ?? REVIEW_STATUS[kind].label;
+  return `<span class="pill rv-status ${statusTone(kind)}" data-status="${esc(kind)}"${who.yourTurn ? ' data-yours' : ''}${who.short ? ` title="${esc(who.sentence)}"` : ''}>${esc(label)}</span>`;
+}
+
 function readCached(p: PullForStatus): CachedStatus | null {
   try {
     const { owner, repo } = readRepo();
@@ -97,7 +123,7 @@ function readCached(p: PullForStatus): CachedStatus | null {
   }
 }
 
-function writeCached(p: PullForStatus, status: ReviewStatus) {
+function writeCached(p: PullForStatus, status: PullStatus) {
   // A failed read is not worth keeping: the next load should try again.
   if (status.kind === 'unknown') return;
   try {
@@ -116,7 +142,7 @@ function writeCached(p: PullForStatus, status: ReviewStatus) {
  */
 export async function loadStatuses(
   pulls: PullForStatus[],
-  onStatus: (p: PullForStatus, status: ReviewStatus | null, skipped: boolean) => void,
+  onStatus: (p: PullForStatus, status: PullStatus | null, skipped: boolean) => void,
 ): Promise<void> {
   const connected = hasWorkingToken();
   const plan = planStatusReads(pulls, { connected, read: readCached, now: Date.now() });
