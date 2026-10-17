@@ -16,10 +16,15 @@ import StyleDictionary from 'style-dictionary';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 
-export const BRANDS = ['bridge', 'ocean'];
+// Brands come from bridge.config.json (modes.brand), so a brand added with `bridge brand create`, the Studio or
+// the Figma plugin is built, exported and put through the contrast gate without touching this script.
+const repoConfig = JSON.parse(await readFile(new URL('../../bridge.config.json', import.meta.url), 'utf8'));
+const brandMode = repoConfig.modes?.brand ?? { values: repoConfig.modes?.brands, default: repoConfig.modes?.defaults?.brand };
+export const BRANDS = brandMode.values?.length ? brandMode.values : ['bridge', 'ocean'];
 export const THEMES = ['light', 'dark'];
 export const DENSITIES = ['comfortable', 'compact'];
-const DEFAULT = { brand: 'bridge', theme: 'light', density: 'comfortable' };
+const DEFAULT = { brand: brandMode.default ?? BRANDS[0], theme: 'light', density: 'comfortable' };
+for (const b of BRANDS) if (!existsSync(`src/brands/${b}.tokens.json`)) throw new Error(`bridge.config.json lists brand "${b}" but src/brands/${b}.tokens.json does not exist.`);
 
 const valueOf = (token) => token.$value ?? token.value;
 const typeOf = (token) => token.$type ?? token.type;

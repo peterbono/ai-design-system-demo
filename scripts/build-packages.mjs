@@ -10,7 +10,7 @@
 // After building, every non-source export target is checked to exist, so a broken manifest fails here and not
 // in a product's install.
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { builtinModules } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -80,6 +80,9 @@ const BUILDERS = {
     // Three entry points: the main one (browser-safe), ./audit (TypeScript parser) and ./node (git, fs).
     await viteLib('core', { external: externalFor('core'), css: false, entry: { index: 'src/index.ts', 'audit/index': 'src/audit/index.ts', 'node/index': 'src/node/index.ts' } });
     tsc(['-p', 'tsconfig.build.json'], dir);
+    // The ramp engine is plain JavaScript (packages/tokens/scripts/ramps.mjs runs it without a build): tsc does
+    // not emit declarations for its hand-written ramps.d.ts, so ship that file as is.
+    copyFileSync(join(dir, 'src/ramps.d.ts'), join(dir, 'dist/ramps.d.ts'));
   },
   async react() {
     const dir = pkgDir('react');
