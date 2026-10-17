@@ -18,12 +18,17 @@ import {
   type SpecField,
   type SpecLayout,
   type SpecPart,
+  type SpecIcon,
+  type SpecIconStyle,
   type SpecProperty,
+  type SpecSlot,
   type SpecUnmapped,
   type SpecValue,
   type SpecVariant,
   hashSpec,
+  iconComponentName,
   tokenCssVar,
+  variantKeyOf,
 } from '../component-spec';
 import { CONFIG_FILE, loadConfig } from '../config';
 import { buildTokenSet, layoutOptions } from '../token-set';
@@ -42,6 +47,8 @@ export interface SpecGeneratorOptions {
   /** CSS custom property -> token. */
   tokens: Map<string, TokenInfo>;
   styleSuffix?: string | undefined;
+  /** Repo-relative ESM build of lucide-react ("node_modules/lucide-react/dist/esm"), for the icons section. */
+  lucideDir?: string | undefined;
 }
 
 /** States drawn as the State axis when the CSS styles them, with the selector state they stand for. */
@@ -990,11 +997,13 @@ export function generateComponentSpec(name: string, opts: SpecGeneratorOptions):
   const used = new Set([...axes.map((a) => a.prop), ...properties.map((p) => p.prop), 'disabled', 'className', 'children', 'render']);
   for (const p of src.props.values()) {
     if (used.has(p.name) || p.kind === 'function' || p.kind === 'string' || p.kind === 'other' || p.kind === 'union') continue;
-    unmappedProps.push({ part: 'root', property: `prop ${p.name}`, value: p.kind, reason: p.kind === 'node' ? 'slot content is not drawn' : p.kind === 'icon' ? 'required icon drawn as a placeholder' : 'not drawn in this version' });
+    unmappedProps.push({ part: 'root', property: `prop ${p.name}`, value: p.kind, reason: p.kind === 'node' ? 'slot content is not drawn' : p.kind === 'icon' ? 'icon prop with no icon part' : 'not drawn in this version' });
   }
   for (const e of cssErrors) unmappedProps.push({ part: 'root', property: 'css', value: e, reason: 'selector not understood' });
 
   flattenWrapper(parts, variants, unmapped);
+  const swapped = addSwaps(name, src, parts, properties, axes, variants, opts);
+  for (let i = unmappedProps.length - 1; i >= 0; i--) if (swapped.has(unmappedProps[i]!.property.replace(/^prop /, ''))) unmappedProps.splice(i, 1);
 
   const seen = new Set<string>();
   const dedup = [...unmappedProps, ...unmapped].filter((u) => {
@@ -1009,11 +1018,277 @@ export function generateComponentSpec(name: string, opts: SpecGeneratorOptions):
   return { name, hash: hashSpec(spec), source, axes, properties, parts, variants, unmapped: dedup };
 }
 
+
+// ---------------------------------------------------------------------------------------------
+// Swappable parts: icons and content slots
+
+/** Icons every pulled file gets besides the ones the components use, so designers can swap without importing. */
+export const COMMON_ICONS = ['Plus', 'Minus', 'Pencil', 'Trash2', 'Copy', 'Search', 'X', 'Check', 'ChevronDown', 'ChevronRight', 'Info', 'AlertTriangle', 'Star', 'Settings', 'ExternalLink', 'Download', 'Upload', 'Ellipsis'];
+
+/** Default icon of a slot when neither the docs preview nor the AllStates story shows one. */
+const FALLBACK_ICON: Record<string, string> = { Badge: 'Info' };
+const DEFAULT_FALLBACK_ICON = 'Plus';
+
+/** The icon components themselves: Icon.tsx draws `sm` by default; Lucide's grid is 24, the `lg` size. */
+export const ICON_STYLE: SpecIconStyle = { size: 'icon.size.lg', color: 'color.text.default', stroke: 'icon.stroke' };
+
+/** Media slot: a neutral plate with a centered image icon, 16:9, as wide as a card (size.80). */
+export const MEDIA_SLOT: SpecSlot = {
+  name: 'Slot/Media',
+  kind: 'media',
+  values: { fill: 'color.bg.muted', width: 'size.80' },
+  aspect: [16, 9],
+  icon: 'Image',
+  iconValues: { width: 'icon.size.lg', height: 'icon.size.lg', stroke: 'color.text.muted', strokeWeight: 'icon.stroke' },
+};
+
+interface DocNode {
+  c?: string;
+  p?: Record<string, unknown>;
+  children?: unknown[];
+}
+
+/** Every `{ c, p }` element of a docs.json value, in document order. */
+function docElements(v: unknown, out: DocNode[] = []): DocNode[] {
+  if (Array.isArray(v)) for (const x of v) docElements(x, out);
+  else if (v && typeof v === 'object') {
+    const n = v as DocNode;
+    if (typeof n.c === 'string') out.push(n);
+    for (const x of Object.values(v)) docElements(x, out);
+  }
+  return out;
+}
+
+function readDocs(name: string, opts: SpecGeneratorOptions): Record<string, unknown> | undefined {
+  const text = opts.read(`${opts.componentsDir}/${name}/${name}.docs.json`);
+  if (!text) return undefined;
+  try {
+    return JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    return undefined;
+  }
+}
+
+function readStories(name: string, opts: SpecGeneratorOptions): ts.SourceFile | undefined {
+  const file = `${opts.componentsDir}/${name}/${name}.stories.tsx`;
+  const text = opts.read(file);
+  return text === undefined ? undefined : ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+}
+
+/** Names imported from lucide-react by a stories file. */
+function storyIcons(sf: ts.SourceFile | undefined): string[] {
+  const out: string[] = [];
+  for (const st of sf?.statements ?? []) {
+    if (!ts.isImportDeclaration(st) || unquote(st.moduleSpecifier.getText(sf)) !== 'lucide-react') continue;
+    const b = st.importClause?.namedBindings;
+    if (b && ts.isNamedImports(b)) for (const e of b.elements) if (!e.isTypeOnly) out.push((e.propertyName ?? e.name).text);
+  }
+  return out;
+}
+
+/** First icon the AllStates story passes to `<Name prop={Icon}>` (the false branch of a condition: the general case). */
+function allStatesIcon(sf: ts.SourceFile | undefined, name: string, prop: string): string | undefined {
+  if (!sf) return undefined;
+  let decl: ts.Node | undefined;
+  for (const st of sf.statements)
+    if (ts.isVariableStatement(st)) for (const d of st.declarationList.declarations) if (ts.isIdentifier(d.name) && d.name.text === 'AllStates') decl = d;
+  let found: string | undefined;
+  const pick = (e: ts.Expression): string | undefined => {
+    if (ts.isParenthesizedExpression(e)) return pick(e.expression);
+    if (ts.isIdentifier(e)) return e.text;
+    if (ts.isConditionalExpression(e)) return pick(e.whenFalse);
+    return undefined;
+  };
+  const visit = (n: ts.Node) => {
+    if (found) return;
+    if ((ts.isJsxOpeningElement(n) || ts.isJsxSelfClosingElement(n)) && n.tagName.getText(sf) === name) {
+      for (const a of n.attributes.properties) {
+        if (!ts.isJsxAttribute(a) || a.name.getText(sf) !== prop || !a.initializer || !ts.isJsxExpression(a.initializer) || !a.initializer.expression) continue;
+        found = pick(a.initializer.expression);
+        if (found) return;
+      }
+    }
+    ts.forEachChild(n, visit);
+  };
+  if (decl) visit(decl);
+  return found;
+}
+
+/** Default icon of an icon prop: the docs preview, then the AllStates story, then a fallback. */
+function defaultIcon(name: string, prop: string, opts: SpecGeneratorOptions): string {
+  const docs = readDocs(name, opts);
+  for (const el of docElements(docs?.preview)) {
+    const v = el.c === name ? el.p?.[prop] : undefined;
+    if (typeof v === 'string' && /^[A-Z]\w*$/.test(v)) return v;
+  }
+  return allStatesIcon(readStories(name, opts), name, prop) ?? FALLBACK_ICON[name] ?? DEFAULT_FALLBACK_ICON;
+}
+
+/** Icon names a component's docs (icon props of any element) and stories (lucide-react imports) reference. */
+function referencedIcons(name: string, opts: SpecGeneratorOptions): string[] {
+  const out: string[] = [];
+  for (const el of docElements(readDocs(name, opts)))
+    for (const [k, v] of Object.entries(el.p ?? {})) if (/^icon/i.test(k) && typeof v === 'string' && /^[A-Z]\w*$/.test(v)) out.push(v);
+  out.push(...storyIcons(readStories(name, opts)));
+  return out;
+}
+
+const zeroInline = (v: Partial<Record<SpecField, SpecValue>> | undefined) => !!v && v.paddingLeft === 0 && v.paddingRight === 0;
+
+/**
+ * Marks the swappable parts of a spec and returns the code props they stand for:
+ * - Icon parts swap between every icon ("Icon", "Icon start"), default from the docs or stories. Optional icons keep
+ *   their BOOLEAN visibility property.
+ * - A compound part's content (a text in a non-root frame) that code draws full-bleed in some variant (no inline
+ *   padding: Card padding none, for media) becomes a content slot: "Slot/<Component> <part> text" or "Slot/Media",
+ *   Media by default where it is full-bleed. Its TEXT property moves to the text slot component.
+ */
+function addSwaps(name: string, src: ComponentSource, parts: SpecPart[], properties: SpecProperty[], axes: SpecAxis[], variants: SpecVariant[], opts: SpecGeneratorOptions): Set<string> {
+  const props = new Set<string>();
+  const iconProps = [...src.props.values()].filter((p) => p.kind === 'icon');
+  const defaultKey = variantKeyOf(Object.fromEntries(axes.map((a) => [a.name, a.default])));
+  const defaultVariant = variants.find((v) => variantKeyOf(v.props) === defaultKey) ?? variants[0];
+  const setSlot = (part: string, value: (v: SpecVariant) => string) => {
+    for (const v of variants) (v.slots ??= {})[part] = value(v);
+  };
+  for (const part of parts) {
+    if (part.kind === 'icon') {
+      const visibleProp = part.visible ? properties.find((p) => p.type === 'BOOLEAN' && p.name === part.visible)?.prop : undefined;
+      const prop = visibleProp ?? iconProps.find((p) => !p.optional && !properties.some((x) => x.prop === p.name))?.name;
+      if (!prop) continue;
+      const icon = iconComponentName(defaultIcon(name, prop, opts));
+      part.swap = { property: sentenceCase(prop), default: icon, prop };
+      setSlot(part.id, () => icon);
+      props.add(prop);
+      continue;
+    }
+    const parent = parts.find((p) => p.id === part.parent);
+    if (part.kind !== 'text' || !part.text || !parent?.parent || parent.kind !== 'frame') continue;
+    if (!variants.some((v) => zeroInline(v.values[parent.id]))) continue;
+    const textSlot = `Slot/${name} ${part.text.toLowerCase()} text`;
+    const media = MEDIA_SLOT.name;
+    part.swap = { property: part.text, default: zeroInline(defaultVariant?.values[parent.id]) ? media : textSlot, options: [textSlot, media] };
+    setSlot(part.id, (v) => (zeroInline(v.values[parent.id]) ? media : textSlot));
+    const i = properties.findIndex((p) => p.type === 'TEXT' && p.name === part.text);
+    if (i >= 0) properties.splice(i, 1);
+    delete part.text;
+  }
+  return props;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Lucide icons
+
+/** lucide-react export name -> icon id, from the ESM index ("export { default as Trash2, ... } from './icons/trash.mjs'"). */
+function lucideIndex(dir: string, opts: SpecGeneratorOptions): Map<string, string> {
+  const text = opts.read(`${dir}/lucide-react.mjs`) ?? opts.read(`${dir}/lucide-react.js`);
+  if (text === undefined) throw new Error(`lucide-react was not found at ${dir}: run npm install.`);
+  const out = new Map<string, string>();
+  for (const m of text.matchAll(/export\s*\{([^}]*)\}\s*from\s*'\.\/icons\/([\w-]+)\.m?js'/g)) {
+    for (const part of m[1]!.split(',')) {
+      const n = /default as (\w+)/.exec(part.trim());
+      if (n) out.set(n[1]!, m[2]!);
+    }
+  }
+  return out;
+}
+
+const attrText = (v: string | number) => String(v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+
+/** The icon's SVG from its lucide-react module (`__iconData.node` or `__iconNode`), with Lucide's default attributes. */
+function lucideSvg(dir: string, id: string, opts: SpecGeneratorOptions): string {
+  const file = `${dir}/icons/${id}.mjs`;
+  const text = opts.read(file) ?? opts.read(`${dir}/icons/${id}.js`);
+  if (text === undefined) throw new Error(`lucide-react has no icon file ${file}.`);
+  const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+  let nodeArray: ts.ArrayLiteralExpression | undefined;
+  const visit = (n: ts.Node) => {
+    if (nodeArray) return;
+    if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.initializer) {
+      if (n.name.text === '__iconNode' && ts.isArrayLiteralExpression(n.initializer)) nodeArray = n.initializer;
+      if (n.name.text === '__iconData' && ts.isObjectLiteralExpression(n.initializer)) {
+        const prop = n.initializer.properties.find((p): p is ts.PropertyAssignment => ts.isPropertyAssignment(p) && p.name.getText(sf) === 'node');
+        if (prop && ts.isArrayLiteralExpression(prop.initializer)) nodeArray = prop.initializer;
+      }
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  if (!nodeArray) throw new Error(`${file}: no icon node found.`);
+  const children = nodeArray.elements.map((el) => {
+    if (!ts.isArrayLiteralExpression(el)) throw new Error(`${file}: unexpected icon node.`);
+    const [tag, attrs] = el.elements;
+    const name = tag && ts.isStringLiteral(tag) ? tag.text : '';
+    const pairs: string[] = [];
+    if (attrs && ts.isObjectLiteralExpression(attrs)) {
+      for (const p of attrs.properties) {
+        if (!ts.isPropertyAssignment(p)) continue;
+        const key = unquote(p.name.getText(sf));
+        if (key === 'key') continue;
+        const v = p.initializer;
+        const value = ts.isStringLiteral(v) || ts.isNoSubstitutionTemplateLiteral(v) ? v.text : ts.isNumericLiteral(v) ? Number(v.text) : undefined;
+        if (value !== undefined) pairs.push(`${key}="${attrText(value)}"`);
+      }
+    }
+    return `<${name}${pairs.length ? ` ${pairs.join(' ')}` : ''}/>`;
+  });
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${children.join('')}</svg>`;
+}
+
+/**
+ * The icons section: every icon a slot defaults to, every icon the components' docs and stories reference, the media
+ * slot's icon, then the common set. One entry per Lucide icon (aliases folded into the first name seen), sorted by name.
+ */
+export function generateIcons(components: ComponentSpec[], opts: SpecGeneratorOptions, slots: SpecSlot[] = []): SpecIcon[] {
+  const dir = opts.lucideDir ?? 'node_modules/lucide-react/dist/esm';
+  const index = lucideIndex(dir, opts);
+  const names: string[] = [];
+  for (const c of components) {
+    for (const p of c.parts) if (p.swap && !p.swap.options) names.push(p.swap.default.replace(/^Icon\//, ''));
+    names.push(...referencedIcons(c.name, opts));
+  }
+  for (const s of slots) if (s.icon) names.push(s.icon);
+  names.push(...COMMON_ICONS);
+  const byId = new Map<string, SpecIcon>();
+  for (const n of names) {
+    const id = index.get(n);
+    if (!id) throw new Error(`Icon ${n} is not exported by lucide-react.`);
+    const hit = byId.get(id);
+    if (!hit) byId.set(id, { name: n, lucide: id, svg: lucideSvg(dir, id, opts) });
+    else if (hit.name !== n && !hit.aliases?.includes(n)) (hit.aliases ??= []).push(n);
+  }
+  return [...byId.values()].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0)).map((i) => (i.aliases ? { ...i, aliases: [...i.aliases].sort() } : i));
+}
+
+/** Content components the specs' slots swap to: each component's text slot (its default variant's text fields), then Media. */
+export function generateSlots(components: ComponentSpec[]): SpecSlot[] {
+  const out: SpecSlot[] = [];
+  let media = false;
+  for (const c of components) {
+    const defaultKey = variantKeyOf(Object.fromEntries(c.axes.map((a) => [a.name, a.default])));
+    const v = c.variants.find((x) => variantKeyOf(x.props) === defaultKey) ?? c.variants[0];
+    for (const p of c.parts) {
+      if (!p.swap?.options) continue;
+      for (const o of p.swap.options) {
+        if (o === MEDIA_SLOT.name) media = true;
+        else if (!out.some((s) => s.name === o)) out.push({ name: o, kind: 'text', values: { ...(v?.values[p.id] ?? {}) }, text: { property: 'Text', default: p.name } });
+      }
+    }
+  }
+  if (media) out.push(MEDIA_SLOT);
+  return out;
+}
+
 export function generateComponentSpecs(names: string[], opts: SpecGeneratorOptions): ComponentSpecsFile {
+  const components = names.map((n) => generateComponentSpec(n, opts));
+  const slots = generateSlots(components);
   return {
     version: COMPONENT_SPECS_VERSION,
     generated: 'Generated by `npm run specs` from the component TSX and CSS modules. Do not edit: the test suite fails when it is out of date.',
-    components: names.map((n) => generateComponentSpec(n, opts)),
+    components,
+    icons: generateIcons(components, opts, slots),
+    iconStyle: ICON_STYLE,
+    slots,
   };
 }
 

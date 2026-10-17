@@ -4,16 +4,25 @@
 // Idempotent: a set is found by shared plugin data (dsbridge / componentId), a variant by (dsbridge / variant), a layer
 // by (dsbridge / part). Re-pulling updates them in place (same node ids, so instances keep their overrides), adds new
 // variants, and flags variants removed in code with "[orphan]". Layers DS Bridge did not create are never removed.
+//
+// Swappable parts (icons, content slots) are instances of generated components: one COMPONENT per icon ("Icon/Plus")
+// on the Icons page (dsbridge / iconId) and one per content slot ("Slot/Media") on the Slots page (dsbridge / slotId),
+// swapped through INSTANCE_SWAP properties whose preferred values list them, like a Figma library.
 
 import { variantKeyOf } from '@bridge-ds/core';
 import type { SpecField, SpecPart } from '@bridge-ds/core';
-import type { ComponentApplyReport, ComponentPullPlan, GeneratedSet, PlannedComponent, PlannedField, PlannedValue, PlannedVariant } from '../sync/component-pull';
+import type { ComponentApplyReport, ComponentPullPlan, GeneratedSet, PlannedComponent, PlannedField, PlannedIcon, PlannedSlot, PlannedValue, PlannedVariant } from '../sync/component-pull';
 import { buildSignature } from '../sync/components';
 import { readComponent } from './components';
 
 const NS = 'dsbridge';
 const ORPHAN_PREFIX = '[orphan] ';
 const PAGE_NAME = 'Components';
+const ICONS_PAGE = 'Icons';
+const SLOTS_PAGE = 'Slots';
+/** Icons page grid: cell pitch and columns (layout of the page, not a design value). */
+const ICON_CELL = 72;
+const ICON_COLUMNS = 8;
 /** Canvas spacing between generated sets and variants (layout of the page, not a design value). */
 const GAP = 24;
 const SET_GAP = 96;
@@ -171,6 +180,10 @@ interface Ctx {
   fonts: Fonts;
   problems: string[];
   where: string;
+  /** Generated icon and slot components by name ("Icon/Plus", "Slot/Media"). */
+  parts: Map<string, ComponentNode>;
+  /** Icon component names, in order: the preferred values of every icon swap. */
+  icons: string[];
 }
 
 type Bindable = { setBoundVariable(field: string, variable: Variable | null): void };
@@ -360,6 +373,29 @@ async function configureVariant(variant: ComponentNode, comp: PlannedComponent, 
   for (const part of comp.parts) {
     let node = findPart(variant, part.id);
     const parent = ((part.parent ? nodes.get(part.parent) : variant) ?? variant) as Box;
+    if (part.swap) {
+      const target = pv.slots?.[part.id] ?? part.swap.default;
+      const main = ctx.parts.get(target);
+      ctx.where = `${comp.name} ${pv.name}, ${part.name}`;
+      if (main) {
+        const inst = await placeInstance(node, main, parent, part.id, target);
+        nodes.set(part.id, inst);
+        if (inst.name !== part.name) inst.name = part.name;
+        const swapKey = propKeys.get(`swap:${part.id}`);
+        const visibleKey = part.visible ? propKeys.get(part.visible) : undefined;
+        inst.componentPropertyReferences = { ...(swapKey ? { mainComponent: swapKey } : {}), ...(visibleKey ? { visible: visibleKey } : {}) };
+        // Binding the property must not change what this variant shows (Card padding none shows Media).
+        if ((await inst.getMainComponentAsync())?.id !== main.id) inst.swapComponent(main);
+        await styleInstance(inst, part.kind, pv.parts[part.id] ?? [], ctx);
+        try {
+          sizeInParent(inst, comp.parts.find((p) => p.id === part.parent));
+        } catch (err) {
+          ctx.problems.push(`${ctx.where}, fill container: ${errorText(err)}`);
+        }
+        continue;
+      }
+      ctx.problems.push(`${ctx.where}: no component "${target}". Pull components again to create it.`);
+    }
     if (!node) {
       node = createPart(part);
       parent.appendChild(node);
@@ -408,19 +444,305 @@ async function configureVariant(variant: ComponentNode, comp: PlannedComponent, 
   placeParts(variant, comp, nodes);
 }
 
-/** Ensures the set's TEXT and BOOLEAN properties exist with the spec's defaults; returns name -> Figma property key. */
-function ensureProperties(set: ComponentSetNode, comp: PlannedComponent): Map<string, string> {
+/**
+ * Ensures the set's TEXT and BOOLEAN properties exist with the spec's defaults, and an INSTANCE_SWAP property per
+ * swappable part (default: the spec's component, preferred values: every icon or the slot's options). Returns
+ * name -> Figma property key, and `swap:<part id>` -> key for swaps.
+ */
+function ensureProperties(set: ComponentSetNode, comp: PlannedComponent, ctx: Ctx): Map<string, string> {
   const keys = new Map<string, string>();
-  const defs = set.componentPropertyDefinitions;
+  const base = (k: string) => k.replace(/#[^#]*$/, '');
+  let defs = set.componentPropertyDefinitions;
+  // A property code turned into a swap (Card's Body text): the old one goes, the swap takes its name.
+  for (const part of comp.parts) {
+    if (!part.swap) continue;
+    for (const k of Object.keys(defs)) {
+      const d = defs[k]!;
+      if (base(k) !== part.swap.property || d.type === 'INSTANCE_SWAP' || d.type === 'VARIANT') continue;
+      if (comp.properties.some((p) => p.name === part.swap!.property && p.type === d.type)) continue;
+      set.deleteComponentProperty(k);
+    }
+  }
+  defs = set.componentPropertyDefinitions;
   for (const p of comp.properties) {
-    const existing = Object.keys(defs).find((k) => k.replace(/#[^#]*$/, '') === p.name && defs[k]!.type === p.type);
+    const existing = Object.keys(defs).find((k) => base(k) === p.name && defs[k]!.type === p.type);
     if (!existing) keys.set(p.name, set.addComponentProperty(p.name, p.type, p.default));
     else {
       if (defs[existing]!.defaultValue !== p.default) set.editComponentProperty(existing, { defaultValue: p.default });
       keys.set(p.name, existing);
     }
   }
+  for (const part of comp.parts) {
+    if (!part.swap) continue;
+    const def = ctx.parts.get(part.swap.default);
+    if (!def) continue;
+    const preferredValues = (part.swap.options ?? ctx.icons)
+      .map((n) => ctx.parts.get(n))
+      .filter((c): c is ComponentNode => !!c)
+      .map((c) => ({ type: 'COMPONENT' as const, key: c.key }));
+    const name = part.swap.property;
+    const fallback = `${name} (swap)`;
+    const existing = Object.keys(defs).find((k) => (base(k) === name || base(k) === fallback) && defs[k]!.type === 'INSTANCE_SWAP');
+    let key: string;
+    if (existing) {
+      set.editComponentProperty(existing, { defaultValue: def.id, preferredValues });
+      key = existing;
+    } else {
+      try {
+        key = set.addComponentProperty(name, 'INSTANCE_SWAP', def.id, { preferredValues });
+      } catch {
+        // A file where the name is taken by the BOOLEAN of the same part: keep both, the swap says what it is.
+        key = set.addComponentProperty(fallback, 'INSTANCE_SWAP', def.id, { preferredValues });
+      }
+    }
+    keys.set(`swap:${part.id}`, key);
+  }
   return keys;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Swappable parts: icon and slot components, and their instances in variants
+
+/** An instance of `main` for a part: the existing generated layer, swapped if needed, or a new one in its place. */
+async function placeInstance(node: SceneNode | undefined, main: ComponentNode, parent: Box, partId: string, target: string): Promise<InstanceNode> {
+  let inst: InstanceNode;
+  if (node && node.type === 'INSTANCE') {
+    inst = node;
+    if ((await inst.getMainComponentAsync())?.id !== main.id) inst.swapComponent(main);
+    if (inst.parent !== parent) parent.appendChild(inst);
+  } else {
+    inst = main.createInstance();
+    // A placeholder or text layer from an earlier pull: the instance takes its place.
+    const holder = node?.parent as Box | null | undefined;
+    if (node && holder && 'children' in holder) {
+      holder.insertChild(holder.children.indexOf(node), inst);
+      node.remove();
+    } else parent.appendChild(inst);
+  }
+  inst.setSharedPluginData(NS, 'part', partId);
+  inst.setSharedPluginData(NS, 'slotDefault', target);
+  return inst;
+}
+
+/** Vectors of an icon (component or instance): the one flattened "Icon" vector, or every vector of an older build. */
+const vectorsOf = (n: SceneNode): SceneNode[] => ('findAll' in n ? (n as FrameNode).findAll((x) => x.type === 'VECTOR') : []);
+
+/** Icon fields: size on the frame (or instance), stroke color and width on its vectors. */
+function applyIconFields(node: SceneNode, fields: PlannedField[], ctx: Ctx): void {
+  for (const f of fields) {
+    if (f.field === 'stroke' || f.field === 'strokeWeight') for (const v of vectorsOf(node)) apply(v, f, ctx);
+    else if (f.field === 'width' || f.field === 'height') apply(node, f, ctx);
+  }
+}
+
+/** A variant's values on a swapped-in instance: icon size and colors, a text slot's typography, or nothing for media. */
+async function styleInstance(inst: InstanceNode, kind: string, fields: PlannedField[], ctx: Ctx): Promise<void> {
+  for (const f of ['width', 'height'] as const) {
+    try {
+      bind(inst, f, null);
+    } catch {
+      /* nothing bound */
+    }
+  }
+  if (kind === 'icon') {
+    applyIconFields(inst, fields, ctx);
+    return;
+  }
+  const text = inst.findOne((n) => n.type === 'TEXT') as TextNode | null;
+  if (!text || !fields.length) return;
+  await styleText(text, fields, ctx);
+}
+
+async function styleText(text: TextNode, fields: PlannedField[], ctx: Ctx): Promise<void> {
+  const fam = fields.find((f) => f.value.kind === 'font')?.value as Extract<PlannedValue, { kind: 'font' }> | undefined;
+  const weight = fields.find((f) => f.field === 'fontWeight')?.value;
+  const w = weight?.kind === 'variable' && typeof weight.value === 'number' ? weight.value : undefined;
+  try {
+    bind(text, 'fontWeight', null);
+  } catch {
+    /* nothing bound yet */
+  }
+  text.fontName = await ctx.fonts.font(fam?.families, w);
+  for (const f of TEXT_FIELDS) reset(text, f);
+  for (const f of fields) apply(text, f, ctx);
+}
+
+async function pageFor(name: string, key: string): Promise<PageNode> {
+  const pages = figma.root.children;
+  const page = pages.find((p) => p.getSharedPluginData(NS, 'page') === key) ?? pages.find((p) => p.name === name) ?? figma.createPage();
+  if (page.name !== name && !page.getSharedPluginData(NS, 'page')) page.name = name;
+  page.setSharedPluginData(NS, 'page', key);
+  await page.loadAsync();
+  return page;
+}
+
+/** Draws an icon component from its SVG: one flattened vector named "Icon", so overrides survive a swap. */
+function drawIcon(comp: ComponentNode, icon: PlannedIcon, ctx: Ctx, fields: PlannedField[]): void {
+  for (const c of [...comp.children]) c.remove();
+  comp.resizeWithoutConstraints(24, 24); // Lucide's grid: the SVG viewBox
+  const frame = figma.createNodeFromSvg(icon.svg);
+  try {
+    const kids = [...frame.children];
+    if (!kids.length) throw new Error('the SVG has no shapes');
+    const vector = figma.flatten(kids, frame);
+    const x = vector.x;
+    const y = vector.y;
+    comp.appendChild(vector);
+    vector.x = x;
+    vector.y = y;
+    vector.name = 'Icon';
+    vector.fills = [];
+    vector.constraints = { horizontal: 'SCALE', vertical: 'SCALE' };
+  } catch (err) {
+    ctx.problems.push(`${icon.component}: ${errorText(err)}`);
+  } finally {
+    frame.remove();
+  }
+  comp.fills = [];
+  comp.clipsContent = false;
+  ctx.where = icon.component;
+  applyIconFields(comp, fields, ctx);
+}
+
+/** Text slot: a vertical frame with the text (TEXT property "Text"), as wide as the card, the text wrapping. */
+async function drawTextSlot(comp: ComponentNode, slot: PlannedSlot, ctx: Ctx): Promise<void> {
+  comp.layoutMode = 'VERTICAL';
+  comp.primaryAxisSizingMode = 'AUTO';
+  comp.counterAxisSizingMode = 'FIXED';
+  comp.fills = [];
+  let text = comp.findOne((n) => n.getSharedPluginData(NS, 'slotPart') === 'text') as TextNode | null;
+  if (!text) {
+    text = figma.createText();
+    text.setSharedPluginData(NS, 'slotPart', 'text');
+    comp.appendChild(text);
+  }
+  text.name = slot.text?.property ?? 'Text';
+  await styleText(text, slot.fields.filter((f) => f.field !== 'width'), ctx);
+  if (!text.characters) text.characters = slot.text?.default ?? '';
+  const width = slot.fields.find((f) => f.field === 'width');
+  if (width) apply(comp, width, ctx);
+  text.layoutSizingHorizontal = 'FILL';
+  text.textAutoResize = 'HEIGHT';
+  if (slot.text) {
+    const defs = comp.componentPropertyDefinitions;
+    const key = Object.keys(defs).find((k) => k.replace(/#[^#]*$/, '') === slot.text!.property && defs[k]!.type === 'TEXT') ?? comp.addComponentProperty(slot.text.property, 'TEXT', slot.text.default);
+    text.componentPropertyReferences = { characters: key };
+  }
+}
+
+/** Media slot: a neutral plate at the slot's ratio with the image icon centered. */
+function drawMediaSlot(comp: ComponentNode, slot: PlannedSlot, ctx: Ctx): void {
+  comp.layoutMode = 'VERTICAL';
+  comp.primaryAxisAlignItems = 'CENTER';
+  comp.counterAxisAlignItems = 'CENTER';
+  comp.primaryAxisSizingMode = 'FIXED';
+  comp.counterAxisSizingMode = 'FIXED';
+  comp.clipsContent = true;
+  for (const f of slot.fields) {
+    if (f.field === 'height' && f.value.kind === 'number') comp.resizeWithoutConstraints(comp.width, f.value.value);
+    else apply(comp, f, ctx);
+  }
+  const lock = (comp as unknown as { lockAspectRatio?: () => void }).lockAspectRatio;
+  if (typeof lock === 'function') {
+    try {
+      lock.call(comp);
+    } catch {
+      /* older Figma: the ratio is only the starting size */
+    }
+  }
+  const main = slot.icon ? ctx.parts.get(slot.icon) : undefined;
+  let icon = comp.findOne((n) => n.getSharedPluginData(NS, 'slotPart') === 'icon') as InstanceNode | null;
+  if (!main) {
+    if (slot.icon) ctx.problems.push(`${slot.name}: no component "${slot.icon}".`);
+    return;
+  }
+  if (!icon || icon.type !== 'INSTANCE') {
+    icon?.remove();
+    icon = main.createInstance();
+    icon.setSharedPluginData(NS, 'slotPart', 'icon');
+    comp.appendChild(icon);
+  }
+  icon.name = 'Icon';
+  applyIconFields(icon, slot.iconFields ?? [], ctx);
+}
+
+/**
+ * Icons and slots of the plan: created once, redrawn when their SVG or spec changed (same node, so instances keep
+ * their overrides), laid out on their pages. Returns every generated part by name, built now or before.
+ */
+async function ensureParts(plan: ComponentPullPlan, ctx: Ctx, report: ComponentApplyReport, progress: Progress): Promise<void> {
+  await figma.loadAllPagesAsync();
+  const icons = new Map<string, ComponentNode>();
+  const slots = new Map<string, ComponentNode>();
+  for (const c of figma.root.findAllWithCriteria({ types: ['COMPONENT'] })) {
+    const iconId = c.getSharedPluginData(NS, 'iconId');
+    const slotId = c.getSharedPluginData(NS, 'slotId');
+    if (iconId && !icons.has(iconId)) icons.set(iconId, c);
+    if (slotId && !slots.has(slotId)) slots.set(slotId, c);
+  }
+  const counts = { created: 0, updated: 0 };
+  if (plan.icons?.length) {
+    progress(`Drawing ${plan.icons.length} icons`);
+    const page = await pageFor(ICONS_PAGE, 'icons');
+    for (const icon of plan.icons) {
+      let comp = icons.get(icon.name);
+      const isNew = !comp;
+      if (!comp) {
+        comp = figma.createComponent();
+        page.appendChild(comp);
+        comp.setSharedPluginData(NS, 'iconId', icon.name);
+        icons.set(icon.name, comp);
+      }
+      comp.name = icon.component;
+      if (isNew || comp.getSharedPluginData(NS, 'iconHash') !== icon.hash || !vectorsOf(comp).length) {
+        drawIcon(comp, icon, ctx, plan.iconFields ?? []);
+        comp.setSharedPluginData(NS, 'iconHash', icon.hash);
+        comp.description = `Lucide icon, generated by DS Bridge. Swap it in any component's icon property.`;
+        if (isNew) counts.created++;
+        else counts.updated++;
+      }
+    }
+    const sorted = plan.icons.map((i) => icons.get(i.name)!).filter((c) => c.parent?.id === page.id);
+    sorted.forEach((c, i) => {
+      c.x = (i % ICON_COLUMNS) * ICON_CELL;
+      c.y = Math.floor(i / ICON_COLUMNS) * ICON_CELL;
+    });
+    await tick();
+  }
+  for (const [name, c] of icons) ctx.parts.set(c.name || `Icon/${name}`, c);
+  ctx.icons = (plan.icons ?? []).map((i) => i.component).filter((n) => ctx.parts.has(n));
+  if (plan.slots?.length) {
+    progress('Drawing content slots');
+    const page = await pageFor(SLOTS_PAGE, 'slots');
+    let x = 0;
+    for (const slot of plan.slots) {
+      let comp = slots.get(slot.name);
+      const isNew = !comp;
+      if (!comp) {
+        comp = figma.createComponent();
+        page.appendChild(comp);
+        comp.setSharedPluginData(NS, 'slotId', slot.name);
+        slots.set(slot.name, comp);
+      }
+      comp.name = slot.name;
+      if (isNew || comp.getSharedPluginData(NS, 'slotHash') !== slot.hash) {
+        ctx.where = slot.name;
+        if (slot.kind === 'text') await drawTextSlot(comp, slot, ctx);
+        else drawMediaSlot(comp, slot, ctx);
+        comp.setSharedPluginData(NS, 'slotHash', slot.hash);
+        comp.description = 'Content slot, generated by DS Bridge. Swap it in a component\'s slot property.';
+        if (isNew) counts.created++;
+        else counts.updated++;
+      }
+      if (comp.parent?.id === page.id) {
+        comp.x = x;
+        comp.y = 0;
+        x += comp.width + SET_GAP;
+      }
+    }
+  }
+  for (const c of slots.values()) ctx.parts.set(c.name, c);
+  if (counts.created || counts.updated) report.parts = counts;
 }
 
 /**
@@ -464,25 +786,19 @@ export function layoutVariants(set: ComponentSetNode, comp: PlannedComponent): v
   set.resizeWithoutConstraints(Math.max(1, width), Math.max(1, gridH + orphanH));
 }
 
-async function componentsPage(): Promise<PageNode> {
-  const pages = figma.root.children;
-  const page = pages.find((p) => p.getSharedPluginData(NS, 'page') === 'components') ?? pages.find((p) => p.name === PAGE_NAME) ?? figma.createPage();
-  if (page.name !== PAGE_NAME && !page.getSharedPluginData(NS, 'page')) page.name = PAGE_NAME;
-  page.setSharedPluginData(NS, 'page', 'components');
-  await page.loadAsync();
-  return page;
-}
+const componentsPage = () => pageFor(PAGE_NAME, 'components');
 
 function bottomOf(page: PageNode): number {
   return page.children.reduce((m, n) => Math.max(m, n.y + n.height), 0);
 }
 
 export async function applyComponentPlan(plan: ComponentPullPlan, progress: Progress = () => undefined): Promise<ComponentApplyReport> {
-  const ctx: Ctx = { vars: new Variables(), fonts: new Fonts(), problems: [], where: '' };
+  const ctx: Ctx = { vars: new Variables(), fonts: new Fonts(), problems: [], where: '', parts: new Map(), icons: [] };
   await ctx.vars.load();
   await ctx.fonts.load();
   const existing = new Map((await generatedSets()).map((s) => [s.getSharedPluginData(NS, 'componentId'), s]));
   const report: ComponentApplyReport = { created: 0, updated: 0, unchanged: 0, orphaned: 0, page: PAGE_NAME, problems: ctx.problems, nodeIds: [] };
+  await ensureParts(plan, ctx, report, progress);
   let page: PageNode | undefined;
 
   for (let i = 0; i < plan.components.length; i++) {
@@ -513,7 +829,7 @@ export async function applyComponentPlan(plan: ComponentPullPlan, progress: Prog
     }
     set.name = comp.name;
     set.description = comp.description;
-    const propKeys = ensureProperties(set, comp);
+    const propKeys = ensureProperties(set, comp, ctx);
     const variants = new Map(
       set.children.filter((c): c is ComponentNode => c.type === 'COMPONENT').map((c) => [c.getSharedPluginData(NS, 'variant') || variantKeyOf(c.variantProperties ?? {}), c]),
     );

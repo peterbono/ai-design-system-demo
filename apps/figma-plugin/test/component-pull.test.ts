@@ -124,7 +124,7 @@ test('apply: 6 component sets on a Components page, bound to the variables, with
   const defs = button.componentPropertyDefinitions;
   assert.deepEqual(
     Object.entries(defs).map(([k, d]) => `${k.replace(/#.*$/, '')}:${d.type}`).sort(),
-    ['Icon end:BOOLEAN', 'Icon start:BOOLEAN', 'Label:TEXT', 'Size:VARIANT', 'State:VARIANT', 'Variant:VARIANT'],
+    ['Icon end:BOOLEAN', 'Icon end:INSTANCE_SWAP', 'Icon start:BOOLEAN', 'Icon start:INSTANCE_SWAP', 'Label:TEXT', 'Size:VARIANT', 'State:VARIANT', 'Variant:VARIANT'],
   );
   const v = variantOf(button, 'Variant=secondary, Size=lg, State=Hover');
   assert.equal(boundName(sim, v, 'fills'), 'Component:button/secondary/bg-hover');
@@ -142,7 +142,8 @@ test('apply: 6 component sets on a Components page, bound to the variables, with
   assert.match(String(Object.keys(defs).find((k) => k.startsWith('Label#'))), /^Label#/);
   assert.deepEqual(label.componentPropertyReferences, { characters: Object.keys(defs).find((k) => k.startsWith('Label#')) });
   const icon = partOf(v, 'icon-start');
-  assert.deepEqual(icon.componentPropertyReferences, { visible: Object.keys(defs).find((k) => k.startsWith('Icon start#')) });
+  const key = (name: string, type: string) => Object.keys(defs).find((k) => k.replace(/#.*$/, '') === name && defs[k]!.type === type);
+  assert.deepEqual(icon.componentPropertyReferences, { mainComponent: key('Icon start', 'INSTANCE_SWAP'), visible: key('Icon start', 'BOOLEAN') });
   assert.equal(boundName(sim, icon, 'width'), 'Base:icon/size/sm');
   // Disabled ghost: no fill at all, disabled text color.
   const ghost = variantOf(button, 'Variant=ghost, Size=md, State=Disabled');
@@ -264,8 +265,9 @@ test('Card: fixed width from the size scale, parts fill the card, body text wrap
     assert.equal(v.layoutSizingHorizontal, 'FIXED');
     for (const id of ['header', 'body', 'footer']) assert.equal(partOf(v, id).layoutSizingHorizontal, 'FILL', `${padding}: ${id} fills the card width`);
     const body = partOf(v, 'body-text');
-    assert.equal(body.layoutSizingHorizontal, 'FILL', `${padding}: body text is as wide as the body, never 0`);
-    assert.equal(body.textAutoResize, 'HEIGHT');
+    assert.equal(body.type, 'INSTANCE', `${padding}: the body is a swappable slot`);
+    assert.equal(body.layoutSizingHorizontal, 'FILL', `${padding}: the body slot is as wide as the body, never 0`);
+    if (padding !== 'none') assert.equal(body.findOne((n) => n.type === 'TEXT')!.textAutoResize, 'HEIGHT', 'body text wraps');
   }
   // The header uses the h3 role of Card.module.css (21 / 28, semibold), not a bigger one.
   const header = partOf(variantOf(set, 'Padding=default'), 'header-text');
@@ -303,7 +305,7 @@ test('Tag: no wrapper frame, the icon and the Label text sit in the tag like Bad
   const next = await pulledFile({ sim: first.sim });
   assert.equal(next.plan.components.find((c) => c.name === 'Tag')!.status, 'updated');
   await applyComponentPlan(writablePlan(next.plan));
-  assert.deepEqual(v.children.map((c) => `${c.type}:${c.name}`), ['FRAME:Icon', 'TEXT:Label']);
+  assert.deepEqual(v.children.map((c) => `${c.type}:${c.name}`), ['INSTANCE:Icon', 'TEXT:Label']);
   assert.equal(partOf(v, 'text').id, textId);
   assert.equal(boundName(first.sim, v, 'paddingLeft'), 'Primitives:space/2');
   assert.equal(boundName(first.sim, v, 'itemSpacing'), 'Primitives:space/1');
@@ -371,7 +373,11 @@ test('review: per set, the variants, props and bound variables an update changes
   assert.deepEqual(badge.changes[0], { field: 'Variant Tone', before: 'danger, info, neutral, success, warning', after: 'info, neutral, success, warning' });
   assert.equal(badge.removedVariants.length, 4);
   const card = reviews[1]!;
-  assert.deepEqual(card.changes, [{ field: 'Fill', before: 'card.bg, color.bg.subtle, color.text.default', after: 'color.bg.subtle, color.text.default' }]);
+  // Padding none shows the Media slot: its plate (color.bg.muted) is one more fill there.
+  assert.deepEqual(card.changes, [
+    { field: 'Fill (Padding=compact; Padding=default)', before: 'card.bg, color.bg.subtle, color.text.default', after: 'color.bg.subtle, color.text.default' },
+    { field: 'Fill (Padding=none)', before: 'card.bg, color.bg.muted, color.bg.subtle, color.text.default', after: 'color.bg.muted, color.bg.subtle, color.text.default' },
+  ]);
 });
 
 test('update one by one: only that set is rebuilt; Update all builds the rest, never twice', async () => {
@@ -401,4 +407,185 @@ test('thumbnails: a PNG per set for the before and after previews', async () => 
   const thumbs = await exportThumbnails([...sets, '999:999'], 196);
   assert.deepEqual(Object.keys(thumbs).sort(), [...sets].sort(), 'a missing node has no thumbnail');
   assert.ok(Object.values(thumbs).every((b) => typeof b === 'string' && b.length > 0));
+});
+
+// ---------------------------------------------------------------------------------------------
+// Real icons and content slots: generated components swapped through INSTANCE_SWAP properties, like a Figma library
+
+const mainOf = async (n: SimNode) => (await n.getMainComponentAsync())!.name;
+const pageNamed = (sim: SimFigma, name: string) => sim.root.children.filter((p) => p.name === name);
+const defsOf = (set: SimNode) => set.componentPropertyDefinitions;
+const propKey = (set: SimNode, name: string, type: string) => Object.keys(defsOf(set)).find((k) => k.replace(/#.*$/, '') === name && defsOf(set)[k]!.type === type);
+
+/** The spec as it was before swaps: icon placeholders, Card body as a TEXT property, no icons or slots. */
+function specsBeforeSwaps(specs: ComponentSpecsFile): ComponentSpecsFile {
+  const old: ComponentSpecsFile = structuredClone(specs);
+  delete old.icons;
+  delete old.iconStyle;
+  delete old.slots;
+  for (const c of old.components) {
+    for (const p of c.parts) {
+      if (p.swap?.options) p.text = p.name;
+      delete p.swap;
+    }
+    for (const v of c.variants) delete v.slots;
+    if (c.name === 'Card') c.properties.splice(1, 0, { name: 'Body', type: 'TEXT', default: 'Body' });
+    c.hash = hashSpec(c);
+  }
+  return old;
+}
+
+test('icons: one component per icon on an Icons page, drawn from the SVG, bound to the icon tokens, built once', async () => {
+  const { sim, plan, specs } = await pulledFile();
+  assert.ok(specs.icons!.some((i) => i.name === 'Pencil' && /^<svg [^>]*viewBox="0 0 24 24"[^>]*stroke="currentColor"/.test(i.svg)));
+  const report = await applyComponentPlan(writablePlan(plan));
+  assert.deepEqual(report.problems, []);
+  assert.equal(report.parts?.created, specs.icons!.length + specs.slots!.length);
+  const [page] = pageNamed(sim, 'Icons');
+  assert.ok(page);
+  assert.deepEqual(page.children.map((c) => c.name), specs.icons!.map((i) => `Icon/${i.name}`));
+  const plus = page.children.find((c) => c.name === 'Icon/Plus')!;
+  assert.equal(plus.type, 'COMPONENT');
+  assert.equal(plus.getSharedPluginData('dsbridge', 'iconId'), 'Plus');
+  assert.deepEqual(plus.children.map((c) => `${c.type}:${c.name}`), ['VECTOR:Icon'], 'the SVG shapes are flattened into one vector');
+  assert.equal(plus.children[0]!.paths, '<path d="M5 12h14"/><path d="M12 5v14"/>');
+  assert.equal(boundName(sim, plus.children[0]!, 'strokes'), 'Semantic:color/text/default');
+  assert.equal(boundName(sim, plus.children[0]!, 'strokeWeight'), 'Base:icon/stroke');
+  assert.equal(boundName(sim, plus, 'width'), 'Base:icon/size/lg');
+  assert.equal(boundName(sim, plus, 'height'), 'Base:icon/size/lg');
+  // Aliases fold into one icon: MoreHorizontal and Ellipsis are the same Lucide icon.
+  assert.deepEqual(specs.icons!.find((i) => i.name === 'MoreHorizontal')!.aliases, ['Ellipsis']);
+  // Pull again: nothing redrawn, nothing duplicated, same nodes.
+  const ids = page.children.map((c) => c.id);
+  const again = await pulledFile({ sim, gh: undefined });
+  const forced = { ...again.plan, components: again.plan.components.map((c) => ({ ...c, status: 'updated' as const })) };
+  const second = await applyComponentPlan(forced);
+  assert.equal(second.parts, undefined, 'unchanged icons are not redrawn');
+  assert.equal(pageNamed(sim, 'Icons').length, 1);
+  assert.equal(pageNamed(sim, 'Slots').length, 1);
+  assert.deepEqual(page.children.map((c) => c.id), ids);
+  assert.equal(sim.root.findAll((n) => n.type === 'COMPONENT' && !!n.getSharedPluginData('dsbridge', 'iconId')).length, specs.icons!.length);
+});
+
+test('IconButton: every variant holds an instance of the default icon, sized and colored by the variant, swappable', async () => {
+  const { sim, plan, specs } = await pulledFile();
+  await applyComponentPlan(writablePlan(plan));
+  const set = sim.sets().find((s) => s.name === 'IconButton')!;
+  const spec = specs.components.find((c) => c.name === 'IconButton')!;
+  assert.equal(spec.parts.find((p) => p.id === 'icon')!.swap!.default, 'Icon/Pencil', 'default from the docs preview');
+  for (const v of set.children) {
+    const icon = partOf(v, 'icon');
+    assert.equal(icon.type, 'INSTANCE', v.name);
+    assert.equal(await mainOf(icon), 'Icon/Pencil', v.name);
+    assert.equal(icon.getSharedPluginData('dsbridge', 'slotDefault'), 'Icon/Pencil');
+  }
+  const md = partOf(variantOf(set, 'Variant=primary, Size=md, State=Default'), 'icon');
+  assert.equal(boundName(sim, md, 'width'), 'Base:icon/size/sm');
+  assert.equal(boundName(sim, md, 'height'), 'Base:icon/size/sm');
+  assert.equal(boundName(sim, md.children[0]!, 'strokes'), 'Component:button/primary/text');
+  assert.equal(boundName(sim, md.children[0]!, 'strokeWeight'), 'Base:icon/stroke');
+  const lg = partOf(variantOf(set, 'Variant=danger, Size=lg, State=Disabled'), 'icon');
+  assert.equal(boundName(sim, lg, 'width'), 'Base:icon/size/md');
+  assert.equal(boundName(sim, lg.children[0]!, 'strokes'), 'Semantic:color/action/disabled/text');
+  // The swap property: default Pencil, every icon preferred; no visibility toggle (the icon is the button).
+  const key = propKey(set, 'Icon', 'INSTANCE_SWAP')!;
+  const def = defsOf(set)[key]!;
+  assert.equal(sim.nodes.get(String(def.defaultValue))!.name, 'Icon/Pencil');
+  const icons = pageNamed(sim, 'Icons')[0]!.children;
+  assert.deepEqual(def.preferredValues, icons.map((c) => ({ type: 'COMPONENT', key: c.key })));
+  assert.equal(propKey(set, 'Icon', 'BOOLEAN'), undefined);
+  assert.deepEqual(md.componentPropertyReferences, { mainComponent: key });
+  // Button: start and end icons from the AllStates story, BOOLEAN visibility kept next to each swap.
+  const button = sim.sets().find((s) => s.name === 'Button')!;
+  const bv = variantOf(button, 'Variant=primary, Size=md, State=Default');
+  assert.deepEqual([await mainOf(partOf(bv, 'icon-start')), await mainOf(partOf(bv, 'icon-end'))], ['Icon/Plus', 'Icon/ChevronDown']);
+  assert.ok(propKey(button, 'Icon start', 'BOOLEAN') && propKey(button, 'Icon start', 'INSTANCE_SWAP') && propKey(button, 'Icon end', 'INSTANCE_SWAP'));
+  const badge = sim.sets().find((s) => s.name === 'Badge')!;
+  assert.equal(await mainOf(partOf(badge.children[0]!, 'icon')), 'Icon/CircleCheck');
+});
+
+test('swap rule: another icon in a variant is a visual change; back to the code default, nothing to send', async () => {
+  const { sim, plan } = await pulledFile();
+  await applyComponentPlan(writablePlan(plan));
+  const fresh = await scanComponents(() => {});
+  assert.equal(classifyComponents(fresh.components, CODED).changed.length, 0, 'a fresh pull stores a baseline with no request');
+  const set = sim.sets().find((s) => s.name === 'IconButton')!;
+  const icon = partOf(variantOf(set, 'Variant=primary, Size=md, State=Default'), 'icon');
+  const star = pageNamed(sim, 'Icons')[0]!.children.find((c) => c.name === 'Icon/Star')!;
+  const pencil = pageNamed(sim, 'Icons')[0]!.children.find((c) => c.name === 'Icon/Pencil')!;
+  icon.swapComponent(star);
+  assert.equal(boundName(sim, icon.children[0]!, 'strokes'), 'Component:button/primary/text', 'the color override survives the swap');
+  const swapped = classifyComponents((await scanComponents(() => {})).components, CODED);
+  assert.equal(swapped.changed.length, 1);
+  assert.equal(swapped.changed[0]!.kind, 'visual');
+  assert.deepEqual(swapped.changed[0]!.changes, [{ field: 'Swapped instance (Size=md, State=Default, Variant=primary)', before: 'Icon/Pencil', after: 'Icon/Star' }]);
+  icon.swapComponent(pencil);
+  assert.equal(classifyComponents((await scanComponents(() => {})).components, CODED).changed.length, 0, 'back to the default: no request');
+  // Changing the property default is an API change.
+  set.editComponentProperty(propKey(set, 'Icon', 'INSTANCE_SWAP')!, { defaultValue: star.id });
+  const prop = classifyComponents((await scanComponents(() => {})).components, CODED).changed[0]!;
+  assert.equal(prop.kind, 'prop-change');
+  assert.deepEqual(prop.changes, [{ field: 'Prop Icon', before: 'instance swap, default Icon/Pencil', after: 'instance swap, default Icon/Star' }]);
+});
+
+test('Card body slot: Media for padding none, body text otherwise, a Body swap with both slots, filling the card', async () => {
+  const { sim, plan, specs } = await pulledFile();
+  const report = await applyComponentPlan(writablePlan(plan));
+  assert.deepEqual(report.problems, []);
+  assert.deepEqual(specs.slots!.map((s) => s.name), ['Slot/Card body text', 'Slot/Media']);
+  const slotsPage = pageNamed(sim, 'Slots')[0]!;
+  const media = slotsPage.children.find((c) => c.name === 'Slot/Media')!;
+  const text = slotsPage.children.find((c) => c.name === 'Slot/Card body text')!;
+  assert.equal(boundName(sim, media, 'fills'), 'Semantic:color/bg/muted');
+  assert.equal(boundName(sim, media, 'width'), 'Primitives:size/80');
+  assert.equal(media.height, 180, '16:9 of the 320 wide card');
+  const mediaIcon = media.children[0]!;
+  assert.equal(await mainOf(mediaIcon), 'Icon/Image');
+  assert.equal(boundName(sim, mediaIcon.children[0]!, 'strokes'), 'Semantic:color/text/muted');
+  assert.deepEqual([media.primaryAxisAlignItems, media.counterAxisAlignItems], ['CENTER', 'CENTER']);
+  const t = text.children[0]!;
+  assert.equal(t.characters, 'Body');
+  assert.equal(boundName(sim, t, 'fontSize'), 'Primitives:font/size/200');
+  assert.equal(boundName(sim, t, 'fills'), 'Semantic:color/text/default');
+  assert.ok(Object.keys(text.componentPropertyDefinitions).some((k) => k.startsWith('Text#')));
+
+  const card = sim.sets().find((s) => s.name === 'Card')!;
+  const none = partOf(variantOf(card, 'Padding=none'), 'body-text');
+  assert.equal(await mainOf(none), 'Slot/Media');
+  assert.equal(none.layoutSizingHorizontal, 'FILL', 'the media fills the card width');
+  for (const p of ['compact', 'default']) assert.equal(await mainOf(partOf(variantOf(card, `Padding=${p}`), 'body-text')), 'Slot/Card body text');
+  const key = propKey(card, 'Body', 'INSTANCE_SWAP')!;
+  assert.ok(key);
+  assert.equal(propKey(card, 'Body', 'TEXT'), undefined, 'the text moved into the slot');
+  assert.equal(sim.nodes.get(String(defsOf(card)[key]!.defaultValue))!.name, 'Slot/Card body text');
+  assert.deepEqual(defsOf(card)[key]!.preferredValues, [text, media].map((c) => ({ type: 'COMPONENT', key: c.key })));
+  // Swap rule: text in padding none is a visual change; Media back is nothing.
+  none.swapComponent(text);
+  const changed = classifyComponents((await scanComponents(() => {})).components, CODED).changed;
+  assert.deepEqual(changed.map((c) => [c.component, c.kind, c.changes]), [['Card', 'visual', [{ field: 'Swapped instance (Padding=none)', before: 'Slot/Media', after: 'Slot/Card body text' }]]]);
+  none.swapComponent(media);
+  assert.equal(classifyComponents((await scanComponents(() => {})).components, CODED).changed.length, 0);
+});
+
+test('migration: a file pulled before swaps gets instances in place of placeholders, and still no request', async () => {
+  const { specs } = await pulledFile();
+  const first = await pulledFile({ gh: new FakeGitHub(repoFiles(JSON.stringify(specsBeforeSwaps(specs)))) });
+  await applyComponentPlan(writablePlan(first.plan));
+  const card = first.sim.sets().find((s) => s.name === 'Card')!;
+  assert.ok(propKey(card, 'Body', 'TEXT'));
+  const button = first.sim.sets().find((s) => s.name === 'Button')!;
+  assert.equal(partOf(button.children[0]!, 'icon-start').type, 'FRAME');
+  const setIds = first.sim.sets().map((s) => s.id);
+  const next = await pulledFile({ sim: first.sim });
+  assert.deepEqual(next.plan.components.filter((c) => c.status === 'updated').map((c) => c.name), ['Button', 'IconButton', 'Badge', 'Tag', 'Card']);
+  const report = await applyComponentPlan(writablePlan(next.plan));
+  assert.deepEqual(report.problems, []);
+  assert.deepEqual(first.sim.sets().map((s) => s.id), setIds, 'sets updated in place');
+  for (const v of button.children) for (const id of ['icon-start', 'icon-end']) assert.equal(v.findAll((n) => n.getSharedPluginData('dsbridge', 'part') === id).map((n) => n.type).join(), 'INSTANCE');
+  assert.equal(propKey(card, 'Body', 'TEXT'), undefined);
+  assert.ok(propKey(card, 'Body', 'INSTANCE_SWAP'));
+  const scanned = await scanComponents(() => {});
+  assert.equal(scanned.components.length, 6, 'icon and slot components are never Push candidates');
+  const scan = classifyComponents(scanned.components, CODED);
+  assert.deepEqual([scan.changed.length, scan.candidates.length], [0, 0]);
 });

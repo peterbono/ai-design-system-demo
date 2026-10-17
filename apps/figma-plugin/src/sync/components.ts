@@ -9,6 +9,10 @@
 //   (token-binding) and a visual change no variable explains become requests (a GitHub issue), never a code PR.
 // - Layers renamed, regrouped or re-laid out with the same API, the same bound variables and the same render
 //   trigger nothing.
+// - Swaps (icons, content slots) are part of the API: the INSTANCE_SWAP property, its default and preferred values
+//   are compared like any property. Swapping the instance inside a variant is a visual change only when the variant
+//   then shows another component than the one code gives it (stored at pull as `slotDefaults`); swapping back to it
+//   is no change. A swap explains the bindings and render that move with it in that variant.
 
 import type { ComponentChangeRequest, RequestChange, RequestKind } from '@bridge-ds/core';
 
@@ -31,6 +35,10 @@ export interface RawVariant {
   render?: string | undefined;
   /** FNV-1a of the layer tree (types, names, auto layout): only used to say "Figma-only changes". */
   structure?: string | undefined;
+  /** Swappable part ("icon", "body-text") -> main component name of its instance ("Icon/Plus"). */
+  slots?: Record<string, string> | undefined;
+  /** Swappable part -> the component code gives this variant, as the pull stored it. */
+  slotDefaults?: Record<string, string> | undefined;
 }
 
 export interface RawDefinition {
@@ -59,6 +67,9 @@ export interface VariantSignature {
   values: string;
   render?: string | undefined;
   structure?: string | undefined;
+  /** Swappable part -> component its instance shows, and the one code gives the variant. */
+  slots?: Record<string, string> | undefined;
+  slotDefaults?: Record<string, string> | undefined;
 }
 
 export interface ComponentSignature {
@@ -121,6 +132,7 @@ export function variantKey(props: Record<string, string> | null): string {
 }
 
 const sortedUnique = (xs: string[]) => [...new Set(xs)].sort();
+const sortedRecord = (r: Record<string, string>) => Object.fromEntries(Object.keys(r).sort().map((k) => [k, r[k]!]));
 
 function groupBindings(bindings: RawBinding[]): Record<string, string[]> {
   const by: Record<string, string[]> = {};
@@ -145,7 +157,7 @@ export function buildSignature(raw: RawComponent): ComponentSignature {
   }
   const axes: Record<string, string[]> = {};
   for (const k of Object.keys(variantAxes).sort()) axes[k] = variantAxes[k]!;
-  properties.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+  properties.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : a.type < b.type ? -1 : a.type > b.type ? 1 : 0));
   const variants: Record<string, VariantSignature> = {};
   for (const v of raw.variants) {
     const values = v.bindings
@@ -157,6 +169,8 @@ export function buildSignature(raw: RawComponent): ComponentSignature {
       values: fnv1a(sortedUnique(values.split('\n')).join('\n')),
       ...(v.render ? { render: v.render } : {}),
       ...(v.structure ? { structure: v.structure } : {}),
+      ...(v.slots && Object.keys(v.slots).length ? { slots: sortedRecord(v.slots) } : {}),
+      ...(v.slotDefaults && Object.keys(v.slotDefaults).length ? { slotDefaults: sortedRecord(v.slotDefaults) } : {}),
     };
   }
   return { v: 1, name: raw.name, variantAxes: axes, properties, bindings: groupBindings(raw.variants.flatMap((v) => v.bindings)), variants };
@@ -206,8 +220,10 @@ export function diffSignatures(base: ComponentSignature, cur: ComponentSignature
   }
 
   // Component properties (variant axes are reported above, their default here).
-  const bp = new Map(base.properties.map((p) => [p.name, p]));
-  const cp = new Map(cur.properties.map((p) => [p.name, p]));
+  // An instance swap may share its name with the BOOLEAN that shows the same part ("Icon start"): keyed apart.
+  const propKey = (p: { name: string; type: string }) => (p.type === 'INSTANCE_SWAP' ? `${p.name}\u0000swap` : p.name);
+  const bp = new Map(base.properties.map((p) => [propKey(p), p]));
+  const cp = new Map(cur.properties.map((p) => [propKey(p), p]));
   for (const name of sortedUnique([...bp.keys(), ...cp.keys()])) {
     const b = bp.get(name);
     const c = cp.get(name);
@@ -215,18 +231,33 @@ export function diffSignatures(base: ComponentSignature, cur: ComponentSignature
     if ((b?.type ?? c?.type) === 'VARIANT' && (!b || !c)) continue;
     kinds.add('prop-change');
     const show = (p: typeof b) => (p ? `${p.type.toLowerCase().replace('_', ' ')}, default ${p.default || '(empty)'}` : undefined);
-    changes.push({ field: `Prop ${name}`, before: show(b), after: show(c) });
+    changes.push({ field: `Prop ${name.replace(/\u0000swap$/, '')}`, before: show(b), after: show(c) });
   }
 
   // Bindings and renders of the variants both sides have.
   const common = Object.keys(cur.variants).filter((k) => base.variants[k]).sort();
   const bindingRows = new Map<string, { kind: string; before: string; after: string; variants: string[] }>();
   const visual: string[] = [];
+  const swapRows = new Map<string, { before: string; after: string; variants: string[] }>();
   let explained = false;
   let structure = false;
   for (const key of common) {
     const b = base.variants[key]!;
     const c = cur.variants[key]!;
+    // Swaps: a part both sides draw as an instance, now showing another component.
+    const swapped = Object.keys(c.slots ?? {}).filter((part) => b.slots?.[part] !== undefined && b.slots[part] !== c.slots![part]);
+    if (swapped.length) {
+      for (const part of swapped) {
+        const def = c.slotDefaults?.[part] ?? b.slotDefaults?.[part];
+        if (def !== undefined && c.slots![part] === def) continue; // back to the component code gives it
+        const id = `${part}\u0000${b.slots![part]}\u0000${c.slots![part]}`;
+        const row = swapRows.get(id) ?? { before: b.slots![part]!, after: c.slots![part]!, variants: [] };
+        row.variants.push(key);
+        swapRows.set(id, row);
+      }
+      if (b.structure && c.structure && b.structure !== c.structure) structure = true;
+      continue;
+    }
     let rebound = false;
     for (const kind of sortedUnique([...Object.keys(b.bindings), ...Object.keys(c.bindings)])) {
       const before = list(b.bindings[kind]?.map(tokenName));
@@ -249,6 +280,11 @@ export function diffSignatures(base: ComponentSignature, cur: ComponentSignature
     kinds.add('token-binding');
     const all = row.variants.length === common.length;
     changes.push({ field: all ? capital(row.kind) : `${capital(row.kind)} (${row.variants.join('; ')})`, before: row.before || 'none', after: row.after || 'none' });
+  }
+  for (const row of swapRows.values()) {
+    kinds.add('visual');
+    const all = row.variants.length === common.length && common.length > 1;
+    changes.push({ field: all ? 'Swapped instance' : `Swapped instance (${row.variants.join('; ')})`, before: row.before, after: row.after });
   }
   if (visual.length) {
     kinds.add('visual');

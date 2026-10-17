@@ -45,6 +45,34 @@ describe('component specs', () => {
     expect(button!.unmapped.map((u) => u.property)).toEqual(['prop loading', 'prop fullWidth']);
   });
 
+  it('swaps: icon parts default to the docs or story icon, Card body is a content slot, icons and slots sections', () => {
+    const file = generateRepoComponentSpecs(ROOT, SPEC_COMPONENTS);
+    const swap = (c: string, part: string) => file.components.find((x) => x.name === c)!.parts.find((p) => p.id === part)!.swap;
+    expect(swap('IconButton', 'icon')).toEqual({ property: 'Icon', default: 'Icon/Pencil', prop: 'icon' });
+    expect(swap('Button', 'icon-start')).toEqual({ property: 'Icon start', default: 'Icon/Plus', prop: 'iconStart' });
+    expect(swap('Button', 'icon-end')!.default).toBe('Icon/ChevronDown');
+    expect(swap('Badge', 'icon')!.default).toBe('Icon/CircleCheck');
+    expect(swap('Card', 'body-text')).toEqual({ property: 'Body', default: 'Slot/Card body text', options: ['Slot/Card body text', 'Slot/Media'] });
+    const card = file.components.find((c) => c.name === 'Card')!;
+    expect(card.variants.map((v) => `${v.props.Padding}:${v.slots!['body-text']}`)).toEqual(['none:Slot/Media', 'compact:Slot/Card body text', 'default:Slot/Card body text']);
+    expect(card.properties.map((p) => p.name)).toEqual(['Header', 'Footer']);
+    // The required icon of IconButton is drawn now: no longer reported as unmapped.
+    expect(file.components.find((c) => c.name === 'IconButton')!.unmapped.map((u) => u.property)).toEqual(['prop loading']);
+    const names = file.icons!.map((i) => i.name);
+    for (const n of ['Pencil', 'Plus', 'ChevronDown', 'CircleCheck', 'Layers', 'Image', 'Info', 'MoreHorizontal']) expect(names).toContain(n);
+    expect(names).toEqual([...names].sort());
+    expect(file.icons!.find((i) => i.name === 'TriangleAlert')!.aliases).toEqual(['AlertTriangle']);
+    expect(file.icons!.find((i) => i.name === 'Plus')!.svg).toBe(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>',
+    );
+    expect(file.iconStyle).toEqual({ size: 'icon.size.lg', color: 'color.text.default', stroke: 'icon.stroke' });
+    expect(file.slots!.map((s) => [s.name, s.kind])).toEqual([
+      ['Slot/Card body text', 'text'],
+      ['Slot/Media', 'media'],
+    ]);
+    expect(file.slots![0]!.values).toMatchObject({ textFill: 'color.text.default', fontSize: 'font.size.200' });
+  });
+
   it('cascade: specificity, :not(), :has() and combinators', () => {
     const { rules } = parseCssModule('m', '.a { color: var(--x); } .a:hover:not([data-disabled]) { color: var(--y); } .p:has(> .c) .c { color: var(--z); } @media (pointer: coarse) { .a { color: var(--w); } }');
     const root = { tag: 'span', classes: new Set(['m|a']), children: [], present: true, isRoot: true, inputLike: false };

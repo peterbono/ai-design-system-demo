@@ -124,11 +124,34 @@ function pageOf(node: BaseNode): string | undefined {
   return n?.name;
 }
 
+/** Icon and slot components DS Bridge generates from code (Icons and Slots pages): parts of sets, never requests. */
+export const isGeneratedPart = (n: BaseNode) => !!n.getSharedPluginData(NS, 'iconId') || !!n.getSharedPluginData(NS, 'slotId');
+
 /** Local component sets and single components (variants inside a set are read through their set). */
 async function localComponents(): Promise<(ComponentSetNode | ComponentNode)[]> {
   await figma.loadAllPagesAsync();
   const nodes = figma.root.findAllWithCriteria({ types: ['COMPONENT_SET', 'COMPONENT'] });
-  return nodes.filter((n) => !n.remote && !(n.type === 'COMPONENT' && n.parent?.type === 'COMPONENT_SET'));
+  return nodes.filter((n) => !n.remote && !(n.type === 'COMPONENT' && n.parent?.type === 'COMPONENT_SET') && !isGeneratedPart(n));
+}
+
+function insideInstance(n: BaseNode, root: BaseNode): boolean {
+  for (let p = n.parent; p && p !== root; p = p.parent) if (p.type === 'INSTANCE') return true;
+  return false;
+}
+
+/** Swappable parts of a variant: generated instances (shared plugin data `part`), the component they show and the default. */
+async function slotsOf(variant: ComponentNode): Promise<Pick<RawVariant, 'slots' | 'slotDefaults'>> {
+  const slots: Record<string, string> = {};
+  const slotDefaults: Record<string, string> = {};
+  for (const n of variant.findAllWithCriteria({ types: ['INSTANCE'] })) {
+    const part = n.getSharedPluginData(NS, 'part');
+    if (!part || insideInstance(n, variant)) continue;
+    const main = await n.getMainComponentAsync().catch(() => null);
+    if (main) slots[part] = main.name;
+    const def = n.getSharedPluginData(NS, 'slotDefault');
+    if (def) slotDefaults[part] = def;
+  }
+  return { ...(Object.keys(slots).length ? { slots } : {}), ...(Object.keys(slotDefaults).length ? { slotDefaults } : {}) };
 }
 
 export async function readComponent(node: ComponentSetNode | ComponentNode, reader = new Reader()): Promise<RawComponent> {
@@ -140,6 +163,7 @@ export async function readComponent(node: ComponentSetNode | ComponentNode, read
       bindings: await reader.bindings(v),
       render: await renderHash(v),
       structure: structureOf(v),
+      ...(await slotsOf(v)),
     });
   }
   return { nodeId: node.id, name: node.name, page: pageOf(node), definitions: await readDefinitions(node), variants };
