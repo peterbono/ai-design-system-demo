@@ -9,7 +9,8 @@ import * as history from './history.js';
 import * as brand from './brand.js';
 import * as requests from './requests.js';
 import * as explorations from './explorations.js';
-import { EXPLORATION_USE_CASES, REQUEST_KINDS } from '@bridge-ds/core';
+import * as drafts from './drafts.js';
+import { DRAFT_PHRASE, DRAFT_TITLE_MAX, EXPLORATION_USE_CASES, REQUEST_KINDS } from '@bridge-ds/core';
 
 export const VERSION = '0.1.0';
 
@@ -55,6 +56,7 @@ export function createServer(ctx: BridgeContext): McpServer {
         'New brands: bridge_plan_brand first (dry run with ramps and the contrast gate for every theme), then bridge_propose_brand. A new brand is Tier 3.',
         'To undo a merged token change use bridge_plan_revert first (it shows conflicts with later changes), then bridge_propose_revert; never revert by hand-editing files.',
         'Component changes (new component, variant, prop, structure, visual, token binding) are requests: GitHub issues labeled component-change. bridge_list_requests finds them, bridge_get_request returns a brief to implement one in a pull request that says "Closes #n", bridge_create_request files a new one.',
+        `Change texts from Figma: when the user says "${DRAFT_PHRASE}" (or asks you to draft their Bridge changes), call bridge_pending_drafts, look at the before and after images, write each title and summary in the Bridge voice, then call bridge_write_drafts. The designer reviews them in the DS Bridge Figma plugin.`,
         'Explorations try experimental variables and components in a product staging branch without touching main: an explore/<slug> branch with a draft pull request labeled exploration, previews and a snapshot package. bridge_start_exploration starts one, bridge_list_explorations lists them. To work on one, pass "branch": "explore/<slug>" to bridge_propose_token_change, bridge_draft_docs and bridge_get_request, and never open a pull request to main from it: a person promotes it to review or closes it.',
       ].join(' '),
     },
@@ -487,6 +489,65 @@ export function createServer(ctx: BridgeContext): McpServer {
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     },
     run((a) => requests.createRequest(ctx, { ...a, kind: a.kind as requests.CreateRequestInput['kind'], source: 'mcp' })),
+  );
+
+  // --- change texts drafted with the designer's own Claude (DS Bridge Figma plugin) ---
+  server.registerTool(
+    'bridge_pending_drafts',
+    {
+      title: 'Pending change texts from Figma',
+      description: [
+        `Change texts a designer asked their own Claude to write from the DS Bridge Figma plugin ("Draft with my Claude"), waiting on the bridge-requests branch. Call it when the user says "${DRAFT_PHRASE}".`,
+        'Returns the pending sessions (newest first) with each item: scope (request: a component change request; push: a pull request description of token edits), component, kind, the change table, token edits, the designer\'s notes, the deterministic starting draft, a brief, and the before and after image links; the images themselves follow as image content when small enough.',
+        'Look at the before and after images, then write what changes for developers and why it matters for people who use the component. Sentence case, start the title with a verb, no em dash, no invented numbers, names or reasons: if the reason is unknown, leave it out.',
+        `Then call bridge_write_drafts with one result per item id: title at most ${DRAFT_TITLE_MAX} characters, summary at most 3 sentences.`,
+      ].join(' '),
+      inputSchema: {
+        sessionId: z.string().optional().describe('One session only. Default: every pending session.'),
+        images: z.boolean().optional().describe('Inline the before and after PNGs as image content. Default true.'),
+      },
+      annotations: { readOnlyHint: true, openWorldHint: true },
+    },
+    async (a) => {
+      try {
+        const { answer, images } = await drafts.pendingDrafts(ctx, a);
+        return {
+          content: [
+            { type: 'text' as const, text: JSON.stringify(answer, null, 2) },
+            ...images.flatMap((img) => [
+              { type: 'text' as const, text: `${img.label === 'before' ? 'Before (baseline)' : 'After (now in Figma)'}: session ${img.sessionId}, item ${img.itemId}` },
+              { type: 'image' as const, data: img.base64, mimeType: 'image/png' },
+            ]),
+          ],
+        };
+      } catch (e) {
+        return fail(e);
+      }
+    },
+  );
+
+  server.registerTool(
+    'bridge_write_drafts',
+    {
+      title: 'Write change texts for Figma',
+      description:
+        'Write the titles and summaries you drafted for a session from bridge_pending_drafts. The DS Bridge Figma plugin fills them in within seconds, marked "Drafted by Claude, review before sending"; it never overwrites text the designer typed meanwhile. Texts are cleaned to the contract (no em dash, title at most 70 characters without a trailing period, summary at most 3 sentences). Needs GITHUB_TOKEN with contents write. Writes only the session file on the bridge-requests branch, never main.',
+      inputSchema: {
+        sessionId: z.string().min(1).describe('The sessionId from bridge_pending_drafts.'),
+        results: z
+          .array(
+            z.object({
+              id: z.string().min(1).describe('The item id from bridge_pending_drafts.'),
+              title: z.string().describe(`One line, sentence case, starts with a verb, at most ${DRAFT_TITLE_MAX} characters, no trailing period. A request title never repeats the component name.`),
+              summary: z.string().describe('At most 3 sentences: what changes for developers and why it matters. No em dash, no invented numbers.'),
+            }),
+          )
+          .min(1)
+          .describe('One result per item.'),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    },
+    run((a) => drafts.writeDrafts(ctx, a)),
   );
 
   // --- explorations ---

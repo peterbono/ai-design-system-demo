@@ -19,6 +19,7 @@ import { REQUEST_KINDS, type RequestKind, draftPushDescription, pushChangeRows }
 import { type ComponentChangeItem, type ComponentScan, type RequestDraft, classifyComponents, pullBaselines, suggestSummary, suggestTitle, toRequest } from '../sync/components';
 import { CLAUDE_MODELS, type ClaudeDraft, type ClaudeDraftInput, ClaudeDraftError, DRAFTED_NOTE, copyPrompt, draftWithClaude, parseClaudeAnswer } from '../sync/claude';
 import { loadCodedComponents, sendComponentRequest } from '../sync/requests';
+import { DRAFT_PHRASE, type DraftField, DraftPoller, MCP_CLONE, type MyClaudeTarget, finishMyClaudeDrafts, mcpSnippets, planFill, startMyClaudeDrafts } from '../sync/my-claude';
 import { type ComponentApplyReport, type ComponentPullPlan, type PlannedComponent, buildComponentPlan, loadComponentSpecs } from '../sync/component-pull';
 import { type ComponentReview, onlyComponent, reviewUpdates } from '../sync/component-review';
 import type { ComponentSignature } from '../sync/components';
@@ -98,13 +99,29 @@ interface PushState {
 /** Where the text of a field comes from. Only "draft" text is rewritten by the plugin. */
 type TextSource = 'draft' | 'claude' | 'user';
 
-/** "Copy for Claude", "Paste Claude's answer" and "Draft with Claude" under a field. */
+/** "Draft with my Claude", "Copy for Claude", "Paste Claude's answer" and "Draft with Claude (API key)" under a field. */
 interface AssistState {
   pasteOpen?: boolean | undefined;
   pasteText: string;
   /** The prompt, shown to copy by hand when the clipboard is blocked. */
   prompt?: string | undefined;
   message?: { kind: 'ok' | 'error'; text: string } | undefined;
+  /** "Draft with my Claude": the pending drafts file on the requests branch and its polling. */
+  mine?: MineState | undefined;
+  /** Claude's text for fields the designer edited while waiting: offered, never written over their text. */
+  offer?: { title?: string | undefined; summary?: string | undefined } | undefined;
+  /** The "Draft with Claude" disclosure: the three ways, MCP first. */
+  menuOpen?: boolean | undefined;
+}
+
+interface MineState {
+  status: 'starting' | 'waiting' | 'timeout' | 'drafted' | 'error';
+  sessionId?: string | undefined;
+  poller?: DraftPoller | undefined;
+  /** Fields the designer typed in after the request: Claude's text is offered for them, not filled. */
+  edited: Partial<Record<DraftField, boolean>>;
+  error?: string | undefined;
+  copied?: boolean | undefined;
 }
 
 /** The inline request form: one detected change, a new component candidate, or a manual request ("manual"). */
@@ -130,6 +147,8 @@ interface State {
   tokenDraft: string;
   claudeKeyDraft: string;
   claudeMessage?: { kind: 'ok' | 'error'; text: string } | undefined;
+  /** Which setup snippet was just copied in Settings. */
+  claudeCopied?: string | undefined;
   settingsMessage?: { kind: 'ok' | 'error'; text: string } | undefined;
   expanded: Set<string>;
   /** Current Figma selection, for "Attach the current selection". */
@@ -597,6 +616,11 @@ function applyPull(): void {
 }
 
 function scanPush(keep?: PushState): void {
+  // A fresh scan starts over: the previous Push description and request form stop waiting for Claude.
+  if (!keep && state.push) {
+    cancelMine(state.push.assist, false);
+    if (state.push.form) cancelMine(state.push.form.assist, false);
+  }
   void run(
     'Comparing your variables with main',
     async () => {
@@ -679,6 +703,7 @@ function submitPush(): void {
         image: async (nodeId) => (await request('export-image', { nodeId }).catch(() => null))?.base64,
       });
       r.result = result;
+      cancelMine(r.assist, false);
       // What was sent exists now; local bookkeeping failures must not hide that.
       try {
         if (result.pr?.tags.length) await request('tag-variables', { tags: result.pr.tags });
@@ -774,6 +799,8 @@ interface AssistTarget {
   /** Before and after images for "Draft with Claude"; empty when there are none. */
   images?: (() => Promise<Pick<ClaudeDraftInput, 'before' | 'after'>>) | undefined;
   apply: (d: ClaudeDraft) => void;
+  /** The same target as the screen is now (a re-scan rebuilds the push state), or undefined once it is gone. */
+  current: () => AssistTarget | undefined;
 }
 
 /** Checked variable edits, in the order of the Changes list. */
@@ -800,6 +827,18 @@ function pushAssist(r: PushState): AssistTarget {
       draft: { title: r.title || (r.proposal.changes.length ? defaultTitle(r.proposal.changes) : ''), summary: pushDraft(r) },
       notes: r.descriptionSource === 'user' ? r.description : undefined,
     }),
+    images: async () => {
+      // The first checked component change, before and after, so Claude can see what the push does on screen.
+      const nodeId = checkedComponents(r)[0]?.nodeId;
+      if (!nodeId) return {};
+      const after = await request('export-image', { nodeId }).catch(() => null);
+      const before = await request('baseline-image', { nodeId }).catch(() => null);
+      return {
+        ...(after?.base64 && after.base64.length < CLAUDE_IMAGE_MAX ? { after: after.base64 } : {}),
+        ...(before && before.length < CLAUDE_IMAGE_MAX ? { before } : {}),
+      };
+    },
+    current: () => (state.push && state.push.assist === r.assist ? pushAssist(state.push) : undefined),
     apply: (d) => {
       if (d.summary) {
         r.description = d.summary;
@@ -834,6 +873,7 @@ function requestAssist(f: RequestForm): AssistTarget {
         ...(before && before.length < CLAUDE_IMAGE_MAX ? { before } : {}),
       };
     },
+    current: () => (state.push?.form && state.push.form.assist === f.assist ? requestAssist(state.push.form) : undefined),
     apply: (x) => {
       if (x.title) {
         d.title = x.title;
@@ -919,23 +959,216 @@ async function runClaude(a: AssistState, t: AssistTarget): Promise<void> {
   }
 }
 
-/** The writing help under a field: Copy for Claude, Paste Claude's answer, and Draft with Claude when a key is saved. */
-function assistView(a: AssistState, t: AssistTarget): HTMLElement {
-  const withKey = !!state.init?.claude.hasKey;
+/** What "Draft with my Claude" sends: the push's variable edits go in their own table. */
+function toMyClaudeTarget(input: ClaudeDraftInput): MyClaudeTarget {
+  const push = input.target === 'push';
+  return {
+    scope: input.target,
+    component: input.component,
+    kind: input.kind,
+    changes: push ? [] : input.changes,
+    variables: push ? input.changes.map((c) => ({ path: c.field, before: c.before, after: c.after })) : undefined,
+    components: input.components,
+    notes: input.notes,
+    draft: input.draft ?? { title: '', summary: '' },
+    images: { before: input.before, after: input.after },
+  };
+}
+
+const mineActive = (a: AssistState) => a.mine?.status === 'starting' || a.mine?.status === 'waiting' || a.mine?.status === 'timeout';
+
+/** Typing in a field while the designer's Claude drafts: its answer for that field is offered, not filled. */
+function noteEdit(a: AssistState, field: DraftField): void {
+  if (mineActive(a)) a.mine!.edited[field] = true;
+}
+
+/** "Draft with my Claude": upload the images, write the pending drafts file, then poll it until Claude answers. */
+function startMine(a: AssistState, t: AssistTarget): void {
+  if (state.busy || mineActive(a)) return;
+  const previous = a.mine?.sessionId;
+  a.mine = { status: 'starting', edited: {} };
+  a.offer = undefined;
+  a.message = undefined;
+  render();
+  void (async () => {
+    let gh: GitHubClient;
+    try {
+      gh = getClient();
+      if (previous) void finishMyClaudeDrafts(gh, previous);
+      const input = { ...t.input(), ...(t.images ? await t.images() : {}) };
+      const session = await startMyClaudeDrafts(gh, { targets: [toMyClaudeTarget(input)], baseBranch: state.init!.settings.branch });
+      const mine = a.mine;
+      if (!mine || mine.status !== 'starting') {
+        // Cancelled while the file was being written.
+        void finishMyClaudeDrafts(gh, session.sessionId);
+        return;
+      }
+      mine.sessionId = session.sessionId;
+      mine.status = 'waiting';
+      mine.poller = new DraftPoller({
+        client: gh,
+        sessionId: session.sessionId,
+        onResults: (results) => receiveMine(a, t, results[0]!),
+        onTimeout: () => {
+          if (a.mine === mine) mine.status = 'timeout';
+          render();
+        },
+        onGone: () => {
+          if (a.mine === mine) a.mine = undefined;
+          render();
+        },
+      });
+      mine.poller.start();
+    } catch (err) {
+      a.mine = { status: 'error', edited: {}, error: err instanceof Error ? err.message : String(err) };
+    }
+    render();
+  })();
+}
+
+/** Claude answered: fill the fields the designer did not touch since, offer the rest. */
+function receiveMine(a: AssistState, t: AssistTarget, result: { title: string; summary: string }): void {
+  const mine = a.mine;
+  if (!mine) return;
+  const target = t.current();
+  const { fill, offer } = planFill(result, mine.edited);
+  mine.status = 'drafted';
+  mine.poller = undefined;
+  if (target) target.apply({ title: fill.title ?? '', summary: fill.summary ?? '' });
+  a.offer = offer.title || offer.summary ? offer : undefined;
+  a.message = { kind: 'ok', text: a.offer ? 'Your Claude answered. You edited a field meanwhile, so your text stays: use Claude\'s draft below if you prefer it.' : 'Your Claude drafted this. Review it before sending.' };
+  render();
+}
+
+function useOffer(a: AssistState, t: AssistTarget): void {
+  if (!a.offer) return;
+  t.apply({ title: a.offer.title ?? '', summary: a.offer.summary ?? '' });
+  a.offer = undefined;
+  a.message = undefined;
+  render();
+}
+
+/** "Check again" after the 10 minute timeout: one read now, then polling again. */
+function checkMineAgain(a: AssistState): void {
+  const mine = a.mine;
+  if (!mine?.poller) return;
+  mine.status = 'waiting';
+  mine.poller.start();
+  void mine.poller.check();
+  render();
+}
+
+/** Stops waiting and deletes the pending file (best effort, in the background). */
+function cancelMine(a: AssistState, rerender = true): void {
+  const mine = a.mine;
+  mine?.poller?.stop();
+  a.mine = undefined;
+  a.offer = undefined;
+  if (mine?.sessionId && client) void finishMyClaudeDrafts(client, mine.sessionId);
+  if (rerender) render();
+}
+
+async function copyPhrase(a: AssistState): Promise<void> {
+  const ok = await copyText(DRAFT_PHRASE);
+  if (a.mine) a.mine.copied = ok;
+  render();
+}
+
+/** The status block under the buttons while the designer's own Claude drafts. */
+function mineView(a: AssistState, t: AssistTarget): Child {
+  const mine = a.mine;
+  if (!mine || mine.status === 'drafted') return null;
+  if (mine.status === 'error') {
+    return h('p', { class: 'form-error', role: 'alert' }, icon('alert'), `Could not hand the drafts to your Claude: ${mine.error ?? 'unknown error'}`);
+  }
+  if (mine.status === 'starting') {
+    return h('div', { class: 'mine', role: 'status' }, h('div', { class: 'mine-head' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), h('b', null, 'Getting the drafts ready for your Claude')));
+  }
+  const timeout = mine.status === 'timeout';
   return h(
     'div',
-    { class: 'assist' },
+    { class: 'mine', role: 'status', 'aria-live': 'polite' },
+    h('div', { class: 'mine-head' }, timeout ? icon('info') : h('span', { class: 'spinner', 'aria-hidden': 'true' }), h('b', null, timeout ? 'Your Claude has not answered yet' : 'Waiting for your Claude')),
+    h('p', null, timeout ? 'Stopped checking after 10 minutes. In Claude Desktop or Claude Code, say:' : 'In Claude Desktop or Claude Code, with the Bridge MCP server connected, say:'),
+    h(
+      'div',
+      { class: 'phrase' },
+      h('code', null, DRAFT_PHRASE),
+      h('button', { class: 'btn ghost', 'data-focus-id': `${t.id}-mine-copy`, onClick: () => void copyPhrase(a) }, icon(mine.copied ? 'check' : 'copy'), mine.copied ? 'Copied' : 'Copy'),
+    ),
+    h('small', null, timeout ? 'Then check again. Your fields stay as they are.' : 'Checking every 5 seconds while this plugin is open. Keep editing: Claude never writes over what you type.'),
     h(
       'div',
       { class: 'inline-actions' },
-      h('button', { class: 'btn ghost', 'data-focus-id': `${t.id}-copy`, title: 'Copies a prompt for Claude.ai or Claude Desktop. No key needed.', onClick: () => void copyForClaude(a, t) }, icon('copy'), 'Copy for Claude'),
-      h(
-        'button',
-        { class: 'btn ghost', 'data-focus-id': `${t.id}-paste-toggle`, 'aria-expanded': a.pasteOpen ? 'true' : 'false', onClick: () => { a.pasteOpen = !a.pasteOpen; render(); } },
-        "Paste Claude's answer",
-      ),
-      withKey ? h('button', { class: 'btn assist-claude', 'data-focus-id': `${t.id}-claude`, disabled: !!state.busy, onClick: () => void runClaude(a, t) }, 'Draft with Claude') : null,
+      timeout ? h('button', { class: 'btn', 'data-focus-id': `${t.id}-mine-again`, onClick: () => checkMineAgain(a) }, icon('refresh'), 'Check again') : null,
+      h('button', { class: 'btn ghost', 'data-focus-id': `${t.id}-mine-cancel`, onClick: () => cancelMine(a) }, 'Cancel'),
+      h('button', { class: 'btn ghost', onClick: () => { state.tab = 'settings'; render(); } }, 'How to connect'),
     ),
+  );
+}
+
+/** Claude's text for a field the designer edited while waiting. */
+function offerView(a: AssistState, t: AssistTarget): Child {
+  const o = a.offer;
+  if (!o) return null;
+  return h(
+    'div',
+    { class: 'mine offer' },
+    o.title ? h('p', null, h('b', null, 'Title: '), o.title) : null,
+    o.summary ? h('p', null, h('b', null, 'Summary: '), o.summary) : null,
+    h(
+      'div',
+      { class: 'inline-actions' },
+      h('button', { class: 'btn', 'data-focus-id': `${t.id}-use-offer`, onClick: () => useOffer(a, t) }, "Use Claude's draft"),
+      h('button', { class: 'btn ghost', onClick: () => { a.offer = undefined; a.message = undefined; render(); } }, 'Keep mine'),
+    ),
+  );
+}
+
+/** The writing help under a field: Copy for Claude, Paste Claude's answer, and Draft with Claude when a key is saved. */
+function assistView(a: AssistState, t: AssistTarget): HTMLElement {
+  const withKey = !!state.init?.claude.hasKey;
+  const waiting = mineActive(a);
+  const pick = (fn: () => void) => () => {
+    a.menuOpen = false;
+    fn();
+  };
+  const way = (id: string, label: string, hint: string, onClick: () => void, opts: { tag?: string; disabled?: boolean } = {}) =>
+    h(
+      'button',
+      { class: 'way-item', role: 'menuitem', 'data-focus-id': `${t.id}-${id}`, disabled: !!opts.disabled, onClick },
+      h('span', { class: 'way-label' }, label, opts.tag ? h('span', { class: 'tag' }, opts.tag) : null),
+      h('small', null, hint),
+    );
+  return h(
+    'div',
+    { class: 'assist' },
+    // One control for Claude's help: the plugin's own draft is already in the field above. While the designer's own
+    // Claude drafts (or its text is offered), the status block replaces it: one region, one set of actions.
+    waiting || a.offer ? null : h(
+      'button',
+      {
+        class: 'btn assist-open',
+        'data-focus-id': `${t.id}-assist`,
+        'aria-expanded': a.menuOpen ? 'true' : 'false',
+        'aria-haspopup': 'menu',
+        disabled: !!state.busy || waiting,
+        onClick: () => { a.menuOpen = !a.menuOpen; render(); },
+      },
+      'Draft with Claude',
+      icon(a.menuOpen ? 'chevron-up' : 'chevron-down'),
+    ),
+    a.menuOpen
+      ? h(
+          'div',
+          { class: 'ways-menu', role: 'menu', 'aria-label': 'Draft with Claude' },
+          way('mine', 'With my Claude (MCP)', state.init?.hasToken ? 'Your plan, in Claude Desktop or Claude Code. Set up once in Settings.' : 'Add a GitHub token in Settings first.', pick(() => startMine(a, t)), { tag: 'Recommended', disabled: !state.init?.hasToken }),
+          way('copy', 'Copy a prompt', 'Paste it in Claude.ai, then paste the answer back here.', pick(() => void copyForClaude(a, t))),
+          withKey ? way('claude', 'With my API key', 'One click, billed to your Anthropic account.', pick(() => void runClaude(a, t))) : null,
+        )
+      : null,
+    mineView(a, t),
+    offerView(a, t),
     a.message ? h('p', { class: a.message.kind === 'error' ? 'form-error' : 'assist-note', role: a.message.kind === 'error' ? 'alert' : 'status' }, a.message.kind === 'error' ? icon('alert') : icon('check'), a.message.text) : null,
     a.prompt ? h('textarea', { class: 'mono-area', rows: '4', readonly: true, 'aria-label': 'Prompt for Claude', onFocus: (e: Event) => (e.target as HTMLTextAreaElement).select() }, a.prompt) : null,
     a.pasteOpen
@@ -948,7 +1181,12 @@ function assistView(a: AssistState, t: AssistTarget): HTMLElement {
             h('span', null, "Claude's answer"),
             h('textarea', { rows: '3', 'data-focus-id': `${t.id}-paste`, spellcheck: 'false', placeholder: '{"title": "...", "summary": "..."}', onInput: (e: Event) => (a.pasteText = (e.target as HTMLTextAreaElement).value) }, a.pasteText),
           ),
-          h('div', { class: 'inline-actions' }, h('button', { class: 'btn', 'data-focus-id': `${t.id}-use`, onClick: () => usePasted(a, t) }, 'Use this answer')),
+          h(
+            'div',
+            { class: 'inline-actions' },
+            h('button', { class: 'btn', 'data-focus-id': `${t.id}-use`, onClick: () => usePasted(a, t) }, 'Use this answer'),
+            h('button', { class: 'btn ghost', onClick: () => { a.pasteOpen = false; a.prompt = undefined; a.message = undefined; render(); } }, 'Cancel'),
+          ),
         )
       : null,
   );
@@ -968,7 +1206,7 @@ function saveClaude(): void {
       await request('save-claude', { key: key || undefined, model: state.init!.claude.model });
       state.claudeKeyDraft = '';
       await loadInit();
-      state.claudeMessage = { kind: 'ok', text: key ? 'Key saved on this computer only. "Draft with Claude" now shows on requests and on the Push description.' : 'Claude settings saved.' };
+      state.claudeMessage = { kind: 'ok', text: key ? 'Key saved on this computer only. "Draft with Claude (API key)" now shows on requests and on the Push description.' : 'Claude settings saved.' };
     } catch (err) {
       state.claudeMessage = { kind: 'error', text: err instanceof Error ? err.message : String(err) };
     }
@@ -1335,6 +1573,7 @@ function attachHint(): string {
 }
 
 function openForm(r: PushState, item: ComponentChangeItem | undefined): void {
+  if (r.form) cancelMine(r.form.assist, false);
   const coded = r.components?.coded ?? [];
   const draft: RequestDraft = item
     ? { component: item.component, kind: item.kind, title: suggestTitle(item), summary: suggestSummary(item), changes: item.changes, nodeId: item.nodeId, nodeName: item.figmaName }
@@ -1378,6 +1617,8 @@ function sendRequest(r: PushState): void {
         coded,
       });
       r.sent.unshift({ component: d.component.trim(), number: res.issue.number, url: res.issue.url });
+      // Sent: the pending drafts file for the designer's Claude is done.
+      cancelMine(f.assist, false);
       r.form = undefined;
       // The request is the new reference: the next scan compares against what was just asked for.
       if (f.item) {
@@ -1462,6 +1703,7 @@ function requestFormView(r: PushState, f: RequestForm): HTMLElement {
         onInput: (e: Event) => {
           d.title = (e.target as HTMLInputElement).value;
           f.titleSource = 'user';
+          noteEdit(f.assist, 'title');
           clearDrafted('req-title');
         },
       }),
@@ -1483,6 +1725,7 @@ function requestFormView(r: PushState, f: RequestForm): HTMLElement {
           onInput: (e: Event) => {
             d.summary = (e.target as HTMLTextAreaElement).value;
             f.summarySource = 'user';
+            noteEdit(f.assist, 'summary');
             clearDrafted('req-summary');
           },
         },
@@ -1504,7 +1747,7 @@ function requestFormView(r: PushState, f: RequestForm): HTMLElement {
       'div',
       { class: 'inline-actions' },
       h('button', { class: 'btn primary', disabled: !!state.busy, onClick: () => sendRequest(r) }, 'Send request'),
-      h('button', { class: 'btn ghost', onClick: () => { r.form = undefined; render(); } }, 'Cancel'),
+      h('button', { class: 'btn ghost', onClick: () => { cancelMine(f.assist, false); r.form = undefined; render(); } }, 'Cancel'),
     ),
   );
 }
@@ -1852,6 +2095,7 @@ function viewPush(): View {
             onInput: (e: Event) => {
               r.description = (e.target as HTMLTextAreaElement).value;
               r.descriptionSource = 'user';
+              noteEdit(r.assist, 'summary');
               clearDrafted('push-description');
             },
           }, r.description),
@@ -1881,6 +2125,7 @@ function viewPush(): View {
                 onInput: (e: Event) => {
                   r.title = (e.target as HTMLInputElement).value;
                   r.titleSource = 'user';
+                  noteEdit(r.assist, 'title');
                   clearDrafted('push-title');
                 },
               }),
@@ -1987,59 +2232,99 @@ function viewSettings(): View {
   };
 }
 
-/** Settings, "Claude (optional)": both ways to get Claude's help, and the optional API key. */
+function snippet(id: string, label: string, text: string): HTMLElement {
+  const copied = state.claudeCopied === id;
+  return h(
+    'div',
+    { class: 'snippet' },
+    h('div', { class: 'snippet-head' }, h('span', null, label), h('button', { class: 'btn ghost', 'data-focus-id': `copy-${id}`, onClick: () => void copyText(text).then((ok) => { state.claudeCopied = ok ? id : undefined; render(); }) }, icon(copied ? 'check' : 'copy'), copied ? 'Copied' : 'Copy')),
+    h('pre', { class: 'mono-area', tabindex: '0', 'aria-label': label }, text),
+  );
+}
+
+/** Settings, "Claude (optional)": your own Claude through MCP (recommended), Copy for Claude, or an API key. Summary first, setup behind disclosures. */
 function claudeCard(): HTMLElement {
   const c = state.init!.claude;
+  const repo = state.init!.settings.repo;
+  const mcp = mcpSnippets(repo);
+  const msg = state.claudeMessage;
   return h(
     'section',
     { class: 'card' },
+    h('div', { class: 'group-head' }, h('h2', null, 'Claude (optional)')),
+    h('p', { class: 'lede' }, 'Claude writes request and pull request text from the detected changes and the before and after images. You review it before anything is sent.'),
     h(
       'div',
-      { class: 'group-head' },
-      h('h2', null, 'Claude (optional)'),
-      c.hasKey ? null : h('button', { class: 'btn ghost', onClick: () => void request('open-url', { url: 'https://console.anthropic.com/settings/keys' }) }, icon('external'), 'Create a key'),
-    ),
-    h('p', { class: 'lede' }, 'Claude can write request and pull request text from the detected changes and the before and after images. You review it before anything is sent.'),
-    h(
-      'ul',
-      { class: 'ways' },
-      h('li', null, h('b', null, 'Use your Claude plan: '), 'copy the prompt into Claude.ai or Claude Desktop, no key needed. "Copy for Claude" is on every request and on the Push description.'),
-      h('li', null, h('b', null, 'Or add an API key '), 'to draft in one click (billed to your Anthropic account). Each draft sends the changes and the before and after images to Anthropic.'),
-    ),
-    h(
-      'label',
-      { class: 'field' },
-      h('span', null, 'Anthropic API key'),
-      h('input', {
-        type: 'password',
-        value: '',
-        autocomplete: 'off',
-        spellcheck: 'false',
-        'data-focus-id': 'claude-key',
-        placeholder: c.hasKey ? 'Saved, hidden' : 'sk-ant-...',
-        onInput: (e: Event) => (state.claudeKeyDraft = (e.target as HTMLInputElement).value),
-      }),
-      h('small', null, 'Kept in Figma client storage on this computer. Never shown again, never written into the file, only sent to api.anthropic.com.'),
-    ),
-    h(
-      'label',
-      { class: 'field' },
-      h('span', null, 'Model'),
+      { class: 'way' },
+      h('div', { class: 'way-title' }, h('b', null, 'With my Claude (MCP)'), h('span', { class: 'tag' }, 'Recommended')),
+      h('p', { class: 'muted' }, `Your own plan in Claude Desktop or Claude Code, no API key. Click "Draft with Claude", pick this, then say "${DRAFT_PHRASE}" to your Claude.`),
       h(
-        'select',
-        { 'data-focus-id': 'claude-model', onChange: (e: Event) => (c.model = (e.target as HTMLSelectElement).value as typeof c.model) },
-        CLAUDE_MODELS.map((m) => h('option', { value: m.value, selected: m.value === c.model }, m.label)),
+        'details',
+        { class: 'setup', open: state.expanded.has('mcp-setup') },
+        h('summary', { class: 'btn ghost', 'data-focus-id': 'mcp-setup', onClick: (e: Event) => { e.preventDefault(); state.expanded.has('mcp-setup') ? state.expanded.delete('mcp-setup') : state.expanded.add('mcp-setup'); render(); } }, state.expanded.has('mcp-setup') ? 'Hide setup' : 'Show setup'),
+        h(
+          'ol',
+          { class: 'setup-steps' },
+          h('li', null, 'The Bridge MCP server is not on npm yet. Build it once in a terminal:', snippet('clone', 'Terminal', MCP_CLONE)),
+          h('li', null, 'Claude Desktop: Settings, Developer, Edit config. Add this to claude_desktop_config.json, then restart Claude Desktop.', snippet('desktop', 'claude_desktop_config.json', mcp.desktop)),
+          h('li', null, 'Or Claude Code: run this in a terminal.', snippet('code', 'Terminal', mcp.code)),
+          h('li', null, `Replace /path/to/bridge with the folder you cloned. Use the same GitHub token as this plugin, as GITHUB_TOKEN, with Contents read and write on ${repo || 'this repository'}.`),
+        ),
       ),
     ),
     h(
       'div',
-      { class: 'inline-actions' },
-      h('button', { class: 'btn', 'data-focus-id': 'claude-save', onClick: saveClaude }, c.hasKey ? 'Save Claude settings' : 'Save key'),
-      c.hasKey ? h('button', { class: 'btn ghost danger', onClick: removeClaudeKey }, 'Remove key') : null,
+      { class: 'way' },
+      h('div', { class: 'way-title' }, h('b', null, 'Copy a prompt')),
+      h('p', { class: 'muted' }, 'No setup. Paste the prompt in Claude.ai, then paste the answer back in the plugin.'),
     ),
-    state.claudeMessage
-      ? h('p', { class: state.claudeMessage.kind === 'error' ? 'form-error' : 'assist-note', role: state.claudeMessage.kind === 'error' ? 'alert' : 'status' }, icon(state.claudeMessage.kind === 'error' ? 'alert' : 'check'), state.claudeMessage.text)
-      : null,
+    h(
+      'div',
+      { class: 'way' },
+      h('div', { class: 'way-title' }, h('b', null, 'With an API key'), c.hasKey ? h('span', { class: 'tag' }, 'Key saved') : null),
+      h('p', { class: 'muted' }, 'One click, billed to your Anthropic account. Each draft sends the changes and the images to Anthropic.'),
+      h(
+        'details',
+        { class: 'setup', open: state.expanded.has('claude-key') || !!msg },
+        h('summary', { class: 'btn ghost', 'data-focus-id': 'claude-key-toggle', onClick: (e: Event) => { e.preventDefault(); state.expanded.has('claude-key') ? state.expanded.delete('claude-key') : state.expanded.add('claude-key'); render(); } }, state.expanded.has('claude-key') || msg ? 'Hide key settings' : 'Show key settings'),
+        h(
+          'div',
+          { class: 'setup-steps' },
+          h(
+            'label',
+            { class: 'field' },
+            h('span', null, 'Anthropic API key'),
+            h('input', {
+              type: 'password',
+              value: '',
+              autocomplete: 'off',
+              spellcheck: 'false',
+              'data-focus-id': 'claude-key',
+              placeholder: c.hasKey ? 'Saved, hidden' : 'sk-ant-...',
+              onInput: (e: Event) => (state.claudeKeyDraft = (e.target as HTMLInputElement).value),
+            }),
+            h('small', null, 'Kept in Figma client storage on this computer. Never shown again, never written into the file, only sent to api.anthropic.com.'),
+          ),
+          h(
+            'label',
+            { class: 'field' },
+            h('span', null, 'Model'),
+            h(
+              'select',
+              { 'data-focus-id': 'claude-model', onChange: (e: Event) => (c.model = (e.target as HTMLSelectElement).value as typeof c.model) },
+              CLAUDE_MODELS.map((m) => h('option', { value: m.value, selected: m.value === c.model }, m.label)),
+            ),
+          ),
+          h(
+            'div',
+            { class: 'inline-actions' },
+            h('button', { class: 'btn', 'data-focus-id': 'claude-save', onClick: saveClaude }, c.hasKey ? 'Save Claude settings' : 'Save key'),
+            c.hasKey ? h('button', { class: 'btn ghost danger', onClick: removeClaudeKey }, 'Remove key') : h('button', { class: 'btn ghost', onClick: () => void request('open-url', { url: 'https://console.anthropic.com/settings/keys' }) }, icon('external'), 'Create a key'),
+          ),
+          msg ? h('p', { class: msg.kind === 'error' ? 'form-error' : 'assist-note', role: msg.kind === 'error' ? 'alert' : 'status' }, icon(msg.kind === 'error' ? 'alert' : 'check'), msg.text) : null,
+        ),
+      ),
+    ),
   );
 }
 

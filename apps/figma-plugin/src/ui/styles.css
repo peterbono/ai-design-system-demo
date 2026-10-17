@@ -311,3 +311,29 @@ textarea.mono-area, .paste textarea { font-family: var(--mono); font-size: 11px;
 small.drafted { display: flex; gap: 4px; align-items: center; color: var(--brand-text); font-weight: 500; }
 ul.ways { margin: 0; padding-left: var(--s4); display: flex; flex-direction: column; gap: var(--s1); color: var(--text-2); }
 ul.ways b { color: var(--text); font-weight: 600; }
+/* "Draft with Claude": one full-width control (Fitts: lone action, 36px) that discloses the three ways, MCP first. */
+.btn.assist-open { height: 36px; width: 100%; justify-content: space-between; padding: 0 var(--s3); }
+.ways-menu { display: flex; flex-direction: column; padding: var(--s1); border: 1px solid var(--border); border-radius: var(--r-md); background: var(--bg); }
+.way-item { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-height: 44px; padding: var(--s2); border: 0; border-radius: var(--r-sm); background: none; text-align: left; cursor: pointer; color: var(--text); font: inherit; }
+.way-item:hover:not(:disabled) { background: var(--bg-hover); }
+.way-item:disabled { opacity: 0.4; cursor: not-allowed; }
+.way-label { display: flex; align-items: center; gap: var(--s2); font-weight: 600; }
+/* Waiting for your Claude, and Claude's draft offered for an edited field: one sunken region each. */
+.mine { display: flex; flex-direction: column; gap: var(--s2); padding: var(--s3); border-radius: var(--r-md); background: var(--bg-sunken); }
+.mine p { margin: 0; }
+.mine small { color: var(--text-2); }
+.mine-head { display: flex; gap: var(--s2); align-items: center; }
+.mine-head .icon { width: 14px; height: 14px; flex: none; }
+.mine .inline-actions { gap: var(--s1); }
+.phrase { display: flex; gap: var(--s2); align-items: center; justify-content: space-between; padding: 0 0 0 var(--s3); min-height: 36px; border-radius: var(--r-sm); background: var(--bg); border: 1px solid var(--border); }
+.phrase code { font-family: var(--mono); font-size: 11px; }
+/* Settings, Claude (optional): three ways, summary first, setup behind a disclosure. */
+.way { display: flex; flex-direction: column; gap: var(--s1); padding-top: var(--s3); border-top: 1px solid var(--border); }
+.way-title { display: flex; align-items: center; gap: var(--s2); }
+details.setup > summary { list-style: none; width: fit-content; margin-left: calc(-1 * var(--s2)); }
+details.setup > summary::-webkit-details-marker { display: none; }
+.setup-steps { margin: var(--s2) 0 0; padding-left: var(--s4); display: flex; flex-direction: column; gap: var(--s3); color: var(--text-2); }
+div.setup-steps { padding-left: 0; }
+.snippet { display: flex; flex-direction: column; gap: var(--s1); margin-top: var(--s1); }
+.snippet-head { display: flex; align-items: center; justify-content: space-between; color: var(--text-3); font-size: 11px; }
+.snippet pre { font-family: var(--mono); font-size: 11px; line-height: 16px; margin: 0; padding: var(--s2); border-radius: var(--r-sm); background: var(--bg-sunken); border: 1px solid var(--border); white-space: pre-wrap; word-break: break-all; color: var(--text); }

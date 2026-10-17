@@ -515,6 +515,64 @@ export class GitHubClient {
     }
   }
 
+  /**
+   * Text and blob sha of one file at a ref, or undefined when it does not exist. The sha is what an update or a
+   * delete must send back (optimistic concurrency: GitHub answers 409 when the file changed since).
+   */
+  async getFile(path: string, ref?: string): Promise<{ text: string; sha: string } | undefined> {
+    try {
+      const q = ref ? `?ref=${encodeURIComponent(ref)}` : '';
+      const r = await this.request<{ content?: string; encoding?: string; sha: string; type: string }>('GET', `${this.repoPath}/contents/${encodeRef(path)}${q}`);
+      if (r.type !== 'file') return undefined;
+      const text = r.encoding === 'base64' && r.content !== undefined ? base64ToUtf8(r.content) : (r.content ?? '');
+      return { text, sha: r.sha };
+    } catch (err) {
+      if (err instanceof GitHubError && err.status === 404) return undefined;
+      throw err;
+    }
+  }
+
+  /**
+   * Base64 content of a binary file at a ref (an image), or undefined when it does not exist or is too large for the
+   * contents API to inline (over 1 MB).
+   */
+  async getFileBase64(path: string, ref?: string): Promise<{ base64: string; size: number } | undefined> {
+    try {
+      const q = ref ? `?ref=${encodeURIComponent(ref)}` : '';
+      const r = await this.request<{ content?: string; encoding?: string; size?: number; type: string }>('GET', `${this.repoPath}/contents/${encodeRef(path)}${q}`);
+      if (r.type !== 'file' || r.encoding !== 'base64' || !r.content) return undefined;
+      return { base64: r.content.replace(/\s+/g, ''), size: r.size ?? 0 };
+    } catch (err) {
+      if (err instanceof GitHubError && err.status === 404) return undefined;
+      throw err;
+    }
+  }
+
+  /** Entries of one folder at a ref (contents API), or an empty list when the folder does not exist. */
+  async listDirectory(path: string, ref?: string): Promise<{ name: string; path: string; type: string; sha: string; size: number }[]> {
+    try {
+      const q = ref ? `?ref=${encodeURIComponent(ref)}` : '';
+      const r = await this.request<unknown>('GET', `${this.repoPath}/contents/${encodeRef(path)}${q}`);
+      if (!Array.isArray(r)) return [];
+      return (r as { name: string; path: string; type: string; sha: string; size?: number }[]).map((e) => ({ name: e.name, path: e.path, type: e.type, sha: e.sha, size: e.size ?? 0 }));
+    } catch (err) {
+      if (err instanceof GitHubError && err.status === 404) return [];
+      throw err;
+    }
+  }
+
+  /** Deletes one file on a branch in its own commit (contents API). `sha` is the file's blob sha. */
+  async deleteFile(input: { path: string; branch: string; message: string; sha: string }): Promise<string> {
+    this.assertToken('Deleting a file');
+    this.assertWritableBranch(input.branch);
+    const r = await this.request<{ commit: { sha: string } }>('DELETE', `${this.repoPath}/contents/${encodeRef(input.path)}`, {
+      message: input.message,
+      branch: input.branch,
+      sha: input.sha,
+    });
+    return r.commit.sha;
+  }
+
   /** Create or update one file on a branch in its own commit (contents API). Returns the commit sha. */
   async putFile(input: { path: string; content: string; branch: string; message: string; sha?: string | undefined }): Promise<string> {
     this.assertWritableBranch(input.branch);
