@@ -65,6 +65,7 @@ const merged = releases()
           <span data-hello>Hello.</span>
           <span class="ov-hello-line" data-review-line>Here is what waits for you.</span>
         </h1>
+        <ul class="ov-wait" data-wait-list aria-label="Changes waiting for you" hidden></ul>
         <p class="t-body" data-review-sentence>Open pull requests load from GitHub.</p>
         <ButtonLink variant="primary" href="/studio/changes/" data-start-review data-keep-branch>Start reviewing</ButtonLink>
         <p class="t-ui ov-health">
@@ -122,10 +123,11 @@ const merged = releases()
 
   <script>
     import { currentViewer, esc, ghGet, initGitHubConnect, readRepo, RateLimitError } from '../../scripts/github-session';
-    import { loadStatuses, statusChip, type PullForStatus } from '../../scripts/pr-status';
+    import { loadStatuses, owners, shippers, whoChip, type PullForStatus, type PullStatus } from '../../scripts/pr-status';
     import { mdTitleText, oneLineTitle } from '../../lib/markdown';
-    import { openPulls, type ReviewStatus } from '../../lib/review-rules';
-    import { byUrgency } from '../../lib/changes';
+    import { openPulls } from '../../lib/review-rules';
+    import { byUrgency, needFromStatus, whoActs, type WhoActs } from '../../lib/changes';
+    import { isRunningExploration } from '../../lib/explorations-view';
     import { humanTitle } from '../../lib/pr-title';
     import { overviewRequestsLine, type PullLike } from '../../lib/requests-view';
     import { loadRequestRows } from '../../scripts/requests';
@@ -143,26 +145,81 @@ const merged = releases()
     const list = $('.ov-list');
     const placeholder = $('[data-pulls-placeholder]');
 
+    let repaint: (() => void) | null = null;
     // "Hello Florian." only when a GitHub login is known (first word of the profile name, else the login).
     initGitHubConnect((v) => {
       const viewer = v ?? currentViewer();
       if (!hello) return;
       const name = viewer ? (viewer.name?.trim().split(/\s+/)[0] ?? viewer.login) : '';
       hello.textContent = name ? `Hello ${name}.` : 'Hello.';
+      repaint?.();
     });
 
     const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     const BLOCKED = new Set(['ci-failing', 'conflict', 'changes-requested']);
     const WAITING = new Set(['needs-design', 'needs-tech', 'needs-approval', 'ready', 'ci-running']);
 
-    const row = (p: Pull, st: ReviewStatus | null, skipped: boolean) =>
+    const row = (p: Pull, st: PullStatus | null, skipped: boolean) =>
       `<li class="ov-row" data-pr="${p.number}"><a class="ov-row-link" href="/studio/changes/?pr=${p.number}">
         <span class="t-body ov-row-title"><b title="${esc(mdTitleText(humanTitle(p.title)))}">${esc(oneLineTitle(humanTitle(p.title)))}</b> <span class="t-muted">#${p.number}</span></span>
-        ${statusChip(st, { skipped })}
+        ${whoChip(st?.kind ?? null, { author: p.user.login, approvers: st?.approvers, changesRequested: st?.changesRequested, failing: st?.failing, skipped })}
         <span class="t-ui t-muted ov-row-date">${esc(shortDate(p.updated_at))}</span></a></li>`;
 
-    function summarize(open: Pull[], statuses: Map<number, ReviewStatus | null>) {
+    /** Who acts now on a pull request, for the connected viewer (same rules as the pull request header). */
+    const whoFor = (p: Pull, st: PullStatus | null | undefined): WhoActs | null =>
+      st ? whoActs(needFromStatus(st.kind, { failing: st.failing, changesRequestedBy: st.changesRequested }), { owners: owners(), shippers: shippers(), author: p.user.login, viewer: currentViewer()?.login ?? null, approvers: st.approvers }) : null;
+
+    /**
+     * Waiting for you: the changes where the connected viewer must act, first in the greeting. Nothing waiting: one
+     * quiet line. Without a GitHub login nobody is "you", so the greeting keeps the plain review count. Returns the
+     * pull requests it lists, so the next-step cards below never repeat one of them.
+     */
+    function waitingForYou(open: Pull[], statuses: Map<number, PullStatus | null>, done: boolean): Set<number> {
+      const viewer = currentViewer()?.login;
+      const box = $('[data-wait-list]');
+      if (!viewer || !box) return new Set();
+      // Running explorations are tried, never reviewed as is: they never wait for anyone here.
+      const order = byUrgency(open.map((p) => ({ number: p.number, kind: statuses.get(p.number)?.kind ?? null, updated_at: p.updated_at }))).map((o) => o.number);
+      const pool = open.filter((p) => !isRunningExploration(p as never));
+      const mine = pool
+        .map((p) => ({ p, who: whoFor(p, statuses.get(p.number)) }))
+        .filter((x): x is { p: Pull; who: WhoActs } => Boolean(x.who?.yourTurn))
+        .sort((a, b) => order.indexOf(a.p.number) - order.indexOf(b.p.number));
+      const n = mine.length;
+      const others = pool.length - n;
+      const wait = (k: number) => `${k} ${k === 1 ? 'change waits' : 'changes wait'}`;
+      if (!done && !n) {
+        if (line) line.textContent = 'Checking what waits for you.';
+        if (sentence) sentence.textContent = `${pool.length} ${pool.length === 1 ? 'change is' : 'changes are'} open.`;
+        box.hidden = true;
+        return new Set();
+      }
+      if (line) line.textContent = n === 0 ? 'Nothing waits for you.' : `${wait(n)} for you.`;
+      if (sentence) {
+        // One quiet line about the rest, or nothing when everything open is yours.
+        const rest = n ? `${others} more ${others === 1 ? 'waits' : 'wait'}` : wait(others);
+        sentence.textContent = others ? `${rest} on someone else.` : n ? '' : 'Every change is merged.';
+        sentence.hidden = !sentence.textContent;
+      }
+      box.innerHTML = mine
+        .slice(0, 3)
+        .map(({ p, who }) => `<li><a href="/studio/changes/?pr=${p.number}">${esc(oneLineTitle(humanTitle(p.title)))}</a> <span class="t-muted">#${p.number}: ${esc(who.sentence.replace(/^Your turn: /, ''))}</span></li>`)
+        .join('') + (n > 3 ? `<li class="t-muted">And ${n - 3} more in <a href="/studio/changes/">Changes</a>.</li>` : '');
+      box.hidden = n === 0;
+      if (start) {
+        if (n) {
+          start.href = `/studio/changes/?pr=${mine[0]!.p.number}`;
+          start.textContent = `Review #${mine[0]!.p.number}`;
+        } else {
+          start.textContent = 'Start reviewing';
+        }
+      }
+      return new Set(mine.slice(0, 3).map((x) => x.p.number));
+    }
+
+    function summarize(open: Pull[], statuses: Map<number, PullStatus | null>, done = false) {
       const n = open.length;
+      if (sentence) sentence.hidden = false;
       if (line) line.textContent = n === 0 ? 'Nothing waits for a review.' : `${n} ${n === 1 ? 'change needs' : 'changes need'} a review.`;
       if (!sentence) return;
       if (n === 0) {
@@ -184,9 +241,16 @@ const merged = releases()
       else sentence.textContent = 'Open each one to see its checks and approvals.';
       const first = byUrgency(open.map((p) => ({ number: p.number, kind: statuses.get(p.number)?.kind ?? null, updated_at: p.updated_at })))[0]!;
       if (start) start.href = `/studio/changes/?pr=${first.number}`;
+      const listed = waitingForYou(open, statuses, done);
 
-      // First suggestion: unblock a failing pull request when there is one.
-      const fail = open.find((p) => statuses.get(p.number)?.kind === 'ci-failing');
+      // First suggestion: unblock a failing pull request when there is one, unless "Waiting for you" already lists
+      // it (one change, one place). Then the card goes and the other card takes the full width.
+      const failing = open.filter((p) => statuses.get(p.number)?.kind === 'ci-failing');
+      const fail = failing.find((p) => !listed.has(p.number));
+      const card = $('[data-unblock]');
+      const repeat = !fail && failing.length > 0;
+      if (card) card.hidden = repeat;
+      $('.ov-sugg')?.classList.toggle('is-single', repeat);
       const title = $('[data-unblock-title]');
       const text = $('[data-unblock-text]');
       const cta = document.querySelector<HTMLAnchorElement>('[data-unblock-cta]');
@@ -202,7 +266,8 @@ const merged = releases()
     ghGet<Pull[]>(`/repos/${r.owner}/${r.repo}/pulls?state=open&per_page=100`)
       .then((f) => {
         const open = openPulls(f.data).sort((a, b) => b.updated_at.localeCompare(a.updated_at));
-        const statuses = new Map<number, ReviewStatus | null>(open.map((p) => [p.number, null]));
+        const statuses = new Map<number, PullStatus | null>(open.map((p) => [p.number, null]));
+        let done = false;
         const skipped = new Set<number>();
         const MAX = 5;
         const paint = () => {
@@ -211,10 +276,11 @@ const merged = releases()
           const sorted = order.map((o) => byNum.get(o.number)!);
           list?.querySelectorAll('[data-pr]').forEach((el) => el.remove());
           placeholder?.insertAdjacentHTML('beforebegin', sorted.slice(0, MAX).map((p) => row(p, statuses.get(p.number) ?? null, skipped.has(p.number))).join(''));
-          summarize(open, statuses);
+          summarize(open, statuses, done);
         };
         placeholder?.setAttribute('hidden', '');
         paint();
+        repaint = paint;
         // Component change requests that wait: one line under the health line, from the open pull requests read
         // above plus one cached issues list (no closed pull requests needed to know what waits).
         void loadRequestRows({ openPulls: f.data as unknown as PullLike[], closed: false })
@@ -230,7 +296,10 @@ const merged = releases()
         void loadStatuses(open, (p, st, isSkipped) => {
           statuses.set(p.number, st);
           if (isSkipped) skipped.add(p.number);
-        }).then(paint);
+        }).then(() => {
+          done = true;
+          paint();
+        });
       })
       .catch((err) => {
         placeholder?.setAttribute('hidden', '');

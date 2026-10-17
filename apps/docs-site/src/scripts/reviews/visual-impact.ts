@@ -29,15 +29,27 @@ export async function manifestPublished(owner: string, repo: string, pr: number,
 }
 
 export interface VisualSummary {
-  /** Changed screens and stories; null when the workflow has not run for this commit. */
+  /** Changed screens and stories; null when the workflow has not run for this commit (or could not be read). */
   changed: number | null;
   /** Before and after thumbnails of the biggest change, for the section header. */
   thumb: string;
   /** On demand: someone already asked for this pull request (label visual-check), the run is on its way. */
   asked?: boolean;
+  /** On demand: the ask (or its state) is already painted in the top slot, renderTopChange leaves it. */
+  paintedTop?: boolean;
+  /** The biggest change (first in visualState order) and where its images live, for the before/after on top. */
+  top?: VisualShot;
+  base?: string;
+  /** The manifest could not be read (not a 404). */
+  error?: string;
 }
 
-export async function loadVisualImpact(slot: HTMLElement, o: { owner: string; repo: string; pr: number; sha: string; actionsUrl: string }): Promise<VisualSummary> {
+export async function loadVisualImpact(
+  slot: HTMLElement,
+  o: { owner: string; repo: string; pr: number; sha: string; actionsUrl: string },
+  /** The before/after slot on top of the pull request: on demand, the ask lives there, not in the collapsed list. */
+  topSlot?: HTMLElement,
+): Promise<VisualSummary> {
   const base = visualBase(o.owner, o.repo, o.pr, o.sha);
   let manifest: VisualManifest | null = null;
   try {
@@ -48,13 +60,14 @@ export async function loadVisualImpact(slot: HTMLElement, o: { owner: string; re
   } catch (err) {
     if (!(err instanceof GitHubError && err.status === 404)) {
       slot.innerHTML = `<p class="rv-error">Could not read the visual impact: ${esc((err as Error).message)}</p>`;
-      return { changed: null, thumb: '' };
+      return { changed: null, thumb: '', error: (err as Error).message };
     }
   }
   const state = visualState(manifest);
   if (state.kind === 'not-computed') {
-    const asked = await notRun(slot, o);
-    return { changed: null, thumb: '', asked };
+    const onTop = Boolean(topSlot) && visualMode() === 'on-demand';
+    const asked = await notRun(onTop ? topSlot! : slot, o);
+    return { changed: null, thumb: '', asked, paintedTop: onTop };
   }
   const m = state.manifest;
   const head = `<p class="small muted">${m.summary.shots} screenshot${m.summary.shots === 1 ? '' : 's'} compared, base <span class="mono">${esc(m.base.sha.slice(0, 7))}</span> to head <span class="mono">${esc(m.head.sha.slice(0, 7))}</span>, threshold ${m.options.threshold}.${
@@ -108,7 +121,32 @@ export async function loadVisualImpact(slot: HTMLElement, o: { owner: string; re
   const top = shots[0]!;
   const img = (p: string | undefined, label: string) => (p ? `<img src="${esc(`${base}/${p}`)}" alt="" loading="lazy" title="${label}" />` : '');
   const thumb = top.images.before && top.images.after ? `<span class="cg-thumb" aria-hidden="true">${img(top.images.before, 'Before')}${img(top.images.after, 'After')}</span>` : '';
-  return { changed: shots.length, thumb };
+  return { changed: shots.length, thumb, top, base };
+}
+
+/**
+ * The before/after on top of a pull request: the biggest visual change, with the same slider and diff toggle as
+ * the full list, and a link to every changed screen. Without a manifest yet: one quiet line.
+ */
+export function renderTopChange(slot: HTMLElement, v: VisualSummary, allHref: string): void {
+  if (v.error) {
+    slot.innerHTML = `<p class="rv-error">Could not read the before and after: ${esc(v.error)}</p>`;
+    return;
+  }
+  if (v.changed === null) {
+    if (v.paintedTop) return;
+    slot.innerHTML = '<p class="cg-line rv-what-quiet">The before and after is being prepared. It runs on its own for every change to tokens or components.</p>';
+    return;
+  }
+  if (v.changed === 0 || !v.top || !v.base) {
+    slot.innerHTML = '<p class="cg-line rv-what-quiet">No visual change.</p>';
+    return;
+  }
+  const n = v.changed;
+  slot.innerHTML = `<div class="rv-what-head"><p class="cg-line">${n} ${n === 1 ? 'screen' : 'screens'} changed. The biggest one:</p>${
+    n > 1 ? `<a href="${esc(allHref)}" data-open-visual>See all ${n}</a>` : ''
+  }</div>${shotCard(v.top, v.base)}`;
+  wire(slot);
 }
 
 /** visualImpact.mode from bridge.config.json, embedded by the layout. */

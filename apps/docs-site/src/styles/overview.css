@@ -68,6 +68,15 @@
   margin-top: var(--space-8);
 }
 
+/* One card left (the other change already sits in "Waiting for you"): it takes the row, no empty column. */
+.ov-sugg.is-single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.ov-sugg > [hidden] {
+  display: none;
+}
+
 .ov-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -212,4 +221,30 @@
   .ov-row-title {
     white-space: nowrap;
   }
+}
+
+/* Waiting for you: up to three changes where the connected viewer acts now, as plain links on the greeting. */
+.ov-wait {
+  display: grid;
+  gap: var(--space-2);
+  max-width: 65ch;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ov-wait[hidden] {
+  display: none;
+}
+
+.ov-wait li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  min-height: var(--size-6);
+}
+
+.ov-wait a {
+  font-weight: var(--font-weight-semibold);
 }
