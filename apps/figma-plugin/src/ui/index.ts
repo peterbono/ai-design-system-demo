@@ -18,6 +18,7 @@ import { type ApplyReport, type FigmaSnapshot, type InitPayload, type RepoSettin
 import { onProgress, request } from './bridge';
 import { type Child, h } from './dom';
 import { icon } from './icons';
+import { ILLUSTRATIONS, type IllustrationName } from './illustrations';
 
 type Tab = 'pull' | 'push' | 'settings';
 const TABS: { id: Tab; label: string }[] = [
@@ -513,14 +514,38 @@ interface View {
   bar?: ActionBar | undefined;
 }
 
+/** A Field Guide line drawing (static markup from illustrations.ts). Decorative. */
+function ill(name: IllustrationName): HTMLElement {
+  const art = ILLUSTRATIONS[name];
+  const el = h('span', { class: 'ill', 'aria-hidden': 'true' });
+  el.innerHTML = `<svg viewBox="${art.viewBox}" fill="none" focusable="false">${art.svg}</svg>`;
+  return el;
+}
+
+/** The screen's one Harbor zone: a Fraunces headline, one sentence, an optional meta line, a drawing. */
+function intro(o: { title: string; text?: string; meta?: Child; art?: IllustrationName }): HTMLElement {
+  return h(
+    'section',
+    { class: `zone intro${o.art ? ' with-art' : ''}` },
+    h('div', { class: 'intro-text' }, h('h2', { class: 'headline' }, o.title), o.text ? h('p', null, o.text) : null, o.meta ? h('p', { class: 'muted' }, o.meta) : null),
+    o.art ? ill(o.art) : null,
+  );
+}
+
+/** Where the tokens come from, as a card under the intro of the idle screens. */
+function sourceCard(init: InitPayload): HTMLElement {
+  const fact = (k: string, v: string) => h('div', null, h('dt', null, k), h('dd', null, v));
+  return h(
+    'section',
+    { class: 'card' },
+    h('div', { class: 'group-head' }, h('h2', null, 'Source'), h('button', { class: 'btn ghost', onClick: () => { state.tab = 'settings'; render(); } }, 'Change')),
+    h('dl', { class: 'facts' }, fact('Repository', init.settings.repo), fact('Branch', init.settings.branch), fact('Tokens folder', init.settings.tokensPath)),
+  );
+}
+
 function needToken(): View {
   return {
-    body: h(
-      'div',
-      { class: 'empty' },
-      h('h2', null, 'Connect a repository'),
-      h('p', null, 'DS Bridge needs a GitHub token to read the tokens on main and open pull requests.'),
-    ),
+    body: intro({ title: 'Connect your repository', text: 'DS Bridge reads the tokens on main and opens pull requests with your edits. It needs a GitHub token for one repository.', art: 'guide' }),
     bar: { label: 'Open Settings', onClick: () => { state.tab = 'settings'; render(); } },
   };
 }
@@ -529,17 +554,16 @@ function viewPull(): View {
   const init = state.init!;
   if (!init.hasToken) return needToken();
   const p = state.pull;
-  const where = h(
-    'p',
-    { class: 'lede' },
-    `Bring the latest tokens from ${init.settings.branch} into Figma. `,
-    init.sync.baseSha
-      ? `Last pulled ${short(init.sync.baseSha)} from ${init.settings.repo}${init.sync.lastPullAt ? ` on ${when(init.sync.lastPullAt)}` : ''}.`
-      : 'First pull: the Primitives, Brand, Base, Semantic, Density and Component collections are created for you.',
-  );
   if (!p) {
     return {
-      body: h('section', null, h('h2', null, 'Pull from GitHub'), where, h('p', { class: 'muted' }, 'You see every change before anything is written. Your own unpublished edits are kept, and nothing is deleted.')),
+      body: [intro({
+        title: `Bring ${init.settings.branch} into Figma`,
+        text: 'See every change before anything is written. Your own edits are kept, nothing is deleted.',
+        meta: init.sync.baseSha
+          ? `Last pulled ${short(init.sync.baseSha)}${init.sync.lastPullAt ? ` on ${when(init.sync.lastPullAt)}` : ''}`
+          : 'First pull: one collection per tier, with its modes.',
+        art: 'tokens',
+      }), sourceCard(init)],
       bar: { label: 'Check for updates', onClick: checkPull },
     };
   }
@@ -553,20 +577,21 @@ function viewPull(): View {
     const r = p.report;
     return {
       body: [
-        h(
-          'div',
-          { class: r.errors.length ? 'callout warn' : 'callout ok', role: 'status' },
-          h('div', { class: 'callout-title' }, icon(r.errors.length ? 'alert' : 'check'), r.errors.length ? 'Pulled with problems' : 'Figma is up to date'),
-          h(
-            'p',
-            null,
-            `${plural(r.created, 'variable')} created, ${r.updated} updated${r.orphaned ? `, ${r.orphaned} flagged as orphan` : ''}. ${
-              r.layout === 'single-collection' ? 'Themes are modes of the Semantic collection.' : 'This file allows one mode per collection, so each theme has its own Semantic collection.'
-            }`,
-          ),
-          r.errors.length ? h('ul', null, r.errors.map((e) => h('li', null, e))) : null,
-        ),
-        prop.kept.length ? h('p', { class: 'muted' }, `${plural(prop.kept.length, 'unpublished edit')} kept. Send them from Push.`) : null,
+        intro({
+          title: r.errors.length ? 'Pulled, with problems' : 'Figma is up to date',
+          text: `${plural(r.created, 'variable')} created, ${r.updated} updated${r.orphaned ? `, ${r.orphaned} flagged as orphan` : ''}.${prop.kept.length ? ` ${plural(prop.kept.length, 'Figma edit')} kept: send them from Push.` : ''}`,
+          meta: r.layout === 'single-collection' ? 'Themes are modes of the Semantic collection.' : 'This file allows one mode per collection, so each theme has its own Semantic collection.',
+          art: r.errors.length ? 'fix' : 'tokens',
+        }),
+        r.errors.length
+          ? h(
+              'section',
+              { class: 'group' },
+              h('div', { class: 'group-head' }, h('h2', null, 'Problems', h('span', { class: 'group-n' }, String(r.errors.length)))),
+              h('p', { class: 'lede' }, 'Nothing else was skipped. Fix these in code or pull again.'),
+              rowList('pull-errors', r.errors.map((e) => h('li', { class: 'row' }, h('p', null, e))), 5),
+            )
+          : null,
       ],
       bar: { label: 'Check again', onClick: checkPull, secondary: prop.kept.length ? { label: 'Push my edits', onClick: () => { state.tab = 'push'; scanPush(); } } : undefined },
     };
@@ -705,13 +730,12 @@ function viewPush(): View {
   const r = state.push;
   if (!r) {
     return {
-      body: h(
-        'section',
-        null,
-        h('h2', null, 'Push your edits'),
-        h('p', { class: 'lede' }, 'Send your Figma edits to the repo as a pull request for review.'),
-        h('p', { class: 'muted' }, `DS Bridge compares the variables in this file with ${init.settings.branch}. Edit values, aliases, names or descriptions in any synced collection (Primitives, Brand, Base, Semantic, Density, Component), then scan. Design and tech owners review the pull request before anything ships.`),
-      ),
+      body: [intro({
+        title: 'Send your edits for review',
+        text: `Edit values, aliases, names or descriptions in any synced collection, then scan. Every change goes to ${init.settings.branch} as a draft pull request.`,
+        meta: 'Design and tech owners approve before anything ships.',
+        art: 'paint',
+      }), sourceCard(init)],
       bar: { label: 'Scan for changes', onClick: () => scanPush() },
     };
   }
@@ -722,13 +746,12 @@ function viewPush(): View {
   if (r.result) {
     const res = r.result;
     return {
-      body: h(
-        'div',
-        { class: 'callout ok', role: 'status' },
-        h('div', { class: 'callout-title' }, icon('check'), res.appended ? `Commit added to pull request #${res.pr.number}` : `Pull request #${res.pr.number} opened`),
-        h('p', null, `On branch ${res.branch}, as a draft. CI runs the same checks as for any change, and a design owner and a tech owner must approve before it is merged.`),
-        h('p', { class: 'muted url' }, res.pr.url),
-      ),
+      body: intro({
+        title: res.appended ? `Commit added to pull request #${res.pr.number}` : `Pull request #${res.pr.number} opened`,
+        text: `On branch ${res.branch}, as a draft. CI runs the usual checks, then a design owner and a tech owner approve.`,
+        meta: h('span', { class: 'url' }, res.pr.url),
+        art: 'review',
+      }),
       bar: {
         label: 'Open on GitHub',
         onClick: () => void request('open-url', { url: res.pr.url }),
@@ -925,9 +948,10 @@ function viewSettings(): View {
     );
   return {
     body: [
+      init.hasToken ? null : intro({ title: 'Connect your repository', text: 'Point DS Bridge at the repository that holds your token files, then paste a token. Nothing is written until you push.', art: 'guide' }),
       h(
         'section',
-        null,
+        { class: 'card' },
         h('h2', null, 'Where the tokens live'),
         field('Repository', 'repo', 'Owner and name, as in the GitHub URL.', 'owner/name'),
         field('Base branch', 'branch', 'Pulls read from it; pull requests target it.', 'main'),
@@ -935,8 +959,8 @@ function viewSettings(): View {
       ),
       h(
         'section',
-        null,
-        h('h2', null, 'GitHub token'),
+        { class: 'card' },
+        h('div', { class: 'group-head' }, h('h2', null, 'GitHub token'), init.hasToken ? null : h('button', { class: 'btn ghost', onClick: () => void request('open-url', { url: 'https://github.com/settings/personal-access-tokens/new' }) }, 'Create one on GitHub')),
         h(
           'p',
           { class: 'lede' },
