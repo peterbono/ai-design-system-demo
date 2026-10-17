@@ -13,7 +13,8 @@ export interface ComponentRow {
   tokens: number;
   props: number;
   stories: number;
-  editHref: string;
+  /** Studio Tokens filtered on this component's tokens; absent when it reads no token. */
+  editHref?: string;
   codeHref: string;
   storyHref?: string;
 }
@@ -64,10 +65,12 @@ export default function ComponentsTable({ rows }: { rows: ComponentRow[] }) {
             <TableCell numeric>{c.stories}</TableCell>
             <TableCell>
               <span className="st-links">
-                <Link variant="standalone" href={c.editHref} data-keep-branch="">
-                  <Icon icon={Pencil} size="xs" />
-                  Edit tokens
-                </Link>
+                {c.editHref && (
+                  <Link variant="standalone" href={c.editHref} data-keep-branch="">
+                    <Icon icon={Pencil} size="xs" />
+                    Edit tokens
+                  </Link>
+                )}
                 <Link variant="standalone" href={c.codeHref}>
                   <Icon icon={GitHubMark} size="xs" />
                   Code

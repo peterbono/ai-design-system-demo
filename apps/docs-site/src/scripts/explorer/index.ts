@@ -10,6 +10,7 @@ import {
   buildTokens,
   categoryList,
   collectionTree,
+  componentScope,
   defaultCtx,
   emptyFilters,
   inSelection,
@@ -26,7 +27,7 @@ import { editorReady, editorSnapshot, initTokenEditor, setEditing } from '../tok
 import { cellValue } from '../../lib/explorer/model';
 import { codeSyntax } from '../../lib/explorer/format';
 import { initReview } from './review';
-import { loadExplorerData } from './data';
+import { loadExplorerData, readJson } from './data';
 import { renderDetail, syntaxes } from './detail';
 import { refreshRow, renderGrid } from './grid';
 import { closeInlineEditor, inlineEditorOpen, openInlineEditor } from './inline-edit';
@@ -148,13 +149,27 @@ export function initTokenExplorer() {
     if (target?.kind === 'token' && s.filters.tiers.length && !s.filters.tiers.includes(target.tier)) s.filters.tiers = [...s.filters.tiers, target.tier];
     s.filters.categories = s.filters.categories.slice(0, 1);
   }
+  // Studio ?component=<slug> (Studio > Components, Edit tokens): exactly the tokens that component reads, across every
+  // collection, shown as a removable chip in the chip row. Clearing it returns to the default scope.
+  const componentIndex = readJson<Record<string, { name: string; paths: string[] }>>('xp-components', {});
+  const compSlug = params.get('component') ?? '';
+  let comp = app && componentIndex[compSlug] ? { slug: compSlug, ...componentIndex[compSlug]! } : null;
+  if (comp && !params.get('ft')) {
+    s.filters.tiers = [...TIER_ORDER];
+    s.selection = { lens: 'collections', tier: 'all' };
+  }
+  const isAllTiers = (t: Tier[]) => TIER_ORDER.every((x) => t.includes(x));
+  function clearComponent() {
+    comp = null;
+    if (isAllTiers(s.filters.tiers)) s.filters.tiers = [...APP_TIERS];
+  }
   q.value = s.filters.query;
 
   // ---- derived view
   let view: View = computeView();
   function computeView(): View {
     const inSel = d.tokens.filter((t) => inSelection(t, s.selection));
-    const visible = applyFilters(inSel, s.filters);
+    const visible = applyFilters(comp ? componentScope(inSel, comp.paths) : inSel, s.filters);
     if (!app) {
       const plan = planColumns(s.selection, d.modes, s.view, varyingOf(inSel));
       return { visible, plan, columns: plan.columns };
@@ -170,7 +185,8 @@ export function initTokenExplorer() {
   }
   /** Studio: tokens in the selection and the Options collections, before the type chip, usage and the filter field. */
   function scoped() {
-    return d.tokens.filter((t) => inSelection(t, s.selection) && (!s.filters.tiers.length || s.filters.tiers.includes(t.tier)));
+    const inScope = d.tokens.filter((t) => inSelection(t, s.selection) && (!s.filters.tiers.length || s.filters.tiers.includes(t.tier)));
+    return comp ? componentScope(inScope, comp.paths) : inScope;
   }
 
   const syncUrl = () => {
@@ -183,11 +199,13 @@ export function initTokenExplorer() {
       p.set('c', sel.tier);
       if (sel.group) p.set('g', sel.group);
     }
+    if (comp) p.set('component', comp.slug);
     if (s.filters.query) p.set('q', s.filters.query);
     if (s.filters.exact) p.set('exact', '1');
     if (s.filters.usage) p.set('usage', s.filters.usage);
     const grouped = sel.lens === 'collections' && Boolean(sel.group);
-    if (s.filters.tiers.length ? !(app && isDefaultTiers(s.filters.tiers)) : app && !grouped) p.set('ft', s.filters.tiers.join(',') || 'all');
+    const defaultScope = comp ? isAllTiers(s.filters.tiers) : isDefaultTiers(s.filters.tiers);
+    if (s.filters.tiers.length ? !(app && defaultScope) : app && !grouped) p.set('ft', s.filters.tiers.join(',') || 'all');
     if (s.filters.categories.length) p.set('fc', s.filters.categories.join(','));
     if (s.view.brand !== base.brand) p.set('brand', s.view.brand);
     if (s.view.allCombos) p.set('combos', '1');
@@ -276,7 +294,10 @@ export function initTokenExplorer() {
     const current = s.filters.categories[0] ?? 'all';
     const chip = (value: string, label: string, n: number) =>
       `<button type="button" class="xp-chip-btn" aria-pressed="${current === value}" data-xp-chip="${value}">${esc(label)} <span class="xp-chip-n num">${n}</span></button>`;
-    chips.innerHTML = [chip('all', 'All', matching.length), ...cats.map(({ c, label }) => chip(c, label, matching.filter((t) => t.category === c).length))].join('');
+    const used = comp
+      ? `<button type="button" class="xp-chip-btn xp-chip-filter" data-xp-chip-clear aria-label="Remove filter: used by ${esc(comp.name)}" title="Show every token again">Used by ${esc(comp.name)} ${icon('close', 12)}</button>`
+      : '';
+    chips.innerHTML = [used, chip('all', 'All', matching.length), ...cats.map(({ c, label }) => chip(c, label, matching.filter((t) => t.category === c).length))].join('');
   }
 
   function renderAppToolbar() {
@@ -285,17 +306,19 @@ export function initTokenExplorer() {
     const tiers = s.filters.tiers.length ? [...s.filters.tiers].sort((a, b) => tierRank(a) - tierRank(b)) : [];
     const tierWord = (t: Tier) => (t === 'primitive' ? 'Primitive' : TIER_NAMES[t]);
     const names = tiers.map((t, i) => (i ? tierWord(t).toLowerCase() : tierWord(t)));
-    const which =
-      sel.lens === 'collections' && sel.group
+    const which = comp
+      ? `Tokens used by ${comp.name}`
+      : sel.lens === 'collections' && sel.group
         ? `${TIER_NAMES[sel.tier as Tier] ?? 'All'} tokens in ${sel.group}`
         : !names.length || names.length === TIER_ORDER.length
           ? 'All tokens'
           : `${names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0]} tokens`;
     const brandMatters = view.plan.selectors.includes('brand') || view.plan.combos;
-    title.textContent = `${which}${brandMatters ? (s.view.allCombos ? ', every brand and theme.' : ` of the ${modeName(s.view.brand)} brand.`) : '.'}`;
+    const brandNote = s.view.allCombos ? ', every brand and theme.' : comp ? `, ${modeName(s.view.brand)} brand.` : ` of the ${modeName(s.view.brand)} brand.`;
+    title.textContent = `${which}${brandMatters ? brandNote : '.'}`;
     q.placeholder = `Filter ${scope.length} tokens`;
     count.textContent = `${view.visible.length} of ${scope.length} tokens shown`;
-    const n = (isDefaultTiers(s.filters.tiers) || sel.lens !== 'collections' || sel.group ? 0 : 1) + (s.filters.usage ? 1 : 0) + (s.filters.exact ? 1 : 0);
+    const n = ((comp ? isAllTiers(s.filters.tiers) : isDefaultTiers(s.filters.tiers)) || sel.lens !== 'collections' || sel.group ? 0 : 1) + (s.filters.usage ? 1 : 0) + (s.filters.exact ? 1 : 0);
     filterN.textContent = String(n);
     filterN.hidden = n === 0;
     renderChips();
@@ -475,8 +498,9 @@ export function initTokenExplorer() {
     if (!x) return;
     if (!view.visible.some((t) => t.path === path)) {
       if (app) {
+        if (comp && !comp.paths.includes(path)) clearComponent();
         s.selection = { lens: 'collections', tier: 'all' };
-        const tiers = s.filters.tiers.length ? s.filters.tiers : [...APP_TIERS];
+        const tiers = s.filters.tiers.length ? s.filters.tiers : comp ? [...TIER_ORDER] : [...APP_TIERS];
         s.filters = { ...emptyFilters(), tiers: tiers.includes(x.tier) ? tiers : [...tiers, x.tier] };
       } else {
         s.selection = { lens: 'collections', tier: x.tier };
@@ -643,6 +667,12 @@ export function initTokenExplorer() {
     render();
   });
   chips?.addEventListener('click', (e) => {
+    if ((e.target as HTMLElement).closest('[data-xp-chip-clear]')) {
+      clearComponent();
+      render();
+      chips.querySelector<HTMLElement>('[data-xp-chip]')?.focus();
+      return;
+    }
     const b = (e.target as HTMLElement).closest<HTMLElement>('[data-xp-chip]');
     if (!b) return;
     const c = b.dataset.xpChip!;
@@ -666,7 +696,7 @@ export function initTokenExplorer() {
   });
   filtersEl.addEventListener('click', (e) => {
     if (!(e.target as HTMLElement).closest('[data-xp-clear-filters]')) return;
-    s.filters = app ? { ...emptyFilters(), query: s.filters.query, tiers: [...APP_TIERS], categories: s.filters.categories } : { ...emptyFilters(), query: s.filters.query, exact: s.filters.exact };
+    s.filters = app ? { ...emptyFilters(), query: s.filters.query, tiers: comp ? [...TIER_ORDER] : [...APP_TIERS], categories: s.filters.categories } : { ...emptyFilters(), query: s.filters.query, exact: s.filters.exact };
     if (app) s.selection = { lens: 'collections', tier: 'all' };
     render();
   });
@@ -678,6 +708,7 @@ export function initTokenExplorer() {
     }
   });
   root.querySelector('[data-xp-clear]')?.addEventListener('click', () => {
+    comp = null;
     s.filters = app ? { ...emptyFilters(), tiers: [...APP_TIERS] } : emptyFilters();
     if (app) s.selection = { lens: 'collections', tier: 'all' };
     q.value = '';

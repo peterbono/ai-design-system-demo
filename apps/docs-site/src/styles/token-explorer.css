@@ -3403,6 +3403,16 @@
   opacity: 0.75;
 }
 
+/* Studio ?component= filter: a removable chip ahead of the type chips. */
+.xp-chip-filter {
+  border-color: var(--color-border-emphasis);
+  background-color: var(--color-bg-subtle);
+}
+
+.xp-chip-filter svg {
+  color: var(--color-text-muted);
+}
+
 .xp-chip-btn:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
   outline-offset: var(--focus-ring-offset);

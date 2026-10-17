@@ -375,6 +375,12 @@ export function pairedBackground(path: string, has: (p: string) => boolean, pair
   return canvas;
 }
 
+/** Tokens a component reads (Studio Tokens ?component=), across every tier, in token order. */
+export function componentScope<T extends { path: string }>(tokens: T[], paths: readonly string[]): T[] {
+  const set = new Set(paths);
+  return tokens.filter((t) => set.has(t.path));
+}
+
 /** Studio Tokens, focused on a token or a group: the door from every Library "Edit in Studio" link. */
 export const studioHref = (focus: string) => `/studio/tokens/?focus=${encodeURIComponent(focus)}`;
 

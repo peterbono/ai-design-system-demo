@@ -1,10 +1,12 @@
 ---
 // The data the token explorer and the token detail drawer build their token set from, embedded as JSON: the token
-// files of this build, bridge.config.json, the contrast checks and build-time usage (which components and global
-// stylesheets read each token, from the CSS scan). Mount it once per page; scripts/explorer/data.ts reads it.
+// files of this build, bridge.config.json, the contrast checks, build-time usage (which components and global
+// stylesheets read each token, from the CSS scan) and the tokens each component reads. Mount it once per page;
+// scripts/explorer/data.ts reads it.
 import { explorerTokens, tokenFiles } from '../../lib/explorer';
 import { readText, exists } from '../../lib/repo';
 import { CONTRAST_FILE } from '../../lib/contrast';
+import { componentTokenIndex } from '../../lib/components';
 
 const files = tokenFiles();
 const usage = Object.fromEntries(explorerTokens().map((t) => [t.path, { used: t.used, usedBy: t.usedBy, styles: t.globalStyles }]));
@@ -13,9 +15,12 @@ const filesJson = safe(JSON.stringify(files));
 const usageJson = safe(JSON.stringify(usage));
 const configJson = safe(exists('bridge.config.json') ? readText('bridge.config.json') : '{}');
 const checksJson = safe(readText(CONTRAST_FILE));
+// Studio Tokens ?component=<slug>: the tokens each component reads (lib/components.ts tokenPaths).
+const componentsJson = safe(JSON.stringify(componentTokenIndex()));
 ---
 
 <script type="application/json" id="xp-files" set:html={filesJson} />
 <script type="application/json" id="xp-config" set:html={configJson} />
 <script type="application/json" id="xp-checks" set:html={checksJson} />
 <script type="application/json" id="xp-usage" set:html={usageJson} />
+<script type="application/json" id="xp-components" set:html={componentsJson} />
