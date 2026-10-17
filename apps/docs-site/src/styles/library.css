@@ -1,21 +1,4 @@
-/* Library reading pages: accessibility floor, install steps, agents, component tabs and the catalog families. */
-
-.a11y-floor {
-  display: grid;
-  gap: var(--space-3);
-  max-width: 72ch;
-  margin: 0 0 var(--space-8);
-  padding: 0;
-  list-style: none;
-}
-
-.a11y-floor li {
-  margin: 0;
-  padding: var(--space-3) var(--space-4);
-  border: var(--border-width-default) solid var(--color-border-default);
-  border-radius: var(--radius-control);
-  background-color: var(--color-surface-default);
-}
+/* Library reading pages: install steps, agents, component tabs and the catalog families. */
 
 .lib-steps {
   display: grid;

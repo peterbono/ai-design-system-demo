@@ -1,148 +1,199 @@
 ---
+// Library > Foundations > Accessibility. Summary first: one status sentence from the contrast gate, then the gated
+// pairs grouped by use for one brand and theme at a time (or all four side by side), what every component
+// guarantees, and the method behind it, collapsed. All numbers come from packages/tokens/src/contrast.checks.json
+// resolved against the tokens at build time (lib/contrast.ts, lib/a11y-checks.ts).
 import '../../styles/foundations.css';
-import '../../styles/library.css';
+import '../../styles/a11y.css';
 import Layout from '../../layouts/Layout.astro';
-import { Badge } from '@bridge-ds/react';
-import ContrastTable, { type ContrastRow } from '../../components/foundations/ContrastTable';
-import { CircleAlert, CircleCheck } from 'lucide-react';
-import Icon from '../../components/Icon.astro';
-import { contrastPairs, THRESHOLDS } from '../../lib/contrast';
+import LibraryHeader from '../../components/LibraryHeader.astro';
+import TokenDetailDrawer from '../../components/explorer/TokenDetailDrawer.astro';
+import ContrastMatrix, { type MatrixRow } from '../../components/foundations/ContrastMatrix';
+import { Badge, Button, Icon, Link, SegmentedControl } from '@bridge-ds/react';
+import { CircleAlert, CircleCheck, Columns2, Moon, Sun } from 'lucide-react';
+import { CONTRAST_FILE, pagePairs, THRESHOLDS } from '../../lib/contrast';
+import {
+  buildGroups,
+  combos as makeCombos,
+  groupStatus,
+  resultFor,
+  rowTitle,
+  shortName,
+  statusLabel,
+  statusOf,
+  statusSentence,
+  summarize,
+  type Status,
+} from '../../lib/a11y-checks';
 import { PAGE_SOURCES, freshness } from '../../lib/sources';
-import { anchorOf, BRAND_LABEL, BRANDS, MODES, type Brand, type Mode } from '../../lib/tokens';
+import { BRAND_LABEL, BRANDS, DEFAULT_BRAND, MODES } from '../../lib/tokens';
 
-const pairs = contrastPairs();
+const pairs = pagePairs(import.meta.env.DEV);
 const updated = freshness(PAGE_SOURCES.accessibility);
-/** Every brand x theme combination the build gates on. */
-const COMBOS = BRANDS.flatMap((b) => MODES.map((m) => ({ b, m, key: `${b}-${m}` }))) as { b: Brand; m: Mode; key: string }[];
-const res = (p: (typeof pairs)[number], c: (typeof COMBOS)[number]) => p.brands[c.b][c.m];
-const failures = pairs.flatMap((p) => COMBOS.filter((c) => !res(p, c).aa).map((c) => ({ p, c })));
-const total = pairs.length * COMBOS.length;
-const passing = total - failures.length;
-const rate = total ? Math.floor((passing / total) * 1000) / 10 : 100;
-const perMode = COMBOS.map((c) => ({ c, pass: pairs.filter((p) => res(p, c).aa).length, total: pairs.length }));
-const failingPairs = pairs.filter((p) => COMBOS.some((c) => !res(p, c).aa));
-const comboLabel = (c: { b: Brand; m: Mode }) => `${BRAND_LABEL[c.b]} ${c.m === 'light' ? 'light' : 'dark'}`;
-const need = (p: { min: number }) => p.min;
-const tableCombos = COMBOS.map((c) => ({ key: c.key, brand: c.b, mode: c.m, label: comboLabel(c) }));
-const tableRows: ContrastRow[] = [...pairs]
-  .sort((a, b) => Number(COMBOS.every((c) => res(a, c).aa)) - Number(COMBOS.every((c) => res(b, c).aa)))
-  .map((p) => ({
-    fg: p.fg,
-    bg: p.bg,
-    fgHref: `/foundations/color/#${anchorOf(p.fgToken.cssVar)}`,
-    bgHref: `/foundations/color/#${anchorOf(p.bgToken.cssVar)}`,
-    fgVar: p.fgToken.cssVar,
-    bgVar: p.bgToken.cssVar,
-    usage: p.usage === 'text' ? 'text' : 'ui',
-    min: p.min,
-    results: COMBOS.map((c) => {
-      const r = res(p, c);
-      return { ratio: r.ratio, fgHex: r.fgHex, bgHex: r.bgHex, aa: r.aa, aaa: r.aaa };
+const COMBOS = makeCombos(BRANDS, MODES, BRAND_LABEL);
+const DEFAULT_KEY = `${DEFAULT_BRAND}-${MODES[0]}`;
+const summary = summarize(pairs, COMBOS);
+const groups = buildGroups(pairs, COMBOS);
+const TONE: Record<Status, 'success' | 'neutral' | 'danger'> = { aaa: 'success', aa: 'neutral', fail: 'danger' };
+const pairName = (p: (typeof pairs)[number]) => `${shortName(p.fg)} on ${shortName(p.bg)}`;
+const cssVar = (path: string) => `var(--${path.replace(/\./g, '-')})`;
+const matrixRows = (g: (typeof groups)[number]): MatrixRow[] =>
+  g.pairs.map((p) => ({
+    id: `${p.fg}|${p.bg}`,
+    name: pairName(p),
+    cells: COMBOS.map((c) => {
+      const r = resultFor(p, c);
+      const s = statusOf(r);
+      return { key: c.key, ratio: r.ratio.toFixed(2), status: s, label: statusLabel(s, p.min), title: `${c.label}: ${rowTitle(p, r)}` };
     }),
   }));
-import LibraryHeader from '../../components/LibraryHeader.astro';
 ---
 
-<Layout title="Accessibility" description="What Bridge commits to for accessibility, and the contrast grid of every gated color pair in every brand and theme." sources={PAGE_SOURCES.accessibility} updated={updated}>
+<Layout title="Accessibility" description="What Bridge commits to for accessibility, and every gated color pair checked in every brand and theme." sources={PAGE_SOURCES.accessibility} updated={updated}>
   <LibraryHeader title="Accessibility" art="foundations" updated={updated} studio="/studio/checks/" studioLabel="Open in Studio">
-    Bridge targets WCAG 2.2 AA: text needs {THRESHOLDS.text.aa}:1 against its background, control edges, icons and focus rings need {THRESHOLDS.ui.aa}:1. The token build checks every gated color pair in both brands and both themes, so a token change that breaks a pair fails the build before it ships.
+    <p class="a11y-status" data-state={summary.failing ? 'fail' : 'pass'}>
+      <Icon icon={summary.failing ? CircleAlert : CircleCheck} size="md" className="a11y-status-icon" />
+      <span>{statusSentence(summary)}</span>
+    </p>
+    <Fragment slot="actions">
+      <Link href="#how-we-check" variant="standalone" data-a11y-how>How we check</Link>
+    </Fragment>
   </LibraryHeader>
 
-  <h2>What every component guarantees</h2>
-  <ul class="a11y-floor">
-    <li><strong>Keyboard and screen readers.</strong> Every interactive component is keyboard operable, with the right role, name and state (<code>aria-checked</code>, <code>aria-expanded</code>, <code>aria-invalid</code>, <code>aria-busy</code>). Behavior comes from native elements or Base UI parts, and the wrappers do not break it.</li>
-    <li><strong>Visible focus.</strong> A 2px ring in the focus color, offset by 2px, on <code>:focus-visible</code> only. Inputs draw it inside so it hugs the field. The ring keeps 3:1 against canvas and surfaces.</li>
-    <li><strong>Color is never the only signal.</strong> Status has text and an icon; an invalid field has a message.</li>
-    <li><strong>Targets of at least 24 by 24 px</strong> in both densities.</li>
-    <li><strong>Reduced motion.</strong> With <code>prefers-reduced-motion: reduce</code>, every motion duration in <code>tokens.css</code> drops to 0.</li>
-    <li><strong>Checked in CI.</strong> Storybook runs the accessibility addon in error mode, and the component tests run axe-core on keyboard and ARIA behavior.</li>
-  </ul>
-
-  <h2>Contrast grid</h2>
-  <p class="muted">The pairs the token build gates on, computed at build time from the token values. Fix a failing pair with a token change, never locally.</p>
-
-  <section class="ct-summary" aria-label="Summary">
-    <div class="ct-score">
-      <p class="ct-big display num">{rate}%</p>
-      <p class="ct-score-label"><strong class="num">{passing} of {total}</strong> checks pass AA</p>
-      <div class="ct-meter" role="img" aria-label={`${passing} of ${total} checks pass`}>
-        <span style={`width: ${(passing / Math.max(total, 1)) * 100}%`}></span>
+  <section class="a11y-checks" aria-labelledby="a11y-checks-h" data-a11y-checks data-view="list" data-combo={DEFAULT_KEY}>
+    <h2 id="a11y-checks-h">Contrast checks</h2>
+    <div class="a11y-bar">
+      <div class="a11y-scope">
+        <div class="a11y-field">
+          <span class="a11y-field-label" id="a11y-brand-l">Brand</span>
+          <SegmentedControl
+            aria-labelledby="a11y-brand-l"
+            size="sm"
+            data-vanilla
+            data-a11y-brand
+            defaultValue={DEFAULT_BRAND}
+            items={BRANDS.map((b) => ({ value: b, label: BRAND_LABEL[b] }))}
+          />
+        </div>
+        <div class="a11y-field">
+          <span class="a11y-field-label" id="a11y-mode-l">Theme</span>
+          <SegmentedControl
+            aria-labelledby="a11y-mode-l"
+            size="sm"
+            data-vanilla
+            data-a11y-mode
+            defaultValue={MODES[0]}
+            items={MODES.map((m) => ({ value: m, label: m === 'light' ? 'Light' : 'Dark', icon: m === 'light' ? Sun : Moon }))}
+          />
+        </div>
       </div>
-      <ul class="ct-modes">
-        {
-          perMode.map((x) => (
-            <li>
-              <span>{comboLabel(x.c)}</span>
-              <strong class="num">
-                {x.pass}/{x.total}
-              </strong>
-            </li>
-          ))
-        }
-      </ul>
+      <Button variant="secondary" size="sm" iconStart={Columns2} aria-pressed="false" data-a11y-compare className="a11y-compare">
+        Compare all {COMBOS.length}
+      </Button>
     </div>
-    <div class="ct-rules">
-      <p><strong>Text</strong> needs {THRESHOLDS.text.aa}:1 for AA and {THRESHOLDS.text.aaa}:1 for AAA.</p>
-      <p><strong>UI</strong> (control edges, icons, focus rings) needs {THRESHOLDS.ui.aa}:1, WCAG 1.4.11. There is no AAA level for UI.</p>
-      <p class="muted small">
-        To gate a new combination, add it to <code>packages/tokens/src/contrast.checks.json</code> as
-        <code>{'["<fg token path>", "<bg token path>", <min ratio>]'}</code>. The token build checks it in every brand and theme and
-        fails below the minimum.
-      </p>
-    </div>
+    <p class="a11y-legend">
+      <span><span class="a11y-chip-key" data-s="aaa"></span>AAA: text at 7:1 or more</span>
+      <span><span class="a11y-chip-key" data-s="aa"></span>AA: meets the pair's minimum</span>
+      <span><Icon icon={CircleAlert} size="xs" className="a11y-fail-key" />Fails: below the minimum</span>
+    </p>
+
+    {
+      groups.map((g) => (
+        <details class="a11y-group" open={g.open} data-group={g.id} data-fails={g.failing.all ? '' : undefined}>
+          <summary class="a11y-group-head">
+            <h3 class="a11y-group-title">{g.label}</h3>
+            {[...COMBOS.map((c) => c.key), 'all'].map((k) => (
+              <span class="a11y-group-status" data-c={k} data-fails={g.failing[k] ? '' : undefined} hidden={k !== DEFAULT_KEY}>
+                {g.failing[k] ? <Icon icon={CircleAlert} size="sm" /> : null}
+                {k === 'all' ? `${groupStatus(g.pairs.length, g.failing[k]!)} in all ${COMBOS.length}` : groupStatus(g.pairs.length, g.failing[k]!)}
+              </span>
+            ))}
+          </summary>
+          <ul class="a11y-rows" aria-label={g.label}>
+            {g.pairs.map((p) => {
+              const first = resultFor(p, COMBOS[0]!);
+              return (
+                <li>
+                  <button type="button" class="a11y-row" data-fd-open={p.fg} title={rowTitle(p, first)}>
+                    <span class="a11y-tile" data-theme={COMBOS[0]!.mode} data-brand={COMBOS[0]!.brand} data-scope-fixed aria-hidden="true" style={`background-color: ${cssVar(p.bg)}`}>
+                      {p.usage === 'text' ? <span style={`color: ${cssVar(p.fg)}`}>Aa</span> : <i style={`border-color: ${cssVar(p.fg)}`} />}
+                    </span>
+                    <span class="a11y-pair">
+                      {shortName(p.fg)} <span class="a11y-on">on</span> {shortName(p.bg)}
+                    </span>
+                    {COMBOS.map((c) => {
+                      const r = resultFor(p, c);
+                      const s = statusOf(r);
+                      return (
+                        <span class="a11y-res" data-c={c.key} data-title={rowTitle(p, r)} hidden={c.key !== DEFAULT_KEY}>
+                          <span class="a11y-ratio num" data-s={s}>
+                            {r.ratio.toFixed(2)}:1
+                          </span>
+                          <Badge tone={TONE[s]} icon={s === 'fail' ? CircleAlert : undefined} className="a11y-chip" title={s === 'fail' ? undefined : `Needs ${p.min}:1`}>
+                            {statusLabel(s, p.min)}
+                          </Badge>
+                        </span>
+                      );
+                    })}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          <div class="a11y-matrix" hidden>
+            <ContrastMatrix label={g.label} combos={COMBOS.map((c) => ({ key: c.key, label: c.label }))} rows={matrixRows(g)} />
+          </div>
+        </details>
+      ))
+    }
   </section>
 
-  {
-    failingPairs.length > 0 && (
-      <section class="ct-failing" aria-labelledby="ct-fail-h">
-        <h3 id="ct-fail-h" class="ct-fail-title">
-          <Icon name="alert" /> {failures.length} {failures.length === 1 ? 'check needs' : 'checks need'} attention
-        </h3>
-        <div class="ct-fail-grid">
-          {failingPairs.map((p) => (
-            <article class="ct-fail-card">
-              <p class="ct-fail-pair">
-                <a href={`/tokens/?t=${encodeURIComponent(p.fg)}`}>{p.fg}</a> <span class="muted">on</span>{' '}
-                <a href={`/tokens/?t=${encodeURIComponent(p.bg)}`}>{p.bg}</a>
-              </p>
-              <div class="ct-fail-modes">
-                {COMBOS.map((c) => {
-                  const r = res(p, c);
-                  return (
-                    <div class="ct-fail-mode">
-                      <div class="ct-tile" data-theme={c.m} data-brand={c.b} data-scope-fixed style={`background-color: var(${p.bgToken.cssVar})`}>
-                        {p.usage === 'text' ? (
-                          <span style={`color: var(${p.fgToken.cssVar})`}>Aa</span>
-                        ) : (
-                          <i style={`border-color: var(${p.fgToken.cssVar})`} />
-                        )}
-                      </div>
-                      <div>
-                        <p class="ct-ratio num">{r.ratio.toFixed(2)}:1</p>
-                        <p class="small muted">
-                          {comboLabel(c)}, needs {need(p)}:1
-                        </p>
-                        <Badge tone={r.aa ? 'success' : 'danger'} icon={r.aa ? CircleCheck : CircleAlert} size="sm">{r.aa ? 'AA pass' : 'AA fail'}</Badge>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
-    )
-  }
+  <section aria-labelledby="a11y-floor-h">
+    <h2 id="a11y-floor-h">What every component guarantees</h2>
+    <ul class="a11y-floor">
+      <li><strong>Keyboard and screen readers.</strong> Every interactive component is keyboard operable, with the right role, name and state. Behavior comes from native elements or Base UI parts.</li>
+      <li><strong>Visible focus.</strong> A 2px ring in the focus color, offset by 2px, on <code>:focus-visible</code> only. Inputs draw it inside the field.</li>
+      <li><strong>Color is never the only signal.</strong> Status has text and an icon; an invalid field has a message.</li>
+      <li><strong>Targets of at least 24 by 24 px</strong> in both densities.</li>
+      <li><strong>Reduced motion.</strong> With <code>prefers-reduced-motion: reduce</code>, every motion duration drops to 0.</li>
+      <li><strong>Checked in CI.</strong> Storybook runs the accessibility addon in error mode, and component tests run axe-core.</li>
+    </ul>
+  </section>
 
-  <h3>All pairs</h3>
-  <p class="muted">Failing pairs first. Each tile renders the real tokens in that brand and theme, whatever this page is set to.</p>
-  <ContrastTable combos={tableCombos} rows={tableRows} />
+  <details class="a11y-how" id="how-we-check">
+    <summary class="a11y-how-head"><h2>How we check</h2></summary>
+    <div class="a11y-how-body">
+      <h3>Thresholds</h3>
+      <p>
+        Bridge targets WCAG 2.2 AA. Text needs {THRESHOLDS.text.aa}:1 against its background, and reaches AAA at {THRESHOLDS.text.aaa}:1. Control edges, icons
+        and focus rings need {THRESHOLDS.ui.aa}:1 (WCAG 1.4.11), which has no AAA level. Ratios are rounded down, so 4.496 never shows as a passing 4.50.
+      </p>
+      <h3>Text or UI</h3>
+      <p>
+        Each pair carries its own minimum. A pair gated at {THRESHOLDS.text.aa}:1 is text: body copy, labels, links, button text, chart axis labels. A pair
+        gated at {THRESHOLDS.ui.aa}:1 is a UI part: borders, control tracks, icons, focus rings, chart series. Text samples show "Aa"; UI samples show a stroke.
+      </p>
+      <h3>The build gate</h3>
+      <p>
+        The pairs live in <code>{CONTRAST_FILE}</code>. The token build resolves each one in every brand and theme and fails below its minimum, so a token
+        change that breaks a pair never ships. To gate a new combination, add <code>{'["<fg token>", "<bg token>", <min>]'}</code> to that file.
+      </p>
+      <h3>When a pair fails</h3>
+      <ul>
+        <li>Fix it with a token change, never locally in a screen or a component. A local fix hides the problem and the next team hits it again.</li>
+        <li>Open an issue or a DS Bridge proposal with the pair, the ratio and where it shows up. A token change is Tier 3: design and tech owners both approve it.</li>
+        <li>Until it ships, avoid that pair in new places.</li>
+      </ul>
+      <p data-maintainer-only>
+        <Link href="/studio/checks/" variant="standalone">See every check in Studio Checks</Link>
+      </p>
+    </div>
+  </details>
 
-  <h2>What to do with a failing pair</h2>
-  <ul>
-    <li>Do not fix it locally in a screen or a component. That hides the problem and the next team hits it again.</li>
-    <li>Open an issue or a DS Bridge proposal with the pair, the ratio and where it shows up. A token change is Tier 3: design and tech owners both approve it.</li>
-    <li>Until it ships, avoid using that pair in new places.</li>
-  </ul>
+  <TokenDetailDrawer />
 </Layout>
+
+<script>
+  import { initA11yChecks } from '../../scripts/a11y-checks';
+  initA11yChecks();
+</script>

@@ -131,11 +131,6 @@
   align-self: center;
 }
 
-/* Accessibility contrast grid: token names never break one character per line. */
-.ds-ct-table th[scope="row"] {
-  min-width: var(--size-60);
-}
-
 /* == Component pages and playground == */
 
 /* Push a toolbar action (props playground Reset) to the end of its row. */
