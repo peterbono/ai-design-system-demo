@@ -160,7 +160,7 @@ export default function NewBrandFlow({ files, configText, contrastText }: NewBra
             {draft.name} waits for design and tech approval on <span className="mono">{done.branch}</span>. The Library shows it once the pull request is merged.
           </p>
           <div className="nb-actions">
-            <Button variant="primary" iconStart={GitPullRequest} render={<a href={`/studio/reviews/?pr=${done.number}`} />}>
+            <Button variant="primary" iconStart={GitPullRequest} render={<a href={`/studio/changes/?pr=${done.number}`} />}>
               Open the review
             </Button>
           </div>
@@ -367,7 +367,7 @@ export default function NewBrandFlow({ files, configText, contrastText }: NewBra
             <div>
               <dt>Review</dt>
               <dd className="nb-tier">
-                <Badge tone="warning">Tier 3</Badge>
+                <Badge tone="neutral">Tier 3</Badge>
                 <span>Needs design and tech approval. Opens as a draft pull request.</span>
               </dd>
             </div>
