@@ -98,6 +98,77 @@
   color: var(--color-text-muted);
 }
 
+/* Roles: one sentence, then one plain row per right (what it means on the left, who holds it on the right),
+   the edit collapsed underneath with a segmented control on the row of the right it changes. */
+.set-summary {
+  margin: 0;
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.set-who {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.set-who-logins {
+  color: var(--color-text-muted);
+}
+
+.set-avatars {
+  display: inline-flex;
+}
+
+.set-avatar {
+  width: var(--size-5);
+  height: var(--size-5);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-bg-subtle);
+}
+
+.set-avatar + .set-avatar {
+  margin-left: calc(var(--space-1-5) * -1);
+}
+
+.set-roles-form {
+  display: grid;
+  gap: var(--space-3);
+  padding-bottom: var(--space-5);
+}
+
+.set-roles-form .set-rows-plain {
+  margin: 0;
+}
+
+/* Edit rows: the right on the left, its control in one aligned column, both at their natural width. */
+.set-roles-form .set-rows-plain > li {
+  display: grid;
+  grid-template-columns: minmax(var(--size-40), var(--size-60)) auto;
+  align-items: center;
+  justify-content: start;
+}
+
+.set-roles-form .set-rows-plain > li > div {
+  flex: none;
+}
+
+@media (max-width: 640px) {
+  .set-roles-form .set-rows-plain > li {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.set-roles-form .set-rows-plain > li:last-child {
+  border-bottom: 0;
+}
+
+.set-roles-form .set-muted {
+  margin: 0;
+}
+
 /* Repository: one sentence and the way to GitHub, then Source at rest and two collapsed groups. */
 .set-lead {
   display: flex;

@@ -434,6 +434,58 @@
               "default": 20
             }
           }
+        },
+        "rights": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Which owner group holds each right. Studio Settings edits it. Absent: approvals follow owners and anyone with write access to the repo may ship, as before this field existed. A right left out takes its default.",
+          "properties": {
+            "approveDesign": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "design",
+                  "tech"
+                ]
+              },
+              "description": "Owner groups whose approval counts as the design approval.",
+              "default": [
+                "design"
+              ]
+            },
+            "approveTech": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "design",
+                  "tech"
+                ]
+              },
+              "description": "Owner groups whose approval counts as the tech approval.",
+              "default": [
+                "tech"
+              ]
+            },
+            "ship": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "design",
+                  "tech"
+                ]
+              },
+              "description": "Owner groups who may ship: merge the pull request, which publishes the change to the products. They still need write access to the repo. To let design owners ship too: [\"design\", \"tech\"].",
+              "default": [
+                "tech"
+              ]
+            }
+          }
         }
       }
     },
@@ -593,6 +645,21 @@
               }
             }
           }
+        }
+      }
+    },
+    "visualImpact": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Visual before and after on pull requests (the visual-impact workflow). auto: on every pull request that touches tokens or components. on-demand: only when the pull request has the visual-check label (Studio adds it) or from a manual run, to save GitHub Actions minutes on private repos.",
+      "properties": {
+        "mode": {
+          "enum": [
+            "auto",
+            "on-demand"
+          ],
+          "default": "auto",
+          "description": "auto or on-demand."
         }
       }
     }

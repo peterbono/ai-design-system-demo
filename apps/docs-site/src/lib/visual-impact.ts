@@ -38,6 +38,20 @@ export function visualBase(owner: string, repo: string, pr: number, sha: string)
   return `https://raw.githubusercontent.com/${owner}/${repo}/${VISUAL_BRANCH}/pr-${pr}/${sha}`;
 }
 
+/**
+ * What the "not run yet" state offers. `auto`: the workflow runs on its own, link to it. On demand
+ * (bridge.config.json visualImpact.mode): `asked` once the pull request carries the visual-check label, else `ask`
+ * (a button that adds the label) with a token that can write, or `ask-on-github` without one.
+ */
+export type VisualAsk = 'auto' | 'asked' | 'ask' | 'ask-on-github';
+
+export function visualAsk(input: { mode: 'auto' | 'on-demand' | undefined; labels: (string | { name?: string })[] | null; canWrite: boolean; label?: string }): VisualAsk {
+  if (input.mode !== 'on-demand') return 'auto';
+  const label = input.label ?? 'visual-check';
+  if ((input.labels ?? []).some((l) => (typeof l === 'string' ? l : l.name) === label)) return 'asked';
+  return input.canWrite ? 'ask' : 'ask-on-github';
+}
+
 export type VisualState = { kind: 'not-computed' } | { kind: 'no-change'; manifest: VisualManifest } | { kind: 'changes'; manifest: VisualManifest; shots: VisualShot[] };
 
 const RANK: Record<VisualShot['status'], number> = { changed: 0, added: 1, removed: 2, error: 3, unchanged: 4 };

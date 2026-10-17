@@ -3,7 +3,9 @@
 // Reads go through ghGet, so they are cached in this browser and survive a rate limit.
 import { esc, ghGet, hasWorkingToken, readRepo } from './github-session';
 import { planStatusReads, statusCacheKey, type CachedStatus } from '../lib/status-budget';
+import type { Rights } from '@bridge-ds/core';
 import {
+  approverLists,
   parseTier,
   reviewStatus,
   summarizeApprovals,
@@ -26,10 +28,11 @@ export interface PullForStatus {
   head: { sha: string; ref: string };
 }
 
+/** Who counts as the design and the tech approver: the owner lists, through governance.rights when it is set. */
 function owners(): { design: string[]; tech: string[] } {
   try {
-    const site = JSON.parse(document.getElementById('bridge-repo')?.textContent || '{}') as { owners?: { design: string[]; tech: string[] } };
-    return site.owners ?? { design: [], tech: [] };
+    const site = JSON.parse(document.getElementById('bridge-repo')?.textContent || '{}') as { owners?: { design: string[]; tech: string[] }; rights?: Rights | null };
+    return approverLists(site.owners ?? { design: [], tech: [] }, site.rights);
   } catch {
     return { design: [], tech: [] };
   }

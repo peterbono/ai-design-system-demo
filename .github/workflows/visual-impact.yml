@@ -11,18 +11,32 @@ name: Visual impact
 # removed when the PR closes. The workflow artifact keeps every image for 14 days as a fallback.
 # Pull requests from forks get a read-only token: the run still happens and uploads the artifact, publishing
 # and commenting are skipped.
+#
+# When: `visualImpact.mode` in bridge.config.json (default branch), read by the cheap `gate` job with jq.
+# - auto (default, or no visualImpact): every pull request that touches the paths below.
+# - on-demand (private repos, to save Actions minutes): only pull requests labelled `visual-check` (Bridge Studio
+#   adds it from "Show the visual impact"), or a manual run with the pull request number. Once the label is on,
+#   new commits run again.
+# Adding the `visual-check` label always runs it; any other label never does.
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, closed]
+    types: [opened, synchronize, reopened, labeled, closed]
     paths:
       - 'packages/tokens/src/**'
       - 'packages/react/src/**'
       - 'apps/admin/src/**'
       - '.storybook/**'
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: Pull request number
+        required: true
+        type: number
 
 concurrency:
-  group: visual-impact-${{ github.event.pull_request.number }}
+  # A label other than visual-check gets its own group, so it never cancels a run in progress.
+  group: visual-impact-${{ github.event.pull_request.number || inputs.pr }}${{ github.event.action == 'labeled' && github.event.label.name != 'visual-check' && format('-label-{0}', github.run_id) || '' }}
   cancel-in-progress: true
 
 permissions:
@@ -34,21 +48,80 @@ env:
   VISUAL_BRANCH: bridge-visual
 
 jobs:
+  gate:
+    name: Decide whether to run
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+      pr: ${{ steps.decide.outputs.pr }}
+      head_sha: ${{ steps.decide.outputs.head_sha }}
+      base_sha: ${{ steps.decide.outputs.base_sha }}
+      same_repo: ${{ steps.decide.outputs.same_repo }}
+    steps:
+      - name: Read the mode and the pull request
+        id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          EVENT: ${{ github.event_name }}
+          ACTION: ${{ github.event.action }}
+          INPUT_PR: ${{ inputs.pr }}
+          LABEL: visual-check
+        run: |
+          set -euo pipefail
+          # The mode comes from the default branch, so a pull request cannot switch its own mode.
+          mode=$(gh api -H "Accept: application/vnd.github.raw" "repos/$REPO/contents/bridge.config.json?ref=$DEFAULT_BRANCH" 2>/dev/null | jq -r '.visualImpact.mode // "auto"' 2>/dev/null || true)
+          [ "$mode" = "on-demand" ] || mode=auto
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            pull=$(gh api "repos/$REPO/pulls/$INPUT_PR")
+            run=true
+            why="manual run"
+            if [ "$(jq -r .state <<<"$pull")" != "open" ]; then run=false; why="pull request #$INPUT_PR is not open"; fi
+          else
+            pull=$(jq .pull_request "$GITHUB_EVENT_PATH")
+            labelled=$(jq -r --arg l "$LABEL" 'any(.labels[]?; .name == $l)' <<<"$pull")
+            if [ "$ACTION" = "labeled" ]; then
+              added=$(jq -r .label.name "$GITHUB_EVENT_PATH")
+              if [ "$added" = "$LABEL" ]; then run=true; why="label $LABEL added"; else run=false; why="label $added is not $LABEL"; fi
+            elif [ "$mode" = "auto" ]; then
+              run=true; why="mode auto"
+            else
+              run=$labelled; why="mode on-demand, label $LABEL present: $labelled"
+            fi
+          fi
+          {
+            echo "run=$run"
+            echo "pr=$(jq -r .number <<<"$pull")"
+            echo "head_sha=$(jq -r .head.sha <<<"$pull")"
+            echo "base_sha=$(jq -r .base.sha <<<"$pull")"
+            echo "same_repo=$(jq -r --arg r "$REPO" '.head.repo.full_name == $r' <<<"$pull")"
+          } >> "$GITHUB_OUTPUT"
+          echo "Visual impact: run=$run ($why, mode $mode)." | tee -a "$GITHUB_STEP_SUMMARY"
+
   impact:
     name: Visual impact
-    if: github.event.action != 'closed'
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      PR: ${{ github.event.pull_request.number }}
-      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-      BASE_SHA: ${{ github.event.pull_request.base.sha }}
-      SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+      PR: ${{ needs.gate.outputs.pr }}
+      HEAD_SHA: ${{ needs.gate.outputs.head_sha }}
+      BASE_SHA: ${{ needs.gate.outputs.base_sha }}
+      SAME_REPO: ${{ needs.gate.outputs.same_repo }}
     steps:
       - uses: actions/checkout@v4
         with:
           # Both refs are checked out as worktrees and the merge base is computed: full history.
           fetch-depth: 0
+          # A manual run starts from the default branch: check out the pull request head instead.
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/pull/{0}/head', needs.gate.outputs.pr) || '' }}
 
       - uses: actions/setup-node@v4
         with:
@@ -77,7 +150,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: visual-impact-pr-${{ github.event.pull_request.number }}
+          name: visual-impact-pr-${{ env.PR }}
           path: visual-impact
           if-no-files-found: ignore
           retention-days: 14
@@ -128,7 +201,7 @@ jobs:
             const fs = require('fs');
             const MARKER = '<!-- bridge-visual-impact -->';
             const LABEL = 'visual-change';
-            const issue_number = context.payload.pull_request.number;
+            const issue_number = Number(process.env.PR);
             const { owner, repo } = context.repo;
             let body;
             let changed = false;
@@ -140,13 +213,15 @@ jobs:
                 body = body.replace(/### Before, after, diff[\s\S]*?(?=<sub>)/, `Images could not be published to the \`bridge-visual\` branch: download them from the [workflow artifact](${process.env.RUN_URL}).\n\n`);
               }
             } else {
-              body = `${MARKER}\n## Visual impact\n\nThe visual impact run did not finish for ${context.payload.pull_request.head.sha.slice(0, 7)}. [See the logs](${process.env.RUN_URL}). This never blocks the pull request.\n`;
+              body = `${MARKER}\n## Visual impact\n\nThe visual impact run did not finish for ${process.env.HEAD_SHA.slice(0, 7)}. [See the logs](${process.env.RUN_URL}). This never blocks the pull request.\n`;
             }
             const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number, per_page: 100 });
             const mine = comments.find((c) => c.user?.type === 'Bot' && c.body?.includes(MARKER));
             if (mine) await github.rest.issues.updateComment({ owner, repo, comment_id: mine.id, body });
             else await github.rest.issues.createComment({ owner, repo, issue_number, body });
-            const has = context.payload.pull_request.labels.some((l) => l.name === LABEL);
+            // Read the labels now: a manual run has no pull request in its payload, and labels change during the run.
+            const labels = await github.paginate(github.rest.issues.listLabelsOnIssue, { owner, repo, issue_number, per_page: 100 });
+            const has = labels.some((l) => l.name === LABEL);
             if (changed && !has) await github.rest.issues.addLabels({ owner, repo, issue_number, labels: [LABEL] });
             if (!changed && has && process.env.IMPACT === 'success') await github.rest.issues.removeLabel({ owner, repo, issue_number, name: LABEL }).catch(() => undefined);
 

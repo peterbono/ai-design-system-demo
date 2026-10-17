@@ -1,8 +1,9 @@
 // Changes > pull request > Visual impact: reads the manifest the visual impact workflow published for the head
 // commit, then shows each changed story or screen with a before/after slider and a diff toggle. Returns what the
 // collapsed section header shows: the number of changed screens and a small before/after thumbnail.
-import { changeLabel, facet, filterShots, modeLabel, VISUAL_BRANCH, visualBase, visualState, type VisualFilter, type VisualManifest, type VisualShot } from '../../lib/visual-impact';
-import { esc, GitHubError, ghGet } from '../github-session';
+import { VISUAL_CHECK_LABEL } from '@bridge-ds/core';
+import { changeLabel, facet, filterShots, modeLabel, VISUAL_BRANCH, visualAsk, visualBase, visualState, type VisualFilter, type VisualManifest, type VisualShot } from '../../lib/visual-impact';
+import { esc, GitHubError, ghGet, ghWrite, hasWorkingToken, onAccess, showGhError } from '../github-session';
 
 const PAGE = 8;
 
@@ -50,7 +51,7 @@ export async function loadVisualImpact(slot: HTMLElement, o: { owner: string; re
   }
   const state = visualState(manifest);
   if (state.kind === 'not-computed') {
-    slot.innerHTML = `<p class="cg-line">Not run yet for <span class="mono">${esc(o.sha.slice(0, 7))}</span>. <a href="${esc(o.actionsUrl)}" target="_blank" rel="noopener">Run it</a></p>`;
+    await notRun(slot, o);
     return { changed: null, thumb: '' };
   }
   const m = state.manifest;
@@ -106,6 +107,57 @@ export async function loadVisualImpact(slot: HTMLElement, o: { owner: string; re
   const img = (p: string | undefined, label: string) => (p ? `<img src="${esc(`${base}/${p}`)}" alt="" loading="lazy" title="${label}" />` : '');
   const thumb = top.images.before && top.images.after ? `<span class="cg-thumb" aria-hidden="true">${img(top.images.before, 'Before')}${img(top.images.after, 'After')}</span>` : '';
   return { changed: shots.length, thumb };
+}
+
+/** visualImpact.mode from bridge.config.json, embedded by the layout. */
+function visualMode(): 'auto' | 'on-demand' {
+  try {
+    const site = JSON.parse(document.getElementById('bridge-repo')?.textContent || '{}') as { visualImpact?: { mode?: string } };
+    return site.visualImpact?.mode === 'on-demand' ? 'on-demand' : 'auto';
+  } catch {
+    return 'auto';
+  }
+}
+
+/**
+ * No manifest for this commit. Automatic mode: the run is on its way, link to it. On demand: one button that adds
+ * the visual-check label (the workflow runs on that label), or the way to do it on GitHub without a write token.
+ */
+async function notRun(slot: HTMLElement, o: { owner: string; repo: string; pr: number; sha: string; actionsUrl: string }) {
+  const mode = visualMode();
+  const run = `<a href="${esc(o.actionsUrl)}" target="_blank" rel="noopener">Follow the run</a>`;
+  let labels = mode === 'on-demand' ? await ghGet<{ name: string }[]>(`/repos/${o.owner}/${o.repo}/issues/${o.pr}/labels`).then((f) => f.data, () => null) : null;
+  const paint = (canWrite: boolean) => {
+    const ask = visualAsk({ mode, labels, canWrite, label: VISUAL_CHECK_LABEL });
+    const lead = '<p class="cg-line">Your team shows the before and after on demand.</p>';
+    slot.innerHTML =
+      ask === 'auto'
+        ? `<p class="cg-line">Not run yet for <span class="mono">${esc(o.sha.slice(0, 7))}</span>. <a href="${esc(o.actionsUrl)}" target="_blank" rel="noopener">Run it</a></p>`
+        : ask === 'asked'
+          ? `<p class="cg-line">Asked. The before and after shows here once the run on GitHub finishes. ${run}</p>`
+          : ask === 'ask'
+            ? `<div class="vi-ask">${lead}<button type="button" class="btn btn-secondary btn-lg" data-vi-ask>Show the visual impact</button></div><p class="rv-error" role="alert" data-vi-ask-error hidden></p>`
+            : `<div class="vi-ask">${lead}<a class="btn btn-secondary btn-lg" href="https://github.com/${esc(o.owner)}/${esc(o.repo)}/pull/${o.pr}" target="_blank" rel="noopener">Add the ${VISUAL_CHECK_LABEL} label on GitHub</a></div>`;
+    const btn = slot.querySelector<HTMLButtonElement>('[data-vi-ask]');
+    btn?.addEventListener('click', async () => {
+      const error = slot.querySelector<HTMLElement>('[data-vi-ask-error]')!;
+      btn.disabled = true;
+      btn.textContent = 'Asking GitHub';
+      try {
+        await ghWrite('POST', `/repos/${o.owner}/${o.repo}/issues/${o.pr}/labels`, { labels: [VISUAL_CHECK_LABEL] });
+        labels = [...(labels ?? []), { name: VISUAL_CHECK_LABEL }];
+        paint(true);
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = 'Show the visual impact';
+        showGhError(error, err, `GitHub did not add the ${VISUAL_CHECK_LABEL} label: ${(err as Error).message}`, 'add labels');
+        error.hidden = false;
+      }
+    });
+  };
+  paint(hasWorkingToken());
+  // A token that turns out read only gets the GitHub way instead of a button that would fail.
+  if (mode === 'on-demand') onAccess((a) => slot.isConnected && slot.querySelector('[data-vi-ask]') && a && !a.write && paint(false));
 }
 
 function shotCard(s: VisualShot, base: string): string {

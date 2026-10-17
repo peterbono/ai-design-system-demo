@@ -770,6 +770,18 @@
   margin-top: var(--space-2);
 }
 
+/* On-demand visual impact: the sentence and its one action on the same line. */
+.vi-ask {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-5);
+}
+
+.vi-ask .btn {
+  min-height: var(--control-height-md);
+}
+
 .vi-filters {
   display: flex;
   flex-wrap: wrap;

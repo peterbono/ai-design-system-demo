@@ -2,11 +2,12 @@
 // from the GitHub REST API, most urgent first, with a designer-friendly token diff and governance-aware actions.
 // Without a token every action deep-links to GitHub. When GitHub cannot be read, the last list this browser saw
 // stays on screen, labelled with its time (lib/changes.ts).
-import { classifyRisk, isActiveExploration } from '@bridge-ds/core';
+import { classifyRisk, isActiveExploration, type Rights } from '@bridge-ds/core';
 import { isRunningExploration, tierSlot } from '../lib/explorations-view';
 import {
   allowedMergeMethods,
   canWrite,
+  approverLists,
   mergeGate,
   NO_OVERRIDE,
   openPulls,
@@ -19,6 +20,7 @@ import {
   parseTier,
   pullState,
   REVIEW_STATUS,
+  shipPolicy,
   summarizeApprovals,
   summarizeCi,
   type MergeMethod,
@@ -104,12 +106,14 @@ const REPO_KEY = `${repo.owner}/${repo.repo}`;
 const R = `/repos/${repo.owner}/${repo.repo}`;
 const SITE = (() => {
   try {
-    return JSON.parse(document.getElementById('bridge-repo')?.textContent || '{}') as { owners?: { design: string[]; tech: string[] }; override?: OverridePolicy };
+    return JSON.parse(document.getElementById('bridge-repo')?.textContent || '{}') as { owners?: { design: string[]; tech: string[] }; override?: OverridePolicy; rights?: Rights | null };
   } catch {
     return {};
   }
 })();
-const OWNERS = SITE.owners ?? { design: [], tech: [] };
+// Approvals count against who holds each right (governance.rights), shipping against the ship right.
+const OWNERS = approverLists(SITE.owners ?? { design: [], tech: [] }, SITE.rights);
+const SHIP = shipPolicy(SITE.owners ?? { design: [], tech: [] }, SITE.rights);
 const OVERRIDE: OverridePolicy = SITE.override ?? NO_OVERRIDE;
 const BRANCHES: BranchesConfig = (() => {
   try {
@@ -393,7 +397,7 @@ export async function openPr(n: number, push = true) {
     const tier = Math.max(labelled ?? 0, computed) as Tier;
     current = { pull, tier };
     const approvals = summarizeApprovals(reviews, OWNERS, pull.user.login);
-    const gate = mergeGate({ tier, ci, approvals, draft: pull.draft, mergeable: pull.mergeable, state: pull.state, merged_at: pull.merged_at, viewer: access?.login, override: OVERRIDE, exploration: isActiveExploration(pull.labels) });
+    const gate = mergeGate({ tier, ci, approvals, draft: pull.draft, mergeable: pull.mergeable, state: pull.state, merged_at: pull.merged_at, viewer: access?.login, override: OVERRIDE, exploration: isActiveExploration(pull.labels), ship: SHIP });
     const tokenFiles = files.filter((f) => isTokenFile(f.filename));
     const changesets = files.filter((f) => /^\.changeset\/(?!README).+\.md$/.test(f.filename) && f.status !== 'removed');
     const visual = touchesVisuals(files.map((f) => f.filename));

@@ -1,6 +1,7 @@
 ---
-// Studio Settings: one page, four sections in order. Connection (GitHub, then the Figma plugin and MCP as two
-// plain rows), Repository (one sentence, Source at rest, the rest collapsed with counts), Approvals (who approves
+// Studio Settings: one page, five sections in order. Connection (GitHub, then the Figma plugin and MCP as two
+// plain rows), Roles (one sentence, who holds each right and when the visual before and after runs, the edit
+// collapsed and proposed as a pull request on bridge.config.json), Repository (one sentence, Source at rest, the rest collapsed with counts), Approvals (who approves
 // what, one line on the owner override), Integrations (where component change requests go: GitHub always, Jira
 // when the team wants it, proposed as a pull request on bridge.config.json). The old Repository, Governance and Integrations pages redirect to these
 // anchors (lib/redirects.ts); the governance prose lives in the Library (How review works).
@@ -11,13 +12,14 @@ import StudioHeader from '../../../components/StudioHeader.astro';
 import ButtonLink from '../../../components/ds/ButtonLink';
 import ApprovalsTable from '../../../components/ds/studio/ApprovalsTable';
 import { GitHubMark } from '../../../components/ds/studio/brand-icons';
-import { Button } from '@bridge-ds/react';
+import { Button, SegmentedControl } from '@bridge-ds/react';
 import { siteRepo } from '../../../lib/config';
 import { GOVERNANCE_FILE, pluginListing, tierSummaries } from '../../../lib/governance';
 import { inline } from '../../../lib/markdown';
 import { mcpTools } from '../../../lib/mcp';
 import { HOW_REVIEW_WORKS } from '../../../lib/nav';
 import { exists, GITHUB_URL, lastUpdated, readText } from '../../../lib/repo';
+import { CHOICE_LABEL, roleRows, rolesSummary, VISUAL_MODE_HELP, VISUAL_MODE_LABEL, type RightChoice } from '../../../lib/roles-view';
 import { repoStatus } from '../../../lib/stats';
 import { REQUEST_LABEL } from '@bridge-ds/core';
 
@@ -57,12 +59,22 @@ const tiersAndModes: Row[] = [
 ];
 const previewApps = Object.keys(config.previews?.apps ?? {});
 const owners: Row[] = [
-  { label: 'Design owners', value: list(r.owners.design) },
-  { label: 'Tech owners', value: list(r.owners.tech) },
   { label: 'Owner override', value: list(r.override.allowed) },
   { label: 'Preview deploys', value: list(previewApps) },
   { label: 'Snapshot packages', value: list(config.previews?.packages ?? []) },
 ];
+
+// Roles: who approves design, who approves tech, who ships, and when the visual before and after runs.
+const roles = roleRows(r.owners, r.rights);
+const rolesLine = rolesSummary(r.owners, r.rights);
+const mode = r.visualImpact.mode;
+const choices = (['design', 'tech', 'both'] as RightChoice[]).map((c) => ({ value: c, label: CHOICE_LABEL[c] }));
+const rolesData = JSON.stringify({
+  prefix: config.governance?.branchPrefix ?? '',
+  protectedBranches: config.governance?.protectedBranches ?? ['main', 'master'],
+  owners: r.owners,
+}).replace(/</g, '\\u003c');
+const avatar = (login: string) => `https://github.com/${encodeURIComponent(login)}.png?size=40`;
 
 // Connection rows.
 const plugin = pluginListing(exists(pluginReadme) ? readText(pluginReadme) : '');
@@ -129,11 +141,84 @@ const overrideLine = ov.allowed.length
       <li>
         <div>
           <p class="set-row-title">MCP server</p>
-          <p class="set-row-text">Give your own Claude {tools} tools on this design system. It proposes changes on a branch, never on {r.defaultBranch}.</p>
+          <p class="set-row-text">Give your own Claude {tools} tools on this design system. It proposes changes for review, never straight to {r.defaultBranch}.</p>
         </div>
         <p class="set-row-link"><a href="/agents/#mcp">Connect your Claude</a></p>
       </li>
     </ul>
+  </section>
+
+  <section class="set-block" id="roles" aria-labelledby="set-roles">
+    <h2 id="set-roles" class="set-h">Roles</h2>
+    <p class="set-summary">{rolesLine}</p>
+    <ul class="set-rows-plain set-roles">
+      {
+        roles.map((x) => (
+          <li>
+            <div>
+              <p class="set-row-title">{x.label}</p>
+              <p class="set-row-text">{x.help}</p>
+            </div>
+            <p class="set-who">
+              {x.logins.length > 0 && (
+                <span class="set-avatars" aria-hidden="true">
+                  {x.logins.slice(0, 3).map((l) => (
+                    <img class="set-avatar" src={avatar(l)} alt="" width="20" height="20" loading="lazy" />
+                  ))}
+                </span>
+              )}
+              <span>
+                {x.who}
+                {x.logins.length > 0 ? <span class="set-who-logins"> {x.logins.map((l) => `@${l}`).join(', ')}</span> : x.who !== 'Anyone with write access' && <span class="set-who-logins"> nobody listed yet</span>}
+              </span>
+            </p>
+          </li>
+        ))
+      }
+      <li>
+        <div>
+          <p class="set-row-title">Visual before and after</p>
+          <p class="set-row-text">{VISUAL_MODE_HELP[mode]}</p>
+        </div>
+        <p class="set-who">{VISUAL_MODE_LABEL[mode]}</p>
+      </li>
+    </ul>
+
+    <details class="set-more" id="roles-edit">
+      <summary><span class="set-more-title">Change roles</span><span class="set-chev" aria-hidden="true"></span></summary>
+      <form class="set-roles-form" data-roles-form novalidate>
+        <ul class="set-rows-plain">
+          {
+            roles.map((x) => (
+              <li>
+                <p class="set-row-title" id={`set-role-${x.right}`}>{x.label}</p>
+                <SegmentedControl aria-labelledby={`set-role-${x.right}`} data-vanilla data-right={x.right} defaultValue={x.choice} items={choices} />
+              </li>
+            ))
+          }
+          <li>
+            <p class="set-row-title" id="set-role-visual">Visual before and after</p>
+            <SegmentedControl
+              aria-labelledby="set-role-visual"
+              data-vanilla
+              data-visual-mode
+              defaultValue={mode}
+              items={[
+                { value: 'auto', label: VISUAL_MODE_LABEL.auto },
+                { value: 'on-demand', label: VISUAL_MODE_LABEL['on-demand'] },
+              ]}
+            />
+          </li>
+        </ul>
+        <p class="set-muted">On demand saves GitHub Actions minutes on private repositories: the before and after runs when someone asks from the change.</p>
+        <p class="rq-error" role="alert" data-roles-error hidden></p>
+        <div class="rq-actions">
+          <Button variant="secondary" type="submit" data-roles-submit data-gh-gate="propose roles">Propose changes</Button>
+          <span class="set-muted">Opens a pull request on <span class="mono">{file}</span>. Nothing changes until it is approved and shipped.</span>
+        </div>
+        <div class="rq-done" role="status" data-roles-done hidden></div>
+      </form>
+    </details>
   </section>
 
   <section class="set-block" id="repository" aria-labelledby="set-repository">
@@ -182,7 +267,7 @@ const overrideLine = ov.allowed.length
     </details>
 
     <details class="set-more" id="owners-and-previews">
-      <summary><span class="set-more-title">Owners and previews</span> <span class="set-more-n">({owners.length})</span><span class="set-chev" aria-hidden="true"></span></summary>
+      <summary><span class="set-more-title">Override and previews</span> <span class="set-more-n">({owners.length})</span><span class="set-chev" aria-hidden="true"></span></summary>
       <dl class="set-dl">
         {
           owners.map((x) => (
@@ -261,6 +346,11 @@ const overrideLine = ov.allowed.length
   </section>
 
   <script type="application/json" id="set-int-data" set:html={intData} />
+  <script type="application/json" id="set-roles-data" set:html={rolesData} />
+  <script>
+    import { initRoles } from '../../../scripts/roles';
+    initRoles();
+  </script>
   <script>
     import { initIntegrations } from '../../../scripts/integrations';
     initIntegrations();

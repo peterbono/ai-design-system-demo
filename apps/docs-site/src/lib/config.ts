@@ -1,6 +1,6 @@
 // Which repository this Bridge workspace documents and reviews. Read from bridge.config.json at the repo root, so
 // the same site works on any design system repo; the demo repo is only the default.
-import type { IntegrationsConfig } from '@bridge-ds/core';
+import { normalizeRights, type IntegrationsConfig, type Rights, type VisualImpactMode } from '@bridge-ds/core';
 import { exists, readJson } from './repo';
 
 export interface SiteRepo {
@@ -11,13 +11,17 @@ export interface SiteRepo {
   owners: { design: string[]; tech: string[] };
   /** Who may merge past missing approvals from Reviews, with a reason. `allowed` empty: no override. */
   override: { allowed: string[]; requireReason: boolean; minReasonLength: number };
+  /** Which owner group approves design, approves tech and ships. null: not set, approvals follow owners, anyone with write access ships. */
+  rights: Rights | null;
+  /** Visual before and after: on every pull request (auto) or when someone asks (on-demand, label visual-check). */
+  visualImpact: { mode: VisualImpactMode };
   /** Token root in the repo, for commits that predate bridge.config.json. */
   tokensRoot: string;
   /** Where component change requests go besides the GitHub issue (labels, assignees, Jira). Empty: GitHub only. */
   integrations: IntegrationsConfig;
 }
 
-const DEFAULT: SiteRepo = { owner: 'peterbono', repo: 'ai-design-system-demo', defaultBranch: 'main', owners: { design: [], tech: [] }, override: { allowed: [], requireReason: true, minReasonLength: 20 }, tokensRoot: 'packages/tokens/src', integrations: {} };
+const DEFAULT: SiteRepo = { owner: 'peterbono', repo: 'ai-design-system-demo', defaultBranch: 'main', owners: { design: [], tech: [] }, override: { allowed: [], requireReason: true, minReasonLength: 20 }, rights: null, visualImpact: { mode: 'auto' }, tokensRoot: 'packages/tokens/src', integrations: {} };
 
 interface RawConfig {
   repo?: string | { owner?: string; name?: string; repo?: string; defaultBranch?: string; branch?: string };
@@ -26,7 +30,9 @@ interface RawConfig {
   governance?: {
     owners?: { design?: string[]; tech?: string[] };
     override?: { allowed?: string[]; requireReason?: boolean; minReasonLength?: number };
+    rights?: Partial<Record<keyof Rights, string[]>>;
   };
+  visualImpact?: { mode?: string };
   tokens?: { root?: string };
   owners?: { design?: string[]; tech?: string[] };
   integrations?: IntegrationsConfig;
@@ -63,6 +69,8 @@ export function siteRepo(): SiteRepo {
         requireReason: ov.requireReason ?? true,
         minReasonLength: ov.minReasonLength ?? 20,
       };
+    if (c.governance?.rights) out.rights = normalizeRights(c.governance.rights);
+    if (c.visualImpact?.mode === 'on-demand') out.visualImpact = { mode: 'on-demand' };
   }
   cache = out;
   return out;

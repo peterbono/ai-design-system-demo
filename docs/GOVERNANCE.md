@@ -21,9 +21,55 @@ and the MCP server compute the tier with the same classifier (`classifyRisk` in 
 2. **Design review** (Tier 2 and 3): open the Storybook preview, check light and dark, check the
    Accessibility panel, check keyboard focus, compare against the intent in the linked issue.
 3. **Tech review**: API shape, naming, semver level, no new dependency without reason.
-4. **Merge**: by a human code owner. Agents do not merge. A listed owner may merge past missing
-   approvals only, with a written reason (see [Owner override](#owner-override-solo-maintainers-and-small-teams)).
+4. **Merge (ship)**: by a human who holds the ship right (see [Roles](#roles-who-approves-and-who-ships)) and has
+   write access to the repo. Agents do not merge. A listed owner may merge past missing approvals only, with a
+   written reason (see [Owner override](#owner-override-solo-maintainers-and-small-teams)).
 5. **Release**: Changesets turns merged changesets into a version bump and `CHANGELOG.md`.
+
+## Roles: who approves and who ships
+
+`governance.owners` lists the design owners and the tech owners. `governance.rights` says which of those two
+groups holds each right. Each team changes it in Studio, Settings, Roles, which proposes the edit as a pull request
+on `bridge.config.json` (a guardrail file, so it is reviewed at Tier 3).
+
+```json
+"governance": {
+  "owners": { "design": ["dana"], "tech": ["theo"] },
+  "rights": { "approveDesign": ["design"], "approveTech": ["tech"], "ship": ["tech"] }
+}
+```
+
+| Right | Default | What it means |
+| ----- | ------- | ------------- |
+| `approveDesign` | `["design"]` | Whose approval counts as the design approval. |
+| `approveTech` | `["tech"]` | Whose approval counts as the tech approval. |
+| `ship` | `["tech"]` | Who may merge the pull request, which publishes the change to the products. A team may let design owners ship too: `["design", "tech"]`. |
+
+- A right left out of `rights` takes its default. Each value lists one or both of `"design"` and `"tech"`.
+- **Without `rights`** Bridge behaves as before the field existed: approvals follow `owners`, and anyone with write
+  access to the repo may ship.
+- A right whose groups list no login singles nobody out: anyone with write access may ship.
+- Shipping still needs write access to the repo (push, maintain or admin), read from the token. When the viewer
+  lacks the ship right, Reviews keeps Merge off and says who can, for example "Only the tech owner can ship this
+  (@theo)."
+- The owner override skips missing approvals only. It never lets someone ship who does not hold the ship right.
+- The same rules live in `@bridge-ds/core` (`rights.ts`: `approverLists`, `shipPolicy`, `canShip`) for Studio, the
+  CLI and the MCP server.
+
+## Visual before and after
+
+`.github/workflows/visual-impact.yml` screenshots what a pull request changes, before and after. When it runs is
+`visualImpact.mode` in `bridge.config.json`, read from the default branch so a pull request cannot switch it:
+
+- `"auto"` (the default, also when `visualImpact` is absent): on every pull request that touches tokens,
+  components, the admin app or Storybook.
+- `"on-demand"`: only when the pull request has the `visual-check` label, or from a manual run of the workflow with
+  the pull request number. Studio offers "Show the visual impact" on the pull request, which adds the label with the
+  viewer's token (write access needed; without it, Studio links to GitHub). Teams with private repos use it to save
+  GitHub Actions minutes.
+
+A small first job reads the mode with `jq` and skips the screenshot job otherwise. Adding `visual-check` always
+runs it, in both modes; any other label never does.
 
 ## Owner override (solo maintainers and small teams)
 

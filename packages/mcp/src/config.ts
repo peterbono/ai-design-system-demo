@@ -1,7 +1,7 @@
 // bridge.config.json for the MCP server and the CLI: the schema, parser and normalized shape are
 // @bridge-ds/core's (packages/core/bridge.config.schema.json). This file only adds detection, for repos
 // that have no bridge.config.json yet (`bridge init` writes what it detects).
-import { type BridgeConfig, type BridgeConfigInput, CONFIG_FILE, loadConfig, toConfigJson } from '@bridge-ds/core';
+import { type BridgeConfig, type BridgeConfigInput, CONFIG_FILE, DEFAULT_RIGHTS, loadConfig, toConfigJson } from '@bridge-ds/core';
 
 export { CONFIG_FILE, loadConfig as parseConfig, toConfigJson, type BridgeConfig };
 
@@ -141,6 +141,8 @@ export async function detectConfig(files: string[], read: (p: string) => Promise
       labels: ['source: mcp'],
       guardrails: [guidelines, 'CLAUDE.md', '.github/', governance, contrast, CONFIG_FILE].filter(Boolean) as string[],
       owners: { design: [], tech: [] },
+      // New configs start from the default roles: design owners approve design, tech owners approve tech and ship.
+      rights: DEFAULT_RIGHTS,
     },
   });
 }
