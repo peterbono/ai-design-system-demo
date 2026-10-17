@@ -59,6 +59,8 @@
 }
 
 .sm .segment {
+  /* The segment itself is the target: at least the small control height, so the track grows by its inset. */
+  min-height: var(--control-height-sm);
   font-size: var(--font-size-100);
 }
 

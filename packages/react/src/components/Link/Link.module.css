@@ -24,6 +24,10 @@
 }
 
 .standalone {
+  /* Standalone links sit alone (not in a sentence): give them a 24px target (WCAG 2.5.8). */
+  display: inline-block;
+  min-height: var(--size-6);
+  padding-block: var(--space-0-5);
   font-weight: var(--font-weight-medium);
   text-decoration-color: transparent;
 }
