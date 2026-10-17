@@ -86,7 +86,7 @@ Any client that speaks MCP over stdio works: run `node packages/mcp/dist/index.j
 
 ## What Claude can do
 
-24 tools: 6 for tokens (config, browse, read, search, contrast, validation), 5 for components and guidance,
+25 tools: 6 for tokens (config, browse, read, search, contrast, validation), 6 for components and guidance,
 5 for proposals and reviews (visual impact included), 3 for brands, 4 for history and revert, 1 for adoption
 audits.
 
@@ -101,6 +101,7 @@ audits.
 | `bridge_list_components` | Pick an existing component before writing new markup |
 | `bridge_get_component` | Read props (types, defaults, allowed values), when to use, dos and donts, accessibility, anatomy |
 | `bridge_scaffold_component` | Generate a component folder that follows the repo checklist |
+| `bridge_draft_docs` | Start or refresh a component's docs.json: what the code tells (props, tokens, anatomy, contrast, changelog line) plus a prompt for you to write the prose (see [Docs drafts](#docs-drafts)) |
 | `bridge_get_design_language` | Read the relevant section of the design language |
 | `bridge_get_guidelines` | Read the agent rules (always, ask before, never) and the risk tiers |
 | `bridge_propose_token_change` | Turn token edits into a branch (local) or a draft PR (GitHub), with a designer-friendly body |
@@ -138,6 +139,7 @@ Things to ask:
 - "Review PR 42 for the design owner."
 - "Audit this component's CSS for hardcoded values."
 - "When did muted text change, and why?"
+- "Draft the docs of VisuallyHidden from its code, then show me what you could not tell."
 - "Undo PR 12, but show me what changed since first."
 - "Plan a brand called Acme from Ocean with #1F5F3A as primary, and tell me which contrast pairs fail."
 
@@ -229,6 +231,33 @@ Storybook config change, publishes the images to the orphan branch `bridge-visua
 the PR `visual-change` and never fails it. Reviews in the Bridge docs site reads the same manifest: before/after
 slider, diff toggle, brand and theme filters.
 - "How much of apps/admin uses the design system? Which files should we migrate first?"
+
+## Docs drafts
+
+Every component page in Bridge reads its `<Name>.docs.json`. Part of it comes from the code and is never
+invented: the props table (from the TypeScript props), the tokens its stylesheet reads (and the ones it reads
+through another component's stylesheet, like IconButton through Button), the anatomy (one entry per CSS module
+class), the contrast checks those tokens take part in, and a changelog line. The rest is prose a person writes:
+summary, when to use and not, do and don't, accessibility, content guidelines. Claude can draft that prose, and
+a reviewer accepts it.
+
+- **Your own Claude, no setup.** `bridge_draft_docs` (MCP) returns the pre-fill, the target path, the keys still
+  missing and a prompt with the repo conventions (AGENTS.md, the voice section of the design language,
+  `Button.docs.json` as the example, the component source). Ask "Draft the docs of Icon": Claude writes the
+  prose, sets `"draftedBy": "claude"` and `"needsReview": true`, and saves the file. Nothing is written by the
+  tool itself.
+- **From a terminal.** `bridge docs draft Icon` prints the same pre-fill and prompt; `--json` prints
+  `{ path, prefill, prompt }` for scripts.
+- **On pull requests, optional.** The `Docs drafts` workflow (`.github/workflows/docs-draft.yml`) runs when a
+  pull request touches components or tokens. Without the `ANTHROPIC_API_KEY` repository secret it posts one
+  comment, "AI doc drafts are off. Add ANTHROPIC_API_KEY to enable.", and passes. With it, each touched
+  component whose docs are missing, incomplete or older than its code gets a draft from `claude-sonnet-5-5`,
+  committed to the pull request branch with `"draftedBy": "claude"` and `"needsReview": true`; the comment lists
+  what was drafted. It never blocks a pull request, skips pull requests from forks, and never drafts on top of
+  its own commit.
+- **Review.** In Bridge Studio, a pull request's Docs section lists the drafted files with a "Draft by Claude,
+  needs review" badge: Accept commits `"needsReview": false` to the branch, Edit opens the docs editor. Studio
+  Quality lists every docs file that still needs review. A docs-only change is Tier 1 (patch).
 
 ## Measure adoption in product code
 
