@@ -208,6 +208,13 @@ a.menu-item:hover {
   gap: var(--space-12);
 }
 
+/* With the rail: a wide gutter so the rail reads as its own column, apart from the content block. */
+@media (min-width: 1320px) {
+  .page-grid {
+    column-gap: var(--space-20);
+  }
+}
+
 .page-body > h1:first-child {
   margin-top: 0;
 }
