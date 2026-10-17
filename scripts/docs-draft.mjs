@@ -6,7 +6,10 @@
 //     the deterministic pre-fill and the prompt from `bridge docs draft <Name> --json`, asks Claude for the prose,
 //     keeps what code decides (anatomy), marks the file "draftedBy": "claude", "needsReview": true, commits it to the
 //     PR branch and updates the comment. A reviewer accepts the draft in Bridge Studio (Changes, Docs).
-// No dependency: fetch and child_process only. Every side effect is injectable for the tests.
+// No dependency: fetch and child_process only. Every side effect is injectable for the tests. The docs logic (missing
+// prose, key order, reply parsing, the merge, the Messages API request) is @bridge-ds/core's, the same code the Library
+// page drafts with: in the repo (tests) it resolves to the core sources, in the workflow to the core bundled into the
+// built MCP library (npm run mcp:build), since core itself is not built there.
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -14,26 +17,33 @@ import { pathToFileURL } from 'node:url';
 
 export const MARKER = '<!-- bridge-docs-draft -->';
 export const OFF_MESSAGE = 'AI doc drafts are off. Add ANTHROPIC_API_KEY to enable.';
-export const MODEL = 'claude-sonnet-5-5';
+/** @bridge-ds/core, or the copy bundled into the built MCP library. Null when neither is there (drafts off path). */
+async function loadCore() {
+  try {
+    return await import('@bridge-ds/core');
+  } catch {
+    try {
+      return await import('../packages/mcp/dist/lib.js');
+    } catch {
+      return null;
+    }
+  }
+}
+const core = await loadCore();
+const need = () => {
+  if (!core) throw new Error('@bridge-ds/core is not available: run npm ci and npm run mcp:build first.');
+  return core;
+};
+
+export const MODEL = core?.DOCS_DRAFT_MODEL ?? 'claude-sonnet-5-5';
 export const COMMIT_PREFIX = 'docs(';
 export const COMMIT_SUFFIX = '): draft usage guidance with Claude, needs review';
 const COMPONENTS_DIR = 'packages/react/src/components';
-const PROSE_KEYS = ['summary', 'whenToUse', 'whenNotToUse', 'dos', 'donts', 'accessibility', 'contentGuidelines'];
-// Same order as formatDocsJson in @bridge-ds/core (packages/core/src/docs-draft.ts).
-const KEY_ORDER = ['summary', 'category', 'status', 'preview', 'whenToUse', 'whenNotToUse', 'dos', 'donts', 'accessibility', 'contentGuidelines', 'anatomy', 'draftedBy', 'needsReview'];
+/** Prose keys a docs.json leaves empty (all of them when there is no file). core missingProse. */
+export const missingProse = (docs) => need().missingProse(docs);
 
-const isEmpty = (v) => v === undefined || v === null || (typeof v === 'string' && !v.trim()) || (Array.isArray(v) && v.length === 0);
-
-/** Prose keys a docs.json leaves empty (all of them when there is no file). */
-export const missingProse = (docs) => PROSE_KEYS.filter((k) => isEmpty(docs?.[k]));
-
-/** docs.json text the way the repo writes it (two spaces, Button.docs.json key order, trailing newline). */
-export function formatDocs(d) {
-  const out = {};
-  for (const k of KEY_ORDER) if (d[k] !== undefined) out[k] = d[k];
-  for (const [k, v] of Object.entries(d)) if (!(k in out) && v !== undefined) out[k] = v;
-  return `${JSON.stringify(out, null, 2)}\n`;
-}
+/** docs.json text the way the repo writes it (two spaces, Button.docs.json key order, trailing newline). core formatDocsJson. */
+export const formatDocs = (d) => need().formatDocsJson(d);
 
 /**
  * Components to draft. A component counts when the PR touches its folder and its docs.json is missing, has empty
@@ -72,31 +82,15 @@ export function selectTargets({ changed, readDocs, all = [] }) {
   return out.sort((a, b) => a.name.localeCompare(b.name));
 }
 
-/** The first JSON object in a model reply (plain, or inside a ```json fence). Throws when there is none. */
-export function parseReply(text) {
-  const fenced = /```(?:json)?\s*([\s\S]*?)```/.exec(text);
-  const body = fenced ? fenced[1] : text;
-  const start = body.indexOf('{');
-  const end = body.lastIndexOf('}');
-  if (start < 0 || end <= start) throw new Error('The reply holds no JSON object.');
-  const json = JSON.parse(body.slice(start, end + 1));
-  if (!json || typeof json !== 'object' || Array.isArray(json)) throw new Error('The reply is not a docs.json object.');
-  return json;
-}
+/** The first JSON object in a model reply (plain, or inside a ```json fence). Throws when there is none. core parseDocsReply. */
+export const parseReply = (text) => need().parseDocsReply(text);
 
 /**
- * The docs.json to commit: Claude's prose on top of the pre-fill draft, with what code decides kept from the
- * pre-fill (anatomy), existing prose kept where Claude returned nothing, and the review marks set.
+ * The docs.json to commit: Claude's prose (sanitized, no em dash) on top of the pre-fill draft, with what code decides
+ * kept from the pre-fill (anatomy), existing prose kept, and the review marks set (draftedSections when only some
+ * sections were drafted). core mergeDocsDraft.
  */
-export function mergeDraft(prefillDraft, reply) {
-  const merged = { ...prefillDraft };
-  for (const k of PROSE_KEYS) if (!isEmpty(reply[k]) && isEmpty(prefillDraft[k])) merged[k] = reply[k];
-  if (reply.preview && !prefillDraft.preview) merged.preview = reply.preview;
-  merged.anatomy = prefillDraft.anatomy;
-  merged.draftedBy = 'claude';
-  merged.needsReview = true;
-  return merged;
-}
+export const mergeDraft = (prefillDraft, reply) => need().mergeDocsDraft(prefillDraft, reply);
 
 // --- GitHub -----------------------------------------------------------------------------------------------
 
@@ -128,27 +122,14 @@ export async function upsertComment({ fetchImpl = fetch, token, repo, pr, body }
 
 // --- Anthropic ----------------------------------------------------------------------------------------------
 
-/** One Messages API call; returns the text of the reply. Raw HTTP: the repo takes no SDK dependency for one call. */
+/** One Messages API call; returns the text of the reply. Raw HTTP (core anthropicRequest): no SDK dependency for one call. */
 export async function askClaude({ fetchImpl = fetch, apiKey, prompt }) {
-  const res = await fetchImpl('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      // A declined request is re-run on a fallback model inside the same call.
-      'anthropic-beta': 'server-side-fallback-2026-07-01',
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify({ model: MODEL, max_tokens: 16000, fallbacks: 'default', messages: [{ role: 'user', content: prompt }] }),
-  });
+  const { anthropicRequest, anthropicReplyText } = need();
+  // A declined request is re-run on a fallback model inside the same call.
+  const req = anthropicRequest({ apiKey, prompt, model: MODEL, fallback: true });
+  const res = await fetchImpl(req.url, req.init);
   if (!res.ok) throw new Error(`Anthropic API ${res.status}: ${(await res.text()).slice(0, 300)}`);
-  const msg = await res.json();
-  if (msg.stop_reason === 'refusal') throw new Error('Claude declined to draft this one.');
-  if (msg.stop_reason === 'max_tokens') throw new Error('The reply was cut off (max_tokens).');
-  return (msg.content ?? [])
-    .filter((b) => b.type === 'text')
-    .map((b) => b.text)
-    .join('');
+  return anthropicReplyText(await res.json());
 }
 
 // --- run ------------------------------------------------------------------------------------------------------

@@ -33,6 +33,7 @@ export * from './previews-github';
 export * from './ramps';
 export * from './brand';
 export * from './docs-draft';
+export * from './docs-ai';
 export * from './requests';
 export * from './change-drafts';
 export * from './draft-exchange';

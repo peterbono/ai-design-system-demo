@@ -15,6 +15,9 @@ export * as brand from './brand.js';
 export * as requests from './requests.js';
 export * as explorations from './explorations.js';
 export * as drafts from './drafts.js';
+// The docs logic the docs-draft GitHub Action (scripts/docs-draft.mjs) runs, from the core compiled into this bundle:
+// the workflow builds the MCP library, not core.
+export { DOCS_DRAFT_MODEL, anthropicReplyText, anthropicRequest, formatDocsJson, mergeDocsDraft, missingProse, parseDocsReply } from '@bridge-ds/core';
 
 export interface ServeOptions extends ContextOptions {}
 

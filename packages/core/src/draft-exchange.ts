@@ -9,10 +9,15 @@
 // 3. The plugin polls the file, fills the fields it may fill, then deletes the file once the request or push is sent
 //    (or cancelled).
 //
+// Bridge Studio uses the same exchange for component docs (a "docs" item, from the Library page): the item carries the
+// task (which prose sections, or a selected passage) and the full prompt with the facts from the code; the result
+// carries the sections (or the rewritten passage), sanitized to the docs.json shapes.
+//
 // Writers update with the file sha (optimistic concurrency) and retry on 409. Pure helpers plus a few GitHubClient
 // helpers: no DOM, no figma.*, no Node-only API.
 
 import { DRAFT_LINE_MAX, cleanDraftText, sanitizeDraftLine, type DraftText } from './change-drafts';
+import { type DocsDraftTask, type DocsSections, docsSectionsResult, docsTaskKeys, sanitizeDocsReplacement, validateDocsTask } from './docs-ai';
 import { GitHubError, type GitHubClient } from './github-client';
 import { REQUESTS_BRANCH, type RequestChange, type RequestKind, REQUEST_KINDS } from './requests';
 
@@ -26,7 +31,9 @@ export const DRAFT_SUMMARY_SENTENCES = 3;
 export { DRAFT_LINE_MAX };
 const SUMMARY_MAX = 600;
 
-export type DraftScope = 'request' | 'push';
+export type DraftScope = 'request' | 'push' | 'docs';
+/** Who wrote the session: the DS Bridge Figma plugin, or Bridge Studio (component docs on the Library page). */
+export type DraftSource = 'figma' | 'studio';
 export type DraftSessionStatus = 'pending' | 'drafted';
 
 export interface DraftImage {
@@ -79,6 +86,19 @@ export interface DraftItem {
   draft: DraftText;
   /** Component changes to write one line each for. Missing in sessions from older plugins. */
   lines?: DraftLine[] | undefined;
+  /** Docs only: the component docs to write. */
+  docs?: DraftDocsItem | undefined;
+}
+
+/** A docs item: prose sections of one component's docs.json (or one selected passage), from Bridge Studio. */
+export interface DraftDocsItem {
+  /** Component slug on the Library page (button, icon-button). */
+  slug: string;
+  /** docs.json path in the repo. */
+  path?: string | undefined;
+  task: DocsDraftTask;
+  /** The full prompt: the task, the rules, the facts from the code (props, CSS module classes, JSDoc, tokens), the voice. */
+  prompt: string;
 }
 
 export interface DraftResult {
@@ -90,6 +110,10 @@ export interface DraftResult {
    * older writers send none, or lines without a title.
    */
   lines?: DraftResultLine[] | undefined;
+  /** Docs items (sections task): the sections Claude wrote, sanitized to the docs.json shapes. */
+  docs?: DocsSections | undefined;
+  /** Docs items (selection task): the rewritten passage. */
+  replacement?: string | undefined;
   by: 'claude';
   at: string;
 }
@@ -107,7 +131,7 @@ export interface PendingDrafts {
   sessionId: string;
   createdAt: string;
   status: DraftSessionStatus;
-  source: 'figma';
+  source: DraftSource;
   items: DraftItem[];
   results?: DraftResult[] | undefined;
 }
@@ -131,6 +155,7 @@ export const DRAFT_OUTPUT_CONTRACT = [
   `title: one line, at most ${DRAFT_TITLE_MAX} characters, no trailing period.`,
   `summary: at most ${DRAFT_SUMMARY_SENTENCES} sentences, plain text.`,
   `lines: one per change line the item lists (its "lines"), by line id: line is one sentence, at most ${DRAFT_LINE_MAX} characters, no trailing period; title is the request title for that component change, at most ${DRAFT_TITLE_MAX} characters, no trailing period. Leave lines out when the item lists none.`,
+  'Docs items (scope "docs", from Bridge Studio): follow the item\'s prompt and send {"id": "<item id>", "docs": {<only the sections it asks for>}} for a sections task, or {"id": "<item id>", "replacement": "..."} for a selection task. No title or summary. The designer reviews them on the Library page.',
   'The designer reviews the text in Figma before anything is sent.',
 ];
 
@@ -162,6 +187,7 @@ export function draftImagePath(sessionId: string, itemId: string, label: DraftIm
 
 export interface ComposeDraftsInput {
   items: DraftItem[];
+  source?: DraftSource | undefined;
   sessionId?: string | undefined;
   now?: Date | undefined;
   random?: (() => number) | undefined;
@@ -174,7 +200,7 @@ export function composePendingDrafts(input: ComposeDraftsInput): PendingDrafts {
     sessionId: input.sessionId ?? newDraftSessionId(input.random),
     createdAt: (input.now ?? new Date()).toISOString(),
     status: 'pending',
-    source: 'figma',
+    source: input.source ?? 'figma',
     items: input.items.map((i) => ({ ...i, changes: i.changes ?? [] })),
   };
   const problems = validatePendingDrafts(p);
@@ -195,7 +221,7 @@ export function validatePendingDrafts(x: unknown): string[] {
   if (!isDraftSessionId(p.sessionId)) out.push('The session id is missing or invalid.');
   if (!str(p.createdAt) || Number.isNaN(Date.parse(p.createdAt!))) out.push('createdAt must be an ISO date.');
   if (p.status !== 'pending' && p.status !== 'drafted') out.push('status must be "pending" or "drafted".');
-  if (p.source !== 'figma') out.push('source must be "figma".');
+  if (p.source !== 'figma' && p.source !== 'studio') out.push('source must be "figma" or "studio".');
   if (!Array.isArray(p.items) || !p.items.length) out.push('A draft session needs at least one item.');
   const ids = new Set<string>();
   for (const [n, i] of (Array.isArray(p.items) ? p.items : []).entries()) {
@@ -207,7 +233,12 @@ export function validatePendingDrafts(x: unknown): string[] {
     if (!str(i.id) || !i.id) out.push(`${at} has no id.`);
     else if (ids.has(i.id)) out.push(`${at} repeats the id "${i.id}".`);
     else ids.add(i.id);
-    if (i.scope !== 'request' && i.scope !== 'push') out.push(`${at}: scope must be "request" or "push".`);
+    if (i.scope !== 'request' && i.scope !== 'push' && i.scope !== 'docs') out.push(`${at}: scope must be "request", "push" or "docs".`);
+    if (i.scope === 'docs') {
+      const d = i.docs;
+      if (!d || typeof d !== 'object' || !str(d.slug) || !d.slug || !str(d.prompt) || !d.prompt || !optStr(d.path)) out.push(`${at}: a docs item needs docs {slug, task, prompt}.`);
+      else out.push(...validateDocsTask(d.task).map((m) => `${at}: ${m}`));
+    } else if (i.docs !== undefined) out.push(`${at}: only a docs item has docs.`);
     if (!optStr(i.component)) out.push(`${at}: component must be text.`);
     if (i.kind !== undefined && !KINDS.has(i.kind)) out.push(`${at}: unknown kind "${String(i.kind)}".`);
     if (!Array.isArray(i.changes) || i.changes.some((c) => !c || !str(c.field) || !optStr(c.before) || !optStr(c.after))) out.push(`${at}: changes must be a list of {field, before, after}.`);
@@ -222,6 +253,8 @@ export function validatePendingDrafts(x: unknown): string[] {
     else
       for (const r of p.results) {
         if (!r || !str(r.id) || !str(r.title) || !str(r.summary)) out.push('Each result needs an id, a title and a summary.');
+        else if (r.docs !== undefined && (!r.docs || typeof r.docs !== 'object' || Array.isArray(r.docs))) out.push('Result docs must be an object of sections.');
+        else if (!optStr(r.replacement)) out.push('A result replacement must be text.');
         else if (r.lines !== undefined && (!Array.isArray(r.lines) || r.lines.some((l) => !l || !str(l.id) || !str(l.line) || !optStr(l.title)))) out.push('Result lines must be a list of {id, line, title}.');
       }
   }
@@ -278,6 +311,26 @@ export interface DraftResultInput {
   title?: unknown;
   summary?: unknown;
   lines?: unknown;
+  /** Docs items: the sections written (sections task). */
+  docs?: unknown;
+  /** Docs items: the rewritten passage (selection task). */
+  replacement?: unknown;
+}
+
+/** The docs part of a result for a docs item, sanitized to its task. Throws when it holds nothing the task asked for. */
+export function sanitizeDocsResult(item: DraftItem, r: DraftResultInput): Pick<DraftResult, 'docs' | 'replacement'> {
+  const task = item.docs!.task;
+  if (task.kind === 'selection') {
+    const raw = r.replacement ?? (r.docs && typeof r.docs === 'object' ? (r.docs as Record<string, unknown>)[task.key] : undefined);
+    const replacement = sanitizeDocsReplacement(raw);
+    if (!replacement) throw new Error(`Item "${item.id}" asks to rewrite a passage of ${task.key}: send {"id": "${item.id}", "replacement": "..."}.`);
+    return { replacement };
+  }
+  try {
+    return { docs: docsSectionsResult(task, r.docs) };
+  } catch {
+    throw new Error(`Item "${item.id}" asks for the sections ${docsTaskKeys(task).join(', ')}: send {"id": "${item.id}", "docs": {${task.keys.map((k) => `"${k}": ...`).join(', ')}}} in the shapes of its prompt.`);
+  }
 }
 
 /**
@@ -316,6 +369,10 @@ export function mergeDraftResults(p: PendingDrafts, results: DraftResultInput[],
   for (const r of results) {
     if (!ids.has(r.id)) throw new Error(`Session ${p.sessionId} has no item "${r.id}". Use the ids from bridge_pending_drafts: ${[...ids].join(', ')}.`);
     const item = p.items.find((i) => i.id === r.id)!;
+    if (item.scope === 'docs') {
+      next.set(r.id, { id: r.id, title: '', summary: '', ...sanitizeDocsResult(item, r), by: 'claude', at: at.toISOString() });
+      continue;
+    }
     const clean = sanitizeDraftText(r);
     const lines = sanitizeResultLines(item, r.lines);
     if (!clean.title && !clean.summary && !lines.length) throw new Error(`The result for "${r.id}" has no title and no summary, and no line.`);
@@ -327,6 +384,11 @@ export function mergeDraftResults(p: PendingDrafts, results: DraftResultInput[],
 
 /** The Markdown brief of one item, for Claude: what to write, the facts, the starting draft. */
 export function draftItemBrief(i: DraftItem): string {
+  if (i.scope === 'docs' && i.docs) {
+    const t = i.docs.task;
+    const what = t.kind === 'selection' ? `rewrite one passage of the ${t.key} section (${t.mode}), answer with "replacement"` : `${t.rewrite ? 'rewrite' : 'write'} the sections ${t.keys.join(', ')}, answer with "docs"`;
+    return [`Item ${i.id}: component docs${i.component ? ` of ${i.component}` : ''} from Bridge Studio (${i.docs.path ?? i.docs.slug}): ${what}.`, '', i.docs.prompt].join('\n');
+  }
   const kind = i.kind ? REQUEST_KINDS.find((k) => k.value === i.kind)?.label : undefined;
   const cell = (s: string | undefined) => (s ?? '').replace(/\|/g, '\\|').replace(/\n/g, ' ');
   const lines: string[] = [`Item ${i.id}: ${i.scope === 'request' ? 'a component change request (a GitHub issue developers implement)' : 'the description of a pull request with design token (variable) edits from Figma'}.`];
@@ -434,4 +496,144 @@ export async function deletePendingDrafts(client: DraftClient, sessionId: string
     await client.deleteFile({ path: img.path, branch, message: 'Bridge drafts: done', sha: img.sha }).catch(() => undefined);
   }
   return true;
+}
+
+/** Creates the requests branch from the head of `baseBranch` when it is missing. Never moves an existing branch. */
+export async function ensureRequestsBranch(client: Pick<GitHubClient, 'getBranchSha' | 'createBranch'>, baseBranch: string): Promise<void> {
+  if (await client.getBranchSha(REQUESTS_BRANCH)) return;
+  const head = await client.getBranchSha(baseBranch);
+  if (!head) throw new Error(`Branch "${baseBranch}" was not found, so the ${REQUESTS_BRANCH} branch cannot start from it.`);
+  await client.createBranch(REQUESTS_BRANCH, head);
+}
+
+export interface DocsDraftSessionInput {
+  component: string;
+  slug: string;
+  path?: string | undefined;
+  task: DocsDraftTask;
+  prompt: string;
+  /** Branch the requests branch starts from when it does not exist yet. */
+  baseBranch: string;
+  now?: Date | undefined;
+  random?: (() => number) | undefined;
+}
+
+/**
+ * Bridge Studio asks the user's own Claude for component docs: one docs item in a new session (source "studio") on
+ * the requests branch, created from `baseBranch` when missing. Returns the session to poll.
+ */
+export async function createDocsDraftSession(
+  client: Pick<GitHubClient, 'getBranchSha' | 'createBranch' | 'getFile' | 'putFile' | 'deleteFile' | 'listDirectory'>,
+  input: DocsDraftSessionInput,
+): Promise<PendingDrafts> {
+  await ensureRequestsBranch(client, input.baseBranch);
+  const what = input.task.kind === 'selection' ? `Rewrite a passage of ${input.task.key}` : `${input.task.rewrite ? 'Rewrite' : 'Write'} ${input.task.keys.join(', ')}`;
+  const item: DraftItem = {
+    id: 'docs-1',
+    scope: 'docs',
+    component: input.component,
+    changes: [],
+    draft: { title: `${input.component} docs`, summary: what },
+    docs: { slug: input.slug, ...(input.path ? { path: input.path } : {}), task: input.task, prompt: input.prompt },
+  };
+  return createPendingDrafts(client, composePendingDrafts({ items: [item], source: 'studio', now: input.now, random: input.random }));
+}
+
+// ---------------------------------------------------------------------------------------------
+// Polling: the plugin and Studio read the session until Claude answers
+
+export const DRAFT_POLL_INTERVAL_MS = 5_000;
+export const DRAFT_POLL_TIMEOUT_MS = 10 * 60_000;
+
+export interface DraftPollerOptions {
+  client: Pick<GitHubClient, 'getFile'>;
+  sessionId: string;
+  intervalMs?: number | undefined;
+  timeoutMs?: number | undefined;
+  now?: (() => number) | undefined;
+  setTimer?: ((fn: () => void, ms: number) => unknown) | undefined;
+  clearTimer?: ((handle: unknown) => void) | undefined;
+  /** Claude answered every item. Polling has stopped. */
+  onResults: (results: DraftResult[], drafts: PendingDrafts) => void;
+  /** No answer within the timeout. Polling has stopped; start() polls again. */
+  onTimeout: () => void;
+  /** The file is gone (sent or cancelled elsewhere). Polling has stopped. */
+  onGone?: (() => void) | undefined;
+  /** A read failed; polling goes on. */
+  onError?: ((message: string) => void) | undefined;
+}
+
+/** Reads the session every 5 seconds until Claude answers, the file goes away, or 10 minutes pass. */
+export class DraftPoller {
+  private handle: unknown;
+  private startedAt = 0;
+  private running = false;
+  private busy = false;
+
+  constructor(private readonly o: DraftPollerOptions) {}
+
+  get active(): boolean {
+    return this.running;
+  }
+
+  private now(): number {
+    return (this.o.now ?? Date.now)();
+  }
+
+  private schedule(): void {
+    const set = this.o.setTimer ?? ((fn: () => void, ms: number) => setTimeout(fn, ms));
+    this.handle = set(() => void this.tick(), this.o.intervalMs ?? DRAFT_POLL_INTERVAL_MS);
+  }
+
+  /** Starts (or restarts, after a timeout) polling; the timeout counts from now. */
+  start(): void {
+    this.stop();
+    this.running = true;
+    this.startedAt = this.now();
+    this.schedule();
+  }
+
+  stop(): void {
+    if (this.handle !== undefined) (this.o.clearTimer ?? ((h: unknown) => clearTimeout(h as ReturnType<typeof setTimeout>)))(this.handle);
+    this.handle = undefined;
+    this.running = false;
+  }
+
+  private async tick(): Promise<void> {
+    if (!this.running) return;
+    this.handle = undefined;
+    const done = await this.check();
+    if (done || !this.running) return;
+    if (this.now() - this.startedAt >= (this.o.timeoutMs ?? DRAFT_POLL_TIMEOUT_MS)) {
+      this.stop();
+      this.o.onTimeout();
+      return;
+    }
+    this.schedule();
+  }
+
+  /** Reads the file once. True when polling is over (answered or gone). */
+  async check(): Promise<boolean> {
+    if (this.busy) return false;
+    this.busy = true;
+    try {
+      const cur = await readPendingDrafts(this.o.client, this.o.sessionId);
+      if (!cur) {
+        this.stop();
+        this.o.onGone?.();
+        return true;
+      }
+      if (cur.drafts.status === 'drafted' && cur.drafts.results?.length) {
+        this.stop();
+        this.o.onResults(cur.drafts.results, cur.drafts);
+        return true;
+      }
+      return false;
+    } catch (err) {
+      this.o.onError?.(err instanceof Error ? err.message : String(err));
+      return false;
+    } finally {
+      this.busy = false;
+    }
+  }
 }
