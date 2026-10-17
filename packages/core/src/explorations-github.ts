@@ -6,7 +6,6 @@ import type { BridgeConfig } from './config';
 import {
   EXPLORATION_LABEL,
   EXPLORATION_PREFIX,
-  explorationInstall,
   explorationNote,
   explorationNotePath,
   explorationPrBody,
@@ -19,13 +18,13 @@ import {
   parseExplorationBody,
   promotionPlan,
   type Exploration,
-  type ExplorationInstall,
   type ExplorationStatus,
   type ExplorationTryIt,
   type PromotionPlan,
 } from './explorations';
 import { GitHubError, type GitHubClient, type PullRequestSummary } from './github-client';
-import { findPreviewComment, previewLinks, type PreviewApps } from './previews';
+import { findPreviewComment, previewLinks, previewsSettled, type BranchPreview, type PreviewApps } from './previews';
+import { branchPreviewUrls } from './previews-github';
 
 export interface ExplorationSettings {
   /** Branch explorations start from and pull requests target (the default branch). */
@@ -48,12 +47,17 @@ export interface ExplorationSummary {
   draft: boolean;
   author: string;
   updatedAt: string;
+  /** Head commit of the branch. */
+  headSha: string;
+  /**
+   * Template previews Vercel cannot have shortened (a host label of 63 characters or less), without a round trip. The
+   * URLs Vercel reports, with their build state, come from `explorationTestBuildOnGitHub`.
+   */
   previews: { app: string; label: string; url: string }[];
-  install: ExplorationInstall;
 }
 
 /** One exploration from a pull request summary. */
-export function explorationSummary(p: PullRequestSummary, owner: string, repo: string, s: Pick<ExplorationSettings, 'packages' | 'apps'>): ExplorationSummary {
+export function explorationSummary(p: PullRequestSummary, _owner: string, _repo: string, s: Pick<ExplorationSettings, 'packages' | 'apps'>): ExplorationSummary {
   const e = parseExplorationBody(p.body);
   const slug = p.headRef?.startsWith(EXPLORATION_PREFIX) ? p.headRef.slice(EXPLORATION_PREFIX.length) : (e?.slug ?? explorationSlug(p.title));
   return {
@@ -68,8 +72,8 @@ export function explorationSummary(p: PullRequestSummary, owner: string, repo: s
     draft: p.draft,
     author: e?.author ?? p.author,
     updatedAt: p.updatedAt,
+    headSha: p.headSha,
     previews: previewLinks(s.apps, { branch: p.headRef, pr: p.number, sha: p.headSha }),
-    install: explorationInstall({ owner, repo, pr: p.number, packages: s.packages, sha: p.headSha }),
   };
 }
 
@@ -85,7 +89,8 @@ export interface StartedExploration {
   pr: number;
   url: string;
   commit: string;
-  install: ExplorationInstall;
+  /** Just started: the snapshot is not built yet. `explorationTestBuildOnGitHub` reads the command once it is. */
+  tryIt: ExplorationTryIt;
   previews: { app: string; label: string; url: string }[];
 }
 
@@ -120,7 +125,7 @@ export async function startExplorationOnGitHub(gh: GitHubClient, e: Exploration,
     pr: pr.number,
     url: pr.url,
     commit: commit.sha,
-    install: explorationInstall({ owner: gh.owner, repo: gh.name, pr: pr.number, packages: s.packages, sha: commit.sha }),
+    tryIt: { state: 'building' },
     previews: previewLinks(s.apps, { branch, pr: pr.number, sha: commit.sha }),
   };
 }
@@ -132,6 +137,26 @@ export async function startExplorationOnGitHub(gh: GitHubClient, e: Exploration,
 export async function explorationTryItOnGitHub(gh: GitHubClient, e: { number: number; branch: string }): Promise<ExplorationTryIt> {
   const [comments, head] = await Promise.all([gh.listIssueComments(e.number), gh.getBranchSha(e.branch).catch(() => undefined)]);
   return explorationTryIt({ comment: findPreviewComment(comments)?.body, headSha: head });
+}
+
+export interface ExplorationTestBuild {
+  /** The install command from the sticky preview comment, or building/failed. Never a guessed command. */
+  tryIt: ExplorationTryIt;
+  /** Every configured app with the URL Vercel reports (null while unknown) and its build state. */
+  previews: BranchPreview[];
+  /** True when the command is ready (or the publish failed) and every preview is built: polling can stop. */
+  settled: boolean;
+}
+
+/**
+ * Everything "Try it" shows for an exploration, read in one go: the command from the preview comment and the real
+ * preview URLs (deployments, Vercel statuses, the Vercel comment). Comments and the branch head are read once.
+ */
+export async function explorationTestBuildOnGitHub(gh: GitHubClient, e: { number: number; branch: string }, config: Pick<BridgeConfig, 'previews'> | undefined): Promise<ExplorationTestBuild> {
+  const [comments, head] = await Promise.all([gh.listIssueComments(e.number), gh.getBranchSha(e.branch).catch(() => undefined)]);
+  const tryIt = explorationTryIt({ comment: findPreviewComment(comments)?.body, headSha: head });
+  const previews = await branchPreviewUrls(gh, e.number, config, { branch: e.branch, sha: head, comments }).catch(() => [] as BranchPreview[]);
+  return { tryIt, previews, settled: tryIt.state !== 'building' && previewsSettled(previews) };
 }
 
 /** The open exploration pull request of a branch, slug or number. */

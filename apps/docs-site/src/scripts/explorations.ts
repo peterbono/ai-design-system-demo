@@ -3,9 +3,10 @@
 // `explore/<slug>` branch; starting, promoting and closing go through the core helpers (explorations-github.ts) with
 // the viewer's token, the same code the MCP server and the CLI run. Reads stay inside the anonymous budget: the open
 // pull requests In review already read, plus the request list the Requests view caches. Pure rules: lib/explorations-view.ts.
-import { closeExplorationOnGitHub, EXPLORATION_PREFIX, EXPLORATION_TIER_LABEL, EXPLORATION_USE_CASES, GitHubClient, promoteExplorationOnGitHub, startExplorationOnGitHub, type ExplorationUseCase } from '@bridge-ds/core';
+import { type BranchPreview, type BranchPreviewSources, closeExplorationOnGitHub, EXPLORATION_PREFIX, EXPLORATION_TIER_LABEL, EXPLORATION_USE_CASES, GitHubClient, promoteExplorationOnGitHub, startExplorationOnGitHub, type ExplorationUseCase } from '@bridge-ds/core';
 import {
   branchFor,
+  explorationPreviews,
   explorationRows,
   explorationsSummary,
   implementOnCommand,
@@ -17,6 +18,7 @@ import {
   type ExplorationPullLike,
   type ExplorationRow,
   type ExplorationsConfig,
+  previewRowCopy,
   tryItCopy,
   tryItFromComments,
 } from '../lib/explorations-view';
@@ -224,6 +226,14 @@ function stateSentence(r: ExplorationRow): string {
   return `Running on ${r.branch}. It is never merged as is: promote it to review when the idea is validated, or close it.`;
 }
 
+/** The preview rows: one per app, its link and host, or what is missing on the same line. */
+export function previewList(previews: BranchPreview[]): string {
+  return `<ul class="rq-prs">${previews
+    .map(previewRowCopy)
+    .map((p) => `<li>${p.url ? `<a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.label)}</a> <span class="cg-muted mono">${esc(p.host ?? '')}</span>` : esc(p.label)}${p.note ? ` <span class="cg-muted">${esc(p.note)}</span>` : ''}</li>`)
+    .join('')}</ul>`;
+}
+
 export function renderExplorationDetail(r: ExplorationRow, opts: { connected: boolean }): string {
   const actions =
     r.status !== 'active'
@@ -235,9 +245,9 @@ export function renderExplorationDetail(r: ExplorationRow, opts: { connected: bo
     r.status === 'active' && !opts.connected
       ? `<p class="cg-muted ex-note">To promote it without connecting, use "Ready for review" on GitHub and remove the exploration label, or run <code class="mono">${esc(promoteCommand(r.slug))}</code>.</p>`
       : '';
-  const previews = r.previews.length
-    ? `<ul class="rq-prs">${r.previews.map((p) => `<li><a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.label)}</a> <span class="cg-muted mono">${esc(new URL(p.url).host)}</span></li>`).join('')}</ul>`
-    : '<p class="cg-muted">Preview deploys are not set up: add previews.apps to bridge.config.json.</p>';
+  // Filled again by paintTryIt with what Vercel reports: a long branch alias is shortened with a hash, never guessed.
+  const resolved = explorationPreviews(r, CFG.apps);
+  const previews = resolved.length ? `<div id="ex-previews" aria-live="polite">${previewList(resolved)}</div>` : '<p class="cg-muted">Preview deploys are not set up: add previews.apps to bridge.config.json.</p>';
   // Filled by paintTryIt from the pull request's preview comment: the command that works, never a guess.
   const install = CFG.packages.length
     ? `<div id="ex-tryit" aria-live="polite"><p class="cg-muted">Checking the test build.</p></div>`
@@ -265,7 +275,7 @@ export function renderExplorationDetail(r: ExplorationRow, opts: { connected: bo
   <div class="cg-secs">
     ${section('ex-sec-purpose', 'Purpose', esc(r.useCaseLabel ?? 'Exploration'), `<p class="rq-summary">${esc(r.purpose || 'The pull request has no Bridge exploration block. Open it on GitHub to read it.')}</p>`, true)}
     ${section('ex-sec-install', 'Try it in a product staging branch', CFG.packages.length ? `${CFG.packages.length} packages` : 'not set up', install, r.status === 'active')}
-    ${section('ex-sec-previews', 'Previews', String(r.previews.length), previews)}
+    ${section('ex-sec-previews', 'Previews', String(resolved.length), previews)}
     ${section('ex-sec-requests', 'Requests', String(r.requests.length), reqs)}
     ${r.status === 'active' ? section('ex-sec-claude', 'Implement on this exploration', 'CLI or MCP', claude) : ''}
   </div>`;
@@ -273,19 +283,29 @@ export function renderExplorationDetail(r: ExplorationRow, opts: { connected: bo
 
 let current: ExplorationRow | null = null;
 
-/** The install command from the pull request's sticky preview comment (one read), or "being prepared". */
+/**
+ * The install command from the pull request's sticky preview comment, or "being prepared", and the preview URLs
+ * Vercel reports (its comment on the pull request, the head commit's statuses). Two reads.
+ */
 async function paintTryIt(r: ExplorationRow) {
-  if (!document.getElementById('ex-tryit')) return;
   let html: string;
+  let sources: BranchPreviewSources | null = null;
   try {
-    const comments = (await ghGet<{ body?: string | null }[]>(`${R}/issues/${r.number}/comments?per_page=100`)).data;
+    const [comments, statuses] = await Promise.all([
+      ghGet<{ body?: string | null }[]>(`${R}/issues/${r.number}/comments?per_page=100`).then((f) => f.data),
+      ghGet<{ statuses: { context: string; state: string; target_url?: string | null }[] }>(`${R}/commits/${r.headSha}/status`).then((f) => f.data.statuses).catch(() => []),
+    ]);
+    sources = { comments, statuses };
     const t = tryItCopy(tryItFromComments(comments, r.headSha));
     html = `<p>${esc(t.sentence)}</p>${t.command ? cmdRow('ex-install-cmd', t.command, 'Copy install command') : ''}`;
   } catch (err) {
     html = `<p class="cg-muted">${err instanceof RateLimitError ? 'GitHub limits anonymous reads: connect GitHub to see the install command here.' : `Could not read the pull request comments: ${esc((err as Error).message)}.`} The "Try this exploration in your product" comment on <a href="${esc(r.url)}" target="_blank" rel="noopener">#${r.number}</a> has it.</p>`;
   }
+  if (current?.number !== r.number) return;
   const el = document.getElementById('ex-tryit');
-  if (el && current?.number === r.number) el.innerHTML = html;
+  if (el) el.innerHTML = html;
+  const pv = document.getElementById('ex-previews');
+  if (pv && sources) pv.innerHTML = previewList(explorationPreviews(r, CFG.apps, sources));
 }
 
 async function rowFor(n: number): Promise<ExplorationRow | null> {

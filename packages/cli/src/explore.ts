@@ -13,8 +13,9 @@ Usage:
                      GitHub token: the branch and the draft pull request on GitHub. Without one, in a git repo:
                      a local branch only, nothing pushed
   bridge explore list [--all] [--json]
-                     running and promoted explorations, with previews, the snapshot install command and the
-                     requests implemented on each (--all: closed ones too)
+                     running and promoted explorations, with the preview links Vercel reports, the install
+                     command from the pull request (once the snapshot is built) and the requests implemented
+                     on each (--all: closed ones too)
   bridge explore promote <name|#pr> [--dry-run] [--json]
                      ready for review, tier labels, exploration label and note removed (never merges)
   bridge explore close <name|#pr> [--json]
@@ -57,7 +58,8 @@ export async function runExplore(a: RequestArgs, root: string, io: RequestIO = d
       }
       if (r.status === 'started') {
         io.print(`Started ${r.branch}: draft pull request #${r.pr} ${r.url}`);
-        io.print(`\nInstall it in a product staging branch:\n  ${r.install.command}`);
+        // Nothing is built yet: the command and the real preview links come from the pull request once they exist.
+        io.print(`\n${r.install.note}`);
         for (const p of r.previews ?? []) io.print(`${p.label}: ${p.url}`);
       } else io.print(`Created the local branch ${r.branch} (${String(r.commit).slice(0, 7)}).`);
       io.print(`\nNext: ${r.next}`);
@@ -72,8 +74,8 @@ export async function runExplore(a: RequestArgs, root: string, io: RequestIO = d
         io.print(`\n#${x.number} ${x.name}  ${EXPLORATION_STATUS_LABEL[x.status]}  ${x.branch}  @${x.author}  ${date(x.updatedAt)}`);
         if (x.purpose) io.print(`  ${x.purpose}`);
         io.print(`  ${x.url}`);
-        for (const p of x.previews) io.print(`  ${p.label}: ${p.url}`);
-        if (x.install.packages.length) io.print(`  Install: ${x.install.command}`);
+        for (const p of x.previews as { label: string; url: string | null; state?: string }[]) io.print(`  ${p.label}: ${p.url ? `${p.url}${p.state === 'building' ? ' (building)' : p.state === 'failed' ? ' (build failed)' : ''}` : 'link not reported by Vercel yet, see the pull request'}`);
+        if (x.install) io.print(x.install.command ? `  Install: ${x.install.command}` : `  Install: ${x.install.note}`);
         if (x.requests.length) io.print(`  Requests: ${x.requests.map((q) => `#${q.number}`).join(', ')}`);
       }
       for (const b of r.localBranches ?? []) io.print(`\nLocal only: ${b} (push it and open a draft pull request labeled exploration)`);

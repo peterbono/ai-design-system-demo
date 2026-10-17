@@ -590,7 +590,7 @@ export function createServer(ctx: BridgeContext): McpServer {
     {
       title: 'List explorations',
       description:
-        'Explorations of the repo (draft pull requests labeled exploration on explore/* branches): name, purpose, status (active: running; promoted: ready for review; closed), author, last update, preview links, the snapshot install command for a product staging branch (and the tarball fallback), and the component requests implemented on each. Locally, also explore/* branches without a pull request.',
+        'Explorations of the repo (draft pull requests labeled exploration on explore/* branches): name, purpose, status (active: running; promoted: ready for review; closed), author, last update, for running ones the preview links Vercel reports (url null while it has not reported one yet) and the install command a product staging branch uses, read from the preview comment on the pull request (state building until the snapshot of the latest commit is published, never a guessed command), and the component requests implemented on each. Locally, also explore/* branches without a pull request.',
       inputSchema: { state: z.enum(['open', 'closed', 'all']).optional().describe('Pull request state. Default open: running and promoted ones.') },
       annotations: { readOnlyHint: true, openWorldHint: true },
     },

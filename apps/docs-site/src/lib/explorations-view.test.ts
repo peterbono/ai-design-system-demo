@@ -13,6 +13,8 @@ import {
   tierSlot,
   type ExplorationPullLike,
   tryItCopy,
+  explorationPreviews,
+  previewRowCopy,
   tryItFromComments,
 } from './explorations-view';
 import type { IssueLike } from './requests-view';
@@ -104,5 +106,24 @@ describe('explorations view', () => {
     expect(tryItCopy(tryItFromComments([{ body: comment }], 'fedcba9876543210')).command).toBeNull();
     const failed = previewComment({ owner: 'acme', repo: 'ds', pr: 1, branch: 'explore/pill-buttons', sha, packages: [], source: 'none', apps: {}, exploration: true });
     expect(tryItCopy(tryItFromComments([{ body: failed }], sha)).sentence).toMatch(/did not finish/);
+  });
+
+  it('previews: the URL Vercel reports for a long branch, never the template it shortened (PR #64)', () => {
+    const apps = {
+      docs: 'https://bridge-docs-git-{branch}-peterbonos-projects.vercel.app',
+      storybook: 'https://bridge-storybook-git-{branch}-peterbonos-projects.vercel.app',
+      admin: 'https://bridge-admin-git-{branch}-peterbonos-projects.vercel.app',
+    };
+    const r = { branch: 'explore/button-normal-again', number: 64, headSha: '2ccfe16fa28a2ea6df1639fe7675fa005b66170a' };
+    const bare = explorationPreviews(r, apps).map(previewRowCopy);
+    expect(bare.map((p) => [p.label, p.url, p.note])).toEqual([
+      ['Docs', 'https://bridge-docs-git-explore-button-normal-again-peterbonos-projects.vercel.app/', null],
+      ['Storybook', null, 'Link not reported by Vercel yet'],
+      ['Admin demo', null, 'Link not reported by Vercel yet'],
+    ]);
+    const vc = Buffer.from(JSON.stringify({ projects: [{ name: 'bridge-admin', previewUrl: 'bridge-admin-git-explore-button-norm-0ed5ba-peterbonos-projects.vercel.app', nextCommitStatus: 'DEPLOYED' }] })).toString('base64');
+    const statuses = [{ context: 'Vercel – bridge-admin', state: 'pending', target_url: 'https://vercel.com/peterbonos-projects/bridge-admin/x' }];
+    const admin = previewRowCopy(explorationPreviews(r, apps, { comments: [{ body: `[vc]: #x:${vc}` }], statuses })[2]!);
+    expect(admin).toEqual({ label: 'Admin demo', url: 'https://bridge-admin-git-explore-button-norm-0ed5ba-peterbonos-projects.vercel.app/', host: 'bridge-admin-git-explore-button-norm-0ed5ba-peterbonos-projects.vercel.app', note: 'Building the latest commit' });
   });
 });

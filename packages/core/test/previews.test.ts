@@ -113,3 +113,142 @@ test('config: production URLs load and refuse placeholders', () => {
   assert.throws(() => loadConfig({ ...base, previews: { production: { site: 'https://x.example.com' } } }), ConfigError);
   assert.equal(realConfig().previews?.production?.storybook, 'https://bridge-storybook.floriangouloubi.com');
 });
+
+// --- Real preview URLs: PR #64 (explore/button-normal-again), whose admin and storybook aliases Vercel shortened ----
+
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { GitHubClient, type FetchLike } from '../src/github-client';
+import { appForProject, findVercelComment, isVercelComment, parseVercelComment, previewLinksOf, previewsSettled, projectOfLabel, resolveBranchPreviews } from '../src/previews';
+import { branchPreviewUrls } from '../src/previews-github';
+
+const fixture = (name: string) => readFileSync(fileURLToPath(new URL(`./fixtures/previews/${name}`, import.meta.url)), 'utf8');
+const PR64 = {
+  branch: 'explore/button-normal-again',
+  sha: '2ccfe16fa28a2ea6df1639fe7675fa005b66170a',
+  vercel: fixture('pr64-vercel-comment.md'),
+  bridge: fixture('pr64-preview-comment.md'),
+  statuses: JSON.parse(fixture('pr64-statuses.json')) as { context: string; state: string; target_url: string }[],
+};
+const REAL = {
+  admin: 'https://bridge-admin-git-explore-button-norm-0ed5ba-peterbonos-projects.vercel.app/',
+  docs: 'https://bridge-docs-git-explore-button-normal-again-peterbonos-projects.vercel.app/',
+  storybook: 'https://bridge-storybook-git-explore-button-8a43de-peterbonos-projects.vercel.app/',
+};
+const realApps = () => realConfig().previews!.apps;
+
+test('parseVercelComment decodes the hidden [vc] header of the real #64 comment', () => {
+  assert.equal(isVercelComment(PR64.vercel), true);
+  assert.equal(isVercelComment(PR64.bridge), false);
+  const projects = parseVercelComment(PR64.vercel)!;
+  assert.deepEqual(
+    projects.map((p) => [p.name, p.previewUrl, p.status]),
+    [
+      ['bridge-docs', REAL.docs, 'IGNORED'],
+      ['bridge-storybook', REAL.storybook, 'IGNORED'],
+      ['bridge-admin', REAL.admin, 'PENDING'],
+    ],
+  );
+  assert.equal(parseVercelComment('no header'), null);
+  assert.equal(parseVercelComment('[vc]: #x:bm90IGpzb24='), null, 'base64 of something that is not JSON');
+  assert.equal(findVercelComment([{ body: PR64.bridge }, { body: PR64.vercel }])?.body, PR64.vercel);
+});
+
+test('projects map to apps by the template host prefix', () => {
+  const apps = realApps();
+  assert.equal(appForProject('bridge-admin', apps), 'admin');
+  assert.equal(appForProject('bridge-docs', apps), 'docs');
+  assert.equal(appForProject('bridge-storybook', apps), 'storybook');
+  assert.equal(appForProject('bridge', apps), null, 'a prefix of every project names none of them');
+  assert.equal(appForProject('other', apps), null);
+  // Overlapping names: the Vercel shape <project>-git- wins.
+  const overlap = { docs: 'https://site-git-{branch}-t.vercel.app', admin: 'https://site-admin-git-{branch}-t.vercel.app' };
+  assert.equal(appForProject('site', overlap), 'docs');
+  assert.equal(appForProject('site-admin', overlap), 'admin');
+  assert.equal(projectOfLabel('Vercel – bridge-admin'), 'bridge-admin');
+  assert.equal(projectOfLabel('Preview - bridge-docs'), 'bridge-docs');
+  assert.equal(projectOfLabel('Unit and a11y tests'), null);
+});
+
+test('the template alone never shows a shortened alias: admin (64) and storybook (68) stay unknown on #64', () => {
+  const previews = resolveBranchPreviews(realApps(), { branch: PR64.branch, pr: 64 });
+  assert.deepEqual(
+    previews.map((p) => [p.app, p.url, p.source]),
+    [
+      ['docs', REAL.docs, 'template'],
+      ['storybook', null, null],
+      ['admin', null, null],
+    ],
+  );
+  assert.equal(previewsSettled(previews), false);
+});
+
+test('the Vercel comment and statuses give the real #64 URLs and their state', () => {
+  const previews = resolveBranchPreviews(realApps(), { branch: PR64.branch, pr: 64, sha: PR64.sha }, { comments: [{ body: PR64.bridge }, { body: PR64.vercel }], statuses: PR64.statuses });
+  assert.deepEqual(
+    previews.map((p) => [p.app, p.url, p.source, p.state]),
+    [
+      ['docs', REAL.docs, 'vercel-comment', 'ready'],
+      ['storybook', REAL.storybook, 'vercel-comment', 'ready'],
+      // The comment still says PENDING; the newer commit status says success.
+      ['admin', REAL.admin, 'vercel-comment', 'ready'],
+    ],
+  );
+  assert.equal(previewsSettled(previews), true);
+  assert.deepEqual(previewLinksOf(previews).map((l) => l.label), ['Docs', 'Storybook', 'Admin demo']);
+  // Inspector links (vercel.com/...) in statuses are never taken for a preview URL.
+  const onlyStatuses = resolveBranchPreviews(realApps(), { branch: PR64.branch }, { statuses: PR64.statuses });
+  assert.deepEqual(onlyStatuses.map((p) => p.url), [REAL.docs, null, null]);
+  assert.deepEqual(onlyStatuses.map((p) => p.state), ['ready', 'ready', 'ready']);
+  // While Vercel builds: the oldest statuses only (pending).
+  const building = resolveBranchPreviews(realApps(), { branch: PR64.branch }, { comments: [{ body: PR64.vercel }], statuses: PR64.statuses.filter((s) => s.state === 'pending') });
+  assert.deepEqual(building.map((p) => p.state), ['building', 'building', 'building']);
+  assert.equal(previewsSettled(building), false);
+});
+
+test('a GitHub deployment URL beats the comment', () => {
+  const previews = resolveBranchPreviews(
+    realApps(),
+    { branch: PR64.branch },
+    {
+      comments: [{ body: PR64.vercel }],
+      deployments: [{ environment: 'Preview – bridge-admin', state: 'success', environmentUrl: 'https://bridge-admin-abc123-peterbonos-projects.vercel.app' }],
+    },
+  );
+  const admin = previews.find((p) => p.app === 'admin')!;
+  assert.deepEqual([admin.url, admin.source, admin.state], ['https://bridge-admin-abc123-peterbonos-projects.vercel.app/', 'deployment', 'ready']);
+});
+
+test('the sticky comment never prints a shortened template URL', () => {
+  const md = previewComment({ owner: 'o', repo: 'r', pr: 64, branch: PR64.branch, sha: PR64.sha, packages: [], source: 'none', apps: realApps(), exploration: true });
+  assert.ok(!md.includes('bridge-admin-git-explore-button-normal-again'), 'no guessed admin URL');
+  assert.match(md, /\| Admin demo \| Link in the Vercel comment on this pull request \|/);
+  assert.ok(md.includes(REAL.docs));
+  const real = previewComment({ owner: 'o', repo: 'r', pr: 64, branch: PR64.branch, sha: PR64.sha, packages: [], source: 'none', apps: realApps(), exploration: true, previews: resolveBranchPreviews(realApps(), { branch: PR64.branch }, { comments: [{ body: PR64.vercel }] }) });
+  assert.match(real, new RegExp(`\\| Admin demo \\| ${REAL.admin.replace(/[.]/g, '\\.')} \\|`));
+});
+
+test('branchPreviewUrls reads the pull request, its comments, statuses and deployments', async () => {
+  const calls: string[] = [];
+  const routes: Record<string, unknown> = {
+    '/pulls/64': { number: 64, title: 'Exploration', state: 'open', draft: true, user: { login: 'x' }, head: { ref: PR64.branch, sha: PR64.sha }, base: { ref: 'main' }, labels: [], html_url: '', updated_at: '' },
+    '/issues/64/comments': [{ id: 1, body: PR64.vercel, user: { login: 'vercel[bot]' }, updated_at: '' }],
+    [`/commits/${PR64.sha}/statuses`]: PR64.statuses,
+    '/deployments': [],
+  };
+  const f: FetchLike = async (url) => {
+    const path = new URL(url).pathname.replace('/repos/acme/ds', '');
+    calls.push(path);
+    const body = routes[path];
+    return { ok: body !== undefined, status: body === undefined ? 404 : 200, json: async () => body ?? {}, text: async () => '' };
+  };
+  const gh = new GitHubClient('acme/ds', 't', f, { attempts: 1, baseDelayMs: 0, sleep: async () => {} });
+  const previews = await branchPreviewUrls(gh, 64, realConfig());
+  assert.deepEqual(previews.map((p) => p.url), [REAL.docs, REAL.storybook, REAL.admin]);
+  assert.ok(calls.includes('/pulls/64') && calls.includes('/deployments'));
+  // By commit with no pull request: the branch is unknown, so no template either; statuses carry the state only.
+  routes[`/commits/${PR64.sha}/pulls`] = [];
+  const bySha = await branchPreviewUrls(gh, PR64.sha, realConfig());
+  assert.deepEqual(bySha.map((p) => [p.url, p.state]), [[null, 'ready'], [null, 'ready'], [null, 'ready']]);
+  assert.deepEqual(await branchPreviewUrls(gh, 64, { previews: { apps: {} } }), []);
+});

@@ -17,6 +17,8 @@ export class FakeGitHub {
   contentLog: string[] = [];
   /** Comments on issues and pull requests, in order. */
   comments: { number: number; body: string }[] = [];
+  /** Commit statuses by sha, newest first (Vercel reports each project as "Vercel – <project>"). */
+  statuses = new Map<string, { context: string; state: string; target_url: string | null; description: string | null }[]>();
   readonly owner = 'o';
   readonly name = 'r';
   n = 0;
@@ -98,6 +100,12 @@ export class FakeGitHub {
       },
       async listIssueComments(n: number) {
         return self.comments.filter((c) => c.number === n).map((c, i) => ({ id: i + 1, body: c.body, author: 'github-actions[bot]', updatedAt: '' }));
+      },
+      async listCommitStatuses(sha: string) {
+        return self.statuses.get(sha) ?? [];
+      },
+      async listDeployments() {
+        return [];
       },
       async getBranchSha(branch: string) {
         return self.branches.get(branch);

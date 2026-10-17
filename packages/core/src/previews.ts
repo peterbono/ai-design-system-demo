@@ -139,6 +139,11 @@ export interface PreviewCommentInput {
   apps: PreviewApps;
   /** An exploration (`explore/*` branch or `exploration` label): staging only, never merged as is (docs/EXPLORATIONS.md). */
   exploration?: boolean | undefined;
+  /**
+   * The previews as Vercel reports them (`resolveBranchPreviews` over the deployments, statuses and the Vercel
+   * comment). Without it, only template URLs Vercel cannot have shortened are written.
+   */
+  previews?: BranchPreview[] | undefined;
 }
 
 /** The sticky PR comment: install commands for each package, then the per-branch previews. Markdown, no HTML. */
@@ -165,12 +170,13 @@ export function previewComment(input: PreviewCommentInput): string {
   lines.push('');
 
   const ctx = { branch: input.branch, pr: input.pr, sha: input.sha };
-  const links = previewLinks(input.apps, ctx);
+  const previews = input.previews ?? resolveBranchPreviews(input.apps, ctx);
   lines.push('### Previews', '');
-  if (links.length) {
+  if (previews.length) {
     lines.push('| App | Preview |', '| --- | --- |');
-    for (const l of links) lines.push(`| ${l.label} | ${l.url} |`);
-    const docs = previewUrl(input.apps.docs, ctx);
+    // A URL Vercel shortened is never guessed: its own comment on this pull request has the link.
+    for (const p of previews) lines.push(`| ${p.label} | ${p.url ?? 'Link in the Vercel comment on this pull request'} |`);
+    const docs = previews.find((p) => p.app === 'docs')?.url;
     if (docs) {
       lines.push('');
       lines.push(`Tokens only, no reinstall: open your staging with \`?bridge-tokens=${new URL('tokens.css', docs).href}\` (the staging app must allow this origin, see docs/PREVIEWS.md).`);
@@ -224,3 +230,210 @@ export function readPreviewComment(body: string | null | undefined): PreviewComm
 export function findPreviewComment<T extends { body?: string | null | undefined }>(comments: T[]): T | undefined {
   return [...comments].reverse().find((c) => !!c.body && c.body.trimStart().startsWith(PREVIEW_COMMENT_MARKER));
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// Real branch preview URLs. Vercel shortens a branch alias whose first host label would pass 63 characters
+// (`bridge-admin-git-explore-button-norm-0ed5ba-peterbonos-projects.vercel.app`), with a hash nobody can predict, so
+// tools read the URL Vercel reports instead of filling the template: GitHub deployments, then the Vercel commit
+// statuses, then the Vercel bot comment on the pull request, and the template only when its host labels fit.
+
+/** Where a preview URL comes from, most trusted first. */
+export type PreviewUrlSource = 'deployment' | 'status' | 'vercel-comment' | 'template';
+/** Whether the preview of the latest commit can be opened. `unknown` when only the template says where it is. */
+export type PreviewState = 'ready' | 'building' | 'failed' | 'unknown';
+
+export interface BranchPreview {
+  app: keyof PreviewApps;
+  label: string;
+  /** Null when nothing reports it yet and the template cannot be trusted (a host label over 63 characters). */
+  url: string | null;
+  state: PreviewState;
+  source: PreviewUrlSource | null;
+}
+
+/** A GitHub deployment with its latest status, as `GitHubClient.listDeployments` returns it. */
+export interface DeploymentLike {
+  environment: string;
+  state?: string | null | undefined;
+  environmentUrl?: string | null | undefined;
+}
+
+/** A commit status (`GET /commits/{sha}/statuses`), newest first like GitHub returns them. */
+export interface CommitStatusLike {
+  context: string;
+  state: string;
+  target_url?: string | null | undefined;
+}
+
+/** One project of the Vercel bot comment. */
+export interface VercelCommentProject {
+  name: string;
+  /** https URL of the branch alias, as Vercel built it (shortened when long). */
+  previewUrl: string | null;
+  /** `DEPLOYED`, `PENDING`, `BUILDING`, `IGNORED`, `FAILED`... as Vercel writes it. */
+  status: string | null;
+}
+
+const httpsUrl = (raw: string | null | undefined): string | null => {
+  if (!raw || typeof raw !== 'string') return null;
+  try {
+    const u = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
+    return u.protocol === 'https:' || u.protocol === 'http:' ? u.href : null;
+  } catch {
+    return null;
+  }
+};
+
+const decodeBase64 = (b64: string): string => {
+  const bin = atob(b64.replace(/\s/g, ''));
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new TextDecoder('utf-8').decode(bytes);
+};
+
+/** True for the comment the Vercel GitHub app posts (and edits) on a pull request. */
+export const isVercelComment = (body: string | null | undefined): boolean => !!body && /^\[vc\]: #[^:\s]*:[A-Za-z0-9+/=]+/m.test(body);
+
+/**
+ * The projects of a Vercel bot comment, from its hidden header `[vc]: #<hash>:<base64 JSON>` (projects[].name and
+ * previewUrl). Null when the body is not that comment or the header does not decode.
+ */
+export function parseVercelComment(body: string | null | undefined): VercelCommentProject[] | null {
+  if (!body) return null;
+  const m = /^\[vc\]: #[^:\s]*:([A-Za-z0-9+/=]+)/m.exec(body);
+  if (!m) return null;
+  let data: { projects?: { name?: unknown; previewUrl?: unknown; nextCommitStatus?: unknown }[] };
+  try {
+    data = JSON.parse(decodeBase64(m[1]!));
+  } catch {
+    return null;
+  }
+  if (!data || !Array.isArray(data.projects)) return null;
+  return data.projects
+    .filter((p) => p && typeof p.name === 'string')
+    .map((p) => ({ name: p.name as string, previewUrl: httpsUrl(typeof p.previewUrl === 'string' ? p.previewUrl : null), status: typeof p.nextCommitStatus === 'string' ? p.nextCommitStatus : null }));
+}
+
+/** The Vercel bot comment among a pull request's comments (the last one, if there were ever two). */
+export function findVercelComment<T extends { body?: string | null | undefined }>(comments: T[]): T | undefined {
+  return [...comments].reverse().find((c) => isVercelComment(c.body));
+}
+
+/** The first host label of a template, up to its first placeholder: `bridge-admin-git-` for the admin template. */
+function templateHostPrefix(template: string | undefined): string | null {
+  if (!template) return null;
+  const host = /^https?:\/\/([^/?#]+)/i.exec(template)?.[1];
+  if (!host) return null;
+  return host.split('.')[0]!.split('{')[0]!.toLowerCase();
+}
+
+/**
+ * The app (`docs`, `storybook`, `admin`) a Vercel project serves, from the host its template starts with: project
+ * `bridge-admin` serves the app whose template host starts with `bridge-admin-git-` (Vercel's branch alias shape),
+ * else with `bridge-admin-` when only one template does. Null when no template names it.
+ */
+export function appForProject(project: string, apps: PreviewApps): keyof PreviewApps | null {
+  const name = project.trim().toLowerCase();
+  if (!name) return null;
+  const keys = Object.keys(PREVIEW_APP_LABELS) as (keyof PreviewApps)[];
+  const prefixes = keys.map((app) => [app, templateHostPrefix(apps[app])] as const);
+  const exact = prefixes.find(([, p]) => p === `${name}-git-` || p === name);
+  if (exact) return exact[0];
+  // Otherwise one template must start with `<project>-`; several (a project name that prefixes others) name none.
+  const loose = prefixes.filter(([, p]) => p !== null && p.startsWith(`${name}-`));
+  return loose.length === 1 ? loose[0]![0] : null;
+}
+
+/** The project a deployment environment or a status context names: `Preview – bridge-admin` -> `bridge-admin`. */
+export function projectOfLabel(label: string): string | null {
+  const m = /^\s*(?:preview|vercel)\s*[\u2013\u2014-]\s*(.+?)\s*$/i.exec(label);
+  return m ? m[1]! : null;
+}
+
+const STATE_OF: Record<string, PreviewState> = {
+  success: 'ready',
+  inactive: 'ready',
+  deployed: 'ready',
+  ready: 'ready',
+  ignored: 'ready', // Vercel skipped the build (nothing changed for this app): the branch alias serves the last one.
+  pending: 'building',
+  queued: 'building',
+  in_progress: 'building',
+  building: 'building',
+  initializing: 'building',
+  failure: 'failed',
+  error: 'failed',
+  failed: 'failed',
+  canceled: 'failed',
+};
+const stateOf = (s: string | null | undefined): PreviewState => STATE_OF[(s ?? '').toLowerCase()] ?? 'unknown';
+const isInspectorUrl = (u: string) => /^https:\/\/(?:www\.)?vercel\.com\//i.test(u);
+
+export interface BranchPreviewSources {
+  /** GitHub deployments of the head commit, each with its latest status. */
+  deployments?: DeploymentLike[] | undefined;
+  /** Commit statuses of the head commit, newest first. */
+  statuses?: CommitStatusLike[] | undefined;
+  /** The pull request's comments (the Vercel bot comment is read from them). */
+  comments?: { body?: string | null | undefined }[] | undefined;
+}
+
+/**
+ * The preview of each configured app, real URL first: a GitHub deployment's environment URL, then a Vercel commit
+ * status pointing at the deployment (not at the inspector), then the Vercel bot comment, and the config template only
+ * when its host labels fit in 63 characters (else Vercel shortened it: url null until a real source reports it).
+ * The state comes from the freshest signal: commit status, then deployment, then the comment.
+ */
+export function resolveBranchPreviews(apps: PreviewApps, ctx: PreviewContext, sources: BranchPreviewSources = {}): BranchPreview[] {
+  type Seen = { url?: string; urlSource?: PreviewUrlSource; state?: PreviewState; stateRank?: number };
+  const seen = new Map<keyof PreviewApps, Seen>();
+  const at = (app: keyof PreviewApps) => seen.get(app) ?? (seen.set(app, {}), seen.get(app)!);
+  const offer = (app: keyof PreviewApps | null, url: string | null, urlSource: PreviewUrlSource, state: PreviewState, stateRank: number) => {
+    if (!app) return;
+    const s = at(app);
+    if (url && !s.url) Object.assign(s, { url, urlSource });
+    if (state !== 'unknown' && (s.stateRank === undefined || stateRank < s.stateRank)) Object.assign(s, { state, stateRank });
+  };
+
+  // 1. Commit statuses (Vercel – <project>): newest first, so the first one per context is current.
+  const contexts = new Set<string>();
+  for (const st of sources.statuses ?? []) {
+    if (contexts.has(st.context)) continue;
+    contexts.add(st.context);
+    const project = projectOfLabel(st.context);
+    if (!project) continue;
+    const url = httpsUrl(st.target_url);
+    offer(appForProject(project, apps), url && !isInspectorUrl(url) ? url : null, 'status', stateOf(st.state), 0);
+  }
+  // 2. Deployments (Preview – <project>): their URL beats the status's.
+  for (const d of sources.deployments ?? []) {
+    const project = projectOfLabel(d.environment);
+    const app = project ? appForProject(project, apps) : null;
+    if (!app) continue;
+    const url = httpsUrl(d.environmentUrl);
+    const s = at(app);
+    if (url && s.urlSource !== 'deployment') Object.assign(s, { url, urlSource: 'deployment' as const });
+    const state = stateOf(d.state);
+    if (state !== 'unknown' && (s.stateRank === undefined || 1 < s.stateRank)) Object.assign(s, { state, stateRank: 1 });
+  }
+  // 3. The Vercel bot comment.
+  for (const p of parseVercelComment(findVercelComment(sources.comments ?? [])?.body) ?? []) offer(appForProject(p.name, apps), p.previewUrl, 'vercel-comment', stateOf(p.status), 2);
+
+  const out: BranchPreview[] = [];
+  for (const app of Object.keys(PREVIEW_APP_LABELS) as (keyof PreviewApps)[]) {
+    if (!apps[app]) continue;
+    const s = seen.get(app) ?? {};
+    // 4. The template, only when Vercel would not have shortened it (previewUrl returns null over 63 characters).
+    const url = s.url ?? previewUrl(apps[app], ctx);
+    const source: PreviewUrlSource | null = s.url ? s.urlSource! : url ? 'template' : null;
+    out.push({ app, label: PREVIEW_APP_LABELS[app], url, state: s.state ?? 'unknown', source });
+  }
+  return out;
+}
+
+/** The previews that have a URL, as links (`{ app, label, url }`), in the stable app order. */
+export const previewLinksOf = (previews: BranchPreview[]): { app: keyof PreviewApps; label: string; url: string }[] =>
+  previews.filter((p): p is BranchPreview & { url: string } => !!p.url).map((p) => ({ app: p.app, label: p.label, url: p.url }));
+
+/** True when every configured app has its URL and a finished build (ready or failed): polling can stop. */
+export const previewsSettled = (previews: BranchPreview[]): boolean => previews.every((p) => !!p.url && (p.state === 'ready' || p.state === 'failed'));

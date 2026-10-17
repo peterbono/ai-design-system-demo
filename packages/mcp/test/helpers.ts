@@ -64,6 +64,8 @@ export function fakeGitHub(owner: string, repo: string, initial: Record<string, 
   // Issues share GitHub's numbering with pull requests; here they start at 100 so tests read clearly.
   const issues: Record<string, any>[] = [];
   const comments = new Map<number, string[]>();
+  // Commit statuses by sha (Vercel reports each project as "Vercel – <project>").
+  const statuses = new Map<string, { context: string; state: string; target_url?: string }[]>();
   const issueAt = (k: number) => issues.find((i) => i.number === k);
   const log: { method: string; path: string; body?: any }[] = [];
 
@@ -194,6 +196,11 @@ export function fakeGitHub(owner: string, repo: string, initial: Record<string, 
       const issue = issueAt(Number(m[1]));
       return issue ? json(200, issue) : json(404, { message: 'Not Found' });
     }
+    if (method === 'GET' && (m = /^\/issues\/(\d+)\/comments$/.exec(path))) {
+      return json(200, (comments.get(Number(m[1])) ?? []).map((b, i) => ({ id: i + 1, body: b, user: { login: 'bot' }, updated_at: '' })));
+    }
+    if (method === 'GET' && (m = /^\/commits\/([^/]+)\/statuses$/.exec(path))) return json(200, statuses.get(m[1]!) ?? []);
+    if (method === 'GET' && path === '/deployments') return json(200, []);
     if (method === 'POST' && (m = /^\/issues\/(\d+)\/comments$/.exec(path))) {
       const k = Number(m[1]);
       comments.set(k, [...(comments.get(k) ?? []), body.body]);
@@ -219,5 +226,5 @@ export function fakeGitHub(owner: string, repo: string, initial: Record<string, 
     }
     return json(404, { message: `fake GitHub: no route ${method} ${path}` });
   };
-  return { fetch: f as typeof fetch, refs, commits, pulls, reviews, issues, comments, log, fileAt: (ref: string, p: string) => commits.get(resolveRef(ref)!)?.files.get(p) };
+  return { fetch: f as typeof fetch, refs, commits, pulls, reviews, issues, comments, statuses, log, fileAt: (ref: string, p: string) => commits.get(resolveRef(ref)!)?.files.get(p) };
 }

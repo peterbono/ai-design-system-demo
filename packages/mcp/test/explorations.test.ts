@@ -26,7 +26,9 @@ describe('explorations on GitHub', () => {
     const ctx = await BridgeContext.create({ repo: 'acme/ds', token: 't', fetch: gh.fetch });
     const r = (await explorations.startExploration(ctx, { name: 'Pill buttons', purpose: 'Do rounder buttons feel friendlier in checkout?', useCase: 'user-test' })) as any;
     expect(r).toMatchObject({ status: 'started', branch: 'explore/pill-buttons', pr: 1 });
-    expect(r.install.command).toContain('@bridge-ds/react@https://pkg.pr.new/acme/ds/@bridge-ds/react@1');
+    // Nothing built yet: no guessed pkg.pr.new command, the note says where it will appear.
+    expect(r.install).toMatchObject({ state: 'building', command: null });
+    expect(JSON.stringify(r)).not.toContain('pkg.pr.new');
     expect(r.next).toContain('"branch": "explore/pill-buttons"');
     expect(gh.pulls[0]).toMatchObject({ draft: true, base: { ref: 'main' }, title: 'Exploration: pill buttons' });
     expect(gh.pulls[0]!.labels.map((l: any) => l.name)).toEqual(['exploration']);
@@ -85,6 +87,30 @@ describe('explorations on GitHub', () => {
     expect(gh.pulls[0]!.body).toContain(`Closes #${req.number}`);
     expect(gh.fileAt('explore/pill-buttons', '.bridge/explorations/pill-buttons.md')).toBeUndefined();
     expect((await explorations.listExplorations(ctx, {})).summary).toBe('No exploration running.');
+  });
+
+  it('list: the install command from the preview comment and the preview URLs Vercel reports, never guessed', async () => {
+    const gh = fakeGitHub('acme', 'ds', files());
+    const ctx = await BridgeContext.create({ repo: 'acme/ds', token: 't', fetch: gh.fetch });
+    await explorations.startExploration(ctx, { name: 'Button normal again', purpose: 'Back to the regular button.' });
+    const before = (await explorations.listExplorations(ctx, {})).explorations[0] as any;
+    expect(before.install).toMatchObject({ state: 'building', command: null });
+    // The admin template would be 64 characters: Vercel shortens it, so it stays unknown until Vercel reports it.
+    expect(before.previews.map((p: any) => [p.app, p.url])).toEqual([
+      ['docs', 'https://bridge-docs-git-explore-button-normal-again-peterbonos-projects.vercel.app/'],
+      ['storybook', null],
+      ['admin', null],
+    ]);
+    const admin = 'bridge-admin-git-explore-button-norm-0ed5ba-peterbonos-projects.vercel.app';
+    const storybook = 'bridge-storybook-git-explore-button-8a43de-peterbonos-projects.vercel.app';
+    const vc = Buffer.from(JSON.stringify({ projects: [{ name: 'bridge-admin', previewUrl: admin, nextCommitStatus: 'DEPLOYED' }, { name: 'bridge-storybook', previewUrl: storybook, nextCommitStatus: 'BUILDING' }] })).toString('base64');
+    const command = 'npm i @bridge-ds/react@https://github.com/acme/ds/releases/download/preview-pr-1/bridge-ds-react-abc1234.tgz';
+    gh.comments.set(1, [`[vc]: #abc:${vc}\nThe latest updates on your projects.`, `<!-- bridge-branch-preview -->\n## Try this exploration in your product\n\n\`\`\`sh\n${command}\n\`\`\`\n`]);
+    const after = (await explorations.listExplorations(ctx, {})).explorations[0] as any;
+    expect(after.install).toMatchObject({ state: 'ready', command });
+    expect(after.previews.find((p: any) => p.app === 'admin')).toMatchObject({ url: `https://${admin}/`, state: 'ready' });
+    expect(after.previews.find((p: any) => p.app === 'storybook')).toMatchObject({ url: `https://${storybook}/`, state: 'building' });
+    expect(JSON.stringify(after)).not.toContain('pkg.pr.new');
   });
 
   it('close, and read-only refusals', async () => {

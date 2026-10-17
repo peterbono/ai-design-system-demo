@@ -11,7 +11,7 @@
 
 import type { BridgeConfig } from './config';
 import { slugify } from './pr-composer';
-import { installCommand, previewLinks, readPreviewComment, snapshotUrl, tarballUrl, type PreviewApps } from './previews';
+import { previewLinks, readPreviewComment, type PreviewApps } from './previews';
 import { classifyRisk, type ChangedFile, type RiskTier } from './risk';
 
 /** Every exploration pull request carries this label while it is an exploration. */
@@ -113,31 +113,6 @@ export function explorationNote(e: Exploration): string {
     'This file marks the branch as an exploration. It is never merged as is: promoting the pull request to review removes it.',
     '',
   ].join('\n');
-}
-
-export interface ExplorationInstall {
-  /** One command for every snapshot package, `npm i @bridge-ds/react@<snapshot> ...`, so internal dependencies match. */
-  command: string;
-  packages: { name: string; url: string }[];
-  /** Tarballs of the `preview-pr-<n>` prerelease, when pkg.pr.new is not set up. Needs the head commit. */
-  fallback?: { command: string; packages: { name: string; url: string }[]; release: string } | undefined;
-}
-
-/**
- * How a product staging branch installs an exploration: pkg.pr.new snapshots by pull request number (always the
- * latest commit), as `name@url` so package.json keeps the package name, and the prerelease tarballs as a fallback.
- * These are predictions (pkg.pr.new only works once its GitHub App is installed): what people see and copy comes from
- * the sticky preview comment, through `explorationTryIt`.
- */
-export function explorationInstall(input: { owner: string; repo: string; pr: number; packages: string[]; sha?: string | undefined }): ExplorationInstall {
-  const packages = input.packages.map((name) => ({ name, url: snapshotUrl(input.owner, input.repo, name, input.pr) }));
-  const named = (list: { name: string; url: string }[]) => installCommand(list.map((p) => `${p.name}@${p.url}`));
-  const out: ExplorationInstall = { command: named(packages), packages };
-  if (input.sha) {
-    const tarballs = input.packages.map((name) => ({ name, url: tarballUrl(input.owner, input.repo, input.pr, name, input.sha!) }));
-    out.fallback = { command: named(tarballs), packages: tarballs, release: `https://github.com/${input.owner}/${input.repo}/releases/tag/preview-pr-${input.pr}` };
-  }
-  return out;
 }
 
 export interface ExplorationPrContext {

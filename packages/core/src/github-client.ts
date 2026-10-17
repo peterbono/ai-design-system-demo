@@ -643,6 +643,29 @@ export class GitHubClient {
     return { state: !checks.length ? 'none' : failing ? 'failure' : pending ? 'pending' : 'success', checks };
   }
 
+  /** Commit statuses of a commit, newest first (Vercel reports each project as "Vercel – <project>"). */
+  async listCommitStatuses(sha: string): Promise<{ context: string; state: string; target_url: string | null; description: string | null }[]> {
+    const r = await this.request<{ context: string; state: string; target_url?: string | null; description?: string | null }[]>('GET', `${this.repoPath}/commits/${encodeRef(sha)}/statuses?per_page=100`);
+    return r.map((s) => ({ context: s.context, state: s.state, target_url: s.target_url ?? null, description: s.description ?? null }));
+  }
+
+  /**
+   * GitHub deployments of a commit with their latest status (environment "Preview – <project>", environment_url the
+   * preview). Latest per environment only, so it costs one read plus one per environment.
+   */
+  async listDeployments(sha: string): Promise<{ id: number; environment: string; state: string | null; environmentUrl: string | null }[]> {
+    const list = await this.request<{ id: number; environment: string; created_at?: string }[]>('GET', `${this.repoPath}/deployments?sha=${encodeURIComponent(sha)}&per_page=30`);
+    const latest = new Map<string, { id: number; environment: string }>();
+    for (const d of list) if (!latest.has(d.environment)) latest.set(d.environment, d);
+    return Promise.all(
+      [...latest.values()].map(async (d) => {
+        const st = await this.request<{ state: string; environment_url?: string | null; target_url?: string | null }[]>('GET', `${this.repoPath}/deployments/${d.id}/statuses?per_page=1`).catch(() => []);
+        const s = st[0];
+        return { id: d.id, environment: d.environment, state: s?.state ?? null, environmentUrl: s?.environment_url || null };
+      }),
+    );
+  }
+
   async getPullRequest(n: number): Promise<PullRequest & PullRequestSummary & { body: string; mergeable: boolean | null }> {
     const r = await this.request<Record<string, any>>('GET', `${this.repoPath}/pulls/${n}`);
     return { ...toSummary(r), body: r.body ?? '', mergeable: r.mergeable ?? null };
