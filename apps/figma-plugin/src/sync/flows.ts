@@ -174,6 +174,8 @@ export interface PushProposal {
   validation: ProposalValidation;
   unresolvedConflicts: DiffEntry[];
   resolvedConflicts: { path: string; choice: ConflictChoice }[];
+  /** Figma edits the designer unchecked: not in the pull request, kept in Figma for a later push. */
+  held: DiffEntry[];
 }
 
 /**
@@ -220,8 +222,10 @@ export function planBrands(a: Analysis, included: ReadonlySet<string>): { brands
   return { brands, files: [...files].map(([path, content]) => ({ path, content })), blocking, warnings };
 }
 
-export function buildPush(a: Analysis, choices: Map<string, ConflictChoice>, includeBrands: ReadonlySet<string> = new Set()): PushProposal {
+/** `hold`: token ids the designer unchecked in the Changes list. They stay in Figma and out of the pull request. */
+export function buildPush(a: Analysis, choices: Map<string, ConflictChoice>, includeBrands: ReadonlySet<string> = new Set(), hold: ReadonlySet<string> = new Set()): PushProposal {
   const changes: AcceptedChange[] = [];
+  const held: DiffEntry[] = [];
   const typeChanges: TypeChange[] = [];
   const unresolvedConflicts: DiffEntry[] = [];
   const resolvedConflicts: PushProposal['resolvedConflicts'] = [];
@@ -230,8 +234,12 @@ export function buildPush(a: Analysis, choices: Map<string, ConflictChoice>, inc
     const before = e.head ?? e.base;
     if (e.figma && before && e.figma.type !== before.type) typeChanges.push({ path: e.figma.path, from: before.type, to: e.figma.type });
   };
-  a.diff.local.forEach(take);
+  for (const e of a.diff.local) (hold.has(e.id) ? held.push(e) : take(e));
   for (const c of a.diff.conflicts) {
+    if (hold.has(c.id)) {
+      held.push(c);
+      continue;
+    }
     const choice = choices.get(c.id);
     if (!choice) unresolvedConflicts.push(c);
     else {
@@ -249,7 +257,7 @@ export function buildPush(a: Analysis, choices: Map<string, ConflictChoice>, inc
   const nb = planBrands(a, includeBrands);
   validation.blocking.push(...nb.blocking);
   validation.warnings.push(...nb.warnings);
-  return { changes, files, brands: nb.brands, brandFiles: nb.files, proposed, validation, unresolvedConflicts, resolvedConflicts };
+  return { changes, files, brands: nb.brands, brandFiles: nb.files, proposed, validation, unresolvedConflicts, resolvedConflicts, held };
 }
 
 export interface PushOptions {

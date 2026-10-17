@@ -4,7 +4,7 @@
 // what the primary button will do (or why it is disabled).
 
 import type { ConflictChoice, DiffEntry } from '@bridge-ds/core';
-import { type Analysis, type PullProposal, type PushBrand, type PushProposal, type PushResult, analyze, buildPull, buildPush, openPullRequest } from '../sync/flows';
+import { type Analysis, type PullProposal, type PushBrand, type PushProposal, analyze, buildPull, buildPush } from '../sync/flows';
 import { GitHubClient, type PullRequest, parseRepo } from '@bridge-ds/core';
 import type { RenameSuggestion } from '@bridge-ds/core';
 import { affectedContrast, defaultTitle } from '@bridge-ds/core';
@@ -19,6 +19,7 @@ import { REQUEST_KINDS, type RequestKind } from '@bridge-ds/core';
 import { type ComponentChangeItem, type ComponentScan, type RequestDraft, classifyComponents, pullBaselines, suggestTitle, toRequest } from '../sync/components';
 import { loadCodedComponents, sendComponentRequest } from '../sync/requests';
 import { type ComponentApplyReport, type ComponentPullPlan, buildComponentPlan, loadComponentSpecs, pendingComponents, writablePlan } from '../sync/component-pull';
+import { type PublishItem, type PublishResult, componentKey, defaultUnchecked, experimentalTokenIds, groupState, heldTokenIds, isChecked, publish, publishItems, setGroup, variableIdsOf, variableKey } from '../sync/publish';
 import { type Selection, onProgress, onSelection, request } from './bridge';
 import { type Child, h } from './dom';
 import { icon } from './icons';
@@ -56,12 +57,18 @@ interface PushState {
   dismissed: Set<string>;
   proposal: PushProposal;
   title: string;
-  notes: string;
+  /** "Description": the pull request's "What changed and why" and every request's summary. */
+  description: string;
   openPr: PullRequest | undefined;
   appendToOpen: boolean;
   /** Slugs of new brand candidates the designer chose to create in this pull request (opt-in, see planBrands). */
   includeBrands: Set<string>;
-  result?: PushResult | undefined;
+  /** Changes list: every variable edit and component change, and the keys the designer unchecked. */
+  items: PublishItem[];
+  unchecked: Set<string>;
+  /** Token ids marked "Experimental" in this file. */
+  experimental: Set<string>;
+  result?: PublishResult | undefined;
   /** Component changes: requests (GitHub issues), separate from the variables pull request. */
   components?: ComponentScan | undefined;
   componentsError?: string | undefined;
@@ -246,7 +253,7 @@ interface RowSides {
 
 const KIND_LABEL: Record<string, string> = { added: 'New', changed: 'Edited', renamed: 'Renamed', removed: 'Deleted', restored: 'Recreated', replaced: 'From main' };
 
-function diffRow(a: Analysis, kind: string, sides: RowSides, extra?: Child): HTMLElement {
+function diffRow(a: Analysis, kind: string, sides: RowSides, extra?: Child, edge?: { lead?: Child; tail?: Child }): HTMLElement {
   const t = (sides.after ?? sides.before)!;
   const renamed = !!sides.before && !!sides.after && sides.before.path !== sides.after.path;
   const lines: Child[] = [];
@@ -282,10 +289,12 @@ function diffRow(a: Analysis, kind: string, sides: RowSides, extra?: Child): HTM
     h(
       'div',
       { class: 'row-head' },
+      edge?.lead,
       h('span', { class: `kind ${kind}` }, KIND_LABEL[kind] ?? kind),
       renamed
         ? h('span', { class: 'path' }, h('span', { class: 'path-old' }, breakable(sides.before!.path)), icon('arrow'), h('span', null, breakable(sides.after!.path)))
         : h('span', { class: 'path' }, breakable(t.path)),
+      edge?.tail,
     ),
     lines,
     extra,
@@ -327,7 +336,7 @@ function issueList(kind: 'error' | 'warn', title: string, issues: Issue[]): Chil
   );
 }
 
-function conflictBlock(a: Analysis, e: DiffEntry, choices: Map<string, ConflictChoice>): HTMLElement {
+function conflictBlock(a: Analysis, e: DiffEntry, choices: Map<string, ConflictChoice>, edge?: { lead?: Child; tail?: Child }): HTMLElement {
   const choice = choices.get(e.id);
   const fi = figmaIndex(a);
   const side = (which: ConflictChoice, label: string, t: LogicalToken | undefined, index: PathIndex) =>
@@ -356,12 +365,12 @@ function conflictBlock(a: Analysis, e: DiffEntry, choices: Map<string, ConflictC
   return h(
     'li',
     { class: 'conflict' },
-    h('div', { class: 'row-head' }, h('span', { class: 'kind conflict' }, 'Conflict'), h('span', { class: 'path' }, e.path)),
+    h('div', { class: 'row-head' }, edge?.lead, h('span', { class: 'kind conflict' }, 'Conflict'), h('span', { class: 'path' }, e.path), edge?.tail),
     h('div', { class: 'choices', role: 'radiogroup', 'aria-label': `Version to keep for ${e.path}` }, side('figma', 'Keep Figma', e.figma, fi), side('main', 'Use main', e.head, a.head.byPath)),
   );
 }
 
-function conflictSection(a: Analysis, choices: Map<string, ConflictChoice>): Child {
+function conflictSection(a: Analysis, choices: Map<string, ConflictChoice>, edge?: (e: DiffEntry) => { lead?: Child; tail?: Child }): Child {
   const list = a.diff.conflicts;
   if (!list.length) return null;
   const open = list.filter((c) => !choices.has(c.id)).length;
@@ -379,13 +388,13 @@ function conflictSection(a: Analysis, choices: Map<string, ConflictChoice>): Chi
           open ? h('span', { class: 'muted' }, `${open} left to decide`) : null,
         )
       : null,
-    h('ul', { class: 'rows' }, list.map((e) => conflictBlock(a, e, choices))),
+    h('ul', { class: 'rows' }, list.map((e) => conflictBlock(a, e, choices, edge?.(e)))),
   );
 }
 
 function refreshProposals(): void {
   if (state.pull) state.pull.proposal = buildPull(state.pull.analysis, state.pull.choices, { overwrite: state.pull.overwrite });
-  if (state.push) state.push.proposal = buildPush(state.push.analysis, state.push.choices, state.push.includeBrands);
+  if (state.push) state.push.proposal = buildPush(state.push.analysis, state.push.choices, state.push.includeBrands, heldTokenIds(state.push.items, state.push.unchecked));
   render();
 }
 
@@ -483,6 +492,7 @@ function scanPush(keep?: PushState): void {
       const lastBranch = state.init!.sync.lastPrBranch;
       const openPr = lastBranch ? await c.findOpenPullRequest(lastBranch).catch(() => undefined) : undefined;
       const includeBrands = keep?.includeBrands ?? new Set<string>();
+      const experimental = experimentalTokenIds(analysis, snapshot);
       let components: ComponentScan | undefined;
       let componentsError: string | undefined;
       let fileKey: string | undefined;
@@ -495,16 +505,24 @@ function scanPush(keep?: PushState): void {
       } catch (err) {
         componentsError = err instanceof Error ? err.message : String(err);
       }
+      const items = publishItems(analysis, experimental, components?.changed ?? []);
+      // A new scan starts like Figma's publish dialog: everything checked but experimental items. A re-scan from this
+      // screen (a confirmed rename, a new mark) keeps what the designer unchecked.
+      const unchecked = keep ? new Set([...keep.unchecked].filter((k) => items.some((i) => i.key === k))) : defaultUnchecked(items);
+      if (keep) for (const i of items) if (i.experimental && !keep.items.some((x) => x.key === i.key && x.experimental)) unchecked.add(i.key);
       state.push = {
         analysis,
         snapshot,
         choices,
         confirmed,
         dismissed: keep?.dismissed ?? new Set(),
-        proposal: buildPush(analysis, choices, includeBrands),
+        proposal: buildPush(analysis, choices, includeBrands, heldTokenIds(items, unchecked)),
         includeBrands,
+        items,
+        unchecked,
+        experimental,
         title: keep?.title ?? '',
-        notes: keep?.notes ?? '',
+        description: keep?.description ?? '',
         openPr,
         appendToOpen: keep?.appendToOpen ?? !!openPr,
         components,
@@ -518,30 +536,62 @@ function scanPush(keep?: PushState): void {
   );
 }
 
-function submitPr(): void {
+/** "Push for review": the pull request for the checked variables, then one request per checked component change. */
+function submitPush(): void {
   const r = state.push;
   if (!r) return;
+  const withPr = Object.keys(r.proposal.files).length + r.proposal.brandFiles.length > 0;
   void run(
-    r.appendToOpen && r.openPr ? 'Adding a commit to the pull request' : 'Opening the pull request',
+    withPr ? (r.appendToOpen && r.openPr ? 'Adding a commit to the pull request' : 'Opening the pull request') : 'Sending the requests',
     async () => {
-      const result = await openPullRequest(getClient(), r.analysis, r.proposal, {
+      const result = await publish(getClient(), {
+        analysis: r.analysis,
+        proposal: r.proposal,
+        components: r.components?.changed ?? [],
+        unchecked: r.unchecked,
+        description: r.description,
         title: r.title,
-        notes: r.notes,
         fileName: state.init!.fileName,
+        fileKey: r.fileKey,
         appendTo: r.appendToOpen ? r.openPr : undefined,
+        coded: r.components?.coded ?? [],
+        image: async (nodeId) => (await request('export-image', { nodeId }).catch(() => null))?.base64,
       });
       r.result = result;
-      // The PR exists now; local bookkeeping failures must not hide that.
+      // What was sent exists now; local bookkeeping failures must not hide that.
       try {
-        if (result.tags.length) await request('tag-variables', { tags: result.tags });
-        await request('save-sync', { sync: { lastPrBranch: result.branch, lastPrUrl: result.pr.url } });
+        if (result.pr?.tags.length) await request('tag-variables', { tags: result.pr.tags });
+        if (result.pr) await request('save-sync', { sync: { lastPrBranch: result.pr.branch, lastPrUrl: result.pr.pr.url } });
+        // A request is the new reference for its component: the next scan compares against what was asked for.
+        for (const x of result.requests) await request('rebaseline', { nodeId: x.nodeId }).catch(() => undefined);
+        for (const x of result.requests) r.sent.unshift({ component: x.component, number: x.number, url: x.url });
         await loadInit();
       } catch (err) {
-        state.error = { message: `The pull request was created, but saving its link in this file failed: ${err instanceof Error ? err.message : String(err)}` };
+        state.error = { message: `Sent, but saving the links in this file failed: ${err instanceof Error ? err.message : String(err)}` };
       }
-      void request('notify', { message: `Pull request #${result.pr.number} ${result.appended ? 'updated' : 'opened'}` });
+      const parts = [result.pr ? `Pull request #${result.pr.pr.number} ${result.pr.appended ? 'updated' : 'opened'}` : '', result.requests.length ? `${plural(result.requests.length, 'request')} opened` : ''].filter(Boolean);
+      void request('notify', { message: parts.join(', ') });
     },
-    submitPr,
+    submitPush,
+  );
+}
+
+/** Marks items "Experimental" (or clears the mark) on the variables or component sets, then re-scans keeping choices. */
+function markExperimental(r: PushState, item: PublishItem, value: boolean): void {
+  void run(
+    value ? 'Marking as experimental' : 'Removing the experimental mark',
+    async () => {
+      const targets = item.kind === 'variable' ? variableIdsOf(r.analysis, item.id).map((id) => ({ kind: 'variable' as const, id })) : [{ kind: 'component' as const, id: item.id }];
+      await request('set-experimental', { targets, value });
+      // Marking unchecks it, like Figma's "Hide when publishing"; removing the mark leaves the choice to the designer.
+      if (value) r.unchecked.add(item.key);
+      if (item.kind === 'variable') (value ? r.experimental.add(item.id) : r.experimental.delete(item.id));
+      item.experimental = value;
+      const comp = r.components?.changed.find((c) => c.nodeId === item.id);
+      if (comp) comp.experimental = value || undefined;
+      r.proposal = buildPush(r.analysis, r.choices, r.includeBrands, heldTokenIds(r.items, r.unchecked));
+    },
+    () => markExperimental(r, item, value),
   );
 }
 
@@ -1047,7 +1097,7 @@ function requestFormView(r: PushState, f: RequestForm): HTMLElement {
   );
 }
 
-function componentRow(r: PushState, item: ComponentChangeItem, action: string): HTMLElement {
+function componentRow(r: PushState, item: ComponentChangeItem, action: string, edge?: { lead?: Child; tail?: Child }): HTMLElement {
   const open = r.form?.key === item.nodeId;
   return h(
     'li',
@@ -1055,22 +1105,124 @@ function componentRow(r: PushState, item: ComponentChangeItem, action: string): 
     h(
       'div',
       { class: 'row-head' },
+      edge?.lead,
       h('span', { class: `kind ${item.kind === 'new-component' ? 'added' : ''}` }, kindName(item.kind)),
       h('span', { class: 'comp-name' }, item.component),
       item.figmaName !== item.component ? h('span', { class: 'muted' }, item.figmaName) : null,
-      open ? null : h('button', { class: 'btn ghost row-action', 'data-focus-id': `req-${item.nodeId}`, onClick: () => openForm(r, item) }, action),
+      edge ? edge.tail : open ? null : h('button', { class: 'btn ghost row-action', 'data-focus-id': `req-${item.nodeId}`, onClick: () => openForm(r, item) }, action),
     ),
     open ? requestFormView(r, r.form!) : changeLines(item.changes),
   );
 }
 
-function componentsSection(r: PushState): Child {
+// ---------------------------------------------------------------------------------------------
+// Push: the Changes list, like Figma's Publish library dialog
+
+const itemOf = (r: PushState, key: string) => r.items.find((i) => i.key === key);
+
+/** The checkbox at the start of a change row: checked items are sent, unchecked ones stay in Figma. */
+function selectBox(r: PushState, item: PublishItem | undefined, name: string): Child {
+  if (!item) return null;
+  return h('input', {
+    type: 'checkbox',
+    class: 'select',
+    'data-focus-id': `sel-${item.key}`,
+    'aria-label': `Include ${name}`,
+    checked: isChecked(r.unchecked, item),
+    onChange: (e: Event) => {
+      if ((e.target as HTMLInputElement).checked) r.unchecked.delete(item.key);
+      else r.unchecked.add(item.key);
+      refreshProposals();
+    },
+  });
+}
+
+/** Neutral tag plus the row menu ("Mark as experimental", like Figma's "Hide when publishing"). */
+function rowTail(r: PushState, item: PublishItem | undefined, name: string, extra: { label: string; onClick: () => void }[] = []): Child {
+  if (!item) return null;
+  const actions = [
+    item.experimental
+      ? { label: 'Remove experimental mark', onClick: () => markExperimental(r, item, false) }
+      : { label: 'Mark as experimental', onClick: () => markExperimental(r, item, true) },
+    ...extra,
+  ];
+  return [
+    item.experimental ? h('span', { class: 'tag', title: 'Unchecked by default on every push. You can still check it.' }, 'Experimental') : null,
+    h(
+      'details',
+      { class: 'row-menu' },
+      h('summary', { class: 'btn ghost icon-only', 'data-focus-id': `menu-${item.key}`, 'aria-label': `More actions for ${name}`, title: 'More actions' }, icon('more')),
+      h(
+        'div',
+        { class: 'menu', role: 'menu' },
+        actions.map((x) => h('button', { class: 'menu-item', role: 'menuitem', onClick: (e: Event) => { (e.currentTarget as HTMLElement).closest('details')?.removeAttribute('open'); x.onClick(); } }, x.label)),
+      ),
+    ),
+  ];
+}
+
+/** One group of the Changes list: a select-all checkbox with the group name and count, one sentence, the rows. */
+function changeGroup(r: PushState, kind: 'variable' | 'component', title: string, lede: string, rows: HTMLElement[], key: string): Child {
+  const st = groupState(r.items, r.unchecked, kind);
+  if (st === 'empty') return null;
+  const n = r.items.filter((i) => i.kind === kind).length;
+  const on = r.items.filter((i) => i.kind === kind && isChecked(r.unchecked, i)).length;
+  const box = h('input', {
+    type: 'checkbox',
+    'data-focus-id': `all-${kind}`,
+    checked: st === 'all',
+    onChange: (e: Event) => {
+      setGroup(r.items, r.unchecked, kind, (e.target as HTMLInputElement).checked);
+      refreshProposals();
+    },
+  }) as HTMLInputElement;
+  box.indeterminate = st === 'some';
+  return h(
+    'section',
+    { class: 'group' },
+    h('div', { class: 'group-head' }, h('label', { class: 'check group-check' }, box, h('h2', null, title, h('span', { class: 'group-n' }, on === n ? String(n) : `${on} of ${n}`)))),
+    h('p', { class: 'lede' }, lede),
+    rowList(key, rows, kind === 'component' ? 20 : PAGE),
+  );
+}
+
+function variablesGroup(r: PushState): Child {
+  const a = r.analysis;
+  const fi = figmaIndex(a);
+  const after = r.proposal.validation.contrastAfter;
+  const before = r.proposal.validation.contrastBefore;
+  const rows = a.diff.local.map((e) => {
+    const item = itemOf(r, variableKey(e.id));
+    const name = (e.figma ?? e.head ?? e.base)?.path ?? e.path;
+    return diffRow(a, e.local!.kind, { before: e.head ?? e.base, after: e.figma, beforeIndex: a.head.byPath, afterIndex: fi }, isChecked(r.unchecked, item ?? { key: '' }) ? contrastPills(e.head, e.figma, after, before) : null, {
+      lead: selectBox(r, item, name),
+      tail: rowTail(r, item, name),
+    });
+  });
+  if (!rows.length) return null;
+  return changeGroup(r, 'variable', 'Variables', `Checked edits go into one pull request. Unchecked ones stay in Figma for a later push.`, rows, 'push-local');
+}
+
+function componentChangesGroup(r: PushState): Child {
+  const changed = r.components?.changed ?? [];
+  if (!changed.length) return null;
+  const rows = changed.map((item) => {
+    const pi = itemOf(r, componentKey(item.nodeId));
+    return componentRow(r, item, '', {
+      lead: selectBox(r, pi, item.component),
+      tail: r.form?.key === item.nodeId ? null : rowTail(r, pi, item.component, [{ label: 'Edit and send on its own', onClick: () => openForm(r, item) }]),
+    });
+  });
+  return changeGroup(r, 'component', 'Components', 'Components need code: each checked change becomes a request (a GitHub issue) for the team. Unchecked ones are not sent.', rows, 'push-components');
+}
+
+/** Requests that are not part of the push: sent ones, the manual request, components not in the design system yet. */
+function requestsSection(r: PushState): Child {
   const scan = r.components;
-  const init = state.init!;
-  const changed = scan?.changed ?? [];
   const candidates = scan?.candidates ?? [];
   const manualOpen = r.form?.key === 'manual';
   const content: Child[] = [];
+  if (r.componentsError) content.push(h('div', { class: 'callout warn' }, h('div', { class: 'callout-title' }, icon('alert'), 'Components could not be read'), h('p', null, r.componentsError)));
   for (const s of r.sent) {
     content.push(
       h(
@@ -1081,10 +1233,8 @@ function componentsSection(r: PushState): Child {
       ),
     );
   }
-  if (r.componentsError) content.push(h('div', { class: 'callout warn' }, h('div', { class: 'callout-title' }, icon('alert'), 'Components could not be read'), h('p', null, r.componentsError)));
   if (manualOpen) content.push(h('div', { class: 'rows manual' }, h('div', { class: 'row' }, h('div', { class: 'row-head' }, h('span', { class: 'kind' }, 'Manual'), h('span', { class: 'comp-name' }, 'Request a component change')), requestFormView(r, r.form!))));
-  if (changed.length) content.push(rowList('push-components', changed.map((item) => componentRow(r, item, 'Request change')), 20));
-  else if (scan) content.push(h('p', { class: 'muted' }, scan.figmaOnly.length ? 'Figma-only changes, nothing to send.' : 'No component changes to request.'));
+  if (scan && !scan.changed.length) content.push(h('p', { class: 'muted' }, scan.figmaOnly.length ? 'Figma-only component changes, nothing to send.' : 'No component changes to request.'));
   if (scan?.figmaOnly.length) content.push(h('p', { class: 'muted' }, `Layers or auto layout changed in ${scan.figmaOnly.join(', ')}, with the same props, variants, tokens and look. That stays in Figma.`));
   if (scan?.explained.length) content.push(h('p', { class: 'muted' }, `${scan.explained.join(', ')} look${scan.explained.length === 1 ? 's' : ''} different because of variable edits. Those go in the variables pull request, not in a request.`));
   if (candidates.length) {
@@ -1104,10 +1254,10 @@ function componentsSection(r: PushState): Child {
     h(
       'div',
       { class: 'group-head' },
-      h('h2', null, 'Components', h('span', { class: 'group-n' }, String(changed.length))),
+      h('h2', null, 'Requests'),
       manualOpen ? null : h('button', { class: 'btn ghost', 'data-focus-id': 'req-manual', onClick: () => openForm(r, undefined) }, 'Request a component change'),
     ),
-    h('p', { class: 'lede' }, `Components need code, so a change becomes a request (a GitHub issue) for the team, never a pull request. It does not change ${init.settings.branch}.`),
+    h('p', { class: 'lede' }, 'For what the scan cannot see: behavior, a bug, an idea, or a component that is not in code yet.'),
     content,
   );
 }
@@ -1125,35 +1275,39 @@ function viewPush(): View {
         art: 'paint',
       }), steps([
         ['Edit in Figma', 'Change synced variables, or change a component: a variant, a prop, the token a part uses.'],
-        ['Scan', 'See each change with its swatches and the contrast it moves. Failing pairs block the push.'],
-        ['Send', `Variables open a pull request. Components need code, so they open a request (a GitHub issue). Nothing reaches ${init.settings.branch} until owners approve.`],
+        ['Review the changes', 'Every change is listed and checked. Uncheck what is not ready; mark work in progress as experimental.'],
+        ['Push for review', `Checked variables open a pull request; checked components open requests (GitHub issues). Nothing reaches ${init.settings.branch} until owners approve.`],
       ])],
       bar: { label: 'Scan for changes', onClick: () => scanPush() },
     };
   }
   const a = r.analysis;
   const prop = r.proposal;
-  const fi = figmaIndex(a);
 
   if (r.result) {
     const res = r.result;
+    const pr = res.pr;
+    const text = [
+      pr ? `${pr.appended ? `Commit added to pull request #${pr.pr.number}` : `Pull request #${pr.pr.number} opened as a draft`} on ${pr.branch}. CI runs the usual checks, then a design owner and a tech owner approve.` : '',
+      res.requests.length ? `${plural(res.requests.length, 'request')} opened for ${res.requests.map((x) => x.component).join(', ')}.` : '',
+      prop.held.length ? `${plural(prop.held.length, 'unchecked variable edit')} stay${prop.held.length === 1 ? 's' : ''} in Figma.` : '',
+    ].filter(Boolean);
+    const first = pr?.pr.url ?? res.requests[0]?.url;
     return {
-      body: intro({
-        title: res.appended ? `Commit added to pull request #${res.pr.number}` : `Pull request #${res.pr.number} opened`,
-        text: `On branch ${res.branch}, as a draft. CI runs the usual checks, then a design owner and a tech owner approve.`,
-        meta: h('span', { class: 'url' }, res.pr.url),
-        art: 'review',
-      }),
-      bar: {
-        label: 'Open on GitHub',
-        onClick: () => void request('open-url', { url: res.pr.url }),
-        secondary: { label: 'Scan again', onClick: () => scanPush() },
-      },
+      body: [
+        intro({ title: 'Pushed for review', text: text.join(' '), meta: pr ? h('span', { class: 'url' }, pr.pr.url) : undefined, art: 'review' }),
+        res.failed.length ? issueList('error', 'Not sent', res.failed.map((f) => ({ code: 'file-problem', severity: 'error', message: `${f.component}: ${f.error}` }))) : null,
+        requestsSection(r),
+      ],
+      bar: first
+        ? { label: 'Open on GitHub', onClick: () => void request('open-url', { url: first }), secondary: { label: 'Scan again', onClick: () => scanPush() } }
+        : { label: 'Scan again', onClick: () => scanPush() },
     };
   }
 
   const suggestions = a.suggestions.filter((s) => !r.dismissed.has(s.figmaId));
-  const nothing = !a.diff.local.length && !a.diff.conflicts.length && !a.newBrands.length;
+  const compChanges = r.components?.changed ?? [];
+  const nothing = !a.diff.local.length && !a.diff.conflicts.length && !a.newBrands.length && !compChanges.length;
   const before = prop.validation.contrastBefore;
   const after = prop.validation.contrastAfter;
   const beforeByKey = new Map(before.map((x) => [pairKey(x), x]));
@@ -1164,25 +1318,30 @@ function viewPush(): View {
     .sort((x, y) => Number(y.level === 'fail') - Number(x.level === 'fail') || delta(y) - delta(x));
   const contrastKey = 'push-contrast';
   const contrastShown = state.expanded.has(contrastKey) ? changedContrast : changedContrast.slice(0, 8);
+  const checked = r.items.filter((i) => isChecked(r.unchecked, i));
+  const checkedVars = checked.filter((i) => i.kind === 'variable').length;
+  const checkedComps = checked.filter((i) => i.kind === 'component').length;
+  const newBrands = prop.brands.filter((b) => b.plan).length;
+  const prFiles = Object.keys(prop.files).length + prop.brandFiles.length;
 
   const body: Child[] = [];
   if (!nothing) {
-    // Summary first: what goes to main and whether contrast holds, in the screen's one Harbor zone.
+    // Summary first: what goes for review and whether contrast holds, in the screen's one Harbor zone.
     const fails = changedContrast.filter((x) => x.level === 'fail').length;
-    const n = a.diff.local.length + a.diff.conflicts.length;
+    const n = r.items.length;
     body.push(
       h(
         'section',
         { class: 'zone' },
-        h('h2', { class: 'headline' }, n ? `${plural(n, 'change')} to propose to ${init.settings.branch}` : 'A new brand to propose'),
+        h('h2', { class: 'headline' }, n ? `${plural(n, 'change')} to publish for review` : 'A new brand to propose'),
         h(
           'p',
           { class: 'muted' },
           fails
-            ? `${plural(fails, 'contrast pair')} fail${fails === 1 ? 's' : ''}. Fix ${fails === 1 ? 'it' : 'them'} before pushing.`
+            ? `${plural(fails, 'contrast pair')} fail${fails === 1 ? 's' : ''}. Fix ${fails === 1 ? 'it' : 'them'} or uncheck the edit before pushing.`
             : changedContrast.length
-              ? `All ${plural(changedContrast.length, 'contrast pair')} it moves still pass. Opens a draft pull request for review.`
-              : 'Opens a draft pull request for review.',
+              ? `All ${plural(changedContrast.length, 'contrast pair')} the checked edits move still pass.`
+              : `Nothing reaches ${init.settings.branch} until owners approve.`,
         ),
       ),
     );
@@ -1215,23 +1374,18 @@ function viewPush(): View {
     );
   }
   if (nothing) {
-    body.push(h('div', { class: 'empty' }, h('h2', null, 'No variable edits'), h('p', null, `Your variables match ${init.settings.branch}.`)));
+    body.push(h('div', { class: 'empty' }, h('h2', null, 'Nothing to push'), h('p', null, `Your variables and components match ${init.settings.branch}.`)));
   }
   for (const b of prop.brands) body.push(newBrandCard(r, b));
-  if (a.diff.local.length) {
-    body.push(
-      h(
-        'section',
-        null,
-        h('h2', null, `Your changes (${a.diff.local.length})`),
-        rowList(
-          'push-local',
-          a.diff.local.map((e) => diffRow(a, e.local!.kind, { before: e.head ?? e.base, after: e.figma, beforeIndex: a.head.byPath, afterIndex: fi }, contrastPills(e.head, e.figma, after, before))),
-        ),
-      ),
-    );
-  }
-  body.push(conflictSection(a, r.choices));
+  if (r.items.length) body.push(h('h2', { class: 'section-title' }, 'Changes'));
+  body.push(variablesGroup(r));
+  body.push(
+    conflictSection(a, r.choices, (e) => {
+      const item = itemOf(r, variableKey(e.id));
+      return { lead: selectBox(r, item, e.path), tail: rowTail(r, item, e.path) };
+    }),
+  );
+  body.push(componentChangesGroup(r));
   if (a.diff.remote.length) {
     body.push(h('p', { class: 'muted' }, `${plural(a.diff.remote.length, 'token')} changed on main since your last pull. The pull request keeps main's version; pull to see them here.`));
   }
@@ -1241,7 +1395,7 @@ function viewPush(): View {
         'section',
         null,
         h('h2', null, 'Contrast'),
-        h('p', { class: 'lede' }, 'Pairs from contrast.checks.json whose ratio moves with this change, in every brand and theme.'),
+        h('p', { class: 'lede' }, 'Pairs from contrast.checks.json whose ratio moves with the checked edits, in every brand and theme.'),
         h(
           'table',
           { class: 'contrast' },
@@ -1268,27 +1422,25 @@ function viewPush(): View {
       ),
     );
   }
-  body.push(issueList('error', 'Fix before sending', prop.validation.blocking));
+  if (prFiles) body.push(issueList('error', 'Fix before sending', prop.validation.blocking));
   body.push(issueList('warn', 'Warnings (not blocking)', prop.validation.warnings));
   if (!nothing) {
     body.push(
       h(
         'section',
         null,
-        h('h2', null, 'Pull request'),
         h(
           'label',
           { class: 'field' },
-          h('span', null, 'Title'),
-          h('input', { type: 'text', value: r.title, placeholder: prop.changes.length ? defaultTitle(prop.changes) : prop.brands.find((b) => b.plan)?.plan?.title ?? defaultTitle(prop.changes), maxlength: '120', onInput: (e: Event) => (r.title = (e.target as HTMLInputElement).value) }),
+          h('span', null, 'Description'),
+          h('textarea', {
+            rows: '3',
+            'data-focus-id': 'push-description',
+            placeholder: 'What changed and why. It opens the pull request and every request.',
+            onInput: (e: Event) => (r.description = (e.target as HTMLTextAreaElement).value),
+          }, r.description),
         ),
-        h(
-          'label',
-          { class: 'field' },
-          h('span', null, 'Why this change (optional)'),
-          h('textarea', { rows: '3', placeholder: 'For example: raise contrast of secondary text on subtle backgrounds', onInput: (e: Event) => (r.notes = (e.target as HTMLTextAreaElement).value) }, r.notes),
-        ),
-        r.openPr
+        prFiles && r.openPr
           ? h(
               'label',
               { class: 'check' },
@@ -1296,32 +1448,46 @@ function viewPush(): View {
               `Add to open pull request #${r.openPr.number}`,
             )
           : null,
-        h('p', { class: 'muted' }, `${plural(Object.keys(prop.files).length + prop.brandFiles.length, 'file')} change in one commit, with a changeset. Token changes are risk tier 3: a design owner and a tech owner both approve.`),
+        prFiles
+          ? h(
+              'details',
+              { class: 'notes' },
+              h('summary', null, 'Pull request title'),
+              h('input', { type: 'text', 'aria-label': 'Pull request title', value: r.title, placeholder: prop.changes.length ? defaultTitle(prop.changes) : prop.brands.find((b) => b.plan)?.plan?.title ?? '', maxlength: '120', onInput: (e: Event) => (r.title = (e.target as HTMLInputElement).value) }),
+            )
+          : null,
+        h(
+          'p',
+          { class: 'muted' },
+          [
+            prFiles ? `${plural(prFiles, 'file')} change in one commit, with a changeset. Token changes are risk tier 3: a design owner and a tech owner both approve.` : '',
+            checkedComps ? `${plural(checkedComps, 'request')} for the team, with the component attached.` : '',
+          ].filter(Boolean).join(' '),
+        ),
       ),
     );
   }
-  body.push(componentsSection(r));
+  body.push(requestsSection(r));
   body.push(notes(a));
 
-  const blocked = prop.validation.blocking.length;
+  const blocked = prFiles ? prop.validation.blocking.length : 0;
   const open = prop.unresolvedConflicts.length;
-  const newBrands = prop.brands.filter((b) => b.plan).length;
-  const noFiles = Object.keys(prop.files).length === 0 && prop.brandFiles.length === 0;
+  const none = !prFiles && !checkedComps;
   const hint = open
     ? `Decide ${plural(open, 'conflict')} first`
     : blocked
       ? `Fix ${plural(blocked, 'problem')} first`
-      : noFiles
-        ? 'Nothing to send'
-        : [prop.changes.length ? plural(prop.changes.length, 'token') : '', newBrands ? plural(newBrands, 'new brand') : ''].filter(Boolean).join(' and ') + ` to ${init.settings.branch}`;
+      : none
+        ? 'Nothing checked'
+        : [checkedVars ? plural(checkedVars, 'variable') : '', newBrands ? plural(newBrands, 'new brand') : '', checkedComps ? plural(checkedComps, 'component') : ''].filter(Boolean).join(', ');
   return {
     body,
     bar: nothing
       ? { label: 'Scan again', onClick: () => scanPush(r) }
       : {
-          label: r.appendToOpen && r.openPr ? `Push to pull request #${r.openPr.number}` : 'Push for review',
-          onClick: submitPr,
-          disabled: !!open || !!blocked || noFiles,
+          label: prFiles && r.appendToOpen && r.openPr ? `Push to pull request #${r.openPr.number}` : 'Push for review',
+          onClick: submitPush,
+          disabled: !!open || !!blocked || none,
           hint,
           secondary: { label: 'Scan again', onClick: () => scanPush(r) },
         },

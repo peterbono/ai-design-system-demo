@@ -184,6 +184,29 @@ of Brand goes to `brands/ocean.tokens.json`, a Dark edit in Semantic to `semanti
 Compact edit in Density to `density/compact.tokens.json`, a new Component variable to
 `components/<first path segment>.tokens.json` (or next to its closest sibling).
 
+### Changes list: like publishing a library in Figma
+
+The Push screen mirrors Figma's Publish library dialog, so it reads like something designers already know:
+
+- **Changes**, grouped **Variables** and **Components**. Each item has a checkbox, all checked by default, and each
+  group has a select-all checkbox in its header (tri-state when some are unchecked).
+- Checked variable edits go into the pull request. **Unchecked variable edits stay in Figma**, untouched, and show up
+  again on the next scan. Unchecked component changes are not sent and keep their baseline.
+- **Experimental** (like Figma's "Hide when publishing"): the row menu has "Mark as experimental". The mark is stored
+  on the variable (every variable of the token in the split layout) or on the component set, as shared plugin data
+  `dsbridge` / `experimental` = `"true"`, so it lasts and the whole team sees it. Experimental items carry a neutral
+  "Experimental" tag and **start unchecked on every push**; they can still be checked. "Remove experimental mark"
+  clears it.
+- **Description**: one text field. It becomes the pull request's "What changed and why" and the summary of every
+  request sent with it (a factual line naming the file when it is empty). The pull request title is optional, under
+  "Pull request title".
+- One primary action, **Push for review**: the pull request for the checked variables (none when no variable is
+  checked), then one request per checked component change, with the component attached. A failed request is listed;
+  the rest is still sent.
+
+"Request a component change" (for what the scan cannot see) and "Not in the design system yet" stay under
+**Requests**, below the list. A detected change can also be edited and sent on its own from its row menu.
+
 ### Two flows: variables become pull requests, components become requests
 
 The Push tab has two groups, one under the other.

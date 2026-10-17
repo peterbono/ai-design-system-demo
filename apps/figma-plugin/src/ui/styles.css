@@ -264,3 +264,25 @@ table.changes td.before { color: var(--text-3); }
 textarea[aria-invalid="true"] { border-color: var(--danger); }
 details.candidates { display: flex; flex-direction: column; gap: var(--s2); }
 details.candidates[open] > .rows { margin-top: var(--s2); }
+
+/* Push: the Changes list, like Figma's Publish library dialog. A checkbox opens each row, the row menu closes it. */
+h2.section-title { margin-bottom: calc(-1 * var(--s3)); }
+.group-check { gap: var(--s2); }
+.group-check h2 { display: inline; }
+input.select, .group-check input { flex: none; width: 14px; height: 14px; margin: 0; accent-color: var(--brand); cursor: pointer; }
+.row-head .tag { margin-left: auto; }
+.tag { flex: none; font-size: 10px; line-height: 16px; font-weight: 600; padding: 0 6px; border-radius: var(--r-sm); border: 1px solid var(--border-strong); color: var(--text-2); }
+.row-menu { position: relative; flex: none; margin-left: auto; margin-right: calc(-1 * var(--s2)); }
+.row-head .tag + .row-menu { margin-left: 0; }
+.row-menu > summary { list-style: none; }
+.row-menu > summary::-webkit-details-marker { display: none; }
+.btn.icon-only { width: 28px; padding: 0; color: var(--text-2); }
+.btn.icon-only .icon { width: 16px; height: 16px; }
+.menu {
+  position: absolute; right: 0; top: calc(100% + 4px); z-index: 10; min-width: 200px; padding: var(--s1);
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--r-md);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.08), 0 6px 16px rgb(0 0 0 / 0.12);
+  display: flex; flex-direction: column;
+}
+.menu-item { text-align: left; border: 0; background: none; height: 28px; padding: 0 var(--s2); border-radius: var(--r-sm); cursor: pointer; white-space: nowrap; }
+.menu-item:hover { background: var(--bg-hover); }
