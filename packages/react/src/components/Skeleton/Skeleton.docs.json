@@ -1,6 +1,6 @@
 {
   "summary": "A placeholder in the shape of content that is loading, so the layout does not jump when the data arrives.",
-  "preview": { "c": "Stack", "children": [ { "c": "Skeleton", "p": { "lines": 3 } } ] },
+  "preview": { "c": "Box", "children": [ { "c": "Stack", "p": { "gap": "3" }, "children": [ { "c": "Row", "children": [ { "c": "Skeleton", "p": { "variant": "circle" } }, { "c": "Skeleton", "p": { "lines": 2, "width": "var(--size-60)" } } ] }, { "c": "Skeleton", "p": { "variant": "rect" } } ] } ] },
   "whenToUse": [
     "First load of a list, table, card or detail panel whose shape you know.",
     "Mirror the real layout: a circle for an avatar, short lines for names, a block for a preview.",
