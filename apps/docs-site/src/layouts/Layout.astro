@@ -48,8 +48,9 @@ const space: Space = here.space;
 const nav = navFor(space);
 const isStudio = space === 'studio';
 const isHome = path === LIBRARY_HOME || path === STUDIO_HOME;
-// The Field Guide reading template has no right rail; a long page can still opt in with toc.
-const showToc = toc ?? false;
+// Library reading pages get the right "On this page" rail: it only shows from 1320px, where the column beside the
+// 960px reading width is otherwise empty, and only with two sections or more. Studio and wide pages opt in.
+const showToc = toc ?? (!isStudio && !wide && !isHome);
 const isCurrent = (href: string) => path === href;
 
 // Breadcrumb only below the side nav's depth (a component page): the Harbor header and the nav say the rest.

@@ -752,10 +752,6 @@ main > h1:first-child {
   line-height: var(--typography-ui-line-height);
 }
 
-main.wide .page-end {
-  max-width: var(--layout-content-max-width);
-}
-
 .page-meta {
   position: relative;
   display: flex;

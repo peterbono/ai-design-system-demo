@@ -122,6 +122,17 @@ export function oneLineTitle(md: string | null | undefined, max = 110): string {
   return truncateWords(first, max);
 }
 
+/**
+ * Headline for a short list of changes: the part before "headline: detail" when there is one, else the first
+ * sentence, starting with a capital, cut at `max`. Changeset entries are written as "What changed: the details".
+ */
+export function changeHeadline(md: string | null | undefined, max = 80): string {
+  const first = oneLineTitle(md, 400).replace(/[.…]$/, '');
+  const colon = first.indexOf(': ');
+  const head = colon > 8 && colon <= max ? first.slice(0, colon) : first;
+  return truncateWords(head.charAt(0).toUpperCase() + head.slice(1), max);
+}
+
 /** Cuts text to at most `max` characters at a word boundary and adds an ellipsis. Short text comes back as is. */
 export function truncateWords(text: string, max: number): string {
   const t = text.trim();

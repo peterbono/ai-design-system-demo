@@ -4,7 +4,7 @@ import Layout from '../layouts/Layout.astro';
 import Illustration from '../components/Illustration.astro';
 import ButtonLink from '../components/ds/ButtonLink';
 import { releases, versionInfo } from '../lib/changelog';
-import { mdTitleText, oneLineTitle } from '../lib/markdown';
+import { changeHeadline, mdTitleText } from '../lib/markdown';
 import { loadComponents } from '../lib/components';
 import { explorerTokens } from '../lib/explorer';
 import { PAGE_SOURCES, freshness } from '../lib/sources';
@@ -81,7 +81,8 @@ const topics: { art: IllustrationName; title: string; text: string; href: string
         <ul class="hm-changes">
           {recent.map((e) => (
             <li>
-              <span class="t-body hm-change" title={mdTitleText(e.title)}>{oneLineTitle(e.title)}</span>
+              <span class="pill hm-kind">{e.kind}</span>
+              <span class="t-body hm-change" title={mdTitleText(e.title)}>{changeHeadline(e.title)}</span>
               <span class="t-ui t-muted hm-date">{shortDate(e.date)}</span>
             </li>
           ))}
