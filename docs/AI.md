@@ -86,9 +86,9 @@ Any client that speaks MCP over stdio works: run `node packages/mcp/dist/index.j
 
 ## What Claude can do
 
-25 tools: 6 for tokens (config, browse, read, search, contrast, validation), 6 for components and guidance,
+28 tools: 6 for tokens (config, browse, read, search, contrast, validation), 6 for components and guidance,
 5 for proposals and reviews (visual impact included), 3 for brands, 4 for history and revert, 1 for adoption
-audits.
+audits, 3 for component change requests.
 
 | Tool | Use it to |
 | --- | --- |
@@ -117,6 +117,9 @@ audits.
 | `bridge_plan_revert` | Dry run of undoing a change (or restoring one token) against today's base branch, conflicts shown |
 | `bridge_propose_revert` | Turn that plan into a branch (local) or a draft PR labelled `revert` (GitHub), never `main` |
 | `bridge_audit` | Measure how a product codebase adopts the design system: token and component adoption, hardcoded values with the closest token, foreign UI components with the DS component to use, top files and fixes |
+| `bridge_list_requests` | List component change requests (GitHub issues labeled `component-change`) with status: requested, in progress (an open pull request says "Closes #n"), done, declined |
+| `bridge_get_request` | Read one request with the component's files, the agent rules and a brief to implement it in a pull request that closes it |
+| `bridge_create_request` | File a request as an issue labeled `component-change` (`source: mcp`); needs `GITHUB_TOKEN`; `dryRun` previews it |
 
 Resources: `bridge://tokens/resolved`, `bridge://design-language`, `bridge://guidelines`,
 `bridge://components/{name}`.
@@ -258,6 +261,24 @@ a reviewer accepts it.
 - **Review.** In Bridge Studio, a pull request's Docs section lists the drafted files with a "Draft by Claude,
   needs review" badge: Accept commits `"needsReview": false` to the branch, Edit opens the docs editor. Studio
   Quality lists every docs file that still needs review. A docs-only change is Tier 1 (patch).
+
+## Component change requests
+
+Variables are pull requests people approve. Components need code, so a change to one (new component, structure,
+variant, prop, visual, token binding) becomes a **request**: a GitHub issue labeled `component-change`, filed
+from Figma, Bridge Studio, the CLI or Claude, that a developer implements (with their own Claude if they like) in
+a pull request that says `Closes #n`. Jira is optional. See [REQUESTS.md](REQUESTS.md).
+
+```sh
+bridge request list --status requested            # what is waiting
+bridge request show 42                            # one request, its component files, linked pull requests
+bridge request implement 42                       # the brief for Claude, on stdout
+bridge request implement 42 --claude              # start Claude Code with that brief
+bridge request create --component Button --kind new-variant --title "Add a danger ghost variant" \
+  --summary "Toolbars need a quieter danger button." --change variant=:danger-ghost
+```
+
+Ask Claude: "Which component requests are waiting?", "Implement request 42."
 
 ## Measure adoption in product code
 
