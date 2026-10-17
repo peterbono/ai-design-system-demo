@@ -62,7 +62,7 @@ body {
   font: 400 12px/18px "Instrument Sans", Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
 }
-button, input, textarea { font: inherit; color: inherit; }
+button, input, textarea, select { font: inherit; color: inherit; }
 ::selection { background: color-mix(in srgb, var(--brand) 28%, transparent); }
 * { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
 ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -206,11 +206,11 @@ table.contrast .pair { font-family: var(--mono); }
 /* Forms */
 label.field { display: flex; flex-direction: column; gap: 4px; }
 label.field > span { font-weight: 500; }
-input[type="text"], input[type="password"], textarea {
+input[type="text"], input[type="password"], textarea, select {
   border: 1px solid var(--border); border-radius: var(--r-md); padding: 6px var(--s2); background: var(--bg); width: 100%; min-height: 28px;
 }
-input[type="text"]:hover, input[type="password"]:hover, textarea:hover { border-color: var(--border-strong); }
-input:focus-visible, textarea:focus-visible { outline: 1px solid var(--focus); border-color: var(--focus); outline-offset: 0; }
+input[type="text"]:hover, input[type="password"]:hover, textarea:hover, select:hover { border-color: var(--border-strong); }
+input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 1px solid var(--focus); border-color: var(--focus); outline-offset: 0; }
 input::placeholder, textarea::placeholder { color: var(--text-3); }
 textarea { resize: vertical; line-height: 16px; }
 label.check { display: flex; gap: var(--s2); align-items: center; cursor: pointer; }
@@ -245,3 +245,22 @@ details.notes ul { margin: 0; padding-left: var(--s4); color: var(--text-2); }
 .steps li { display: flex; gap: var(--s3); align-items: flex-start; }
 .steps b { font-weight: 600; }
 .step-n { flex: none; width: 20px; height: 20px; border-radius: 999px; background: var(--zone); color: var(--zone-text); font-size: 11px; font-weight: 600; line-height: 20px; text-align: center; }
+
+/* Components: requests (GitHub issues), a group of its own under the variables, separated by a rule. */
+.group.components { border-top: 1px solid var(--border); padding-top: var(--s4); gap: var(--s2); }
+.group.components > .rows { margin-top: 0; }
+.comp-name { font-weight: 600; }
+.row-action { margin-left: auto; margin-right: calc(-1 * var(--s2)); }
+table.changes { border-collapse: collapse; width: 100%; }
+table.changes th { text-align: left; font-weight: 500; color: var(--text-3); padding: 0 var(--s2) 2px 0; }
+table.changes td { padding: 4px var(--s2) 4px 0; border-top: 1px solid var(--border); vertical-align: top; overflow-wrap: anywhere; }
+table.changes td.mono { font-family: var(--mono); font-size: 11px; }
+table.changes td.before { color: var(--text-3); }
+.req-form { display: flex; flex-direction: column; gap: var(--s3); padding: var(--s2) 0 var(--s1); }
+.req-form .field > span { font-weight: 500; }
+.attach-hint { margin-top: calc(-1 * var(--s2)); padding-left: 21px; }
+.form-error { display: flex; gap: 6px; align-items: center; color: var(--danger); font-weight: 500; }
+.form-error .icon { width: 14px; height: 14px; flex: none; }
+textarea[aria-invalid="true"] { border-color: var(--danger); }
+details.candidates { display: flex; flex-direction: column; gap: var(--s2); }
+details.candidates[open] > .rows { margin-top: var(--s2); }

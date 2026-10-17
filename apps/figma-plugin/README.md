@@ -36,8 +36,8 @@ DS Bridge needs a fine-grained personal access token limited to this repository:
 
 1. GitHub **Settings > Developer settings > Personal access tokens > Fine-grained tokens > Generate new token**.
 2. **Repository access**: "Only select repositories", pick this repository.
-3. **Repository permissions**: **Contents: Read and write**, **Pull requests: Read and write**.
-   Metadata (read-only) is added automatically.
+3. **Repository permissions**: **Contents: Read and write**, **Pull requests: Read and write**,
+   **Issues: Read and write** (component change requests). Metadata (read-only) is added automatically.
 4. Paste it in the plugin's **Settings** tab and save.
 
 Repository, branch and tokens path are prefilled from `bridge.config.json` at the root of this repo.
@@ -134,6 +134,58 @@ Each changed value is written back to the file of its tier and mode: a palette e
 of Brand goes to `brands/ocean.tokens.json`, a Dark edit in Semantic to `semantic/dark.tokens.json`, a
 Compact edit in Density to `density/compact.tokens.json`, a new Component variable to
 `components/<first path segment>.tokens.json` (or next to its closest sibling).
+
+### Two flows: variables become pull requests, components become requests
+
+The Push tab has two groups, one under the other.
+
+- **Variables**: every variable edit (value, alias, name, description), including component-tier tokens
+  such as `button.radius`, goes through the pull request above. Tokens are data: people approve the PR.
+  Variables never create a request.
+- **Components**: components need code, so the plugin never opens a code pull request for them. A change
+  becomes a **request**: a GitHub issue (`composeRequestIssue` in `@bridge-ds/core`, labels
+  `component-change`, `request: <kind>`, `source: figma`, plus `integrations.requests.labels` and
+  `assignees` from `bridge.config.json`) that people or Claude implement in their own pull request.
+
+What counts as a component change, and its suggested kind:
+
+| Change in Figma | Kind |
+| --- | --- |
+| A variant value or axis added or removed | New variant |
+| A component property added, removed, or its type or default changed | Prop change |
+| Another variable bound to a part (fill, stroke, radius, padding, gap, typography...) | Token change |
+| The render changed, with the same bound variables and the same variable values | Visual change |
+| A component with no folder under `components.dir` in the repo | New component (opt-in) |
+
+**Rule: a Figma-only restructure triggers nothing.** Layers renamed or regrouped, auto layout refactored, with
+the same API, the same bound variables and the same render: the scan says "Figma-only changes, nothing to
+send". A render that changed only because a bound variable's value changed is explained by the variables
+pull request, so it is not a request either.
+
+How it works:
+
+1. **Signature** (`src/sync/components.ts`, pure). Per component set (or single component): variant axes and
+   values, component properties (name, type, default), the bound variable names per property kind, collected
+   over the whole layer tree so a regroup does not change them, and per variant a hash of the bound values and
+   a render hash (FNV-1a over a 1x PNG export). The main thread (`src/main/components.ts`) reads it from
+   `componentPropertyDefinitions`, `variantProperties`, `boundVariables` and `exportAsync`.
+2. **Baseline**, stored on each component node in shared plugin data (`dsbridge` / `signature`):
+   - after a pull: coded components seen for the first time, and components whose only differences come from
+     variables. A component with a pending change keeps its old baseline, so a pull never swallows it.
+   - after a request is sent for that component.
+   - a coded component (same name as a folder under `packages/react/src/components/`) with no baseline takes
+     one silently on the first scan: nothing to send.
+   - a component with no baseline and no folder in code is listed under "Not in the design system yet",
+     collapsed, each with "Request as new component". Nothing is sent on its own.
+3. **Request form**, inline: kind (prefilled), title (prefilled), summary (required), the changes table
+   (prefilled from the diff) and "Attach the selected variant" (a 2x PNG). On send, images go to the
+   `bridge-requests` branch (created from the base branch head when missing, never moved) under
+   `.bridge/requests/`, then the issue is created and the new baseline stored. "Request #N opened" links to it.
+4. **Request a component change**: for what the diff cannot see (behavior, a bug, an idea). Pick a coded
+   component, describe it, attach the current selection.
+
+The Figma link needs `figma.fileKey`, which published plugins often do not get: the request then names the
+node without a link.
 
 ### Contrast: which pairs a change affects
 
@@ -236,6 +288,11 @@ these defaults.
 - **No deletion in Figma**: tokens removed on `main` are flagged as orphans, never deleted.
 - **GitHub only**: no GitLab or Bitbucket.
 - Shadows, durations, easings and other composite tokens stay code-only.
+- **Component render hash**: a PNG export, so it moves when Figma's renderer, a font or an image fill changes,
+  and it can differ between machines. A change that touches both a variable value and the look of the same
+  variant is read as a variable change (the render is explained by the value). Variant-level bindings are
+  compared, not per layer: moving a binding from one layer to another within a variant is not seen.
+- **Components from a library** (remote) are not scanned; only local components of the file are.
 
 ## Why not Tokens Studio or the native export
 
@@ -268,6 +325,8 @@ apps/figma-plugin/
   src/sync/              Figma glue on top of @bridge-ds/core:
     mapping.ts           tiers <-> Figma collections and modes, pull plan, snapshot back to tokens
     flows.ts             pull and push orchestration (analyze, buildPull, buildPush, openPullRequest)
+    components.ts        component signatures, diff, classification (changed, new, Figma-only)
+    requests.ts          send a component change request (image on bridge-requests, then the issue)
   test/                  end-to-end pull/edit/push flows against an in-memory GitHub and a simulated
                          Figma (single and split layouts), including the PR #4 contrast regressions
 ```

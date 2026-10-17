@@ -5,6 +5,10 @@ import { type RequestMap, type RequestType, isProgress, isResponse } from '../sh
 let progressListener: ((message: string) => void) | undefined;
 export const onProgress = (fn: (message: string) => void) => (progressListener = fn);
 
+export type Selection = { nodeId: string; name: string } | null;
+let selectionListener: ((s: Selection) => void) | undefined;
+export const onSelection = (fn: (s: Selection) => void) => (selectionListener = fn);
+
 let seq = 0;
 const pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
 
@@ -12,6 +16,10 @@ window.addEventListener('message', (event: MessageEvent) => {
   const msg = (event.data as { pluginMessage?: unknown } | undefined)?.pluginMessage;
   if (isProgress(msg)) {
     progressListener?.(msg.message);
+    return;
+  }
+  if (msg && typeof msg === 'object' && (msg as { kind?: unknown }).kind === 'selection') {
+    selectionListener?.((msg as { selection: Selection }).selection);
     return;
   }
   if (!isResponse(msg)) return;

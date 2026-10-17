@@ -11,6 +11,7 @@ import {
   isRequest,
 } from '../shared/messages';
 import { applyPullPlan } from './apply';
+import { exportImage, rebaseline, saveSignatures, scanComponents, selectionInfo } from './components';
 import { takeSnapshot, writePluginData } from './snapshot';
 
 const NS = 'dsbridge';
@@ -98,7 +99,25 @@ const handlers: Handlers = {
     figma.ui.resize(Math.max(360, Math.min(900, width)), Math.max(400, Math.min(1000, height)));
     return { resized: true };
   },
+  async 'scan-components'() {
+    return scanComponents((message) => figma.ui.postMessage({ kind: 'progress', message }));
+  },
+  async 'save-signatures'({ items }) {
+    return { saved: await saveSignatures(items) };
+  },
+  async rebaseline({ nodeId }) {
+    return { saved: await rebaseline(nodeId) };
+  },
+  async 'export-image'({ nodeId }) {
+    return (await exportImage(nodeId)) ?? null;
+  },
+  async selection() {
+    return selectionInfo() ?? null;
+  },
 };
+
+// The request form shows what "Attach the current selection" would attach.
+figma.on('selectionchange', () => figma.ui.postMessage({ kind: 'selection', selection: selectionInfo() ?? null }));
 
 figma.ui.onmessage = async (msg: unknown) => {
   if (!isRequest(msg)) return;

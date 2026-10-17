@@ -8,6 +8,6 @@
   "documentAccess": "dynamic-page",
   "networkAccess": {
     "allowedDomains": ["https://api.github.com"],
-    "reasoning": "DS Bridge reads design token files from the team's GitHub repository and opens pull requests with the designer's variable changes. It only talks to the GitHub REST API (git trees, blobs, refs, commits and pull requests); file contents are read through the API, never from raw.githubusercontent.com."
+    "reasoning": "DS Bridge reads design token files from the team's GitHub repository and opens pull requests with the designer's variable changes, or issues for component change requests. It only talks to the GitHub REST API (git trees, blobs, refs, commits, contents, pull requests and issues); file contents are read through the API, never from raw.githubusercontent.com."
   }
 }
