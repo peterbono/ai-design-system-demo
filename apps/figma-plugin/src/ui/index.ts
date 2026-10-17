@@ -24,7 +24,8 @@ import { type ComponentApplyReport, type ComponentPullPlan, type PlannedComponen
 import { type ComponentReview, onlyComponent, reviewUpdates } from '../sync/component-review';
 import type { ComponentSignature } from '../sync/components';
 import { type Destination, type PublishItem, type PublishResult, applyDestination, componentKey, defaultUnchecked, experimentalTokenIds, groupState, heldTokenIds, isChecked, publish, publishItems, setGroup, variableIdsOf, variableKey } from '../sync/publish';
-import { type ExplorationChoice, newExplorationProblems, runningExplorations, startExploration, targetOf } from '../sync/explorations';
+import { type ExplorationChoice, explorationTryIt, newExplorationProblems, runningExplorations, shareMessage, startExploration, targetOf, tryItLinks } from '../sync/explorations';
+import type { ExplorationTryIt } from '@bridge-ds/core';
 import { type Selection, onProgress, onSelection, request } from './bridge';
 import { type Child, h } from './dom';
 import { icon } from './icons';
@@ -106,6 +107,12 @@ interface PushState {
   newExploration: { name: string; purpose: string };
   /** The exploration the last push went to (result screen). */
   sentTo?: ExplorationChoice | undefined;
+  /** Its test build: the install command from the pull request's preview comment, or still building. */
+  tryIt?: ExplorationTryIt | undefined;
+  tryItError?: string | undefined;
+  checkingTryIt?: boolean | undefined;
+  /** "Share with a developer" copied the message (the button says so). */
+  shared?: boolean | undefined;
   /**
    * Change lines and request titles Claude wrote, by component node id, with the changes they describe (a new scan
    * may change them).
@@ -449,7 +456,7 @@ function conflictSection(a: Analysis, choices: Map<string, ConflictChoice>, edge
     'section',
     null,
     h('h2', null, `Conflicts (${list.length})`),
-    h('p', { class: 'lede' }, 'Edited in Figma and on main since your last pull. Pick the version to keep. Nothing is overwritten until you choose.'),
+    h('p', { class: 'lede' }, 'Edited in Figma and in the design system since your last pull. Pick the version to keep. Nothing is overwritten until you choose.'),
     list.length > 1
       ? h(
           'div',
@@ -533,7 +540,7 @@ async function loadPull(prev?: PullState): Promise<PullState> {
 
 function checkPull(): void {
   void run(
-    'Reading main and your variables',
+    'Reading the design system and your variables',
     async () => {
       state.pull = await loadPull();
       state.expanded.clear();
@@ -637,7 +644,7 @@ function scanPush(keep?: PushState, then?: () => void): void {
     if (state.push.form) cancelMine(state.push.form.assist, false);
   }
   void run(
-    'Comparing your variables with main',
+    'Comparing your variables with the design system',
     async () => {
       const snapshot = await request('snapshot', {});
       const c = getClient();
@@ -748,7 +755,7 @@ function submitPush(): void {
   const withPr = Object.keys(r.proposal.files).length + r.proposal.brandFiles.length > 0;
   const toExploration = r.destination === 'exploration';
   void run(
-    toExploration ? (r.exploreTarget === 'new' ? 'Starting the exploration' : 'Sending to the exploration') : withPr ? (r.appendToOpen && r.openPr ? 'Adding a commit to the pull request' : 'Opening the pull request') : 'Sending the requests',
+    toExploration ? (r.exploreTarget === 'new' ? 'Starting the exploration' : 'Sending to the exploration') : withPr ? (r.appendToOpen && r.openPr ? 'Adding to the pull request' : 'Opening the pull request') : 'Sending the requests',
     async () => {
       let exploration: ExplorationChoice | undefined;
       if (toExploration) {
@@ -782,6 +789,9 @@ function submitPush(): void {
       });
       r.result = result;
       r.sentTo = exploration;
+      r.tryIt = undefined;
+      r.shared = false;
+      if (exploration) void checkTryIt(r);
       cancelMine(r.assist, false);
       // What was sent exists now; local bookkeeping failures must not hide that.
       try {
@@ -1367,7 +1377,7 @@ function steps(items: [string, string][]): HTMLElement {
 
 function needToken(): View {
   return {
-    body: intro({ title: 'Connect your repository', text: 'DS Bridge reads the tokens on main and opens pull requests with your edits. It needs a GitHub token for one repository.', art: 'guide' }),
+    body: intro({ title: 'Connect your repository', text: "DS Bridge reads your design system's tokens and sends your edits for review. It needs a GitHub token for one repository.", art: 'guide' }),
     bar: { label: 'Open Settings', onClick: () => { state.tab = 'settings'; render(); } },
   };
 }
@@ -1388,7 +1398,7 @@ function viewPull(): View {
       }), steps([
         ['Check', `DS Bridge reads the token files on ${init.settings.branch}.`],
         ['Review', 'Every new, edited or deleted token is listed with its value. Nothing is written yet.'],
-        ['Apply', 'Figma variables are created or updated. Your own edits stay until you push them.'],
+        ['Apply', 'Figma variables are created or updated. Your own edits stay until you send them from Push.'],
       ])],
       bar: { label: 'Check for updates', onClick: checkPull },
     };
@@ -1455,7 +1465,7 @@ function viewPull(): View {
   ].filter(Boolean);
   const headline = upToDate && !status.length ? 'Already up to date' : !a.baseSha ? 'First pull' : status.join(', ') || 'Already up to date';
   const meta = a.baseSha
-    ? [`Last pulled ${short(a.baseSha)}${init.sync.lastPullAt ? ` on ${when(init.sync.lastPullAt)}` : ''}`, a.compare?.aheadBy ? `${plural(a.compare.aheadBy, 'new commit')} on ${init.settings.branch}` : ''].filter(Boolean).join(' · ')
+    ? [`Last pulled ${short(a.baseSha)}${init.sync.lastPullAt ? ` on ${when(init.sync.lastPullAt)}` : ''}`, a.compare?.aheadBy ? `${plural(a.compare.aheadBy, 'new change')} on ${init.settings.branch}` : ''].filter(Boolean).join(' · ')
     : `${plural(prop.plan.variables.length, 'variable')} from ${init.settings.repo}, in the Primitives, Brand, Base, Semantic, Density and Component collections.`;
   const body: Child[] = [h('section', { class: 'zone' }, h('h2', { class: 'headline' }, upToDate && status.length ? `Up to date with ${init.settings.branch}. ${status.join(', ')}.` : headline), h('p', { class: 'muted' }, meta))];
 
@@ -1465,7 +1475,7 @@ function viewPull(): View {
         `Changes on ${init.settings.branch}`,
         remote.length,
         null,
-        counts.removed ? 'Tokens deleted on main stay in Figma with an "[orphan]" note, so nothing in your designs breaks.' : 'Written to Figma when you apply.',
+        counts.removed ? 'Tokens deleted in the design system stay in Figma with an "[orphan]" note, so nothing in your designs breaks.' : 'Written to Figma when you apply.',
         rowList('pull-remote', remote.map((e) => diffRow(a, e.remote!.kind, { before: e.figma ?? e.base, after: e.head, beforeIndex: fi, afterIndex: a.head.byPath }))),
       ),
     );
@@ -1477,7 +1487,7 @@ function viewPull(): View {
         p.overwrite ? `Replaced with ${init.settings.branch}` : 'To recreate',
         prop.restored.length,
         p.overwrite ? h('button', { class: 'btn ghost', onClick: () => { p.overwrite = false; refreshProposals(); } }, 'Keep my edits') : null,
-        p.overwrite ? 'Main wins over your Figma edits. Variables that exist only in Figma stay.' : 'Deleted in Figma, but other tokens still point to them.',
+        p.overwrite ? "The design system's version wins over your Figma edits. Variables that exist only in Figma stay." : 'Deleted in Figma, but other tokens still point to them.',
         rowList('pull-restored', prop.restored.map((e) => diffRow(a, p.overwrite ? 'replaced' : 'restored', { before: e.figma, after: e.head, beforeIndex: fi, afterIndex: a.head.byPath })), 5),
       ),
     );
@@ -1488,7 +1498,7 @@ function viewPull(): View {
         'Your Figma edits, kept',
         prop.kept.length,
         prop.kept.some((e) => e.head) ? h('button', { class: 'btn ghost', onClick: () => { p.overwrite = true; refreshProposals(); } }, `Replace with ${init.settings.branch}`) : null,
-        'Not on main yet. Send them from Push.',
+        'Not in the design system yet. Send them from Push.',
         rowList('pull-kept', prop.kept.map((e) => diffRow(a, e.local!.kind, { before: e.base, after: e.figma, beforeIndex: a.base?.byPath ?? a.head.byPath, afterIndex: fi })), 5),
       ),
     );
@@ -2182,7 +2192,31 @@ function refreshBar(): void {
   if (bar && next) bar.replaceWith(next);
 }
 
-/** Result of a push to an exploration: where it went, how to try it (previews, snapshot install), the link. */
+/**
+ * Reads the exploration's test build from its pull request (the preview comment the workflow posts): the command that
+ * works, or "being prepared" until the comment matches the latest commit. Never a guessed command.
+ */
+async function checkTryIt(r: PushState): Promise<void> {
+  const e = r.sentTo;
+  if (!e || r.checkingTryIt) return;
+  r.checkingTryIt = true;
+  r.tryItError = undefined;
+  render();
+  try {
+    r.tryIt = await explorationTryIt(getClient(), e);
+  } catch (err) {
+    r.tryItError = err instanceof Error ? err.message : String(err);
+  } finally {
+    r.checkingTryIt = false;
+    render();
+  }
+}
+
+/**
+ * Result of a push to an exploration, for designers: what was sent (the zone), where to try it (previews, the product
+ * first), and one way to hand it to a developer (a ready message with the command that works). The command itself
+ * stays collapsed.
+ */
 function explorationResult(r: PushState, e: ExplorationChoice, res: PublishResult): Child[] {
   const vars = res.pr && !res.exploration?.unchanged ? plural(r.proposal.changes.length || 1, 'variable edit') : '';
   const text = [
@@ -2190,23 +2224,69 @@ function explorationResult(r: PushState, e: ExplorationChoice, res: PublishResul
     res.requests.length ? `${plural(res.requests.length, 'request')} for ${res.requests.map((x) => x.component).join(', ')}, to build there.` : '',
     'It never reaches the product as is.',
   ].filter(Boolean);
+  const links = tryItLinks(e);
+  const t = r.tryIt;
+  const status = r.checkingTryIt && !t
+    ? h('p', { class: 'row-hint' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), h('span', null, 'Checking the test build'))
+    : r.tryItError
+      ? statusLine(`Could not check the test build: ${r.tryItError}`, r)
+      : !t || t.state === 'building'
+        ? statusLine('The test build is being prepared, a few minutes.', r)
+        : t.state === 'failed'
+          ? statusLine('The test build did not finish. The pull request on GitHub says why.', r)
+          : h('p', { class: 'lede' }, 'A developer installs it in a staging branch of your product. The message has the command, the previews and the link.');
   return [
     intro({ title: `Sent to ${e.name}`, text: text.join(' '), meta: h('span', { class: 'url mono' }, e.branch), art: 'review' }),
     h(
       'section',
       { class: 'try' },
       h('h2', null, 'Try it'),
-      h('p', { class: 'lede' }, 'Previews rebuild from the exploration in a few minutes. A product staging build installs the snapshot.'),
-      e.previews.length
+      h('p', { class: 'lede' }, 'Previews rebuild from the exploration in a few minutes.'),
+      links.length
         ? h(
             'ul',
             { class: 'rows' },
-            e.previews.map((p) => h('li', { class: 'row' }, h('div', { class: 'row-head' }, h('span', null, p.label), h('button', { class: 'btn ghost row-action', onClick: () => void request('open-url', { url: p.url }) }, icon('external'), 'Open preview')))),
+            links.map((l) =>
+              h(
+                'li',
+                { class: 'row' },
+                h(
+                  'div',
+                  { class: 'row-head' },
+                  h('span', { class: 'row-label' }, h('span', null, l.label), l.hint ? h('small', null, l.hint) : null),
+                  h('button', { class: 'btn ghost row-action', 'aria-label': `Open ${l.label} preview`, onClick: () => void request('open-url', { url: l.url }) }, icon('external'), 'Open'),
+                ),
+              ),
+            ),
           )
-        : h('p', { class: 'muted' }, 'Previews are not set up for this repository (previews.apps in bridge.config.json).'),
-      e.install.packages.length ? snippet('explore-install', 'Install in a staging build', e.install.command) : null,
+        : h('p', { class: 'muted' }, 'Previews are not set up for this repository yet. A developer can add them in bridge.config.json.'),
+    ),
+    h(
+      'section',
+      { class: 'share' },
+      h('h2', null, 'Test build for your product'),
+      status,
+      h(
+        'button',
+        { class: 'btn share-action', 'data-focus-id': 'share-dev', onClick: () => void copyText(shareMessage(e, t)).then((ok) => { r.shared = ok; render(); }) },
+        icon(r.shared ? 'check' : 'copy'),
+        r.shared ? 'Message copied' : 'Share with a developer',
+      ),
+      t?.state === 'ready'
+        ? h('details', { class: 'notes command' }, h('summary', null, 'Show the command'), h('pre', { class: 'mono-area', tabindex: '0', 'aria-label': 'Install command' }, t.command))
+        : null,
     ),
   ];
+}
+
+/** A status sentence with "Check again" on the same line. */
+function statusLine(text: string, r: PushState): HTMLElement {
+  return h(
+    'p',
+    { class: 'row-hint', role: 'status' },
+    h('span', null, text),
+    h('button', { class: 'btn ghost', 'data-focus-id': 'tryit-check', disabled: !!r.checkingTryIt, onClick: () => void checkTryIt(r) }, icon('refresh'), r.checkingTryIt ? 'Checking' : 'Check again'),
+  );
 }
 
 function viewPush(): View {
@@ -2241,13 +2321,25 @@ function viewPush(): View {
     const failed = res.failed.length ? issueList('error', 'Not sent', res.failed.map((f) => ({ code: 'file-problem', severity: 'error', message: `${f.component}: ${f.error}` }))) : null;
     if (r.sentTo) {
       const e = r.sentTo;
+      // One primary: the product with the edits when its preview exists, else the pull request.
+      const product = tryItLinks(e).find((l) => l.app === 'admin');
+      const github = { label: 'Open on GitHub', onClick: () => void request('open-url', { url: e.url }) };
       return {
-        body: [...explorationResult(r, e, res), failed, requestLine(r)],
-        bar: r.form ? undefined : { label: 'Open on GitHub', onClick: () => void request('open-url', { url: e.url }), secondary: { label: 'Scan again', onClick: () => scanPush() } },
+        body: [
+          ...explorationResult(r, e, res),
+          failed,
+          requestLine(r),
+          product ? h('p', null, h('span', { class: 'muted' }, 'Edited more in Figma?'), ' ', h('button', { class: 'link', onClick: () => scanPush() }, 'Scan again')) : null,
+        ],
+        bar: r.form
+          ? undefined
+          : product
+            ? { label: 'Open in the product', onClick: () => void request('open-url', { url: product.url }), secondary: github }
+            : { ...github, secondary: { label: 'Scan again', onClick: () => scanPush() } },
       };
     }
     const text = [
-      pr ? `${pr.appended ? `Commit added to pull request #${pr.pr.number}` : `Pull request #${pr.pr.number} opened as a draft`}. CI runs the usual checks, then a design owner and a tech owner approve.` : '',
+      pr ? `${pr.appended ? `Added to pull request #${pr.pr.number}` : `Pull request #${pr.pr.number} opened as a draft`}. CI runs the usual checks, then a design owner and a tech owner approve.` : '',
       res.requests.length ? `${plural(res.requests.length, 'request')} opened for ${res.requests.map((x) => x.component).join(', ')}.` : '',
       prop.held.length ? `${plural(prop.held.length, 'unchecked variable edit')} stay${prop.held.length === 1 ? 's' : ''} in Figma.` : '',
     ].filter(Boolean);
@@ -2333,7 +2425,7 @@ function viewPush(): View {
     );
   }
   if (nothing) {
-    body.push(h('div', { class: 'empty' }, h('h2', null, 'Nothing to send'), h('p', null, `Your variables and components match ${init.settings.branch}.`)));
+    body.push(h('div', { class: 'empty' }, h('h2', null, 'Nothing to send'), h('p', null, 'Your variables and components match the design system.')));
   }
   for (const b of prop.brands) body.push(newBrandCard(r, b));
   if (r.items.length) {
@@ -2350,7 +2442,7 @@ function viewPush(): View {
   body.push(componentChangesGroup(r));
   body.push(...componentNotes(r));
   if (a.diff.remote.length) {
-    body.push(h('p', { class: 'muted' }, `${plural(a.diff.remote.length, 'token')} changed on ${init.settings.branch} since your last pull. Your edits keep ${init.settings.branch}'s version of them; pull to see them here.`));
+    body.push(h('p', { class: 'muted' }, `${plural(a.diff.remote.length, 'token')} changed in the design system since your last pull. Your edits leave them as they are; pull to see them here.`));
   }
   if (changedContrast.length) {
     body.push(
@@ -2422,14 +2514,15 @@ function viewPush(): View {
               `Add to open pull request #${r.openPr.number}`,
             )
           : null,
-        prFiles
+        // An exploration's title is generated (it only names the change on the exploration): nothing to fill in.
+        prFiles && !exploring
           ? h(
               'details',
               { class: 'notes', open: r.titleSource === 'claude' },
-              h('summary', null, exploring ? 'Commit title' : 'Pull request title'),
+              h('summary', null, 'Pull request title'),
               h('input', {
                 type: 'text',
-                'aria-label': exploring ? 'Commit title' : 'Pull request title',
+                'aria-label': 'Pull request title',
                 value: r.title,
                 placeholder: prop.changes.length ? defaultTitle(prop.changes) : prop.brands.find((b) => b.plan)?.plan?.title ?? '',
                 maxlength: '120',
@@ -2443,7 +2536,7 @@ function viewPush(): View {
           : null,
         // What the push sends is summed up once, in the bar ("2 variables, 1 request"); this only says how it goes.
         prFiles
-          ? h('p', { class: 'muted' }, exploring ? `${plural(prFiles, 'file')} change in one commit on the exploration. Owners review it only if it is promoted.` : `${plural(prFiles, 'file')} change in one commit, with a changeset. Token changes are risk tier 3: a design owner and a tech owner both approve.`)
+          ? h('p', { class: 'muted' }, exploring ? 'Owners review it only if the exploration is promoted.' : 'Token changes need two approvals: a design owner and a tech owner.')
           : null,
       ),
     );
@@ -2494,7 +2587,7 @@ function viewSettings(): View {
     );
   return {
     body: [
-      init.hasToken ? null : intro({ title: 'Connect your repository', text: 'Point DS Bridge at the repository that holds your token files, then paste a token. Nothing is written until you push.', art: 'guide' }),
+      init.hasToken ? null : intro({ title: 'Connect your repository', text: 'Point DS Bridge at the repository that holds your token files, then paste a token. Nothing is written until you send your edits.', art: 'guide' }),
       // Connected: where the tokens live is a state (one row, Edit). The fields show to set it up or after Edit.
       editingRepo
         ? h(

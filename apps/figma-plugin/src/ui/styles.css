@@ -404,3 +404,9 @@ button.link:hover { text-decoration-thickness: 2px; }
 .menu-text { display: flex; flex-direction: column; gap: 2px; }
 .menu { min-width: 240px; }
 .callout-title .callout-action { margin-left: auto; height: 24px; font-weight: 500; }
+
+/* Exploration result: preview rows (name and one hint line), the test build and its one action. */
+.row-label { display: flex; flex-direction: column; min-width: 0; }
+.row-hint > .spinner { flex: none; }
+.share .share-action { align-self: flex-start; }
+details.command pre { margin: var(--s1) 0 0; padding: var(--s2); border-radius: var(--r-sm); background: var(--bg-sunken); border: 1px solid var(--border); font-family: var(--mono); font-size: 11px; line-height: 16px; white-space: pre-wrap; word-break: break-all; color: var(--text); }

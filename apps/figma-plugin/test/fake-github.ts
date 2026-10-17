@@ -27,7 +27,8 @@ export class FakeGitHub {
   }
 
   commit(files: Record<string, string>, parents: string[], message: string): string {
-    const sha = `c${String(++this.n).padStart(39, '0')}`;
+    // The counter leads, so short shas (7 characters, like the preview comment's) differ from commit to commit.
+    const sha = `c${String(++this.n).padStart(6, '0')}`.padEnd(40, '0');
     this.commits.set(sha, { files: { ...files }, parents, message });
     this.trees.set(`t-${sha}`, { ...files });
     return sha;
@@ -94,6 +95,9 @@ export class FakeGitHub {
         return [...self.contents.entries()]
           .filter(([k]) => k.startsWith(prefix) && !k.slice(prefix.length).includes('/'))
           .map(([k, f]) => ({ name: k.slice(prefix.length), path: k.slice(ref.length + 1), type: 'file', sha: f.sha, size: f.text.length }));
+      },
+      async listIssueComments(n: number) {
+        return self.comments.filter((c) => c.number === n).map((c, i) => ({ id: i + 1, body: c.body, author: 'github-actions[bot]', updatedAt: '' }));
       },
       async getBranchSha(branch: string) {
         return self.branches.get(branch);

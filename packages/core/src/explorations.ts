@@ -11,7 +11,7 @@
 
 import type { BridgeConfig } from './config';
 import { slugify } from './pr-composer';
-import { installCommand, previewLinks, snapshotUrl, tarballUrl, type PreviewApps } from './previews';
+import { installCommand, previewLinks, readPreviewComment, snapshotUrl, tarballUrl, type PreviewApps } from './previews';
 import { classifyRisk, type ChangedFile, type RiskTier } from './risk';
 
 /** Every exploration pull request carries this label while it is an exploration. */
@@ -126,6 +126,8 @@ export interface ExplorationInstall {
 /**
  * How a product staging branch installs an exploration: pkg.pr.new snapshots by pull request number (always the
  * latest commit), as `name@url` so package.json keeps the package name, and the prerelease tarballs as a fallback.
+ * These are predictions (pkg.pr.new only works once its GitHub App is installed): what people see and copy comes from
+ * the sticky preview comment, through `explorationTryIt`.
  */
 export function explorationInstall(input: { owner: string; repo: string; pr: number; packages: string[]; sha?: string | undefined }): ExplorationInstall {
   const packages = input.packages.map((name) => ({ name, url: snapshotUrl(input.owner, input.repo, name, input.pr) }));
@@ -180,20 +182,10 @@ export function explorationPrBody(e: Exploration, ctx: ExplorationPrContext): st
     '### Try it in a product staging branch',
     '',
   ];
-  if (ctx.pr) {
-    const install = explorationInstall({ owner: ctx.owner, repo: ctx.repo, pr: ctx.pr, packages: ctx.packages });
-    lines.push(
-      'In the product repo, on a branch that deploys to staging (production keeps the released version):',
-      '',
-      '```sh',
-      install.command,
-      '```',
-      '',
-      `The snapshots follow the latest commit of this pull request. The "Try this DS branch in your product" comment lists the exact commit, and the tarball URLs from the [\`preview-pr-${ctx.pr}\` prerelease](https://github.com/${ctx.owner}/${ctx.repo}/releases/tag/preview-pr-${ctx.pr}) when pkg.pr.new is not set up.`,
-    );
-  } else {
-    lines.push('The install command appears here and in the "Try this DS branch in your product" comment once the first snapshot is published.');
-  }
+  // No guessed command here: pkg.pr.new may not be set up. The sticky comment has the one the workflow published.
+  lines.push(
+    'In the product repo, on a branch that deploys to staging (production keeps the released version), install the snapshot with the command in the "Try this exploration in your product" comment below. It appears a few minutes after each push and always matches the latest commit.',
+  );
   lines.push('', '### Previews', '');
   const links = previewLinks(ctx.apps, { branch, ...(ctx.pr ? { pr: ctx.pr } : {}) });
   if (links.length) lines.push('| App | Preview |', '| --- | --- |', ...links.map((l) => `| ${l.label} | ${l.url} |`));
@@ -319,6 +311,38 @@ export function promotionPlan(input: {
     title: t.charAt(0).toUpperCase() + t.slice(1),
     markReady: true,
   };
+}
+
+/** Where the test build of an exploration stands, from its sticky preview comment and the branch head. */
+export type ExplorationTryIt =
+  | { state: 'ready'; command: string; source: 'pkg.pr.new' | 'release' | 'other'; sha7: string | null }
+  | { state: 'building' }
+  | { state: 'failed' };
+
+/**
+ * The install command a product staging branch can trust, read from the `<!-- bridge-branch-preview -->` comment,
+ * never guessed: no comment yet, or a comment about an older commit than the head, means the snapshot is still
+ * building; a comment without a command means the publish failed.
+ */
+export function explorationTryIt(input: { comment?: string | null | undefined; headSha?: string | null | undefined }): ExplorationTryIt {
+  const c = readPreviewComment(input.comment);
+  if (!c) return { state: 'building' };
+  if (input.headSha && c.sha7 && !input.headSha.startsWith(c.sha7)) return { state: 'building' };
+  if (!c.command || c.source === 'none') return { state: 'failed' };
+  return { state: 'ready', command: c.command, source: c.source, sha7: c.sha7 };
+}
+
+/**
+ * The message a designer sends a developer: what the exploration is, the install command for a product staging
+ * branch, the previews and the pull request. Plain text, one paragraph, ready to paste in a chat.
+ */
+export function explorationShareMessage(input: { name: string; branch: string; url: string; command?: string | null | undefined; previews?: { label: string; url: string }[] | undefined }): string {
+  const name = input.name.trim().replace(/"/g, "'");
+  const head = input.command
+    ? `Exploration "${name}" (${input.branch}): try it in a staging branch of your product with: ${input.command}.`
+    : `Exploration "${name}" (${input.branch}): its test build is being prepared, the install command for a staging branch of your product will be on the pull request in a few minutes.`;
+  const previews = (input.previews ?? []).map((p) => `${p.label} ${p.url}`);
+  return [head, previews.length ? `Previews: ${previews.join(', ')}.` : '', `Pull request: ${input.url}.`].filter(Boolean).join(' ');
 }
 
 /**

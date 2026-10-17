@@ -17,6 +17,8 @@ import {
   type ExplorationPullLike,
   type ExplorationRow,
   type ExplorationsConfig,
+  tryItCopy,
+  tryItFromComments,
 } from '../lib/explorations-view';
 import type { PullLike } from '../lib/requests-view';
 import { currentViewer, esc, getToken, ghGet, initGitHubConnect, RateLimitError, readRepo, relativeTime, setButtonBusy } from './github-session';
@@ -54,7 +56,6 @@ export function paintExplorationCount(pulls: ExplorationPullLike[]) {
 
 function rowHtml(r: ExplorationRow) {
   const preview = r.previews[0];
-  const cmdId = `ex-cmd-${r.number}`;
   const reqs = r.requests.length ? `, ${r.requests.length} ${r.requests.length === 1 ? 'request' : 'requests'}` : '';
   return `<li class="cg-row ex-row" data-exploration="${r.number}">
     <div class="ex-row-main">
@@ -62,11 +63,6 @@ function rowHtml(r: ExplorationRow) {
       ${r.purpose ? `<p class="ex-purpose">${esc(r.purpose)}</p>` : ''}
       <p class="ex-meta"><span class="mono">${esc(r.branch)}</span>, @${esc(r.author)}, updated <time datetime="${esc(r.updatedAt)}">${esc(shortDate(r.updatedAt))}</time>${esc(reqs)}${preview ? `, <a href="${esc(preview.url)}" target="_blank" rel="noopener">${esc(preview.label)} preview</a>` : ''}</p>
     </div>
-    ${
-      r.status === 'active' && r.install.packages.length
-        ? `<div class="ex-install"><code class="cg-cmd ex-cmd" id="${cmdId}">${esc(r.install.command)}</code><button type="button" class="btn btn-secondary btn-sm" data-copy data-copy-from="${cmdId}"><span data-copy-label>Copy install</span></button></div>`
-        : ''
-    }
   </li>`;
 }
 
@@ -242,11 +238,9 @@ export function renderExplorationDetail(r: ExplorationRow, opts: { connected: bo
   const previews = r.previews.length
     ? `<ul class="rq-prs">${r.previews.map((p) => `<li><a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.label)}</a> <span class="cg-muted mono">${esc(new URL(p.url).host)}</span></li>`).join('')}</ul>`
     : '<p class="cg-muted">Preview deploys are not set up: add previews.apps to bridge.config.json.</p>';
-  const install = r.install.packages.length
-    ? `<p>In the product repo, on a branch that deploys to staging. Production keeps the released version.</p>
-      ${cmdRow('ex-install-cmd', r.install.command, 'Copy install command')}
-      <p class="cg-muted">pkg.pr.new snapshots, always the latest commit of #${r.number}.</p>
-      ${r.install.fallback ? `<p>When pkg.pr.new is not set up, the tarballs of the <a href="${esc(r.install.fallback.release)}" target="_blank" rel="noopener">preview-pr-${r.number} prerelease</a>:</p>${cmdRow('ex-fallback-cmd', r.install.fallback.command, 'Copy fallback command')}` : ''}`
+  // Filled by paintTryIt from the pull request's preview comment: the command that works, never a guess.
+  const install = CFG.packages.length
+    ? `<div id="ex-tryit" aria-live="polite"><p class="cg-muted">Checking the test build.</p></div>`
     : '<p class="cg-muted">No snapshot package configured: add previews.packages to bridge.config.json.</p>';
   const reqs = r.requests.length
     ? `<ul class="rq-prs">${r.requests.map((q) => `<li><a href="?request=${q.number}" data-open-request="${q.number}">#${q.number} ${esc(q.component)}: ${esc(q.title)}</a> <span class="cg-muted">${esc(q.statusLabel)}</span></li>`).join('')}</ul>`
@@ -270,7 +264,7 @@ export function renderExplorationDetail(r: ExplorationRow, opts: { connected: bo
   </header>
   <div class="cg-secs">
     ${section('ex-sec-purpose', 'Purpose', esc(r.useCaseLabel ?? 'Exploration'), `<p class="rq-summary">${esc(r.purpose || 'The pull request has no Bridge exploration block. Open it on GitHub to read it.')}</p>`, true)}
-    ${section('ex-sec-install', 'Try it in a product staging branch', r.install.packages.length ? `${r.install.packages.length} packages` : 'not set up', install, r.status === 'active')}
+    ${section('ex-sec-install', 'Try it in a product staging branch', CFG.packages.length ? `${CFG.packages.length} packages` : 'not set up', install, r.status === 'active')}
     ${section('ex-sec-previews', 'Previews', String(r.previews.length), previews)}
     ${section('ex-sec-requests', 'Requests', String(r.requests.length), reqs)}
     ${r.status === 'active' ? section('ex-sec-claude', 'Implement on this exploration', 'CLI or MCP', claude) : ''}
@@ -278,6 +272,21 @@ export function renderExplorationDetail(r: ExplorationRow, opts: { connected: bo
 }
 
 let current: ExplorationRow | null = null;
+
+/** The install command from the pull request's sticky preview comment (one read), or "being prepared". */
+async function paintTryIt(r: ExplorationRow) {
+  if (!document.getElementById('ex-tryit')) return;
+  let html: string;
+  try {
+    const comments = (await ghGet<{ body?: string | null }[]>(`${R}/issues/${r.number}/comments?per_page=100`)).data;
+    const t = tryItCopy(tryItFromComments(comments, r.headSha));
+    html = `<p>${esc(t.sentence)}</p>${t.command ? cmdRow('ex-install-cmd', t.command, 'Copy install command') : ''}`;
+  } catch (err) {
+    html = `<p class="cg-muted">${err instanceof RateLimitError ? 'GitHub limits anonymous reads: connect GitHub to see the install command here.' : `Could not read the pull request comments: ${esc((err as Error).message)}.`} The "Try this exploration in your product" comment on <a href="${esc(r.url)}" target="_blank" rel="noopener">#${r.number}</a> has it.</p>`;
+  }
+  const el = document.getElementById('ex-tryit');
+  if (el && current?.number === r.number) el.innerHTML = html;
+}
 
 async function rowFor(n: number): Promise<ExplorationRow | null> {
   const list = await loadExplorations();
@@ -305,6 +314,7 @@ export async function openExploration(n: number, push = true) {
   d.innerHTML = r
     ? renderExplorationDetail(r, { connected: connected() })
     : `${crumbs(n)}<p class="cg-muted">#${n} is not an exploration in ${esc(`${CFG.owner}/${CFG.repo}`)}, or GitHub cannot be read right now. <a href="https://github.com/${esc(`${CFG.owner}/${CFG.repo}`)}/pull/${n}">Open it on GitHub</a>.</p>`;
+  if (r) void paintTryIt(r);
 }
 
 function actionError(message: string | null) {

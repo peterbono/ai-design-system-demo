@@ -13,7 +13,10 @@ import {
   explorationProblems,
   explorationSlug,
   explorationSlugFromBranch,
+  explorationShareMessage,
   explorationStatus,
+  explorationTryIt,
+  explorationTryItOnGitHub,
   GitHubClient,
   GitHubError,
   isExplorationBranch,
@@ -21,7 +24,11 @@ import {
   listExplorationsOnGitHub,
   parseExplorationBody,
   parseRequestIssue,
+  findPreviewComment,
+  installCommandFromPreviewComment,
+  PREVIEW_COMMENT_MARKER,
   previewComment,
+  readPreviewComment,
   promoteExplorationOnGitHub,
   promotionPlan,
   requestBrief,
@@ -69,8 +76,9 @@ describe('exploration pull request', () => {
     expect(body).toContain('## Exploration: Pill buttons');
     expect(body).toContain('Not mergeable as is');
     expect(body).toContain('**Use case.** Prototype for a user test');
-    expect(body).toContain('npm i @bridge-ds/tokens@https://pkg.pr.new/acme/ds/@bridge-ds/tokens@12 @bridge-ds/react@https://pkg.pr.new/acme/ds/@bridge-ds/react@12');
-    expect(body).toContain('preview-pr-12');
+    // No guessed install command (pkg.pr.new may not be set up): the sticky comment has the one that works.
+    expect(body).not.toContain('pkg.pr.new');
+    expect(body).toContain('"Try this exploration in your product" comment');
     expect(body).toContain('| Docs | https://bridge-docs-git-explore-pill-buttons-acme.vercel.app/ |');
     expect(body).toContain('- #40 Button: pill radius');
     expect(body).toContain('bridge explore promote pill-buttons');
@@ -78,7 +86,7 @@ describe('exploration pull request', () => {
     expect(parseExplorationBody(body)).toEqual({ ...e, slug: 'pill-buttons' });
     expect(parseExplorationBody('no block')).toBeUndefined();
     // Before the pull request exists the body says where the command will appear.
-    expect(explorationPrBody(e, { owner: 'acme', repo: 'ds', packages, apps: {} })).toMatch(/install command appears here[\s\S]*Preview deploys are not set up/);
+    expect(explorationPrBody(e, { owner: 'acme', repo: 'ds', packages, apps: {} })).toMatch(/comment below[\s\S]*Preview deploys are not set up/);
   });
 
   it('install: name@snapshot by pull request number, and the prerelease tarballs as a fallback', () => {
@@ -178,6 +186,7 @@ function fakeGitHub() {
   const refs = new Map<string, string>([['main', 'c0']]);
   const trees = new Map<string, Map<string, string>>([['c0', new Map([['README.md', 'hi']])]]);
   const pulls: any[] = [];
+  const comments: { n: number; body: string }[] = [];
   const calls: { method: string; path: string; body?: any }[] = [];
   const res = (status: number, body: unknown) => ({ ok: status < 300, status, json: async () => body, text: async () => JSON.stringify(body) });
   const f: FetchLike = async (url, init) => {
@@ -245,6 +254,7 @@ function fakeGitHub() {
       pr.labels = pr.labels.filter((l: any) => l.name !== decodeURIComponent(m![2]!));
       return res(200, pr.labels);
     }
+    if (method === 'GET' && (m = /^\/issues\/(\d+)\/comments/.exec(path))) return res(200, comments.filter((c) => c.n === Number(m![1])).map((c, i) => ({ id: i + 1, body: c.body, user: { login: 'github-actions[bot]' }, updated_at: '' })));
     if (method === 'POST' && path === '/graphql') {
       const pr = pulls.find((p) => p.node_id === body.variables.id);
       pr.draft = false;
@@ -254,7 +264,7 @@ function fakeGitHub() {
   };
   const noRetry = { attempts: 1, baseDelayMs: 0, sleep: async () => {} };
   const client = (token = 't') => new GitHubClient('acme/ds', token, f, noRetry, { protectedBranches: ['main'], branchPrefix: 'bridge/' });
-  return { client, refs, trees, pulls, calls };
+  return { client, refs, trees, pulls, calls, comments };
 }
 
 describe('explorations on GitHub', () => {
@@ -268,7 +278,8 @@ describe('explorations on GitHub', () => {
     expect(pr.draft).toBe(true);
     expect(pr.base.ref).toBe('main');
     expect(pr.labels.map((l: any) => l.name)).toEqual(['exploration']);
-    expect(pr.body).toContain('@bridge-ds/react@https://pkg.pr.new/acme/ds/@bridge-ds/react@1');
+    expect(pr.body).toContain('"Try this exploration in your product" comment');
+    expect(pr.body).not.toContain('pkg.pr.new');
     expect(s.install.command).toContain('@bridge-ds/tokens@https://pkg.pr.new/acme/ds/@bridge-ds/tokens@1');
     expect(s.previews[0]!.url).toBe('https://bridge-docs-git-explore-pill-buttons-acme.vercel.app/');
     // Same name again: refused, nothing created.
@@ -326,5 +337,55 @@ describe('explorations on GitHub', () => {
     const c = new GitHubClient('acme/ds', 't', f, { attempts: 1, baseDelayMs: 0, sleep: async () => {} });
     await expect(c.markReadyForReview(1)).rejects.toThrow(/Resource not accessible[\s\S]*Ready for review/);
     await expect(new GitHubClient('acme/ds', '', f).markReadyForReview(1)).rejects.toThrow(/needs a GitHub token/);
+  });
+});
+
+// --- Try it: the install command comes from the sticky preview comment, never a guess -------------------------------
+
+describe('exploration try it', () => {
+  const tarballs = (sha: string) => ['tokens', 'react'].map((p) => ({ name: `@bridge-ds/${p}`, url: `https://github.com/acme/ds/releases/download/preview-pr-12/bridge-ds-${p}-${sha.slice(0, 7)}.tgz` }));
+  const release = previewComment({ owner: 'acme', repo: 'ds', pr: 12, branch: 'explore/pill-buttons', sha: SHA, packages: tarballs(SHA), source: 'release', apps, exploration: true });
+  const pkgPrNew = previewComment({ owner: 'acme', repo: 'ds', pr: 12, branch: 'explore/pill-buttons', sha: SHA, packages: [{ name: '@bridge-ds/react', url: `https://pkg.pr.new/acme/ds/@bridge-ds/react@${SHA}` }], source: 'pkg.pr.new', apps, exploration: true });
+  const failed = previewComment({ owner: 'acme', repo: 'ds', pr: 12, branch: 'explore/pill-buttons', sha: SHA, packages: [], source: 'none', apps, exploration: true });
+
+  it('reads the command of the first sh block: tarballs, pkg.pr.new, or none', () => {
+    expect(installCommandFromPreviewComment(release)).toBe(`npm i ${tarballs(SHA).map((p) => `${p.name}@${p.url}`).join(' ')}`);
+    expect(readPreviewComment(release)).toMatchObject({ sha7: '0123456', source: 'release' });
+    expect(installCommandFromPreviewComment(pkgPrNew)).toBe(`npm i @bridge-ds/react@https://pkg.pr.new/acme/ds/@bridge-ds/react@${SHA}`);
+    expect(readPreviewComment(pkgPrNew)?.source).toBe('pkg.pr.new');
+    expect(installCommandFromPreviewComment(failed)).toBeNull();
+    expect(readPreviewComment(failed)).toMatchObject({ command: null, source: 'none' });
+    // Not the sticky comment: nothing, even with a sh block.
+    expect(installCommandFromPreviewComment('```sh\nnpm i x\n```')).toBeNull();
+    expect(installCommandFromPreviewComment(undefined)).toBeNull();
+    // A command split over lines with backslashes reads as one line.
+    expect(installCommandFromPreviewComment(`${PREVIEW_COMMENT_MARKER}\n\`\`\`sh\nnpm i a \\\n  b\n\`\`\``)).toBe('npm i a b');
+    expect(findPreviewComment([{ body: 'hi' }, { body: release }, { body: 'DS Bridge added a commit' }])?.body).toBe(release);
+  });
+
+  it('ready only when the comment is about the head commit; building before; failed when the publish failed', () => {
+    expect(explorationTryIt({ comment: release, headSha: SHA })).toMatchObject({ state: 'ready', source: 'release' });
+    expect(explorationTryIt({ comment: undefined, headSha: SHA })).toEqual({ state: 'building' });
+    expect(explorationTryIt({ comment: release, headSha: 'fedcba9876543210' })).toEqual({ state: 'building' });
+    expect(explorationTryIt({ comment: failed, headSha: SHA })).toEqual({ state: 'failed' });
+  });
+
+  it('a share message with the working command, the previews and the pull request', () => {
+    const msg = explorationShareMessage({ name: 'Pill buttons', branch: 'explore/pill-buttons', url: 'https://github.com/acme/ds/pull/12', command: 'npm i x@y', previews: [{ label: 'Admin demo', url: 'https://a/' }, { label: 'Library', url: 'https://d/' }] });
+    expect(msg).toBe('Exploration "Pill buttons" (explore/pill-buttons): try it in a staging branch of your product with: npm i x@y. Previews: Admin demo https://a/, Library https://d/. Pull request: https://github.com/acme/ds/pull/12.');
+    const building = explorationShareMessage({ name: 'Pill buttons', branch: 'explore/pill-buttons', url: 'https://github.com/acme/ds/pull/12' });
+    expect(building).toMatch(/being prepared/);
+    expect(building).not.toMatch(/npm|pkg\.pr\.new|Previews:/);
+    expect(msg + building).not.toMatch(/\u2014/);
+  });
+
+  it('on GitHub: reads the comments and the branch head', async () => {
+    const gh = fakeGitHub();
+    const c = gh.client();
+    const s = await startExplorationOnGitHub(c, { name: 'Pill buttons', purpose: 'Rounder buttons.' }, settings);
+    expect(await explorationTryItOnGitHub(c, { number: s.pr, branch: s.branch })).toEqual({ state: 'building' });
+    gh.refs.set(s.branch, SHA);
+    gh.comments.push({ n: s.pr, body: previewComment({ owner: 'acme', repo: 'ds', pr: s.pr, branch: s.branch, sha: SHA, packages: tarballs(SHA), source: 'release', apps, exploration: true }) });
+    expect(await explorationTryItOnGitHub(c, { number: s.pr, branch: s.branch })).toMatchObject({ state: 'ready', source: 'release' });
   });
 });

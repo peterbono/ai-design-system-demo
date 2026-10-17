@@ -19,7 +19,8 @@ import {
   variableKey,
 } from '../src/sync/publish';
 import { setExperimental, scanComponents } from '../src/main/components';
-import { newExplorationProblems, runningExplorations, startExploration, targetOf } from '../src/sync/explorations';
+import { explorationTryIt, newExplorationProblems, runningExplorations, shareMessage, startExploration, targetOf, tryItLinks } from '../src/sync/explorations';
+import { previewComment } from '@bridge-ds/core';
 import { takeSnapshot } from '../src/main/snapshot';
 import { DEFAULT_SETTINGS } from '../src/shared/messages';
 import { applyPullPlan } from '../src/main/apply';
@@ -248,7 +249,8 @@ test('explorations: start one from Push, list the running ones with previews and
   assert.ok(gh.filesAt('explore/pill-buttons')['.bridge/explorations/pill-buttons.md']);
   const list = await runningExplorations(client, config, 'main');
   assert.deepEqual(list.map((e) => `${e.name} ${e.branch} #${e.number}`), ['Pill buttons explore/pill-buttons #1']);
-  assert.match(list[0]!.install.command, /^npm i @bridge-ds\/tokens@https:\/\/pkg\.pr\.new\/o\/r\/@bridge-ds\/tokens@1 /);
+  // No guessed install command on the choice: it comes from the pull request's preview comment (explorationTryIt).
+  assert.equal('install' in list[0]!, false);
   assert.deepEqual(list[0]!.previews.map((p) => p.url), ['https://docs-git-explore-pill-buttons.example.app/']);
 });
 
@@ -287,6 +289,65 @@ test('push to an exploration: variable edits commit to explore/<slug>, no pull r
   // Sending the same edits again commits nothing.
   const again = await publish(client, { analysis: a, proposal, components: [], unchecked, description: '', title: '', fileName: 'Test', coded: [], exploration: targetOf(exploration) });
   assert.equal(again.exploration?.unchanged, true);
+});
+
+// The result screen's "Try it": previews in a designer's order, the test build from the preview comment, the share message.
+const tarballs = (sha: string) => ['tokens', 'core', 'react'].map((p) => ({ name: `@bridge-ds/${p}`, url: `https://github.com/o/r/releases/download/preview-pr-1/bridge-ds-${p}-${sha.slice(0, 7)}.tgz` }));
+const stickyComment = (gh: FakeGitHub, number: number, branch: string, sha: string, source: 'release' | 'pkg.pr.new' | 'none') =>
+  gh.comments.push({
+    number,
+    body: previewComment({
+      owner: 'o', repo: 'r', pr: number, branch, sha, source, apps: {}, exploration: true,
+      packages: source === 'release' ? tarballs(sha) : source === 'pkg.pr.new' ? [{ name: '@bridge-ds/react', url: `https://pkg.pr.new/o/r/@bridge-ds/react@${sha}` }] : [],
+    }),
+  });
+
+test('try it: building until the preview comment matches the latest commit, then the command the workflow published', async () => {
+  const { gh, client, snapshot, sync } = await edited();
+  const e = await startExploration(client, undefined, 'main', { name: 'Pill buttons', purpose: 'Rounder buttons.' });
+  // Snapshot still building: no comment yet. Never a guessed pkg.pr.new command.
+  assert.deepEqual(await explorationTryIt(client, e), { state: 'building' });
+  stickyComment(gh, e.number, e.branch, gh.branches.get(e.branch)!, 'release');
+  const ready = await explorationTryIt(client, e);
+  assert.equal(ready.state, 'ready');
+  assert.match(ready.state === 'ready' ? ready.command : '', /^npm i @bridge-ds\/tokens@https:\/\/github\.com\/o\/r\/releases\/download\/preview-pr-1\/bridge-ds-tokens-c\w{6}\.tgz /);
+  assert.doesNotMatch(ready.state === 'ready' ? ready.command : '', /pkg\.pr\.new/);
+  // A push from Figma: the comment is about the previous commit until the workflow runs again.
+  const a = await analyze(client, DEFAULT_SETTINGS, sync, snapshot);
+  const items = publishItems(a, new Set(), []);
+  const proposal = buildPush(a, new Map(), new Set(), heldTokenIds(items, new Set()));
+  await publish(client, { analysis: a, proposal, components: [], unchecked: new Set(), description: '', title: '', fileName: 'Test', coded: [], exploration: targetOf(e) });
+  assert.deepEqual(await explorationTryIt(client, e), { state: 'building' });
+  // pkg.pr.new only when the comment says so.
+  stickyComment(gh, e.number, e.branch, gh.branches.get(e.branch)!, 'pkg.pr.new');
+  const pkg = await explorationTryIt(client, e);
+  assert.equal(pkg.state === 'ready' && pkg.source, 'pkg.pr.new');
+  // The publish step failed: the comment has no command.
+  stickyComment(gh, e.number, e.branch, gh.branches.get(e.branch)!, 'none');
+  assert.deepEqual(await explorationTryIt(client, e), { state: 'failed' });
+});
+
+test('try it: the product first, then Library and Workbench; one share message for a developer', () => {
+  const e = {
+    name: 'Pill buttons',
+    branch: 'explore/pill-buttons',
+    url: 'https://github.com/o/r/pull/7',
+    previews: [
+      { app: 'docs', label: 'Docs', url: 'https://docs.example/' },
+      { app: 'storybook', label: 'Storybook', url: 'https://sb.example/' },
+      { app: 'admin', label: 'Admin demo', url: 'https://admin.example/' },
+    ],
+  };
+  assert.deepEqual(tryItLinks(e).map((l) => l.label), ['Admin demo', 'Library', 'Workbench']);
+  const ready = shareMessage(e, { state: 'ready', command: 'npm i @bridge-ds/react@https://x/react.tgz', source: 'release', sha7: 'abcdef0' });
+  assert.equal(
+    ready,
+    'Exploration "Pill buttons" (explore/pill-buttons): try it in a staging branch of your product with: npm i @bridge-ds/react@https://x/react.tgz. Previews: Admin demo https://admin.example/, Library https://docs.example/, Workbench https://sb.example/. Pull request: https://github.com/o/r/pull/7.',
+  );
+  const building = shareMessage(e, { state: 'building' });
+  assert.match(building, /being prepared/);
+  assert.doesNotMatch(building, /npm i|pkg\.pr\.new/);
+  assert.doesNotMatch(ready + building, /\u2014/);
 });
 
 test('destination: experimental items start checked for an exploration and unchecked for review', () => {

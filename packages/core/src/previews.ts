@@ -180,3 +180,47 @@ export function previewComment(input: PreviewCommentInput): string {
   }
   return lines.join('\n') + '\n';
 }
+
+/** What the sticky comment says about installing a snapshot, read back by tools (plugin, Studio). */
+export interface PreviewCommentInstall {
+  /** The command of the first ```sh block, exactly as the workflow wrote it. Null when publishing failed. */
+  command: string | null;
+  /** The commit the snapshot was built from (`Snapshot of \`1a2b3c4\``), or null when the comment does not say. */
+  sha7: string | null;
+  /** Where the snapshots live, from the command's URLs. */
+  source: 'pkg.pr.new' | 'release' | 'other' | 'none';
+}
+
+/**
+ * The install command of a `<!-- bridge-branch-preview -->` comment: the first ```sh block, its lines joined (a
+ * trailing `\` continues a line). Null when the body is not that comment or has no command (the publish failed).
+ * This is the command that works: pkg.pr.new when the workflow published there, the prerelease tarballs otherwise.
+ */
+export function installCommandFromPreviewComment(body: string | null | undefined): string | null {
+  if (!body || !body.trimStart().startsWith(PREVIEW_COMMENT_MARKER)) return null;
+  const m = /```(?:sh|bash|shell)[^\n]*\n([\s\S]*?)```/.exec(body);
+  if (!m) return null;
+  const command = m[1]!
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l && !l.startsWith('#'))
+    .join(' ')
+    .replace(/\s*\\\s+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return command || null;
+}
+
+/** Reads a sticky preview comment back: its command, the commit it was built from, where the snapshots live. */
+export function readPreviewComment(body: string | null | undefined): PreviewCommentInstall | null {
+  if (!body || !body.trimStart().startsWith(PREVIEW_COMMENT_MARKER)) return null;
+  const command = installCommandFromPreviewComment(body);
+  const sha7 = /Snapshot of `([0-9a-f]{7,40})`/.exec(body)?.[1]?.slice(0, 7) ?? null;
+  const source = !command ? 'none' : command.includes('https://pkg.pr.new/') ? 'pkg.pr.new' : /\/releases\/download\/preview-pr-\d+\//.test(command) ? 'release' : 'other';
+  return { command, sha7, source };
+}
+
+/** The sticky preview comment among a pull request's comments (the last one, if a run ever posted twice). */
+export function findPreviewComment<T extends { body?: string | null | undefined }>(comments: T[]): T | undefined {
+  return [...comments].reverse().find((c) => !!c.body && c.body.trimStart().startsWith(PREVIEW_COMMENT_MARKER));
+}

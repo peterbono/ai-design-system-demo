@@ -10,7 +10,7 @@ otherwise it is closed.
 | What | Where it comes from |
 | --- | --- |
 | Branch `explore/<name>` from `main`, first commit `.bridge/explorations/<name>.md` (the purpose) | Studio, `bridge explore start`, or Claude (`bridge_start_exploration`) |
-| Draft pull request "Exploration: ...", labeled `exploration`, body with purpose, install command, previews, promote and close | The same, through `@bridge-ds/core` (`explorations.ts`) |
+| Draft pull request "Exploration: ...", labeled `exploration`, body with purpose, where the install command is, previews, promote and close | The same, through `@bridge-ds/core` (`explorations.ts`) |
 | Previews: docs, Storybook, admin demo built from the branch | Vercel, `previews.apps` in `bridge.config.json` ([PREVIEWS.md](PREVIEWS.md)) |
 | Snapshot packages a product staging branch installs | `.github/workflows/preview-packages.yml`, on every push to the draft |
 | Guard: the check "Exploration not merged as is" fails while the label is on | `.github/workflows/exploration-guard.yml` |
@@ -51,8 +51,11 @@ With Claude: "Start an exploration called Pill buttons to test rounder buttons i
 ## Try it in a product staging branch
 
 Every push to the exploration publishes the design system packages (see [PREVIEWS.md](PREVIEWS.md) for the one-time
-setup). The pull request body and the sticky comment "Try this exploration in your product" give the command. In
-the product repo, on a branch that deploys to staging:
+setup). The sticky comment "Try this exploration in your product" (`<!-- bridge-branch-preview -->`) gives the command
+that works for the latest commit: pkg.pr.new when its app is installed, otherwise the prerelease tarballs. The DS Bridge
+plugin and Studio read the command from that comment (`installCommandFromPreviewComment` in `@bridge-ds/core`) and never
+guess one: until the comment matches the latest commit they say the test build is being prepared. In the product repo,
+on a branch that deploys to staging:
 
 ```sh
 npm i @bridge-ds/tokens@<snapshot> @bridge-ds/core@<snapshot> @bridge-ds/react@<snapshot>
@@ -89,7 +92,9 @@ Everything that writes takes the exploration branch instead of opening a pull re
 From Figma, the DS Bridge plugin's Push has **Try in an exploration** next to Send for review: pick a running
 exploration (or start a new one with a name and a purpose), and the checked variable edits become one commit on
 `explore/<name>` (no pull request to main) while component changes become requests labeled `exploration`. Items marked
-"Exploration only" start checked there.
+"Exploration only" start checked there. After sending, the result screen opens the previews (the product first), says whether the
+test build is ready, and "Share with a developer" copies a message with the working install command, the previews and
+the pull request.
 
 On GitHub (`--repo` mode with a token), token edits are one commit on the exploration branch. Locally, the branch
 must be checked out: Bridge writes the files to that working tree and you commit and push them. A request brief for
