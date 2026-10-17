@@ -43,9 +43,11 @@ export function initReview(d: ExplorerData) {
     if (note) note.hidden = Boolean(viewer);
   });
 
+  // Docs edits share the draft but are proposed from the docs editor: this sheet reviews token edits only.
+  const tokenOnly = (es: DraftEdit[]) => es.filter((e) => e.kind !== 'docs');
   const count = () => {
     const snap = editorSnapshot();
-    return snap ? new Set(snap.draft.edits.map((e) => (e.kind === 'value' ? `${e.path}|${e.mode}` : `${e.kind}|${e.path}`))).size : 0;
+    return snap ? new Set(tokenOnly(snap.draft.edits).map((e) => (e.kind === 'value' ? `${e.path}|${e.mode}` : `${e.kind}|${e.path}`))).size : 0;
   };
 
   const paintBar = () => {
@@ -218,9 +220,9 @@ export function initReview(d: ExplorerData) {
       return;
     }
     const scroll = body.scrollTop;
-    body.innerHTML = `${changeCards(snap.draft.edits)}${impact(snap.draft.edits)}`;
+    body.innerHTML = `${changeCards(tokenOnly(snap.draft.edits))}${impact(tokenOnly(snap.draft.edits))}`;
     const pv = body.querySelector<HTMLElement>('[data-xe-preview]');
-    if (pv && open.has('preview')) paintPreview(pv, snap.draft.edits);
+    if (pv && open.has('preview')) paintPreview(pv, tokenOnly(snap.draft.edits));
     body.scrollTop = scroll;
   };
 
@@ -258,7 +260,7 @@ export function initReview(d: ExplorerData) {
       else open.delete(key);
       const pv = det.querySelector<HTMLElement>('[data-xe-preview]');
       const snap = editorSnapshot();
-      if (pv && det.open && snap && !pv.childElementCount) paintPreview(pv, snap.draft.edits);
+      if (pv && det.open && snap && !pv.childElementCount) paintPreview(pv, tokenOnly(snap.draft.edits));
     },
     true,
   );

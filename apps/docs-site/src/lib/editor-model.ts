@@ -29,7 +29,9 @@ export type DraftEdit =
   | { kind: 'add'; id: string; path: string; type: string; tier: 'semantic'; values: Record<string, unknown>; description?: string }
   | { kind: 'description'; id: string; path: string; before: string | undefined; after: string }
   | { kind: 'rename'; id: string; path: string; to: string }
-  | { kind: 'delete'; id: string; path: string };
+  | { kind: 'delete'; id: string; path: string }
+  /** A component's docs.json written in the docs editor (lib/docs-draft-model.ts). `path` is the repo path. */
+  | { kind: 'docs'; id: string; path: string; component: string; slug: string; before: string | null; after: string };
 
 export interface Draft {
   edits: DraftEdit[];
@@ -51,6 +53,7 @@ export function draftToChanges(head: TokenSet, draft: Draft): AcceptedChange[] {
     return v;
   };
   for (const e of draft.edits) {
+    if (e.kind === 'docs') continue;
     if (e.kind === 'add') {
       targets.set(`new:${e.path}`, {
         current: undefined,
@@ -171,6 +174,7 @@ export function trayRows(head: TokenSet, proposed: TokenSet, draft: Draft): Tray
     if (edit.kind === 'add') return { edit, index, label: edit.path, context: 'new token', before: null, after: { text: Object.entries(edit.values).map(([m, v]) => `${m}: ${String(v)}`).join(', '), hex: null } };
     if (edit.kind === 'description') return { edit, index, label: edit.path, context: 'description', before: { text: edit.before ?? 'No description', hex: null }, after: { text: edit.after || 'No description', hex: null } };
     if (edit.kind === 'rename') return { edit, index, label: `${edit.path} -> ${edit.to}`, context: 'rename', before: null, after: null };
+    if (edit.kind === 'docs') return { edit, index, label: `${edit.component} docs`, context: 'docs', before: null, after: { text: 'Propose it from the docs editor', hex: null } };
     return { edit, index, label: edit.path, context: 'delete', before: null, after: null };
   });
 }
@@ -212,7 +216,8 @@ export function aliasCandidates(set: TokenSet, t: Pick<LogicalToken, 'tier' | 't
 
 /** Short slug for a branch name from the draft. */
 export function draftSlug(draft: Draft): string {
-  const first = draft.edits[0];
+  const edits = draft.edits.filter((e) => e.kind !== 'docs');
+  const first = edits[0];
   const base = first ? first.path.split('.').slice(-3).join('-') : 'tokens';
-  return `${base}${draft.edits.length > 1 ? `-and-${draft.edits.length - 1}-more` : ''}`.toLowerCase().replace(/[^a-z0-9-]+/g, '-').slice(0, 40);
+  return `${base}${edits.length > 1 ? `-and-${edits.length - 1}-more` : ''}`.toLowerCase().replace(/[^a-z0-9-]+/g, '-').slice(0, 40);
 }

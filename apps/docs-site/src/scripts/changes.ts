@@ -3,6 +3,8 @@
 import { closePr, initReviewAuth, loadList, openPr } from './reviews';
 import { initHistory } from './history/page';
 import { draftCount } from './shell';
+import { docsEdits, draftSummary, tokenEdits } from '../lib/docs-draft-model';
+import type { Draft } from '../lib/editor-model';
 
 type View = 'review' | 'history';
 
@@ -20,10 +22,23 @@ function selectTab(view: View) {
   $('cg-history').hidden = view !== 'history';
 }
 
+function readDraft(): Draft {
+  try {
+    return (JSON.parse(localStorage.getItem('bridge.draft.v1') ?? 'null') as Draft | null) ?? { edits: [] };
+  } catch {
+    return { edits: [] };
+  }
+}
+
 function paintDraft() {
   const n = draftCount();
   $('cg-draft').hidden = n === 0;
-  $('cg-draft-n').textContent = `${n} token ${n === 1 ? 'edit' : 'edits'}`;
+  const draft = readDraft();
+  $('cg-draft-n').textContent = draftSummary(draft);
+  // Docs edits only: propose them from the docs editor of the first one.
+  const docs = docsEdits(draft);
+  const cta = document.querySelector<HTMLAnchorElement>('#cg-draft a');
+  if (cta && docs.length && !tokenEdits(draft).length) cta.href = `/studio/components/docs/${docs[0]!.slug}/`;
 }
 
 function showView(view: View) {

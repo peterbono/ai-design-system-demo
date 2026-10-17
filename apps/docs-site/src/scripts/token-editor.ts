@@ -130,7 +130,8 @@ function paintTray() {
   // request, so it is the one gated action (data-gh-gate): without a connection a click opens Connect GitHub.
   const propose = $<HTMLButtonElement>('ed-propose');
   if (propose) {
-    setButtonDisabled(propose, !n || fails > 0);
+    // Docs edits share the draft but are proposed from the docs editor (Studio > Components > Edit docs).
+    setButtonDisabled(propose, !rows.some((r) => r.edit.kind !== 'docs') || fails > 0);
     paintGates(propose.parentElement ?? document);
   }
   const tray = $('ed-tray');
@@ -497,7 +498,8 @@ export function initTokenEditor() {
     out.textContent = 'Creating a branch, committing the token files and a changeset, opening the pull request';
     try {
       const n = await propose(field<HTMLInputElement>('propose-title')?.value ?? '', field<HTMLTextAreaElement>('propose-notes')?.value ?? '');
-      S!.draft = emptyDraft();
+      // Docs edits stay: they are proposed from the docs editor.
+      S!.draft = { edits: S!.draft.edits.filter((e) => e.kind === 'docs') };
       saveDraft();
       location.href = `/studio/changes/?pr=${n}`;
     } catch (err) {
