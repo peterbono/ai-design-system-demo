@@ -238,6 +238,11 @@ details[open] > summary .de-sec-chev {
   margin: 0;
 }
 
+/* The Library Usage tab spaces its sections for a long page; inside the preview the page gap does it. */
+.de-preview-page > section {
+  margin-block: 0;
+}
+
 .de-preview-title {
   font-family: var(--typography-h2-family);
   font-size: var(--typography-h2-size);
@@ -280,4 +285,8 @@ details[open] > summary .de-sec-chev {
   margin: 0;
   color: var(--color-text-muted);
   font-size: var(--typography-ui-size);
+}
+
+.de-preview-page h2 {
+  margin-top: 0;
 }

@@ -23,7 +23,7 @@ describe('Studio Components lead and primary', () => {
   it('badges only exceptions, status colors only for status', () => {
     expect(exceptions({ guidance: 'ok', status: 'stable' })).toEqual([]);
     expect(exceptions({ guidance: 'review', status: 'beta' })).toEqual([
-      { label: 'Draft by Claude, needs review', tone: 'is-info' },
+      { label: 'Draft by Claude, needs review', tone: 'is-info', short: 'Needs review' },
       { label: 'Beta', tone: '' },
     ]);
     expect(exceptions({ guidance: 'missing', status: 'deprecated' }).map((b) => b.label)).toEqual(['Missing guidance', 'Deprecated']);

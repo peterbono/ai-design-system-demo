@@ -67,7 +67,8 @@ export function initComponentsStudio() {
     drawer.hidden = false;
     scrim.hidden = false;
     document.body.classList.add('no-scroll');
-    drawer.querySelector<HTMLElement>('[data-cm-close]')?.focus();
+    // Focus the title: screen readers announce the component, and Tab reaches the actions next.
+    title.focus();
     syncUrl();
   }
 

@@ -285,7 +285,10 @@ export default function DocsEditor(p: DocsEditorProps) {
           </div>
         )}
         <Section id="de-summary" title="Summary" open>
-          <Textarea label="Summary" hint="One or two sentences: what it is for, and what to use instead when it is not." rows={2} value={docs.summary} onChange={(e) => set('summary', e.target.value)} />
+          <p className="de-hint" id="de-summary-hint">
+            One or two sentences: what it is for, and what to use instead when it is not.
+          </p>
+          <Textarea aria-label="Summary" aria-describedby="de-summary-hint" rows={2} value={docs.summary} onChange={(e) => set('summary', e.target.value)} />
         </Section>
         <Section id="de-when" title="When to use" count={docs.whenToUse.length + docs.whenNotToUse.length} open>
           <h3 className="de-h">Use it for</h3>
@@ -314,9 +317,12 @@ export default function DocsEditor(p: DocsEditorProps) {
           </div>
         </Section>
         <Section id="de-preview" title="Preview example">
+          <p className="de-hint" id="de-preview-hint">
+            Components and props, like <code>{'{ "c": "Button", "p": { "variant": "primary" }, "children": ["Save"] }'}</code>.
+          </p>
           <Textarea
-            label="Example as JSON"
-            hint='Components and props, like { "c": "Button", "p": { "variant": "primary" }, "children": ["Save"] }.'
+            aria-label="Preview example as JSON"
+            aria-describedby="de-preview-hint"
             className="de-code"
             rows={6}
             maxRows={18}
@@ -363,7 +369,7 @@ export default function DocsEditor(p: DocsEditorProps) {
           <h2 className="de-preview-title">{p.name}</h2>
           {docs.summary.trim() ? <p className="de-preview-lead">{docs.summary}</p> : <p className="de-note">No summary yet.</p>}
           {docs.preview && (
-            <div className="de-stage stage-checker" data-theme="light">
+            <div className="de-stage stage-checker">
               <ClientExample node={docs.preview as ExampleNode} />
             </div>
           )}

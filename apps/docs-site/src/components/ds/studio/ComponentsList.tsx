@@ -18,10 +18,10 @@ export interface ComponentListRow {
 }
 
 /** The exception badges of a row, in the Studio status colors: violet waits for someone, grey for the rest. */
-export function exceptions(r: Pick<ComponentListRow, 'guidance' | 'status'>): { label: string; tone: string }[] {
-  const out: { label: string; tone: string }[] = [];
-  if (r.guidance === 'missing') out.push({ label: 'Missing guidance', tone: '' });
-  if (r.guidance === 'review') out.push({ label: 'Draft by Claude, needs review', tone: 'is-info' });
+export function exceptions(r: Pick<ComponentListRow, 'guidance' | 'status'>): { label: string; tone: string; short?: string }[] {
+  const out: { label: string; tone: string; short?: string }[] = [];
+  if (r.guidance === 'missing') out.push({ label: 'Missing guidance', tone: '', short: 'No guidance' });
+  if (r.guidance === 'review') out.push({ label: 'Draft by Claude, needs review', tone: 'is-info', short: 'Needs review' });
   if (r.status === 'beta') out.push({ label: 'Beta', tone: '' });
   if (r.status === 'deprecated') out.push({ label: 'Deprecated', tone: '' });
   return out;
@@ -63,12 +63,26 @@ export default function ComponentsList({ rows }: { rows: ComponentListRow[] }) {
                   <span className="cm-name-text">{r.name}</span>
                   {exceptions(r).map((b) => (
                     <span key={b.label} className={`pill cm-pill ${b.tone}`}>
-                      {b.label}
+                      {b.short ? (
+                        <>
+                          <span className="cm-pill-full">{b.label}</span>
+                          <span className="cm-pill-short">{b.short}</span>
+                        </>
+                      ) : (
+                        b.label
+                      )}
                     </span>
                   ))}
                 </TableCell>
                 <TableCell numeric className="cm-tokens">
-                  {r.tokens}
+                  {r.tokens === String(r.tokensTotal) ? (
+                    r.tokens
+                  ) : (
+                    <>
+                      <span className="cm-tok-full">{r.tokens}</span>
+                      <span className="cm-tok-short">{r.tokensTotal}</span>
+                    </>
+                  )}
                 </TableCell>
                 <TableCell numeric>{r.stories}</TableCell>
               </TableRow>

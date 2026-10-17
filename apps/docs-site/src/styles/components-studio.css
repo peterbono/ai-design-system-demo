@@ -161,7 +161,19 @@
   white-space: nowrap;
 }
 
+.cm-tok-short,
+.cm-pill-short {
+  display: none;
+}
+
 /* Detail drawer */
+/* The title takes focus when the drawer opens (announced by screen readers); it is not a control, so no ring. */
+.cm-d-title:focus,
+.cm-d-title:focus-visible {
+  outline: 0;
+  box-shadow: none;
+}
+
 .cm-scrim {
   position: fixed;
   inset: 0;
@@ -245,9 +257,9 @@
 }
 
 .cm-d-facts {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-3);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-8);
   margin: 0;
 }
 
@@ -266,6 +278,12 @@
   gap: var(--space-2);
 }
 
+.cm-d-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1-5);
+}
+
 .cm-d-links {
   display: flex;
   flex-wrap: wrap;
@@ -281,13 +299,28 @@
     flex-basis: 100%;
   }
 
-  .cm-tokens {
-    white-space: normal;
+  /* Phones: the total only ("40"); the split stays in the drawer. */
+  .cm-tok-full,
+  .cm-pill-full {
+    display: none;
+  }
+
+  .cm-tok-short,
+  .cm-pill-short {
+    display: inline;
+  }
+
+  .cm-table th,
+  .cm-table td {
+    padding-inline: var(--space-3);
   }
 
   .cm-pill {
     display: inline-flex;
+    height: auto;
     margin-top: var(--space-1);
+    padding-block: var(--space-0-5);
+    white-space: normal;
   }
 
   .cm-drawer {
