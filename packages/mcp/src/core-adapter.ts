@@ -89,7 +89,7 @@ export interface BridgeCore {
   parseRepo: typeof parseRepo;
 }
 
-async function readTokenFiles(source: RepoSource, config: BridgeConfig): Promise<Map<string, string>> {
+export async function readTokenFiles(source: RepoSource, config: BridgeConfig): Promise<Map<string, string>> {
   const root = config.tokens.root.replace(/\/$/, '');
   const picked = selectTokenFiles(config, await source.list(root === '.' ? '' : root));
   const texts = await Promise.all(picked.map(async (f) => [f, await source.read(root === '.' ? f : `${root}/${f}`)] as const));

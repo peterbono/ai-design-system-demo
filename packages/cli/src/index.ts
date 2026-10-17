@@ -7,7 +7,7 @@ import { auditMarkdown, type AuditReport } from '@bridge-ds/core/audit';
 import { findDesignSystemRoot, fixCss, loadDesignSystem, originRepo, runAudit } from '@bridge-ds/core/node';
 import { fileURLToPath } from 'node:url';
 import { runImpact, type Only } from '@bridge-ds/visual';
-import { BridgeContext, CONFIG_FILE, core, detectConfig, GitRefSource, history as hist, LocalSource, ops, optionsFromArgv, serveStdio, toConfigJson, VERSION, type BridgeConfig } from '@bridge-ds/mcp';
+import { brand, BridgeContext, CONFIG_FILE, core, detectConfig, GitRefSource, history as hist, LocalSource, ops, optionsFromArgv, serveStdio, toConfigJson, VERSION, type BridgeConfig } from '@bridge-ds/mcp';
 
 const HELP = `bridge ${VERSION}: design system as code, for you and your Claude
 
@@ -19,6 +19,13 @@ Usage:
   bridge propose --title "..." --set path=value [--set ...] [--file f | --mode theme=dark]
                  [--edits edits.json] [--summary "..."] [--dry-run]
                                       validate + contrast + new local bridge/* branch (never pushes)
+  bridge brand list [--json]          brands: slug, name, default, primary action color, theme overrides
+  bridge brand create <slug> --from bridge --primary <hex|hue> --neutral <hex|hue>
+                 [--name "Acme"] [--accent x] [--link x] [--radius soft|balanced|crisp|i,c,co,o]
+                 [--heading font] [--text font] [--notes "..."] [--dry-run] [--json]
+                                      new brand: generated ramps, contrast gate for every theme,
+                                      new local bridge/brand-<slug> branch (never pushes, never main).
+                                      Exit 1 when blocked
   bridge impact [--base main] [--head HEAD] [--out dir] [--only stories|app] [--threshold 0.03]
                  [--plan] [--json] [--image-base url] [--artifact-url url] [--keep-unchanged]
                                       visual impact: build Storybook and the app at both refs, screenshot
@@ -201,6 +208,54 @@ async function propose(a: Args, root: string): Promise<number> {
     if (r.hint) print(String(r.hint));
     if (r.status === 'dry-run') print(`\n${r.prBody}`);
   }
+  return r.status === 'blocked' ? 1 : 0;
+}
+
+async function brandCmd(a: Args, root: string): Promise<number> {
+  const sub = a._[1];
+  const ctx = await BridgeContext.create({ root });
+  if (sub === 'list') {
+    const r = await brand.listBrands(ctx);
+    if (has(a, 'json')) print(JSON.stringify(r.brands, null, 2));
+    else for (const b of r.brands) print(`${b.default ? '*' : ' '} ${b.slug.padEnd(14)} ${b.name.padEnd(18)} ${b.primary ?? ''}${b.overrides.length ? `  overrides: ${b.overrides.join(', ')}` : ''}`);
+    return 0;
+  }
+  if (sub !== 'create') throw new UsageError('bridge brand list | bridge brand create <slug> --from bridge --primary "#1F5F3A" --neutral "#2A2F2C"');
+  const slug = a._[2];
+  if (!slug) throw new UsageError('bridge brand create <slug> --from bridge --primary "#1F5F3A" --neutral "#2A2F2C"');
+  const opt = (k: string) => flag(a, k);
+  const fonts = { ...(opt('heading') ? { heading: opt('heading')! } : {}), ...(opt('text') ? { text: opt('text')! } : {}) };
+  const r = (await brand.proposeBrand(ctx, {
+    slug,
+    ...(opt('name') ? { name: opt('name')! } : {}),
+    ...(opt('from') ? { from: opt('from')! } : {}),
+    ...(opt('primary') ? { primary: opt('primary')! } : {}),
+    ...(opt('neutral') ? { neutral: opt('neutral')! } : {}),
+    ...(opt('accent') ? { accent: opt('accent')! } : {}),
+    ...(opt('link') ? { link: opt('link')! } : {}),
+    ...(opt('radius') ? { radius: opt('radius')! } : {}),
+    ...(Object.keys(fonts).length ? { fonts } : {}),
+    ...(opt('notes') ? { notes: opt('notes')! } : {}),
+    dryRun: has(a, 'dry-run'),
+  })) as Record<string, any>;
+  if (has(a, 'json')) {
+    const { fileContents: _f, ...rest } = r;
+    print(JSON.stringify(rest, null, 2));
+    return r.status === 'blocked' ? 1 : 0;
+  }
+  print(`status: ${r.status}${r.why ? ` (${r.why})` : ''}`);
+  print(`${r.name} (${r.slug}), from ${r.from}. Tier ${r.tier}, ${r.bump}.`);
+  for (const [role, ramp] of Object.entries(r.ramps as Record<string, Record<string, string>>)) {
+    print(`  ${role.padEnd(8)} ${Object.entries(ramp).map(([s, h]) => `${s} ${h}`).join('  ')}`);
+  }
+  print(`contrast: ${r.contrast.line}${r.contrast.themes.length ? ` (${r.contrast.themes.join(', ')})` : ''}`);
+  for (const f of r.contrast.failing) print(`    FAIL ${f.pair} [${f.modes}] ${f.ratio ?? 'n/a'} (min ${f.min})`);
+  for (const i of r.issues as { level: string; message: string }[]) print(`  ${i.level}: ${i.message}`);
+  print('files:');
+  for (const f of r.files as { path: string; action: string }[]) print(`  ${f.action} ${f.path}`);
+  if (r.branch) print(`branch: ${r.branch}`);
+  if (r.next) print(String(r.next));
+  if (r.hint) print(String(r.hint));
   return r.status === 'blocked' ? 1 : 0;
 }
 
@@ -411,6 +466,8 @@ async function main(): Promise<number> {
       return diff(a, root);
     case 'propose':
       return propose(a, root);
+    case 'brand':
+      return brandCmd(a, root);
     case 'impact':
       return impact(a, root);
     case 'history':

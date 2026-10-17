@@ -6,6 +6,7 @@ import { core } from './core-adapter.js';
 import { listComponentNames } from './components.js';
 import * as ops from './ops.js';
 import * as history from './history.js';
+import * as brand from './brand.js';
 
 export const VERSION = '0.1.0';
 
@@ -48,6 +49,7 @@ export function createServer(ctx: BridgeContext): McpServer {
         'bridge_audit measures how a product codebase adopts the design system (hardcoded values, foreign UI components) and suggests the tokens and components to use.',
         'Token changes go through bridge_propose_token_change only: it validates, checks contrast, and opens a branch or PR. It never writes to main.',
         'Adding, renaming or removing a token is Tier 3: tell the user it needs design and tech owner approval.',
+        'New brands: bridge_plan_brand first (dry run with ramps and the contrast gate for every theme), then bridge_propose_brand. A new brand is Tier 3.',
         'To undo a merged token change use bridge_plan_revert first (it shows conflicts with later changes), then bridge_propose_revert; never revert by hand-editing files.',
       ].join(' '),
     },
@@ -189,6 +191,53 @@ export function createServer(ctx: BridgeContext): McpServer {
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     },
     run((a) => ops.proposeTokenChange(ctx, a)),
+  );
+
+  const Hue = z.union([z.string(), z.number()]);
+  const BrandArgs = {
+    slug: z.string().describe('Lowercase letters, digits and single dashes, 2 to 24 characters: "acme", "north-star". Becomes brands/<slug>.tokens.json and the data-brand value.'),
+    name: z.string().optional().describe('Display name. Default: the slug in title case.'),
+    from: z.string().optional().describe('Brand to start from (see bridge_list_brands), or "blank". Default: the default brand. Its theme overrides are copied.'),
+    primary: Hue.optional().describe('Primary color: "#rrggbb" (pinned at the step primary buttons use, so a too-light color fails the contrast gate) or an OKLCH hue in degrees. Also drives accent and link unless set.'),
+    neutral: Hue.optional().describe('Neutral tint: "#rrggbb" (its hue and how tinted it is) or an OKLCH hue. Text and line steps keep Bridge contrast.'),
+    accent: Hue.optional().describe('Separate accent ramp (signal, focus ring). Optional.'),
+    link: Hue.optional().describe('Separate link ramp. Optional.'),
+    radius: z
+      .union([z.enum(['soft', 'balanced', 'crisp']), z.object({ inset: z.number().optional(), control: z.number().optional(), container: z.number().optional(), overlay: z.number().optional() })])
+      .optional()
+      .describe('Radius roles: a preset (soft 6/12/20/20, balanced 4/10/16/20, crisp 2/4/6/10) or px per role on the radius scale.'),
+    fonts: z.object({ heading: z.string().optional(), text: z.string().optional() }).optional().describe('Font ids the repo self-hosts: fraunces (headings only), instrument-sans, plex-sans, system.'),
+    notes: z.string().optional().describe('Why this brand exists, for the reviewers. Plain sentences, no em dash.'),
+  };
+
+  server.registerTool(
+    'bridge_list_brands',
+    { title: 'List brands', description: 'Brands of the repo: slug, name, default, primary action color and theme override files.', inputSchema: {}, annotations: RO },
+    run(async () => brand.listBrands(ctx)),
+  );
+
+  server.registerTool(
+    'bridge_plan_brand',
+    {
+      title: 'Plan a new brand',
+      description:
+        'Dry run of a new brand: the brand token file (generated primary and neutral ramps, radius and font roles), copied theme overrides, the bridge.config.json change, every contrast pair for the new brand in light and dark (ok, or the failing pairs), validation issues, the risk tier (always Tier 3, minor) and the PR body. Writes nothing.',
+      inputSchema: BrandArgs,
+      annotations: RO,
+    },
+    run((a) => brand.planBrand(ctx, a)),
+  );
+
+  server.registerTool(
+    'bridge_propose_brand',
+    {
+      title: 'Propose a new brand',
+      description:
+        'Propose a new brand as a reviewable change. Same plan as bridge_plan_brand; blocked (nothing written) when an input is invalid or a contrast pair fails. Local repo: commits to a new local bridge/brand-<slug> branch without touching your working tree (never pushes). GitHub with token: new branch + draft PR labelled "source: mcp", "tier: 3" and "tokens". Never writes to main. Tell the user a new brand is Tier 3: it needs design and tech owner approval.',
+      inputSchema: { ...BrandArgs, dryRun: z.boolean().optional().describe('Return the plan and file contents without writing.') },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    },
+    run((a) => brand.proposeBrand(ctx, a)),
   );
 
   server.registerTool(

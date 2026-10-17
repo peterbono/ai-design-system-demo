@@ -130,4 +130,28 @@ describe('bridge CLI', () => {
       expect(bridge(tmpdir(), 'audit', dir).code).toBe(2);
     });
   });
+
+  it('brand list and brand create: dry run, blocked on contrast (exit 1), local branch never main', () => {
+    const list = bridge(REPO, 'brand', 'list', '--json');
+    expect(list.code).toBe(0);
+    expect(JSON.parse(list.out).map((b: { slug: string }) => b.slug)).toEqual(['bridge', 'ocean']);
+    const dry = bridge(REPO, 'brand', 'create', 'acme', '--from', 'bridge', '--primary', '#1F5F3A', '--neutral', '#2A2F2C', '--dry-run', '--json');
+    expect(dry.code).toBe(0);
+    const plan = JSON.parse(dry.out);
+    expect(plan.status).toBe('dry-run');
+    expect(plan.tier).toBe(3);
+    expect(plan.contrast.failing).toEqual([]);
+    const bad = bridge(REPO, 'brand', 'create', 'sunny', '--primary', '#8CC8FF', '--neutral', '#2A2F2C');
+    expect(bad.code).toBe(1);
+    expect(bad.out).toMatch(/pairs fail/);
+    expect(bad.out).toMatch(/FAIL color\.action\.primary\.text on color\.action\.primary\.bg/);
+    const dir = tempGitRepo(REPO, REAL_PATHS);
+    const r = bridge(dir, 'brand', 'create', 'acme', '--name', 'Acme', '--primary', '#1F5F3A', '--neutral', '230', '--radius', 'crisp');
+    expect(r.code).toBe(0);
+    expect(r.out).toMatch(/branch: bridge\/brand-acme/);
+    expect(r.out).toMatch(/All \d+ checks pass/);
+    expect(git(dir, 'rev-parse', '--abbrev-ref', 'HEAD').trim()).toBe('main');
+    expect(git(dir, 'show', 'bridge/brand-acme:packages/tokens/src/brands/acme.tokens.json')).toContain('"name": "Acme"');
+    expect(bridge(dir, 'brand', 'nope').code).toBe(2);
+  });
 });

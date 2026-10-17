@@ -11,6 +11,7 @@ export { LocalSource, GitRefSource, GitHubSource, type RepoSource } from './sour
 export { auditSnippet } from './audit.js';
 export * as ops from './ops.js';
 export * as history from './history.js';
+export * as brand from './brand.js';
 
 export interface ServeOptions extends ContextOptions {}
 
