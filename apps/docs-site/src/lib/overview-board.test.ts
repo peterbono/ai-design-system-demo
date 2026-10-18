@@ -30,11 +30,13 @@ describe('overview board', () => {
     ]);
     const review = cols[1]!.cards;
     // The viewer's own change: no avatar of the viewer, and nobody is said to be on it.
-    expect(review[0]).toMatchObject({ title: 'Change 3', who: null, note: 'A test fails. Needs a developer.', status: { tone: 'blocked', label: 'Blocked' }, href: '/studio/changes/?pr=3' });
-    expect(review[1]).toMatchObject({ who: 'ana', note: 'It clashes with the latest library. @ana is on it.' });
+    expect(review[0]).toMatchObject({ title: 'Change 3', who: null, note: 'A test fails. No developer yet.', status: { tone: 'blocked', label: 'Blocked' }, href: '/studio/changes/?pr=3' });
+    expect(review[1]).toMatchObject({ who: null, note: 'It clashes with the latest library. @ana is on it.' });
     expect(review[2]).toMatchObject({ status: { tone: 'you', label: 'You' }, note: 'Your design review is next.' });
     expect(cols[1]!.blocked).toBe(2);
     expect(columnMeta(cols[1]!)).toBe('3, 2 blocked');
+    expect(columnMeta({ cards: [1, 2] as never, blocked: 2 })).toBe('2, all blocked');
+    expect(cols[2]!.empty).toBe('Nothing approved yet.');
     expect(columnMeta(cols[0]!)).toBe('1');
     expect(cols[2]!.cards[0]).toMatchObject({ status: { tone: 'you' }, note: 'Approved and tested. Ship it to put it in the next release.' });
     expect(cols[0]!.cards[0]).toMatchObject({ who: null, note: 'You are trying it. Send it for review once it holds up.', href: '/studio/changes/?exploration=98' });
@@ -46,15 +48,22 @@ describe('overview board', () => {
     const cols = boardColumns({ explorations: [], changes: [change(5, 'ready', 'ana', 'lea'), change(6, 'needs-design', 'ana', null)], release: [studio], viewer: null });
     expect(cols[3]!.cards).toEqual([]);
     expect(cols[2]!.cards[0]!.note).toBe('Approved and tested. @peterbono can ship it.');
-    expect(cols[1]!.cards[0]).toMatchObject({ status: null, who: 'ana', note: 'Waiting for the design owner (@peterbono) to approve.' });
-    // Signed out, the author is named on a blocked card.
-    const out = boardColumns({ explorations: [], changes: [change(3, 'ci-failing', 'peterbono', null, { failing: 2 })], release: [], viewer: null });
-    expect(out[1]!.cards[0]).toMatchObject({ who: 'peterbono', note: '2 tests fail. @peterbono is on it.' });
+    expect(cols[1]!.cards[0]).toMatchObject({ status: null, who: null, note: 'Waiting for the design owner (@peterbono) to approve.' });
+    // Signed out, the author is named in the third person; one author on the whole board: no avatar.
+    const out = boardColumns({ explorations: [{ number: 9, name: 'Pill buttons', author: 'peterbono' }], changes: [change(3, 'ci-failing', 'peterbono', null, { failing: 2 })], release: [], viewer: null });
+    expect(out[1]!.cards[0]).toMatchObject({ who: null, note: '2 tests fail. @peterbono is on it.' });
+    expect(out[0]!.cards[0]!.note).toBe('@peterbono is trying it. Sent for review once it holds up.');
+    // Two authors on the board: each card shows its author.
+    const two = boardColumns({ explorations: [{ number: 9, name: 'Pill buttons', author: 'lea' }], changes: [change(3, 'ci-failing', 'ana', null, { failing: 2 })], release: [], viewer: null });
+    expect([two[0]!.cards[0]!.who, two[1]!.cards[0]!.who]).toEqual(['lea', 'ana']);
+    // The viewer's own blocked change waits for its assignee.
+    const mine = boardColumns({ explorations: [], changes: [change(3, 'ci-failing', 'me', 'me', { failing: 1, assignees: ['me', 'dev'] })], release: [], viewer: 'me' });
+    expect(mine[1]!.cards[0]!.note).toBe('A test fails. Waiting for @dev.');
   });
 
   it('caps each column and sets token names apart', () => {
     expect(visibleCards([1, 2])).toEqual({ shown: [1, 2], more: '' });
-    expect(visibleCards([1, 2, 3, 4])).toEqual({ shown: [1, 2], more: '+2 more' });
+    expect(visibleCards([1, 2, 3, 4])).toEqual({ shown: [1, 2], more: 'Show all 4' });
     expect(splitTokens('Add focus.ring.offset semantic token')).toEqual([
       { text: 'Add ', token: false },
       { text: 'focus.ring.offset', token: true },

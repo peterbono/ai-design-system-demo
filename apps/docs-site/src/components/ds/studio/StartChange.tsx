@@ -19,6 +19,8 @@ export interface StartChangeProps {
 }
 
 export const START_CHANGE_EVENT = 'bridge:start-change';
+/** Sent when the component picker opens or closes, so the page keeps one primary action (the picker's Continue). */
+export const PICKER_EVENT = 'bridge:start-change-picker';
 
 export interface StartChangeLook {
   variant: 'primary' | 'secondary';
@@ -76,6 +78,7 @@ export default function StartChange({ components }: StartChangeProps) {
   useEffect(() => {
     if (!slot) return;
     slot.hidden = !pick;
+    document.dispatchEvent(new CustomEvent(PICKER_EVENT, { detail: { open: Boolean(pick) } }));
     if (pick) requestAnimationFrame(() => field.current?.focus());
   }, [pick, slot]);
 

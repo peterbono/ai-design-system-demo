@@ -253,26 +253,48 @@
 }
 
 .ov-col.is-empty {
-  flex: 0 0 auto;
+  flex: 0 1 var(--size-60);
 }
 
 .ov-col-head {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
   margin: 0;
-  padding: var(--space-1) var(--space-2) 0;
-  font-weight: var(--font-weight-semibold);
-  white-space: nowrap;
+  font-weight: var(--font-weight-medium);
 }
 
-.ov-col.is-empty .ov-col-head {
-  padding-bottom: var(--space-1);
+/* The whole header row is the link to the stage in Changes: ink, the count, a muted chevron that darkens on hover. */
+.ov-col-head .ov-col-link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--size-8);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-inset);
+  color: var(--color-text-default);
+  text-decoration-line: none;
+  white-space: nowrap;
 }
 
 .ov-col-count {
   font-weight: var(--font-weight-regular);
   font-variant-numeric: tabular-nums;
+}
+
+.ov-col-chev {
+  display: inline-flex;
+  margin-left: auto;
+  color: var(--color-text-muted);
+  transition: color var(--motion-duration-instant) var(--motion-easing-standard);
+}
+
+@media (hover: hover) {
+  .ov-col-head .ov-col-link:hover .ov-col-chev {
+    color: var(--color-text-default);
+  }
+}
+
+.ov-col-empty {
+  margin: 0;
+  padding: 0 var(--space-2) var(--space-1);
 }
 
 .ov-col-list {
@@ -281,11 +303,6 @@
   margin: 0;
   padding: 0;
   list-style: none;
-}
-
-.ov-col-more {
-  justify-self: start;
-  margin-left: var(--space-2);
 }
 
 .ov-bcard-item {
@@ -303,8 +320,13 @@
   text-wrap: pretty;
 }
 
-/* Token names read as code: Plex Mono, the same size as the title. */
+/* Token names read as code: only the font changes (Plex Mono, the title's size), no chip. */
 .ov-token {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background-color: transparent;
+  color: inherit;
   font-family: var(--font-family-mono);
   font-size: inherit;
   font-weight: var(--font-weight-medium);
@@ -344,6 +366,14 @@
 
 .ov-col-skel {
   min-height: var(--size-20);
+}
+
+/* --- The shell on this page -------------------------------------------------------------------------------- */
+
+/* Signed out, the greeting holds the one Connect GitHub: the side nav keeps only its quiet "Read only" line here.
+   This stylesheet loads on the Overview only, so every other page keeps the side nav button. */
+.gh-acct-connect > [data-gh-open] {
+  display: none;
 }
 
 /* --- Narrower screens ---------------------------------------------------------------------------------------- */

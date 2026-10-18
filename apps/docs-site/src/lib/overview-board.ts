@@ -38,8 +38,10 @@ export interface BoardColumn {
   /** Where the column header leads in Changes. */
   href: string;
   cards: BoardCard[];
-  /** How many cards are blocked, for the mobile stage row ("3, 3 blocked"). */
+  /** How many cards are blocked, for the stage count ("3, all blocked"). */
   blocked: number;
+  /** The quiet line of an empty stage. */
+  empty: string;
 }
 
 /** Cards shown per column before "+N more": the board stays short so health stays on the first screen. */
@@ -54,6 +56,8 @@ export interface BoardExploration {
 
 export interface BoardChange extends TodoChange {
   author: string;
+  /** Assignees of the change on GitHub: who a blocked change waits for. */
+  assignees?: string[];
 }
 
 export interface BoardRelease {
@@ -90,6 +94,12 @@ const HREF: Record<ColumnId, string> = {
   ready: '/studio/changes/',
   release: '/studio/changes/?view=history',
 };
+const EMPTY: Record<ColumnId, string> = {
+  exploring: 'No exploration running.',
+  review: 'Nothing in review.',
+  ready: 'Nothing approved yet.',
+  release: 'Nothing approved since the last release.',
+};
 const BLOCKED: CardStatus = { tone: 'blocked', label: 'Blocked' };
 const YOU: CardStatus = { tone: 'you', label: 'You' };
 
@@ -101,7 +111,9 @@ function reviewCard(c: BoardChange, viewer: string | null, loading: boolean): Bo
   const block = blockerOf(c, who, viewer);
   if (block) {
     const author = other(who.logins[0], viewer);
-    const actor = !author || who.who === 'you' ? 'Needs a developer.' : `${handle(author)} is on it.`;
+    // The viewer wrote it (often with Claude): the developer who fixes it is whoever GitHub assigns.
+    const assignee = (c.assignees ?? []).find((a) => !same(a, viewer));
+    const actor = author && who.who !== 'you' ? `${handle(author)} is on it.` : assignee ? `Waiting for ${handle(assignee)}.` : 'No developer yet.';
     return { ...base, note: `${cap(block.what)}. ${actor}`, status: BLOCKED };
   }
   if (who.action === 'wait') return { ...base, note: who.sentence, status: null };
@@ -135,7 +147,7 @@ export function boardColumns(input: BoardInput): BoardColumn[] {
     key: `exploration-${e.number}`,
     title: e.name,
     who: other(e.author, viewer),
-    note: same(e.author, viewer) ? 'You are trying it. Send it for review once it holds up.' : `${handle(e.author)} is trying it. It never ships as is.`,
+    note: same(e.author, viewer) ? 'You are trying it. Send it for review once it holds up.' : `${handle(e.author)} is trying it. Sent for review once it holds up.`,
     status: null,
     href: `/studio/changes/?exploration=${e.number}`,
   }));
@@ -155,18 +167,22 @@ export function boardColumns(input: BoardInput): BoardColumn[] {
     ['ready', ready],
     ['release', release],
   ];
-  return cols.map(([id, cards]) => ({ id, label: LABEL[id], href: HREF[id], cards, blocked: cards.filter((c) => c.status?.tone === 'blocked').length }));
+  // Avatars only tell people apart: with one author on the whole board they repeat the same face on every card.
+  const authors = new Set(cols.flatMap(([, cards]) => cards.flatMap((c) => (c.who ? [norm(c.who)] : []))));
+  const show = (cards: BoardCard[]) => (authors.size > 1 ? cards : cards.map((c) => ({ ...c, who: null })));
+  return cols.map(([id, cards]) => ({ id, label: LABEL[id], href: HREF[id], cards: show(cards), blocked: cards.filter((c) => c.status?.tone === 'blocked').length, empty: EMPTY[id] }));
 }
 
 /** "In review, 3": the column header, also its accessible name. */
 export const columnHeading = (c: Pick<BoardColumn, 'label' | 'cards'>) => `${c.label}, ${c.cards.length}`;
 
 /** The count after a stage name: "3", or "3, 3 blocked" when some are blocked. */
-export const columnMeta = (c: Pick<BoardColumn, 'cards' | 'blocked'>) => (c.blocked ? `${c.cards.length}, ${c.blocked} blocked` : `${c.cards.length}`);
+export const columnMeta = (c: Pick<BoardColumn, 'cards' | 'blocked'>) =>
+  !c.blocked ? `${c.cards.length}` : c.blocked === c.cards.length ? `${c.cards.length}, all blocked` : `${c.cards.length}, ${c.blocked} blocked`;
 
-/** The cards a column shows and the "+N more" link under them (empty when they all fit). */
+/** The cards a column shows and the "Show all 3" link under them (empty when they all fit). */
 export function visibleCards<C>(cards: C[], max = CARDS_MAX): { shown: C[]; more: string } {
-  return { shown: cards.slice(0, max), more: cards.length > max ? `+${cards.length - max} more` : '' };
+  return { shown: cards.slice(0, max), more: cards.length > max ? `Show all ${cards.length}` : '' };
 }
 
 /**

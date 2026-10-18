@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { needFromStatus, whoActs } from './changes';
-import { developerLine, greetingLine, headlineFor, isGuidanceChange, moreLabel, isGuidanceOnly, othersLine, overviewTodo, showAllLabel, type TodoChange, type TodoRequest } from './overview-todo';
+import { developerLine, greetingLine, headlineFor, isGuidanceChange, moreLabel, reviewDecisions, reviewNeedsYou, isGuidanceOnly, othersLine, overviewTodo, showAllLabel, type TodoChange, type TodoRequest } from './overview-todo';
 
 const owners = { design: ['peterbono'], tech: ['peterbono'] };
 type Kind = Parameters<typeof needFromStatus>[0];
@@ -198,6 +198,15 @@ describe('overview to-do: work sorted by kind', () => {
     expect(greetingLine(null, "You're all caught up.", 'peterbono')).toBe("Hello. You're all caught up.");
     expect(greetingLine('Florian', 'Connect GitHub to start working on the library.', null)).toBe('Connect GitHub to start working on the library.');
     expect(headlineFor([{ task: 'design' }, { task: 'guidance' }], 'me')).toBe('2 things need you.');
+  });
+
+  it('counts the review decisions for the Changes badge with the same rule as Needs you', () => {
+    const changes = [change(1, 'needs-design', 'ana', 'peterbono'), change(2, 'ready', 'ana', 'peterbono'), change(3, 'ci-failing', 'peterbono', 'peterbono', { failing: 1 }), change(4, 'needs-tech', 'ana', 'peterbono')];
+    const t = overviewTodo({ changes, requests: [request(81)], viewer: 'peterbono', owners: ['peterbono'], guidance: { drafted: [{ name: 'Icon', href: '/' }], missing: [] } });
+    expect(reviewDecisions(t.mine)).toBe(2);
+    expect(reviewNeedsYou({ changes, viewer: 'peterbono', owners: ['peterbono'] })).toBe(2);
+    expect(reviewNeedsYou({ changes, viewer: null, owners: ['peterbono'] })).toBe(0);
+    expect(reviewNeedsYou({ changes: [change(3, 'ci-failing', 'peterbono', 'peterbono', { failing: 1 })], viewer: 'peterbono', owners: ['peterbono'] })).toBe(0);
   });
 
   it('keeps changes whose status is not read yet out of "yours"', () => {

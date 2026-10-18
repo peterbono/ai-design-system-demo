@@ -315,6 +315,18 @@ export function showAllLabel(mine: number): string {
   return mine > TODO_MAX ? `Show all ${mine}` : '';
 }
 
+/** The Needs you rows that are changes in review: the designer decisions the Changes nav badge counts. */
+export const reviewDecisions = (mine: Pick<TodoRow, 'kind'>[]) => mine.filter((r) => r.kind === 'change').length;
+
+/**
+ * The Changes nav badge: how many changes in review wait on the viewer's decision. The same rule as the Overview
+ * Needs you list (overviewTodo, then reviewDecisions), so the badge and the list never disagree. 0 signed out.
+ */
+export function reviewNeedsYou(input: Pick<TodoInput, 'changes' | 'viewer' | 'owners' | 'ownerNames' | 'loading'>): number {
+  if (!input.viewer) return 0;
+  return reviewDecisions(overviewTodo({ ...input, requests: [] }).mine);
+}
+
 /** Needs you rows shown before "Show 2 more", which opens the rest in place. */
 export const NEEDS_MAX = 5;
 

@@ -1,12 +1,11 @@
 // App shell behaviour, shipped on every page (small, no framework):
 // theme toggle, copy buttons, the mobile navigation sheet, the Cmd+K command palette, header menus, the "On this
 // page" rail and, in the Studio, the branch scope, the nav counts and the GitHub connection.
-import { ghGet, initGitHubConnect, readRepo } from './github-session';
+import { getToken, ghGet, initGitHubConnect, readRepo } from './github-session';
+import { loadReviewNeedsYou, rememberedMine, type QueuePullFull } from './needs-you';
 import { initMaintainer } from './maintainer';
 import { mdTitleText } from '../lib/markdown';
 import { openPulls } from '../lib/review-rules';
-import { reviewQueue } from '../lib/review-queue';
-import { cachedOpenCount, OPEN_COUNT_KEY } from '../lib/changes';
 
 interface SearchItem {
   kind: 'page' | 'component' | 'token';
@@ -505,8 +504,11 @@ export function draftCount(): number {
   }
 }
 
+/** The Changes badge: the changes in review that wait on the viewer's decision (scripts/needs-you), hidden at 0. */
+export const setReviewCount = (n: number | null) => setCount('reviews', n);
+
 function setCount(kind: 'drafts' | 'reviews', n: number | null) {
-  // The nav shows one number, on Changes: open pull requests waiting for a review.
+  // The nav shows one number, on Changes: the changes in review that wait on the viewer (hidden at 0).
   document.querySelectorAll<HTMLElement>(`[data-nav-count="${kind}"]`).forEach((el) => {
     el.hidden = !n;
     const v = el.querySelector('[data-nav-count-value]');
@@ -546,14 +548,6 @@ interface Pull {
   user?: { login: string } | null;
 }
 
-const safeStorage = () => {
-  try {
-    return localStorage;
-  } catch {
-    return null;
-  }
-};
-
 /**
  * Changes > "Review and propose" lands on Studio Tokens with #review: open the draft review sheet once the
  * explorer has painted its draft bar (it loads its data first), then drop the hash.
@@ -591,7 +585,9 @@ function initStudio() {
 
   setCount('drafts', draftCount());
   // Paint the last known count at once, so the nav does not jump while GitHub answers (or when it cannot).
-  setCount('reviews', cachedOpenCount(safeStorage()));
+  setCount('reviews', getToken() ? rememberedMine() : null);
+  // The Overview reads the same statuses for its Needs you list and sets the badge itself.
+  const pageCounts = Boolean(document.querySelector('[data-review-count-owner]'));
   openReviewFromHash();
   document.addEventListener('bridge:draft', () => setCount('drafts', draftCount()));
   window.addEventListener('storage', (e) => {
@@ -607,17 +603,15 @@ function initStudio() {
   ghGet<Pull[]>(`/repos/${repo.owner}/${repo.repo}/pulls?state=open&per_page=100`)
     .then((f) => {
       const open = openPulls(f.data);
-      // The review queue, the same list as the In review tab and the Overview (lib/review-queue): no running
-      // explorations, no release automation.
-      const inReview = reviewQueue(f.data.map((p) => ({ ...p, state: p.state ?? 'open' }))).length;
-      setCount('reviews', inReview);
-      if (!f.stale) {
-        try {
-          localStorage.setItem(OPEN_COUNT_KEY, JSON.stringify({ n: inReview, at: new Date().toISOString() }));
-        } catch {
-          /* private mode: the count just will not survive a rate limit */
-        }
-      }
+      // What waits on the viewer in the review queue (the same list as the In review tab and the Overview), with the
+      // Overview's rule (lib/overview-todo reviewNeedsYou). Signed out nothing waits on you: no badge.
+      if (!pageCounts)
+        initGitHubConnect((v) => {
+          if (!v) return setCount('reviews', null);
+          void loadReviewNeedsYou(f.data.map((p) => ({ ...p, state: p.state ?? 'open' })) as unknown as QueuePullFull[])
+            .then((n) => setCount('reviews', n))
+            .catch(() => undefined);
+        });
       if (!list) return;
       const seen = new Set<string>();
       for (const p of open) {
@@ -645,8 +639,8 @@ function initStudio() {
       }
     })
     .catch(() => {
-      // Rate limited with nothing in the request cache: keep the last count this browser saw on Changes.
-      setCount('reviews', cachedOpenCount(safeStorage()));
+      // Rate limited with nothing in the request cache: keep the last count this browser saw.
+      setCount('reviews', getToken() ? rememberedMine() : null);
       const note = document.querySelector('[data-branch-note]');
       if (note) note.textContent = 'GitHub could not be reached, so only main is listed. Connect GitHub or try again in a minute.';
     })

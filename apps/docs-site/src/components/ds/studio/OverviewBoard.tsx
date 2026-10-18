@@ -4,8 +4,8 @@
 // tap. A card: the title (token names in Plex Mono), one status pattern (icon and label: Blocked or You), what holds
 // it, and who is on it (never the viewer). Mounted by the Overview page script. Words: lib/overview-board.ts.
 import { createRoot, type Root } from 'react-dom/client';
-import { CircleAlert, CircleUserRound } from 'lucide-react';
-import { Accordion, AccordionItem, Avatar, Card, CardBody, Icon, Link } from '@bridge-ds/react';
+import { ChevronRight, CircleAlert, CircleUserRound } from 'lucide-react';
+import { Accordion, AccordionItem, Avatar, Button, Card, CardBody, Icon, Link } from '@bridge-ds/react';
 import { columnHeading, columnMeta, splitTokens, visibleCards, type BoardCard, type BoardColumn } from '../../../lib/overview-board';
 
 function Title({ text }: { text: string }) {
@@ -64,9 +64,9 @@ function Cards({ col }: { col: BoardColumn }) {
         ))}
       </ul>
       {more && (
-        <Link href={col.href} variant="standalone" className="t-ui ov-col-more" aria-label={`${more} in ${col.label}`}>
+        <Button variant="ghost" size="sm" fullWidth render={<a href={col.href} />} aria-label={`${more} in ${col.label}`}>
           {more}
-        </Link>
+        </Button>
       )}
     </>
   );
@@ -79,16 +79,15 @@ export function OverviewBoard({ columns }: { columns: BoardColumn[] }) {
         {columns.map((col) => (
           <section key={col.id} className={`ov-col${col.cards.length ? '' : ' is-empty'}`} aria-label={columnHeading(col)}>
             <h3 className="t-ui ov-col-head">
-              {col.cards.length ? (
-                <Link href={col.href} variant="standalone" className="ov-col-link">
-                  {col.label}
-                </Link>
-              ) : (
-                <span>{col.label}</span>
-              )}
-              <span className="t-muted ov-col-count">{col.cards.length}</span>
+              <Link href={col.href} variant="subtle" className="ov-col-link">
+                <span className="ov-col-name">{col.label}</span>
+                <span className="t-muted ov-col-count">{columnMeta(col)}</span>
+                <span className="ov-col-chev">
+                  <Icon icon={ChevronRight} size="sm" />
+                </span>
+              </Link>
             </h3>
-            {col.cards.length > 0 && <Cards col={col} />}
+            {col.cards.length > 0 ? <Cards col={col} /> : <p className="t-ui t-muted ov-col-empty">{col.empty}</p>}
           </section>
         ))}
       </div>
@@ -103,9 +102,8 @@ export function OverviewBoard({ columns }: { columns: BoardColumn[] }) {
                   {col.label} <span className="t-muted ov-col-count">{columnMeta(col)}</span>
                 </>
               }
-              disabled={!col.cards.length}
             >
-              <Cards col={col} />
+              {col.cards.length ? <Cards col={col} /> : <p className="t-ui t-muted ov-col-empty">{col.empty}</p>}
             </AccordionItem>
           ))}
         </Accordion>

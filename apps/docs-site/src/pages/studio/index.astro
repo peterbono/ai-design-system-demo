@@ -68,7 +68,7 @@ const COLUMNS = ['Exploring', 'In review', 'Ready to ship', 'Next release'];
   updated={freshness(PAGE_SOURCES.home)}
   wide
 >
-  <div class="ov">
+  <div class="ov" data-review-count-owner>
     <section class="ov-greet zone" data-greet data-start-variant="primary" aria-labelledby="ov-hello">
       <div class="ov-greet-head">
         <h1 id="ov-hello" class="ov-hello" data-greeting>Checking what needs you.</h1>
@@ -152,27 +152,23 @@ const COLUMNS = ['Exploring', 'In review', 'Ready to ship', 'Next release'];
     import { entryLabel, loadProtection } from '@bridge-ds/core';
     import type { Root } from 'react-dom/client';
     import { currentViewer, getToken, ghGet, hasWorkingToken, initGitHubConnect, readRepo, RateLimitError, studioClient } from '../../scripts/github-session';
-    import { loadStatuses, owners, shippers, teamPeople, type PullForStatus, type PullStatus } from '../../scripts/pr-status';
+    import { loadStatuses, owners, teamPeople, type PullStatus } from '../../scripts/pr-status';
     import { loadTeams } from '../../scripts/teams';
-    import { oneLineTitle } from '../../lib/markdown';
-    import { byUrgency, needFromStatus, whoActs, type WhoActs } from '../../lib/changes';
+    import { byUrgency } from '../../lib/changes';
     import { reviewQueue } from '../../lib/review-queue';
-    import { humanTitle } from '../../lib/pr-title';
     import { overviewProtectionLine } from '../../lib/protection-view';
-    import { greetingLine, isGuidanceChange, NEEDS_MAX, moreLabel, overviewTodo, SIGNED_OUT_LINE, type GuidanceItem, type TodoRequest, type TodoRow } from '../../lib/overview-todo';
+    import { greetingLine, NEEDS_MAX, moreLabel, overviewTodo, reviewDecisions, SIGNED_OUT_LINE, type GuidanceItem, type TodoRequest, type TodoRow } from '../../lib/overview-todo';
     import { boardColumns, inFlightLine, type BoardRelease } from '../../lib/overview-board';
     import { explorationRows, type ExplorationPullLike } from '../../lib/explorations-view';
     import { manifestPublished } from '../../scripts/reviews/visual-impact';
     import type { PullLike } from '../../lib/requests-view';
     import { loadRequestRows } from '../../scripts/requests';
+    import { rememberMine, siteOwners, todoChange, whoFor, type QueuePullFull } from '../../scripts/needs-you';
+    import { setReviewCount } from '../../scripts/shell';
     import { paintOverviewBoard } from '../../components/ds/studio/OverviewBoard';
-    import { START_CHANGE_EVENT, type StartChangeLook } from '../../components/ds/studio/StartChange';
+    import { PICKER_EVENT, START_CHANGE_EVENT, type StartChangeLook } from '../../components/ds/studio/StartChange';
 
-    interface Pull extends PullForStatus {
-      state: string;
-      title: string;
-      updated_at: string;
-      labels?: { name?: string }[];
+    interface Pull extends QueuePullFull {
       html_url: string;
     }
 
@@ -212,39 +208,16 @@ const COLUMNS = ['Exploring', 'In review', 'Ready to ship', 'Next release'];
       expanded: false,
       /** The GitHub check answered (connected or not). */
       connectKnown: false,
+      /** The component picker of Start a change is open: its Continue is the one primary meanwhile. */
+      picking: false,
     };
     let boardRoot: Root | null = null;
 
-    const siteOwners = () => {
-      const o = owners();
-      return [...new Set([...o.design, ...o.tech])];
-    };
     // The owners as the config names them: a GitHub team reads "@acme/design (4 people)".
     const ownerNames = () => {
       const { entries, teams } = teamPeople();
       return [...new Set([...entries.design, ...entries.tech].map((e) => entryLabel(e, teams)))];
     };
-    const overrideBy = (): string[] => {
-      try {
-        return (JSON.parse(document.getElementById('bridge-repo')?.textContent || '{}') as { override?: { allowed?: string[] } }).override?.allowed ?? [];
-      } catch {
-        return [];
-      }
-    };
-
-    /** Who acts now on a change, for the connected viewer (same rules as the change detail). */
-    const whoFor = (p: Pull, st: PullStatus | null | undefined): WhoActs | null =>
-      st
-        ? whoActs(needFromStatus(st.kind, { failing: st.failing, changesRequestedBy: st.changesRequested }), {
-            owners: owners(),
-            shippers: shippers(),
-            ...teamPeople(),
-            overrideBy: overrideBy(),
-            author: p.user.login,
-            viewer: currentViewer()?.login ?? null,
-            approvers: st.approvers,
-          })
-        : null;
 
     const urgent = () => {
       const byNum = new Map(state.open.map((p) => [p.number, p]));
@@ -265,23 +238,8 @@ const COLUMNS = ['Exploring', 'In review', 'Ready to ship', 'Next release'];
       return li;
     }
 
-    function changesNow() {
-      return urgent().map((p) => {
-        const st = state.statuses.get(p.number);
-        const visual = st?.touchesVisuals === false ? ('none' as const) : (state.visual.get(p.number) ?? null);
-        return {
-          number: p.number,
-          author: p.user.login,
-          title: oneLineTitle(humanTitle(p.title)),
-          who: whoFor(p, st),
-          failing: st?.failing,
-          failingChecks: st?.failingChecks,
-          changesBy: st?.changesRequested,
-          visual,
-          guidance: isGuidanceChange(p.head.ref, st?.guidanceOnly),
-        };
-      });
-    }
+    /** The queue as the to-do and the board read it (scripts/needs-you, the same as the Changes badge). */
+    const changesNow = () => urgent().map((p) => todoChange(p, state.statuses.get(p.number), state.visual.get(p.number) ?? null));
 
     /** Start a change: its weight next to the first need, hidden signed out (Connect GitHub takes its place). */
     function setStart(variant: 'primary' | 'secondary', hidden: boolean) {
@@ -309,6 +267,7 @@ const COLUMNS = ['Exploring', 'In review', 'Ready to ship', 'Next release'];
         todoList.hidden = true;
         if (more) more.hidden = true;
         setStart('primary', true);
+        setReviewCount(null);
         return;
       }
       // Statuses still loading: the sentence waits for them rather than promising "all caught up".
@@ -320,7 +279,8 @@ const COLUMNS = ['Exploring', 'In review', 'Ready to ship', 'Next release'];
       greet?.classList.toggle('is-quiet', !mine.length && !checking);
       todoList.removeAttribute('aria-busy');
       const shown = state.expanded ? mine : mine.slice(0, NEEDS_MAX);
-      todoList.replaceChildren(...shown.map((r, i) => rowEl(r, i === 0 ? 'primary' : 'secondary')));
+      // One primary at a time: while the picker is open its Continue leads, the first need steps back.
+      todoList.replaceChildren(...shown.map((r, i) => rowEl(r, i === 0 && !state.picking ? 'primary' : 'secondary')));
       todoList.hidden = mine.length === 0;
       // The first need is the primary action; Start a change steps back to secondary, and leads again when caught up.
       setStart(mine.length ? 'secondary' : 'primary', false);
@@ -329,7 +289,18 @@ const COLUMNS = ['Exploring', 'In review', 'Ready to ship', 'Next release'];
         more.hidden = !label;
         moreBtn.textContent = label;
       }
+      // The Changes badge: the review decisions of this list (lib/overview-todo reviewDecisions), once every status is read.
+      if (state.done && !state.failed && viewer) {
+        const n = reviewDecisions(mine);
+        setReviewCount(n);
+        rememberMine(n);
+      }
     }
+
+    document.addEventListener(PICKER_EVENT, (e) => {
+      state.picking = (e as CustomEvent<{ open: boolean }>).detail.open;
+      paint();
+    });
 
     function paintBoard(changes: ReturnType<typeof changesNow>, viewer: string | null) {
       if (!boardEl || state.failed) return;
