@@ -3,7 +3,7 @@
     "bg": {
       "default": {
         "$type": "color",
-        "$value": "{palette.neutral.0}",
+        "$value": "{palette.neutral.50}",
         "$description": "Page canvas. White in bridge, so content sits on paper; ocean keeps a tinted canvas."
       },
       "subtle": {
