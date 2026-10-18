@@ -1,5 +1,147 @@
 # @bridge-ds/mcp
 
+## 0.3.0
+
+### Minor Changes
+
+- 80228c0: Claude titles each component request. Change lines in a draft session carry the deterministic request title
+  (`DraftLine.title`), and results may answer `lines: [{ id, line, title }]` (`DraftResultLine`; the title is cleaned to
+  the title contract by `sanitizeDraftTitle`: one line, sentence case, at most 70 characters, no trailing period, no em
+  dash). Older sessions and answers without titles still work. `bridge_pending_drafts` and `bridge_write_drafts` ask for
+  the title, the plugin's API-key path asks for and parses it too, and Push uses it for that component's request instead
+  of the generic deterministic title ("Add an icon after the label" rather than "Update the look to match Figma").
+- adc0df7: Docs drafted with Claude in place, at three levels: the whole page (fill, or rewrite every section), one section, or a
+  selected passage (clearer, shorter, or in the Bridge voice). Fill drafts the empty sections and never rewrites written
+  ones: when the code is newer than docs.json, written sections are sent as checks, and Claude returns one only when
+  something in it is no longer true for the code (the writer's wording kept elsewhere). Results say which checked
+  sections are still accurate (`checked`) and which were updated (in `sections`). Same rule for MCP docs items
+  (`DocsDraftTask.check`, `DraftResult.checked`).
+
+  Core: new `docs-ai.ts` with the task model (`DocsDraftTask`, `validateDocsTask`), the prompts (`docsTaskPrompt`,
+  `docsSelectionPrompt`; `docsPrompt` takes `{ keys, rewrite, outdated }` to ask for only some sections), the answer
+  parsing and sanitizing to the docs.json shapes with em dashes removed (`parseDocsReply`, `sanitizeDocsSections`,
+  `parseDocsTaskAnswer`, `sanitizeDocsReplacement`), the merges (`applyDocsSections`, and `mergeDocsDraft` for the
+  docs-draft Action) and the Messages API request (`anthropicRequest`, `anthropicReplyText`). docs.json gains
+  `draftedSections` (the prose sections a partial draft wrote, between `draftedBy` and `needsReview` in
+  `formatDocsJson`); `markClaudeDraft(d, sections)` adds to it, `acceptDocsDraft` clears it, `sectionsNeedingReview`
+  reads it. The draft exchange takes `docs` items (scope `"docs"`, source `"studio"`) whose results carry `docs` (the
+  sections) or `replacement`; `createDocsDraftSession`, `ensureRequestsBranch` and `DraftPoller` move to core.
+
+  MCP: `bridge_pending_drafts` and `bridge_write_drafts` explain docs items and accept `docs` or `replacement` results
+  (title and summary are optional now, still required in practice for change items).
+
+  Docs site: `src/scripts/docs-ai.ts` (`draftDocs`, `draftAvailability`, `outdatedSections`, `saveApiKey`,
+  `applyDraft`) drafts with the designer's own API key (browser call, key kept in this browser only) or their own
+  Claude through the exchange, from `/docs-ai/<slug>.json` (the facts from the code and the repo conventions, built
+  with the site). The docs-draft Action now runs the same core code.
+
+- fb40ae8: Claude writes each change line. Draft sessions carry one change line per component change (`DraftItem.lines`, images labeled by line), results may answer `lines: [{ id, line }]` (one sentence, at most 120 characters, no em dash, unknown ids refused; results without lines still work), and `draftChangeLine` gives the deterministic default ("Looks different in Size=sm, State=Default, Variant=primary; no variable explains it"). Requests carry the line (`ComponentChangeRequest.line`, "**What changes:**" in the issue, the brief and Jira). `bridge_pending_drafts` and `bridge_write_drafts` describe and accept lines; the plugin's API-key path asks for and parses them too.
+
+  Push hierarchy in the Figma plugin: "Draft with Claude" is a ghost action on the Description (and request Title) label line, one "Drafted by Claude" status line under the field, each component change row reads name and kind, then one sentence, with the table behind "Details" in one font size, no group checkbox for a single item, the bar alone sums up what is sent ("1 request"), and a shorter Components intro.
+
+- 1e78f3b: Roles by team: `governance.owners` may name GitHub teams (`"@acme/design"`) as well as people, so a company assigns
+  roles by team and manages membership in GitHub. Still no database.
+
+  Core: new `teams.ts`. `parseOwnerEntry` reads a person (`"theo"`, `"@theo"`) or a team (`"@org/team-slug"`);
+  `loadConfig` and the JSON schema reject anything else with the entry named and both forms spelled out.
+  `TeamDirectory` expands teams to logins through any client with the new `GitHubClient` methods
+  (`listTeamMembers`, paginated; `getTeamMembership` for one person; `getAccountType`; `listOrgTeams`), cached for five
+  minutes. A team it cannot read is a typed state (`no-token`, `missing-permission`, `not-found`, `personal-account`,
+  `unreachable`) with the fix in `teamUnreadableMessage`, never an empty list: it keeps its place in the expanded lists
+  and matches nobody. `approverLists` and `shipPolicy` take the team states; `whoCanShipSentence` names a team with its
+  size ("Only the tech owner can ship this (@acme/web (4 people)).").
+
+  CLI: `bridge check` lists the teams named as owners with their size and reports each team it cannot read, with the
+  fix (never part of the exit code). MCP: `bridge_get_review` returns `roles`: who may approve design, approve tech and
+  ship, with teams named, and an approval counts when the reviewer is in the team.
+
+  Studio: approvals, who acts, the ship gate (with a membership check for the viewer), the Overview and History
+  count team members and name teams as teams. Settings, Review rules gains Design owners and Tech owners rows: a team
+  is a chip with its member count and avatars, a team that cannot be read gets one sentence with the reason and the
+  fix, and Edit takes a person or a team (a DS Combobox suggesting the organization's teams and the repository's
+  people), sent for review on `bridge.config.json`.
+
+### Patch Changes
+
+- 3d3d77d: Library protection: Bridge is the only way into the default branch.
+
+  Core: new `protection.ts` with `protectionRuleset` (the repository ruleset on `~DEFAULT_BRANCH`: no deletion, no
+  force push, pull request with at least 1 approval and stale approvals dismissed, required checks, admins may bypass
+  in pull request mode only), `protectionState` (protected, partial, unprotected or unknown, with what is missing,
+  from rulesets and classic branch protection), `requiredCheckNames` (read from the repository's own CI, without
+  Vercel and skipped runs) and `protectionSentence`. `protection-github.ts` adds `loadProtection`,
+  `loadRequiredChecks`, `protectLibrary` and `protectRefusal`. The GitHub client gains `listRulesets`, `getRuleset`,
+  `createRuleset`, `updateRuleset` and `getBranchProtection` (404 means none, 403 means it cannot be read), and check
+  runs carry their app slug.
+
+  CLI: `bridge check` prints whether the library is protected and where to fix it. It never changes the exit code;
+  `--offline` (or `BRIDGE_OFFLINE=1`) skips it, and `--json` adds `protection`.
+
+  MCP: the server instructions say every write goes through a branch and a pull request, never straight to the
+  default branch.
+
+- 9574d19: The MCP server is on npm: setup is `npx -y @bridge-ds/mcp` (plugin, docs, Agents page). The server reports its real package version.
+- 196d02b: Real branch preview URLs and install commands everywhere, never guessed ones. On exploration #64
+  (`explore/button-normal-again`) Vercel shortened the admin and Storybook aliases with a hash
+  (`bridge-admin-git-explore-button-norm-0ed5ba-peterbonos-projects.vercel.app`), so the template URLs were wrong.
+
+  Core: `branchPreviewUrls(client, prNumber | sha, config)` reads what Vercel reports, in order: GitHub deployments of the
+  head commit, the Vercel commit statuses (state of each deploy), the Vercel bot comment (`[vc]` header, decoded), and the
+  `previews.apps` template only when its host label fits in 63 characters. Pure parts: `parseVercelComment`,
+  `findVercelComment`, `appForProject` (Vercel project to app by the template host), `resolveBranchPreviews`,
+  `previewLinksOf`, `previewsSettled`. `explorationTestBuildOnGitHub` returns the install command from the preview comment
+  and the real previews in one read. `GitHubClient.listCommitStatuses` and `listDeployments`. The sticky PR comment
+  (`previewComment`) takes the resolved previews and never prints a shortened template URL. Removed: `explorationInstall`
+  and `ExplorationInstall` (guessed pkg.pr.new commands); `StartedExploration.install` becomes `tryIt` and
+  `ExplorationSummary.install` is gone (it gains `headSha`).
+
+  Preview packages workflow: the comment's preview table uses the URLs Vercel reports (deployments, statuses, its comment).
+
+  MCP and CLI: `bridge_list_explorations` / `bridge explore list` return the install command from the preview comment
+  (`install.state` building, ready or failed) and the previews Vercel reports; `bridge explore start` no longer prints a
+  pkg.pr.new command.
+
+  Studio: the pull request detail ("Preview and install") shows the URLs Vercel reports and the command the workflow
+  published, or that the test build is being prepared; the exploration detail fills its previews the same way.
+
+  DS Bridge plugin: the exploration result screen ("Try it") shows the real URLs, checks every 15 seconds for up to 10
+  minutes while it is open (stopping once the command and every preview are ready), updates in place without
+  re-rendering, and keeps "Check again".
+
+- dd2261c: Roles with default rights, editable per team, and a visual before and after that can run on demand.
+
+  Core: `governance.rights` in `bridge.config.json` says which owner group may approve design, approve tech and ship
+  (merge, which publishes to the products): `{ "approveDesign": ["design"], "approveTech": ["tech"], "ship": ["tech"] }`
+  by default, and a team may let design owners ship too (`"ship": ["design", "tech"]`). A config without `rights`
+  behaves as before: approvals follow `owners`, anyone with write access ships. New top-level `visualImpact.mode`,
+  `"auto"` (default) or `"on-demand"`. Both are validated by `loadConfig` and the JSON schema and written back by
+  `toConfigJson`. New exports in `rights.ts`: `DEFAULT_RIGHTS`, `normalizeRights`, `holdersOf`, `approverLists`,
+  `shipPolicy`, `canShip`, `whoCanShipSentence`, `groupsPhrase`, `RIGHT_LABEL`, `VISUAL_CHECK_LABEL`.
+
+  MCP and CLI: `bridge init` (detected configs) starts from the default rights.
+
+  Studio: Settings gains Roles: one sentence, who holds each right with their avatars, and the visual before and after
+  mode; "Change roles" proposes the edit as a pull request on `bridge.config.json` (only `governance.rights` and
+  `visualImpact` change). Reviews counts approvals against the rights and keeps Merge off for a viewer without the
+  ship right, saying who can ("Only the tech owner can ship this (@theo)."); the owner override never bypasses it.
+  In on-demand mode a pull request without a before and after offers "Show the visual impact", which adds the
+  `visual-check` label (the workflow runs on it), or links to GitHub without a write token.
+
+- Updated dependencies [80228c0]
+- Updated dependencies [adc0df7]
+- Updated dependencies [d5bbba9]
+- Updated dependencies [3d3d77d]
+- Updated dependencies [537abd7]
+- Updated dependencies [fb40ae8]
+- Updated dependencies [196d02b]
+- Updated dependencies [fe29bed]
+- Updated dependencies [dd2261c]
+- Updated dependencies [a6914d7]
+- Updated dependencies [1e78f3b]
+- Updated dependencies [7cb1733]
+  - @bridge-ds/core@0.3.0
+  - @bridge-ds/visual@0.2.1
+
 ## 0.2.0
 
 ### Minor Changes

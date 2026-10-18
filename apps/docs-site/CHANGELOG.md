@@ -1,5 +1,282 @@
 # @bridge-ds/docs-site
 
+## 0.3.0
+
+### Minor Changes
+
+- de895e9: Studio Components: "Change this component" replaces "Request a change". The drawer asks what the designer wants to
+  change, in place: adjust the look (her component's tokens), add a variant or option (Claude builds it from her Figma
+  frame in an exploration linked to a request, or "Ask a developer instead"), or something looks wrong ("Report a
+  mismatch"). Signed out, the choice still shows and the last step connects GitHub. Requests and the Overview now say
+  "@ana wants to change Button" instead of reading like tickets.
+- adc0df7: Docs drafted with Claude in place, at three levels: the whole page (fill, or rewrite every section), one section, or a
+  selected passage (clearer, shorter, or in the Bridge voice). Fill drafts the empty sections and never rewrites written
+  ones: when the code is newer than docs.json, written sections are sent as checks, and Claude returns one only when
+  something in it is no longer true for the code (the writer's wording kept elsewhere). Results say which checked
+  sections are still accurate (`checked`) and which were updated (in `sections`). Same rule for MCP docs items
+  (`DocsDraftTask.check`, `DraftResult.checked`).
+
+  Core: new `docs-ai.ts` with the task model (`DocsDraftTask`, `validateDocsTask`), the prompts (`docsTaskPrompt`,
+  `docsSelectionPrompt`; `docsPrompt` takes `{ keys, rewrite, outdated }` to ask for only some sections), the answer
+  parsing and sanitizing to the docs.json shapes with em dashes removed (`parseDocsReply`, `sanitizeDocsSections`,
+  `parseDocsTaskAnswer`, `sanitizeDocsReplacement`), the merges (`applyDocsSections`, and `mergeDocsDraft` for the
+  docs-draft Action) and the Messages API request (`anthropicRequest`, `anthropicReplyText`). docs.json gains
+  `draftedSections` (the prose sections a partial draft wrote, between `draftedBy` and `needsReview` in
+  `formatDocsJson`); `markClaudeDraft(d, sections)` adds to it, `acceptDocsDraft` clears it, `sectionsNeedingReview`
+  reads it. The draft exchange takes `docs` items (scope `"docs"`, source `"studio"`) whose results carry `docs` (the
+  sections) or `replacement`; `createDocsDraftSession`, `ensureRequestsBranch` and `DraftPoller` move to core.
+
+  MCP: `bridge_pending_drafts` and `bridge_write_drafts` explain docs items and accept `docs` or `replacement` results
+  (title and summary are optional now, still required in practice for change items).
+
+  Docs site: `src/scripts/docs-ai.ts` (`draftDocs`, `draftAvailability`, `outdatedSections`, `saveApiKey`,
+  `applyDraft`) drafts with the designer's own API key (browser call, key kept in this browser only) or their own
+  Claude through the exchange, from `/docs-ai/<slug>.json` (the facts from the code and the repo conventions, built
+  with the site). The docs-draft Action now runs the same core code.
+
+- 0426262: Edit a component's guidance in place on its Library page (`?edit=1`): same layout and live preview, every prose
+  section editable with the read typography, Claude drafts shown per section with Keep and Discard (or "Still accurate"),
+  a review rail, and "Send for review" through the existing docs save path. The separate Studio docs editor redirects to it.
+- 4caee7a: Sign in with GitHub in Studio. When the site has a GitHub App (GITHUB_APP_CLIENT_ID and GITHUB_APP_CLIENT_SECRET on the host, docs/SIGN-IN.md), the side nav, Settings Account and the Connect dialog lead with "Sign in with GitHub" and keep "Use a token instead" as a quiet second way for developers. The sign-in uses state and PKCE, goes through one Vercel function (api/github/token.ts) that swaps the code for a user access token and renews it when it expires, and stores nothing on the server. Expired sign-ins, cancelled consent, the wrong account, a repository the app does not reach and missing app permissions each get a sentence that says how to fix them. Without the env vars Studio keeps the token paste exactly as before.
+- dd2261c: Roles with default rights, editable per team, and a visual before and after that can run on demand.
+
+  Core: `governance.rights` in `bridge.config.json` says which owner group may approve design, approve tech and ship
+  (merge, which publishes to the products): `{ "approveDesign": ["design"], "approveTech": ["tech"], "ship": ["tech"] }`
+  by default, and a team may let design owners ship too (`"ship": ["design", "tech"]`). A config without `rights`
+  behaves as before: approvals follow `owners`, anyone with write access ships. New top-level `visualImpact.mode`,
+  `"auto"` (default) or `"on-demand"`. Both are validated by `loadConfig` and the JSON schema and written back by
+  `toConfigJson`. New exports in `rights.ts`: `DEFAULT_RIGHTS`, `normalizeRights`, `holdersOf`, `approverLists`,
+  `shipPolicy`, `canShip`, `whoCanShipSentence`, `groupsPhrase`, `RIGHT_LABEL`, `VISUAL_CHECK_LABEL`.
+
+  MCP and CLI: `bridge init` (detected configs) starts from the default rights.
+
+  Studio: Settings gains Roles: one sentence, who holds each right with their avatars, and the visual before and after
+  mode; "Change roles" proposes the edit as a pull request on `bridge.config.json` (only `governance.rights` and
+  `visualImpact` change). Reviews counts approvals against the rights and keeps Merge off for a viewer without the
+  ship right, saying who can ("Only the tech owner can ship this (@theo)."); the owner override never bypasses it.
+  In on-demand mode a pull request without a before and after offers "Show the visual impact", which adds the
+  `visual-check` label (the workflow runs on it), or links to GitHub without a write token.
+
+- 1e78f3b: Roles by team: `governance.owners` may name GitHub teams (`"@acme/design"`) as well as people, so a company assigns
+  roles by team and manages membership in GitHub. Still no database.
+
+  Core: new `teams.ts`. `parseOwnerEntry` reads a person (`"theo"`, `"@theo"`) or a team (`"@org/team-slug"`);
+  `loadConfig` and the JSON schema reject anything else with the entry named and both forms spelled out.
+  `TeamDirectory` expands teams to logins through any client with the new `GitHubClient` methods
+  (`listTeamMembers`, paginated; `getTeamMembership` for one person; `getAccountType`; `listOrgTeams`), cached for five
+  minutes. A team it cannot read is a typed state (`no-token`, `missing-permission`, `not-found`, `personal-account`,
+  `unreachable`) with the fix in `teamUnreadableMessage`, never an empty list: it keeps its place in the expanded lists
+  and matches nobody. `approverLists` and `shipPolicy` take the team states; `whoCanShipSentence` names a team with its
+  size ("Only the tech owner can ship this (@acme/web (4 people)).").
+
+  CLI: `bridge check` lists the teams named as owners with their size and reports each team it cannot read, with the
+  fix (never part of the exit code). MCP: `bridge_get_review` returns `roles`: who may approve design, approve tech and
+  ship, with teams named, and an approval counts when the reviewer is in the team.
+
+  Studio: approvals, who acts, the ship gate (with a membership check for the viewer), the Overview and History
+  count team members and name teams as teams. Settings, Review rules gains Design owners and Tech owners rows: a team
+  is a chip with its member count and avatars, a team that cannot be read gets one sentence with the reason and the
+  fix, and Edit takes a person or a team (a DS Combobox suggesting the organization's teams and the repository's
+  people), sent for review on `bridge.config.json`.
+
+### Patch Changes
+
+- 4d85720: Studio adoption in plain words. Quality rows lead with the current value, big, and the value before the move to Bridge as a quiet "Before Bridge" label, with one sentence that says what adoption means. Each adoption report page is redesigned: the product name, one summary sentence, the two metrics in the same block as on Quality with a plain sentence each, the trend only when there are two runs or more, a component bar with its legend and counts, one success line when no hard-coded value is left, then "How adoption is measured" and one "For developers" fold that holds the other runs, file tables and commands.
+- d5bbba9: Exploration install commands that work. On exploration #64 the plugin showed a pkg.pr.new command that returned 404
+  (the pkg.pr.new app is not installed); the working one was the prerelease tarball command in the pull request's
+  `<!-- bridge-branch-preview -->` comment. Core reads that comment back: `installCommandFromPreviewComment(body)`,
+  `readPreviewComment`, `findPreviewComment`, `explorationTryIt` (ready only when the comment's snapshot matches the
+  branch head, "building" before, "failed" when the publish failed), `explorationTryItOnGitHub`,
+  `explorationShareMessage` and `GitHubClient.listIssueComments`. The draft pull request body no longer guesses a
+  command: it points to the comment.
+
+  DS Bridge plugin: the "Sent to <exploration>" screen is for designers. "Try it" lists the previews with the product
+  first (the admin demo, by its name in bridge.config.json), then Library and Workbench, one row each with "Open" on the
+  same line. "Test build for your product" says whether the build is ready or being prepared (with "Check again"), and
+  has one action, "Share with a developer", which copies a ready message with the working command, the previews and the
+  pull request. The command itself stays under "Show the command". The bar's primary is "Open in the product" when that
+  preview exists, otherwise "Open on GitHub". The Push form drops the "Commit title" disclosure for explorations (the
+  title is still generated) and says "Owners review it only if the exploration is promoted."; other Push and Pull
+  sentences say "the design system" instead of "main" and drop "commit".
+
+  Studio explorations: the detail reads the install command from the preview comment (or says the test build is being
+  prepared); the list no longer shows a guessed pkg.pr.new command.
+
+- 4311efd: Library page headers: "Edit in Studio" becomes a quiet ghost button in the top right corner of the header zone instead of a button next to the title.
+- 64fd190: Library: the GitHub link moves from the top bar to the foot of the side nav, where Studio keeps the GitHub account.
+- f4ccf4a: Library token drawer: the token name is a plain heading, one summary comes first (a large specimen next to the value
+  with copy, where the value comes from on one line with each token clickable, one plain sentence such as "Primitive. 9
+  brand tokens point to it, used by 36 components."), then Aliased by, Used by, Contrast and History as collapsed rows
+  that share one row component (first 5, then "Show all"), and one "For developers" fold at the bottom (code names, the
+  developer note, the files). "Edit in Studio" is the one action, in the footer. Works for every token type.
+- 04b0b97: Studio Overview: the greeting drawing grows with the space beside the to-do list and sits on its vertical middle, so the card stays balanced from 1100 px to wide monitors.
+- 66cd629: Studio Overview sorts the to-do list by kind of work. "For you" lists only the decisions a designer or design system owner makes in the Studio, ordered by what unblocks the most: review the design of a change (it says when before and after are ready), ship an approved change, decide on a request, review usage guidance. Each button names the task ("Review design", "Ship", "Decide", "Review guidance") and the line under the title says what happens once it is done. Failing tests, a clash with the latest library, a missing release note, drafts, requested changes and the tech review fold into a quiet "Waiting on a developer" line that names the blocker and who is expected, with a link to the change only. The headline counts only what is for you ("2 decisions wait for you.", "Nothing needs you right now.").
+- 4f92a1c: Studio Overview greeting is now your to-do list: one row per change or component request that waits for you, with why in plain words and the button for the task on the same row. What waits on someone else folds into one line that opens to name who. Library health moves to a Quality card, open changes are no longer repeated under the greeting, and on wide screens the suggestions stand next to the greeting.
+- 196d02b: Real branch preview URLs and install commands everywhere, never guessed ones. On exploration #64
+  (`explore/button-normal-again`) Vercel shortened the admin and Storybook aliases with a hash
+  (`bridge-admin-git-explore-button-norm-0ed5ba-peterbonos-projects.vercel.app`), so the template URLs were wrong.
+
+  Core: `branchPreviewUrls(client, prNumber | sha, config)` reads what Vercel reports, in order: GitHub deployments of the
+  head commit, the Vercel commit statuses (state of each deploy), the Vercel bot comment (`[vc]` header, decoded), and the
+  `previews.apps` template only when its host label fits in 63 characters. Pure parts: `parseVercelComment`,
+  `findVercelComment`, `appForProject` (Vercel project to app by the template host), `resolveBranchPreviews`,
+  `previewLinksOf`, `previewsSettled`. `explorationTestBuildOnGitHub` returns the install command from the preview comment
+  and the real previews in one read. `GitHubClient.listCommitStatuses` and `listDeployments`. The sticky PR comment
+  (`previewComment`) takes the resolved previews and never prints a shortened template URL. Removed: `explorationInstall`
+  and `ExplorationInstall` (guessed pkg.pr.new commands); `StartedExploration.install` becomes `tryIt` and
+  `ExplorationSummary.install` is gone (it gains `headSha`).
+
+  Preview packages workflow: the comment's preview table uses the URLs Vercel reports (deployments, statuses, its comment).
+
+  MCP and CLI: `bridge_list_explorations` / `bridge explore list` return the install command from the preview comment
+  (`install.state` building, ready or failed) and the previews Vercel reports; `bridge explore start` no longer prints a
+  pkg.pr.new command.
+
+  Studio: the pull request detail ("Preview and install") shows the URLs Vercel reports and the command the workflow
+  published, or that the test build is being prepared; the exploration detail fills its previews the same way.
+
+  DS Bridge plugin: the exploration result screen ("Try it") shows the real URLs, checks every 15 seconds for up to 10
+  minutes while it is open (stopping once the command and every preview are ready), updates in place without
+  re-rendering, and keeps "Check again".
+
+- fe29bed: Studio requests nobody is on now end in a decision, not a dead end. The Overview row says "Open request" (no more
+  "Triage") and what is expected: "Nobody is on it yet: explore it, assign someone or decline it." On the request, a
+  design system owner who is connected gets one row: Start an exploration (opens the Explorations form filled from the
+  request, then links the request to it and puts them on it), Assign someone (a DS Combobox of the people who can edit
+  the repository, in place) and Decline (a DS Dialog that asks for a reason, says who reads it, posts it and closes the
+  request as not planned). Once someone is on it, the row gives way to one sentence ("@ana is on it", "@ana is exploring
+  it"); everyone else reads who decides. A request linked to an exploration now counts its draft as the work on it.
+
+  Core: `linkRequestToExplorationOnGitHub`, `assignRequestOnGitHub`, `declineRequestOnGitHub`, the pure
+  `withRequestExploration`, `declineComment` and `declineReasonProblems`, `GitHubClient.updateIssue`, `addAssignees` and
+  `listCollaborators`, and `requests` in the exploration settings (listed in its draft pull request body).
+
+- 1a4e2c5: Studio review, designer first. A pull request now answers three things at first glance: who acts now ("Waiting for
+  the design owner (@x) to approve.", "Your turn: approve the design."), who approved on the design and tech side (one
+  row per approval the tier needs, with a check or an empty circle and the action on the row of the role you hold),
+  and what it looks like (the biggest before/after from the visual impact, "N screens changed" with a link to all, a
+  quiet line while it is prepared or "No visual change", then the token diff). Files, checks, changeset and previews
+  move under one collapsed "For developers". In review rows and the Overview Activity rows say who acts now, and the
+  Overview greeting lists the changes waiting for you. One pure, tested rule set (`whoActs`, `approvalRows` in
+  lib/changes.ts) drives all three.
+- 1d16b31: Studio review and history in designer words, with one source for every count. The review queue
+  (`reviewQueue` in lib/review-queue.ts) leaves out running explorations and release automation (the changesets
+  "Version packages" pull request on changeset-release/\*, opened by github-actions[bot]); the Overview hero, the
+  nav badge and the In review tab all count it. In review rows say what approval a change needs in plain words
+  ("Design + tech", "One approval", no color), with the same rule as the detail (label or computed from the changed
+  files, highest wins, read with the status), and a conflict now blocks before approvals in the list as in the
+  detail, with "Checking" until GitHub knows whether a change merges cleanly. "Other branches" becomes a link to
+  GitHub inside one "For developers" fold. The change detail says Ship instead of Merge; the owner override and
+  Close move into a More menu (DS Menu) with the override rule in one sentence; Conversation shows the count, the
+  last word and "Open on GitHub". The Overview hero reads "3 changes wait for design approval. 1 is blocked on the
+  developer side." with one GitHub link instead of an "Unblock" card, Activity folds Bridge app updates into one
+  labelled row, and an Adoption tile links to Quality (from the audit reports). History opens on a "Next release"
+  card built from the release pull request (changes counted, version bumps in plain words, the action for whoever
+  holds the ship right), rows read human summaries, and the demo history switch is development only.
+- 3f0266a: Studio Settings is redesigned as a settings page: each section is a band with its title and one sentence on the left and its rows in a card on the right, values next to their labels, and the page stops at 1200px. Sections are grouped by meaning: Account (a compact connected row, or the one Harbor zone with a Field Guide drawing while Studio is read only), Review rules (who approves and ships with Edit in the card header, what each change needs as one small table, the owner override as a fold), Safety (protection and the visual before and after, each with its action), Figma and Claude, Integrations, then For developers. The roles summary sentence that repeated the rows is gone, and editing sends the change for review.
+- 12ac419: Studio Components, calmer list and drawer.
+
+  List: each thumbnail renders one calm sample of the component (the secondary or neutral look, never the destructive
+  one) at one size, and the columns say their facts in words: "Admin demo and Bridge itself", "1 request", "4
+  examples", "40 tokens". The token split ("1 own · 39 from Button") leaves the row for the drawer's "For developers".
+
+  Drawer, top to bottom: the family as an eyebrow on the name, one sentence with a link to the Library page, one live
+  preview with a Light/Dark switch (it starts on the page theme), the facts in one line ("Used in Admin demo (4
+  places). 40 tokens. Usage guidance written. No open request."), a pill only when guidance is missing or waits for a
+  review, then one row of actions with a single primary (the guidance while it is missing or in review, else Edit
+  tokens) and "Request a change" as the last secondary. Token origins, props, stories, the files folder, Code and the
+  component sandbox sit in one "For developers" fold at the bottom.
+
+- d2623a7: Studio Quality and Settings, designer first.
+
+  Quality: a trend sparkline per product from the committed audit history, "102 unused tokens" counted from the
+  data instead of "Clean up (2)", and file paths plus the commands CI runs in one "For developers" disclosure. Audit
+  pages lead with the gauges, the trend chart and where component instances come from; what was scanned, the file
+  tables and the CLI fold under "For developers". The trend chart keeps its axis labels inside the frame.
+
+  Settings: Connection, Roles and Protection, Approvals as plain rules without tier numbers (read from
+  docs/GOVERNANCE.md), Figma and Claude (the one `claude mcp add` command with a copy button), Integrations (Jira
+  status and setup), then one collapsed "For developers" section with the repository sources, tiers and modes,
+  previews, the tier table, MCP details and the Jira workflow. The GitHub dialog says "Change GitHub token" when
+  opened while connected.
+
+  Studio shell: the theme toggle moves into the account menu once GitHub is connected (side nav foot until then),
+  one less control on every Studio page.
+
+- 1975219: Studio Requests and Explorations, designer first. Requests: a new intro ("Token changes you can make yourself in
+  Tokens. Component changes are built by a developer: ask here and follow progress."), a thumbnail per row (the
+  request's image, else the component preview) and who is on it (the assignee, or the author of the change that closes
+  it, else "Not started"). A request says "Waiting for a developer to pick it up", "In progress by @x" or "Done", shows
+  a before and after side by side when it carries a baseline and a Figma image, and keeps the Claude commands under
+  "For developers". Explorations: a new intro, no branch names in the list, a start form without branch or pull request
+  help (it moves under "For developers"). An exploration opens on its previews (Library, Component sandbox, Admin demo)
+  and the before and after against the official library, then the requests built on it; branch, install command and
+  CLI move under "For developers". "Promote to review" now confirms in a DS Dialog that says who will be asked to
+  approve and what happens next, then says where the change went with a link to it in In review.
+- 5647108: Studio shows the theme switch in the top bar again, in the same place as the Library, instead of hiding it in the account menu.
+- a6914d7: Studio Tokens and Components, designer first.
+
+  Tokens: the list says "Semantic and foundation tokens" (the base collection reads Foundation in Studio), collections
+  and usage filters move under Advanced in Options, swatches are 24px and values read at the UI size, and long names
+  wrap at their dots instead of truncating next to the details panel. The details say "Where the value comes from".
+  The value popover shows the real components that use the token, light and dark, repainted on every pick. The review
+  opens on its visual preview: light and dark side by side, before above after, several components scaled to fill
+  their frames; Export JSON moves under "For developers". "Send for review" replaces "Propose change": the dialog says
+  who approves from the configured rights ("The design owner and a developer will approve it; nothing ships before
+  both."), drafts the title from the edit ("Darker primary action fill") and keeps the branch sentence under "For
+  developers".
+
+  Components: each row starts with a thumbnail of the real component, "Stories" reads "Examples", and two columns join:
+  open requests per component and "Used in products" (from the committed audit reports). The drawer opens on the
+  component live in light and dark; Code, Workbench, props and stories move under "For developers". A request carries
+  a Figma link and one image (pasted or picked, committed to the requests branch like the Figma plugin does), Kind
+  starts on Visual change, and the button reads "Send request".
+
+  Core: the request kind "Prop change" reads "Option change (prop)" everywhere requests are shown.
+
+- dfa95ed: Textarea gets `appearance="inline"` for editing existing text in place: no border, no resize handle, the surrounding
+  font, size and line height, a height that fits the content (`field-sizing: content`, measured without moving the page
+  where it is not supported), a fill and hairline on hover and the DS focus ring on focus. Never use it in forms.
+  The Library edit mode now uses it instead of restyling Textarea internals.
+- ed31d29: Studio follows docs/GOVERNANCE.md for Tier 2: a new component, variant or prop needs a design owner and a tech owner approval, not one approval. The ship gate, In review labels, the promote dialog and the send sentence now say so.
+- 7cb1733: Say clearly when the GitHub token stopped working (revoked, regenerated or expired), instead of scattered errors.
+
+  Core: `GitHubError` gains `auth` (`'rejected'` for a 401, `'missing-permission'` for a 403 "Resource not accessible
+  by personal access token" or a permission GitHub names in `X-Accepted-GitHub-Permissions`) and `permission`
+  (`issues`, `pull_requests`, `contents`...: from the header, else from the endpoint). Rate limits stay rate limits.
+  New exports: `classifyAuth`, `requiredPermission`, `isTokenRejected`, `isMissingPermission`,
+  `missingPermissionMessage`, `permissionLabel`, `TOKEN_REJECTED_MESSAGE`, `TOKEN_SETTINGS_URL`. A refused token now
+  stops an exploration promotion instead of becoming a warning.
+
+  Studio: one session state. Any 401 marks the saved token as stopped working (it is kept, not deleted): the sidebar
+  account block shows "Your GitHub token stopped working" with Reconnect (the connect dialog, field focused, saving
+  replaces the token), Settings says the same, write actions show that one message, and reads fall back to anonymous.
+  A missing permission is named on the action that needs it ("This token cannot create issues. Add Issues: Read and
+  write on GitHub.") with a link to the token settings. The token is checked once on load when the last check is older
+  than an hour (GET /user, cached with its result).
+
+  DS Bridge plugin: the Settings token row shows "Stopped working" with "Replace token" after a 401; Pull, Push and the
+  other GitHub flows show one callout, "Your GitHub token stopped working. Replace it in Settings.", with a button that
+  goes there. Access is checked once when the plugin starts. A missing permission is named, with the GitHub link.
+
+- 37dd883: Studio Components: the "Used in" column shows one tag per product instead of a sentence.
+- d6c0889: Studio and the admin demo fill wide monitors: pages no longer stop at about 1000 to 1260 px with an empty column on the right. Past about 1800 px of content the page stops growing and sits centred beside the side nav.
+- Updated dependencies [80228c0]
+- Updated dependencies [adc0df7]
+- Updated dependencies [d5bbba9]
+- Updated dependencies [3d3d77d]
+- Updated dependencies [537abd7]
+- Updated dependencies [fb40ae8]
+- Updated dependencies [196d02b]
+- Updated dependencies [fe29bed]
+- Updated dependencies [dd2261c]
+- Updated dependencies [a6914d7]
+- Updated dependencies [1e78f3b]
+- Updated dependencies [dfa95ed]
+- Updated dependencies [7cb1733]
+  - @bridge-ds/core@0.3.0
+  - @bridge-ds/react@1.1.0
+
 ## 0.2.0
 
 ### Minor Changes

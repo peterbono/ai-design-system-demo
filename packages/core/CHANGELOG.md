@@ -1,5 +1,209 @@
 # @bridge-ds/core
 
+## 0.3.0
+
+### Minor Changes
+
+- 80228c0: Claude titles each component request. Change lines in a draft session carry the deterministic request title
+  (`DraftLine.title`), and results may answer `lines: [{ id, line, title }]` (`DraftResultLine`; the title is cleaned to
+  the title contract by `sanitizeDraftTitle`: one line, sentence case, at most 70 characters, no trailing period, no em
+  dash). Older sessions and answers without titles still work. `bridge_pending_drafts` and `bridge_write_drafts` ask for
+  the title, the plugin's API-key path asks for and parses it too, and Push uses it for that component's request instead
+  of the generic deterministic title ("Add an icon after the label" rather than "Update the look to match Figma").
+- adc0df7: Docs drafted with Claude in place, at three levels: the whole page (fill, or rewrite every section), one section, or a
+  selected passage (clearer, shorter, or in the Bridge voice). Fill drafts the empty sections and never rewrites written
+  ones: when the code is newer than docs.json, written sections are sent as checks, and Claude returns one only when
+  something in it is no longer true for the code (the writer's wording kept elsewhere). Results say which checked
+  sections are still accurate (`checked`) and which were updated (in `sections`). Same rule for MCP docs items
+  (`DocsDraftTask.check`, `DraftResult.checked`).
+
+  Core: new `docs-ai.ts` with the task model (`DocsDraftTask`, `validateDocsTask`), the prompts (`docsTaskPrompt`,
+  `docsSelectionPrompt`; `docsPrompt` takes `{ keys, rewrite, outdated }` to ask for only some sections), the answer
+  parsing and sanitizing to the docs.json shapes with em dashes removed (`parseDocsReply`, `sanitizeDocsSections`,
+  `parseDocsTaskAnswer`, `sanitizeDocsReplacement`), the merges (`applyDocsSections`, and `mergeDocsDraft` for the
+  docs-draft Action) and the Messages API request (`anthropicRequest`, `anthropicReplyText`). docs.json gains
+  `draftedSections` (the prose sections a partial draft wrote, between `draftedBy` and `needsReview` in
+  `formatDocsJson`); `markClaudeDraft(d, sections)` adds to it, `acceptDocsDraft` clears it, `sectionsNeedingReview`
+  reads it. The draft exchange takes `docs` items (scope `"docs"`, source `"studio"`) whose results carry `docs` (the
+  sections) or `replacement`; `createDocsDraftSession`, `ensureRequestsBranch` and `DraftPoller` move to core.
+
+  MCP: `bridge_pending_drafts` and `bridge_write_drafts` explain docs items and accept `docs` or `replacement` results
+  (title and summary are optional now, still required in practice for change items).
+
+  Docs site: `src/scripts/docs-ai.ts` (`draftDocs`, `draftAvailability`, `outdatedSections`, `saveApiKey`,
+  `applyDraft`) drafts with the designer's own API key (browser call, key kept in this browser only) or their own
+  Claude through the exchange, from `/docs-ai/<slug>.json` (the facts from the code and the repo conventions, built
+  with the site). The docs-draft Action now runs the same core code.
+
+- d5bbba9: Exploration install commands that work. On exploration #64 the plugin showed a pkg.pr.new command that returned 404
+  (the pkg.pr.new app is not installed); the working one was the prerelease tarball command in the pull request's
+  `<!-- bridge-branch-preview -->` comment. Core reads that comment back: `installCommandFromPreviewComment(body)`,
+  `readPreviewComment`, `findPreviewComment`, `explorationTryIt` (ready only when the comment's snapshot matches the
+  branch head, "building" before, "failed" when the publish failed), `explorationTryItOnGitHub`,
+  `explorationShareMessage` and `GitHubClient.listIssueComments`. The draft pull request body no longer guesses a
+  command: it points to the comment.
+
+  DS Bridge plugin: the "Sent to <exploration>" screen is for designers. "Try it" lists the previews with the product
+  first (the admin demo, by its name in bridge.config.json), then Library and Workbench, one row each with "Open" on the
+  same line. "Test build for your product" says whether the build is ready or being prepared (with "Check again"), and
+  has one action, "Share with a developer", which copies a ready message with the working command, the previews and the
+  pull request. The command itself stays under "Show the command". The bar's primary is "Open in the product" when that
+  preview exists, otherwise "Open on GitHub". The Push form drops the "Commit title" disclosure for explorations (the
+  title is still generated) and says "Owners review it only if the exploration is promoted."; other Push and Pull
+  sentences say "the design system" instead of "main" and drop "commit".
+
+  Studio explorations: the detail reads the install command from the preview comment (or says the test build is being
+  prepared); the list no longer shows a guessed pkg.pr.new command.
+
+- 3d3d77d: Library protection: Bridge is the only way into the default branch.
+
+  Core: new `protection.ts` with `protectionRuleset` (the repository ruleset on `~DEFAULT_BRANCH`: no deletion, no
+  force push, pull request with at least 1 approval and stale approvals dismissed, required checks, admins may bypass
+  in pull request mode only), `protectionState` (protected, partial, unprotected or unknown, with what is missing,
+  from rulesets and classic branch protection), `requiredCheckNames` (read from the repository's own CI, without
+  Vercel and skipped runs) and `protectionSentence`. `protection-github.ts` adds `loadProtection`,
+  `loadRequiredChecks`, `protectLibrary` and `protectRefusal`. The GitHub client gains `listRulesets`, `getRuleset`,
+  `createRuleset`, `updateRuleset` and `getBranchProtection` (404 means none, 403 means it cannot be read), and check
+  runs carry their app slug.
+
+  CLI: `bridge check` prints whether the library is protected and where to fix it. It never changes the exit code;
+  `--offline` (or `BRIDGE_OFFLINE=1`) skips it, and `--json` adds `protection`.
+
+  MCP: the server instructions say every write goes through a branch and a pull request, never straight to the
+  default branch.
+
+- 537abd7: Push names structure changes. Each variant keeps a layer outline, so a layer added, removed or moved becomes a
+  "Structure change" request (new request kind `structure`) with a line like `New instance layer "Icon" (Icon/Pencil)
+after "Label" in primary sm` and the title "Add a layer after Label", instead of a vague visual change. Renames,
+  wrappers and hidden layers bound to nothing still send nothing. When an optional part already draws the added layer
+  (an icon after the label while "Icon end" exists), the row says "Icon end already does this: show it with the Icon end
+  property" and the item starts unchecked; "Keep it as a request" sends it anyway.
+- fb40ae8: Claude writes each change line. Draft sessions carry one change line per component change (`DraftItem.lines`, images labeled by line), results may answer `lines: [{ id, line }]` (one sentence, at most 120 characters, no em dash, unknown ids refused; results without lines still work), and `draftChangeLine` gives the deterministic default ("Looks different in Size=sm, State=Default, Variant=primary; no variable explains it"). Requests carry the line (`ComponentChangeRequest.line`, "**What changes:**" in the issue, the brief and Jira). `bridge_pending_drafts` and `bridge_write_drafts` describe and accept lines; the plugin's API-key path asks for and parses them too.
+
+  Push hierarchy in the Figma plugin: "Draft with Claude" is a ghost action on the Description (and request Title) label line, one "Drafted by Claude" status line under the field, each component change row reads name and kind, then one sentence, with the table behind "Details" in one font size, no group checkbox for a single item, the bar alone sums up what is sent ("1 request"), and a shorter Components intro.
+
+- 196d02b: Real branch preview URLs and install commands everywhere, never guessed ones. On exploration #64
+  (`explore/button-normal-again`) Vercel shortened the admin and Storybook aliases with a hash
+  (`bridge-admin-git-explore-button-norm-0ed5ba-peterbonos-projects.vercel.app`), so the template URLs were wrong.
+
+  Core: `branchPreviewUrls(client, prNumber | sha, config)` reads what Vercel reports, in order: GitHub deployments of the
+  head commit, the Vercel commit statuses (state of each deploy), the Vercel bot comment (`[vc]` header, decoded), and the
+  `previews.apps` template only when its host label fits in 63 characters. Pure parts: `parseVercelComment`,
+  `findVercelComment`, `appForProject` (Vercel project to app by the template host), `resolveBranchPreviews`,
+  `previewLinksOf`, `previewsSettled`. `explorationTestBuildOnGitHub` returns the install command from the preview comment
+  and the real previews in one read. `GitHubClient.listCommitStatuses` and `listDeployments`. The sticky PR comment
+  (`previewComment`) takes the resolved previews and never prints a shortened template URL. Removed: `explorationInstall`
+  and `ExplorationInstall` (guessed pkg.pr.new commands); `StartedExploration.install` becomes `tryIt` and
+  `ExplorationSummary.install` is gone (it gains `headSha`).
+
+  Preview packages workflow: the comment's preview table uses the URLs Vercel reports (deployments, statuses, its comment).
+
+  MCP and CLI: `bridge_list_explorations` / `bridge explore list` return the install command from the preview comment
+  (`install.state` building, ready or failed) and the previews Vercel reports; `bridge explore start` no longer prints a
+  pkg.pr.new command.
+
+  Studio: the pull request detail ("Preview and install") shows the URLs Vercel reports and the command the workflow
+  published, or that the test build is being prepared; the exploration detail fills its previews the same way.
+
+  DS Bridge plugin: the exploration result screen ("Try it") shows the real URLs, checks every 15 seconds for up to 10
+  minutes while it is open (stopping once the command and every preview are ready), updates in place without
+  re-rendering, and keeps "Check again".
+
+- fe29bed: Studio requests nobody is on now end in a decision, not a dead end. The Overview row says "Open request" (no more
+  "Triage") and what is expected: "Nobody is on it yet: explore it, assign someone or decline it." On the request, a
+  design system owner who is connected gets one row: Start an exploration (opens the Explorations form filled from the
+  request, then links the request to it and puts them on it), Assign someone (a DS Combobox of the people who can edit
+  the repository, in place) and Decline (a DS Dialog that asks for a reason, says who reads it, posts it and closes the
+  request as not planned). Once someone is on it, the row gives way to one sentence ("@ana is on it", "@ana is exploring
+  it"); everyone else reads who decides. A request linked to an exploration now counts its draft as the work on it.
+
+  Core: `linkRequestToExplorationOnGitHub`, `assignRequestOnGitHub`, `declineRequestOnGitHub`, the pure
+  `withRequestExploration`, `declineComment` and `declineReasonProblems`, `GitHubClient.updateIssue`, `addAssignees` and
+  `listCollaborators`, and `requests` in the exploration settings (listed in its draft pull request body).
+
+- dd2261c: Roles with default rights, editable per team, and a visual before and after that can run on demand.
+
+  Core: `governance.rights` in `bridge.config.json` says which owner group may approve design, approve tech and ship
+  (merge, which publishes to the products): `{ "approveDesign": ["design"], "approveTech": ["tech"], "ship": ["tech"] }`
+  by default, and a team may let design owners ship too (`"ship": ["design", "tech"]`). A config without `rights`
+  behaves as before: approvals follow `owners`, anyone with write access ships. New top-level `visualImpact.mode`,
+  `"auto"` (default) or `"on-demand"`. Both are validated by `loadConfig` and the JSON schema and written back by
+  `toConfigJson`. New exports in `rights.ts`: `DEFAULT_RIGHTS`, `normalizeRights`, `holdersOf`, `approverLists`,
+  `shipPolicy`, `canShip`, `whoCanShipSentence`, `groupsPhrase`, `RIGHT_LABEL`, `VISUAL_CHECK_LABEL`.
+
+  MCP and CLI: `bridge init` (detected configs) starts from the default rights.
+
+  Studio: Settings gains Roles: one sentence, who holds each right with their avatars, and the visual before and after
+  mode; "Change roles" proposes the edit as a pull request on `bridge.config.json` (only `governance.rights` and
+  `visualImpact` change). Reviews counts approvals against the rights and keeps Merge off for a viewer without the
+  ship right, saying who can ("Only the tech owner can ship this (@theo)."); the owner override never bypasses it.
+  In on-demand mode a pull request without a before and after offers "Show the visual impact", which adds the
+  `visual-check` label (the workflow runs on it), or links to GitHub without a write token.
+
+- 1e78f3b: Roles by team: `governance.owners` may name GitHub teams (`"@acme/design"`) as well as people, so a company assigns
+  roles by team and manages membership in GitHub. Still no database.
+
+  Core: new `teams.ts`. `parseOwnerEntry` reads a person (`"theo"`, `"@theo"`) or a team (`"@org/team-slug"`);
+  `loadConfig` and the JSON schema reject anything else with the entry named and both forms spelled out.
+  `TeamDirectory` expands teams to logins through any client with the new `GitHubClient` methods
+  (`listTeamMembers`, paginated; `getTeamMembership` for one person; `getAccountType`; `listOrgTeams`), cached for five
+  minutes. A team it cannot read is a typed state (`no-token`, `missing-permission`, `not-found`, `personal-account`,
+  `unreachable`) with the fix in `teamUnreadableMessage`, never an empty list: it keeps its place in the expanded lists
+  and matches nobody. `approverLists` and `shipPolicy` take the team states; `whoCanShipSentence` names a team with its
+  size ("Only the tech owner can ship this (@acme/web (4 people)).").
+
+  CLI: `bridge check` lists the teams named as owners with their size and reports each team it cannot read, with the
+  fix (never part of the exit code). MCP: `bridge_get_review` returns `roles`: who may approve design, approve tech and
+  ship, with teams named, and an approval counts when the reviewer is in the team.
+
+  Studio: approvals, who acts, the ship gate (with a membership check for the viewer), the Overview and History
+  count team members and name teams as teams. Settings, Review rules gains Design owners and Tech owners rows: a team
+  is a chip with its member count and avatars, a team that cannot be read gets one sentence with the reason and the
+  fix, and Edit takes a person or a team (a DS Combobox suggesting the organization's teams and the repository's
+  people), sent for review on `bridge.config.json`.
+
+- 7cb1733: Say clearly when the GitHub token stopped working (revoked, regenerated or expired), instead of scattered errors.
+
+  Core: `GitHubError` gains `auth` (`'rejected'` for a 401, `'missing-permission'` for a 403 "Resource not accessible
+  by personal access token" or a permission GitHub names in `X-Accepted-GitHub-Permissions`) and `permission`
+  (`issues`, `pull_requests`, `contents`...: from the header, else from the endpoint). Rate limits stay rate limits.
+  New exports: `classifyAuth`, `requiredPermission`, `isTokenRejected`, `isMissingPermission`,
+  `missingPermissionMessage`, `permissionLabel`, `TOKEN_REJECTED_MESSAGE`, `TOKEN_SETTINGS_URL`. A refused token now
+  stops an exploration promotion instead of becoming a warning.
+
+  Studio: one session state. Any 401 marks the saved token as stopped working (it is kept, not deleted): the sidebar
+  account block shows "Your GitHub token stopped working" with Reconnect (the connect dialog, field focused, saving
+  replaces the token), Settings says the same, write actions show that one message, and reads fall back to anonymous.
+  A missing permission is named on the action that needs it ("This token cannot create issues. Add Issues: Read and
+  write on GitHub.") with a link to the token settings. The token is checked once on load when the last check is older
+  than an hour (GET /user, cached with its result).
+
+  DS Bridge plugin: the Settings token row shows "Stopped working" with "Replace token" after a 401; Pull, Push and the
+  other GitHub flows show one callout, "Your GitHub token stopped working. Replace it in Settings.", with a button that
+  goes there. Access is checked once when the plugin starts. A missing permission is named, with the GitHub link.
+
+### Patch Changes
+
+- a6914d7: Studio Tokens and Components, designer first.
+
+  Tokens: the list says "Semantic and foundation tokens" (the base collection reads Foundation in Studio), collections
+  and usage filters move under Advanced in Options, swatches are 24px and values read at the UI size, and long names
+  wrap at their dots instead of truncating next to the details panel. The details say "Where the value comes from".
+  The value popover shows the real components that use the token, light and dark, repainted on every pick. The review
+  opens on its visual preview: light and dark side by side, before above after, several components scaled to fill
+  their frames; Export JSON moves under "For developers". "Send for review" replaces "Propose change": the dialog says
+  who approves from the configured rights ("The design owner and a developer will approve it; nothing ships before
+  both."), drafts the title from the edit ("Darker primary action fill") and keeps the branch sentence under "For
+  developers".
+
+  Components: each row starts with a thumbnail of the real component, "Stories" reads "Examples", and two columns join:
+  open requests per component and "Used in products" (from the committed audit reports). The drawer opens on the
+  component live in light and dark; Code, Workbench, props and stories move under "For developers". A request carries
+  a Figma link and one image (pasted or picked, committed to the requests branch like the Figma plugin does), Kind
+  starts on Visual change, and the button reads "Send request".
+
+  Core: the request kind "Prop change" reads "Option change (prop)" everywhere requests are shown.
+
 ## 0.2.0
 
 ### Minor Changes

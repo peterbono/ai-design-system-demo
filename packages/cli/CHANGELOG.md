@@ -1,5 +1,88 @@
 # @bridge-ds/cli
 
+## 0.3.0
+
+### Minor Changes
+
+- 3d3d77d: Library protection: Bridge is the only way into the default branch.
+
+  Core: new `protection.ts` with `protectionRuleset` (the repository ruleset on `~DEFAULT_BRANCH`: no deletion, no
+  force push, pull request with at least 1 approval and stale approvals dismissed, required checks, admins may bypass
+  in pull request mode only), `protectionState` (protected, partial, unprotected or unknown, with what is missing,
+  from rulesets and classic branch protection), `requiredCheckNames` (read from the repository's own CI, without
+  Vercel and skipped runs) and `protectionSentence`. `protection-github.ts` adds `loadProtection`,
+  `loadRequiredChecks`, `protectLibrary` and `protectRefusal`. The GitHub client gains `listRulesets`, `getRuleset`,
+  `createRuleset`, `updateRuleset` and `getBranchProtection` (404 means none, 403 means it cannot be read), and check
+  runs carry their app slug.
+
+  CLI: `bridge check` prints whether the library is protected and where to fix it. It never changes the exit code;
+  `--offline` (or `BRIDGE_OFFLINE=1`) skips it, and `--json` adds `protection`.
+
+  MCP: the server instructions say every write goes through a branch and a pull request, never straight to the
+  default branch.
+
+- 1e78f3b: Roles by team: `governance.owners` may name GitHub teams (`"@acme/design"`) as well as people, so a company assigns
+  roles by team and manages membership in GitHub. Still no database.
+
+  Core: new `teams.ts`. `parseOwnerEntry` reads a person (`"theo"`, `"@theo"`) or a team (`"@org/team-slug"`);
+  `loadConfig` and the JSON schema reject anything else with the entry named and both forms spelled out.
+  `TeamDirectory` expands teams to logins through any client with the new `GitHubClient` methods
+  (`listTeamMembers`, paginated; `getTeamMembership` for one person; `getAccountType`; `listOrgTeams`), cached for five
+  minutes. A team it cannot read is a typed state (`no-token`, `missing-permission`, `not-found`, `personal-account`,
+  `unreachable`) with the fix in `teamUnreadableMessage`, never an empty list: it keeps its place in the expanded lists
+  and matches nobody. `approverLists` and `shipPolicy` take the team states; `whoCanShipSentence` names a team with its
+  size ("Only the tech owner can ship this (@acme/web (4 people)).").
+
+  CLI: `bridge check` lists the teams named as owners with their size and reports each team it cannot read, with the
+  fix (never part of the exit code). MCP: `bridge_get_review` returns `roles`: who may approve design, approve tech and
+  ship, with teams named, and an approval counts when the reviewer is in the team.
+
+  Studio: approvals, who acts, the ship gate (with a membership check for the viewer), the Overview and History
+  count team members and name teams as teams. Settings, Review rules gains Design owners and Tech owners rows: a team
+  is a chip with its member count and avatars, a team that cannot be read gets one sentence with the reason and the
+  fix, and Edit takes a person or a team (a DS Combobox suggesting the organization's teams and the repository's
+  people), sent for review on `bridge.config.json`.
+
+### Patch Changes
+
+- 196d02b: Real branch preview URLs and install commands everywhere, never guessed ones. On exploration #64
+  (`explore/button-normal-again`) Vercel shortened the admin and Storybook aliases with a hash
+  (`bridge-admin-git-explore-button-norm-0ed5ba-peterbonos-projects.vercel.app`), so the template URLs were wrong.
+
+  Core: `branchPreviewUrls(client, prNumber | sha, config)` reads what Vercel reports, in order: GitHub deployments of the
+  head commit, the Vercel commit statuses (state of each deploy), the Vercel bot comment (`[vc]` header, decoded), and the
+  `previews.apps` template only when its host label fits in 63 characters. Pure parts: `parseVercelComment`,
+  `findVercelComment`, `appForProject` (Vercel project to app by the template host), `resolveBranchPreviews`,
+  `previewLinksOf`, `previewsSettled`. `explorationTestBuildOnGitHub` returns the install command from the preview comment
+  and the real previews in one read. `GitHubClient.listCommitStatuses` and `listDeployments`. The sticky PR comment
+  (`previewComment`) takes the resolved previews and never prints a shortened template URL. Removed: `explorationInstall`
+  and `ExplorationInstall` (guessed pkg.pr.new commands); `StartedExploration.install` becomes `tryIt` and
+  `ExplorationSummary.install` is gone (it gains `headSha`).
+
+  Preview packages workflow: the comment's preview table uses the URLs Vercel reports (deployments, statuses, its comment).
+
+  MCP and CLI: `bridge_list_explorations` / `bridge explore list` return the install command from the preview comment
+  (`install.state` building, ready or failed) and the previews Vercel reports; `bridge explore start` no longer prints a
+  pkg.pr.new command.
+
+  Studio: the pull request detail ("Preview and install") shows the URLs Vercel reports and the command the workflow
+  published, or that the test build is being prepared; the exploration detail fills its previews the same way.
+
+  DS Bridge plugin: the exploration result screen ("Try it") shows the real URLs, checks every 15 seconds for up to 10
+  minutes while it is open (stopping once the command and every preview are ready), updates in place without
+  re-rendering, and keeps "Check again".
+
+- Updated dependencies [80228c0]
+- Updated dependencies [adc0df7]
+- Updated dependencies [3d3d77d]
+- Updated dependencies [9574d19]
+- Updated dependencies [fb40ae8]
+- Updated dependencies [196d02b]
+- Updated dependencies [dd2261c]
+- Updated dependencies [1e78f3b]
+  - @bridge-ds/mcp@0.3.0
+  - @bridge-ds/visual@0.2.1
+
 ## 0.2.0
 
 ### Minor Changes
