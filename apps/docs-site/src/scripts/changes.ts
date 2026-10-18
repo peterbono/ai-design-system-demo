@@ -2,8 +2,8 @@
 // place (?pr=N), a component change request opened in place (?request=N), the local draft strip, and the routes old pages redirect to (?view=history, #other-branches, ?branch=).
 import { closePr, initReviewAuth, loadList, openPr } from './reviews';
 import { initHistory } from './history/page';
-import { loadRequests, openRequest } from './requests';
-import { initExplorations, loadExplorations, openExploration, paintExplorationCount } from './explorations';
+import { initRequests, loadRequests, openRequest } from './requests';
+import { initExplorations, loadExplorations, openExploration, paintExplorationCount, startForRequest } from './explorations';
 import type { ExplorationPullLike } from '../lib/explorations-view';
 import type { PullLike } from '../lib/requests-view';
 import { draftCount } from './shell';
@@ -95,6 +95,9 @@ function route() {
   const v = params.get('view');
   const view: View = v === 'history' || v === 'requests' || v === 'explorations' ? v : 'review';
   showView(view);
+  // Start an exploration from a request: the form, filled from it.
+  const forRequest = Number(params.get('for'));
+  if (view === 'explorations' && forRequest) void startForRequest(forRequest);
   // Branch scope from the Studio header: open the pull request of that branch, if it has one.
   const branch = params.get('branch');
   if (view === 'review' && branch && listLoaded)
@@ -110,6 +113,7 @@ function route() {
 export function initChanges() {
   initReviewAuth();
   initExplorations();
+  initRequests();
   paintDraft();
   document.addEventListener('bridge:draft', paintDraft);
   window.addEventListener('storage', paintDraft);
@@ -131,6 +135,14 @@ export function initChanges() {
       e.preventDefault();
       $('cg-main').hidden = true;
       void openRequest(Number(rq.dataset.openRequest), true, openPullsForRequests());
+      return;
+    }
+    const start = t.closest<HTMLAnchorElement>('[data-start-for]');
+    if (start) {
+      e.preventDefault();
+      history.pushState({}, '', `?view=explorations&for=${Number(start.dataset.startFor)}`);
+      route();
+      window.scrollTo({ top: 0 });
       return;
     }
     const ex = t.closest<HTMLAnchorElement>('[data-open-exploration]');

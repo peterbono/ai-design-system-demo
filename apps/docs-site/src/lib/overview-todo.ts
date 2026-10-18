@@ -14,7 +14,7 @@ export interface TodoRow {
   title: string;
   /** Why it waits, in plain words: "Tests fail. Fix them or ask a developer." */
   why: string;
-  /** The button, labelled by the task: "Review", "Open change", "Triage". */
+  /** The button, labelled by the task: "Review", "Open change", "Open request". */
   action: string;
   href: string;
 }
@@ -162,7 +162,8 @@ export function overviewTodo(input: TodoInput): Todo {
       if (same(who, viewer)) mine.push(requestRow(r, 'Assigned to you. Nobody has started the change yet.', 'Open request'));
       else (viewer ? others : mine).push(requestRow(r, `Waiting for @${who.replace(/^@/, '')} to start it.`, 'Open request'));
     } else if (owner) {
-      mine.push(requestRow(r, r.requester ? `Asked by @${r.requester.replace(/^@/, '')}. Nobody is on it yet.` : 'Nobody is on it yet.', 'Triage'));
+      const ask = 'Nobody is on it yet: explore it, assign someone or decline it.';
+      mine.push(requestRow(r, r.requester ? `Asked by @${r.requester.replace(/^@/, '')}. ${ask}` : ask, 'Open request'));
     } else {
       const by = input.owners.length ? `an owner (${at(input.owners)})` : 'an owner';
       (viewer ? others : mine).push(requestRow(r, `Waiting for ${by} to pick it up.`, 'Open request'));

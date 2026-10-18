@@ -1,12 +1,14 @@
 // Studio Components: every component in one DS Table, grouped by family under small row-group headers. Each row
-// starts with a thumbnail of the real component (its Library preview, rendered at build time and scaled to fit by
-// scripts/components-studio.ts; a component without a preview shows an empty frame, never a stand-in image), then
-// the counts a designer reads: examples, tokens, open requests (filled in the browser from the requests Studio
-// already reads) and the products that use it (from the committed `bridge audit` reports). Badges only for
-// exceptions (missing guidance, a Claude draft to review, beta, deprecated). The whole row opens the detail drawer:
-// rows are one tab stop with arrow keys between them, Enter opens.
+// starts with a calm thumbnail of the real component (one sample of its Library preview, never a destructive one:
+// lib/components-studio thumbnailNode; rendered at build time and scaled to fit by scripts/components-studio.ts; a
+// component without a preview shows an empty frame, never a stand-in image), then what a designer reads, in words:
+// the products that use it (from the committed `bridge audit` reports), open requests (filled in the browser from
+// the requests Studio already reads), examples and tokens. Badges only for exceptions (missing guidance, a Claude
+// draft to review, beta, deprecated). The whole row opens the detail drawer: rows are one tab stop with arrow keys
+// between them, Enter opens.
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@bridge-ds/react';
 import type { ExampleNode, GuidanceState } from '../../../lib/components';
+import { thumbnailNode, usedInCell } from '../../../lib/components-studio';
 import Example from '../../Example';
 
 export interface ComponentListRow {
@@ -15,8 +17,7 @@ export interface ComponentListRow {
   family: string;
   status: 'stable' | 'beta' | 'deprecated';
   guidance: GuidanceState;
-  /** "1 own · 39 from Button", or the count. */
-  tokens: string;
+  /** Tokens it paints with, own and inherited (where they come from is in the drawer's For developers). */
   tokensTotal: number;
   /** Storybook stories, shown to designers as examples. */
   examples: number;
@@ -39,8 +40,7 @@ export function exceptions(r: Pick<ComponentListRow, 'guidance' | 'status'>): { 
 /** Thumbnails show; they never take focus or clicks (React 18 has no typed `inert` prop). */
 const INERT = { inert: '' } as Record<string, string>;
 
-/** "Admin demo, Bridge itself": the products using a component, for the cell's accessible label. */
-export const usedInLine = (u: { product: string }[]) => (u.length ? u.map((x) => x.product).join(', ') : 'No audited product');
+const words = (n: number, one: string) => `${n} ${n === 1 ? one : `${one}s`}`;
 
 export default function ComponentsList({ rows, products }: { rows: ComponentListRow[]; products: number }) {
   const families = [...new Set(rows.map((r) => r.family))];
@@ -51,20 +51,10 @@ export default function ComponentsList({ rows, products }: { rows: ComponentList
       <TableHeader>
         <TableRow>
           <TableHead>Component</TableHead>
-          <TableHead numeric className="cm-col-dev">
-            Examples
-          </TableHead>
-          <TableHead numeric className="cm-col-dev">
-            Tokens
-          </TableHead>
-          <TableHead numeric className="cm-col-req">
-            Requests
-          </TableHead>
-          {withUsage && (
-            <TableHead numeric className="cm-col-used">
-              Used in products
-            </TableHead>
-          )}
+          {withUsage && <TableHead className="cm-col-used">Used in</TableHead>}
+          <TableHead className="cm-col-req">Open requests</TableHead>
+          <TableHead className="cm-col-dev">Examples</TableHead>
+          <TableHead className="cm-col-dev">Tokens</TableHead>
         </TableRow>
       </TableHeader>
       {families.map((family) => (
@@ -93,7 +83,7 @@ export default function ComponentsList({ rows, products }: { rows: ComponentList
                     <span className="cm-thumb" data-fit-frame="" aria-hidden="true" {...INERT}>
                       {r.preview && (
                         <span className="cm-thumb-fit" data-fit="">
-                          <Example node={r.preview} />
+                          <Example node={thumbnailNode(r.preview)!} />
                         </span>
                       )}
                     </span>
@@ -114,26 +104,15 @@ export default function ComponentsList({ rows, products }: { rows: ComponentList
                     </span>
                   </span>
                 </TableCell>
-                <TableCell numeric className="cm-col-dev">
-                  {r.examples}
-                </TableCell>
-                <TableCell numeric className="cm-tokens cm-col-dev">
-                  {r.tokens === String(r.tokensTotal) ? (
-                    r.tokens
-                  ) : (
-                    <>
-                      <span className="cm-tok-full">{r.tokens}</span>
-                      <span className="cm-tok-short">{r.tokensTotal}</span>
-                    </>
-                  )}
-                </TableCell>
-                {/* Filled in the browser: the open request count, empty when there is none. */}
-                <TableCell numeric className="cm-col-req" data-cm-req-n={r.name.toLowerCase()} />
                 {withUsage && (
-                  <TableCell numeric className="cm-col-used" aria-label={usedInLine(r.usedIn ?? [])}>
-                    <span className={r.usedIn?.length ? '' : 'cm-zero'}>{r.usedIn?.length ?? 0}</span>
+                  <TableCell className="cm-col-used">
+                    {usedInCell(r.usedIn)}
                   </TableCell>
                 )}
+                {/* Filled in the browser: "1 request", empty when there is none. */}
+                <TableCell className="cm-col-req" data-cm-req-n={r.name.toLowerCase()} />
+                <TableCell className="cm-col-dev cm-muted">{words(r.examples, 'example')}</TableCell>
+                <TableCell className="cm-col-dev cm-muted">{words(r.tokensTotal, 'token')}</TableCell>
               </TableRow>
             ))}
         </TableBody>

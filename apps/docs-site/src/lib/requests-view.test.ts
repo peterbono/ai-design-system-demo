@@ -10,7 +10,11 @@ import {
   integrationsProposal,
   jiraKeyFrom,
   linkPulls,
+  assigneeOptions,
   buildState,
+  declineAudience,
+  explorationFromRequest,
+  requestDecision,
   onItLabel,
   overviewRequestsLine,
   requestImages,
@@ -208,12 +212,12 @@ describe('who is on a request', () => {
     const [waiting] = requestRows([issue(1)], []);
     expect(requestOwner(waiting!)).toBeNull();
     expect(onItLabel(waiting!)).toBe('');
-    expect(requestStateLine(waiting!)).toBe('Waiting for a developer to pick it up.');
+    expect(requestStateLine(waiting!)).toBe('Nobody is on it yet.');
     expect(buildState(waiting!)).toBe('Not started');
 
     const [assigned] = requestRows([issue(1, { assignees: [{ login: 'dev' }] })], []);
     expect(onItLabel(assigned!)).toBe('@dev is on it');
-    expect(requestStateLine(assigned!)).toBe('In progress by @dev.');
+    expect(requestStateLine(assigned!)).toBe('@dev is on it. The change has not started yet.');
 
     const [building] = requestRows([issue(1)], [pull(40, 'Closes #1', { user: { login: 'ana' } })]);
     expect(requestOwner(building!)).toBe('ana');
@@ -246,5 +250,63 @@ describe('requestImages', () => {
     expect(requestImages(one!)).toEqual({ pair: null, single: ['https://x/b.png'], thumb: 'https://x/b.png' });
     const [none] = requestRows([issue(2)], []);
     expect(requestImages(none!)).toEqual({ pair: null, single: [], thumb: null });
+  });
+});
+
+describe('deciding on a request', () => {
+  const owners = ['flo', 'lead'];
+
+  it('offers the decision to a connected owner only, while nobody is on it', () => {
+    const [waiting] = requestRows([issue(1)], []);
+    expect(requestDecision(waiting!, { viewer: '@Flo', owners })).toEqual({ kind: 'decide', sentence: 'Nobody is on it yet. You decide what happens next.' });
+    expect(requestDecision(waiting!, { viewer: 'ana', owners })).toEqual({ kind: 'wait', sentence: 'Nobody is on it yet. A design system owner (@flo or @lead) decides what happens next.' });
+    expect(requestDecision(waiting!, { viewer: null, owners: ['flo'] }).sentence).toBe('Nobody is on it yet. A design system owner (@flo) decides what happens next. Connect GitHub if that is you.');
+    expect(requestDecision(waiting!, { viewer: 'ana', owners: ['a', 'b', 'c'] }).sentence).toContain('(@a or 2 more)');
+    expect(requestDecision(waiting!, { viewer: 'ana', owners: [] }).sentence).toMatch(/name them in Settings/);
+  });
+
+  it('shows the status, no decision, once someone is on it, a change exists or it is closed', () => {
+    const [assigned] = requestRows([issue(1, { assignees: [{ login: 'dev' }] })], []);
+    expect(requestDecision(assigned!, { viewer: 'flo', owners })).toEqual({ kind: 'status', sentence: '@dev is on it. The change has not started yet.' });
+    const [closedChange] = requestRows([issue(1)], [pull(40, 'Closes #1', { state: 'closed' })]);
+    expect(requestDecision(closedChange!, { viewer: 'flo', owners }).kind).toBe('status');
+    const [declined] = requestRows([issue(3, { state: 'closed', state_reason: 'not_planned' })], []);
+    expect(requestDecision(declined!, { viewer: 'flo', owners }).kind).toBe('status');
+  });
+
+  it('links the draft of the exploration a request is linked to, by its branch', () => {
+    const linked = issue(1, { assignees: [{ login: 'flo' }] }, req({ exploration: 'explore/danger-ghost' }));
+    const ex = pull(50, 'Exploration', { head: { ref: 'explore/danger-ghost' }, user: { login: 'flo' } });
+    const other = pull(51, 'Other', { head: { ref: 'explore/other' } });
+    const [row] = requestRows([linked], [ex, other]);
+    expect(row!.prs).toEqual([{ number: 50, url: 'https://github.com/o/r/pull/50', state: 'open', merged: false, author: 'flo', exploration: true }]);
+    expect(row!.status).toBe('in-progress');
+    expect(requestStateLine(row!)).toBe('@flo is exploring it.');
+    expect(requestDecision(row!, { viewer: 'flo', owners }).kind).toBe('status');
+    // Not linked by branch: the same pull request is no work on it.
+    expect(requestRows([issue(2)], [ex])[0]!.prs).toEqual([]);
+  });
+
+  it('fills the exploration form from the request, real words only', () => {
+    const [row] = requestRows([issue(1)], []);
+    expect(explorationFromRequest(row!)).toEqual({ name: 'Button: add a danger ghost variant', purpose: 'Destructive actions in toolbars.' });
+    const long = explorationFromRequest({ component: 'Select', title: 'Add a native Select for pages without React and every other static page we ship', request: null });
+    expect(long.name.length).toBeLessThanOrEqual(60);
+    expect(long.name).toBe('Add a native Select for pages without React and every other');
+    expect(long.purpose).toBe('Answer the request "Select: Add a native Select for pages without React and every other static page we ship".');
+  });
+
+  it('lists who can work on it, the viewer first', () => {
+    expect(assigneeOptions([{ login: 'zed' }, { login: 'flo' }, { login: 'ana' }, { login: 'Flo' }], 'flo')).toEqual([
+      { value: 'flo', label: '@flo (you)' },
+      { value: 'ana', label: '@ana' },
+      { value: 'zed', label: '@zed' },
+    ]);
+    expect(assigneeOptions([{ login: 'ana' }], null)).toEqual([{ value: 'ana', label: '@ana' }]);
+  });
+
+  it('says who reads a decline reason', () => {
+    expect(declineAudience('@ana')).toBe('@ana gets a GitHub notification with your reason, and it stays on the request.');
+    expect(declineAudience('')).toMatch(/posted on the request/);
   });
 });

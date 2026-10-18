@@ -60,6 +60,8 @@ export interface AuditApp {
   summary: string;
   /** What the audit does not see for this app, said plainly. */
   note?: string;
+  /** What the run before the move to Bridge measured, in plain words (shown after "before the move to Bridge"). */
+  baselineNote?: string;
   prefix: string;
 }
 
@@ -69,6 +71,8 @@ export const AUDIT_APPS: AuditApp[] = [
     id: 'admin',
     title: 'Admin demo (react-admin, migrated from MUI)',
     summary: 'A real back office moved from Material UI to Bridge tokens and components.',
+    // admin-before.json scans apps/admin/_original: the react-admin demo as published, built on Material UI.
+    baselineNote: 'original Material UI version',
     prefix: 'admin-',
   },
   {
@@ -76,6 +80,8 @@ export const AUDIT_APPS: AuditApp[] = [
     title: 'Bridge itself (dogfooding)',
     summary: 'This docs app, rebuilt on the design system it documents: chrome on the bridge brand tokens, controls from @bridge-ds/react.',
     note: 'The audit reads CSS, TS and TSX. Astro templates and HTML strings built by scripts are not scanned: native disclosures, the search dialog, a few range and checkbox inputs and script-built rows in Reviews, History and the token explorer still live there. They are listed in apps/admin/DS-GAPS.md.',
+    // bridge-site-before.json scans apps/docs-site/src before the site was rebuilt on its own design system.
+    baselineNote: 'the docs site before its rebuild',
     prefix: 'bridge-site-',
   },
 ];

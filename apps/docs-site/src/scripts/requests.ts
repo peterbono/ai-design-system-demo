@@ -3,14 +3,17 @@
 // "Closes #N" implements one. Reads stay inside the anonymous budget: one issues list, plus the open pull requests the
 // page already has (or one list read) and one closed pull request list, each kept in sessionStorage for 10 minutes.
 // Pure rules live in lib/requests-view.ts.
-import { closingIssueNumbers, REQUEST_LABEL, type IntegrationsConfig } from '@bridge-ds/core';
+import { assignRequestOnGitHub, closingIssueNumbers, declineReasonProblems, declineRequestOnGitHub, REQUEST_LABEL, REQUEST_STATUS_LABEL, requestIssueTitle, type IntegrationsConfig } from '@bridge-ds/core';
 import {
+  assigneeOptions,
   buildState,
+  declineAudience,
+  requestDecision,
+  requestTone,
   freshList,
   implementCommand,
   onItLabel,
   requestImages,
-  requestStateLine,
   requestRows,
   requestsCacheKey,
   requestsSummary,
@@ -19,7 +22,9 @@ import {
   type PullLike,
   type RequestRow,
 } from '../lib/requests-view';
-import { esc, ghGet, RateLimitError, readRepo } from './github-session';
+import { currentViewer, esc, getToken, ghGet, hasWorkingToken, initGitHubConnect, RateLimitError, readRepo, studioClient } from './github-session';
+import { owners } from './pr-status';
+import { ASSIGN_EVENT, DECLINE_EVENT, type AssignAskDetail, type DeclineAskDetail } from '../components/ds/studio/RequestDecide';
 
 const repo = readRepo();
 const REPO_KEY = `${repo.owner}/${repo.repo}`;
@@ -81,6 +86,7 @@ const slimPull = (p: PullLike): PullLike => ({
   merged_at: p.merged_at ?? null,
   html_url: p.html_url,
   user: p.user ? { login: p.user.login } : null,
+  head: p.head ? { ref: p.head.ref } : null,
 });
 
 async function cachedList<T>(what: 'issues' | 'closed-pulls', path: string, slim: (x: T) => T): Promise<T[]> {
@@ -216,13 +222,36 @@ function picturesHtml(r: RequestRow): { title: string; body: string } | null {
   };
 }
 
-export function renderRequestDetail(r: RequestRow): string {
-  const req = r.request;
+export interface DetailContext {
+  viewer: string | null;
+  /** Design and tech owners after rights: they decide on a request nobody is on. */
+  owners: string[];
+}
+
+/** The viewer and the owners, read now (the viewer changes when someone connects). */
+export function detailContext(): DetailContext {
+  const o = owners();
+  return { viewer: hasWorkingToken() ? (currentViewer()?.login ?? null) : null, owners: [...new Set([...o.design, ...o.tech])] };
+}
+
+/**
+ * The top action. While nobody is on the request and the viewer decides: Start an exploration (primary), Assign
+ * someone and Decline, on one row (wired in initRequests). Otherwise the change or the exploration that builds it.
+ */
+function primaryAction(r: RequestRow, decide: boolean): string {
+  if (decide)
+    return `<a class="btn btn-primary btn-lg" href="?view=explorations&amp;for=${r.number}" data-start-for="${r.number}">Start an exploration</a><button type="button" class="btn btn-secondary btn-lg" data-rq-assign="${r.number}">Assign someone</button><button type="button" class="btn btn-secondary btn-lg" data-rq-decline="${r.number}">Decline</button>`;
   const open = r.prs.find((p) => p.state === 'open');
-  const merged = r.prs.find((p) => p.merged);
-  const pr = open ?? merged;
-  // One primary action, only when there is something to look at: the change that builds the request.
-  const primary = pr ? `<a class="btn btn-primary btn-lg" href="?pr=${pr.number}" data-open-pr="${pr.number}">${open ? 'Review the change' : 'Open the change'}</a>` : '';
+  const pr = open ?? r.prs.find((p) => p.merged);
+  if (!pr) return '';
+  if (pr.exploration) return `<a class="btn btn-primary btn-lg" href="?exploration=${pr.number}" data-open-exploration="${pr.number}">Open the exploration</a>`;
+  return `<a class="btn btn-primary btn-lg" href="?pr=${pr.number}" data-open-pr="${pr.number}">${open ? 'Review the change' : 'Open the change'}</a>`;
+}
+
+export function renderRequestDetail(r: RequestRow, ctx: DetailContext = { viewer: null, owners: [] }): string {
+  const req = r.request;
+  const decision = requestDecision(r, ctx);
+  const primary = primaryAction(r, decision.kind === 'decide');
   const jira = r.jiraKey ? (jiraUrl(r.jiraKey) ? `<a href="${esc(jiraUrl(r.jiraKey)!)}" target="_blank" rel="noopener">${esc(r.jiraKey)}</a>` : `<span class="mono">${esc(r.jiraKey)}</span>`) : '';
   const changes = req?.changes ?? [];
   const table = changes.length
@@ -234,7 +263,13 @@ export function renderRequestDetail(r: RequestRow): string {
   const design = req?.figma?.url ? `<p><a href="${esc(req.figma.url)}" target="_blank" rel="noopener">Open the design in Figma${req.figma.nodeName ? `: ${esc(req.figma.nodeName)}` : ''}</a></p>` : '';
   const build = buildState(r);
   const buildBody = r.prs.length
-    ? `<ul class="rq-prs">${r.prs.map((p) => `<li><a href="?pr=${p.number}" data-open-pr="${p.number}">Change #${p.number}</a> <span class="cg-muted">${p.merged ? 'shipped' : p.state === 'open' ? 'in review' : 'closed'}${p.author ? `, by @${esc(p.author)}` : ''}</span></li>`).join('')}</ul>`
+    ? `<ul class="rq-prs">${r.prs
+        .map((p) =>
+          p.exploration
+            ? `<li><a href="?exploration=${p.number}" data-open-exploration="${p.number}">Exploration #${p.number}</a> <span class="cg-muted">${p.state === 'open' ? 'running' : p.merged ? 'shipped' : 'closed'}${p.author ? `, by @${esc(p.author)}` : ''}</span></li>`
+            : `<li><a href="?pr=${p.number}" data-open-pr="${p.number}">Change #${p.number}</a> <span class="cg-muted">${p.merged ? 'shipped' : p.state === 'open' ? 'in review' : 'closed'}${p.author ? `, by @${esc(p.author)}` : ''}</span></li>`,
+        )
+        .join('')}</ul>`
     : '';
   const cmd = implementCommand(r.number);
   const active = r.status === 'requested' || r.status === 'in-progress';
@@ -258,8 +293,9 @@ export function renderRequestDetail(r: RequestRow): string {
   <header class="zone cg-pr-open">
     <h1 class="cg-pr-title">${esc(r.component)}: ${esc(r.title.charAt(0).toLowerCase() + r.title.slice(1))} <span class="cg-num">#${r.number}</span></h1>
     <p class="cg-pr-meta">${pill(r.kindLabel)}${pill(r.statusLabel, `rv-status ${r.tone}`)}${r.requester ? `<span>Asked by @${esc(r.requester)}</span>` : ''}<time datetime="${esc(r.createdAt)}">${esc(shortDate(r.createdAt))}</time>${jira}<a href="${esc(r.url)}" target="_blank" rel="noopener">Open on GitHub</a></p>
-    <p class="cg-pr-state">${esc(requestStateLine(r))}</p>
-    ${primary ? `<p class="cg-pr-cta">${primary}</p>` : ''}
+    <p class="cg-pr-state" id="rq-state" role="status" tabindex="-1">${esc(decision.sentence)}</p>
+    ${primary ? `<p class="cg-pr-cta rq-decide" id="rq-actions">${primary}</p>` : ''}
+    <div id="rq-assign-slot" hidden></div>
   </header>
   <div class="cg-secs">
     ${section('rq-sec-summary', 'Summary', esc(r.kindLabel), `<p class="rq-summary">${esc(req?.summary || 'The issue has no Bridge summary. Open it on GitHub to read it.')}</p>${design}`, true)}
@@ -280,7 +316,127 @@ export async function openRequest(n: number, push = true, openPulls?: Promise<Pu
   const list = await loadRequests(openPulls);
   const r = list.find((x) => x.number === n);
   if (Number(new URLSearchParams(location.search).get('request')) !== n) return;
+  current = r ?? null;
   d.innerHTML = r
-    ? renderRequestDetail(r)
+    ? renderRequestDetail(r, detailContext())
     : `<nav class="cg-crumbs" aria-label="Breadcrumb"><a href="?view=requests" data-back-requests>Requests</a><span aria-hidden="true">/</span><span class="mono">#${n}</span></nav><p class="cg-muted">#${n} is not a component change request in ${esc(REPO_KEY)}, or GitHub cannot be read right now. <a href="https://github.com/${esc(REPO_KEY)}/issues/${n}">Open it on GitHub</a>.</p>`;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Deciding on a request nobody is on: Assign someone (a DS Combobox in place) and Decline (a DS Dialog), from
+// components/ds/studio/RequestDecide, with the viewer's own token. Start an exploration opens the Explorations form
+// filled from the request (scripts/explorations.ts startForRequest).
+
+let current: RequestRow | null = null;
+
+const client = () => studioClient(REPO_KEY, getToken() ?? '');
+
+/** The detail again, after a decision or a connect: the decision zone becomes the status sentence. */
+function repaint() {
+  const d = document.getElementById('rv-detail');
+  if (!current || !d || d.hidden || Number(new URLSearchParams(location.search).get('request')) !== current.number) return;
+  d.innerHTML = renderRequestDetail(current, detailContext());
+}
+
+/** A decision changes the row in place (the list shows it too) and drops the cached list. */
+function changed(r: RequestRow, patch: Partial<Pick<RequestRow, 'assignees' | 'status'>>) {
+  Object.assign(r, patch);
+  r.statusLabel = REQUEST_STATUS_LABEL[r.status];
+  r.tone = requestTone(r.status);
+  forgetRequests();
+  if (document.getElementById('rq-list')) paint();
+  repaint();
+}
+
+/** After a decision: focus lands on the sentence that now says who is on it. */
+const focusState = () => requestAnimationFrame(() => document.getElementById('rq-state')?.focus());
+
+/** The decision row and the assign slot swap: one set of actions at a time. */
+function showAssign(on: boolean) {
+  const row = document.getElementById('rq-actions');
+  const slot = document.getElementById('rq-assign-slot');
+  if (row) row.hidden = on;
+  if (slot) slot.hidden = !on;
+}
+
+function assign(btn: HTMLButtonElement) {
+  const r = current;
+  const slot = document.getElementById('rq-assign-slot');
+  if (!r || !slot) return;
+  const o = owners();
+  const role = (who: string) => {
+    const l = who.toLowerCase();
+    const design = o.design.some((x) => x.toLowerCase() === l);
+    const tech = o.tech.some((x) => x.toLowerCase() === l);
+    return design && tech ? 'Design and tech owner' : design ? 'Design owner' : tech ? 'Tech owner' : undefined;
+  };
+  showAssign(true);
+  const detail: AssignAskDetail = {
+    number: r.number,
+    title: requestIssueTitle(r),
+    slot,
+    people: async () => {
+      try {
+        const people = await client().listCollaborators('push');
+        return assigneeOptions(people, currentViewer()?.login ?? null).map((p) => {
+          const d = role(p.value);
+          return d ? { ...p, description: d } : p;
+        });
+      } catch (err) {
+        throw new Error(`Could not read who can edit the library: ${(err as Error).message}`);
+      }
+    },
+    confirm: async (who) => {
+      const assignees = await assignRequestOnGitHub(client(), r.number, who);
+      changed(r, { assignees });
+    },
+    closed: (done) => {
+      if (done) return focusState();
+      showAssign(false);
+      if (btn.isConnected) btn.focus();
+    },
+  };
+  document.dispatchEvent(new CustomEvent(ASSIGN_EVENT, { detail }));
+}
+
+function decline(btn: HTMLButtonElement) {
+  const r = current;
+  if (!r) return;
+  const detail: DeclineAskDetail = {
+    number: r.number,
+    title: requestIssueTitle(r),
+    audience: declineAudience(r.requester),
+    problems: declineReasonProblems,
+    confirm: async (reason) => {
+      await declineRequestOnGitHub(client(), r.number, reason, currentViewer()?.login ?? null);
+      changed(r, { status: 'declined' });
+    },
+    closed: (done) => {
+      if (done) focusState();
+      else if (btn.isConnected) btn.focus();
+    },
+  };
+  document.dispatchEvent(new CustomEvent(DECLINE_EVENT, { detail }));
+}
+
+let wired = false;
+
+/** Wires the decision buttons once, and paints the detail again when someone connects or disconnects. */
+export function initRequests() {
+  if (wired) return;
+  wired = true;
+  initGitHubConnect(repaint);
+  document.addEventListener('click', (e) => {
+    const t = e.target as HTMLElement;
+    const a = t.closest<HTMLButtonElement>('[data-rq-assign]');
+    if (a) return void assign(a);
+    const d = t.closest<HTMLButtonElement>('[data-rq-decline]');
+    if (d) return void decline(d);
+  });
+}
+
+/** A request from the loaded list (or one list read), for the Start an exploration form. */
+export async function requestRow(n: number): Promise<RequestRow | null> {
+  const list = rows.length ? rows : await loadRequestRows({ closed: false }).catch(() => []);
+  return list.find((x) => x.number === n) ?? null;
 }
