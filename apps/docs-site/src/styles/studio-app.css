@@ -183,10 +183,6 @@
   color: var(--color-feedback-warning-icon);
 }
 
-.gh-acct-rejected .hd-btn {
-  justify-content: center;
-}
-
 /* "Reconnect" inside an error sentence: reads as a link, opens the Connect dialog. */
 .gh-inline-link {
   padding: 0;
@@ -205,10 +201,6 @@
 .gh-acct-connect {
   display: grid;
   gap: var(--space-1-5);
-}
-
-.gh-acct-connect .hd-btn {
-  justify-content: center;
 }
 
 .gh-acct-note {

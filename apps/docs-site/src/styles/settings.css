@@ -194,7 +194,7 @@
   color: var(--color-text-default);
 }
 
-/* Sign in with GitHub, with "Use a token instead" quietly under it. */
+/* The one way in: Sign in with GitHub, or Connect GitHub with a token on a site without a GitHub App. */
 .set-account-actions {
   display: grid;
   flex: none;

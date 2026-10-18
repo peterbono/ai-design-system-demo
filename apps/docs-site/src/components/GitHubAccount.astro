@@ -6,9 +6,13 @@
 // When GitHub refuses the saved token (revoked, regenerated or expired), the block says so with a Reconnect button
 // instead of the account. Painted by scripts/github-session.ts (every [data-gh-connect] block gets data-state
 // readonly|checking|connected|rejected).
-// With a GitHub App (docs/SIGN-IN.md) the button is "Sign in with GitHub" and goes straight to GitHub; a signed-in
-// account has "Sign out" instead of "Change token". The rejected and menu wording follows the session kind.
+// With a GitHub App (docs/SIGN-IN.md) the button is "Sign in with GitHub" and goes straight to GitHub, and the menu
+// has no "Change token": the designer UI never offers a token paste then. The rejected and menu wording follows the
+// session kind. The block is the same on every Studio page: one full-width DS Button, the read-only line under it as
+// its description.
+import { Button } from '@bridge-ds/react';
 import Icon from './Icon.astro';
+import { GitHubMark } from './ds/studio/brand-icons';
 import { siteRepo } from '../lib/config';
 import { signInConfig } from '../lib/signin-config';
 
@@ -18,18 +22,19 @@ const signIn = Boolean(signInConfig());
 
 <div class="gh-acct" data-gh-connect data-gh-acct data-state="checking">
   <div class="gh-acct-connect">
-    <button type="button" class="hd-btn" data-gh-open data-gh-signin={signIn ? '' : undefined}>
-      <Icon name="github" size={16} />
-      <span>{signIn ? 'Sign in with GitHub' : 'Connect GitHub'}</span>
-    </button>
-    <p class="gh-acct-note">{signIn ? 'Read only until you sign in' : 'Read only until connected'}</p>
+    <Button variant="primary" iconStart={GitHubMark} fullWidth data-gh-open data-gh-signin={signIn ? '' : undefined} aria-describedby="gh-acct-note">
+      {signIn ? 'Sign in with GitHub' : 'Connect GitHub'}
+    </Button>
+    <p class="gh-acct-note" id="gh-acct-note">{signIn ? 'Read only until you sign in' : 'Read only until connected'}</p>
   </div>
   <div class="gh-acct-rejected" role="status">
     <p class="gh-acct-rejected-text">
       <Icon name="alert" size={16} />
       <span data-gh-rejected-text>Your GitHub token stopped working</span>
     </p>
-    <button type="button" class="hd-btn" data-gh-open data-gh-signin><span data-gh-reconnect-label>Reconnect</span></button>
+    <Button variant="primary" iconStart={GitHubMark} fullWidth data-gh-open data-gh-signin>
+      <span data-gh-reconnect-label>{signIn ? 'Sign in with GitHub' : 'Reconnect'}</span>
+    </Button>
   </div>
   <details class="menu gh-acct-menu" data-menu>
     <summary class="gh-acct-who" aria-label="GitHub account">
@@ -52,7 +57,7 @@ const signIn = Boolean(signInConfig());
       </dl>
       <p class="menu-help" data-gh-perm-help hidden>This token can read but not write. Reviews and token proposals need Contents and Pull requests write access.</p>
       <div class="menu-actions">
-        <button type="button" class="menu-action st-hideable" data-gh-open data-gh-token-only><Icon name="edit" size={16} />Change token</button>
+        {!signIn && <button type="button" class="menu-action st-hideable" data-gh-open data-gh-token-only><Icon name="edit" size={16} />Change token</button>}
         <a class="menu-action" href="/studio/settings/#connection" data-keep-branch><Icon name="settings" size={16} />Settings</a>
         <button type="button" class="menu-action is-danger" data-gh-forget><Icon name="close" size={16} /><span data-gh-forget-label>Disconnect</span></button>
       </div>

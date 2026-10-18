@@ -122,10 +122,10 @@ export function readSignInConfig(): SignInConfig | null {
 }
 
 /**
- * Sign in is the way to connect: the site has a GitHub App, and this browser has no working pasted token (none, a
- * sign-in, or a pasted token GitHub refused).
+ * Sign in is the only way to connect when the site has a GitHub App: the designer UI then has no token paste (a token
+ * pasted before keeps working until it is disconnected). Without a GitHub App the token paste is the way in.
  */
-export const prefersSignIn = () => Boolean(readSignInConfig()) && (!getToken() || sessionMode() === 'app' || tokenRejected());
+export const prefersSignIn = () => Boolean(readSignInConfig());
 
 export class SignInError extends Error {
   constructor(
@@ -142,8 +142,8 @@ export class SignInError extends Error {
  */
 export async function startSignIn(returnTo = location.pathname + location.search + location.hash): Promise<void> {
   const cfg = readSignInConfig();
-  if (!cfg) throw new SignInError('Sign in with GitHub is not set up on this site. Use a token instead.');
-  if (!globalThis.crypto?.subtle) throw new SignInError('This browser cannot sign in safely here (no Web Crypto). Open Studio over https, or use a token instead.');
+  if (!cfg) throw new SignInError('Sign in with GitHub is not set up on this site. Connect with a token from Settings instead.');
+  if (!globalThis.crypto?.subtle) throw new SignInError('This browser cannot sign in safely here (no Web Crypto). Open Studio over https and sign in again.');
   const fill = (a: Uint8Array) => crypto.getRandomValues(a);
   const verifier = randomString(32, fill);
   const state = encodeState(randomString(24, fill), location.origin);
@@ -153,7 +153,7 @@ export async function startSignIn(returnTo = location.pathname + location.search
   try {
     sessionStorage.setItem(PENDING_KEY, JSON.stringify(pending));
   } catch {
-    throw new SignInError('This browser blocks site storage, so the sign-in could not finish. Allow site data for this site, or use a token instead.');
+    throw new SignInError('This browser blocks site storage, so the sign-in could not finish. Allow site data for this site, then sign in again.');
   }
   location.assign(authorizeUrl({ clientId: cfg.clientId, redirectUri, state, challenge }));
 }
@@ -308,7 +308,7 @@ export function showGhError(el: HTMLElement, err: unknown, fallback: string, act
   }
   el.innerHTML =
     a.kind === 'rejected'
-      ? `${esc(a.text)} <button type="button" class="gh-inline-link" data-gh-open data-gh-signin>${mode === 'app' ? 'Sign in again' : 'Reconnect'}</button>`
+      ? `${esc(a.text)} <button type="button" class="gh-inline-link" data-gh-open data-gh-signin>${mode === 'app' || prefersSignIn() ? 'Sign in again' : 'Reconnect'}</button>`
       : a.href
         ? `${esc(a.text)} <a href="${esc(a.href)}" target="_blank" rel="noopener">Edit the token on GitHub</a>`
         : esc(a.text);
@@ -499,25 +499,18 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
   const title = dialog?.querySelector<HTMLElement>('#gh-dialog-title') ?? null;
   const rejectedNote = dialog?.querySelector<HTMLElement>('[data-gh-rejected-note]') ?? null;
   const rejectedNoteText = rejectedNote?.querySelector<HTMLElement>('[data-gh-rejected-note-text]') ?? null;
-  // With a GitHub App the dialog has two views: Sign in with GitHub (default) and the token paste.
+  // With a GitHub App the dialog is Sign in with GitHub only; without one it is the token paste only.
   const signInView = dialog?.querySelector<HTMLElement>('[data-gh-view="signin"]') ?? null;
   const tokenView = dialog?.querySelector<HTMLElement>('[data-gh-view="token"]') ?? null;
-  if (!dialog || !input || !save) return;
+  if (!dialog || (!signInView && (!input || !save))) return;
   wired = true;
   const saveLabel = () => (tokenRejected() || viewer ? 'Check and replace' : 'Check and connect');
 
-  const showView = (view: 'signin' | 'token') => {
-    if (!signInView || !tokenView) return;
-    signInView.hidden = view !== 'signin';
-    tokenView.hidden = view !== 'token';
-    save.hidden = view !== 'token';
-    // Sign in view: the close button is the way out; Cancel comes back with the token form.
-    const cancel = dialog.querySelector<HTMLElement>('[data-gh-cancel]');
-    if (cancel) cancel.hidden = view !== 'token';
+  const showView = () => {
     showError(null);
     showSignInError(null);
-    if (view === 'token') input.focus();
-    else signInView.querySelector<HTMLElement>('[data-gh-signin]')?.focus();
+    if (signInView) signInView.querySelector<HTMLElement>('[data-gh-signin]')?.focus();
+    else input?.focus();
   };
 
   const paint = () => {
@@ -531,11 +524,11 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
       const text = block.querySelector('[data-gh-status-text]');
       if (text) text.textContent = viewer ? `Connected as @${viewer.login}` : rejected ? (app ? 'Sign-in expired' : 'Token stopped working') : 'Read only';
       const label = block.querySelector('[data-gh-open-label]');
-      if (label) label.textContent = viewer ? (app ? 'Account' : 'Token') : rejected ? (app ? 'Sign in again' : 'Reconnect') : signIn ? 'Sign in with GitHub' : 'Connect GitHub';
+      if (label) label.textContent = viewer ? (app ? 'Account' : 'Token') : rejected ? (app || signIn ? 'Sign in again' : 'Reconnect') : signIn ? 'Sign in with GitHub' : 'Connect GitHub';
       block.querySelectorAll<HTMLElement>('[data-gh-rejected-text]').forEach((el) => (el.textContent = app ? 'Your GitHub sign-in expired' : 'Your GitHub token stopped working'));
       block.querySelectorAll<HTMLElement>('[data-gh-reconnect-label]').forEach((el) => (el.textContent = app ? 'Sign in again' : signIn ? 'Sign in with GitHub' : 'Reconnect'));
-      // Change token only for a pasted token; a signed-in account signs out instead.
-      block.querySelectorAll<HTMLElement>('[data-gh-token-only]').forEach((el) => (el.hidden = app));
+      // Change token only for a pasted token on a site without Sign in with GitHub.
+      block.querySelectorAll<HTMLElement>('[data-gh-token-only]').forEach((el) => (el.hidden = app || signIn));
       block.querySelectorAll<HTMLElement>('[data-gh-forget-label]').forEach((el) => (el.textContent = app ? 'Sign out' : 'Disconnect'));
     });
     // Header account menu: login, avatar.
@@ -573,24 +566,23 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
     return v;
   };
 
-  const openDialog = (view?: 'signin' | 'token') => {
+  const openDialog = () => {
     const rejected = tokenRejected();
     const app = sessionMode() === 'app';
-    showError(null);
-    showSignInError(null);
-    input.value = '';
+    if (input) input.value = '';
     // Opened from Change token while connected: say so, the saved token stays until the new one is checked.
-    if (title) title.textContent = rejected ? (app ? 'Sign in again' : 'Reconnect GitHub') : viewer && !app ? 'Change GitHub token' : 'Connect GitHub';
+    if (title) title.textContent = rejected ? (app || signInView ? 'Sign in again' : 'Reconnect GitHub') : viewer && !app && !signInView ? 'Change GitHub token' : signInView ? 'Sign in with GitHub' : 'Connect GitHub';
     if (rejectedNote) rejectedNote.hidden = !rejected;
     if (rejectedNoteText) {
       rejectedNoteText.textContent = app
         ? 'Your GitHub sign-in expired and could not be renewed. Sign in again to keep editing.'
+        : signInView
+          ? 'GitHub no longer accepts the saved token. Sign in with GitHub to keep editing.'
         : 'GitHub no longer accepts the saved token: it was revoked, regenerated or has expired. Paste a new one to replace it.';
     }
-    setButtonLabel(save, saveLabel());
+    if (save) setButtonLabel(save, saveLabel());
     dialog.showModal();
-    if (signInView && tokenView) showView(view ?? (viewer && !app ? 'token' : prefersSignIn() ? 'signin' : 'token'));
-    else input.focus();
+    showView();
   };
 
   const signIn = async (from: HTMLElement | null) => {
@@ -601,30 +593,24 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
       await startSignIn();
     } catch (err) {
       if (btn) setButtonBusy(btn, false, label);
-      // Shown in the dialog, which offers the token paste next to it.
-      if (!dialog.open) openDialog('signin');
+      // Shown in the dialog, under its Sign in with GitHub button.
+      if (!dialog.open) openDialog();
       showSignInError((err as Error).message);
     }
   };
 
   document.addEventListener('click', (e) => {
     const target = e.target as HTMLElement;
-    const showToken = target.closest('[data-gh-show-token]');
-    const showSignIn = target.closest('[data-gh-show-signin]');
-    if (showToken || showSignIn) {
-      showView(showToken ? 'token' : 'signin');
-      return;
-    }
     const start = target.closest<HTMLElement>('[data-gh-signin]');
     const opener = target.closest<HTMLElement>('[data-gh-open]');
     if (!start && !opener) return;
     target.closest('details')?.removeAttribute('open');
-    // [data-gh-signin]: straight to GitHub when the site signs in with GitHub; else (or a pasted token) the dialog.
-    // [data-gh-open="token"]: the dialog on the token paste (Change token, Use a token instead).
+    // [data-gh-signin]: straight to GitHub when the site signs in with GitHub; else the dialog (sign in or token paste).
     if (start && (start.closest('#gh-dialog') || prefersSignIn())) void signIn(start);
-    else openDialog(opener?.dataset.ghOpen === 'token' ? 'token' : undefined);
+    else openDialog();
   });
-  save.addEventListener('click', async () => {
+  save?.addEventListener('click', async () => {
+    if (!input || !save) return;
     const value = input.value.trim();
     if (!value) {
       showError('Paste a token first.');
