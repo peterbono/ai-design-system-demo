@@ -177,8 +177,10 @@ async function viaMyClaude(
 }
 
 /**
- * Drafts docs for a scope, the designer's own way. Sections scopes return the drafted sections (page-fill returns
- * none, without calling Claude, when nothing is empty or outdated); selection returns `replacement` only. Nothing is
+ * Drafts docs for a scope, the designer's own way. Sections scopes return the drafted sections and `checked`: written
+ * sections page-fill checked against newer code and Claude left unchanged ("Still accurate"); a checked section in
+ * `sections` was fixed ("Updated"). page-fill returns nothing, without calling Claude, when nothing is empty or
+ * outdated. Selection returns `replacement` only. Nothing is
  * saved: the caller shows the result as "Drafted by Claude" for review. Rejects with an AbortError on `signal`.
  */
 export async function draftDocs(input: {
@@ -189,7 +191,7 @@ export async function draftDocs(input: {
   way: DraftWay;
   signal?: AbortSignal;
   onStatus?: (s: string) => void;
-}): Promise<{ sections: Partial<Record<ProseKey, ComponentDocsJson[ProseKey]>>; replacement?: string }> {
+}): Promise<{ sections: Partial<Record<ProseKey, ComponentDocsJson[ProseKey]>>; replacement?: string; checked?: ProseKey[] }> {
   const { slug, docs, scope, way, signal, onStatus } = input;
   if (signal?.aborted) throw aborted();
   onStatus?.('Reading the component code');
@@ -198,7 +200,7 @@ export async function draftDocs(input: {
   const task = scopeTask(scope, docs, outdated);
   if (isEmptyTask(task)) {
     onStatus?.('Every section is written and up to date');
-    return { sections: {} };
+    return { sections: {}, checked: [] };
   }
   const prompt = taskPrompt(ctx, docs, task);
   if (signal?.aborted) throw aborted();

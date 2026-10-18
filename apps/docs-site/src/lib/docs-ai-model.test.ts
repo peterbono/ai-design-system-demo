@@ -40,9 +40,9 @@ describe('scope selection', () => {
     expect(t).toEqual({ kind: 'sections', keys: ['whenNotToUse', 'contentGuidelines'] });
   });
 
-  it('page-fill also takes outdated sections, flagged for an update', () => {
+  it('page-fill sends written sections older than the code as checks, never as rewrites', () => {
     const t = scopeTask({ kind: 'page-fill' }, { ...full, whenNotToUse: [] }, ['summary', 'whenNotToUse']);
-    expect(t).toEqual({ kind: 'sections', keys: ['summary', 'whenNotToUse'], outdated: ['summary'] });
+    expect(t).toEqual({ kind: 'sections', keys: ['summary', 'whenNotToUse'], check: ['summary'] });
   });
 
   it('page-fill on complete, up-to-date docs has nothing to draft', () => {
@@ -63,6 +63,35 @@ describe('scope selection', () => {
   it('selection keeps the passage and the mode, and needs text', () => {
     expect(scopeTask({ kind: 'selection', key: 'summary', text: ' Shows a status. ', mode: 'shorter' }, full)).toEqual({ kind: 'selection', key: 'summary', text: 'Shows a status.', mode: 'shorter' });
     expect(() => scopeTask({ kind: 'selection', key: 'summary', text: ' ', mode: 'voice' }, full)).toThrow(/Select/);
+  });
+});
+
+describe('page-fill answers when the code is newer', () => {
+  const docs = { ...full, whenNotToUse: [] };
+  const task = scopeTask({ kind: 'page-fill' }, docs, [...PROSE_KEYS]);
+
+  it('an accurate section is omitted (Still accurate), a contradicted one returned (Updated), the empty one drafted', () => {
+    const answer = { summary: 'Shows a short status next to a name. It has no size prop.', whenNotToUse: ['For actions: use a Button.'] };
+    const r = resultFromReply(task, reply(JSON.stringify(answer)));
+    expect(r.sections).toEqual(answer);
+    expect(r.checked).toEqual(['whenToUse', 'dos', 'donts', 'accessibility', 'contentGuidelines']);
+    expect(r.checked).not.toContain('summary');
+    expect(r.sections).not.toHaveProperty('dos');
+  });
+
+  it('every written section still accurate: only the empty one comes back', () => {
+    const r = resultFromReply(task, reply('{"whenNotToUse": ["For actions."]}'));
+    expect(r).toEqual({ sections: { whenNotToUse: ['For actions.'] }, checked: ['summary', 'whenToUse', 'dos', 'donts', 'accessibility', 'contentGuidelines'] });
+  });
+
+  it('the prompt drafts the empty section and checks the others', () => {
+    const p = taskPrompt(ctx, docs, task);
+    expect(p).toMatch(/Write these sections of Badge\.docs\.json for the Bridge design system: whenNotToUse\./);
+    expect(p).toMatch(/Check these written sections .*: summary, whenToUse, dos, donts, accessibility, contentGuidelines\./);
+  });
+
+  it('the exchange answer is read the same way', () => {
+    expect(resultFromExchange(task, { docs: { whenNotToUse: ['For actions.'], dos: [{ title: 'Keep it short', text: 'No size prop now.' }] } }).checked).toEqual(['summary', 'whenToUse', 'donts', 'accessibility', 'contentGuidelines']);
   });
 });
 
@@ -120,7 +149,7 @@ describe('answers', () => {
   it('parses fenced JSON, keeps only the asked keys, strips em dashes and broken items', () => {
     const text = `Here you go:\n\`\`\`json\n${JSON.stringify({ summary: `Shows a status ${EM} next to a name.`, dos: [{ title: 'Keep it short', text: `One word ${EM} two at most.` }, { title: 'Empty' }], anatomy: { root: 'Invented' }, whenToUse: ['Not asked'] })}\n\`\`\``;
     const r = resultFromReply(sections, reply(text));
-    expect(r).toEqual({ sections: { summary: 'Shows a status, next to a name.', dos: [{ title: 'Keep it short', text: 'One word, two at most.' }] } });
+    expect(r).toEqual({ sections: { summary: 'Shows a status, next to a name.', dos: [{ title: 'Keep it short', text: 'One word, two at most.' }] }, checked: [] });
     expect(JSON.stringify(r)).not.toContain(EM);
   });
 
@@ -137,7 +166,7 @@ describe('answers', () => {
   });
 
   it('exchange results are sanitized the same way', () => {
-    expect(resultFromExchange(sections, { docs: { summary: `A ${EM} B` } })).toEqual({ sections: { summary: 'A, B' } });
+    expect(resultFromExchange(sections, { docs: { summary: `A ${EM} B` } })).toEqual({ sections: { summary: 'A, B' }, checked: [] });
     const sel = { kind: 'selection' as const, key: 'summary' as const, text: 'x', mode: 'shorter' as const };
     expect(resultFromExchange(sel, { replacement: 'Shorter.' })).toEqual({ sections: {}, replacement: 'Shorter.' });
     expect(() => resultFromExchange(sel, {})).toThrow(/no rewritten passage/);

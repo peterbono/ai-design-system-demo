@@ -37,9 +37,11 @@ const prefill = prefillDocs({ name: 'Badge', description: 'Short status label.',
 
 describe('docs tasks and prompts', () => {
   it('a sections prompt asks only for those keys and their shapes', () => {
-    const p = docsTaskPrompt(prefill, { voice: 'Sentence case.' }, { kind: 'sections', keys: ['dos', 'accessibility'], outdated: ['accessibility'] });
-    expect(p).toMatch(/^Write these sections of Badge\.docs\.json/);
-    expect(p).toMatch(/code changed after these sections were written: accessibility/);
+    const p = docsTaskPrompt(prefill, { voice: 'Sentence case.' }, { kind: 'sections', keys: ['dos', 'accessibility'], check: ['accessibility'] });
+    expect(p).toMatch(/^Write these sections of Badge\.docs\.json for the Bridge design system: dos\./);
+    expect(p).toMatch(/Check these written sections of Badge\.docs\.json against the current code: accessibility\./);
+    expect(p).toMatch(/Return a checked section ONLY when something in it is no longer true for the code/);
+    expect(p).toMatch(/a missing key means unchanged/);
     expect(p).toContain('{ "dos": [{ "title": "...", "text": "..." }], "accessibility": ["..."] }');
     expect(p).not.toMatch(/full docs\.json/);
     expect(p).toContain('<voice>');
@@ -102,6 +104,33 @@ describe('answers', () => {
     expect(parseDocsTaskAnswer(sel, 'Shows a status.')).toEqual({ sections: {}, replacement: 'Shows a status.' });
     expect(() => parseDocsTaskAnswer(sel, '{"replacement":""}')).toThrow(/no rewritten passage/);
     expect(() => parseDocsTaskAnswer({ kind: 'sections', keys: ['dos'] }, '{"summary":"x"}')).toThrow(/none of the sections/);
+  });
+});
+
+describe('check sections (written text older than the code)', () => {
+  const task = { kind: 'sections' as const, keys: ['summary', 'dos', 'accessibility'] as ('summary' | 'dos' | 'accessibility')[], check: ['summary', 'accessibility'] as ('summary' | 'accessibility')[] };
+
+  it('an accurate checked section is omitted and reported as checked; a contradicted one comes back; the empty one is drafted', () => {
+    const a = parseDocsTaskAnswer(task, JSON.stringify({ dos: [{ title: 'Short', text: 'One word.' }], accessibility: ['Announces the tone, not only its color.'] }));
+    expect(a.sections).toEqual({ dos: [{ title: 'Short', text: 'One word.' }], accessibility: ['Announces the tone, not only its color.'] });
+    expect(a.checked).toEqual(['summary']);
+  });
+
+  it('every checked section accurate: an empty answer is valid when only checks were asked', () => {
+    const only = { kind: 'sections' as const, keys: ['summary'] as 'summary'[], check: ['summary'] as 'summary'[] };
+    expect(parseDocsTaskAnswer(only, '{}')).toEqual({ sections: {}, checked: ['summary'] });
+    expect(() => parseDocsTaskAnswer({ kind: 'sections', keys: ['dos'] }, '{}')).toThrow(/none of the sections/);
+  });
+
+  it('exchange results keep checked, and accept {"docs": {}} for all-accurate checks', () => {
+    const item: DraftItem = { id: 'docs-1', scope: 'docs', component: 'Badge', changes: [], draft: { title: 'Badge docs', summary: 'Check' }, docs: { slug: 'badge', task, prompt: 'P' } };
+    const p = composePendingDrafts({ items: [item], sessionId: 'check0001', source: 'studio', now: new Date('2026-10-17T09:00:00Z') });
+    const out = mergeDraftResults(p, [{ id: 'docs-1', docs: { summary: 'Shows a status. Has no size prop anymore.' } }]);
+    expect(out.results![0]).toMatchObject({ docs: { summary: 'Shows a status. Has no size prop anymore.' }, checked: ['accessibility'] });
+    expect(draftItemBrief(item)).toMatch(/write the sections dos; check the sections summary, accessibility against the code and return one only when something in it is no longer true/);
+    const onlyChecks: DraftItem = { ...item, docs: { slug: 'badge', task: { kind: 'sections', keys: ['summary'], check: ['summary'] }, prompt: 'P' } };
+    const q = composePendingDrafts({ items: [onlyChecks], sessionId: 'check0002', source: 'studio' });
+    expect(mergeDraftResults(q, [{ id: 'docs-1', docs: {} }]).results![0]).toMatchObject({ docs: {}, checked: ['summary'] });
   });
 });
 
@@ -187,7 +216,7 @@ describe('docs items in the draft exchange', () => {
     const p = composePendingDrafts({ items: [docsItem({ kind: 'sections', keys: ['dos'] })], sessionId: 'docs00001', source: 'studio', now: NOW });
     const out = mergeDraftResults(p, [{ id: 'docs-1', docs: { dos: [{ title: 'Short', text: `One ${EM} word.` }], summary: 'Not asked' } }], NOW);
     expect(out.status).toBe('drafted');
-    expect(out.results).toEqual([{ id: 'docs-1', title: '', summary: '', docs: { dos: [{ title: 'Short', text: 'One, word.' }] }, by: 'claude', at: NOW.toISOString() }]);
+    expect(out.results).toEqual([{ id: 'docs-1', title: '', summary: '', docs: { dos: [{ title: 'Short', text: 'One, word.' }] }, checked: [], by: 'claude', at: NOW.toISOString() }]);
     expect(validatePendingDrafts(out)).toEqual([]);
     expect(() => mergeDraftResults(p, [{ id: 'docs-1', title: 'A title', summary: 'A summary' }])).toThrow(/asks for the sections dos: send \{"id": "docs-1", "docs": \{"dos": \.\.\.\}\}/);
 

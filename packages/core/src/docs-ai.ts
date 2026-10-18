@@ -32,10 +32,11 @@ export const isProseKey = (k: unknown): k is ProseKey => typeof k === 'string' &
 
 /**
  * One drafting job on a component's docs. "sections": write these prose sections (rewrite: even when they hold text;
- * outdated: the ones older than the code). "selection": rewrite one passage of a section, nothing else.
+ * check: written sections older than the code, returned only when no longer true for it, so an absent one is still
+ * accurate). "selection": rewrite one passage of a section, nothing else.
  */
 export type DocsDraftTask =
-  | { kind: 'sections'; keys: ProseKey[]; rewrite?: boolean | undefined; outdated?: ProseKey[] | undefined }
+  | { kind: 'sections'; keys: ProseKey[]; rewrite?: boolean | undefined; check?: ProseKey[] | undefined }
   | { kind: 'selection'; key: ProseKey; text: string; mode: DocsSelectionMode };
 
 /** Problems in a task, as sentences. Empty when valid. */
@@ -45,7 +46,7 @@ export function validateDocsTask(x: unknown): string[] {
   if (t.kind === 'sections') {
     const keys = t.keys;
     if (!Array.isArray(keys) || !keys.length || !keys.every(isProseKey)) return [`The docs task lists no sections: use ${PROSE_KEYS.join(', ')}.`];
-    if (t.outdated !== undefined && (!Array.isArray(t.outdated) || !t.outdated.every(isProseKey))) return ['outdated must list prose sections.'];
+    if (t.check !== undefined && (!Array.isArray(t.check) || !t.check.every(isProseKey))) return ['check must list prose sections.'];
     return [];
   }
   if (t.kind === 'selection') {
@@ -85,7 +86,7 @@ export function docsSelectionPrompt(prefill: DocsPrefill, conventions: DocsConve
 /** The prompt of a task: docsPrompt for sections (only those keys), docsSelectionPrompt for a selection. */
 export function docsTaskPrompt(prefill: DocsPrefill, conventions: DocsConventions, task: DocsDraftTask): string {
   if (task.kind === 'selection') return docsSelectionPrompt(prefill, conventions, task);
-  return docsPrompt(prefill, conventions, { keys: task.keys, ...(task.rewrite ? { rewrite: true } : {}), ...(task.outdated?.length ? { outdated: task.outdated } : {}) });
+  return docsPrompt(prefill, conventions, { keys: task.keys, ...(task.rewrite ? { rewrite: true } : {}), ...(task.check?.length ? { check: task.check } : {}) });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -169,7 +170,11 @@ export function sanitizeDocsReplacement(raw: unknown): string {
   return cleanDocsText(raw.trim().replace(/^["'“]+|["'”]+$/g, ''));
 }
 
-export type DocsTaskAnswer = { sections: DocsSections; replacement?: undefined } | { sections: DocsSections; replacement: string };
+/**
+ * A task's answer. Sections tasks: `sections` drafted or fixed, and `checked`, the checked sections Claude verified and
+ * left unchanged (still accurate). Selection: `replacement` only.
+ */
+export type DocsTaskAnswer = { sections: DocsSections; checked: ProseKey[]; replacement?: undefined } | { sections: DocsSections; checked?: undefined; replacement: string };
 
 /**
  * A task's answer from Claude's reply text. Sections: the requested keys, sanitized; throws when none came back.
@@ -188,7 +193,17 @@ export function parseDocsTaskAnswer(task: DocsDraftTask, text: string): DocsTask
     if (!replacement) throw new Error('Claude sent no rewritten passage. Try again.');
     return { sections: {}, replacement };
   }
-  return { sections: docsSectionsResult(task, parseDocsReply(text)) };
+  return docsSectionsAnswer(task, parseDocsReply(text));
+}
+
+/**
+ * Sections and checked of a sections task from an answer object: absent checked keys are still accurate. Throws only
+ * when the task checks nothing and none of its keys came back.
+ */
+export function docsSectionsAnswer(task: Extract<DocsDraftTask, { kind: 'sections' }>, raw: unknown): { sections: DocsSections; checked: ProseKey[] } {
+  const check = (task.check ?? []).filter((k) => task.keys.includes(k));
+  const sections = check.length ? sanitizeDocsSections(raw, task.keys) : docsSectionsResult(task, raw);
+  return { sections, checked: check.filter((k) => sections[k] === undefined) };
 }
 
 /** The sections of a task from an answer object (API reply or the exchange). Throws when none of the keys came back. */

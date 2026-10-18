@@ -504,7 +504,7 @@ export function createServer(ctx: BridgeContext): McpServer {
         'Look at the before and after images, then write what changes for developers and why it matters for people who use the component. Sentence case, start the title with a verb, no em dash, no invented numbers, names or reasons: if the reason is unknown, leave it out.',
         `Write one short sentence per change line from the images: what changed for developers (the part, the variant, the values you can read), for example "Icon added after the label in primary sm: Pencil, 16px", and the title of the request it becomes, for example "Add an icon after the label".`,
         `Then call bridge_write_drafts with one result per item id: title at most ${DRAFT_TITLE_MAX} characters, summary at most 3 sentences, lines (one per change line id) with a line of at most ${DRAFT_LINE_MAX} characters and a title of at most ${DRAFT_TITLE_MAX}.`,
-        'Docs items: read the brief, write only the sections its task names (summary a string; whenToUse, whenNotToUse, accessibility, contentGuidelines lists of strings; dos and donts lists of {"title", "text"}) from the facts it quotes, never a prop, variant or keyboard behavior that is not in the code, never anatomy; answer with "docs": {sections}. A selection task rewrites one passage: answer with "replacement": "the passage". No title or summary for docs items.',
+        'Docs items: read the brief. Sections to check (the code changed after they were written) go in the answer ONLY when something in them is no longer true for the code (a wrong or removed prop, a removed state, changed behavior), fixed with the writer\'s wording kept elsewhere; leave accurate ones out (a missing key means unchanged, "docs": {} when all are accurate). Otherwise write only the sections its task names (summary a string; whenToUse, whenNotToUse, accessibility, contentGuidelines lists of strings; dos and donts lists of {"title", "text"}) from the facts it quotes, never a prop, variant or keyboard behavior that is not in the code, never anatomy; answer with "docs": {sections}. A selection task rewrites one passage: answer with "replacement": "the passage". No title or summary for docs items.',
       ].join(' '),
       inputSchema: {
         sessionId: z.string().optional().describe('One session only. Default: every pending session.'),
@@ -547,7 +547,7 @@ export function createServer(ctx: BridgeContext): McpServer {
               docs: z
                 .record(z.string(), z.unknown())
                 .optional()
-                .describe('Docs items with a sections task: only the sections the brief asks for, in docs.json shapes: summary a string; whenToUse, whenNotToUse, accessibility, contentGuidelines lists of strings; dos and donts lists of {"title", "text"}.'),
+                .describe('Docs items with a sections task: only the sections the brief asks for (a section to check only when it is no longer true for the code; leave accurate ones out), in docs.json shapes: summary a string; whenToUse, whenNotToUse, accessibility, contentGuidelines lists of strings; dos and donts lists of {"title", "text"}.'),
               replacement: z.string().optional().describe('Docs items with a selection task: the rewritten passage only, plain text, Bridge voice, no em dash.'),
               lines: z
                 .array(

@@ -5,8 +5,12 @@
 "@bridge-ds/docs-site": minor
 ---
 
-Docs drafted with Claude in place, at three levels: the whole page (fill only empty or outdated sections, or rewrite
-every one), one section, or a selected passage (clearer, shorter, or in the Bridge voice).
+Docs drafted with Claude in place, at three levels: the whole page (fill, or rewrite every section), one section, or a
+selected passage (clearer, shorter, or in the Bridge voice). Fill drafts the empty sections and never rewrites written
+ones: when the code is newer than docs.json, written sections are sent as checks, and Claude returns one only when
+something in it is no longer true for the code (the writer's wording kept elsewhere). Results say which checked
+sections are still accurate (`checked`) and which were updated (in `sections`). Same rule for MCP docs items
+(`DocsDraftTask.check`, `DraftResult.checked`).
 
 Core: new `docs-ai.ts` with the task model (`DocsDraftTask`, `validateDocsTask`), the prompts (`docsTaskPrompt`,
 `docsSelectionPrompt`; `docsPrompt` takes `{ keys, rewrite, outdated }` to ask for only some sections), the answer

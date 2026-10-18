@@ -282,6 +282,33 @@ describe('bridge_pending_drafts and bridge_write_drafts', () => {
       { id: 'docs-2', replacement: 'A small status label.' },
     ]);
     expect(saved.results![0]!.docs).not.toHaveProperty('anatomy');
+    expect(saved.results![0]!.checked).toEqual([]);
+    await client.close();
+  });
+
+  it('docs items with sections to check: accurate ones are left out and reported as checked', async () => {
+    const gh = withDrafts();
+    const item: DraftItem = {
+      id: 'docs-1',
+      scope: 'docs',
+      component: 'Badge',
+      changes: [],
+      draft: { title: 'Badge docs', summary: 'Check' },
+      docs: { slug: 'badge', task: { kind: 'sections', keys: ['summary', 'dos', 'accessibility'], check: ['summary', 'accessibility'] }, prompt: 'PROMPT' },
+    };
+    gh.seed(composePendingDrafts({ sessionId: 'check0001', now: new Date('2026-10-17T09:00:00Z'), source: 'studio', items: [item] }));
+    const ctx = await BridgeContext.create({ repo: 'acme/ds', token: 't', fetch: gh.fetch });
+    const { answer } = await drafts.pendingDrafts(ctx, {});
+    expect(answer.sessions[0]!.briefs[0]).toMatch(/write the sections dos; check the sections summary, accessibility against the code and return one only when something in it is no longer true \(leave accurate ones out\)/);
+    const client = await connect(ctx);
+    const tools = await client.listTools();
+    expect(tools.tools.find((t) => t.name === 'bridge_pending_drafts')!.description).toMatch(/ONLY when something in them is no longer true for the code/);
+    const r = (await client.callTool({
+      name: 'bridge_write_drafts',
+      arguments: { sessionId: 'check0001', results: [{ id: 'docs-1', docs: { dos: [{ title: 'Keep it short', text: 'One or two words.' }], summary: 'Shows a status. It has no size prop.' } }] },
+    })) as any;
+    expect(r.isError).toBeFalsy();
+    expect(gh.read('check0001').results![0]).toMatchObject({ docs: { summary: 'Shows a status. It has no size prop.', dos: [{ title: 'Keep it short', text: 'One or two words.' }] }, checked: ['accessibility'] });
     await client.close();
   });
 

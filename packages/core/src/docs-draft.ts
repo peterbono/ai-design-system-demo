@@ -211,8 +211,11 @@ export interface DocsPromptOptions {
   keys?: readonly ProseKey[];
   /** Rewrite the sections even when they hold text. */
   rewrite?: boolean;
-  /** Sections older than the component code: update them to the code. */
-  outdated?: readonly ProseKey[];
+  /**
+   * Written sections older than the component code, to check (among `keys`): Claude returns one only when something
+   * in it is no longer true for the code, keeping the writer's wording elsewhere; an accurate one is left out.
+   */
+  check?: readonly ProseKey[];
 }
 
 const SECTION_SHAPE: Record<ProseKey, string> = {
@@ -247,18 +250,24 @@ export function docsPrompt(prefill: DocsPrefill, conventions: DocsConventions = 
   ].filter(Boolean);
   const block = (title: string, text?: string) => (text?.trim() ? `<${title}>\n${text.trim()}\n</${title}>` : '');
   const keys = options.keys;
+  const check = keys ? (options.check ?? []).filter((k) => keys.includes(k)) : [];
+  const write = keys ? keys.filter((k) => !check.includes(k)) : [];
   const task = keys
     ? [
-        `${options.rewrite ? 'Rewrite' : 'Write'} these sections of ${prefill.component}.docs.json for the Bridge design system: ${keys.join(', ')}.`,
-        ...(options.outdated?.length
-          ? [`The component code changed after these sections were written: ${options.outdated.join(', ')}. Update them to match the code, keep the writer's wording where it is still true.`]
+        ...(write.length ? [`${options.rewrite ? 'Rewrite' : 'Write'} these sections of ${prefill.component}.docs.json for the Bridge design system: ${write.join(', ')}.`] : []),
+        ...(check.length
+          ? [
+              `Check these written sections of ${prefill.component}.docs.json against the current code: ${check.join(', ')}. The code changed after they were written.`,
+              'Return a checked section ONLY when something in it is no longer true for the code (a wrong or removed prop, a removed state or variant, changed behavior). Then return the whole section with only the untrue parts fixed, keeping the writer\'s wording everywhere else.',
+              'Leave a checked section out of the answer when it is still accurate: a missing key means unchanged. Never return a checked section just to improve its style.',
+            ]
           : []),
         ...(options.rewrite ? ['Rewrite each one from the facts and the source: keep what is true in the current text, drop what the code does not support.'] : []),
       ]
     : [`Write the missing prose of ${prefill.component}.docs.json for the Bridge design system.`];
   const shape = keys
     ? [
-        `- Write only these keys: ${keys.join(', ')}. Never return anatomy, preview or any other key: code decides them.`,
+        `- ${check.length ? 'Return' : 'Write'} only these keys: ${keys.join(', ')}${check.length ? ` (the checked ones, ${check.join(', ')}, only when they need a fix)` : ''}. Never return anatomy, preview or any other key: code decides them.`,
         `- Answer with one JSON object holding only those keys, nothing else: ${docsSectionShapes(keys)}.`,
       ]
     : [

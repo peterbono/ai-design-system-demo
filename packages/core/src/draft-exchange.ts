@@ -17,7 +17,8 @@
 // helpers: no DOM, no figma.*, no Node-only API.
 
 import { DRAFT_LINE_MAX, cleanDraftText, sanitizeDraftLine, type DraftText } from './change-drafts';
-import { type DocsDraftTask, type DocsSections, docsSectionsResult, docsTaskKeys, sanitizeDocsReplacement, validateDocsTask } from './docs-ai';
+import { type DocsDraftTask, type DocsSections, docsSectionsAnswer, docsTaskKeys, sanitizeDocsReplacement, validateDocsTask } from './docs-ai';
+import type { ProseKey } from './docs-draft';
 import { GitHubError, type GitHubClient } from './github-client';
 import { REQUESTS_BRANCH, type RequestChange, type RequestKind, REQUEST_KINDS } from './requests';
 
@@ -114,6 +115,8 @@ export interface DraftResult {
   docs?: DocsSections | undefined;
   /** Docs items (selection task): the rewritten passage. */
   replacement?: string | undefined;
+  /** Docs items (sections task): checked sections Claude verified and left unchanged (still accurate). */
+  checked?: ProseKey[] | undefined;
   by: 'claude';
   at: string;
 }
@@ -155,7 +158,7 @@ export const DRAFT_OUTPUT_CONTRACT = [
   `title: one line, at most ${DRAFT_TITLE_MAX} characters, no trailing period.`,
   `summary: at most ${DRAFT_SUMMARY_SENTENCES} sentences, plain text.`,
   `lines: one per change line the item lists (its "lines"), by line id: line is one sentence, at most ${DRAFT_LINE_MAX} characters, no trailing period; title is the request title for that component change, at most ${DRAFT_TITLE_MAX} characters, no trailing period. Leave lines out when the item lists none.`,
-  'Docs items (scope "docs", from Bridge Studio): follow the item\'s prompt and send {"id": "<item id>", "docs": {<only the sections it asks for>}} for a sections task, or {"id": "<item id>", "replacement": "..."} for a selection task. No title or summary. The designer reviews them on the Library page.',
+  'Docs items (scope "docs", from Bridge Studio): follow the item\'s prompt and send {"id": "<item id>", "docs": {<only the sections it asks for>}} for a sections task (a section to check goes in only when something in it is no longer true for the code: leave accurate ones out, {"docs": {}} when all are), or {"id": "<item id>", "replacement": "..."} for a selection task. No title or summary. The designer reviews them on the Library page.',
   'The designer reviews the text in Figma before anything is sent.',
 ];
 
@@ -318,7 +321,7 @@ export interface DraftResultInput {
 }
 
 /** The docs part of a result for a docs item, sanitized to its task. Throws when it holds nothing the task asked for. */
-export function sanitizeDocsResult(item: DraftItem, r: DraftResultInput): Pick<DraftResult, 'docs' | 'replacement'> {
+export function sanitizeDocsResult(item: DraftItem, r: DraftResultInput): Pick<DraftResult, 'docs' | 'replacement' | 'checked'> {
   const task = item.docs!.task;
   if (task.kind === 'selection') {
     const raw = r.replacement ?? (r.docs && typeof r.docs === 'object' ? (r.docs as Record<string, unknown>)[task.key] : undefined);
@@ -327,7 +330,8 @@ export function sanitizeDocsResult(item: DraftItem, r: DraftResultInput): Pick<D
     return { replacement };
   }
   try {
-    return { docs: docsSectionsResult(task, r.docs) };
+    const { sections, checked } = docsSectionsAnswer(task, r.docs ?? {});
+    return { docs: sections, checked };
   } catch {
     throw new Error(`Item "${item.id}" asks for the sections ${docsTaskKeys(task).join(', ')}: send {"id": "${item.id}", "docs": {${task.keys.map((k) => `"${k}": ...`).join(', ')}}} in the shapes of its prompt.`);
   }
@@ -386,7 +390,17 @@ export function mergeDraftResults(p: PendingDrafts, results: DraftResultInput[],
 export function draftItemBrief(i: DraftItem): string {
   if (i.scope === 'docs' && i.docs) {
     const t = i.docs.task;
-    const what = t.kind === 'selection' ? `rewrite one passage of the ${t.key} section (${t.mode}), answer with "replacement"` : `${t.rewrite ? 'rewrite' : 'write'} the sections ${t.keys.join(', ')}, answer with "docs"`;
+    const check = t.kind === 'sections' ? (t.check ?? []).filter((k) => t.keys.includes(k)) : [];
+    const write = t.kind === 'sections' ? t.keys.filter((k) => !check.includes(k)) : [];
+    const what =
+      t.kind === 'selection'
+        ? `rewrite one passage of the ${t.key} section (${t.mode}), answer with "replacement"`
+        : [
+            write.length ? `${t.rewrite ? 'rewrite' : 'write'} the sections ${write.join(', ')}` : '',
+            check.length ? `check the sections ${check.join(', ')} against the code and return one only when something in it is no longer true (leave accurate ones out)` : '',
+          ]
+            .filter(Boolean)
+            .join('; ') + ', answer with "docs"';
     return [`Item ${i.id}: component docs${i.component ? ` of ${i.component}` : ''} from Bridge Studio (${i.docs.path ?? i.docs.slug}): ${what}.`, '', i.docs.prompt].join('\n');
   }
   const kind = i.kind ? REQUEST_KINDS.find((k) => k.value === i.kind)?.label : undefined;
