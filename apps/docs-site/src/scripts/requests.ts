@@ -14,6 +14,7 @@ import {
   implementCommand,
   onItLabel,
   requestImages,
+  wantsToChange,
   requestRows,
   requestsCacheKey,
   requestsSummary,
@@ -137,7 +138,7 @@ function rowHtml(r: RequestRow) {
   return `<li class="cg-row" data-request="${r.number}"><a class="cg-row-link rq-row-link" href="?request=${r.number}" data-open-request="${r.number}">
     ${thumbHtml(r)}
     <span class="rq-row-main"><span class="cg-row-title"><span class="cg-row-name" title="${esc(r.title)}"><span class="rq-comp">${esc(r.component)}</span> ${esc(r.title)}</span> <span class="cg-num">#${r.number}</span></span>
-    <span class="rq-meta">${esc(r.kindLabel)}${r.requester ? `, asked by @${esc(r.requester)}` : ''}${r.jiraKey ? `, <span class="mono">${esc(r.jiraKey)}</span>` : ''}</span></span>
+    <span class="rq-meta">${esc(wantsToChange(r.requester, r.component))}, ${esc(r.kindLabel.toLowerCase())}${r.jiraKey ? `, <span class="mono">${esc(r.jiraKey)}</span>` : ''}</span></span>
     <span class="rq-onit">${esc(onItLabel(r))}</span>
     ${pill(r.statusLabel, `rv-status ${r.tone}`)}
     <time class="cg-date" datetime="${esc(r.createdAt)}">${esc(shortDate(r.createdAt))}</time></a></li>`;
@@ -292,7 +293,7 @@ export function renderRequestDetail(r: RequestRow, ctx: DetailContext = { viewer
   <nav class="cg-crumbs" aria-label="Breadcrumb"><a href="?view=requests" data-back-requests>Requests</a><span aria-hidden="true">/</span><span class="mono">#${r.number}</span></nav>
   <header class="zone cg-pr-open">
     <h1 class="cg-pr-title">${esc(r.component)}: ${esc(r.title.charAt(0).toLowerCase() + r.title.slice(1))} <span class="cg-num">#${r.number}</span></h1>
-    <p class="cg-pr-meta">${pill(r.kindLabel)}${pill(r.statusLabel, `rv-status ${r.tone}`)}${r.requester ? `<span>Asked by @${esc(r.requester)}</span>` : ''}<time datetime="${esc(r.createdAt)}">${esc(shortDate(r.createdAt))}</time>${jira}<a href="${esc(r.url)}" target="_blank" rel="noopener">Open on GitHub</a></p>
+    <p class="cg-pr-meta">${pill(r.kindLabel)}${pill(r.statusLabel, `rv-status ${r.tone}`)}<span>${esc(wantsToChange(r.requester, r.component))}</span><time datetime="${esc(r.createdAt)}">${esc(shortDate(r.createdAt))}</time>${jira}<a href="${esc(r.url)}" target="_blank" rel="noopener">Open on GitHub</a></p>
     <p class="cg-pr-state" id="rq-state" role="status" tabindex="-1">${esc(decision.sentence)}</p>
     ${primary ? `<p class="cg-pr-cta rq-decide" id="rq-actions">${primary}</p>` : ''}
     <div id="rq-assign-slot" hidden></div>
@@ -301,7 +302,7 @@ export function renderRequestDetail(r: RequestRow, ctx: DetailContext = { viewer
     ${section('rq-sec-summary', 'Summary', esc(r.kindLabel), `<p class="rq-summary">${esc(req?.summary || 'The issue has no Bridge summary. Open it on GitHub to read it.')}</p>${design}`, true)}
     ${pictures ? section('rq-sec-images', pictures.title, '', pictures.body, true) : ''}
     ${section('rq-sec-changes', 'Changes', String(changes.length), table, changes.length > 0)}
-    ${r.prs.length ? section('rq-sec-build', 'Built by a developer', esc(build), buildBody) : ''}
+    ${r.prs.length ? section('rq-sec-build', 'Where it is built', esc(build), buildBody) : ''}
     ${dev}
   </div>`;
 }
