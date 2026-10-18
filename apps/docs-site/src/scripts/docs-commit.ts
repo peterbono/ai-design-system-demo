@@ -3,13 +3,14 @@
 // accept a Claude draft there (needsReview false). Pure parts live in lib/docs-draft-model.ts and @bridge-ds/core.
 import { acceptDocsText, classifyAuth, friendlyMessage, GitHubError } from '@bridge-ds/core';
 import { docsProposal, type DocsEdit } from '../lib/docs-draft-model';
-import { getToken, readRepo, studioClient, studioFetch } from './github-session';
+import { getToken, prefersSignIn, readRepo, studioClient, studioFetch } from './github-session';
+import { ghVerb } from '../lib/gh-wording';
 
 const API = 'https://api.github.com';
 
 function client() {
   const token = getToken();
-  if (!token) throw new Error('Connect GitHub first.');
+  if (!token) throw new Error(`${ghVerb(prefersSignIn())} first.`);
   const r = readRepo();
   return { token, repo: r, gh: studioClient(`${r.owner}/${r.repo}`, token) };
 }

@@ -53,6 +53,9 @@ describe('Change this component: forms', () => {
     expect(changeFormCopy('mismatch', 'Button')).toMatchObject({ heading: 'Report a mismatch', submit: 'Send report', changes: true, swap: null });
     expect(changeFormCopy('explore', 'Button').summary.placeholder).toContain('Button');
     expect(changeFormCopy('explore', 'Button').connect).toBe('Connect GitHub to start');
+    expect(changeFormCopy('explore', 'Button', true).connect).toBe('Sign in to start');
+    expect(changeFormCopy('ask', 'Button', true).connect).toBe('Sign in to send');
+    expect(changeFormCopy('mismatch', 'Button', true).connect).toBe('Sign in to send');
   });
 
   it('says what is missing in the words of the form', () => {

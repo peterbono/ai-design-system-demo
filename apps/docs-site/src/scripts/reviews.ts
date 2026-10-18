@@ -51,7 +51,8 @@ import {
 import { iconSvg } from '../brand/icons';
 import { pullEntry, type BranchesConfig } from '../lib/branches';
 import type { Root } from 'react-dom/client';
-import { currentViewer, esc, ghGet, ghWrite, hasWorkingToken, initGitHubConnect, RateLimitError, readRepo, relativeTime, showGhError } from './github-session';
+import { currentViewer, esc, ghGet, ghWrite, hasWorkingToken, initGitHubConnect, prefersSignIn, RateLimitError, readRepo, relativeTime, showGhError } from './github-session';
+import { ghAction, ghVerb } from '../lib/gh-wording';
 import { analyzeTokenFiles, isTokenFile, type TokenReview } from './reviews/token-review';
 import { loadVisualImpact, renderTopChange } from './reviews/visual-impact';
 import { ciFor, loadStatuses, teamPeople, whoChip, type PullStatus } from './pr-status';
@@ -275,7 +276,7 @@ function showEmpty(empty: boolean) {
 function paintAsOf(at: string | null) {
   const el = $('cg-asof');
   el.hidden = !at;
-  if (at) el.textContent = `Showing the list ${asOf(at)}: GitHub cannot be read right now. Connect GitHub for live status.`;
+  if (at) el.textContent = `Showing the list ${asOf(at)}: GitHub cannot be read right now. ${ghAction('see live status', prefersSignIn())}.`;
 }
 
 const natureOf = (title: string, labels: { name: string }[] | undefined, files: FileSignals | null = null) => workNature({ title: humanTitle(mdTitleText(title)), labels: labels ?? null, files }).nature;
@@ -323,7 +324,7 @@ export async function loadList(): Promise<{ number: number; head: { ref: string 
     $('cg-table').hidden = true;
     $('cg-open-sentence').textContent =
       failure instanceof RateLimitError
-        ? 'GitHub limits anonymous reads to 60 an hour and this browser has used them, with no saved list yet. Connect GitHub, or try again later.'
+        ? `GitHub limits anonymous reads to 60 an hour and this browser has used them, with no saved list yet. ${ghVerb(prefersSignIn())}, or try again later.`
         : `Could not load pull requests: ${(failure as Error | null)?.message ?? 'GitHub did not answer'}.`;
     return [];
   }
@@ -416,7 +417,7 @@ export async function openPr(n: number, push = true) {
   window.scrollTo({ top: 0 });
   try {
     const pf = await ghGet<Pull>(`${R}/pulls/${n}`);
-    if (pf.stale) showNotice('warn', `GitHub cannot be read right now, so this shows change #${n} ${asOf(pf.cachedAt ?? '')}. Connect GitHub for live status.`);
+    if (pf.stale) showNotice('warn', `GitHub cannot be read right now, so this shows change #${n} ${asOf(pf.cachedAt ?? '')}. ${ghAction('see live status', prefersSignIn())}.`);
     const pull = pf.data;
     // GitHub computes whether it merges cleanly on the first read (null meanwhile): read it once more while the rest
     // loads, so the header never says "waiting for approval" on one load and "conflict" on the next.
@@ -529,7 +530,7 @@ export async function openPr(n: number, push = true) {
   } catch (err) {
     if (seq !== openSeq) return;
     d.innerHTML = `<nav class="cg-crumbs" aria-label="Breadcrumb"><a href="./" data-back>Changes</a><span aria-hidden="true">/</span><span class="mono">#${n}</span></nav>`;
-    if (err instanceof RateLimitError) showNotice('warn', 'GitHub limits anonymous reads to 60 an hour. Connect GitHub, or open this pull request on GitHub.');
+    if (err instanceof RateLimitError) showNotice('warn', `GitHub limits anonymous reads to 60 an hour. ${ghVerb(prefersSignIn())}, or open this change on GitHub.`);
     else showNotice('fail', `Could not load pull request #${n}: ${(err as Error).message}`);
   }
 }
@@ -739,7 +740,7 @@ function renderDetail(x: DetailInput) {
     } else if (who.action === 'approve-design' || who.action === 'approve-tech' || who.action === 'approve') primary = who.action;
     else if (AUTHOR_CTA[who.action]) headerCta = `<a class="btn btn-primary btn-lg" href="${esc(pull.html_url)}" target="_blank" rel="noopener">${AUTHOR_CTA[who.action]}</a>`;
   } else if (help) primary = 'ask';
-  if (!access && !headerCta && (lifecycle === 'open' || lifecycle === 'draft')) headerCta = '<button type="button" class="btn btn-primary btn-lg" data-gh-open>Connect GitHub to review</button>';
+  if (!access && !headerCta && (lifecycle === 'open' || lifecycle === 'draft')) headerCta = `<button type="button" class="btn btn-primary btn-lg" data-gh-open>${ghAction('review', prefersSignIn())}</button>`;
   const failingRun = ci.failed.find((f) => f.url)?.url;
 
   // Conversation: how many, the last word, and GitHub for the thread (it is where people answer).

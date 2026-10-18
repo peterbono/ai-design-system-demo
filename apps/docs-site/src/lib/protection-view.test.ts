@@ -29,6 +29,11 @@ describe('protectionRow', () => {
     }
   });
 
+  it('no token: the way in follows the site', () => {
+    expect(protectionRow({ kind: 'no-token' }, RULES).text).toBe('Connect GitHub to see whether every change goes through review.');
+    expect(protectionRow({ kind: 'no-token' }, RULES, true).text).toBe('Sign in to see whether every change goes through review.');
+  });
+
   it('designer words on the row: no ruleset, branch or force push, no em dash', () => {
     const states: ProtectionRowState[] = [
       { kind: 'protected', missing: [] },

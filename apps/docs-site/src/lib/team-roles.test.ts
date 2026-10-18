@@ -119,6 +119,7 @@ describe('Settings: people and teams', () => {
     expect(teamsPickerHint('personal-account', 'peterbono')).toMatch(/personal GitHub account/);
     expect(teamsPickerHint('missing-permission', 'acme')).toMatch(/read:org/);
     expect(teamsPickerHint('no-token', 'acme')).toMatch(/Connect GitHub/);
+    expect(teamsPickerHint('no-token', 'acme', true)).toBe('Sign in to pick a team. You can still type @org/team.');
   });
 
   const CONFIG = `{

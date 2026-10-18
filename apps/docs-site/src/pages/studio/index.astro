@@ -20,6 +20,7 @@ import { dashboard } from '../../lib/stats';
 import { groupByApp, loadAudits } from '../../lib/audits';
 import { APP_SHORT } from '../../lib/quality';
 import { signInConfig } from '../../lib/signin-config';
+import { ghButton } from '../../lib/gh-wording';
 import { GitHubMark } from '../../components/ds/studio/brand-icons';
 import { healthFigures, type BoardRelease } from '../../lib/overview-board';
 
@@ -79,7 +80,7 @@ const signIn = Boolean(signInConfig());
         <div class="ov-start">
           <StartChange client:load components={pickable} />
           <Button variant="primary" iconStart={GitHubMark} fullWidth data-gh-open data-gh-signin={signIn ? '' : undefined} data-connect hidden>
-            {signIn ? 'Sign in with GitHub' : 'Connect GitHub'}
+            {ghButton(signIn)}
           </Button>
         </div>
       </div>
@@ -164,6 +165,7 @@ const signIn = Boolean(signInConfig());
     import { reviewQueue } from '../../lib/review-queue';
     import { overviewProtectionLine } from '../../lib/protection-view';
     import { greetingLine, NEEDS_MAX, moreLabel, overviewTodo, reviewDecisions, signedOutLine, type GuidanceItem, type TodoRequest, type TodoRow } from '../../lib/overview-todo';
+    import { rateLimitedLine } from '../../lib/gh-wording';
     import { boardColumns, developerWork, inFlightLine, type BoardInput, type BoardRelease } from '../../lib/overview-board';
     import { explorationWork, workNature, type VisualSignal } from '../../lib/work-nature';
     import { explorationRows, type ExplorationPullLike } from '../../lib/explorations-view';
@@ -436,7 +438,7 @@ const signIn = Boolean(signInConfig());
           note.hidden = false;
           note.textContent =
             err instanceof RateLimitError
-              ? 'GitHub limits anonymous reads to 60 an hour and this browser has used them. Connect GitHub, or try again later.'
+              ? rateLimitedLine(prefersSignIn())
               : 'GitHub could not be reached. Open Changes to retry.';
         }
         if (flightLine) flightLine.textContent = 'Changes are out of reach for now.';

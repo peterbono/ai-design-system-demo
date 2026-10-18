@@ -9,7 +9,8 @@
 import { classifyRisk, DEFAULT_RIGHTS, type Owners, type Rights, type VisualImpactMode } from '@bridge-ds/core';
 import { choiceOf, groupsOf, roleRows, rolesProposal, sameOwners, withRoles, type RightChoice } from '../lib/roles-view';
 import { selectSegment } from './shell';
-import { esc, getToken, readRepo, setButtonBusy, setButtonDisabled, showGhError, studioClient } from './github-session';
+import { esc, getToken, prefersSignIn, readRepo, setButtonBusy, setButtonDisabled, showGhError, studioClient } from './github-session';
+import { ghAction } from '../lib/gh-wording';
 
 const FILE = 'bridge.config.json';
 
@@ -117,7 +118,7 @@ function initForm(form: HTMLFormElement) {
     // Owners: the people and teams picked in this form, only when they changed (the file keeps its own otherwise).
     const owners: Owners | undefined = ownersChanged() ? { design: ownersIn('design'), tech: ownersIn('tech') } : undefined;
     const token = getToken();
-    if (!token) return fail('Connect GitHub to send this for review.');
+    if (!token) return fail(`${ghAction('send this for review', prefersSignIn())}.`);
     const repo = readRepo();
     const d = data();
     setButtonBusy(submit, true, 'Sending');

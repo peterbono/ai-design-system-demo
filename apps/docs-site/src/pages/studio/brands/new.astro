@@ -9,6 +9,7 @@ import { tokenFiles } from '../../../lib/explorer';
 import { readText } from '../../../lib/repo';
 import { CONTRAST_FILE } from '../../../lib/contrast';
 import { PAGE_SOURCES, freshness } from '../../../lib/sources';
+import { signInConfig } from '../../../lib/signin-config';
 
 const sources = ['bridge.config.json', 'packages/tokens/src/brands', 'packages/core/src/brand.ts', CONTRAST_FILE];
 const updated = freshness(sources);
@@ -18,5 +19,5 @@ import '../../../styles/new-brand.css';
 
 <Layout title="New brand" description="Draft a brand in this browser, check it with real components in light and dark, then propose it as a pull request." sources={sources} updated={updated} wide>
   <StudioHeader title="New brand" subtitle="Draft it in this browser, check it with real components, then propose it for review." branch={false} />
-  <NewBrandFlow client:load files={tokenFiles()} configText={readText('bridge.config.json')} contrastText={readText(CONTRAST_FILE)} />
+  <NewBrandFlow client:load files={tokenFiles()} configText={readText('bridge.config.json')} contrastText={readText(CONTRAST_FILE)} signIn={Boolean(signInConfig())} />
 </Layout>

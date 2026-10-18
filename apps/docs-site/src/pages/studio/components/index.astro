@@ -28,6 +28,8 @@ import { componentsLead, componentsPrimary, drawerActions, drawerFacts, productU
 import { groupByApp, loadAudits } from '../../../lib/audits';
 import { PREVIEW_APPS, PREVIEW_PACKAGES, sourceUrl, STORYBOOK_URL } from '../../../lib/repo';
 import { siteRepo } from '../../../lib/config';
+import { ghAction } from '../../../lib/gh-wording';
+import { signInConfig } from '../../../lib/signin-config';
 import { PAGE_SOURCES, freshness } from '../../../lib/sources';
 
 const components = loadComponents();
@@ -59,6 +61,7 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
 // Add a variant or option starts an exploration: the repository and its preview settings, as Changes embeds them.
 const site = siteRepo();
 const branchesJson = JSON.stringify({ owner: site.owner, repo: site.repo, defaultBranch: site.defaultBranch, apps: PREVIEW_APPS, packages: PREVIEW_PACKAGES }).replace(/</g, '\\u003c');
+const signIn = Boolean(signInConfig());
 ---
 
 <Layout
@@ -208,7 +211,7 @@ const branchesJson = JSON.stringify({ owner: site.owner, repo: site.repo, defaul
         <p class="rq-error" role="alert" data-rq-error hidden></p>
         <div class="rq-actions">
           <Button variant="primary" type="submit" data-rq-submit data-gh-only hidden>Start exploration</Button>
-          <Button variant="primary" iconStart={GitHubMark} data-gh-open data-no-gh data-cm-connect>Connect GitHub to start</Button>
+          <Button variant="primary" iconStart={GitHubMark} data-gh-open data-no-gh data-cm-connect>{ghAction('start', signIn)}</Button>
           <Button variant="ghost" data-cm-chg-cancel>Cancel</Button>
         </div>
         <Button variant="ghost" size="sm" className="cm-req-start" data-cm-ask>Ask a developer instead</Button>

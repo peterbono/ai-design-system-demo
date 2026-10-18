@@ -2,6 +2,10 @@
 // Connect GitHub: paste a fine-grained token once, kept in this browser only. Shared by Reviews and token editing.
 import { Button } from '@bridge-ds/react';
 import { GitHubMark } from './ds/studio/brand-icons';
+import { ghButton } from '../lib/gh-wording';
+import { signInConfig } from '../lib/signin-config';
+
+const signIn = Boolean(signInConfig());
 ---
 
 <div class="gh-connect" data-gh-connect>
@@ -9,5 +13,5 @@ import { GitHubMark } from './ds/studio/brand-icons';
     <span class="gh-dot" aria-hidden="true"></span>
     <span data-gh-status-text>Read only</span>
   </span>
-  <Button variant="secondary" size="sm" iconStart={GitHubMark} data-gh-open><span data-gh-open-label>Connect GitHub</span></Button>
+  <Button variant="secondary" size="sm" iconStart={GitHubMark} data-gh-open><span data-gh-open-label>{ghButton(signIn)}</span></Button>
 </div>

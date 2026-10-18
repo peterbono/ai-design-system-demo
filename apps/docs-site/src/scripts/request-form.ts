@@ -13,9 +13,10 @@
 import { REQUESTS_BRANCH, composeRequestIssue, ensureRequestsBranch, requestImagePath, type GitHubClient } from '@bridge-ds/core';
 import { explorationFromRequest } from '../lib/requests-view';
 import { changeFormCopy, changeFormProblems, changeRequest, formModeFor, sentLine, startedLines, type ChangeFormMode, type ChangeIntent } from '../lib/change-intent';
+import { ghAction } from '../lib/gh-wording';
 import { base64Of, figmaFromLink, figmaLinkProblem, imageProblem, MAX_IMAGE_BYTES, requestImageUrl } from '../lib/request-attachments';
 import { INTENT_EVENT, INTENT_SET_EVENT, type IntentSetDetail } from '../components/ds/studio/ChangeIntent';
-import { currentViewer, esc, getToken, hasWorkingToken, initGitHubConnect, readRepo, setButtonBusy, setButtonLabel, showGhError, studioClient } from './github-session';
+import { currentViewer, esc, getToken, hasWorkingToken, initGitHubConnect, prefersSignIn, readRepo, setButtonBusy, setButtonLabel, showGhError, studioClient } from './github-session';
 import { explorationsConfig, startLinkedExploration } from './exploration-start';
 import { forgetRequests, integrations } from './requests';
 
@@ -99,7 +100,7 @@ function setLabel(control: HTMLInputElement | HTMLTextAreaElement | null, text: 
 
 /** The form in one mode: its heading, labels, placeholders, rows and buttons. */
 function paintMode(drawer: HTMLElement, form: HTMLFormElement, mode: ChangeFormMode) {
-  const copy = changeFormCopy(mode, drawer.dataset.component ?? 'component');
+  const copy = changeFormCopy(mode, drawer.dataset.component ?? 'component', prefersSignIn());
   form.dataset.mode = mode;
   const heading = q<HTMLElement>(form, '[data-cm-form-title]');
   if (heading) heading.textContent = copy.heading;
@@ -320,12 +321,12 @@ export function initChangeFlow(drawer: HTMLElement) {
     }
     const token = getToken();
     if (!token || !connected()) {
-      error.textContent = 'Connect GitHub to send it. Your text stays here.';
+      error.textContent = `${ghAction('send it', prefersSignIn())}. Your text stays here.`;
       error.hidden = false;
       return;
     }
     const repo = readRepo();
-    const copy = changeFormCopy(mode, drawer.dataset.component ?? 'component');
+    const copy = changeFormCopy(mode, drawer.dataset.component ?? 'component', prefersSignIn());
     setButtonBusy(submit, true, copy.busy);
     let sent: number | null = null;
     try {

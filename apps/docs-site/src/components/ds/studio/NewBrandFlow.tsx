@@ -39,18 +39,21 @@ import {
 } from '../../../lib/new-brand';
 import { ghAuthFailure, hasWorkingToken, tokenRejected } from '../../../scripts/github-session';
 import { type ProposedBrand, proposeBrand } from '../../../scripts/new-brand';
+import { ghAction } from '../../../lib/gh-wording';
 
 export interface NewBrandFlowProps {
   files: Record<string, string>;
   configText: string;
   contrastText: string;
+  /** The site has Sign in with GitHub (a GitHub App): the connect action says "Sign in". */
+  signIn?: boolean;
 }
 
 const RADIUS_SCALE = [0, 2, 4, 6, 10, 12, 16, 20];
 const RADIUS_STEP: Record<number, string> = { 0: 'none', 2: 'xs', 4: 'sm', 6: 'md', 10: 'lg', 12: 'xl', 16: '2xl', 20: '3xl' };
 const ROLE_LABEL = { inset: 'Inset (checkboxes, tags)', control: 'Controls (buttons, inputs)', container: 'Containers (cards, menus)', overlay: 'Overlays (dialogs, toasts)' } as const;
 
-export default function NewBrandFlow({ files, configText, contrastText }: NewBrandFlowProps) {
+export default function NewBrandFlow({ files, configText, contrastText, signIn = false }: NewBrandFlowProps) {
   const source = useMemo<BrandSource>(() => ({ config: loadConfig(configText), configText, files, contrastText }), [files, configText, contrastText]);
   const brands = useMemo(() => listBrands(source), [source]);
   const facts = useMemo(() => Object.fromEntries(brands.map((b) => [b.slug, brandFacts(source, b.slug)])), [brands, source]);
@@ -436,7 +439,7 @@ export default function NewBrandFlow({ files, configText, contrastText }: NewBra
           </Button>
         ) : (
           <Button key="connect" variant="primary" data-gh-open="">
-            {rejected ? 'Reconnect GitHub to propose' : 'Connect GitHub to propose'}
+            {ghAction('propose', signIn, rejected)}
           </Button>
         )}
         {draft.step === 3 && !ready && <span className="nb-actions-note">{plan.contrast.failing.length ? 'Proposing needs every contrast pair to pass.' : 'Fix the problems above to propose.'}</span>}

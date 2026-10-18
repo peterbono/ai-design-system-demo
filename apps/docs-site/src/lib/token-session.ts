@@ -76,8 +76,17 @@ export const rejectedCheck = (token: string, now: number): TokenCheck => ({ fp: 
 /** The one message every write action shows once GitHub stops accepting the token. */
 export const STUDIO_TOKEN_REJECTED = 'Your GitHub token stopped working. Reconnect GitHub to replace it, then try again.';
 
+/** The same message on a site with Sign in with GitHub, for a token pasted before it had one. */
+export const STUDIO_SIGNIN_REJECTED = 'Your GitHub sign-in stopped working. Sign in again, then try again.';
+
 /** The same message for a "Sign in with GitHub" session whose refresh failed. */
 export const STUDIO_SIGNIN_EXPIRED = 'Your GitHub sign-in expired. Sign in with GitHub again, then try again.';
+
+/** The "stopped working" sentence for the session and the site's way in (signIn: the site has a GitHub App). */
+export function rejectedText(mode: SessionMode, signIn = false): string {
+  if (mode === 'app') return STUDIO_SIGNIN_EXPIRED;
+  return signIn ? STUDIO_SIGNIN_REJECTED : STUDIO_TOKEN_REJECTED;
+}
 
 /** How the browser holds GitHub access: a pasted token, or a GitHub App sign-in. */
 export type SessionMode = 'token' | 'app';
@@ -100,9 +109,9 @@ export interface AuthFailure {
  * The auth part of an error, or null for any other failure. `action` is a verb phrase for the missing permission
  * sentence ("create issues" -> "This token cannot create issues. Add Issues: Read and write on GitHub.").
  */
-export function authFailure(err: unknown, action?: string, mode: SessionMode = 'token'): AuthFailure | null {
+export function authFailure(err: unknown, action?: string, mode: SessionMode = 'token', signIn = false): AuthFailure | null {
   if (!(err instanceof GitHubError)) return null;
-  if (err.auth === 'rejected') return { kind: 'rejected', text: mode === 'app' ? STUDIO_SIGNIN_EXPIRED : STUDIO_TOKEN_REJECTED };
+  if (err.auth === 'rejected') return { kind: 'rejected', text: rejectedText(mode, signIn) };
   if (err.auth === 'missing-permission') {
     return mode === 'app'
       ? { kind: 'missing-permission', text: appMissingPermissionMessage(err.permission, action) }
@@ -112,6 +121,6 @@ export function authFailure(err: unknown, action?: string, mode: SessionMode = '
 }
 
 /** Plain text for an error: the auth sentence when it is about the token, else `fallback` (the action's own words). */
-export function errorText(err: unknown, fallback: string, action?: string, mode: SessionMode = 'token'): string {
-  return authFailure(err, action, mode)?.text ?? fallback;
+export function errorText(err: unknown, fallback: string, action?: string, mode: SessionMode = 'token', signIn = false): string {
+  return authFailure(err, action, mode, signIn)?.text ?? fallback;
 }
