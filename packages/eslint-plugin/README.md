@@ -4,8 +4,6 @@ ESLint rules for product apps that use a Bridge design system. They read the tok
 through `@bridge-ds/core` and the design system's `bridge.config.json`, so they agree with `bridge audit` and the
 `bridge_audit` MCP tool.
 
-> Not published to npm yet: build it from this repo (`npm run plugins:build`) and install the folder.
-
 ## Install
 
 ```sh
