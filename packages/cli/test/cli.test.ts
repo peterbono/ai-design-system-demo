@@ -4,18 +4,25 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { planCssFixes } from '@bridge-ds/core/audit';
+import { loadDesignSystem } from '@bridge-ds/core/node';
 import { CLI, FIXTURE, git, REAL_PATHS, REPO, tempGitRepo } from '../../mcp/test/helpers.js';
 
 const bridge = (cwd: string, ...args: string[]) => {
   const r = spawnSync(process.execPath, [CLI, ...args], { cwd, encoding: 'utf8', env: { ...process.env, BRIDGE_OFFLINE: '1' } });
   return { code: r.status, out: r.stdout, err: r.stderr };
 };
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 describe('bridge CLI', () => {
   it('check passes on the real repo (exit 0)', () => {
     const r = bridge(REPO, 'check');
     expect(r.code).toBe(0);
-    expect(r.out).toMatch(/contrast: 296 checks, 0 failing/);
+    // Every pair in every brand x theme, derived from the live files: a new brand or pair needs no test edit.
+    const config = JSON.parse(readFileSync(join(REPO, 'bridge.config.json'), 'utf8')) as { modes: Record<string, { values: string[] }>; contrast: { path: string } };
+    const { pairs } = JSON.parse(readFileSync(join(REPO, config.contrast.path), 'utf8')) as { pairs: unknown[] };
+    const checks = pairs.length * config.modes.brand!.values.length * config.modes.theme!.values.length;
+    expect(r.out).toContain(`contrast: ${checks} checks, 0 failing`);
     expect(r.out).toMatch(/OK$/m);
   });
 
@@ -62,11 +69,14 @@ describe('bridge CLI', () => {
     const f = join(dir, 'packages/tokens/src/semantic/light.tokens.json');
     const text = readFileSync(f, 'utf8');
     const i = text.indexOf('"muted"', text.indexOf('"text"'));
-    writeFileSync(f, text.slice(0, i) + text.slice(i).replace('{palette.neutral.600}', '{palette.neutral.700}'));
+    writeFileSync(f, text.slice(0, i) + text.slice(i).replace(/"\$value": "[^"]*"/, '"$value": "{palette.neutral.700}"'));
     const r = bridge(dir, 'diff', 'main');
     expect(r.code).toBe(0);
     expect(r.out).toMatch(/1 token change\(s\) since main\s+\(Tier 3, minor\)/);
-    expect(r.out).toMatch(/~ color\.text\.muted\s+#5b6672\s+->\s+#495562/);
+    // tempGitRepo pins muted text at 600; the hex values come from the live ramp, so only their shape is fixed.
+    const moved = /~ color\.text\.muted\s+(#[0-9a-f]{6})\s+->\s+(#[0-9a-f]{6})/.exec(r.out);
+    expect(moved, r.out).not.toBeNull();
+    expect(moved![1]).not.toBe(moved![2]);
     expect(r.out).toMatch(/other token\(s\) change value through aliases/);
     const md = bridge(dir, 'diff', 'main', '--md');
     expect(md.out).toContain('| `color.text.muted` | value |');
@@ -133,13 +143,16 @@ describe('bridge CLI', () => {
     it('--fix is a dry run unless --write; exit 2 without a path or a design system', () => {
       const dir = tempGitRepo(join(APPS, 'mui-app'), ['src']);
       const css = readFileSync(join(dir, 'src/styles.css'), 'utf8');
+      // Which fixture literals match a token exactly depends on the live tokens: expect what the planner finds today.
+      const plan = planCssFixes(css, 'css', loadDesignSystem(REPO).index);
+      expect(plan.edits.length).toBeGreaterThan(0);
       const dry = bridge(REPO, 'audit', dir, '--fix');
       expect(dry.code).toBe(0);
-      expect(dry.out).toMatch(/src\/styles.css:3:10\s+#15202b -> var\(--color-text-default\)/);
-      expect(dry.out).toMatch(/Would replace 5 value/);
+      for (const e of plan.edits) expect(dry.out).toMatch(new RegExp(`src/styles\\.css:${e.line}:${e.column}\\s+${escapeRe(e.from)} -> ${escapeRe(e.to)}`));
+      expect(dry.out).toMatch(new RegExp(`Would replace ${plan.edits.length} value`));
       expect(readFileSync(join(dir, 'src/styles.css'), 'utf8')).toBe(css);
-      expect(bridge(REPO, 'audit', dir, '--fix', '--write').out).toMatch(/Replaced 5 value/);
-      expect(readFileSync(join(dir, 'src/styles.css'), 'utf8')).toMatch(/padding: var\(--space-4\) 13px;/);
+      expect(bridge(REPO, 'audit', dir, '--fix', '--write').out).toMatch(new RegExp(`Replaced ${plan.edits.length} value`));
+      expect(readFileSync(join(dir, 'src/styles.css'), 'utf8')).toBe(plan.output);
       expect(bridge(REPO, 'audit').code).toBe(2);
       expect(bridge(tmpdir(), 'audit', dir).code).toBe(2);
     });

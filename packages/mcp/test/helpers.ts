@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -9,12 +9,16 @@ export const FIXTURE = join(REPO, 'packages/mcp/test/fixtures/mini-ds');
 export const MCP_DIST = join(REPO, 'packages/mcp/dist');
 export const CLI = join(REPO, 'packages/cli/dist/index.js');
 
-/** A throwaway git repo holding copies of `paths` (relative to `from`), committed on main (removed by global-setup). */
+/** A throwaway git repo holding copies of `paths` (relative to `from`) with the PINNED values, committed on main (removed by global-setup). */
 export function tempGitRepo(from: string, paths: string[]): string {
   const dir = mkdtempSync(join(tmpdir(), 'bridge-test-'));
   for (const p of paths) {
     mkdirSync(dirname(join(dir, p)), { recursive: true });
     cpSync(join(from, p), join(dir, p), { recursive: true });
+  }
+  for (const pin of PINNED) {
+    const f = join(dir, pin.file);
+    if (existsSync(f)) writeFileSync(f, pinValue(readFileSync(f, 'utf8'), pin.keys, pin.value));
   }
   const g = (...args: string[]) => execFileSync('git', args, { cwd: dir, stdio: 'pipe' });
   g('init', '-q', '-b', 'main');
@@ -26,6 +30,32 @@ export function tempGitRepo(from: string, paths: string[]): string {
 }
 
 export const git = (dir: string, ...args: string[]) => execFileSync('git', args, { cwd: dir, encoding: 'utf8' });
+
+/**
+ * Starting values the tests edit away from (muted text 600 -> 700, menu highlight -> surface.hover). A copy of the
+ * real tokens starts from these, so a designer changing them in Studio never turns a test edit into a no-op.
+ */
+export const PINNED: { file: string; keys: string[]; value: string }[] = [
+  { file: 'packages/tokens/src/semantic/light.tokens.json', keys: ['color', 'text', 'muted'], value: '{palette.neutral.600}' },
+  { file: 'packages/tokens/src/components/overlays.tokens.json', keys: ['menu', 'item', 'bg-highlight'], value: '{color.surface.hover-raised}' },
+];
+
+/** Set the `$value` of the token at `keys` in a token file's text, keeping every other byte. */
+export function pinValue(text: string, keys: string[], value: string): string {
+  let i = 0;
+  for (const k of keys) {
+    i = text.indexOf(`"${k}"`, i);
+    if (i < 0) throw new Error(`pinValue: no ${keys.join('.')}`);
+  }
+  return text.slice(0, i) + text.slice(i).replace(/"\$value": "[^"]*"/, `"$value": "${value}"`);
+}
+
+/** The real files with the PINNED starting values. */
+export function pinStart(files: Record<string, string>): Record<string, string> {
+  const out = { ...files };
+  for (const pin of PINNED) if (out[pin.file] !== undefined) out[pin.file] = pinValue(out[pin.file]!, pin.keys, pin.value);
+  return out;
+}
 
 /** Paths of the real repo a token-only copy needs. */
 export const REAL_PATHS = ['bridge.config.json', 'packages/tokens/src', 'AGENTS.md', 'docs/DESIGN-LANGUAGE.md', 'docs/GOVERNANCE.md', '.changeset/config.json', 'packages/react/src/components/Button', 'packages/react/src/components/Switch'];

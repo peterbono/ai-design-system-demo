@@ -28,7 +28,8 @@ describe('brands', () => {
     expect(p.bump).toBe('minor');
     expect(p.contrast.line).toMatch(/^All \d+ checks pass$/);
     expect(p.contrast.themes).toEqual(['light', 'dark']);
-    expect(p.ramps.primary![700]).toBe('#1f5f3a');
+    // Pinned at the step primary buttons use today, whichever step a designer picked.
+    expect(Object.values(p.ramps.primary!)).toContain('#1f5f3a');
     expect(p.files.map((f) => f.path)).toEqual(['packages/tokens/src/primitives/acme.tokens.json', 'packages/tokens/src/brands/acme.tokens.json', 'bridge.config.json', '.changeset/bridge-brand-acme.md']);
     expect(p.prBody).toContain('## New brand');
     expect(p.prBody).toMatch(/AI agent \(Claude\)/);

@@ -220,7 +220,13 @@ test('GitHub history: commits folded into their PR, versions from tags', async (
 test('demo history: built backwards from the current files, flagged, revert of the older muted change conflicts', async () => {
   const { demoHistory } = await import('../src/history-demo');
   const cfg = realConfig();
-  const files = new Map(Object.entries((await import('./helpers')).realFiles()));
+  // Pin the values the demo steps touch: a step whose "before" equals today's value drops out, and a designer
+  // may set any of them in Studio.
+  const files = applyTokenEdits(new LayeredTokenSet(cfg, new Map(Object.entries((await import('./helpers')).realFiles()))), [
+    { op: 'set', path: 'color.text.muted', file: LIGHT, value: '{palette.neutral.600}' },
+    { op: 'set', path: 'button.radius', file: 'components/button.tokens.json', value: '{radius.control}' },
+    { op: 'set', path: 'alert.radius', file: 'components/feedback.tokens.json', description: 'Inline alerts are containers.' },
+  ]).files;
   const demo = demoHistory(cfg, files);
   assert.equal(demo.demo, true);
   assert.ok(demo.entries.every((e) => e.demo && !e.pr?.url));

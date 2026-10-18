@@ -7,7 +7,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { BridgeContext, ops } from '../dist/lib.js';
-import { CLI, git, MCP_DIST, REAL_PATHS, REPO, tempGitRepo } from './helpers.js';
+import { CLI, git, MCP_DIST, pinValue, REAL_PATHS, REPO, tempGitRepo } from './helpers.js';
 
 let dir: string;
 const BRAND = 'packages/tokens/src/brands/bridge.tokens.json';
@@ -15,9 +15,11 @@ const BRAND = 'packages/tokens/src/brands/bridge.tokens.json';
 beforeAll(() => {
   dir = tempGitRepo(REPO, REAL_PATHS);
   git(dir, 'checkout', '-q', '-b', 'bridge/darker-danger');
-  // The danger palette one shade darker in the bridge brand.
-  const text = readFileSync(join(dir, BRAND), 'utf8').replace(/"\{color\.crimson\.600\}"/, '"{color.crimson.700}"');
-  writeFileSync(join(dir, BRAND), text);
+  // Change the bridge danger role to another shade, derived from its live value so it is always a real change.
+  const text = readFileSync(join(dir, BRAND), 'utf8');
+  const current = JSON.parse(text).palette.danger['600'].$value as string;
+  const next = ['{color.crimson.700}', '{color.crimson.800}'].find((v) => v !== current)!;
+  writeFileSync(join(dir, BRAND), pinValue(text, ['palette', 'danger', '600'], next));
   git(dir, 'commit', '-qam', 'darker danger');
 });
 

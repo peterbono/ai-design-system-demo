@@ -5,9 +5,10 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { BridgeContext, explorations, ops, requests } from '../dist/lib.js';
-import { fakeGitHub, git, readTree, REAL_PATHS, REPO, tempGitRepo } from './helpers.js';
+import { fakeGitHub, git, pinStart, readTree, REAL_PATHS, REPO, tempGitRepo } from './helpers.js';
 
-const files = () => readTree(REPO, REAL_PATHS);
+// pinStart: muted text starts at 600, so the edit to 700 is a real change whatever main says.
+const files = () => pinStart(readTree(REPO, REAL_PATHS));
 const edit = { op: 'set' as const, path: 'color.text.muted', value: '{palette.neutral.700}', mode: { theme: 'light' } };
 const LIGHT = 'packages/tokens/src/semantic/light.tokens.json';
 
