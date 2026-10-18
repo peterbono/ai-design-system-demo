@@ -747,6 +747,35 @@ details[open] > summary .cg-sec-chev {
   min-height: var(--size-6);
 }
 
+/* Try it in the product: in the header, above the checklist, with what it opens as its sub-label. */
+.rv-try-block {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-1);
+  margin: var(--space-4) 0;
+}
+
+.rv-try-block .rv-try {
+  min-height: var(--control-height-md);
+}
+
+.rv-try-hint {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+}
+
+@media (max-width: 760px) {
+  .rv-try-block {
+    justify-items: stretch;
+  }
+
+  /* No keyboard shortcut on phones. */
+  .rv-try-key {
+    display: none;
+  }
+}
+
 .rv-what-quiet {
   color: var(--color-text-muted);
 }

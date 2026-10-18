@@ -1,8 +1,23 @@
-import { realpathSync } from 'node:fs';
+import { readFileSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 
 const root = (p: string) => fileURLToPath(new URL(p, import.meta.url));
+
+// What the Bridge toolbar (src/bridge) needs to know about this repository and this deploy, read once at build time:
+// the repository, production Studio and admin, the admin preview template, and whether Vercel builds production.
+const config = JSON.parse(readFileSync(root('../../bridge.config.json'), 'utf8')) as {
+  repo: { owner: string; name: string };
+  previews?: { apps?: { admin?: string }; production?: { docs?: string; admin?: string } };
+};
+const bridgeBuild = {
+  owner: config.repo.owner,
+  repo: config.repo.name,
+  studio: config.previews?.production?.docs ?? null,
+  productionAdmin: config.previews?.production?.admin ?? null,
+  adminTemplate: config.previews?.apps?.admin ?? null,
+  deployEnv: process.env.VERCEL_ENV ?? null,
+};
 
 // The admin consumes the design system from source, like Storybook does, so a token or component change
 // shows up here without a publish step. Aliases point at this checkout's packages.
@@ -11,6 +26,7 @@ export default defineConfig({
   // (GitHub Pages: /<repo>/admin/), build with BASE_PATH=/<repo>/admin/; the router follows import.meta.env.BASE_URL.
   base: process.env.BASE_PATH || '/',
   esbuild: { jsx: 'automatic' },
+  define: { __BRIDGE_BUILD__: JSON.stringify(bridgeBuild) },
   resolve: {
     alias: [
       { find: '@bridge-ds/react/styles.css', replacement: root('../../packages/react/src/styles/base.css') },
