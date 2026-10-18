@@ -229,7 +229,7 @@ describe('who is on a request', () => {
     const [plain] = requestRows([issue(2, { state: 'closed', state_reason: 'completed' })], []);
     expect(requestStateLine(plain!)).toBe('Done.');
     const [declined] = requestRows([issue(3, { state: 'closed', state_reason: 'not_planned' })], []);
-    expect(onItLabel(declined!)).toBe('Declined');
+    expect(onItLabel(declined!)).toBe('');
     expect(requestStateLine(declined!)).toBe('Declined: closed on GitHub without a change.');
   });
 });

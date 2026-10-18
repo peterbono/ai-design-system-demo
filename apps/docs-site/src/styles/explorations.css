@@ -181,6 +181,7 @@
 
 .ex-previews li {
   display: flex;
+  margin: 0;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
