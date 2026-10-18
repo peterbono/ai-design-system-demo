@@ -1,9 +1,10 @@
-/* Studio Settings: one page, three sections (Connection, Repository, Approvals).
+/* Studio Settings: one page (Connection, Roles, Approvals, Figma and Claude, Integrations, For developers).
    Four sizes on the screen: h2 (page title), h3 (section titles), body (the opener sentence), ui (everything else).
    Values in one mono style; "(default)" in plain muted text; tiers are grey labels, color only for status. */
 
+/* Same content width as the other Studio pages (Quality's .ql): rows stretch, values and actions stay at the end. */
 .set-block {
-  max-width: calc(var(--size-240) - var(--size-40));
+  max-width: calc(var(--size-240) + var(--size-20));
   margin-top: var(--space-10);
 }
 
@@ -82,6 +83,7 @@
 }
 
 .set-row-text {
+  max-width: 65ch;
   margin: 0;
   color: var(--color-text-muted);
 }
