@@ -271,6 +271,7 @@ describe('deciding on a request', () => {
     expect(requestDecision(waiting!, { viewer: '@Flo', owners })).toEqual({ kind: 'decide', sentence: 'Nobody is on it yet. You decide what happens next.' });
     expect(requestDecision(waiting!, { viewer: 'ana', owners })).toEqual({ kind: 'wait', sentence: 'Nobody is on it yet. A design system owner (@flo or @lead) decides what happens next.' });
     expect(requestDecision(waiting!, { viewer: null, owners: ['flo'] }).sentence).toBe('Nobody is on it yet. A design system owner (@flo) decides what happens next. Connect GitHub if that is you.');
+    expect(requestDecision(waiting!, { viewer: null, owners: ['flo'], signIn: true }).sentence).toBe('Nobody is on it yet. A design system owner (@flo) decides what happens next. Sign in if that is you.');
     expect(requestDecision(waiting!, { viewer: 'ana', owners: ['a', 'b', 'c'] }).sentence).toContain('(@a or 2 more)');
     expect(requestDecision(waiting!, { viewer: 'ana', owners: [] }).sentence).toMatch(/name them in Settings/);
   });

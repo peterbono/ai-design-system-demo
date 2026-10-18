@@ -4,7 +4,8 @@
 // classifier: bridge.config.json is a guardrail file. Secrets never go in the file.
 import { classifyRisk } from '@bridge-ds/core';
 import { integrationsFromForm, integrationsProblems, integrationsProposal, withIntegrations, type IntegrationsForm } from '../lib/requests-view';
-import { esc, getToken, readRepo, setButtonBusy, showGhError, studioClient } from './github-session';
+import { esc, getToken, prefersSignIn, readRepo, setButtonBusy, showGhError, studioClient } from './github-session';
+import { ghAction } from '../lib/gh-wording';
 
 const FILE = 'bridge.config.json';
 
@@ -44,7 +45,7 @@ export function initIntegrations() {
     const problems = integrationsProblems(block);
     if (problems.length) return fail(problems.join(' '));
     const token = getToken();
-    if (!token) return fail('Connect GitHub to send these settings for review.');
+    if (!token) return fail(`${ghAction('send these settings for review', prefersSignIn())}.`);
     const repo = readRepo();
     const d = data();
     setButtonBusy(submit, true, 'Sending for review');

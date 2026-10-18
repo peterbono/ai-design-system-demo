@@ -4,6 +4,7 @@
 // Owners are people or GitHub teams ("@acme/design"): the picker helpers below build the options and read what
 // someone types.
 import { DEFAULT_RIGHTS, formatOwnerEntry, fromPlain, getEntry, holdersOf, parseJson, parseOwnerEntry, plainEqual, RIGHT_LABEL, RIGHTS, serializeJson, teamKeyOf, toPlain, type JsonObject, type OwnerGroup, type Owners, type Right, type Rights, type TeamUnreadableReason, type VisualImpactMode } from '@bridge-ds/core';
+import { ghAction } from './gh-wording';
 
 /** One choice per right in the form: design owners, tech owners, or both. */
 export type RightChoice = 'design' | 'tech' | 'both';
@@ -115,14 +116,14 @@ export function ownerOptions(input: { teams?: { slug: string; name: string }[]; 
 }
 
 /** The sentence under the picker when the org's teams cannot be suggested, with what to do. Null: teams are listed. */
-export function teamsPickerHint(reason: TeamUnreadableReason | null, org: string): string | null {
+export function teamsPickerHint(reason: TeamUnreadableReason | null, org: string, signIn = false): string | null {
   switch (reason) {
     case null:
       return null;
     case 'personal-account':
       return `Teams are not available: ${org} is a personal GitHub account. Add people here, or move the repository to an organization to use teams.`;
     case 'no-token':
-      return 'Connect GitHub to pick a team. You can still type @org/team.';
+      return `${ghAction('pick a team', signIn)}. You can still type @org/team.`;
     case 'missing-permission':
     case 'not-found':
       return `Your GitHub token cannot list the ${org} teams. Give it read:org (classic) or Members: Read (fine-grained) to pick one, or type @${org}/team.`;

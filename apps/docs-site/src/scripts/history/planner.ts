@@ -20,7 +20,8 @@ import {
 import { reviewTokenChange, type TokenReview } from '../../lib/token-review';
 import { undoSentence } from '../../lib/changes';
 import { humanAuthored, laterThan, shortDate } from '../../lib/history-view';
-import { esc, getToken, hasWorkingToken, readRepo, setButtonDisabled, setButtonLabel, showGhError, studioClient, tokenRejected } from '../github-session';
+import { esc, getToken, hasWorkingToken, prefersSignIn, readRepo, setButtonDisabled, setButtonLabel, showGhError, studioClient, tokenRejected } from '../github-session';
+import { ghAction, ghVerb } from '../../lib/gh-wording';
 import { mdTitleHtml } from '../../lib/markdown';
 import { loadHistory, type Loaded } from './state';
 
@@ -203,7 +204,7 @@ function syncFoot() {
   }
   if (connect) {
     connect.hidden = token || Boolean(req?.demo);
-    setButtonLabel(connect, tokenRejected() ? 'Reconnect GitHub to propose' : 'Connect GitHub to propose');
+    setButtonLabel(connect, ghAction('propose', prefersSignIn(), tokenRejected()));
   }
   if (status) {
     status.textContent = req?.demo
@@ -231,7 +232,7 @@ const fileStem = () => `bridge-${req?.demo ? 'demo-' : ''}${plan?.kind ?? 'plan'
 async function propose(): Promise<number> {
   if (!req || !ctx || req.demo) throw new Error('Demo plans cannot be proposed.');
   const token = getToken();
-  if (!token) throw new Error('Connect GitHub first.');
+  if (!token) throw new Error(`${ghVerb(prefersSignIn())} first.`);
   // Re-plan against main as it is right now, with the same conflict decisions.
   base = await loadBase(ctx, false);
   if (!base.live) throw new Error('Bridge could not read main from GitHub. Check the token, then try again.');

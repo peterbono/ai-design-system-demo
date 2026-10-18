@@ -44,47 +44,17 @@ Maintained by Florian Gouloubi. Licensed MIT.
 All three deploy from `main` on Vercel. Every pull request also gets a per-branch deploy of each, linked in the PR
 comment and on the [Branches](https://bridge.floriangouloubi.com/studio/branches/) page.
 
-## Status
+## Install
 
-Working and tested end to end in this repository, **not published yet**. The packages are ready for npm under
-the `@bridge-ds` scope (`npm run build:packages` builds and checks every `dist/`), and the release workflow is
-inert until an `NPM_TOKEN` secret exists. Until then, use Bridge from a clone. The apps above and their branch
-previews run on Vercel; snapshot packages need the pkg.pr.new setup in [`docs/PREVIEWS.md`](docs/PREVIEWS.md).
-
-## Quickstart
-
-Requires Node 20.19+ (see `.nvmrc`).
+The packages are on npm under the `@bridge-ds` scope. Add the components and the tokens to your product
+(React 18 or later):
 
 ```sh
-git clone https://github.com/peterbono/ai-design-system-demo.git bridge && cd bridge
-npm install
-npm run docs:dev          # Bridge web platform on http://localhost:4321
-npm run storybook         # component workbench on http://localhost:6006
-npm run admin:dev         # the back-office demo built on Bridge
+npm install @bridge-ds/react @bridge-ds/tokens
 ```
-
-Connect your Claude (Claude Code shown; Claude Desktop and other MCP clients in [`docs/AI.md`](docs/AI.md)):
-
-```sh
-claude mcp add bridge -- npx -y @bridge-ds/mcp --root "$PWD"
-```
-
-Then ask: "Which token should I use for danger text?", "Darken muted text in light and show me the contrast
-impact first", "Audit apps/admin/src for hardcoded values", "Undo PR 12, but show me what changed since".
-
-The CLI does the same from a terminal or CI:
-
-```sh
-npm run bridge -- check                       # config, token validation, contrast gate
-npm run bridge -- audit apps/admin/src        # adoption in product code
-npm run bridge -- history color.text.muted    # every change of one token
-npm run bridge -- impact --plan               # what a change would capture, in seconds
-```
-
-### Use the components in an app
 
 ```tsx
-import '@bridge-ds/tokens/fonts.css';   // IBM Plex Sans + Mono, self-hosted
+import '@bridge-ds/tokens/fonts.css';   // Fraunces, Instrument Sans, IBM Plex, self-hosted
 import '@bridge-ds/tokens/tokens.css';  // every token as a CSS variable
 import '@bridge-ds/react/styles.css';   // base styles
 
@@ -104,6 +74,55 @@ export function App() {
 
 `ThemeProvider` sets `data-theme`, `data-brand` and `data-density` together and passes them to portaled overlays.
 Without React, set the three attributes yourself.
+
+Connect your Claude to your design system repository on GitHub, no clone needed (Claude Code shown; Claude
+Desktop, a local folder and other MCP clients in [`docs/AI.md`](docs/AI.md)). Read-only until you add a
+`GITHUB_TOKEN`:
+
+```sh
+claude mcp add bridge -s user -- npx -y @bridge-ds/mcp --repo owner/name
+```
+
+Then ask: "Which token should I use for danger text?", "Darken muted text in light and show me the contrast
+impact first", "Audit src for hardcoded values", "Undo PR 12, but show me what changed since".
+
+The `bridge` CLI does the same from a terminal or CI, in your design system repo:
+
+```sh
+npx @bridge-ds/cli check                       # config, token validation, contrast gate
+npx @bridge-ds/cli history color.text.muted    # every change of one token
+npx @bridge-ds/cli audit ../app/src            # adoption in product code
+npx @bridge-ds/cli help                        # every command
+```
+
+| Package | What it is |
+| --- | --- |
+| [`@bridge-ds/react`](https://www.npmjs.com/package/@bridge-ds/react) | The React components |
+| [`@bridge-ds/tokens`](https://www.npmjs.com/package/@bridge-ds/tokens) | Tokens as CSS variables and TypeScript, plus the fonts |
+| [`@bridge-ds/mcp`](https://www.npmjs.com/package/@bridge-ds/mcp) | MCP server for your own Claude |
+| [`@bridge-ds/cli`](https://www.npmjs.com/package/@bridge-ds/cli) | The `bridge` command |
+| [`@bridge-ds/stylelint-plugin`](https://www.npmjs.com/package/@bridge-ds/stylelint-plugin) | Tokens instead of raw values in product CSS |
+| [`@bridge-ds/eslint-plugin`](https://www.npmjs.com/package/@bridge-ds/eslint-plugin) | Tokens and DS components in product code |
+| [`@bridge-ds/core`](https://www.npmjs.com/package/@bridge-ds/core) | Config, token loading, contrast and diffs, for tools |
+| [`@bridge-ds/visual`](https://www.npmjs.com/package/@bridge-ds/visual) | Visual impact screenshots and pixel diffs |
+
+The apps above and their branch previews run on Vercel; snapshot packages for a branch need the pkg.pr.new setup
+in [`docs/PREVIEWS.md`](docs/PREVIEWS.md).
+
+## Work on Bridge
+
+Requires Node 20.19+ (see `.nvmrc`).
+
+```sh
+git clone https://github.com/peterbono/ai-design-system-demo.git bridge && cd bridge
+npm install
+npm run docs:dev          # Bridge web platform on http://localhost:4321
+npm run storybook         # component workbench on http://localhost:6006
+npm run admin:dev         # the back-office demo built on Bridge
+```
+
+In the clone, `npm run bridge -- <command>` runs the CLI you are changing (`npm run bridge -- check`,
+`npm run bridge -- impact --plan`), and the committed `.mcp.json` points Claude Code at the local server build.
 
 ## Architecture
 

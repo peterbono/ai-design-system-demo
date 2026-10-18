@@ -3,6 +3,7 @@
 // that does it: the component's tokens, an exploration Claude builds from her Figma frame, or a mismatch report. The
 // words and the rules live here, pure and tested (change-intent.test.ts); scripts/request-form.ts paints them.
 import type { ComponentChangeRequest, RequestKind } from '@bridge-ds/core';
+import { ghAction } from './gh-wording';
 import { requestFromForm, type RequestForm } from './requests-view';
 
 export type ChangeIntent = 'look' | 'variant' | 'wrong';
@@ -63,7 +64,7 @@ export interface ChangeFormCopy {
 }
 
 /** The words of the form in each mode. */
-export function changeFormCopy(mode: ChangeFormMode, component: string): ChangeFormCopy {
+export function changeFormCopy(mode: ChangeFormMode, component: string, signIn = false): ChangeFormCopy {
   const add = { label: 'What to add', placeholder: 'A danger ghost variant' };
   const why = { label: 'What it is for', placeholder: `Where you need it, and how it differs from the ${component} we have.` };
   const missing = { title: 'Say what to add, for example "A danger ghost variant".', summary: 'Say what it is for and where you need it.' };
@@ -76,7 +77,7 @@ export function changeFormCopy(mode: ChangeFormMode, component: string): ChangeF
       swap: { to: 'ask', label: 'Ask a developer instead' },
       submit: 'Start exploration',
       busy: 'Starting exploration',
-      connect: 'Connect GitHub to start',
+      connect: ghAction('start', signIn),
       missing,
     };
   if (mode === 'ask')
@@ -88,7 +89,7 @@ export function changeFormCopy(mode: ChangeFormMode, component: string): ChangeF
       swap: { to: 'explore', label: 'Let Claude build it instead' },
       submit: 'Send to a developer',
       busy: 'Sending',
-      connect: 'Connect GitHub to send',
+      connect: ghAction('send', signIn),
       missing,
     };
   return {
@@ -99,7 +100,7 @@ export function changeFormCopy(mode: ChangeFormMode, component: string): ChangeF
     swap: null,
     submit: 'Send report',
     busy: 'Sending report',
-    connect: 'Connect GitHub to send',
+    connect: ghAction('send', signIn),
     missing: { title: 'Say what looks wrong, for example "The focus ring is thinner than in Figma".', summary: 'Add the details: where you saw it and what Figma shows.' },
   };
 }

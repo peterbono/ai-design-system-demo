@@ -1,47 +1,49 @@
 ---
+// Library Changelog. One release per card, newest first: what is coming in the next release (pending entries), then
+// each published release with its date and package versions (from the CHANGELOG.md files and the release tags).
+// Each row: kind badge, the title at full width, one line on what it means, a small meta line (bump, packages).
+// The rest of a long release and the internal changes are folded; sources and file paths sit in For developers.
 import Layout from '../layouts/Layout.astro';
 import Icon from '../components/Icon.astro';
-import { Badge, Button, EmptyState, type BadgeTone } from '@bridge-ds/react';
-import { Check, Clock, Copy, FileText, Plus, SlidersHorizontal, TriangleAlert, Wrench, type LucideIcon } from 'lucide-react';
-import { releases } from '../lib/changelog';
+import { Badge, Button, EmptyState, Link, Tag } from '@bridge-ds/react';
+import { Clock, Copy } from 'lucide-react';
+import { releases, releaseDateSource, versionInfo } from '../lib/changelog';
+import { shortPackage, type Entry } from '../lib/changelog-model';
 import { mdTitleHtml } from '../lib/markdown';
 import { GITHUB_URL, sourceUrl } from '../lib/repo';
 import { PAGE_SOURCES, freshness } from '../lib/sources';
-import { humanDate } from '../lib/stats';
+import { humanDate, repoStatus } from '../lib/stats';
+import LibraryHeader from '../components/LibraryHeader.astro';
+import VersionMenu from '../components/ds/VersionMenu';
+import ReleaseEntries, { KINDS, type EntryRow } from '../components/ds/ReleaseEntries';
+import DevDetails from '../components/ds/DevDetails';
 import '../styles/process.css';
 
 const all = releases();
-const updated = all[0]?.date ?? freshness(PAGE_SOURCES.changelog);
+const updated = all.find((r) => r.date)?.date ?? freshness(PAGE_SOURCES.changelog);
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-
-// Badge has no accent tone: Improvement reads as neutral, its icon and text carry the meaning.
-const KINDS: { kind: string; tone: BadgeTone; icon: LucideIcon; meaning: string }[] = [
-  { kind: 'Breaking', tone: 'danger', icon: TriangleAlert, meaning: 'needs action before you update' },
-  { kind: 'New', tone: 'info', icon: Plus, meaning: 'adds an option, nothing breaks' },
-  { kind: 'Fix', tone: 'success', icon: Check, meaning: 'matches the spec again' },
-  { kind: 'Improvement', tone: 'neutral', icon: SlidersHorizontal, meaning: 'faster or smoother, same API' },
-  { kind: 'Docs', tone: 'neutral', icon: FileText, meaning: 'guidance only' },
-  { kind: 'Internal', tone: 'neutral', icon: Wrench, meaning: 'changes nothing you see' },
-];
-const kindOf = (k: string) => KINDS.find((x) => x.kind === k) ?? KINDS[KINDS.length - 1]!;
 const counts = (entries: { kind: string }[]) =>
   KINDS.map((k) => ({ ...k, n: entries.filter((e) => e.kind === k.kind).length })).filter((k) => k.n > 0);
 const visibleKinds = KINDS.filter((k) => all.some((r) => r.entries.some((e) => e.kind === k.kind)));
-import LibraryHeader from '../components/LibraryHeader.astro';
-import VersionMenu from '../components/ds/VersionMenu';
-import { versionInfo } from '../lib/changelog';
-import { repoStatus } from '../lib/stats';
 
-// The version picker lives here now: section headers stay title, lead and drawing.
+// One line under the title: the author's "For you" line, else the note's second sentence, else what a breaking change asks.
+const row = (e: Entry): EntryRow => {
+  const authored = e.forYouAuthored ? e.forYou : '';
+  const description = authored || e.detail || (e.kind === 'Breaking' ? e.forYou : '');
+  return { kind: e.kind, titleHtml: mdTitleHtml(e.title), descriptionHtml: mdTitleHtml(description), bump: e.bump, packages: e.packages.map(shortPackage) };
+};
+
+// The version picker lives here: section headers stay title, lead and drawing.
 const version = versionInfo();
 const repo = repoStatus();
+const pendingFiles = all.filter((r) => r.pending).flatMap((r) => r.entries.map((e) => e.ref).filter((x): x is string => Boolean(x)));
+const latest = all.find((r) => !r.pending);
 ---
 
-<Layout title="Changelog" description="What changed in the design system, what it means for you, and a message ready to post." sources={['.changeset', 'git log']} updated={updated}>
+<Layout title="Changelog" description="What changed in the design system, what it means for you, and a message ready to post." sources={['CHANGELOG.md', '.changeset']} updated={updated}>
   <LibraryHeader title="Changelog" art="guide" updated={updated}>
-    Built from the changelog entries written in each pull request and from the commit history. Each change says what it means for you; each release
-    has an announcement you can paste into Slack or an email. For the token-by-token history, compare and revert, open
-    <a href="/studio/changes/?view=history">History in the Studio</a>.
+    What changed in each release of the design system and what it means for you, with an announcement ready to paste
+    into Slack or an email. For the token-by-token history, open <Link href="/studio/changes/?view=history">History in the Studio</Link>.
     <Fragment slot="actions">
       <VersionMenu
         client:idle
@@ -69,9 +71,7 @@ const repo = repoStatus();
   {
     all.length === 0 ? (
       <EmptyState icon={Clock} title="No changes recorded yet" headingLevel={2}>
-        <Fragment slot="description">
-          The first changeset or conventional commit shows up here on the next build. Run <code>npm run changeset</code> in a pull request to add one.
-        </Fragment>
+        <Fragment slot="description">The first change shows up here once it is sent for review with a release note.</Fragment>
       </EmptyState>
     ) : (
       <ol class="timeline">
@@ -83,13 +83,28 @@ const repo = repoStatus();
                 <div class="release-title">
                   <h2 id={`r-${slug(r.name)}`}>{r.name}</h2>
                   <p class="release-meta">
-                    <Badge tone={r.pending ? 'warning' : 'success'}>{r.pending ? 'Pending release' : 'Released'}</Badge>
-                    {r.date && (
-                      <span class="muted small">
-                        {r.pending ? 'Latest change' : 'Released'} <time datetime={r.date}>{humanDate(r.date)}</time>
-                      </span>
+                    {r.pending ? (
+                      <Badge tone="warning">Not released yet</Badge>
+                    ) : (
+                      <>
+                        <Badge tone="success">Released</Badge>
+                        {r.date && (
+                          <span class="muted small">
+                            <time datetime={r.date}>{humanDate(r.date)}</time>
+                          </span>
+                        )}
+                      </>
                     )}
                   </p>
+                  {!r.pending && r.packages.some((p) => p.published) && (
+                    <p class="release-pkgs" aria-label="Packages published in this release">
+                      {r.packages
+                        .filter((p) => p.published)
+                        .map((p) => (
+                          <Tag size="sm">{`${shortPackage(p.name)} ${p.version}`}</Tag>
+                        ))}
+                    </p>
+                  )}
                 </div>
                 <ul class="release-counts" aria-label="Changes by kind">
                   {counts(r.entries).map((k) => (
@@ -100,36 +115,7 @@ const repo = repoStatus();
                 </ul>
               </header>
 
-              <ul class="entries">
-                {r.entries.map((e) => {
-                  const k = kindOf(e.kind);
-                  return (
-                    <li class="entry-row">
-                      <Badge tone={k.tone} icon={k.icon}>{e.kind}</Badge>
-                      <div class="entry-main">
-                        <p class="entry-title" set:html={mdTitleHtml(e.title)} />
-                        <p class="entry-foryou">
-                          <span class="entry-foryou-label">What changes for you:</span> {e.forYou}
-                        </p>
-                      </div>
-                      <div class="entry-ref">
-                        {e.source === 'changeset' ? (
-                          <a href={sourceUrl(e.ref!)} title="Changeset file">
-                            <Icon name="file" size={14} />
-                            <span>changeset{e.bump && `, ${e.bump}`}</span>
-                          </a>
-                        ) : (
-                          <a href={`${GITHUB_URL}/commit/${e.ref}`} title="Commit">
-                            <Icon name="merge" size={14} />
-                            <code>{e.ref}</code>
-                          </a>
-                        )}
-                        {e.packages.length > 0 && <span class="muted entry-pkgs">{e.packages.join(', ')}</span>}
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
+              <ReleaseEntries client:visible entries={r.entries.map(row)} visible={r.pending || r === latest ? 6 : 3} />
 
               <div class="announce">
                 <div class="announce-head">
@@ -152,4 +138,54 @@ const repo = repoStatus();
       </ol>
     )
   }
+
+  <div class="cl-dev">
+    <DevDetails client:visible>
+      <div class="cl-dev-body">
+        <p>
+          Published releases come from each package's <code>CHANGELOG.md</code>, which the release workflow writes from the changesets merged since
+          the last release, then publishes to npm and tags (<code>@bridge-ds/react@1.1.0</code>). {releaseDateSource()}
+        </p>
+        <p>
+          <Link href={`${GITHUB_URL}/releases`} variant="standalone" external>Releases on GitHub</Link>
+        </p>
+        {
+          latest && (
+            <ul class="cl-dev-list" aria-label="Packages in the latest release">
+              {latest.packages.map((p) => (
+                <li>
+                  <code>
+                    {p.name}@{p.version}
+                  </code>{' '}
+                  {p.published ? (
+                    <Link href={`https://www.npmjs.com/package/${p.name}/v/${p.version}`} external>
+                      npm
+                    </Link>
+                  ) : (
+                    <span class="muted">private app, not on npm</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )
+        }
+        {
+          pendingFiles.length > 0 && (
+            <>
+              <p>Coming in the next release: the pending changesets, one file per change.</p>
+              <ul class="cl-dev-list">
+                {pendingFiles.map((f) => (
+                  <li>
+                    <Link href={sourceUrl(f)}>
+                      <code>{f}</code>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )
+        }
+      </div>
+    </DevDetails>
+  </div>
 </Layout>

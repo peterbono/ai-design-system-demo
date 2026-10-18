@@ -7,28 +7,31 @@ propose token changes as reviewable branches and pull requests. It never writes 
 Free and open source (MIT). Local, no backend, no account: it reads files on your disk, or a GitHub repo
 with your own token.
 
-> On npm: `npx -y @bridge-ds/mcp` runs it, nothing to build. The local path form (`node packages/mcp/dist/index.js`)
-> is for working on the server itself.
-
 ## Run it
 
+From npm, nothing to build:
+
 ```sh
-npm run mcp:build                                   # builds packages/mcp and packages/cli
-node packages/mcp/dist/index.js --root .            # local repo (default: current directory)
-node packages/mcp/dist/index.js --repo owner/name   # GitHub repo, read-only
-GITHUB_TOKEN=... node packages/mcp/dist/index.js --repo owner/name   # GitHub repo, can open PRs
+npx -y @bridge-ds/mcp --repo owner/name                  # GitHub repo, read-only
+GITHUB_TOKEN=... npx -y @bridge-ds/mcp --repo owner/name # GitHub repo, can open PRs
+npx -y @bridge-ds/mcp --root .                           # local folder (default: current directory)
+npx -y @bridge-ds/mcp --help
 ```
 
 Connect it to Claude Code:
 
 ```sh
-claude mcp add bridge -- npx -y @bridge-ds/mcp --root /abs/path/to/your-ds
-# or a GitHub repo (pull requests need a token):
+claude mcp add bridge -s user -- npx -y @bridge-ds/mcp --repo owner/name
+# so Claude can open pull requests (a fine-grained token limited to that repo):
 claude mcp add bridge -s user -e GITHUB_TOKEN=your-github-token -- npx -y @bridge-ds/mcp --repo owner/name
+# or a local checkout:
+claude mcp add bridge -- npx -y @bridge-ds/mcp --root /abs/path/to/your-ds
 ```
 
-Or commit a project `.mcp.json` (this repo has one), or run `bridge init`. Claude Desktop, other clients
-and the full guide: [docs/AI.md](../../docs/AI.md).
+Or commit a project `.mcp.json`. Claude Desktop, other clients and the full guide: [docs/AI.md](../../docs/AI.md).
+
+Working on the server itself: `npm run mcp:build` in a clone of this repo builds it to
+`packages/mcp/dist/index.js`, which this repo's own `.mcp.json` runs.
 
 ## Modes
 

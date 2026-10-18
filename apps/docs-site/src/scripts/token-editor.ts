@@ -35,7 +35,8 @@ import {
   type DraftEdit,
   type Guardrails,
 } from '../lib/editor-model';
-import { esc, getToken, hasWorkingToken, initGitHubConnect, paintGates, readRepo, setButtonDisabled, showGhError, studioClient } from './github-session';
+import { esc, getToken, hasWorkingToken, initGitHubConnect, paintGates, prefersSignIn, readRepo, setButtonDisabled, showGhError, studioClient } from './github-session';
+import { ghVerb } from '../lib/gh-wording';
 import { docsNotesForTokens } from '../lib/docs-draft-model';
 import { cellValue, tierAxis } from '../lib/explorer/model';
 import { numericValue } from '../lib/explorer/format';
@@ -207,7 +208,7 @@ function downloadDraft() {
 async function propose(title: string, notes: string): Promise<number> {
   if (!S) throw new Error('Editor not ready');
   const token = getToken();
-  if (!token) throw new Error('Connect GitHub first.');
+  if (!token) throw new Error(`${ghVerb(prefersSignIn())} first.`);
   const { owner, name, defaultBranch } = repoOf(S.config);
   const client = studioClient(`${owner}/${name}`, token);
   const mainSha = await client.getBranchSha(defaultBranch);

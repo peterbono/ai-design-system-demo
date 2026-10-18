@@ -1,6 +1,6 @@
 // The bridge CLI, run as a real process.
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -42,6 +42,15 @@ describe('bridge CLI', () => {
   it('exit 2 on usage errors', () => {
     expect(bridge(REPO, 'diff').code).toBe(2);
     expect(bridge(REPO, 'nope').code).toBe(2);
+    expect(bridge(REPO).code).toBe(2);
+  });
+
+  it('--help and help print the usage and exit 0', () => {
+    for (const args of [['--help'], ['help']]) {
+      const r = bridge(REPO, ...args);
+      expect(r.code).toBe(0);
+      expect(r.out).toContain('Usage:');
+    }
   });
 
   it('docs draft <Component>: pre-fill and prompt, --json for the docs-draft Action', () => {
@@ -100,10 +109,10 @@ describe('bridge CLI', () => {
     const cfg = JSON.parse(readFileSync(join(dir, 'bridge.config.json'), 'utf8'));
     expect(cfg.tokens.root).toBe('design/tokens');
     const mcp = JSON.parse(readFileSync(join(dir, '.mcp.json'), 'utf8'));
-    expect(mcp.mcpServers.bridge.command).toBe('node');
-    expect(existsSync(mcp.mcpServers.bridge.args[0])).toBe(true);
+    // Outside the Bridge repo the server comes from npm, so the file works on every machine.
+    expect(mcp.mcpServers.bridge).toEqual({ command: 'npx', args: ['-y', '@bridge-ds/mcp', '--root', '.'] });
     expect(r.out).toContain('claude_desktop_config.json');
-    expect(r.out).toContain('claude mcp add bridge');
+    expect(r.out).toMatch(/claude mcp add bridge -- npx -y @bridge-ds\/mcp --root \S+/);
     // The detected config is a working config.
     expect(bridge(dir, 'check').code).toBe(0);
     expect(bridge(dir, 'init').out).toMatch(/exists, keeping it/);

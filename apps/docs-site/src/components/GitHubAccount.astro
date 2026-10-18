@@ -15,6 +15,7 @@ import Icon from './Icon.astro';
 import { GitHubMark } from './ds/studio/brand-icons';
 import { siteRepo } from '../lib/config';
 import { signInConfig } from '../lib/signin-config';
+import { ghButton } from '../lib/gh-wording';
 
 const r = siteRepo();
 const signIn = Boolean(signInConfig());
@@ -23,7 +24,7 @@ const signIn = Boolean(signInConfig());
 <div class="gh-acct" data-gh-connect data-gh-acct data-state="checking">
   <div class="gh-acct-connect">
     <Button variant="primary" iconStart={GitHubMark} fullWidth data-gh-open data-gh-signin={signIn ? '' : undefined} aria-describedby="gh-acct-note">
-      {signIn ? 'Sign in with GitHub' : 'Connect GitHub'}
+      {ghButton(signIn)}
     </Button>
     <p class="gh-acct-note" id="gh-acct-note">{signIn ? 'Read only until you sign in' : 'Read only until connected'}</p>
   </div>
