@@ -4,7 +4,7 @@
 // ships, it is not merged; developer details sit in one "For developers" fold.
 // Without a token every action deep-links to GitHub. When GitHub cannot be read, the last list this browser saw
 // stays on screen, labelled with its time (lib/changes.ts).
-import { isActiveExploration, type Rights, type ShipPolicy } from '@bridge-ds/core';
+import { findPreviewComment, isActiveExploration, type Rights, type ShipPolicy } from '@bridge-ds/core';
 import { loadTeams, siteApprovers, siteShipPolicy, teamDirectory } from './teams';
 import { approvalNeedLabel, approvalNeedLong, effectiveTier, isAutomationPull, reviewQueue } from '../lib/review-queue';
 import {
@@ -76,6 +76,7 @@ import {
   type DesignFacts,
 } from '../lib/check-explain';
 import { productPreview, topScreen, tryInProductUrl } from '../lib/try-in-product';
+import { canShare, shareState, showShare, type ShareState } from '../lib/share-change';
 import { addedNotice, canAddTo, dismissedApprovals, dismissedSentence, isTokenChange } from '../lib/continue-change';
 import { backToDraft, detailStatus, mountStatus, statusFallback, unmountStatus, type DetailStatus } from './change-status';
 import { currentStatus, initStatusFilter, lifecycleChip, lifecycleOfRow } from './status-filter';
@@ -545,11 +546,13 @@ export async function openPr(n: number, push = true) {
     unmountMore();
     unmountStatus();
     unmountLib();
+    unmountShare();
     const fresh = freshness({ compare, mergeable: pull.mergeable, open: live });
     d.innerHTML = renderDetail({ pull, tier, files, reviews, comments, ci, approvals, gate, tokenCount: tokenFiles.length, changesetCount: changesets.length, visual, access, docsPaths, statuses, review, checks, fresh });
     wireActions(pull, gate, access);
     wireLibrary({ pull, fresh, compare, access, checks: ci.total, visual, approvals: approvals.approvers.length, seq });
     wireVisualLink(d);
+    wireShare(pull, files, comments, seq);
     if (statusNow)
       void mountStatus($('rv-status'), statusNow, {
         pull,
@@ -999,9 +1002,15 @@ function renderDetail(x: DetailInput) {
   const product = x.visual && (open || lifecycle === 'draft') ? productPreview(BRANCHES.apps, { branch: pull.head.ref, pr: pull.number, sha: pull.head.sha, fromFork: entry.fromFork }, { comments, statuses: x.statuses }) : null;
   // Secondary (the header holds the view's primary), above the checklist so it is seen without scrolling, with what
   // it opens as its sub-label.
-  const tryIt = product
-    ? `<div class="rv-try-block"><a class="btn btn-secondary btn-lg rv-try" id="rv-try" href="${esc(tryInProductUrl(product, pull.number, null))}" data-preview="${esc(product)}" target="_blank" rel="noopener" aria-describedby="rv-try-hint">Try it in the product<span class="sr-only"> (opens in a new tab)</span></a><p class="rv-try-hint" id="rv-try-hint"><span data-try-what>Opens the demo admin with this change.</span><span class="rv-try-key"> Press B there to flip.</span></p></div>`
+  // "Share with a product team" (lib/share-change), on the same line: the preview install command for a developer.
+  const share = canShare({ fromFork: entry.fromFork, packages: BRANCHES.packages }) && showShare(lifecycle, shareFor(pull, files, comments)) ? '<span class="rv-share" id="rv-share"></span>' : '';
+  const tryLink = product
+    ? `<a class="btn btn-secondary btn-lg rv-try" id="rv-try" href="${esc(tryInProductUrl(product, pull.number, null))}" data-preview="${esc(product)}" target="_blank" rel="noopener" aria-describedby="rv-try-hint">Try it in the product<span class="sr-only"> (opens in a new tab)</span></a>`
     : '';
+  const tryIt =
+    tryLink || share
+      ? `<div class="rv-try-block">${tryLink}${share}${tryLink ? '<p class="rv-try-hint" id="rv-try-hint"><span data-try-what>Opens the demo admin with this change.</span><span class="rv-try-key"> Press B there to flip.</span></p>' : ''}</div>`
+      : '';
   const what = x.visual
     ? `<div class="rv-what-visual"><h2 class="rv-what-sub">What changes on screen</h2><div id="rv-what-visual"><p class="rv-loading">Reading the before and after</p></div></div>`
     : '<p class="cg-line rv-what-quiet">No visual change.</p>';
@@ -1172,6 +1181,13 @@ function unmountLib() {
   libRoot = null;
 }
 
+/** "Share with a product team" (DS Button and Dialog): unmounted before the detail repaints. */
+let shareRoot: Root | null = null;
+function unmountShare() {
+  shareRoot?.unmount();
+  shareRoot = null;
+}
+
 /** The owner override in one sentence: what it skips, what it never skips, and the trace it leaves. */
 const OVERRIDE_RULE = 'Owners can ship without the missing approvals once tests pass, with a reason posted on the change.';
 
@@ -1245,6 +1261,32 @@ function wireActions(pull: Pull, gate: ReturnType<typeof mergeGate>, access: Acc
       });
     });
   }
+}
+
+/**
+ * "Share with a product team": the preview install command the Preview packages workflow posted for the latest
+ * update (its sticky comment), or why there is none yet (lib/share-change). Read on the data the detail already has.
+ */
+function shareFor(pull: Pull, files: PrFile[], comments: Comment[]): ShareState {
+  return shareState({ lifecycle: pullState(pull), files: files.map((f) => f.filename), packages: BRANCHES.packages, comment: findPreviewComment(comments)?.body, headSha: pull.head.sha });
+}
+
+function wireShare(pull: Pull, files: PrFile[], comments: Comment[], seq: number) {
+  const slot = document.getElementById('rv-share');
+  if (!slot) return;
+  const state = shareFor(pull, files, comments);
+  void import('../components/ds/studio/ShareChange').then(({ mountShareChange }) => {
+    if (seq !== openSeq || !slot.isConnected) return;
+    unmountShare();
+    shareRoot = mountShareChange(slot, {
+      title: humanTitle(mdTitleText(pull.title)),
+      state,
+      packages: BRANCHES.packages,
+      url: pull.html_url,
+      // The link as "Try it in the product" points now (at the screen that changes most once the visual impact says).
+      tryUrl: () => (document.getElementById('rv-try') as HTMLAnchorElement | null)?.href ?? null,
+    });
+  });
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -1432,6 +1474,7 @@ export function closePr() {
   unmountMore();
   unmountStatus();
   unmountLib();
+  unmountShare();
   current = null;
   detailEl().hidden = true;
   detailEl().innerHTML = '';
