@@ -84,6 +84,10 @@ const adoption = adoptionRows(groupByApp(loadAudits()).apps).filter((a) => a.com
           <p class="t-ui ov-todo-all" data-todo-all hidden>
             <Link href="/studio/changes/" data-todo-all-link>Show all</Link>
           </p>
+          <details class="ov-others" data-todo-dev hidden>
+            <summary class="t-ui ov-others-sum"><span data-todo-dev-line></span><span class="ov-chev" aria-hidden="true"></span></summary>
+            <ul class="ov-todo" data-todo-dev-list aria-label="Waiting on a developer"></ul>
+          </details>
           <details class="ov-others" data-todo-others hidden>
             <summary class="t-ui ov-others-sum"><span data-todo-others-line></span><span class="ov-chev" aria-hidden="true"></span></summary>
             <ul class="ov-todo" data-todo-others-list aria-label="Waiting on someone else"></ul>
@@ -143,6 +147,12 @@ const adoption = adoptionRows(groupByApp(loadAudits()).apps).filter((a) => a.com
         <ButtonLink variant="secondary" href="/studio/changes/" data-act>Open change</ButtonLink>
       </li>
     </template>
+    <template data-todo-row="link">
+      <li class="ov-todo-row">
+        <span class="ov-todo-text"><b class="t-body" data-title></b><span class="t-ui t-muted" data-why></span></span>
+        <Link href="/studio/changes/" data-act>Open change</Link>
+      </li>
+    </template>
 
     {(merged.length > 0 || appUpdates > 0) && (
     <section class="ov-activity" aria-labelledby="ov-activity-title">
@@ -192,7 +202,8 @@ const adoption = adoptionRows(groupByApp(loadAudits()).apps).filter((a) => a.com
     import { reviewQueue } from '../../lib/review-queue';
     import { humanTitle } from '../../lib/pr-title';
     import { overviewProtectionLine } from '../../lib/protection-view';
-    import { othersLine, overviewTodo, showAllLabel, TODO_MAX, type TodoRequest, type TodoRow } from '../../lib/overview-todo';
+    import { developerLine, isGuidanceChange, othersLine, overviewTodo, showAllLabel, TODO_MAX, type TodoRequest, type TodoRow } from '../../lib/overview-todo';
+    import { manifestPublished } from '../../scripts/reviews/visual-impact';
     import type { PullLike } from '../../lib/requests-view';
     import { loadRequestRows } from '../../scripts/requests';
 
@@ -200,6 +211,7 @@ const adoption = adoptionRows(groupByApp(loadAudits()).apps).filter((a) => a.com
       state: string;
       title: string;
       updated_at: string;
+      labels?: { name?: string }[];
       html_url: string;
     }
 
@@ -213,6 +225,9 @@ const adoption = adoptionRows(groupByApp(loadAudits()).apps).filter((a) => a.com
     const othersBox = $('[data-todo-others]');
     const othersText = $('[data-todo-others-line]');
     const othersList = $('[data-todo-others-list]');
+    const devBox = $('[data-todo-dev]');
+    const devText = $('[data-todo-dev-line]');
+    const devList = $('[data-todo-dev-list]');
     const empty = $('[data-todo-empty]');
 
     // Everything the to-do list is made of. Each source fills its part and repaints.
@@ -223,6 +238,8 @@ const adoption = adoptionRows(groupByApp(loadAudits()).apps).filter((a) => a.com
       done: false,
       requests: [] as TodoRequest[],
       unprotected: false,
+      /** Before and after published for the head commit of a change that waits for the viewer's design review. */
+      visual: new Map<number, 'ready' | null>(),
     };
 
     const siteOwners = () => {
@@ -255,9 +272,12 @@ const adoption = adoptionRows(groupByApp(loadAudits()).apps).filter((a) => a.com
       return byUrgency(state.open.map((p) => ({ number: p.number, kind: state.statuses.get(p.number)?.kind ?? null, updated_at: p.updated_at }))).map((o) => byNum.get(o.number)!);
     };
 
-    /** One row: what, why, and the task on a DS button. The first row of the list carries the one primary action. */
-    function rowEl(r: TodoRow, primary: boolean): HTMLElement {
-      const tpl = document.querySelector<HTMLTemplateElement>(`template[data-todo-row="${primary ? 'primary' : 'secondary'}"]`)!;
+    /**
+     * One row: what, why, and the task on a DS button. The first row of the list carries the one primary action.
+     * Developer rows carry a link only: there is nothing for a designer to do there.
+     */
+    function rowEl(r: TodoRow, look: 'primary' | 'secondary' | 'link'): HTMLElement {
+      const tpl = document.querySelector<HTMLTemplateElement>(`template[data-todo-row="${look}"]`)!;
       const li = (tpl.content.firstElementChild as HTMLElement).cloneNode(true) as HTMLElement;
       li.dataset.key = r.key;
       li.querySelector('[data-title]')!.textContent = r.title;
@@ -274,31 +294,69 @@ const adoption = adoptionRows(groupByApp(loadAudits()).apps).filter((a) => a.com
       const viewer = currentViewer()?.login ?? null;
       const changes = urgent().map((p) => {
         const st = state.statuses.get(p.number);
-        return { number: p.number, title: oneLineTitle(humanTitle(p.title)), who: whoFor(p, st), failing: st?.failing };
+        const visual = st?.touchesVisuals === false ? ('none' as const) : (state.visual.get(p.number) ?? null);
+        return {
+          number: p.number,
+          title: oneLineTitle(humanTitle(p.title)),
+          who: whoFor(p, st),
+          failing: st?.failing,
+          failingChecks: st?.failingChecks,
+          changesBy: st?.changesRequested,
+          visual,
+          guidance: isGuidanceChange(p.head.ref, st?.guidanceOnly),
+        };
       });
       const t = overviewTodo({ changes, requests: state.requests, viewer, owners: siteOwners(), unprotected: state.unprotected, loading: !state.done });
       // Statuses still loading and nothing yours yet: say so rather than "Nothing waits for you".
       const checking = viewer && !state.done && !t.mine.length && state.open.length > 0;
       headline.textContent = checking ? 'Checking what waits for you.' : t.headline;
       todoList.removeAttribute('aria-busy');
-      todoList.replaceChildren(...(checking ? [] : t.mine.slice(0, TODO_MAX).map((r, i) => rowEl(r, i === 0))));
+      todoList.replaceChildren(...(checking ? [] : t.mine.slice(0, TODO_MAX).map((r, i) => rowEl(r, viewer && i === 0 ? 'primary' : 'secondary'))));
       todoList.hidden = checking || t.mine.length === 0;
       const more = showAllLabel(t.mine.length);
       if (all && allLink) {
         all.hidden = !more;
         allLink.textContent = more;
       }
+      if (devBox && devText && devList) {
+        const text = checking ? '' : developerLine(t.developer.length);
+        devBox.hidden = !text;
+        devText.textContent = text;
+        devList.replaceChildren(...t.developer.map((r) => rowEl(r, 'link')));
+      }
       if (othersBox && othersText && othersList) {
-        const text = viewer && !checking ? othersLine(t.others.length, t.mine.length) : '';
+        const text = checking ? '' : othersLine(t.others, t.mine.length);
         othersBox.hidden = !text;
         othersText.textContent = text;
-        othersList.replaceChildren(...t.others.map((r) => rowEl(r, false)));
+        othersList.replaceChildren(...t.others.map((r) => rowEl(r, 'secondary')));
       }
       if (note) {
-        note.textContent = !viewer && t.mine.length ? 'Connect GitHub to see what waits for you.' : !t.mine.length && !t.others.length && !checking ? 'Every change is shipped. Start the next one from Tokens.' : '';
+        const nothing = !t.mine.length && !t.others.length && !t.developer.length;
+        note.textContent = !viewer && t.mine.length ? 'Connect GitHub to see what waits for you.' : nothing && !checking ? 'Every change is shipped. Start the next one from Tokens.' : '';
         note.hidden = !note.textContent;
       }
-      if (empty) empty.hidden = Boolean(checking || t.mine.length || t.others.length);
+      if (empty) empty.hidden = Boolean(checking || t.mine.length || t.others.length || t.developer.length);
+    }
+
+    /**
+     * Whether the visual impact run published before and after images for the changes that wait for the viewer's
+     * design review, so their row can say so. Connected only (a few reads per change), never for a change that
+     * touches nothing visual.
+     */
+    async function loadVisuals() {
+      const viewer = currentViewer()?.login ?? null;
+      if (!viewer || !hasWorkingToken()) return;
+      const { owner, repo } = readRepo();
+      const review = state.open.filter((p) => {
+        const st = state.statuses.get(p.number);
+        const who = whoFor(p, st);
+        return st?.touchesVisuals !== false && who && ['approve-design', 'approve', 'override'].includes(who.action) && (who.yourTurn || who.logins.includes(viewer));
+      });
+      for (const p of review) {
+        const ready = await manifestPublished(owner, repo, p.number, p.head.sha).catch(() => false);
+        state.visual.set(p.number, ready ? 'ready' : null);
+      }
+      if (review.length) paintTodo();
     }
 
     // "Hello Florian." only when a GitHub login is known (first word of the profile name, else the login).
@@ -338,9 +396,10 @@ const adoption = adoptionRows(groupByApp(loadAudits()).apps).filter((a) => a.com
           .catch(() => undefined);
         void loadStatuses(state.open, (p, st) => {
           state.statuses.set(p.number, st);
-        }).then(() => {
+        }).then(async () => {
           state.done = true;
           paintTodo();
+          await loadVisuals();
         });
       })
       .catch((err) => {
