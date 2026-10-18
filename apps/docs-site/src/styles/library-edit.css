@@ -28,27 +28,152 @@
 
 /* Fields brought into view (focus, caret, To review links) clear the site header and the edit bar. */
 html:has(.cp-page[data-editing]) {
-  scroll-padding-top: calc(var(--layout-header-height) + var(--size-20) + var(--space-4));
+  scroll-padding-top: calc(var(--layout-header-height) + var(--size-20) + var(--space-6));
 }
 
-/* The bar sticks within the reading column, not within its slot. */
+/* The page reads "draft" while editing: the page sits on a tinted desk (bg.subtle), and only what can be edited is
+   white paper. The desk bleeds into the page gutter so the reading column does not move. */
+.cp-page[data-editing] {
+  margin-inline: calc(var(--space-6) * -1);
+  padding: 0 var(--space-6) var(--space-10);
+  border-radius: var(--radius-container);
+  background-color: var(--color-bg-subtle);
+}
+
+/* The bar spans the whole page (reading column and rail), as the first row of the page grid. */
 .le-bar-slot {
   display: contents;
 }
 
-/* Top bar: sticky under the site header, the width of the reading column. */
+/* Edit bar: the mode signal. The one Harbor zone of the page, pinned under the site header, full page width, with
+   the mode on the left and the actions on the right. */
 .le-bar {
   position: sticky;
   top: var(--layout-header-height);
   z-index: var(--layer-sticky);
   display: grid;
+  grid-column: 1 / -1;
   gap: var(--space-2);
-  /* Takes the place and the height of the Workbench row it replaces (32 + 32), so the page does not move. */
-  margin-top: calc(var(--space-2) * -1);
-  margin-bottom: calc(var(--space-3) - var(--border-width-default));
-  padding: var(--space-2) 0;
-  border-bottom: var(--border-width-default) solid var(--color-border-default);
-  background-color: var(--color-bg-default);
+  margin: 0 calc(var(--space-6) * -1) var(--space-6);
+  padding: var(--space-3) var(--space-6);
+  border-radius: var(--radius-container) var(--radius-container) 0 0;
+  background-color: var(--color-bg-zone);
+  box-shadow: var(--elevation-raised);
+  color: var(--color-text-default);
+}
+
+.le-bar-mark {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: var(--size-10);
+  height: var(--size-10);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface-default);
+  color: var(--color-text-link);
+}
+
+.le-bar-label {
+  display: grid;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.le-bar-title,
+.le-bar-state {
+  overflow: hidden;
+  margin: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.le-bar-state {
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+/* Not editable: generated from the code. Shown only while editing. */
+.cp-page:not([data-editing]) [data-le-locked] {
+  display: none;
+}
+
+.le-locked {
+  display: inline-flex;
+}
+
+.le-locked-note {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-4);
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+}
+
+/* The live preview stays on screen but is not editable: it sits flat on the desk instead of floating. */
+.cp-page[data-editing] .hero-stage {
+  background-color: transparent;
+  box-shadow: none;
+}
+
+/* Editable regions: white paper on the desk. Hover draws a dashed edge and an Edit hint on it; focus inside turns
+   the edge into the focus color. */
+.cp-page[data-editing] .le-region {
+  position: relative;
+  padding: var(--space-4) var(--space-5);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-container);
+  background-color: var(--color-surface-default);
+  transition: border-color var(--motion-duration-instant) var(--motion-easing-standard);
+}
+
+.le-usage > .le-region,
+.le-usage > section + section {
+  margin-top: var(--space-8);
+}
+
+.le-hint {
+  position: absolute;
+  top: 0;
+  right: var(--space-4);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface-default);
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+  opacity: 0;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+@media (hover: hover) {
+  .cp-page[data-editing] .le-region:hover:not(:focus-within) {
+    border-style: dashed;
+    border-color: var(--color-border-hover);
+  }
+
+  .le-region:hover:not(:focus-within) > .le-hint {
+    opacity: 1;
+  }
+}
+
+.cp-page[data-editing] .le-region:focus-within {
+  border-color: var(--focus-ring-color);
+}
+
+/* Inside a region the heading opens the paper: no extra space above it. */
+.le-region .le-head h2 {
+  margin-top: 0;
+}
+
+/* The rail stays visible under the edit bar. */
+.cp-page[data-editing] .cp-toc {
+  top: calc(var(--layout-header-height) + var(--size-20) + var(--space-4));
 }
 
 /* The status pill is the status control while editing. */
@@ -78,20 +203,19 @@ html:has(.cp-page[data-editing]) {
 
 .le-bar-row {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2) var(--space-3);
+  gap: var(--space-3);
 }
 
 .le-bar-title {
-  margin: 0;
   font-size: var(--typography-body-size);
+  line-height: var(--typography-body-line-height);
 }
 
-/* The actions wrap as one group, to the right. */
+/* The actions stay one group, to the right. */
 .le-bar-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex: none;
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-2);
@@ -462,33 +586,29 @@ html:has(.cp-page[data-editing]) {
   margin: 0;
 }
 
-@media (max-width: 720px) {
-  .le-bar {
-    margin-right: calc(var(--space-4) * -1);
-    margin-left: calc(var(--space-4) * -1);
-    padding-right: var(--space-4);
-    padding-left: var(--space-4);
+/* Phones: the desk and the bar run edge to edge; the bar keeps the label, Send for review and a More menu. */
+@media (max-width: 767px) {
+  .cp-page[data-editing] {
+    margin-inline: calc(var(--space-4) * -1);
+    padding-inline: var(--space-4);
+    border-radius: 0;
   }
 
   .le-bar {
-    gap: var(--space-1);
-    padding-top: var(--space-2);
-    padding-bottom: var(--space-2);
+    margin-inline: calc(var(--space-4) * -1);
+    padding: var(--space-2) var(--space-4);
+    border-radius: 0;
   }
 
-  .le-bar-actions {
-    flex-wrap: nowrap;
-    justify-content: flex-start;
-    width: 100%;
-    margin-left: 0;
+  .le-bar-row {
+    gap: var(--space-2);
   }
 
-  .le-bar-actions > :last-child {
-    margin-left: auto;
-  }
-
-  .le-bar .le-long,
-  .le-bar .le-keep-all {
+  .le-bar-mark {
     display: none;
+  }
+
+  .cp-page[data-editing] .le-region {
+    padding: var(--space-3) var(--space-4);
   }
 }
