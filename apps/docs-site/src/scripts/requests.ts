@@ -3,6 +3,8 @@
 // "Closes #N" implements one. Reads stay inside the anonymous budget: one issues list, plus the open pull requests the
 // page already has (or one list read) and one closed pull request list, each kept in sessionStorage for 10 minutes.
 // Pure rules live in lib/requests-view.ts.
+import { workNature } from '../lib/work-nature';
+import { devTag, markWork, natureAttr } from './work-filter';
 import { assignRequestOnGitHub, closingIssueNumbers, declineReasonProblems, declineRequestOnGitHub, REQUEST_LABEL, REQUEST_STATUS_LABEL, requestIssueTitle, type IntegrationsConfig } from '@bridge-ds/core';
 import {
   assigneeOptions,
@@ -135,9 +137,10 @@ function thumbHtml(r: RequestRow) {
 }
 
 function rowHtml(r: RequestRow) {
-  return `<li class="cg-row" data-request="${r.number}"><a class="cg-row-link rq-row-link" href="?request=${r.number}" data-open-request="${r.number}">
+  const nature = workNature({ title: r.title, requestKind: r.kind }).nature;
+  return `<li class="cg-row" data-request="${r.number}" ${natureAttr(nature)}><a class="cg-row-link rq-row-link" href="?request=${r.number}" data-open-request="${r.number}">
     ${thumbHtml(r)}
-    <span class="rq-row-main"><span class="cg-row-title"><span class="cg-row-name" title="${esc(r.title)}"><span class="rq-comp">${esc(r.component)}</span> ${esc(r.title)}</span> <span class="cg-num">#${r.number}</span></span>
+    <span class="rq-row-main"><span class="cg-row-title"><span class="cg-row-name" title="${esc(r.title)}"><span class="rq-comp">${esc(r.component)}</span> ${esc(r.title)}</span> <span class="cg-num">#${r.number}</span> ${devTag(nature)}</span>
     <span class="rq-meta">${esc(wantsToChange(r.requester, r.component))}, ${esc(r.kindLabel.toLowerCase())}${r.jiraKey ? `, <span class="mono">${esc(r.jiraKey)}</span>` : ''}</span></span>
     <span class="rq-onit">${esc(onItLabel(r))}</span>
     ${pill(r.statusLabel, `rv-status ${r.tone}`)}
@@ -168,6 +171,7 @@ function paint() {
   $('rq-table').hidden = empty || open.length === 0;
   $('rq-list').innerHTML = open.map(rowHtml).join('');
   fillPreviews($('rq-list'));
+  markWork($('rq-list'));
   $('rq-closed').hidden = closed.length === 0;
   $('rq-closed-n').textContent = String(closed.length);
   $('rq-closed-list').innerHTML = closed.map(rowHtml).join('');

@@ -58,6 +58,8 @@ import { humanTitle } from '../lib/pr-title';
 import { touchesVisuals } from '../lib/visual-impact';
 import { isDocsFile } from '../lib/pr-docs';
 import { loadDocsSection, renderDocsSection } from './reviews/docs-section';
+import { workNature, type FileSignals, type WorkNature } from '../lib/work-nature';
+import { devTag, markWork, natureAttr } from './work-filter';
 
 interface User {
   login: string;
@@ -203,6 +205,9 @@ interface Row {
   head: { ref: string; sha: string };
   user: { login: string };
   draft?: boolean;
+  labels?: { name: string }[];
+  /** Design or developer work (lib/work-nature): title and labels first, then the changed files once read. */
+  nature: WorkNature;
   /** From the status read: who approved, who asked for changes, how many checks fail. */
   approvers?: string[];
   changesRequested?: string[];
@@ -211,8 +216,8 @@ interface Row {
 
 function rowHtml(r: Row) {
   const title = humanTitle(mdTitleText(r.title));
-  return `<li class="cg-row" data-pr="${r.number}"><a class="cg-row-link" href="?pr=${r.number}" data-open-pr="${r.number}">
-    <span class="cg-row-title"><span class="cg-row-name" title="${esc(title)}">${esc(title)}</span> <span class="cg-num">#${r.number}</span></span>
+  return `<li class="cg-row" data-pr="${r.number}" ${natureAttr(r.nature)}><a class="cg-row-link" href="?pr=${r.number}" data-open-pr="${r.number}">
+    <span class="cg-row-title"><span class="cg-row-name" title="${esc(title)}">${esc(title)}</span> <span class="cg-num">#${r.number}</span> ${devTag(r.nature)}</span>
     ${needTag(r.tier)}
     ${chip(r)}
     <time class="cg-date" datetime="${esc(r.updated_at)}">${esc(shortDate(r.updated_at))}</time></a></li>`;
@@ -223,6 +228,7 @@ function paintRows(rows: Row[], loading: boolean) {
   const tier = tierParam(location.search);
   const sorted = filterByTier(byUrgency(rows), tier);
   list.innerHTML = sorted.length ? sorted.map(rowHtml).join('') : `<li class="cg-row cg-none">Nothing waits here: ${esc(approvalNeedLong(tier).toLowerCase())}.</li>`;
+  markWork(list);
   const filter = document.getElementById('cg-tier-filter');
   if (filter) {
     filter.hidden = !tier;
@@ -256,6 +262,8 @@ function paintAsOf(at: string | null) {
   if (at) el.textContent = `Showing the list ${asOf(at)}: GitHub cannot be read right now. Connect GitHub for live status.`;
 }
 
+const natureOf = (title: string, labels: { name: string }[] | undefined, files: FileSignals | null = null) => workNature({ title: humanTitle(mdTitleText(title)), labels: labels ?? null, files }).nature;
+
 const toRow = (p: Pull | CachedPull, kind: ReviewStatusKind | null): Row => ({
   number: p.number,
   title: p.title,
@@ -267,6 +275,8 @@ const toRow = (p: Pull | CachedPull, kind: ReviewStatusKind | null): Row => ({
   head: { ref: p.head.ref, sha: p.head.sha },
   user: { login: p.user.login },
   draft: p.draft,
+  ...('labels' in p ? { labels: p.labels } : {}),
+  nature: natureOf(p.title, 'labels' in p ? p.labels : undefined),
 });
 
 /**
@@ -331,6 +341,7 @@ export async function loadList(): Promise<{ number: number; head: { ref: string 
     r.skipped = skipped && !r.kind;
     if (st && st.kind !== 'unknown') Object.assign(r, { approvers: st.approvers, changesRequested: st.changesRequested, failing: st.failing });
     if (st?.tier) r.tier = st.tier;
+    if (st?.files) r.nature = natureOf(r.title, r.labels, st.files);
     paintRows([...rows.values()], false);
   });
   paintRows([...rows.values()], false);

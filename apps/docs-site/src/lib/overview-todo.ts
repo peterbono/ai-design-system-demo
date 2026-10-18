@@ -5,6 +5,8 @@
 //     row component. Review the design of a change, ship one that is approved, decide on a request nobody is on,
 //     review or write usage guidance, protect the library. Ordered by what unblocks the most, each with the exact
 //     task on its button and what happens once it is done. The greeting counts exactly these rows.
+//   - Developer work (lib/work-nature: code only, no design decision) never shows here, nor in the Changes badge:
+//     the board folds it into one quiet line and Changes tags it.
 //   - Waiting on a developer and waiting on someone else: kept for the counts. The Overview shows these changes on
 //     its In flight board (lib/overview-board.ts), the blocker written on the card (blockerOf below).
 //
@@ -15,6 +17,7 @@
 import type { RequestStatus } from '@bridge-ds/core';
 import type { WhoActs } from './changes';
 import { wantsToChange } from './requests-view';
+import type { WorkNature } from './work-nature';
 
 /**
  * What the row asks for. The first four are decisions; blocked rows wait on a developer; waiting rows on another
@@ -54,6 +57,10 @@ export interface TodoChange {
   visual?: 'ready' | 'none' | null;
   /** Only usage guidance changes (docs files, or opened from the Library editor). */
   guidance?: boolean;
+  /** Design or developer work (lib/work-nature). Absent: design. */
+  nature?: WorkNature;
+  /** A real marker says an AI agent made it (lib/work-nature agentMade). */
+  agent?: boolean;
 }
 
 export interface TodoRequest {
@@ -64,6 +71,8 @@ export interface TodoRequest {
   requester: string;
   assignees: string[];
   prs: { state: 'open' | 'closed'; merged: boolean; author: string | null }[];
+  /** Design or developer work (lib/work-nature). Absent: design. */
+  nature?: WorkNature;
 }
 
 export interface TodoInput {
@@ -102,6 +111,8 @@ export interface Todo {
   developer: TodoRow[];
   /** Waiting on someone else: another person decides, or tests still run. */
   others: TodoRow[];
+  /** Developer work, kept out of every list above (the board folds it into one line). */
+  devWork: TodoRow[];
 }
 
 /** Rows shown before "Show all". */
@@ -147,10 +158,14 @@ export function blockerOf(c: TodoChange, who: WhoActs, viewer: string | null): {
 }
 
 /** The row of a change, sorted into For you, Waiting on a developer or Waiting on someone else. */
-function changeRow(c: TodoChange, input: TodoInput): { group: 'mine' | 'developer' | 'others'; row: TodoRow } {
+type Group = 'mine' | 'developer' | 'others' | 'devWork';
+
+function changeRow(c: TodoChange, input: TodoInput): { group: Group; row: TodoRow } {
   const { viewer } = input;
   const base = { key: `change-${c.number}`, kind: 'change' as const, title: c.title, href: changeHref(c.number) };
-  const open = (group: 'mine' | 'developer' | 'others', task: TodoTask, why: string) => ({ group, row: { ...base, task, why, action: 'Open change' } });
+  const open = (group: Group, task: TodoTask, why: string) => ({ group, row: { ...base, task, why, action: 'Open change' } });
+  // Code only: no design decision waits on anyone in the Studio.
+  if (c.nature === 'developer') return open('devWork', 'waiting', 'Developer work.');
   const who = c.who;
   if (!who) return open('others', input.loading ? 'checking' : 'waiting', input.loading ? 'Checking what it needs.' : 'Open it to see what it needs.');
 
@@ -255,7 +270,7 @@ function guidanceRows(g: NonNullable<TodoInput['guidance']>): TodoRow[] {
 /** The greeting's to-do list. */
 export function overviewTodo(input: TodoInput): Todo {
   const { viewer } = input;
-  const groups = { mine: [] as TodoRow[], developer: [] as TodoRow[], others: [] as TodoRow[] };
+  const groups: Record<Group, TodoRow[]> = { mine: [], developer: [], others: [], devWork: [] };
   const owner = Boolean(viewer && input.owners.some((o) => same(o, viewer)));
 
   for (const c of input.changes) {
@@ -268,6 +283,10 @@ export function overviewTodo(input: TodoInput): Todo {
   for (const r of input.requests) {
     // In progress: its change is in the list above. Done and declined wait for nobody.
     if (r.status !== 'requested') continue;
+    if (r.nature === 'developer') {
+      groups.devWork.push(requestRow(r, 'waiting', 'Developer work.', 'Open request'));
+      continue;
+    }
     const who = onIt(r);
     if (who) {
       if (same(who, viewer)) groups.mine.push(requestRow(r, 'assigned', 'Assigned to you. Nobody has started the work yet.', 'Open request'));
@@ -289,7 +308,7 @@ export function overviewTodo(input: TodoInput): Todo {
 
   // Stable: the queue's urgency order holds inside each task.
   const mine = groups.mine.map((r, i) => ({ r, i })).sort((a, b) => ORDER[a.r.task] - ORDER[b.r.task] || a.i - b.i).map((x) => x.r);
-  return { headline: headlineFor(mine, viewer), mine, developer: groups.developer, others: groups.others };
+  return { headline: headlineFor(mine, viewer), mine, developer: groups.developer, others: groups.others, devWork: groups.devWork };
 }
 
 /** The folded developer line: "3 changes wait on a developer". */

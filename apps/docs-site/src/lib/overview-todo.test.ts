@@ -46,6 +46,15 @@ describe('overview to-do: work sorted by kind', () => {
     expect(developerLine(t.developer.length)).toBe('3 changes wait on a developer');
   });
 
+  it('keeps developer work out of Needs you and the Changes badge', () => {
+    const changes = [change(7, 'needs-design', 'ana', 'peterbono', { nature: 'developer' }), change(8, 'needs-design', 'ana', 'peterbono')];
+    const t = overviewTodo({ changes, requests: [request(81, { nature: 'developer' }), request(82)], viewer: 'peterbono', owners: ['peterbono'] });
+    expect(t.mine.map((r) => r.key)).toEqual(['change-8', 'request-82']);
+    expect(t.devWork.map((r) => r.key)).toEqual(['change-7', 'request-81']);
+    expect([...t.developer, ...t.others].map((r) => r.key)).toEqual([]);
+    expect(reviewNeedsYou({ changes, viewer: 'peterbono', owners: ['peterbono'] })).toBe(1);
+  });
+
   it('tells tests still running from a person who decides', () => {
     const t = overviewTodo({ changes: [change(5, 'ci-running', 'peterbono', 'peterbono'), change(6, 'checking', 'ana', 'peterbono')], requests: [], viewer: 'peterbono', owners: ['peterbono'] });
     expect(t.others.map((r) => r.task)).toEqual(['checking', 'checking']);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { needFromStatus, whoActs } from './changes';
-import { boardColumns, columnHeading, columnMeta, combinedAdoption, splitTokens, visibleCards, healthFigures, inFlightLine, releaseTitle, startChangeHref, type BoardChange } from './overview-board';
+import { boardColumns, developerWork, columnHeading, columnMeta, combinedAdoption, splitTokens, visibleCards, healthFigures, inFlightLine, releaseTitle, startChangeHref, type BoardChange } from './overview-board';
 
 const owners = { design: ['peterbono'], tech: ['peterbono'] };
 type Kind = Parameters<typeof needFromStatus>[0];
@@ -39,7 +39,8 @@ describe('overview board', () => {
     expect(cols[2]!.empty).toBe('Nothing approved yet.');
     expect(columnMeta(cols[0]!)).toBe('1');
     expect(cols[2]!.cards[0]).toMatchObject({ status: { tone: 'you' }, note: 'Approved and tested. Ship it to put it in the next release.' });
-    expect(cols[0]!.cards[0]).toMatchObject({ who: null, note: 'You are trying it. Send it for review once it holds up.', href: '/studio/changes/?exploration=98' });
+    // The viewer's account, no Studio marker: never "You are trying it" from the login alone.
+    expect(cols[0]!.cards[0]).toMatchObject({ who: null, note: 'Started with your GitHub account. Send it for review once it holds up.', href: '/studio/changes/?exploration=98' });
     expect(cols[3]!.cards[0]).toMatchObject({ title: 'Textarea gets a new appearance option for editing existing text in place', note: 'Approved, goes out in the next release.', who: null });
     expect(cols.map((c) => c.href)).toEqual(['/studio/changes/?view=explorations', '/studio/changes/', '/studio/changes/', '/studio/changes/?view=history']);
   });
@@ -59,6 +60,37 @@ describe('overview board', () => {
     // The viewer's own blocked change waits for its assignee.
     const mine = boardColumns({ explorations: [], changes: [change(3, 'ci-failing', 'me', 'me', { failing: 1, assignees: ['me', 'dev'] })], release: [], viewer: 'me' });
     expect(mine[1]!.cards[0]!.note).toBe('A test fails. Waiting for @dev.');
+  });
+
+  it('says who from real markers: Claude, or You only when started from Studio', () => {
+    const ex = (maker: Parameters<typeof boardColumns>[0]['explorations'][number]['maker']) =>
+      boardColumns({ explorations: [{ number: 1, name: 'Pill buttons', author: 'me', maker }], changes: [], release: [], viewer: 'me' })[0]!.cards[0]!.note;
+    expect(ex({ kind: 'claude' })).toBe('Claude is building it. Send it for review once it holds up.');
+    expect(ex({ kind: 'you' })).toBe('You are trying it. Send it for review once it holds up.');
+    expect(ex({ kind: 'account', where: 'cli' })).toBe('Started from the command line with your GitHub account. Send it for review once it holds up.');
+    // A blocked change Claude drafted with the viewer's account.
+    const mine = boardColumns({ explorations: [], changes: [change(3, 'ci-failing', 'me', 'me', { failing: 1, agent: true })], release: [], viewer: 'me' });
+    expect(mine[1]!.cards[0]!.note).toBe('A test fails. Claude drafted it, no developer is on it yet.');
+  });
+
+  it('moves developer work off the columns into one list under the board', () => {
+    const input = {
+      explorations: [
+        { number: 98, name: 'Add a native Select for pages without React', author: 'peterbono', nature: 'developer' as const, maker: { kind: 'account' as const, where: 'cli' as const } },
+        { number: 64, name: 'Button normal again', author: 'peterbono' },
+      ],
+      changes: [change(2, 'needs-design', 'ana', 'peterbono'), change(7, 'ready', 'ana', 'peterbono', { nature: 'developer' })],
+      release: [],
+      viewer: 'peterbono',
+    };
+    const cols = boardColumns(input);
+    expect(cols.map((c) => c.cards.map((x) => x.key))).toEqual([['exploration-64'], ['change-2'], [], []]);
+    expect(inFlightLine(cols)).toBe('2 changes in flight.');
+    expect(developerWork(input).map((d) => [d.key, d.stage, d.who])).toEqual([
+      ['exploration-98', 'Exploring', null],
+      ['change-7', 'Ready to ship', null],
+    ]);
+    expect(developerWork(input)[0]!.note).toBe('Started from the command line with your GitHub account.');
   });
 
   it('caps each column and sets token names apart', () => {

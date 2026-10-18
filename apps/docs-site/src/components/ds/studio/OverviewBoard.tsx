@@ -2,11 +2,14 @@
 // screens: columns whose header links to the stage in Changes, at most two DS Cards each then "+N more"; an empty
 // stage collapses to its header. Narrow screens: one DS Accordion row per stage with its count, the cards open on
 // tap. A card: the title (token names in Plex Mono), one status pattern (icon and label: Blocked or You), what holds
-// it, and who is on it (never the viewer). Mounted by the Overview page script. Words: lib/overview-board.ts.
+// it, and who is on it (never the viewer). Developer work (code only, lib/work-nature.ts) stays off the columns:
+// one quiet line under the board, "Developer work, 1 in progress", opens its list. Mounted by the Overview page
+// script. Words: lib/overview-board.ts.
 import { createRoot, type Root } from 'react-dom/client';
 import { ChevronRight, CircleAlert, CircleUserRound } from 'lucide-react';
 import { Accordion, AccordionItem, Avatar, Button, Card, CardBody, Icon, Link } from '@bridge-ds/react';
-import { columnHeading, columnMeta, splitTokens, visibleCards, type BoardCard, type BoardColumn } from '../../../lib/overview-board';
+import { columnHeading, columnMeta, splitTokens, visibleCards, type BoardCard, type BoardColumn, type DevWorkItem } from '../../../lib/overview-board';
+import { devWorkLine } from '../../../lib/work-nature';
 
 function Title({ text }: { text: string }) {
   return (
@@ -72,7 +75,30 @@ function Cards({ col }: { col: BoardColumn }) {
   );
 }
 
-export function OverviewBoard({ columns }: { columns: BoardColumn[] }) {
+/** Developer work, folded: one quiet line that opens the list, each task with its stage and who is on it. */
+function DevWork({ items }: { items: DevWorkItem[] }) {
+  if (!items.length) return null;
+  return (
+    <Accordion appearance="flush" headingLevel={3} className="ov-dev">
+      <AccordionItem value="dev" title={<span className="t-ui t-muted">{devWorkLine(items.length)}</span>}>
+        <ul className="ov-dev-list">
+          {items.map((d) => (
+            <li key={d.key} className="ov-dev-item">
+              <Link href={d.href} variant="subtle" className="t-ui ov-dev-title">
+                <Title text={d.title} />
+              </Link>
+              <span className="t-ui t-muted">
+                {d.stage}. {d.note}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </AccordionItem>
+    </Accordion>
+  );
+}
+
+export function OverviewBoard({ columns, devWork = [] }: { columns: BoardColumn[]; devWork?: DevWorkItem[] }) {
   return (
     <>
       <div className="ov-board">
@@ -108,13 +134,14 @@ export function OverviewBoard({ columns }: { columns: BoardColumn[] }) {
           ))}
         </Accordion>
       </div>
+      <DevWork items={devWork} />
     </>
   );
 }
 
 /** Mounts the board into `el` once; later calls repaint it. */
-export function paintOverviewBoard(el: HTMLElement, columns: BoardColumn[], root?: Root | null): Root {
+export function paintOverviewBoard(el: HTMLElement, columns: BoardColumn[], root?: Root | null, devWork: DevWorkItem[] = []): Root {
   const r = root ?? createRoot(el);
-  r.render(<OverviewBoard columns={columns} />);
+  r.render(<OverviewBoard columns={columns} devWork={devWork} />);
   return r;
 }

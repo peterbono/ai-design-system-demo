@@ -435,3 +435,26 @@
     margin-bottom: var(--space-2);
   }
 }
+
+/* --- Developer work: one quiet line under the board, its list on demand ----------------------------------------- */
+
+.ov-dev {
+  margin-top: var(--space-2);
+}
+
+.ov-dev-list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ov-dev-item {
+  display: grid;
+  gap: var(--space-0-5);
+}
+
+.ov-dev-title {
+  font-weight: var(--font-weight-medium);
+}

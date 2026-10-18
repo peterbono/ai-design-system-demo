@@ -28,6 +28,22 @@ export async function manifestPublished(owner: string, repo: string, pr: number,
   return leaf.data.tree.some((e) => e.path === 'manifest.json' && e.type === 'blob');
 }
 
+/**
+ * What the visual impact run says for a pull request commit, without painting anything: a difference on screen, no
+ * difference, or null when it has not run (or could not be read). The Overview reads it to tell design work from
+ * developer work (lib/work-nature).
+ */
+export async function impactOf(owner: string, repo: string, pr: number, sha: string): Promise<'changes' | 'no-change' | null> {
+  try {
+    if (!(await manifestPublished(owner, repo, pr, sha))) return null;
+    const r = await ghGet<string>(`${visualBase(owner, repo, pr, sha)}/manifest.json`, { raw: true });
+    const kind = visualState(JSON.parse(r.data) as VisualManifest).kind;
+    return kind === 'changes' ? 'changes' : kind === 'no-change' ? 'no-change' : null;
+  } catch {
+    return null;
+  }
+}
+
 export interface VisualSummary {
   /** Changed screens and stories; null when the workflow has not run for this commit (or could not be read). */
   changed: number | null;

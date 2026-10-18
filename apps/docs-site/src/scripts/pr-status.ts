@@ -6,6 +6,7 @@
 import { effectiveTier } from '../lib/review-queue';
 import { isGuidanceOnly } from '../lib/overview-todo';
 import { touchesVisuals } from '../lib/visual-impact';
+import { fileSignals, type FileSignals } from '../lib/work-nature';
 import { currentViewer, esc, ghGet, hasWorkingToken, readRepo } from './github-session';
 import { needFromStatus, statusTone, whoActs } from '../lib/changes';
 import { planStatusReads, statusCacheKey, type CachedStatus } from '../lib/status-budget';
@@ -87,6 +88,8 @@ export interface PullStatus extends ReviewStatus {
   /** From the changed files (when read): it touches what the visual impact run captures, or only usage guidance. */
   touchesVisuals?: boolean;
   guidanceOnly?: boolean;
+  /** What the changed files say about the nature of the work (lib/work-nature): design or developer. */
+  files?: FileSignals;
   /** The approval rule of the change: label or computed from its files, highest wins. Null when unknown. */
   tier?: Tier | null;
 }
@@ -145,7 +148,7 @@ export async function pullStatus(p: PullForStatus, opts: { lean?: boolean } = {}
     failing: ci?.failed.length,
     failingChecks: ci?.failed.map((f) => f.name),
     tier,
-    ...(names ? { touchesVisuals: touchesVisuals(names), guidanceOnly: isGuidanceOnly(names) } : {}),
+    ...(names ? { touchesVisuals: touchesVisuals(names), guidanceOnly: isGuidanceOnly(names), files: fileSignals(names) } : {}),
   };
 }
 

@@ -29,6 +29,7 @@ import {
   startExplorationOnGitHub,
   type BridgeConfig,
   type Exploration,
+  type ExplorationSource,
   type ExplorationTryIt,
   type ExplorationUseCase,
   type GitHubClient,
@@ -61,6 +62,9 @@ export interface StartExplorationInput {
   useCase?: string | undefined;
   experimental?: string[] | undefined;
   author?: string | undefined;
+  /** Where it is started from (the MCP tool says mcp, the CLI says cli), and the AI agent behind it when known. */
+  source?: ExplorationSource | undefined;
+  agent?: string | undefined;
   dryRun?: boolean | undefined;
 }
 
@@ -84,6 +88,8 @@ export async function startExploration(ctx: BridgeContext, a: StartExplorationIn
     ...(a.useCase ? { useCase: a.useCase as ExplorationUseCase } : {}),
     ...(a.experimental?.length ? { experimental: a.experimental } : {}),
     ...(a.author ? { author: a.author } : {}),
+    ...(a.source ? { source: a.source } : {}),
+    ...(a.agent ? { agent: a.agent } : {}),
     startedAt: new Date().toISOString(),
   };
   const gh = await ctx.github().catch(() => null);
