@@ -10,6 +10,9 @@ import { docsEditHref, guidanceState, loadComponents } from '../../lib/component
 import { mdTitleText, oneLineTitle } from '../../lib/markdown';
 import { PAGE_SOURCES, freshness } from '../../lib/sources';
 import { dashboard } from '../../lib/stats';
+import { adoptionRows } from '../../lib/quality';
+import { formatPct, groupByApp, loadAudits } from '../../lib/audits';
+import { splitActivity } from '../../lib/release-view';
 
 const s = dashboard();
 const failing = s.contrast.fail;
@@ -43,12 +46,19 @@ const guide = undocumented.length
     ? { title: s.issues[0].title, text: s.issues[0].detail, cta: 'Open', href: s.issues[0].href }
     : { title: 'Check visual impact', text: 'Every pull request gets screenshots of the stories and screens it changes. Look before you approve.', cta: 'Open Changes', href: '/studio/changes/' };
 
-// Merged, not released yet: the bottom of the activity list. Open pull requests are added on top in the browser.
-const merged = releases()
+// Shipped, not released yet: the bottom of the activity list. Open changes are added on top in the browser. Only
+// changesets say which packages a change touches: the design system ones (components, tokens) are listed, Bridge's
+// own app updates (Studio, plugin, CLI, Claude connector) fold into one labelled row.
+const pending = releases()
   .filter((r) => r.pending)
   .flatMap((r) => r.entries)
-  .filter((e) => e.kind !== 'Internal')
-  .slice(0, 3);
+  .filter((e) => e.source === 'changeset');
+const activity = splitActivity(pending);
+const merged = activity.ds.slice(0, 3);
+const appUpdates = activity.app.length;
+
+// Adoption (loop 2), from the same audit reports as Quality: never a number the reports do not hold.
+const adoption = adoptionRows(groupByApp(loadAudits()).apps).filter((a) => a.component.to !== null || a.token.to !== null);
 ---
 
 <Layout
@@ -66,7 +76,7 @@ const merged = releases()
           <span class="ov-hello-line" data-review-line>Here is what waits for you.</span>
         </h1>
         <ul class="ov-wait" data-wait-list aria-label="Changes waiting for you" hidden></ul>
-        <p class="t-body" data-review-sentence>Open pull requests load from GitHub.</p>
+        <p class="t-body" data-review-sentence>Changes in review load from GitHub.</p>
         <ButtonLink variant="primary" href="/studio/changes/" data-start-review data-keep-branch>Start reviewing</ButtonLink>
         <p class="t-ui ov-health">
           <span class:list={['ov-dot', { 'is-fail': failing > 0 }]} aria-hidden="true"></span>
@@ -84,15 +94,7 @@ const merged = releases()
       <Illustration name="review" class="ov-greet-art" />
     </section>
 
-    <section class="ov-sugg" aria-label="Suggested next steps">
-      <article class="fg-card ov-card" data-unblock>
-        <div>
-          <h2 class="t-h3" data-unblock-title>Review open changes</h2>
-          <p class="t-body t-muted" data-unblock-text>Each pull request shows its token diff, contrast and visual impact before it can merge.</p>
-          <ButtonLink size="sm" href="/studio/changes/" data-unblock-cta data-keep-branch>Open Changes</ButtonLink>
-        </div>
-        <Illustration name="fix" width={96} />
-      </article>
+    <section class:list={['ov-sugg', { 'is-single': adoption.length === 0 }]} aria-label="Suggested next steps">
       <article class="fg-card ov-card">
         <div>
           <h2 class="t-h3">{guide.title}</h2>
@@ -101,6 +103,26 @@ const merged = releases()
         </div>
         <Illustration name="guide" width={96} />
       </article>
+      {
+        adoption.length > 0 && (
+          <article class="fg-card ov-card ov-adoption">
+            <div>
+              <h2 class="t-h3">Adoption</h2>
+              <ul class="t-body t-muted ov-adopt-list">
+                {adoption.map((a) => (
+                  <li>
+                    {a.label}: <strong class="num">{formatPct(a.component.to)}</strong> components, <strong class="num">{formatPct(a.token.to)}</strong> tokens
+                  </li>
+                ))}
+              </ul>
+              <ButtonLink size="sm" href="/studio/quality/#ql-adoption" data-keep-branch>
+                See adoption
+              </ButtonLink>
+            </div>
+            <Illustration name="components" width={96} />
+          </article>
+        )
+      }
     </section>
 
     <section class="ov-activity" aria-labelledby="ov-activity-title">
@@ -114,12 +136,28 @@ const merged = releases()
           merged.map((e) => (
             <li class="ov-row">
               <span class="t-body ov-row-title">
-                <b title={mdTitleText(e.title)}>{oneLineTitle(e.title)}</b> <span class="t-muted">Merged</span>
+                <b title={mdTitleText(e.title)}>{oneLineTitle(e.title)}</b> <span class="t-muted">Shipped</span>
               </span>
               <span class="pill">Next release</span>
               <span class="t-ui t-muted ov-row-date">{e.date ? new Date(`${e.date}T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }) : ''}</span>
             </li>
           ))
+        }
+        {
+          appUpdates > 0 && (
+            <li class="ov-row">
+              <a class="ov-row-link" href="/changelog/">
+                <span class="t-body ov-row-title">
+                  <b>
+                    {appUpdates} Bridge app {appUpdates === 1 ? 'update' : 'updates'}
+                  </b>{' '}
+                  <span class="t-muted">Studio, Figma plugin and tools</span>
+                </span>
+                <span class="pill">Bridge app</span>
+                <span class="t-ui t-muted ov-row-date" />
+              </a>
+            </li>
+          )
         }
       </ul>
     </section>
@@ -148,16 +186,17 @@ const merged = releases()
     import { currentViewer, esc, ghGet, initGitHubConnect, readRepo, RateLimitError } from '../../scripts/github-session';
     import { loadStatuses, owners, shippers, whoChip, type PullForStatus, type PullStatus } from '../../scripts/pr-status';
     import { mdTitleText, oneLineTitle } from '../../lib/markdown';
-    import { openPulls } from '../../lib/review-rules';
     import { byUrgency, needFromStatus, whoActs, type WhoActs } from '../../lib/changes';
-    import { isRunningExploration } from '../../lib/explorations-view';
+    import { queueCountLine, queueSentence, reviewQueue } from '../../lib/review-queue';
     import { humanTitle } from '../../lib/pr-title';
     import { overviewRequestsLine, type PullLike } from '../../lib/requests-view';
     import { loadRequestRows } from '../../scripts/requests';
 
     interface Pull extends PullForStatus {
+      state: string;
       title: string;
       updated_at: string;
+      html_url: string;
     }
 
     const $ = (sel: string) => document.querySelector<HTMLElement>(sel);
@@ -179,8 +218,9 @@ const merged = releases()
     });
 
     const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    const BLOCKED = new Set(['ci-failing', 'conflict', 'changes-requested']);
-    const WAITING = new Set(['needs-design', 'needs-tech', 'needs-approval', 'ready', 'ci-running']);
+    // Blocked on the developer side: tests fail or it conflicts with the latest library. A designer cannot fix it,
+    // so it gets one quiet link to GitHub, never a card.
+    const DEV_SIDE = new Set(['ci-failing', 'conflict']);
 
     const row = (p: Pull, st: PullStatus | null, skipped: boolean) =>
       `<li class="ov-row" data-pr="${p.number}"><a class="ov-row-link" href="/studio/changes/?pr=${p.number}">
@@ -195,15 +235,15 @@ const merged = releases()
     /**
      * Waiting for you: the changes where the connected viewer must act, first in the greeting. Nothing waiting: one
      * quiet line. Without a GitHub login nobody is "you", so the greeting keeps the plain review count. Returns the
-     * pull requests it lists, so the next-step cards below never repeat one of them.
+     * pull requests it lists.
      */
     function waitingForYou(open: Pull[], statuses: Map<number, PullStatus | null>, done: boolean): Set<number> {
       const viewer = currentViewer()?.login;
       const box = $('[data-wait-list]');
       if (!viewer || !box) return new Set();
-      // Running explorations are tried, never reviewed as is: they never wait for anyone here.
+      // `open` is already the review queue (no running exploration, no release automation).
       const order = byUrgency(open.map((p) => ({ number: p.number, kind: statuses.get(p.number)?.kind ?? null, updated_at: p.updated_at }))).map((o) => o.number);
-      const pool = open.filter((p) => !isRunningExploration(p as never));
+      const pool = open;
       const mine = pool
         .map((p) => ({ p, who: whoFor(p, statuses.get(p.number)) }))
         .filter((x): x is { p: Pull; who: WhoActs } => Boolean(x.who?.yourTurn))
@@ -213,7 +253,7 @@ const merged = releases()
       const wait = (k: number) => `${k} ${k === 1 ? 'change waits' : 'changes wait'}`;
       if (!done && !n) {
         if (line) line.textContent = 'Checking what waits for you.';
-        if (sentence) sentence.textContent = `${pool.length} ${pool.length === 1 ? 'change is' : 'changes are'} open.`;
+        if (sentence) sentence.textContent = queueCountLine(pool.length);
         box.hidden = true;
         return new Set();
       }
@@ -221,7 +261,7 @@ const merged = releases()
       if (sentence) {
         // One quiet line about the rest, or nothing when everything open is yours.
         const rest = n ? `${others} more ${others === 1 ? 'waits' : 'wait'}` : wait(others);
-        sentence.textContent = others ? `${rest} on someone else.` : n ? '' : 'Every change is merged.';
+        sentence.textContent = others ? `${rest} on someone else.` : n ? '' : 'Every change is shipped.';
         sentence.hidden = !sentence.textContent;
       }
       box.innerHTML = mine
@@ -240,55 +280,46 @@ const merged = releases()
       return new Set(mine.slice(0, 3).map((x) => x.p.number));
     }
 
+    /** The developer-side blocker, as one quiet link to GitHub after the sentence. Empty when nothing is blocked. */
+    function devLink(open: Pull[], statuses: Map<number, PullStatus | null>): string {
+      const blocked = open.filter((p) => DEV_SIDE.has(statuses.get(p.number)?.kind ?? ''));
+      if (!blocked.length) return '';
+      const r = readRepo();
+      const href = blocked.length === 1 ? blocked[0]!.html_url : `https://github.com/${r.owner}/${r.repo}/pulls`;
+      return ` <a href="${esc(href)}" target="_blank" rel="noopener">Open on GitHub</a>`;
+    }
+
+    /**
+     * The hero: the count (the same number as the nav badge and the In review tab, lib/review-queue), then one or two
+     * sentences on what the changes wait for, with the developer-side blockers linked to GitHub.
+     */
     function summarize(open: Pull[], statuses: Map<number, PullStatus | null>, done = false) {
       const n = open.length;
       if (sentence) sentence.hidden = false;
-      if (line) line.textContent = n === 0 ? 'Nothing waits for a review.' : `${n} ${n === 1 ? 'change needs' : 'changes need'} a review.`;
+      if (line) line.textContent = queueCountLine(n);
       if (!sentence) return;
       if (n === 0) {
-        sentence.textContent = 'Every change is merged. Start a draft from Tokens when you need the next one.';
+        sentence.textContent = 'Every change is shipped. Start a draft from Tokens when you need the next one.';
         if (start) {
           start.href = '/studio/tokens/';
           start.textContent = 'Edit tokens';
         }
         return;
       }
-      const blocked = open.filter((p) => BLOCKED.has(statuses.get(p.number)?.kind ?? ''));
-      const waiting = open.filter((p) => WAITING.has(statuses.get(p.number)?.kind ?? ''));
-      const known = blocked.length + waiting.length;
-      const rest = n - blocked.length;
-      const others = rest === 1 ? 'The other one waits for approval.' : `The other ${rest} wait for approval.`;
-      if (blocked.length === 1) sentence.textContent = `${humanTitle(mdTitleText(blocked[0]!.title))} (#${blocked[0]!.number}) is blocked by a failing check.${rest ? ` ${others}` : ''}`;
-      else if (blocked.length > 1) sentence.textContent = `${blocked.length} are blocked by failing checks.${rest ? ` ${others}` : ''}`;
-      else if (known === n) sentence.textContent = n === 1 ? 'It waits for approval.' : 'They all wait for approval.';
-      else sentence.textContent = 'Open each one to see its checks and approvals.';
+      sentence.innerHTML = `${esc(queueSentence(open.map((p) => statuses.get(p.number)?.kind ?? null)))}${devLink(open, statuses)}`;
       const first = byUrgency(open.map((p) => ({ number: p.number, kind: statuses.get(p.number)?.kind ?? null, updated_at: p.updated_at })))[0]!;
       if (start) start.href = `/studio/changes/?pr=${first.number}`;
-      const listed = waitingForYou(open, statuses, done);
-
-      // First suggestion: unblock a failing pull request when there is one, unless "Waiting for you" already lists
-      // it (one change, one place). Then the card goes and the other card takes the full width.
-      const failing = open.filter((p) => statuses.get(p.number)?.kind === 'ci-failing');
-      const fail = failing.find((p) => !listed.has(p.number));
-      const card = $('[data-unblock]');
-      const repeat = !fail && failing.length > 0;
-      if (card) card.hidden = repeat;
-      $('.ov-sugg')?.classList.toggle('is-single', repeat);
-      const title = $('[data-unblock-title]');
-      const text = $('[data-unblock-text]');
-      const cta = document.querySelector<HTMLAnchorElement>('[data-unblock-cta]');
-      if (fail && title && text && cta) {
-        title.textContent = `Unblock pull request #${fail.number}`;
-        text.textContent = `${humanTitle(mdTitleText(fail.title))} has a failing CI check. Open the run to see which check broke, then push a fix.`;
-        cta.href = `/studio/changes/?pr=${fail.number}`;
-        cta.textContent = `Open PR #${fail.number}`;
-      }
+      waitingForYou(open, statuses, done);
+      // With a viewer, "Waiting for you" rewrites the sentence: keep the developer-side link after it.
+      const link = devLink(open, statuses);
+      if (currentViewer() && link && sentence.textContent) sentence.insertAdjacentHTML('beforeend', link);
     }
 
     const r = readRepo();
     ghGet<Pull[]>(`/repos/${r.owner}/${r.repo}/pulls?state=open&per_page=100`)
       .then((f) => {
-        const open = openPulls(f.data).sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+        // The review queue: the same list, and so the same count, as the nav badge and the In review tab.
+        const open = reviewQueue(f.data).sort((a, b) => b.updated_at.localeCompare(a.updated_at));
         const statuses = new Map<number, PullStatus | null>(open.map((p) => [p.number, null]));
         let done = false;
         const skipped = new Set<number>();

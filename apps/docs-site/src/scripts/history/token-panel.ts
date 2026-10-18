@@ -4,7 +4,7 @@ import { tokenHistory, type TokenHistoryItem } from '@bridge-ds/core';
 import { shortDate } from '../../lib/history-view';
 import { esc } from '../github-session';
 import { openRestorePlanner } from './planner';
-import { activeReport, DEMO_BANNER, DEMO_EVENT, demoOn, loadHistory, setDemo } from './state';
+import { activeReport, DEMO_AVAILABLE, DEMO_BANNER, DEMO_EVENT, demoOn, loadHistory, setDemo } from './state';
 
 const val = (v: unknown) => (v === undefined ? '' : typeof v === 'string' ? v : JSON.stringify(v));
 const chip = (raw: unknown, css?: string) =>
@@ -46,7 +46,8 @@ async function fill(path: string, section: HTMLElement) {
   shownPath = path;
   shownDemo = demo;
   const n = items.length;
-  const toggle = `<button type="button" class="hs-switch hs-switch-sm" data-hs-demo role="switch" aria-checked="${demo}"><span class="hs-switch-track" aria-hidden="true"><span class="hs-switch-thumb"></span></span><span>Show demo history</span></button>`;
+  // The demo switch is a development aid: production builds show real history only.
+  const toggle = !DEMO_AVAILABLE ? '' : `<button type="button" class="hs-switch hs-switch-sm" data-hs-demo role="switch" aria-checked="${demo}"><span class="hs-switch-track" aria-hidden="true"><span class="hs-switch-thumb"></span></span><span>Show demo history</span></button>`;
   const banner = demo ? `<p class="hs-banner"><strong>${esc(DEMO_BANNER)}</strong></p>` : '';
   const body = n
     ? `<ol class="hs-token-list">${items.map((it, i) => itemHtml(it, i, demo)).join('')}</ol>`

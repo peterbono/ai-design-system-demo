@@ -102,21 +102,24 @@ describe('settings', () => {
     for (const gone of ['/studio/settings/governance/', '/studio/settings/integrations/']) expect(hrefs).not.toContain(gone);
   });
 
-  it('has the sections Connection, Repository, Approvals, in that order', () => {
+  it('has its sections in order, Repository inside the collapsed For developers section', () => {
     const at = SETTINGS_SECTIONS.map((id) => page.indexOf(`id="${id}"`));
     expect(at.every((i) => i > 0)).toBe(true);
     expect([...at].sort((a, b) => a - b)).toEqual(at);
-    expect(SETTINGS_SECTIONS).toEqual(['connection', 'repository', 'approvals']);
+    expect(SETTINGS_SECTIONS).toEqual(['connection', 'roles', 'approvals', 'tools', 'integrations', 'developer', 'repository']);
+    const dev = page.indexOf('data-dev-fold');
+    expect(page.indexOf('id="repository"')).toBeGreaterThan(dev);
+    expect(page.indexOf('id="tiers-and-modes"')).toBeGreaterThan(dev);
   });
 
-  it('opens Connection with one action per state, Repository with Source only at rest', () => {
+  it('opens Connection with one action per state, keeps developer details in one collapsed section', () => {
     expect(page).toContain('Read only. Connect GitHub to approve, propose and undo.');
     // At rest one primary (Connect GitHub). Roles' "Propose changes" is the primary of its edit mode only, inside
     // the save bar that shows after Edit.
     expect(page.match(/variant="primary"/g)).toHaveLength(2);
     expect(page).toMatch(/<div class="set-savebar" data-edit>\s*<div class="rq-actions">\s*<Button variant="primary" type="submit" data-roles-submit/);
-    expect(page).toMatch(/<details class="set-more" id="tiers-and-modes">/);
-    expect(page).toMatch(/<details class="set-more" id="owners-and-previews">/);
+    expect(page.match(/For developers<\/span>/g)).toHaveLength(1);
+    expect(page).toMatch(/<details class="set-more set-dev" id="for-developers" data-dev-fold>/);
     expect(page).not.toMatch(/<details[^>]* open/);
     expect(page).not.toContain('<Badge');
   });
@@ -131,7 +134,7 @@ describe('redirects', () => {
   it('sends the old Settings pages to the sections of the one page', () => {
     expect(redirectTarget(REDIRECTS['/studio/settings/repository']!, '', '')).toBe('/studio/settings/#repository');
     expect(redirectTarget(REDIRECTS['/studio/settings/governance']!, '', '')).toBe('/studio/settings/#approvals');
-    expect(redirectTarget(REDIRECTS['/studio/settings/integrations']!, '', '')).toBe('/studio/settings/#connection');
+    expect(redirectTarget(REDIRECTS['/studio/settings/integrations']!, '', '')).toBe('/studio/settings/#integrations');
     expect(redirectTarget(REDIRECTS['/governance']!, '', '')).toBe(HOW_REVIEW_WORKS);
     for (const [from, to] of Object.entries(REDIRECTS).filter(([f]) => f.startsWith(SETTINGS_HOME))) {
       expect(SETTINGS_SECTIONS as readonly string[], from).toContain(to.split('#')[1]);

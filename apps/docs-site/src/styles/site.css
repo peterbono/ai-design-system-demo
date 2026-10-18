@@ -695,8 +695,15 @@ pre code {
 }
 
 :root[data-space="studio"] .rail-tools {
+  display: flex;
   padding-top: 0;
   border-top: 0;
+}
+
+/* Studio keeps the theme with the account: in the side nav foot until GitHub is connected, then inside the account
+   menu (GitHubAccount), so the top bar holds search and Library only. */
+:root[data-space="studio"] .rail-foot:has([data-gh-acct]:is([data-state="connected"], [data-state="checking"])) .rail-tools {
+  display: none;
 }
 
 :root[data-space="studio"] .rail-foot {

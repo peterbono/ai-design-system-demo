@@ -40,7 +40,7 @@ describe('mergeGate owner override', () => {
     expect(g.allowed).toBe(false);
     expect(g.overridable).toBe(true);
     expect(g.missing).toEqual(['design approval', 'tech approval']);
-    expect(g.reasons).toEqual(['Tier 3 needs a design owner approval.', 'Tier 3 needs a tech owner approval.']);
+    expect(g.reasons).toEqual(['It needs a design owner approval.', 'It needs a tech owner approval.']);
   });
 
   it('the author approving their own PR never counts as an approval', () => {
@@ -67,7 +67,7 @@ describe('mergeGate owner override', () => {
   it('never overrides failing CI', () => {
     const g = gate({ ci: red });
     expect(g.overridable).toBe(false);
-    expect(g.reasons.join(' ')).toMatch(/CI fails: Guardrails/);
+    expect(g.reasons.join(' ')).toMatch(/Tests fail: Guardrails/);
   });
 
   it('never overrides CI that is still running', () => {
@@ -213,7 +213,7 @@ describe('reviewStatus', () => {
 
   it('reads each state from real data', () => {
     expect(st().kind).toBe('ready');
-    expect(st().label).toBe('Ready to merge');
+    expect(st().label).toBe('Ready to ship');
     expect(st().tone).toBe('is-pass');
     expect(st({ state: 'closed', merged_at: '2026-10-10T09:00:00Z' }).kind).toBe('merged');
     expect(st({ state: 'closed' }).kind).toBe('closed');
@@ -227,7 +227,7 @@ describe('reviewStatus', () => {
   });
 
   it('never says ready while CI fails, the old "Ready" bug', () => {
-    expect(st({ ci: red }).label).toBe('CI failing');
+    expect(st({ ci: red }).label).toBe('Blocked by tests');
     expect(st({ ci: red }).tone).toBe('is-fail');
   });
 
@@ -236,8 +236,20 @@ describe('reviewStatus', () => {
     expect(st({ ci: red, approvals: changes }).kind).toBe('ci-failing');
     expect(st({ ci: running, approvals: changes }).kind).toBe('changes-requested');
     expect(st({ ci: running, approvals: none }).kind).toBe('ci-running');
-    expect(st({ approvals: none, mergeable: false }).kind).toBe('needs-design');
+    // A conflict blocks before approvals, like the pull request header: the list never says "needs approval" (or
+    // "owner override") while the detail says conflict.
+    expect(st({ approvals: none, mergeable: false }).kind).toBe('conflict');
+    expect(st({ ci: running, mergeable: false }).kind).toBe('conflict');
     expect(st({ state: 'closed', merged_at: '2026-10-10T09:00:00Z', draft: true }).kind).toBe('merged');
+  });
+
+  it('says Checking while GitHub has not computed whether it merges cleanly', () => {
+    expect(st({ mergeable: null }).kind).toBe('checking');
+    expect(st({ mergeable: null, approvals: none }).kind).toBe('checking');
+    expect(st({ mergeable: null }).label).toBe('Checking');
+    expect(st({ mergeable: null, ci: red }).kind).toBe('ci-failing');
+    // Not read at all (undefined): no conflict known, the approvals decide.
+    expect(st({ mergeable: undefined, approvals: none }).kind).toBe('needs-design');
   });
 
   it('treats a missing tier as Tier 3, like mergeGate', () => {
@@ -291,7 +303,8 @@ describe('reviewStatus', () => {
     for (const c of cases) {
       const input = { ...base, ...c };
       const allowed = mergeGate({ tier: input.tier, ci: input.ci!, approvals: input.approvals!, draft: input.draft, mergeable: input.mergeable, state: input.state, merged_at: input.merged_at }).allowed;
-      expect(reviewStatus(input).kind === 'ready').toBe(allowed);
+      // Ready also waits for GitHub to say it merges cleanly (mergeable null reads Checking).
+      expect(reviewStatus(input).kind === 'ready').toBe(allowed && input.mergeable !== null);
     }
   });
 
