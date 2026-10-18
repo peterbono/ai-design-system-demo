@@ -10,62 +10,21 @@ changes as pull requests that your design and tech owners review.
 - **Repo-agnostic**: point it at any DTCG token repo. `bridge.config.json` says where things are; without it
   Bridge detects them.
 
-> `@bridge-ds/mcp` is on npm: `npx -y @bridge-ds/mcp` runs it, nothing to build. `@bridge-ds/cli` is still in
-> npm's review; until it is listed, build it from this repository (below).
+Everything runs from npm: `npx -y @bridge-ds/mcp` (the MCP server) and `npx @bridge-ds/cli` (the `bridge`
+command). No clone, no build.
 
-Quick start with Claude Code:
+## 1. Connect your client
 
-```sh
-claude mcp add bridge -s user -e GITHUB_TOKEN=your-github-token -- npx -y @bridge-ds/mcp --repo owner/name
-# or a local checkout of your design system:
-claude mcp add bridge -- npx -y @bridge-ds/mcp --root /abs/path/to/your-ds
-```
-
-## 1. Build the CLI (until it is on npm)
-
-```sh
-git clone https://github.com/peterbono/ai-design-system-demo && cd ai-design-system-demo
-npm install
-npm run mcp:build
-```
-
-The server is now at `packages/mcp/dist/index.js` and the CLI at `packages/cli/dist/index.js`.
-
-## 2. Point it at your design system
-
-In your design system repo:
-
-```sh
-node /path/to/ai-design-system-demo/packages/cli/dist/index.js init
-```
-
-`bridge init` detects your token folder, tiers and modes, writes `bridge.config.json` (edit it if the
-detection is off), writes `.mcp.json` for Claude Code, and prints the Claude Desktop snippet.
-`bridge check` then validates tokens and runs the contrast gate; use it in CI (exit 0 ok, 1 failures,
-2 setup error).
-
-## 3. Connect your client
+The simplest path is your design system repository on GitHub, with no clone. Without a token Bridge is
+read-only (and GitHub allows 60 requests an hour). To let Claude open pull requests, add `GITHUB_TOKEN`: a
+fine-grained token limited to that one repository, with contents and pull requests read and write.
 
 ### Claude Code
 
-Project-scoped (shared with your team through git), in `.mcp.json` at the repo root:
-
-```json
-{
-  "mcpServers": {
-    "bridge": { "command": "node", "args": ["packages/mcp/dist/index.js", "--root", "."] }
-  }
-}
-```
-
-This repo ships that file. Claude Code asks you to approve project servers the first time.
-
-Or user-scoped, from a terminal:
-
 ```sh
-claude mcp add bridge -- node /abs/path/packages/mcp/dist/index.js --root /abs/path/to/your-ds
-# once published to npm:
-claude mcp add bridge -- npx -y @bridge-ds/mcp
+claude mcp add bridge -s user -- npx -y @bridge-ds/mcp --repo owner/name
+# with a token, so Claude can open pull requests:
+claude mcp add bridge -s user -e GITHUB_TOKEN=your-github-token -- npx -y @bridge-ds/mcp --repo owner/name
 ```
 
 ### Claude Desktop
@@ -76,21 +35,57 @@ Settings > Developer > Edit config, then add to `claude_desktop_config.json` and
 {
   "mcpServers": {
     "bridge": {
-      "command": "node",
-      "args": ["/abs/path/packages/mcp/dist/index.js", "--root", "/abs/path/to/your-ds"]
+      "command": "npx",
+      "args": ["-y", "@bridge-ds/mcp", "--repo", "owner/name"],
+      "env": { "GITHUB_TOKEN": "your GitHub token, optional" }
     }
   }
 }
 ```
 
-To work on a GitHub repo instead of a local folder, use `"args": [".../index.js", "--repo", "owner/name"]`
-and, only if you want Claude to open pull requests, `"env": { "GITHUB_TOKEN": "..." }`.
+### A local folder instead
+
+Pass `--root` with the path to your design system checkout:
+
+```sh
+claude mcp add bridge -- npx -y @bridge-ds/mcp --root /abs/path/to/your-ds
+```
+
+Or share it with your team through git, in `.mcp.json` at the repo root (Claude Code asks you to approve
+project servers the first time):
+
+```json
+{
+  "mcpServers": {
+    "bridge": { "command": "npx", "args": ["-y", "@bridge-ds/mcp", "--root", "."] }
+  }
+}
+```
 
 ### Other MCP clients
 
-Any client that speaks MCP over stdio works: run `node packages/mcp/dist/index.js` with `--root <dir>` or
-`--repo owner/name [--ref branch]`. Options can also come from env: `BRIDGE_ROOT`, `BRIDGE_REPO`,
-`BRIDGE_REF`, `GITHUB_TOKEN` (or `BRIDGE_GITHUB_TOKEN`).
+Any client that speaks MCP over stdio works: run `npx -y @bridge-ds/mcp` with `--repo owner/name [--ref branch]`
+or `--root <dir>`. Options can also come from env: `BRIDGE_REPO`, `BRIDGE_REF`, `BRIDGE_ROOT`, `GITHUB_TOKEN` (or
+`BRIDGE_GITHUB_TOKEN`).
+
+## 2. Check your design system from a terminal
+
+In your design system repo:
+
+```sh
+npx @bridge-ds/cli check     # validate tokens and run the contrast gate
+npx @bridge-ds/cli help      # every command
+```
+
+`bridge check` validates tokens and runs the contrast gate; use it in CI (exit 0 ok, 1 failures, 2 setup
+error). `bridge.config.json` says where your tokens, tiers and modes are; without it Bridge detects them on
+every run.
+
+### Working on Bridge itself
+
+From a clone, `npm install && npm run mcp:build` builds the server to `packages/mcp/dist/index.js` and the
+CLI to `packages/cli/dist/index.js`. This repo's `.mcp.json` runs that local build, so Claude Code here uses
+the code you are changing.
 
 ## What Claude can do
 
@@ -322,12 +317,11 @@ both already reach with the designer's token.
    fills the fields it may fill and offers Claude's text for any field the designer edited meanwhile. It deletes
    the file and its images once the request or push is sent, or cancelled.
 
-Setup, once. The server is not on npm yet, so build it from a clone, then connect it with the same GitHub token as
-the plugin (`GITHUB_TOKEN`, Contents read and write on the design system repo):
+Setup, once: connect the server from npm with the same GitHub token as the plugin (`GITHUB_TOKEN`, Contents read
+and write on the design system repo):
 
 ```sh
-git clone https://github.com/peterbono/ai-design-system-demo bridge && cd bridge && npm install && npm run mcp:build
-claude mcp add bridge -s user -e GITHUB_TOKEN=your-github-token -- node /path/to/bridge/packages/mcp/dist/index.js --repo owner/name
+claude mcp add bridge -s user -e GITHUB_TOKEN=your-github-token -- npx -y @bridge-ds/mcp --repo owner/name
 ```
 
 Claude Desktop (Settings, Developer, Edit config, then restart):
@@ -336,8 +330,8 @@ Claude Desktop (Settings, Developer, Edit config, then restart):
 {
   "mcpServers": {
     "bridge": {
-      "command": "node",
-      "args": ["/path/to/bridge/packages/mcp/dist/index.js", "--repo", "owner/name"],
+      "command": "npx",
+      "args": ["-y", "@bridge-ds/mcp", "--repo", "owner/name"],
       "env": { "GITHUB_TOKEN": "your GitHub token" }
     }
   }
@@ -432,6 +426,6 @@ have, with your own Claude and your own GitHub token.
 
 ## Status
 
-v0.1, not yet published to npm. The server is built on `@bridge-ds/core`, the same package as the DS Bridge Figma
+Published on npm as `@bridge-ds/mcp` and `@bridge-ds/cli` (versions in each `package.json` and on npmjs.com). The server is built on `@bridge-ds/core`, the same package as the DS Bridge Figma
 plugin and the docs site: one `bridge.config.json` (schema in `packages/core/bridge.config.schema.json`), one
 risk classifier, one GitHub client with the same protected-branch guard.

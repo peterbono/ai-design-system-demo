@@ -2,7 +2,7 @@
 // bridge: CLI for the Bridge design-system-as-code tools. Small on purpose: Node built-ins + @bridge-ds/mcp.
 import { existsSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
-import { join, relative, resolve } from 'node:path';
+import { isAbsolute, join, relative, resolve } from 'node:path';
 import { auditMarkdown, type AuditReport } from '@bridge-ds/core/audit';
 import { findDesignSystemRoot, fixCss, loadDesignSystem, originRepo, runAudit } from '@bridge-ds/core/node';
 import { fileURLToPath } from 'node:url';
@@ -12,6 +12,9 @@ import { runExplore } from './explore.js';
 import { protectionReport, type ProtectionReport } from './protection.js';
 import { rolesReport, type RolesReport } from './roles.js';
 import { brand, BridgeContext, CONFIG_FILE, core, detectConfig, GitRefSource, history as hist, LocalSource, ops, optionsFromArgv, serveStdio, toConfigJson, VERSION, type BridgeConfig } from '@bridge-ds/mcp';
+
+/** The MCP server on npm, written into .mcp.json by `bridge init`. */
+const MCP_PACKAGE = '@bridge-ds/mcp';
 
 const HELP = `bridge ${VERSION}: design system as code, for you and your Claude
 
@@ -121,20 +124,22 @@ async function init(a: Args, root: string) {
     print(`Wrote ${CONFIG_FILE}: tokens in ${config.tokens.root}, ${config.tokens.layers.length} layers, modes ${Object.keys(config.axes).join(', ') || 'none'}.`);
     print('Check the layers order (lowest first) and the tiers; detection is a starting point.');
   }
-  // Server command: the local build of @bridge-ds/mcp (packages are not published to npm yet).
+  // Server command: npx @bridge-ds/mcp from npm. Inside the Bridge repo itself, the local build (works offline,
+  // and runs the code you are changing).
   const serverJs = fileURLToPath(new URL('./index.js', import.meta.resolve('@bridge-ds/mcp')));
   const relServer = relative(root, serverJs);
-  const inRepo = !relServer.startsWith('..');
+  const inRepo = !relServer.startsWith('..') && !isAbsolute(relServer);
+  const server = (dir: string) => (inRepo ? { command: 'node', args: [relServer, '--root', dir] } : { command: 'npx', args: ['-y', MCP_PACKAGE, '--root', dir] });
   const mcpPath = join(root, '.mcp.json');
   const existing = existsSync(mcpPath) ? (JSON.parse(await readFile(mcpPath, 'utf8')) as { mcpServers?: Record<string, unknown> }) : {};
-  existing.mcpServers = { ...(existing.mcpServers ?? {}), bridge: { command: 'node', args: [inRepo ? relServer : serverJs, '--root', '.'] } };
+  existing.mcpServers = { ...(existing.mcpServers ?? {}), bridge: server('.') };
   await writeFile(mcpPath, `${JSON.stringify(existing, null, 2)}\n`);
   print(`Wrote .mcp.json: Claude Code picks up the "bridge" server next time it starts in ${root}.`);
+  const desktop = inRepo ? { command: 'node', args: [serverJs, '--root', root] } : server(root);
   print('\nClaude Desktop: add this to claude_desktop_config.json (Settings > Developer > Edit config):');
-  print(JSON.stringify({ mcpServers: { bridge: { command: 'node', args: [serverJs, '--root', root] } } }, null, 2));
+  print(JSON.stringify({ mcpServers: { bridge: desktop } }, null, 2));
   print('\nOr with the Claude Code CLI:');
-  print(`  claude mcp add bridge -- node ${serverJs} --root ${root}`);
-  print('(Once @bridge-ds/mcp is published: claude mcp add bridge -- npx -y @bridge-ds/mcp)');
+  print(`  claude mcp add bridge -- ${desktop.command} ${desktop.args.join(' ')}`);
 }
 
 async function check(a: Args, root: string): Promise<number> {
@@ -542,7 +547,8 @@ async function main(): Promise<number> {
   if (cmd === 'explore') return runExplore(a, root);
   if (!cmd || has(a, 'help') || cmd === 'help') {
     print(HELP);
-    return cmd ? 0 : 2;
+    // Asked for (`help`, `--help`): exit 0. No command at all is a usage error: exit 2.
+    return cmd || has(a, 'help') ? 0 : 2;
   }
   if (cmd === '--version' || cmd === 'version') return print(VERSION), 0;
   switch (cmd) {

@@ -132,7 +132,6 @@ export type PollerOptions = DraftPollerOptions;
 // ---------------------------------------------------------------------------------------------
 // Setup shown in Settings, "Claude (optional)"
 
-/** Where the Bridge MCP server runs from until it is on npm: a clone of the Bridge repo, built once. */
 /** The Bridge MCP server from npm: no clone, no build. */
 export const MCP_PACKAGE = '@bridge-ds/mcp';
 
