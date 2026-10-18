@@ -874,3 +874,26 @@ details[open] > summary .cg-sec-chev {
     padding-inline: var(--space-4);
   }
 }
+
+/* --- Developer work: a quiet tag on the row, and a filter that shows only when a list holds some ----------------- */
+
+.cg-work {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-block: var(--space-3);
+}
+
+.cg-dev-tag {
+  color: var(--color-text-muted);
+}
+
+.cg-work-none {
+  margin-block: var(--space-3);
+}
+
+.cg[data-work='design'] [data-nature='developer'],
+.cg[data-work='developer'] [data-nature='design'] {
+  display: none;
+}

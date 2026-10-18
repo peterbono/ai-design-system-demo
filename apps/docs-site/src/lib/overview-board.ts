@@ -9,9 +9,12 @@
 //     or tokens). Bridge's own app updates and the release automation stay out: they are not the design system.
 // A card says what in designer words, what holds it (one status pattern, icon plus label: Blocked or You) and who is
 // on it. The viewer's own avatar never shows: "Needs a developer" rather than "A developer is on it" next to you.
+// Who comes from real markers (lib/work-nature makerOf): Claude when an agent made it, "You" only for what the viewer
+// started from Studio. Developer work (lib/work-nature) leaves the columns for one quiet line under the board.
 import type { WhoActs } from './changes';
 import { blockerOf, type TodoChange } from './overview-todo';
 import { isDsChange } from './release-view';
+import { explorationMakerLine, makerOf, type Maker, type WorkNature } from './work-nature';
 
 export type ColumnId = 'exploring' | 'review' | 'ready' | 'release';
 
@@ -52,6 +55,10 @@ export interface BoardExploration {
   /** Sentence case, without the "Exploration:" prefix (explorationRows name). */
   name: string;
   author: string;
+  /** Who made it (lib/work-nature makerOf). Absent: from the author alone, never "You" without a Studio marker. */
+  maker?: Maker;
+  /** Design or developer work. Absent: design. */
+  nature?: WorkNature;
 }
 
 export interface BoardChange extends TodoChange {
@@ -113,7 +120,8 @@ function reviewCard(c: BoardChange, viewer: string | null, loading: boolean): Bo
     const author = other(who.logins[0], viewer);
     // The viewer wrote it (often with Claude): the developer who fixes it is whoever GitHub assigns.
     const assignee = (c.assignees ?? []).find((a) => !same(a, viewer));
-    const actor = author && who.who !== 'you' ? `${handle(author)} is on it.` : assignee ? `Waiting for ${handle(assignee)}.` : 'No developer yet.';
+    const nobody = c.agent ? 'Claude drafted it, no developer is on it yet.' : 'No developer yet.';
+    const actor = author && who.who !== 'you' ? `${handle(author)} is on it.` : assignee ? `Waiting for ${handle(assignee)}.` : nobody;
     return { ...base, note: `${cap(block.what)}. ${actor}`, status: BLOCKED };
   }
   if (who.action === 'wait') return { ...base, note: who.sentence, status: null };
@@ -133,44 +141,74 @@ function readyCard(c: BoardChange, viewer: string | null): BoardCard {
   };
 }
 
-/** The four columns, in the order work moves. Release cards keep only what product teams install. */
-export function boardColumns(input: BoardInput): BoardColumn[] {
+type Natured = BoardCard & { nature: WorkNature };
+
+/** The note of an exploration card: who is on it, then what happens next. */
+export function explorationNote(e: BoardExploration, viewer: string | null): string {
+  const m = e.maker ?? makerOf({ author: e.author, viewer });
+  // Whoever started it with the viewer's account (Claude, the viewer, a tool) waits for the viewer to send it on.
+  return `${explorationMakerLine(m)} ${m.kind === 'person' ? 'Sent for review once it holds up.' : 'Send it for review once it holds up.'}`;
+}
+
+/** Every card of the board with its nature, column by column. */
+function allCards(input: BoardInput): [ColumnId, Natured[]][] {
   const { viewer } = input;
   const loading = Boolean(input.loading);
-  const ready: BoardCard[] = [];
-  const review: BoardCard[] = [];
+  const ready: Natured[] = [];
+  const review: Natured[] = [];
   for (const c of input.changes) {
-    if (c.who?.action === 'merge') ready.push(readyCard(c, viewer));
-    else review.push(reviewCard(c, viewer, loading));
+    const nature = c.nature ?? 'design';
+    if (c.who?.action === 'merge') ready.push({ ...readyCard(c, viewer), nature });
+    else review.push({ ...reviewCard(c, viewer, loading), nature });
   }
-  const exploring = input.explorations.map<BoardCard>((e) => ({
+  const exploring = input.explorations.map<Natured>((e) => ({
     key: `exploration-${e.number}`,
     title: e.name,
     who: other(e.author, viewer),
-    note: same(e.author, viewer) ? 'You are trying it. Send it for review once it holds up.' : `${handle(e.author)} is trying it. Sent for review once it holds up.`,
+    // Developer work: who is on it, no next step for a designer.
+    note: e.nature === 'developer' ? explorationMakerLine(e.maker ?? makerOf({ author: e.author, viewer })) : explorationNote(e, viewer),
     status: null,
     href: `/studio/changes/?exploration=${e.number}`,
+    nature: e.nature ?? 'design',
   }));
   const release = input.release
     .filter((r) => isDsChange(r.packages))
-    .map<BoardCard>((r) => ({
+    .map<Natured>((r) => ({
       key: `release-${r.ref}`,
       title: releaseTitle(r.title),
       who: other(r.author, viewer),
       note: 'Approved, goes out in the next release.',
       status: null,
       href: '/studio/changes/?view=history',
+      nature: 'design',
     }));
-  const cols: [ColumnId, BoardCard[]][] = [
+  return [
     ['exploring', exploring],
     ['review', review],
     ['ready', ready],
     ['release', release],
   ];
+}
+
+const strip = ({ nature: _n, ...card }: Natured): BoardCard => card;
+
+/** The four columns, in the order work moves, design work only. Release cards keep only what product teams install. */
+export function boardColumns(input: BoardInput): BoardColumn[] {
+  const cols = allCards(input).map(([id, cards]) => [id, cards.filter((c) => c.nature === 'design').map(strip)] as const);
   // Avatars only tell people apart: with one author on the whole board they repeat the same face on every card.
   const authors = new Set(cols.flatMap(([, cards]) => cards.flatMap((c) => (c.who ? [norm(c.who)] : []))));
   const show = (cards: BoardCard[]) => (authors.size > 1 ? cards : cards.map((c) => ({ ...c, who: null })));
   return cols.map(([id, cards]) => ({ id, label: LABEL[id], href: HREF[id], cards: show(cards), blocked: cards.filter((c) => c.status?.tone === 'blocked').length, empty: EMPTY[id] }));
+}
+
+/** A developer task under the board: the card, and the stage it is in ("Exploring"). */
+export interface DevWorkItem extends BoardCard {
+  stage: string;
+}
+
+/** Developer work in flight, in board order: one quiet line under the board opens it (lib/work-nature devWorkLine). */
+export function developerWork(input: BoardInput): DevWorkItem[] {
+  return allCards(input).flatMap(([id, cards]) => cards.filter((c) => c.nature === 'developer').map((c) => ({ ...strip(c), who: null, stage: LABEL[id] })));
 }
 
 /** "In review, 3": the column header, also its accessible name. */

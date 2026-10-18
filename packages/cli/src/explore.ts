@@ -34,6 +34,9 @@ async function context(root: string, io: RequestIO): Promise<BridgeContext> {
   return BridgeContext.create({ root, ...(token ? { token } : {}), ...(io.fetch ? { fetch: io.fetch } : {}) });
 }
 
+/** Where the exploration comes from: the CLI, run by Claude Code when it sets CLAUDECODE in the shell it runs. */
+const exploreSource = (env: NodeJS.ProcessEnv) => ({ source: 'cli' as const, ...(env.CLAUDECODE ? { agent: 'claude' } : {}) });
+
 const date = (iso: string) => (iso ? iso.slice(0, 10) : '');
 
 export async function runExplore(a: RequestArgs, root: string, io: RequestIO = defaultIO()): Promise<number> {
@@ -50,7 +53,7 @@ export async function runExplore(a: RequestArgs, root: string, io: RequestIO = d
       if (!name || !purpose) throw new RequestUsageError('Usage: bridge explore start <name> --purpose "What you want to learn"');
       const useCase = flag(a, 'use-case');
       const ctx = await context(root, io);
-      const r = (await explorations.startExploration(ctx, { name, purpose, ...(useCase ? { useCase } : {}), ...(a.flags.experimental ? { experimental: a.flags.experimental } : {}), dryRun: has(a, 'dry-run') })) as Record<string, any>;
+      const r = (await explorations.startExploration(ctx, { name, purpose, ...exploreSource(io.env), ...(useCase ? { useCase } : {}), ...(a.flags.experimental ? { experimental: a.flags.experimental } : {}), dryRun: has(a, 'dry-run') })) as Record<string, any>;
       if (json) return io.print(JSON.stringify(r, null, 2)), 0;
       if (r.status === 'dry-run') {
         io.print(`Dry run, nothing written.\n\nBranch: ${r.branch} (from ${r.base})\nPull request: ${r.title} (draft, label ${r.label})\nNote: ${r.note.path}\n\n${r.prBody}`);

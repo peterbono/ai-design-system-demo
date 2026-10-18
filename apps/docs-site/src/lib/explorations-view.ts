@@ -20,6 +20,7 @@ import {
   resolveBranchPreviews,
   type BranchPreview,
   type BranchPreviewSources,
+  type ExplorationSource,
   type ExplorationStatus,
   type ExplorationTryIt,
   type PreviewApps,
@@ -74,6 +75,9 @@ export interface ExplorationRow {
   /** Pill class: always neutral (grey). */
   tone: string;
   author: string;
+  /** Where it was started and the AI agent that started it, when the exploration block says so (packages/core). */
+  source: ExplorationSource | null;
+  agent: string | null;
   updatedAt: string;
   previews: { app: string; label: string; url: string }[];
   /** Head commit: the preview comment's snapshot must match it before its install command is shown. */
@@ -141,6 +145,8 @@ export function explorationRows(pulls: ExplorationPullLike[], cfg: ExplorationsC
         statusLabel: EXPLORATION_STATUS_LABEL[s.status],
         tone: '',
         author: s.author,
+        source: s.source ?? null,
+        agent: s.agent ?? null,
         updatedAt: s.updatedAt,
         previews: s.previews.map((v) => ({ ...v, label: previewName(v.app as keyof PreviewApps, v.label) })),
         headSha: p.head.sha,

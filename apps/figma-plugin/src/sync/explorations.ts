@@ -50,7 +50,7 @@ export const newExplorationProblems = (name: string, purpose: string) => explora
 export async function startExploration(client: GitHubClient, config: BridgeConfig | undefined, base: string, input: { name: string; purpose: string; author?: string | undefined }): Promise<ExplorationChoice> {
   const name = input.name.trim();
   const purpose = input.purpose.trim();
-  const s = await startExplorationOnGitHub(client, { name, purpose, useCase: 'other', ...(input.author ? { author: input.author } : {}) }, settingsOf(config, base));
+  const s = await startExplorationOnGitHub(client, { name, purpose, useCase: 'other', source: 'figma', ...(input.author ? { author: input.author } : {}) }, settingsOf(config, base));
   return { name, purpose, branch: s.branch, slug: s.slug, number: s.pr, url: s.url, previews: s.previews };
 }
 

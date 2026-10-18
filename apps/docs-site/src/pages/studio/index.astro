@@ -3,7 +3,8 @@
 //   1. One sentence and one primary action, "Start a change". The Harbor zone opens only when something needs the
 //      viewer, and then holds the Needs you list: every designer decision in one list, one row component.
 //   2. In flight: a board in four columns, Exploring, In review, Ready to ship, Next release, blockers written on
-//      the cards (lib/overview-board.ts).
+//      the cards (lib/overview-board.ts). Developer work (code only, lib/work-nature.ts) folds into one quiet line
+//      under the board, and never reaches Needs you or the Changes badge.
 //   3. Library health: three figures, each a door to Quality.
 import '../../styles/overview.css';
 import Layout from '../../layouts/Layout.astro';
@@ -158,10 +159,11 @@ const COLUMNS = ['Exploring', 'In review', 'Ready to ship', 'Next release'];
     import { reviewQueue } from '../../lib/review-queue';
     import { overviewProtectionLine } from '../../lib/protection-view';
     import { greetingLine, NEEDS_MAX, moreLabel, overviewTodo, reviewDecisions, SIGNED_OUT_LINE, type GuidanceItem, type TodoRequest, type TodoRow } from '../../lib/overview-todo';
-    import { boardColumns, inFlightLine, type BoardRelease } from '../../lib/overview-board';
+    import { boardColumns, developerWork, inFlightLine, type BoardInput, type BoardRelease } from '../../lib/overview-board';
+    import { explorationWork, workNature, type VisualSignal } from '../../lib/work-nature';
     import { explorationRows, type ExplorationPullLike } from '../../lib/explorations-view';
-    import { manifestPublished } from '../../scripts/reviews/visual-impact';
-    import type { PullLike } from '../../lib/requests-view';
+    import { impactOf } from '../../scripts/reviews/visual-impact';
+    import type { PullLike, RequestRow } from '../../lib/requests-view';
     import { loadRequestRows } from '../../scripts/requests';
     import { rememberMine, siteOwners, todoChange, whoFor, type QueuePullFull } from '../../scripts/needs-you';
     import { setReviewCount } from '../../scripts/shell';
@@ -202,6 +204,12 @@ const COLUMNS = ['Exploring', 'In review', 'Ready to ship', 'Next release'];
       done: false,
       failed: false,
       requests: [] as TodoRequest[],
+      /** The same requests in full: an exploration reads the kind and origin of the ones it implements. */
+      requestRows: [] as RequestRow[],
+      /** Commit messages of running explorations (connected only): a Claude trailer says who builds it. */
+      commits: new Map<number, string[]>(),
+      /** What the visual impact run says for each change (connected only): design or developer work. */
+      impact: new Map<number, VisualSignal>(),
       unprotected: false,
       /** Before and after published for the head commit of a change that waits for the viewer's design review. */
       visual: new Map<number, 'ready' | null>(),
@@ -239,7 +247,7 @@ const COLUMNS = ['Exploring', 'In review', 'Ready to ship', 'Next release'];
     }
 
     /** The queue as the to-do and the board read it (scripts/needs-you, the same as the Changes badge). */
-    const changesNow = () => urgent().map((p) => todoChange(p, state.statuses.get(p.number), state.visual.get(p.number) ?? null));
+    const changesNow = () => urgent().map((p) => todoChange(p, state.statuses.get(p.number), state.visual.get(p.number) ?? null, state.impact.get(p.number) ?? null));
 
     /** Start a change: its weight next to the first need, hidden signed out (Connect GitHub takes its place). */
     function setStart(variant: 'primary' | 'secondary', hidden: boolean) {
@@ -305,14 +313,21 @@ const COLUMNS = ['Exploring', 'In review', 'Ready to ship', 'Next release'];
     function paintBoard(changes: ReturnType<typeof changesNow>, viewer: string | null) {
       if (!boardEl || state.failed) return;
       const { owner, repo, defaultBranch } = readRepo();
+      const byNumber = new Map(state.all.map((p) => [p.number, p]));
       const explorations = state.loaded
         ? explorationRows(state.all as unknown as ExplorationPullLike[], { owner, repo, defaultBranch, apps: {}, packages: [] })
             .filter((r) => r.status === 'active')
-            .map((r) => ({ number: r.number, name: r.name, author: r.author }))
+            .map((r) => {
+              const pull = byNumber.get(r.number);
+              const requests = state.requestRows.filter((q) => q.request?.exploration === r.branch).map((q) => ({ kind: q.kind, source: q.request?.source ?? null }));
+              const w = explorationWork({ name: r.name, author: r.author, body: pull?.body, labels: pull?.labels, source: r.source, agent: r.agent, commits: state.commits.get(r.number) ?? null, requests }, viewer);
+              return { number: r.number, name: r.name, author: r.author, maker: w.maker, nature: w.nature.nature };
+            })
         : [];
-      const cols = boardColumns({ explorations, changes: state.loaded ? changes : [], release, viewer, loading: !state.done });
+      const input: BoardInput = { explorations, changes: state.loaded ? changes : [], release, viewer, loading: !state.done };
+      const cols = boardColumns(input);
       if (!state.loaded) return;
-      boardRoot = paintOverviewBoard(boardEl, cols, boardRoot);
+      boardRoot = paintOverviewBoard(boardEl, cols, boardRoot, developerWork(input));
       if (flightLine) flightLine.textContent = inFlightLine(cols);
     }
 
@@ -323,24 +338,40 @@ const COLUMNS = ['Exploring', 'In review', 'Ready to ship', 'Next release'];
     });
 
     /**
-     * Whether the visual impact run published before and after images for the changes that wait for the viewer's
-     * design review, so their row can say so. Connected only (a few reads per change), never for a change that
-     * touches nothing visual.
+     * What the visual impact run says for each change that touches what it captures (connected only, a few reads per
+     * change): a difference keeps it with designers, none makes component code developer work (lib/work-nature),
+     * and a published run lets a design review row say the before and after are ready.
      */
     async function loadVisuals() {
       const viewer = currentViewer()?.login ?? null;
       if (!viewer || !hasWorkingToken()) return;
       const { owner, repo } = readRepo();
-      const review = state.open.filter((p) => {
+      const touched = state.open.filter((p) => {
         const st = state.statuses.get(p.number);
-        const who = whoFor(p, st);
-        return st?.touchesVisuals !== false && who && ['approve-design', 'approve', 'override'].includes(who.action) && (who.yourTurn || who.logins.includes(viewer));
+        return st && st.touchesVisuals !== false;
       });
-      for (const p of review) {
-        const ready = await manifestPublished(owner, repo, p.number, p.head.sha).catch(() => false);
-        state.visual.set(p.number, ready ? 'ready' : null);
-      }
-      if (review.length) paint();
+      await Promise.all(
+        touched.map(async (p) => {
+          const impact = await impactOf(owner, repo, p.number, p.head.sha);
+          state.impact.set(p.number, impact);
+          state.visual.set(p.number, impact ? 'ready' : null);
+        }),
+      );
+      if (touched.length) paint();
+    }
+
+    /** Commit messages of the running explorations (connected only): a "Co-Authored-By: Claude" trailer says Claude builds it. */
+    async function loadExplorationCommits() {
+      if (!currentViewer() || !hasWorkingToken()) return;
+      const { owner, repo } = readRepo();
+      const running = state.all.filter((p) => p.state === 'open' && (p.labels ?? []).some((l) => l.name === 'exploration'));
+      await Promise.all(
+        running.map(async (p) => {
+          const f = await ghGet<{ commit: { message: string } }[]>(`/repos/${owner}/${repo}/pulls/${p.number}/commits?per_page=100`).catch(() => null);
+          if (f) state.commits.set(p.number, f.data.map((c) => c.commit.message));
+        }),
+      );
+      if (running.length) paint();
     }
 
     // "Hello, Florian." from the GitHub profile name once the check answers (greetingLine), else "Hello.".
@@ -373,10 +404,13 @@ const COLUMNS = ['Exploring', 'In review', 'Ready to ship', 'Next release'];
         // Component change requests: from the open pull requests read above plus one cached issues list.
         void loadRequestRows({ openPulls: f.data as unknown as PullLike[], closed: false })
           .then((rows) => {
-            state.requests = rows;
+            state.requestRows = rows;
+            // A code-only request (lib/work-nature) never asks a designer to decide.
+            state.requests = rows.map((r) => ({ ...r, nature: workNature({ title: r.title, requestKind: r.kind }).nature }));
             paint();
           })
           .catch(() => undefined);
+        void loadExplorationCommits();
         void loadStatuses(state.open, (p, st) => {
           state.statuses.set(p.number, st);
           paint();
