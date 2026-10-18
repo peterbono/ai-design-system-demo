@@ -125,10 +125,11 @@ export function thumbnailNode<T extends Sample>(preview: T | undefined): T | und
   return { ...set, children: [calm] } as T;
 }
 
-/** The list cell for "Used in": product names in words, empty when no audited product renders the component. */
-export function usedInCell(used: { product: string }[] | undefined): string {
-  if (!used?.length) return '';
-  return used.length > 2 ? words(used.length, 'product') : andList(used.map((u) => u.product));
+/** The list cell for "Used in": one tag per product, the first two named and "+N" for the rest; none when no
+ *  audited product renders the component. */
+export function usedInCell(used: { product: string }[] | undefined): string[] {
+  if (!used?.length) return [];
+  return used.length > 2 ? [used[0]!.product, `+${used.length - 1}`] : used.map((u) => u.product);
 }
 
 /** Where a component's tokens come from, in a sentence: "1 token of its own and 39 from Button." */
