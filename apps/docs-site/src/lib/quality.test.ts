@@ -1,6 +1,24 @@
 // Studio Quality: findings ordering, the opener sentence and the opener's one action.
 import { describe, expect, it } from 'vitest';
-import { adoptionRows, cleanupTitle, contrastFinding, firstFindingTarget, openerSentence, qualityModel, sortFindings, sparkLabel, sparkPoints, type Finding } from './quality';
+import {
+  adoptionRows,
+  adoptionSummary,
+  baselineSince,
+  beforeLabel,
+  cleanupTitle,
+  componentSentence,
+  componentSources,
+  contrastFinding,
+  deltaPhrase,
+  firstFindingTarget,
+  hardcodedLine,
+  openerSentence,
+  qualityModel,
+  sortFindings,
+  tokenSentence,
+  trendLabels,
+  type Finding,
+} from './quality';
 import type { Issue } from './stats';
 
 const combos = ['Bridge light', 'Bridge dark', 'Ocean light', 'Ocean dark'].map((label) => ({ label, pass: 74, total: 74 }));
@@ -69,14 +87,14 @@ describe('quality opener', () => {
 });
 
 describe('adoption rows', () => {
-  it('shows before -> after per app and links the newest report', () => {
+  it('leads with the newest run, the run before the move as baseline, and links the newest report', () => {
     const m = (t: number, c: number) => ({ report: { metrics: { tokenAdoption: t, componentAdoption: c } } });
     const rows = adoptionRows([
       { app: { id: 'admin', title: 'Admin demo (long)' }, reports: [{ id: 'admin-before' }, { id: 'admin-after' }], before: m(0, 0), after: { id: 'admin-after', ...m(100, 90.2) } },
       { app: { id: 'x', title: 'X app' }, reports: [{ id: 'x-1' }], before: m(10, 20) },
     ]);
     expect(rows[0]).toEqual({ id: 'admin', label: 'Admin demo', token: { from: 0, to: 100 }, component: { from: 0, to: 90.2 }, href: '/studio/quality/audits/admin-after/' });
-    expect(rows[1]).toMatchObject({ label: 'X app', token: { from: 10, to: null }, href: '/studio/quality/audits/x-1/' });
+    expect(rows[1]).toMatchObject({ label: 'X app', token: { from: null, to: 10 }, href: '/studio/quality/audits/x-1/' });
   });
 });
 
@@ -94,27 +112,63 @@ describe('clean up title', () => {
   });
 });
 
-describe('adoption sparkline', () => {
-  const runs = [
-    { tokenAdoption: 0, componentAdoption: 0 },
-    { tokenAdoption: 50, componentAdoption: null },
-    { tokenAdoption: 100, componentAdoption: 90 },
-  ];
-
-  it('spreads runs on x and maps 0 to 100 percent on y, skipping missing values', () => {
-    expect(sparkPoints(runs, 'tokenAdoption', 84, 24)).toBe('2,22 42,12 82,2');
-    expect(sparkPoints(runs, 'componentAdoption', 84, 24)).toBe('2,22 82,4');
+describe('adoption in plain words', () => {
+  it('names the baseline as a quiet label, or nothing without one', () => {
+    expect(beforeLabel(0)).toBe('Before Bridge: 0%');
+    expect(beforeLabel(52.84)).toBe('Before Bridge: 52.8%');
+    expect(beforeLabel(null)).toBeNull();
   });
 
-  it('centers a single run and clamps out of range values', () => {
-    expect(sparkPoints([{ tokenAdoption: 120, componentAdoption: -5 }], 'tokenAdoption', 84, 24)).toBe('42,2');
-    expect(sparkPoints([{ tokenAdoption: 120, componentAdoption: -5 }], 'componentAdoption', 84, 24)).toBe('42,22');
+  it('says the token metric in one sentence', () => {
+    expect(tokenSentence({ tokenAdoption: 100, tokenUsages: 445, hardcoded: 0 })).toBe('100% of styling values come from tokens (445 uses, no hard-coded value).');
+    expect(tokenSentence({ tokenAdoption: 100, tokenUsages: 4667, hardcoded: 2 })).toBe('100% of styling values come from tokens (4667 uses, 2 hard-coded values left).');
+    expect(tokenSentence({ tokenAdoption: 0, tokenUsages: 0, hardcoded: 131 }, true)).toBe('0% of styling values came from tokens (0 uses, 131 hard-coded values).');
   });
 
-  it('says the first and last run for screen readers', () => {
-    expect(sparkLabel('Admin demo', [runs[0]!, { tokenAdoption: 100, componentAdoption: 90.2 }])).toBe(
-      'Admin demo adoption over 2 runs: tokens 0% to 100%, components 0% to 90.2%.',
+  it('says the component metric in one sentence', () => {
+    expect(componentSentence({ componentAdoption: 90.2, dsComponentInstances: 239, uiComponentInstances: 265 })).toBe('90.2% of components come from Bridge (239 of 265).');
+  });
+
+  it('names the baseline in plain words and says the change in points', () => {
+    const since = baselineSince(true, 'original Material UI version', 'Oct 16');
+    expect(since).toBe('before the move to Bridge (original Material UI version)');
+    expect(baselineSince(true, undefined, 'Oct 16')).toBe('before the move to Bridge');
+    expect(baselineSince(false, 'x', 'Oct 16')).toBe('the run of Oct 16');
+    expect(deltaPhrase(100, since)).toBe('Up 100 points since before the move to Bridge (original Material UI version).');
+    expect(deltaPhrase(-1, 'the run of Oct 16')).toBe('Down 1 point since the run of Oct 16.');
+    expect(deltaPhrase(0.01, 'the run of Oct 16')).toBe('Same as the run of Oct 16.');
+    expect(deltaPhrase(undefined, since)).toBeNull();
+  });
+
+  it('sums a report up in one sentence', () => {
+    expect(adoptionSummary({ tokenAdoption: 100, componentAdoption: 90.2 }, { tokenAdoption: 0, componentAdoption: 0 })).toBe(
+      '100% of styling values and 90.2% of components come from Bridge, up from 0% before the move.',
     );
-    expect(sparkLabel('Admin demo', [runs[0]!])).toBe('Admin demo: one run so far.');
+    expect(adoptionSummary({ tokenAdoption: 100, componentAdoption: 100 }, { tokenAdoption: 9.7, componentAdoption: 52.8 })).toBe(
+      '100% of styling values and 100% of components come from Bridge, up from 9.7% and 52.8% before the move.',
+    );
+    expect(adoptionSummary({ tokenAdoption: 40, componentAdoption: 50 }, null)).toBe('40% of styling values and 50% of components come from Bridge.');
+    expect(adoptionSummary({ tokenAdoption: 0, componentAdoption: 0 }, null, true)).toBe('0% of styling values and 0% of components came from Bridge before the move.');
+  });
+
+  it('lists the component sources with counts, empty ones left out', () => {
+    expect(componentSources({ ds: 239, foreign: 22, native: 4, recreated: 0 })).toEqual([
+      { key: 'ds', label: 'Bridge', count: 239 },
+      { key: 'foreign', label: 'Other libraries', count: 22 },
+      { key: 'native', label: 'Plain HTML elements', count: 4 },
+    ]);
+  });
+
+  it('says one success line when no hard-coded value is left', () => {
+    expect(hardcodedLine(0, 0)).toBe('No hard-coded value left.');
+    expect(hardcodedLine(2, 2)).toBe('2 hard-coded values left, 2 match a token exactly.');
+    expect(hardcodedLine(131, 1, true)).toBe('131 hard-coded values, 1 matches a token exactly.');
+  });
+
+  it('labels the trend runs in plain words', () => {
+    const fmt = (iso: string) => iso.slice(5, 10);
+    const runs = [{ generatedAt: '2026-10-01T00:00:00Z' }, { generatedAt: '2026-10-08T00:00:00Z' }, { generatedAt: '2026-10-16T00:00:00Z' }];
+    expect(trendLabels(runs, '2026-10-01T00:00:00Z', fmt)).toEqual(['Before Bridge', '10-08', 'Now']);
+    expect(trendLabels(runs, undefined, fmt)).toEqual(['10-01', '10-08', 'Now']);
   });
 });

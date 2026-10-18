@@ -148,11 +148,13 @@ export function firstFindingTarget(findings: Finding[]): { label: string; href: 
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// Adoption summary
+// Adoption, in plain words. Every number comes from the committed `bridge audit` reports (lib/audits). The current
+// value leads; the baseline (the product before it moved to Bridge) is a quiet secondary phrase.
 
 export interface AdoptionRow {
   id: string;
   label: string;
+  /** `to` is the newest run, `from` the run before the move to Bridge (null when the product has one run). */
   token: { from: number | null; to: number | null };
   component: { from: number | null; to: number | null };
   /** The newest report of the app, on its own route. */
@@ -175,51 +177,106 @@ interface AppGroup {
 }
 
 export function adoptionRows(apps: AppGroup[]): AdoptionRow[] {
-  return apps.map(({ app, reports, before, after }) => ({
-    id: app.id,
-    label: APP_SHORT[app.id] ?? app.title,
-    token: { from: before?.report.metrics.tokenAdoption ?? null, to: after?.report.metrics.tokenAdoption ?? null },
-    component: { from: before?.report.metrics.componentAdoption ?? null, to: after?.report.metrics.componentAdoption ?? null },
-    href: auditHref(after?.id ?? reports[reports.length - 1]!.id),
-  }));
+  return apps.map(({ app, reports, before, after }) => {
+    // One run only: it is the current value, there is no baseline to compare with.
+    const now = after ?? before;
+    const base = after ? before : undefined;
+    return {
+      id: app.id,
+      label: APP_SHORT[app.id] ?? app.title,
+      token: { from: base?.report.metrics.tokenAdoption ?? null, to: now?.report.metrics.tokenAdoption ?? null },
+      component: { from: base?.report.metrics.componentAdoption ?? null, to: now?.report.metrics.componentAdoption ?? null },
+      href: auditHref(after?.id ?? reports[reports.length - 1]!.id),
+    };
+  });
+}
+
+/** What adoption means, said once per page. */
+export const ADOPTION_MEANING = 'Adoption is the share of colors, sizes and components in a product that come from the design system.';
+
+const pct = (v: number | null) => (v === null ? 'n/a' : `${Math.round(v * 10) / 10}%`);
+const points = (d: number) => {
+  const n = Math.round(Math.abs(d) * 10) / 10;
+  return `${n} ${n === 1 ? 'point' : 'points'}`;
+};
+
+/** The quiet baseline label under a current value: "Before Bridge: 0%", or null when there is no baseline. */
+export function beforeLabel(from: number | null): string | null {
+  return from === null ? null : `Before Bridge: ${pct(from)}`;
+}
+
+/** Token metric in one sentence: "100% of styling values come from tokens (445 uses, no hard-coded value)." */
+export function tokenSentence(m: { tokenAdoption: number | null; tokenUsages: number; hardcoded: number }, past = false): string {
+  const left = m.hardcoded === 0 ? 'no hard-coded value' : `${plural(m.hardcoded, 'hard-coded value')}${past ? '' : ' left'}`;
+  return `${pct(m.tokenAdoption)} of styling values ${past ? 'came' : 'come'} from tokens (${plural(m.tokenUsages, 'use')}, ${left}).`;
+}
+
+/** Component metric in one sentence: "90.2% of components come from Bridge (239 of 265)." */
+export function componentSentence(m: { componentAdoption: number | null; dsComponentInstances: number; uiComponentInstances: number }, past = false): string {
+  return `${pct(m.componentAdoption)} of components ${past ? 'came' : 'come'} from Bridge (${m.dsComponentInstances} of ${m.uiComponentInstances}).`;
+}
+
+/**
+ * What the baseline is, in plain words. The run before the move gets the product's own note ("original Material UI
+ * version"); any other baseline is named by its date.
+ */
+export function baselineSince(isBeforeRun: boolean, note: string | undefined, date: string): string {
+  if (!isBeforeRun) return `the run of ${date}`;
+  return note ? `before the move to Bridge (${note})` : 'before the move to Bridge';
+}
+
+/** "Up 100 points since before the move to Bridge (original Material UI version)." Null without a delta. */
+export function deltaPhrase(delta: number | null | undefined, since: string): string | null {
+  if (delta === null || delta === undefined) return null;
+  if (Math.round(delta * 10) === 0) return `Same as ${since}.`;
+  return `${delta > 0 ? 'Up' : 'Down'} ${points(delta)} since ${since}.`;
+}
+
+/**
+ * The one summary sentence of an adoption report: "100% of styling values and 90.2% of components come from Bridge,
+ * up from 0% before the move." Without a baseline the tail is left out; `past` describes the run before the move.
+ */
+export function adoptionSummary(now: Metrics, before: Metrics | null, past = false): string {
+  const head = `${pct(now.tokenAdoption)} of styling values and ${pct(now.componentAdoption)} of components ${past ? 'came' : 'come'} from Bridge`;
+  if (past) return `${head} before the move.`;
+  if (!before) return `${head}.`;
+  const a = pct(before.tokenAdoption);
+  const b = pct(before.componentAdoption);
+  return `${head}, up from ${a === b ? a : `${a} and ${b}`} before the move.`;
+}
+
+export interface SourceSegment {
+  key: 'ds' | 'foreign' | 'native' | 'recreated';
+  label: string;
+  count: number;
+}
+
+/** The legend of the component bar, in the bar's order, empty sources left out. */
+export function componentSources(b: { ds: number; foreign: number; native: number; recreated: number }): SourceSegment[] {
+  const all: SourceSegment[] = [
+    { key: 'ds', label: 'Bridge', count: b.ds },
+    { key: 'foreign', label: 'Other libraries', count: b.foreign },
+    { key: 'native', label: 'Plain HTML elements', count: b.native },
+    { key: 'recreated', label: 'Look-alikes of Bridge components', count: b.recreated },
+  ];
+  return all.filter((s) => s.count > 0);
+}
+
+/** The hard-coded values line: one success line when none is left. */
+export function hardcodedLine(total: number, exact: number, past = false): string {
+  if (total === 0) return past ? 'No hard-coded value.' : 'No hard-coded value left.';
+  const head = past ? plural(total, 'hard-coded value') : `${plural(total, 'hard-coded value')} left`;
+  return `${head}, ${exact} ${exact === 1 ? 'matches' : 'match'} a token exactly.`;
+}
+
+/** Labels under the trend chart: the run before the move is "Before Bridge", the newest "Now", the others their date. */
+export function trendLabels(runs: { generatedAt: string }[], beforeAt: string | undefined, fmt: (iso: string) => string): string[] {
+  return runs.map((p, i) =>
+    beforeAt && p.generatedAt === beforeAt ? 'Before Bridge' : i === runs.length - 1 && runs.length > 1 ? 'Now' : fmt(p.generatedAt),
+  );
 }
 
 /** The clean-up line: the real number of unused tokens (semantic plus primitives), not the number of groups. */
 export function cleanupTitle(unused: number): string {
   return unused === 0 ? 'No unused tokens' : plural(unused, 'unused token');
-}
-
-// ---------------------------------------------------------------------------------------------------------------
-// Adoption trend: a sparkline per product, from the same audit history the audit pages chart. Never invented: a
-// product with one run gets no line.
-
-export interface SparkPoint {
-  tokenAdoption: number | null;
-  componentAdoption: number | null;
-}
-
-/** SVG polyline points for one series (0 to 100 percent), runs spread evenly on x. Null values are skipped. */
-export function sparkPoints(points: SparkPoint[], key: keyof SparkPoint, width: number, height: number, pad = 2): string {
-  const span = Math.max(points.length - 1, 1);
-  return points
-    .map((p, i) => {
-      const v = p[key];
-      if (v === null) return null;
-      const x = pad + (points.length > 1 ? (i / span) * (width - 2 * pad) : (width - 2 * pad) / 2);
-      const y = pad + (1 - Math.min(Math.max(v, 0), 100) / 100) * (height - 2 * pad);
-      return `${round(x)},${round(y)}`;
-    })
-    .filter((x): x is string => x !== null)
-    .join(' ');
-}
-
-const round = (n: number) => Math.round(n * 10) / 10;
-const pct = (v: number | null) => (v === null ? 'n/a' : `${Math.round(v * 10) / 10}%`);
-
-/** What the sparkline says, for screen readers: the runs and the first and last value of each series. */
-export function sparkLabel(product: string, points: SparkPoint[]): string {
-  if (points.length < 2) return `${product}: one run so far.`;
-  const a = points[0]!;
-  const b = points[points.length - 1]!;
-  return `${product} adoption over ${points.length} runs: tokens ${pct(a.tokenAdoption)} to ${pct(b.tokenAdoption)}, components ${pct(a.componentAdoption)} to ${pct(b.componentAdoption)}.`;
 }

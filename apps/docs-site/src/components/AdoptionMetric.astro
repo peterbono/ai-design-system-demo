@@ -1,0 +1,21 @@
+---
+// One adoption metric, the same block on Studio Quality (one per product row) and on an audit report: a small label,
+// the current value big, then the baseline as a quiet phrase ("Before Bridge: 0%"). The default slot holds an
+// optional plain sentence between the value and the baseline (the report page uses it). Styles: styles/adoption.css.
+import { formatPct } from '../lib/audits';
+
+interface Props {
+  label: string;
+  value: number | null;
+  /** The baseline phrase, quiet, last. */
+  note?: string | null;
+}
+const { label, value, note } = Astro.props;
+---
+
+<div class="am">
+  <span class="am-label">{label}</span>
+  <span class="am-value num">{formatPct(value)}</span>
+  <slot />
+  {note && <span class="am-note">{note}</span>}
+</div>
