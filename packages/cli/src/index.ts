@@ -9,13 +9,17 @@ import { fileURLToPath } from 'node:url';
 import { runImpact, type Only } from '@bridge-ds/visual';
 import { runRequest } from './request.js';
 import { runExplore } from './explore.js';
+import { protectionReport, type ProtectionReport } from './protection.js';
 import { brand, BridgeContext, CONFIG_FILE, core, detectConfig, GitRefSource, history as hist, LocalSource, ops, optionsFromArgv, serveStdio, toConfigJson, VERSION, type BridgeConfig } from '@bridge-ds/mcp';
 
 const HELP = `bridge ${VERSION}: design system as code, for you and your Claude
 
 Usage:
   bridge init [--force]               write bridge.config.json (detected) and .mcp.json for Claude Code
-  bridge check [--json] [--strict]    validate tokens + contrast gate. Exit 0 ok, 1 failures, 2 setup error
+  bridge check [--json] [--strict] [--offline]
+                                      validate tokens + contrast gate, and say whether the library is
+                                      protected (reviewed pull requests only; never changes the exit code,
+                                      --offline skips it). Exit 0 ok, 1 failures, 2 setup error
   bridge tokens <query> [--json]      search tokens by name, description or value
   bridge diff <base> [--json|--md]    designer-readable token diff: working tree vs <base> (git ref)
   bridge propose --title "..." --set path=value [--set ...] [--file f | --mode theme=dark]
@@ -88,7 +92,7 @@ function parse(argv: string[]): Args {
       const next = argv[i + 1];
       // --json and --md print to stdout, or write a file when followed by one (bridge audit).
       const fileArg = (k === 'json' && /\.json$/i.test(next ?? '')) || (k === 'md' && /\.(md|markdown)$/i.test(next ?? ''));
-      const takesValue = inline === undefined && next !== undefined && !next.startsWith('--') && (fileArg || !['force', 'json', 'md', 'strict', 'dry-run', 'help', 'fix', 'write', 'no-regress', 'plan', 'keep-unchanged', 'restore-conflicts', 'breaking', 'claude', 'all'].includes(k));
+      const takesValue = inline === undefined && next !== undefined && !next.startsWith('--') && (fileArg || !['force', 'json', 'md', 'strict', 'dry-run', 'help', 'fix', 'write', 'no-regress', 'plan', 'keep-unchanged', 'restore-conflicts', 'breaking', 'claude', 'all', 'offline'].includes(k));
       (out.flags[k] ??= []).push(inline ?? (takesValue ? argv[++i]! : 'true'));
     } else out._.push(a);
   }
@@ -136,8 +140,9 @@ async function check(a: Args, root: string): Promise<number> {
   const c = await ops.checkContrast(ctx, {});
   const warnings = 'warnings' in v ? (v.warnings ?? []) : [];
   const failed = !v.valid || ('failing' in c && (c.failing ?? 0) > 0) || (has(a, 'strict') && warnings.length > 0);
+  const protection = await protectionOf(a, root, ctx);
   if (has(a, 'json')) {
-    print(JSON.stringify({ ok: !failed, validation: v, contrast: c }, null, 2));
+    print(JSON.stringify({ ok: !failed, validation: v, contrast: c, ...(protection ? { protection: protection.state } : {}) }, null, 2));
     return failed ? 1 : 0;
   }
   print(`tokens: ${v.tokens} in ${v.files} files, ${v.modeCombinations} mode combinations`);
@@ -149,8 +154,23 @@ async function check(a: Args, root: string): Promise<number> {
     const tight = c.tightest?.[0];
     if (tight) print(`  tightest: ${tight.pair} [${tight.modes}] ${tight.ratio}:1 (min ${tight.min})`);
   } else print(`contrast: ${c.message}`);
+  for (const line of protection?.lines ?? []) print(line);
   print(failed ? 'FAIL' : 'OK');
   return failed ? 1 : 0;
+}
+
+/**
+ * Whether the default branch only takes reviewed pull requests. Skipped with --offline or BRIDGE_OFFLINE=1, and
+ * when the repo is unknown (no "repo" in bridge.config.json, no GitHub origin). Token: BRIDGE_GITHUB_TOKEN or
+ * GITHUB_TOKEN, optional (a public repo reads without one).
+ */
+async function protectionOf(a: Args, root: string, ctx: BridgeContext): Promise<ProtectionReport | undefined> {
+  if (has(a, 'offline') || process.env.BRIDGE_OFFLINE === '1') return undefined;
+  const { config } = await ctx.config();
+  const repo = config.repo ? `${config.repo.owner}/${config.repo.name}` : await originRepo(root);
+  if (!repo) return undefined;
+  const token = process.env.BRIDGE_GITHUB_TOKEN || process.env.GITHUB_TOKEN || undefined;
+  return protectionReport({ repo, defaultBranch: config.repo?.defaultBranch ?? 'main', token });
 }
 
 async function tokens(a: Args, root: string) {

@@ -88,7 +88,7 @@ test('classifyAuth: unknown 403 stays generic, 401 without a token is not "rejec
   assert.deepEqual(classifyAuth(401, 'Bad credentials'), { auth: 'rejected' });
   assert.deepEqual(classifyAuth(403, 'Must have admin rights to Repository.', { path: '/repos/o/r/branches/main/protection' }), {
     auth: 'missing-permission',
-    permission: 'contents',
+    permission: 'administration',
   });
 });
 

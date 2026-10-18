@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { CLI, FIXTURE, git, REAL_PATHS, REPO, tempGitRepo } from '../../mcp/test/helpers.js';
 
 const bridge = (cwd: string, ...args: string[]) => {
-  const r = spawnSync(process.execPath, [CLI, ...args], { cwd, encoding: 'utf8' });
+  const r = spawnSync(process.execPath, [CLI, ...args], { cwd, encoding: 'utf8', env: { ...process.env, BRIDGE_OFFLINE: '1' } });
   return { code: r.status, out: r.stdout, err: r.stderr };
 };
 

@@ -76,6 +76,10 @@ const merged = releases()
           <span class="ov-dot is-wait" aria-hidden="true"></span>
           <a href="/studio/changes/?view=requests" data-keep-branch data-requests-link></a>
         </p>
+        <p class="t-ui ov-health" data-protection-line hidden>
+          <span class="ov-dot is-wait" aria-hidden="true"></span>
+          <a href="/studio/settings/#roles" data-keep-branch data-protection-link></a>
+        </p>
       </div>
       <Illustration name="review" class="ov-greet-art" />
     </section>
@@ -121,6 +125,25 @@ const merged = releases()
     </section>
   </div>
 
+  <script>
+    // Owners only: one quiet line when nothing protects the library. Nobody else sees it, and no new section.
+    import { loadProtection } from '@bridge-ds/core';
+    import { overviewProtectionLine } from '../../lib/protection-view';
+    import { hasWorkingToken, initGitHubConnect, readRepo, studioClient } from '../../scripts/github-session';
+    import { owners } from '../../scripts/pr-status';
+    const line = document.querySelector<HTMLElement>('[data-protection-line]');
+    const link = line?.querySelector<HTMLElement>('[data-protection-link]');
+    initGitHubConnect(async (v) => {
+      if (!line || !link) return;
+      const o = owners();
+      const isOwner = Boolean(v && [...o.design, ...o.tech].includes(v.login));
+      if (!isOwner || !hasWorkingToken()) return void (line.hidden = true);
+      const r = readRepo();
+      const text = overviewProtectionLine(await loadProtection(studioClient(`${r.owner}/${r.repo}`), r.defaultBranch), isOwner);
+      link.textContent = text ?? '';
+      line.hidden = !text;
+    });
+  </script>
   <script>
     import { currentViewer, esc, ghGet, initGitHubConnect, readRepo, RateLimitError } from '../../scripts/github-session';
     import { loadStatuses, owners, shippers, whoChip, type PullForStatus, type PullStatus } from '../../scripts/pr-status';

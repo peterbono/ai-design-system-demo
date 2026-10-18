@@ -26,6 +26,40 @@ and the MCP server compute the tier with the same classifier (`classifyRisk` in 
    written reason (see [Owner override](#owner-override-solo-maintainers-and-small-teams)).
 5. **Release**: Changesets turns merged changesets into a version bump and `CHANGELOG.md`.
 
+## Protection: Bridge is the only way in
+
+Every tool may propose, none may write to the library directly. Bridge, Studio, the DS Bridge Figma plugin, the
+CLI, the MCP server, Claude Code, Claude Design and developers all write to a branch and open a pull request. The
+default branch only changes when a reviewed pull request merges.
+
+- **Consumers read only.** Products install the published `@bridge-ds/*` packages from npm. Nothing they run
+  writes to this repository.
+- **Publishing happens in one place.** Only `.github/workflows/release.yml`, on a push to `main` (a merged pull
+  request), versions and publishes to npm, and only once the `NPM_TOKEN` secret is set. Pull request snapshots
+  (`preview-packages.yml`) go to pkg.pr.new, never to the npm registry.
+- **Production deploys from the default branch only.** Vercel builds production from `main`; every other branch
+  gets a preview deployment.
+- **GitHub enforces it.** A repository ruleset named "Protect the library (main)" targets the default branch
+  (`~DEFAULT_BRANCH`, so it follows a rename) with four rules:
+
+| Rule | What it stops |
+| ---- | ------------- |
+| `deletion` | Nobody deletes the default branch. |
+| `non_fast_forward` | Nobody force pushes or rewrites its history. |
+| `pull_request` (1 approval or more, stale approvals dismissed on a new push) | No direct push: every change merges through a reviewed pull request, and what was approved is what merges. |
+| `required_status_checks` | The CI jobs must pass before a merge. The names come from the repository's own CI: the check runs of the default branch's latest commit that also ran on the last merged pull request, without Vercel and skipped runs. |
+
+- **Owner override.** The ruleset lets repository admins bypass it in pull request mode only: an admin may merge a
+  pull request whose approvals are missing (the [owner override](#owner-override-solo-maintainers-and-small-teams),
+  with its written reason), but cannot push to the default branch either.
+- **Studio shows it and sets it up.** The Protection row in Studio, Settings says whether the library is protected, partly
+  protected (and what is missing), not protected, or unknown (no token, or the token cannot read it). "Protect the
+  library" creates the ruleset with the viewer's token after a confirmation; "Complete protection" replaces Bridge's
+  ruleset when one exists. It needs a repository admin, and a fine-grained token with Administration: Read and
+  write. `bridge check` prints the same state; the logic is `protection.ts` in `@bridge-ds/core`.
+- **Plans.** GitHub Free does not enforce rulesets on private repositories. Studio says so and links to
+  Settings, Rules; make the repository public or upgrade the plan.
+
 ## Roles: who approves and who ships
 
 `governance.owners` lists the design owners and the tech owners. `governance.rights` says which of those two
@@ -110,9 +144,11 @@ review, Bridge shows GitHub's message and rewrites the comment to end with `Merg
 Not merged.`, so the record never claims a merge that did not happen. History and the PR timeline find
 overrides by that first line.
 
-**Branch protection still wins.** The override changes what Bridge allows, not what GitHub enforces. If `main`
-requires reviews, the merge only goes through for an admin when "Do not allow bypassing the above settings" is
-off. Remove a login from `allowed` (a Tier 3 change, `bridge.config.json` is a guardrail file) to take the
+**Branch protection still wins.** The override changes what Bridge allows, not what GitHub enforces. With the
+Bridge ruleset (see [Protection](#protection-bridge-is-the-only-way-in)), the override merge goes through for a
+repository admin, who may bypass it in pull request mode; for anyone else GitHub refuses it. With classic branch
+protection that requires reviews, it goes through for an admin only when "Do not allow bypassing the above
+settings" is off. Remove a login from `allowed` (a Tier 3 change, `bridge.config.json` is a guardrail file) to take the
 override away.
 
 **Token permissions.** A fine-grained token limited to the repo, with Contents read and write (merge), Pull

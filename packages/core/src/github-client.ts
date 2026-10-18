@@ -8,6 +8,7 @@
 
 import { type BridgeConfig, CONFIG_FILE, ConfigError, DEFAULT_TOKEN_PATHS, loadConfig } from './config';
 import { assertSafeBranch, DEFAULT_PROTECTED_BRANCHES, ProtectedBranchError } from './governance';
+import type { ClassicProtection, Ruleset, RulesetPayload } from './protection';
 
 /**
  * What an auth failure means for the token:
@@ -99,6 +100,7 @@ export function requiredPermission(path: string, acceptedHeader?: string | null)
   const p = path.replace(/[?#].*$/, '');
   if (/\/repos\/[^/]+\/[^/]+\/(issues|labels|milestones)(\/|$)/.test(p)) return 'issues';
   if (/\/repos\/[^/]+\/[^/]+\/pulls(\/|$)/.test(p)) return 'pull_requests';
+  if (/\/repos\/[^/]+\/[^/]+\/(rulesets(\/|$)|branches\/.+\/protection$)/.test(p)) return 'administration';
   if (/\/repos\/[^/]+\/[^/]+\/(contents|git|commits|branches|merges)(\/|$)/.test(p)) return 'contents';
   if (/\/repos\/[^/]+\/[^/]+\/(check-runs|check-suites)(\/|$)/.test(p)) return 'checks';
   if (/\/repos\/[^/]+\/[^/]+\/statuses(\/|$)/.test(p)) return 'statuses';
@@ -203,6 +205,8 @@ export interface CheckRun {
   status: string;
   conclusion: string | null;
   url: string | undefined;
+  /** Slug of the GitHub App that reported it ("github-actions", "vercel"), when GitHub says. */
+  app?: string | undefined;
 }
 
 export interface CommitSummary {
@@ -804,11 +808,53 @@ export class GitHubClient {
   }
 
   async listCheckRuns(ref: string): Promise<CheckRun[]> {
-    const r = await this.request<{ check_runs: { id: number; name: string; status: string; conclusion: string | null; html_url?: string }[] }>(
+    const r = await this.request<{ check_runs: { id: number; name: string; status: string; conclusion: string | null; html_url?: string; app?: { slug?: string } | null }[] }>(
       'GET',
       `${this.repoPath}/commits/${encodeRef(ref)}/check-runs`,
     );
-    return r.check_runs.map((c) => ({ id: c.id, name: c.name, status: c.status, conclusion: c.conclusion, url: c.html_url }));
+    return r.check_runs.map((c) => ({ id: c.id, name: c.name, status: c.status, conclusion: c.conclusion, url: c.html_url, ...(c.app?.slug ? { app: c.app.slug } : {}) }));
+  }
+
+  /** Rulesets that apply to the repository, without their rules (GET /rulesets; read access is enough). */
+  async listRulesets(): Promise<Ruleset[]> {
+    const r = await this.request<(Ruleset & { _links?: { html?: { href?: string } } })[]>('GET', `${this.repoPath}/rulesets?includes_parents=true&per_page=100`);
+    return r.map(withRulesetUrl);
+  }
+
+  /** One ruleset with its rules. */
+  async getRuleset(id: number): Promise<Ruleset> {
+    return withRulesetUrl(await this.request<Ruleset>('GET', `${this.repoPath}/rulesets/${id}`));
+  }
+
+  /** Creates a repository ruleset. Needs admin on the repo (fine-grained token: Administration read and write). */
+  async createRuleset(payload: RulesetPayload): Promise<Ruleset> {
+    this.assertToken('Protecting the library');
+    return withRulesetUrl(await this.request<Ruleset>('POST', `${this.repoPath}/rulesets`, payload));
+  }
+
+  /** Replaces a repository ruleset (same permissions as createRuleset). */
+  async updateRuleset(id: number, payload: RulesetPayload): Promise<Ruleset> {
+    this.assertToken('Protecting the library');
+    return withRulesetUrl(await this.request<Ruleset>('PUT', `${this.repoPath}/rulesets/${id}`, payload));
+  }
+
+  /**
+   * Classic branch protection of `branch`: the settings, null when the branch has none (404), undefined when this
+   * token cannot read them (403: the endpoint needs admin). On a 403 the public branch summary still tells
+   * whether the branch is protected at all: `protected: false` means there is nothing to read, so null.
+   */
+  async getBranchProtection(branch: string): Promise<ClassicProtection | null | undefined> {
+    try {
+      return await this.request<ClassicProtection>('GET', `${this.repoPath}/branches/${encodeRef(branch)}/protection`);
+    } catch (err) {
+      if (!(err instanceof GitHubError)) throw err;
+      if (err.status === 404) return null;
+      if (err.status === 403 || err.status === 401) {
+        const b = await this.request<{ protected?: boolean }>('GET', `${this.repoPath}/branches/${encodeRef(branch)}`).catch(() => undefined);
+        return b?.protected === false ? null : undefined;
+      }
+      throw err;
+    }
   }
 
   /** Create a check run (needs a GitHub App token; personal tokens are refused by GitHub). */
@@ -943,6 +989,12 @@ export async function loadRepoFiles(client: GitHubClient, commitSha: string, fal
   };
   await Promise.all([worker(), worker(), worker(), worker()]);
   return { commitSha, treeSha, files, contrastChecks, config, ...(config ? { configText } : {}), tokensPath, warnings };
+}
+
+/** Lifts the ruleset's GitHub page (`_links.html.href`) to `html_url`. */
+function withRulesetUrl(r: Ruleset): Ruleset {
+  const href = r._links?.html?.href;
+  return href && !r.html_url ? { ...r, html_url: href } : r;
 }
 
 export interface IssueSummary {

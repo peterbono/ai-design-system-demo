@@ -57,6 +57,7 @@ describe('MCP over stdio', () => {
   it('initializes with server info and instructions', () => {
     expect(client.getServerVersion()).toMatchObject({ name: 'bridge', version: pkg.version });
     expect(client.getInstructions()).toMatch(/never writes to main/);
+    expect(client.getInstructions()).toMatch(/Every write goes through a branch and a pull request, never straight to the default branch/);
   });
 
   it('lists the 32 tools with JSON schemas and read-only hints', async () => {

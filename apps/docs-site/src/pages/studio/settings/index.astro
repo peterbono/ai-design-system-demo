@@ -1,7 +1,8 @@
 ---
 // Studio Settings: one page, five sections in order. Connection (GitHub, then the Figma plugin and MCP as two
 // plain rows), Roles (one sentence, who holds each right and when the visual before and after runs, the edit
-// collapsed and proposed as a pull request on bridge.config.json), Repository (one sentence, Source at rest, the rest collapsed with counts), Approvals (who approves
+// collapsed and proposed as a pull request on bridge.config.json; then the Protection row, whether every change goes
+// through review, with its one action on the row), Repository (one sentence, Source at rest, the rest collapsed with counts), Approvals (who approves
 // what, one line on the owner override), Integrations (where component change requests go: GitHub always, Jira
 // when the team wants it, proposed as a pull request on bridge.config.json). The old Repository, Governance and Integrations pages redirect to these
 // anchors (lib/redirects.ts); the governance prose lives in the Library (How review works).
@@ -11,6 +12,7 @@ import Layout from '../../../layouts/Layout.astro';
 import StudioHeader from '../../../components/StudioHeader.astro';
 import ButtonLink from '../../../components/ds/ButtonLink';
 import ApprovalsTable from '../../../components/ds/studio/ApprovalsTable';
+import ProtectionRow from '../../../components/ds/studio/ProtectionRow';
 import { GitHubMark } from '../../../components/ds/studio/brand-icons';
 import { Button, SegmentedControl } from '@bridge-ds/react';
 import { siteRepo } from '../../../lib/config';
@@ -214,6 +216,7 @@ const overrideLine = ov.allowed.length
       </div>
       <div class="rq-done" role="status" data-roles-done hidden></div>
     </form>
+    <ProtectionRow client:load />
   </section>
 
   <section class="set-block" id="repository" aria-labelledby="set-repository">
