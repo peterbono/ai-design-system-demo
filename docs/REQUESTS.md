@@ -89,7 +89,7 @@ request (or Claude Code not found with `--claude`), 2 usage or setup error.
 ## Jira setup
 
 1. Copy `.github/workflows/bridge-jira.yml` into your design system repo. In a repo that is not this one, replace
-   the install and build steps with `npx -y @bridge-ds/cli request jira-sync` once `@bridge-ds/cli` is on npm.
+   the install and build steps and the `node packages/cli/dist/index.js` line with `npx -y @bridge-ds/cli request jira-sync`.
 2. Add `integrations.jira` to `bridge.config.json`: your site (`https://<site>.atlassian.net`), the project key and,
    if it is not `Task`, the issue type.
 3. Create an API token for a Jira account that can create issues in that project
