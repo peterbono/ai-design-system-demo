@@ -9,6 +9,7 @@ import {
   type IssueSummary,
   REQUESTS_BRANCH,
   composeRequestIssue,
+  ensureRequestsBranch,
   requestImagePath,
 } from '@bridge-ds/core';
 import { codedComponentNames } from './components';
@@ -35,13 +36,8 @@ export interface SendRequestResult {
 export const requestImageUrl = (client: Pick<GitHubClient, 'owner' | 'name'>, path: string) =>
   `https://github.com/${client.owner}/${client.name}/blob/${REQUESTS_BRANCH}/${path}?raw=true`;
 
-/** Creates the requests branch from the head of `baseBranch` when it is missing. Never moves an existing branch. */
-export async function ensureRequestsBranch(client: GitHubClient, baseBranch: string): Promise<void> {
-  if (await client.getBranchSha(REQUESTS_BRANCH)) return;
-  const head = await client.getBranchSha(baseBranch);
-  if (!head) throw new Error(`Branch "${baseBranch}" was not found, so the ${REQUESTS_BRANCH} branch for images cannot start from it.`);
-  await client.createBranch(REQUESTS_BRANCH, head);
-}
+/** Creates the requests branch from the head of `baseBranch` when it is missing (shared with Bridge Studio). */
+export { ensureRequestsBranch } from '@bridge-ds/core';
 
 export async function sendComponentRequest(client: GitHubClient, input: SendRequestInput): Promise<SendRequestResult> {
   const r = input.request;

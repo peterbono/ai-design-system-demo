@@ -171,8 +171,17 @@ describe('reply parsing and merge', () => {
     expect(d.anatomy).toEqual({ icon: 'Icon' });
     expect(d).toMatchObject({ draftedBy: 'claude', needsReview: true });
     const text = formatDocs(d);
-    expect(Object.keys(JSON.parse(text))).toEqual(['summary', 'whenToUse', 'whenNotToUse', 'dos', 'donts', 'accessibility', 'contentGuidelines', 'anatomy', 'draftedBy', 'needsReview']);
+    expect(Object.keys(JSON.parse(text))).toEqual(['summary', 'whenToUse', 'whenNotToUse', 'dos', 'donts', 'accessibility', 'contentGuidelines', 'anatomy', 'draftedBy', 'draftedSections', 'needsReview']);
+    expect(d.draftedSections).toEqual(['whenToUse']);
     expect(text.endsWith('}\n')).toBe(true);
     expect(missingProse(d)).toEqual(['whenNotToUse', 'dos', 'donts', 'accessibility', 'contentGuidelines']);
+  });
+
+  it('strips em dashes and wrong shapes from the reply before it is committed', () => {
+    const pre = { summary: '', whenToUse: [], dos: [], anatomy: {} };
+    const d = mergeDraft(pre, { summary: 'Shows a glyph \u2014 never alone.', whenToUse: 'Next to a label.', dos: [{ title: 'Pair it', text: '' }, { title: 'Label it', text: 'Give it a name \u2014 always.' }] });
+    expect(d.summary).toBe('Shows a glyph, never alone.');
+    expect(d.whenToUse).toEqual(['Next to a label.']);
+    expect(d.dos).toEqual([{ title: 'Label it', text: 'Give it a name, always.' }]);
   });
 });

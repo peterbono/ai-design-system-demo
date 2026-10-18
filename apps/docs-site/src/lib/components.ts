@@ -32,6 +32,8 @@ export interface ComponentDocs {
   anatomy?: Record<string, string>;
   /** "claude" when an AI drafted the prose (docs-draft Action, bridge_draft_docs). */
   draftedBy?: string;
+  /** Prose sections Claude drafted that wait for review, when a draft covered only some (missing: the whole file). */
+  draftedSections?: import('@bridge-ds/core').ProseKey[];
   /** True while drafted prose waits for a reviewer (Studio Quality lists it, Changes offers Accept). */
   needsReview?: boolean;
 }

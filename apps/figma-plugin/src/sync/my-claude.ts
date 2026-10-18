@@ -15,6 +15,7 @@ import {
   type DraftItem,
   type DraftLine,
   type DraftResult,
+  type DraftPollerOptions,
   type DraftScope,
   type DraftText,
   type DraftVariableRow,
@@ -22,22 +23,23 @@ import {
   type PendingDrafts,
   type RequestChange,
   type RequestKind,
+  DRAFT_POLL_INTERVAL_MS,
+  DRAFT_POLL_TIMEOUT_MS,
   REQUESTS_BRANCH,
   composePendingDrafts,
   createPendingDrafts,
   deletePendingDrafts,
   draftImagePath,
   newDraftSessionId,
-  readPendingDrafts,
 } from '@bridge-ds/core';
 import { ensureRequestsBranch, requestImageUrl } from './requests';
 
-export { DRAFT_PHRASE } from '@bridge-ds/core';
-export const POLL_INTERVAL_MS = 5_000;
-export const POLL_TIMEOUT_MS = 10 * 60_000;
+export { DRAFT_PHRASE, DraftPoller } from '@bridge-ds/core';
+export const POLL_INTERVAL_MS = DRAFT_POLL_INTERVAL_MS;
+export const POLL_TIMEOUT_MS = DRAFT_POLL_TIMEOUT_MS;
 
 export interface MyClaudeTarget {
-  scope: DraftScope;
+  scope: Exclude<DraftScope, 'docs'>;
   component?: string | undefined;
   kind?: RequestKind | undefined;
   changes: RequestChange[];
@@ -124,98 +126,8 @@ export function planFill(result: Pick<DraftResult, 'title' | 'summary'>, edited:
   return { fill, offer };
 }
 
-export interface PollerOptions {
-  client: Pick<GitHubClient, 'getFile'>;
-  sessionId: string;
-  intervalMs?: number | undefined;
-  timeoutMs?: number | undefined;
-  now?: (() => number) | undefined;
-  setTimer?: ((fn: () => void, ms: number) => unknown) | undefined;
-  clearTimer?: ((handle: unknown) => void) | undefined;
-  /** Claude answered every item. Polling has stopped. */
-  onResults: (results: DraftResult[], drafts: PendingDrafts) => void;
-  /** No answer within the timeout. Polling has stopped; start() polls again. */
-  onTimeout: () => void;
-  /** The file is gone (sent or cancelled elsewhere). Polling has stopped. */
-  onGone?: (() => void) | undefined;
-  /** A read failed; polling goes on. */
-  onError?: ((message: string) => void) | undefined;
-}
-
-/** Reads the session every 5 seconds until Claude answers, the file goes away, or 10 minutes pass. */
-export class DraftPoller {
-  private handle: unknown;
-  private startedAt = 0;
-  private running = false;
-  private busy = false;
-
-  constructor(private readonly o: PollerOptions) {}
-
-  get active(): boolean {
-    return this.running;
-  }
-
-  private now(): number {
-    return (this.o.now ?? Date.now)();
-  }
-
-  private schedule(): void {
-    const set = this.o.setTimer ?? ((fn: () => void, ms: number) => setTimeout(fn, ms));
-    this.handle = set(() => void this.tick(), this.o.intervalMs ?? POLL_INTERVAL_MS);
-  }
-
-  /** Starts (or restarts, after a timeout) polling; the timeout counts from now. */
-  start(): void {
-    this.stop();
-    this.running = true;
-    this.startedAt = this.now();
-    this.schedule();
-  }
-
-  stop(): void {
-    if (this.handle !== undefined) (this.o.clearTimer ?? ((h: unknown) => clearTimeout(h as ReturnType<typeof setTimeout>)))(this.handle);
-    this.handle = undefined;
-    this.running = false;
-  }
-
-  private async tick(): Promise<void> {
-    if (!this.running) return;
-    this.handle = undefined;
-    const done = await this.check();
-    if (done || !this.running) return;
-    if (this.now() - this.startedAt >= (this.o.timeoutMs ?? POLL_TIMEOUT_MS)) {
-      this.stop();
-      this.o.onTimeout();
-      return;
-    }
-    this.schedule();
-  }
-
-  /** Reads the file once. True when polling is over (answered or gone). */
-  async check(): Promise<boolean> {
-    if (this.busy) return false;
-    this.busy = true;
-    try {
-      const cur = await readPendingDrafts(this.o.client, this.o.sessionId);
-      if (!cur) {
-        this.stop();
-        this.o.onGone?.();
-        return true;
-      }
-      if (cur.drafts.status === 'drafted' && cur.drafts.results?.length) {
-        this.stop();
-        this.o.onResults(cur.drafts.results, cur.drafts);
-        return true;
-      }
-      return false;
-    } catch (err) {
-      this.o.onError?.(err instanceof Error ? err.message : String(err));
-      return false;
-    } finally {
-      this.busy = false;
-    }
-  }
-}
+/** The poller lives in @bridge-ds/core (Bridge Studio polls docs drafts the same way). */
+export type PollerOptions = DraftPollerOptions;
 
 // ---------------------------------------------------------------------------------------------
 // Setup shown in Settings, "Claude (optional)"

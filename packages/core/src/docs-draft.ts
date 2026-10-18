@@ -33,6 +33,11 @@ export interface ComponentDocsJson {
   anatomy?: Record<string, string>;
   /** Who wrote the prose when it was not a person in the editor. Only "claude" today. */
   draftedBy?: string;
+  /**
+   * The prose sections Claude drafted that wait for review, when a draft covered only some of them (in-place drafting
+   * on the Library page, the docs-draft Action). Missing means the whole file. Accepting removes it.
+   */
+  draftedSections?: ProseKey[];
   /** True while drafted prose waits for a reviewer. Accepting sets it to false. */
   needsReview?: boolean;
 }
@@ -171,6 +176,7 @@ export function prefillDocs(input: DocsPrefillInput): DocsPrefill {
     contentGuidelines: existing?.contentGuidelines ?? [],
     anatomy,
     ...(existing?.draftedBy ? { draftedBy: existing.draftedBy } : {}),
+    ...(existing?.draftedSections?.length ? { draftedSections: existing.draftedSections } : {}),
     ...(existing?.needsReview !== undefined ? { needsReview: existing.needsReview } : {}),
   };
   return {
@@ -195,14 +201,42 @@ export interface DocsConventions {
   example?: string;
   /** The component source, so the prose stays true to the code. */
   source?: string;
+  /** The component's CSS module: its states and parts, so the prose stays true to the look. */
+  styles?: string;
 }
+
+/** What docsPrompt asks for. Without `keys`, the missing prose as a full docs.json (the docs-draft Action, bridge_draft_docs). */
+export interface DocsPromptOptions {
+  /** Only these sections, answered as an object holding only them. */
+  keys?: readonly ProseKey[];
+  /** Rewrite the sections even when they hold text. */
+  rewrite?: boolean;
+  /**
+   * Written sections older than the component code, to check (among `keys`): Claude returns one only when something
+   * in it is no longer true for the code, keeping the writer's wording elsewhere; an accurate one is left out.
+   */
+  check?: readonly ProseKey[];
+}
+
+const SECTION_SHAPE: Record<ProseKey, string> = {
+  summary: '"summary": "one or two sentences"',
+  whenToUse: '"whenToUse": ["..."]',
+  whenNotToUse: '"whenNotToUse": ["..."]',
+  dos: '"dos": [{ "title": "...", "text": "..." }]',
+  donts: '"donts": [{ "title": "...", "text": "..." }]',
+  accessibility: '"accessibility": ["..."]',
+  contentGuidelines: '"contentGuidelines": ["..."]',
+};
+
+/** The JSON shape of these sections, for a prompt: {"summary": "...", "dos": [{ "title", "text" }]}. */
+export const docsSectionShapes = (keys: readonly ProseKey[]): string => `{ ${keys.map((k) => SECTION_SHAPE[k]).join(', ')} }`;
 
 /**
  * The prompt a model gets to write the prose of a docs.json: the pre-fill as facts, the conventions, and strict
  * rules (no invention, JSON only). Used by the GitHub Action and returned by bridge_draft_docs for the user's own
  * Claude.
  */
-export function docsPrompt(prefill: DocsPrefill, conventions: DocsConventions = {}): string {
+export function docsPrompt(prefill: DocsPrefill, conventions: DocsConventions = {}, options: DocsPromptOptions = {}): string {
   const facts = [
     `Component: ${prefill.component}`,
     prefill.propsTable ? `Props (parsed from TypeScript):\n${prefill.propsTable}` : 'Props: none of its own.',
@@ -215,15 +249,39 @@ export function docsPrompt(prefill: DocsPrefill, conventions: DocsConventions = 
     `Changelog line: ${prefill.changelogLine}`,
   ].filter(Boolean);
   const block = (title: string, text?: string) => (text?.trim() ? `<${title}>\n${text.trim()}\n</${title}>` : '');
+  const keys = options.keys;
+  const check = keys ? (options.check ?? []).filter((k) => keys.includes(k)) : [];
+  const write = keys ? keys.filter((k) => !check.includes(k)) : [];
+  const task = keys
+    ? [
+        ...(write.length ? [`${options.rewrite ? 'Rewrite' : 'Write'} these sections of ${prefill.component}.docs.json for the Bridge design system: ${write.join(', ')}.`] : []),
+        ...(check.length
+          ? [
+              `Check these written sections of ${prefill.component}.docs.json against the current code: ${check.join(', ')}. The code changed after they were written.`,
+              'Return a checked section ONLY when something in it is no longer true for the code (a wrong or removed prop, a removed state or variant, changed behavior). Then return the whole section with only the untrue parts fixed, keeping the writer\'s wording everywhere else.',
+              'Leave a checked section out of the answer when it is still accurate: a missing key means unchanged. Never return a checked section just to improve its style.',
+            ]
+          : []),
+        ...(options.rewrite ? ['Rewrite each one from the facts and the source: keep what is true in the current text, drop what the code does not support.'] : []),
+      ]
+    : [`Write the missing prose of ${prefill.component}.docs.json for the Bridge design system.`];
+  const shape = keys
+    ? [
+        `- ${check.length ? 'Return' : 'Write'} only these keys: ${keys.join(', ')}${check.length ? ` (the checked ones, ${check.join(', ')}, only when they need a fix)` : ''}. Never return anatomy, preview or any other key: code decides them.`,
+        `- Answer with one JSON object holding only those keys, nothing else: ${docsSectionShapes(keys)}.`,
+      ]
+    : [
+        `- Fill only these keys: ${prefill.missing.join(', ') || 'none (everything is written: improve nothing, return the draft as is)'}. Keep every other key exactly as given.`,
+        '- Answer with the full docs.json as one JSON object, nothing else.',
+      ];
   return [
-    `Write the missing prose of ${prefill.component}.docs.json for the Bridge design system.`,
+    ...task,
     '',
     'Rules:',
     '- Ground every sentence in the facts and the source below. Never invent props, variants, keyboard behavior or tokens that are not there.',
     '- Bridge voice: sentence case, plain words, verbs first, no em dashes, no marketing words.',
     '- Keep the keys and shapes of the example docs.json. dos and donts are { "title", "text" } objects; add an "example" only with components and props that exist.',
-    `- Fill only these keys: ${prefill.missing.join(', ') || 'none (everything is written: improve nothing, return the draft as is)'}. Keep every other key exactly as given.`,
-    '- Answer with the full docs.json as one JSON object, nothing else.',
+    ...shape,
     '',
     'Facts computed from the code:',
     facts.join('\n\n'),
@@ -231,6 +289,7 @@ export function docsPrompt(prefill: DocsPrefill, conventions: DocsConventions = 
     `Current draft:\n${JSON.stringify(prefill.draft, null, 2)}`,
     '',
     block('source', conventions.source),
+    block('styles', conventions.styles),
     block('agents-md', conventions.agents),
     block('voice', conventions.voice),
     block('example-docs-json', conventions.example),
@@ -239,9 +298,24 @@ export function docsPrompt(prefill: DocsPrefill, conventions: DocsConventions = 
     .join('\n');
 }
 
-/** Marks prose as drafted by Claude and waiting for review. */
-export function markClaudeDraft(d: ComponentDocsJson): ComponentDocsJson {
-  return { ...d, draftedBy: 'claude', needsReview: true };
+/**
+ * Marks prose as drafted by Claude and waiting for review. With `sections`, only those sections were drafted: they
+ * join the ones already waiting (draftedSections, in the PROSE_KEYS order). Without, the whole file was.
+ */
+export function markClaudeDraft<T extends Partial<ComponentDocsJson>>(d: T, sections?: readonly ProseKey[]): T {
+  if (!sections) {
+    const { draftedSections: _all, ...rest } = d;
+    return { ...rest, draftedBy: 'claude', needsReview: true } as T;
+  }
+  const waiting = d.needsReview === true ? (d.draftedSections ?? (d.draftedBy ? [...PROSE_KEYS] : [])) : [];
+  const union = PROSE_KEYS.filter((k) => waiting.includes(k) || sections.includes(k));
+  return { ...d, draftedBy: 'claude', needsReview: true, draftedSections: union };
+}
+
+/** Prose sections that wait for review: draftedSections, every prose key for a whole-file draft, none once accepted. */
+export function sectionsNeedingReview(d: Partial<ComponentDocsJson> | null | undefined): ProseKey[] {
+  if (!d || d.needsReview !== true) return [];
+  return d.draftedSections ? PROSE_KEYS.filter((k) => d.draftedSections!.includes(k)) : [...PROSE_KEYS];
 }
 
 /** True when the docs hold AI-drafted prose nobody has reviewed yet. */
@@ -249,12 +323,13 @@ export const needsDocsReview = (d: Partial<ComponentDocsJson> | null | undefined
 
 /** A reviewer accepts drafted prose: needsReview goes false, draftedBy stays as the record of who wrote it. */
 export function acceptDocsDraft(d: ComponentDocsJson): ComponentDocsJson {
-  return { ...d, needsReview: false };
+  const { draftedSections: _done, ...rest } = d;
+  return { ...rest, needsReview: false };
 }
 
 /** docs.json text the way the repo writes it: two spaces, keys in the Button.docs.json order, trailing newline. */
 export function formatDocsJson(d: Partial<ComponentDocsJson>): string {
-  const order = ['summary', 'category', 'status', ...DOCS_KEYS.filter((k) => k !== 'summary'), 'draftedBy', 'needsReview'];
+  const order = ['summary', 'category', 'status', ...DOCS_KEYS.filter((k) => k !== 'summary'), 'draftedBy', 'draftedSections', 'needsReview'];
   const out: Record<string, unknown> = {};
   for (const k of order) if ((d as Record<string, unknown>)[k] !== undefined) out[k] = (d as Record<string, unknown>)[k];
   for (const [k, v] of Object.entries(d)) if (!(k in out) && v !== undefined) out[k] = v;
@@ -295,7 +370,7 @@ export function patchDocsJson(original: string | null | undefined, next: Partial
   }
 }
 
-/** Accepts the drafted prose inside a docs.json text: only the needsReview line changes. Throws on invalid JSON. */
+/** Accepts the drafted prose inside a docs.json text: only the review lines change. Throws on invalid JSON. */
 export function acceptDocsText(text: string): string {
   return patchDocsJson(text, acceptDocsDraft(JSON.parse(text) as ComponentDocsJson));
 }

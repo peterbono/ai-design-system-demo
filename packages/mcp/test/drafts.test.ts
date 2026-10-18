@@ -226,6 +226,92 @@ describe('bridge_pending_drafts and bridge_write_drafts', () => {
     expect(saved.results![0]!.title).toBe('Add a danger tone');
   });
 
+  it('docs items from Bridge Studio: the brief holds the prompt, results carry sanitized sections or a passage', async () => {
+    const gh = withDrafts();
+    const docsItem = (id: string, task: DraftItem['docs'] extends infer D ? (D extends { task: infer T } ? T : never) : never): DraftItem => ({
+      id,
+      scope: 'docs',
+      component: 'Badge',
+      changes: [],
+      draft: { title: 'Badge docs', summary: 'Write sections' },
+      docs: { slug: 'badge', path: 'packages/react/src/components/Badge/Badge.docs.json', task, prompt: 'PROMPT WITH FACTS: props tone, size' },
+    });
+    const p = composePendingDrafts({
+      sessionId: 'docs00001',
+      now: new Date('2026-10-17T09:00:00Z'),
+      source: 'studio',
+      items: [docsItem('docs-1', { kind: 'sections', keys: ['summary', 'dos'] }), docsItem('docs-2', { kind: 'selection', key: 'summary', text: 'A badge is a small label.', mode: 'shorter' })],
+    });
+    gh.seed(p);
+    const ctx = await BridgeContext.create({ repo: 'acme/ds', token: 't', fetch: gh.fetch });
+    const { answer, images } = await drafts.pendingDrafts(ctx, {});
+    expect(images).toEqual([]);
+    expect(answer.sessions[0]!.briefs[0]).toMatch(/component docs of Badge from Bridge Studio .*write the sections summary, dos, answer with "docs"/);
+    expect(answer.sessions[0]!.briefs[0]).toContain('PROMPT WITH FACTS');
+    expect(answer.sessions[0]!.briefs[1]).toMatch(/rewrite one passage of the summary section \(shorter\)/);
+    expect(answer.contract.join(' ')).toMatch(/Docs items/);
+    expect(answer.next).toMatch(/docs item/);
+
+    const client = await connect(ctx);
+    const tools = await client.listTools();
+    expect(tools.tools.find((t) => t.name === 'bridge_pending_drafts')!.description).toMatch(/Docs items: read the brief/);
+    expect(JSON.stringify(tools.tools.find((t) => t.name === 'bridge_write_drafts')!.inputSchema)).toMatch(/replacement/);
+
+    const wrong = (await client.callTool({ name: 'bridge_write_drafts', arguments: { sessionId: 'docs00001', results: [{ id: 'docs-1', title: 'x', summary: 'y' }] } })) as any;
+    expect(wrong.isError).toBe(true);
+    expect(wrong.content[0].text).toMatch(/asks for the sections summary, dos/);
+
+    const r = (await client.callTool({
+      name: 'bridge_write_drafts',
+      arguments: {
+        sessionId: 'docs00001',
+        results: [
+          { id: 'docs-1', docs: { summary: 'Shows a status \u2014 next to a name.', dos: [{ title: 'Keep it short', text: 'One or two words.' }, { title: 'No text' }], anatomy: { root: 'Invented' } } },
+          { id: 'docs-2', replacement: '"A small status label."' },
+        ],
+      },
+    })) as any;
+    expect(r.isError).toBeFalsy();
+    const out = JSON.parse(r.content[0].text);
+    expect(out.status).toBe('drafted');
+    expect(out.next).toMatch(/Library page/);
+    const saved = gh.read('docs00001');
+    expect(saved.source).toBe('studio');
+    expect(saved.results).toMatchObject([
+      { id: 'docs-1', title: '', summary: '', docs: { summary: 'Shows a status, next to a name.', dos: [{ title: 'Keep it short', text: 'One or two words.' }] }, by: 'claude' },
+      { id: 'docs-2', replacement: 'A small status label.' },
+    ]);
+    expect(saved.results![0]!.docs).not.toHaveProperty('anatomy');
+    expect(saved.results![0]!.checked).toEqual([]);
+    await client.close();
+  });
+
+  it('docs items with sections to check: accurate ones are left out and reported as checked', async () => {
+    const gh = withDrafts();
+    const item: DraftItem = {
+      id: 'docs-1',
+      scope: 'docs',
+      component: 'Badge',
+      changes: [],
+      draft: { title: 'Badge docs', summary: 'Check' },
+      docs: { slug: 'badge', task: { kind: 'sections', keys: ['summary', 'dos', 'accessibility'], check: ['summary', 'accessibility'] }, prompt: 'PROMPT' },
+    };
+    gh.seed(composePendingDrafts({ sessionId: 'check0001', now: new Date('2026-10-17T09:00:00Z'), source: 'studio', items: [item] }));
+    const ctx = await BridgeContext.create({ repo: 'acme/ds', token: 't', fetch: gh.fetch });
+    const { answer } = await drafts.pendingDrafts(ctx, {});
+    expect(answer.sessions[0]!.briefs[0]).toMatch(/write the sections dos; check the sections summary, accessibility against the code and return one only when something in it is no longer true \(leave accurate ones out\)/);
+    const client = await connect(ctx);
+    const tools = await client.listTools();
+    expect(tools.tools.find((t) => t.name === 'bridge_pending_drafts')!.description).toMatch(/ONLY when something in them is no longer true for the code/);
+    const r = (await client.callTool({
+      name: 'bridge_write_drafts',
+      arguments: { sessionId: 'check0001', results: [{ id: 'docs-1', docs: { dos: [{ title: 'Keep it short', text: 'One or two words.' }], summary: 'Shows a status. It has no size prop.' } }] },
+    })) as any;
+    expect(r.isError).toBeFalsy();
+    expect(gh.read('check0001').results![0]).toMatchObject({ docs: { summary: 'Shows a status. It has no size prop.', dos: [{ title: 'Keep it short', text: 'One or two words.' }] }, checked: ['accessibility'] });
+    await client.close();
+  });
+
   it('partial results keep the session pending and say which items are left', async () => {
     const gh = withDrafts();
     gh.seed(session('multi0001', '2026-10-17T09:00:00Z', [item('item-1', 'multi0001', false), { ...item('item-2', 'multi0001', false), scope: 'push', component: undefined, kind: undefined, changes: [], variables: [{ path: 'color.text.muted', before: '#555555', after: '#444444' }] }]));
