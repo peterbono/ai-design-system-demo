@@ -88,3 +88,66 @@
     font-size: var(--font-size-300);
   }
 }
+
+/* Inline appearance: edits existing text in place. At rest it reads exactly like the paragraph or list item around
+   it; a pointer over it shows a field (fill and hairline), focus shows the DS ring. The wrapper reaches one space-2
+   past the text column on each side, so the words stay aligned with the page while the fill and ring get room. */
+.inlineWrapper {
+  box-sizing: border-box;
+  width: calc(100% + var(--space-2) * 2);
+  margin-inline: calc(var(--space-2) * -1);
+}
+
+/* Height: field-sizing fits the content in CSS (no measuring, no jump); other browsers get the measured fallback in
+   Textarea.tsx. Typography comes from the surrounding text, so it also inherits on touch screens. */
+.inline {
+  min-height: calc(1lh + var(--space-0-5) * 2);
+  max-height: none;
+  padding: var(--space-0-5) var(--space-2);
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius-inset);
+  background-color: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  resize: none;
+  field-sizing: content;
+}
+
+@media (hover: hover) {
+  .inline:hover:not(:disabled, :read-only, :focus, [data-invalid], [aria-invalid="true"]) {
+    background-color: var(--color-surface-hover);
+    box-shadow: inset 0 0 0 var(--border-width-default) var(--input-border);
+  }
+}
+
+.inline:focus {
+  box-shadow: none;
+}
+
+.inline:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: 0;
+}
+
+.inline[data-invalid],
+.inline[aria-invalid="true"] {
+  box-shadow: inset 0 0 0 var(--border-width-default) var(--input-border-invalid);
+}
+
+.inline[data-invalid]:focus-visible,
+.inline[aria-invalid="true"]:focus-visible {
+  outline-color: var(--input-border-invalid);
+}
+
+.inline:disabled,
+.inline:read-only:not(:disabled) {
+  background-color: transparent;
+}
+
+@media (pointer: coarse) {
+  .inline {
+    font-size: inherit;
+  }
+}
