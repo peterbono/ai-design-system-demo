@@ -2,7 +2,7 @@
    grouped by family, and the detail drawer. Type: h2 (title), body (lead), ui (everything else), caption (none). */
 
 .cm {
-  max-width: calc(var(--size-240) + var(--size-20));
+  max-width: var(--studio-page-max);
 }
 
 .cm-lead {

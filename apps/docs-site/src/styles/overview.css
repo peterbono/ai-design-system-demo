@@ -1,7 +1,7 @@
 /* Studio Overview (Field Guide): a Harbor greeting with the review status, two suggestions, then activity. */
 
 .ov {
-  max-width: calc(var(--size-240) + var(--size-20));
+  max-width: var(--studio-page-max);
 }
 
 .ov-greet {

@@ -162,9 +162,11 @@
   outline-offset: var(--focus-ring-offset);
 }
 
+/* Fills the screen beside the sidebar; past about 1800px of content it stops growing and sits centred. */
 .content {
   width: 100%;
-  max-width: calc(var(--size-300) + var(--size-16));
+  max-width: calc(var(--size-300) * 1.5 + var(--size-16));
+  margin-inline: auto;
   padding: var(--space-8);
   box-sizing: border-box;
 }
