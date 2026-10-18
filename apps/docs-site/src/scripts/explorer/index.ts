@@ -34,6 +34,9 @@ import { closeInlineEditor, inlineEditorOpen, openInlineEditor } from './inline-
 import type { ExplorerData, ExplorerMode, ExplorerState, View } from './types';
 import { copyText, esc, icon } from './util';
 import { selectSegment } from '../shell';
+import { buildTokenSet, contrastScope, evaluatePairs, formatValue, layoutOptions, loadConfig } from '@bridge-ds/core';
+import { bannerBody, changedTokens } from '../../lib/view-scope';
+import { changeLibrary, currentPull, pageScope, readFailure, setBannerBody, setBannerError } from '../view-change';
 
 const NARROW = '(max-width: 1099px)';
 let historyPanelReady = false;
@@ -47,7 +50,11 @@ export function initTokenExplorer() {
 
   // ---- data
   const d: ExplorerData = loadExplorerData();
-  const { results, modes } = d;
+  const { modes } = d;
+  let { results } = d;
+  // Studio Tokens can show the library as an open change (lib/view-scope ?change=N): read only, its values in the
+  // table, the tokens it changes marked. Editing a change is ?change=N&edit=1 (the token editor scoped to it).
+  const viewing = root.dataset.surface === 'app' && pageScope().kind === 'view';
   const buildMs = performance.now() - t0;
 
   // ---- elements
@@ -178,6 +185,8 @@ export function initTokenExplorer() {
     }
     // Studio: Semantic rows first, then Base, then the other collections in order (a stable sort keeps token order).
     visible.sort((x, y) => tierRank(x.tier) - tierRank(y.tier));
+    // Showing a change: the tokens it changes come first, so the first screen shows them.
+    if (d.marks?.size) visible.sort((x, y) => Number(d.marks!.has(y.path)) - Number(d.marks!.has(x.path)));
     // The columns follow the collections in scope (one collection: its own modes, like the Library tree).
     const scope = scoped();
     const sel = s.selection;
@@ -964,7 +973,7 @@ export function initTokenExplorer() {
   }
   let started = false;
   function setMode(mode: ExplorerMode) {
-    if (mode === 'edit' && !editorReady()) return;
+    if (mode === 'edit' && (!editorReady() || viewing)) return;
     s.mode = mode;
     root.dataset.mode = mode;
     useSnapshot();
@@ -989,13 +998,66 @@ export function initTokenExplorer() {
     }, 30);
   });
 
+  /** Reads the change in the address and shows its token set, the tokens it changes marked (Changed in this change). */
+  async function showChange() {
+    const pull = currentPull();
+    if (!pull) return;
+    try {
+      const p = await pull;
+      const config = loadConfig(document.getElementById('xp-config')?.textContent || '{}');
+      const main = readJson<Record<string, string>>('xp-files', {});
+      const lib = await changeLibrary(p, main, config.tokens.root);
+      const head = buildTokenSet(lib.files, layoutOptions(config));
+      const marks = changedTokens(d.head, head);
+      d.set = head;
+      d.head = head;
+      d.tokens = buildTokens(head, d.usage);
+      d.byPath = new Map(d.tokens.map((t) => [t.path, t]));
+      d.results = results = evaluatePairs(head.byPath, d.pairs, contrastScope(head));
+      d.marks = marks.marks;
+      d.formatBefore = (type, v) => formatValue(type, v);
+      const values = [...marks.marks.values()];
+      setBannerBody(bannerBody('tokens', { changed: values.filter((m) => m.kind === 'changed').length, added: values.filter((m) => m.kind === 'added').length, removed: marks.removed.length }));
+      root.dataset.view = 'ready';
+      render({ keepScroll: true, sync: Boolean(s.selected) });
+      if (s.selected && !detail.hidden) openDetail(s.selected);
+    } catch (err) {
+      root.dataset.view = 'error';
+      setBannerError(readFailure(err, 'This change'));
+    }
+  }
+
+  // ---- the latest library value of a changed token, on hover or when its row has focus. Rows sit in groups that
+  // contain their paint, so the tip floats on the page (fixed) instead of inside the row.
+  if (viewing) {
+    const tip = document.createElement('div');
+    tip.className = 'xp-before-tip';
+    tip.setAttribute('aria-hidden', 'true');
+    tip.hidden = true;
+    document.body.append(tip);
+    const show = (flag: HTMLElement | null) => {
+      if (!flag?.dataset.before) return void (tip.hidden = true);
+      tip.textContent = flag.dataset.before;
+      tip.hidden = false;
+      const r = flag.getBoundingClientRect();
+      const w = tip.offsetWidth;
+      tip.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - w - 8))}px`;
+      tip.style.top = `${r.bottom + 6}px`;
+    };
+    grid.addEventListener('pointerover', (e) => show((e.target as HTMLElement).closest<HTMLElement>('.xp-flag-change')));
+    grid.addEventListener('pointerleave', () => (tip.hidden = true));
+    grid.addEventListener('focusin', (e) => show((e.target as HTMLElement).closest('.xp-tr')?.querySelector<HTMLElement>('.xp-flag-change') ?? null));
+    grid.addEventListener('focusout', () => (tip.hidden = true));
+    scroller.addEventListener('scroll', () => (tip.hidden = true), { passive: true });
+  }
+
   // ---- start
   if (!historyPanelReady) {
     historyPanelReady = true;
     initTokenHistoryPanel();
   }
   // The editing kit (TokenEditorKit.astro) is on the page in mode="edit", or on a page that toggles edit mode.
-  const wantsEdit = s.mode === 'edit';
+  const wantsEdit = s.mode === 'edit' && !viewing;
   s.mode = 'read';
   root.dataset.mode = 'read';
   if (document.querySelector('[data-xp-kit]') || document.getElementById('ed-tray')) initTokenEditor();
@@ -1004,6 +1066,10 @@ export function initTokenExplorer() {
     initReview(d);
   }
   started = true;
+  if (viewing) {
+    root.dataset.view = 'loading';
+    void showChange();
+  }
   render({ sync: Boolean(s.selected) });
   if (s.selected) {
     const row = findRow(s.selected);

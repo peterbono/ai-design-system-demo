@@ -1,12 +1,10 @@
 // App shell behaviour, shipped on every page (small, no framework):
 // theme toggle, copy buttons, the mobile navigation sheet, the Cmd+K command palette, header menus, the "On this
-// page" rail and, in the Studio, the branch scope, the nav counts and the GitHub connection.
-import { getToken, ghGet, initGitHubConnect, prefersSignIn, readRepo } from './github-session';
-import { ghVerb } from '../lib/gh-wording';
+// page" rail and, in the Studio, the view of a change (scripts/view-change), the nav counts and the GitHub connection.
+import { getToken, initGitHubConnect } from './github-session';
 import { loadReviewNeedsYou, rememberedMine, type QueuePullFull } from './needs-you';
 import { initMaintainer } from './maintainer';
-import { mdTitleText } from '../lib/markdown';
-import { openPulls } from '../lib/review-rules';
+import { initViewChange, readOpenPulls } from './view-change';
 
 interface SearchItem {
   kind: 'page' | 'component' | 'token';
@@ -525,30 +523,6 @@ function setCount(kind: 'drafts' | 'reviews', n: number | null) {
     });
 }
 
-/** The branch this Studio view reads, from ?branch=. Empty: the default branch. */
-export function currentBranch(): string {
-  return new URLSearchParams(location.search).get('branch') ?? '';
-}
-
-function withBranch(href: string, branch: string): string {
-  const url = new URL(href, location.href);
-  if (url.origin !== location.origin) return href;
-  if (branch) url.searchParams.set('branch', branch);
-  else url.searchParams.delete('branch');
-  return url.pathname + url.search + url.hash;
-}
-
-interface Pull {
-  number: number;
-  title: string;
-  draft?: boolean;
-  state?: string;
-  merged_at?: string | null;
-  labels?: { name: string }[];
-  head: { ref: string };
-  user?: { login: string } | null;
-}
-
 /**
  * Changes > "Review and propose" lands on Studio Tokens with #review: open the draft review sheet once the
  * explorer has painted its draft bar (it loads its data first), then drop the hash.
@@ -572,17 +546,6 @@ function openReviewFromHash() {
 function initStudio() {
   if (document.documentElement.dataset.space === 'library') return;
   initGitHubConnect();
-  const branch = currentBranch();
-  const repo = readRepo();
-
-  // Keep the chosen branch while moving around the Studio.
-  if (branch) document.querySelectorAll<HTMLAnchorElement>('a[data-keep-branch]').forEach((a) => (a.href = withBranch(a.getAttribute('href') ?? '', branch)));
-
-  const label = document.querySelector<HTMLElement>('[data-branch-label]');
-  if (label && branch) {
-    label.textContent = branch;
-    label.closest('summary')?.setAttribute('aria-label', `Branch: ${branch}. Change branch`);
-  }
 
   setCount('drafts', draftCount());
   // Paint the last known count at once, so the nav does not jump while GitHub answers (or when it cannot).
@@ -595,15 +558,11 @@ function initStudio() {
     if (e.key === DRAFT_KEY) setCount('drafts', draftCount());
   });
 
-  const list = document.querySelector<HTMLUListElement>('[data-branch-list]');
-  const first = list?.querySelector<HTMLAnchorElement>('[data-branch=""]');
-  if (first) {
-    first.href = withBranch(location.pathname + location.search, '');
-    if (!branch) first.setAttribute('aria-current', 'true');
-  }
-  ghGet<Pull[]>(`/repos/${repo.owner}/${repo.repo}/pulls?state=open&per_page=100`)
+  // "Viewing: Latest library" on Tokens, Components and Quality, the view banner, and links that keep the view.
+  initViewChange();
+  // One read of the open changes per page, shared with the view selector (scripts/view-change).
+  readOpenPulls()
     .then((f) => {
-      const open = openPulls(f.data);
       // What waits on the viewer in the review queue (the same list as the In review tab and the Overview), with the
       // Overview's rule (lib/overview-todo reviewNeedsYou). Signed out nothing waits on you: no badge.
       if (!pageCounts)
@@ -613,39 +572,11 @@ function initStudio() {
             .then((n) => setCount('reviews', n))
             .catch(() => undefined);
         });
-      if (!list) return;
-      const seen = new Set<string>();
-      for (const p of open) {
-        if (seen.has(p.head.ref) || p.head.ref === repo.defaultBranch) continue;
-        seen.add(p.head.ref);
-        const li = document.createElement('li');
-        const a = document.createElement('a');
-        a.className = 'menu-item';
-        a.href = withBranch(location.pathname + location.search, p.head.ref);
-        a.dataset.branch = p.head.ref;
-        if (p.head.ref === branch) a.setAttribute('aria-current', 'true');
-        const name = document.createElement('span');
-        name.className = 'mono';
-        name.textContent = p.head.ref;
-        const note = document.createElement('span');
-        note.className = 'menu-note';
-        note.textContent = `#${p.number} ${mdTitleText(p.title)}`;
-        a.append(name, note);
-        li.appendChild(a);
-        list.appendChild(li);
-      }
-      if (branch && !seen.has(branch)) {
-        const note = document.querySelector('[data-branch-note]');
-        if (note) note.textContent = `${branch} has no open pull request. Pick another branch or go back to main.`;
-      }
     })
     .catch(() => {
       // Rate limited with nothing in the request cache: keep the last count this browser saw.
       setCount('reviews', getToken() ? rememberedMine() : null);
-      const note = document.querySelector('[data-branch-note]');
-      if (note) note.textContent = `GitHub could not be reached, so only main is listed. ${ghVerb(prefersSignIn())} or try again in a minute.`;
-    })
-    .finally(() => list?.removeAttribute('aria-busy'));
+    });
 }
 
 export function initShell() {

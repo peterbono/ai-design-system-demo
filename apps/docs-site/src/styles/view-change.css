@@ -1,0 +1,106 @@
+/* View the library as a change (lib/view-scope): the "Viewing" Select in the Studio top bar, the banner at the top of
+   the page, and what each page hides or marks while it shows a change. html[data-view-change] is set before the page
+   paints (components/ViewAsChange.astro), so latest library numbers never flash in place of the change's. */
+
+.view-pick-wrap {
+  flex: 0 1 calc(var(--size-64) + var(--size-16));
+  min-width: 0;
+}
+
+/* The top bar's controls are 36px (the search field, the icon buttons): the Select matches them. */
+.topbar .view-pick {
+  --_height: var(--size-9);
+}
+
+.view-pick-prefix {
+  color: var(--color-text-muted);
+}
+
+.view-banner {
+  margin-block-end: var(--space-6);
+}
+
+/* Latest library numbers give way to the change's own (Quality). */
+html[data-view-change] [data-latest-only],
+[data-change-only] {
+  display: none;
+}
+
+html[data-view-change] [data-change-only] {
+  display: block;
+}
+
+/* Studio Tokens: a view is read only, so the edit affordances leave until "Edit tokens in this change". */
+html[data-view-change]:not([data-view-edit]) .xp-new,
+html[data-view-change]:not([data-view-edit]) .xp-apphead-hint,
+html[data-view-change]:not([data-view-edit]) #ed-tray:not([data-sheet]) {
+  display: none;
+}
+
+/* Until the change is read (or when it cannot be), the table and the previews would show the latest library. */
+.xp:is([data-view="loading"], [data-view="error"]) [data-xp-scroll],
+.cm:is([data-view="loading"], [data-view="error"]) .cm-thumb {
+  visibility: hidden;
+}
+
+/* "Changed in this change" next to a token name and the component marks: a quiet outlined mark that reads in both
+   themes (rows sit on the subtle ground in dark), its latest library value on hover. */
+.xp-flag.xp-flag-change,
+.pill.cm-pill-change {
+  border: var(--border-width-default) solid var(--color-border-strong);
+  background-color: var(--color-surface-default);
+  color: var(--color-text-default);
+  font-weight: var(--font-weight-medium);
+}
+
+/* The latest library value of a changed token: floats on the page (rows contain their paint), styled like the
+   Studio's other tips (.has-tip). */
+.xp-before-tip {
+  position: fixed;
+  z-index: var(--layer-tooltip);
+  max-width: var(--size-80);
+  padding: var(--space-1-5) var(--space-2);
+  border-radius: var(--radius-control);
+  background-color: var(--color-text-default);
+  color: var(--color-bg-default);
+  font-size: var(--typography-ui-size);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--font-line-height-snug);
+  pointer-events: none;
+}
+
+/* Read only: the value cells keep the Studio look, without the editor's chevron. */
+html[data-view-change]:not([data-view-edit]) .xp-field-chev {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  /* Phones: the selector takes its own full-width row under the logo, search and menu. */
+  .topbar:has(.view-pick-wrap) {
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    height: auto;
+    min-height: var(--layout-header-height);
+    padding-block: var(--space-2);
+  }
+
+  .topbar:has(.view-pick-wrap) .topbar-actions {
+    display: contents;
+  }
+
+  /* A line break after the logo, search and Library link; then the selector and the menu button share the row. */
+  .topbar:has(.view-pick-wrap)::after {
+    content: "";
+    flex-basis: 100%;
+    order: 1;
+  }
+
+  .topbar:has(.view-pick-wrap) .view-pick-wrap,
+  .topbar:has(.view-pick-wrap) .rail-toggle-slot {
+    order: 2;
+  }
+
+  .view-pick-wrap {
+    flex: 1 1 0;
+  }
+}

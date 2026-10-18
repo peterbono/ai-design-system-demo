@@ -18,6 +18,6 @@ import '../../../styles/new-brand.css';
 ---
 
 <Layout title="New brand" description="Draft a brand in this browser, check it with real components in light and dark, then propose it as a pull request." sources={sources} updated={updated} wide>
-  <StudioHeader title="New brand" subtitle="Draft it in this browser, check it with real components, then propose it for review." branch={false} />
+  <StudioHeader title="New brand" subtitle="Draft it in this browser, check it with real components, then propose it for review." />
   <NewBrandFlow client:load files={tokenFiles()} configText={readText('bridge.config.json')} contrastText={readText(CONTRAST_FILE)} signIn={Boolean(signInConfig())} />
 </Layout>

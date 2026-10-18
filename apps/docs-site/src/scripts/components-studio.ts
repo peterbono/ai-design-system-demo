@@ -10,6 +10,7 @@ import { clearChangeDone, initChangeFlow, pickChangeIntent, resetChangeFlow } fr
 import { fitFrames } from './explorer/preview-frames';
 import { loadRequestRows } from './requests';
 import { selectSegment } from './shell';
+import { initViewOnComponents } from './view-components';
 
 // One size for the list thumbnails: a lone control shows a little smaller than life, like its neighbors scaled to fit.
 const THUMB_MAX = 0.7;
@@ -237,6 +238,8 @@ export function initComponentsStudio() {
   });
 
   void loadRequestCounts();
+  // Showing an open change (?change=N): previews paint with its tokens (scripts/view-components).
+  void initViewOnComponents(root);
   // Thumbnails measure their content: measure again once the web fonts are in, and when the window resizes.
   const refit = () => requestAnimationFrame(() => table && fitFrames(table, { max: THUMB_MAX }));
   void document.fonts?.ready.then(refit);

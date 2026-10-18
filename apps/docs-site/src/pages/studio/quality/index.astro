@@ -17,6 +17,9 @@ import AdoptionMetric from '../../../components/AdoptionMetric.astro';
 import { AUDITS_DIR, groupByApp, loadAudits } from '../../../lib/audits';
 import { ADOPTION_MEANING, adoptionRows, beforeLabel, cleanupTitle, firstFindingTarget, openerSentence, qualityModel, type ComboResult } from '../../../lib/quality';
 import { PAGE_SOURCES, freshness } from '../../../lib/sources';
+import { QUALITY_IN_CHECKS, QUALITY_IN_CHECKS_BODY } from '../../../lib/view-scope';
+import { EmptyState } from '@bridge-ds/react';
+import { ShieldCheck } from 'lucide-react';
 import { dashboard } from '../../../lib/stats';
 import { BRAND_LABEL, TOKEN_SOURCE_FILES, type Brand } from '../../../lib/tokens';
 
@@ -50,14 +53,23 @@ const tone = (g: keyof typeof GROUP_TONE) => GROUP_TONE[g];
 
 <Layout title="Quality" description="The contrast gate, token validation, docs completeness and design system adoption, most severe first." sources={sources} updated={updated} wide>
   <div class="ql">
-    <StudioHeader title="Quality" branch={false} />
+    <StudioHeader title="Quality" />
+    <div class="view-banner" data-view-banner hidden></div>
 
-    <section class="zone ql-open" aria-label="Status">
+    {/* Showing an open change (?change=N, lib/view-scope): these numbers are the latest library's, so they give way to
+        one line that points to the change's own checks (html[data-view-change], set before the page paints). */}
+    <section class="ql-view" data-change-only aria-label="Quality of this change">
+      <EmptyState icon={ShieldCheck} title={QUALITY_IN_CHECKS} description={QUALITY_IN_CHECKS_BODY} headingLevel={2} align="start">
+        <ButtonLink slot="actions" variant="primary" href="/studio/changes/" data-change-href>See its checks</ButtonLink>
+      </EmptyState>
+    </section>
+
+    <section class="zone ql-open" aria-label="Status" data-latest-only>
       <p class="ql-open-sentence">{sentence}</p>
       <ButtonLink variant="primary" href={primary.href}>{primary.label}</ButtonLink>
     </section>
 
-    <section aria-labelledby="ql-findings">
+    <section aria-labelledby="ql-findings" data-latest-only>
       <h2 id="ql-findings" class="ql-h">Findings</h2>
       <ul class="fg-card ql-list">
         {
@@ -139,7 +151,7 @@ const tone = (g: keyof typeof GROUP_TONE) => GROUP_TONE[g];
 
     {
       adoption.length > 0 && (
-        <section aria-labelledby="ql-adoption">
+        <section aria-labelledby="ql-adoption" data-latest-only>
           <h2 id="ql-adoption" class="ql-h">Adoption</h2>
           <p class="ql-muted ql-lead">{ADOPTION_MEANING}</p>
           <ul class="fg-card ql-list">
@@ -160,7 +172,7 @@ const tone = (g: keyof typeof GROUP_TONE) => GROUP_TONE[g];
       )
     }
 
-    <details class="ql-local" id="for-developers">
+    <details class="ql-local" id="for-developers" data-latest-only>
       <summary>For developers</summary>
       <p class="ql-muted">Contrast pairs come from <code>{CONTRAST_FILE}</code>. Adoption reports are committed under <code>{AUDITS_DIR}</code>.</p>
       <p class="ql-muted">CI runs these checks on every pull request. Run them before you push to see the same result.</p>

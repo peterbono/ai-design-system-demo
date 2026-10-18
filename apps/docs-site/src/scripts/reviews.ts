@@ -76,7 +76,7 @@ import {
   type DesignFacts,
 } from '../lib/check-explain';
 import { productPreview, topScreen, tryInProductUrl } from '../lib/try-in-product';
-import { addedNotice, canAddTo, dismissedApprovals, dismissedSentence, isTokenChange } from '../lib/continue-change';
+import { addedNotice, canAddTo, dismissedApprovals, dismissedSentence, editInChangeHref, isTokenChange } from '../lib/continue-change';
 import { backToDraft, detailStatus, mountStatus, statusFallback, unmountStatus, type DetailStatus } from './change-status';
 import { currentStatus, initStatusFilter, lifecycleChip, lifecycleOfRow } from './status-filter';
 import { byLifecycle, emptyFilterLine, needsClosed, showsUnderStatus, statusOpener } from '../lib/change-status';
@@ -567,7 +567,7 @@ export async function openPr(n: number, push = true) {
     if (editSlot || addedSlot)
       void import('../components/ds/studio/ContinueChange').then(({ mountAddedNotice, mountEditInChange }) => {
         if (seq !== openSeq) return;
-        if (editSlot?.isConnected) mountEditInChange(editSlot, `/studio/tokens/?change=${pull.number}`);
+        if (editSlot?.isConnected) mountEditInChange(editSlot, editInChangeHref(pull.number));
         if (addedSlot?.isConnected) {
           mountAddedNotice(addedSlot, addedSlot.dataset.text ?? '');
           // Said once: a reload or a shared link shows the change without it.

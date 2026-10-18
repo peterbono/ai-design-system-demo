@@ -1,6 +1,7 @@
 // Runtime state of one token explorer instance, shared by its modules.
 import type { ContrastPair, ContrastResult, TokenSet } from '@bridge-ds/core';
 import type { Syntax } from '../../lib/explorer/format';
+import type { TokenMark } from '../../lib/view-scope';
 import type { Column, ColumnPlan, Filters, Modes, Selection, UsageMap, ViewState, XToken } from '../../lib/explorer/model';
 
 export type ExplorerMode = 'read' | 'edit';
@@ -41,6 +42,10 @@ export interface ExplorerData {
   tokensRoot?: string;
   /** Component name -> token paths its CSS reads (the components index), for the "Used by" rows. */
   reads?: Record<string, string[]>;
+  /** Studio Tokens showing an open change (lib/view-scope): the tokens it changes, against the latest library. */
+  marks?: Map<string, TokenMark>;
+  /** Formats a latest library value for the "before" of a changed token. */
+  formatBefore?: (type: string, value: unknown) => string;
 }
 
 export interface View {

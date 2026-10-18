@@ -72,7 +72,7 @@ const signIn = Boolean(signInConfig());
   wide
 >
   <div class="cm">
-    <StudioHeader title="Components" branch={false}>
+    <StudioHeader title="Components">
       <p class="cm-lead">
         {lead.status}
         {lead.guidance && (
@@ -84,8 +84,9 @@ const signIn = Boolean(signInConfig());
           </>
         )}
       </p>
-      {primary && <Fragment slot="actions"><ButtonLink variant="primary" href={primary.href} iconStart={FileText}>{primary.label}</ButtonLink></Fragment>}
+      {primary && <Fragment slot="actions"><ButtonLink variant="primary" href={primary.href} iconStart={FileText} data-latest-only>{primary.label}</ButtonLink></Fragment>}
     </StudioHeader>
+    <div class="view-banner" data-view-banner hidden></div>
 
     <div class="cm-tools" role="search">
       <ComponentsSearch />
