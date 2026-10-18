@@ -31,8 +31,11 @@ export function loadHistory(): Promise<Loaded> {
 
 const KEY = 'bridge.history.demo';
 export const DEMO_EVENT = 'bridge:history-demo';
+/** Fixture history is for development only: a production build never shows it, whatever this browser saved. */
+export const DEMO_AVAILABLE = (import.meta as ImportMeta & { env?: { DEV?: boolean } }).env?.DEV === true;
 
 export function demoOn(): boolean {
+  if (!DEMO_AVAILABLE) return false;
   try {
     return sessionStorage.getItem(KEY) === '1';
   } catch {

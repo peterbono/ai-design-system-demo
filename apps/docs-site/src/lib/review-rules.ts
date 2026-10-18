@@ -212,24 +212,24 @@ export function mergeGate(input: {
   else if (lifecycle === 'closed') blocking.push('This pull request is closed.');
   if (input.exploration && lifecycle !== 'merged' && lifecycle !== 'closed') blocking.push('It is an exploration: promote it to review first.');
   if (input.draft) blocking.push('It is a draft. Mark it ready for review on GitHub first.');
-  if (input.ci.state === 'fail') blocking.push(`CI fails: ${input.ci.failed.map((f) => f.name).join(', ')}.`);
-  if (input.ci.state === 'pending') blocking.push('CI is still running.');
+  if (input.ci.state === 'fail') blocking.push(`Tests fail: ${input.ci.failed.map((f) => f.name).join(', ')}.`);
+  if (input.ci.state === 'pending') blocking.push('Tests are still running.');
   if (input.approvals.changesRequested.length) blocking.push(`Changes requested by @${input.approvals.changesRequested.join(', @')}.`);
   const tier = input.tier ?? 3;
   if (tier === 3) {
     if (!input.approvals.design) {
-      approvalReasons.push('Tier 3 needs a design owner approval.');
+      approvalReasons.push('It needs a design owner approval.');
       missing.push('design approval');
     }
     if (!input.approvals.tech) {
-      approvalReasons.push('Tier 3 needs a tech owner approval.');
+      approvalReasons.push('It needs a tech owner approval.');
       missing.push('tech approval');
     }
   } else if (!input.approvals.approvers.length) {
-    approvalReasons.push(`Tier ${tier} needs one approval.`);
+    approvalReasons.push('It needs one approval.');
     missing.push('approval');
   }
-  const conflict = input.mergeable === false ? ['GitHub reports a merge conflict.'] : [];
+  const conflict = input.mergeable === false ? [CONFLICT_REASON] : [];
   // Only a known viewer is checked: without a login the Merge button asks to connect first anyway.
   const shipper = !input.viewer || canShip(input.viewer, input.ship);
   const ship = !shipper && lifecycle !== 'merged' && lifecycle !== 'closed' ? [whoCanShipSentence(input.ship!)] : [];
@@ -240,6 +240,9 @@ export function mergeGate(input: {
   const overridable = !allowed && blocking.length + conflict.length + ship.length === 0 && missing.length > 0 && canOverride(input.viewer, input.override);
   return { allowed, reasons, overridable, missing, canShip: shipper };
 }
+
+/** The gate reason of a conflict, in the words a designer reads. Detected by identity, never by regex. */
+export const CONFLICT_REASON = 'It conflicts with the latest library: a developer resolves it on GitHub.';
 
 export const OVERRIDE_HEADING = '**Bridge owner override**';
 
@@ -317,6 +320,7 @@ export type ReviewStatusKind =
   | 'needs-tech'
   | 'needs-approval'
   | 'conflict'
+  | 'checking'
   | 'ready'
   | 'unknown';
 
@@ -333,17 +337,18 @@ export interface ReviewStatus {
  * and closed. Risk tiers never take a color.
  */
 export const REVIEW_STATUS: Record<ReviewStatusKind, { label: string; tone: string }> = {
-  merged: { label: 'Merged', tone: '' },
+  merged: { label: 'Shipped', tone: '' },
   closed: { label: 'Closed', tone: '' },
   draft: { label: 'Draft', tone: '' },
-  'ci-failing': { label: 'CI failing', tone: 'is-fail' },
+  'ci-failing': { label: 'Blocked by tests', tone: 'is-fail' },
   'changes-requested': { label: 'Changes requested', tone: 'is-fail' },
-  'ci-running': { label: 'CI running', tone: '' },
+  'ci-running': { label: 'Tests running', tone: '' },
   'needs-design': { label: 'Needs design approval', tone: 'is-info' },
   'needs-tech': { label: 'Needs tech approval', tone: 'is-info' },
   'needs-approval': { label: 'Needs approval', tone: 'is-info' },
-  conflict: { label: 'Merge conflict', tone: 'is-fail' },
-  ready: { label: 'Ready to merge', tone: 'is-pass' },
+  conflict: { label: 'Conflict', tone: 'is-fail' },
+  checking: { label: 'Checking', tone: '' },
+  ready: { label: 'Ready to ship', tone: 'is-pass' },
   unknown: { label: 'Status unknown', tone: '' },
 };
 
@@ -360,17 +365,20 @@ export const REVIEW_STATUS_ORDER: Record<ReviewStatusKind, number> = {
   'needs-approval': 5,
   ready: 6,
   'ci-running': 7,
-  unknown: 8,
-  draft: 9,
-  merged: 10,
-  closed: 11,
+  checking: 8,
+  unknown: 9,
+  draft: 10,
+  merged: 11,
+  closed: 12,
 };
 
 /**
- * One status chip for a pull request, from real data. Same rules and order as mergeGate: lifecycle, draft, CI
- * failing, changes requested, CI running, missing approvals (Tier 3 by default), merge conflict, then ready.
- * `ready` is returned only when mergeGate allows the merge. Unknown CI or reviews (null, still loading or failed)
- * never read as ready.
+ * One status chip for a pull request, from real data. Same rules and order as the pull request header
+ * (lib/changes needFromDetail): lifecycle, draft, CI failing, changes requested, merge conflict, CI running, then
+ * missing approvals (Tier 3 by default), then ready. `mergeable` null means GitHub has not computed it yet: the chip
+ * reads "Checking" instead of an approval or "Ready to ship", so a list never says something the detail contradicts.
+ * Undefined means it was not read: no conflict known. `ready` is returned only when mergeGate allows the merge.
+ * Unknown CI or reviews (null, still loading or failed) never read as ready.
  */
 export function reviewStatus(input: {
   state?: string;
@@ -388,14 +396,15 @@ export function reviewStatus(input: {
   if (lifecycle === 'draft') return out('draft');
   if (input.ci?.state === 'fail') return out('ci-failing');
   if (input.approvals?.changesRequested.length) return out('changes-requested');
+  if (input.mergeable === false) return out('conflict');
   if (input.ci?.state === 'pending') return out('ci-running');
   if (!input.ci || !input.approvals) return out('unknown');
+  if (input.mergeable === null) return out('checking');
   const tier = input.tier ?? 3;
   if (tier === 3) {
     if (!input.approvals.design) return out('needs-design');
     if (!input.approvals.tech) return out('needs-tech');
   } else if (!input.approvals.approvers.length) return out('needs-approval');
-  if (input.mergeable === false) return out('conflict');
   const gate = mergeGate({ tier: input.tier, ci: input.ci, approvals: input.approvals, draft: Boolean(input.draft), mergeable: input.mergeable, state: input.state ?? 'open', merged_at: input.merged_at });
   return gate.allowed ? out('ready') : out('unknown');
 }

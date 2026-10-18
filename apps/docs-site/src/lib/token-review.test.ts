@@ -142,7 +142,7 @@ describe('review rules', () => {
     const failing = summarizeCi([{ name: 'Guardrails', status: 'completed', conclusion: 'failure' }]);
     const gate = mergeGate({ tier: 3, ci: failing, approvals: both, draft: false, state: 'open' });
     expect(gate.allowed).toBe(false);
-    expect(gate.reasons.join(' ')).toMatch(/CI fails: Guardrails/);
+    expect(gate.reasons.join(' ')).toMatch(/Tests fail: Guardrails/);
   });
 
   it('a later request for changes replaces an approval; the author never counts', () => {

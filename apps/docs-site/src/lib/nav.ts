@@ -100,7 +100,7 @@ export function studioNav(): NavEntry[] {
     { href: STUDIO_HOME, label: 'Overview', icon: 'gauge', meta: 'What waits for you, suggestions and activity' },
     { href: '/studio/tokens/', label: 'Tokens', icon: 'grid', meta: 'Edit tokens into a draft, with live preview and guardrails' },
     { href: '/studio/components/', label: 'Components', icon: 'diamonds', meta: 'Status, tokens, code and Figma links per component' },
-    { href: STUDIO_CHANGES_HREF, label: 'Changes', icon: 'branch', badge: 'reviews', meta: 'Open pull requests to review, other branches and the history of merged token changes, with undo' },
+    { href: STUDIO_CHANGES_HREF, label: 'Changes', icon: 'branch', badge: 'reviews', meta: 'Changes to review, requests, explorations and the history of shipped token changes, with undo' },
     { href: STUDIO_QUALITY_HREF, label: 'Quality', icon: 'shield', meta: 'Contrast gate, token validation, docs completeness and adoption, most severe first' },
     { href: SETTINGS_HOME, label: 'Settings', icon: 'sliders', meta: 'GitHub connection, the repository this workspace reads, and who approves what' },
   ];
