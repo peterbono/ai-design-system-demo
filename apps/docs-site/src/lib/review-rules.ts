@@ -244,7 +244,7 @@ export function mergeGate(input: {
 }
 
 /** The gate reason of a conflict, in the words a designer reads. Detected by identity, never by regex. */
-export const CONFLICT_REASON = 'It conflicts with the latest library: a developer resolves it on GitHub.';
+export const CONFLICT_REASON = 'It conflicts with the latest library: resolve it under Latest library on the change.';
 
 export const OVERRIDE_HEADING = '**Bridge owner override**';
 
