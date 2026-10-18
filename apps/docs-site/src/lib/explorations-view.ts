@@ -281,11 +281,11 @@ export interface PromoteAsk {
 
 /**
  * What the promote dialog says. `tier` comes from the files the exploration changes (the shared classifier, a dry
- * run of the promotion); `owners` are the approver lists after rights (approverLists). Tier 3 needs a design and a
- * tech approval; lower tiers need one approval from anyone. Unknown tier: the strictest rule, said as such.
+ * run of the promotion); `owners` are the approver lists after rights (approverLists). Tier 2 and 3 need a design and
+ * a tech approval (docs/GOVERNANCE.md); Tier 1 needs one approval from anyone. Unknown tier: the strictest rule, said as such.
  */
 export function promoteAsk(tier: Tier | null, owners: { design: string[]; tech: string[] }): PromoteAsk {
-  if (tier === 1 || tier === 2) {
+  if (tier === 1) {
     return { who: 'One teammate will be asked to approve: any reviewer can.', next: 'It moves to In review. One approval, then it ships.' };
   }
   const design = handles(owners.design);

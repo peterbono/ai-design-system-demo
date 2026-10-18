@@ -1,5 +1,5 @@
 // Governance rules for the Reviews section, as pure functions so they are unit tested and shared by the page
-// script. Same rules as docs/GOVERNANCE.md: the highest tier wins, Tier 3 needs a design and a tech approval,
+// script. Same rules as docs/GOVERNANCE.md: the highest tier wins, Tier 2 and 3 need a design and a tech approval,
 // nothing merges while CI fails. Who may ship (merge, which publishes to the products) comes from
 // `governance.rights` in bridge.config.json (@bridge-ds/core rights.ts); GitHub write access is checked as well.
 
@@ -216,7 +216,8 @@ export function mergeGate(input: {
   if (input.ci.state === 'pending') blocking.push('Tests are still running.');
   if (input.approvals.changesRequested.length) blocking.push(`Changes requested by @${input.approvals.changesRequested.join(', @')}.`);
   const tier = input.tier ?? 3;
-  if (tier === 3) {
+  // docs/GOVERNANCE.md: Tier 2 (new component, variant or prop) and Tier 3 need a design and a tech owner approval.
+  if (tier >= 2) {
     if (!input.approvals.design) {
       approvalReasons.push('It needs a design owner approval.');
       missing.push('design approval');
@@ -401,7 +402,7 @@ export function reviewStatus(input: {
   if (!input.ci || !input.approvals) return out('unknown');
   if (input.mergeable === null) return out('checking');
   const tier = input.tier ?? 3;
-  if (tier === 3) {
+  if (tier >= 2) {
     if (!input.approvals.design) return out('needs-design');
     if (!input.approvals.tech) return out('needs-tech');
   } else if (!input.approvals.approvers.length) return out('needs-approval');

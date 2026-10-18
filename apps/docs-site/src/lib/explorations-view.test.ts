@@ -164,8 +164,9 @@ describe('promoteAsk', () => {
     expect(promoteAsk(null, { design: [], tech: [] }).who).toBe('A design owner and a tech owner will be asked to approve.');
   });
 
-  it('asks one approval for lower tiers', () => {
-    expect(promoteAsk(2, { design: ['ana'], tech: ['ben'] })).toEqual({ who: 'One teammate will be asked to approve: any reviewer can.', next: 'It moves to In review. One approval, then it ships.' });
+  it('asks one approval for Tier 1, design and tech from Tier 2 up', () => {
+    expect(promoteAsk(2, { design: ['ana'], tech: ['ben'] }).who).toMatch(/@ana \(design\).*@ben \(tech\)/);
+    expect(promoteAsk(1, { design: ['ana'], tech: ['ben'] })).toEqual({ who: 'One teammate will be asked to approve: any reviewer can.', next: 'It moves to In review. One approval, then it ships.' });
     expect(promotedLine(64)).toBe('Promoted. #64 is in In review now, waiting for its approvals.');
   });
 });

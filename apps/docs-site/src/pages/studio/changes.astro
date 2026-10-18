@@ -212,7 +212,7 @@ const sources = ['docs/GOVERNANCE.md', '.github/CODEOWNERS', 'docs/PREVIEWS.md',
           <label class="gh-field"><span>Token</span><input id="hs-token" list="hs-paths" placeholder="color.text.muted or color.text" autocomplete="off" spellcheck="false" /></label>
           <datalist id="hs-paths"></datalist>
           <label class="gh-field"><span>Author</span><select id="hs-author"><option value="">Anyone</option></select></label>
-          <label class="gh-field"><span>Kind of change</span><select id="hs-tier"><option value="">Any change</option><option value="3">Token changes, design + tech approval</option><option value="2">Component changes, one approval</option><option value="1">Docs fixes, one approval</option></select></label>
+          <label class="gh-field"><span>Kind of change</span><select id="hs-tier"><option value="">Any change</option><option value="3">Token changes, design + tech approval</option><option value="2">Component changes, design + tech approval</option><option value="1">Docs fixes, one approval</option></select></label>
           <Button type="reset" variant="secondary" size="sm" id="hs-clear">Clear filters</Button>
         </form>
         <Alert tone="warning" announce="off" title="Demo data: fixture changes, not this repository's history." className="st-hideable st-hs-banner" id="hs-banner" hidden>Nothing here can be proposed.</Alert>
