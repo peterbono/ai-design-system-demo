@@ -5,17 +5,24 @@
   ] },
   "whenToUse": [
     "Free text longer than one line: pull request summaries, release notes, review comments.",
-    "showCount with maxLength when there is a hard limit."
+    "showCount with maxLength when there is a hard limit.",
+    "appearance=\"inline\" only to edit existing text in place, where the text is the page: a paragraph, a list item or a card title in a docs editor. It keeps the surrounding font, size and line height and shows a field on hover and focus."
   ],
   "whenNotToUse": [
     "A short single value: use Input.",
-    "Structured content (lists of tokens, key-value pairs): use dedicated fields."
+    "Structured content (lists of tokens, key-value pairs): use dedicated fields.",
+    "appearance=\"inline\" in a form, a dialog or a settings page: people scan forms for boxes, and an inline field there reads as plain text. Use the default field."
   ],
   "dos": [
     {
       "title": "Size it for the expected answer",
       "text": "rows sets the starting height; autosize grows it, so short boxes do not hide long answers.",
       "example": { "c": "Stack", "children": [ { "c": "Textarea", "p": { "label": "Release notes", "rows": 4 } } ] }
+    },
+    {
+      "title": "Inline only where the text already is",
+      "text": "Swap the paragraph or list item for an inline Textarea holding the same text, so the page keeps its layout while it is edited. Name each one with aria-label.",
+      "example": { "c": "Stack", "children": [ { "c": "Textarea", "p": { "appearance": "inline", "aria-label": "Summary", "defaultValue": "Multi-line text that grows with its content, with an optional character count." } } ] }
     }
   ],
   "donts": [
@@ -23,13 +30,21 @@
       "title": "Hiding the limit until it is hit",
       "text": "Show the count while typing so users can edit before the error.",
       "example": { "c": "Stack", "children": [ { "c": "Textarea", "p": { "label": "Summary", "error": "Too long." } } ] }
+    },
+    {
+      "title": "Inline fields in a form",
+      "text": "Without a box, an empty form field reads as finished text. Forms use the default field with a visible label.",
+      "example": { "c": "Stack", "children": [ { "c": "Textarea", "p": { "appearance": "inline", "label": "Change summary", "placeholder": "What changed and why" } } ] }
     }
   ],
   "accessibility": [
     "Native textarea through Base UI Field: label, description and error are wired for you.",
     "Focus shows a 2px signal edge; invalid sets aria-invalid and a danger edge with a text error.",
     "The visual counter is hidden from screen readers to avoid announcing every keystroke; maxLength is enforced natively.",
-    "On touch screens the text is 17px so iOS does not zoom on focus."
+    "On touch screens the text is 17px so iOS does not zoom on focus.",
+    "appearance=\"inline\" is still a native, labelled textarea. Hover adds a fill and a hairline edge and focus the 2px DS ring, so the field never relies on color alone.",
+    "The inline placeholder uses the muted text color, checked at 4.5:1 on the canvas, surfaces and the hover fill.",
+    "Inline text inherits the page size, also on touch screens: keep the surrounding text at 16px or more so iOS does not zoom on focus."
   ],
   "contentGuidelines": [
     "Placeholder shows an example answer, not instructions.",
@@ -40,6 +55,8 @@
     "textarea": "Native textarea",
     "autosize": "Autosize mode",
     "resizable": "Manual resize mode",
-    "count": "Character count"
+    "count": "Character count",
+    "inlineWrapper": "Inline container, one space-2 past the text column on each side",
+    "inline": "Inline appearance: page typography, height fits the content"
   }
 }

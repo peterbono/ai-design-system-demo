@@ -229,47 +229,7 @@ html:has(.cp-page[data-editing]) {
   padding: var(--space-2) 0 var(--space-4);
 }
 
-/* Fields */
-/* DS Textarea, restyled to read exactly like the text it edits. */
-div.le-text {
-  width: calc(100% + var(--space-2) * 2);
-  margin: 0 calc(var(--space-2) * -1);
-}
-
-.le-text > textarea {
-  min-height: 0;
-  max-height: none;
-  padding: var(--space-0-5) var(--space-2);
-  overflow: hidden;
-  border: 0;
-  border-radius: var(--radius-inset);
-  background-color: transparent;
-  color: inherit;
-  font: inherit;
-  letter-spacing: inherit;
-  transition: background-color var(--motion-duration-instant) var(--motion-easing-standard);
-}
-
-.le-text > textarea::placeholder {
-  color: var(--color-text-muted);
-}
-
-.le-text > textarea:focus {
-  box-shadow: none;
-  outline: none;
-}
-
-.le-text > textarea:focus-visible {
-  outline: var(--focus-ring-width) solid var(--focus-ring-color);
-  outline-offset: 0;
-}
-
-/* At rest the text reads exactly like the page; a pointer over it shows it can be edited. */
-@media (hover: hover) {
-  .le-text > textarea:hover:not(:focus) {
-    background-color: var(--color-surface-hover);
-  }
-}
+/* Fields are the DS inline Textarea (appearance="inline"): it reads like the text it edits, no restyling here. */
 
 .le-summary {
   display: grid;
@@ -356,8 +316,9 @@ div.le-text {
   position: relative;
 }
 
-.le-list > li > .le-text > textarea {
-  padding-right: calc(var(--size-8) + var(--space-2));
+/* The field stops short of the remove button, so the text never runs under it. */
+.le-list > li > .le-text {
+  padding-right: var(--size-8);
 }
 
 .le-list > li > .le-remove {

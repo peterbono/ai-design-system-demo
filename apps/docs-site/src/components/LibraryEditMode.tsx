@@ -2,7 +2,7 @@
 // bar, the prose sections and the right rail switch to editing. A client-only island that renders into slots of
 // pages/components/[slug].astro through portals. Pure rules live in lib/library-edit-model.ts; sending reuses the
 // docs save path (lib/docs-draft-model.ts, scripts/docs-commit.ts); drafting goes through scripts/docs-ai.ts.
-import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Alert,
@@ -180,29 +180,12 @@ interface Ctx {
 const EditCtx = createContext<Ctx | null>(null);
 const useEdit = () => useContext(EditCtx)!;
 
-/** Grows a field to its content without moving the page (a collapsed height would scroll the caret into view). */
-function fit(t: HTMLTextAreaElement | null) {
-  if (!t) return;
-  const y = window.scrollY;
-  t.style.height = 'auto';
-  t.style.height = `${t.scrollHeight + (t.offsetHeight - t.clientHeight)}px`;
-  if (window.scrollY !== y) window.scrollTo({ top: y });
-}
-
-/** A textarea that reads like the text it edits: same font, grows with its content. */
+/** The DS inline Textarea: reads like the text it edits (same font, measure and line height) and fits its content. */
 function InlineText({ field, label, className, placeholder, onKeyDown }: { field: FieldRef; label: string; className?: string; placeholder?: string; onKeyDown?: (e: KeyboardEvent<HTMLTextAreaElement>) => void }) {
   const e = useEdit();
   const ref = useRef<HTMLTextAreaElement>(null);
   const value = getField(e.state.docs, field);
   const id = fieldId(field);
-  useLayoutEffect(() => fit(ref.current), [value]);
-  useEffect(() => {
-    const t = ref.current;
-    if (!t) return;
-    const ro = new ResizeObserver(() => fit(t));
-    ro.observe(t.parentElement?.parentElement ?? t);
-    return () => ro.disconnect();
-  }, []);
   useEffect(() => {
     if (e.focusRequest === id) ref.current?.focus();
   }, [e.focusRequest, id]);
@@ -214,9 +197,8 @@ function InlineText({ field, label, className, placeholder, onKeyDown }: { field
   return (
     <Textarea
       ref={ref}
+      appearance="inline"
       className={`le-text${className ? ` ${className}` : ''}`}
-      rows={1}
-      maxRows={200}
       value={value}
       aria-label={label}
       placeholder={placeholder}
