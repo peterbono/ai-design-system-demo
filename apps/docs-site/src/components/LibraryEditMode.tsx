@@ -14,6 +14,7 @@ import {
   DialogContent,
   IconButton,
   Input,
+  Link,
   Menu,
   MenuContent,
   MenuGroup,
@@ -189,7 +190,7 @@ function fit(t: HTMLTextAreaElement | null) {
 }
 
 /** A textarea that reads like the text it edits: same font, grows with its content. */
-function Field({ field, label, className, placeholder, onKeyDown }: { field: FieldRef; label: string; className?: string; placeholder?: string; onKeyDown?: (e: KeyboardEvent<HTMLTextAreaElement>) => void }) {
+function InlineText({ field, label, className, placeholder, onKeyDown }: { field: FieldRef; label: string; className?: string; placeholder?: string; onKeyDown?: (e: KeyboardEvent<HTMLTextAreaElement>) => void }) {
   const e = useEdit();
   const ref = useRef<HTMLTextAreaElement>(null);
   const value = getField(e.state.docs, field);
@@ -199,7 +200,7 @@ function Field({ field, label, className, placeholder, onKeyDown }: { field: Fie
     const t = ref.current;
     if (!t) return;
     const ro = new ResizeObserver(() => fit(t));
-    ro.observe(t.parentElement ?? t);
+    ro.observe(t.parentElement?.parentElement ?? t);
     return () => ro.disconnect();
   }, []);
   useEffect(() => {
@@ -211,10 +212,11 @@ function Field({ field, label, className, placeholder, onKeyDown }: { field: Fie
     e.onSelectField(t.selectionStart < t.selectionEnd ? { field, start: t.selectionStart, end: t.selectionEnd, text: t.value.slice(t.selectionStart, t.selectionEnd) } : null);
   };
   return (
-    <textarea
+    <Textarea
       ref={ref}
       className={`le-text${className ? ` ${className}` : ''}`}
       rows={1}
+      maxRows={200}
       value={value}
       aria-label={label}
       placeholder={placeholder}
@@ -305,7 +307,7 @@ function ListEditor({ k, label, listClass, icon }: { k: 'whenToUse' | 'whenNotTo
         {items.map((_, i) => (
           <li key={i}>
             {icon && <Check className="le-li-icon" size={16} aria-hidden="true" />}
-            <Field field={{ key: k, index: i }} label={`${label}, item ${i + 1}`} placeholder="Write one sentence" onKeyDown={keys(i)} />
+            <InlineText field={{ key: k, index: i }} label={`${label}, item ${i + 1}`} placeholder="Write one sentence" onKeyDown={keys(i)} />
             <IconButton className="le-remove" icon={X} size="sm" label={`Remove ${label.toLowerCase()} item ${i + 1}`} onClick={() => drop(i)} />
           </li>
         ))}
@@ -355,10 +357,10 @@ function GuideCards({ k }: { k: 'dos' | 'donts' }) {
               <IconButton className="le-remove" icon={X} size="sm" label={`Remove ${word} ${i + 1}`} onClick={() => e.setList(k, items.filter((_, j) => j !== i) as DocsGuidance[])} />
             </div>
             <h4>
-              <Field field={{ key: k, index: i, part: 'title' }} label={`${word} ${i + 1}, title`} placeholder="Title" />
+              <InlineText field={{ key: k, index: i, part: 'title' }} label={`${word} ${i + 1}, title`} placeholder="Title" />
             </h4>
             <p>
-              <Field field={{ key: k, index: i, part: 'text' }} label={`${word} ${i + 1}, why`} placeholder="Why, in one sentence" />
+              <InlineText field={{ key: k, index: i, part: 'text' }} label={`${word} ${i + 1}, why`} placeholder="Why, in one sentence" />
             </p>
           </figcaption>
         </figure>
@@ -450,7 +452,7 @@ function SummaryEditor() {
   const e = useEdit();
   return (
     <div className="le-summary" role="group" aria-label="Summary" data-section="summary" id="le-sec-summary">
-      {showEditor(e, 'summary') && <Field field={{ key: 'summary' }} label="Summary" placeholder="One or two sentences: what it is for, and what to use instead." />}
+      {showEditor(e, 'summary') && <InlineText field={{ key: 'summary' }} label="Summary" placeholder="One or two sentences: what it is for, and what to use instead." />}
       <div className="le-summary-foot">
         <SectionFlag id="summary" />
         <SectionControls id="summary" />
@@ -486,7 +488,8 @@ function RailContent() {
           <ul className="le-review">
             {review.map((r) => (
               <li key={r.id}>
-                <a
+                <Link
+                  variant="subtle"
                   href={`#le-sec-${r.id}`}
                   onClick={(ev) => {
                     ev.preventDefault();
@@ -498,7 +501,7 @@ function RailContent() {
                     {r.label}
                     <span className="le-review-words">{r.words}</span>
                   </span>
-                </a>
+                </Link>
               </li>
             ))}
           </ul>
@@ -1224,7 +1227,7 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
           >
             {sent ? (
               <p className="le-sent">
-                Your team can review it in Studio: <a href={sent.pr ? `/studio/changes/?pr=${sent.pr}` : '/studio/changes/'}>{sent.title}</a>.
+                Your team can review it in Studio: <Link href={sent.pr ? `/studio/changes/?pr=${sent.pr}` : '/studio/changes/'}>{sent.title}</Link>.
               </p>
             ) : (
               <div className="le-send">

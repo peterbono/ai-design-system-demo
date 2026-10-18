@@ -230,11 +230,15 @@ html:has(.cp-page[data-editing]) {
 }
 
 /* Fields */
-.le-text {
-  display: block;
-  box-sizing: border-box;
+/* DS Textarea, restyled to read exactly like the text it edits. */
+div.le-text {
   width: calc(100% + var(--space-2) * 2);
   margin: 0 calc(var(--space-2) * -1);
+}
+
+.le-text > textarea {
+  min-height: 0;
+  max-height: none;
   padding: var(--space-0-5) var(--space-2);
   overflow: hidden;
   border: 0;
@@ -243,26 +247,26 @@ html:has(.cp-page[data-editing]) {
   color: inherit;
   font: inherit;
   letter-spacing: inherit;
-  resize: none;
   transition: background-color var(--motion-duration-instant) var(--motion-easing-standard);
 }
 
-.le-text::placeholder {
+.le-text > textarea::placeholder {
   color: var(--color-text-muted);
 }
 
-.le-text:focus {
+.le-text > textarea:focus {
+  box-shadow: none;
   outline: none;
 }
 
-.le-text:focus-visible {
+.le-text > textarea:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
   outline-offset: 0;
 }
 
 /* At rest the text reads exactly like the page; a pointer over it shows it can be edited. */
 @media (hover: hover) {
-  .le-text:hover:not(:focus) {
+  .le-text > textarea:hover:not(:focus) {
     background-color: var(--color-surface-hover);
   }
 }
@@ -352,7 +356,7 @@ html:has(.cp-page[data-editing]) {
   position: relative;
 }
 
-.le-list > li > .le-text {
+.le-list > li > .le-text > textarea {
   padding-right: calc(var(--size-8) + var(--space-2));
 }
 
