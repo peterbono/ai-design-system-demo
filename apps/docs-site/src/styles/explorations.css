@@ -108,6 +108,10 @@
   margin-top: var(--space-4);
 }
 
+.cg-pr-open > .ex-done {
+  margin-top: 0;
+}
+
 .ex-confirm {
   display: grid;
   gap: var(--space-2);
@@ -133,6 +137,81 @@
   padding-left: var(--space-5);
   color: var(--color-text-muted);
   text-align: left;
+}
+
+/* Detail: the previews and the before and after come first, the developer details last. */
+.ex-purpose-line {
+  max-width: 65ch;
+}
+
+.ex-hero {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  margin-top: var(--space-6);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.ex-hero > * {
+  min-width: 0;
+  margin: 0;
+}
+
+.ex-hero + .ex-hero {
+  margin-top: var(--space-7);
+}
+
+.ex-h {
+  font-family: var(--typography-ui-family);
+  font-size: var(--typography-ui-size);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--typography-ui-line-height);
+}
+
+.ex-previews {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ex-previews li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ex-previews .btn-lg {
+  min-height: var(--control-height-md);
+}
+
+.ex-preview-name {
+  font-weight: var(--font-weight-medium);
+}
+
+.ex-dev-h {
+  margin: var(--space-2) 0 0;
+  font-family: var(--typography-ui-family);
+  font-size: var(--typography-ui-size);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--typography-ui-line-height);
+}
+
+.ex-dev {
+  margin-top: var(--space-2);
+}
+
+.ex-ask-who {
+  margin: 0;
+}
+
+.ex-ask-error {
+  margin-top: var(--space-3);
 }
 
 @media (max-width: 760px) {

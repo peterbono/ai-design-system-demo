@@ -10,7 +10,12 @@ import {
   integrationsProposal,
   jiraKeyFrom,
   linkPulls,
+  buildState,
+  onItLabel,
   overviewRequestsLine,
+  requestImages,
+  requestOwner,
+  requestStateLine,
   parseList,
   requestFormProblems,
   requestFromForm,
@@ -54,7 +59,7 @@ const pull = (n: number, body: string, over: Partial<PullLike> = {}): PullLike =
 describe('linkPulls', () => {
   it('links a pull request to every issue its body closes', () => {
     const m = linkPulls([pull(40, 'Closes #1 and fixes #2'), pull(41, 'Resolves #2', { state: 'closed', merged_at: '2026-10-10T00:00:00Z' }), pull(42, 'Refs #3')]);
-    expect(m.get(1)).toEqual([{ number: 40, url: 'https://github.com/o/r/pull/40', state: 'open', merged: false }]);
+    expect(m.get(1)).toEqual([{ number: 40, url: 'https://github.com/o/r/pull/40', state: 'open', merged: false, author: null }]);
     expect(m.get(2)?.map((p) => [p.number, p.merged])).toEqual([
       [40, false],
       [41, true],
@@ -195,5 +200,50 @@ describe('jiraKeyFrom', () => {
     expect(jiraKeyFrom(['jira: WEB-7'])).toBe('WEB-7');
     expect(jiraKeyFrom([{ name: 'jira:DS-1' }])).toBe('DS-1');
     expect(jiraKeyFrom([{ name: 'jira' }])).toBeNull();
+  });
+});
+
+describe('who is on a request', () => {
+  it('reads the assignee first, then the author of the open change, else nobody', () => {
+    const [waiting] = requestRows([issue(1)], []);
+    expect(requestOwner(waiting!)).toBeNull();
+    expect(onItLabel(waiting!)).toBe('Not started');
+    expect(requestStateLine(waiting!)).toBe('Waiting for a developer to pick it up.');
+    expect(buildState(waiting!)).toBe('Not started');
+
+    const [assigned] = requestRows([issue(1, { assignees: [{ login: 'dev' }] })], []);
+    expect(onItLabel(assigned!)).toBe('@dev is on it');
+    expect(requestStateLine(assigned!)).toBe('In progress by @dev.');
+
+    const [building] = requestRows([issue(1)], [pull(40, 'Closes #1', { user: { login: 'ana' } })]);
+    expect(requestOwner(building!)).toBe('ana');
+    expect(requestStateLine(building!)).toBe('In progress by @ana.');
+    expect(buildState(building!)).toBe('In review');
+  });
+
+  it('says who finished it, and keeps declined plain', () => {
+    const [done] = requestRows([issue(1, { state: 'closed', state_reason: 'completed' })], [pull(9, 'fixes #1', { state: 'closed', merged_at: '2026-10-10T00:00:00Z', user: { login: 'ana' } })]);
+    expect(onItLabel(done!)).toBe('Done by @ana');
+    expect(requestStateLine(done!)).toBe('Done by @ana.');
+    expect(buildState(done!)).toBe('Shipped');
+    const [plain] = requestRows([issue(2, { state: 'closed', state_reason: 'completed' })], []);
+    expect(requestStateLine(plain!)).toBe('Done.');
+    const [declined] = requestRows([issue(3, { state: 'closed', state_reason: 'not_planned' })], []);
+    expect(onItLabel(declined!)).toBe('Declined');
+    expect(requestStateLine(declined!)).toBe('Declined: closed on GitHub without a change.');
+  });
+});
+
+describe('requestImages', () => {
+  it('reads two images as the baseline and the frame in Figma', () => {
+    const [row] = requestRows([issue(1, {}, req({ images: ['https://x/before.png', 'https://x/after.png'] }))], []);
+    expect(requestImages(row!)).toEqual({ pair: { before: 'https://x/before.png', after: 'https://x/after.png' }, single: [], thumb: 'https://x/before.png' });
+  });
+
+  it('shows one image on its own, drops non https links, and has no thumb without images', () => {
+    const [one] = requestRows([issue(1, {}, req({ images: ['http://x/a.png', 'https://x/b.png'] }))], []);
+    expect(requestImages(one!)).toEqual({ pair: null, single: ['https://x/b.png'], thumb: 'https://x/b.png' });
+    const [none] = requestRows([issue(2)], []);
+    expect(requestImages(none!)).toEqual({ pair: null, single: [], thumb: null });
   });
 });

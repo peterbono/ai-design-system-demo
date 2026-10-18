@@ -5,8 +5,12 @@
 // Pure rules live in lib/requests-view.ts.
 import { closingIssueNumbers, REQUEST_LABEL, type IntegrationsConfig } from '@bridge-ds/core';
 import {
+  buildState,
   freshList,
   implementCommand,
+  onItLabel,
+  requestImages,
+  requestStateLine,
   requestRows,
   requestsCacheKey,
   requestsSummary,
@@ -65,6 +69,7 @@ const slimIssue = (i: IssueLike): IssueLike => ({
   state_reason: i.state_reason ?? null,
   labels: i.labels.map((l) => (typeof l === 'string' ? l : (l.name ?? ''))),
   user: i.user ? { login: i.user.login } : null,
+  assignees: (i.assignees ?? []).map((a) => ({ login: a.login })),
   created_at: i.created_at,
 });
 const slimPull = (p: PullLike): PullLike => ({
@@ -75,6 +80,7 @@ const slimPull = (p: PullLike): PullLike => ({
   state: p.state,
   merged_at: p.merged_at ?? null,
   html_url: p.html_url,
+  user: p.user ? { login: p.user.login } : null,
 });
 
 async function cachedList<T>(what: 'issues' | 'closed-pulls', path: string, slim: (x: T) => T): Promise<T[]> {
@@ -113,13 +119,35 @@ function jiraUrl(key: string): string | null {
   return base ? `${base.replace(/\/+$/, '')}/browse/${encodeURIComponent(key)}` : null;
 }
 
+/** The row thumbnail: the request's first image, else the component's preview (filled from #rq-previews). */
+function thumbHtml(r: RequestRow) {
+  const img = requestImages(r).thumb;
+  return img
+    ? `<span class="rq-thumb" aria-hidden="true"><img src="${esc(img)}" alt="" loading="lazy" /></span>`
+    : `<span class="rq-thumb" aria-hidden="true" data-preview="${esc(r.component)}"></span>`;
+}
+
 function rowHtml(r: RequestRow) {
-  const pr = r.prs.find((p) => p.state === 'open') ?? r.prs.find((p) => p.merged) ?? r.prs[0];
   return `<li class="cg-row" data-request="${r.number}"><a class="cg-row-link rq-row-link" href="?request=${r.number}" data-open-request="${r.number}">
-    <span class="cg-row-title"><span class="cg-row-name" title="${esc(r.title)}"><span class="rq-comp">${esc(r.component)}</span> ${esc(r.title)}</span> <span class="cg-num">#${r.number}</span></span>
-    <span class="rq-meta">${esc(r.kindLabel)}${r.requester ? `, @${esc(r.requester)}` : ''}${pr ? `, PR #${pr.number}` : ''}${r.jiraKey ? `, <span class="mono">${esc(r.jiraKey)}</span>` : ''}</span>
+    ${thumbHtml(r)}
+    <span class="rq-row-main"><span class="cg-row-title"><span class="cg-row-name" title="${esc(r.title)}"><span class="rq-comp">${esc(r.component)}</span> ${esc(r.title)}</span> <span class="cg-num">#${r.number}</span></span>
+    <span class="rq-meta">${esc(r.kindLabel)}${r.requester ? `, asked by @${esc(r.requester)}` : ''}${r.jiraKey ? `, <span class="mono">${esc(r.jiraKey)}</span>` : ''}</span></span>
+    <span class="rq-onit">${esc(onItLabel(r))}</span>
     ${pill(r.statusLabel, `rv-status ${r.tone}`)}
     <time class="cg-date" datetime="${esc(r.createdAt)}">${esc(shortDate(r.createdAt))}</time></a></li>`;
+}
+
+/** Component previews rendered at build time, cloned into the rows that have no image of their own. */
+function fillPreviews(root: HTMLElement) {
+  root.querySelectorAll<HTMLElement>('.rq-thumb[data-preview]').forEach((slot) => {
+    const tpl = document.querySelector<HTMLTemplateElement>(`#rq-previews template[data-component="${CSS.escape(slot.dataset.preview ?? '')}"]`);
+    if (!tpl) return;
+    const box = document.createElement('span');
+    box.className = 'rq-thumb-scale';
+    box.setAttribute('inert', '');
+    box.append(tpl.content.cloneNode(true));
+    slot.append(box);
+  });
 }
 
 function paint() {
@@ -132,9 +160,11 @@ function paint() {
   const closed = rows.filter((r) => r.status === 'done' || r.status === 'declined');
   $('rq-table').hidden = empty || open.length === 0;
   $('rq-list').innerHTML = open.map(rowHtml).join('');
+  fillPreviews($('rq-list'));
   $('rq-closed').hidden = closed.length === 0;
   $('rq-closed-n').textContent = String(closed.length);
   $('rq-closed-list').innerHTML = closed.map(rowHtml).join('');
+  fillPreviews($('rq-closed-list'));
   const waiting = rows.filter((r) => r.status === 'requested').length;
   const count = $('rq-count');
   count.textContent = String(waiting);
@@ -167,13 +197,23 @@ function section(id: string, title: string, meta: string, body: string, open = f
   return `<details class="cg-sec" id="${id}"${open ? ' open' : ''}><summary class="cg-sec-head"><span class="cg-sec-title">${title}</span><span class="cg-sec-meta">${meta}</span><span class="cg-sec-chev" aria-hidden="true"></span></summary><div class="cg-sec-body">${body}</div></details>`;
 }
 
-function stateSentence(r: RequestRow): string {
-  const open = r.prs.find((p) => p.state === 'open');
-  const merged = r.prs.find((p) => p.merged);
-  if (r.status === 'in-progress' && open) return `In progress: pull request #${open.number} closes it when it merges.`;
-  if (r.status === 'done') return merged ? `Done: pull request #${merged.number} merged.` : 'Done: closed as completed on GitHub.';
-  if (r.status === 'declined') return 'Declined: closed on GitHub without a change.';
-  return `Waits for a developer. The pull request that implements it says "Closes #${r.number}".`;
+/** Before and after side by side, each with its label, or the single image the request carries. */
+function picturesHtml(r: RequestRow): { title: string; body: string } | null {
+  const { pair, single } = requestImages(r);
+  const figure = (src: string, label: string, alt: string) =>
+    `<figure class="rq-fig">${label ? `<figcaption class="rq-fig-cap">${esc(label)}</figcaption>` : ''}<a href="${esc(src)}" target="_blank" rel="noopener"><img class="rq-img" src="${esc(src)}" alt="${esc(alt)}" loading="lazy" /></a></figure>`;
+  if (pair) {
+    return {
+      title: 'Before and after',
+      body: `<div class="rq-pair-imgs">${figure(pair.before, 'Before: the baseline', `${r.component} before`)}${figure(pair.after, 'After: in Figma', `${r.component} after, in Figma`)}</div>`,
+    };
+  }
+  if (!single.length) return null;
+  const fromFigma = r.request?.source === 'figma';
+  return {
+    title: single.length === 1 ? (fromFigma ? 'In Figma' : 'Image') : 'Images',
+    body: `<div class="rq-imgs">${single.map((u, i) => figure(u, single.length === 1 ? '' : `Image ${i + 1}`, `${r.component} design ${i + 1}`)).join('')}</div>`,
+  };
 }
 
 export function renderRequestDetail(r: RequestRow): string {
@@ -181,9 +221,8 @@ export function renderRequestDetail(r: RequestRow): string {
   const open = r.prs.find((p) => p.state === 'open');
   const merged = r.prs.find((p) => p.merged);
   const pr = open ?? merged;
-  const primary = pr
-    ? `<a class="btn btn-primary" href="?pr=${pr.number}" data-open-pr="${pr.number}">${open ? 'Review' : 'Open'} pull request #${pr.number}</a>`
-    : `<a class="btn btn-primary" href="${esc(r.url)}" target="_blank" rel="noopener">Open on GitHub</a>`;
+  // One primary action, only when there is something to look at: the change that builds the request.
+  const primary = pr ? `<a class="btn btn-primary btn-lg" href="?pr=${pr.number}" data-open-pr="${pr.number}">${open ? 'Review the change' : 'Open the change'}</a>` : '';
   const jira = r.jiraKey ? (jiraUrl(r.jiraKey) ? `<a href="${esc(jiraUrl(r.jiraKey)!)}" target="_blank" rel="noopener">${esc(r.jiraKey)}</a>` : `<span class="mono">${esc(r.jiraKey)}</span>`) : '';
   const changes = req?.changes ?? [];
   const table = changes.length
@@ -191,31 +230,43 @@ export function renderRequestDetail(r: RequestRow): string {
         .map((c) => `<tr><th scope="row" class="mono">${esc(c.field)}</th><td>${esc(c.before ?? '') || '<span class="cg-muted">none</span>'}</td><td>${esc(c.after ?? '') || '<span class="cg-muted">removed</span>'}</td></tr>`)
         .join('')}</tbody></table></div>`
     : '<p class="cg-muted">No field-by-field change listed. The summary says what to do.</p>';
-  const images = (req?.images ?? []).filter((u) => /^https:\/\//.test(u));
-  const imagesBody = images.map((u, i) => `<a href="${esc(u)}" target="_blank" rel="noopener"><img class="rq-img" src="${esc(u)}" alt="${esc(`${r.component} design ${i + 1}`)}" loading="lazy" /></a>`).join('');
+  const pictures = picturesHtml(r);
   const design = req?.figma?.url ? `<p><a href="${esc(req.figma.url)}" target="_blank" rel="noopener">Open the design in Figma${req.figma.nodeName ? `: ${esc(req.figma.nodeName)}` : ''}</a></p>` : '';
-  const prList = r.prs.length
-    ? `<ul class="rq-prs">${r.prs.map((p) => `<li><a href="?pr=${p.number}" data-open-pr="${p.number}">Pull request #${p.number}</a> <span class="cg-muted">${p.merged ? 'merged' : p.state}</span> <a class="cg-muted" href="${esc(p.url)}" target="_blank" rel="noopener">GitHub</a></li>`).join('')}</ul>`
-    : `<p class="cg-muted">No pull request closes it yet.</p>`;
+  const build = buildState(r);
+  const buildBody = r.prs.length
+    ? `<ul class="rq-prs">${r.prs.map((p) => `<li><a href="?pr=${p.number}" data-open-pr="${p.number}">Change #${p.number}</a> <span class="cg-muted">${p.merged ? 'shipped' : p.state === 'open' ? 'in review' : 'closed'}${p.author ? `, by @${esc(p.author)}` : ''}</span></li>`).join('')}</ul>`
+    : `<p class="cg-muted">${r.status === 'requested' ? 'No developer has started it yet.' : 'No change was linked to it.'}</p>`;
   const cmd = implementCommand(r.number);
-  const claude = `<p>Claude reads the request, the component's files and the repo rules, then opens a pull request that closes #${r.number}.</p>
-    <div class="rq-cmd-row"><code class="cg-cmd rq-cmd" id="rq-cmd">${esc(cmd)}</code><button type="button" class="btn btn-secondary btn-sm" data-copy data-copy-from="rq-cmd"><span data-copy-label>Copy command</span></button></div>
-    <p class="cg-muted">In Claude with the Bridge MCP server, ask for the <span class="mono">bridge_get_request</span> tool with request ${r.number}.</p>`;
+  const active = r.status === 'requested' || r.status === 'in-progress';
+  const dev = `<details class="cg-sec cg-dev" id="rq-sec-dev"><summary class="cg-sec-head"><span class="cg-sec-title">For developers</span><span class="cg-sec-meta">${active ? 'Implement with Claude, GitHub' : 'GitHub'}</span><span class="cg-sec-chev" aria-hidden="true"></span></summary>
+    <div class="cg-sec-body">
+      <p>GitHub issue <a href="${esc(r.url)}" target="_blank" rel="noopener">#${r.number}</a>, labeled <span class="mono">component-change</span>. The pull request that implements it says "Closes #${r.number}".${
+        r.prs.length ? ` Linked: ${r.prs.map((p) => `<a href="${esc(p.url)}" target="_blank" rel="noopener">pull request #${p.number}</a>`).join(', ')}.` : ''
+      }</p>
+      ${
+        active
+          ? `<h3 class="ex-dev-h">Implement with Claude</h3>
+      <p>Claude reads the request, the component's files and the repo rules, then opens a pull request that closes #${r.number}.</p>
+      <div class="rq-cmd-row"><code class="cg-cmd rq-cmd" id="rq-cmd">${esc(cmd)}</code><button type="button" class="btn btn-secondary btn-sm" data-copy data-copy-from="rq-cmd"><span data-copy-label>Copy command</span></button></div>
+      <p class="cg-muted">In Claude with the Bridge MCP server, ask for the <span class="mono">bridge_get_request</span> tool with request ${r.number}.</p>`
+          : ''
+      }
+    </div></details>`;
 
   return `
   <nav class="cg-crumbs" aria-label="Breadcrumb"><a href="?view=requests" data-back-requests>Requests</a><span aria-hidden="true">/</span><span class="mono">#${r.number}</span></nav>
   <header class="zone cg-pr-open">
     <h1 class="cg-pr-title">${esc(r.component)}: ${esc(r.title.charAt(0).toLowerCase() + r.title.slice(1))} <span class="cg-num">#${r.number}</span></h1>
-    <p class="cg-pr-meta">${pill(r.kindLabel)}${pill(r.statusLabel, `rv-status ${r.tone}`)}${r.requester ? `<span>@${esc(r.requester)}</span>` : ''}<time datetime="${esc(r.createdAt)}">${esc(shortDate(r.createdAt))}</time>${jira}${pr ? `<a href="${esc(r.url)}" target="_blank" rel="noopener">Open on GitHub</a>` : ''}</p>
-    <p class="cg-pr-state">${esc(stateSentence(r))}</p>
-    <p class="cg-pr-cta">${primary}</p>
+    <p class="cg-pr-meta">${pill(r.kindLabel)}${pill(r.statusLabel, `rv-status ${r.tone}`)}${r.requester ? `<span>Asked by @${esc(r.requester)}</span>` : ''}<time datetime="${esc(r.createdAt)}">${esc(shortDate(r.createdAt))}</time>${jira}<a href="${esc(r.url)}" target="_blank" rel="noopener">Open on GitHub</a></p>
+    <p class="cg-pr-state">${esc(requestStateLine(r))}</p>
+    ${primary ? `<p class="cg-pr-cta">${primary}</p>` : ''}
   </header>
   <div class="cg-secs">
     ${section('rq-sec-summary', 'Summary', esc(r.kindLabel), `<p class="rq-summary">${esc(req?.summary || 'The issue has no Bridge summary. Open it on GitHub to read it.')}</p>${design}`, true)}
+    ${pictures ? section('rq-sec-images', pictures.title, '', pictures.body, true) : ''}
     ${section('rq-sec-changes', 'Changes', String(changes.length), table, changes.length > 0)}
-    ${images.length ? section('rq-sec-images', 'Images', String(images.length), `<div class="rq-imgs">${imagesBody}</div>`, true) : ''}
-    ${section('rq-sec-pr', 'Pull request', r.prs.length ? `#${r.prs.map((p) => p.number).join(', #')}` : 'none yet', prList)}
-    ${r.status === 'requested' || r.status === 'in-progress' ? section('rq-sec-claude', 'Implement with Claude', 'CLI or MCP', claude, r.status === 'requested') : ''}
+    ${section('rq-sec-build', 'Built by a developer', esc(build), buildBody)}
+    ${dev}
   </div>`;
 }
 

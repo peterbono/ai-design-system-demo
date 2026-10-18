@@ -36,6 +36,8 @@ export interface IssueLike {
   state_reason?: string | null;
   labels: ({ name?: string } | string)[];
   user?: { login: string } | null;
+  /** Who picked the request up on GitHub, when someone is assigned. */
+  assignees?: { login: string }[] | null;
   created_at: string;
   updated_at?: string;
   pull_request?: unknown;
@@ -49,6 +51,7 @@ export interface PullLike {
   merged_at?: string | null;
   html_url: string;
   title?: string;
+  user?: { login: string } | null;
 }
 
 export interface LinkedPull {
@@ -56,6 +59,8 @@ export interface LinkedPull {
   url: string;
   state: 'open' | 'closed';
   merged: boolean;
+  /** Who wrote the change that closes the request. */
+  author: string | null;
 }
 
 export interface RequestRow {
@@ -71,6 +76,8 @@ export interface RequestRow {
   /** Pill class: requested violet, done green, the rest grey. */
   tone: string;
   requester: string;
+  /** GitHub logins assigned to the issue. */
+  assignees: string[];
   createdAt: string;
   prs: LinkedPull[];
   /** Jira issue key, from the `jira: KEY-12` label the Jira Action adds. */
@@ -99,7 +106,7 @@ export function linkPulls(pulls: PullLike[]): Map<number, LinkedPull[]> {
     seen.add(p.number);
     for (const n of closingIssueNumbers(p.body)) {
       const list = out.get(n) ?? [];
-      list.push({ number: p.number, url: p.html_url, state: p.state === 'open' ? 'open' : 'closed', merged: Boolean(p.merged_at) });
+      list.push({ number: p.number, url: p.html_url, state: p.state === 'open' ? 'open' : 'closed', merged: Boolean(p.merged_at), author: p.user?.login ?? null });
       out.set(n, list);
     }
   }
@@ -142,6 +149,7 @@ export function requestRow(issue: IssueLike, linked: Map<number, LinkedPull[]>):
     statusLabel: REQUEST_STATUS_LABEL[status],
     tone: requestTone(status),
     requester: request?.requestedBy ?? issue.user?.login ?? '',
+    assignees: (issue.assignees ?? []).map((a) => a.login).filter(Boolean),
     createdAt: issue.created_at,
     prs,
     jiraKey: jiraKeyFrom(issue.labels),
@@ -191,6 +199,49 @@ export function requestsSummary(rows: Pick<RequestRow, 'status'>[]): string {
 export function overviewRequestsLine(rows: Pick<RequestRow, 'status'>[]): string | null {
   const n = countRequests(rows).requested;
   return n ? `${n} component ${n === 1 ? 'request' : 'requests'} waiting` : null;
+}
+
+/**
+ * Who is on a request: the issue assignee, else the author of the change that closes it (open first, then merged),
+ * else nobody yet. Read from GitHub only, never guessed.
+ */
+export function requestOwner(r: Pick<RequestRow, 'assignees' | 'prs'>): string | null {
+  const pr = r.prs.find((p) => p.state === 'open' && p.author) ?? r.prs.find((p) => p.merged && p.author);
+  return r.assignees[0] ?? pr?.author ?? null;
+}
+
+/** The "who is on it" words of a row: "@ana is on it", "Not started", "Done by @ana". */
+export function onItLabel(r: Pick<RequestRow, 'status' | 'assignees' | 'prs'>): string {
+  const who = requestOwner(r);
+  if (r.status === 'done') return who ? `Done by @${who}` : 'Done';
+  if (r.status === 'declined') return 'Declined';
+  return who ? `@${who} is on it` : 'Not started';
+}
+
+/** The one-sentence status of a request detail, in a designer's words. */
+export function requestStateLine(r: Pick<RequestRow, 'status' | 'assignees' | 'prs'>): string {
+  const who = requestOwner(r);
+  if (r.status === 'done') return who ? `Done by @${who}.` : 'Done.';
+  if (r.status === 'declined') return 'Declined: closed on GitHub without a change.';
+  if (who) return `In progress by @${who}.`;
+  return 'Waiting for a developer to pick it up.';
+}
+
+/** Where the change that builds a request stands, for its section header: "Not started", "In review", "Shipped". */
+export function buildState(r: Pick<RequestRow, 'prs'>): string {
+  if (r.prs.some((p) => p.state === 'open')) return 'In review';
+  if (r.prs.some((p) => p.merged)) return 'Shipped';
+  return r.prs.length ? 'Closed' : 'Not started';
+}
+
+/**
+ * The pictures of a request. Requests sent from Figma carry the baseline first, then the frame now in Figma: with two
+ * images they read as a before and after pair. One image is shown on its own. `thumb` is the first image, for the row.
+ */
+export function requestImages(r: Pick<RequestRow, 'request'>): { pair: { before: string; after: string } | null; single: string[]; thumb: string | null } {
+  const images = (r.request?.images ?? []).filter((u) => /^https:\/\//.test(u));
+  if (images.length === 2) return { pair: { before: images[0]!, after: images[1]! }, single: [], thumb: images[0]! };
+  return { pair: null, single: images, thumb: images[0] ?? null };
 }
 
 /** What Claude runs to implement a request. */

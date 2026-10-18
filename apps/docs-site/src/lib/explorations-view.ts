@@ -133,7 +133,8 @@ export function explorationRows(pulls: ExplorationPullLike[], cfg: ExplorationsC
         url: s.url,
         branch: s.branch,
         slug: s.slug,
-        name: s.name,
+        // Sentence case, like every title in Studio: "button normal again" reads "Button normal again".
+        name: s.name.charAt(0).toUpperCase() + s.name.slice(1),
         purpose: s.purpose,
         useCaseLabel: EXPLORATION_USE_CASES.find((u) => u.value === s.useCase)?.label ?? null,
         status: s.status,
@@ -141,7 +142,7 @@ export function explorationRows(pulls: ExplorationPullLike[], cfg: ExplorationsC
         tone: '',
         author: s.author,
         updatedAt: s.updatedAt,
-        previews: s.previews,
+        previews: s.previews.map((v) => ({ ...v, label: previewName(v.app as keyof PreviewApps, v.label) })),
         headSha: p.head.sha,
         requests: linkedRequests(s.branch, reqs),
       };
@@ -227,6 +228,74 @@ export const explorationPreviews = (r: Pick<ExplorationRow, 'branch' | 'number' 
 /** One preview row as the detail shows it: the link, or what is missing. */
 export function previewRowCopy(p: BranchPreview): { label: string; url: string | null; host: string | null; note: string | null } {
   const host = p.url ? new URL(p.url).host : null;
-  const note = !p.url ? 'Link not reported by Vercel yet' : p.state === 'building' ? 'Building the latest commit' : p.state === 'failed' ? 'The latest deploy failed' : null;
-  return { label: p.label, url: p.url, host, note };
+  const note = !p.url ? 'Link not ready yet' : p.state === 'building' ? 'Updating to the latest version' : p.state === 'failed' ? 'The latest update did not build' : null;
+  return { label: previewName(p.app, p.label), url: p.url, host, note };
 }
+
+/** Designer names of the preview apps: the Library, the component sandbox (Storybook), the admin demo. */
+export const PREVIEW_NAMES: Partial<Record<keyof PreviewApps, string>> = { docs: 'Library', storybook: 'Component sandbox', admin: 'Admin demo' };
+export const previewName = (app: keyof PreviewApps, fallback: string) => PREVIEW_NAMES[app] ?? fallback;
+
+// ---------------------------------------------------------------------------------------------------------------
+// Designer words on the first screen: no branch, pull request or main.
+
+/** Use-case help in Studio. The core hints speak to developers (branches, main); these say the same for designers. */
+export const USE_CASE_HINTS: Record<string, string> = {
+  'user-test': 'A coded prototype with the real components and tokens, for a user test in staging.',
+  'stakeholder-demo': 'Show an idea on real screens before anyone decides on it.',
+  'ab-idea': 'Try a variant in staging and compare it with what is live.',
+  terminal: 'You work with Claude Code on this exploration, never on the official library.',
+  other: 'Anything else worth trying before it becomes a change.',
+};
+export const USE_CASE_EMPTY_HINT = 'Optional. Reviewers see it, so they know why the exploration exists.';
+export const useCaseHint = (value: string) => USE_CASE_HINTS[value] ?? USE_CASE_EMPTY_HINT;
+
+const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+
+/** The purpose under the title, or null when it only repeats the name ("button normal again" twice). */
+export function purposeLine(name: string, purpose: string): string | null {
+  const p = purpose.trim();
+  if (!p || norm(p) === norm(name)) return null;
+  return p;
+}
+
+/** The status sentence of an exploration detail, without branch names. */
+export function explorationStateLine(status: ExplorationStatus): string {
+  if (status === 'promoted') return 'Promoted to review: it is a change in In review now, and goes through the usual approvals.';
+  if (status === 'closed') return 'Closed without shipping. Its previews stay for reference.';
+  return 'It never ships as is: promote it to review when the idea is validated, or close it.';
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Promote to review: who will be asked, what happens next. Before the write, from the same rules the review uses.
+
+const handles = (xs: string[]) => [...new Set(xs.map((x) => x.replace(/^@/, '')).filter(Boolean))].map((x) => `@${x}`);
+const list = (xs: string[]) => (xs.length <= 1 ? (xs[0] ?? '') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
+
+export interface PromoteAsk {
+  /** "@ana (design) and @ben (tech) will be asked to approve." */
+  who: string;
+  /** "It moves to In review. Design and tech approve, then it ships." */
+  next: string;
+}
+
+/**
+ * What the promote dialog says. `tier` comes from the files the exploration changes (the shared classifier, a dry
+ * run of the promotion); `owners` are the approver lists after rights (approverLists). Tier 3 needs a design and a
+ * tech approval; lower tiers need one approval from anyone. Unknown tier: the strictest rule, said as such.
+ */
+export function promoteAsk(tier: Tier | null, owners: { design: string[]; tech: string[] }): PromoteAsk {
+  if (tier === 1 || tier === 2) {
+    return { who: 'One teammate will be asked to approve: any reviewer can.', next: 'It moves to In review. One approval, then it ships.' };
+  }
+  const design = handles(owners.design);
+  const tech = handles(owners.tech);
+  const d = design.length ? `${list(design)} (design)` : 'a design owner';
+  const t = tech.length ? `${list(tech)} (tech)` : 'a tech owner';
+  const same = design.length > 0 && design.length === tech.length && design.every((x) => tech.includes(x));
+  const who = same ? `${list(design)} will be asked to approve, for design and for tech.` : `${d} and ${t} will be asked to approve.`;
+  return { who: `${who.charAt(0).toUpperCase()}${who.slice(1)}`, next: 'It moves to In review. Design and tech approve, then it ships.' };
+}
+
+/** After the promotion: one sentence, the link goes next to it. */
+export const promotedLine = (n: number) => `Promoted. #${n} is in In review now, waiting for its approvals.`;

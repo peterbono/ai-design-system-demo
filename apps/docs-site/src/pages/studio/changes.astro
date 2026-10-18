@@ -15,12 +15,15 @@ import HistoryPlanner from '../../components/HistoryPlanner.astro';
 import Illustration from '../../components/Illustration.astro';
 import Icon from '../../components/Icon.astro';
 import ButtonLink from '../../components/ds/ButtonLink';
-import { Alert, Button } from '@bridge-ds/react';
+import { Alert, Button, Link } from '@bridge-ds/react';
 import { siteRepo } from '../../lib/config';
 import { EXPLORATION_USE_CASES } from '@bridge-ds/core';
 import { lastUpdated, PREVIEW_APPS, PREVIEW_PACKAGES, readText } from '../../lib/repo';
 import { CONTRAST_FILE } from '../../lib/contrast';
 import { versionInfo } from '../../lib/changelog';
+import { loadComponents } from '../../lib/components';
+import Example from '../../components/Example';
+import PromoteToReview from '../../components/ds/studio/PromoteToReview';
 import type { BranchesConfig } from '../../lib/branches';
 
 const r = siteRepo();
@@ -30,6 +33,9 @@ const cfgJson = JSON.stringify(cfg).replace(/</g, '\\u003c');
 const version = versionInfo();
 const waiting = version.pending;
 const historyLine = `${version.current} is live. ${waiting === 0 ? 'Nothing waits for the next release.' : `${waiting} ${waiting === 1 ? 'change waits' : 'changes wait'} for the next release.`}`;
+// The preview of each component (its docs.json preview, rendered with the real components): a request row without
+// an image of its own shows it as its thumbnail.
+const previews = loadComponents().filter((c) => c.docs?.preview);
 const sources = ['docs/GOVERNANCE.md', '.github/CODEOWNERS', 'docs/PREVIEWS.md', 'docs/EXPLORATIONS.md', '.changeset'];
 ---
 
@@ -96,7 +102,7 @@ const sources = ['docs/GOVERNANCE.md', '.github/CODEOWNERS', 'docs/PREVIEWS.md',
       <section class="cg-panel" id="cg-requests" role="tabpanel" aria-labelledby="cg-tab-requests" hidden>
         <section class="zone cg-open" id="rq-opener" aria-live="polite">
           <p class="cg-open-sentence" id="rq-sentence">Component change requests load from GitHub.</p>
-          <p class="cg-asof rq-rule">Variables change through pull requests you approve. Components need code, so a change is a request that a pull request closes.</p>
+          <p class="cg-asof rq-rule">Token changes you can make yourself in <Link href="/studio/tokens/" data-keep-branch>Tokens</Link>. Component changes are built by a developer: ask here and follow progress.</p>
         </section>
 
         <div class="fg-card cg-card" id="rq-table">
@@ -111,12 +117,16 @@ const sources = ['docs/GOVERNANCE.md', '.github/CODEOWNERS', 'docs/PREVIEWS.md',
           <ul class="fg-card cg-list" id="rq-closed-list" aria-label="Closed component change requests"></ul>
         </details>
 
+        <div hidden id="rq-previews">
+          {previews.map((c) => <template data-component={c.name}><Example node={c.docs!.preview!} /></template>)}
+        </div>
+
         <div class="cg-empty" id="rq-empty" hidden>
           <Illustration name="guide" width={200} />
           <p class="cg-empty-title">No component change request yet.</p>
           <p class="cg-muted rq-empty-text">
             Designers ask for a new component or a change from the Push tab of the DS Bridge Figma plugin, or from a component in <a href="/studio/components/">Components</a>.
-            Each request is a GitHub issue labeled <span class="mono">component-change</span>.
+            Developers see each request where they work, on GitHub.
           </p>
         </div>
       </section>
@@ -124,14 +134,14 @@ const sources = ['docs/GOVERNANCE.md', '.github/CODEOWNERS', 'docs/PREVIEWS.md',
       <section class="cg-panel" id="cg-explore" role="tabpanel" aria-labelledby="cg-tab-explore" hidden>
         <section class="zone cg-open" id="ex-opener" aria-live="polite">
           <p class="cg-open-sentence" id="ex-sentence">Explorations load from GitHub.</p>
-          <p class="cg-asof ex-rule">Try variables and components in a product staging branch without touching main. An exploration is never merged as is: promote it to review when the idea is validated, or close it.</p>
+          <p class="cg-asof ex-rule">Try token and component ideas in a safe copy, test them in staging, then send the good ones for review.</p>
           <Button variant="primary" id="ex-start-open" aria-expanded="false" aria-controls="ex-start">Start an exploration</Button>
         </section>
 
         <form class="fg-card rq-form ex-form" id="ex-start" aria-label="Start an exploration" novalidate hidden>
           <label class="rq-field">Name
-            <input name="name" autocomplete="off" maxlength="60" placeholder="Pill buttons" aria-describedby="ex-branch" />
-            <span class="rq-hint" id="ex-branch"></span>
+            <input name="name" autocomplete="off" maxlength="60" placeholder="Pill buttons" aria-describedby="ex-name-hint" />
+            <span class="rq-hint" id="ex-name-hint">Teammates see this name in Changes and in the Figma plugin.</span>
           </label>
           <label class="rq-field">What do you want to learn?
             <textarea name="purpose" rows="2" placeholder="Do rounder buttons read as friendlier in checkout?"></textarea>
@@ -144,15 +154,19 @@ const sources = ['docs/GOVERNANCE.md', '.github/CODEOWNERS', 'docs/PREVIEWS.md',
             <span class="rq-hint" id="ex-uc-hint"></span>
           </label>
           <p class="gh-error" id="ex-start-error" role="alert" hidden></p>
-          <div class="ex-no-gh" data-no-gh>
-            <p class="rq-hint">Connect GitHub to start it here, or run this in the design system repo:</p>
-            <div class="rq-cmd-row"><code class="cg-cmd rq-cmd" id="ex-start-cmd"></code><button type="button" class="btn btn-secondary btn-sm" data-copy data-copy-from="ex-start-cmd"><span data-copy-label>Copy command</span></button></div>
-          </div>
+          <p class="rq-hint ex-no-gh" data-no-gh>Connect GitHub to start it here.</p>
           <p class="ex-actions">
             <Button type="submit" variant="primary" id="ex-start-submit" data-gh-only hidden>Start exploration</Button>
             <Button variant="secondary" data-no-gh data-gh-open>Connect GitHub</Button>
             <Button variant="ghost" data-ex-cancel>Cancel</Button>
           </p>
+          <details class="cg-sec cg-dev ex-dev">
+            <summary class="cg-sec-head"><span class="cg-sec-title">For developers</span><span class="cg-sec-meta">CLI and GitHub</span><span class="cg-sec-chev" aria-hidden="true"></span></summary>
+            <div class="cg-sec-body">
+              <p class="rq-hint" id="ex-branch"></p>
+              <div class="rq-cmd-row"><code class="cg-cmd rq-cmd" id="ex-start-cmd"></code><Button variant="secondary" size="sm" data-copy data-copy-from="ex-start-cmd"><span data-copy-label>Copy command</span></Button></div>
+            </div>
+          </details>
         </form>
         <div class="ex-done" id="ex-done" role="status" hidden></div>
 
@@ -168,10 +182,10 @@ const sources = ['docs/GOVERNANCE.md', '.github/CODEOWNERS', 'docs/PREVIEWS.md',
           <p class="cg-empty-title">No exploration running.</p>
           <p class="cg-muted ex-rule">Start one when an idea needs real screens before it becomes a change:</p>
           <ul class="ex-uses">
-            <li>A coded prototype for a user test, on a product staging branch.</li>
+            <li>A coded prototype for a user test, in staging.</li>
             <li>A stakeholder demo of a new look, with real components.</li>
             <li>An A/B idea, next to what ships today.</li>
-            <li>A designer exploring from the terminal with Claude Code, on an explore branch instead of main.</li>
+            <li>Exploring with Claude Code, in a safe copy of the library.</li>
           </ul>
         </div>
       </section>
@@ -212,6 +226,7 @@ const sources = ['docs/GOVERNANCE.md', '.github/CODEOWNERS', 'docs/PREVIEWS.md',
   </div>
 
   <HistoryPlanner />
+  <PromoteToReview client:only="react" />
   <script type="application/json" id="bridge-contrast" set:html={checks} />
   <script type="application/json" id="bridge-branches" set:html={cfgJson} />
   <script>
