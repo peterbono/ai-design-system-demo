@@ -1,99 +1,20 @@
-// Human changelog built from two sources that already exist:
-//   1. .changeset/*.md: pending entries, written by the PR author (person or agent), with the semver bump.
-//   2. git log: conventional commits, grouped by release tag (v1.2.0 or @bridge-ds/react@1.2.0).
-// Each entry gets a one-line "what changes for you" and each release a ready-to-post announcement.
-import { git, listDir, readJson, readText } from './repo';
+// Human changelog, read at build time from what the repo already has:
+//   1. each package's CHANGELOG.md (packages/* and apps/*), written by the release action: the published versions,
+//   2. .changeset/*.md: the entries waiting for the next release,
+//   3. release dates: the release tags (@bridge-ds/react@1.1.0) when the clone has them, else the commit that added
+//      the version heading to CHANGELOG.md. No date is shown when git has neither; none is ever guessed.
+// Parsing and grouping are pure, in changelog-model.ts.
+import { git, listDir, readJson, readText, exists } from './repo';
+import { announcement, groupReleases, parseChangelog, parseChangeset, sortEntries, type ChangelogSection, type Entry, type Release } from './changelog-model';
 
-export type Bump = 'major' | 'minor' | 'patch';
-
-export interface Entry {
-  source: 'changeset' | 'commit';
-  title: string;
-  kind: string; // human label: Breaking, New, Fix, Docs, Internal
-  bump: Bump | null;
-  packages: string[];
-  forYou: string;
-  date?: string;
-  ref?: string; // short sha or changeset file
-}
-
-export interface Release {
-  name: string;
-  date?: string;
-  pending: boolean;
-  entries: Entry[];
-  announcement: string;
-}
-
-const FOR_YOU: Record<string, string> = {
-  major: 'Action needed: something you use was renamed, removed or changed visibly. Check the notes before updating.',
-  minor: 'New option available. Nothing breaks; use it when it helps.',
-  patch: 'No action needed. A fix or a detail now matches the spec.',
-  feat: 'New option available. Nothing breaks; use it when it helps.',
-  fix: 'No action needed. Something now looks or behaves as specified.',
-  docs: 'Nothing changes in Figma or in the product. Guidance got clearer.',
-  internal: 'Nothing changes in Figma or in the product. Internal tooling only.',
-  breaking: 'Action needed: something you use changed. Read the notes before updating.',
-};
-
-const KIND: Record<string, string> = {
-  feat: 'New',
-  fix: 'Fix',
-  docs: 'Docs',
-  perf: 'Improvement',
-  breaking: 'Breaking',
-};
-
-function parseChangeset(file: string): Entry | null {
-  const src = readText(`.changeset/${file}`);
-  const m = src.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
-  if (!m) return null;
-  const bumps = [...m[1]!.matchAll(/"([^"]+)":\s*(major|minor|patch)/g)].map((x) => ({ pkg: x[1]!, bump: x[2] as Bump }));
-  const order: Bump[] = ['major', 'minor', 'patch'];
-  const bump = order.find((b) => bumps.some((x) => x.bump === b)) ?? 'patch';
-  const body = m[2]!.trim();
-  // Optional override written by the author: a line starting with "For you:".
-  const override = body.match(/^For you:\s*(.+)$/im)?.[1];
-  const title = body.replace(/^For you:.*$/im, '').trim().split('\n\n')[0]!.replace(/\s+/g, ' ');
-  return {
-    source: 'changeset',
-    title,
-    kind: bump === 'major' ? 'Breaking' : bump === 'minor' ? 'New' : 'Fix',
-    bump,
-    packages: bumps.map((x) => x.pkg),
-    forYou: override ?? FOR_YOU[bump]!,
-    ref: `.changeset/${file}`,
-  };
-}
+export type { Bump, Entry, Release, ReleasePackage } from './changelog-model';
 
 export function pendingChangesets(): Entry[] {
   return listDir('.changeset')
     .filter((f) => f.endsWith('.md') && f !== 'README.md')
     .sort()
-    .map(parseChangeset)
+    .map((f) => parseChangeset(readText(`.changeset/${f}`), `.changeset/${f}`))
     .filter((e): e is Entry => e !== null);
-}
-
-const CC = /^(\w+)(?:\(([^)]+)\))?(!)?:\s*(.+)$/;
-
-function commitEntry(sha: string, date: string, subject: string, body: string): Entry {
-  const m = subject.match(CC);
-  const breaking = Boolean(m?.[3]) || /BREAKING CHANGE/.test(body);
-  const type = m?.[1]?.toLowerCase() ?? 'other';
-  const scope = m?.[2];
-  const text = m?.[4] ?? subject;
-  const key = breaking ? 'breaking' : type in KIND ? type : 'internal';
-  const sentence = text.charAt(0).toUpperCase() + text.slice(1);
-  return {
-    source: 'commit',
-    title: scope ? `${sentence} (${scope})` : sentence,
-    kind: KIND[key] ?? 'Internal',
-    bump: breaking ? 'major' : type === 'feat' ? 'minor' : type === 'fix' ? 'patch' : null,
-    packages: [],
-    forYou: FOR_YOU[key] ?? FOR_YOU.internal!,
-    date,
-    ref: sha.slice(0, 7),
-  };
 }
 
 export function versionNow() {
@@ -104,73 +25,92 @@ export function versionNow() {
   }
 }
 
-function announcement(r: Omit<Release, 'announcement'>): string {
-  const visible = r.entries.filter((e) => e.kind !== 'Internal');
-  const action = r.entries.some((e) => e.kind === 'Breaking');
-  const lines = [
-    r.pending
-      ? `Design system update coming in the next release${action ? ' (action needed)' : ''}:`
-      : `Design system ${r.name} is out${action ? ' (action needed)' : ''}:`,
-    ...(visible.length ? visible : r.entries).slice(0, 8).map((e) => `- ${e.kind}: ${e.title}`),
-    '',
-    action
-      ? 'Some changes need action: check the changelog before you update your files.'
-      : 'Nothing breaks. Figma variables and the docs update automatically after merge.',
-    'Full changelog: /changelog/',
-  ];
-  return lines.join('\n');
+/** Every CHANGELOG.md of a workspace package, with its npm name and whether it is published. */
+export function changelogFiles(): { file: string; pkg: string; published: boolean }[] {
+  const out: { file: string; pkg: string; published: boolean }[] = [];
+  for (const dir of ['packages', 'apps']) {
+    for (const name of listDir(dir)) {
+      const file = `${dir}/${name}/CHANGELOG.md`;
+      if (!exists(file) || !exists(`${dir}/${name}/package.json`)) continue;
+      const pj = readJson<{ name: string; private?: boolean }>(`${dir}/${name}/package.json`);
+      out.push({ file, pkg: pj.name, published: !pj.private });
+    }
+  }
+  return out;
+}
+
+/** Release tags the clone has: "@bridge-ds/react@1.1.0" -> "2026-10-18". Empty on a clone without tags. */
+function tagDates(): Map<string, string> {
+  const raw = git(['for-each-ref', '--format=%(refname:short)\t%(creatordate:short)', 'refs/tags/']);
+  const map = new Map<string, string>();
+  for (const line of raw.split('\n')) {
+    const [tag, date] = line.split('\t');
+    if (tag && date && /@\d+\.\d+\.\d+/.test(tag)) map.set(tag, date);
+  }
+  return map;
+}
+
+/** Date of the commit that added "## <version>" to a CHANGELOG.md, or undefined when the history does not reach it. */
+function headingDate(file: string, version: string): string | undefined {
+  const out = git(['log', '--format=%cs', '-S', `## ${version}\n`, '--', file]);
+  const lines = out.split('\n').filter(Boolean);
+  return lines[lines.length - 1];
 }
 
 let releasesCache: Release[] | null = null;
+let sourceNote = '';
 
 export function releases(): Release[] {
   releasesCache ??= readReleases();
   return releasesCache;
 }
 
-function readReleases(): Release[] {
-  const SEP = '\u001f';
-  const END = '\u001e';
-  const raw = git(['log', '--no-merges', `--format=%H${SEP}%cs${SEP}%s${SEP}%b${SEP}%D${END}`]);
-  const commits = raw
-    .split(END)
-    .map((c) => c.trim())
-    .filter(Boolean)
-    .map((c) => {
-      const [sha = '', date = '', subject = '', body = '', refs = ''] = c.split(SEP);
-      const tag = refs.match(/tag: ((?:v|@bridge-ds\/[\w-]+@)\d+\.\d+\.\d+[^,]*)/)?.[1];
-      return { sha, date, subject, body, tag };
-    });
+/** Where the release dates came from on this build, for the "For developers" section. */
+export function releaseDateSource(): string {
+  releases();
+  return sourceNote;
+}
 
-  const groups: Omit<Release, 'announcement'>[] = [];
-  let current: Omit<Release, 'announcement'> = { name: 'Unreleased', pending: true, entries: [], date: undefined };
-  const pending = pendingChangesets();
-  current.entries.push(...pending);
-  groups.push(current);
-  for (const c of commits) {
-    if (c.tag) {
-      current = { name: c.tag.replace(/^@bridge-ds\/[\w-]+@/, 'v'), pending: false, entries: [], date: c.date };
-      groups.push(current);
+function readReleases(): Release[] {
+  const files = changelogFiles();
+  const sections: ChangelogSection[] = files.flatMap((f) => parseChangelog(readText(f.file), f.pkg, f.published));
+  const tags = tagDates();
+  const fileOf = new Map(files.map((f) => [f.pkg, f.file]));
+  let fromTags = 0;
+  let fromLog = 0;
+  const dateOf = (pkg: string, version: string) => {
+    const tagged = tags.get(`${pkg}@${version}`);
+    if (tagged) {
+      fromTags++;
+      return tagged;
     }
-    current.entries.push(commitEntry(c.sha, c.date, c.subject, c.body));
-  }
-  const first = groups[0]!;
-  if (groups.length === 1) {
-    first.name = `Unreleased (current version ${versionNow()}, no release tagged yet)`;
-  }
-  if (!first.date) first.date = commits[0]?.date;
-  return groups.filter((g) => g.entries.length).map((g) => ({ ...g, announcement: announcement(g) }));
+    const logged = fileOf.has(pkg) ? headingDate(fileOf.get(pkg)!, version) : undefined;
+    if (logged) fromLog++;
+    return logged;
+  };
+  const released = groupReleases(sections, dateOf);
+  sourceNote =
+    fromTags || fromLog
+      ? `Release dates come from ${[fromTags && 'the release tags', fromLog && 'the commit that added each version to CHANGELOG.md'].filter(Boolean).join(' and ')}.`
+      : 'This build had no release tags and no history for the CHANGELOG.md files, so release dates are not shown.';
+
+  const pending = pendingChangesets();
+  const next: Omit<Release, 'announcement'>[] = pending.length
+    ? [{ name: 'Coming in the next release', pending: true, packages: [], entries: sortEntries(pending), date: undefined }]
+    : [];
+  return [...next, ...released].map((r) => ({ ...r, announcement: announcement(r) }));
 }
 
 /**
- * The version the Library shows (the package version on main) and the tagged releases before it. Past releases
- * have notes in the Changelog but no archived docs yet, so the header menu lists them as not browsable.
+ * The version the Library shows (the package version on main) and the releases before it. Past releases have notes
+ * in the Changelog but no archived docs yet, so the header menu lists them as not browsable.
  */
 export function versionInfo(): { current: string; past: { name: string; date?: string }[]; pending: number } {
   const all = releases();
+  const current = `v${versionNow()}`;
   return {
-    current: `v${versionNow()}`,
-    past: all.filter((r) => !r.pending).map((r) => ({ name: r.name, date: r.date })),
+    current,
+    past: all.filter((r) => !r.pending && r.name.startsWith('v') && r.name !== current).map((r) => ({ name: r.name, date: r.date })),
     pending: all.filter((r) => r.pending).reduce((n, r) => n + r.entries.length, 0),
   };
 }
