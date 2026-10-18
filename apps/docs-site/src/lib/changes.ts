@@ -2,12 +2,13 @@
 // no fetch: shared by scripts/changes and scripts/reviews, unit tested in changes.test.ts.
 //
 // Color means status, never risk. Four groups, one tone each, everywhere in the Studio:
-//   blocked  red     CI failing, changes requested, merge conflict
+//   blocked  red     blocked by tests, changes requested, conflict
 //   waiting  violet  waiting for an approval
-//   ready    green   ready to merge
-//   neutral  grey    draft, unknown, checks running, merged, closed
-// Risk tiers are plain grey labels ("Tier 2"), so a Tier 3 change that is ready reads green, not red.
-import { mergeGate, type ApprovalSummary, type CiSummary, type MergeGate, type MissingApproval, type PullState, type ReviewStatusKind, type Tier } from './review-rules';
+//   ready    green   ready to ship
+//   neutral  grey    draft, unknown, checks running or checking, shipped, closed
+// What a change needs is plain words, never colored ("Design + tech", lib/review-queue), so a token change that
+// is ready reads green, not red.
+import { CONFLICT_REASON, mergeGate, type ApprovalSummary, type CiSummary, type MergeGate, type MissingApproval, type PullState, type ReviewStatusKind, type Tier } from './review-rules';
 import type { TokenReview } from './token-review';
 
 export type StatusGroup = 'blocked' | 'waiting' | 'ready' | 'neutral';
@@ -21,6 +22,7 @@ export const STATUS_GROUP: Record<ReviewStatusKind, StatusGroup> = {
   'needs-approval': 'waiting',
   ready: 'ready',
   'ci-running': 'neutral',
+  checking: 'neutral',
   draft: 'neutral',
   unknown: 'neutral',
   merged: 'neutral',
@@ -58,7 +60,7 @@ export interface UrgencyRow {
 
 export function urgencyRank(kind: ReviewStatusKind | null | undefined): number {
   // Running checks and unknown statuses may turn out blocked: above drafts, merged and closed ones.
-  if (kind === 'ci-running' || kind === 'unknown' || !kind) return URGENCY.neutral;
+  if (kind === 'ci-running' || kind === 'checking' || kind === 'unknown' || !kind) return URGENCY.neutral;
   if (kind === 'draft' || kind === 'merged' || kind === 'closed') return URGENCY.neutral + 1;
   return URGENCY[STATUS_GROUP[kind]];
 }
@@ -75,21 +77,22 @@ export interface OpenerRow extends UrgencyRow {
 }
 
 export interface Opener {
-  /** "3 changes open. #3 is blocked by a failing check." */
+  /** "3 changes in review. #3 is blocked by tests on the developer side." */
   sentence: string;
   /** The one primary action: review the most urgent pull request. Null when nothing is open. */
   action: { label: string; pr: number } | null;
 }
 
 const WHY: Partial<Record<ReviewStatusKind, string>> = {
-  'ci-failing': 'is blocked by a failing check',
-  conflict: 'is blocked by a merge conflict',
+  'ci-failing': 'is blocked by tests on the developer side',
+  conflict: 'is blocked by a conflict on the developer side',
   'changes-requested': 'is blocked: a reviewer requested changes',
   'needs-design': 'waits for a design approval',
   'needs-tech': 'waits for a tech approval',
   'needs-approval': 'waits for an approval',
-  ready: 'is ready to merge',
-  'ci-running': 'is waiting for its checks',
+  ready: 'is ready to ship',
+  'ci-running': 'is waiting for its tests',
+  checking: 'is still being checked',
   draft: 'is still a draft',
 };
 
@@ -98,9 +101,9 @@ export function openerFor(rows: OpenerRow[]): Opener {
   const n = rows.length;
   if (!n) return { sentence: 'Nothing to review.', action: null };
   const first = byUrgency(rows)[0]!;
-  const count = `${n} ${n === 1 ? 'change' : 'changes'} open.`;
+  const count = `${n} ${n === 1 ? 'change' : 'changes'} in review.`;
   const why = first.kind ? WHY[first.kind] : undefined;
-  return { sentence: why ? `${count} #${first.number} ${why}.` : `${count} Open one to see its checks and approvals.`, action: { label: `Review #${first.number}`, pr: first.number } };
+  return { sentence: why ? `${count} #${first.number} ${why}.` : `${count} Open one to see its tests and approvals.`, action: { label: `Review #${first.number}`, pr: first.number } };
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -127,21 +130,21 @@ export interface DetailState {
 
 /** One sentence for the pull request opener: what blocks it, then what it needs after that. */
 export function detailSentence(s: DetailState): string {
-  if (s.state === 'merged') return 'Merged.';
-  if (s.state === 'closed') return 'Closed without merging.';
+  if (s.state === 'merged') return 'Shipped.';
+  if (s.state === 'closed') return 'Closed without shipping.';
   const needs = missingApprovals(s.gate.missing);
   const after = needs ? ` After that it needs ${needs}.` : '';
   if (s.state === 'draft') return `Draft: mark it ready for review on GitHub first.${after}`;
   if (s.ci.state === 'fail') {
     const many = s.ci.failed.length > 1;
-    return `Blocked: the ${names(s.ci.failed)} check${many ? 's fail' : ' fails'}.${after}`;
+    return `Blocked: the ${names(s.ci.failed)} test${many ? 's fail' : ' fails'}.${after}`;
   }
   if (s.changesRequestedBy.length) return `Blocked: @${s.changesRequestedBy.join(', @')} requested changes.${after}`;
-  if (s.gate.reasons.some((r) => /merge conflict/.test(r))) return `Blocked: GitHub reports a merge conflict.${after}`;
-  if (s.ci.state === 'pending') return `Checks are still running.${after}`;
-  if (needs) return `Waiting for ${needs}. Checks pass.`;
-  if (s.gate.allowed) return 'Ready to merge: checks pass and the approvals are in.';
-  return s.ci.state === 'none' ? `No checks reported for this commit yet.${after}` : 'Open the checks and the conversation to see what it needs.';
+  if (s.gate.reasons.includes(CONFLICT_REASON)) return `Blocked: it conflicts with the latest library.${after}`;
+  if (s.ci.state === 'pending') return `Tests are still running.${after}`;
+  if (needs) return `Waiting for ${needs}. Tests pass.`;
+  if (s.gate.allowed) return 'Ready to ship: tests pass and the approvals are in.';
+  return s.ci.state === 'none' ? `No tests reported for this version yet.${after}` : 'Open the tests and the conversation to see what it needs.';
 }
 
 export type PrimaryKind = 'open-run' | 'connect' | 'approve' | 'merge' | 'github';
@@ -161,9 +164,9 @@ export function primaryAction(input: {
 }): { kind: PrimaryKind; label: string; url?: string } {
   if (input.state === 'merged' || input.state === 'closed') return { kind: 'github', label: 'Open on GitHub' };
   const failed = input.ci.state === 'fail' ? input.ci.failed.find((f) => f.url) : undefined;
-  if (failed) return { kind: 'open-run', label: 'Open failing run', url: failed.url };
+  if (failed) return { kind: 'open-run', label: 'Open failing test', url: failed.url };
   if (!input.connected) return { kind: 'connect', label: 'Connect GitHub to review' };
-  if (input.gate.allowed && input.canWrite) return { kind: 'merge', label: 'Merge' };
+  if (input.gate.allowed && input.canWrite) return { kind: 'merge', label: 'Ship' };
   const green = input.ci.state === 'pass' || input.ci.state === 'none';
   if (green && input.gate.missing.length && !input.isAuthor && input.state === 'open') return { kind: 'approve', label: 'Approve' };
   return { kind: 'github', label: 'Open on GitHub' };
@@ -196,21 +199,28 @@ export type Need =
   | { kind: 'address-changes'; by: string[] }
   | { kind: 'resolve-conflict' }
   | { kind: 'checks-running'; then: ApprovalRole[] }
+  /** GitHub has not said yet whether the change fits the latest library (mergeable null). */
+  | { kind: 'checking-merge'; then: ApprovalRole[] }
   | { kind: 'approve'; roles: ApprovalRole[] }
   | { kind: 'ready' }
   | { kind: 'unknown' };
 
-/** The need of an opened pull request, in the order mergeGate blocks: lifecycle, draft, CI, changes, conflict, approvals. */
-export function needFromDetail(s: { state: PullState; ci: CiSummary; gate: MergeGate; changesRequestedBy: string[]; exploration?: boolean }): Need {
+/**
+ * The need of an opened pull request, in the order mergeGate blocks: lifecycle, draft, CI, changes, conflict, then
+ * approvals. Same order as the list chip (review-rules reviewStatus). `mergeable` null: GitHub is still computing
+ * whether it fits the latest library, so nothing promises an approval or a ship yet.
+ */
+export function needFromDetail(s: { state: PullState; ci: CiSummary; gate: MergeGate; changesRequestedBy: string[]; exploration?: boolean; mergeable?: boolean | null }): Need {
   if (s.state === 'merged') return { kind: 'merged' };
   if (s.state === 'closed') return { kind: 'closed' };
   if (s.exploration) return { kind: 'exploration' };
   if (s.state === 'draft') return { kind: 'draft' };
   if (s.ci.state === 'fail') return { kind: 'fix-checks', failing: s.ci.failed.length };
   if (s.changesRequestedBy.length) return { kind: 'address-changes', by: s.changesRequestedBy };
-  if (s.gate.reasons.some((r) => /merge conflict/.test(r))) return { kind: 'resolve-conflict' };
+  if (s.gate.reasons.includes(CONFLICT_REASON)) return { kind: 'resolve-conflict' };
   const roles = s.gate.missing.map((m) => ROLE_OF[m]);
   if (s.ci.state === 'pending') return { kind: 'checks-running', then: roles };
+  if (s.mergeable === null && s.state === 'open') return { kind: 'checking-merge', then: roles };
   if (roles.length) return { kind: 'approve', roles };
   if (s.gate.allowed) return { kind: 'ready' };
   return { kind: 'unknown' };
@@ -232,6 +242,8 @@ export function needFromStatus(kind: ReviewStatusKind | null | undefined, extra:
       return { kind: 'resolve-conflict' };
     case 'ci-running':
       return { kind: 'checks-running', then: [] };
+    case 'checking':
+      return { kind: 'checking-merge', then: [] };
     case 'needs-design':
       return { kind: 'approve', roles: ['design'] };
     case 'needs-tech':
@@ -344,9 +356,9 @@ export function whoActs(need: Need, p: People): WhoActs {
 
   switch (need.kind) {
     case 'merged':
-      return { who: 'nobody', logins: [], yourTurn: false, action: 'none', sentence: 'Merged.', short: null };
+      return { who: 'nobody', logins: [], yourTurn: false, action: 'none', sentence: 'Shipped.', short: null };
     case 'closed':
-      return { who: 'nobody', logins: [], yourTurn: false, action: 'none', sentence: 'Closed without merging.', short: null };
+      return { who: 'nobody', logins: [], yourTurn: false, action: 'none', sentence: 'Closed without shipping.', short: null };
     case 'unknown':
       return { who: 'nobody', logins: [], yourTurn: false, action: 'none', sentence: 'Open the checks and the conversation to see what it needs.', short: null };
     case 'draft':
@@ -354,17 +366,22 @@ export function whoActs(need: Need, p: People): WhoActs {
     case 'exploration':
       return authorTurn('promote', 'promote this exploration to review, or close it', 'promote this exploration to review', 'Author to promote it', 'Your turn: promote it');
     case 'fix-checks':
-      return authorTurn('fix-checks', `fix ${checks(need.failing)}`, `fix ${checks(need.failing)}`, 'Author to fix checks', 'Your turn: fix checks');
+      return authorTurn('fix-checks', `fix ${checks(need.failing)}`, `fix ${checks(need.failing)}`, 'Blocked by tests', 'Your turn: fix tests');
     case 'address-changes': {
       const by = need.by.length ? ` @${need.by.join(', @')} requested` : ' a reviewer requested';
       return authorTurn('address-changes', `address the changes${by}`, `address the changes${by}`, 'Author to address changes', 'Your turn: address changes');
     }
     case 'resolve-conflict':
-      return authorTurn('resolve-conflict', 'resolve a merge conflict', 'resolve a merge conflict', 'Author to resolve a conflict', 'Your turn: resolve a conflict');
+      return authorTurn('resolve-conflict', 'resolve a conflict with the latest library', 'resolve a conflict with the latest library', 'Author to resolve a conflict', 'Your turn: resolve a conflict');
     case 'checks-running': {
       const next = need.then[0];
       const then = next ? ` Then ${namedRole(next, eligibleFor(next, p).logins)} approves.` : ' Then it is ready to publish.';
-      return { who: 'nobody', logins: [], yourTurn: false, action: 'wait', sentence: `Checks are still running.${then}`, short: 'Checks running' };
+      return { who: 'nobody', logins: [], yourTurn: false, action: 'wait', sentence: `Tests are still running.${then}`, short: 'Tests running' };
+    }
+    case 'checking-merge': {
+      const next = need.then[0];
+      const then = next ? ` Then ${namedRole(next, eligibleFor(next, p).logins)} approves.` : '';
+      return { who: 'nobody', logins: [], yourTurn: false, action: 'wait', sentence: `Checking that it fits the latest library.${then}`, short: 'Checking' };
     }
     case 'approve': {
       // The viewer first: the first role they can give.
@@ -375,8 +392,8 @@ export function whoActs(need: Need, p: People): WhoActs {
       // Every listed owner wrote the change or already approved: only the owner override can merge it.
       if (!e.open && e.logins.length === 0) {
         const by = (p.overrideBy ?? []).map((x) => x.replace(/^@/, ''));
-        if (p.overridable) return { who: 'you', logins: p.viewer ? [p.viewer] : [], yourTurn: true, action: 'override', sentence: `Your turn: no other ${ROLE_NAME[role]} can approve, so merge it with the owner override.`, short: 'Your turn: owner override' };
-        const via = by.length ? ` @${by.join(' or @')} can merge it with the owner override.` : ' Add an owner in Settings.';
+        if (p.overridable) return { who: 'you', logins: p.viewer ? [p.viewer] : [], yourTurn: true, action: 'override', sentence: `Your turn: no other ${ROLE_NAME[role]} can approve, so ship it with the owner override, under More.`, short: 'Your turn: owner override' };
+        const via = by.length ? ` @${by.join(' or @')} can ship it with the owner override.` : ' Add an owner in Settings.';
         return { who: 'owner', logins: by, yourTurn: false, action: 'override', sentence: `No other ${ROLE_NAME[role]} can approve.${via}`, short: 'Owner override needed' };
       }
       const both = need.roles.length > 1 && need.roles.includes('design') && need.roles.includes('tech');
@@ -393,9 +410,9 @@ export function whoActs(need: Need, p: People): WhoActs {
     case 'ready': {
       const owners = (p.shippers?.length ? uniq(p.shippers) : uniq([...p.owners.design, ...p.owners.tech])).map((x) => x.replace(/^@/, ''));
       const mine = p.canMerge ?? owners.some((o) => same(o, p.viewer));
-      if (p.viewer && mine) return { who: 'you', logins: [p.viewer], yourTurn: true, action: 'merge', sentence: 'Your turn: ready to publish. Merge it.', short: 'Your turn: ship it' };
+      if (p.viewer && mine) return { who: 'you', logins: [p.viewer], yourTurn: true, action: 'merge', sentence: 'Your turn: ready to ship.', short: 'Your turn: ship it' };
       const who = owners.length ? at(owners) : 'an owner';
-      return { who: 'owner', logins: owners, yourTurn: false, action: 'merge', sentence: `Ready to publish: ${who} can ship it.`, short: 'Ready to ship' };
+      return { who: 'owner', logins: owners, yourTurn: false, action: 'merge', sentence: `Ready to ship: ${who} can ship it.`, short: 'Ready to ship' };
     }
   }
 }

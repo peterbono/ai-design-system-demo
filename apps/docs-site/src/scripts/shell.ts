@@ -5,6 +5,7 @@ import { ghGet, initGitHubConnect, readRepo } from './github-session';
 import { initMaintainer } from './maintainer';
 import { mdTitleText } from '../lib/markdown';
 import { openPulls } from '../lib/review-rules';
+import { reviewQueue } from '../lib/review-queue';
 import { cachedOpenCount, OPEN_COUNT_KEY } from '../lib/changes';
 
 interface SearchItem {
@@ -542,6 +543,7 @@ interface Pull {
   merged_at?: string | null;
   labels?: { name: string }[];
   head: { ref: string };
+  user?: { login: string } | null;
 }
 
 const safeStorage = () => {
@@ -605,8 +607,9 @@ function initStudio() {
   ghGet<Pull[]>(`/repos/${repo.owner}/${repo.repo}/pulls?state=open&per_page=100`)
     .then((f) => {
       const open = openPulls(f.data);
-      // Running explorations are never merged as is: they do not wait for review (Changes > Explorations).
-      const inReview = open.filter((p) => !(p.labels ?? []).some((l) => l.name === 'exploration')).length;
+      // The review queue, the same list as the In review tab and the Overview (lib/review-queue): no running
+      // explorations, no release automation.
+      const inReview = reviewQueue(f.data.map((p) => ({ ...p, state: p.state ?? 'open' }))).length;
       setCount('reviews', inReview);
       if (!f.stale) {
         try {

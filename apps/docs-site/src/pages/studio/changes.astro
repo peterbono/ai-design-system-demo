@@ -20,7 +20,8 @@ import { siteRepo } from '../../lib/config';
 import { EXPLORATION_USE_CASES } from '@bridge-ds/core';
 import { lastUpdated, PREVIEW_APPS, PREVIEW_PACKAGES, readText } from '../../lib/repo';
 import { CONTRAST_FILE } from '../../lib/contrast';
-import { versionInfo } from '../../lib/changelog';
+import { pendingChangesets, versionInfo } from '../../lib/changelog';
+import { waitingLine } from '../../lib/release-view';
 import type { BranchesConfig } from '../../lib/branches';
 
 const r = siteRepo();
@@ -28,14 +29,18 @@ const checks = readText(CONTRAST_FILE).replace(/</g, '\\u003c');
 const cfg: BranchesConfig = { owner: r.owner, repo: r.repo, defaultBranch: r.defaultBranch, apps: PREVIEW_APPS, packages: PREVIEW_PACKAGES };
 const cfgJson = JSON.stringify(cfg).replace(/</g, '\\u003c');
 const version = versionInfo();
-const waiting = version.pending;
-const historyLine = `${version.current} is live. ${waiting === 0 ? 'Nothing waits for the next release.' : `${waiting} ${waiting === 1 ? 'change waits' : 'changes wait'} for the next release.`}`;
+// Changes that wait for the next release = changesets on main, the unit the release pull request counts too, so the
+// line and the "Next release" card (filled in the browser from that pull request) never disagree.
+const historyLine = waitingLine(version.current, pendingChangesets().length);
+const repoUrl = `https://github.com/${r.owner}/${r.repo}`;
+// Fixture history is a development aid: production builds never show the switch.
+const demoHistory = import.meta.env.DEV;
 const sources = ['docs/GOVERNANCE.md', '.github/CODEOWNERS', 'docs/PREVIEWS.md', 'docs/EXPLORATIONS.md', '.changeset'];
 ---
 
 <Layout
   title="Changes"
-  description="Open pull requests to review, most urgent first, the local draft, branches with previews, and the history of merged token changes with a safe undo."
+  description="Changes to review, most urgent first, the local draft, and the history of shipped token changes with the next release and a safe undo."
   sources={sources}
   updated={lastUpdated(sources)}
   wide
@@ -70,10 +75,10 @@ const sources = ['docs/GOVERNANCE.md', '.github/CODEOWNERS', 'docs/PREVIEWS.md',
           <ButtonLink size="sm" href="/studio/tokens/#review" data-keep-branch>Review and propose</ButtonLink>
         </div>
 
-        <p class="cg-muted cg-filter" id="cg-tier-filter" hidden>Showing <span data-tier-label>one tier</span> only. <a href="/studio/changes/">Show all</a></p>
+        <p class="cg-muted cg-filter" id="cg-tier-filter" hidden>Showing <span data-tier-label>one kind of change</span> only. <a href="/studio/changes/">Show all</a></p>
 
         <div class="fg-card cg-card" id="cg-table">
-          <ul class="cg-list" id="rv-list" aria-label="Open pull requests" aria-busy="true">
+          <ul class="cg-list" id="rv-list" aria-label="Changes in review" aria-busy="true">
             <li class="cg-row cg-skel" aria-hidden="true"></li>
             <li class="cg-row cg-skel" aria-hidden="true"></li>
             <li class="cg-row cg-skel" aria-hidden="true"></li>
@@ -86,10 +91,12 @@ const sources = ['docs/GOVERNANCE.md', '.github/CODEOWNERS', 'docs/PREVIEWS.md',
           <p class="cg-muted">Changes proposed from <a href="/studio/tokens/" data-keep-branch>Tokens</a> land here.</p>
         </div>
 
-        <details class="cg-other" id="other-branches" hidden>
-          <summary class="cg-sec-head"><span class="cg-sec-title">Other branches</span><span class="cg-sec-meta" id="cg-other-n"></span><span class="cg-sec-chev" aria-hidden="true"></span></summary>
-          <p class="cg-muted">Branches without a pull request: deploy previews only.</p>
-          <ul class="fg-card cg-list" id="cg-other-list"></ul>
+        <details class="cg-sec cg-dev cg-dev-page" id="other-branches">
+          <summary class="cg-sec-head"><span class="cg-sec-title">For developers</span><span class="cg-sec-meta">Branches and automation on GitHub</span><span class="cg-sec-chev" aria-hidden="true"></span></summary>
+          <div class="cg-sec-body">
+            <p class="cg-muted">This list holds the changes people review. Branches without a pull request, and the release pull request the changesets action opens, live on GitHub. The release shows as the next release in History.</p>
+            <p class="cg-links"><a href={`${repoUrl}/branches`} target="_blank" rel="noopener">Branches on GitHub</a><a href={`${repoUrl}/pulls`} target="_blank" rel="noopener">All pull requests on GitHub</a></p>
+          </div>
         </details>
       </section>
 
@@ -177,15 +184,21 @@ const sources = ['docs/GOVERNANCE.md', '.github/CODEOWNERS', 'docs/PREVIEWS.md',
       </section>
 
       <section class="cg-panel" id="cg-history" role="tabpanel" aria-labelledby="cg-tab-history" hidden>
+        <section class="zone cg-open hs-next" id="hs-next" aria-live="polite" aria-labelledby="hs-next-title">
+          <p class="cg-open-sentence" id="hs-next-title">{historyLine}</p>
+          <ul class="hs-next-lines" id="hs-next-lines" hidden></ul>
+          <p class="cg-asof" id="hs-next-who" hidden></p>
+          <ButtonLink variant="primary" href="/studio/changes/" id="hs-next-cta" hidden>Review and publish</ButtonLink>
+        </section>
         <div class="cg-hs-head">
-          <p class="cg-hs-line">{historyLine}</p>
+          <p class="cg-hs-line">Token changes, by release</p>
           <Button variant="secondary" size="sm" id="hs-filter-toggle" aria-expanded="false" aria-controls="hs-filters">Filter</Button>
         </div>
         <form class="hs-filters" id="hs-filters" role="search" aria-label="Filter history" hidden>
           <label class="gh-field"><span>Token</span><input id="hs-token" list="hs-paths" placeholder="color.text.muted or color.text" autocomplete="off" spellcheck="false" /></label>
           <datalist id="hs-paths"></datalist>
           <label class="gh-field"><span>Author</span><select id="hs-author"><option value="">Anyone</option></select></label>
-          <label class="gh-field"><span>Tier</span><select id="hs-tier"><option value="">Any tier</option><option value="3">Tier 3</option><option value="2">Tier 2</option><option value="1">Tier 1</option></select></label>
+          <label class="gh-field"><span>Kind of change</span><select id="hs-tier"><option value="">Any change</option><option value="3">Token changes, design + tech approval</option><option value="2">Component changes, one approval</option><option value="1">Docs fixes, one approval</option></select></label>
           <Button type="reset" variant="secondary" size="sm" id="hs-clear">Clear filters</Button>
         </form>
         <Alert tone="warning" announce="off" title="Demo data: fixture changes, not this repository's history." className="st-hideable st-hs-banner" id="hs-banner" hidden>Nothing here can be proposed.</Alert>
@@ -199,11 +212,17 @@ const sources = ['docs/GOVERNANCE.md', '.github/CODEOWNERS', 'docs/PREVIEWS.md',
         <div id="hs-detail" class="hs-detail" hidden></div>
 
         <div class="hs-bar cg-hs-foot">
-          <button type="button" class="hs-switch" id="hs-demo" role="switch" aria-checked="false">
-            <span class="hs-switch-track" aria-hidden="true"><span class="hs-switch-thumb"></span></span>
-            <span>Show demo history</span>
-          </button>
-          <span class="cg-muted">Fixture changes, to try the timeline and undo.</span>
+          {
+            demoHistory && (
+              <>
+                <button type="button" class="hs-switch" id="hs-demo" role="switch" aria-checked="false">
+                  <span class="hs-switch-track" aria-hidden="true"><span class="hs-switch-thumb"></span></span>
+                  <span>Show demo history</span>
+                </button>
+                <span class="cg-muted">Development only: fixture changes, to try the timeline and undo.</span>
+              </>
+            )
+          }
           <a class="cg-hs-log" href="/changelog/">Library changelog</a>
         </div>
       </section>
