@@ -4,6 +4,8 @@
 // review list. Reads go through ghGet, so they are cached in this browser and survive a rate limit; statuses are
 // kept per head commit for 10 minutes (lib/status-budget).
 import { effectiveTier } from '../lib/review-queue';
+import { isGuidanceOnly } from '../lib/overview-todo';
+import { touchesVisuals } from '../lib/visual-impact';
 import { currentViewer, esc, ghGet, hasWorkingToken, readRepo } from './github-session';
 import { needFromStatus, statusTone, whoActs } from '../lib/changes';
 import { planStatusReads, statusCacheKey, type CachedStatus } from '../lib/status-budget';
@@ -81,6 +83,11 @@ export interface PullStatus extends ReviewStatus {
   approvers?: string[];
   changesRequested?: string[];
   failing?: number;
+  /** Names of the failing checks ("Changeset present"), so the Overview can name the blocker. */
+  failingChecks?: string[];
+  /** From the changed files (when read): it touches what the visual impact run captures, or only usage guidance. */
+  touchesVisuals?: boolean;
+  guidanceOnly?: boolean;
   /** The approval rule of the change: label or computed from its files, highest wins. Null when unknown. */
   tier?: Tier | null;
 }
@@ -129,7 +136,16 @@ export async function pullStatus(p: PullForStatus, opts: { lean?: boolean } = {}
   // Only an open change that nothing else blocks needs to know whether it merges cleanly.
   const needsMergeable = pullState(p) === 'open' && !['ci-failing', 'changes-requested', 'ci-running', 'unknown'].includes(before.kind);
   const status = needsMergeable ? reviewStatus({ state: p.state, draft: p.draft, merged_at: p.merged_at, ci, approvals, tier, mergeable: await mergeableOf(p) }) : before;
-  return { ...status, approvers: approvals?.approvers, changesRequested: approvals?.changesRequested, failing: ci?.failed.length, tier };
+  const names = files?.map((f) => f.filename) ?? null;
+  return {
+    ...status,
+    approvers: approvals?.approvers,
+    changesRequested: approvals?.changesRequested,
+    failing: ci?.failed.length,
+    failingChecks: ci?.failed.map((f) => f.name),
+    tier,
+    ...(names ? { touchesVisuals: touchesVisuals(names), guidanceOnly: isGuidanceOnly(names) } : {}),
+  };
 }
 
 /** Shown on rows left out of the anonymous budget. */

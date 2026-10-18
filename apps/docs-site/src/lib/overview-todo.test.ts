@@ -1,15 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { needFromStatus, whoActs } from './changes';
-import { othersLine, overviewTodo, showAllLabel, type TodoChange, type TodoRequest } from './overview-todo';
+import { developerLine, isGuidanceChange, isGuidanceOnly, othersLine, overviewTodo, showAllLabel, type TodoChange, type TodoRequest } from './overview-todo';
 
 const owners = { design: ['peterbono'], tech: ['peterbono'] };
-const who = (kind: Parameters<typeof needFromStatus>[0], author: string, viewer: string | null, extra: { failing?: number } = {}) =>
-  whoActs(needFromStatus(kind, extra), { owners, author, viewer, overrideBy: ['peterbono'] });
-const change = (n: number, kind: Parameters<typeof needFromStatus>[0], author: string, viewer: string | null, failing?: number): TodoChange => ({
+type Kind = Parameters<typeof needFromStatus>[0];
+const who = (kind: Kind, author: string, viewer: string | null, extra: { failing?: number; changesRequestedBy?: string[] } = {}, o = owners) =>
+  whoActs(needFromStatus(kind, extra), { owners: o, author, viewer, overrideBy: ['peterbono'] });
+const change = (n: number, kind: Kind, author: string, viewer: string | null, extra: Partial<TodoChange> = {}, o = owners): TodoChange => ({
   number: n,
   title: `Change ${n}`,
-  who: who(kind, author, viewer, { failing }),
-  failing,
+  who: who(kind, author, viewer, { failing: extra.failing, changesRequestedBy: extra.changesBy }, o),
+  ...extra,
 });
 const request = (n: number, extra: Partial<TodoRequest> = {}): TodoRequest => ({
   number: n,
@@ -21,108 +22,216 @@ const request = (n: number, extra: Partial<TodoRequest> = {}): TodoRequest => ({
   prs: [],
   ...extra,
 });
+const team = { design: ['peterbono', 'lea'], tech: ['peterbono', 'dev'] };
 
-describe('overview to-do', () => {
-  it('lists what waits for the viewer, with the task on the button', () => {
+describe('overview to-do: work sorted by kind', () => {
+  it('sends technical blockers to the developer group, even when the viewer wrote the change', () => {
+    // The owner's case: agent-made changes under his name, a test fails and one clashes with the library.
     const t = overviewTodo({
-      changes: [change(3, 'ci-failing', 'peterbono', 'peterbono', 1), change(7, 'needs-design', 'ana', 'peterbono')],
-      requests: [],
+      changes: [change(3, 'ci-failing', 'peterbono', 'peterbono', { failing: 1 }), change(2, 'conflict', 'peterbono', 'peterbono'), change(1, 'ci-failing', 'peterbono', 'peterbono', { failing: 2 })],
+      requests: [request(81), request(65, { requester: '' })],
       viewer: 'peterbono',
       owners: ['peterbono'],
     });
-    expect(t.headline).toBe('2 changes wait for you.');
+    expect(t.headline).toBe('2 decisions wait for you.');
     expect(t.mine.map((r) => [r.title, r.why, r.action, r.href])).toEqual([
-      ['Change 3', 'A test fails. Fix it or ask a developer.', 'Open change', '/studio/changes/?pr=3'],
-      ['Change 7', 'Needs your design approval.', 'Review', '/studio/changes/?pr=7'],
+      ['Select: Add a native Select', 'Asked by @ana. Start an exploration, assign someone or decline it.', 'Decide', '/studio/changes/?request=81'],
+      ['Select: Add a native Select', 'Start an exploration, assign someone or decline it.', 'Decide', '/studio/changes/?request=65'],
     ]);
+    expect(t.developer.map((r) => [r.why, r.action])).toEqual([
+      ['Blocked: a test fails. A developer needs to fix it before you review.', 'Open change'],
+      ['Blocked: it clashes with the latest library. A developer needs to update it before you review.', 'Open change'],
+      ['Blocked: 2 tests fail. A developer needs to fix them before you review.', 'Open change'],
+    ]);
+    expect(developerLine(t.developer.length)).toBe('3 changes wait on a developer');
+  });
+
+  it('tells tests still running from a person who decides', () => {
+    const t = overviewTodo({ changes: [change(5, 'ci-running', 'peterbono', 'peterbono'), change(6, 'checking', 'ana', 'peterbono')], requests: [], viewer: 'peterbono', owners: ['peterbono'] });
+    expect(t.others.map((r) => r.task)).toEqual(['checking', 'checking']);
+    expect(othersLine(t.others, t.mine.length)).toBe('2 are being checked');
+  });
+
+  it('names the author when someone else wrote the blocked change', () => {
+    const t = overviewTodo({ changes: [change(3, 'ci-failing', 'ana', 'peterbono', { failing: 2 })], requests: [], viewer: 'peterbono', owners: ['peterbono'] });
+    expect(t.headline).toBe('Nothing needs you right now.');
+    expect(t.developer[0]!.why).toBe('Blocked: 2 tests fail. @ana needs to fix them before you review.');
     expect(t.others).toEqual([]);
   });
 
-  it('folds what waits on someone else, naming who', () => {
-    const t = overviewTodo({ changes: [change(3, 'ci-failing', 'ana', 'peterbono', 2)], requests: [], viewer: 'peterbono', owners: ['peterbono'] });
-    expect(t.headline).toBe('Nothing waits for you.');
-    expect(t.others[0]!.why).toBe('Waiting for @ana to fix 2 failing checks.');
-    expect(othersLine(t.others.length, t.mine.length)).toBe('1 waits on someone else');
+  it('names the blocker in plain words: release note, review answers, draft', () => {
+    const t = overviewTodo({
+      changes: [
+        change(1, 'ci-failing', 'me', 'me', { failing: 1, failingChecks: ['Changeset present'] }),
+        change(2, 'ci-failing', 'me', 'me', { failing: 2, failingChecks: ['Changeset present', 'Docs site'] }),
+        change(3, 'ci-failing', 'me', 'me'),
+        change(4, 'changes-requested', 'ana', 'me', { changesBy: ['lea'] }),
+        change(5, 'changes-requested', 'ana', 'me', { changesBy: ['me'] }),
+        change(6, 'changes-requested', 'ana', 'me'),
+        change(7, 'draft', 'ana', 'me'),
+      ],
+      requests: [],
+      viewer: 'me',
+      owners: ['me'],
+    });
+    expect(t.developer.map((r) => r.why)).toEqual([
+      'Blocked: the release note is missing. A developer needs to add it before you review.',
+      'Blocked: 2 tests fail. A developer needs to fix them before you review.',
+      'Blocked: tests fail. A developer needs to fix them before you review.',
+      'Blocked: @lea asked for changes. @ana needs to make them before you review.',
+      'Blocked: you asked for changes. @ana needs to make them before you review.',
+      'Blocked: a reviewer asked for changes. @ana needs to make them before you review.',
+      'Blocked: it is still a draft. @ana needs to finish it before you review.',
+    ]);
+    expect(t.mine).toEqual([]);
   });
 
-  it('counts tests in plain words', () => {
-    const t = overviewTodo({ changes: [change(1, 'ci-failing', 'me', 'me', 3), change(2, 'ci-failing', 'me', 'me')], requests: [], viewer: 'me', owners: [] });
-    expect(t.mine.map((r) => r.why)).toEqual(['3 tests fail. Fix them or ask a developer.', 'Tests fail. Fix them or ask a developer.']);
+  it('keeps the tech review in the developer group, for a viewer who holds it too', () => {
+    const t = overviewTodo({ changes: [change(4, 'needs-tech', 'ana', 'peterbono')], requests: [], viewer: 'peterbono', owners: ['peterbono'] });
+    expect(t.mine).toEqual([]);
+    expect(t.developer[0]).toMatchObject({ task: 'blocked', why: 'Design is approved. It waits for your tech review.', action: 'Open change' });
+    const other = overviewTodo({ changes: [change(4, 'needs-tech', 'ana', 'lea', {}, team)], requests: [], viewer: 'lea', owners: ['peterbono', 'lea', 'dev'] });
+    expect(other.developer[0]!.why).toBe('Design is approved. Waiting for the tech owner (@peterbono or @dev) to approve.');
   });
 
-  it('gives the owner override to the owner who may use it', () => {
+  it('labels each designer task and says what happens once it is done', () => {
+    const t = overviewTodo({
+      changes: [
+        change(1, 'ready', 'ana', 'peterbono'),
+        change(2, 'needs-design', 'ana', 'peterbono', { visual: 'ready' }),
+        change(3, 'needs-approval', 'ana', 'peterbono', { guidance: true }),
+        change(4, 'needs-approval', 'ana', 'peterbono', { visual: 'ready' }),
+        change(5, 'needs-design', 'ana', 'peterbono', { visual: 'none' }),
+        change(6, 'needs-design', 'ana', 'peterbono'),
+      ],
+      requests: [request(81)],
+      viewer: 'peterbono',
+      owners: ['peterbono'],
+    });
+    expect(t.headline).toBe('7 decisions wait for you.');
+    expect(t.mine.map((r) => [r.title, r.action, r.why])).toEqual([
+      ['Change 2', 'Review design', 'Before and after are ready. Your design approval is the next step.'],
+      ['Change 4', 'Review design', 'Before and after are ready. Your approval lets it ship.'],
+      ['Change 5', 'Review design', 'Nothing changes on screen. Your design approval is the next step.'],
+      ['Change 6', 'Review design', 'Your design approval is the next step.'],
+      ['Change 1', 'Ship', 'Approved and tested. Shipping puts it in the next release.'],
+      ['Select: Add a native Select', 'Decide', 'Asked by @ana. Start an exploration, assign someone or decline it.'],
+      ['Change 3', 'Review guidance', 'Usage guidance changed. Read it, then approve it or edit it.'],
+    ]);
+  });
+
+  it('puts requests to decide above changes that need no designer', () => {
+    const changes = [1, 2, 3, 4].map((n) => change(n, 'ci-failing', 'peterbono', 'peterbono'));
+    const t = overviewTodo({ changes, requests: [request(81)], viewer: 'peterbono', owners: ['peterbono'] });
+    expect(t.mine.map((r) => r.action)).toEqual(['Decide']);
+    expect(showAllLabel(t.mine.length)).toBe('');
+  });
+
+  it('gives the owner override to the owner who may use it, as a design review', () => {
     // The owner wrote the change: no other design owner can approve, only the override ships it.
-    const t = overviewTodo({ changes: [change(2, 'needs-design', 'peterbono', 'peterbono')], requests: [], viewer: 'peterbono', owners: ['peterbono'] });
-    expect(t.mine[0]!.why).toBe('No other owner can approve. You can ship it with the owner override.');
+    const t = overviewTodo({ changes: [change(2, 'needs-design', 'peterbono', 'peterbono', { visual: 'ready' })], requests: [], viewer: 'peterbono', owners: ['peterbono'] });
+    expect(t.mine[0]).toMatchObject({ task: 'design', action: 'Review design', why: 'Before and after are ready. No other owner can approve it. Check the design, then ship it with the owner override.' });
     const other = overviewTodo({ changes: [change(2, 'needs-design', 'peterbono', 'ana')], requests: [], viewer: 'ana', owners: ['peterbono'] });
     expect(other.mine).toEqual([]);
     expect(other.others).toHaveLength(1);
   });
 
-  it('asks owners to triage requests nobody is on', () => {
-    const t = overviewTodo({ changes: [], requests: [request(81), request(65, { requester: '' })], viewer: 'peterbono', owners: ['peterbono'] });
-    expect(t.headline).toBe('2 requests wait for you.');
-    expect(t.mine.map((r) => [r.title, r.why, r.action, r.href])).toEqual([
-      ['Select: Add a native Select', 'Asked by @ana. Nobody is on it yet: explore it, assign someone or decline it.', 'Open request', '/studio/changes/?request=81'],
-      ['Select: Add a native Select', 'Nobody is on it yet: explore it, assign someone or decline it.', 'Open request', '/studio/changes/?request=65'],
-    ]);
+  it('folds what another person decides, naming who', () => {
+    const t = overviewTodo({ changes: [change(7, 'needs-design', 'ana', 'dev', {}, team)], requests: [request(1, { assignees: ['bo'] })], viewer: 'dev', owners: ['peterbono', 'lea'] });
+    expect(t.headline).toBe('Nothing needs you right now.');
+    expect(t.others.map((r) => r.why)).toEqual(['Waiting for the design owner (@peterbono or @lea) to approve.', 'Waiting for @bo to start it.']);
+    expect(othersLine(t.others, t.mine.length)).toBe('2 wait on someone else');
   });
 
-  it('routes requests to whoever is on them, and skips the ones in progress or closed', () => {
+  it('routes requests: assigned to you, to someone else, linked to a change, or waiting for an owner', () => {
     const rows = [
       request(1, { assignees: ['bo'] }),
       request(2, { assignees: ['ana'] }),
       request(3),
       request(4, { status: 'in-progress', prs: [{ state: 'open', merged: false, author: 'bo' }] }),
       request(5, { status: 'done' }),
+      request(6, { prs: [{ state: 'closed', merged: false, author: null }] }),
     ];
     const t = overviewTodo({ changes: [], requests: rows, viewer: 'ana', owners: ['peterbono'] });
-    expect(t.headline).toBe('1 request waits for you.');
-    expect(t.mine.map((r) => r.why)).toEqual(['Assigned to you. Nobody has started the change yet.']);
-    expect(t.others.map((r) => r.why)).toEqual(['Waiting for @bo to start it.', 'Waiting for an owner (@peterbono) to pick it up.']);
+    expect(t.headline).toBe('1 request assigned to you waits.');
+    expect(t.mine.map((r) => [r.why, r.action])).toEqual([['Assigned to you. Nobody has started the work yet.', 'Open request']]);
+    expect(t.others.map((r) => r.why)).toEqual(['Waiting for @bo to start it.', 'Asked by @ana. Waiting for a design system owner (@peterbono) to decide.']);
   });
 
-  it('mixes changes, requests and protection in the headline', () => {
-    const t = overviewTodo({ changes: [change(3, 'ci-failing', 'peterbono', 'peterbono')], requests: [request(81)], viewer: 'peterbono', owners: ['peterbono'], unprotected: true });
-    expect(t.headline).toBe('1 change, 1 request and a setup step wait for you.');
-    expect(t.mine.map((r) => r.kind)).toEqual(['change', 'setup', 'request']);
-    expect(t.mine[1]).toMatchObject({ title: 'Protect your library', action: 'Protect it', href: '/studio/settings/#protection' });
-    const notOwner = overviewTodo({ changes: [], requests: [], viewer: 'ana', owners: ['peterbono'], unprotected: true });
-    expect(notOwner.mine).toEqual([]);
+  it('adds the protection setup step for owners, after the decisions', () => {
+    const t = overviewTodo({ changes: [change(3, 'needs-design', 'ana', 'peterbono')], requests: [request(81)], viewer: 'peterbono', owners: ['peterbono'], unprotected: true });
+    expect(t.headline).toBe('2 decisions and a setup step wait for you.');
+    expect(t.mine.map((r) => r.task)).toEqual(['design', 'decide', 'setup']);
+    expect(t.mine[2]).toMatchObject({ title: 'Protect your library', action: 'Protect it', href: '/studio/settings/#protection' });
+    expect(overviewTodo({ changes: [], requests: [], viewer: 'ana', owners: ['peterbono'], unprotected: true }).mine).toEqual([]);
+    expect(overviewTodo({ changes: [], requests: [], viewer: 'peterbono', owners: ['peterbono'], unprotected: true }).headline).toBe('A setup step waits for you.');
   });
 
-  it('without a login nobody is "you": every row shows, with who acts', () => {
-    const t = overviewTodo({ changes: [change(3, 'ci-failing', 'peterbono', null, 1)], requests: [request(81)], viewer: null, owners: ['peterbono'] });
-    expect(t.headline).toBe('1 change and 1 request wait.');
-    expect(t.mine.map((r) => r.why)).toEqual(['Waiting for @peterbono to fix the failing check.', 'Waiting for an owner (@peterbono) to pick it up.']);
-    expect(t.others).toEqual([]);
-    expect(overviewTodo({ changes: [], requests: [], viewer: null, owners: [] }).headline).toBe('Nothing waits for a review.');
+  it('signed out: decisions show with who makes them, blockers still go to the developer group', () => {
+    const t = overviewTodo({
+      changes: [change(3, 'ci-failing', 'peterbono', null, { failing: 1 }), change(4, 'needs-design', 'ana', null)],
+      requests: [request(81)],
+      viewer: null,
+      owners: ['peterbono'],
+    });
+    expect(t.headline).toBe('2 decisions wait.');
+    expect(t.mine.map((r) => [r.why, r.action])).toEqual([
+      ['Waiting for the design owner (@peterbono) to approve.', 'Open change'],
+      ['Asked by @ana. Waiting for a design system owner (@peterbono) to decide.', 'Open request'],
+    ]);
+    expect(t.developer.map((r) => r.why)).toEqual(['Blocked: a test fails. @peterbono needs to fix it before review.']);
+    expect(overviewTodo({ changes: [], requests: [], viewer: null, owners: [] }).headline).toBe('Nothing waits for a decision.');
   });
 
   it('keeps changes whose status is not read yet out of "yours"', () => {
     const t = overviewTodo({ changes: [{ number: 9, title: 'Nine', who: null }], requests: [], viewer: 'me', owners: [], loading: true });
     expect(t.mine).toEqual([]);
-    expect(t.others[0]!.why).toBe('Checking what it needs.');
+    expect(t.others[0]).toMatchObject({ task: 'checking', why: 'Checking what it needs.' });
     // Not readable (anonymous reads skipped): the row says where to look.
-    expect(overviewTodo({ changes: [{ number: 9, title: 'Nine', who: null }], requests: [], viewer: null, owners: [] }).mine[0]!.why).toBe('Open it to see what it needs.');
+    expect(overviewTodo({ changes: [{ number: 9, title: 'Nine', who: null }], requests: [], viewer: null, owners: [] }).others[0]!.why).toBe('Open it to see what it needs.');
   });
 
-  it('never uses developer words', () => {
+  it('never uses developer words on the designer rows or the headline', () => {
     const t = overviewTodo({
-      changes: (['ci-failing', 'conflict', 'changes-requested', 'draft', 'ready', 'needs-tech', 'needs-approval'] as const).map((k, i) => change(i + 1, k, 'me', 'me')),
+      changes: (['ci-failing', 'conflict', 'changes-requested', 'draft', 'ready', 'needs-tech', 'needs-approval', 'needs-design'] as const).map((k, i) =>
+        change(i + 1, k, 'me', 'me', { failingChecks: ['Changeset present'], failing: 1 }),
+      ),
       requests: [request(81)],
       viewer: 'me',
       owners: ['me'],
     });
-    const words = [t.headline, ...t.mine.flatMap((r) => [r.why, r.action, r.title])].join(' ');
-    expect(words).not.toMatch(/\b(PR|pull request|merge|CI|GitHub|branch|commit)\b|#\d/);
+    const words = [t.headline, ...[...t.mine, ...t.developer].flatMap((r) => [r.why, r.action, r.title])].join(' ');
+    expect(words).not.toMatch(/\b(PR|pull request|merge|CI|GitHub|branch|commit|changeset)\b|#\d/i);
   });
 
   it('labels the folded lines', () => {
-    expect(othersLine(0, 2)).toBe('');
-    expect(othersLine(2, 1)).toBe('2 more wait on someone else');
-    expect(othersLine(1, 1)).toBe('1 more waits on someone else');
+    expect(developerLine(0)).toBe('');
+    expect(developerLine(1)).toBe('1 change waits on a developer');
+    const waiting = { task: 'waiting' as const };
+    const checking = { task: 'checking' as const };
+    expect(othersLine([], 2)).toBe('');
+    expect(othersLine([waiting, waiting], 1)).toBe('2 more wait on someone else');
+    expect(othersLine([waiting], 1)).toBe('1 more waits on someone else');
+    expect(othersLine([checking], 0)).toBe('1 is being checked');
+    expect(othersLine([checking, checking], 1)).toBe('2 more are being checked');
+    expect(othersLine([waiting, checking, checking], 1)).toBe('3 more wait on someone else or on checks');
     expect(showAllLabel(3)).toBe('');
     expect(showAllLabel(5)).toBe('Show all 5');
+  });
+});
+
+describe('guidance changes', () => {
+  it('counts only docs.json files and their release note', () => {
+    expect(isGuidanceOnly(['packages/react/src/components/Button/Button.docs.json', '.changeset/brave-owls.md'])).toBe(true);
+    expect(isGuidanceOnly(['packages/react/src/components/Button/Button.docs.json', 'packages/react/src/components/Button/Button.tsx'])).toBe(false);
+    expect(isGuidanceOnly(['.changeset/brave-owls.md'])).toBe(false);
+    expect(isGuidanceOnly([])).toBe(false);
+  });
+
+  it('trusts the files once read, else the Library editor branch', () => {
+    expect(isGuidanceChange('docs/button-2026-10-18-ab12', undefined)).toBe(true);
+    expect(isGuidanceChange('docs/button-2026-10-18-ab12', false)).toBe(false);
+    expect(isGuidanceChange('agent/card', true)).toBe(true);
+    expect(isGuidanceChange('agent/card', undefined)).toBe(false);
   });
 });
