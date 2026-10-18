@@ -1027,8 +1027,9 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
       }
       announce('Sent for review.');
     } catch (err) {
-      const { errorText } = await import('../lib/token-session');
-      setSendError(errorText(err, `Not sent: ${(err as Error).message}`, branch ? 'save to this change' : 'send changes for review'));
+      // The session's words: sign-in or token, and the site's way in.
+      const { ghAuthFailure } = await import('../scripts/github-session');
+      setSendError(ghAuthFailure(err, branch ? 'save to this change' : 'send changes for review')?.text ?? `Not sent: ${(err as Error).message}`);
     } finally {
       setBusy(false);
     }

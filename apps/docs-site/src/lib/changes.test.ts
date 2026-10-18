@@ -107,7 +107,8 @@ describe('pull request opener', () => {
     const gate = mergeGate({ tier: 1, ci: red, approvals: approvals(), draft: false, state: 'open' });
     expect(primaryAction({ state: 'open', ci: red, gate, connected: false, canWrite: false })).toEqual({ kind: 'open-run', label: 'Open failing test', url: 'https://github.com/run/1' });
     const waiting = mergeGate({ tier: 1, ci: green, approvals: approvals(), draft: false, state: 'open' });
-    expect(primaryAction({ state: 'open', ci: green, gate: waiting, connected: false, canWrite: false }).kind).toBe('connect');
+    expect(primaryAction({ state: 'open', ci: green, gate: waiting, connected: false, canWrite: false })).toEqual({ kind: 'connect', label: 'Connect GitHub to review' });
+    expect(primaryAction({ state: 'open', ci: green, gate: waiting, connected: false, canWrite: false, signIn: true })).toEqual({ kind: 'connect', label: 'Sign in to review' });
     expect(primaryAction({ state: 'open', ci: green, gate: waiting, connected: true, canWrite: true }).kind).toBe('approve');
     expect(primaryAction({ state: 'open', ci: green, gate: waiting, connected: true, canWrite: true, isAuthor: true }).kind).toBe('github');
     const ready = mergeGate({ tier: 1, ci: green, approvals: approvals({ approvers: ['a'] }), draft: false, state: 'open' });

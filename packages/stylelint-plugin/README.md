@@ -7,9 +7,6 @@ durations, easings, z-index and fonts are reported where a design token exists, 
 It reads the tokens (every brand, theme and density) through `@bridge-ds/core` and the design system's
 `bridge.config.json`, so the suggestions are the same as `bridge audit` and the `bridge_audit` MCP tool.
 
-> Not published to npm yet: build it from this repo (`npm run plugins:build`) and install the folder, or use
-> the path to `packages/stylelint-plugin/dist/index.js` in `plugins`.
-
 ## Install
 
 ```sh

@@ -1,0 +1,817 @@
+// The Bridge toolbar: opened from Bridge Studio ("Try it in the product") with `?bridge=<change>`, it lets a designer
+// browse the real admin and flip between the live product and this change. Token changes swap the live tokens in
+// without a reload; code changes move between the production admin and the change's preview on the same screen.
+// Production renders nothing on its own. It opens collapsed, bottom right of the content column, and moves away from
+// the page's primary and submit buttons.
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { Badge, Button, ButtonGroup, Icon, IconButton, Link, Popover, PopoverContent, PopoverTrigger, ThemeProvider, Tooltip } from '@bridge-ds/react';
+import { Check, ChevronUp, GripVertical, Info, ListChecks, Minimize2, ScanSearch } from 'lucide-react';
+import { usePreferences } from '../preferences';
+import { isTenantId, TENANT_LIST, TENANTS } from '../tenants';
+import { loadChange, type ChangeFacts } from './github';
+import {
+  changeSummary,
+  DOCK_KEY,
+  dockAt,
+  isFlipKey,
+  liveTokensUrl,
+  noVisibleDifference,
+  OPEN_KEY,
+  PARAM,
+  placeToolbar,
+  readChange,
+  readDock,
+  readReturn,
+  readScroll,
+  sameScreenOn,
+  SCROLL_PARAM,
+  shouldRender,
+  stepDock,
+  studioChangeUrl,
+  contrastRatio,
+  isSubtle,
+  toHex,
+  whereAmI,
+  type BridgeBuild,
+  type Dock,
+  type NoDifference,
+  type Rect,
+  type Screen,
+  type TokenChange,
+} from './session';
+import { EMPTY_LINE, isKey, outOfView, surfaceLine } from './diff';
+import { shownRect } from './outline';
+import { useChangedElements } from './useChangedElements';
+import { ChangeOutlines, type Shown } from './ChangeOutlines';
+import { PIN_ATTR, PIN_CLASS, usePinnedBridgeTokens } from './pin';
+import styles from './BridgeToolbar.module.css';
+
+declare const __BRIDGE_BUILD__: BridgeBuild;
+
+type Side = 'before' | 'after';
+type TokenState = 'idle' | 'loading' | 'ready' | 'error';
+
+/** The two sides, in the words designers use. */
+const SIDE_LABEL: Record<Side, string> = { before: 'Live product', after: 'This change' };
+/** Token pairs shown on the toolbar; the rest is "+N". */
+const MAX_PAIRS = 3;
+
+function session(): Storage | null {
+  try {
+    return window.sessionStorage;
+  } catch {
+    return null;
+  }
+}
+
+function remember(key: string, value: string) {
+  try {
+    window.sessionStorage.setItem(key, value);
+  } catch {
+    // Storage blocked: the choice lasts for this page only.
+  }
+}
+
+/** Mounted once at the app root. Decides on first render whether there is anything to show. */
+export function BridgeToolbar() {
+  const [setup] = useState(() => {
+    const build = __BRIDGE_BUILD__;
+    const store = session();
+    const change = readChange(window.location.search, store);
+    const where = whereAmI(window.location.host, build);
+    const returnTo = where === 'production' ? readReturn(window.location.search, store, build.adminTemplate) : null;
+    return { build, change, where, returnTo };
+  });
+  if (!shouldRender(setup)) return null;
+  return <Toolbar build={setup.build} change={setup.change!} onProduction={setup.where === 'production'} returnTo={setup.returnTo} />;
+}
+
+/**
+ * The live tokens: one stylesheet after the bundled one, loaded on demand (the live side, or "Show what changed") and
+ * switched by its media ("all" applies it, "not all" keeps it loaded but off), so flipping is instant and the
+ * comparison can switch it inside one task without a visible flash.
+ */
+function useLiveSheet(url: string | null, need: boolean, applied: boolean): { state: TokenState; link: HTMLLinkElement | null } {
+  const [state, setState] = useState<TokenState>('idle');
+  const link = useRef<HTMLLinkElement | null>(null);
+  useEffect(() => {
+    if (!url) return;
+    if (link.current) {
+      link.current.media = applied ? 'all' : 'not all';
+      return;
+    }
+    if (!need && !applied) return;
+    const el = document.createElement('link');
+    el.rel = 'stylesheet';
+    el.href = url;
+    el.media = applied ? 'all' : 'not all';
+    el.referrerPolicy = 'no-referrer';
+    el.setAttribute('data-bridge-live', '');
+    el.onload = () => setState('ready');
+    el.onerror = () => {
+      el.remove();
+      link.current = null;
+      setState('error');
+    };
+    link.current = el;
+    setState('loading');
+    document.head.appendChild(el);
+  }, [url, need, applied]);
+  useEffect(() => () => link.current?.remove(), []);
+  return { state, link: state === 'ready' ? link.current : null };
+}
+
+interface Pair {
+  token: TokenChange;
+  before: string;
+  after: string;
+  color: boolean;
+}
+
+/** Resolves each token in a scope (theme, brand) on a probe: its colour as rgb, or its raw value. */
+function probe(root: Node, tokens: TokenChange[], scope: { theme: string; brand: string }): string[] {
+  const host = document.createElement('div');
+  host.setAttribute('data-theme', scope.theme);
+  host.setAttribute('data-brand', scope.brand);
+  host.setAttribute('data-density', 'comfortable');
+  host.style.display = 'none';
+  const spans = tokens.map((t) => {
+    const s = document.createElement('span');
+    s.style.backgroundColor = `var(${t.cssVar})`;
+    host.appendChild(s);
+    return s;
+  });
+  root.appendChild(host);
+  const out = tokens.map((t, i) => (t.type === 'color' ? getComputedStyle(spans[i]!).backgroundColor : getComputedStyle(host).getPropertyValue(t.cssVar).trim()));
+  host.remove();
+  return out;
+}
+
+/**
+ * Before and after of every changed token, in the theme and brand where it shows: after from this page's own
+ * tokens (read while the live tokens are off), before from the live tokens.css applied in an isolated shadow root.
+ */
+function usePairs(facts: ChangeFacts | null, liveUrl: string | null, brand: string, liveOn: boolean): Pair[] {
+  const [pairs, setPairs] = useState<Pair[]>([]);
+  const afterCache = useRef(new Map<string, string[]>());
+  useEffect(() => {
+    const tokens = facts?.tokens ?? [];
+    if (!tokens.length || !liveUrl) return;
+    let live = true;
+    const scopeOf = (t: TokenChange) => ({ theme: t.theme ?? 'light', brand: t.brand ?? brand });
+    const key = `${brand}`;
+    // After: only readable while the live stylesheet is off; kept per brand.
+    if (!afterCache.current.has(key) && !liveOn) afterCache.current.set(key, tokens.map((t) => probe(document.body, [t], scopeOf(t))[0]!));
+    const after = afterCache.current.get(key);
+    if (!after) return;
+    fetch(liveUrl)
+      .then((r) => (r.ok ? r.text() : Promise.reject(new Error(String(r.status)))))
+      .then((css) => {
+        if (!live) return;
+        const sheet = new CSSStyleSheet();
+        sheet.replaceSync(css.replace(/:root/g, ':host'));
+        const host = document.createElement('div');
+        host.style.display = 'none';
+        document.body.appendChild(host);
+        const shadow = host.attachShadow({ mode: 'open' });
+        shadow.adoptedStyleSheets = [sheet];
+        const before = tokens.map((t) => probe(shadow, [t], scopeOf(t))[0]!);
+        host.remove();
+        setPairs(tokens.map((t, i) => ({ token: t, before: before[i]!, after: after[i]!, color: t.type === 'color' })).filter((p) => p.before !== p.after));
+      })
+      .catch(() => live && setPairs([]));
+    return () => {
+      live = false;
+    };
+  }, [facts, liveUrl, brand, liveOn]);
+  return pairs;
+}
+
+/** What the active side shows, after its bold name. */
+function modeDetail(facts: ChangeFacts | null, side: Side, tokens: TokenState): string {
+  if (!facts) return 'Reading the change.';
+  if (side === 'before') {
+    if (tokens === 'loading') return 'loading what customers see today.';
+    if (tokens === 'error') return 'could not load it. Check your connection, then press B again.';
+    return 'what customers see today.';
+  }
+  return changeSummary(facts.title);
+}
+
+const BRAND_NAME = (brand: string) => TENANT_LIST.find((t) => t.brand === brand)?.name ?? brand;
+
+/** "Light mode only. Nothing changes in dark." */
+function noDifferenceText(d: NoDifference): string {
+  const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+  return d.kind === 'theme' ? `${cap(d.touched)} mode only. Nothing changes in ${d.here}.` : `${BRAND_NAME(d.touched)} only. Nothing changes in ${BRAND_NAME(d.here)}.`;
+}
+
+/** Primary and submit buttons of the page, in the viewport: the toolbar never covers them. */
+function pageObstacles(own: HTMLElement | null): Rect[] {
+  const probeEl = document.createElement('span');
+  probeEl.style.backgroundColor = 'var(--color-action-primary-bg)';
+  probeEl.hidden = true;
+  document.body.appendChild(probeEl);
+  const primary = getComputedStyle(probeEl).backgroundColor;
+  probeEl.remove();
+  const out: Rect[] = [];
+  for (const el of document.querySelectorAll<HTMLElement>('button, a[href], [role="button"]')) {
+    if (own?.contains(el) || el.closest('[data-bridge-toolbar], [role="dialog"], [role="menu"], [role="listbox"]')) continue;
+    const isSubmit = el instanceof HTMLButtonElement && el.type === 'submit';
+    if (!isSubmit && getComputedStyle(el).backgroundColor !== primary) continue;
+    const r = el.getBoundingClientRect();
+    if (!r.width || !r.height || r.bottom <= 0 || r.top >= window.innerHeight) continue;
+    out.push({ left: r.left, top: r.top, right: r.right, bottom: r.bottom });
+  }
+  return out;
+}
+
+function Toolbar({ build, change, onProduction, returnTo }: { build: BridgeBuild; change: number; onProduction: boolean; returnTo: string | null }) {
+  const { theme, set: setPrefs, tenantId, tenant } = usePreferences();
+  const [facts, setFacts] = useState<ChangeFacts | null>(null);
+  const [error, setError] = useState(false);
+  // On production the toolbar only exists for the live side of a code change.
+  const [side, setSide] = useState<Side>(onProduction ? 'before' : 'after');
+  const [open, setOpen] = useState(() => {
+    try {
+      return window.sessionStorage.getItem(OPEN_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
+  const [dock, setDock] = useState<Dock>(() => readDock(session()));
+  const [place, setPlace] = useState<{ dock: Dock; lift: number }>({ dock, lift: 0 });
+  const [drag, setDrag] = useState<number | null>(null);
+  // Set when the toolbar moved the page to the only theme the change touches: "Shown in light...".
+  const [shownIn, setShownIn] = useState<string | null>(null);
+  const dragStart = useRef(0);
+  const root = useRef<HTMLDivElement>(null);
+  const hash = useHash();
+
+  useEffect(() => {
+    let live = true;
+    loadChange(build, change).then(
+      (f) => live && setFacts(f),
+      () => live && setError(true),
+    );
+    return () => {
+      live = false;
+    };
+  }, [build, change]);
+
+  const liveUrl = facts?.mode === 'tokens' ? liveTokensUrl(build) : null;
+  const [outlines, setOutlines] = useState(false);
+  const canOutline = facts?.mode === 'tokens' && (facts.tokens.length ?? 0) > 0;
+  const live = useLiveSheet(liveUrl, outlines && canOutline, side === 'before' && facts?.mode === 'tokens');
+  const pairs = usePairs(facts, liveUrl, tenant.brand, side === 'before');
+  const noDiff = facts?.mode === 'tokens' ? noVisibleDifference(facts.files, { theme, brand: tenant.brand }) : null;
+  // Outlines run only where the change can show: muted in dark for a light-only change.
+  const outlinesOn = outlines && canOutline && !noDiff;
+  const diff = useChangedElements(outlinesOn, live.link, (facts?.tokens ?? []).map((t) => t.cssVar), `${hash}|${theme}|${tenantId}`);
+  const nameOf = (v: string) => facts?.tokens.find((t) => t.cssVar === v)?.name ?? v;
+  // What the outlines draw (visible surfaces) and where: the count and the boxes the toolbar keeps clear of.
+  const [shown, setShown] = useState<Shown>({ count: 0, obstacles: [] });
+  const setShownStable = useCallback((next: Shown) => setShown((p) => (JSON.stringify(p) === JSON.stringify(next) ? p : next)), []);
+  const outlineBoxes = useRef<Rect[]>([]);
+  outlineBoxes.current = outlinesOn ? shown.obstacles : [];
+  // The list row a person points at (its surface shows its chip and a stronger outline), the brief chip flash when
+  // outlines turn on (none with reduced motion), and the Changes sheet.
+  const [emphasis, setEmphasis] = useState<number | null>(null);
+  const [flash, setFlash] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const phone = useMedia('(max-width: 760px)');
+  const reduced = useMedia('(prefers-reduced-motion: reduce)');
+  usePinnedBridgeTokens(liveTokensUrl(build), theme);
+  useEffect(() => {
+    if (!outlinesOn || reduced) {
+      setFlash(false);
+      return;
+    }
+    setFlash(true);
+    const id = window.setTimeout(() => setFlash(false), 1500);
+    return () => window.clearTimeout(id);
+  }, [outlinesOn, reduced]);
+  useEffect(() => {
+    if (!sheetOpen) setEmphasis(null);
+  }, [sheetOpen]);
+
+  // A change that only touches one theme opens in that theme, once, and says so.
+  const autoTheme = useRef(false);
+  useEffect(() => {
+    if (autoTheme.current || !facts) return;
+    autoTheme.current = true;
+    if (noDiff?.kind === 'theme' && (noDiff.touched === 'light' || noDiff.touched === 'dark')) {
+      setPrefs({ theme: noDiff.touched });
+      setShownIn(noDiff.touched);
+    }
+  }, [facts, noDiff, setPrefs]);
+  // The note holds while the page stays in that theme.
+  useEffect(() => {
+    if (shownIn && theme !== shownIn) setShownIn(null);
+  }, [theme, shownIn]);
+
+  // A side switch carried the scroll position: restore it once the screen has its height, then tidy the address.
+  useEffect(() => {
+    const y = readScroll(window.location.search);
+    if (y === null) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete(SCROLL_PARAM);
+    window.history.replaceState(window.history.state, '', url);
+    let tries = 0;
+    const id = window.setInterval(() => {
+      tries += 1;
+      if (document.documentElement.scrollHeight - window.innerHeight >= y || tries > 20) {
+        window.scrollTo({ top: y });
+        window.clearInterval(id);
+      }
+    }, 150);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const choose = useCallback(
+    (next: Side) => {
+      if (next === side || !facts) return;
+      if (facts.mode === 'tokens') {
+        setSide(next);
+        return;
+      }
+      const here = { search: window.location.search, hash: window.location.hash };
+      if (next === 'before' && build.productionAdmin) {
+        window.location.assign(sameScreenOn(build.productionAdmin, here, { change, returnTo: window.location.origin, scroll: window.scrollY }));
+      } else if (next === 'after' && returnTo) {
+        window.location.assign(sameScreenOn(returnTo, here, { change, scroll: window.scrollY }));
+      }
+    },
+    [side, facts, build, change, returnTo],
+  );
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (canOutline && !noDiff && isKey(e, 'c')) {
+        e.preventDefault();
+        setOutlines((o) => !o);
+        return;
+      }
+      if (!isFlipKey(e)) return;
+      e.preventDefault();
+      choose(side === 'after' ? 'before' : 'after');
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [choose, side, canOutline, noDiff]);
+
+  // Stay clear of the page's primary and submit buttons: on open, resize, scroll, route change and size change.
+  useLayoutEffect(() => {
+    const el = root.current;
+    const anchor = el?.parentElement;
+    if (!el || !anchor) return;
+    let frame = 0;
+    const measure = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const box = el.getBoundingClientRect();
+        const area = anchor.getBoundingClientRect();
+        const gutter = window.innerWidth <= 760 ? (open ? 0 : 8) : 16;
+        const next = placeToolbar({ left: area.left, right: area.right, vh: window.innerHeight, w: box.width, h: box.height, gutter, preferred: dock, obstacles: [...pageObstacles(el), ...outlineBoxes.current] });
+        setPlace((p) => (p.dock === next.dock && p.lift === next.lift ? p : next));
+        // While open the page gets room for the toolbar, so its end is never hidden under it.
+        document.body.style.paddingBottom = open ? `${box.height + 2 * gutter}px` : '';
+      });
+    };
+    measure();
+    const later = window.setTimeout(measure, 600);
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    ro?.observe(el);
+    ro?.observe(document.body);
+    window.addEventListener('resize', measure);
+    window.addEventListener('scroll', measure, { passive: true });
+    window.addEventListener('hashchange', measure);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.clearTimeout(later);
+      ro?.disconnect();
+      window.removeEventListener('resize', measure);
+      window.removeEventListener('scroll', measure);
+      window.removeEventListener('hashchange', measure);
+      document.body.style.paddingBottom = '';
+    };
+  }, [dock, open, facts, shown, outlinesOn]);
+
+  const toggleOpen = (next: boolean) => {
+    setOpen(next);
+    remember(OPEN_KEY, next ? '1' : '0');
+  };
+  const moveTo = (next: Dock) => {
+    setDock(next);
+    remember(DOCK_KEY, next);
+  };
+  const onGripKey = (e: ReactKeyboardEvent) => {
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      e.preventDefault();
+      moveTo(stepDock(dock, e.key === 'ArrowLeft' ? -1 : 1));
+    }
+  };
+  const onGripDown = (e: ReactPointerEvent<HTMLButtonElement>) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    dragStart.current = e.clientX;
+    setDrag(0);
+  };
+  const onGripMove = (e: ReactPointerEvent<HTMLButtonElement>) => {
+    if (drag !== null) setDrag(e.clientX - dragStart.current);
+  };
+  const onGripUp = (e: ReactPointerEvent<HTMLButtonElement>) => {
+    if (drag === null) return;
+    const box = root.current?.getBoundingClientRect();
+    setDrag(null);
+    if (box && Math.abs(e.clientX - dragStart.current) > 4) moveTo(dockAt(box.left + box.width / 2, window.innerWidth));
+  };
+
+  // Moving to another screen or theme from the toolbar keeps it open.
+  const goTo = (s: Screen) => (e: ReactMouseEvent) => {
+    e.preventDefault();
+    toggleOpen(true);
+    if (isTenantId(s.tenant) && (s.tenant !== tenantId || s.theme !== theme)) setPrefs({ tenantId: s.tenant, theme: s.theme === 'dark' ? 'dark' : 'light' });
+    window.location.hash = s.route;
+  };
+  const fixNoDiff = () => {
+    if (!noDiff) return;
+    toggleOpen(true);
+    if (noDiff.kind === 'theme') setPrefs({ theme: noDiff.touched === 'dark' ? 'dark' : 'light' });
+    else {
+      const t = TENANT_LIST.find((x) => x.brand === noDiff.touched);
+      if (t) setPrefs({ tenantId: t.id });
+    }
+  };
+
+  const label = SIDE_LABEL[side];
+  const title = facts?.title ?? `Change ${change}`;
+  const screens = facts?.screens ?? null;
+  const canFlip = Boolean(facts) && (facts!.mode === 'tokens' || (side === 'after' ? Boolean(build.productionAdmin) : Boolean(returnTo)));
+  const studio = studioChangeUrl(build, change);
+  const behind = facts?.behind ? 'Live has new changes since this change started.' : null;
+  // Screens share one shop and theme most of the time: say it once in the sheet's header.
+  const shared = screens?.length && screens.every((s) => s.tenant === screens[0]!.tenant && s.theme === screens[0]!.theme) ? screens[0]! : null;
+  const shopOf = (t: string) => (isTenantId(t) ? TENANTS[t].name : t);
+  const surfaces = outlinesOn ? (diff?.surfaces ?? []) : [];
+  const shownCount = outlinesOn && diff ? shown.count : null;
+
+  const note = shownIn ? (
+    <p className={styles.note} role="status">
+      Shown in {shownIn}. This change only affects {shownIn}.
+    </p>
+  ) : noDiff ? (
+    <p className={styles.note} role="status">
+      <span>{noDifferenceText(noDiff)}</span>
+      <Button variant="ghost" size="md" onClick={fixNoDiff} className={styles.noteAction}>
+        {noDiff.kind === 'theme' ? `Switch to ${noDiff.touched}` : `Switch to ${BRAND_NAME(noDiff.touched)}`}
+      </Button>
+    </p>
+  ) : (outlinesOn || side === 'before') && live.state === 'error' ? (
+    <p className={styles.note} role="status">
+      Could not load the live product. Check your connection, then try again.
+    </p>
+  ) : shownCount === 0 ? (
+    <p className={styles.note} role="status">
+      {diff?.surfaces.length ? outOfView(diff.surfaces.length) : EMPTY_LINE}
+    </p>
+  ) : null;
+
+  // The colour pair of each changed token: one split swatch (before half, after half); values in its tooltip only.
+  // Most visible first: a ramp change lists its strong steps before its near-white ones.
+  const visiblePairs = (noDiff ? [] : pairs).slice().sort((a, b) => (contrastRatio(b.before, b.after) ?? 0) - (contrastRatio(a.before, a.after) ?? 0));
+  const hexPair = (before: string, after: string) => `${toHex(before).toUpperCase()} → ${toHex(after).toUpperCase()}`;
+  const pairTip = (p: Pair) => `${p.token.name}${p.token.step ? ` (${p.token.step})` : ''}: ${p.color ? hexPair(p.before, p.after) : `${p.before} → ${p.after}`}`;
+  const splitOf = (before: string, after: string) => (
+    <span className={styles.split} aria-hidden="true">
+      <span style={{ backgroundColor: before }} />
+      <span style={{ backgroundColor: after }} />
+    </span>
+  );
+  const subtleOf = (before: string, after: string) => (isSubtle(before, after) ? <span className={styles.subtle}>Subtle change</span> : null);
+  const shownPairs = visiblePairs.filter((p) => p.color).slice(0, MAX_PAIRS);
+  // One row per role in the sheet ("Brand primary", "Link"), its most visible step's swatch first.
+  const roleGroups = [...visiblePairs.reduce((m, p) => m.set(p.token.name, [...(m.get(p.token.name) ?? []), p]), new Map<string, Pair[]>())].map(([name, list]) => ({ name, pairs: list }));
+  const swatches = visiblePairs.length ? (
+    <Tooltip className={PIN_CLASS} content={visiblePairs.slice(0, 6).map(pairTip).join('. ') + (visiblePairs.length > 6 ? `. And ${visiblePairs.length - 6} more.` : '')}>
+      <span className={styles.swatches} tabIndex={0} aria-label={`Tokens this change edits: ${visiblePairs.map(pairTip).join('. ')}`}>
+        {shownPairs.map((p) => (
+          <span key={p.token.path}>{splitOf(p.before, p.after)}</span>
+        ))}
+        {visiblePairs.length > shownPairs.length && <span className={styles.more}>+{visiblePairs.length - shownPairs.length} more {visiblePairs.length - shownPairs.length === 1 ? 'token' : 'tokens'}</span>}
+        {shownPairs[0] ? subtleOf(shownPairs[0].before, shownPairs[0].after) : null}
+      </span>
+    </Tooltip>
+  ) : null;
+
+  // Show what changed: token changes only. A code change's live side is another origin (the production admin), whose
+  // styles this page cannot read, so there is nothing reliable to compare: the toggle is not offered. Muted where the
+  // change shows nothing (dark for a light-only change).
+  const tokenNames = (facts?.tokens ?? []).map((t) => t.name);
+  const summary = shownCount === null ? null : surfaceLine(diff!.surfaces.flatMap((s) => s.roots.map(nameOf)), shownCount);
+  const toggleTip = `${summary ?? `Outline what ${tokenNames.length === 1 ? tokenNames[0] : 'this change'} changes on this screen.`} Press C.`;
+  const toggleLabel = shownCount === null ? 'Show what changed' : `Show what changed · ${shownCount}`;
+  const outlineToggle = canOutline ? (
+    <Tooltip className={PIN_CLASS} content={toggleTip}>
+      <Button variant="secondary" size="md" iconStart={outlinesOn ? Check : undefined} aria-pressed={outlinesOn} aria-keyshortcuts="C" disabled={Boolean(noDiff)} onClick={() => setOutlines((o) => !o)}>
+        {toggleLabel}
+      </Button>
+    </Tooltip>
+  ) : null;
+  const outlineIcon = canOutline ? (
+    <IconButton
+      icon={ScanSearch}
+      size="md"
+      variant={outlinesOn ? 'secondary' : 'ghost'}
+      aria-pressed={outlinesOn}
+      disabled={Boolean(noDiff)}
+      label={shownCount === null ? 'Show what changed' : `Show what changed, ${shownCount} ${shownCount === 1 ? 'surface' : 'surfaces'}`}
+      className={styles.phoneOnly}
+      onClick={() => setOutlines((o) => !o)}
+    />
+  ) : null;
+  const shownSurfaces = surfaces.map((s, i) => ({ s, i })).filter(({ s }) => shownRect(s.el));
+  const focusSurface = (i: number) => {
+    const el = surfaces[i]?.el;
+    if (!el) return;
+    el.scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' });
+    setEmphasis(i);
+  };
+  const tokensOf = (x: { roots: string[] }) => [...new Set(x.roots.map(nameOf))].join(', ');
+
+  const sides = (
+    <ButtonGroup appearance="attached" aria-label="Compare" className={styles.sides}>
+      {(['before', 'after'] as const).map((s) => (
+        <Tooltip className={PIN_CLASS} key={s} content={`${SIDE_LABEL[s]}: ${s === 'before' ? 'what customers see today.' : modeDetail(facts, 'after', 'idle')} Press B to flip.`}>
+          <Button
+            variant="secondary"
+            size="md"
+            iconStart={side === s ? Check : undefined}
+            aria-pressed={side === s}
+            aria-keyshortcuts="B"
+            disabled={!canFlip && side !== s}
+            onClick={() => choose(s)}
+          >
+            {SIDE_LABEL[s]}
+          </Button>
+        </Tooltip>
+      ))}
+    </ButtonGroup>
+  );
+
+  return (
+    <ThemeProvider
+      theme={theme}
+      brand="bridge"
+      density="compact"
+      className={styles.anchor}
+      data-bridge-toolbar=""
+      {...{ [PIN_ATTR]: '' }}
+      data-open={open || undefined}
+      data-dock={place.dock}
+      style={place.lift ? { paddingBottom: `${place.lift}px` } : undefined}
+    >
+      <div
+        ref={root}
+        className={open ? styles.panel : styles.pill}
+        role="region"
+        aria-label={`Bridge: ${label}, ${title}`}
+        data-side={side}
+        data-diff-ms={outlinesOn ? diff?.ms : undefined}
+        data-diff-count={shownCount ?? undefined}
+        data-diff-elements={outlinesOn ? diff?.elements.length : undefined}
+        data-note={note ? '' : undefined}
+        style={drag ? { transform: `translateX(${drag}px)` } : undefined}
+        data-dragging={drag !== null || undefined}
+      >
+        {open ? (
+          <>
+            <Tooltip className={PIN_CLASS} content="Drag, or use the arrow keys, to move the toolbar">
+              <IconButton
+                icon={GripVertical}
+                size="md"
+                label={`Move the toolbar, now ${dock === 'start' ? 'left' : dock === 'end' ? 'right' : 'centred'}. Use the left and right arrow keys.`}
+                className={styles.grip}
+                onKeyDown={onGripKey}
+                onPointerDown={onGripDown}
+                onPointerMove={onGripMove}
+                onPointerUp={onGripUp}
+                onPointerCancel={() => setDrag(null)}
+              />
+            </Tooltip>
+            <p className={styles.title}>
+              <span className={styles.brand}>Bridge</span>
+              <span className={styles.name} title={title}>
+                {title}
+              </span>
+            </p>
+            {outlineIcon}
+            <div className={styles.actions}>
+              {sides}
+              <span className={styles.desktopOnly}>{swatches}</span>
+              <Popover open={sheetOpen} onOpenChange={setSheetOpen}>
+                <PopoverTrigger
+                  render={
+                    phone ? (
+                      <IconButton icon={ListChecks} size="md" variant="ghost" label={shownCount ? `Changes, ${shownCount} changed here` : 'Changes'} />
+                    ) : (
+                      <Button variant="ghost" size="md" iconEnd={ChevronUp} />
+                    )
+                  }
+                >
+                  {phone ? null : (
+                    <>
+                      Changes{shownCount ? <span className={styles.count}>{shownCount}</span> : null}
+                    </>
+                  )}
+                </PopoverTrigger>
+                <PopoverContent side="top" align="center" className={`${styles.sheet} ${PIN_CLASS}`} aria-label="Changes">
+                  {outlinesOn && shownSurfaces.length ? (
+                    <section className={styles.sheetSection} aria-label={`Changed here, ${shownSurfaces.length}`}>
+                      <p className={styles.sectionTitle}>Changed here · {shownSurfaces.length}</p>
+                      <ul className={styles.rows}>
+                        {shownSurfaces.map(({ s: x, i }) => (
+                          <li key={i}>
+                            <Button
+                              variant="ghost"
+                              size="md"
+                              fullWidth
+                              className={styles.row}
+                              data-emphasis={emphasis === i || undefined}
+                              onMouseEnter={() => setEmphasis(i)}
+                              onMouseLeave={() => setEmphasis((e) => (e === i ? null : e))}
+                              onFocus={() => setEmphasis(i)}
+                              onBlur={() => setEmphasis((e) => (e === i ? null : e))}
+                              onClick={() => focusSurface(i)}
+                            >
+                              <span className={styles.rowText}>
+                                <span className={styles.rowName}>{x.label}</span>
+                                <span className={styles.rowMeta}>{tokensOf(x)}</span>
+                              </span>
+                            </Button>
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
+                  ) : null}
+                  {screens && screens.length ? (
+                    <section className={styles.sheetSection} aria-label="Screens this change affects">
+                      <p className={styles.sectionTitle}>Screens this change affects</p>
+                      {shared ? (
+                        <p className={styles.note}>
+                          {shopOf(shared.tenant)}, {shared.theme}
+                        </p>
+                      ) : null}
+                      <ul className={styles.list}>
+                        {screens.map((sc) => {
+                          const current = sc.route === hash && sc.tenant === tenantId && sc.theme === theme;
+                          const where = shared ? null : <span className={styles.meta}> {shopOf(sc.tenant)}, {sc.theme}</span>;
+                          return (
+                            <li key={`${sc.route}|${sc.tenant}|${sc.theme}`} className={styles.item} aria-current={current ? 'page' : undefined}>
+                              {current ? (
+                                <span className={styles.here}>
+                                  <Icon icon={Check} size="sm" />
+                                  {sc.label}
+                                  {where}
+                                </span>
+                              ) : (
+                                <Link
+                                  variant="standalone"
+                                  href={`?${PARAM}=${change}&tenant=${encodeURIComponent(sc.tenant)}&theme=${encodeURIComponent(sc.theme)}#${sc.route}`}
+                                  onClick={goTo(sc)}
+                                  className={styles.screenLink}
+                                >
+                                  {sc.label}
+                                  {where}
+                                </Link>
+                              )}
+                              <span className={styles.meta}>{current ? 'You are here' : `${Math.max(1, Math.round(sc.percent))}% changed`}</span>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </section>
+                  ) : null}
+                  {visiblePairs.length ? (
+                    <section className={`${styles.sheetSection} ${styles.sheetPhone}`} aria-label="Tokens this change edits">
+                      <p className={styles.sectionTitle}>Tokens</p>
+                      <ul className={styles.list}>
+                        {roleGroups.map((g) => (
+                          <li key={g.name} className={styles.item}>
+                            <span className={styles.rowText}>
+                              <span>{g.name}</span>
+                              <span className={styles.rowMeta}>
+                                {g.pairs.length === 1 ? (g.pairs[0]!.token.step ?? '') : `${g.pairs.length} steps`}
+                                {isSubtle(g.pairs[0]!.before, g.pairs[0]!.after) ? ', subtle change' : ''}
+                              </span>
+                            </span>
+                            {g.pairs[0]!.color ? splitOf(g.pairs[0]!.before, g.pairs[0]!.after) : null}
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
+                  ) : null}
+                  {behind ? (
+                    <p className={styles.notice} role="note">
+                      <Icon icon={Info} size="sm" />
+                      {behind}
+                    </p>
+                  ) : null}
+                  <div className={styles.sheetPhone}>
+                    <Link variant="standalone" href={studio} className={styles.back}>
+                      Back to Studio
+                    </Link>
+                  </div>
+                  {screens === null ? (
+                    <p className={`${styles.note} ${styles.sheetFoot}`}>
+                      {facts ? 'The screens this change affects are not measured yet.' : 'Reading the change.'}
+                    </p>
+                  ) : screens.length === 0 ? (
+                    <p className={`${styles.note} ${styles.sheetFoot}`}>No admin screen changes. Component examples may still change: Studio lists them.</p>
+                  ) : null}
+                </PopoverContent>
+              </Popover>
+              <span className={styles.desktopOnly}>{outlineToggle}</span>
+              <Button variant="ghost" size="md" render={<a href={studio} />} className={styles.studio}>
+                Back to Studio
+              </Button>
+            </div>
+            <Tooltip className={PIN_CLASS} content="Collapse">
+              <IconButton icon={Minimize2} size="md" label="Collapse the Bridge toolbar" className={styles.collapse} onClick={() => toggleOpen(false)} />
+            </Tooltip>
+            {error ? (
+              <p className={styles.noteRow} role="status">
+                Could not read this change. Reload the page to try again.
+              </p>
+            ) : null}
+          </>
+        ) : (
+          <>
+            <span className={styles.brand}>Bridge</span>
+            <span className={styles.pillTitle} title={title}>
+              {title}
+            </span>
+            <Badge size="sm">{label}</Badge>
+            <Tooltip className={PIN_CLASS} content="Open the toolbar">
+              <IconButton icon={ChevronUp} size="md" label={`Open the Bridge toolbar. Showing ${label.toLowerCase()}. Press B to flip.`} onClick={() => toggleOpen(true)} />
+            </Tooltip>
+          </>
+        )}
+        {note && <div className={styles.noteRow}>{note}</div>}
+      </div>
+      {outlinesOn && surfaces.length ? (
+        <ChangeOutlines
+          surfaces={surfaces}
+          theme={theme}
+          emphasis={emphasis}
+          flash={flash}
+          onShown={setShownStable}
+          tip={(s) => {
+            // This surface's own before and after (its computed colour), and the token whose value it now shows.
+            const prop = s.props.find((p) => /^rgb/.test(p.before) && /^rgb/.test(p.after));
+            const token = prop ? visiblePairs.find((p) => p.color && toHex(p.after) === toHex(prop.after) && toHex(p.before) === toHex(prop.before)) : null;
+            // The role leads ("Brand primary"), the palette step comes second ("Primary 700").
+            const name = token?.token.name ?? [...new Set(s.roots.map(nameOf))].slice(0, 2).join(', ');
+            return (
+              <span className={styles.tip}>
+                {prop ? splitOf(prop.before, prop.after) : null}
+                <span className={styles.tipText}>
+                  <span>
+                    {s.label}: {name}
+                    {prop ? `, ${hexPair(prop.before, prop.after)}` : ''}
+                  </span>
+                  {token?.token.step ? <span className={styles.tipStep}>{token.token.step}</span> : null}
+                </span>
+                {prop ? subtleOf(prop.before, prop.after) : null}
+              </span>
+            );
+          }}
+        />
+      ) : null}
+    </ThemeProvider>
+  );
+}
+
+/** A media query, kept in sync. */
+function useMedia(query: string): boolean {
+  const get = () => (typeof window !== 'undefined' && window.matchMedia ? window.matchMedia(query).matches : false);
+  const [match, setMatch] = useState(get);
+  useEffect(() => {
+    const m = window.matchMedia(query);
+    const on = () => setMatch(m.matches);
+    m.addEventListener('change', on);
+    return () => m.removeEventListener('change', on);
+  }, [query]);
+  return match;
+}
+
+/** The admin's hash route ("/orders/12"), kept in sync. */
+function useHash(): string {
+  const read = () => window.location.hash.replace(/^#/, '').split('?')[0] || '/';
+  const [hash, setHash] = useState(read);
+  useEffect(() => {
+    const on = () => setHash(read());
+    window.addEventListener('hashchange', on);
+    return () => window.removeEventListener('hashchange', on);
+  }, []);
+  return hash;
+}

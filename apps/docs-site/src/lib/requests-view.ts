@@ -25,6 +25,7 @@ import {
   type RequestStatus,
 } from '@bridge-ds/core';
 import { GROUP_TONE, type StatusGroup } from './changes';
+import { ghVerb } from './gh-wording';
 
 /** The fields of a GitHub issue the Requests view reads (REST list or get). */
 export interface IssueLike {
@@ -273,13 +274,13 @@ const login = (x: string) => x.trim().replace(/^@/, '').toLowerCase();
  * Only a waiting request nobody is on gets one, and only for a design system owner who is connected (owners after
  * rights, the same lists the reviews count). Everyone else reads who decides; owners come from the config, never guessed.
  */
-export function requestDecision(r: Pick<RequestRow, 'status' | 'assignees' | 'prs'>, ctx: { viewer: string | null; owners: string[] }): RequestDecision {
+export function requestDecision(r: Pick<RequestRow, 'status' | 'assignees' | 'prs'>, ctx: { viewer: string | null; owners: string[]; signIn?: boolean }): RequestDecision {
   if (r.status !== 'requested' || requestOwner(r) || r.prs.length) return { kind: 'status', sentence: requestStateLine(r) };
   const owners = [...new Set(ctx.owners.map((o) => o.trim().replace(/^@/, '')).filter(Boolean))];
   if (ctx.viewer && owners.some((o) => login(o) === login(ctx.viewer!))) return { kind: 'decide', sentence: 'Nobody is on it yet. You decide what happens next.' };
   if (!owners.length) return { kind: 'wait', sentence: 'Nobody is on it yet. A design system owner decides what happens next: name them in Settings, Roles.' };
   const names = owners.length <= 2 ? owners.map((o) => `@${o}`).join(' or ') : `@${owners[0]} or ${owners.length - 1} more`;
-  return { kind: 'wait', sentence: `Nobody is on it yet. A design system owner (${names}) decides what happens next.${ctx.viewer ? '' : ' Connect GitHub if that is you.'}` };
+  return { kind: 'wait', sentence: `Nobody is on it yet. A design system owner (${names}) decides what happens next.${ctx.viewer ? '' : ` ${ghVerb(ctx.signIn ?? false)} if that is you.`}` };
 }
 
 /** The Start an exploration form, filled from a request: its title as the name (60 characters at most), its summary as the purpose. */

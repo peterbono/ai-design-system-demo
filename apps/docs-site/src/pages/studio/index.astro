@@ -19,6 +19,9 @@ import { PAGE_SOURCES, freshness } from '../../lib/sources';
 import { dashboard } from '../../lib/stats';
 import { groupByApp, loadAudits } from '../../lib/audits';
 import { APP_SHORT } from '../../lib/quality';
+import { signInConfig } from '../../lib/signin-config';
+import { ghButton } from '../../lib/gh-wording';
+import { GitHubMark } from '../../components/ds/studio/brand-icons';
 import { healthFigures, type BoardRelease } from '../../lib/overview-board';
 
 const s = dashboard();
@@ -60,6 +63,7 @@ const figures = healthFigures({
 
 const pickable = comps.map((c) => ({ name: c.name, slug: c.slug, family: c.category })).sort((a, b) => a.name.localeCompare(b.name));
 const COLUMNS = ['Exploring', 'In review', 'Ready to ship', 'Next release'];
+const signIn = Boolean(signInConfig());
 ---
 
 <Layout
@@ -75,7 +79,9 @@ const COLUMNS = ['Exploring', 'In review', 'Ready to ship', 'Next release'];
         <h1 id="ov-hello" class="ov-hello" data-greeting>Checking what needs you.</h1>
         <div class="ov-start">
           <StartChange client:load components={pickable} />
-          <Button variant="primary" fullWidth data-gh-open data-connect hidden>Connect GitHub</Button>
+          <Button variant="primary" iconStart={GitHubMark} fullWidth data-gh-open data-gh-signin={signIn ? '' : undefined} data-connect hidden>
+            {ghButton(signIn)}
+          </Button>
         </div>
       </div>
       <div class="ov-pick-slot" data-pick-slot hidden></div>
@@ -152,13 +158,14 @@ const COLUMNS = ['Exploring', 'In review', 'Ready to ship', 'Next release'];
   <script>
     import { entryLabel, loadProtection } from '@bridge-ds/core';
     import type { Root } from 'react-dom/client';
-    import { currentViewer, getToken, ghGet, hasWorkingToken, initGitHubConnect, readRepo, RateLimitError, studioClient } from '../../scripts/github-session';
+    import { currentViewer, getToken, ghGet, hasWorkingToken, initGitHubConnect, prefersSignIn, readRepo, RateLimitError, studioClient } from '../../scripts/github-session';
     import { loadStatuses, owners, teamPeople, type PullStatus } from '../../scripts/pr-status';
     import { loadTeams } from '../../scripts/teams';
     import { byUrgency } from '../../lib/changes';
     import { reviewQueue } from '../../lib/review-queue';
     import { overviewProtectionLine } from '../../lib/protection-view';
-    import { greetingLine, NEEDS_MAX, moreLabel, overviewTodo, reviewDecisions, SIGNED_OUT_LINE, type GuidanceItem, type TodoRequest, type TodoRow } from '../../lib/overview-todo';
+    import { greetingLine, NEEDS_MAX, moreLabel, overviewTodo, reviewDecisions, signedOutLine, type GuidanceItem, type TodoRequest, type TodoRow } from '../../lib/overview-todo';
+    import { rateLimitedLine } from '../../lib/gh-wording';
     import { boardColumns, developerWork, inFlightLine, type BoardInput, type BoardRelease } from '../../lib/overview-board';
     import { explorationWork, workNature, type VisualSignal } from '../../lib/work-nature';
     import { explorationRows, type ExplorationPullLike } from '../../lib/explorations-view';
@@ -268,8 +275,9 @@ const COLUMNS = ['Exploring', 'In review', 'Ready to ship', 'Next release'];
       const t = overviewTodo({ changes, requests: state.requests, viewer, owners: siteOwners(), ownerNames: ownerNames(), unprotected: state.unprotected, loading: !state.done, guidance });
       paintBoard(changes, viewer);
       if (signedOut) {
-        // One thing to do: connect. The needs stay out of a read-only page.
-        greeting.textContent = SIGNED_OUT_LINE;
+        // One thing to do: sign in (the side nav button; the greeting repeats it only on phones, where the side nav
+        // sits in the menu sheet). The needs stay out of a read-only page.
+        greeting.textContent = signedOutLine(prefersSignIn());
         greet?.classList.add('zone');
         greet?.classList.remove('is-quiet');
         todoList.hidden = true;
@@ -430,7 +438,7 @@ const COLUMNS = ['Exploring', 'In review', 'Ready to ship', 'Next release'];
           note.hidden = false;
           note.textContent =
             err instanceof RateLimitError
-              ? 'GitHub limits anonymous reads to 60 an hour and this browser has used them. Connect GitHub, or try again later.'
+              ? rateLimitedLine(prefersSignIn())
               : 'GitHub could not be reached. Open Changes to retry.';
         }
         if (flightLine) flightLine.textContent = 'Changes are out of reach for now.';

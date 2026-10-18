@@ -1,8 +1,15 @@
 # Sign in with GitHub
 
 Designers sign in to Studio with one click instead of creating and pasting a personal token. It needs a GitHub App
-that you, the owner, create once, and two environment variables on Vercel. Until both exist, Studio keeps the token
-paste exactly as before. Developers can still paste a token ("Use a token instead").
+that you, the owner, create once, and two environment variables on Vercel.
+
+Once the Client ID is set at build time, Sign in with GitHub is the only way into Studio: the sign-in dialog, Settings,
+the account menu and the side nav offer no token paste. Developers keep their own token for the CLI and the MCP
+server (`GITHUB_TOKEN`), which this does not touch. A token pasted in the browser before the switch keeps working until
+its owner disconnects; after that they sign in.
+
+Until the Client ID exists (a fork, `astro dev` without the env var), Studio offers the token paste as its only way
+in, exactly as before, so nobody is locked out.
 
 No database: the user's token lives in their browser, like a pasted token. The only server piece is one Vercel
 function, `apps/docs-site/api/github/token.ts`, which adds the app's client secret to swap GitHub's one-time code
@@ -59,7 +66,8 @@ Client ID at build time, and the ignored build step skips builds when no file ch
 
 ## 3. Check it
 
-Open Studio, **Settings**. The Account block now says **Sign in with GitHub**. Click it, approve on GitHub, and you
+Open Studio, signed out. Every Studio page shows **Sign in with GitHub** at the bottom of the side nav, and
+Settings, Account says **Sign in with GitHub** too, with no token option. Click it, approve on GitHub, and you
 land back on Settings with "Connected as @you" and **Can edit**.
 
 To let a designer in: add them as a collaborator with write access on the repository. They click **Sign in with
@@ -76,7 +84,8 @@ GitHub**; nothing else to set up on their side.
 - They can read but not write: "Ask an owner for write access."
 - The app lacks a permission: "The Bridge GitHub App cannot (do this) yet. Ask the repository owner to give it
   (permission): Read and write."
-- The env vars are missing on the host: "Sign in with GitHub is not set up on this site yet."
+- The env vars are missing on the host: "Sign in with GitHub is not set up on this site yet. Ask the site owner to
+  finish the setup."
 
 ## Previews and local servers
 
@@ -84,7 +93,7 @@ GitHub sends everyone back to the production callback. When the sign-in started 
 that page forwards it there, but only to addresses that match `previews.apps.docs` in `bridge.config.json`
 (`https://bridge-docs-git-{branch}-peterbonos-projects.vercel.app`) or `localhost`. Use a preview's branch URL,
 not its hash URL. Previews need the two variables in the Preview environment. `astro dev` has no function: run
-`vercel dev` for the full flow, or use a token. The production site needs this change deployed before previews can
+`vercel dev` for the full flow, or run `astro dev` without `GITHUB_APP_CLIENT_ID` to get the token paste. The production site needs this change deployed before previews can
 sign in, since the callback page lives there.
 
 ## Security, in short

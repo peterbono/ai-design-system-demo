@@ -1,10 +1,10 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import Icon from '../components/Icon.astro';
-import { Alert, Button } from '@bridge-ds/react';
+import { Button } from '@bridge-ds/react';
 import AgentToolsTable from '../components/ds/AgentToolsTable';
 import { Copy } from 'lucide-react';
-import { GITHUB_URL, sourceUrl } from '../lib/repo';
+import { GITHUB_URL, readJson, sourceUrl } from '../lib/repo';
 import { PAGE_SOURCES, freshness } from '../lib/sources';
 import { AI_DOC, mcpPrompts, mcpTools, safetyModel } from '../lib/mcp';
 import { buildLlmsTxt } from '../lib/llms';
@@ -34,20 +34,16 @@ const stats = [
 const tools = mcpTools();
 const prompts = mcpPrompts();
 const safety = safetyModel();
+const MCP_PACKAGE = readJson<{ name: string }>('packages/mcp/package.json').name;
+const CLI_PACKAGE = readJson<{ name: string }>('packages/cli/package.json').name;
 
-const build = ['git clone https://github.com/peterbono/ai-design-system-demo', 'cd ai-design-system-demo', 'npm install', 'npm run mcp:build'].join('\n');
-const claudeCode = 'claude mcp add bridge -- npx -y @bridge-ds/mcp --root /abs/path/to/your-ds';
-const projectJson = JSON.stringify({ mcpServers: { bridge: { command: 'node', args: ['packages/mcp/dist/index.js', '--root', '.'] } } }, null, 2);
-const desktopJson = JSON.stringify(
-  { mcpServers: { bridge: { command: 'npx', args: ['-y', '@bridge-ds/mcp', '--root', '/abs/path/to/your-ds'] } } },
-  null,
-  2,
-);
-const desktopRemote = JSON.stringify(
-  { mcpServers: { bridge: { command: 'npx', args: ['-y', '@bridge-ds/mcp', '--repo', 'owner/name'], env: { GITHUB_TOKEN: 'github_pat_...' } } } },
-  null,
-  2,
-);
+// The server runs from npm. A GitHub repository is the main path (no clone); a local folder is the alternative.
+const npx = ['-y', MCP_PACKAGE];
+const claudeCode = `claude mcp add bridge -s user -- npx ${npx.join(' ')} --repo owner/name`;
+const desktopRemote = JSON.stringify({ mcpServers: { bridge: { command: 'npx', args: [...npx, '--repo', 'owner/name'] } } }, null, 2);
+const claudeCodeLocal = `claude mcp add bridge -- npx ${npx.join(' ')} --root /abs/path/to/your-ds`;
+const projectJson = JSON.stringify({ mcpServers: { bridge: { command: 'npx', args: [...npx, '--root', '.'] } } }, null, 2);
+const desktopLocal = JSON.stringify({ mcpServers: { bridge: { command: 'npx', args: [...npx, '--root', '/abs/path/to/your-ds'] } } }, null, 2);
 const cli = [
   { cmd: 'bridge init', text: 'Detects your token folder, tiers and modes, writes bridge.config.json and .mcp.json, prints the Claude Desktop snippet.' },
   { cmd: 'bridge check', text: 'Validates tokens and runs the contrast gate. Use it in CI: exit 0 ok, 1 failures, 2 setup error.' },
@@ -58,9 +54,9 @@ const cli = [
   { cmd: 'bridge revert <pr|commit> --dry-run', text: 'Plans the undo of a merged token change against today: conflicts with later changes shown. Without --dry-run, a new local branch.' },
   { cmd: 'bridge impact --plan', text: 'Visual impact: which stories and app screens a change touches. Without --plan, screenshots both refs and pixel-diffs them (needs Chrome).' },
   { cmd: 'bridge audit <path>', text: 'Design system adoption in product code: token and component adoption, hardcoded values with the closest token, top files. --fix for exact CSS matches.' },
-  { cmd: 'bridge mcp', text: 'Starts the MCP server on stdio, same as node packages/mcp/dist/index.js.' },
+  { cmd: 'bridge mcp', text: `Starts the MCP server on stdio, same as npx ${MCP_PACKAGE}.` },
 ];
-const cliRun = 'node /abs/path/ai-design-system-demo/packages/cli/dist/index.js init';
+const cliRun = `npx ${CLI_PACKAGE} check`;
 const asks = [
   'Which token should this card background use in dark mode?',
   'Darken muted text in the light theme and show me the contrast impact first.',
@@ -135,26 +131,9 @@ import LibraryHeader from '../components/LibraryHeader.astro';
     Tokens resolved in every brand, theme and density, the contrast gate, components with their props and usage docs, and the agent rules. Claude
     builds UI with real tokens and proposes token changes as pull requests your design and tech owners review.
   </p>
-  <Alert tone="info" announce="off" title="On npm" className="lib-note">
-    <code>@bridge-ds/mcp</code> runs with <code>npx</code>, nothing to build. The <code>bridge</code> CLI is still in npm's review: until it is
-    listed, build it from this repository (step 1).
-  </Alert>
 
-  <h3 id="build">1. The CLI (optional, until it is on npm)</h3>
-  <div class="terminal">
-    <div class="terminal-bar">
-      <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
-      <span class="terminal-title"><Icon name="terminal" size={15} /> <span>Terminal</span></span>
-      <span class="terminal-actions">
-        <Button variant="secondary" size="sm" iconStart={Copy} data-copy={build}><span data-copy-label>Copy</span></Button>
-      </span>
-    </div>
-    <pre class="terminal-body cx-pre" tabindex="0" aria-label="Build commands">{build}</pre>
-  </div>
-  <p class="small muted">The CLI is then at <code>packages/cli/dist/index.js</code>. The MCP server needs no build: it runs from npm.</p>
-
-  <h3 id="claude-code">2. Claude Code</h3>
-  <p>Add the server for your user, pointing it at your design system folder:</p>
+  <h3 id="claude-code">1. Claude Code</h3>
+  <p>Connect Claude to your design system repository on GitHub. No clone, nothing to build, and read-only until you add a token:</p>
   <div class="terminal">
     <div class="terminal-bar">
       <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
@@ -166,43 +145,39 @@ import LibraryHeader from '../components/LibraryHeader.astro';
     <pre class="terminal-body cx-pre" tabindex="0" aria-label="Claude Code command">{claudeCode}</pre>
   </div>
   <p>
-    Or share it with your team through git: a project <code>.mcp.json</code> at the repository root. This repository ships one, and Claude Code asks
-    you to approve project servers the first time.
+    To let Claude open changes for review, add <code>-e GITHUB_TOKEN=github_pat_...</code> before <code>--</code>: a fine-grained token limited to that
+    one repository, with contents and pull requests read and write. Without a token, GitHub allows 60 requests an hour.
   </p>
-  <div class="terminal">
-    <div class="terminal-bar">
-      <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
-      <span class="terminal-title"><Icon name="file" size={15} /> <span>.mcp.json</span></span>
-      <span class="terminal-actions">
-        <Button variant="secondary" size="sm" iconStart={Copy} data-copy={projectJson}><span data-copy-label>Copy</span></Button>
-      </span>
-    </div>
-    <pre class="terminal-body cx-pre" tabindex="0" aria-label="Project .mcp.json">{projectJson}</pre>
-  </div>
 
-  <h3 id="claude-desktop">3. Claude Desktop</h3>
+  <h3 id="claude-desktop">2. Claude Desktop</h3>
   <p>In Settings, Developer, Edit config, add this to <code>claude_desktop_config.json</code>, then restart Claude Desktop:</p>
   <div class="terminal">
     <div class="terminal-bar">
       <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
       <span class="terminal-title"><Icon name="file" size={15} /> <span>claude_desktop_config.json</span></span>
       <span class="terminal-actions">
-        <Button variant="secondary" size="sm" iconStart={Copy} data-copy={desktopJson}><span data-copy-label>Copy</span></Button>
+        <Button variant="secondary" size="sm" iconStart={Copy} data-copy={desktopRemote}><span data-copy-label>Copy</span></Button>
       </span>
     </div>
-    <pre class="terminal-body cx-pre" tabindex="0" aria-label="Claude Desktop configuration">{desktopJson}</pre>
+    <pre class="terminal-body cx-pre" tabindex="0" aria-label="Claude Desktop configuration">{desktopRemote}</pre>
   </div>
+  <p class="small muted">For the token, add <code>"env": {"{"} "GITHUB_TOKEN": "github_pat_..." {"}"}</code> next to <code>args</code>.</p>
+
   <details class="cx-details">
-    <summary>Work on a GitHub repository instead of a local folder</summary>
+    <summary>Work on a local folder instead of a GitHub repository</summary>
+    <p>Pass <code>--root</code> with the path to your design system checkout. Claude Code:</p>
+    <pre class="cx-code" tabindex="0" aria-label="Claude Code command for a local folder">{claudeCodeLocal}</pre>
     <p>
-      Pass <code>--repo owner/name</code>. Without a token Bridge is read-only. Add <code>GITHUB_TOKEN</code> only if you want Claude to open pull
-      requests: a fine-grained token limited to that one repository, with contents and pull requests read and write.
+      Or share it with your team through git: a project <code>.mcp.json</code> at the repository root. Claude Code asks you to approve project servers the first time.
     </p>
-    <pre class="cx-code" tabindex="0" aria-label="Claude Desktop configuration for a GitHub repository">{desktopRemote}</pre>
+    <pre class="cx-code" tabindex="0" aria-label="Project .mcp.json">{projectJson}</pre>
+    <p>Claude Desktop:</p>
+    <pre class="cx-code" tabindex="0" aria-label="Claude Desktop configuration for a local folder">{desktopLocal}</pre>
   </details>
   <p class="small muted">
-    Other MCP clients work the same way over stdio: <code>node packages/mcp/dist/index.js --root &lt;dir&gt;</code> or <code>--repo owner/name</code>.
-    Options can also come from <code>BRIDGE_ROOT</code>, <code>BRIDGE_REPO</code>, <code>BRIDGE_REF</code> and <code>GITHUB_TOKEN</code>.
+    Other MCP clients work the same way over stdio: <code>npx -y {MCP_PACKAGE} --repo owner/name</code> (add <code>--ref</code> for another
+    branch) or <code>--root &lt;dir&gt;</code>. Options can also come from <code>BRIDGE_REPO</code>, <code>BRIDGE_REF</code>, <code>BRIDGE_ROOT</code>
+    and <code>GITHUB_TOKEN</code>.
   </p>
 
   <h3 id="tools">What Claude can do: {tools.length} tools</h3>
@@ -226,7 +201,7 @@ import LibraryHeader from '../components/LibraryHeader.astro';
   <ul class="cx-list">{asks.map((a) => <li>{a}</li>)}</ul>
 
   <h2 id="cli">bridge CLI</h2>
-  <p>The same checks and proposals from a terminal or CI. Build it once (see the MCP server steps), then run it in your design system repository, starting with <code>init</code>:</p>
+  <p>The same checks and proposals from a terminal or CI, from npm with nothing to install first. Run it in your design system repository: every command below is <code>npx {CLI_PACKAGE} &lt;command&gt;</code>, starting with <code>check</code>.</p>
   <div class="terminal">
     <div class="terminal-bar">
       <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>

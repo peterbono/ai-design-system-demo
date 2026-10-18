@@ -10,6 +10,7 @@
 // is ready reads green, not red.
 import { CONFLICT_REASON, mergeGate, type ApprovalSummary, type CiSummary, type MergeGate, type MissingApproval, type PullState, type ReviewStatusKind, type Tier } from './review-rules';
 import type { TokenReview } from './token-review';
+import { ghAction } from './gh-wording';
 import { entriesFor, type TeamStates } from '@bridge-ds/core';
 
 export type StatusGroup = 'blocked' | 'waiting' | 'ready' | 'neutral';
@@ -162,11 +163,13 @@ export function primaryAction(input: {
   canWrite: boolean;
   /** The viewer wrote this pull request: GitHub refuses self-approval. */
   isAuthor?: boolean;
+  /** The site has Sign in with GitHub: the connect label says "Sign in". */
+  signIn?: boolean;
 }): { kind: PrimaryKind; label: string; url?: string } {
   if (input.state === 'merged' || input.state === 'closed') return { kind: 'github', label: 'Open on GitHub' };
   const failed = input.ci.state === 'fail' ? input.ci.failed.find((f) => f.url) : undefined;
   if (failed) return { kind: 'open-run', label: 'Open failing test', url: failed.url };
-  if (!input.connected) return { kind: 'connect', label: 'Connect GitHub to review' };
+  if (!input.connected) return { kind: 'connect', label: ghAction('review', input.signIn ?? false) };
   if (input.gate.allowed && input.canWrite) return { kind: 'merge', label: 'Ship' };
   const green = input.ci.state === 'pass' || input.ci.state === 'none';
   if (green && input.gate.missing.length && !input.isAuthor && input.state === 'open') return { kind: 'approve', label: 'Approve' };

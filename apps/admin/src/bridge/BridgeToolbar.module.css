@@ -1,0 +1,509 @@
+/* The Bridge toolbar floats over the admin's content column: bottom right by default, docked left or centre on demand,
+   lifted above the page's primary buttons and the outlined surfaces when every dock would cover one. One row, 44px,
+   on desktop; compact density so every control is 36px. The border stays neutral. Text: 14 and 12, plus the wordmark.
+   Tokens only. */
+.anchor {
+  position: fixed;
+  inset-inline: var(--space-4);
+  bottom: var(--space-4);
+  z-index: var(--layer-sticky);
+  display: flex;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+
+.anchor[data-dock="start"] {
+  justify-content: flex-start;
+}
+
+.anchor[data-dock="center"] {
+  justify-content: center;
+}
+
+/* Never over the sidebar: the docks live in the content column (the shell's sidebar is size-60 wide above 1024px). */
+@media (min-width: 1025px) {
+  .anchor {
+    inset-inline-start: calc(var(--size-60) + var(--space-4));
+  }
+}
+
+.panel,
+.pill {
+  box-sizing: border-box;
+  border: var(--border-width-default) solid var(--color-border-default);
+  background-color: var(--color-surface-raised);
+  box-shadow: var(--elevation-overlay);
+  color: var(--color-text-default);
+  font-family: var(--typography-ui-family);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+  pointer-events: auto;
+}
+
+.panel[data-dragging],
+.pill[data-dragging] {
+  box-shadow: var(--elevation-modal);
+}
+
+/* Desktop: one row, 44px tall with its border (36px controls); a note, when there is one, takes a second row. */
+.panel {
+  display: grid;
+  grid-template-areas:
+    "grip title actions collapse"
+    "note note note note";
+  grid-template-rows: calc(var(--size-11) - 2 * var(--border-width-default)) auto;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--space-2);
+  max-width: min(100%, var(--size-300));
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-overlay);
+}
+
+.grip {
+  grid-area: grip;
+  cursor: grab;
+  touch-action: none;
+}
+
+.panel[data-dragging] .grip {
+  cursor: grabbing;
+}
+
+.title {
+  display: flex;
+  grid-area: title;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+}
+
+.brand {
+  flex: none;
+  font-family: var(--font-family-display);
+  font-size: var(--typography-ui-size);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* Desktop: the wordmark only; the change's name is in the pill and in the This change tooltip. */
+.panel .name {
+  display: none;
+}
+
+.name,
+.pillTitle {
+  overflow: hidden;
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.actions {
+  display: flex;
+  grid-area: actions;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.sides {
+  flex: none;
+}
+
+.collapse {
+  grid-area: collapse;
+}
+
+.phoneOnly {
+  display: none;
+}
+
+.desktopOnly {
+  display: contents;
+}
+
+.count {
+  margin-inline-start: var(--space-1-5);
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The colour pair of each changed token: a 24px split swatch, before half and after half. Values in the tooltip. */
+.swatches {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  border-radius: var(--radius-inset);
+}
+
+.swatches:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.split {
+  box-sizing: border-box;
+  display: inline-flex;
+  flex: none;
+  width: var(--size-6);
+  height: var(--size-6);
+  overflow: hidden;
+  border: var(--border-width-default) solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+}
+
+.split > span {
+  flex: 1 1 0;
+}
+
+/* Under 1.1:1 the two halves look alike: say so, so a near-white change reads as intended. */
+.subtle {
+  color: var(--color-text-muted);
+  font-size: var(--typography-caption-size);
+  line-height: var(--typography-caption-line-height);
+  white-space: nowrap;
+}
+
+.more {
+  white-space: nowrap;
+  color: var(--color-text-muted);
+  font-size: var(--typography-caption-size);
+  font-variant-numeric: tabular-nums;
+}
+
+.noteRow {
+  grid-area: note;
+  min-width: 0;
+  padding-block-end: var(--space-1);
+}
+
+.note {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--typography-caption-size);
+  line-height: var(--typography-caption-line-height);
+}
+
+.noteRow .note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--space-2);
+  padding-inline-start: var(--space-2);
+  color: var(--color-text-default);
+}
+
+.noteAction {
+  flex: none;
+}
+
+.sheet {
+  width: min(90vw, var(--size-80));
+}
+
+.list {
+  display: grid;
+  max-height: var(--size-60);
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--control-height-md);
+}
+
+.screenLink,
+.here {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  min-height: var(--control-height-md);
+}
+
+.here {
+  font-weight: var(--font-weight-semibold);
+}
+
+.meta {
+  flex: none;
+  color: var(--color-text-muted);
+  font-size: var(--typography-caption-size);
+  line-height: var(--typography-caption-line-height);
+}
+
+/* Changed here: one focusable row per surface. Line 1 its role, line 2 its tokens (muted, 12). Nothing truncates. */
+.rows {
+  display: grid;
+  max-height: var(--size-60);
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.row {
+  height: auto;
+  min-height: var(--control-height-md);
+  padding-block: var(--space-1);
+  justify-content: flex-start;
+  text-align: start;
+}
+
+.rowText {
+  display: grid;
+  min-width: 0;
+  font-weight: var(--font-weight-regular);
+  white-space: normal;
+}
+
+.rowName {
+  color: var(--color-text-default);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.rowMeta {
+  color: var(--color-text-muted);
+  font-size: var(--typography-caption-size);
+  line-height: var(--typography-caption-line-height);
+}
+
+.tipText {
+  display: grid;
+}
+
+.tipStep {
+  opacity: 0.8;
+}
+
+.sheetFoot {
+  margin-top: var(--space-2);
+}
+
+.sheetSection {
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: var(--border-width-default) solid var(--color-border-default);
+}
+
+.sheetSection:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-weight: var(--font-weight-semibold);
+}
+
+/* A separate notice, not part of a list. */
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-1-5);
+  margin: var(--space-2) 0 0;
+  padding-top: var(--space-2);
+  border-top: var(--border-width-default) solid var(--color-border-default);
+  color: var(--color-text-muted);
+  font-size: var(--typography-caption-size);
+  line-height: var(--typography-caption-line-height);
+}
+
+/* In the sheet on phones only: the token pairs and the way back. */
+.sheetPhone {
+  display: none;
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-height-md);
+}
+
+.pill {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: min(100%, var(--size-120));
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-4);
+  border-radius: var(--radius-pill);
+}
+
+/* With a note under it, the pill becomes a small card. */
+.pill[data-note] {
+  border-radius: var(--radius-overlay);
+}
+
+.pill .noteRow {
+  grid-column: 1 / -1;
+  padding-inline-end: var(--space-3);
+}
+
+.pill .noteRow .note {
+  padding-inline-start: 0;
+}
+
+/* Show what changed: a dashed Deep Harbor frame (Bridge's tool colour, not the product's) on each changed surface,
+   with a faint Deep Harbor tint and a role chip. Fixed layer: no pointer events, no focus, no layout. */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--layer-sticky);
+  pointer-events: none;
+}
+
+.box {
+  position: absolute;
+  box-sizing: border-box;
+  outline: var(--border-width-strong) dashed var(--color-action-primary-bg);
+  outline-offset: var(--border-width-strong);
+}
+
+/* A page-sized surface: an inset frame, so it reads as a selection, not as the window edge. */
+.box[data-page] {
+  outline-offset: 0;
+  border-radius: var(--radius-container);
+}
+
+/* No tint on the page frame: it would tint the very colour being compared. */
+.box[data-page] .tint {
+  display: none;
+}
+
+/* No room above (top of the viewport): under the surface instead. */
+/* No room above (top of the viewport): inside the surface's top-left corner instead. */
+.box[data-inside] .chip {
+  top: 0;
+  bottom: auto;
+  left: 0;
+}
+
+/* The surface a list row points at: solid frame, stronger tint. */
+.box[data-emphasis] {
+  outline-style: solid;
+}
+
+.box[data-emphasis] .tint {
+  opacity: 0.1;
+}
+
+.box[data-page] .chip {
+  top: var(--space-1);
+  bottom: auto;
+  left: var(--space-1);
+}
+
+.tint {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-color: var(--color-action-primary-bg);
+  opacity: 0.04;
+}
+
+/* Above the surface's top-left corner, so it never hides the surface's own content. */
+/* Hidden by default: shown on hover, from its list row, and briefly when outlines turn on. */
+.chip {
+  position: absolute;
+  visibility: hidden;
+  bottom: calc(100% + var(--border-width-strong) * 2);
+  left: calc(var(--border-width-strong) * -2);
+  max-width: var(--size-60);
+  overflow: hidden;
+  padding: 0 var(--space-1-5);
+  border-radius: var(--radius-inset);
+  background-color: var(--color-action-primary-bg);
+  color: var(--color-action-primary-text);
+  font-family: var(--typography-ui-family);
+  font-size: var(--typography-caption-size);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--typography-caption-line-height);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.chip[data-shown] {
+  visibility: visible;
+}
+
+.tip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+@media (max-width: 760px) {
+  .anchor {
+    inset-inline: var(--space-2);
+    bottom: var(--space-2);
+  }
+
+  /* Phone, open: docked to the bottom edge as one 44px row (sides, Changes, outline toggle, collapse). */
+  .anchor[data-open] {
+    inset-inline: 0;
+    bottom: 0;
+  }
+
+  .panel {
+    grid-template-areas:
+      "actions toggle collapse"
+      "note note note";
+    grid-template-rows: calc(var(--size-11) - var(--border-width-default)) auto;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    column-gap: var(--space-2);
+    width: 100%;
+    padding: 0 var(--space-1);
+    border-width: var(--border-width-default) 0 0;
+    border-radius: 0;
+  }
+
+  .title {
+    display: none;
+  }
+
+  .phoneOnly {
+    display: inline-flex;
+    grid-area: toggle;
+  }
+
+  .grip,
+  .brand,
+  .studio,
+  .desktopOnly {
+    display: none;
+  }
+
+  .actions {
+    justify-content: space-between;
+  }
+
+  .noteRow .note {
+    padding-inline-start: 0;
+  }
+
+  .pill {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+
+  .sheetPhone {
+    display: block;
+  }
+}
+
+/* Below 480px the note's action takes its own line. */
+@media (max-width: 480px) {
+  .noteAction {
+    flex-basis: 100%;
+    justify-content: flex-start;
+  }
+}

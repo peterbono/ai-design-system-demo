@@ -7,7 +7,8 @@ import { effectiveTier } from '../lib/review-queue';
 import { isGuidanceOnly } from '../lib/overview-todo';
 import { touchesVisuals } from '../lib/visual-impact';
 import { fileSignals, type FileSignals } from '../lib/work-nature';
-import { currentViewer, esc, ghGet, hasWorkingToken, readRepo } from './github-session';
+import { currentViewer, esc, ghGet, hasWorkingToken, prefersSignIn, readRepo } from './github-session';
+import { ghAction } from '../lib/gh-wording';
 import { needFromStatus, statusTone, whoActs } from '../lib/changes';
 import { planStatusReads, statusCacheKey, type CachedStatus } from '../lib/status-budget';
 import type { TeamStates } from '@bridge-ds/core';
@@ -153,15 +154,17 @@ export async function pullStatus(p: PullForStatus, opts: { lean?: boolean } = {}
 }
 
 /** Shown on rows left out of the anonymous budget. */
-export const SKIPPED_HINT = 'Connect GitHub for live status';
+export const skippedHint = () => ghAction('see live status', prefersSignIn());
 
 /**
  * Pill markup of a status. `null` shows a neutral placeholder while the reads run. `skipped` marks a row the
  * anonymous budget did not read: "Status unknown", with a tooltip that says how to get the live status.
  */
 export function statusChip(s: ReviewStatus | null, opts: { skipped?: boolean } = {}): string {
-  if (opts.skipped)
-    return `<span class="pill rv-status has-tip" data-status="unknown" data-tip="${SKIPPED_HINT}." aria-label="Status unknown. ${SKIPPED_HINT}.">Status unknown</span>`;
+  if (opts.skipped) {
+    const hint = skippedHint();
+    return `<span class="pill rv-status has-tip" data-status="unknown" data-tip="${hint}." aria-label="Status unknown. ${hint}.">Status unknown</span>`;
+  }
   if (!s) return '<span class="pill rv-status is-loading" aria-label="Checking status">Checking</span>';
   return `<span class="pill rv-status ${s.tone}" data-status="${esc(s.kind)}">${esc(s.label)}</span>`;
 }

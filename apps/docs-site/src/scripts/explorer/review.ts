@@ -9,7 +9,8 @@ import { cellValue, tierAxis } from '../../lib/explorer/model';
 import { swatchLabel } from '../../lib/explorer/swatch-ramp';
 import { isAlias, aliasTarget } from '@bridge-ds/core';
 import type { DraftEdit } from '../../lib/editor-model';
-import { initGitHubConnect, setButtonLabel } from '../github-session';
+import { initGitHubConnect, prefersSignIn, setButtonLabel } from '../github-session';
+import { ghAction } from '../../lib/gh-wording';
 import { currentScope } from '../shell';
 import { discardDraft, draftOverrides, editorSnapshot, undoEdit } from '../token-editor';
 import type { ExplorerData } from './types';
@@ -40,7 +41,7 @@ export function initReview(d: ExplorerData) {
   initGitHubConnect((viewer) => {
     // Without GitHub the primary action connects first (the shared dialog), then proposes: the draft is kept.
     if (propose) {
-      setButtonLabel(propose, viewer ? 'Send for review' : 'Connect GitHub to send');
+      setButtonLabel(propose, viewer ? 'Send for review' : ghAction('send', prefersSignIn()));
       propose.toggleAttribute('data-gh-open', !viewer);
     }
     if (note) note.hidden = Boolean(viewer);

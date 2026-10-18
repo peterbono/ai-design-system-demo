@@ -2,8 +2,8 @@
 // as a status badge, and "Change token" (pasted token) or "Sign out" (Sign in with GitHub) as a quiet action. Read
 // only or with a token GitHub refused, it becomes the page's one Harbor zone: a Field Guide drawing (passed as
 // children from Astro), one sentence and the one primary action; with a GitHub App that action is "Sign in with
-// GitHub" and "Use a token instead" stays as a quiet second way in. State comes from the shared GitHub session
-// (scripts/github-session.ts).
+// GitHub" and there is no token paste at all (a token pasted earlier can only be disconnected). State comes from the
+// shared GitHub session (scripts/github-session.ts).
 import { useEffect, useState, type ReactNode } from 'react';
 import { Avatar, Badge, Button, Card, CardBody } from '@bridge-ds/react';
 import { GitHubMark } from './brand-icons';
@@ -15,7 +15,7 @@ export interface SettingsAccountProps {
   repo: string;
   /** The Field Guide drawing shown while Studio is read only. */
   children?: ReactNode;
-  /** The site has a GitHub App (build time): Sign in with GitHub leads, the token paste is the quiet second way. */
+  /** The site has a GitHub App (build time): Sign in with GitHub is the only way in, no token paste. */
   signIn?: boolean;
 }
 
@@ -72,11 +72,6 @@ export default function SettingsAccount({ repo, children, signIn = false }: Sett
           <Button variant="primary" iconStart={GitHubMark} className="set-account-action" {...attrs}>
             {view.action}
           </Button>
-          {view.secondary && (
-            <Button variant="ghost" size="sm" data-gh-open="token">
-              {view.secondary}
-            </Button>
-          )}
         </div>
       </div>
     );

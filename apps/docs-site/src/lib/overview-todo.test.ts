@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { needFromStatus, whoActs } from './changes';
-import { developerLine, greetingLine, headlineFor, isGuidanceChange, moreLabel, reviewDecisions, reviewNeedsYou, isGuidanceOnly, othersLine, overviewTodo, showAllLabel, type TodoChange, type TodoRequest } from './overview-todo';
+import { developerLine, greetingLine, headlineFor, isGuidanceChange, moreLabel, reviewDecisions, reviewNeedsYou, isGuidanceOnly, othersLine, overviewTodo, showAllLabel, SIGNED_OUT_LINE, signedOutLine, type TodoChange, type TodoRequest } from './overview-todo';
 
 const owners = { design: ['peterbono'], tech: ['peterbono'] };
 type Kind = Parameters<typeof needFromStatus>[0];
@@ -206,6 +206,8 @@ describe('overview to-do: work sorted by kind', () => {
     expect(greetingLine('Florian Gouloubi', '1 thing needs you.', 'peterbono')).toBe('Hello, Florian. 1 thing needs you.');
     expect(greetingLine(null, "You're all caught up.", 'peterbono')).toBe("Hello. You're all caught up.");
     expect(greetingLine('Florian', 'Connect GitHub to start working on the library.', null)).toBe('Connect GitHub to start working on the library.');
+    expect(signedOutLine(true)).toBe('Sign in with GitHub to start working on the library.');
+    expect(signedOutLine(false)).toBe(SIGNED_OUT_LINE);
     expect(headlineFor([{ task: 'design' }, { task: 'guidance' }], 'me')).toBe('2 things need you.');
   });
 

@@ -25,7 +25,8 @@ import {
   type PullLike,
   type RequestRow,
 } from '../lib/requests-view';
-import { currentViewer, esc, getToken, ghGet, hasWorkingToken, initGitHubConnect, RateLimitError, readRepo, studioClient } from './github-session';
+import { currentViewer, esc, getToken, ghGet, hasWorkingToken, initGitHubConnect, prefersSignIn, RateLimitError, readRepo, studioClient } from './github-session';
+import { rateLimitedLine } from '../lib/gh-wording';
 import { owners } from './pr-status';
 import { ASSIGN_EVENT, DECLINE_EVENT, type AssignAskDetail, type DeclineAskDetail } from '../components/ds/studio/RequestDecide';
 
@@ -194,7 +195,7 @@ export function loadRequests(openPulls?: Promise<PullLike[] | null>): Promise<Re
       $('rq-table').hidden = true;
       $('rq-sentence').textContent =
         err instanceof RateLimitError
-          ? 'GitHub limits anonymous reads to 60 an hour and this browser has used them. Connect GitHub, or try again later.'
+          ? rateLimitedLine(prefersSignIn())
           : `Could not load requests: ${(err as Error).message}.`;
     } finally {
       list.removeAttribute('aria-busy');
@@ -231,12 +232,14 @@ export interface DetailContext {
   viewer: string | null;
   /** Design and tech owners after rights: they decide on a request nobody is on. */
   owners: string[];
+  /** The site has Sign in with GitHub. */
+  signIn?: boolean;
 }
 
 /** The viewer and the owners, read now (the viewer changes when someone connects). */
 export function detailContext(): DetailContext {
   const o = owners();
-  return { viewer: hasWorkingToken() ? (currentViewer()?.login ?? null) : null, owners: [...new Set([...o.design, ...o.tech])] };
+  return { viewer: hasWorkingToken() ? (currentViewer()?.login ?? null) : null, owners: [...new Set([...o.design, ...o.tech])], signIn: prefersSignIn() };
 }
 
 /**

@@ -51,7 +51,8 @@ import {
 import { iconSvg } from '../brand/icons';
 import { pullEntry, type BranchesConfig } from '../lib/branches';
 import type { Root } from 'react-dom/client';
-import { currentViewer, esc, ghGet, ghWrite, hasWorkingToken, initGitHubConnect, RateLimitError, readRepo, relativeTime, showGhError } from './github-session';
+import { currentViewer, esc, ghGet, ghWrite, hasWorkingToken, initGitHubConnect, prefersSignIn, RateLimitError, readRepo, relativeTime, showGhError } from './github-session';
+import { ghAction, ghVerb } from '../lib/gh-wording';
 import { analyzeTokenFiles, isTokenFile, type TokenReview } from './reviews/token-review';
 import { loadVisualImpact, renderTopChange } from './reviews/visual-impact';
 import { ciFor, loadStatuses, teamPeople, whoChip, type PullStatus } from './pr-status';
@@ -75,6 +76,7 @@ import {
   type ClassifiedCheck,
   type DesignFacts,
 } from '../lib/check-explain';
+import { productPreview, topScreen, tryInProductUrl } from '../lib/try-in-product';
 
 interface User {
   login: string;
@@ -274,7 +276,7 @@ function showEmpty(empty: boolean) {
 function paintAsOf(at: string | null) {
   const el = $('cg-asof');
   el.hidden = !at;
-  if (at) el.textContent = `Showing the list ${asOf(at)}: GitHub cannot be read right now. Connect GitHub for live status.`;
+  if (at) el.textContent = `Showing the list ${asOf(at)}: GitHub cannot be read right now. ${ghAction('see live status', prefersSignIn())}.`;
 }
 
 const natureOf = (title: string, labels: { name: string }[] | undefined, files: FileSignals | null = null) => workNature({ title: humanTitle(mdTitleText(title)), labels: labels ?? null, files }).nature;
@@ -322,7 +324,7 @@ export async function loadList(): Promise<{ number: number; head: { ref: string 
     $('cg-table').hidden = true;
     $('cg-open-sentence').textContent =
       failure instanceof RateLimitError
-        ? 'GitHub limits anonymous reads to 60 an hour and this browser has used them, with no saved list yet. Connect GitHub, or try again later.'
+        ? `GitHub limits anonymous reads to 60 an hour and this browser has used them, with no saved list yet. ${ghVerb(prefersSignIn())}, or try again later.`
         : `Could not load pull requests: ${(failure as Error | null)?.message ?? 'GitHub did not answer'}.`;
     return [];
   }
@@ -391,6 +393,16 @@ function wireVisualLink(d: HTMLElement) {
 }
 let openSeq = 0;
 
+/** Points "Try it in the product" at the admin screen that changes most, once the visual impact names one. */
+function aimTryInProduct(pr: number, shots: Parameters<typeof topScreen>[0]) {
+  const a = document.getElementById('rv-try') as HTMLAnchorElement | null;
+  const screen = topScreen(shots);
+  if (!a?.dataset.preview || !screen) return;
+  a.href = tryInProductUrl(a.dataset.preview, pr, screen);
+  const what = document.querySelector('#rv-try-hint [data-try-what]');
+  if (what) what.textContent = `Opens ${screen.label.toLowerCase()}, the screen that changes most, in the demo admin.`;
+}
+
 function section(id: string, title: string, meta: string, body: string, open = false) {
   return `<details class="cg-sec" id="${id}"${open ? ' open' : ''}><summary class="cg-sec-head"><span class="cg-sec-title">${title}</span><span class="cg-sec-meta" data-sec-meta>${meta}</span><span class="cg-sec-chev" aria-hidden="true"></span></summary><div class="cg-sec-body">${body}</div></details>`;
 }
@@ -405,7 +417,7 @@ export async function openPr(n: number, push = true) {
   window.scrollTo({ top: 0 });
   try {
     const pf = await ghGet<Pull>(`${R}/pulls/${n}`);
-    if (pf.stale) showNotice('warn', `GitHub cannot be read right now, so this shows change #${n} ${asOf(pf.cachedAt ?? '')}. Connect GitHub for live status.`);
+    if (pf.stale) showNotice('warn', `GitHub cannot be read right now, so this shows change #${n} ${asOf(pf.cachedAt ?? '')}. ${ghAction('see live status', prefersSignIn())}.`);
     const pull = pf.data;
     // GitHub computes whether it merges cleanly on the first read (null meanwhile): read it once more while the rest
     // loads, so the header never says "waiting for approval" on one load and "conflict" on the next.
@@ -486,6 +498,7 @@ export async function openPr(n: number, push = true) {
           const sec = document.getElementById('cg-sec-visual');
           if (sec) sec.hidden = !v.changed || v.changed < 2;
           renderTopChange($('rv-what-visual'), v, '#cg-sec-visual');
+          aimTryInProduct(pull.number, v.shots);
         })
         .catch((err) => {
           slot.innerHTML = `<p class="rv-error">Could not read the visual impact: ${esc((err as Error).message)}</p>`;
@@ -517,7 +530,7 @@ export async function openPr(n: number, push = true) {
   } catch (err) {
     if (seq !== openSeq) return;
     d.innerHTML = `<nav class="cg-crumbs" aria-label="Breadcrumb"><a href="./" data-back>Changes</a><span aria-hidden="true">/</span><span class="mono">#${n}</span></nav>`;
-    if (err instanceof RateLimitError) showNotice('warn', 'GitHub limits anonymous reads to 60 an hour. Connect GitHub, or open this pull request on GitHub.');
+    if (err instanceof RateLimitError) showNotice('warn', `GitHub limits anonymous reads to 60 an hour. ${ghVerb(prefersSignIn())}, or open this change on GitHub.`);
     else showNotice('fail', `Could not load pull request #${n}: ${(err as Error).message}`);
   }
 }
@@ -727,7 +740,7 @@ function renderDetail(x: DetailInput) {
     } else if (who.action === 'approve-design' || who.action === 'approve-tech' || who.action === 'approve') primary = who.action;
     else if (AUTHOR_CTA[who.action]) headerCta = `<a class="btn btn-primary btn-lg" href="${esc(pull.html_url)}" target="_blank" rel="noopener">${AUTHOR_CTA[who.action]}</a>`;
   } else if (help) primary = 'ask';
-  if (!access && !headerCta && (lifecycle === 'open' || lifecycle === 'draft')) headerCta = '<button type="button" class="btn btn-primary btn-lg" data-gh-open>Connect GitHub to review</button>';
+  if (!access && !headerCta && (lifecycle === 'open' || lifecycle === 'draft')) headerCta = `<button type="button" class="btn btn-primary btn-lg" data-gh-open>${ghAction('review', prefersSignIn())}</button>`;
   const failingRun = ci.failed.find((f) => f.url)?.url;
 
   // Conversation: how many, the last word, and GitHub for the thread (it is where people answer).
@@ -823,12 +836,14 @@ function renderDetail(x: DetailInput) {
       </details>
     </div>
     <p data-no-token class="cg-muted">Read only until connected. Or <a href="${esc(pull.html_url)}/files#submit-review" target="_blank" rel="noopener">review on GitHub</a>.</p>`;
-  // Ship sits at the end of the bar; the owner override and Close wait in More (rare, and Close is destructive).
+  // Ship sits at the end of the bar; the owner override and Close wait in More (rare, and Close is destructive). When
+  // the owner override is how this change ships (the header's primary), a disabled Ship next to it only competes.
+  const overridePath = primary === 'override' && !gate.allowed;
   const hasMore = write && (open || lifecycle === 'draft');
   const shipBits = write
     ? `<div class="cg-act-end">
         ${hasMore ? '<span class="rv-more" id="rv-more"></span>' : ''}
-        ${headerShip || !open ? '' : `<button type="button" class="btn btn-secondary" data-act="MERGE" ${gate.allowed ? '' : 'disabled aria-describedby="rv-merge-why"'}>Ship</button>`}
+        ${headerShip || !open || overridePath ? '' : `<button type="button" class="btn btn-secondary" data-act="MERGE" ${gate.allowed ? '' : 'disabled aria-describedby="rv-merge-why"'}>Ship</button>`}
       </div>`
     : access
       ? `<p class="cg-muted">@${esc(access.login)} cannot write to ${esc(repo.owner)}/${esc(repo.repo)}, so ship and close are off.</p>`
@@ -844,12 +859,21 @@ function renderDetail(x: DetailInput) {
   });
   const notShipper = gate.canShip ? [] : gate.reasons.filter((r) => /ship/i.test(r));
   const whyText = [unlocks ?? '', ...notShipper].filter(Boolean).join(' ');
-  const why = gate.allowed || lifecycle === 'merged' || lifecycle === 'closed' || !whyText ? '' : `<p class="cg-muted" id="rv-merge-why">${esc(whyText)}</p>`;
+  const why = gate.allowed || overridePath || lifecycle === 'merged' || lifecycle === 'closed' || !whyText ? '' : `<p class="cg-muted" id="rv-merge-why">${esc(whyText)}</p>`;
 
   // What it looks like: the biggest before/after first (filled by openPr), then the token diff as the "what changed"
   // of a token-only change. The full visual list stays one click away.
   // What changes on screen, right under the reasons and actions: the biggest before/after, then the token diff. The
   // full visual list stays one click away.
+  // "Try it in the product": the change's admin preview as GitHub reports it, with the Bridge toolbar on. The block's
+  // lead action; primary only when the header holds no primary already (one primary per view).
+  // Only while the change is open: a shipped or closed change has nothing left to compare.
+  const product = x.visual && (open || lifecycle === 'draft') ? productPreview(BRANCHES.apps, { branch: pull.head.ref, pr: pull.number, sha: pull.head.sha, fromFork: entry.fromFork }, { comments, statuses: x.statuses }) : null;
+  // Secondary (the header holds the view's primary), above the checklist so it is seen without scrolling, with what
+  // it opens as its sub-label.
+  const tryIt = product
+    ? `<div class="rv-try-block"><a class="btn btn-secondary btn-lg rv-try" id="rv-try" href="${esc(tryInProductUrl(product, pull.number, null))}" data-preview="${esc(product)}" target="_blank" rel="noopener" aria-describedby="rv-try-hint">Try it in the product<span class="sr-only"> (opens in a new tab)</span></a><p class="rv-try-hint" id="rv-try-hint"><span data-try-what>Opens the demo admin with this change.</span><span class="rv-try-key"> Press B there to flip.</span></p></div>`
+    : '';
   const what = x.visual
     ? `<div class="rv-what-visual"><h2 class="rv-what-sub">What changes on screen</h2><div id="rv-what-visual"><p class="rv-loading">Reading the before and after</p></div></div>`
     : '<p class="cg-line rv-what-quiet">No visual change.</p>';
@@ -862,12 +886,13 @@ function renderDetail(x: DetailInput) {
   const need = isActiveExploration(pull.labels) ? 'Exploration' : approvalNeedLabel(tier);
 
   return `
-  <nav class="cg-crumbs" aria-label="Breadcrumb"><a href="./" data-back>Changes</a><span aria-hidden="true">/</span><span class="mono">#${pull.number}</span></nav>
+  <nav class="cg-crumbs" aria-label="Breadcrumb"><a href="./" data-back>Changes</a></nav>
   <header class="zone cg-pr-open">
     <p class="cg-pr-who" data-who="${yourTurn ? 'you' : esc(who.who)}">${esc(sentence)}</p>
-    <h1 class="cg-pr-title">${esc(humanTitle(mdTitleText(pull.title)))} <span class="cg-num">#${pull.number}</span></h1>
+    <h1 class="cg-pr-title">${esc(humanTitle(mdTitleText(pull.title)))}</h1>
     <p class="cg-pr-meta">${avatar(pull.user, 20)}<span>${esc(pull.user.login)}</span>${need ? `<span class="cg-need">${esc(need)}</span>` : ''}</p>
-    ${needsHtml({ story, rows, rowText: help?.rowText ?? {}, why: help?.why ?? (showOverride ? OVERRIDE_RULE : null), ask, override: showOverride, primary })}
+    ${tryIt}
+    ${needsHtml({ story, rows, rowText: help?.rowText ?? {}, why: primary === 'override' ? null : (help?.why ?? (showOverride ? OVERRIDE_RULE : null)), ask, override: showOverride, primary })}
     ${headerCta ? `<p class="cg-pr-cta">${headerCta}</p>` : ''}
   </header>
   <section class="rv-what" aria-label="What changed">${what}${tokens}</section>
