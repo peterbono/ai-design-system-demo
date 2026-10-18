@@ -274,3 +274,32 @@ describe('guidance changes', () => {
     expect(isGuidanceChange('agent/card', undefined)).toBe(false);
   });
 });
+
+describe('For you: the change lifecycle (lib/change-status)', () => {
+  it('badges each change row with its state, in the status line words', () => {
+    const t = overviewTodo({ changes: [change(1, 'ready', 'ana', 'peterbono', { lifecycle: 'ready' }), change(2, 'needs-design', 'ana', 'peterbono', { lifecycle: 'ready' })], requests: [], viewer: 'peterbono', owners: ['peterbono'] });
+    expect(t.mine.map((r) => r.state)).toEqual([
+      { lifecycle: 'ready', label: 'Ready for review', tone: 'info' },
+      { lifecycle: 'ready', label: 'Ready for review', tone: 'success' },
+    ]);
+    // Unknown lifecycle: no badge rather than a guess.
+    expect(overviewTodo({ changes: [change(1, 'ready', 'ana', 'peterbono')], requests: [], viewer: 'peterbono', owners: ['peterbono'] }).mine[0]!.state).toBeUndefined();
+  });
+
+  it('puts the own draft of the viewer in For you, but not in the review badge count, and never one an agent made', () => {
+    const t = overviewTodo({ changes: [change(5, 'draft', 'me', 'me', { lifecycle: 'draft' })], requests: [], viewer: 'me', owners: ['me'] });
+    expect(t.mine).toEqual([
+      { key: 'change-5', kind: 'change', title: 'Change 5', href: '/studio/changes/?pr=5', task: 'finish', why: 'Reviewers are not asked until you mark it ready.', action: 'Open draft', state: { lifecycle: 'draft', label: 'Draft', tone: 'neutral' } },
+    ]);
+    expect(reviewDecisions(t.mine)).toBe(0);
+    const agent = overviewTodo({ changes: [change(5, 'draft', 'me', 'me', { lifecycle: 'draft', agent: true })], requests: [], viewer: 'me', owners: ['me'] });
+    expect(agent.mine).toEqual([]);
+    expect(agent.developer[0]!.task).toBe('blocked');
+  });
+
+  it('keeps a change that waits for code off For you, with no designer action', () => {
+    const t = overviewTodo({ changes: [change(6, 'ci-failing', 'ana', 'peterbono', { failing: 2, lifecycle: 'waiting' })], requests: [], viewer: 'peterbono', owners: ['peterbono'] });
+    expect(t.mine).toEqual([]);
+    expect(t.developer[0]).toMatchObject({ task: 'blocked', why: 'Design is approved. A developer finishes the code before it ships.', state: { label: 'Approved, waiting for code', tone: 'neutral' } });
+  });
+});

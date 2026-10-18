@@ -38,7 +38,6 @@ import {
   filterByTier,
   listSource,
   needFromDetail,
-  openerFor,
   readSnapshot,
   tierParam,
   whoActs,
@@ -78,6 +77,9 @@ import {
 } from '../lib/check-explain';
 import { productPreview, topScreen, tryInProductUrl } from '../lib/try-in-product';
 import { addedNotice, canAddTo, dismissedApprovals, dismissedSentence, isTokenChange } from '../lib/continue-change';
+import { backToDraft, detailStatus, mountStatus, statusFallback, unmountStatus, type DetailStatus } from './change-status';
+import { currentStatus, initStatusFilter, lifecycleChip, lifecycleOfRow } from './status-filter';
+import { byLifecycle, emptyFilterLine, needsClosed, showsUnderStatus, statusOpener } from '../lib/change-status';
 import { behindTag, conflictLine, conflictRows, freshness, libraryLine, nextSteps, resolveLabel, type CompareLike, type Freshness } from '../lib/library-sync';
 import { bringInLatest, checkGuardrail, commitResolution, readCompare, readConflicts, readDismissStale, waitForNewHead } from './reviews/library-sync';
 
@@ -101,6 +103,7 @@ interface Pull {
   updated_at: string;
   merged?: boolean;
   merged_at?: string | null;
+  closed_at?: string | null;
   mergeable?: boolean | null;
   comments?: number;
   review_comments?: number;
@@ -225,6 +228,9 @@ interface Row {
   head: { ref: string; sha: string };
   user: { login: string };
   draft?: boolean;
+  /** Pull request state and merge time: Shipped and Closed rows (status filter). */
+  state?: string;
+  merged_at?: string | null;
   labels?: { name: string }[];
   /** Design or developer work (lib/work-nature): title and labels first, then the changed files once read. */
   nature: WorkNature;
@@ -232,6 +238,9 @@ interface Row {
   approvers?: string[];
   changesRequested?: string[];
   failing?: number;
+  /** The design approval is in, and the names of the failing checks: the waiting-for-code rule (lib/change-status). */
+  design?: boolean;
+  failingChecks?: string[];
   /** Library updates since the change started (compare behind_by), read with a token only. */
   behindBy?: number | null;
 }
@@ -241,10 +250,13 @@ function rowHtml(r: Row) {
   return `<li class="cg-row" data-pr="${r.number}" ${natureAttr(r.nature)}><a class="cg-row-link" href="?pr=${r.number}" data-open-pr="${r.number}">
     <span class="cg-row-title"><span class="cg-row-name" title="${esc(title)}">${esc(title)}</span> <span class="cg-num">#${r.number}</span> ${devTag(r.nature)}${behindHtml(r.behindBy)}</span>
     ${needTag(r.tier)}
-    ${chip(r)}
+    ${lifecycleChip(r) ?? chip(r)}
     <time class="cg-date" datetime="${esc(r.updated_at)}">${esc(shortDate(r.updated_at))}</time></a></li>`;
 }
 
+/** The open rows last painted, and the recently closed ones once the Shipped or Closed filter asked for them. */
+let openRows: Row[] = [];
+let closedRows: Row[] | null = null;
 /** "12 updates behind" after the title: plain words, no color (the status chip holds the color). */
 function behindHtml(n: number | null | undefined) {
   const tag = behindTag(n);
@@ -252,10 +264,23 @@ function behindHtml(n: number | null | undefined) {
 }
 
 function paintRows(rows: Row[], loading: boolean) {
+  openRows = rows;
   const list = $('rv-list');
   const tier = tierParam(location.search);
-  const sorted = filterByTier(byUrgency(rows), tier);
-  list.innerHTML = sorted.length ? sorted.map(rowHtml).join('') : `<li class="cg-row cg-none">Nothing waits here: ${esc(approvalNeedLong(tier).toLowerCase())}.</li>`;
+  const status = currentStatus();
+  const pool = needsClosed(status) ? (closedRows ?? []) : rows;
+  // Most urgent first, then waiting for code, then drafts (lib/change-status byLifecycle); then the status filter.
+  const sorted = byLifecycle(filterByTier(byUrgency(pool), tier).map((r) => ({ r, lifecycle: lifecycleOfRow(r) })))
+    .filter((x) => showsUnderStatus(status, x.lifecycle))
+    .map((x) => x.r);
+  const none = status !== 'open' ? emptyFilterLine(status) : `Nothing waits here: ${approvalNeedLong(tier).toLowerCase()}.`;
+  list.innerHTML = sorted.length ? sorted.map(rowHtml).join('') : `<li class="cg-row cg-none">${esc(needsClosed(status) && !closedRows ? 'Reading recent changes from GitHub.' : none)}</li>`;
+  // Another status than Open always shows its list, even when nothing is open; the opener speaks about open changes.
+  if (status !== 'open') {
+    $('cg-table').hidden = false;
+    $('cg-empty').hidden = true;
+    $('cg-opener').hidden = true;
+  } else if (rows.length) $('cg-opener').hidden = false;
   markWork(list);
   const filter = document.getElementById('cg-tier-filter');
   if (filter) {
@@ -266,7 +291,7 @@ function paintRows(rows: Row[], loading: boolean) {
   const count = $('rv-count');
   count.textContent = String(rows.length);
   count.hidden = rows.length === 0;
-  const opener = openerFor(rows);
+  const opener = statusOpener(rows.map((r) => ({ ...r, lifecycle: lifecycleOfRow(r) })));
   const sentence = $('cg-open-sentence');
   const cta = document.getElementById('cg-open-cta') as HTMLAnchorElement | null;
   sentence.textContent = loading ? `${plural(rows.length, 'change')} in review. Checking their tests and approvals.` : opener.sentence;
@@ -275,7 +300,7 @@ function paintRows(rows: Row[], loading: boolean) {
     cta.dataset.openPr = String(opener.action.pr);
     cta.textContent = opener.action.label;
     cta.hidden = false;
-  }
+  } else if (cta && !loading) cta.hidden = true;
 }
 
 function showEmpty(empty: boolean) {
@@ -303,6 +328,7 @@ const toRow = (p: Pull | CachedPull, kind: ReviewStatusKind | null): Row => ({
   head: { ref: p.head.ref, sha: p.head.sha },
   user: { login: p.user.login },
   draft: p.draft,
+  ...('state' in p ? { state: p.state, merged_at: p.merged_at } : {}),
   ...('labels' in p ? { labels: p.labels } : {}),
   nature: natureOf(p.title, 'labels' in p ? p.labels : undefined),
 });
@@ -311,7 +337,31 @@ const toRow = (p: Pull | CachedPull, kind: ReviewStatusKind | null): Row => ({
  * Loads and paints the In review list. Returns every open pull request (running explorations and the release pull
  * request included, which the list leaves out: Explorations and History read them from here).
  */
+/** Shipped and Closed: the 30 most recently closed changes, read once. */
+async function loadClosed() {
+  if (closedRows) return;
+  try {
+    const f = await ghGet<Pull[]>(`${R}/pulls?state=closed&sort=updated&direction=desc&per_page=30`);
+    // Release automation and explorations have their own places (History, Explorations).
+    closedRows = f.data.filter((p) => !isAutomationPull(p) && !p.labels.some((l) => l.name === 'exploration')).map((p) => toRow(p, pullState(p) === 'merged' ? 'merged' : 'closed'));
+  } catch (err) {
+    closedRows = [];
+    showNotice('warn', err instanceof RateLimitError ? `GitHub limits anonymous reads to 60 an hour. ${ghVerb(prefersSignIn())} to see shipped and closed changes.` : `Could not read recent changes: ${(err as Error).message}`);
+  }
+  paintRows(openRows, false);
+}
+
+let statusFilterOn = false;
+
 export async function loadList(): Promise<{ number: number; head: { ref: string } }[]> {
+  if (!statusFilterOn) {
+    statusFilterOn = true;
+    initStatusFilter(() => {
+      paintRows(openRows, false);
+      if (needsClosed(currentStatus())) void loadClosed();
+    });
+    if (needsClosed(currentStatus())) void loadClosed();
+  }
   const list = $('rv-list');
   list.setAttribute('aria-busy', 'true');
   const snapshot = readSnapshot(storage(), REPO_KEY);
@@ -367,7 +417,7 @@ export async function loadList(): Promise<{ number: number; head: { ref: string 
     const prior = r.kind;
     r.kind = st && st.kind === 'unknown' && prior ? prior : (st?.kind ?? (skipped ? (known.get(p.number) ?? null) : null));
     r.skipped = skipped && !r.kind;
-    if (st && st.kind !== 'unknown') Object.assign(r, { approvers: st.approvers, changesRequested: st.changesRequested, failing: st.failing });
+    if (st && st.kind !== 'unknown') Object.assign(r, { approvers: st.approvers, changesRequested: st.changesRequested, failing: st.failing, design: st.design, failingChecks: st.failingChecks });
     if (st?.tier) r.tier = st.tier;
     if (st?.files) r.nature = natureOf(r.title, r.labels, st.files);
     paintRows([...rows.values()], false);
@@ -399,6 +449,8 @@ export async function loadList(): Promise<{ number: number; head: { ref: string 
 // Detail
 
 let current: { pull: Pull; tier: Tier | null } | null = null;
+/** The lifecycle status of the change renderDetail painted last (scripts/change-status), mounted once wired. */
+let statusNow: DetailStatus | null = null;
 
 /** "See all N" under the before/after: opens the full visual list and brings it into view. Wired once per element. */
 function wireVisualLink(d: HTMLElement) {
@@ -491,12 +543,24 @@ export async function openPr(n: number, push = true) {
 
     const docsPaths = files.filter((f) => isDocsFile(f.filename) && f.status !== 'removed').map((f) => f.filename);
     unmountMore();
+    unmountStatus();
     unmountLib();
     const fresh = freshness({ compare, mergeable: pull.mergeable, open: live });
     d.innerHTML = renderDetail({ pull, tier, files, reviews, comments, ci, approvals, gate, tokenCount: tokenFiles.length, changesetCount: changesets.length, visual, access, docsPaths, statuses, review, checks, fresh });
     wireActions(pull, gate, access);
     wireLibrary({ pull, fresh, compare, access, checks: ci.total, visual, approvals: approvals.approvers.length, seq });
     wireVisualLink(d);
+    if (statusNow)
+      void mountStatus($('rv-status'), statusNow, {
+        pull,
+        isAuthor: Boolean(access && access.login.toLowerCase() === pull.user.login.toLowerCase()),
+        canWrite: Boolean(access?.write),
+        viewer: access?.login ?? null,
+        exploration: isActiveExploration(pull.labels),
+        review: review instanceof Error ? null : review,
+        reload: () => openPr(n, false),
+        isCurrent: () => seq === openSeq,
+      });
     // Continue a change: "Edit tokens in this change", and what was just added when back from the token editor.
     const editSlot = document.getElementById('rv-edit-in-change');
     const addedSlot = document.getElementById('rv-added');
@@ -709,6 +773,9 @@ function needsHtml(x: {
   return `<ul class="rv-ap" aria-label="What it needs to ship">${checks}${approvals || (x.rows.length ? '' : '<li class="rv-ap-row" data-state="approved">' + ROW_ICON.approved + '<span class="rv-ap-role">Approval</span><span class="rv-ap-text">No approval needed.</span></li>')}${foot}</ul>`;
 }
 
+/** A draft asks nobody yet: its approval rows say so instead of "Waiting". */
+const DRAFT_ROWS: Partial<Record<ApprovalRow['role'], string>> = { design: 'Not asked until it is marked ready', tech: 'Not asked until it is marked ready', approval: 'Not asked until it is marked ready' };
+
 /** The author's next step happens on GitHub: the button names it. */
 const AUTHOR_CTA: Partial<Record<WhoActs['action'], string>> = {
   'fix-checks': 'See the checks on GitHub',
@@ -784,6 +851,19 @@ function renderDetail(x: DetailInput) {
     } else if (who.action === 'approve-design' || who.action === 'approve-tech' || who.action === 'approve') primary = who.action;
     else if (AUTHOR_CTA[who.action]) headerCta = `<a class="btn btn-primary btn-lg" href="${esc(pull.html_url)}" target="_blank" rel="noopener">${AUTHOR_CTA[who.action]}</a>`;
   } else if (help) primary = 'ask';
+  // The lifecycle status line (scripts/change-status) leads the header. Waiting for code: no designer action, the
+  // approval rows keep theirs as secondary. Draft: Mark as ready is the status line's own primary.
+  const exploration = isActiveExploration(pull.labels);
+  // Approvals GitHub dismissed (for example after new edits) and nobody gave again: the headline's first words.
+  const dismissed = open ? dismissedSentence(dismissedApprovals(reviews as never, pull.head.sha)) : null;
+  const status = detailStatus({ pull, tier, ci, approvals, story, checks: x.checks, files: files.map((f) => f.filename), exploration, isAuthor, sentence, yourTurn });
+  if (dismissed) status.sentence = `${dismissed} ${status.sentence}`;
+  statusNow = status;
+  if (status.lifecycle === 'waiting') {
+    primary = null;
+    headerCta = '';
+  }
+  if (status.lifecycle === 'draft' && isAuthor && write && !exploration) headerCta = '';
   if (!access && !headerCta && (lifecycle === 'open' || lifecycle === 'draft')) headerCta = `<button type="button" class="btn btn-primary btn-lg" data-gh-open>${ghAction('review', prefersSignIn())}</button>`;
   // Latest library: one row in the checklist when the change is behind or conflicts, its action on the row (mounted by
   // wireLibrary). Resolving a conflict is the view's primary only when nothing else holds it.
@@ -906,7 +986,8 @@ function renderDetail(x: DetailInput) {
   });
   const notShipper = gate.canShip ? [] : gate.reasons.filter((r) => /ship/i.test(r));
   const whyText = [unlocks ?? '', ...notShipper].filter(Boolean).join(' ');
-  const why = gate.allowed || overridePath || lifecycle === 'merged' || lifecycle === 'closed' || !whyText ? '' : `<p class="cg-muted" id="rv-merge-why">${esc(whyText)}</p>`;
+  const quietWhy = status.lifecycle === 'draft' || status.lifecycle === 'waiting';
+  const why = gate.allowed || overridePath || lifecycle === 'merged' || lifecycle === 'closed' || quietWhy || !whyText ? '' : `<p class="cg-muted" id="rv-merge-why">${esc(whyText)}</p>`;
 
   // What it looks like: the biggest before/after first (filled by openPr), then the token diff as the "what changed"
   // of a token-only change. The full visual list stays one click away.
@@ -931,8 +1012,6 @@ function renderDetail(x: DetailInput) {
   const tokens = x.tokenCount
     ? `<div class="rv-what-tokens"><div class="rv-tokens-head"><h3 class="rv-what-sub">Token changes</h3>${editable ? `<span class="rv-edit-in" id="rv-edit-in-change" data-change="${pull.number}"></span>` : ''}</div><div id="rv-tokens">${tokenBody}</div></div>`
     : '';
-  // Approvals GitHub dismissed (for example after new edits) and nobody gave again: the headline's first words.
-  const dismissed = open ? dismissedSentence(dismissedApprovals(reviews as never, pull.head.sha)) : null;
 
   const devMeta = [plural(files.length, 'file'), ci.total === 0 ? 'no checks yet' : failing ? `${failing} failing ${failing === 1 ? 'check' : 'checks'}` : ci.pending.length ? 'checks running' : 'checks pass'].join(', ');
   // What approval it needs, in plain words and no color. An exploration is tried, never shipped as is.
@@ -943,11 +1022,11 @@ function renderDetail(x: DetailInput) {
   <nav class="cg-crumbs" aria-label="Breadcrumb"><a href="./" data-back>Changes</a></nav>
   ${added > 0 ? `<div class="cg-added" id="rv-added" data-text="${esc(addedNotice(added))}"></div>` : ''}
   <header class="zone cg-pr-open">
-    <p class="cg-pr-who" data-who="${yourTurn ? 'you' : esc(who.who)}">${esc(dismissed ? `${dismissed} ${sentence}` : sentence)}</p>
+    <div class="cg-pr-status" id="rv-status">${statusFallback(status)}</div>
     <h1 class="cg-pr-title">${esc(humanTitle(mdTitleText(pull.title)))}</h1>
     <p class="cg-pr-meta">${avatar(pull.user, 20)}<span>${esc(pull.user.login)}</span>${need ? `<span class="cg-need">${esc(need)}</span>` : ''}</p>
     ${tryIt}
-    ${needsHtml({ story, rows, rowText: help?.rowText ?? {}, why: primary === 'override' ? null : (help?.why ?? (showOverride ? OVERRIDE_RULE : null)), ask, override: showOverride, primary, library: libraryRow })}
+    ${status.lifecycle === 'shipped' || status.lifecycle === 'closed' ? '' : needsHtml({ story, rows, rowText: status.lifecycle === 'draft' ? DRAFT_ROWS : status.lifecycle === 'waiting' ? {} : (help?.rowText ?? {}), why: primary === 'override' || status.lifecycle === 'waiting' ? null : (help?.why ?? (showOverride ? OVERRIDE_RULE : null)), ask: status.lifecycle === 'waiting' ? null : ask, override: showOverride, primary, library: libraryRow })}
     ${headerCta ? `<p class="cg-pr-cta">${headerCta}</p>` : ''}
   </header>
   <section class="rv-what" aria-label="What changed">${what}${tokens}</section>
@@ -967,7 +1046,7 @@ function renderDetail(x: DetailInput) {
   </div>
   <footer class="cg-actbar" id="rv-actions" aria-label="Review actions">
     ${why}
-    <div class="cg-actbar-row">${reviewForm}${shipBits}</div>
+    <div class="cg-actbar-row">${(status.lifecycle === 'draft' && isAuthor) || status.lifecycle === 'shipped' || status.lifecycle === 'closed' ? '' : reviewForm}${shipBits}</div>
     <p class="rv-act-status" id="rv-act-status" role="status" aria-live="polite"></p>
   </footer>
   ${showOverride ? overrideDialog(pull, gate, access!) : ''}`;
@@ -1154,8 +1233,14 @@ function wireActions(pull: Pull, gate: ReturnType<typeof mergeGate>, access: Acc
       // The detail moved on (another change, back to the list) while the menu loaded.
       if (seq !== openSeq || !slot.isConnected) return;
       unmountMore();
+      const author = Boolean(access && access.login.toLowerCase() === pull.user.login.toLowerCase());
       moreMenu = mountPrMoreMenu(slot, {
         override: null,
+        // The author takes a change in review back to draft (an exploration has its own flow).
+        onDraft:
+          author && pullState(pull) === 'open' && !isActiveExploration(pull.labels)
+            ? () => void backToDraft(pull.number, () => openPr(pull.number, false)).catch((err) => showGhError(status, err, `GitHub refused: ${(err as Error).message}`, 'write pull requests'))
+            : null,
         onClose: () => void run('CLOSE'),
       });
     });
@@ -1345,6 +1430,7 @@ export function renderTokenReview(review: TokenReview): string {
 export function closePr() {
   openSeq++;
   unmountMore();
+  unmountStatus();
   unmountLib();
   current = null;
   detailEl().hidden = true;

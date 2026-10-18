@@ -1158,6 +1158,71 @@ details[open] > summary .cg-sec-chev {
   }
 }
 
+/* Status line of a change (scripts/change-status, DS Badge and Button): the lifecycle state, one sentence and at most
+   one action, on one line at the top of the header. The result of the action sits under it. */
+.cg-pr-status {
+  display: flex;
+  flex-direction: column;
+}
+
+.cs-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-4);
+}
+
+.cs-what {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  min-width: 0;
+}
+
+.cs-sentence {
+  max-width: 65ch;
+  margin: 0;
+  font-size: var(--typography-body-size);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--typography-body-line-height);
+}
+
+.cs-said {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.cs-said:not(:empty) {
+  margin-top: var(--space-2);
+}
+
+/* Changes list: the status filter, one row above the list. Six segments do not fit a phone: the same choices show
+   in a DS Select there (StatusFilterSelect). */
+.cg-status-bar {
+  display: flex;
+  margin-block: var(--space-6) var(--space-3);
+}
+
+.cg-status-select {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .cg-status-seg {
+    display: none;
+  }
+
+  .cg-status-select {
+    display: block;
+    flex: 1 1 auto;
+  }
+}
+
 /* Token changes heading with "Edit tokens in this change" on the same line (the action next to its object). */
 .rv-tokens-head {
   display: flex;

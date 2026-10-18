@@ -115,6 +115,10 @@ function reviewCard(c: BoardChange, viewer: string | null, loading: boolean): Bo
   const base = { key: `change-${c.number}`, title: c.title, who: other(c.author, viewer), href: `/studio/changes/?pr=${c.number}` };
   const who: WhoActs | null = c.who;
   if (!who) return { ...base, note: loading ? 'Checking what it needs.' : 'Open it to see what it needs.', status: null };
+  // Approved, waiting for code (lib/change-status): not blocked for designers, a developer finishes it.
+  if (c.lifecycle === 'waiting') return { ...base, note: 'Approved, waiting for code.', status: null };
+  // A draft is not blocked: its author marks it ready when it is done.
+  if (c.lifecycle === 'draft') return { ...base, note: 'Draft. Nobody is asked to review it yet.', status: null };
   const block = blockerOf(c, who, viewer);
   if (block) {
     const author = other(who.logins[0], viewer);

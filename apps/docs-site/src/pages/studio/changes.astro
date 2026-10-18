@@ -17,6 +17,7 @@ import Icon from '../../components/Icon.astro';
 import ButtonLink from '../../components/ds/ButtonLink';
 import { Alert, Button, Link, SegmentedControl } from '@bridge-ds/react';
 import { WORK_FILTERS } from '../../lib/work-nature';
+import { STATUS_FILTERS } from '../../lib/change-status';
 import { siteRepo } from '../../lib/config';
 import { EXPLORATION_USE_CASES } from '@bridge-ds/core';
 import { lastUpdated, PREVIEW_APPS, PREVIEW_PACKAGES, readText } from '../../lib/repo';
@@ -27,6 +28,7 @@ import { loadComponents } from '../../lib/components';
 import Example from '../../components/Example';
 import PromoteToReview from '../../components/ds/studio/PromoteToReview';
 import RequestDecide from '../../components/ds/studio/RequestDecide';
+import StatusFilterSelect from '../../components/ds/studio/StatusFilterSelect';
 import type { BranchesConfig } from '../../lib/branches';
 import { ghAction, ghButton } from '../../lib/gh-wording';
 import { signInConfig } from '../../lib/signin-config';
@@ -47,6 +49,8 @@ const repoUrl = `https://github.com/${r.owner}/${r.repo}`;
 const demoHistory = import.meta.env.DEV;
 // Developer work (code only, lib/work-nature) is tagged in each list; this filter shows when a list holds some.
 const workItems = WORK_FILTERS.map((f) => ({ value: f.value, label: f.label }));
+// The lifecycle of a change (lib/change-status): Open by default, one state at a time, in the address as ?status=.
+const statusItems = STATUS_FILTERS.map((f) => ({ value: f.value, label: f.label }));
 const sources = ['docs/GOVERNANCE.md', '.github/CODEOWNERS', 'docs/PREVIEWS.md', 'docs/EXPLORATIONS.md', '.changeset'];
 const signIn = Boolean(signInConfig());
 ---
@@ -86,6 +90,11 @@ const signIn = Boolean(signInConfig());
           <Icon name="draft" size={20} />
           <p><strong>Your draft:</strong> <span id="cg-draft-n">token edits</span>, only in this browser. <span id="cg-draft-dest"></span></p>
           <ButtonLink size="sm" href="/studio/tokens/#review" data-keep-branch>Review and propose</ButtonLink>
+        </div>
+
+        <div class="cg-status-bar">
+          <div class="cg-status-seg"><SegmentedControl label="Status" data-vanilla data-status-filter defaultValue="open" items={statusItems} /></div>
+          <div class="cg-status-select"><StatusFilterSelect client:media="(max-width: 760px)" /></div>
         </div>
 
 <div class="cg-work" data-work-bar hidden>
