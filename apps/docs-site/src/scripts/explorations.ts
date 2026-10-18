@@ -3,11 +3,12 @@
 // `explore/<slug>` branch; starting, promoting and closing go through the core helpers (explorations-github.ts) with
 // the viewer's token, the same code the MCP server and the CLI run. Reads stay inside the anonymous budget: the open
 // pull requests In review already read, plus the request list the Requests view caches. Pure rules: lib/explorations-view.ts.
-import { type BranchPreview, type BranchPreviewSources, closeExplorationOnGitHub, EXPLORATION_PREFIX, EXPLORATION_TIER_LABEL, EXPLORATION_USE_CASES, promoteExplorationOnGitHub, startExplorationOnGitHub, type ExplorationUseCase } from '@bridge-ds/core';
+import { approverLists, type BranchPreview, type BranchPreviewSources, closeExplorationOnGitHub, EXPLORATION_PREFIX, promoteExplorationOnGitHub, startExplorationOnGitHub, type ExplorationUseCase, type Rights } from '@bridge-ds/core';
 import {
   branchFor,
   explorationPreviews,
   explorationRows,
+  explorationStateLine,
   explorationsSummary,
   implementOnCommand,
   openRequestNumbers,
@@ -19,9 +20,17 @@ import {
   type ExplorationRow,
   type ExplorationsConfig,
   previewRowCopy,
+  promoteAsk,
+  promotedLine,
+  purposeLine,
   tryItCopy,
   tryItFromComments,
+  useCaseHint,
 } from '../lib/explorations-view';
+import { touchesVisuals } from '../lib/visual-impact';
+import type { Tier } from '../lib/review-rules';
+import type { PromoteAskDetail } from '../components/ds/studio/PromoteToReview';
+import { loadVisualImpact, renderTopChange } from './reviews/visual-impact';
 import type { PullLike } from '../lib/requests-view';
 import { currentViewer, esc, getToken, ghGet, hasWorkingToken, initGitHubConnect, RateLimitError, readRepo, relativeTime, setButtonBusy, showGhError, studioClient } from './github-session';
 import { loadRequestRows } from './requests';
@@ -34,6 +43,16 @@ const CFG: ExplorationsConfig = (() => {
     return { owner: b.owner ?? repo.owner, repo: b.repo ?? repo.repo, defaultBranch: b.defaultBranch ?? repo.defaultBranch, apps: b.apps ?? {}, packages: b.packages ?? [] };
   } catch {
     return { owner: repo.owner, repo: repo.repo, defaultBranch: repo.defaultBranch, apps: {}, packages: [] };
+  }
+})();
+
+// Who approves: the owner lists after rights, the same lists the review counts approvals against.
+const OWNERS = (() => {
+  try {
+    const site = JSON.parse(document.getElementById('bridge-repo')?.textContent || '{}') as { owners?: { design: string[]; tech: string[] }; rights?: Rights | null };
+    return approverLists(site.owners ?? { design: [], tech: [] }, site.rights);
+  } catch {
+    return { design: [], tech: [] };
   }
 })();
 
@@ -62,8 +81,8 @@ function rowHtml(r: ExplorationRow) {
   return `<li class="cg-row ex-row" data-exploration="${r.number}">
     <div class="ex-row-main">
       <p class="ex-row-title"><a class="ex-name" href="?exploration=${r.number}" data-open-exploration="${r.number}">${esc(r.name)}</a> <span class="cg-num">#${r.number}</span> ${pill(r.statusLabel, `rv-status ${r.tone}`)}</p>
-      ${r.purpose ? `<p class="ex-purpose">${esc(r.purpose)}</p>` : ''}
-      <p class="ex-meta"><span class="mono">${esc(r.branch)}</span>, @${esc(r.author)}, updated <time datetime="${esc(r.updatedAt)}">${esc(shortDate(r.updatedAt))}</time>${esc(reqs)}${preview ? `, <a href="${esc(preview.url)}" target="_blank" rel="noopener">${esc(preview.label)} preview</a>` : ''}</p>
+      ${purposeLine(r.name, r.purpose) ? `<p class="ex-purpose">${esc(r.purpose)}</p>` : ''}
+      <p class="ex-meta">@${esc(r.author)}, updated <time datetime="${esc(r.updatedAt)}">${esc(shortDate(r.updatedAt))}</time>${esc(reqs)}${preview ? `, <a href="${esc(preview.url)}" target="_blank" rel="noopener">${esc(preview.label)} preview</a>` : ''}</p>
     </div>
   </li>`;
 }
@@ -127,10 +146,10 @@ function paintStartAuth() {
 function paintStartPreview(form: HTMLFormElement) {
   const f = readStart(form);
   const branch = branchFor(f.name);
-  $('ex-branch').textContent = branch ? `Creates ${branch} from ${CFG.defaultBranch} and a draft pull request labeled exploration.` : `Creates explore/<name> from ${CFG.defaultBranch} and a draft pull request labeled exploration.`;
+  // Developer details live in the form's "For developers" disclosure: the branch and the CLI equivalent.
+  $('ex-branch').textContent = `Creates ${branch ?? 'explore/<name>'} from ${CFG.defaultBranch} and a draft pull request labeled exploration.`;
   $('ex-start-cmd').textContent = startCommand(f);
-  const uc = EXPLORATION_USE_CASES.find((u) => u.value === f.useCase);
-  $('ex-uc-hint').textContent = uc ? uc.hint : 'Optional. It goes in the pull request, so reviewers know why it exists.';
+  $('ex-uc-hint').textContent = useCaseHint(f.useCase);
 }
 
 function closeStart(focus = true) {
@@ -193,7 +212,7 @@ function wireStart() {
       closeStart(false);
       const done = $('ex-done');
       done.hidden = false;
-      done.innerHTML = `<p><strong>${esc(s.branch)} is ready.</strong> Draft pull request <a href="?exploration=${s.pr}" data-open-exploration="${s.pr}">#${s.pr}</a> is labeled exploration. Snapshots and previews appear after the first CI run.</p>`;
+      done.innerHTML = `<p><strong>${esc(f.name.trim())} is ready.</strong> <a href="?exploration=${s.pr}" data-open-exploration="${s.pr}">Open exploration #${s.pr}</a>. Its previews appear in a few minutes.</p>`;
       void loadExplorations(undefined, true).then(() => {
         // The list from GitHub may not show the new pull request yet: keep it on screen.
         if (!rows.some((r) => r.number === s.pr)) $('ex-sentence').textContent = `${explorationsSummary(rows)} #${s.pr} appears here in a moment.`;
@@ -220,64 +239,79 @@ function cmdRow(id: string, cmd: string, label: string) {
   return `<div class="rq-cmd-row"><code class="cg-cmd rq-cmd" id="${id}">${esc(cmd)}</code><button type="button" class="btn btn-secondary btn-sm" data-copy data-copy-from="${id}"><span data-copy-label>${esc(label)}</span></button></div>`;
 }
 
-function stateSentence(r: ExplorationRow): string {
-  if (r.status === 'promoted') return `Promoted to review: #${r.number} is a normal pull request now and goes through the usual gates.`;
-  if (r.status === 'closed') return 'Closed without merging. The branch stays for reference.';
-  return `Running on ${r.branch}. It is never merged as is: promote it to review when the idea is validated, or close it.`;
+/** The preview rows: one per app, a link with its designer name, or what is missing on the same line. */
+export function previewList(previews: BranchPreview[]): string {
+  return `<ul class="ex-previews">${previews
+    .map(previewRowCopy)
+    .map((p) => `<li>${p.url ? `<a class="btn btn-secondary btn-lg" href="${esc(p.url)}" target="_blank" rel="noopener">Open ${esc(p.label)}</a>` : `<span class="ex-preview-name">${esc(p.label)}</span>`}${p.note ? ` <span class="cg-muted">${esc(p.note)}</span>` : ''}</li>`)
+    .join('')}</ul>`;
 }
 
-/** The preview rows: one per app, its link and host, or what is missing on the same line. */
-export function previewList(previews: BranchPreview[]): string {
-  return `<ul class="rq-prs">${previews
-    .map(previewRowCopy)
-    .map((p) => `<li>${p.url ? `<a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.label)}</a> <span class="cg-muted mono">${esc(p.host ?? '')}</span>` : esc(p.label)}${p.note ? ` <span class="cg-muted">${esc(p.note)}</span>` : ''}</li>`)
-    .join('')}</ul>`;
+/** The preview hosts, for developers: which deploy each link opens. */
+function previewHosts(previews: BranchPreview[]): string {
+  const rows = previews.map(previewRowCopy).filter((p) => p.host);
+  return rows.length ? `<p class="cg-muted">Preview deploys: ${rows.map((p) => `${esc(p.label)} <span class="mono">${esc(p.host!)}</span>`).join(', ')}.</p>` : '';
 }
 
 export function renderExplorationDetail(r: ExplorationRow, opts: { connected: boolean }): string {
   const actions =
     r.status !== 'active'
-      ? `<a class="btn btn-primary" href="?pr=${r.number}" data-open-pr="${r.number}">Open pull request #${r.number}</a>`
+      ? `<a class="btn btn-primary btn-lg" href="?pr=${r.number}" data-open-pr="${r.number}">Open it in In review</a>`
       : opts.connected
-        ? `<button type="button" class="btn btn-primary" data-ex-promote="${r.number}">Promote to review</button> <button type="button" class="btn btn-secondary" data-ex-close-ask="${r.number}">Close</button>`
-        : `<a class="btn btn-primary" href="${esc(r.url)}" target="_blank" rel="noopener">Open on GitHub</a> <button type="button" class="btn btn-secondary" data-gh-open>Connect GitHub</button>`;
-  const noToken =
-    r.status === 'active' && !opts.connected
-      ? `<p class="cg-muted ex-note">To promote it without connecting, use "Ready for review" on GitHub and remove the exploration label, or run <code class="mono">${esc(promoteCommand(r.slug))}</code>.</p>`
-      : '';
+        ? `<button type="button" class="btn btn-primary btn-lg" data-ex-promote="${r.number}">Promote to review</button> <button type="button" class="btn btn-secondary btn-lg" data-ex-close-ask="${r.number}">Close</button>`
+        : `<button type="button" class="btn btn-primary btn-lg" data-gh-open>Connect GitHub to promote it</button>`;
   // Filled again by paintTryIt with what Vercel reports: a long branch alias is shortened with a hash, never guessed.
   const resolved = explorationPreviews(r, CFG.apps);
-  const previews = resolved.length ? `<div id="ex-previews" aria-live="polite">${previewList(resolved)}</div>` : '<p class="cg-muted">Preview deploys are not set up: add previews.apps to bridge.config.json.</p>';
+  const previews = resolved.length ? `<div id="ex-previews" aria-live="polite">${previewList(resolved)}</div>` : '<p class="cg-muted">Previews are not set up for this library yet.</p>';
   // Filled by paintTryIt from the pull request's preview comment: the command that works, never a guess.
   const install = CFG.packages.length
     ? `<div id="ex-tryit" aria-live="polite"><p class="cg-muted">Checking the test build.</p></div>`
     : '<p class="cg-muted">No snapshot package configured: add previews.packages to bridge.config.json.</p>';
   const reqs = r.requests.length
-    ? `<ul class="rq-prs">${r.requests.map((q) => `<li><a href="?request=${q.number}" data-open-request="${q.number}">#${q.number} ${esc(q.component)}: ${esc(q.title)}</a> <span class="cg-muted">${esc(q.statusLabel)}</span></li>`).join('')}</ul>`
-    : '<p class="cg-muted">No request is filed on this exploration yet.</p>';
+    ? `<ul class="rq-prs">${r.requests.map((q) => `<li><a href="?request=${q.number}" data-open-request="${q.number}">${esc(q.component)}: ${esc(q.title)}</a> <span class="cg-muted">#${q.number}, ${esc(q.statusLabel)}</span></li>`).join('')}</ul>`
+    : '<p class="cg-muted">No request is built on this exploration yet.</p>';
   const first = r.requests.find((q) => q.open)?.number ?? null;
-  const claude = `<p>Claude works on ${esc(r.branch)}, never on main, and never opens a pull request to main.</p>
-    ${cmdRow('ex-implement-cmd', implementOnCommand(first, r.branch), 'Copy command')}
-    <p class="cg-muted">In Claude Code with the Bridge MCP server, ask to work on exploration ${esc(r.slug)}: token edits take <span class="mono">branch: "${esc(r.branch)}"</span>, and <span class="mono">bridge_start_exploration</span> starts a new one.</p>`;
+  const purpose = purposeLine(r.name, r.purpose);
+  const dev = `<details class="cg-sec cg-dev" id="ex-sec-dev"><summary class="cg-sec-head"><span class="cg-sec-title">For developers</span><span class="cg-sec-meta">Install, CLI and GitHub</span><span class="cg-sec-chev" aria-hidden="true"></span></summary>
+    <div class="cg-sec-body">
+      <p>Branch <span class="mono">${esc(r.branch)}</span>, draft pull request <a href="${esc(r.url)}" target="_blank" rel="noopener">#${r.number} on GitHub</a>. It is never merged as is: promoting it removes the exploration label and marks it ready for review.</p>
+      <div id="ex-dev-hosts">${previewHosts(resolved)}</div>
+      <h3 class="ex-dev-h">Try it in a product staging branch</h3>
+      ${install}
+      ${
+        r.status === 'active'
+          ? `<h3 class="ex-dev-h">Implement on this exploration</h3>
+      <p>Claude works on ${esc(r.branch)}, never on ${esc(CFG.defaultBranch)}, and never opens a pull request to ${esc(CFG.defaultBranch)}.</p>
+      ${cmdRow('ex-implement-cmd', implementOnCommand(first, r.branch), 'Copy command')}
+      <p class="cg-muted">In Claude Code with the Bridge MCP server, ask to work on exploration ${esc(r.slug)}: token edits take <span class="mono">branch: "${esc(r.branch)}"</span>, and <span class="mono">bridge_start_exploration</span> starts a new one.</p>
+      <p class="cg-muted">Promote from a terminal: <code class="mono">${esc(promoteCommand(r.slug))}</code>, or "Ready for review" on GitHub and remove the exploration label.</p>`
+          : ''
+      }
+    </div></details>`;
   return `${crumbs(r.number)}
   <header class="zone cg-pr-open">
     <h1 class="cg-pr-title">${esc(r.name)} <span class="cg-num">#${r.number}</span></h1>
-    <p class="cg-pr-meta">${pill(r.statusLabel, `rv-status ${r.tone}`)}<span class="pill cg-tier">${esc(EXPLORATION_TIER_LABEL)}</span><span>@${esc(r.author)}</span><span>Updated ${esc(relativeTime(r.updatedAt))}</span><span class="mono">${esc(r.branch)}</span><a href="${esc(r.url)}" target="_blank" rel="noopener">Open on GitHub</a></p>
-    <p class="cg-pr-state">${esc(stateSentence(r))}</p>
-    <p class="cg-pr-cta ex-actions" id="ex-actions">${actions}</p>
-    ${noToken}
+    ${purpose ? `<p class="ex-purpose-line">${esc(purpose)}</p>` : ''}
+    <p class="cg-pr-meta">${pill(r.statusLabel, `rv-status ${r.tone}`)}<span class="pill cg-tier">Exploration</span>${r.useCaseLabel ? `<span>${esc(r.useCaseLabel)}</span>` : ''}<span>@${esc(r.author)}</span><span>Updated ${esc(relativeTime(r.updatedAt))}</span></p>
+    <p class="cg-pr-state">${esc(explorationStateLine(r.status))}</p>
+    <div class="cg-pr-cta ex-actions" id="ex-actions">${actions}</div>
     <div class="ex-confirm" id="ex-confirm" hidden>
-      <p>Close #${r.number} without merging? The branch stays for reference and the preview prerelease is removed.</p>
+      <p>Close ${esc(r.name)} without shipping it? Its previews stay for reference.</p>
       <p class="ex-actions"><button type="button" class="btn btn-secondary rv-danger" data-ex-close="${r.number}">Close exploration</button> <button type="button" class="btn btn-secondary" data-ex-close-cancel>Keep it</button></p>
     </div>
     <p class="gh-error" id="ex-action-error" role="alert" hidden></p>
   </header>
+  <section class="ex-hero" aria-labelledby="ex-h-previews">
+    <h2 class="ex-h" id="ex-h-previews">Try it</h2>
+    ${previews}
+  </section>
+  <section class="ex-hero rv-what" aria-labelledby="ex-h-visual">
+    <h2 class="ex-h" id="ex-h-visual">Compared with the official library</h2>
+    <div id="ex-visual" aria-live="polite"><p class="rv-loading">Reading the before and after</p></div>
+  </section>
   <div class="cg-secs">
-    ${section('ex-sec-purpose', 'Purpose', esc(r.useCaseLabel ?? 'Exploration'), `<p class="rq-summary">${esc(r.purpose || 'The pull request has no Bridge exploration block. Open it on GitHub to read it.')}</p>`, true)}
-    ${section('ex-sec-install', 'Try it in a product staging branch', CFG.packages.length ? `${CFG.packages.length} packages` : 'not set up', install, r.status === 'active')}
-    ${section('ex-sec-previews', 'Previews', String(resolved.length), previews)}
-    ${section('ex-sec-requests', 'Requests', String(r.requests.length), reqs)}
-    ${r.status === 'active' ? section('ex-sec-claude', 'Implement on this exploration', 'CLI or MCP', claude) : ''}
+    ${section('ex-sec-requests', 'Requests built on it', String(r.requests.length), reqs, r.requests.length > 0)}
+    ${dev}
   </div>`;
 }
 
@@ -304,8 +338,40 @@ async function paintTryIt(r: ExplorationRow) {
   if (current?.number !== r.number) return;
   const el = document.getElementById('ex-tryit');
   if (el) el.innerHTML = html;
+  if (!sources) return;
+  const resolved = explorationPreviews(r, CFG.apps, sources);
   const pv = document.getElementById('ex-previews');
-  if (pv && sources) pv.innerHTML = previewList(explorationPreviews(r, CFG.apps, sources));
+  if (pv) pv.innerHTML = previewList(resolved);
+  const hosts = document.getElementById('ex-dev-hosts');
+  if (hosts) hosts.innerHTML = previewHosts(resolved);
+}
+
+/**
+ * The before and after against the official library: the visual impact workflow runs on pull requests, and an
+ * exploration is one, so its manifest is read the same way as on a change in review (the biggest change on top).
+ * An exploration that touches no token or component file has nothing to compare: one quiet line says so.
+ */
+async function paintVisual(r: ExplorationRow) {
+  const slot = document.getElementById('ex-visual');
+  if (!slot) return;
+  try {
+    const files = (await ghGet<{ filename: string }[]>(`${R}/pulls/${r.number}/files?per_page=100`)).data;
+    if (current?.number !== r.number) return;
+    if (!touchesVisuals(files.map((f) => f.filename))) {
+      slot.innerHTML = '<p class="cg-line rv-what-quiet">Nothing here changes how components look yet. The before and after appears once tokens or components change.</p>';
+      return;
+    }
+    // The full list is not repeated here: "See all" opens the change, where every screen is listed.
+    const v = await loadVisualImpact(
+      document.createElement('div'),
+      { owner: CFG.owner, repo: CFG.repo, pr: r.number, sha: r.headSha, actionsUrl: `https://github.com/${CFG.owner}/${CFG.repo}/actions/workflows/visual-impact.yml` },
+      slot,
+    );
+    if (current?.number !== r.number) return;
+    renderTopChange(slot, v, `?pr=${r.number}`);
+  } catch (err) {
+    slot.innerHTML = `<p class="cg-line rv-what-quiet">${err instanceof RateLimitError ? 'GitHub limits anonymous reads: connect GitHub to see the before and after.' : `Could not read the before and after: ${esc((err as Error).message)}`}</p>`;
+  }
 }
 
 async function rowFor(n: number): Promise<ExplorationRow | null> {
@@ -334,7 +400,10 @@ export async function openExploration(n: number, push = true) {
   d.innerHTML = r
     ? renderExplorationDetail(r, { connected: connected() })
     : `${crumbs(n)}<p class="cg-muted">#${n} is not an exploration in ${esc(`${CFG.owner}/${CFG.repo}`)}, or GitHub cannot be read right now. <a href="https://github.com/${esc(`${CFG.owner}/${CFG.repo}`)}/pull/${n}">Open it on GitHub</a>.</p>`;
-  if (r) void paintTryIt(r);
+  if (r) {
+    void paintTryIt(r);
+    void paintVisual(r);
+  }
 }
 
 function actionError(message: string | null, err?: unknown, action?: string) {
@@ -345,21 +414,43 @@ function actionError(message: string | null, err?: unknown, action?: string) {
   el.hidden = message === null;
 }
 
-async function promote(btn: HTMLButtonElement) {
+/**
+ * Promote to review: a DS Dialog first (components/ds/studio/PromoteToReview.tsx) that says who will be asked to
+ * approve, from a dry run of the promotion (the tier of the files it changes, no write) and the owners after rights.
+ * Confirmed, it promotes; the header then says where the change went, with the link next to it.
+ */
+function promote(btn: HTMLButtonElement) {
   if (!current) return;
   const r = current;
   actionError(null);
-  setButtonBusy(btn, true, 'Promoting');
-  try {
-    const p = await promoteExplorationOnGitHub(client(), r.number, { requests: openRequestNumbers(r) });
-    const warn = p.warnings.length ? `<p class="cg-muted">${p.warnings.map(esc).join(' ')}</p>` : '';
-    $('ex-actions').innerHTML = `<a class="btn btn-primary" href="?pr=${r.number}" data-open-pr="${r.number}">Review pull request #${r.number}</a>`;
-    $('ex-actions').insertAdjacentHTML('afterend', `<p class="ex-done" role="status"><strong>Promoted to review.</strong> Tier ${p.tier}, ready for review${p.addLabels.length ? `, labeled ${esc(p.addLabels.join(', '))}` : ''}.</p>${warn}`);
-    void loadExplorations(undefined, true);
-  } catch (err) {
-    actionError(`${(err as Error).message} You can also use "Ready for review" on GitHub, or ${promoteCommand(r.slug)}.`, err, 'promote explorations');
-    setButtonBusy(btn, false, 'Promote to review');
-  }
+  const detail: PromoteAskDetail = {
+    number: r.number,
+    name: r.name,
+    ask: async () => {
+      const plan = await promoteExplorationOnGitHub(client(), r.number, { requests: openRequestNumbers(r), dryRun: true });
+      return promoteAsk(plan.tier as Tier, OWNERS);
+    },
+    confirm: async () => {
+      try {
+        const p = await promoteExplorationOnGitHub(client(), r.number, { requests: openRequestNumbers(r) });
+        const warn = p.warnings.length ? `<p class="cg-muted ex-note">${p.warnings.map(esc).join(' ')}</p>` : '';
+        // The header now says where the change went, in one sentence with the link next to it.
+        $('ex-confirm').hidden = true;
+        document.querySelector('#rv-detail .cg-pr-meta .rv-status')?.replaceChildren('Promoted to review');
+        document.querySelector('#rv-detail .cg-pr-meta .cg-tier')?.remove();
+        document.querySelector('#rv-detail .cg-pr-state')?.remove();
+        $('ex-actions').outerHTML = `<p class="cg-pr-state ex-done" id="ex-actions" role="status">${esc(promotedLine(r.number))} <a href="?pr=${r.number}" data-open-pr="${r.number}">Open it in In review</a></p>${warn}`;
+        void loadExplorations(undefined, true);
+      } catch (err) {
+        throw new Error(`${(err as Error).message} You can also use "Ready for review" on GitHub.`);
+      }
+    },
+    closed: (promoted) => {
+      if (promoted) document.querySelector<HTMLAnchorElement>('#ex-actions a')?.focus();
+      else if (btn.isConnected) btn.focus();
+    },
+  };
+  document.dispatchEvent(new CustomEvent('bridge:promote-ask', { detail }));
 }
 
 async function close(btn: HTMLButtonElement) {
@@ -370,8 +461,9 @@ async function close(btn: HTMLButtonElement) {
   try {
     await closeExplorationOnGitHub(client(), r.number);
     $('ex-confirm').hidden = true;
-    $('ex-actions').innerHTML = `<a class="btn btn-secondary" href="${esc(r.url)}" target="_blank" rel="noopener">Open on GitHub</a>`;
-    $('ex-actions').insertAdjacentHTML('afterend', '<p class="ex-done" role="status"><strong>Closed.</strong> The branch stays for reference.</p>');
+    document.querySelector('#rv-detail .cg-pr-meta .rv-status')?.replaceChildren('Closed');
+    document.querySelector('#rv-detail .cg-pr-state')?.remove();
+    $('ex-actions').outerHTML = '<p class="cg-pr-state ex-done" id="ex-actions" role="status">Closed without shipping. Its previews stay for reference.</p>';
     void loadExplorations(undefined, true);
   } catch (err) {
     actionError((err as Error).message, err, 'close pull requests');
@@ -388,7 +480,11 @@ export function initExplorations() {
   wireStart();
   initGitHubConnect(() => {
     paintStartAuth();
-    if (current && !$('rv-detail').hidden && new URLSearchParams(location.search).get('exploration')) $('rv-detail').innerHTML = renderExplorationDetail(current, { connected: connected() });
+    if (current && !$('rv-detail').hidden && new URLSearchParams(location.search).get('exploration')) {
+      $('rv-detail').innerHTML = renderExplorationDetail(current, { connected: connected() });
+      void paintTryIt(current);
+      void paintVisual(current);
+    }
   });
   document.addEventListener('click', (e) => {
     const t = e.target as HTMLElement;

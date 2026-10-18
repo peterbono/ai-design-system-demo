@@ -2,9 +2,50 @@
    the Settings Integrations card. Same four sizes as the pages they live in: h2, body, ui, and h3 for card titles.
    Color only for status (pills); kinds and tiers stay grey. */
 
-/* Requests list: title with the component first, a quiet meta line, the status, the date. */
+/* Requests list: a thumbnail (the request's image, else the component preview), title with the component first and a
+   quiet meta line, who is on it, the status, the date. */
 .rq-row-link {
-  grid-template-columns: minmax(0, 1fr) minmax(0, auto) auto var(--size-16);
+  grid-template-columns: var(--size-20) minmax(0, 1fr) minmax(0, auto) auto var(--size-16);
+}
+
+.rq-row-main {
+  display: grid;
+  gap: var(--space-0-5);
+  min-width: 0;
+}
+
+.rq-onit {
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.rq-thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-20);
+  height: var(--size-12);
+  overflow: hidden;
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-inset);
+  background-color: var(--color-surface-subtle);
+  pointer-events: none;
+}
+
+.rq-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* The live preview at half size: wide enough to lay out, then scaled into the thumbnail. */
+.rq-thumb-scale {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: calc(var(--size-20) * 2);
+  transform: scale(0.5);
 }
 
 .rq-comp {
@@ -29,6 +70,24 @@
 }
 
 /* Detail */
+.rq-pair-imgs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.rq-fig {
+  display: grid;
+  gap: var(--space-1-5);
+  min-width: 0;
+  margin: 0;
+}
+
+.rq-fig-cap {
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+}
+
 .rq-summary {
   max-width: 65ch;
   white-space: pre-line;
@@ -67,6 +126,26 @@
   flex: 1 1 calc(var(--size-60) + var(--size-10));
   margin-top: 0;
   font-family: var(--font-family-mono);
+}
+
+@media (max-width: 760px) {
+  .rq-row-link {
+    grid-template-columns: var(--size-16) minmax(0, 1fr) auto;
+  }
+
+  .rq-row-link .rq-onit {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .rq-thumb {
+    width: var(--size-16);
+    grid-row: span 2;
+  }
+
+  .rq-pair-imgs {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 /* Form fields (Components request form, Settings Integrations). */
