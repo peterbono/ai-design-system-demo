@@ -51,7 +51,7 @@ import {
 import { iconSvg } from '../brand/icons';
 import { pullEntry, type BranchesConfig } from '../lib/branches';
 import type { Root } from 'react-dom/client';
-import { currentViewer, esc, ghGet, ghWrite, hasWorkingToken, initGitHubConnect, prefersSignIn, RateLimitError, readRepo, relativeTime, showGhError } from './github-session';
+import { currentViewer, esc, ghGet, ghWrite, GitHubError, hasWorkingToken, initGitHubConnect, prefersSignIn, RateLimitError, readRepo, relativeTime, showGhError } from './github-session';
 import { ghAction, ghVerb } from '../lib/gh-wording';
 import { analyzeTokenFiles, isTokenFile, type TokenReview } from './reviews/token-review';
 import { loadVisualImpact, renderTopChange } from './reviews/visual-impact';
@@ -78,6 +78,8 @@ import {
 } from '../lib/check-explain';
 import { productPreview, topScreen, tryInProductUrl } from '../lib/try-in-product';
 import { addedNotice, canAddTo, dismissedApprovals, dismissedSentence, isTokenChange } from '../lib/continue-change';
+import { behindTag, conflictLine, conflictRows, freshness, libraryLine, nextSteps, resolveLabel, type CompareLike, type Freshness } from '../lib/library-sync';
+import { bringInLatest, checkGuardrail, commitResolution, readCompare, readConflicts, readDismissStale, waitForNewHead } from './reviews/library-sync';
 
 interface User {
   login: string;
@@ -230,15 +232,23 @@ interface Row {
   approvers?: string[];
   changesRequested?: string[];
   failing?: number;
+  /** Library updates since the change started (compare behind_by), read with a token only. */
+  behindBy?: number | null;
 }
 
 function rowHtml(r: Row) {
   const title = humanTitle(mdTitleText(r.title));
   return `<li class="cg-row" data-pr="${r.number}" ${natureAttr(r.nature)}><a class="cg-row-link" href="?pr=${r.number}" data-open-pr="${r.number}">
-    <span class="cg-row-title"><span class="cg-row-name" title="${esc(title)}">${esc(title)}</span> <span class="cg-num">#${r.number}</span> ${devTag(r.nature)}</span>
+    <span class="cg-row-title"><span class="cg-row-name" title="${esc(title)}">${esc(title)}</span> <span class="cg-num">#${r.number}</span> ${devTag(r.nature)}${behindHtml(r.behindBy)}</span>
     ${needTag(r.tier)}
     ${chip(r)}
     <time class="cg-date" datetime="${esc(r.updated_at)}">${esc(shortDate(r.updated_at))}</time></a></li>`;
+}
+
+/** "12 updates behind" after the title: plain words, no color (the status chip holds the color). */
+function behindHtml(n: number | null | undefined) {
+  const tag = behindTag(n);
+  return tag ? ` <span class="cg-behind">${esc(tag)}</span>` : '';
 }
 
 function paintRows(rows: Row[], loading: boolean) {
@@ -363,6 +373,17 @@ export async function loadList(): Promise<{ number: number; head: { ref: string 
     paintRows([...rows.values()], false);
   });
   paintRows([...rows.values()], false);
+  // How far each change is behind the library: one compare each, with a token only (anonymous reads stay for status).
+  if (src.kind === 'live' && hasWorkingToken()) {
+    await Promise.all(
+      pulls.map((p) =>
+        readCompare(repo.owner, repo.repo, p.base.ref, p.head.sha).then((c) => {
+          rows.get(p.number)!.behindBy = c?.behind_by ?? null;
+        }),
+      ),
+    );
+    paintRows([...rows.values()], false);
+  }
   if (src.kind === 'live') {
     writeSnapshot(
       storage(),
@@ -429,7 +450,8 @@ export async function openPr(n: number, push = true) {
             .then((f) => f.data.mergeable)
             .catch(() => null)
         : Promise.resolve(pull.mergeable);
-    const [files, reviews, comments, ci, access, statuses, merges] = await Promise.all([
+    const live = pullState(pull) === 'open' || pullState(pull) === 'draft';
+    const [files, reviews, comments, ci, access, statuses, merges, compare] = await Promise.all([
       ghGet<PrFile[]>(`${R}/pulls/${n}/files?per_page=100`).then((f) => f.data),
       ghGet<Review[]>(`${R}/pulls/${n}/reviews?per_page=100`).then((f) => f.data).catch(() => [] as Review[]),
       ghGet<Comment[]>(`${R}/issues/${n}/comments?per_page=100`).then((f) => f.data).catch(() => [] as Comment[]),
@@ -438,6 +460,8 @@ export async function openPr(n: number, push = true) {
       // Same request as ciFor's commit status (shared in flight): the Vercel statuses say which previews are built.
       ghGet<{ statuses: { context: string; state: string; target_url?: string | null }[] }>(`${R}/commits/${pull.head.sha}/status`).then((f) => f.data.statuses).catch(() => []),
       mergeable,
+      // How far the change is behind the library it started from (behind_by), and what it changed since.
+      live ? readCompare(repo.owner, repo.repo, pull.base.ref, pull.head.sha) : Promise.resolve(null),
       loadTeams(),
     ]);
     pull.mergeable = merges;
@@ -467,8 +491,11 @@ export async function openPr(n: number, push = true) {
 
     const docsPaths = files.filter((f) => isDocsFile(f.filename) && f.status !== 'removed').map((f) => f.filename);
     unmountMore();
-    d.innerHTML = renderDetail({ pull, tier, files, reviews, comments, ci, approvals, gate, tokenCount: tokenFiles.length, changesetCount: changesets.length, visual, access, docsPaths, statuses, review, checks });
+    unmountLib();
+    const fresh = freshness({ compare, mergeable: pull.mergeable, open: live });
+    d.innerHTML = renderDetail({ pull, tier, files, reviews, comments, ci, approvals, gate, tokenCount: tokenFiles.length, changesetCount: changesets.length, visual, access, docsPaths, statuses, review, checks, fresh });
     wireActions(pull, gate, access);
+    wireLibrary({ pull, fresh, compare, access, checks: ci.total, visual, approvals: approvals.approvers.length, seq });
     wireVisualLink(d);
     // Continue a change: "Edit tokens in this change", and what was just added when back from the token editor.
     const editSlot = document.getElementById('rv-edit-in-change');
@@ -625,6 +652,8 @@ interface DetailInput {
   review: TokenReview | Error | null;
   /** The failing checks, classified (design rule or developer). */
   checks: ClassifiedCheck[];
+  /** How the change stands against the latest library (lib/library-sync). */
+  fresh: Freshness;
 }
 
 /** Row icon: a check when approved, a cross when changes were requested, an empty circle while it waits. */
@@ -656,8 +685,10 @@ function needsHtml(x: {
   ask: string | null;
   override: boolean;
   primary: ListPrimary;
+  /** The Latest library row, when the change is behind or conflicts. */
+  library?: string;
 }) {
-  const checks = [x.story.design ? lineRow('Design rules', x.story.design) : '', x.story.developer ? lineRow('Developer tests', x.story.developer) : ''].join('');
+  const checks = [x.story.design ? lineRow('Design rules', x.story.design) : '', x.story.developer ? lineRow('Developer tests', x.story.developer) : '', x.library ?? ''].join('');
   const approvals = x.rows
     .map((r) => {
       const primary = x.primary === (r.role === 'design' ? 'approve-design' : r.role === 'tech' ? 'approve-tech' : 'approve');
@@ -682,7 +713,6 @@ function needsHtml(x: {
 const AUTHOR_CTA: Partial<Record<WhoActs['action'], string>> = {
   'fix-checks': 'See the checks on GitHub',
   'address-changes': 'Answer the review on GitHub',
-  'resolve-conflict': 'Resolve the conflict on GitHub',
   'mark-ready': 'Mark ready on GitHub',
   promote: 'Promote on GitHub',
 };
@@ -755,6 +785,9 @@ function renderDetail(x: DetailInput) {
     else if (AUTHOR_CTA[who.action]) headerCta = `<a class="btn btn-primary btn-lg" href="${esc(pull.html_url)}" target="_blank" rel="noopener">${AUTHOR_CTA[who.action]}</a>`;
   } else if (help) primary = 'ask';
   if (!access && !headerCta && (lifecycle === 'open' || lifecycle === 'draft')) headerCta = `<button type="button" class="btn btn-primary btn-lg" data-gh-open>${ghAction('review', prefersSignIn())}</button>`;
+  // Latest library: one row in the checklist when the change is behind or conflicts, its action on the row (mounted by
+  // wireLibrary). Resolving a conflict is the view's primary only when nothing else holds it.
+  const libraryRow = libraryRowHtml(x.fresh, !headerCta && primary === null && who.action === 'resolve-conflict', pull.number);
   const failingRun = ci.failed.find((f) => f.url)?.url;
 
   // Conversation: how many, the last word, and GitHub for the thread (it is where people answer).
@@ -914,7 +947,7 @@ function renderDetail(x: DetailInput) {
     <h1 class="cg-pr-title">${esc(humanTitle(mdTitleText(pull.title)))}</h1>
     <p class="cg-pr-meta">${avatar(pull.user, 20)}<span>${esc(pull.user.login)}</span>${need ? `<span class="cg-need">${esc(need)}</span>` : ''}</p>
     ${tryIt}
-    ${needsHtml({ story, rows, rowText: help?.rowText ?? {}, why: primary === 'override' ? null : (help?.why ?? (showOverride ? OVERRIDE_RULE : null)), ask, override: showOverride, primary })}
+    ${needsHtml({ story, rows, rowText: help?.rowText ?? {}, why: primary === 'override' ? null : (help?.why ?? (showOverride ? OVERRIDE_RULE : null)), ask, override: showOverride, primary, library: libraryRow })}
     ${headerCta ? `<p class="cg-pr-cta">${headerCta}</p>` : ''}
   </header>
   <section class="rv-what" aria-label="What changed">${what}${tokens}</section>
@@ -924,7 +957,7 @@ function renderDetail(x: DetailInput) {
     ${convHtml}
     <details class="cg-sec cg-dev" id="cg-sec-dev"><summary class="cg-sec-head"><span class="cg-sec-title">For developers</span><span class="cg-sec-meta">${esc(devMeta)}</span><span class="cg-sec-chev" aria-hidden="true"></span></summary>
       <div class="cg-sec-body cg-dev-body">
-        <p class="cg-links rv-dev-links"><a href="${esc(pull.html_url)}" target="_blank" rel="noopener">Open on GitHub</a><a href="/how-review-works/">How review works</a></p>
+        <p class="cg-links rv-dev-links"><a href="${esc(pull.html_url)}" target="_blank" rel="noopener">Open on GitHub</a>${x.fresh.state === 'conflict' ? `<a href="${esc(pull.html_url)}/conflicts" target="_blank" rel="noopener">Resolve the conflict on GitHub</a>` : ''}<a href="/how-review-works/">How review works</a></p>
         ${section('cg-sec-files', 'Files', String(files.length), filesBody)}
         ${section('cg-sec-checks', 'Checks', checksMeta, checksBody, failing > 0)}
         ${section('cg-sec-changeset', 'Changeset', x.changesetCount ? 'Reading' : 'missing', `<div id="rv-changeset">${x.changesetCount ? '<p class="rv-loading">Reading changeset</p>' : '<p class="cg-muted">No changeset in this pull request. CI asks for one when a package changes.</p>'}</div>`)}
@@ -1054,6 +1087,12 @@ function unmountMore() {
   moreMenu = null;
 }
 
+/** The Latest library action (DS Button and resolver dialog): unmounted before the detail repaints. */
+function unmountLib() {
+  libRoot?.unmount();
+  libRoot = null;
+}
+
 /** The owner override in one sentence: what it skips, what it never skips, and the trace it leaves. */
 const OVERRIDE_RULE = 'Owners can ship without the missing approvals once tests pass, with a reason posted on the change.';
 
@@ -1124,6 +1163,136 @@ function wireActions(pull: Pull, gate: ReturnType<typeof mergeGate>, access: Acc
 }
 
 // ---------------------------------------------------------------------------------------------------------------
+// Latest library: behind and conflicts (lib/library-sync, scripts/reviews/library-sync)
+
+let libRoot: Root | null = null;
+/** The change that just brought the library in, and what to say on its row. */
+let justIn: { pr: number; said: string } | null = null;
+
+/**
+ * The Latest library row of the checklist: behind (an empty circle, it does not block) or in conflict (a cross, it
+ * blocks shipping). The sentence first, then a hint line filled by wireLibrary (what happens next), and the action
+ * slot. Nothing when the change is up to date, finished, or the compare could not be read.
+ */
+function libraryRowHtml(f: Freshness, primary: boolean, pr: number): string {
+  // Right after bringing the library in, the row stays, checked, where the designer pressed the button.
+  if (f.state === 'current' && justIn?.pr === pr) return `<li class="rv-ap-row rv-lib" id="rv-lib" data-state="approved">${ROW_ICON.approved}<span class="rv-ap-role">Latest library</span><span class="rv-ap-text"><span class="sr-only">Up to date: </span>${esc(justIn.said)}</span></li>`;
+  if (f.state !== 'behind' && f.state !== 'conflict') return '';
+  const conflict = f.state === 'conflict';
+  const text = conflict ? conflictLine({ kind: 'tokens', files: [] }, null) : (libraryLine(f) ?? '');
+  const hint = conflict ? (libraryLine(f) ?? '') : '';
+  return `<li class="rv-ap-row rv-lib" id="rv-lib" data-state="${conflict ? 'changes' : 'waiting'}"${primary ? ' data-primary' : ''}>${conflict ? ROW_ICON.changes : ROW_ICON.waiting}<span class="rv-ap-role">Latest library</span><span class="rv-ap-text"><span class="sr-only">${conflict ? 'Conflict' : 'Behind'}: </span><span id="rv-lib-text">${esc(text)}</span><span class="rv-lib-hint" id="rv-lib-hint" aria-live="polite">${esc(hint)}</span></span><span class="rv-ap-act rv-lib-act" id="rv-lib-act"></span></li>`;
+}
+
+/** After a write: wait for GitHub's new head, then repaint the change (checks, approvals and the before and after). */
+async function refreshAfterLibrary(pull: Pull, said: string) {
+  const fresh = await waitForNewHead(repo.owner, repo.repo, pull.number, pull.head.sha);
+  justIn = { pr: pull.number, said: fresh ? said : `${said} It can take a minute: reload if the checks have not restarted.` };
+  await openPr(pull.number, false);
+}
+
+/**
+ * Fills the Latest library row: what happens next (checks, approvals, from the branch rules), then the action. Behind
+ * with no conflict: GitHub's update-branch. A conflict: what both sides touched decides who resolves it; a pure
+ * token-file conflict opens the resolver, anything in code stays with a developer (GitHub link in For developers).
+ */
+function wireLibrary(x: { pull: Pull; fresh: Freshness; compare: CompareLike | null; access: Access | null; checks: number; visual: boolean; approvals: number; seq: number }) {
+  const row = document.getElementById('rv-lib');
+  const slot = document.getElementById('rv-lib-act');
+  const textEl = document.getElementById('rv-lib-text');
+  const hintEl = document.getElementById('rv-lib-hint');
+  if (!row || !slot || !textEl || !hintEl) return;
+  const { pull } = x;
+  const primary = row.hasAttribute('data-primary');
+  const sameRepo = !pull.head.repo?.full_name || pull.head.repo.full_name === `${repo.owner}/${repo.repo}`;
+  const canAct = Boolean(x.access?.write) && sameRepo;
+  const cannot = !x.access ? `${ghAction('bring it in', prefersSignIn())}.` : !sameRepo ? 'It comes from a fork: its author brings the library in.' : `@${x.access.login} cannot write to this change, so someone with write access brings it in.`;
+  const mount = (props: Parameters<typeof import('../components/ds/studio/LibraryCatchUp').mountLibraryCatchUp>[1]) =>
+    void import('../components/ds/studio/LibraryCatchUp').then(({ mountLibraryCatchUp }) => {
+      if (x.seq !== openSeq || !slot.isConnected) return;
+      libRoot?.unmount();
+      libRoot = mountLibraryCatchUp(slot, props);
+    });
+  const next = readDismissStale(repo.owner, repo.repo, pull.base.ref).then((dismissStale) => nextSteps({ checks: x.checks, visual: x.visual, approvals: x.approvals, dismissStale }));
+
+  if (x.fresh.state === 'behind') {
+    void next.then((n) => {
+      if (x.seq === openSeq) hintEl.textContent = canAct ? n : `${n} ${cannot}`;
+    });
+    if (!canAct) return;
+    mount({
+      label: 'Bring in the latest library',
+      primary,
+      onUpdate: async () => {
+        hintEl.textContent = 'Bringing in the latest library.';
+        try {
+          await bringInLatest(repo.owner, repo.repo, pull);
+        } catch (err) {
+          const msg = (err as Error).message;
+          if (/conflict/i.test(msg)) hintEl.textContent = 'GitHub could not combine them: they changed the same lines. Reload the page to resolve the conflicts here.';
+          else showGhError(hintEl, err, `GitHub did not bring the library in: ${msg.replace(/[.\s]+$/, '')}. Reload the page and try again.`, 'update pull requests');
+          return;
+        }
+        await refreshAfterLibrary(pull, `Up to date with the latest library. ${await next}`);
+      },
+    });
+    return;
+  }
+
+  // A conflict: read what both sides touched, then the tokens.
+  void (async () => {
+    let data: Awaited<ReturnType<typeof readConflicts>>;
+    try {
+      if (!x.compare) throw new Error('compare not read');
+      data = await readConflicts(repo.owner, repo.repo, x.compare, pull.head.sha);
+    } catch {
+      if (x.seq !== openSeq) return;
+      textEl.textContent = conflictLine({ kind: 'code', alsoTokens: false, files: [] }, null);
+      return;
+    }
+    if (x.seq !== openSeq) return;
+    const t = data.tokens;
+    if (data.route.kind === 'code' || !t) {
+      textEl.textContent = conflictLine(data.route, null);
+      return;
+    }
+    if (t.plan.problems.length) {
+      textEl.textContent = `Bridge could not read a token file (${t.plan.problems[0]}). A developer resolves it.`;
+      return;
+    }
+    const n = t.plan.conflicts.length;
+    textEl.textContent = conflictLine(data.route, n);
+    if (!canAct) {
+      hintEl.textContent = `${hintEl.textContent ?? ''} ${cannot}`.trim();
+      return;
+    }
+    const nextText = await next;
+    if (x.seq !== openSeq) return;
+    mount({
+      label: resolveLabel(n),
+      primary,
+      resolver: {
+        conflicts: t.plan.conflicts,
+        rows: conflictRows(t.plan.conflicts, t.sets),
+        next: nextText,
+        check: (choices) => checkGuardrail(data, choices),
+        apply: async (choices) => {
+          try {
+            await commitResolution(repo.owner, repo.repo, pull, data, choices, x.access?.login ?? null);
+          } catch (err) {
+            // Bridge's own checks already say how to fix it; only GitHub's answers get wrapped.
+            if (!(err instanceof GitHubError)) throw err;
+            const msg = err.message.replace(/[.\s]+$/, '');
+            throw new Error(/fast.forward|Update is not a fast/i.test(msg) ? 'The change moved while you were choosing. Close this, reload the page and resolve again.' : `GitHub refused it: ${msg}. Reload the page and try again.`);
+          }
+          void refreshAfterLibrary(pull, `Conflicts resolved, up to date with the latest library. ${nextText}`);
+        },
+      },
+    });
+  })();
+}
+
+// ---------------------------------------------------------------------------------------------------------------
 // Token diff rendering
 
 const swatch = (hex?: string | null) => (hex ? `<span class="rv-sw" style="background-color:${esc(hex)}"></span>` : '');
@@ -1176,6 +1345,7 @@ export function renderTokenReview(review: TokenReview): string {
 export function closePr() {
   openSeq++;
   unmountMore();
+  unmountLib();
   current = null;
   detailEl().hidden = true;
   detailEl().innerHTML = '';

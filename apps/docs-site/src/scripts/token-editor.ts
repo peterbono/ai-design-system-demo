@@ -50,6 +50,7 @@ import {
   conflictHref,
   defaultTarget,
   draftDestination,
+  dropEdits,
   isTokenChange,
   parseChangeDraft,
   parseTargetValue,
@@ -597,7 +598,30 @@ function paintSend() {
   );
 }
 
-/** The conflict notice replaces the dialog's primary: its "Resolve the conflict" is the one next step. */
+/**
+ * Adds the draft to change `into`. `keepMine`: tokens the designer chose to keep their value for after a conflict
+ * (an explicit choice in the notice, never a silent overwrite).
+ */
+async function addInto(into: number, keepMine: string[] = []) {
+  const out = $('ed-propose-status')!;
+  if (!S?.applied) return;
+  out.textContent = 'Adding to the change';
+  try {
+    const r = await addToChange({ n: into, config: S.config, base: S.head, ours: S.applied.proposed, draft: S.draft, scoped: Boolean(scope), keepMine });
+    out.textContent = addedSentence(r.added.length, r.title, r.upstream);
+    // Token edits are in the change now; docs edits stay in the local draft (the docs editor sends them).
+    S.draft = { edits: scope ? [] : S.draft.edits.filter((e) => e.kind === 'docs') };
+    saveDraft();
+    location.href = `/studio/changes/?pr=${r.number}&added=${r.added.length}`;
+  } catch (err) {
+    if (err instanceof ChangeConflictError) {
+      out.textContent = '';
+      showConflict(err);
+    } else showGhError(out, err, `Not added: ${(err as Error).message}`, 'add to changes');
+  }
+}
+
+/** The conflict notice replaces the dialog's primary: keep mine or keep theirs, per the tokens it names. */
 function clearConflict() {
   const slot = field('propose-conflict');
   const go = field('propose-go');
@@ -617,7 +641,32 @@ function showConflict(err: ChangeConflictError) {
   if (h) h.textContent = 'Your edits were not added';
   const who = field('propose-who');
   if (who) who.hidden = true;
-  mountInto(slot, createElement(ConflictNotice, { text: err.message, paths: err.paths, href: conflictHref(err.change) }));
+  mountInto(
+    slot,
+    createElement(ConflictNotice, {
+      text: err.message,
+      paths: err.paths,
+      href: conflictHref(err.change),
+      // Mine: save again, letting the draft win on these tokens only.
+      onKeepMine: () => {
+        clearConflict();
+        void addInto(err.change, err.paths);
+      },
+      // Theirs: drop the draft's edits of these tokens, then save the rest (if any).
+      onKeepTheirs: () => {
+        if (!S) return;
+        clearConflict();
+        S.draft = dropEdits(S.draft, err.paths);
+        saveDraft();
+        recompute();
+        if (S.draft.edits.some((e) => e.kind !== 'docs')) void addInto(err.change);
+        else {
+          $('ed-propose-status')!.textContent = 'Your edit was dropped. The change keeps its value, so there is nothing left to add.';
+          paintSend();
+        }
+      },
+    }),
+  );
 }
 
 export function initTokenEditor() {
@@ -782,22 +831,9 @@ export function initTokenEditor() {
     setButtonDisabled(go, true);
     clearConflict();
     const into = scope?.number ?? (choice.kind === 'change' ? choice.number : null);
-    if (into && S?.applied) {
-      out.textContent = 'Adding to the change';
-      try {
-        const r = await addToChange({ n: into, config: S.config, base: S.head, ours: S.applied.proposed, draft: S.draft, scoped: Boolean(scope) });
-        out.textContent = addedSentence(r.added.length, r.title, r.upstream);
-        // Token edits are in the change now; docs edits stay in the local draft (the docs editor sends them).
-        S.draft = { edits: scope ? [] : S.draft.edits.filter((e) => e.kind === 'docs') };
-        saveDraft();
-        location.href = `/studio/changes/?pr=${r.number}&added=${r.added.length}`;
-      } catch (err) {
-        if (err instanceof ChangeConflictError) {
-          out.textContent = '';
-          showConflict(err);
-        } else showGhError(out, err, `Not added: ${(err as Error).message}`, 'add to changes');
-        setButtonDisabled(go, false);
-      }
+    if (into) {
+      await addInto(into);
+      setButtonDisabled(go, false);
       return;
     }
     out.textContent = 'Sending for review';

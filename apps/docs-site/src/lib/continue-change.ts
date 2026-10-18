@@ -158,11 +158,23 @@ export function conflictSentence(paths: string[], scoped = true): string {
   const n = paths.length;
   const what = n === 1 ? paths[0] : n === 2 ? `${paths[0]} and ${paths[1]}` : `${paths[0]} and ${n - 1} other tokens`;
   const where = scoped ? `Someone also edited ${what} in this change after you opened it.` : `This change already edits ${what}, to another value than yours.`;
-  return `${where} Nothing was saved, so no edit is lost. Choose which value to keep, then save again.`;
+  return `${where} Nothing was saved, so no edit is lost. Keep your value, or keep theirs and drop your edit.`;
 }
 
-/** Where the conflict flow of a change lives (Changes, the change, its conflicts). */
-export const conflictHref = (n: number) => `/studio/changes/?pr=${n}#conflicts`;
+/** Conflicts still open once the designer chose "Keep mine" for some tokens. */
+export function unresolved(conflicts: string[], keepMine: string[]): string[] {
+  const mine = new Set(keepMine);
+  return conflicts.filter((p) => !mine.has(p));
+}
+
+/** "Keep theirs": the draft without its edits of these tokens (docs edits stay). */
+export function dropEdits<D extends Draft>(draft: D, paths: string[]): D {
+  const drop = new Set(paths);
+  return { ...draft, edits: draft.edits.filter((e) => e.kind === 'docs' || !drop.has(e.path)) };
+}
+
+/** The change page, where both values show (its token diff) and the library conflict flow lives. */
+export const conflictHref = (n: number) => `/studio/changes/?pr=${n}`;
 
 // ---------------------------------------------------------------------------------------------------------------
 // Words

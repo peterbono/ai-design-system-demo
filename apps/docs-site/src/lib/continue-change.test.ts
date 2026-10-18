@@ -12,6 +12,8 @@ import {
   changeDraftKey,
   changeParam,
   mergeChangeset,
+  dropEdits,
+  unresolved,
   changeTitle,
   conflictHref,
   conflictSentence,
@@ -188,11 +190,15 @@ describe('3-way check against the change as it is now', () => {
   });
 
   it('says what stopped and how to fix it, linking to the conflict flow', () => {
-    expect(conflictSentence(['color.bg.default'])).toBe('Someone also edited color.bg.default in this change after you opened it. Nothing was saved, so no edit is lost. Choose which value to keep, then save again.');
-    expect(conflictSentence(['color.bg.default'], false)).toBe('This change already edits color.bg.default, to another value than yours. Nothing was saved, so no edit is lost. Choose which value to keep, then save again.');
+    expect(conflictSentence(['color.bg.default'])).toBe('Someone also edited color.bg.default in this change after you opened it. Nothing was saved, so no edit is lost. Keep your value, or keep theirs and drop your edit.');
+    expect(conflictSentence(['color.bg.default'], false)).toBe('This change already edits color.bg.default, to another value than yours. Nothing was saved, so no edit is lost. Keep your value, or keep theirs and drop your edit.');
     expect(conflictSentence(['a', 'b'])).toContain('a and b');
     expect(conflictSentence(['a', 'b', 'c'])).toContain('a and 2 other tokens');
-    expect(conflictHref(12)).toBe('/studio/changes/?pr=12#conflicts');
+    expect(unresolved(['a', 'b'], ['a'])).toEqual(['b']);
+    const d = { baseSha: 'x', edits: [edit('color.bg.default', 'light', '{palette.neutral.50}'), edit('color.text.muted', 'light', '{palette.neutral.700}')] };
+    expect(dropEdits(d, ['color.bg.default']).edits.map((e) => e.path)).toEqual(['color.text.muted']);
+    expect(dropEdits(d, ['color.bg.default']).baseSha).toBe('x');
+    expect(conflictHref(12)).toBe('/studio/changes/?pr=12');
   });
 });
 

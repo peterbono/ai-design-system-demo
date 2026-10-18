@@ -29,6 +29,7 @@ import {
   mergeCheck,
   type ChangePullLike,
   type ChangeTarget,
+  unresolved,
 } from '../lib/continue-change';
 import { currentViewer, getToken, ghGet, onAccess, prefersSignIn, readRepo, studioFetch } from './github-session';
 import { ghVerb } from '../lib/gh-wording';
@@ -97,7 +98,7 @@ export interface AddResult {
  * Commits the draft's token edits on top of change `n`. `base` is the token set the draft was made on; `ours` the
  * draft applied to it; `scoped` when the draft was made inside the change (its edits, not main). Throws ChangeConflictError when the same token changed in both.
  */
-export async function addToChange(input: { n: number; config: BridgeConfig; base: TokenSet; ours: TokenSet; draft: Draft; scoped: boolean }): Promise<AddResult> {
+export async function addToChange(input: { n: number; config: BridgeConfig; base: TokenSet; ours: TokenSet; draft: Draft; scoped: boolean; keepMine?: string[] }): Promise<AddResult> {
   if (!getToken()) throw new Error(`${ghVerb(prefersSignIn())} first.`);
   const { n, config, base, ours } = input;
   const draft: Draft = { edits: input.draft.edits.filter((e) => e.kind !== 'docs') };
@@ -119,7 +120,8 @@ export async function addToChange(input: { n: number; config: BridgeConfig; base
 
   // The 3-way check: never overwrite an edit made in the change after the editor loaded it.
   const merge = mergeCheck(base, ours, theirs);
-  if (merge.conflicts.length) throw new ChangeConflictError(merge.conflicts, n, input.scoped);
+  const left = unresolved(merge.conflicts, input.keepMine ?? []);
+  if (left.length) throw new ChangeConflictError(left, n, input.scoped);
 
   const applied = applyDraft(theirs, latest.files, draft, opts);
   if (!applied.changes.length) throw new Error(`${title} already has these values. Nothing to add.`);

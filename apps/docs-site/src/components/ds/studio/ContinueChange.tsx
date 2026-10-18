@@ -5,7 +5,7 @@
 import type { ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PenLine } from 'lucide-react';
-import { Alert, Radio, RadioGroup } from '@bridge-ds/react';
+import { Alert, Button, Link, Radio, RadioGroup } from '@bridge-ds/react';
 import ButtonLink from '../ButtonLink';
 import type { TargetOption } from '../../../lib/continue-change';
 
@@ -45,17 +45,33 @@ export function ScopeBanner({ title, body, backHref }: ScopeBannerProps) {
 export interface ConflictNoticeProps {
   text: string;
   paths: string[];
+  /** The change page, to compare both values. */
   href: string;
+  onKeepMine: () => void;
+  onKeepTheirs: () => void;
 }
 
 /** The save stopped: the same token was edited in the change since the editor loaded it. */
-export function ConflictNotice({ text, paths, href }: ConflictNoticeProps) {
+export function ConflictNotice({ text, paths, href, onKeepMine, onKeepTheirs }: ConflictNoticeProps) {
   // Token names in the sentence read in Plex Mono, like everywhere else in Studio.
   const escape = (p: string) => p.replace(/[.*+?^$()|[\]\\{}]/g, '\\$&');
   const parts = paths.length ? text.split(new RegExp('(' + paths.map(escape).join('|') + ')')) : [text];
   return (
-    <Alert tone="warning" title="The same token changed in your edits and in the change" actions={<ButtonLink variant="primary" href={href}>Resolve the conflict</ButtonLink>}>
+    <Alert tone="warning" title="The same token changed in your edits and in the change" actions={
+        <>
+          <Button variant="primary" onClick={onKeepMine}>
+            Keep mine
+          </Button>
+          <Button variant="secondary" onClick={onKeepTheirs}>
+            Keep theirs
+          </Button>
+        </>
+      }
+    >
       <p>{parts.map((part, i) => (paths.includes(part) ? <code key={i}>{part}</code> : part))}</p>
+      <p>
+        <Link href={href}>Compare both values on the change</Link>
+      </p>
       {paths.length > 1 && (
         <ul className="xe-conflict-list">
           {paths.slice(0, 6).map((p) => (

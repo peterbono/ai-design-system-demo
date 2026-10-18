@@ -14,6 +14,7 @@ export * from './wcag';
 export * from './validators';
 export * from './id-map';
 export * from './diff-engine';
+export * from './token-merge';
 export * from './compose';
 export * from './risk';
 export * from './pr-composer';
