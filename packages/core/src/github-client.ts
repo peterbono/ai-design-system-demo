@@ -546,6 +546,26 @@ export class GitHubClient {
     }
   }
 
+  /**
+   * Turns an open pull request back into a draft: the GraphQL mutation convertPullRequestToDraft (REST cannot set
+   * `draft` either), same token. No-op when it is already a draft.
+   */
+  async convertToDraft(n: number): Promise<void> {
+    this.assertToken('Turning a pull request back into a draft');
+    const pr = await this.request<{ node_id?: string; draft?: boolean; state?: string }>('GET', `${this.repoPath}/pulls/${n}`);
+    if (pr.draft === true) return;
+    if (pr.state && pr.state !== 'open') throw new GitHubError(422, `Pull request #${n} is ${pr.state}: only an open one can go back to draft.`);
+    if (!pr.node_id) throw new GitHubError(422, `Pull request #${n} has no node id: convert it to draft on GitHub.`);
+    const r = await this.request<{ data?: unknown; errors?: { message?: string }[] }>('POST', '/graphql', {
+      query: 'mutation($id: ID!) { convertPullRequestToDraft(input: { pullRequestId: $id }) { pullRequest { number isDraft } } }',
+      variables: { id: pr.node_id },
+    });
+    if (r?.errors?.length) {
+      const detail = r.errors.map((e) => e.message).filter(Boolean).join(' ');
+      throw new GitHubError(422, `GitHub refused to turn #${n} back into a draft${detail ? `: ${detail}` : '.'} Use "Convert to draft" on GitHub instead.`, detail);
+    }
+  }
+
   async createPullRequest(input: { title: string; head: string; base: string; body: string; draft: boolean }): Promise<PullRequest> {
     this.assertWritableBranch(input.head, input.base);
     const r = await this.request<{ number: number; html_url: string; title: string; draft?: boolean; head: { ref: string } }>(

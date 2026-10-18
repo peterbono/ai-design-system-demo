@@ -119,6 +119,14 @@
   font-weight: var(--font-weight-semibold);
 }
 
+/* The change title and its lifecycle badge on one line (lib/change-status), the badge wrapping under on phones. */
+.ov-todo-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+
 .ov-todo-more {
   margin: calc(var(--space-3) * -1) 0 0;
 }
