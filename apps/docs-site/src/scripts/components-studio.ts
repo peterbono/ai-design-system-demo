@@ -5,7 +5,8 @@
 // open preview, and "Change this component" opens its steps in place (scripts/request-form.ts). The Open requests
 // column fills from the requests Studio already reads (GitHub issues labeled component-change), and leaves the page when they cannot be read.
 import { openRequestCounts, requestFact } from '../lib/components-studio';
-import { clearChangeDone, initChangeFlow, resetChangeFlow } from './request-form';
+import { isChangeIntent } from '../lib/change-intent';
+import { clearChangeDone, initChangeFlow, pickChangeIntent, resetChangeFlow } from './request-form';
 import { fitFrames } from './explorer/preview-frames';
 import { loadRequestRows } from './requests';
 import { selectSegment } from './shell';
@@ -249,5 +250,14 @@ export function initComponentsStudio() {
     row.hidden = false;
     row.scrollIntoView({ block: 'center' });
     open(row);
+    // From the Overview "Start a change" (?intent=variant|wrong): the change steps open on that choice.
+    const intent = params.get('intent');
+    if (isChangeIntent(intent)) {
+      drawer.querySelector<HTMLButtonElement>('[data-cm-panel]:not([hidden]) [data-cm-change-open]')?.click();
+      pickChangeIntent(drawer, intent);
+      const p = new URLSearchParams(location.search);
+      p.delete('intent');
+      history.replaceState(null, '', `${location.pathname}?${p.toString()}`);
+    }
   }
 }

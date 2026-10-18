@@ -1,0 +1,5 @@
+---
+"@bridge-ds/docs-site": minor
+---
+
+Studio Overview redesign. One line ("Hello, Florian. 1 thing needs you." or "You're all caught up.") with one primary action: the first decision that needs you, else "Start a change" (Adjust the look, Add a variant or option, New component, Something looks wrong, each with one line; the component picker opens in place). Signed out, the page asks for one thing: "Connect GitHub to start working on the library." The Harbor zone opens only when something needs you and holds every designer decision in one list, usage guidance to review included. Library health shows three figures right under it (contrast failures, component adoption with its split per product, reviewed guidance), each opening Quality. In flight is a board in four stages (Exploring, In review, Ready to ship, Next release) with at most two cards each, the blocker written on the card with one status pattern, and on phones one row per stage that opens on tap. Bridge app updates no longer show on the Overview. The Changes badge in the side nav now counts only the changes in review that wait on your decision, with the same rule as the Overview, and hides at 0.

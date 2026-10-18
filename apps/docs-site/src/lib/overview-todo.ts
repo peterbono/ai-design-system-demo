@@ -1,18 +1,17 @@
-// The Overview to-do list, sorted by kind of work, not only by person. Pure: no DOM, no fetch. Unit tested in
+// The Overview "Needs you" list, sorted by kind of work, not only by person. Pure: no DOM, no fetch. Unit tested in
 // overview-todo.test.ts.
 //
-//   - For you: the decisions a designer or design system owner makes in the Studio. Review the design of a change,
-//     ship one that is approved, decide on a request nobody is on, review usage guidance. Ordered by what unblocks
-//     the most, each with the exact task on its button and what happens once it is done.
-//   - Waiting on a developer: technical blockers (failing tests, a clash with the latest library, a missing release
-//     note, a draft, changes a reviewer asked for, the tech review). One quiet folded line that names the blocker and
-//     who is expected, never a designer action: only a link to the change. A viewer who also holds the tech
-//     approval still finds those items here, never as their main task.
-//   - Waiting on someone else: what another person decides, or tests still running.
+//   - Needs you (mine): every decision a designer or design system owner makes in the Studio, in one list with one
+//     row component. Review the design of a change, ship one that is approved, decide on a request nobody is on,
+//     review or write usage guidance, protect the library. Ordered by what unblocks the most, each with the exact
+//     task on its button and what happens once it is done. The greeting counts exactly these rows.
+//   - Waiting on a developer and waiting on someone else: kept for the counts. The Overview shows these changes on
+//     its In flight board (lib/overview-board.ts), the blocker written on the card (blockerOf below).
 //
 // Sources, never guessed: the review queue with who acts now (lib/changes whoActs, the same rule as the change
 // detail), the failing check names, whether the visual impact run published before and after images, the component
-// change requests (lib/requests-view rows) and, for owners, the library protection state.
+// change requests (lib/requests-view rows), the usage guidance state of each component and, for owners, the library
+// protection state.
 import type { RequestStatus } from '@bridge-ds/core';
 import type { WhoActs } from './changes';
 import { wantsToChange } from './requests-view';
@@ -81,10 +80,21 @@ export interface TodoInput {
   unprotected?: boolean;
   /** Statuses are still loading: a change without one is being checked, not unreadable. */
   loading?: boolean;
+  /**
+   * Usage guidance from the repo (build time): components whose guidance Claude drafted and nobody reviewed yet, and
+   * components with none. Each list becomes one row, for anyone: reviewing guidance is a designer decision.
+   */
+  guidance?: { drafted: GuidanceItem[]; missing: GuidanceItem[] };
+}
+
+export interface GuidanceItem {
+  name: string;
+  /** The Library page in edit mode. */
+  href: string;
 }
 
 export interface Todo {
-  /** "2 decisions wait for you." The Fraunces line of the greeting. Counts only the For you rows. */
+  /** "2 things need you." The Fraunces line of the greeting. Counts every Needs you row. */
   headline: string;
   /** For you: designer decisions, ordered by what unblocks the most. Signed out: the decisions, naming who makes them. */
   mine: TodoRow[];
@@ -99,7 +109,6 @@ export const TODO_MAX = 3;
 
 /** For you, what unblocks the most first: design approvals, ship, requests to decide, guidance. */
 const ORDER: Record<TodoTask, number> = { design: 0, ship: 1, decide: 2, guidance: 3, setup: 4, assigned: 5, blocked: 6, waiting: 7, checking: 8 };
-const DECISIONS = new Set<TodoTask>(['design', 'ship', 'decide', 'guidance']);
 
 const norm = (x: string) => x.trim().toLowerCase().replace(/^@/, '');
 const same = (a: string | null | undefined, b: string | null | undefined) => Boolean(a && b && norm(a) === norm(b));
@@ -112,7 +121,7 @@ const requestHref = (n: number) => `/studio/changes/?request=${n}`;
 const isReleaseNoteCheck = (name: string) => /changeset/i.test(name);
 
 /** What blocks a change in plain words, and what the developer does about it. Null: not a technical blocker. */
-function blocker(c: TodoChange, who: WhoActs, viewer: string | null): { what: string; fix: string } | null {
+export function blockerOf(c: TodoChange, who: WhoActs, viewer: string | null): { what: string; fix: string } | null {
   switch (who.action) {
     case 'fix-checks': {
       const names = c.failingChecks ?? [];
@@ -146,7 +155,7 @@ function changeRow(c: TodoChange, input: TodoInput): { group: 'mine' | 'develope
   if (!who) return open('others', input.loading ? 'checking' : 'waiting', input.loading ? 'Checking what it needs.' : 'Open it to see what it needs.');
 
   // Technical blockers: named, delegated to the author, or to "a developer" when the author is the viewer.
-  const block = blocker(c, who, viewer);
+  const block = blockerOf(c, who, viewer);
   if (block) {
     const author = who.logins[0];
     const actor = !author || same(author, viewer) || who.who === 'you' ? 'A developer' : handle(author);
@@ -192,19 +201,55 @@ function requestRow(r: TodoRequest, task: TodoTask, why: string, action: string)
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
-/** "2 decisions wait for you", "1 decision and a setup step wait for you". */
-function headlineFor(mine: TodoRow[], viewer: string | null): string {
-  const decisions = mine.filter((r) => DECISIONS.has(r.task)).length;
-  if (!viewer) return decisions ? `${plural(decisions, 'decision waits', 'decisions wait')}.` : 'Nothing waits for a decision.';
-  const assigned = mine.filter((r) => r.task === 'assigned').length;
-  const setup = mine.filter((r) => r.task === 'setup').length;
-  const parts = [decisions ? plural(decisions, 'decision', 'decisions') : '', assigned ? plural(assigned, 'request assigned to you', 'requests assigned to you') : '', setup ? 'a setup step' : ''].filter(Boolean);
-  if (!parts.length) return 'Nothing needs you right now.';
-  const words = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : parts[0]!;
-  const one = decisions + assigned + setup === 1;
-  // "1 request assigned to you waits." reads better without a second "for you".
-  const line = `${words} ${one ? 'waits' : 'wait'}${assigned && !decisions && !setup ? '' : ' for you'}.`;
-  return line.charAt(0).toUpperCase() + line.slice(1);
+/**
+ * The greeting line, one count for every row of Needs you so the sentence and the list never disagree: "1 thing
+ * needs you.", "You're all caught up.". Signed out nobody is "you": "2 decisions wait."
+ */
+export function headlineFor(mine: Pick<TodoRow, 'task'>[], viewer: string | null): string {
+  const n = mine.length;
+  if (!viewer) return SIGNED_OUT_LINE;
+  return n ? `${plural(n, 'thing needs', 'things need')} you.` : "You're all caught up.";
+}
+
+/** Signed out, the Overview asks for one thing: connecting GitHub. */
+export const SIGNED_OUT_LINE = 'Connect GitHub to start working on the library.';
+
+/**
+ * The one-line greeting: "Hello, Florian. 1 thing needs you." with the first word of the GitHub profile name, else
+ * "Hello." (never the login, never a stored name). Signed out: the connect line alone.
+ */
+export function greetingLine(profileName: string | null | undefined, headline: string, viewer: string | null): string {
+  if (!viewer) return headline;
+  const first = profileName?.trim().split(/\s+/)[0];
+  return `${first ? `Hello, ${first}.` : 'Hello.'} ${headline}`;
+}
+
+const names = (xs: GuidanceItem[]) => (xs.length <= 2 ? xs.map((x) => x.name).join(' and ') : `${xs.slice(0, 2).map((x) => x.name).join(', ')} and ${xs.length - 2} more`);
+
+/** One row per guidance state: drafted by Claude (review it), then missing (write it). */
+function guidanceRows(g: NonNullable<TodoInput['guidance']>): TodoRow[] {
+  const out: TodoRow[] = [];
+  if (g.drafted.length)
+    out.push({
+      key: 'guidance-drafted',
+      kind: 'setup',
+      task: 'guidance',
+      title: `Usage guidance of ${names(g.drafted)}`,
+      why: 'Claude drafted it from the code. Read it, fix it, then mark it reviewed.',
+      action: 'Review guidance',
+      href: g.drafted[0]!.href,
+    });
+  if (g.missing.length)
+    out.push({
+      key: 'guidance-missing',
+      kind: 'setup',
+      task: 'guidance',
+      title: `Usage guidance of ${names(g.missing)}`,
+      why: 'Not written yet. Start from what the code tells: props, tokens and anatomy.',
+      action: 'Write guidance',
+      href: g.missing[0]!.href,
+    });
+  return out;
 }
 
 /** The greeting's to-do list. */
@@ -240,6 +285,8 @@ export function overviewTodo(input: TodoInput): Todo {
     }
   }
 
+  if (input.guidance) groups.mine.push(...guidanceRows(input.guidance));
+
   // Stable: the queue's urgency order holds inside each task.
   const mine = groups.mine.map((r, i) => ({ r, i })).sort((a, b) => ORDER[a.r.task] - ORDER[b.r.task] || a.i - b.i).map((x) => x.r);
   return { headline: headlineFor(mine, viewer), mine, developer: groups.developer, others: groups.others };
@@ -266,6 +313,26 @@ export function othersLine(others: Pick<TodoRow, 'task'>[], mine: number): strin
 /** "Show all 5" when the list is cut at TODO_MAX, else empty. */
 export function showAllLabel(mine: number): string {
   return mine > TODO_MAX ? `Show all ${mine}` : '';
+}
+
+/** The Needs you rows that are changes in review: the designer decisions the Changes nav badge counts. */
+export const reviewDecisions = (mine: Pick<TodoRow, 'kind'>[]) => mine.filter((r) => r.kind === 'change').length;
+
+/**
+ * The Changes nav badge: how many changes in review wait on the viewer's decision. The same rule as the Overview
+ * Needs you list (overviewTodo, then reviewDecisions), so the badge and the list never disagree. 0 signed out.
+ */
+export function reviewNeedsYou(input: Pick<TodoInput, 'changes' | 'viewer' | 'owners' | 'ownerNames' | 'loading'>): number {
+  if (!input.viewer) return 0;
+  return reviewDecisions(overviewTodo({ ...input, requests: [] }).mine);
+}
+
+/** Needs you rows shown before "Show 2 more", which opens the rest in place. */
+export const NEEDS_MAX = 5;
+
+/** "Show 2 more" when the Needs you list is cut at NEEDS_MAX, else empty. */
+export function moreLabel(n: number, max = NEEDS_MAX): string {
+  return n > max ? `Show ${n - max} more` : '';
 }
 
 /** Only usage guidance changes: every file is a component docs.json, plus its release note. */

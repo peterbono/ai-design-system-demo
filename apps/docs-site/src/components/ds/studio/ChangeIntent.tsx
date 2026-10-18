@@ -29,6 +29,8 @@ export default function ChangeIntent() {
     // The script may have opened a drawer before this island hydrated: start from what the drawer says.
     const drawer = document.querySelector<HTMLElement>('[data-cm-drawer]');
     if (drawer?.dataset.hasTokens) setHasTokens(drawer.dataset.hasTokens === 'true');
+    // A deep link (Overview "Start a change") may have picked the intent before hydration too.
+    if (drawer?.dataset.mode === 'change' && isChangeIntent(drawer.dataset.intent)) setValue(drawer.dataset.intent);
     return () => document.removeEventListener(INTENT_SET_EVENT, on);
   }, []);
 
