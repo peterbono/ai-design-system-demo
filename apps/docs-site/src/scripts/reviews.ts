@@ -1,9 +1,11 @@
-// Changes > In review and the pull request detail: open pull requests of the configured repo, read client-side
-// from the GitHub REST API, most urgent first, with a designer-friendly token diff and governance-aware actions.
+// Changes > In review and the pull request detail: the review queue of the configured repo (lib/review-queue: open
+// pull requests minus running explorations and release automation), read client-side from the GitHub REST API, most
+// urgent first, with a designer-friendly token diff and governance-aware actions. Designer words on screen: a change
+// ships, it is not merged; developer details sit in one "For developers" fold.
 // Without a token every action deep-links to GitHub. When GitHub cannot be read, the last list this browser saw
 // stays on screen, labelled with its time (lib/changes.ts).
-import { classifyRisk, isActiveExploration, type Rights } from '@bridge-ds/core';
-import { isRunningExploration, tierSlot } from '../lib/explorations-view';
+import { isActiveExploration, type Rights } from '@bridge-ds/core';
+import { approvalNeedLabel, approvalNeedLong, effectiveTier, isAutomationPull, reviewQueue } from '../lib/review-queue';
 import {
   allowedMergeMethods,
   canWrite,
@@ -17,7 +19,6 @@ import {
   overrideRefusedComment,
   parseChangeset,
   parseOverrideComment,
-  parseTier,
   pullState,
   shipPolicy,
   summarizeApprovals,
@@ -38,7 +39,6 @@ import {
   needFromDetail,
   openerFor,
   readSnapshot,
-  tierLabel,
   tierParam,
   whoActs,
   writeSnapshot,
@@ -48,7 +48,8 @@ import {
   type WhoActs,
 } from '../lib/changes';
 import { iconSvg } from '../brand/icons';
-import { orphanBranches, branchEntry, pullEntry, type BranchEntry, type BranchesConfig } from '../lib/branches';
+import { pullEntry, type BranchesConfig } from '../lib/branches';
+import type { Root } from 'react-dom/client';
 import { currentViewer, esc, ghGet, ghWrite, hasWorkingToken, initGitHubConnect, RateLimitError, readRepo, relativeTime, showGhError } from './github-session';
 import { analyzeTokenFiles, isTokenFile, type TokenReview } from './reviews/token-review';
 import { loadVisualImpact, renderTopChange } from './reviews/visual-impact';
@@ -170,7 +171,8 @@ function showNotice(tone: 'warn' | 'fail' | 'info', text: string) {
   n.textContent = text;
 }
 
-const tierTag = (t: Tier | null) => `<span class="pill cg-tier">${tierLabel(t)}</span>`;
+/** What approval the change needs, in plain words and no color ("Design + tech"). Empty while the files are read. */
+const needTag = (t: Tier | null) => `<span class="cg-need">${esc(approvalNeedLabel(t))}</span>`;
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 /** People around a pull request, for the who-acts line (lib/changes whoActs). */
@@ -211,7 +213,7 @@ function rowHtml(r: Row) {
   const title = humanTitle(mdTitleText(r.title));
   return `<li class="cg-row" data-pr="${r.number}"><a class="cg-row-link" href="?pr=${r.number}" data-open-pr="${r.number}">
     <span class="cg-row-title"><span class="cg-row-name" title="${esc(title)}">${esc(title)}</span> <span class="cg-num">#${r.number}</span></span>
-    ${tierTag(r.tier)}
+    ${needTag(r.tier)}
     ${chip(r)}
     <time class="cg-date" datetime="${esc(r.updated_at)}">${esc(shortDate(r.updated_at))}</time></a></li>`;
 }
@@ -220,12 +222,12 @@ function paintRows(rows: Row[], loading: boolean) {
   const list = $('rv-list');
   const tier = tierParam(location.search);
   const sorted = filterByTier(byUrgency(rows), tier);
-  list.innerHTML = sorted.length ? sorted.map(rowHtml).join('') : `<li class="cg-row cg-none">No open pull request at ${esc(tierLabel(tier))}.</li>`;
+  list.innerHTML = sorted.length ? sorted.map(rowHtml).join('') : `<li class="cg-row cg-none">Nothing waits here: ${esc(approvalNeedLong(tier).toLowerCase())}.</li>`;
   const filter = document.getElementById('cg-tier-filter');
   if (filter) {
     filter.hidden = !tier;
     const label = filter.querySelector('[data-tier-label]');
-    if (label) label.textContent = tierLabel(tier);
+    if (label) label.textContent = approvalNeedLong(tier).toLowerCase();
   }
   const count = $('rv-count');
   count.textContent = String(rows.length);
@@ -233,7 +235,7 @@ function paintRows(rows: Row[], loading: boolean) {
   const opener = openerFor(rows);
   const sentence = $('cg-open-sentence');
   const cta = document.getElementById('cg-open-cta') as HTMLAnchorElement | null;
-  sentence.textContent = loading ? `${plural(rows.length, 'change')} open. Checking their checks and approvals.` : opener.sentence;
+  sentence.textContent = loading ? `${plural(rows.length, 'change')} in review. Checking their tests and approvals.` : opener.sentence;
   if (cta && opener.action) {
     cta.href = `?pr=${opener.action.pr}`;
     cta.dataset.openPr = String(opener.action.pr);
@@ -258,7 +260,8 @@ const toRow = (p: Pull | CachedPull, kind: ReviewStatusKind | null): Row => ({
   number: p.number,
   title: p.title,
   updated_at: p.updated_at,
-  tier: 'labels' in p ? parseTier(p.labels, p.body) : p.tier,
+  // A label decides at once; the files (read with the status) complete it, the same rule as the detail.
+  tier: 'labels' in p ? effectiveTier(p.labels, p.body, null) : p.tier,
   kind,
   skipped: false,
   head: { ref: p.head.ref, sha: p.head.sha },
@@ -266,7 +269,10 @@ const toRow = (p: Pull | CachedPull, kind: ReviewStatusKind | null): Row => ({
   draft: p.draft,
 });
 
-/** Loads and paints the In review list. Returns every open pull request (running explorations included, which the list leaves out). */
+/**
+ * Loads and paints the In review list. Returns every open pull request (running explorations and the release pull
+ * request included, which the list leaves out: Explorations and History read them from here).
+ */
 export async function loadList(): Promise<{ number: number; head: { ref: string } }[]> {
   const list = $('rv-list');
   list.setAttribute('aria-busy', 'true');
@@ -278,8 +284,8 @@ export async function loadList(): Promise<{ number: number; head: { ref: string 
   try {
     const f = await ghGet<Pull[]>(`${R}/pulls?state=open&per_page=100`);
     allOpen = openPulls(f.data);
-    // Running explorations live in the Explorations view: never merged as is, so they are not waiting for review.
-    live = { pulls: allOpen.filter((p) => !isRunningExploration(p)), staleAt: f.stale ? (f.cachedAt ?? new Date(0).toISOString()) : null };
+    // The review queue: running explorations live in Explorations, the release pull request in History.
+    live = { pulls: reviewQueue(allOpen), staleAt: f.stale ? (f.cachedAt ?? new Date(0).toISOString()) : null };
   } catch (err) {
     failure = err;
   }
@@ -297,11 +303,11 @@ export async function loadList(): Promise<{ number: number; head: { ref: string 
   }
 
   if (src.kind === 'cached') {
-    const rows = src.pulls.map((p) => ({ ...toRow(p, p.kind), skipped: !p.kind }));
+    // A snapshot saved before automation left the queue may still hold the release pull request.
+    const rows = src.pulls.filter((p) => !isAutomationPull(p)).map((p) => ({ ...toRow(p, p.kind), skipped: !p.kind }));
     showEmpty(rows.length === 0);
     paintRows(rows, false);
     paintAsOf(src.at);
-    void loadOtherBranches(src.pulls);
     return src.pulls;
   }
 
@@ -311,7 +317,6 @@ export async function loadList(): Promise<{ number: number; head: { ref: string 
   if (!pulls.length) {
     $('rv-count').hidden = true;
     writeSnapshot(storage(), REPO_KEY, [], new Date());
-    void loadOtherBranches(allOpen);
     return allOpen;
   }
   // A stale list starts from the statuses saved with the snapshot; a live one starts from "Checking".
@@ -325,6 +330,7 @@ export async function loadList(): Promise<{ number: number; head: { ref: string 
     r.kind = st && st.kind === 'unknown' && prior ? prior : (st?.kind ?? (skipped ? (known.get(p.number) ?? null) : null));
     r.skipped = skipped && !r.kind;
     if (st && st.kind !== 'unknown') Object.assign(r, { approvers: st.approvers, changesRequested: st.changesRequested, failing: st.failing });
+    if (st?.tier) r.tier = st.tier;
     paintRows([...rows.values()], false);
   });
   paintRows([...rows.values()], false);
@@ -336,33 +342,7 @@ export async function loadList(): Promise<{ number: number; head: { ref: string 
       new Date(),
     );
   }
-  void loadOtherBranches(allOpen);
   return allOpen;
-}
-
-function branchRow(e: BranchEntry) {
-  const links = e.previews.map((p) => `<a href="${esc(p.url)}">${esc(p.label)}</a>`);
-  return `<li class="cg-row cg-branch"><span class="cg-row-title"><span class="mono cg-row-name">${esc(e.branch)}</span> <span class="cg-num mono">${esc(e.sha.slice(0, 7))}</span></span>
-    <span class="cg-branch-links">${[...links, `<a href="${esc(e.url)}">View on GitHub</a>`].join('')}</span></li>`;
-}
-
-/** Branches without a pull request (the old Branches page): one more request, skipped quietly when it fails. */
-async function loadOtherBranches(pulls: { head: { ref: string } }[]) {
-  try {
-    const b = await ghGet<{ name: string; commit: { sha: string } }[]>(`${R}/branches?per_page=100`);
-    const rest = orphanBranches(b.data, pulls as never, BRANCHES.defaultBranch).map((x) => branchEntry(x, BRANCHES));
-    const box = $<HTMLDetailsElement>('other-branches');
-    if (!rest.length) return;
-    $('cg-other-n').textContent = String(rest.length);
-    $('cg-other-list').innerHTML = rest.map(branchRow).join('');
-    box.hidden = false;
-    if (location.hash === '#other-branches') {
-      box.open = true;
-      box.scrollIntoView({ block: 'start' });
-    }
-  } catch {
-    /* rate limited with nothing saved: the section stays hidden */
-  }
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -399,9 +379,18 @@ export async function openPr(n: number, push = true) {
   window.scrollTo({ top: 0 });
   try {
     const pf = await ghGet<Pull>(`${R}/pulls/${n}`);
-    if (pf.stale) showNotice('warn', `GitHub cannot be read right now, so this shows pull request #${n} ${asOf(pf.cachedAt ?? '')}. Connect GitHub for live status.`);
+    if (pf.stale) showNotice('warn', `GitHub cannot be read right now, so this shows change #${n} ${asOf(pf.cachedAt ?? '')}. Connect GitHub for live status.`);
     const pull = pf.data;
-    const [files, reviews, comments, ci, access, statuses] = await Promise.all([
+    // GitHub computes whether it merges cleanly on the first read (null meanwhile): read it once more while the rest
+    // loads, so the header never says "waiting for approval" on one load and "conflict" on the next.
+    const mergeable: Promise<boolean | null | undefined> =
+      pull.mergeable === null && pullState(pull) === 'open'
+        ? new Promise((r) => setTimeout(r, 1500))
+            .then(() => ghGet<Pull>(`${R}/pulls/${n}`))
+            .then((f) => f.data.mergeable)
+            .catch(() => null)
+        : Promise.resolve(pull.mergeable);
+    const [files, reviews, comments, ci, access, statuses, merges] = await Promise.all([
       ghGet<PrFile[]>(`${R}/pulls/${n}/files?per_page=100`).then((f) => f.data),
       ghGet<Review[]>(`${R}/pulls/${n}/reviews?per_page=100`).then((f) => f.data).catch(() => [] as Review[]),
       ghGet<Comment[]>(`${R}/issues/${n}/comments?per_page=100`).then((f) => f.data).catch(() => [] as Comment[]),
@@ -409,14 +398,14 @@ export async function openPr(n: number, push = true) {
       readAccess(),
       // Same request as ciFor's commit status (shared in flight): the Vercel statuses say which previews are built.
       ghGet<{ statuses: { context: string; state: string; target_url?: string | null }[] }>(`${R}/commits/${pull.head.sha}/status`).then((f) => f.data.statuses).catch(() => []),
+      mergeable,
     ]);
+    pull.mergeable = merges;
     // A newer openPr (other PR, or the viewer changed) owns the page now.
     if (seq !== openSeq) return;
-    // Highest tier wins: the label or checkbox the author set, or what the shared classifier (the one the
-    // plugin, the editor and the MCP server use) computes from the changed files.
-    const labelled = parseTier(pull.labels, pull.body);
-    const computed = classifyRisk({ files: files.map((f) => ({ path: f.filename, status: f.status })) }).tier;
-    const tier = Math.max(labelled ?? 0, computed) as Tier;
+    // Highest wins: the label or checkbox the author set, or what the shared classifier (the one the plugin, the
+    // editor and the MCP server use) computes from the changed files. The In review rows use the same rule.
+    const tier = effectiveTier(pull.labels, pull.body, files);
     current = { pull, tier };
     const approvals = summarizeApprovals(reviews, OWNERS, pull.user.login);
     const gate = mergeGate({ tier, ci, approvals, draft: pull.draft, mergeable: pull.mergeable, state: pull.state, merged_at: pull.merged_at, viewer: access?.login, override: OVERRIDE, exploration: isActiveExploration(pull.labels), ship: SHIP });
@@ -425,6 +414,7 @@ export async function openPr(n: number, push = true) {
     const visual = touchesVisuals(files.map((f) => f.filename));
 
     const docsPaths = files.filter((f) => isDocsFile(f.filename) && f.status !== 'removed').map((f) => f.filename);
+    unmountMore();
     d.innerHTML = renderDetail({ pull, tier, files, reviews, comments, ci, approvals, gate, tokenCount: tokenFiles.length, changesetCount: changesets.length, visual, access, docsPaths, statuses });
     wireActions(pull, gate, access);
     wireVisualLink(d);
@@ -526,8 +516,8 @@ const ROW_ICON: Record<ApprovalRow['state'], string> = {
 };
 
 /** The approval checklist: one row per approval the tier needs, the action on the row of the role the viewer holds. */
-function approvalsHtml(rows: ApprovalRow[], who: WhoActs, tier: Tier | null) {
-  if (!rows.length) return `<p class="cg-line">No approval needed at ${esc(tierLabel(tier))}.</p>`;
+function approvalsHtml(rows: ApprovalRow[], who: WhoActs) {
+  if (!rows.length) return '<p class="cg-line">No approval needed.</p>';
   return `<ul class="rv-ap" aria-label="Approvals">${rows
     .map((r) => {
       const primary = who.yourTurn && who.action === (r.role === 'design' ? 'approve-design' : r.role === 'tech' ? 'approve-tech' : 'approve');
@@ -554,29 +544,27 @@ function renderDetail(x: DetailInput) {
   const lifecycle = pullState(pull);
   const open = lifecycle === 'open';
   const who = whoActs(
-    needFromDetail({ state: lifecycle, ci, gate, changesRequestedBy: approvals.changesRequested, exploration: isActiveExploration(pull.labels) }),
+    needFromDetail({ state: lifecycle, ci, gate, changesRequestedBy: approvals.changesRequested, exploration: isActiveExploration(pull.labels), mergeable: pull.mergeable }),
     people(pull.user.login, { viewer: access?.login ?? null, approvers: approvals.approvers, canMerge: write && gate.canShip, overridable: showOverride }),
   );
   const rows = approvalRows({ tier, approvals, people: people(pull.user.login, { viewer: access?.login ?? null }), open });
   const rowAction = rows.some((r) => r.canAct);
 
-  // One primary action per view. Your turn: the action the who-acts line names (an approval sits on its row). Not
-  // your turn: connect when the viewer is anonymous, else nothing: the sentence says who acts.
+  // One primary action per view. Your turn: the action the who-acts line names (an approval sits on its row; the
+  // owner override sits in More, with its rule). Not your turn: connect when the viewer is anonymous, else nothing:
+  // the sentence says who acts.
   const failingRun = ci.failed.find((f) => f.url)?.url;
   let headerCta = '';
-  let headerMerge = false;
-  let headerOverride = false;
+  let headerShip = false;
   if (who.yourTurn) {
     if (who.action === 'merge' && gate.allowed && write) {
-      headerCta = '<button type="button" class="btn btn-primary btn-lg" data-act="MERGE">Merge</button>';
-      headerMerge = true;
-    } else if (who.action === 'override' && showOverride) {
-      headerCta = '<button type="button" class="btn btn-primary btn-lg" data-override-open>Merge as owner override</button>';
-      headerOverride = true;
-    } else if (who.action === 'fix-checks' && failingRun) headerCta = `<a class="btn btn-primary btn-lg" href="${esc(failingRun)}" target="_blank" rel="noopener">Open failing run</a>`;
+      headerCta = '<button type="button" class="btn btn-primary btn-lg" data-act="MERGE">Ship</button>';
+      headerShip = true;
+    } else if (who.action === 'fix-checks' && failingRun) headerCta = `<a class="btn btn-primary btn-lg" href="${esc(failingRun)}" target="_blank" rel="noopener">Open failing test</a>`;
     else if (AUTHOR_CTA[who.action]) headerCta = `<a class="btn btn-primary btn-lg" href="${esc(pull.html_url)}" target="_blank" rel="noopener">${AUTHOR_CTA[who.action]}</a>`;
   } else if (!access && (lifecycle === 'open' || lifecycle === 'draft')) headerCta = '<button type="button" class="btn btn-primary btn-lg" data-gh-open>Connect GitHub to review</button>';
 
+  // Conversation: how many, the last word, and GitHub for the thread (it is where people answer).
   const conversation = [
     ...reviews
       .filter((r) => r.state !== 'PENDING')
@@ -592,9 +580,28 @@ function renderDetail(x: DetailInput) {
     COMMENTED: 'reviewed',
     DISMISSED: 'review dismissed',
     COMMENT: 'commented',
-    OVERRIDE: 'merged as owner override',
+    OVERRIDE: 'shipped it as owner override',
     OVERRIDE_REFUSED: 'tried an owner override',
   };
+  // The last word from a person: bot comments (deploy previews, release notes) never stand for the conversation.
+  const isBot = (c: { user: User | null }) => /\[bot\]$/.test(c.user?.login ?? '');
+  const humans = conversation.filter((c) => !isBot(c));
+  const last = humans[humans.length - 1] ?? conversation[conversation.length - 1];
+  // A bot's body is markup for GitHub (preview tables, release notes): name it, do not quote it.
+  const quote = last && !isBot(last) ? last.body : '';
+  const excerpt = (text: string) => {
+    const one = mdTitleText(text).replace(/\s+/g, ' ').trim();
+    return one.length > 160 ? `${one.slice(0, 157).replace(/\s+\S*$/, '')}...` : one;
+  };
+  const convHtml = `<section class="rv-conv-last" aria-labelledby="rv-conv-h">
+      <h2 class="rv-conv-h" id="rv-conv-h">Conversation <span class="cg-num">${conversation.length}</span></h2>
+      ${
+        last
+          ? `<p class="rv-conv-line">${avatar(last.user, 20)}<span><strong>${esc(last.user?.login ?? 'someone')}</strong> ${esc(kindLabel[last.kind] ?? last.kind.toLowerCase())}${last.at ? `, ${esc(relativeTime(last.at))}` : ''}${quote ? `: <span class="rv-conv-quote">${esc(excerpt(quote))}</span>` : '.'}</span></p>`
+          : '<p class="cg-muted rv-conv-line">No reviews or comments yet.</p>'
+      }
+      <a class="rv-conv-gh" href="${esc(pull.html_url)}" target="_blank" rel="noopener">Open on GitHub</a>
+    </section>`;
 
   const fileList = `<ul class="rv-files">${files
     .slice(0, 40)
@@ -627,15 +634,6 @@ function renderDetail(x: DetailInput) {
   const previewBody = previewLinks || pending || install ? `${previewLinks ? `<p class="cg-links">${previewLinks}</p>` : ''}${pending}${install}` : `<p class="cg-muted">${entry.fromFork ? 'Pull request from a fork: no preview deploys or snapshots.' : 'No preview deploys configured for this repository.'}</p>`;
   const previewMeta = entry.previews.length ? entry.previews.map((p) => p.label).join(', ') : entry.install ? 'install only' : entry.pendingPreviews.length ? 'waiting for Vercel' : 'none';
 
-  const convBody = conversation.length
-    ? `<ol class="rv-conv">${conversation
-        .map(
-          (c) =>
-            `<li><div class="rv-conv-head">${avatar(c.user, 20)}<strong>${esc(c.user?.login ?? 'someone')}</strong> <span class="rv-kind">${kindLabel[c.kind] ?? c.kind.toLowerCase()}</span> <a class="cg-muted" href="${esc(c.url)}" target="_blank" rel="noopener">${c.at ? relativeTime(c.at) : ''}</a></div>${c.body ? `<div class="rv-conv-body">${esc(c.body).replace(/\n/g, '<br>')}</div>` : ''}</li>`,
-        )
-        .join('')}</ol>`
-    : '<p class="cg-muted">No reviews or comments yet.</p>';
-
   const reviewForm = `<div data-needs-token class="cg-act-review">
       <details class="cg-more"><summary>Write a review</summary>
         <label class="rv-label" for="rv-body">Comment</label>
@@ -648,16 +646,17 @@ function renderDetail(x: DetailInput) {
       </details>
     </div>
     <p data-no-token class="cg-muted">Read only until connected. Or <a href="${esc(pull.html_url)}/files#submit-review" target="_blank" rel="noopener">review on GitHub</a>.</p>`;
-  const mergeBits = write
+  // Ship sits at the end of the bar; the owner override and Close wait in More (rare, and Close is destructive).
+  const hasMore = write && (open || lifecycle === 'draft');
+  const shipBits = write
     ? `<div class="cg-act-end">
-        ${showOverride && !headerOverride ? '<button type="button" class="btn btn-secondary btn-sm" data-override-open>Merge as owner override</button>' : ''}
-        <button type="button" class="btn btn-secondary btn-sm rv-danger" data-act="CLOSE">Close</button>
-        ${headerMerge ? '' : `<button type="button" class="btn btn-secondary btn-sm" data-act="MERGE" ${gate.allowed ? '' : 'disabled aria-describedby="rv-merge-why"'}>Merge</button>`}
+        ${hasMore ? '<span class="rv-more" id="rv-more"></span>' : ''}
+        ${headerShip || !open ? '' : `<button type="button" class="btn btn-secondary" data-act="MERGE" ${gate.allowed ? '' : 'disabled aria-describedby="rv-merge-why"'}>Ship</button>`}
       </div>`
     : access
-      ? `<p class="cg-muted">@${esc(access.login)} cannot write to ${esc(repo.owner)}/${esc(repo.repo)}, so merge and close are off.</p>`
+      ? `<p class="cg-muted">@${esc(access.login)} cannot write to ${esc(repo.owner)}/${esc(repo.repo)}, so ship and close are off.</p>`
       : '';
-  const why = gate.allowed || lifecycle === 'merged' || lifecycle === 'closed' ? '' : `<p class="cg-muted" id="rv-merge-why">Merge unlocks when: ${gate.reasons.map((r) => esc(r)).join(' ')}${showOverride ? ' Only approvals are missing: as a listed owner you can merge with the owner override.' : ''}</p>`;
+  const why = gate.allowed || lifecycle === 'merged' || lifecycle === 'closed' ? '' : `<p class="cg-muted" id="rv-merge-why">Ship unlocks when: ${gate.reasons.map((r) => esc(r)).join(' ')}${showOverride ? ' Only approvals are missing: as a listed owner you can ship it with the owner override, in More.' : ''}</p>`;
 
   // What it looks like: the biggest before/after first (filled by openPr), then the token diff as the "what changed"
   // of a token-only change. The full visual list stays one click away.
@@ -667,21 +666,23 @@ function renderDetail(x: DetailInput) {
   const tokens = x.tokenCount ? `<div class="rv-what-tokens"><h3 class="rv-what-sub">Token changes</h3><div id="rv-tokens"><p class="rv-loading">Resolving tokens at both versions</p></div></div>` : '';
 
   const devMeta = [plural(files.length, 'file'), ci.total === 0 ? 'no checks yet' : failing ? `${failing} failing ${failing === 1 ? 'check' : 'checks'}` : ci.pending.length ? 'checks running' : 'checks pass'].join(', ');
+  // What approval it needs, in plain words and no color. An exploration is tried, never shipped as is.
+  const need = isActiveExploration(pull.labels) ? 'Exploration' : approvalNeedLabel(tier);
 
   return `
   <nav class="cg-crumbs" aria-label="Breadcrumb"><a href="./" data-back>Changes</a><span aria-hidden="true">/</span><span class="mono">#${pull.number}</span></nav>
   <header class="zone cg-pr-open">
     <p class="cg-pr-who" data-who="${who.yourTurn ? 'you' : esc(who.who)}">${esc(who.sentence)}</p>
     <h1 class="cg-pr-title">${esc(humanTitle(mdTitleText(pull.title)))} <span class="cg-num">#${pull.number}</span></h1>
-    <p class="cg-pr-meta">${avatar(pull.user, 20)}<span>${esc(pull.user.login)}</span><span class="pill cg-tier">${esc(tierSlot(pull.labels, tier))}</span><a href="${esc(pull.html_url)}" target="_blank" rel="noopener">Open on GitHub</a><a href="/how-review-works/">How review works</a></p>
-    ${approvalsHtml(rows, who, tier)}
+    <p class="cg-pr-meta">${avatar(pull.user, 20)}<span>${esc(pull.user.login)}</span>${need ? `<span class="cg-need">${esc(need)}</span>` : ''}<a href="${esc(pull.html_url)}" target="_blank" rel="noopener">Open on GitHub</a><a href="/how-review-works/">How review works</a></p>
+    ${approvalsHtml(rows, who)}
     ${headerCta ? `<p class="cg-pr-cta">${headerCta}</p>` : ''}
   </header>
   <section class="rv-what" aria-label="What changed">${what}${tokens}</section>
   <div class="cg-secs">
     ${x.visual ? section('cg-sec-visual', 'All visual changes', 'Reading', `<div id="rv-visual"><p class="rv-loading">Reading the visual impact for ${esc(pull.head.sha.slice(0, 7))}</p></div>`) : ''}
     ${x.docsPaths.length ? section('cg-sec-docs', 'Docs', 'Reading', renderDocsSection(x.docsPaths)) : ''}
-    ${section('cg-sec-conv', 'Conversation', String(conversation.length), convBody)}
+    ${convHtml}
     <details class="cg-sec cg-dev" id="cg-sec-dev"><summary class="cg-sec-head"><span class="cg-sec-title">For developers</span><span class="cg-sec-meta">${esc(devMeta)}</span><span class="cg-sec-chev" aria-hidden="true"></span></summary>
       <div class="cg-sec-body cg-dev-body">
         ${section('cg-sec-files', 'Files', String(files.length), filesBody)}
@@ -693,7 +694,7 @@ function renderDetail(x: DetailInput) {
   </div>
   <footer class="cg-actbar" id="rv-actions" aria-label="Review actions">
     ${why}
-    <div class="cg-actbar-row">${reviewForm}${mergeBits}</div>
+    <div class="cg-actbar-row">${reviewForm}${shipBits}</div>
     <p class="rv-act-status" id="rv-act-status" role="status" aria-live="polite"></p>
   </footer>
   ${showOverride ? overrideDialog(pull, gate, access!) : ''}`;
@@ -703,11 +704,11 @@ function overrideDialog(pull: Pull, gate: ReturnType<typeof mergeGate>, access: 
   const min = OVERRIDE.requireReason ? OVERRIDE.minReasonLength : 0;
   return `<dialog class="gh-dialog rv-ov-dialog" id="rv-ov" role="alertdialog" aria-modal="true" aria-labelledby="rv-ov-title" aria-describedby="rv-ov-desc">
     <form method="dialog" class="gh-dialog-box" novalidate>
-      <header class="gh-dialog-head"><h2 id="rv-ov-title">Merge #${pull.number} as owner override?</h2></header>
+      <header class="gh-dialog-head"><h2 id="rv-ov-title">Ship #${pull.number} as owner override?</h2></header>
       <div id="rv-ov-desc">
-        <p>This merges into <span class="mono">${esc(pull.base.ref)}</span> without:</p>
+        <p>This ships the change into the library (<span class="mono">${esc(pull.base.ref)}</span>) without:</p>
         <ul class="rv-ov-missing">${gate.missing.map((m) => `<li>${esc(m[0]!.toUpperCase() + m.slice(1))}</li>`).join('')}</ul>
-        <p>CI passes and nobody requested changes. Bridge posts your reason on the pull request as <strong>Bridge owner override</strong>, then merges, so History and the timeline show who skipped the approvals and why.</p>
+        <p>Tests pass and nobody requested changes. Bridge posts your reason on the change as <strong>Bridge owner override</strong>, then ships it, so History and the timeline show who skipped the approvals and why.</p>
       </div>
       <label class="gh-field" for="rv-ov-reason">
         <span>Reason${OVERRIDE.requireReason ? '' : ' (optional)'}</span>
@@ -723,7 +724,7 @@ function overrideDialog(pull: Pull, gate: ReturnType<typeof mergeGate>, access: 
       <footer class="gh-dialog-foot">
         <span class="gh-spacer"></span>
         <button type="submit" value="cancel" class="btn btn-secondary btn-sm" autofocus>Cancel</button>
-        <button type="button" class="btn btn-primary btn-sm" id="rv-ov-go">Post reason and merge</button>
+        <button type="button" class="btn btn-primary btn-sm" id="rv-ov-go">Post reason and ship</button>
       </footer>
     </form>
   </dialog>`;
@@ -735,9 +736,10 @@ function syncAuthViews() {
   document.querySelectorAll<HTMLElement>('[data-no-token]').forEach((el) => (el.hidden = has));
 }
 
-function wireOverride(pull: Pull, access: Access, gate: ReturnType<typeof mergeGate>) {
+/** Wires the override dialog and returns how to open it (the More menu item), or null when there is none. */
+function wireOverride(pull: Pull, access: Access, gate: ReturnType<typeof mergeGate>): (() => void) | null {
   const dialog = document.getElementById('rv-ov') as HTMLDialogElement | null;
-  if (!dialog) return;
+  if (!dialog) return null;
   const reason = $<HTMLTextAreaElement>('rv-ov-reason');
   const count = $('rv-ov-count');
   const error = $('rv-ov-error');
@@ -748,10 +750,10 @@ function wireOverride(pull: Pull, access: Access, gate: ReturnType<typeof mergeG
     error.textContent = text;
     error.hidden = false;
   };
-  document.querySelector('[data-override-open]')?.addEventListener('click', () => {
+  const openDialog = () => {
     error.hidden = true;
     dialog.showModal();
-  });
+  };
   reason.addEventListener('input', () => {
     const n = reason.value.trim().length;
     count.textContent = min ? (n >= min ? `${n} characters.` : `${n} of at least ${min} characters.`) : 'Shown on the pull request.';
@@ -777,10 +779,10 @@ function wireOverride(pull: Pull, access: Access, gate: ReturnType<typeof mergeG
       showGhError(error, err, `GitHub did not take the comment, so nothing was merged: ${(err as Error).message}`, 'comment on pull requests');
       error.hidden = false;
       go.disabled = false;
-      go.textContent = 'Post reason and merge';
+      go.textContent = 'Post reason and ship';
       return;
     }
-    go.textContent = 'Merging';
+    go.textContent = 'Shipping';
     const m = method();
     try {
       await ghWrite('PUT', `${R}/pulls/${pull.number}/merge`, {
@@ -794,58 +796,84 @@ function wireOverride(pull: Pull, access: Access, gate: ReturnType<typeof mergeG
       showGhError(error, err, `GitHub refused the merge: ${msg}. Your reason stays on the pull request, marked not merged. Branch protection may need an approving review or an admin bypass.`, 'merge pull requests');
       error.hidden = false;
       go.disabled = false;
-      go.textContent = 'Post reason and merge';
+      go.textContent = 'Post reason and ship';
       return;
     }
     dialog.close();
     await openPr(pull.number, false);
     const done = document.getElementById('rv-act-status');
-    if (done) done.textContent = `Merged as owner override. The reason is on #${pull.number}.`;
+    if (done) done.textContent = `Shipped as owner override. The reason is on #${pull.number}.`;
   });
+  return openDialog;
 }
+
+/** The More menu of the open change (DS Menu, a React root): unmounted before the detail repaints. */
+let moreMenu: Root | null = null;
+function unmountMore() {
+  moreMenu?.unmount();
+  moreMenu = null;
+}
+
+/** The owner override in one sentence: what it skips, what it never skips, and the trace it leaves. */
+const OVERRIDE_RULE = 'Owners can ship without the missing approvals once tests pass, with a reason posted on the change.';
 
 function wireActions(pull: Pull, gate: ReturnType<typeof mergeGate>, access: Access | null) {
   syncAuthViews();
-  if (access && gate.overridable && access.write) wireOverride(pull, access, gate);
+  const openOverride = access && gate.overridable && access.write ? wireOverride(pull, access, gate) : null;
   const status = $('rv-act-status');
   const body = document.getElementById('rv-body') as HTMLTextAreaElement | null;
-  document.querySelectorAll<HTMLButtonElement>('#rv-detail [data-act]').forEach((b) =>
-    b.addEventListener('click', async () => {
-      const act = b.dataset.act!;
-      const text = body?.value.trim() ?? '';
-      if (act === 'REQUEST_CHANGES' && !text) {
-        status.textContent = 'Add a comment that says what to change.';
-        body?.focus();
-        return;
+
+  /** One action, from a button or the More menu. Returns false when nothing was sent (so a button stays enabled). */
+  async function run(act: string, b?: HTMLButtonElement) {
+    const text = body?.value.trim() ?? '';
+    if (act === 'REQUEST_CHANGES' && !text) {
+      status.textContent = 'Add a comment that says what to change.';
+      body?.focus();
+      return;
+    }
+    if (act === 'COMMENT' && !text) {
+      status.textContent = 'Write a comment first.';
+      body?.focus();
+      return;
+    }
+    if (act === 'MERGE' && !gate.allowed) return;
+    if (act === 'CLOSE' && !window.confirm(`Close change #${pull.number} without shipping it?`)) return;
+    if (act === 'MERGE' && !window.confirm(`Ship change #${pull.number} into the library? It goes out with the next release.`)) return;
+    if (b) b.disabled = true;
+    status.textContent = 'Sending to GitHub';
+    try {
+      if (act === 'APPROVE' || act === 'REQUEST_CHANGES' || act === 'COMMENT') {
+        await ghWrite('POST', `${R}/pulls/${pull.number}/reviews`, { event: act, body: text || undefined, commit_id: pull.head.sha });
+      } else if (act === 'MERGE') {
+        await ghWrite('PUT', `${R}/pulls/${pull.number}/merge`, { merge_method: 'squash', sha: pull.head.sha });
+      } else if (act === 'CLOSE') {
+        await ghWrite('PATCH', `${R}/pulls/${pull.number}`, { state: 'closed' });
       }
-      if (act === 'COMMENT' && !text) {
-        status.textContent = 'Write a comment first.';
-        body?.focus();
-        return;
-      }
-      if (act === 'MERGE' && !gate.allowed) return;
-      if (act === 'CLOSE' && !window.confirm(`Close pull request #${pull.number} without merging?`)) return;
-      if (act === 'MERGE' && !window.confirm(`Merge pull request #${pull.number} into ${pull.base.ref}?`)) return;
-      b.disabled = true;
-      status.textContent = 'Sending to GitHub';
-      try {
-        if (act === 'APPROVE' || act === 'REQUEST_CHANGES' || act === 'COMMENT') {
-          await ghWrite('POST', `${R}/pulls/${pull.number}/reviews`, { event: act, body: text || undefined, commit_id: pull.head.sha });
-        } else if (act === 'MERGE') {
-          await ghWrite('PUT', `${R}/pulls/${pull.number}/merge`, { merge_method: 'squash', sha: pull.head.sha });
-        } else if (act === 'CLOSE') {
-          await ghWrite('PATCH', `${R}/pulls/${pull.number}`, { state: 'closed' });
-        }
-        status.textContent = { APPROVE: 'Approved.', REQUEST_CHANGES: 'Changes requested.', COMMENT: 'Comment posted.', MERGE: 'Merged.', CLOSE: 'Closed.' }[act] ?? 'Done.';
-        if (body) body.value = '';
-        await openPr(pull.number, false);
-      } catch (err) {
-        const verb = act === 'MERGE' ? 'merge pull requests' : act === 'CLOSE' ? 'close pull requests' : 'review pull requests';
-        showGhError(status, err, `GitHub refused: ${(err as Error).message}`, verb);
-        b.disabled = false;
-      }
-    }),
-  );
+      status.textContent = { APPROVE: 'Approved.', REQUEST_CHANGES: 'Changes requested.', COMMENT: 'Comment posted.', MERGE: 'Shipped.', CLOSE: 'Closed.' }[act] ?? 'Done.';
+      if (body) body.value = '';
+      await openPr(pull.number, false);
+    } catch (err) {
+      const verb = act === 'MERGE' ? 'merge pull requests' : act === 'CLOSE' ? 'close pull requests' : 'review pull requests';
+      showGhError(status, err, `GitHub refused: ${(err as Error).message}`, verb);
+      if (b) b.disabled = false;
+    }
+  }
+
+  document.querySelectorAll<HTMLButtonElement>('#rv-detail [data-act]').forEach((b) => b.addEventListener('click', () => void run(b.dataset.act!, b)));
+
+  const slot = document.getElementById('rv-more');
+  if (slot) {
+    const seq = openSeq;
+    void import('../components/ds/studio/PrMoreMenu').then(({ mountPrMoreMenu }) => {
+      // The detail moved on (another change, back to the list) while the menu loaded.
+      if (seq !== openSeq || !slot.isConnected) return;
+      unmountMore();
+      moreMenu = mountPrMoreMenu(slot, {
+        override: openOverride ? { rule: OVERRIDE_RULE, onSelect: openOverride } : null,
+        onClose: () => void run('CLOSE'),
+      });
+    });
+  }
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -894,6 +922,7 @@ export function renderTokenReview(review: TokenReview): string {
 /** Back from a pull request to the list (the page controller repaints the view). */
 export function closePr() {
   openSeq++;
+  unmountMore();
   current = null;
   detailEl().hidden = true;
   detailEl().innerHTML = '';

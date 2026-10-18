@@ -1,13 +1,16 @@
-// Changes > History: one timeline of merged token changes grouped by release, an entry detail with the designer
-// diff, and "Undo this change" (the side panel in ./planner). Real history by default; the demo switch at the bottom
-// swaps in the fixture report and a banner, never both at once. Filters wait behind the Filter button.
+// Changes > History: the next release on top (from the release pull request the changesets action keeps open, with
+// the action owned by whoever holds the ship right), then one timeline of shipped token changes grouped by release,
+// an entry detail with the designer diff, and "Undo this change" (the side panel in ./planner). Real history only in
+// production; in development the demo switch at the bottom swaps in the fixture report and a banner. Filters wait
+// behind the Filter button.
 import type { HistoryEntry, HistoryFilter, HistoryReport } from '@bridge-ds/core';
 import { authorsOf, countsLabel, shortDate, viewTimeline } from '../../lib/history-view';
-import { tierLabel } from '../../lib/changes';
 import { renderTokenReview } from '../reviews';
-import { esc, initGitHubConnect, readRepo } from '../github-session';
-import { mdTitleHtml, mdTitleText } from '../../lib/markdown';
-import { humanTitle } from '../../lib/pr-title';
+import { currentViewer, esc, ghGet, hasWorkingToken, initGitHubConnect, readRepo } from '../github-session';
+import { mdTitleHtml } from '../../lib/markdown';
+import { approvalNeedLabel, releasePull, type QueuePull } from '../../lib/review-queue';
+import { historySummary, parseReleaseBody, releaseCard } from '../../lib/release-view';
+import { owners, shippers } from '../pr-status';
 import { openRevertPlanner } from './planner';
 import { activeReport, DEMO_EVENT, demoOn, loadHistory, setDemo, type Loaded } from './state';
 
@@ -38,12 +41,13 @@ const dayMonth = (iso: string) => {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? iso.slice(0, 10) : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
-const title = (e: HistoryEntry) => humanTitle(mdTitleText(e.title));
+/** A human summary (the changeset line the author wrote, else the cleaned title), never a raw commit subject. */
+const title = (e: HistoryEntry) => historySummary(e);
 
-/** A row: title and #, a neutral tier label (or Demo), the date. Counts live in the detail, once. */
+/** A row: summary and #, what approval it needed in plain words (or Demo), the date. Counts live in the detail. */
 function row(e: HistoryEntry, demo: boolean): string {
   const num = e.pr ? ` <span class="cg-num">#${e.pr.number}</span>` : '';
-  const tag = e.bulk ? '<span class="pill cg-tier">Import</span>' : `<span class="pill cg-tier">${demo ? 'Demo, ' : ''}${tierLabel(e.tier)}</span>`;
+  const tag = `<span class="cg-need">${e.bulk ? 'Import' : `${demo ? 'Demo, ' : ''}${approvalNeedLabel(e.tier)}`}</span>`;
   return `<li class="cg-row"><a class="cg-row-link" href="${entryHref(e)}" data-hs-open="${esc(e.id)}">
     <span class="cg-row-title"><span class="cg-row-name" title="${esc(title(e))}">${esc(title(e))}</span>${num}</span>
     ${tag}
@@ -63,7 +67,7 @@ function paintList() {
   const tl = $('hs-timeline');
   tl.setAttribute('aria-busy', 'false');
   $('hs-banner').hidden = !demo;
-  $('hs-demo').setAttribute('aria-checked', String(demo));
+  document.getElementById('hs-demo')?.setAttribute('aria-checked', String(demo));
   const entries = report?.entries ?? [];
   // Filters follow the report on screen.
   const authorSel = $<HTMLSelectElement>('hs-author');
@@ -74,7 +78,7 @@ function paintList() {
   $('hs-paths').innerHTML = paths.map((p) => `<option value="${esc(p)}"></option>`).join('');
 
   if (!report || !entries.length) {
-    tl.innerHTML = `<p class="cg-muted">No merged token change yet. Changes land here once a pull request from Tokens merges.</p>`;
+    tl.innerHTML = `<p class="cg-muted">No shipped token change yet. Changes land here once a change from Tokens ships.</p>`;
     $('hs-none').hidden = true;
     return;
   }
@@ -82,8 +86,9 @@ function paintList() {
   $('hs-none').hidden = groups.length > 0;
   tl.innerHTML = groups
     .map((g) => {
-      const name = g.version === 'Unreleased' ? 'Unreleased' : `Version ${g.version}`;
-      const facts = [`${g.items.length} ${g.items.length === 1 ? 'change' : 'changes'}`, g.breaking ? 'breaking' : '', `${g.pending ? 'latest' : 'released'} ${shortDate(g.date)}`].filter(Boolean).join(', ');
+      const name = g.version === 'Unreleased' ? 'Next release' : `Version ${g.version}`;
+      // Token changes only: the "Next release" card above counts every change, this group the token ones.
+      const facts = [`${g.items.length} token ${g.items.length === 1 ? 'change' : 'changes'}`, g.breaking ? 'breaking' : '', `${g.pending ? 'latest' : 'released'} ${shortDate(g.date)}`].filter(Boolean).join(', ');
       const reviewable = g.items.filter((e) => !e.bulk);
       const imports = g.items.filter((e) => e.bulk);
       return `<section class="cg-rel" aria-label="${esc(name)}"><h2 class="cg-rel-h">${esc(name)} <span class="cg-rel-meta">${esc(facts)}</span></h2>
@@ -105,7 +110,7 @@ function paintDetail(e: HistoryEntry, demo: boolean) {
   const ref = demo
     ? 'Fixture change'
     : [e.pr ? `<a href="${esc(e.pr.url ?? `${repoUrl()}/pull/${e.pr.number}`)}">#${e.pr.number}</a>` : '', `<a href="${esc(`${repoUrl()}/commit/${e.sha}`)}"><code>${esc(e.sha.slice(0, 7))}</code></a>`].filter(Boolean).join(' ');
-  const facts = [e.bulk ? 'Import' : tierLabel(e.tier), e.bump, e.breaking ? 'breaking' : '', e.version ?? 'Unreleased'].filter(Boolean).join(', ');
+  const facts = [e.bulk ? 'Import' : approvalNeedLabel(e.tier), e.breaking ? 'breaking' : '', e.version && e.version !== 'Unreleased' ? e.version : 'next release'].filter(Boolean).join(', ');
   $('hs-detail').innerHTML = `<nav class="cg-crumbs" aria-label="Breadcrumb"><a href="${BASE}" data-hs-back>History</a><span aria-hidden="true">/</span><span>${esc(e.pr ? `#${e.pr.number}` : e.sha.slice(0, 7))}</span></nav>
     <header class="zone cg-pr-open">
       <h2 class="cg-pr-title" tabindex="-1">${mdTitleHtml(e.title)}</h2>
@@ -140,6 +145,52 @@ export function routeHistory() {
   }
 }
 
+// ---------------------------------------------------------------------------------------------------------------
+// Next release: the release pull request in plain words, the action for whoever holds the ship right
+
+interface ReleasePullLike extends QueuePull {
+  number: number;
+  body: string | null;
+}
+
+const at = (xs: string[]) => (xs.length <= 2 ? xs.map((x) => `@${x}`).join(' or ') : `${xs.slice(0, 2).map((x) => `@${x}`).join(', ')} or ${xs.length - 2} more`);
+
+let release: ReleasePullLike | null = null;
+
+/** Fills the "Next release" card. Without a release pull request the build-time line stays. Never writes. */
+function paintNextRelease() {
+  if (!release) return;
+  const card = releaseCard(parseReleaseBody(release.body));
+  $('hs-next-title').textContent = card.breaking ? `${card.title} Some of it needs action from product teams.` : card.title;
+  const lines = $('hs-next-lines');
+  lines.innerHTML = [...card.lines, ...(card.tools ? [card.tools] : [])].map((l) => `<li>${esc(l)}</li>`).join('');
+  lines.hidden = !lines.innerHTML;
+  // Publishing is shipping the release: whoever holds the ship right (governance.rights), else the owners.
+  const o = owners();
+  const holders = (shippers() ?? [...new Set([...o.design, ...o.tech])]).map((x) => x.replace(/^@/, ''));
+  const viewer = hasWorkingToken() ? currentViewer()?.login : null;
+  const mine = Boolean(viewer && holders.some((h) => h.toLowerCase() === viewer.toLowerCase()));
+  const cta = $<HTMLAnchorElement>('hs-next-cta');
+  cta.href = `/studio/changes/?pr=${release.number}`;
+  cta.dataset.openPr = String(release.number);
+  cta.hidden = !mine;
+  const who = $('hs-next-who');
+  who.hidden = mine;
+  who.innerHTML = `${holders.length ? `${esc(at(holders))} can publish it.` : 'An owner can publish it.'} <a href="/studio/changes/?pr=${release.number}" data-open-pr="${release.number}">See what it holds</a>`;
+}
+
+function loadNextRelease() {
+  const r = readRepo();
+  ghGet<ReleasePullLike[]>(`/repos/${r.owner}/${r.repo}/pulls?state=open&per_page=100`)
+    .then((f) => {
+      release = releasePull(f.data);
+      paintNextRelease();
+    })
+    .catch(() => {
+      /* rate limited with nothing saved: the build-time line stays */
+    });
+}
+
 let started = false;
 
 /** Wires the History view once, the first time it is shown, then loads the history data. */
@@ -149,7 +200,9 @@ export function initHistory() {
     return;
   }
   started = true;
-  initGitHubConnect();
+  // The card's action depends on who is connected: repaint it when the viewer changes.
+  initGitHubConnect(() => paintNextRelease());
+  loadNextRelease();
   document.addEventListener('click', (ev) => {
     const t = ev.target as HTMLElement;
     const open = t.closest<HTMLAnchorElement>('[data-hs-open]');
@@ -184,7 +237,7 @@ export function initHistory() {
     $('hs-filters').hidden = !on;
     if (on) $<HTMLInputElement>('hs-token').focus();
   });
-  $('hs-demo').addEventListener('click', () => setDemo(!demoOn()));
+  document.getElementById('hs-demo')?.addEventListener('click', () => setDemo(!demoOn()));
   document.addEventListener(DEMO_EVENT, () => {
     history.replaceState({}, '', BASE);
     routeHistory();

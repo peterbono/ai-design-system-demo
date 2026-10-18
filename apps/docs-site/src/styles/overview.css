@@ -248,3 +248,20 @@
 .ov-wait a {
   font-weight: var(--font-weight-semibold);
 }
+
+/* The developer-side link closes the hero sentence: keep "Open on GitHub" on one line. */
+[data-review-sentence] a {
+  white-space: nowrap;
+}
+
+/* Adoption tile: one line per product, the after values from the audit reports (Quality has the before). */
+.ov-adopt-list {
+  margin: var(--space-1-5) 0 var(--space-4);
+  padding: 0;
+  list-style: none;
+}
+
+.ov-adopt-list strong {
+  color: var(--color-text-default);
+  font-weight: var(--font-weight-semibold);
+}
