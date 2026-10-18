@@ -41,7 +41,7 @@ export interface GuidanceInput {
   name: string;
   slug: string;
   state: GuidanceState;
-  /** Where its docs.json would live, for the missing case. */
+  /** Where its docs.json would live (developer detail, not shown on the Quality page). */
   docsPath: string;
 }
 
@@ -56,7 +56,7 @@ export interface QualityInput {
 
 export interface QualityModel {
   findings: Finding[];
-  /** Unused tokens and other housekeeping, collapsed under "Clean up (N)". */
+  /** Unused tokens and other housekeeping, collapsed under one line titled by cleanupTitle(). */
   cleanup: Issue[];
 }
 
@@ -96,7 +96,7 @@ export function qualityModel(input: QualityInput): QualityModel {
             kind: 'guidance' as const,
             severity: 'warn' as const,
             title: `${c.name} has no usage guidance`,
-            detail: `Its page shows props and tokens only. Write ${c.docsPath}.`,
+            detail: 'Its page shows props and tokens only. Add guidance in the docs editor.',
             status: { label: 'Missing guidance', group: 'neutral' as const },
             action: { label: 'Add guidance', href: input.editHref(c.slug) },
           }
@@ -182,4 +182,44 @@ export function adoptionRows(apps: AppGroup[]): AdoptionRow[] {
     component: { from: before?.report.metrics.componentAdoption ?? null, to: after?.report.metrics.componentAdoption ?? null },
     href: auditHref(after?.id ?? reports[reports.length - 1]!.id),
   }));
+}
+
+/** The clean-up line: the real number of unused tokens (semantic plus primitives), not the number of groups. */
+export function cleanupTitle(unused: number): string {
+  return unused === 0 ? 'No unused tokens' : plural(unused, 'unused token');
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Adoption trend: a sparkline per product, from the same audit history the audit pages chart. Never invented: a
+// product with one run gets no line.
+
+export interface SparkPoint {
+  tokenAdoption: number | null;
+  componentAdoption: number | null;
+}
+
+/** SVG polyline points for one series (0 to 100 percent), runs spread evenly on x. Null values are skipped. */
+export function sparkPoints(points: SparkPoint[], key: keyof SparkPoint, width: number, height: number, pad = 2): string {
+  const span = Math.max(points.length - 1, 1);
+  return points
+    .map((p, i) => {
+      const v = p[key];
+      if (v === null) return null;
+      const x = pad + (points.length > 1 ? (i / span) * (width - 2 * pad) : (width - 2 * pad) / 2);
+      const y = pad + (1 - Math.min(Math.max(v, 0), 100) / 100) * (height - 2 * pad);
+      return `${round(x)},${round(y)}`;
+    })
+    .filter((x): x is string => x !== null)
+    .join(' ');
+}
+
+const round = (n: number) => Math.round(n * 10) / 10;
+const pct = (v: number | null) => (v === null ? 'n/a' : `${Math.round(v * 10) / 10}%`);
+
+/** What the sparkline says, for screen readers: the runs and the first and last value of each series. */
+export function sparkLabel(product: string, points: SparkPoint[]): string {
+  if (points.length < 2) return `${product}: one run so far.`;
+  const a = points[0]!;
+  const b = points[points.length - 1]!;
+  return `${product} adoption over ${points.length} runs: tokens ${pct(a.tokenAdoption)} to ${pct(b.tokenAdoption)}, components ${pct(a.componentAdoption)} to ${pct(b.componentAdoption)}.`;
 }

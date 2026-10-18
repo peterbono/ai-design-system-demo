@@ -178,9 +178,22 @@
   gap: var(--space-0-5);
 }
 
-/* Adoption: one row per app, before -> after. */
+/* Adoption: one row per app, before -> after, then its trend across runs (same series colors as the audit pages). */
 .ql-ad-row {
-  grid-template-columns: minmax(0, 1fr) auto auto var(--size-40);
+  grid-template-columns: minmax(0, 1fr) auto auto auto var(--size-40);
+}
+
+.ql-spark {
+  display: block;
+  width: var(--size-20);
+  height: var(--size-6);
+  overflow: visible;
+}
+
+.ql-spark-legend {
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  border-bottom: 0;
 }
 
 .ql-ad {
@@ -194,7 +207,7 @@
   color: var(--color-text-muted);
 }
 
-/* Run locally: one quiet disclosure at the end. */
+/* For developers: one quiet disclosure at the end (file paths, the commands CI runs). */
 .ql-local {
   margin-top: var(--space-10);
   font-size: var(--typography-ui-size);
@@ -253,6 +266,11 @@
 
   .ql-ad {
     grid-column: 1 / -1;
+  }
+
+  .ql-spark {
+    grid-row: 1;
+    grid-column: 2;
   }
 
   .ql-ad-row .ql-act {
