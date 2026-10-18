@@ -67,7 +67,8 @@ export interface TokenReview {
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
-function shown(set: TokenSet, t: LogicalToken, mode: string): ShownValue {
+/** A token value as the review shows it: alias, resolved value and swatch hex. */
+export function shown(set: TokenSet, t: LogicalToken, mode: string): ShownValue {
   const raw = t.values[mode];
   const r = resolve(set.byPath, t.path, contextFor(set, t.tier, mode));
   const color = r.value !== undefined && t.type === 'color' ? parseColor(r.value) : undefined;
