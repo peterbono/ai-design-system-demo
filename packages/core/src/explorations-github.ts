@@ -18,6 +18,7 @@ import {
   parseExplorationBody,
   promotionPlan,
   type Exploration,
+  type ExplorationSource,
   type ExplorationStatus,
   type ExplorationTryIt,
   type PromotionPlan,
@@ -48,6 +49,9 @@ export interface ExplorationSummary {
   status: ExplorationStatus;
   draft: boolean;
   author: string;
+  /** Where it was started and the AI agent that started it, when the exploration block says so. */
+  source?: ExplorationSource | undefined;
+  agent?: string | undefined;
   updatedAt: string;
   /** Head commit of the branch. */
   headSha: string;
@@ -73,6 +77,8 @@ export function explorationSummary(p: PullRequestSummary, _owner: string, _repo:
     status: explorationStatus({ state: p.state, labels: p.labels, headRef: p.headRef, body: p.body }),
     draft: p.draft,
     author: e?.author ?? p.author,
+    ...(e?.source ? { source: e.source } : {}),
+    ...(e?.agent ? { agent: e.agent } : {}),
     updatedAt: p.updatedAt,
     headSha: p.headSha,
     previews: previewLinks(s.apps, { branch: p.headRef, pr: p.number, sha: p.headSha }),

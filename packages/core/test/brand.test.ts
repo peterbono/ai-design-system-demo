@@ -10,6 +10,11 @@ import { realChecksText, realConfig, realFiles, TOKENS_DIR } from './helpers';
 
 const CONFIG_TEXT = readFileSync(join(TOKENS_DIR, '../../../bridge.config.json'), 'utf8');
 const source = (): BrandSource => ({ config: realConfig(), configText: CONFIG_TEXT, files: realFiles(), contrastText: realChecksText() });
+// What the live tokens say today (a designer may change any of it in Studio): expectations derive from these.
+const live = () => new LayeredTokenSet(realConfig(), new Map(Object.entries(realFiles())));
+const primaryBg = (brand: string) => live().resolve('color.action.primary.bg', live().normalizeCombo({ brand }));
+const liveActionStep = (brand: string) => Number(/^palette\.primary\.(\d+)$/.exec(primaryBg(brand).chain.find((c) => /^palette\.primary\.\d+$/.test(c))!)![1]);
+const brandValue = (brand: string, path: string) => path.split('.').reduce((o: any, k) => o[k], JSON.parse(realFiles()[`brands/${brand}.tokens.json`]!)).$value;
 const primitive = (ramp: string, step: number) => (JSON.parse(realFiles()['primitives/color.tokens.json']!) as any).color[ramp][step].$value.hex as string;
 
 test('the shared ramp engine reproduces the committed primitives (same code as scripts/ramps.mjs)', () => {
@@ -50,9 +55,10 @@ test('planNewBrand from bridge: files, generated ramps pinned at the action step
     plan.files.map((f) => `${f.action} ${f.path}`),
     ['create packages/tokens/src/primitives/acme.tokens.json', 'create packages/tokens/src/brands/acme.tokens.json', 'modify bridge.config.json', 'create .changeset/bridge-brand-acme.md'],
   );
-  // Bridge buttons use primary 700: the brand hex is pinned there.
-  assert.equal(plan.actionStep, 700);
-  assert.equal(plan.ramps.primary!.find((x) => x.step === 700)!.hex, '#1f5f3a');
+  // The brand hex is pinned at the primary step Bridge buttons use today.
+  const step = liveActionStep('bridge');
+  assert.equal(plan.actionStep, step);
+  assert.equal(plan.ramps.primary!.find((x) => x.step === step)!.hex, '#1f5f3a');
   assert.equal(plan.ramps.primary!.length, 11);
   assert.equal(plan.ramps.neutral!.length, 11);
   // Every pair, light and dark.
@@ -65,7 +71,7 @@ test('planNewBrand from bridge: files, generated ramps pinned at the action step
   assert.match(plan.changeset!.content, /"@bridge-ds\/tokens": minor/);
   // Two tiers: the ramps are primitives, the brand file only aliases them (no literal values).
   const prim = JSON.parse(plan.files[0]!.content);
-  assert.equal(prim.color['acme-primary']['700'].$value.hex, '#1f5f3a');
+  assert.equal(prim.color['acme-primary'][String(step)].$value.hex, '#1f5f3a');
   assert.deepEqual(Object.keys(prim.color).filter((k) => !k.startsWith('$')), ['acme-primary', 'acme-neutral']);
   const doc = JSON.parse(plan.files[1]!.content);
   const literals = JSON.stringify(doc).match(/"hex"/g);
@@ -77,8 +83,9 @@ test('planNewBrand from bridge: files, generated ramps pinned at the action step
   assert.equal(doc.palette.neutral['900'].$value, '{color.acme-neutral.900}');
   assert.equal(doc.palette.neutral['0'].$value, '{color.white}');
   assert.equal(doc.palette.success['500'].$value, '{color.teal.500}');
-  assert.equal(doc.radius.control.$value, '{radius.xl}');
-  assert.equal(doc.typography.h1.family.$value, '{font.family.fraunces}');
+  // Radius and type roles are copied from bridge, whatever they are today.
+  assert.equal(doc.radius.control.$value, brandValue('bridge', 'radius.control'));
+  assert.equal(doc.typography.h1.family.$value, brandValue('bridge', 'typography.h1.family'));
   // DTCG validation of the whole repo with the brand added: no new problems.
   const after = new LayeredTokenSet(loadConfig(plan.configText), new Map(Object.entries(plan.tokenFiles)));
   assert.equal(validateLayered(after).filter((i) => i.level === 'error').length, 0);
@@ -87,7 +94,7 @@ test('planNewBrand from bridge: files, generated ramps pinned at the action step
 test('planNewBrand from ocean copies its theme overrides and pins at ocean action step', () => {
   const plan = planNewBrand(source(), { slug: 'north-star', from: 'ocean', primaryHue: '#7A2E8C', neutralHue: 260, radius: { inset: 2, control: 4, container: 6, overlay: 10 }, fonts: { heading: 'fraunces', text: 'plex-sans' } });
   assert.equal(plan.name, 'North Star');
-  assert.equal(plan.actionStep, 600);
+  assert.equal(plan.actionStep, liveActionStep('ocean'));
   assert.deepEqual(
     plan.files.filter((f) => f.path.endsWith('.tokens.json')).map((f) => f.path),
     ['packages/tokens/src/primitives/north-star.tokens.json', 'packages/tokens/src/brands/north-star.tokens.json', 'packages/tokens/src/brands/north-star.light.tokens.json', 'packages/tokens/src/brands/north-star.dark.tokens.json'],
@@ -146,7 +153,8 @@ test('overrides set exact values (the Figma plugin path) and unknown paths are e
 test('listBrands and preview variables', () => {
   const brands = listBrands(source());
   assert.deepEqual(brands.map((b) => [b.slug, b.name, b.default]), [['bridge', 'Bridge', true], ['ocean', 'Ocean', false]]);
-  assert.equal(brands[0]!.primary, '#0b4a8b');
+  assert.equal(brands[0]!.primary, primaryBg('bridge').css);
+  assert.match(brands[0]!.primary!, /^#[0-9a-f]{6}$/);
   assert.deepEqual(brands[1]!.overrides, ['packages/tokens/src/brands/ocean.light.tokens.json', 'packages/tokens/src/brands/ocean.dark.tokens.json']);
   const plan = planNewBrand(source(), { slug: 'acme', from: 'bridge', primaryHue: '#1F5F3A' });
   const light = brandPreviewVariables(source(), plan, 'light');

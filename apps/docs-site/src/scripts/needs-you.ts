@@ -9,6 +9,7 @@ import { reviewQueue } from '../lib/review-queue';
 import { currentViewer, hasWorkingToken } from './github-session';
 import { loadStatuses, owners, shippers, teamPeople, type PullForStatus, type PullStatus } from './pr-status';
 import { loadTeams } from './teams';
+import { agentMade, workNature, type VisualSignal } from '../lib/work-nature';
 
 export interface QueuePullFull extends PullForStatus {
   state: string;
@@ -49,19 +50,26 @@ export function whoFor(p: PullForStatus, st: PullStatus | null | undefined): Who
     : null;
 }
 
-/** A change of the queue as the to-do and the board read it. */
-export function todoChange(p: QueuePullFull, st: PullStatus | null | undefined, visual: 'ready' | null = null): TodoChange & { author: string; assignees: string[] } {
+/**
+ * A change of the queue as the to-do and the board read it. `impact`: what the visual impact run says for the latest
+ * version, when read; the nature (design or developer work, lib/work-nature) reads it with the title, labels and files.
+ */
+export function todoChange(p: QueuePullFull, st: PullStatus | null | undefined, visual: 'ready' | null = null, impact: VisualSignal = null): TodoChange & { author: string; assignees: string[] } {
+  const title = oneLineTitle(humanTitle(p.title));
+  const guidance = isGuidanceChange(p.head.ref, st?.guidanceOnly);
   return {
     number: p.number,
     author: p.user.login,
     assignees: (p.assignees ?? []).map((a) => a.login),
-    title: oneLineTitle(humanTitle(p.title)),
+    title,
+    nature: workNature({ title, labels: p.labels ?? null, files: st?.files ?? null, visual: impact ?? (st?.touchesVisuals ? 'pending' : null), guidance }).nature,
+    agent: agentMade({ body: p.body ?? null, labels: p.labels ?? null }),
     who: whoFor(p, st),
     failing: st?.failing,
     failingChecks: st?.failingChecks,
     changesBy: st?.changesRequested,
     visual: st?.touchesVisuals === false ? 'none' : visual,
-    guidance: isGuidanceChange(p.head.ref, st?.guidanceOnly),
+    guidance,
   };
 }
 

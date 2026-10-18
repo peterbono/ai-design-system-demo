@@ -42,6 +42,24 @@ function alias(snap: FigmaSnapshot, collection: string, name: string, mode: stri
   findIn(snap, collection, name).valuesByMode[modeId(snap, collection, mode)] = { kind: 'alias', id: findIn(snap, targetCollection, target).id };
 }
 
+/**
+ * Point `name` at the first of `targets` it does not already point to, and return it. Tests read the live
+ * tokens, which a designer may change in Studio: an edit is derived from the current value, never hard-coded.
+ */
+function aliasOther(snap: FigmaSnapshot, collection: string, name: string, mode: string, targetCollection: string, ...targets: string[]): string {
+  const current = findIn(snap, collection, name).valuesByMode[modeId(snap, collection, mode)];
+  const currentId = current?.kind === 'alias' ? current.id : undefined;
+  const target = targets.find((t) => findIn(snap, targetCollection, t).id !== currentId);
+  assert.ok(target, `${name} already points to every candidate`);
+  alias(snap, collection, name, mode, targetCollection, target);
+  return target;
+}
+
+/** A token's `$value` in a real file, as main has it today. */
+const realValue = (rel: string, path: string) => path.split('.').reduce((o: any, k) => o[k], JSON.parse(realFiles()[rel]!)).$value;
+/** `palette/primary/600` -> `palette\.primary\.600`, for building expectations from a picked target. */
+const dotted = (name: string) => name.replace(/\//g, '.').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 /** The Changes-table row of `path` in a PR body, split into cells. */
 function row(body: string, path: string): string[] {
   const line = body.split('\n').find((l) => l.startsWith(`| \`${path}\` |`));
@@ -93,7 +111,7 @@ for (const layout of ['single', 'split'] as const) {
 test('push: edits in Figma become a minimal PR with only the changed files', async () => {
   const { gh, client, snapshot, sync } = await pulled();
   // 1. Re-point a semantic token (light) to another palette role.
-  alias(snapshot, 'Semantic', 'color/action/primary/bg', 'Light', 'Brand', 'palette/primary/600');
+  const primaryTarget = aliasOther(snapshot, 'Semantic', 'color/action/primary/bg', 'Light', 'Brand', 'palette/primary/600', 'palette/primary/800');
   // 2. Change a primitive value (float32 noise included) and its description.
   const s50 = findIn(snapshot, 'Primitives', 'color/ink/100');
   s50.valuesByMode['Primitives:value'] = { kind: 'color', r: Math.fround(0.94), g: Math.fround(0.95), b: Math.fround(0.96), a: 1 };
@@ -132,9 +150,9 @@ test('push: edits in Figma become a minimal PR with only the changed files', asy
     const before = original[file]!.split('\n');
     return push.files[file]!.split('\n').filter((l, i) => l !== before[i]);
   };
-  assert.deepEqual(changedLines('semantic/light.tokens.json').map((l) => l.trim()), ['"$value": "{palette.primary.600}",']);
+  assert.deepEqual(changedLines('semantic/light.tokens.json').map((l) => l.trim()), [`"$value": "{${primaryTarget.replace(/\//g, '.')}}",`]);
   assert.match(push.files['primitives/space.tokens.json']!, /"32": \{\n\s+"\$value": \{\n\s+"value": 128,\n\s+"unit": "px"\n\s+\}\n\s+\}\n  \}\n\}\n$/);
-  assert.match(push.files['primitives/radius.tokens.json']!, /"4xl": \{\n\s+"\$value": \{\n\s+"value": 20,\n\s+"unit": "px"\n\s+\},\n\s+"\$extensions": \{\n\s+"com\.dsbridge\.id": "path:radius\.3xl"/);
+  assert.match(push.files['primitives/radius.tokens.json']!, /"4xl": \{\n\s+"\$value": \{\n\s+"value": \d+,\n\s+"unit": "px"\n\s+\},\n\s+"\$extensions": \{\n\s+"com\.dsbridge\.id": "path:radius\.3xl"/);
   assert.match(push.files['primitives/color.tokens.json']!, /"\$description": "Subtle background",\n\s+"\$value": \{\n\s+"colorSpace": "srgb",\n\s+"components": \[\n\s+0\.94,/);
   // Ocean overrides the primary action in light: the edit does not reach it, and the designer is told.
   assert.ok(push.validation.warnings.some((w) => w.code === 'override-shadowed' && w.path === 'color.action.primary.bg' && w.mode === 'ocean.light'));
@@ -147,7 +165,7 @@ test('push: edits in Figma become a minimal PR with only the changed files', asy
   assert.match(pr.body, /Tier 3: token change, needs design \+ tech approval/);
   const primary = row(pr.body, 'color.action.primary.bg');
   assert.equal(primary[1], 'Semantic');
-  assert.match(primary[3]!, /^Light: `palette\.primary\.\d+ \(#[0-9a-f]{6}\)` -> `palette\.primary\.600 \(#1b6eb9\)`<br>Dark: `palette\.primary\.\d+ \(#[0-9a-f]{6}\)`/);
+  assert.match(primary[3]!, new RegExp(`^Light: \`palette\\.primary\\.\\d+ \\(#[0-9a-f]{6}\\)\` -> \`${dotted(primaryTarget)} \\(#[0-9a-f]{6}\\)\`<br>Dark: \`palette\\.primary\\.\\d+ \\(#[0-9a-f]{6}\\)\``));
   assert.match(primary[4]!, /Bridge light, color\.action\.primary\.text on color\.action\.primary\.bg: \d+(\.\d+)? -> \d+(\.\d+)? (AAA|AA|fail)/);
   assert.doesNotMatch(primary[4]!, /Ocean|dark/, 'ocean overrides it; dark did not change');
   // A primitive change shows the pairs it reaches through palette roles.
@@ -168,23 +186,26 @@ test('push: edits in Figma become a minimal PR with only the changed files', asy
 
 test('push writes each tier back to its own file and mode', async () => {
   const { client, snapshot, sync } = await pulled();
-  alias(snapshot, 'Brand', 'palette/accent/600', 'Ocean', 'Primitives', 'color/sea/700');
-  alias(snapshot, 'Density', 'control/height/md', 'Compact', 'Primitives', 'size/10');
-  alias(snapshot, 'Component', 'button/secondary/text', 'Value', 'Semantic', 'color/text/default');
-  findIn(snapshot, 'Base', 'icon/stroke').valuesByMode['Base:value'] = { kind: 'float', value: 2.25 };
+  // Each edit picks a value other than main's, so it is a real change whatever the live tokens say.
+  const accent = aliasOther(snapshot, 'Brand', 'palette/accent/600', 'Ocean', 'Primitives', 'color/sea/700', 'color/sea/800');
+  const height = aliasOther(snapshot, 'Density', 'control/height/md', 'Compact', 'Primitives', 'size/10', 'size/11');
+  const secondary = aliasOther(snapshot, 'Component', 'button/secondary/text', 'Value', 'Semantic', 'color/text/default', 'color/text/muted');
+  const stroke = findIn(snapshot, 'Base', 'icon/stroke').valuesByMode['Base:value'];
+  const width = stroke?.kind === 'float' && stroke.value === 2.25 ? 2.5 : 2.25;
+  findIn(snapshot, 'Base', 'icon/stroke').valuesByMode['Base:value'] = { kind: 'float', value: width };
   const a = await analyze(client, DEFAULT_SETTINGS, sync, snapshot);
   const push = buildPush(a, new Map());
   assert.deepEqual(push.validation.blocking, []);
   assert.deepEqual(Object.keys(push.files).sort(), ['brands/ocean.tokens.json', 'components/button.tokens.json', 'density/compact.tokens.json', 'semantic/base.tokens.json']);
-  assert.match(push.files['brands/ocean.tokens.json']!, /"\{color\.sea\.700\}"/);
-  assert.match(push.files['density/compact.tokens.json']!, /"\{size\.10\}"/);
-  assert.match(push.files['components/button.tokens.json']!, /"\{color\.text\.default\}"/);
-  assert.match(push.files['semantic/base.tokens.json']!, /2\.25/);
+  assert.match(push.files['brands/ocean.tokens.json']!, new RegExp(`"\\{${dotted(accent)}\\}"`));
+  assert.match(push.files['density/compact.tokens.json']!, new RegExp(`"\\{${dotted(height)}\\}"`));
+  assert.match(push.files['components/button.tokens.json']!, new RegExp(`"\\{${dotted(secondary)}\\}"`));
+  assert.ok(push.files['semantic/base.tokens.json']!.includes(String(width)));
 });
 
 test('PR #4 regression: changing color.bg.default fills the contrast column with before -> after ratios', async () => {
   const { gh, client, snapshot, sync } = await pulled();
-  alias(snapshot, 'Semantic', 'color/bg/default', 'Light', 'Brand', 'palette/neutral/50');
+  aliasOther(snapshot, 'Semantic', 'color/bg/default', 'Light', 'Brand', 'palette/neutral/50', 'palette/neutral/0');
   const a = await analyze(client, DEFAULT_SETTINGS, sync, snapshot);
   const push = buildPush(a, new Map());
   assert.deepEqual(push.validation.blocking, []);
@@ -207,7 +228,7 @@ test('PR #4 regression: changing color.bg.default fills the contrast column with
 test('PR #4 regression: a brand palette change shows the pairs it reaches through semantic aliases', async () => {
   const { gh, client, snapshot, sync } = await pulled();
   // color.bg.subtle (light) -> palette.neutral.100 -> primitive. Change the Bridge palette role only.
-  alias(snapshot, 'Brand', 'palette/neutral/100', 'Bridge', 'Primitives', 'color/white');
+  const neutral = aliasOther(snapshot, 'Brand', 'palette/neutral/100', 'Bridge', 'Primitives', 'color/white', 'color/ink/50');
   const a = await analyze(client, DEFAULT_SETTINGS, sync, snapshot);
   const push = buildPush(a, new Map());
   assert.deepEqual(Object.keys(push.files), ['brands/bridge.tokens.json']);
@@ -215,7 +236,7 @@ test('PR #4 regression: a brand palette change shows the pairs it reaches throug
   await openPullRequest(client, a, push, { title: 'Bridge canvas', notes: '', fileName: 'Test' });
   const cells = row(gh.prs[0]!.body, 'palette.neutral.100');
   assert.equal(cells[1], 'Brand');
-  assert.match(cells[3]!, /^Bridge: `color\.ink\.100 \(#[0-9a-f]{6}\)` -> `color\.white \(#ffffff\)`<br>Ocean: .* \(unchanged\)$/);
+  assert.match(cells[3]!, new RegExp(`^Bridge: \`color\\.[\\w.-]+ \\(#[0-9a-f]{6}\\)\` -> \`${dotted(neutral)} \\(#[0-9a-f]{6}\\)\`<br>Ocean: .* \\(unchanged\\)$`));
   assert.match(gh.prs[0]!.body, /\| `color\.text\.muted` on `color\.bg\.subtle` \| Bridge light \| \d+(\.\d+)? \| \d+(\.\d+)? \|/);
   assert.match(cells[4]!, /^Bridge light, /);
   assert.doesNotMatch(cells[4]!, /Ocean/, 'the ocean palette did not change');
@@ -239,8 +260,11 @@ test('guardrails block raw values, wrong tiers, broken contrast and ALL_SCOPES',
 
 test('conflicts are surfaced and nothing is overwritten until the user picks', async () => {
   const { gh, client, snapshot, sync } = await pulled();
-  gh.pushToMain((files) => setValue(files, 'semantic/dark.tokens.json', 'color.action.primary.bg', '{palette.primary.500}'));
-  alias(snapshot, 'Semantic', 'color/action/primary/bg', 'Dark', 'Brand', 'palette/primary/400');
+  // Main and Figma both move dark primary away from today's value, to two different roles.
+  const darkNow = realValue('semantic/dark.tokens.json', 'color.action.primary.bg');
+  const [onMain, inFigma] = ['500', '400', '600'].filter((step) => darkNow !== `{palette.primary.${step}}`);
+  gh.pushToMain((files) => setValue(files, 'semantic/dark.tokens.json', 'color.action.primary.bg', `{palette.primary.${onMain}}`));
+  alias(snapshot, 'Semantic', 'color/action/primary/bg', 'Dark', 'Brand', `palette/primary/${inFigma}`);
   const a = await analyze(client, DEFAULT_SETTINGS, sync, snapshot);
   assert.deepEqual(a.diff.conflicts.map((c) => c.path), ['color.action.primary.bg']);
 
@@ -250,11 +274,11 @@ test('conflicts are surfaced and nothing is overwritten until the user picks', a
   await assert.rejects(openPullRequest(client, a, unresolved, { title: 't', notes: '', fileName: 'x' }), /conflict/);
 
   const keepFigma = buildPush(a, new Map([[a.diff.conflicts[0]!.id, 'figma']]));
-  assert.match(keepFigma.files['semantic/dark.tokens.json']!, /"\$value": "\{palette\.primary\.400\}"/);
+  assert.ok(keepFigma.files['semantic/dark.tokens.json']!.includes(`"$value": "{palette.primary.${inFigma}}"`));
 
   const pullMain = buildPull(a, new Map([[a.diff.conflicts[0]!.id, 'main']]));
   const planned = pullMain.plan.variables.find((v) => v.path === 'color.action.primary.bg')!;
-  assert.deepEqual(planned.values.dark, { kind: 'alias-token', path: 'palette.primary.500', tokenId: 'path:palette.primary.500', tier: 'brand' });
+  assert.deepEqual(planned.values.dark, { kind: 'alias-token', path: `palette.primary.${onMain}`, tokenId: `path:palette.primary.${onMain}`, tier: 'brand' });
   const pullKeep = buildPull(a, new Map());
   assert.equal(pullKeep.plan.variables.some((v) => v.path === 'color.action.primary.bg'), false, 'unresolved conflict is left alone');
 });
@@ -401,8 +425,9 @@ test('a new Brand mode is listed as a new brand candidate, and excluded by defau
   addBrandMode(snapshot, 'Acme');
   const a = await analyze(client, DEFAULT_SETTINGS, sync, snapshot);
   assert.deepEqual(a.newBrands.map((b) => [b.name, b.slug, b.blocked]), [['Acme', 'acme', undefined]]);
-  assert.equal(a.newBrands[0]!.values['palette.neutral.0'], '{color.white}');
-  assert.equal(a.newBrands[0]!.values['palette.primary.700'], '{color.harbor.700}');
+  // A new mode starts as a copy of the default brand, whatever its roles point to today.
+  assert.equal(a.newBrands[0]!.values['palette.neutral.0'], realValue('brands/bridge.tokens.json', 'palette.neutral.0'));
+  assert.equal(a.newBrands[0]!.values['palette.primary.700'], realValue('brands/bridge.tokens.json', 'palette.primary.700'));
   assert.ok(!a.warnings.some((w) => /Mode "acme" in the Brand collection .* ignored/.test(w)));
   assert.deepEqual([a.diff.local.length, a.diff.conflicts.length], [0, 0]);
   const push = buildPush(a, new Map());
@@ -433,7 +458,7 @@ for (const layout of ['single', 'split'] as const) {
     if (layout === 'single') {
       assert.equal(brand.palette.primary['700'].$value, '{color.acme-primary.700}');
       assert.equal(JSON.parse(push.brandFiles[0]!.content).color['acme-primary']['700'].$value.hex, '#1f5f3a');
-    } else assert.equal(brand.palette.primary['700'].$value, '{color.harbor.700}');
+    } else assert.equal(brand.palette.primary['700'].$value, realValue('brands/bridge.tokens.json', 'palette.primary.700'));
 
     const result = await openPullRequest(client, a, push, { title: '', notes: 'Acme launch', fileName: 'Test' });
     const pr = gh.prs[0]!;
@@ -453,7 +478,7 @@ for (const layout of ['single', 'split'] as const) {
 
 test('a token edit plus a new brand: one PR, token body with a New brand section, two changesets', async () => {
   const { gh, client, snapshot, sync } = await pulled();
-  alias(snapshot, 'Semantic', 'color/action/primary/bg', 'Light', 'Brand', 'palette/primary/800');
+  aliasOther(snapshot, 'Semantic', 'color/action/primary/bg', 'Light', 'Brand', 'palette/primary/800', 'palette/primary/600');
   addBrandMode(snapshot, 'Acme');
   const a = await analyze(client, DEFAULT_SETTINGS, sync, snapshot);
   const push = buildPush(a, new Map(), new Set(['acme']));
@@ -469,7 +494,9 @@ test('a token edit plus a new brand: one PR, token body with a New brand section
 test('a new brand whose primary is too light for white button text blocks the push', async () => {
   const { client, snapshot, sync } = await pulled();
   addBrandMode(snapshot, 'Sunny');
-  setBrandColor(snapshot, 'palette/primary/700', 'Sunny', '#9FD3FF');
+  // Lighten the primary role buttons use today (main may have moved them to another step).
+  const step = /palette\.primary\.(\d+)/.exec(realValue('semantic/light.tokens.json', 'color.action.primary.bg'))![1];
+  setBrandColor(snapshot, `palette/primary/${step}`, 'Sunny', '#9FD3FF');
   const a = await analyze(client, DEFAULT_SETTINGS, sync, snapshot);
   const push = buildPush(a, new Map(), new Set(['sunny']));
   assert.equal(push.brands[0]!.plan!.ok, false);

@@ -1,5 +1,6 @@
 // Studio Changes page controller: the four views (In review, Requests, Explorations, History) as tabs, a pull request opened in
 // place (?pr=N), a component change request opened in place (?request=N), the local draft strip, and the routes old pages redirect to (?view=history, #other-branches, ?branch=).
+import { initWorkFilter } from './work-filter';
 import { closePr, initReviewAuth, loadList, openPr } from './reviews';
 import { initHistory } from './history/page';
 import { initRequests, loadRequests, openRequest } from './requests';
@@ -116,6 +117,7 @@ function route() {
 }
 
 export function initChanges() {
+  initWorkFilter();
   initReviewAuth();
   initExplorations();
   initRequests();

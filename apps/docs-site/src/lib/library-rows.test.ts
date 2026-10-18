@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { foundationRow, groupRows, primitiveRows } from './foundations';
 import { aliasSummary, copyValue, groupTitle, parseCopyFormat, roleOf, usageChip } from './library-rows';
@@ -73,13 +75,22 @@ describe('groupTitle', () => {
   });
 });
 
+// The alias color.bg.default points to in a theme file, read from the live source so a design change
+// in Studio (another palette role) never breaks this test.
+const bgDefaultAlias = (theme: 'light' | 'dark') => {
+  const file = join(__dirname, '../../../../packages/tokens/src/semantic', `${theme}.tokens.json`);
+  const value = JSON.parse(readFileSync(file, 'utf8')).color.bg.default.$value as string;
+  return value.replace(/^\{|\}$/g, '');
+};
+
 describe('foundation rows on this repo', () => {
   it('does not call the page background unused', () => {
     const row = foundationRow('color.bg.default');
     expect(row.used).toBe(true);
     expect(row.base).toContain('base.css');
     expect(row.chip.kind).not.toBe('unused');
-    expect(row.alias).toBe('neutral 0 · 950');
+    expect(row.alias).toBe(aliasSummary(bgDefaultAlias('light'), bgDefaultAlias('dark')));
+    expect(row.alias).not.toBe('');
   });
   it('lists the components the explorer lists for a token', () => {
     const row = foundationRow('color.action.primary.bg');

@@ -40,6 +40,8 @@ import type { Tier } from '../lib/review-rules';
 import type { PromoteAskDetail } from '../components/ds/studio/PromoteToReview';
 import { loadVisualImpact, renderTopChange } from './reviews/visual-impact';
 import { explorationFromRequest, type PullLike, type RequestRow } from '../lib/requests-view';
+import { explorationWork } from '../lib/work-nature';
+import { devTag, markWork, natureAttr } from './work-filter';
 import { currentViewer, esc, ghGet, hasWorkingToken, initGitHubConnect, RateLimitError, readRepo, relativeTime, setButtonBusy, showGhError } from './github-session';
 import { explorationClient, explorationsConfig, startLinkedExploration } from './exploration-start';
 import { forgetRequests, loadRequestRows, requestRow } from './requests';
@@ -63,6 +65,9 @@ const connected = () => Boolean(hasWorkingToken() && currentViewer());
 const client = () => explorationClient(CFG);
 
 let rows: ExplorationRow[] = [];
+/** What the rows were read from: the pull request (body, labels) and the requests each exploration implements. */
+let pullsBy = new Map<number, ExplorationPullLike>();
+let requestRowsRead: RequestRow[] = [];
 let loaded: Promise<ExplorationRow[]> | null = null;
 let openPullsSource: (() => Promise<ExplorationPullLike[] | null>) | null = null;
 
@@ -75,14 +80,23 @@ export function paintExplorationCount(pulls: ExplorationPullLike[]) {
   count.hidden = n === 0;
 }
 
+/** Design or developer work, and who made it (lib/work-nature), from the pull request and the requests it implements. */
+function workOf(r: ExplorationRow) {
+  const pull = pullsBy.get(r.number);
+  const requests = requestRowsRead.filter((q) => q.request?.exploration === r.branch).map((q) => ({ kind: q.kind, source: q.request?.source ?? null }));
+  return explorationWork({ name: r.name, author: r.author, body: pull?.body ?? null, labels: pull?.labels ?? null, source: r.source, agent: r.agent, requests }, currentViewer()?.login ?? null);
+}
+
 function rowHtml(r: ExplorationRow) {
   const preview = r.previews[0];
+  const w = workOf(r);
+  const nature = w.nature.nature;
   const reqs = r.requests.length ? `, ${r.requests.length} ${r.requests.length === 1 ? 'request' : 'requests'}` : '';
-  return `<li class="cg-row ex-row" data-exploration="${r.number}">
+  return `<li class="cg-row ex-row" data-exploration="${r.number}" ${natureAttr(nature)}>
     <div class="ex-row-main">
-      <p class="ex-row-title"><a class="ex-name" href="?exploration=${r.number}" data-open-exploration="${r.number}">${esc(r.name)}</a> <span class="cg-num">#${r.number}</span> ${pill(r.statusLabel, `rv-status ${r.tone}`)}</p>
+      <p class="ex-row-title"><a class="ex-name" href="?exploration=${r.number}" data-open-exploration="${r.number}">${esc(r.name)}</a> <span class="cg-num">#${r.number}</span> ${pill(r.statusLabel, `rv-status ${r.tone}`)} ${devTag(nature)}</p>
       ${purposeLine(r.name, r.purpose) ? `<p class="ex-purpose">${esc(r.purpose)}</p>` : ''}
-      <p class="ex-meta">@${esc(r.author)}, updated <time datetime="${esc(r.updatedAt)}">${esc(shortDate(r.updatedAt))}</time>${esc(reqs)}${preview ? `, <a href="${esc(preview.url)}" target="_blank" rel="noopener">${esc(preview.label)} preview</a>` : ''}</p>
+      <p class="ex-meta">@${esc(r.author)}${w.maker.kind === 'claude' ? ' with Claude' : ''}, updated <time datetime="${esc(r.updatedAt)}">${esc(shortDate(r.updatedAt))}</time>${esc(reqs)}${preview ? `, <a href="${esc(preview.url)}" target="_blank" rel="noopener">${esc(preview.label)} preview</a>` : ''}</p>
     </div>
   </li>`;
 }
@@ -93,6 +107,7 @@ function paint() {
   $('ex-empty').hidden = !empty;
   $('ex-table').hidden = empty;
   $('ex-list').innerHTML = rows.map(rowHtml).join('');
+  markWork($('ex-list'));
   const n = runningCount(rows);
   const count = $('ex-count');
   count.textContent = String(n);
@@ -102,6 +117,8 @@ function paint() {
 async function readRows(): Promise<ExplorationRow[]> {
   const pulls = (openPullsSource ? await openPullsSource().catch(() => null) : null) ?? (await ghGet<ExplorationPullLike[]>(`${R}/pulls?state=open&per_page=100`)).data;
   const requests = await loadRequestRows({ openPulls: pulls as unknown as PullLike[], closed: false }).catch(() => []);
+  pullsBy = new Map(pulls.map((p) => [p.number, p]));
+  requestRowsRead = requests;
   return explorationRows(pulls, CFG, { requests });
 }
 

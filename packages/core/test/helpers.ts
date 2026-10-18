@@ -29,6 +29,16 @@ export const realChecksText = () => readFileSync(join(TOKENS_DIR, realConfig().t
 
 export const realSet = () => buildTokenSet(realFiles(), layoutOptions(realConfig()));
 
+/**
+ * The first choice that differs from a real token's current value. Tests read the live tokens, which a
+ * designer may change in Studio at any time: derive an edit from the current value, never hard-code it.
+ */
+export const otherThan = <T>(current: unknown, ...choices: T[]): T => {
+  const found = choices.find((c) => JSON.stringify(c) !== JSON.stringify(current));
+  if (found === undefined) throw new Error('otherThan: every choice equals the current value');
+  return found;
+};
+
 export function clone(t: LogicalToken, patch: Partial<LogicalToken> = {}): LogicalToken {
   return { ...structuredClone(t), ...patch };
 }

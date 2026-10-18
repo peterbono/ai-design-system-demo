@@ -27,6 +27,8 @@ export const EXPLORATION_CHECK = 'Exploration not merged as is';
 
 export type ExplorationUseCase = 'user-test' | 'stakeholder-demo' | 'ab-idea' | 'terminal' | 'other';
 export type ExplorationStatus = 'active' | 'promoted' | 'closed';
+/** Where an exploration was started: Bridge Studio, the Figma plugin, the CLI or the MCP server (an AI agent). */
+export type ExplorationSource = 'studio' | 'figma' | 'cli' | 'mcp';
 
 export const EXPLORATION_USE_CASES: { value: ExplorationUseCase; label: string; hint: string }[] = [
   { value: 'user-test', label: 'Prototype for a user test', hint: 'A coded prototype on a product staging branch, with the real components and tokens.' },
@@ -52,6 +54,10 @@ export interface Exploration {
   author?: string | undefined;
   /** ISO date it started. */
   startedAt?: string | undefined;
+  /** Where it was started, so Studio says "You" only for what the viewer started there. */
+  source?: ExplorationSource | undefined;
+  /** The AI agent that started it ("claude"), when one did: the GitHub account alone cannot tell. */
+  agent?: string | undefined;
 }
 
 const MARK = 'bridge-exploration';
@@ -172,7 +178,7 @@ export function explorationPrBody(e: Exploration, ctx: ExplorationPrContext): st
     `- **Promote:** in Bridge Studio (Changes, Explorations, Promote to review) or \`bridge explore promote ${slug}\`. Bridge marks the pull request ready for review, removes the \`${EXPLORATION_LABEL}\` label and the exploration note, and adds the tier labels. Then it goes through the usual review.`,
     '- **Close:** close this pull request. The branch stays for reference; the preview prerelease is removed.',
     '',
-    `<!-- ${MARK} ${JSON.stringify({ name: e.name.trim(), purpose: e.purpose.trim(), slug, ...(e.useCase ? { useCase: e.useCase } : {}), ...(experimental.length ? { experimental } : {}), ...(e.author ? { author: e.author } : {}), ...(e.startedAt ? { startedAt: e.startedAt } : {}) }).replace(/-->/g, '--\\u003e')} -->`,
+    `<!-- ${MARK} ${JSON.stringify({ name: e.name.trim(), purpose: e.purpose.trim(), slug, ...(e.useCase ? { useCase: e.useCase } : {}), ...(experimental.length ? { experimental } : {}), ...(e.author ? { author: e.author } : {}), ...(e.startedAt ? { startedAt: e.startedAt } : {}), ...(e.source ? { source: e.source } : {}), ...(e.agent ? { agent: e.agent } : {}) }).replace(/-->/g, '--\\u003e')} -->`,
   );
   return lines.join('\n');
 }

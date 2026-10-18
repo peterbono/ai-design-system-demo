@@ -23,17 +23,23 @@ const lineDiff = (a: string, b: string) => {
   return { lengthDelta: y.length - x.length, changed: x.filter((l, i) => l !== y[i]) };
 };
 
+// Tests read the live tokens, so a designer can change any value in Studio. Never hard-code a current
+// value: derive the edit from it, so the test keeps working whatever the token says today.
+const otherThan = (current: unknown, ...choices: string[]) => choices.find((c) => c !== current)!;
+const aliasTarget = (value: unknown) => /^\{(.+)\}$/.exec(String(value))?.[1];
+
 describe('token editor model', () => {
   it('writes one semantic alias edit back to one file, changing one line only', () => {
     const before = head.byPath.get('color.bg.default')!.values.light;
-    const draft: Draft = { edits: [{ kind: 'value', id: 'x', path: 'color.bg.default', mode: 'light', before, after: '{palette.neutral.50}' }] };
+    const after = otherThan(before, '{palette.neutral.50}', '{palette.neutral.0}');
+    const draft: Draft = { edits: [{ kind: 'value', id: 'x', path: 'color.bg.default', mode: 'light', before, after }] };
     const { files, changes } = applyDraft(head, originals, draft, options);
     expect(changes).toHaveLength(1);
     expect(Object.keys(files)).toEqual(['semantic/light.tokens.json']);
     const d = lineDiff(originals['semantic/light.tokens.json']!, files['semantic/light.tokens.json']!);
     expect(d.lengthDelta).toBe(0);
     expect(d.changed).toHaveLength(1);
-    expect(d.changed[0]).toContain('{palette.neutral.0}');
+    expect(d.changed[0]).toContain(String(before));
   });
 
   it('keeps key order and indentation when a brand palette role changes', () => {
@@ -49,10 +55,11 @@ describe('token editor model', () => {
 
   it('undoing an edit (same value back) produces no change', () => {
     const before = head.byPath.get('color.bg.default')!.values.light;
+    const other = otherThan(before, '{palette.neutral.50}', '{palette.neutral.0}');
     const draft: Draft = {
       edits: [
-        { kind: 'value', id: 'a', path: 'color.bg.default', mode: 'light', before, after: '{palette.neutral.0}' },
-        { kind: 'value', id: 'b', path: 'color.bg.default', mode: 'light', before: '{palette.neutral.0}', after: before },
+        { kind: 'value', id: 'a', path: 'color.bg.default', mode: 'light', before, after: other },
+        { kind: 'value', id: 'b', path: 'color.bg.default', mode: 'light', before: other, after: before },
       ],
     };
     expect(applyDraft(head, originals, draft, options).files).toEqual({});
@@ -100,14 +107,19 @@ describe('token editor model', () => {
   });
 
   it('previews a draft as resolved CSS variables, including tokens that alias the edited one', () => {
-    const before = head.byPath.get('palette.neutral.0')!.values.bridge;
-    const draft: Draft = { edits: [{ kind: 'value', id: 'x', path: 'palette.neutral.0', mode: 'bridge', before, after: '{color.orange.50}' }] };
+    // Edit whichever palette role color.bg.default aliases in light today, so the alias chain is real.
+    const role = aliasTarget(head.byPath.get('color.bg.default')!.values.light)!;
+    expect(role).toMatch(/^palette\./);
+    const before = head.byPath.get(role)!.values.bridge;
+    const after = otherThan(before, '{color.orange.50}', '{color.orange.100}');
+    const draft: Draft = { edits: [{ kind: 'value', id: 'x', path: role, mode: 'bridge', before, after }] };
     const { proposed } = applyDraft(head, originals, draft, options);
     const vars = previewOverrides(head, proposed, { brand: 'bridge', theme: 'light', density: 'comfortable' });
-    expect(vars['--palette-neutral-0']).toMatch(/^#/);
-    // color.bg.default aliases palette.neutral.0 in light, so it moves too.
-    expect(vars['--color-bg-default']).toBe(vars['--palette-neutral-0']);
-    expect(trayRows(head, proposed, draft)[0]).toMatchObject({ label: 'palette.neutral.0', context: 'bridge' });
+    const roleVar = `--${role.replace(/\./g, '-')}`;
+    expect(vars[roleVar]).toMatch(/^#/);
+    // color.bg.default aliases that role in light, so it moves too.
+    expect(vars['--color-bg-default']).toBe(vars[roleVar]);
+    expect(trayRows(head, proposed, draft)[0]).toMatchObject({ label: role, context: 'bridge' });
   });
 
   it('offers palette roles, not primitives, as alias targets for semantic colors', () => {

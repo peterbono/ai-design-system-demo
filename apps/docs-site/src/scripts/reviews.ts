@@ -9,6 +9,7 @@ import { loadTeams, siteApprovers, siteShipPolicy, teamDirectory } from './teams
 import { approvalNeedLabel, approvalNeedLong, effectiveTier, isAutomationPull, reviewQueue } from '../lib/review-queue';
 import {
   allowedMergeMethods,
+  canOverride,
   canWrite,
   mergeGate,
   NO_OVERRIDE,
@@ -33,6 +34,7 @@ import {
   byUrgency,
   approvalRows,
   currentPackageName,
+  eligibleFor,
   filterByTier,
   listSource,
   needFromDetail,
@@ -58,6 +60,21 @@ import { humanTitle } from '../lib/pr-title';
 import { touchesVisuals } from '../lib/visual-impact';
 import { isDocsFile } from '../lib/pr-docs';
 import { loadDocsSection, renderDocsSection } from './reviews/docs-section';
+import { workNature, type FileSignals, type WorkNature } from '../lib/work-nature';
+import { devTag, markWork, natureAttr } from './work-filter';
+import {
+  approvalHelp,
+  checkStory,
+  classifyCheck,
+  failingSentence,
+  jobIdFromUrl,
+  reviewAskMessage,
+  shipWhen,
+  type CheckFacts,
+  type CheckLine,
+  type ClassifiedCheck,
+  type DesignFacts,
+} from '../lib/check-explain';
 
 interface User {
   login: string;
@@ -203,6 +220,9 @@ interface Row {
   head: { ref: string; sha: string };
   user: { login: string };
   draft?: boolean;
+  labels?: { name: string }[];
+  /** Design or developer work (lib/work-nature): title and labels first, then the changed files once read. */
+  nature: WorkNature;
   /** From the status read: who approved, who asked for changes, how many checks fail. */
   approvers?: string[];
   changesRequested?: string[];
@@ -211,8 +231,8 @@ interface Row {
 
 function rowHtml(r: Row) {
   const title = humanTitle(mdTitleText(r.title));
-  return `<li class="cg-row" data-pr="${r.number}"><a class="cg-row-link" href="?pr=${r.number}" data-open-pr="${r.number}">
-    <span class="cg-row-title"><span class="cg-row-name" title="${esc(title)}">${esc(title)}</span> <span class="cg-num">#${r.number}</span></span>
+  return `<li class="cg-row" data-pr="${r.number}" ${natureAttr(r.nature)}><a class="cg-row-link" href="?pr=${r.number}" data-open-pr="${r.number}">
+    <span class="cg-row-title"><span class="cg-row-name" title="${esc(title)}">${esc(title)}</span> <span class="cg-num">#${r.number}</span> ${devTag(r.nature)}</span>
     ${needTag(r.tier)}
     ${chip(r)}
     <time class="cg-date" datetime="${esc(r.updated_at)}">${esc(shortDate(r.updated_at))}</time></a></li>`;
@@ -223,6 +243,7 @@ function paintRows(rows: Row[], loading: boolean) {
   const tier = tierParam(location.search);
   const sorted = filterByTier(byUrgency(rows), tier);
   list.innerHTML = sorted.length ? sorted.map(rowHtml).join('') : `<li class="cg-row cg-none">Nothing waits here: ${esc(approvalNeedLong(tier).toLowerCase())}.</li>`;
+  markWork(list);
   const filter = document.getElementById('cg-tier-filter');
   if (filter) {
     filter.hidden = !tier;
@@ -256,6 +277,8 @@ function paintAsOf(at: string | null) {
   if (at) el.textContent = `Showing the list ${asOf(at)}: GitHub cannot be read right now. Connect GitHub for live status.`;
 }
 
+const natureOf = (title: string, labels: { name: string }[] | undefined, files: FileSignals | null = null) => workNature({ title: humanTitle(mdTitleText(title)), labels: labels ?? null, files }).nature;
+
 const toRow = (p: Pull | CachedPull, kind: ReviewStatusKind | null): Row => ({
   number: p.number,
   title: p.title,
@@ -267,6 +290,8 @@ const toRow = (p: Pull | CachedPull, kind: ReviewStatusKind | null): Row => ({
   head: { ref: p.head.ref, sha: p.head.sha },
   user: { login: p.user.login },
   draft: p.draft,
+  ...('labels' in p ? { labels: p.labels } : {}),
+  nature: natureOf(p.title, 'labels' in p ? p.labels : undefined),
 });
 
 /**
@@ -331,6 +356,7 @@ export async function loadList(): Promise<{ number: number; head: { ref: string 
     r.skipped = skipped && !r.kind;
     if (st && st.kind !== 'unknown') Object.assign(r, { approvers: st.approvers, changesRequested: st.changesRequested, failing: st.failing });
     if (st?.tier) r.tier = st.tier;
+    if (st?.files) r.nature = natureOf(r.title, r.labels, st.files);
     paintRows([...rows.values()], false);
   });
   paintRows([...rows.values()], false);
@@ -415,10 +441,20 @@ export async function openPr(n: number, push = true) {
     const tokenFiles = files.filter((f) => isTokenFile(f.filename));
     const changesets = files.filter((f) => /^\.changeset\/(?!README).+\.md$/.test(f.filename) && f.status !== 'removed');
     const visual = touchesVisuals(files.map((f) => f.filename));
+    // Designer first: the first sentence says whether the design is the problem, so the token review (contrast) and
+    // what each failing check found (its failing step and test annotations) are read before the page paints.
+    const [review, failedFacts] = await Promise.all([
+      tokenFiles.length
+        ? analyzeTokenFiles({ owner: repo.owner, repo: repo.repo, baseSha: pull.base.sha, headSha: pull.head.sha, files: tokenFiles }).catch((err) => err as Error)
+        : Promise.resolve(null),
+      Promise.all(ci.failed.map(readCheckFacts)),
+    ]);
+    if (seq !== openSeq) return;
+    const checks = failedFacts.map(classifyCheck);
 
     const docsPaths = files.filter((f) => isDocsFile(f.filename) && f.status !== 'removed').map((f) => f.filename);
     unmountMore();
-    d.innerHTML = renderDetail({ pull, tier, files, reviews, comments, ci, approvals, gate, tokenCount: tokenFiles.length, changesetCount: changesets.length, visual, access, docsPaths, statuses });
+    d.innerHTML = renderDetail({ pull, tier, files, reviews, comments, ci, approvals, gate, tokenCount: tokenFiles.length, changesetCount: changesets.length, visual, access, docsPaths, statuses, review, checks });
     wireActions(pull, gate, access);
     wireVisualLink(d);
 
@@ -457,12 +493,6 @@ export async function openPr(n: number, push = true) {
         });
     }
 
-    if (tokenFiles.length) {
-      const slot = $('rv-tokens');
-      analyzeTokenFiles({ owner: repo.owner, repo: repo.repo, baseSha: pull.base.sha, headSha: pull.head.sha, files: tokenFiles })
-        .then((review) => (slot.innerHTML = renderTokenReview(review)))
-        .catch((err) => (slot.innerHTML = `<p class="rv-error">Could not compute the token diff: ${esc((err as Error).message)}</p>`));
-    }
     if (changesets.length) {
       const slot = $('rv-changeset');
       Promise.all(
@@ -490,6 +520,50 @@ export async function openPr(n: number, push = true) {
     if (err instanceof RateLimitError) showNotice('warn', 'GitHub limits anonymous reads to 60 an hour. Connect GitHub, or open this pull request on GitHub.');
     else showNotice('fail', `Could not load pull request #${n}: ${(err as Error).message}`);
   }
+}
+
+/** Failing checks whose job is read (two GETs each, one anonymous): the rest are classified by name. */
+const MAX_CHECK_READS = 6;
+const ANON_CHECK_READS = 3;
+
+interface JobRun {
+  steps?: { name: string; conclusion: string | null }[];
+}
+interface Annotation {
+  path?: string;
+  annotation_level?: string;
+  title?: string | null;
+  message?: string;
+}
+
+/** What a failing check found: its failing step and failing test annotations. A failed read keeps the name only. */
+async function readCheckFacts(f: { name: string; url?: string }, i: number): Promise<CheckFacts> {
+  const id = jobIdFromUrl(f.url);
+  // Anonymous reads share 60 an hour: the failing step of the first few checks only, no test annotations.
+  const connected = hasWorkingToken();
+  if (!id || i >= (connected ? MAX_CHECK_READS : ANON_CHECK_READS)) return f;
+  const [job, notes] = await Promise.all([
+    ghGet<JobRun>(`${R}/actions/jobs/${id}`).then((r) => r.data).catch(() => null),
+    connected ? ghGet<Annotation[]>(`${R}/check-runs/${id}/annotations?per_page=50`).then((r) => r.data).catch(() => null) : Promise.resolve(null),
+  ]);
+  return {
+    ...f,
+    step: job?.steps?.find((s) => s.conclusion === 'failure')?.name ?? null,
+    failures: notes?.filter((a) => a.annotation_level === 'failure').map((a) => ({ path: a.path, title: a.title ?? '', message: a.message ?? '' })),
+  };
+}
+
+/** The token review reduced to what the check sentences need. */
+function designFacts(review: TokenReview, designCheckFails: boolean): DesignFacts {
+  return {
+    checked: review.checked ?? 0,
+    passing: review.passing ?? 0,
+    failingPairs: review.contrast.filter((p) => p.after < p.min),
+    changedTokens: [...new Set(review.changes.map((c) => c.path))],
+    colorsOnly: review.changes.length > 0 && review.changes.every((c) => Boolean(c.after?.hex ?? c.before?.hex)),
+    // Token set problems count only when a design check fails: the head may carry older ones the change did not add.
+    problems: designCheckFails ? review.problems : [],
+  };
 }
 
 /**
@@ -520,6 +594,10 @@ interface DetailInput {
   docsPaths: string[];
   /** Commit statuses of the head (Vercel reports each preview there). */
   statuses?: { context: string; state: string; target_url?: string | null }[];
+  /** The token review, an Error when it could not be computed, null when no token file changed. */
+  review: TokenReview | Error | null;
+  /** The failing checks, classified (design rule or developer). */
+  checks: ClassifiedCheck[];
 }
 
 /** Row icon: a check when approved, a cross when changes were requested, an empty circle while it waits. */
@@ -529,17 +607,48 @@ const ROW_ICON: Record<ApprovalRow['state'], string> = {
   waiting: '<span class="rv-ap-icon is-waiting"></span>',
 };
 
-/** The approval checklist: one row per approval the tier needs, the action on the row of the role the viewer holds. */
-function approvalsHtml(rows: ApprovalRow[], who: WhoActs) {
-  if (!rows.length) return '<p class="cg-line">No approval needed.</p>';
-  return `<ul class="rv-ap" aria-label="Approvals">${rows
+const LINE_ICON: Record<CheckLine['state'], string> = { pass: ROW_ICON.approved, fail: ROW_ICON.changes, pending: ROW_ICON.waiting };
+const LINE_STATE: Record<CheckLine['state'], string> = { pass: 'Passes', fail: 'Fails', pending: 'Running' };
+
+const lineRow = (label: string, l: CheckLine) =>
+  `<li class="rv-ap-row" data-state="${l.state === 'pass' ? 'approved' : l.state === 'fail' ? 'changes' : 'waiting'}">${LINE_ICON[l.state]}<span class="rv-ap-role">${esc(label)}</span><span class="rv-ap-text"><span class="sr-only">${LINE_STATE[l.state]}: </span>${esc(l.text)}</span></li>`;
+
+/** The primary action of the header, when it sits in the checklist. */
+type ListPrimary = 'approve-design' | 'approve-tech' | 'approve' | 'ask' | 'override' | null;
+
+/**
+ * What the change needs to ship, as one checklist (like the merge box of a pull request): the design rules, the
+ * developer tests, then one row per approval the tier needs. Each row says its state in words; the action sits on the
+ * row it acts on. A footer says why an approval is blocked for the author, with "Ask for review" and the override.
+ */
+function needsHtml(x: {
+  story: ReturnType<typeof checkStory>;
+  rows: ApprovalRow[];
+  rowText: Partial<Record<ApprovalRow['role'], string>>;
+  why: string | null;
+  ask: string | null;
+  override: boolean;
+  primary: ListPrimary;
+}) {
+  const checks = [x.story.design ? lineRow('Design rules', x.story.design) : '', x.story.developer ? lineRow('Developer tests', x.story.developer) : ''].join('');
+  const approvals = x.rows
     .map((r) => {
-      const primary = who.yourTurn && who.action === (r.role === 'design' ? 'approve-design' : r.role === 'tech' ? 'approve-tech' : 'approve');
+      const primary = x.primary === (r.role === 'design' ? 'approve-design' : r.role === 'tech' ? 'approve-tech' : 'approve');
       const act = r.canAct ? `<button type="button" class="btn ${primary ? 'btn-primary' : 'btn-secondary'} btn-lg rv-ap-act" data-act="APPROVE">${esc(r.actionLabel)}</button>` : '';
       const state = r.state === 'approved' ? 'Approved' : r.state === 'changes' ? 'Changes requested' : 'Waiting';
-      return `<li class="rv-ap-row" data-state="${r.state}">${ROW_ICON[r.state]}<span class="rv-ap-role">${esc(r.label)}</span><span class="rv-ap-text"><span class="sr-only">${state}: </span>${esc(r.text)}</span>${act}</li>`;
+      const label = r.role === 'approval' ? 'Approval' : `${r.label} approval`;
+      const text = (r.state === 'waiting' && x.rowText[r.role]) || r.text;
+      return `<li class="rv-ap-row" data-state="${r.state}">${ROW_ICON[r.state]}<span class="rv-ap-role">${esc(label)}</span><span class="rv-ap-text"><span class="sr-only">${state}: </span>${esc(text)}</span>${act}</li>`;
     })
-    .join('')}</ul>`;
+    .join('');
+  const acts = [
+    x.ask ? `<button type="button" class="btn ${x.primary === 'ask' ? 'btn-primary' : 'btn-secondary'} btn-lg" data-ask-review data-copy="${esc(x.ask)}"><span data-copy-label>Ask for review</span></button>` : '',
+    x.override ? `<button type="button" class="btn ${x.primary === 'override' ? 'btn-primary' : 'btn-secondary'} btn-lg" data-open-override>Ship with owner override</button>` : '',
+  ].join('');
+  const why = x.why ? esc(x.why).replace('in Settings', 'in <a href="/studio/settings/#roles">Settings</a>') : '';
+  const foot = why || acts ? `<li class="rv-ap-foot">${why ? `<p class="rv-ap-why">${why}</p>` : ''}${acts ? `<p class="rv-ap-acts">${acts}</p>` : ''}<p class="rv-ap-said" id="rv-ap-said" role="status" aria-live="polite"></p></li>` : '';
+  if (!checks && !approvals && !foot) return '<p class="cg-line">No approval needed.</p>';
+  return `<ul class="rv-ap" aria-label="What it needs to ship">${checks}${approvals || (x.rows.length ? '' : '<li class="rv-ap-row" data-state="approved">' + ROW_ICON.approved + '<span class="rv-ap-role">Approval</span><span class="rv-ap-text">No approval needed.</span></li>')}${foot}</ul>`;
 }
 
 /** The author's next step happens on GitHub: the button names it. */
@@ -561,22 +670,65 @@ function renderDetail(x: DetailInput) {
     needFromDetail({ state: lifecycle, ci, gate, changesRequestedBy: approvals.changesRequested, exploration: isActiveExploration(pull.labels), mergeable: pull.mergeable }),
     people(pull.user.login, { viewer: access?.login ?? null, approvers: approvals.approvers, canMerge: write && gate.canShip, overridable: showOverride }),
   );
-  const rows = approvalRows({ tier, approvals, people: people(pull.user.login, { viewer: access?.login ?? null }), open });
+  const viewerPeople = people(pull.user.login, { viewer: access?.login ?? null });
+  const rows = approvalRows({ tier, approvals, people: viewerPeople, open });
   const rowAction = rows.some((r) => r.canAct);
+  const login = access?.login ?? null;
+  const isAuthor = Boolean(login && login.toLowerCase() === pull.user.login.toLowerCase());
 
-  // One primary action per view. Your turn: the action the who-acts line names (an approval sits on its row; the
-  // owner override sits in More, with its rule). Not your turn: connect when the viewer is anonymous, else nothing:
-  // the sentence says who acts.
-  const failingRun = ci.failed.find((f) => f.url)?.url;
+  // The checks, designer first: design rules (contrast, token rules) and developer tests, each in plain words.
+  const review = x.review instanceof Error ? null : x.review;
+  const tokenOnly = files.length > 0 && files.every((f) => isTokenFile(f.filename) || f.filename.startsWith('.changeset/'));
+  const story = checkStory({
+    failed: x.checks,
+    pending: ci.pending.length,
+    passed: ci.passed,
+    design: review ? designFacts(review, x.checks.some((c) => c.kind === 'design')) : null,
+    tokenOnly,
+  });
+
+  // Why an approval waits, for the author: GitHub never lets authors approve their own change.
+  const waiting = rows.filter((r) => r.state === 'waiting').map((r) => r.role);
+  const eligibleNow = { ...viewerPeople, approvers: approvals.approvers };
+  const help = open
+    ? approvalHelp({
+        viewerIsAuthor: isAuthor,
+        waiting,
+        eligible: Object.fromEntries(waiting.map((r) => [r, eligibleFor(r, eligibleNow).logins])),
+        viewerHoldsOverride: write && canOverride(login, OVERRIDE),
+        testsPass: ci.state === 'pass' || ci.state === 'none',
+      })
+    : null;
+  const ask = help ? reviewAskMessage({ title: humanTitle(mdTitleText(pull.title)), number: pull.number, url: `${location.origin}${location.pathname}?pr=${pull.number}`, roles: waiting, others: help.others }) : null;
+
+  // One primary action per view. Developer failures never make "fix checks" the designer's turn: design review goes
+  // on (Approve design), the author asks for review; "Open failing test" lives under For developers.
+  let sentence = who.sentence;
+  let yourTurn = who.yourTurn;
+  let primary: ListPrimary = null;
   let headerCta = '';
   let headerShip = false;
-  if (who.yourTurn) {
+  const designRow = rows.find((r) => r.role === 'design' && r.canAct);
+  if (open && who.action === 'fix-checks') {
+    const f = failingSentence({ story, author: pull.user.login, viewerIsAuthor: isAuthor, viewerApprovesDesign: Boolean(designRow) && !story.designFails, approvalsMissing: gate.missing.length > 0 });
+    sentence = f.sentence;
+    yourTurn = f.yourTurn;
+    if (story.designFails) {
+      if (isAuthor && review?.contrast.some((c) => c.after < c.min)) headerCta = '<a class="btn btn-primary btn-lg" href="#rv-tokens">See the failing pairs</a>';
+    } else if (designRow) primary = 'approve-design';
+    else if (help) primary = 'ask';
+  } else if (who.yourTurn) {
     if (who.action === 'merge' && gate.allowed && write) {
       headerCta = '<button type="button" class="btn btn-primary btn-lg" data-act="MERGE">Ship</button>';
       headerShip = true;
-    } else if (who.action === 'fix-checks' && failingRun) headerCta = `<a class="btn btn-primary btn-lg" href="${esc(failingRun)}" target="_blank" rel="noopener">Open failing test</a>`;
+    } else if (who.action === 'override' && showOverride) {
+      primary = 'override';
+      sentence = 'Your turn: no other owner can approve, so ship it with the owner override.';
+    } else if (who.action === 'approve-design' || who.action === 'approve-tech' || who.action === 'approve') primary = who.action;
     else if (AUTHOR_CTA[who.action]) headerCta = `<a class="btn btn-primary btn-lg" href="${esc(pull.html_url)}" target="_blank" rel="noopener">${AUTHOR_CTA[who.action]}</a>`;
-  } else if (!access && (lifecycle === 'open' || lifecycle === 'draft')) headerCta = '<button type="button" class="btn btn-primary btn-lg" data-gh-open>Connect GitHub to review</button>';
+  } else if (help) primary = 'ask';
+  if (!access && !headerCta && (lifecycle === 'open' || lifecycle === 'draft')) headerCta = '<button type="button" class="btn btn-primary btn-lg" data-gh-open>Connect GitHub to review</button>';
+  const failingRun = ci.failed.find((f) => f.url)?.url;
 
   // Conversation: how many, the last word, and GitHub for the thread (it is where people answer).
   const conversation = [
@@ -614,7 +766,7 @@ function renderDetail(x: DetailInput) {
           ? `<p class="rv-conv-line">${avatar(last.user, 20)}<span><strong>${esc(last.user?.login ?? 'someone')}</strong> ${esc(kindLabel[last.kind] ?? last.kind.toLowerCase())}${last.at ? `, ${esc(relativeTime(last.at))}` : ''}${quote ? `: <span class="rv-conv-quote">${esc(excerpt(quote))}</span>` : '.'}</span></p>`
           : '<p class="cg-muted rv-conv-line">No reviews or comments yet.</p>'
       }
-      <a class="rv-conv-gh" href="${esc(pull.html_url)}" target="_blank" rel="noopener">Open on GitHub</a>
+      <a class="rv-conv-gh" href="${esc(pull.html_url)}" target="_blank" rel="noopener">Reply on GitHub</a>
     </section>`;
 
   const fileList = `<ul class="rv-files">${files
@@ -625,10 +777,21 @@ function renderDetail(x: DetailInput) {
 
   const failing = ci.failed.length;
   const checksMeta = ci.total === 0 ? 'none yet' : failing ? `${failing} failing` : ci.pending.length ? `${ci.pending.length} running` : `all ${ci.total} pass`;
+  // Each failing check with its kind (design rule or developer), the step that failed and the failing test cases.
+  const KIND_LABEL = { design: 'design rule', developer: 'developer check' } as const;
+  const failedRows = x.checks.map((c) => {
+    const what = [KIND_LABEL[c.kind], c.step ? `failed at ${c.step}` : ''].filter(Boolean).join(', ');
+    const cases = c.cases.length
+      ? `<ul class="rv-cases">${c.cases
+          .slice(0, 4)
+          .map((t) => `<li><span class="mono">${esc(t.title)}</span><span class="cg-muted">${esc(t.message)}</span></li>`)
+          .join('')}${c.cases.length > 4 ? `<li class="cg-muted">${c.cases.length - 4} more in the run.</li>` : ''}</ul>`
+      : '';
+    return `<li class="is-fail"><span class="rv-check" aria-hidden="true"></span>${c.url ? `<a href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.name)}</a>` : esc(c.name)}<span class="cg-muted">${esc(what)}</span>${cases}</li>`;
+  });
+  const pendingRows = ci.pending.map((c) => `<li class="is-pending"><span class="rv-check" aria-hidden="true"></span>${c.url ? `<a href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.name)}</a>` : esc(c.name)}<span class="cg-muted">running</span></li>`);
   const checksBody = ci.total
-    ? `<ul class="rv-checks">${[...ci.failed.map((c) => ({ ...c, s: 'fail' })), ...ci.pending.map((c) => ({ ...c, s: 'pending' }))]
-        .map((c) => `<li class="is-${c.s}"><span class="rv-check" aria-hidden="true"></span>${c.url ? `<a href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.name)}</a>` : esc(c.name)}<span class="cg-muted">${c.s === 'fail' ? 'failing' : 'running'}</span></li>`)
-        .join('')}<li class="is-pass"><span class="rv-check" aria-hidden="true"></span>${plural(ci.passed, 'check')} passing</li></ul>`
+    ? `${failingRun ? `<p class="cg-links"><a class="btn btn-secondary btn-sm" href="${esc(failingRun)}" target="_blank" rel="noopener">Open failing test</a></p>` : ''}<ul class="rv-checks">${[...failedRows, ...pendingRows].join('')}<li class="is-pass"><span class="rv-check" aria-hidden="true"></span>${plural(ci.passed, 'check')} passing</li></ul>`
     : '<p class="cg-muted">No checks reported for the head commit yet.</p>';
 
   // Real URLs (the Vercel comment and statuses, never a template Vercel shortened) and the install command the
@@ -670,14 +833,29 @@ function renderDetail(x: DetailInput) {
     : access
       ? `<p class="cg-muted">@${esc(access.login)} cannot write to ${esc(repo.owner)}/${esc(repo.repo)}, so ship and close are off.</p>`
       : '';
-  const why = gate.allowed || lifecycle === 'merged' || lifecycle === 'closed' ? '' : `<p class="cg-muted" id="rv-merge-why">Ship unlocks when: ${gate.reasons.map((r) => esc(r)).join(' ')}${showOverride ? ' Only approvals are missing: as a listed owner you can ship it with the owner override, in More.' : ''}</p>`;
+  // Ship unlocks once..., in plain words: the header already says what fails and who acts.
+  const unlocks = shipWhen({
+    draft: pull.draft,
+    ciFail: ci.state === 'fail',
+    ciPending: ci.state === 'pending',
+    changesRequested: approvals.changesRequested.length > 0,
+    missingApprovals: gate.missing.length,
+    conflict: pull.mergeable === false,
+  });
+  const notShipper = gate.canShip ? [] : gate.reasons.filter((r) => /ship/i.test(r));
+  const whyText = [unlocks ?? '', ...notShipper].filter(Boolean).join(' ');
+  const why = gate.allowed || lifecycle === 'merged' || lifecycle === 'closed' || !whyText ? '' : `<p class="cg-muted" id="rv-merge-why">${esc(whyText)}</p>`;
 
   // What it looks like: the biggest before/after first (filled by openPr), then the token diff as the "what changed"
   // of a token-only change. The full visual list stays one click away.
+  // What changes on screen, right under the reasons and actions: the biggest before/after, then the token diff. The
+  // full visual list stays one click away.
   const what = x.visual
-    ? `<div id="rv-what-visual"><p class="rv-loading">Reading the before and after</p></div>`
+    ? `<div class="rv-what-visual"><h2 class="rv-what-sub">What changes on screen</h2><div id="rv-what-visual"><p class="rv-loading">Reading the before and after</p></div></div>`
     : '<p class="cg-line rv-what-quiet">No visual change.</p>';
-  const tokens = x.tokenCount ? `<div class="rv-what-tokens"><h3 class="rv-what-sub">Token changes</h3><div id="rv-tokens"><p class="rv-loading">Resolving tokens at both versions</p></div></div>` : '';
+  const tokenBody =
+    x.review instanceof Error ? `<p class="rv-error">Could not compute the token diff: ${esc(x.review.message)}. Reload the page to try again.</p>` : x.review ? renderTokenReview(x.review) : '';
+  const tokens = x.tokenCount ? `<div class="rv-what-tokens"><h3 class="rv-what-sub">Token changes</h3><div id="rv-tokens">${tokenBody}</div></div>` : '';
 
   const devMeta = [plural(files.length, 'file'), ci.total === 0 ? 'no checks yet' : failing ? `${failing} failing ${failing === 1 ? 'check' : 'checks'}` : ci.pending.length ? 'checks running' : 'checks pass'].join(', ');
   // What approval it needs, in plain words and no color. An exploration is tried, never shipped as is.
@@ -686,10 +864,10 @@ function renderDetail(x: DetailInput) {
   return `
   <nav class="cg-crumbs" aria-label="Breadcrumb"><a href="./" data-back>Changes</a><span aria-hidden="true">/</span><span class="mono">#${pull.number}</span></nav>
   <header class="zone cg-pr-open">
-    <p class="cg-pr-who" data-who="${who.yourTurn ? 'you' : esc(who.who)}">${esc(who.sentence)}</p>
+    <p class="cg-pr-who" data-who="${yourTurn ? 'you' : esc(who.who)}">${esc(sentence)}</p>
     <h1 class="cg-pr-title">${esc(humanTitle(mdTitleText(pull.title)))} <span class="cg-num">#${pull.number}</span></h1>
-    <p class="cg-pr-meta">${avatar(pull.user, 20)}<span>${esc(pull.user.login)}</span>${need ? `<span class="cg-need">${esc(need)}</span>` : ''}<a href="${esc(pull.html_url)}" target="_blank" rel="noopener">Open on GitHub</a><a href="/how-review-works/">How review works</a></p>
-    ${approvalsHtml(rows, who)}
+    <p class="cg-pr-meta">${avatar(pull.user, 20)}<span>${esc(pull.user.login)}</span>${need ? `<span class="cg-need">${esc(need)}</span>` : ''}</p>
+    ${needsHtml({ story, rows, rowText: help?.rowText ?? {}, why: help?.why ?? (showOverride ? OVERRIDE_RULE : null), ask, override: showOverride, primary })}
     ${headerCta ? `<p class="cg-pr-cta">${headerCta}</p>` : ''}
   </header>
   <section class="rv-what" aria-label="What changed">${what}${tokens}</section>
@@ -699,6 +877,7 @@ function renderDetail(x: DetailInput) {
     ${convHtml}
     <details class="cg-sec cg-dev" id="cg-sec-dev"><summary class="cg-sec-head"><span class="cg-sec-title">For developers</span><span class="cg-sec-meta">${esc(devMeta)}</span><span class="cg-sec-chev" aria-hidden="true"></span></summary>
       <div class="cg-sec-body cg-dev-body">
+        <p class="cg-links rv-dev-links"><a href="${esc(pull.html_url)}" target="_blank" rel="noopener">Open on GitHub</a><a href="/how-review-works/">How review works</a></p>
         ${section('cg-sec-files', 'Files', String(files.length), filesBody)}
         ${section('cg-sec-checks', 'Checks', checksMeta, checksBody, failing > 0)}
         ${section('cg-sec-changeset', 'Changeset', x.changesetCount ? 'Reading' : 'missing', `<div id="rv-changeset">${x.changesetCount ? '<p class="rv-loading">Reading changeset</p>' : '<p class="cg-muted">No changeset in this pull request. CI asks for one when a package changes.</p>'}</div>`)}
@@ -874,6 +1053,13 @@ function wireActions(pull: Pull, gate: ReturnType<typeof mergeGate>, access: Acc
   }
 
   document.querySelectorAll<HTMLButtonElement>('#rv-detail [data-act]').forEach((b) => b.addEventListener('click', () => void run(b.dataset.act!, b)));
+  // The owner override sits on the approvals it skips (the checklist footer), not in More.
+  document.querySelector<HTMLButtonElement>('#rv-detail [data-open-override]')?.addEventListener('click', () => openOverride?.());
+  // Ask for review copies a ready message (shell.ts copies data-copy); say what was copied and where it goes.
+  document.querySelector<HTMLButtonElement>('#rv-detail [data-ask-review]')?.addEventListener('click', () => {
+    const said = document.getElementById('rv-ap-said');
+    if (said) said.textContent = navigator.clipboard ? 'Review request copied. Paste it where your team talks, with the link to this change.' : 'Copy is not available in this browser. Share the link to this page instead.';
+  });
 
   const slot = document.getElementById('rv-more');
   if (slot) {
@@ -883,7 +1069,7 @@ function wireActions(pull: Pull, gate: ReturnType<typeof mergeGate>, access: Acc
       if (seq !== openSeq || !slot.isConnected) return;
       unmountMore();
       moreMenu = mountPrMoreMenu(slot, {
-        override: openOverride ? { rule: OVERRIDE_RULE, onSelect: openOverride } : null,
+        override: null,
         onClose: () => void run('CLOSE'),
       });
     });
@@ -912,10 +1098,10 @@ export function renderTokenReview(review: TokenReview): string {
       </tr>`,
     )
     .join('');
-  const contrast = review.contrast.length
-    ? `<h3 class="rv-sub">Contrast, before -> after</h3>
-       <p class="small muted">Checked pairs whose ratio moves because either color resolves through a changed token, in each brand and theme. Failing pairs that run through a changed token stay listed.</p>
-       <div class="table-wrap"><table class="rv-table rv-contrast"><thead><tr><th scope="col">Pair</th><th scope="col">Where</th><th scope="col">Before</th><th scope="col">After</th><th scope="col">Min</th></tr></thead><tbody>${review.contrast
+  const fails = review.contrast.some((p) => p.after < p.min);
+  const n = review.contrast.length;
+  // Nothing fails: the pairs that moved stay one click away (the checklist above already says they pass).
+  const contrastTable = `<div class="table-wrap"><table class="rv-table rv-contrast"><thead><tr><th scope="col">Pair</th><th scope="col">Where</th><th scope="col">Before</th><th scope="col">After</th><th scope="col">Min</th></tr></thead><tbody>${review.contrast
          .map(
            (p) => `<tr class="${p.after < p.min ? 'is-fail' : p.after < p.before ? 'is-down' : ''}">
           <th scope="row"><span class="rv-pair"><span class="rv-aa" style="background-color:${esc(p.bgHexAfter)};color:${esc(p.fgHexAfter)}">Aa</span><span class="mono small">${esc(p.fg)}<br><span class="muted">on</span> ${esc(p.bg)}</span></span></th>
@@ -924,8 +1110,14 @@ export function renderTokenReview(review: TokenReview): string {
           <td class="num"><strong>${p.after.toFixed(2)}:1</strong> ${p.after < p.min ? '<span class="pill is-fail">Fails</span>' : p.after >= p.before ? '' : '<span class="pill is-warn">Lower</span>'}</td>
           <td class="num">${p.min}:1</td></tr>`,
          )
-         .join('')}</tbody></table></div>`
-    : '<p class="small muted">No checked contrast pair depends on these tokens.</p>';
+         .join('')}</tbody></table></div>`;
+  const contrast = !n
+    ? '<p class="small muted">No checked contrast pair depends on these tokens.</p>'
+    : fails
+      ? `<h3 class="rv-sub">Contrast, before -> after</h3>
+       <p class="small muted">Checked pairs whose ratio moves because either color resolves through a changed token, in each brand and theme. Failing pairs come first.</p>${contrastTable}`
+      : `<details class="cg-more rv-contrast-more"><summary>Show the ${n === 1 ? 'contrast pair' : `${n} contrast pairs`} that moved</summary>
+       <p class="small muted">Each still meets its minimum, in each brand and theme.</p>${contrastTable}</details>`;
   return `<div class="table-wrap"><table class="rv-table"><thead><tr><th scope="col">Token</th><th scope="col">Before</th><th scope="col"><span class="sr-only">Change</span></th><th scope="col">After</th></tr></thead><tbody>${rows}</tbody></table></div>${contrast}${
     review.failing ? `<p class="rv-error">${review.failing} contrast check${review.failing > 1 ? 's' : ''} would fail after this change. The token build will block it.</p>` : ''
   }`;

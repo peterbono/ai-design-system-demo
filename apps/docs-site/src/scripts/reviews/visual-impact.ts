@@ -28,6 +28,22 @@ export async function manifestPublished(owner: string, repo: string, pr: number,
   return leaf.data.tree.some((e) => e.path === 'manifest.json' && e.type === 'blob');
 }
 
+/**
+ * What the visual impact run says for a pull request commit, without painting anything: a difference on screen, no
+ * difference, or null when it has not run (or could not be read). The Overview reads it to tell design work from
+ * developer work (lib/work-nature).
+ */
+export async function impactOf(owner: string, repo: string, pr: number, sha: string): Promise<'changes' | 'no-change' | null> {
+  try {
+    if (!(await manifestPublished(owner, repo, pr, sha))) return null;
+    const r = await ghGet<string>(`${visualBase(owner, repo, pr, sha)}/manifest.json`, { raw: true });
+    const kind = visualState(JSON.parse(r.data) as VisualManifest).kind;
+    return kind === 'changes' ? 'changes' : kind === 'no-change' ? 'no-change' : null;
+  } catch {
+    return null;
+  }
+}
+
 export interface VisualSummary {
   /** Changed screens and stories; null when the workflow has not run for this commit (or could not be read). */
   changed: number | null;
@@ -143,9 +159,12 @@ export function renderTopChange(slot: HTMLElement, v: VisualSummary, allHref: st
     return;
   }
   const n = v.changed;
-  slot.innerHTML = `<div class="rv-what-head"><p class="cg-line">${n} ${n === 1 ? 'screen' : 'screens'} changed. The biggest one:</p>${
-    n > 1 ? `<a href="${esc(allHref)}" data-open-visual>See all ${n}</a>` : ''
-  }</div>${shotCard(v.top, v.base)}`;
+  // How to use it on first sight: the gesture, then what is compared, in plain words.
+  const t = v.top;
+  const where = t.brand ? `${t.brand.charAt(0).toUpperCase()}${t.brand.slice(1)} ${t.theme}` : t.theme;
+  slot.innerHTML = `<div class="rv-what-head"><p class="cg-line">Drag the handle to compare before and after.</p>${
+    n > 1 ? `<a href="${esc(allHref)}" data-open-visual>See all ${n} screens</a>` : ''
+  }</div>${shotCard(t, v.base)}<p class="small muted rv-what-caption">${esc(t.kind === 'route' ? 'App screen' : 'Component examples')}: ${esc(t.label)}${where ? `, ${esc(where)}` : ''}. ${n > 1 ? `The screen that changes most of the ${n} that change.` : 'The only screen that changes.'}</p>`;
   wire(slot);
 }
 
@@ -203,6 +222,13 @@ async function notRun(slot: HTMLElement, o: { owner: string; repo: string; pr: n
   return visualAsk({ mode, labels, canWrite: false, label: VISUAL_CHECK_LABEL }) === 'asked';
 }
 
+/**
+ * Where the split starts. Stories render top-left in a wide frame (the Divider story fills the left 45% of 1024px),
+ * so a split at 50% put only empty canvas on the After side and read as a blank capture. At 25% both sides show
+ * content.
+ */
+const START = 25;
+
 function shotCard(s: VisualShot, base: string): string {
   const size = s.size.after ?? s.size.before ?? { width: 4, height: 3 };
   const url = (p?: string) => (p ? `${base}/${p}` : '');
@@ -213,7 +239,7 @@ function shotCard(s: VisualShot, base: string): string {
   const tone = s.status === 'error' ? 'is-fail' : '';
   const compare =
     s.images.before && s.images.after
-      ? `<div class="vi-compare" style="--pos:50%;aspect-ratio:${size.width} / ${size.height}">
+      ? `<div class="vi-compare" style="--pos:${START}%;aspect-ratio:${size.width} / ${size.height}">
           <img class="vi-img" src="${esc(url(s.images.after))}" alt="After: ${esc(alt)}" loading="lazy" width="${size.width}" height="${size.height}" />
           <div class="vi-before"><img class="vi-img" src="${esc(url(s.images.before))}" alt="Before: ${esc(alt)}" loading="lazy" width="${size.width}" height="${size.height}" /></div>
           ${s.images.diff ? `<img class="vi-img vi-diffimg" src="${esc(url(s.images.diff))}" alt="Changed pixels: ${esc(alt)}" loading="lazy" hidden />` : ''}
@@ -222,7 +248,7 @@ function shotCard(s: VisualShot, base: string): string {
           <span class="vi-tag is-before" aria-hidden="true">Before</span><span class="vi-tag is-after" aria-hidden="true">After</span>
         </div>
         <div class="vi-controls">
-          <label class="vi-range"><span>Before</span><input type="range" min="0" max="100" value="50" aria-label="Before and after: drag to compare ${esc(alt)}" /><span>After</span></label>
+          <label class="vi-range"><span>Before</span><input type="range" min="0" max="100" value="${START}" aria-label="Before and after: drag to compare ${esc(alt)}" /><span>After</span></label>
           ${s.images.diff ? '<button type="button" class="btn btn-secondary btn-sm vi-toggle" aria-pressed="false">Show diff</button>' : ''}
           ${s.images.composite ? `<a class="small" href="${esc(url(s.images.composite))}" target="_blank" rel="noopener">Side by side</a>` : ''}
         </div>`

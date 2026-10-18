@@ -84,6 +84,9 @@ describe('exploration pull request', () => {
     expect(body).not.toMatch(/\u2014/);
     expect(parseExplorationBody(body)).toEqual({ ...e, slug: 'pill-buttons' });
     expect(parseExplorationBody('no block')).toBeUndefined();
+    // Where it was started and the agent behind it travel in the block, so Studio can tell who it is.
+    const byAgent = explorationPrBody({ ...e, source: 'cli', agent: 'claude' }, { owner: 'acme', repo: 'ds', packages, apps: {} });
+    expect(parseExplorationBody(byAgent)).toMatchObject({ source: 'cli', agent: 'claude' });
     // Before the pull request exists the body says where the command will appear.
     expect(explorationPrBody(e, { owner: 'acme', repo: 'ds', packages, apps: {} })).toMatch(/comment below[\s\S]*Preview deploys are not set up/);
   });

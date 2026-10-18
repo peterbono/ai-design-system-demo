@@ -58,6 +58,10 @@ export interface TokenReview {
   contrast: ContrastDelta[];
   /** Contrast checks below their minimum after the change. */
   failing: number;
+  /** Contrast checks evaluated after the change, in every brand and theme (the token build counts the same set). */
+  checked?: number;
+  /** Of those, the ones at or above their minimum. */
+  passing?: number;
   problems: string[];
 }
 
@@ -175,5 +179,7 @@ export function reviewTokenChange(
   const changes = diffTokenSets(base, head);
   const changed = new Set(changes.map((c) => c.path));
   const contrast = contrastDeltas(base, head, pairs, changed);
-  return { changes, contrast, failing: contrast.filter((c) => c.after < c.min).length, problems: [...head.problems] };
+  const all = evaluatePairs(head.byPath, pairs, contrastScope(head)).filter((r) => r.ratio !== undefined);
+  const passing = all.filter((r) => r.ratio! >= r.pair.min).length;
+  return { changes, contrast, failing: contrast.filter((c) => c.after < c.min).length, checked: all.length, passing, problems: [...head.problems] };
 }

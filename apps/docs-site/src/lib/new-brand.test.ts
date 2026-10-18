@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
-import { loadConfig, type BrandSource } from '@bridge-ds/core';
+import { LayeredTokenSet, loadConfig, type BrandSource } from '@bridge-ds/core';
 import { tokenFiles } from './explorer';
 import { readText } from './repo';
 import { CONTRAST_FILE } from './contrast';
@@ -17,7 +17,11 @@ test('the slug follows the name until it is edited', () => {
 
 test('a starting brand brings its corners and fonts', () => {
   const bridge = brandFacts(source(), 'bridge');
-  assert.deepEqual([bridge.radius, bridge.heading, bridge.text, bridge.fonts, bridge.primary], ['soft', 'fraunces', 'instrument-sans', 'Fraunces and Instrument Sans', '#0B4A8B']);
+  assert.deepEqual([bridge.radius, bridge.heading, bridge.text, bridge.fonts], ['soft', 'fraunces', 'instrument-sans', 'Fraunces and Instrument Sans']);
+  // The primary action color, read live: a designer may move it to another step in Studio.
+  const set = new LayeredTokenSet(source().config, new Map(Object.entries(tokenFiles())));
+  assert.equal(bridge.primary, normalizeHex(set.resolve('color.action.primary.bg', set.normalizeCombo({ brand: 'bridge' })).css));
+  assert.match(bridge.primary, /^#[0-9A-F]{6}$/);
   const ocean = brandFacts(source(), 'ocean');
   assert.deepEqual([ocean.radius, ocean.heading, ocean.text, ocean.fonts], ['balanced', 'plex-sans', 'plex-sans', 'IBM Plex Sans']);
 });

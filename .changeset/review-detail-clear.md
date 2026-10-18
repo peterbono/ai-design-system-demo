@@ -1,0 +1,5 @@
+---
+"@bridge-ds/docs-site": minor
+---
+
+Studio change detail, designer first. The header says why the change is blocked and who acts, in plain words: one checklist with the design rules ("296 contrast checks still pass", or the failing pair and the token to change), the developer tests ("3 developer tests expect the old color. A developer needs to update them."), then each approval. Developer failures never read "Your turn: fix checks" to a designer: a design owner can approve the design while they fail, and only shipping waits. When the author waits on approvals, the checklist says why ("GitHub does not let authors approve their own"), with Ask for review (copies a ready message) and the owner override when the viewer holds it, instead of a menu. The before and after sits right under it with "What changes on screen", how to use the slider and what is compared; the slider starts at 25% so both sides show content. Open on GitHub, How review works, the failing checks with the tests they name, and Open failing test move into For developers. Contrast pairs that moved and still pass are one click away.

@@ -589,7 +589,7 @@ export function createServer(ctx: BridgeContext): McpServer {
       },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     },
-    run((a) => explorations.startExploration(ctx, a)),
+    run((a) => explorations.startExploration(ctx, { ...a, source: 'mcp' })),
   );
 
   server.registerTool(

@@ -2,9 +2,10 @@
 import { describe, expect, it } from 'vitest';
 import { BridgeContext, ops } from '../dist/lib.js';
 import { GitHubClient } from '@bridge-ds/core';
-import { fakeGitHub, readTree, REAL_PATHS, REPO } from './helpers.js';
+import { fakeGitHub, pinStart, readTree, REAL_PATHS, REPO } from './helpers.js';
 
-const files = () => readTree(REPO, REAL_PATHS);
+// pinStart: muted text starts at 600, so the edit to 700 is a real change whatever main says.
+const files = () => pinStart(readTree(REPO, REAL_PATHS));
 const edit = { op: 'set' as const, path: 'color.text.muted', value: '{palette.neutral.700}', mode: { theme: 'light' } };
 
 describe('remote mode (GitHub API)', () => {
@@ -14,7 +15,8 @@ describe('remote mode (GitHub API)', () => {
     const cfg = await ops.getConfig(ctx);
     expect(cfg.write).toMatch(/read-only/);
     const t = await ops.getToken(ctx, { path: 'color.text.muted' });
-    expect(t.values).toHaveLength(4);
+    // Values collapse where modes agree: check every combination is covered, not a live group count.
+    expect(new Set(t.values.flatMap((v) => v.modes)).size).toBe(8);
     const c = await ops.checkContrast(ctx, {});
     expect('failing' in c && c.failing).toBe(0);
     const p = (await ops.proposeTokenChange(ctx, { title: 'Darken muted text', edits: [edit] })) as any;

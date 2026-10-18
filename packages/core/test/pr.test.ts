@@ -8,7 +8,7 @@ import { buildTokenSet } from '../src/token-set';
 import type { LogicalToken } from '../src/types';
 import { validateProposal } from '../src/validators';
 import { parseContrastChecks } from '../src/wcag';
-import { clone, realChecksText, realConfig, realFiles, realSet } from './helpers';
+import { clone, otherThan, realChecksText, realConfig, realFiles, realSet } from './helpers';
 import { layoutOptions } from '../src/token-set';
 
 const pairs = parseContrastChecks(realChecksText());
@@ -29,7 +29,8 @@ const ratioLine = /^(Bridge|Ocean) (light|dark), \S+ on \S+: [\d.]+ -> [\d.]+/;
 test('PR body: changing color.bg.default fills the contrast column (PR #4 regression)', () => {
   const p = propose((head) => {
     const t = head.byPath.get('color.bg.default')!;
-    return [{ current: t, target: clone(t, { values: { ...t.values, light: '{palette.neutral.50}' } }) }];
+    const light = otherThan(t.values.light, '{palette.neutral.50}', '{palette.neutral.0}');
+    return [{ current: t, target: clone(t, { values: { ...t.values, light } }) }];
   });
   assert.deepEqual(Object.keys(p.files), ['semantic/light.tokens.json']);
   const body = composePrBody({ ...p, baseBranch: 'main', headSha: 'a'.repeat(40), baseSha: undefined, origin, title: 't', notes: '', upstreamPaths: [], resolvedConflicts: [] });
@@ -50,7 +51,9 @@ test('PR body: changing color.bg.default fills the contrast column (PR #4 regres
 test('PR body: a primitive change reaches pairs through palette roles, only in the brands that use it', () => {
   const p = propose((head) => {
     const t = head.byPath.get('color.ink.100')!;
-    return [{ current: t, target: clone(t, { values: { value: { colorSpace: 'srgb', components: [1, 1, 1], hex: '#ffffff' } } }) }];
+    const white = { colorSpace: 'srgb', components: [1, 1, 1], hex: '#ffffff' };
+    const black = { colorSpace: 'srgb', components: [0, 0, 0], hex: '#000000' };
+    return [{ current: t, target: clone(t, { values: { value: otherThan(t.values.value, white, black) } }) }];
   });
   const affected = affectedContrast(p.changes[0]!, p.validation.contrastBefore, p.validation.contrastAfter);
   assert.ok(affected.length > 0);
@@ -62,7 +65,8 @@ test('PR body: a primitive change reaches pairs through palette roles, only in t
 test('a semantic edit a brand overrides does not count for that brand', () => {
   const p = propose((head) => {
     const t = head.byPath.get('color.action.primary.bg')!;
-    return [{ current: t, target: clone(t, { values: { ...t.values, light: '{palette.primary.800}' } }) }];
+    const light = otherThan(t.values.light, '{palette.primary.800}', '{palette.primary.700}');
+    return [{ current: t, target: clone(t, { values: { ...t.values, light } }) }];
   });
   const affected = affectedContrast(p.changes[0]!, p.validation.contrastBefore, p.validation.contrastAfter);
   assert.ok(affected.length > 0);

@@ -79,6 +79,9 @@ describe('reviewTokenChange', () => {
     // Every pair on color.bg.default moves in light; nothing moves in dark.
     expect(r.contrast.map((c) => `${c.fg}|${c.where}`).sort()).toEqual(['color.action.primary.bg|Bridge light', 'color.text.default|Bridge light', 'color.text.muted|Bridge light']);
     for (const c of r.contrast) expect(c.after).toBeLessThan(c.before);
+    // Every checked pair, in light and dark, counts toward "N contrast checks still pass".
+    expect(r.checked).toBe(6);
+    expect(r.passing).toBe(r.checked! - r.failing);
   });
 
   it('finds pairs reached only through aliases when a primitive changes', () => {

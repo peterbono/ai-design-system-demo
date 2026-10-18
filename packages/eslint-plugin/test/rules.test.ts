@@ -1,19 +1,30 @@
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { loadDesignSystem } from '@bridge-ds/core/node';
 import plugin, { noHardcodedStyleValues, preferDsComponents } from '../src/index';
 import { runRule } from './harness';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '../../..');
 const ds = { designSystem: REPO };
+// Tests read the live tokens, which a designer may change in Studio: literals and expected tokens come from them.
+const { set, index } = loadDesignSystem(REPO);
+const live = (path: string) => set.resolve(path, set.defaultCombo).css;
+const text = live('color.text.default');
+const textFix = index.suggest('color', text, 'color')!;
+const space4 = live('space.4');
+const space4n = parseFloat(space4);
+const step = `${parseFloat(live('space.3')) + 1}px`;
+const stepFix = index.suggest('spacing', step, 'margin-top')!;
+const dropdown = Number(live('layer.dropdown'));
 
 describe('bridge/no-hardcoded-style-values', () => {
   it('reports raw values in style, sx, styled() and theme objects with the token to use', () => {
     const code = [
-      "const Header = styled('header')({ padding: 16, color: theme.palette.text.primary });",
+      `const Header = styled('header')({ padding: ${space4n}, color: theme.palette.text.primary });`,
       'export const A = () => (',
-      "  <Box sx={{ p: 2, color: '#15202b', marginTop: '13px', bgcolor: 'background.paper' }}>",
-      "    <div style={{ zIndex: 1000, width: '50%', boxShadow: '0 1px 2px #000' }} />",
+      `  <Box sx={{ p: 2, color: '${text}', marginTop: '${step}', bgcolor: 'background.paper' }}>`,
+      `    <div style={{ zIndex: ${dropdown}, width: '50%', boxShadow: '0 1px 2px #000' }} />`,
       '  </Box>',
       ');',
       "const theme = createTheme({ palette: { primary: { main: '#1976d2' } } });",
@@ -21,29 +32,29 @@ describe('bridge/no-hardcoded-style-values', () => {
     ].join('\n');
     const { reports } = runRule(noHardcodedStyleValues, code, [ds]);
     expect(reports.map((r) => `${r.line} ${r.messageId} ${r.message}`)).toEqual([
-      '1 exact Use var(--space-4) instead of 16: it is the same spacing (16px).',
-      '3 exact Use var(--color-text-default) instead of #15202b: it is the same color (#15202b).',
-      '3 near Raw spacing 13px: use a token, closest is var(--space-3) (12px, high match).',
-      '4 exact Use var(--layer-dropdown) instead of 1000: it is the same z-index (1000).',
+      `1 exact Use var(--space-4) instead of ${space4n}: it is the same spacing (${space4}).`,
+      `3 exact Use var(${textFix.cssVar}) instead of ${text}: it is the same color (${textFix.value}).`,
+      `3 near Raw spacing ${step}: use a token, closest is var(--space-3) (${stepFix.value}, ${stepFix.level} match).`,
+      `4 exact Use var(--layer-dropdown) instead of ${dropdown}: it is the same z-index (${dropdown}).`,
       expect.stringMatching(/^4 near Raw shadow 0 1px 2px #000: use a token, closest is var\(--[\w-]+\)/),
       expect.stringMatching(/^7 near Raw color #1976d2: use a token, closest is var\(--[\w-]+\)/),
     ]);
   });
 
   it('fixes exact whole-value matches only', () => {
-    const { output } = runRule(noHardcodedStyleValues, "const styles = { root: { padding: 16, color: '#15202b', margin: '16px 13px' } };\n<div style={{ zIndex: 1000 }} />;", [ds]);
-    expect(output).toBe("const styles = { root: { padding: 'var(--space-4)', color: 'var(--color-text-default)', margin: '16px 13px' } };\n<div style={{ zIndex: 'var(--layer-dropdown)' }} />;");
+    const { output } = runRule(noHardcodedStyleValues, `const styles = { root: { padding: ${space4n}, color: '${text}', margin: '${space4} ${step}' } };\n<div style={{ zIndex: ${dropdown} }} />;`, [ds]);
+    expect(output).toBe(`const styles = { root: { padding: 'var(--space-4)', color: 'var(${textFix.cssVar})', margin: '${space4} ${step}' } };\n<div style={{ zIndex: 'var(--layer-dropdown)' }} />;`);
   });
 
   it('minConfidence and categories narrow the report', () => {
-    const code = "<div style={{ padding: '13px', color: '#15202b', width: 1234 }} />";
+    const code = `<div style={{ padding: '${step}', color: '${text}', width: 1234 }} />`;
     expect(runRule(noHardcodedStyleValues, code, [ds]).reports).toHaveLength(3);
     expect(runRule(noHardcodedStyleValues, code, [{ ...ds, minConfidence: 'exact' }]).reports).toHaveLength(1);
     expect(runRule(noHardcodedStyleValues, code, [{ ...ds, categories: ['color'] }]).reports).toHaveLength(1);
   });
 
   it('reads the design system from settings.bridge.designSystem', () => {
-    const { reports } = runRule(noHardcodedStyleValues, "<div style={{ color: '#15202b' }} />", [], { bridge: { designSystem: REPO } });
+    const { reports } = runRule(noHardcodedStyleValues, `<div style={{ color: '${text}' }} />`, [], { bridge: { designSystem: REPO } });
     expect(reports[0]!.messageId).toBe('exact');
   });
 });

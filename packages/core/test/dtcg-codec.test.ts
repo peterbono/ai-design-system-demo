@@ -10,9 +10,11 @@ import {
   upsertToken,
 } from '../src/dtcg-codec';
 import { clearRawDeep, parseJson, serializeJson } from '../src/json-ast';
-import { realFiles } from './helpers';
+import { otherThan, realFiles } from './helpers';
 
 const files = realFiles();
+// Tests read the live tokens, which a designer may change in Studio: expected values come from the source JSON.
+const fastDescription = (JSON.parse(files['semantic/base.tokens.json']!) as { motion: { duration: { fast: { $description: string } } } }).motion.duration.fast.$description;
 
 test('real token files are found', () => {
   assert.ok(Object.keys(files).length >= 7, `found ${Object.keys(files).join(', ')}`);
@@ -38,7 +40,8 @@ test('flatten inherits group $type and keeps $description', () => {
   const fast = tokens.find((t) => t.path === 'motion.duration.fast')!;
   assert.equal(fast.type, 'duration');
   assert.equal(fast.ownType, undefined);
-  assert.match(fast.description!, /Tooltips, menus/);
+  assert.ok(fastDescription);
+  assert.equal(fast.description, fastDescription);
   const shadows = flattenTokens(parseTokenFile('primitives/shadow.tokens.json', files['primitives/shadow.tokens.json']!));
   assert.ok(shadows.every((t) => t.type === 'shadow' && t.ownType === undefined), 'group $type written after the tokens still applies');
   const space = flattenTokens(parseTokenFile('primitives/space.tokens.json', files['primitives/space.tokens.json']!));
@@ -48,19 +51,22 @@ test('flatten inherits group $type and keeps $description', () => {
 test('editing one value changes exactly one line, in the file style', () => {
   const file = 'primitives/radius.tokens.json';
   const doc = parseTokenFile(file, files[file]!);
-  assert.equal(upsertToken(doc, 'radius.md', { type: 'dimension', value: { value: 8, unit: 'px' }, description: undefined }), true);
+  const current = (readTokenAt(doc, 'radius.md')!.value as { value: number }).value;
+  const next = otherThan(current, 8, 7);
+  assert.equal(upsertToken(doc, 'radius.md', { type: 'dimension', value: { value: next, unit: 'px' }, description: undefined }), true);
   const out = serializeTokenFile(doc);
   const before = files[file]!.split('\n');
   const after = out.split('\n');
   assert.equal(after.length, before.length);
   const diff = after.filter((l, i) => l !== before[i]);
-  assert.deepEqual(diff, ['        "value": 8,']);
+  assert.deepEqual(diff, [`        "value": ${next},`]);
 });
 
 test('setting an equal value leaves the text untouched', () => {
   const file = 'semantic/light.tokens.json';
   const doc = parseTokenFile(file, files[file]!);
-  const changed = upsertToken(doc, 'color.text.default', { type: 'color', value: '{palette.neutral.900}', description: undefined });
+  const value = readTokenAt(doc, 'color.text.default')!.value;
+  const changed = upsertToken(doc, 'color.text.default', { type: 'color', value, description: undefined });
   assert.equal(changed, false);
   assert.equal(serializeTokenFile(doc), files[file]);
 });
@@ -109,7 +115,7 @@ test('remove prunes empty groups; move keeps every field', () => {
   const doc = parseTokenFile(file, files[file]!);
   assert.ok(moveToken(doc, 'motion.duration.fast', 'motion.quick.fast'));
   const moved = readTokenAt(parseTokenFile(file, serializeTokenFile(doc)), 'motion.quick.fast')!;
-  assert.match(moved.description!, /Tooltips, menus/);
+  assert.equal(moved.description, fastDescription);
   assert.equal(moved.type, 'duration', 'type written on the node when the new group does not provide it');
   assert.ok(removeToken(doc, 'motion.quick.fast'));
   const text = serializeTokenFile(doc);
