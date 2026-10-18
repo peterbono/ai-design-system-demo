@@ -26,6 +26,7 @@ import {
   requestRows,
   requestsSummary,
   REQUESTS_TTL_MS,
+  wantsToChange,
   withIntegrations,
   type IssueLike,
   type PullLike,
@@ -196,6 +197,15 @@ describe('integrations', () => {
     expect(p.title).toBe('chore(config): connect Jira DS for component change requests');
     expect(p.body).toContain('JIRA_API_TOKEN');
     expect(p.body).not.toContain('—');
+  });
+});
+
+describe('wantsToChange', () => {
+  it('says who wants to change which component', () => {
+    expect(wantsToChange('ana', 'Button')).toBe('@ana wants to change Button');
+    expect(wantsToChange('@bo', ' Select ')).toBe('@bo wants to change Select');
+    expect(wantsToChange('', 'Card')).toBe('Someone wants to change Card');
+    expect(wantsToChange('ana', '')).toBe('@ana wants to change a component');
   });
 });
 

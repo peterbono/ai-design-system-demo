@@ -8,11 +8,8 @@ import {
   type BranchPreview,
   type BranchPreviewSources,
   closeExplorationOnGitHub,
-  EXPLORATION_PREFIX,
-  linkRequestToExplorationOnGitHub,
   promoteExplorationOnGitHub,
   requestIssueTitle,
-  startExplorationOnGitHub,
   type ExplorationUseCase,
   type Rights,
 } from '@bridge-ds/core';
@@ -30,7 +27,6 @@ import {
   startProblems,
   type ExplorationPullLike,
   type ExplorationRow,
-  type ExplorationsConfig,
   previewRowCopy,
   promoteAsk,
   promotedLine,
@@ -44,19 +40,13 @@ import type { Tier } from '../lib/review-rules';
 import type { PromoteAskDetail } from '../components/ds/studio/PromoteToReview';
 import { loadVisualImpact, renderTopChange } from './reviews/visual-impact';
 import { explorationFromRequest, type PullLike, type RequestRow } from '../lib/requests-view';
-import { currentViewer, esc, getToken, ghGet, hasWorkingToken, initGitHubConnect, RateLimitError, readRepo, relativeTime, setButtonBusy, showGhError, studioClient } from './github-session';
+import { currentViewer, esc, ghGet, hasWorkingToken, initGitHubConnect, RateLimitError, readRepo, relativeTime, setButtonBusy, showGhError } from './github-session';
+import { explorationClient, explorationsConfig, startLinkedExploration } from './exploration-start';
 import { forgetRequests, loadRequestRows, requestRow } from './requests';
 
 const repo = readRepo();
 const R = `/repos/${repo.owner}/${repo.repo}`;
-const CFG: ExplorationsConfig = (() => {
-  try {
-    const b = JSON.parse(document.getElementById('bridge-branches')?.textContent || '{}') as Partial<ExplorationsConfig>;
-    return { owner: b.owner ?? repo.owner, repo: b.repo ?? repo.repo, defaultBranch: b.defaultBranch ?? repo.defaultBranch, apps: b.apps ?? {}, packages: b.packages ?? [] };
-  } catch {
-    return { owner: repo.owner, repo: repo.repo, defaultBranch: repo.defaultBranch, apps: {}, packages: [] };
-  }
-})();
+const CFG = explorationsConfig();
 
 // Who approves: the owner lists after rights, the same lists the review counts approvals against.
 const OWNERS = (() => {
@@ -72,7 +62,7 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getEleme
 const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 const pill = (text: string, tone = '') => `<span class="pill ${tone}">${esc(text)}</span>`;
 const connected = () => Boolean(hasWorkingToken() && currentViewer());
-const client = () => studioClient(`${CFG.owner}/${CFG.repo}`, getToken() ?? '', { protectedBranches: [CFG.defaultBranch], branchPrefix: EXPLORATION_PREFIX });
+const client = () => explorationClient(CFG);
 
 let rows: ExplorationRow[] = [];
 let loaded: Promise<ExplorationRow[]> | null = null;
@@ -254,21 +244,20 @@ function wireStart() {
     setButtonBusy(submit, true, 'Starting exploration');
     const req = forRequest;
     try {
-      const s = await startExplorationOnGitHub(
-        client(),
-        { name: f.name, purpose: f.purpose, ...(f.useCase ? { useCase: f.useCase as ExplorationUseCase } : {}), ...(currentViewer()?.login ? { author: currentViewer()!.login } : {}) },
-        { base: CFG.defaultBranch, packages: CFG.packages, apps: CFG.apps, ...(req ? { requests: [{ number: req.number, title: requestIssueTitle(req) }] } : {}) },
+      // Started for a request: linked the way `bridge request create --exploration` does, the starter put on it.
+      const author = currentViewer()?.login;
+      const { started: s, link } = await startLinkedExploration(
+        CFG,
+        { name: f.name, purpose: f.purpose, ...(f.useCase ? { useCase: f.useCase as ExplorationUseCase } : {}), ...(author ? { author } : {}) },
+        req ? { number: req.number, title: requestIssueTitle(req) } : null,
       );
-      // Started for a request: link it the way `bridge request create --exploration` does, and put the starter on it.
       let linked = '';
-      if (req) {
-        try {
-          const l = await linkRequestToExplorationOnGitHub(client(), req.number, s.branch, { assignee: currentViewer()?.login ?? null });
+      if (req && link) {
+        if ('error' in link) linked = ` <span class="cg-muted">The request could not be linked: ${esc(link.error)}</span>`;
+        else {
           forgetRequests();
-          const warn = l.warnings.length ? ` <span class="cg-muted">${l.warnings.map(esc).join(' ')}</span>` : '';
+          const warn = link.warnings.length ? ` <span class="cg-muted">${link.warnings.map(esc).join(' ')}</span>` : '';
           linked = ` The request <a href="?request=${req.number}" data-open-request="${req.number}">${esc(requestIssueTitle(req))}</a> is linked to it.${warn}`;
-        } catch (err) {
-          linked = ` <span class="cg-muted">The request could not be linked: ${esc((err as Error).message)}</span>`;
         }
       }
       closeStart(false);

@@ -15,6 +15,7 @@
 // change requests (lib/requests-view rows) and, for owners, the library protection state.
 import type { RequestStatus } from '@bridge-ds/core';
 import type { WhoActs } from './changes';
+import { wantsToChange } from './requests-view';
 
 /**
  * What the row asks for. The first four are decisions; blocked rows wait on a developer; waiting rows on another
@@ -184,7 +185,7 @@ function onIt(r: TodoRequest): string | null {
 }
 
 function requestRow(r: TodoRequest, task: TodoTask, why: string, action: string): TodoRow {
-  return { key: `request-${r.number}`, kind: 'request', task, title: `${r.component}: ${r.title}`, why, action, href: requestHref(r.number) };
+  return { key: `request-${r.number}`, kind: 'request', task, title: r.title, why: `${wantsToChange(r.requester, r.component)}. ${why}`, action, href: requestHref(r.number) };
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -228,11 +229,10 @@ export function overviewTodo(input: TodoInput): Todo {
     }
     // A change already linked (an exploration): someone works on it, nothing to decide.
     if (r.prs.length) continue;
-    const asked = r.requester ? `Asked by ${handle(r.requester)}. ` : '';
-    if (owner) groups.mine.push(requestRow(r, 'decide', `${asked}Start an exploration, assign someone or decline it.`, 'Decide'));
+    if (owner) groups.mine.push(requestRow(r, 'decide', 'Start an exploration, assign someone or decline it.', 'Decide'));
     else {
       const by = input.owners.length ? `a design system owner (${at(input.owners)})` : 'a design system owner';
-      const row = requestRow(r, viewer ? 'waiting' : 'decide', `${asked}Waiting for ${by} to decide.`, 'Open request');
+      const row = requestRow(r, viewer ? 'waiting' : 'decide', `Waiting for ${by} to decide.`, 'Open request');
       (viewer ? groups.others : groups.mine).push(row);
     }
   }

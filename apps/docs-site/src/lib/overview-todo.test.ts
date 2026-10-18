@@ -35,8 +35,8 @@ describe('overview to-do: work sorted by kind', () => {
     });
     expect(t.headline).toBe('2 decisions wait for you.');
     expect(t.mine.map((r) => [r.title, r.why, r.action, r.href])).toEqual([
-      ['Select: Add a native Select', 'Asked by @ana. Start an exploration, assign someone or decline it.', 'Decide', '/studio/changes/?request=81'],
-      ['Select: Add a native Select', 'Start an exploration, assign someone or decline it.', 'Decide', '/studio/changes/?request=65'],
+      ['Add a native Select', '@ana wants to change Select. Start an exploration, assign someone or decline it.', 'Decide', '/studio/changes/?request=81'],
+      ['Add a native Select', 'Someone wants to change Select. Start an exploration, assign someone or decline it.', 'Decide', '/studio/changes/?request=65'],
     ]);
     expect(t.developer.map((r) => [r.why, r.action])).toEqual([
       ['Blocked: a test fails. A developer needs to fix it before you review.', 'Open change'],
@@ -115,7 +115,7 @@ describe('overview to-do: work sorted by kind', () => {
       ['Change 5', 'Review design', 'Nothing changes on screen. Your design approval is the next step.'],
       ['Change 6', 'Review design', 'Your design approval is the next step.'],
       ['Change 1', 'Ship', 'Approved and tested. Shipping puts it in the next release.'],
-      ['Select: Add a native Select', 'Decide', 'Asked by @ana. Start an exploration, assign someone or decline it.'],
+      ['Add a native Select', 'Decide', '@ana wants to change Select. Start an exploration, assign someone or decline it.'],
       ['Change 3', 'Review guidance', 'Usage guidance changed. Read it, then approve it or edit it.'],
     ]);
   });
@@ -139,7 +139,7 @@ describe('overview to-do: work sorted by kind', () => {
   it('folds what another person decides, naming who', () => {
     const t = overviewTodo({ changes: [change(7, 'needs-design', 'ana', 'dev', {}, team)], requests: [request(1, { assignees: ['bo'] })], viewer: 'dev', owners: ['peterbono', 'lea'] });
     expect(t.headline).toBe('Nothing needs you right now.');
-    expect(t.others.map((r) => r.why)).toEqual(['Waiting for the design owner (@peterbono or @lea) to approve.', 'Waiting for @bo to start it.']);
+    expect(t.others.map((r) => r.why)).toEqual(['Waiting for the design owner (@peterbono or @lea) to approve.', '@ana wants to change Select. Waiting for @bo to start it.']);
     expect(othersLine(t.others, t.mine.length)).toBe('2 wait on someone else');
   });
 
@@ -154,8 +154,8 @@ describe('overview to-do: work sorted by kind', () => {
     ];
     const t = overviewTodo({ changes: [], requests: rows, viewer: 'ana', owners: ['peterbono'] });
     expect(t.headline).toBe('1 request assigned to you waits.');
-    expect(t.mine.map((r) => [r.why, r.action])).toEqual([['Assigned to you. Nobody has started the work yet.', 'Open request']]);
-    expect(t.others.map((r) => r.why)).toEqual(['Waiting for @bo to start it.', 'Asked by @ana. Waiting for a design system owner (@peterbono) to decide.']);
+    expect(t.mine.map((r) => [r.why, r.action])).toEqual([['@ana wants to change Select. Assigned to you. Nobody has started the work yet.', 'Open request']]);
+    expect(t.others.map((r) => r.why)).toEqual(['@ana wants to change Select. Waiting for @bo to start it.', '@ana wants to change Select. Waiting for a design system owner (@peterbono) to decide.']);
   });
 
   it('adds the protection setup step for owners, after the decisions', () => {
@@ -177,7 +177,7 @@ describe('overview to-do: work sorted by kind', () => {
     expect(t.headline).toBe('2 decisions wait.');
     expect(t.mine.map((r) => [r.why, r.action])).toEqual([
       ['Waiting for the design owner (@peterbono) to approve.', 'Open change'],
-      ['Asked by @ana. Waiting for a design system owner (@peterbono) to decide.', 'Open request'],
+      ['@ana wants to change Select. Waiting for a design system owner (@peterbono) to decide.', 'Open request'],
     ]);
     expect(t.developer.map((r) => r.why)).toEqual(['Blocked: a test fails. @peterbono needs to fix it before review.']);
     expect(overviewTodo({ changes: [], requests: [], viewer: null, owners: [] }).headline).toBe('Nothing waits for a decision.');

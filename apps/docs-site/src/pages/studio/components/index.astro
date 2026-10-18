@@ -3,9 +3,10 @@
 // component grouped by family (search and the family menu filter it), each row with a calm thumbnail of the real
 // component and its facts in words. A row opens a drawer, top to bottom: the family as an eyebrow on the name, one
 // sentence, ONE live preview with a Light/Dark switch, the facts in one line (a pill only when something waits for
-// someone), then one row of actions with a single primary (the guidance while it is missing or in review, else the
-// tokens) and "Request a change": code is the source of truth, so a component change is a GitHub issue (label
-// component-change) that a developer implements. Token origins, code, the component sandbox, props and file paths
+// someone), then one row of actions with a single primary (the guidance while it is missing or in review, else
+// "Change this component"). The designer drives a change: the drawer asks what she wants to change, in place, and
+// leads to her component's tokens, to an exploration Claude builds from her Figma frame, or to a mismatch report
+// (scripts/request-form.ts, lib/change-intent.ts). Token origins, code, the component sandbox, props and file paths
 // sit in one "For developers" fold at the bottom.
 import '../../../styles/studio.css';
 import '../../../styles/components-studio.css';
@@ -19,13 +20,14 @@ import Example from '../../../components/Example';
 import ComponentsSearch from '../../../components/ds/studio/ComponentsSearch';
 import ComponentsList, { exceptions, type ComponentListRow } from '../../../components/ds/studio/ComponentsList';
 import { Button, Icon, IconButton, Input, Link, SegmentedControl, Textarea } from '@bridge-ds/react';
-import { FileText, ImagePlus, MessageSquarePlus, Moon, Pencil, Sun, X } from 'lucide-react';
-import { REQUEST_KINDS } from '@bridge-ds/core';
+import { FileText, ImagePlus, Moon, Pencil, Sun, X } from 'lucide-react';
+import ChangeIntent from '../../../components/ds/studio/ChangeIntent';
 import { GitHubMark, StorybookMark } from '../../../components/ds/studio/brand-icons';
 import { docsEditHref, editTokensHref, guidanceState, loadComponents, type ComponentInfo } from '../../../lib/components';
 import { componentsLead, componentsPrimary, drawerActions, drawerFacts, productUsage, tokenOrigin } from '../../../lib/components-studio';
 import { groupByApp, loadAudits } from '../../../lib/audits';
-import { sourceUrl, STORYBOOK_URL } from '../../../lib/repo';
+import { PREVIEW_APPS, PREVIEW_PACKAGES, sourceUrl, STORYBOOK_URL } from '../../../lib/repo';
+import { siteRepo } from '../../../lib/config';
 import { PAGE_SOURCES, freshness } from '../../../lib/sources';
 
 const components = loadComponents();
@@ -54,9 +56,9 @@ const lead = componentsLead(rows);
 const primary = componentsPrimary(rows, docsEditHref);
 const docsLabel = (g: string) => (g === 'missing' ? 'Add guidance' : g === 'review' ? 'Review guidance' : 'Edit docs');
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
-// A request is always about an existing component here: Visual change first, the most common ask.
-const DEFAULT_KIND = 'visual';
-const defaultHint = REQUEST_KINDS.find((k) => k.value === DEFAULT_KIND)?.hint ?? '';
+// Add a variant or option starts an exploration: the repository and its preview settings, as Changes embeds them.
+const site = siteRepo();
+const branchesJson = JSON.stringify({ owner: site.owner, repo: site.repo, defaultBranch: site.defaultBranch, apps: PREVIEW_APPS, packages: PREVIEW_PACKAGES }).replace(/</g, '\\u003c');
 ---
 
 <Layout
@@ -112,21 +114,19 @@ const defaultHint = REQUEST_KINDS.find((k) => k.value === DEFAULT_KIND)?.hint ??
       components.map((c) => {
         const r = rows.find((x) => x.slug === c.slug)!;
         const tokensHref = editTokensHref(c);
-        const acts = drawerActions({ guidance: r.guidance, hasTokens: Boolean(tokensHref) });
-        const action = (a: 'docs' | 'tokens' | 'request', variant: 'primary' | 'secondary') =>
+        const acts = drawerActions({ guidance: r.guidance });
+        const action = (a: 'docs' | 'change', variant: 'primary' | 'secondary') =>
           a === 'docs' ? (
             <ButtonLink variant={variant} href={docsEditHref(c.slug)} iconStart={variant === 'primary' ? FileText : undefined}>
               {docsLabel(r.guidance)}
             </ButtonLink>
-          ) : a === 'tokens' && tokensHref ? (
-            <ButtonLink variant={variant} href={tokensHref} iconStart={variant === 'primary' ? Pencil : undefined} data-keep-branch="">
-              Edit tokens
-            </ButtonLink>
           ) : (
-            <span class="cm-d-req-slot" data-cm-req-slot />
+            <Button variant={variant} iconStart={variant === 'primary' ? Pencil : undefined} data-cm-change-open aria-expanded="false" aria-controls="cm-chg">
+              Change this component
+            </Button>
           );
         return (
-          <section class="cm-d-panel" data-cm-panel={c.slug} data-name={c.name} data-family={c.category} hidden>
+          <section class="cm-d-panel" data-cm-panel={c.slug} data-name={c.name} data-family={c.category} data-tokens-href={tokensHref ?? ''} hidden>
             <p class="cm-d-summary">
               {c.docs?.summary ?? c.description ?? 'No summary yet.'}{' '}
               <Link href={`/components/${c.slug}/`}>Open in the Library</Link>
@@ -158,8 +158,7 @@ const defaultHint = REQUEST_KINDS.find((k) => k.value === DEFAULT_KIND)?.hint ??
         );
       })
     }
-    {/* One Light/Dark switch and one "Request a change" for the whole drawer: scripts/components-studio.ts moves them
-        into the open panel (the switch under its preview, the request into its action row). */}
+    {/* One Light/Dark switch for the whole drawer: scripts/components-studio.ts moves it under the open preview. */}
     <div class="cm-d-shared" data-cm-shared hidden>
       <SegmentedControl
         label="Preview theme"
@@ -172,21 +171,20 @@ const defaultHint = REQUEST_KINDS.find((k) => k.value === DEFAULT_KIND)?.hint ??
           { value: 'dark', label: 'Dark', icon: Moon },
         ]}
       />
-      <Button variant="secondary" iconStart={GitHubMark} data-gh-open data-no-gh data-cm-req-anon title="Connect GitHub to send a request">Request a change</Button>
-      <Button variant="secondary" iconStart={MessageSquarePlus} data-cm-req-open data-gh-only hidden aria-expanded="false" aria-controls="cm-req-form">Request a change</Button>
     </div>
-    <section class="cm-req" data-cm-req aria-label="Request a change">
-      <form class="rq-form" id="cm-req-form" data-cm-req-form novalidate hidden>
-        <p class="cm-req-intro">A developer builds component changes. Describe what you need and attach the Figma frame.</p>
-        <label class="rq-field">
-          <span>Kind</span>
-          <select name="kind" data-rq-kind>
-            {REQUEST_KINDS.map((k) => <option value={k.value} selected={k.value === DEFAULT_KIND}>{k.label}</option>)}
-          </select>
-          <span class="rq-hint" data-rq-kind-hint>{defaultHint}</span>
-        </label>
-        <Input label="Title" name="title" autoComplete="off" placeholder="Add a danger ghost variant" required />
-        <Textarea label="Summary" name="summary" rows={4} placeholder="What should change, and why. Where you need it." required />
+    {/* Change this component, in place under the component (scripts/request-form.ts): what she wants to change, then
+        the flow that does it. One form serves "Add a variant or option" (it starts an exploration), "Ask a developer"
+        and "Report a mismatch"; its words change with the choice (lib/change-intent.ts). */}
+    <section class="cm-req cm-chg" id="cm-chg" data-cm-chg aria-label="Change this component" hidden>
+      <ChangeIntent client:load />
+      <div class="rq-actions" data-cm-chg-foot>
+        <ButtonLink variant="primary" href="/studio/tokens/" iconStart={Pencil} data-cm-look data-keep-branch="" hidden>Edit its tokens</ButtonLink>
+        <Button variant="ghost" data-cm-chg-cancel>Cancel</Button>
+      </div>
+      <form class="rq-form cm-chg-form" id="cm-req-form" data-cm-req-form aria-labelledby="cm-chg-form-title" novalidate hidden>
+        <h3 class="cm-chg-title" id="cm-chg-form-title" data-cm-form-title>Describe the new option</h3>
+        <Input label="What to add" name="title" autoComplete="off" placeholder="A danger ghost variant" required />
+        <Textarea label="What it is for" name="summary" rows={3} placeholder="Where you need it, and how it differs from what we have." required />
         <Input label="Figma link (optional)" name="figma" type="url" inputMode="url" autoComplete="off" placeholder="https://www.figma.com/design/..." hint="In Figma, right-click the frame, then Copy link to selection." />
         <div class="cm-req-img" data-rq-image-box>
           <span class="cm-req-img-label" id="cm-req-img-label">Image (optional)</span>
@@ -198,23 +196,25 @@ const defaultHint = REQUEST_KINDS.find((k) => k.value === DEFAULT_KIND)?.hint ??
             <Button variant="ghost" size="sm" type="button" data-rq-image-remove>Remove image</Button>
           </div>
         </div>
-        <fieldset class="rq-changes cm-req-changes" data-rq-changes>
-          <legend>Changes (optional)</legend>
+        <fieldset class="rq-changes cm-req-changes" data-rq-changes hidden>
+          <legend>What differs (optional)</legend>
           <div class="cm-req-change" data-rq-change>
-            <Input name="field" aria-label="What changes" placeholder="What: radius" autoComplete="off" size="sm" />
+            <Input name="field" aria-label="What differs" placeholder="What: radius" autoComplete="off" size="sm" />
             <Input name="before" aria-label="Now" placeholder="Now: 12" autoComplete="off" size="sm" />
-            <Input name="after" aria-label="Requested" placeholder="Requested: 6" autoComplete="off" size="sm" />
+            <Input name="after" aria-label="In Figma" placeholder="In Figma: 6" autoComplete="off" size="sm" />
           </div>
           <Button variant="ghost" size="sm" className="cm-req-start" type="button" data-rq-add-row>Add a row</Button>
         </fieldset>
         <p class="rq-error" role="alert" data-rq-error hidden></p>
         <div class="rq-actions">
-          <Button variant="primary" type="submit" data-rq-submit>Send request</Button>
-          <Button variant="ghost" type="button" data-rq-cancel>Cancel</Button>
+          <Button variant="primary" type="submit" data-rq-submit data-gh-only hidden>Start exploration</Button>
+          <Button variant="primary" iconStart={GitHubMark} data-gh-open data-no-gh data-cm-connect>Connect GitHub to start</Button>
+          <Button variant="ghost" data-cm-chg-cancel>Cancel</Button>
         </div>
+        <Button variant="ghost" size="sm" className="cm-req-start" data-cm-ask>Ask a developer instead</Button>
       </form>
-      <div class="rq-done" role="status" data-rq-done hidden></div>
     </section>
+    <div class="rq-done cm-chg-done" role="status" data-rq-done hidden></div>
     {
       components.map((c) => {
         const story = c.stories[0];
@@ -263,6 +263,7 @@ const defaultHint = REQUEST_KINDS.find((k) => k.value === DEFAULT_KIND)?.hint ??
     }
   </aside>
 
+  <script type="application/json" id="bridge-branches" set:html={branchesJson} />
   <script>
     import { initComponentsStudio } from '../../../scripts/components-studio';
     initComponentsStudio();
