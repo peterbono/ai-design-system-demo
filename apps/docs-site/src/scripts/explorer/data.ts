@@ -2,6 +2,7 @@
 // checks, build-time usage). Shared by the token explorer and the token detail drawer of the Library foundation pages,
 // so both read the same token set, contrast results and usage.
 import { buildTokenSet, contrastScope, evaluatePairs, layoutOptions, loadConfig, parseContrastChecks } from '@bridge-ds/core';
+import { readsByComponent } from '../../lib/explorer/detail-summary';
 import { buildTokens, modesOf, type UsageMap } from '../../lib/explorer/model';
 import type { ExplorerData } from './types';
 
@@ -24,5 +25,6 @@ export function loadExplorerData(): ExplorerData {
   const results = evaluatePairs(head.byPath, pairs, contrastScope(head));
   const modes = modesOf(head);
   const tokens = buildTokens(head, usage);
-  return { set: head, head, tokens, byPath: new Map(tokens.map((t) => [t.path, t])), usage, pairs, results, before: [], modes };
+  const reads = readsByComponent(readJson<Record<string, { name: string; paths: string[] }>>('xp-components', {}));
+  return { set: head, head, tokens, byPath: new Map(tokens.map((t) => [t.path, t])), usage, pairs, results, before: [], modes, tokensRoot: config.tokens.root, reads };
 }

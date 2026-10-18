@@ -31,9 +31,9 @@ export async function copyText(text: string, button?: HTMLElement | null) {
   }
 }
 
-/** Copy button markup: copies `value`, labeled for screen readers. */
-export const copyButton = (value: string, what: string, extra = '') =>
-  `<button type="button" class="xp-copy${extra ? ` ${extra}` : ''}" data-copy="${esc(value)}" tabindex="-1" aria-label="Copy ${esc(what)}" title="Copy ${esc(what)}">${icon('copy', 14)}<span class="xp-copy-done" aria-hidden="true">${icon('check', 14)}</span></button>`;
+/** Copy button markup: copies `value`, labeled for screen readers. Grid cells keep it out of the tab order. */
+export const copyButton = (value: string, what: string, extra = '', focusable = false) =>
+  `<button type="button" class="xp-copy${extra ? ` ${extra}` : ''}" data-copy="${esc(value)}"${focusable ? '' : ' tabindex="-1"'} aria-label="Copy ${esc(what)}" title="Copy ${esc(what)}">${icon('copy', 14)}<span class="xp-copy-done" aria-hidden="true">${icon('check', 14)}</span></button>`;
 
 export const prefersReducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 

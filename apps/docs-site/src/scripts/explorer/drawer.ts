@@ -72,7 +72,8 @@ export function initTokenDrawer() {
     if (!wasOpen) returnFocus = opener ?? (document.activeElement as HTMLElement | null);
     document.querySelectorAll('[data-fd-row][aria-current]').forEach((r) => r.removeAttribute('aria-current'));
     document.querySelector(`[data-fd-row="${CSS.escape(path)}"]`)?.setAttribute('aria-current', 'true');
-    panel.querySelector<HTMLElement>('#xp-d-title')?.focus();
+    // Focus goes to the dialog itself (labelled by the token name): the heading is not a control and shows no ring.
+    panel.focus();
     syncUrl(path);
   }
 

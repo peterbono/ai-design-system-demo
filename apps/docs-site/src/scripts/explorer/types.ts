@@ -37,6 +37,10 @@ export interface ExplorerData {
   /** Contrast before the draft (edit mode), for before -> after. */
   before: ContrastResult[];
   modes: Modes;
+  /** Repository directory of the token files (bridge.config.json tokens.root), for "Defined in". */
+  tokensRoot?: string;
+  /** Component name -> token paths its CSS reads (the components index), for the "Used by" rows. */
+  reads?: Record<string, string[]>;
 }
 
 export interface View {
