@@ -82,19 +82,24 @@ const previews = loadComponents().flatMap((c) => (c.docs?.preview ? [{ name: c.n
         <IconButton icon={X} label="Close" size="sm" type="submit" value="cancel" />
       </header>
       <p id="ed-propose-who" data-ed-field="propose-who">The design owner and a developer will approve it; nothing ships before both.</p>
-      <Input label="Title" data-ed-field="propose-title" placeholder="Darker primary action fill" />
-      <Textarea label="Why" data-ed-field="propose-notes" rows={3} placeholder="What problem this solves, and where reviewers should look." />
+      <div class="xe-propose-target" data-ed-field="propose-target" hidden></div>
+      <div class="xe-propose-new" data-ed-field="propose-new">
+        <Input label="Title" data-ed-field="propose-title" placeholder="Darker primary action fill" />
+        <Textarea label="Why" data-ed-field="propose-notes" rows={3} placeholder="What problem this solves, and where reviewers should look." />
+      </div>
+      <div class="xe-propose-conflict" data-ed-field="propose-conflict" hidden></div>
       <p class="small xe-propose-status" id="ed-propose-status" role="status" aria-live="polite"></p>
       <details class="xe-acc xe-dev">
         <summary><Icon name="code" size={18} /><span class="xe-acc-label">For developers</span><span class="xe-acc-chev"><Icon name="chevron" size={16} /></span></summary>
         <div class="xe-acc-body">
-          <p class="xe-empty">Bridge creates a <code>tokens/*</code> branch, commits the edited token files with minimal diffs and a changeset, and opens a pull request titled <code data-ed-field="propose-pr-title">tokens: ...</code>, labeled with its risk tier.</p>
+          <p class="xe-empty" data-ed-field="propose-dev-new">Bridge creates a <code>tokens/*</code> branch, commits the edited token files with minimal diffs and a changeset, and opens a pull request titled <code data-ed-field="propose-pr-title">tokens: ...</code>, labeled with its risk tier.</p>
+          <p class="xe-empty" data-ed-field="propose-dev-add" hidden>Bridge rereads the pull request's branch, runs the same 3-way token diff as the Figma plugin against the version you edited, commits the edited token files on top of the branch head with a fast-forward only update (never a force push), updates its changeset and comments the token list on the pull request.</p>
         </div>
       </details>
       <footer class="gh-dialog-foot">
         <span class="gh-spacer"></span>
         <Button variant="secondary" size="sm" type="submit" value="cancel">Cancel</Button>
-        <Button variant="primary" size="sm" id="ed-propose-go">Send for review</Button>
+        <span class="xe-go" data-ed-field="propose-go"><Button variant="primary" size="sm" id="ed-propose-go">Send for review</Button></span>
       </footer>
     </form>
   </dialog>

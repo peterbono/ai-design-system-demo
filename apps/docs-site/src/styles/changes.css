@@ -1222,3 +1222,26 @@ details[open] > summary .cg-sec-chev {
     flex: 1 1 auto;
   }
 }
+
+/* Token changes heading with "Edit tokens in this change" on the same line (the action next to its object). */
+.rv-tokens-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  margin-bottom: var(--space-2);
+}
+
+.rv-tokens-head .rv-what-sub {
+  margin: 0;
+}
+
+/* Back from the token editor: the DS success Alert under the breadcrumb, at the content width. */
+.cg-added {
+  margin-bottom: var(--space-4);
+}
+
+.cg-added[hidden] {
+  display: none;
+}

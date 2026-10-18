@@ -3828,3 +3828,26 @@
 .xe-propose-status:empty {
   display: none;
 }
+
+/* Continue a change: the editor scoped to a change shows one persistent DS Alert under the title, full width. */
+.xp-scope {
+  flex-basis: 100%;
+  padding-bottom: var(--space-2);
+}
+
+/* The send dialog: where the edits go, the new change's fields, and a conflict notice, each one grid block. */
+.xe-propose-new {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.xe-propose-new[hidden],
+.xe-propose-target[hidden],
+.xe-propose-conflict[hidden] {
+  display: none;
+}
+
+.xe-conflict-list {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-5);
+}
