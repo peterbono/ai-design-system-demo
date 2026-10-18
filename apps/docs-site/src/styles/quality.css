@@ -3,7 +3,7 @@
    (opener sentence, section titles), ui (rows), caption (pills). Color only for status: site.css `.pill.is-*`. */
 
 .ql {
-  max-width: calc(var(--size-240) + var(--size-20));
+  max-width: var(--studio-page-max);
 }
 
 .ql-muted {

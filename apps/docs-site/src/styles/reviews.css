@@ -1,7 +1,7 @@
 /* Reviews: pull request list, detail with token diff, governance gate and actions. Design system tokens only. */
 
 .rv {
-  max-width: var(--layout-content-max-width);
+  max-width: var(--studio-page-max);
 }
 
 .rv-page-head {

@@ -2,9 +2,9 @@
    Four sizes on the screen: h2 (page title), h3 (section titles), body (the opener sentence), ui (everything else).
    Values in one mono style; "(default)" in plain muted text; tiers are grey labels, color only for status. */
 
-/* Same content width as the other Studio pages (Quality's .ql): rows stretch, values and actions stay at the end. */
+/* Same content width as the other Studio pages: rows stretch, values and actions stay at the end. */
 .set-block {
-  max-width: calc(var(--size-240) + var(--size-20));
+  max-width: var(--studio-page-max);
   margin-top: var(--space-10);
 }
 

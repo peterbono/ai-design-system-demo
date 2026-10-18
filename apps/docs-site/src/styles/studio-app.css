@@ -2,8 +2,17 @@
    tighter main padding and density, the GitHub account and Drafts controls in the global header, and tooltips on
    actions that need a GitHub connection. Page-specific styles stay in their own files. */
 
+:root:is([data-space="studio"], [data-space="settings"]) {
+  /* Studio pages fill the screen beside the side nav: no empty column on wide monitors. Past about 1800px of
+     content, lines get too long to scan, so the page stops growing and sits centred in the space left. */
+  --studio-page-max: none;
+}
+
 :root:is([data-space="studio"], [data-space="settings"]) main {
-  max-width: none;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: calc(var(--size-300) * 1.5 + var(--space-20));
+  margin-inline: auto;
   padding: var(--space-8) var(--space-10) var(--space-16);
 }
 
