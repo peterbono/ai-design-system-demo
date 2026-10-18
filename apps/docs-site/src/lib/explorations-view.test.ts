@@ -15,6 +15,12 @@ import {
   tryItCopy,
   explorationPreviews,
   previewRowCopy,
+  explorationStateLine,
+  promoteAsk,
+  promotedLine,
+  purposeLine,
+  useCaseHint,
+  USE_CASE_EMPTY_HINT,
   tryItFromComments,
 } from './explorations-view';
 import type { IssueLike } from './requests-view';
@@ -59,7 +65,7 @@ describe('explorations view', () => {
     // No guessed install command on the row: the detail reads it from the preview comment (tryItFromComments).
     expect('install' in pill).toBe(false);
     expect(pill.headSha.startsWith('1111111')).toBe(true);
-    expect(pill.previews).toEqual([{ app: 'docs', label: 'Docs', url: 'https://docs-git-explore-pill-buttons-acme.vercel.app/' }]);
+    expect(pill.previews).toEqual([{ app: 'docs', label: 'Library', url: 'https://docs-git-explore-pill-buttons-acme.vercel.app/' }]);
     expect(pill.requests.map((q) => q.number)).toEqual([40]);
     expect(openRequestNumbers(pill)).toEqual([40]);
     // Every status is grey: color only says blocked, waiting or ready.
@@ -117,13 +123,49 @@ describe('explorations view', () => {
     const r = { branch: 'explore/button-normal-again', number: 64, headSha: '2ccfe16fa28a2ea6df1639fe7675fa005b66170a' };
     const bare = explorationPreviews(r, apps).map(previewRowCopy);
     expect(bare.map((p) => [p.label, p.url, p.note])).toEqual([
-      ['Docs', 'https://bridge-docs-git-explore-button-normal-again-peterbonos-projects.vercel.app/', null],
-      ['Storybook', null, 'Link not reported by Vercel yet'],
-      ['Admin demo', null, 'Link not reported by Vercel yet'],
+      ['Library', 'https://bridge-docs-git-explore-button-normal-again-peterbonos-projects.vercel.app/', null],
+      ['Component sandbox', null, 'Link not ready yet'],
+      ['Admin demo', null, 'Link not ready yet'],
     ]);
     const vc = Buffer.from(JSON.stringify({ projects: [{ name: 'bridge-admin', previewUrl: 'bridge-admin-git-explore-button-norm-0ed5ba-peterbonos-projects.vercel.app', nextCommitStatus: 'DEPLOYED' }] })).toString('base64');
     const statuses = [{ context: 'Vercel – bridge-admin', state: 'pending', target_url: 'https://vercel.com/peterbonos-projects/bridge-admin/x' }];
     const admin = previewRowCopy(explorationPreviews(r, apps, { comments: [{ body: `[vc]: #x:${vc}` }], statuses })[2]!);
-    expect(admin).toEqual({ label: 'Admin demo', url: 'https://bridge-admin-git-explore-button-norm-0ed5ba-peterbonos-projects.vercel.app/', host: 'bridge-admin-git-explore-button-norm-0ed5ba-peterbonos-projects.vercel.app', note: 'Building the latest commit' });
+    expect(admin).toEqual({ label: 'Admin demo', url: 'https://bridge-admin-git-explore-button-norm-0ed5ba-peterbonos-projects.vercel.app/', host: 'bridge-admin-git-explore-button-norm-0ed5ba-peterbonos-projects.vercel.app', note: 'Updating to the latest version' });
+  });
+});
+
+describe('designer words', () => {
+  it('shows exploration names in sentence case', () => {
+    expect(explorationRows([pull(5, { name: 'button normal again' })], cfg)[0]!.name).toBe('Button normal again');
+  });
+
+  it('hides a purpose that only repeats the name', () => {
+    expect(purposeLine('Button normal again', 'button normal again')).toBeNull();
+    expect(purposeLine('Pill buttons', '  ')).toBeNull();
+    expect(purposeLine('Pill buttons', 'Do rounder buttons read as friendlier?')).toBe('Do rounder buttons read as friendlier?');
+  });
+
+  it('says what each use case is for without branch or pull request words', () => {
+    for (const v of ['user-test', 'stakeholder-demo', 'ab-idea', 'terminal', 'other', '']) {
+      expect(useCaseHint(v)).not.toMatch(/branch|pull request|\bmain\b|commit/i);
+    }
+    expect(useCaseHint('')).toBe(USE_CASE_EMPTY_HINT);
+    for (const s of ['active', 'promoted', 'closed'] as const) expect(explorationStateLine(s)).not.toMatch(/branch|pull request|merge/i);
+  });
+});
+
+describe('promoteAsk', () => {
+  it('names the design and tech approvers for a token or component change', () => {
+    expect(promoteAsk(3, { design: ['ana'], tech: ['@ben', 'cy'] })).toEqual({
+      who: '@ana (design) and @ben and @cy (tech) will be asked to approve.',
+      next: 'It moves to In review. Design and tech approve, then it ships.',
+    });
+    expect(promoteAsk(3, { design: ['ana'], tech: ['ana'] }).who).toBe('@ana will be asked to approve, for design and for tech.');
+    expect(promoteAsk(null, { design: [], tech: [] }).who).toBe('A design owner and a tech owner will be asked to approve.');
+  });
+
+  it('asks one approval for lower tiers', () => {
+    expect(promoteAsk(2, { design: ['ana'], tech: ['ben'] })).toEqual({ who: 'One teammate will be asked to approve: any reviewer can.', next: 'It moves to In review. One approval, then it ships.' });
+    expect(promotedLine(64)).toBe('Promoted. #64 is in In review now, waiting for its approvals.');
   });
 });
