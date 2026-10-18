@@ -132,12 +132,15 @@ a.fg-card {
   margin: 0;
 }
 
-/* Title, then (for maintainers) a small "Edit in Studio" right after it. Visitors get the plain title. */
-.lib-title-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3) var(--space-5);
+/* Maintainers get a quiet "Edit in Studio" in the zone's top right corner, away from the title and the lead. */
+.lib-zone {
+  position: relative;
+}
+
+.lib-zone > .lib-studio {
+  position: absolute;
+  top: var(--space-4);
+  right: var(--space-4);
 }
 
 .lib-title {
@@ -195,6 +198,13 @@ a.fg-card {
 
   .lib-zone > .lib-zone-art {
     display: none;
+  }
+
+  .lib-zone > .lib-studio {
+    position: static;
+    order: -1;
+    justify-self: end;
+    margin: calc(var(--space-2) * -1) calc(var(--space-2) * -1) 0 0;
   }
 }
 

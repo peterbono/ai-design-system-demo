@@ -1,8 +1,8 @@
 ---
 // Studio Quality: one page for the checks and the adoption of the system (it replaced Checks and Adoption, which
 // redirect here). A Harbor opener with one sentence and one action, one list of findings most severe first, the
-// housekeeping collapsed, then adoption in one row per product with its trend (the same audit history the audit
-// pages chart). File paths and the commands to run the checks locally sit in one "For developers" disclosure.
+// housekeeping collapsed, then adoption in one row per product (current value big, the value before the move to Bridge
+// as a quiet label; the trend is on each report page). File paths and the commands to run the checks locally sit in one "For developers" disclosure.
 import '../../../styles/adoption.css';
 import '../../../styles/quality.css';
 import Layout from '../../../layouts/Layout.astro';
@@ -13,8 +13,9 @@ import ContrastFailTable from '../../../components/ds/studio/ContrastFailTable';
 import { GROUP_TONE } from '../../../lib/changes';
 import { docsEditHref, guidanceState, loadComponents } from '../../../lib/components';
 import { CONTRAST_FILE } from '../../../lib/contrast';
-import { AUDITS_DIR, formatPct, groupByApp, loadAudits, trendPoints } from '../../../lib/audits';
-import { adoptionRows, cleanupTitle, firstFindingTarget, openerSentence, qualityModel, sparkLabel, sparkPoints, type ComboResult } from '../../../lib/quality';
+import AdoptionMetric from '../../../components/AdoptionMetric.astro';
+import { AUDITS_DIR, groupByApp, loadAudits } from '../../../lib/audits';
+import { ADOPTION_MEANING, adoptionRows, beforeLabel, cleanupTitle, firstFindingTarget, openerSentence, qualityModel, type ComboResult } from '../../../lib/quality';
 import { PAGE_SOURCES, freshness } from '../../../lib/sources';
 import { dashboard } from '../../../lib/stats';
 import { BRAND_LABEL, TOKEN_SOURCE_FILES, type Brand } from '../../../lib/tokens';
@@ -27,10 +28,9 @@ const { findings, cleanup } = qualityModel({ contrast, components, issues: s.iss
 const sentence = openerSentence(contrast, components, findings);
 const primary = firstFindingTarget(findings);
 const appGroups = groupByApp(loadAudits()).apps;
+// Adoption: one row per product, the current value big and the run before the move to Bridge as a quiet label. The
+// trend across runs lives on each report page.
 const adoption = adoptionRows(appGroups);
-// Trend per product: every run of its audit history, oldest first (lib/audits trendPoints, as on the audit pages).
-const trendOf = Object.fromEntries(appGroups.map((g) => [g.app.id, trendPoints(g.reports.map((e) => e.report))]));
-const SPARK = { w: 84, h: 24 };
 // Clean up: the real number of unused tokens, not the number of groups.
 const unusedTotal = s.unusedSemantic.length + s.orphanPrimitives.length;
 const sources = [CONTRAST_FILE, ...TOKEN_SOURCE_FILES(), ...PAGE_SOURCES.components, ...PAGE_SOURCES.adoption];
@@ -141,38 +141,14 @@ const tone = (g: keyof typeof GROUP_TONE) => GROUP_TONE[g];
       adoption.length > 0 && (
         <section aria-labelledby="ql-adoption">
           <h2 id="ql-adoption" class="ql-h">Adoption</h2>
-          <p class="ql-muted ql-lead">How much product code uses the design system tokens and components, before and after.</p>
-          <ul class="legend legend-inline ad-legend ql-spark-legend" aria-hidden="true">
-            <li><span class="ad-key ad-tok" />Tokens</li>
-            <li><span class="ad-key ad-comp" />Components</li>
-          </ul>
+          <p class="ql-muted ql-lead">{ADOPTION_MEANING}</p>
           <ul class="fg-card ql-list">
             {adoption.map((a) => (
               <li class="ql-row-wrap">
                 <div class="ql-row ql-ad-row">
                   <span class="ql-title">{a.label}</span>
-                  <span class="ql-ad">
-                    <span class="ql-ad-label">Tokens</span>
-                    <span class="num">{formatPct(a.token.from)}</span>
-                    <span aria-hidden="true">-&gt;</span>
-                    <span class="sr-only">, after:</span>
-                    <strong class="num">{formatPct(a.token.to)}</strong>
-                  </span>
-                  <span class="ql-ad">
-                    <span class="ql-ad-label">Components</span>
-                    <span class="num">{formatPct(a.component.from)}</span>
-                    <span aria-hidden="true">-&gt;</span>
-                    <span class="sr-only">, after:</span>
-                    <strong class="num">{formatPct(a.component.to)}</strong>
-                  </span>
-                  {(trendOf[a.id]?.length ?? 0) > 1 ? (
-                    <svg class="ql-spark" viewBox={`0 0 ${SPARK.w} ${SPARK.h}`} role="img" aria-label={sparkLabel(a.label, trendOf[a.id]!)}>
-                      <polyline points={sparkPoints(trendOf[a.id]!, 'tokenAdoption', SPARK.w, SPARK.h)} class="ad-line ad-tok" />
-                      <polyline points={sparkPoints(trendOf[a.id]!, 'componentAdoption', SPARK.w, SPARK.h)} class="ad-line ad-comp" />
-                    </svg>
-                  ) : (
-                    <span class="ql-spark" />
-                  )}
+                  <AdoptionMetric label="Tokens" value={a.token.to} note={beforeLabel(a.token.from)} />
+                  <AdoptionMetric label="Components" value={a.component.to} note={beforeLabel(a.component.from)} />
                   <a class="ql-act" href={a.href} aria-label={`See what is left in ${a.label}`}>
                     See what is left
                   </a>
