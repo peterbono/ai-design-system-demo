@@ -1,4 +1,4 @@
-// Docs edits in the local draft, as pure functions. The docs editor (Studio > Components > Edit docs) writes a
+// Docs edits in the local draft, as pure functions. The Library page's edit mode (?edit=1) writes a
 // component's docs.json into the same draft as token edits (localStorage bridge.draft.v1), as an edit of kind "docs".
 // Proposing turns the docs edits into one pull request: Tier 1 under the shared classifier, a patch changeset.
 import { classifyRisk, formatDocsJson, missingProse, patchDocsJson, type ComponentDocsJson, type RiskResult } from '@bridge-ds/core';

@@ -1,6 +1,8 @@
 // Old URLs keep working. Read by astro.config.mjs (Astro `redirects`) and by the build hook that carries the query
 // string and hash over (deep links like /reviews/?pr=12 or /foundations/lookup/?q=%23ffffff).
 // No dependencies: this file is loaded while Astro reads its config.
+// One per-component redirect lives outside this map, as a dynamic route: the old Studio docs editor
+// (/studio/components/docs/<slug>/) lands on the Library page's edit mode, see pages/studio/components/docs/[slug].astro.
 export const REDIRECTS: Record<string, string> = {
   '/foundations/contrast': '/foundations/accessibility/',
   '/foundations/lookup': '/tokens/',

@@ -58,5 +58,5 @@ export function prDocsMeta(rows: PrDocRow[]): string {
   return `${rows.length} ${rows.length === 1 ? 'file' : 'files'}`;
 }
 
-/** Docs editor on the pull request's branch. */
-export const prDocsEditHref = (slug: string, pr: number, branch: string) => `/studio/components/docs/${slug}/?pr=${pr}&ref=${encodeURIComponent(branch)}`;
+/** Edit mode of the Library page, on the pull request's branch. */
+export const prDocsEditHref = (slug: string, pr: number, branch: string) => `/components/${slug}/?edit=1&pr=${pr}&ref=${encodeURIComponent(branch)}`;

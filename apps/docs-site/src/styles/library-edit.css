@@ -1,0 +1,533 @@
+/* Edit mode of a Library component page (components/LibraryEditMode.tsx): the read layout stays, only the top bar,
+   the prose sections and the rail switch. Fields read like the text they edit: same font, same measure, a hairline
+   so they read as editable. */
+
+/* Read parts hide while editing; the slots show. */
+.cp-page[data-editing] [data-le-read],
+.cp-page[data-editing] [data-le-lead],
+.cp-page[data-editing] [data-le-read-only],
+.cp-page[data-editing] .cp-meta {
+  display: none;
+}
+
+.cp-page:not([data-editing]) [data-le-usage],
+.cp-page:not([data-editing]) [data-le-rail-narrow],
+.cp-page:not([data-editing]) [data-le-rail] {
+  display: none;
+}
+
+.le-summary-slot {
+  display: block;
+}
+
+/* The read and edit wrappers keep the first heading close to the tab bar, as spaces.css does for a bare panel. */
+.cp-panel > [data-le-read] > section:first-child > h2:first-child,
+.le-usage > section:first-child > h2:first-child {
+  margin-top: 0;
+}
+
+/* Fields brought into view (focus, caret, To review links) clear the site header and the edit bar. */
+html:has(.cp-page[data-editing]) {
+  scroll-padding-top: calc(var(--layout-header-height) + var(--size-20) + var(--space-4));
+}
+
+/* The bar sticks within the reading column, not within its slot. */
+.le-bar-slot {
+  display: contents;
+}
+
+/* Top bar: sticky under the site header, the width of the reading column. */
+.le-bar {
+  position: sticky;
+  top: var(--layout-header-height);
+  z-index: var(--layer-sticky);
+  display: grid;
+  gap: var(--space-2);
+  /* Takes the place and the height of the Workbench row it replaces (32 + 32), so the page does not move. */
+  margin-top: calc(var(--space-2) * -1);
+  margin-bottom: calc(var(--space-3) - var(--border-width-default));
+  padding: var(--space-2) 0;
+  border-bottom: var(--border-width-default) solid var(--color-border-default);
+  background-color: var(--color-bg-default);
+}
+
+/* The status pill is the status control while editing. */
+.le-status {
+  display: inline-flex;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: none;
+  cursor: pointer;
+}
+
+.le-status > * {
+  gap: var(--space-1);
+}
+
+.le-status:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+@media (hover: hover) {
+  .le-status:hover > * {
+    text-decoration: underline;
+  }
+}
+
+.le-bar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.le-bar-title {
+  margin: 0;
+  font-size: var(--typography-body-size);
+}
+
+/* The actions wrap as one group, to the right. */
+.le-bar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+.le-bar-title strong {
+  font-weight: var(--font-weight-semibold);
+}
+
+.le-bar-spacer {
+  flex: 1 1 0;
+}
+
+.le-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+}
+
+.le-status-hint {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-default);
+}
+
+.le-phrase {
+  font-weight: var(--font-weight-semibold);
+}
+
+.le-notice {
+  margin: 0;
+}
+
+/* Rail: replaces On this page while editing, same width. */
+.le-rail {
+  display: grid;
+  gap: var(--space-8);
+  font-size: var(--typography-ui-size);
+}
+
+.le-rail-group .cp-toc-title {
+  margin-bottom: var(--space-2);
+}
+
+.le-rail-note {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.cp-toc .le-review,
+.le-review {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  border-left: 0;
+  list-style: none;
+}
+
+.le-review li + li {
+  margin-top: 0;
+}
+
+.le-review a {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-height: var(--size-6);
+  padding: var(--space-1) 0;
+  color: var(--color-text-default);
+  text-decoration: none;
+}
+
+.le-review a > svg {
+  flex: none;
+  margin-top: var(--space-0-5);
+  color: var(--color-text-muted);
+}
+
+.le-review .is-done a > svg {
+  color: var(--color-feedback-success-text);
+}
+
+.le-review-text {
+  display: grid;
+}
+
+.le-review-words {
+  color: var(--color-text-muted);
+}
+
+.le-review a:focus-visible {
+  border-radius: var(--radius-inset);
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+@media (hover: hover) {
+  .le-review a:hover .le-review-text {
+    text-decoration: underline;
+  }
+}
+
+/* Below 1320px there is no rail column: the same content folds under the top bar. */
+.le-rail-narrow > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--size-11);
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+  cursor: pointer;
+}
+
+.le-rail-narrow > summary:focus-visible {
+  border-radius: var(--radius-inset);
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.le-rail-narrow {
+  margin: calc(var(--space-4) * -1) 0 var(--space-4);
+  border-bottom: var(--border-width-default) solid var(--color-border-default);
+}
+
+.le-rail-in {
+  justify-items: start;
+  padding: var(--space-2) 0 var(--space-4);
+}
+
+/* Fields */
+/* DS Textarea, restyled to read exactly like the text it edits. */
+div.le-text {
+  width: calc(100% + var(--space-2) * 2);
+  margin: 0 calc(var(--space-2) * -1);
+}
+
+.le-text > textarea {
+  min-height: 0;
+  max-height: none;
+  padding: var(--space-0-5) var(--space-2);
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius-inset);
+  background-color: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  transition: background-color var(--motion-duration-instant) var(--motion-easing-standard);
+}
+
+.le-text > textarea::placeholder {
+  color: var(--color-text-muted);
+}
+
+.le-text > textarea:focus {
+  box-shadow: none;
+  outline: none;
+}
+
+.le-text > textarea:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: 0;
+}
+
+/* At rest the text reads exactly like the page; a pointer over it shows it can be edited. */
+@media (hover: hover) {
+  .le-text > textarea:hover:not(:focus) {
+    background-color: var(--color-surface-hover);
+  }
+}
+
+.le-summary {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.le-summary-foot:empty {
+  display: none;
+}
+
+.le-summary-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.le-quiet {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+}
+
+.le-quiet > svg {
+  color: var(--color-feedback-success-text);
+}
+
+/* Section heads: the heading and what the section waits for, on one line. */
+.le-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-3);
+}
+
+.le-head h2,
+.le-head h3 {
+  margin-bottom: 0;
+}
+
+.le-usage .usage-col .le-head {
+  margin-bottom: var(--space-3);
+}
+
+.le-usage .usage-col .le-head h3 {
+  margin: 0;
+}
+
+.le-col-icon {
+  flex: none;
+}
+
+.usage-col.is-use .le-col-icon {
+  color: var(--color-feedback-success-text);
+}
+
+.usage-col.is-avoid .le-col-icon {
+  color: var(--color-feedback-danger-text);
+}
+
+.le-usage > section > .le-head + .le-actions,
+.le-usage > section > .le-head + .guidance,
+.le-usage > section > .le-head + .le-list {
+  margin-top: var(--space-4);
+}
+
+.le-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-2) 0;
+}
+
+.le-empty {
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+}
+
+/* Lists: the read list, each item a field with its remove button on the right. */
+.le-list > li {
+  position: relative;
+}
+
+.le-list > li > .le-text > textarea {
+  padding-right: calc(var(--size-8) + var(--space-2));
+}
+
+.le-list > li > .le-remove {
+  position: absolute;
+  top: calc(var(--space-0-5) * -1);
+  right: calc(var(--space-2) * -1);
+}
+
+.a11y-list.le-list > li > .le-remove {
+  top: var(--space-2);
+  right: var(--space-2);
+}
+
+.a11y-list.le-list > li {
+  align-items: flex-start;
+}
+
+.le-li-icon {
+  flex: none;
+  margin-top: var(--space-1);
+  color: var(--color-feedback-success-text);
+}
+
+@media (hover: hover) {
+  .le-list > li:not(:hover, :focus-within) > .le-remove,
+  .le-verdict:not(:hover, :focus-within) .le-remove {
+    opacity: 0;
+  }
+}
+
+.le-add {
+  margin-top: var(--space-3);
+  margin-left: calc(var(--space-3) * -1);
+}
+
+/* Do and don't cards */
+.le-verdict .verdict-body {
+  justify-items: stretch;
+}
+
+.le-verdict-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.le-verdict h4,
+.le-verdict p {
+  width: 100%;
+}
+
+.le-add-row {
+  margin-top: var(--space-4);
+}
+
+/* Claude's proposal for a selection */
+.le-proposal {
+  display: grid;
+  gap: var(--space-1);
+  margin-top: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-width-default) solid var(--color-feedback-info-border);
+  border-radius: var(--radius-control);
+  background-color: var(--color-feedback-info-bg);
+}
+
+.le-proposal-text {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.le-proposal .le-actions {
+  margin-bottom: 0;
+}
+
+/* Claude setup panel */
+.le-setup-pop {
+  width: min(calc(var(--size-96) + var(--size-20)), calc(100vw - var(--space-8)));
+}
+
+.le-setup {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-3);
+  font-size: var(--typography-ui-size);
+}
+
+.le-setup > p {
+  margin: 0;
+}
+
+.le-setup > :is(.le-code, [data-segmented-control]) {
+  justify-self: stretch;
+}
+
+.le-setup-note {
+  color: var(--color-text-muted);
+}
+
+.le-code {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-inset);
+  background-color: var(--color-bg-subtle);
+  font-family: var(--font-family-mono);
+  font-size: var(--typography-ui-size);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.le-setup-msg {
+  margin: 0;
+}
+
+.le-setup-msg.is-danger {
+  color: var(--color-feedback-danger-text);
+}
+
+.le-setup-msg.is-success {
+  color: var(--color-feedback-success-text);
+}
+
+/* Send panel */
+.le-dialog-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.le-send {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.le-sent {
+  margin: 0;
+}
+
+@media (max-width: 720px) {
+  .le-bar {
+    margin-right: calc(var(--space-4) * -1);
+    margin-left: calc(var(--space-4) * -1);
+    padding-right: var(--space-4);
+    padding-left: var(--space-4);
+  }
+
+  .le-bar {
+    gap: var(--space-1);
+    padding-top: var(--space-2);
+    padding-bottom: var(--space-2);
+  }
+
+  .le-bar-actions {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .le-bar-actions > :last-child {
+    margin-left: auto;
+  }
+
+  .le-bar .le-long,
+  .le-bar .le-keep-all {
+    display: none;
+  }
+}

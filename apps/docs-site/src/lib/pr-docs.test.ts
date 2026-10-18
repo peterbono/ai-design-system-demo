@@ -28,6 +28,6 @@ describe('pull request Docs section', () => {
   });
 
   it('Edit opens the docs editor on the pull request branch', () => {
-    expect(prDocsEditHref('icon', 21, 'agent/docs drafts')).toBe('/studio/components/docs/icon/?pr=21&ref=agent%2Fdocs%20drafts');
+    expect(prDocsEditHref('icon', 21, 'agent/docs drafts')).toBe('/components/icon/?edit=1&pr=21&ref=agent%2Fdocs%20drafts');
   });
 });
