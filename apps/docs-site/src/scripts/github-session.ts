@@ -331,7 +331,7 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
   const rejectedNote = dialog?.querySelector<HTMLElement>('[data-gh-rejected-note]') ?? null;
   if (!dialog || !input || !save) return;
   wired = true;
-  const saveLabel = () => (tokenRejected() ? 'Check and replace' : 'Check and connect');
+  const saveLabel = () => (tokenRejected() || viewer ? 'Check and replace' : 'Check and connect');
 
   const paint = () => {
     const rejected = tokenRejected();
@@ -377,7 +377,8 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
     const rejected = tokenRejected();
     showError(null);
     input.value = '';
-    if (title) title.textContent = rejected ? 'Reconnect GitHub' : 'Connect GitHub';
+    // Opened from Change token while connected: say so, the saved token stays until the new one is checked.
+    if (title) title.textContent = rejected ? 'Reconnect GitHub' : viewer ? 'Change GitHub token' : 'Connect GitHub';
     if (rejectedNote) rejectedNote.hidden = !rejected;
     setButtonLabel(save, saveLabel());
     dialog.showModal();

@@ -1,6 +1,8 @@
 ---
 // One adoption audit report, opened from Studio Quality ("See what is left"). Each committed `bridge audit` report
-// under src/data/audits gets a route; the app's trend follows when it has more than one run.
+// under src/data/audits gets a route. It leads with the two gauges and the trend across runs, then where the
+// component instances come from and the hardcoded values by category; what was scanned, the file tables and the
+// CLI sit in one "For developers" disclosure at the end.
 import Layout from '../../../../layouts/Layout.astro';
 import StudioHeader from '../../../../components/StudioHeader.astro';
 import { TopFilesTable, TopFixesTable, TrendTable } from '../../../../components/ds/studio/AdoptionTables';
@@ -31,9 +33,10 @@ const date = (iso: string) => iso.slice(0, 10);
 const w = (n: number, max: number) => `${max ? (n / max) * 100 : 0}%`;
 
 // Trend chart geometry: x by run index, y by percent.
-const TW = 640;
-const TH = 200;
-const PAD = { l: 36, r: 16, t: 12, b: 28 };
+// The viewBox is about as wide as the chart renders, so axis labels keep the UI size and the end labels fit.
+const TW = 960;
+const TH = 240;
+const PAD = { l: 48, r: 48, t: 16, b: 32 };
 const tx = (trend: TrendPoint[], i: number) => PAD.l + (trend.length > 1 ? (i / (trend.length - 1)) * (TW - PAD.l - PAD.r) : (TW - PAD.l - PAD.r) / 2);
 const ty = (v: number) => PAD.t + (1 - v / 100) * (TH - PAD.t - PAD.b);
 const line = (trend: TrendPoint[], key: 'tokenAdoption' | 'componentAdoption') =>
@@ -101,20 +104,7 @@ const line = (trend: TrendPoint[], key: 'tokenAdoption' | 'componentAdoption') =
         },
       ];
       return (
-        <section class="ad-report" id={entry.id} aria-labelledby={`${entry.id}-title`}>
-          <header class="ad-head">
-            <div>
-              <h2 id={`${entry.id}-title`}>What was scanned</h2>
-              <p class="muted small">
-                <code>{r.target.path}</code>, {r.target.files} files scanned, run on {date(r.generatedAt)} with bridge {r.tool.version}. Design system:{' '}
-                {r.designSystem.packages.map((p) => <code>{p}</code>)}, {r.designSystem.tokens} tokens, {r.designSystem.components} components.
-              </p>
-            </div>
-            <span class="muted small">
-              <code>{`${'src/data/audits/'}${entry.file}`}</code>
-            </span>
-          </header>
-
+        <section class="ad-report" id={entry.id} aria-label="Adoption report">
           <div class="ad-gauges">
             {gauges.map((g) => (
               <figure class={`ad-gauge is-${adoptionTone(g.pct)}`}>
@@ -139,54 +129,46 @@ const line = (trend: TrendPoint[], key: 'tokenAdoption' | 'componentAdoption') =
             ))}
           </div>
 
-          <div class="section-head">
-            <div>
-              <h2>Hardcoded values by category</h2>
-              <p>Exact: the value equals a token, safe to replace. Near: a token is close (nearest color in OKLab, nearest scale step). None: no token fits, the value may need a new token or a design decision.</p>
-            </div>
-          </div>
-          {cats.length === 0 ? (
-            <p class="muted">No hardcoded value found.</p>
-          ) : (
-            <div class="table-wrap">
-              <ul class="legend legend-inline ad-legend" aria-hidden="true">
-                <li><span class="ad-key ad-exact" />Exact token</li>
-                <li><span class="ad-key ad-near" />Near token</li>
-                <li><span class="ad-key ad-none" />No token</li>
-              </ul>
-              <table class="ad-cats">
-                <caption class="sr-only">Hardcoded values per category, split by how well a token matches</caption>
-                <thead>
-                  <tr>
-                    <th scope="col">Category</th>
-                    <th scope="col" class="ad-bar-col">Share</th>
-                    <th scope="col" class="num">Hardcoded</th>
-                    <th scope="col" class="num">Exact</th>
-                    <th scope="col" class="num">Near</th>
-                    <th scope="col" class="num">None</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {cats.map((c) => (
-                    <tr>
-                      <th scope="row">{c.label}</th>
-                      <td class="ad-bar-col">
-                        <span class="ad-track" style={`width: ${w(c.hardcoded, catMax)}`}>
-                          {c.exact > 0 && <span class="ad-seg ad-exact" style={`width: ${w(c.exact, c.hardcoded)}`} />}
-                          {c.near > 0 && <span class="ad-seg ad-near" style={`width: ${w(c.near, c.hardcoded)}`} />}
-                          {c.none > 0 && <span class="ad-seg ad-none" style={`width: ${w(c.none, c.hardcoded)}`} />}
-                        </span>
-                      </td>
-                      <td class="num">{c.hardcoded}</td>
-                      <td class="num">{c.exact}</td>
-                      <td class="num">{c.near}</td>
-                      <td class="num">{c.none}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          {trends.map(({ id, title, points: trend }) => (
+            <section class="ad-trend" aria-labelledby={`trend-${id}-title`}>
+              <div class="section-head">
+                <div>
+                  <h2 id={`trend-${id}-title`}>Trend</h2>
+                  <p>{title}: adoption across runs, from each report and the baselines it was compared with.</p>
+                </div>
+              </div>
+              {trend.length < 2 ? (
+                <p class="process-empty">One run so far. The trend appears from the second run.</p>
+              ) : (
+                <figure class="ad-card ad-trend-chart">
+                  <ul class="legend legend-inline ad-legend" aria-hidden="true">
+                    <li><span class="ad-key ad-tok" />Token adoption</li>
+                    <li><span class="ad-key ad-comp" />Component adoption</li>
+                  </ul>
+                  <svg viewBox={`0 0 ${TW} ${TH}`} role="img" aria-label={`${title} adoption trend: ${trend.map((p) => `${p.label} tokens ${formatPct(p.tokenAdoption)}, components ${formatPct(p.componentAdoption)}`).join('; ')}`}>
+                    {[0, 50, 100].map((v) => (
+                      <g>
+                        <line x1={PAD.l} x2={TW - PAD.r} y1={ty(v)} y2={ty(v)} class="ad-grid" />
+                        <text x={PAD.l - 6} y={ty(v)} class="ad-axis" text-anchor="end" dominant-baseline="central">{`${v}%`}</text>
+                      </g>
+                    ))}
+                    <polyline points={line(trend, 'tokenAdoption')} class="ad-line ad-tok" />
+                    <polyline points={line(trend, 'componentAdoption')} class="ad-line ad-comp" />
+                    {trend.map((p, i) => (
+                      <g>
+                        {p.tokenAdoption !== null && <circle cx={tx(trend, i)} cy={ty(p.tokenAdoption)} r="4" class="ad-dot ad-tok" />}
+                        {p.componentAdoption !== null && <circle cx={tx(trend, i)} cy={ty(p.componentAdoption)} r="4" class="ad-dot ad-comp" />}
+                        <text x={tx(trend, i)} y={TH - 8} class="ad-axis" text-anchor="middle">{date(p.generatedAt)}</text>
+                      </g>
+                    ))}
+                  </svg>
+                  <figcaption>
+                    <TrendTable rows={trend.map((p) => ({ label: p.label, date: date(p.generatedAt), tokenAdoption: formatPct(p.tokenAdoption), componentAdoption: formatPct(p.componentAdoption), hardcoded: p.hardcoded }))} />
+                  </figcaption>
+                </figure>
+              )}
+            </section>
+          ))}
 
           <div class="section-head">
             <div>
@@ -264,7 +246,7 @@ const line = (trend: TrendPoint[], key: 'tokenAdoption' | 'componentAdoption') =
                   {r.components.recreated.slice(0, 8).map((x) => (
                     <li>
                       <span>
-                        <code>{x.name}</code> <span class="muted small">{`${x.file}:${x.line}`}</span>
+                        <code>{x.name}</code>
                       </span>
                       <span class="num">{x.instances}</span>
                     </li>
@@ -276,81 +258,105 @@ const line = (trend: TrendPoint[], key: 'tokenAdoption' | 'componentAdoption') =
 
           <div class="section-head">
             <div>
-              <h2>Top offending files</h2>
-              <p>Files with the most hardcoded values and non-DS components. Start the migration here.</p>
+              <h2>Hardcoded values by category</h2>
+              <p>Exact: the value equals a token, safe to replace. Near: a token is close (nearest color in OKLab, nearest scale step). None: no token fits, the value may need a new token or a design decision.</p>
             </div>
           </div>
-          {r.topFiles.length === 0 ? (
-            <p class="muted">Nothing to fix.</p>
+          {cats.length === 0 ? (
+            <p class="muted">No hardcoded value found.</p>
           ) : (
-            <TopFilesTable rows={r.topFiles.slice(0, 12)} />
-          )}
-
-          <div class="section-head">
-            <div>
-              <h2>Top fixes</h2>
-              <p>The most repeated literals and the token that replaces them. Exact matches in CSS files can be fixed with <code>bridge audit --fix</code>.</p>
+            <div class="table-wrap">
+              <ul class="legend legend-inline ad-legend" aria-hidden="true">
+                <li><span class="ad-key ad-exact" />Exact token</li>
+                <li><span class="ad-key ad-near" />Near token</li>
+                <li><span class="ad-key ad-none" />No token</li>
+              </ul>
+              <table class="ad-cats">
+                <caption class="sr-only">Hardcoded values per category, split by how well a token matches</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Category</th>
+                    <th scope="col" class="ad-bar-col">Share</th>
+                    <th scope="col" class="num">Hardcoded</th>
+                    <th scope="col" class="num">Exact</th>
+                    <th scope="col" class="num">Near</th>
+                    <th scope="col" class="num">None</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cats.map((c) => (
+                    <tr>
+                      <th scope="row">{c.label}</th>
+                      <td class="ad-bar-col">
+                        <span class="ad-track" style={`width: ${w(c.hardcoded, catMax)}`}>
+                          {c.exact > 0 && <span class="ad-seg ad-exact" style={`width: ${w(c.exact, c.hardcoded)}`} />}
+                          {c.near > 0 && <span class="ad-seg ad-near" style={`width: ${w(c.near, c.hardcoded)}`} />}
+                          {c.none > 0 && <span class="ad-seg ad-none" style={`width: ${w(c.none, c.hardcoded)}`} />}
+                        </span>
+                      </td>
+                      <td class="num">{c.hardcoded}</td>
+                      <td class="num">{c.exact}</td>
+                      <td class="num">{c.near}</td>
+                      <td class="num">{c.none}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          </div>
-          {r.topFixes.length === 0 ? (
-            <p class="muted">No repeated literal.</p>
-          ) : (
-            <TopFixesTable rows={r.topFixes.slice(0, 15)} />
           )}
 
-          {r.baseline && (
-            <p class="muted small">
-              Since {r.baseline.label ?? date(r.baseline.generatedAt)}: hardcoded values {r.baseline.hardcoded.before} to {r.baseline.hardcoded.after} ({formatDelta(r.baseline.hardcoded.delta)}),{' '}
-              {r.baseline.improved.length} files improved, {r.baseline.regressed.length} regressed, {r.baseline.newFiles.length} new.
+          <details class="ql-local ad-dev" id="for-developers">
+            <summary>For developers</summary>
+            <header class="ad-head">
+              <div>
+                <h2>What was scanned</h2>
+                <p class="muted small">
+                  <code>{r.target.path}</code>, {r.target.files} files scanned, run on {date(r.generatedAt)} with bridge {r.tool.version}. Design system:{' '}
+                  {r.designSystem.packages.map((p) => <code>{p}</code>)}, {r.designSystem.tokens} tokens, {r.designSystem.components} components.
+                </p>
+              </div>
+              <span class="muted small">
+                <code>{`${'src/data/audits/'}${entry.file}`}</code>
+              </span>
+            </header>
+
+            <div class="section-head">
+              <div>
+                <h2>Top offending files</h2>
+                <p>Files with the most hardcoded values and non-DS components. Start the migration here.</p>
+              </div>
+            </div>
+            {r.topFiles.length === 0 ? (
+              <p class="muted">Nothing to fix.</p>
+            ) : (
+              <TopFilesTable rows={r.topFiles.slice(0, 12)} />
+            )}
+
+            <div class="section-head">
+              <div>
+                <h2>Top fixes</h2>
+                <p>The most repeated literals and the token that replaces them. Exact matches in CSS files can be fixed with <code>bridge audit --fix</code>.</p>
+              </div>
+            </div>
+            {r.topFixes.length === 0 ? (
+              <p class="muted">No repeated literal.</p>
+            ) : (
+              <TopFixesTable rows={r.topFixes.slice(0, 15)} />
+            )}
+
+            {r.baseline && (
+              <p class="muted small">
+                Since {r.baseline.label ?? date(r.baseline.generatedAt)}: hardcoded values {r.baseline.hardcoded.before} to {r.baseline.hardcoded.after} ({formatDelta(r.baseline.hardcoded.delta)}),{' '}
+                {r.baseline.improved.length} files improved, {r.baseline.regressed.length} regressed, {r.baseline.newFiles.length} new.
+              </p>
+            )}
+            <p class="ql-muted">
+              Track progress with <code>bridge audit &lt;path&gt; --baseline previous.json --json next.json</code>, then commit the report under <code>src/data/audits/</code>.
             </p>
-          )}
+          </details>
         </section>
       );
     })
   }
 
-  {
-    trends.map(({ id, title, points: trend }) => (
-      <section class="ad-trend" aria-labelledby={`trend-${id}-title`}>
-        <div class="section-head">
-          <div>
-            <h2 id={`trend-${id}-title`}>Trend: {title}</h2>
-            <p>Adoption across runs, from each report and the baselines it was compared with.</p>
-          </div>
-        </div>
-        {trend.length < 2 ? (
-          <p class="process-empty">
-            One run so far. Run <code>bridge audit &lt;path&gt; --baseline previous.json --json next.json</code> to track progress.
-          </p>
-        ) : (
-          <figure class="ad-card ad-trend-chart">
-            <ul class="legend legend-inline ad-legend" aria-hidden="true">
-              <li><span class="ad-key ad-tok" />Token adoption</li>
-              <li><span class="ad-key ad-comp" />Component adoption</li>
-            </ul>
-            <svg viewBox={`0 0 ${TW} ${TH}`} role="img" aria-label={`${title} adoption trend: ${trend.map((p) => `${p.label} tokens ${formatPct(p.tokenAdoption)}, components ${formatPct(p.componentAdoption)}`).join('; ')}`}>
-              {[0, 50, 100].map((v) => (
-                <g>
-                  <line x1={PAD.l} x2={TW - PAD.r} y1={ty(v)} y2={ty(v)} class="ad-grid" />
-                  <text x={PAD.l - 6} y={ty(v)} class="ad-axis" text-anchor="end" dominant-baseline="central">{`${v}%`}</text>
-                </g>
-              ))}
-              <polyline points={line(trend, 'tokenAdoption')} class="ad-line ad-tok" />
-              <polyline points={line(trend, 'componentAdoption')} class="ad-line ad-comp" />
-              {trend.map((p, i) => (
-                <g>
-                  {p.tokenAdoption !== null && <circle cx={tx(trend, i)} cy={ty(p.tokenAdoption)} r="4" class="ad-dot ad-tok" />}
-                  {p.componentAdoption !== null && <circle cx={tx(trend, i)} cy={ty(p.componentAdoption)} r="4" class="ad-dot ad-comp" />}
-                  <text x={tx(trend, i)} y={TH - 8} class="ad-axis" text-anchor="middle">{date(p.generatedAt)}</text>
-                </g>
-              ))}
-            </svg>
-            <figcaption>
-              <TrendTable rows={trend.map((p) => ({ label: p.label, date: date(p.generatedAt), tokenAdoption: formatPct(p.tokenAdoption), componentAdoption: formatPct(p.componentAdoption), hardcoded: p.hardcoded }))} />
-            </figcaption>
-          </figure>
-        )}
-      </section>
-    ))
-  }
 </Layout>
