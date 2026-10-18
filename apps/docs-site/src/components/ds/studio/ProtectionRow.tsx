@@ -1,6 +1,6 @@
-// Settings > Protection: one row, the same row component as Roles. It says whether every change to the library goes
-// through review and, when not, offers one action on the same row: "Protect the library" (or "Complete
-// protection"). The action confirms in a DS Dialog that says what changes in plain words, keeps the GitHub terms in
+// Settings > Safety > Protection: one row of the Safety card, the same row as the visual before and after. It says
+// whether every change to the library goes through review and, when not, offers one action on the same row:
+// "Protect the library" (or "Complete protection"). The action confirms in a DS Dialog that says what changes in plain words, keeps the GitHub terms in
 // a collapsed "Details for developers", then creates the repository ruleset with the viewer's token. Refusals
 // (not an admin, a token without Administration, a plan without rulesets) get one sentence and a link to GitHub
 // settings, never silence.
@@ -82,74 +82,72 @@ export default function ProtectionRow() {
   };
 
   return (
-    <ul className="set-rows-plain set-protection">
-      <li>
-        <div>
-          <p className="set-row-title">Protection</p>
-          <p className="set-row-text" aria-live="polite">
-            {view.text}
-          </p>
-        </div>
-        {view.action && (
-          <Button variant="primary" onClick={start} data-protect-action>
-            {view.action}
-          </Button>
-        )}
-        {view.link && (
-          <p className="set-row-link">
+    <div className="set-row" id="protection">
+      <p className="set-row-label">Protection</p>
+      <p className="set-row-value" aria-live="polite">
+        {view.text}
+      </p>
+      {(view.action || view.link) && (
+        <div className="set-row-action">
+          {view.action && (
+            <Button variant="primary" onClick={start} data-protect-action>
+              {view.action}
+            </Button>
+          )}
+          {view.link && (
             <Link href={view.link.href} external>
               {view.link.label}
             </Link>
+          )}
+        </div>
+      )}
+      <Dialog open={open} onOpenChange={(o) => !busy && setOpen(o)}>
+        <DialogContent
+          title="Protect the library?"
+          description={`Every tool then changes ${repo.repo || 'the library'} the same way: Studio, the Figma plugin, Claude and developers.`}
+          footer={
+            <ButtonGroup align="end">
+              <DialogClose render={<Button variant="secondary" disabled={busy} />}>Cancel</DialogClose>
+              <Button variant="primary" loading={busy} disabled={busy || checks === null} onClick={() => void confirm()}>
+                {busy ? 'Protecting' : view.action ?? 'Protect the library'}
+              </Button>
+            </ButtonGroup>
+          }
+        >
+          <ul className="set-protect-list">
+            <li>
+              <strong>Changes go through review.</strong> Each change is a pull request that someone approves before it ships.
+            </li>
+            <li>
+              <strong>Checks must pass.</strong>{' '}
+              {checks === null ? 'Reading your checks from GitHub.' : checks.length ? `The ${checks.length} checks your team already runs must pass before a change ships.` : 'Your repository runs no checks yet, so only review applies.'}
+            </li>
+            <li>
+              <strong>Nobody rewrites history.</strong> Shipped changes stay as they are, and nobody can delete the library.
+            </li>
+          </ul>
+          <p className="set-protect-note">
+            Owners can still ship through Bridge. Repository admins keep the override: they may ship a change before its approvals, but never change the library directly.
           </p>
-        )}
-        <Dialog open={open} onOpenChange={(o) => !busy && setOpen(o)}>
-          <DialogContent
-            title="Protect the library?"
-            description={`Every tool then changes ${repo.repo || 'the library'} the same way: Studio, the Figma plugin, Claude and developers.`}
-            footer={
-              <ButtonGroup align="end">
-                <DialogClose render={<Button variant="secondary" disabled={busy} />}>Cancel</DialogClose>
-                <Button variant="primary" loading={busy} disabled={busy || checks === null} onClick={() => void confirm()}>
-                  {busy ? 'Protecting' : view.action ?? 'Protect the library'}
-                </Button>
-              </ButtonGroup>
-            }
-          >
-            <ul className="set-protect-list">
-              <li>
-                <strong>Changes go through review.</strong> Each change is a pull request that someone approves before it ships.
-              </li>
-              <li>
-                <strong>Checks must pass.</strong>{' '}
-                {checks === null ? 'Reading your checks from GitHub.' : checks.length ? `The ${checks.length} checks your team already runs must pass before a change ships.` : 'Your repository runs no checks yet, so only review applies.'}
-              </li>
-              <li>
-                <strong>Nobody rewrites history.</strong> Shipped changes stay as they are, and nobody can delete the library.
-              </li>
-            </ul>
-            <p className="set-protect-note">
-              Owners can still ship through Bridge. Repository admins keep the override: they may ship a change before its approvals, but never change the library directly.
-            </p>
-            {error && (
-              <Alert tone="danger" className="set-protect-error">
-                {error}{' '}
-                <Link href={rulesUrl} external>
-                  Open GitHub settings
-                </Link>
-              </Alert>
-            )}
-            <Accordion appearance="flush">
-              <AccordionItem value="dev" title="Details for developers">
-                <ul className="set-protect-dev">
-                  {protectionDetails(repo.defaultBranch, checks ?? []).map((line) => (
-                    <li key={line}>{line}</li>
-                  ))}
-                </ul>
-              </AccordionItem>
-            </Accordion>
-          </DialogContent>
-        </Dialog>
-      </li>
-    </ul>
+          {error && (
+            <Alert tone="danger" className="set-protect-error">
+              {error}{' '}
+              <Link href={rulesUrl} external>
+                Open GitHub settings
+              </Link>
+            </Alert>
+          )}
+          <Accordion appearance="flush">
+            <AccordionItem value="dev" title="Details for developers">
+              <ul className="set-protect-dev">
+                {protectionDetails(repo.defaultBranch, checks ?? []).map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            </AccordionItem>
+          </Accordion>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }

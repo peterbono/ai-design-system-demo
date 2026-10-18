@@ -1,24 +1,63 @@
-/* Studio Settings: one page (Connection, Roles, Approvals, Figma and Claude, Integrations, For developers).
-   Four sizes on the screen: h2 (page title), h3 (section titles), body (the opener sentence), ui (everything else).
-   Values in one mono style; "(default)" in plain muted text; tiers are grey labels, color only for status. */
+/* Studio Settings: one page in bands (Account, Review rules, Safety, Figma and Claude, Integrations, For developers).
+   Four sizes on the screen: the page title (Fraunces), section titles (h3 role), ui (everything else) and the caption
+   of badges and table headers. Color: one Harbor zone at most (Account while read only), Deep Harbor for the one
+   primary action, status color only on badges. */
 
-/* Same content width as the other Studio pages: rows stretch, values and actions stay at the end. */
-.set-block {
-  max-width: var(--studio-page-max);
-  margin-top: var(--space-10);
+/* The page stops at 1200px and sits centred: rows never stretch across a wide monitor. */
+.set-page {
+  max-width: var(--size-300);
+  margin-inline: auto;
 }
 
-.set-block:first-of-type {
-  margin-top: var(--space-6);
+/* A band: title and one sentence, then the rows in a card. Side by side on wide screens (one third, two thirds),
+   stacked below. Space and a hairline tell a new band has begun. */
+.set-band {
+  display: grid;
+  gap: var(--space-4);
+  padding-block: var(--space-10);
+  border-top: var(--border-width-default) solid var(--color-border-default);
+}
+
+.set-band:first-of-type {
+  padding-top: 0;
+  border-top: 0;
+}
+
+@media (min-width: 1280px) {
+  .set-band {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    gap: var(--space-12);
+  }
+}
+
+.set-band-intro {
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+}
+
+.set-band-body {
+  display: grid;
+  align-content: start;
+  gap: var(--space-4);
+  min-width: 0;
 }
 
 .set-h {
-  margin: 0 0 var(--space-4);
+  margin: 0;
   font-family: var(--typography-h3-family);
   font-size: var(--typography-h3-size);
   font-weight: var(--typography-h3-weight);
   letter-spacing: var(--typography-h3-tracking);
   line-height: var(--typography-h3-line-height);
+}
+
+.set-intro {
+  max-width: 45ch;
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
 }
 
 .set-muted {
@@ -28,95 +67,139 @@
   line-height: var(--typography-ui-line-height);
 }
 
-/* Connection: a compact Harbor opener, one sentence and one action for the current state. */
-.set-open {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3) var(--space-6);
-  padding: var(--space-6) var(--space-7);
+.set-quiet {
+  color: var(--color-text-muted);
 }
 
-.set-open-line {
-  flex: 1 1 calc(var(--size-64) + var(--size-20));
+/* Card title in the ui role, on the same line as its action (Edit). */
+.set-card-title {
   margin: 0;
-  font-size: var(--typography-body-size);
+  font-family: var(--font-family-sans);
+  font-size: var(--typography-ui-size);
   font-weight: var(--font-weight-semibold);
-  line-height: var(--typography-body-line-height);
+  letter-spacing: normal;
+  line-height: var(--typography-ui-line-height);
 }
 
-/* data-when lists the states an element shows in ("readonly rejected"). */
-.set-open[data-state="readonly"] [data-when]:not([data-when~="readonly"]),
-.set-open[data-state="checking"] [data-when]:not([data-when~="checking"]),
-.set-open[data-state="connected"] [data-when]:not([data-when~="connected"]),
-.set-open[data-state="rejected"] [data-when]:not([data-when~="rejected"]) {
-  display: none;
+/* A row: a fixed label column, the value right next to it, the row's action at the end. Hairlines between rows. */
+.set-rows {
+  display: grid;
 }
 
-/* Figma plugin and MCP: two plain rows on hairlines, no card frames. */
-.set-rows-plain {
-  margin: var(--space-4) 0 0;
-  padding: 0;
-  list-style: none;
+.set-rows > * + * {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: var(--border-width-default) solid var(--color-border-default);
 }
 
-.set-rows-plain > li {
-  display: flex;
-  flex-wrap: wrap;
+/* Cells line up on their first line of text, so a label stays level with its value however long the value runs. */
+.set-row {
+  display: grid;
+  grid-template-columns: minmax(var(--size-40), 30%) minmax(0, 1fr) auto;
   align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-1) var(--space-6);
-  padding: var(--space-3) 0;
-  border-bottom: var(--border-width-default) solid var(--color-border-default);
+  gap: var(--space-2) var(--space-6);
   font-size: var(--typography-ui-size);
   line-height: var(--typography-ui-line-height);
 }
 
-.set-rows-plain > li > div {
-  flex: 1 1 calc(var(--size-64) + var(--size-20));
+.set-row p {
+  margin: 0;
+}
+
+.set-row-label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: var(--font-weight-semibold);
+}
+
+.set-row-help {
+  color: var(--color-text-muted);
+}
+
+.set-row-value {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-1);
+  min-width: 0;
+  max-width: 65ch;
+}
+
+.set-row-action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+/* The value takes the action column too (the Claude command), or the row spans every column (save bar). */
+.set-row-span {
+  grid-column: 2 / -1;
+  justify-items: stretch;
+  max-width: none;
+}
+
+.set-row-full {
+  grid-column: 1 / -1;
+}
+
+/* Account: avatar, who, access badge, and the quiet action on one line. */
+.set-account {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.set-account-text {
+  display: grid;
+  flex: 1 1 var(--size-60);
+  gap: var(--space-0-5);
   min-width: 0;
 }
 
-.set-row-title {
+.set-account-text p {
   margin: 0;
+}
+
+.set-account-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
   font-weight: var(--font-weight-semibold);
 }
 
-.set-row-text {
-  max-width: 65ch;
-  margin: 0;
+.set-account-sub {
   color: var(--color-text-muted);
 }
 
-.set-row-link {
+/* Read only: the page's one Harbor zone, with the drawing and Connect GitHub. */
+.set-account-zone {
+  gap: var(--space-4) var(--space-6);
+  padding: var(--space-6) var(--space-7);
+}
+
+.set-account-zone .set-account-sub {
+  color: var(--color-text-default);
+}
+
+.set-account-art {
   display: flex;
-  gap: var(--space-2);
-  align-items: baseline;
-  margin: 0;
-  white-space: nowrap;
+  flex: none;
+  color: var(--color-text-default);
 }
 
-.set-note {
-  color: var(--color-text-muted);
-}
-
-/* Roles: one sentence, then one plain row per right (what it means on the left, who holds it on the right),
-   the edit collapsed underneath with a segmented control on the row of the right it changes. */
-.set-summary {
-  margin: 0;
-  font-size: var(--typography-ui-size);
-  line-height: var(--typography-ui-line-height);
-}
-
+/* Who holds a right: avatars, the group, the people. */
 .set-who {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
-  margin: 0;
-}
-
-.set-who-logins {
-  color: var(--color-text-muted);
 }
 
 .set-avatars {
@@ -135,84 +218,84 @@
   margin-left: calc(var(--space-1-5) * -1);
 }
 
-/* Heading line: the section title and its one action (Edit) on the same line. */
-.set-h-row {
-  display: flex;
-  min-height: var(--size-9);
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-  margin-bottom: var(--space-4);
-}
-
-.set-h-row .set-h {
-  margin: 0;
-}
-
-/* In edit mode Cancel replaces Edit: the DS Button sets its own display, so honor hidden here. */
-.set-h-row [hidden] {
+/* Edit in place: viewing shows who holds each right (or the visual mode); editing swaps it for a segmented control on
+   the same row and shows the save bar. In edit mode Cancel replaces Edit: the DS Button sets its own display, so
+   honor hidden here. */
+.set-form[data-editing="false"] [data-edit],
+.set-form[data-editing="true"] [data-view],
+[data-roles-edit][hidden] {
   display: none;
 }
 
-/* Edit in place: one list of rows. Viewing shows who holds each right; editing swaps that value for a segmented
-   control on the same row, and shows the save bar under the list. */
-.set-roles-form {
+.set-form > .set-savebar,
+.set-form > .rq-done {
+  margin-top: var(--space-4);
+}
+
+.set-row.set-form > .set-savebar,
+.set-row.set-form > .rq-done {
+  margin-top: var(--space-2);
+}
+
+.set-savebar {
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-2);
 }
 
-.set-roles-form .set-rows-plain > li {
-  align-items: center;
-}
-
-.set-roles-form .set-role-value {
-  display: flex;
-  flex: 0 1 auto;
-  justify-content: flex-end;
-  min-width: 0;
-}
-
-.set-roles-form[data-editing="false"] [data-edit],
-.set-roles-form[data-editing="true"] [data-view] {
-  display: none;
-}
-
-.set-roles-form .set-muted {
+.set-savebar .set-muted {
   margin: 0;
 }
 
-@media (max-width: 640px) {
-  .set-roles-form .set-role-value {
-    flex-basis: 100%;
-    justify-content: flex-start;
-  }
-
-  .set-role-value [data-segmented-control] {
-    width: 100%;
-  }
+/* Review rules: the table of what each change needs, then the owner override fold. */
+.set-change-rules {
+  display: grid;
+  gap: var(--space-2);
 }
 
-/* Protection: one more row under Roles, same row component. The action sits on the row it acts on; the row steps
-   aside while Roles is being edited. */
-.set-protection {
-  margin-top: 0;
-}
-
-.set-protection > li {
+/* Figma and Claude: the one command and its copy action on the same line. */
+.set-cmd {
+  display: flex;
   align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  margin-top: var(--space-2);
 }
 
-/* On a phone the lone action fills its bar. */
-@media (max-width: 640px) {
-  .set-protection [data-protect-action] {
-    width: 100%;
-  }
+.set-cmd-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  overflow-x: auto;
+  border-radius: var(--radius-control);
+  background-color: var(--color-bg-subtle);
+  font-family: var(--font-family-mono);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+  overflow-wrap: anywhere;
 }
 
-.set-roles-form[data-editing="true"] ~ * .set-protection {
-  display: none;
+/* Integrations: the Jira setup fold closes the card. */
+.set-jira-setup {
+  margin-top: var(--space-4);
+  border-top: var(--border-width-default) solid var(--color-border-default);
+  border-bottom: 0;
 }
 
+.set-jira-setup > summary {
+  cursor: pointer;
+}
+
+.set-jira-setup .rq-form {
+  margin: var(--space-2) 0 0;
+}
+
+.set-int-group {
+  margin: var(--space-2) 0 0;
+  font-size: var(--typography-ui-size);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* Protection dialog. */
 .set-protect-list {
   display: grid;
   gap: var(--space-2);
@@ -238,7 +321,11 @@
   font-size: var(--typography-ui-size);
 }
 
-/* Repository: one sentence and the way to GitHub, then Source at rest and two collapsed groups. */
+/* For developers: one collapsed section at the bottom, its groups as flat headings inside. */
+.set-dev-block {
+  border-top: var(--border-width-default) solid var(--color-border-default);
+}
+
 .set-lead {
   display: flex;
   flex-wrap: wrap;
@@ -291,13 +378,25 @@
   font-size: var(--typography-ui-size);
 }
 
+.set-dl-after {
+  margin-top: var(--space-4);
+}
+
 .set-default {
   color: var(--color-text-muted);
   font-family: var(--font-family-sans);
 }
 
+.set-checklist {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-2) 0 var(--space-4);
+  padding-left: var(--space-5);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
 .set-more {
-  margin-top: var(--space-2);
   border-bottom: var(--border-width-default) solid var(--color-border-default);
 }
 
@@ -305,6 +404,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-1-5);
+  min-height: var(--size-11);
   margin: 0;
   padding: var(--space-3) 0;
   font-size: var(--typography-ui-size);
@@ -316,6 +416,12 @@
   display: none;
 }
 
+.set-more > summary:focus-visible {
+  border-radius: var(--radius-control);
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
 .set-more-title {
   font-weight: var(--font-weight-semibold);
 }
@@ -323,7 +429,6 @@
 .set-more-n {
   color: var(--color-text-muted);
   font-weight: var(--font-weight-regular);
-  font-variant-numeric: tabular-nums;
 }
 
 .set-chev {
@@ -340,19 +445,25 @@
   transform: rotate(45deg);
 }
 
-.set-more[open] > summary {
-  margin-bottom: 0;
-}
-
-.set-more > .set-dl {
-  margin-bottom: var(--space-3);
-}
-
 .set-more > .set-muted {
   margin-bottom: var(--space-4);
 }
 
-/* Approvals: header cells in the ui role, so the screen keeps four sizes. */
+.set-dev > summary {
+  flex-wrap: wrap;
+  cursor: pointer;
+}
+
+.set-dev[open] {
+  padding-bottom: var(--space-6);
+}
+
+.set-dev > .set-group:first-of-type {
+  margin-top: var(--space-2);
+}
+
+/* Approvals by risk tier (For developers): header cells in the ui role; the tier is a grey label that opens Changes
+   at that tier. */
 .set-table th {
   font-size: var(--typography-ui-size);
 }
@@ -361,7 +472,6 @@
   padding-block: var(--space-2);
 }
 
-/* Approvals: the tier is a grey label that opens Changes at that tier. */
 .pill.set-tier {
   color: var(--color-text-default);
   text-decoration: none;
@@ -379,82 +489,39 @@
   outline-offset: var(--focus-ring-offset);
 }
 
+/* Phones: rows stack (label, value, action), a lone action fills its bar, the drawing steps aside. */
 @media (max-width: 640px) {
-  .set-open {
-    padding: var(--space-5);
+  .set-band {
+    padding-block: var(--space-8);
   }
 
-  .set-dl > div {
+  .set-row {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  /* Phones: tier and approvals only; the example is one tap away in How review works. */
-  .set-table th:nth-child(3),
-  .set-table td:nth-child(3) {
+  .set-row-span {
+    grid-column: auto;
+  }
+
+  .set-row-action {
+    justify-content: flex-start;
+  }
+
+  .set-row-action [data-protect-action],
+  .set-row-action [data-visual-edit],
+  .set-account-action,
+  .set-row-value [data-segmented-control] {
+    width: 100%;
+  }
+
+  .set-account-zone {
+    padding: var(--space-5);
+  }
+
+  .set-account-art {
     display: none;
   }
-}
 
-/* Approvals: one plain rule per kind of change, what on the left, who approves on the right (same row as Roles). */
-.set-rules > li {
-  align-items: center;
-}
-
-.set-rules .set-row-title {
-  flex: 1 1 auto;
-}
-
-.set-rule-who {
-  margin: 0;
-}
-
-/* Connect your Claude: the one command and its copy action on the same line. */
-.set-rows-plain > li > .set-cmd {
-  display: flex;
-  flex: 0 0 100%;
-  align-items: center;
-  gap: var(--space-3);
-  min-width: 0;
-}
-
-.set-cmd-text {
-  flex: 1 1 auto;
-  min-width: 0;
-  padding: var(--space-2) var(--space-3);
-  overflow-x: auto;
-  border-radius: var(--radius-control);
-  background-color: var(--color-bg-subtle);
-  font-family: var(--font-family-mono);
-  font-size: var(--typography-ui-size);
-  line-height: var(--typography-ui-line-height);
-  overflow-wrap: anywhere;
-}
-
-/* For developers: one collapsed section at the bottom, its groups as flat headings inside. */
-.set-dev > summary {
-  flex-wrap: wrap;
-  cursor: pointer;
-}
-
-.set-dev > summary:focus-visible {
-  outline: var(--focus-ring-width) solid var(--focus-ring-color);
-  outline-offset: var(--focus-ring-offset);
-  border-radius: var(--radius-control);
-}
-
-.set-dev[open] {
-  padding-bottom: var(--space-6);
-}
-
-.set-dev > .set-group:first-of-type {
-  margin-top: var(--space-2);
-}
-
-.set-dl-after {
-  margin-top: var(--space-4);
-}
-
-@media (max-width: 640px) {
   .set-cmd {
     flex-wrap: wrap;
   }
@@ -466,13 +533,14 @@
   .set-cmd [data-copy-from] {
     width: 100%;
   }
-}
 
-@media (max-width: 640px) {
-  /* Phones: each rule reads as two lines, kind then who approves. */
-  .set-rules > li {
-    display: grid;
-    gap: var(--space-0-5);
+  .set-dl > div {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .set-table th:nth-child(3),
+  .set-table td:nth-child(3) {
+    display: none;
   }
 
   .set-dev > summary .set-more-n {
