@@ -1,5 +1,145 @@
 # @bridge-ds/figma-plugin
 
+## 0.3.0
+
+### Minor Changes
+
+- 80228c0: Claude titles each component request. Change lines in a draft session carry the deterministic request title
+  (`DraftLine.title`), and results may answer `lines: [{ id, line, title }]` (`DraftResultLine`; the title is cleaned to
+  the title contract by `sanitizeDraftTitle`: one line, sentence case, at most 70 characters, no trailing period, no em
+  dash). Older sessions and answers without titles still work. `bridge_pending_drafts` and `bridge_write_drafts` ask for
+  the title, the plugin's API-key path asks for and parses it too, and Push uses it for that component's request instead
+  of the generic deterministic title ("Add an icon after the label" rather than "Update the look to match Figma").
+- f867733: Push to an exploration, and a calmer Push screen. The destination is the main decision at the top of the Changes: a
+  segmented control "Send for review" | "Try in an exploration". An exploration is picked among the running ones (or
+  started with a name and a purpose); its variable edits become one commit on `explore/<slug>` (no new pull request to
+  main, earlier exploration commits kept) and component changes become requests labeled `exploration`. Items marked
+  "Exploration only" (the experimental mark, renamed in the row menu with a line that says what it does) start checked
+  for an exploration and unchecked for review. The result screen shows the exploration's previews and the snapshot
+  install command. The bar's primary action follows the choice ("Send for review" / "Send to exploration") and steps
+  aside while a request form is open. Component rows read once: the sentence, then value chips for concrete changes
+  only (the Details table is gone). "Description" becomes "Message to the team", its own section. The Requests section
+  is replaced by one quiet line at the bottom, also on the idle screen: "Something the scan cannot see? Request a
+  component change".
+- 537abd7: Push names structure changes. Each variant keeps a layer outline, so a layer added, removed or moved becomes a
+  "Structure change" request (new request kind `structure`) with a line like `New instance layer "Icon" (Icon/Pencil)
+after "Label" in primary sm` and the title "Add a layer after Label", instead of a vague visual change. Renames,
+  wrappers and hidden layers bound to nothing still send nothing. When an optional part already draws the added layer
+  (an icon after the label while "Icon end" exists), the row says "Icon end already does this: show it with the Icon end
+  property" and the item starts unchecked; "Keep it as a request" sends it anyway.
+- fb40ae8: Claude writes each change line. Draft sessions carry one change line per component change (`DraftItem.lines`, images labeled by line), results may answer `lines: [{ id, line }]` (one sentence, at most 120 characters, no em dash, unknown ids refused; results without lines still work), and `draftChangeLine` gives the deterministic default ("Looks different in Size=sm, State=Default, Variant=primary; no variable explains it"). Requests carry the line (`ComponentChangeRequest.line`, "**What changes:**" in the issue, the brief and Jira). `bridge_pending_drafts` and `bridge_write_drafts` describe and accept lines; the plugin's API-key path asks for and parses them too.
+
+  Push hierarchy in the Figma plugin: "Draft with Claude" is a ghost action on the Description (and request Title) label line, one "Drafted by Claude" status line under the field, each component change row reads name and kind, then one sentence, with the table behind "Details" in one font size, no group checkbox for a single item, the bar alone sums up what is sent ("1 request"), and a shorter Components intro.
+
+### Patch Changes
+
+- adc0df7: Docs drafted with Claude in place, at three levels: the whole page (fill, or rewrite every section), one section, or a
+  selected passage (clearer, shorter, or in the Bridge voice). Fill drafts the empty sections and never rewrites written
+  ones: when the code is newer than docs.json, written sections are sent as checks, and Claude returns one only when
+  something in it is no longer true for the code (the writer's wording kept elsewhere). Results say which checked
+  sections are still accurate (`checked`) and which were updated (in `sections`). Same rule for MCP docs items
+  (`DocsDraftTask.check`, `DraftResult.checked`).
+
+  Core: new `docs-ai.ts` with the task model (`DocsDraftTask`, `validateDocsTask`), the prompts (`docsTaskPrompt`,
+  `docsSelectionPrompt`; `docsPrompt` takes `{ keys, rewrite, outdated }` to ask for only some sections), the answer
+  parsing and sanitizing to the docs.json shapes with em dashes removed (`parseDocsReply`, `sanitizeDocsSections`,
+  `parseDocsTaskAnswer`, `sanitizeDocsReplacement`), the merges (`applyDocsSections`, and `mergeDocsDraft` for the
+  docs-draft Action) and the Messages API request (`anthropicRequest`, `anthropicReplyText`). docs.json gains
+  `draftedSections` (the prose sections a partial draft wrote, between `draftedBy` and `needsReview` in
+  `formatDocsJson`); `markClaudeDraft(d, sections)` adds to it, `acceptDocsDraft` clears it, `sectionsNeedingReview`
+  reads it. The draft exchange takes `docs` items (scope `"docs"`, source `"studio"`) whose results carry `docs` (the
+  sections) or `replacement`; `createDocsDraftSession`, `ensureRequestsBranch` and `DraftPoller` move to core.
+
+  MCP: `bridge_pending_drafts` and `bridge_write_drafts` explain docs items and accept `docs` or `replacement` results
+  (title and summary are optional now, still required in practice for change items).
+
+  Docs site: `src/scripts/docs-ai.ts` (`draftDocs`, `draftAvailability`, `outdatedSections`, `saveApiKey`,
+  `applyDraft`) drafts with the designer's own API key (browser call, key kept in this browser only) or their own
+  Claude through the exchange, from `/docs-ai/<slug>.json` (the facts from the code and the repo conventions, built
+  with the site). The docs-draft Action now runs the same core code.
+
+- d5bbba9: Exploration install commands that work. On exploration #64 the plugin showed a pkg.pr.new command that returned 404
+  (the pkg.pr.new app is not installed); the working one was the prerelease tarball command in the pull request's
+  `<!-- bridge-branch-preview -->` comment. Core reads that comment back: `installCommandFromPreviewComment(body)`,
+  `readPreviewComment`, `findPreviewComment`, `explorationTryIt` (ready only when the comment's snapshot matches the
+  branch head, "building" before, "failed" when the publish failed), `explorationTryItOnGitHub`,
+  `explorationShareMessage` and `GitHubClient.listIssueComments`. The draft pull request body no longer guesses a
+  command: it points to the comment.
+
+  DS Bridge plugin: the "Sent to <exploration>" screen is for designers. "Try it" lists the previews with the product
+  first (the admin demo, by its name in bridge.config.json), then Library and Workbench, one row each with "Open" on the
+  same line. "Test build for your product" says whether the build is ready or being prepared (with "Check again"), and
+  has one action, "Share with a developer", which copies a ready message with the working command, the previews and the
+  pull request. The command itself stays under "Show the command". The bar's primary is "Open in the product" when that
+  preview exists, otherwise "Open on GitHub". The Push form drops the "Commit title" disclosure for explorations (the
+  title is still generated) and says "Owners review it only if the exploration is promoted."; other Push and Pull
+  sentences say "the design system" instead of "main" and drop "commit".
+
+  Studio explorations: the detail reads the install command from the preview comment (or says the test build is being
+  prepared); the list no longer shows a guessed pkg.pr.new command.
+
+- 9574d19: The MCP server is on npm: setup is `npx -y @bridge-ds/mcp` (plugin, docs, Agents page). The server reports its real package version.
+- 196d02b: Real branch preview URLs and install commands everywhere, never guessed ones. On exploration #64
+  (`explore/button-normal-again`) Vercel shortened the admin and Storybook aliases with a hash
+  (`bridge-admin-git-explore-button-norm-0ed5ba-peterbonos-projects.vercel.app`), so the template URLs were wrong.
+
+  Core: `branchPreviewUrls(client, prNumber | sha, config)` reads what Vercel reports, in order: GitHub deployments of the
+  head commit, the Vercel commit statuses (state of each deploy), the Vercel bot comment (`[vc]` header, decoded), and the
+  `previews.apps` template only when its host label fits in 63 characters. Pure parts: `parseVercelComment`,
+  `findVercelComment`, `appForProject` (Vercel project to app by the template host), `resolveBranchPreviews`,
+  `previewLinksOf`, `previewsSettled`. `explorationTestBuildOnGitHub` returns the install command from the preview comment
+  and the real previews in one read. `GitHubClient.listCommitStatuses` and `listDeployments`. The sticky PR comment
+  (`previewComment`) takes the resolved previews and never prints a shortened template URL. Removed: `explorationInstall`
+  and `ExplorationInstall` (guessed pkg.pr.new commands); `StartedExploration.install` becomes `tryIt` and
+  `ExplorationSummary.install` is gone (it gains `headSha`).
+
+  Preview packages workflow: the comment's preview table uses the URLs Vercel reports (deployments, statuses, its comment).
+
+  MCP and CLI: `bridge_list_explorations` / `bridge explore list` return the install command from the preview comment
+  (`install.state` building, ready or failed) and the previews Vercel reports; `bridge explore start` no longer prints a
+  pkg.pr.new command.
+
+  Studio: the pull request detail ("Preview and install") shows the URLs Vercel reports and the command the workflow
+  published, or that the test build is being prepared; the exploration detail fills its previews the same way.
+
+  DS Bridge plugin: the exploration result screen ("Try it") shows the real URLs, checks every 15 seconds for up to 10
+  minutes while it is open (stopping once the command and every preview are ready), updates in place without
+  re-rendering, and keeps "Check again".
+
+- 7cb1733: Say clearly when the GitHub token stopped working (revoked, regenerated or expired), instead of scattered errors.
+
+  Core: `GitHubError` gains `auth` (`'rejected'` for a 401, `'missing-permission'` for a 403 "Resource not accessible
+  by personal access token" or a permission GitHub names in `X-Accepted-GitHub-Permissions`) and `permission`
+  (`issues`, `pull_requests`, `contents`...: from the header, else from the endpoint). Rate limits stay rate limits.
+  New exports: `classifyAuth`, `requiredPermission`, `isTokenRejected`, `isMissingPermission`,
+  `missingPermissionMessage`, `permissionLabel`, `TOKEN_REJECTED_MESSAGE`, `TOKEN_SETTINGS_URL`. A refused token now
+  stops an exploration promotion instead of becoming a warning.
+
+  Studio: one session state. Any 401 marks the saved token as stopped working (it is kept, not deleted): the sidebar
+  account block shows "Your GitHub token stopped working" with Reconnect (the connect dialog, field focused, saving
+  replaces the token), Settings says the same, write actions show that one message, and reads fall back to anonymous.
+  A missing permission is named on the action that needs it ("This token cannot create issues. Add Issues: Read and
+  write on GitHub.") with a link to the token settings. The token is checked once on load when the last check is older
+  than an hour (GET /user, cached with its result).
+
+  DS Bridge plugin: the Settings token row shows "Stopped working" with "Replace token" after a 401; Pull, Push and the
+  other GitHub flows show one callout, "Your GitHub token stopped working. Replace it in Settings.", with a button that
+  goes there. Access is checked once when the plugin starts. A missing permission is named, with the GitHub link.
+
+- Updated dependencies [80228c0]
+- Updated dependencies [adc0df7]
+- Updated dependencies [d5bbba9]
+- Updated dependencies [3d3d77d]
+- Updated dependencies [537abd7]
+- Updated dependencies [fb40ae8]
+- Updated dependencies [196d02b]
+- Updated dependencies [fe29bed]
+- Updated dependencies [dd2261c]
+- Updated dependencies [a6914d7]
+- Updated dependencies [1e78f3b]
+- Updated dependencies [7cb1733]
+  - @bridge-ds/core@0.3.0
+
 ## 0.2.0
 
 ### Minor Changes
