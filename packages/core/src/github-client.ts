@@ -609,6 +609,25 @@ export class GitHubClient {
     return toIssue(await this.request<RawIssue>('GET', `${this.repoPath}/issues/${n}`));
   }
 
+  /** Edits an issue: its body, or closes it with a reason ("not_planned" for a declined request). */
+  async updateIssue(n: number, patch: { body?: string; state?: 'open' | 'closed'; state_reason?: 'completed' | 'not_planned' | 'reopened' }): Promise<IssueSummary> {
+    this.assertToken('Editing an issue');
+    return toIssue(await this.request<RawIssue>('PATCH', `${this.repoPath}/issues/${n}`, patch));
+  }
+
+  /** Adds people to an issue's assignees (GitHub ignores logins that cannot be assigned: the result says who is). */
+  async addAssignees(n: number, logins: string[]): Promise<string[]> {
+    this.assertToken('Assigning an issue');
+    const r = await this.request<{ assignees?: { login: string }[] | null }>('POST', `${this.repoPath}/issues/${n}/assignees`, { assignees: logins });
+    return (r.assignees ?? []).map((a) => a.login);
+  }
+
+  /** People with at least `permission` on the repository (reading the list needs push access). First 100. */
+  async listCollaborators(permission: 'pull' | 'triage' | 'push' | 'maintain' | 'admin' = 'push'): Promise<{ login: string; avatarUrl: string }[]> {
+    const r = await this.request<{ login: string; avatar_url?: string }[]>('GET', `${this.repoPath}/collaborators?permission=${permission}&per_page=100`);
+    return r.map((c) => ({ login: c.login, avatarUrl: c.avatar_url ?? '' }));
+  }
+
   /** Create or update a binary file (base64 content) on a branch, e.g. a Figma export attached to a request. */
   async putBase64File(input: { path: string; base64: string; branch: string; message: string }): Promise<string> {
     this.assertWritableBranch(input.branch);

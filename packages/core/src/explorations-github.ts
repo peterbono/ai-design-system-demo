@@ -33,6 +33,8 @@ export interface ExplorationSettings {
   packages: string[];
   /** Per-branch preview URL templates (bridge.config.json previews.apps). */
   apps: PreviewApps;
+  /** Requests the exploration answers, listed in its draft pull request body. */
+  requests?: { number: number; title: string }[] | undefined;
 }
 
 export interface ExplorationSummary {
@@ -114,7 +116,7 @@ export async function startExplorationOnGitHub(gh: GitHubClient, e: Exploration,
     message: `chore(explore): start ${full.name.trim()}\n\n${full.purpose.trim()}\n\nExploration: never merged as is. Promote it to review or close it.`,
     files: [{ path: explorationNotePath(slug), content: explorationNote(full) }],
   });
-  const ctx = { owner: gh.owner, repo: gh.name, packages: s.packages, apps: s.apps };
+  const ctx = { owner: gh.owner, repo: gh.name, packages: s.packages, apps: s.apps, ...(s.requests?.length ? { requests: s.requests } : {}) };
   const pr = await x.createPullRequest({ title: explorationPrTitle(full), head: branch, base: s.base, body: explorationPrBody(full, ctx), draft: true });
   await x.addLabels(pr.number, [EXPLORATION_LABEL]);
   // The number exists now: the body gets the install command.

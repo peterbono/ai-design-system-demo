@@ -122,6 +122,41 @@ export function parseRequestIssue(body: string | null | undefined): ComponentCha
 }
 
 /**
+ * The issue body with the request linked to an exploration branch: the hidden block gets `exploration` (what the
+ * Explorations view, the MCP server and the CLI read) and the readable part says where to implement it. The rest of the
+ * body stays as people wrote it. Undefined when the body has no Bridge block (nothing to link).
+ */
+export function withRequestExploration(body: string | null | undefined, branch: string): string | undefined {
+  const r = parseRequestIssue(body);
+  if (!r || !body) return undefined;
+  const block = new RegExp(`<!-- ${MARK} \\{[\\s\\S]*?\\} -->`);
+  let out = body.replace(block, () => `<!-- ${MARK} ${JSON.stringify({ ...r, exploration: branch })} -->`);
+  const line = `**Exploration:** \`${branch}\`. Implement it on that branch, not in a pull request to main: it ships to product staging as a snapshot and is promoted to review only when the idea is validated.`;
+  if (/^\*\*Exploration:\*\* .*$/m.test(out)) out = out.replace(/^\*\*Exploration:\*\* .*$/m, () => line);
+  else if (out.includes('\n## How to implement')) out = out.replace('\n## How to implement', () => `\n${line}\n\n## How to implement`);
+  else out = out.replace(block, (m) => `${line}\n\n${m}`);
+  return out;
+}
+
+/** Problems with a decline reason, as sentences that say how to fix them. */
+export function declineReasonProblems(reason: string): string[] {
+  const r = reason.trim();
+  if (!r) return ['Say why, in one or two sentences: the requester reads it.'];
+  if (r.length < 10) return ['Say a bit more, so the requester knows why: at least 10 characters.'];
+  return [];
+}
+
+/** The comment posted on a declined request: who declined it and why, in the decliner's words. */
+export function declineComment(reason: string, by?: string | null): string {
+  const quote = reason
+    .trim()
+    .split('\n')
+    .map((l) => `> ${l}`.trimEnd())
+    .join('\n');
+  return [`Declined${by ? ` by @${by.replace(/^@/, '')}` : ''} in Bridge Studio.`, '', quote, '', '<sub>Closed as not planned. Reopen the issue if things change.</sub>'].join('\n');
+}
+
+/**
  * Where a request stands: open with no linked pull request = requested; open with an open linked pull request =
  * in progress; closed as completed or by a merged pull request = done; closed otherwise = declined.
  */
