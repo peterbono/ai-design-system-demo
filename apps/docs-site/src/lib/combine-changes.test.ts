@@ -87,12 +87,12 @@ describe('the combination', () => {
     const conflicts = combineConflicts([A, B, C]);
     expect(conflicts.map((c) => c.path)).toEqual(['color.bg.default']);
     const unpicked = combineChanges(latest, [A, B, C]);
-    expect(combineSummary({ changes: 3, edits: unpicked.edits, conflicts: unpicked.conflicts.length, missing: unpicked.missing.length })).toBe(
-      'Combines 3 token edits from 3 changes. 1 token has different values in these changes: pick which one to use.',
+    expect(combineSummary({ changes: 3, tokens: unpicked.tokens, conflicts: unpicked.conflicts.length, missing: unpicked.missing.length })).toBe(
+      'Combines 3 tokens from 3 changes. 1 token has different values in these changes: pick which one to use.',
     );
     const picked = combineChanges(latest, [A, B, C], { [conflicts[0]!.key]: 118 });
-    expect(combineSummary({ changes: 3, edits: picked.edits, conflicts: picked.conflicts.length, missing: picked.missing.length })).toBe(
-      'Combines 3 token edits from 3 changes. You picked the value of 1 token they set differently.',
+    expect(combineSummary({ changes: 3, tokens: picked.tokens, conflicts: picked.conflicts.length, missing: picked.missing.length })).toBe(
+      'Combines 3 tokens from 3 changes. You picked the value of 1 token they set differently.',
     );
     expect(picked.files[LIGHT]).toContain('{palette.neutral.100}');
     expect(picked.files[LIGHT]).toContain('{palette.primary.800}');
@@ -123,7 +123,7 @@ describe('the combination', () => {
     expect(rows[0]!.context).toBe('Light');
     expect(rows[0]!.options.map((o) => [o.change, o.label, o.value?.alias])).toEqual([
       [101, "Use Darker default background's", 'palette.neutral.50'],
-      [118, "Use Grey canvas and stronger…'s", 'palette.neutral.100'],
+      [118, "Use Grey canvas and stronger borders for…'s", 'palette.neutral.100'],
     ]);
     expect(rows[0]!.options[0]!.value?.hex).toMatch(/^#[0-9a-f]{6}$/);
   });
@@ -144,7 +144,7 @@ describe('where it opens', () => {
   });
 
   it('never uses developer words or em dashes on screen', () => {
-    const shown = [CODE_LINE, selectionLine(0, false), selectionLine(4, true), combineSummary({ changes: 2, edits: 3, conflicts: 1, missing: 1 }), tryLabel(2), VIEW_LABEL].join(' ');
-    expect(shown).not.toMatch(/\b(branch|pull request|PR|commit|merge|SHA|CI|workflow)\b|—/i);
+    const shown = [CODE_LINE, selectionLine(0, false), selectionLine(4, true), combineSummary({ changes: 2, tokens: 3, conflicts: 1, missing: 1 }), tryLabel(2), VIEW_LABEL].join(' ');
+    expect(shown).not.toMatch(/\b(branch|pull request|PR|commit|merge|SHA|CI|workflow)\b|\u2014/i);
   });
 });

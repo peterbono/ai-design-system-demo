@@ -92,7 +92,7 @@ describe('combineChanges', () => {
     const key = `${LIGHT}#path:color.canvas`;
     const c = combineChanges(latest, [A, B, C], { [key]: 118 });
     expect(c.missing).toEqual([]);
-    expect(c.edits).toBe(3);
+    expect([c.edits, c.tokens]).toEqual([3, 3]);
     expect(hexes(c.files[LIGHT])).toEqual({ 'color.text': '#111111', 'color.canvas': '#e0e0e0', 'color.link': '#0b4a8b', 'color.border': '#cccccc' });
     expect(c.from).toEqual({ 'color.canvas': [118], 'color.border': [118], 'color.link': [120] });
     // Files no change touches stay byte for byte.

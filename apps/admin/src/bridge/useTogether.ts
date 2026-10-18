@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEdits } from '@bridge-ds/core';
 import { loadTogetherChange, type TogetherFacts } from './github';
-import { toggleIncluded, type BridgeBuild } from './session';
+import { toggleIncluded, type BridgeBuild, type NoDifference } from './session';
 import type { TogetherBase, TogetherPair, TogetherResult } from './together';
 
 type Mod = typeof import('./latest');
@@ -18,7 +18,11 @@ export interface Together {
   included: number[];
   toggle: (n: number, on: boolean) => void;
   result: TogetherResult | null;
+  /** Tokens each change edits (by path), whether or not its value is the one applied. */
+  editedBy: Map<number, number>;
   pairs: TogetherPair[];
+  /** Nothing differs where the page is, but it does in another theme (or brand): say so, never a silent "After". */
+  noDiff: NoDifference | null;
   /** The stylesheet with the combination, once in the page; its media switches sides. */
   sheet: HTMLStyleElement | null;
 }
@@ -76,6 +80,13 @@ export function useTogether(build: BridgeBuild, changes: number[] | null, use: s
   const { theme, brand, density } = here;
   const pairs = useMemo(() => (mod && result ? mod.m.togetherPairs(mod.base, result, { theme, brand, density }) : []), [mod, result, theme, brand, density]);
   const sheet = useSheet(key ? (result?.css ?? null) : null, applied);
+  const noDiff = useMemo<NoDifference | null>(() => {
+    if (!mod || !result || !result.tokens.length || pairs.length) return null;
+    const other = mod.base.modes.themes.find((t) => t !== theme && mod.m.togetherPairs(mod.base, result, { theme: t, brand, density }).length);
+    if (other) return { kind: 'theme', here: theme, touched: other };
+    const brandElse = mod.base.modes.brands.find((b) => b !== brand && mod.m.togetherPairs(mod.base, result, { theme, brand: b, density }).length);
+    return brandElse ? { kind: 'brand', here: brand, touched: brandElse } : null;
+  }, [mod, result, pairs.length, theme, brand, density]);
 
   if (!key) return null;
   return {
@@ -84,7 +95,9 @@ export function useTogether(build: BridgeBuild, changes: number[] | null, use: s
     included,
     toggle: (n, on) => setIncluded((cur) => toggleIncluded(list?.map((f) => f.number) ?? [], cur, n, on)),
     result,
+    editedBy: new Map(edits.map((e) => [e.number, new Set(e.edits.map((x) => x.path)).size])),
     pairs,
+    noDiff,
     sheet,
   };
 }

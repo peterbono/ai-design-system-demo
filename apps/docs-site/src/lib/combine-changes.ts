@@ -24,6 +24,8 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
 
 /** Said on the row of a change that edits more than tokens. */
 export const CODE_LINE = "This one changes code, so it can't be combined here.";
+/** The way on for a refused change, linked to its page (where "Try it in the product" is). */
+export const ALONE_LABEL = 'Try it on its own';
 
 /**
  * Whether a change only edits tokens: token files under the tokens root, the contrast gate and release notes
@@ -82,9 +84,9 @@ export function namesOf(changes: TogetherChange[]): string {
   return `${names.slice(0, 2).join(', ')} and ${plural(names.length - 2, 'other')}`;
 }
 
-/** "Combines 5 token edits from 3 changes." What the combination does, from its own numbers. */
-export function combineSummary(x: { changes: number; edits: number; conflicts: number; missing: number }): string {
-  const base = `Combines ${plural(x.edits, 'token edit')} from ${plural(x.changes, 'change')}.`;
+/** "Combines 3 tokens from 3 changes." What the combination does, from its own numbers (tokens by name). */
+export function combineSummary(x: { changes: number; tokens: number; conflicts: number; missing: number }): string {
+  const base = `Combines ${plural(x.tokens, 'token')} from ${plural(x.changes, 'change')}.`;
   if (!x.conflicts) return base;
   if (x.missing) return `${base} ${x.missing === 1 ? '1 token has' : `${x.missing} tokens have`} different values in these changes: pick which one to use.`;
   return `${base} You picked the value of ${plural(x.conflicts, 'token')} they set differently.`;
@@ -134,7 +136,7 @@ export function shortTitle(title: string, max = 32): string {
 }
 
 /** The radio label of one change's value. */
-export const useLabel = (title: string) => `Use ${shortTitle(title)}'s`;
+export const useLabel = (title: string) => `Use ${shortTitle(title, 40)}'s`;
 
 /**
  * The rows the designer picks in. Each option's value is resolved in the latest library with only that edit applied

@@ -260,6 +260,8 @@ export interface ScopeLibrary {
   extra: Record<string, string> | null;
   /** Changes shown together: token path -> the changes whose value it takes. Null for one change. */
   from: Record<string, number[]> | null;
+  /** Changes shown together that set a token differently: the address's picks decided. */
+  picked: boolean;
 }
 
 /**
@@ -271,9 +273,9 @@ export async function scopeLibrary(main: Record<string, string>, root: string, e
   const scope = pageScope();
   if (!isTogether(scope)) {
     const pull = currentPull();
-    if (!pull) return { files: main, extra: null, from: null };
+    if (!pull) return { files: main, extra: null, from: null, picked: false };
     const lib = await changeLibrary(await pull, main, root, extraRoots);
-    return { files: lib.files, extra: lib.extra, from: null };
+    return { files: lib.files, extra: lib.extra, from: null, picked: false };
   }
   const pulls = (await currentPulls())!;
   const sources = await Promise.all(pulls.map((p) => readTogetherSource(p, root)));
@@ -285,7 +287,7 @@ export async function scopeLibrary(main: Record<string, string>, root: string, e
     const n = combo.missing.length;
     throw new TogetherError(`${n === 1 ? '1 token has' : `${n} tokens have`} different values in these changes. Pick which one to use in Changes, then view them again.`);
   }
-  return { files: combo.files, extra: null, from: combo.from };
+  return { files: combo.files, extra: null, from: combo.from, picked: combo.conflicts.length > 0 };
 }
 
 /** A combination that cannot be shown as asked: its message is the banner's text. */

@@ -33,6 +33,7 @@ import {
   studioChangeUrl,
   studioChangesUrl,
   fromText,
+  TOGETHER_EMPTY_LINE,
   TOGETHER_HINT,
   togetherLabel,
   contrastRatio,
@@ -300,7 +301,8 @@ function Toolbar({ build, change, onProduction, returnTo, together: tg }: { buil
   const live = useLiveSheet(liveUrl, outlines && canOutline, side === 'before' && facts?.mode === 'tokens');
   const onePairs = usePairs(tg ? null : facts, liveUrl, tenant.brand, side === 'before');
   const pairs: Pair[] = tg ? (T?.pairs ?? []) : onePairs;
-  const noDiff = facts?.mode === 'tokens' ? noVisibleDifference(facts.files, { theme, brand: tenant.brand }) : null;
+  // Changes tried together: measured on the combination's own values where the page is.
+  const noDiff = tg ? (T?.noDiff ?? null) : facts?.mode === 'tokens' ? noVisibleDifference(facts.files, { theme, brand: tenant.brand }) : null;
   // Outlines run only where the change can show: muted in dark for a light-only change.
   const outlinesOn = outlines && canOutline && !noDiff;
   const diff = useChangedElements(
@@ -501,7 +503,7 @@ function Toolbar({ build, change, onProduction, returnTo, together: tg }: { buil
 
   const note = shownIn ? (
     <p className={styles.note} role="status">
-      Shown in {shownIn}. This change only affects {shownIn}.
+      Shown in {shownIn}. {tg ? 'These changes only affect' : 'This change only affects'} {shownIn}.
     </p>
   ) : noDiff ? (
     <p className={styles.note} role="status">
@@ -516,7 +518,7 @@ function Toolbar({ build, change, onProduction, returnTo, together: tg }: { buil
     </p>
   ) : shownCount === 0 ? (
     <p className={styles.note} role="status">
-      {diff?.surfaces.length ? outOfView(diff.surfaces.length) : EMPTY_LINE}
+      {diff?.surfaces.length ? outOfView(diff.surfaces.length) : tg ? TOGETHER_EMPTY_LINE : EMPTY_LINE}
     </p>
   ) : null;
 
@@ -680,13 +682,17 @@ function Toolbar({ build, change, onProduction, returnTo, together: tg }: { buil
                       <p className={styles.note}>{TOGETHER_HINT}</p>
                       <ul className={styles.list}>
                         {T.list.map((f) => {
-                          const n = T.result?.tokens.filter((t) => t.from.includes(f.number)).length ?? 0;
                           const can = f.mode === 'tokens' && Boolean(f.source);
+                          const on = T.included.includes(f.number);
+                          // Its tokens, and how many take another change's value here (a pick in Studio).
+                          const total = T.editedBy.get(f.number) ?? 0;
+                          const taken = total - (T.result?.tokens.filter((t) => t.from.includes(f.number)).length ?? 0);
+                          const what = `#${f.number}, ${total} ${total === 1 ? 'token' : 'tokens'}${on && taken > 0 ? `, ${taken} set by another change here` : ''}${on ? '' : ', switched off'}`;
                           return (
                             <li key={f.number} className={styles.item}>
                               <Checkbox
                                 label={f.title}
-                                description={can ? `#${f.number}, ${T.included.includes(f.number) ? `${n} ${n === 1 ? 'token' : 'tokens'} applied` : 'switched off'}` : `#${f.number}. Changes code, so it can't be applied here.`}
+                                description={can ? what : `#${f.number}. It changes code, so it can't be applied here.`}
                                 checked={T.included.includes(f.number)}
                                 disabled={!can}
                                 onCheckedChange={(on) => T.toggle(f.number, on)}

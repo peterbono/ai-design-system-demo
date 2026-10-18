@@ -9,9 +9,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { createRoot } from 'react-dom/client';
-import { Alert, Button, Checkbox, Radio, RadioGroup, VisuallyHidden } from '@bridge-ds/react';
+import { Alert, Button, Checkbox, Link, Radio, RadioGroup, VisuallyHidden } from '@bridge-ds/react';
 import { combineChanges, encodePicks, type CombinePicks } from '@bridge-ds/core';
 import {
+  ALONE_LABEL,
   CODE_LINE,
   combineSummary,
   keepListed,
@@ -29,7 +30,6 @@ import {
 import { reviewTokenChange } from '../../../lib/token-review';
 import { viewTitle, viewTogetherHref } from '../../../lib/view-scope';
 import { readLatestLibrary, readTogetherSource, type LatestLibrary, type TogetherSource } from '../../../scripts/combine-read';
-import { Value } from './LibraryCatchUp';
 
 interface Slot {
   number: number;
@@ -130,12 +130,23 @@ export function CombineChanges({ admin, failure }: CombineChangesProps) {
     if (on) setCode((c) => (c.has(n) ? new Set([...c].filter((x) => x !== n)) : c));
   };
 
-  const line = error ?? (combo ? combineSummary({ changes: selected.length, edits: combo.c.edits, conflicts: combo.c.conflicts.length, missing: combo.c.missing.length }) : selected.length >= MIN_TOGETHER ? `Reading ${selected.length} changes.` : selectionLine(selected.length, refused));
+  const line = error ?? (combo ? combineSummary({ changes: selected.length, tokens: combo.c.tokens, conflicts: combo.c.conflicts.length, missing: combo.c.missing.length }) : selected.length >= MIN_TOGETHER ? `Reading ${selected.length} changes.` : selectionLine(selected.length, refused));
   const open = Boolean(combo && !combo.c.missing.length && !combo.c.problems.length);
   // Only the picks of conflicts this selection has travel with it.
   const active: CombinePicks = Object.fromEntries(Object.entries(picks).filter(([k]) => combo?.c.conflicts.some((c) => c.key === k)));
   const use = encodePicks(active);
   const n = selected.length;
+
+  /** One choice: the change in the label; under it a colour chip (wide, so it never reads as a checkbox) and the value. */
+  const optionValue = (v: { alias: string | null; css: string | null; hex: string | null } | null) =>
+    v ? (
+      <span className="cg-opt-val">
+        {v.hex ? <span className="cg-opt-sw" style={{ backgroundColor: v.hex }} aria-hidden="true" /> : null}
+        <span className="mono">{[v.alias ? `{${v.alias}}` : null, v.css].filter(Boolean).join(' ')}</span>
+      </span>
+    ) : (
+      <span className="cg-opt-val">Removes the token</span>
+    );
 
   return (
     <>
@@ -153,11 +164,23 @@ export function CombineChanges({ admin, failure }: CombineChangesProps) {
               />,
               s.box,
             )}
-            {s.note && code.has(s.number) ? createPortal(CODE_LINE, s.note) : null}
+            {s.note && code.has(s.number)
+              ? createPortal(
+                  <>
+                    {CODE_LINE}{' '}
+                    <Link href={`?pr=${s.number}`} data-open-pr={s.number}>
+                      {ALONE_LABEL}
+                    </Link>
+                  </>,
+                  s.note,
+                )
+              : null}
           </span>
         );
       })}
-      <div className="cg-together-bar">
+      {/* One region: the sentence and the actions on one line, then what the sentence asks for (picks), then the
+          guardrail. On a phone the actions come last, under what unlocks them. */}
+      <div className="cg-together-grid" data-actions={n >= MIN_TOGETHER || undefined}>
         <p className={n >= MIN_TOGETHER || error ? 'cg-together-line' : 'cg-together-line is-muted'} aria-live="polite">
           {line}
         </p>
@@ -174,49 +197,49 @@ export function CombineChanges({ admin, failure }: CombineChangesProps) {
             ) : null}
           </div>
         ) : null}
-      </div>
-      {combo && combo.conflictRows.length ? (
-        <ul className="lib-rows cg-together-rows" aria-label="Tokens these changes set differently">
-          {combo.conflictRows.map((r) => (
-            <li className="lib-row" key={r.key}>
-              <div className="lib-token">
-                <span className="lib-name mono">{r.name}</span>
-                {r.context ? <span className="lib-meta">{r.context}</span> : null}
-              </div>
-              <RadioGroup
-                className="lib-choice"
-                label={`Value of ${r.name}${r.context ? ` in ${r.context}` : ''}`}
-                hideLabel
-                orientation="horizontal"
-                value={picks[r.key] ? String(picks[r.key]) : ''}
-                onValueChange={(v) => setPicks((p) => ({ ...p, [r.key]: Number(v) }))}
-              >
-                {r.options.map((o) => (
-                  <Radio key={o.change} value={String(o.change)} label={o.label} description={<Value v={o.value} />} />
+        {combo && combo.conflictRows.length ? (
+          <ul className="lib-rows cg-together-rows" aria-label="Tokens these changes set differently">
+            {combo.conflictRows.map((r) => (
+              <li className="lib-row" key={r.key}>
+                <div className="lib-token">
+                  <span className="lib-name mono">{r.name}</span>
+                  {r.context ? <span className="lib-meta">{r.context} only</span> : null}
+                </div>
+                <RadioGroup
+                  className="lib-choice"
+                  label={`Value of ${r.name}${r.context ? ` in ${r.context}` : ''}`}
+                  hideLabel
+                  orientation="horizontal"
+                  value={picks[r.key] ? String(picks[r.key]) : ''}
+                  onValueChange={(v) => setPicks((p) => ({ ...p, [r.key]: Number(v) }))}
+                >
+                  {r.options.map((o) => (
+                    <Radio key={o.change} value={String(o.change)} label={o.label} description={optionValue(o.value)} />
+                  ))}
+                </RadioGroup>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {combo?.guard ? (
+          <Alert tone={combo.guard.ok ? 'success' : 'warning'} announce="off" className="cg-together-guard" title={combo.guard.sentence}>
+            {combo.guard.failing.length ? (
+              <ul className="lib-fails">
+                {combo.guard.failing.map((f) => (
+                  <li key={`${f.pair}|${f.where}`}>
+                    <span className="mono">{f.pair}</span>, {f.where}: {f.ratio}, needs {f.min}
+                  </li>
                 ))}
-              </RadioGroup>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      {combo?.guard ? (
-        <Alert tone={combo.guard.ok ? 'success' : 'warning'} announce="off" className="cg-together-guard" title={combo.guard.sentence}>
-          {combo.guard.failing.length ? (
-            <ul className="lib-fails">
-              {combo.guard.failing.map((f) => (
-                <li key={`${f.pair}|${f.where}`}>
-                  <span className="mono">{f.pair}</span>, {f.where}: {f.ratio}, needs {f.min}
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </Alert>
-      ) : null}
-      {combo?.c.problems.length ? (
-        <Alert tone="warning" announce="off" className="cg-together-guard" title="These changes cannot be combined here">
-          {combo.c.problems[0]}. Open each change to see its files.
-        </Alert>
-      ) : null}
+              </ul>
+            ) : null}
+          </Alert>
+        ) : null}
+        {combo?.c.problems.length ? (
+          <Alert tone="warning" announce="off" className="cg-together-guard" title="These changes cannot be combined here">
+            {combo.c.problems[0]}. Open each change to see its files.
+          </Alert>
+        ) : null}
+      </div>
     </>
   );
 }

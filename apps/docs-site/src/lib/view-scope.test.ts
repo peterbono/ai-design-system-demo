@@ -295,7 +295,7 @@ describe('several changes together in the address', () => {
   it('builds the address of a combination and names it', () => {
     expect(viewTogetherHref([101, 118], '118:a#b')).toBe('/studio/tokens/?change=101,118&use=118%3Aa%23b');
     expect(viewTogetherHref([101, 118], '')).toBe('/studio/tokens/?change=101,118');
-    expect(togetherTitle(['Darker canvas', 'Rounder buttons', 'Deeper links'])).toBe('Viewing the library with Darker canvas, Rounder buttons and 1 other. Nothing is saved.');
+    expect(togetherTitle(['Darker canvas', 'Rounder buttons', 'Deeper links'])).toBe('Viewing the library with Darker canvas, Rounder buttons and Deeper links. Nothing is saved.');
     expect(togetherOption([101, 118], ['Darker canvas', 'Rounder buttons'])).toEqual({ value: 'together-101-118', label: '2 changes together', description: 'Darker canvas and Rounder buttons', group: 'Open changes' });
     expect(fromLabel('changed', [118])).toBe('Changed in #118');
     expect(fromLabel('added', [101, 118])).toBe('New in #101 and #118');

@@ -100,8 +100,10 @@ export interface Combination {
   files: Record<string, string>;
   /** The changes combined, in order. */
   included: number[];
-  /** Tokens the combination edits (one per token and file). */
+  /** Token values the combination edits (one per token and file: a token edited in light and dark counts twice). */
   edits: number;
+  /** Tokens the combination edits, by name. */
+  tokens: number;
   conflicts: CombineConflict[];
   /** Conflicts without a pick that counts: left at the library's value ('skip') or given the first change's ('first'). */
   missing: CombineConflict[];
@@ -200,7 +202,8 @@ export function combineChanges(latest: Record<string, string>, changes: ChangeEd
     if (latest[file] === undefined && flattenTokens(doc).length === 0) continue;
     files[file] = serializeTokenFile(doc);
   }
-  return { files, included: on.map((c) => c.number), edits: groups.size, conflicts, missing, from, problems };
+  const tokens = new Set([...groups.values()].map((e) => e[0]!.path)).size;
+  return { files, included: on.map((c) => c.number), edits: groups.size, tokens, conflicts, missing, from, problems };
 }
 
 // ---------------------------------------------------------------------------------------------------------------

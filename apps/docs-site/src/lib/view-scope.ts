@@ -374,10 +374,10 @@ export function pageOf(path: string): ViewPage | null {
 /** The banner's title: the one sentence of the mode, the same on every page. */
 export const bannerTitle = (title: string) => `Viewing the library as ${title}. Nothing is saved.`;
 
-/** "A and B", "A, B and 1 other". */
-const names = (titles: string[]) => (titles.length <= 2 ? titles.join(' and ') : `${titles.slice(0, 2).join(', ')} and ${plural(titles.length - 2, 'other')}`);
+/** "A and B", "A, B and C": every name (at most 4 changes are shown together). */
+const names = (titles: string[]) => (titles.length <= 2 ? titles.join(' and ') : `${titles.slice(0, -1).join(', ')} and ${titles[titles.length - 1]}`);
 
-/** The banner's title for changes shown together: "Viewing the library with A, B and 1 other. Nothing is saved." */
+/** The banner's title for changes shown together: "Viewing the library with A, B and C. Nothing is saved." */
 export const togetherTitle = (titles: string[]) => `Viewing the library with ${names(titles)}. Nothing is saved.`;
 
 /** The mark of a token changed by changes shown together: which change it comes from ("Changed in #118"). */
@@ -386,13 +386,14 @@ export function fromLabel(kind: 'changed' | 'added', from: number[]): string {
 }
 
 /** What this page shows of the change, in one sentence (null while reading). */
-export function bannerBody(page: ViewPage, x: { changed?: number; added?: number; removed?: number; components?: number; guidance?: string[]; together?: boolean }): string {
+export function bannerBody(page: ViewPage, x: { changed?: number; added?: number; removed?: number; components?: number; guidance?: string[]; together?: boolean; picked?: boolean }): string {
   if (page === 'quality') return '';
   // Changes shown together speak in the plural, and each mark names its change.
   const [its, it] = x.together ? ['their', 'They change'] : ['its', 'It changes'];
   if (page === 'tokens') {
     const parts = [x.changed ? `${plural(x.changed, 'token')} changed` : '', x.added ? `${plural(x.added, 'token')} added` : '', x.removed ? `${plural(x.removed, 'token')} removed` : ''].filter(Boolean);
-    return parts.length ? `${list(parts)}, listed first in the table${x.together ? ', each marked with its change' : ''}.` : `${it} no token values.`;
+    const picked = x.picked ? ' Where two of them set a token differently, the value you picked is used.' : '';
+    return parts.length ? `${list(parts)}, listed first in the table${x.together ? ', each marked with its change' : ''}.${picked}` : `${it} no token values.`;
   }
   const n = x.components ?? 0;
   const g = x.guidance?.length ?? 0;
@@ -406,7 +407,7 @@ export const QUALITY_IN_CHECKS = 'Quality for this change is in its checks';
 export const QUALITY_IN_CHECKS_BODY = 'The contrast gate, token validation and docs checks run on every change. Open the change to see what they found.';
 /** Quality on changes shown together: no numbers exist for a combination here, so none are shown. */
 export const QUALITY_TOGETHER = 'Quality is measured for each change on its own';
-export const QUALITY_TOGETHER_BODY = 'Checks run on every change, not on a combination. Changes runs the contrast checks of these changes together before you open them.';
+export const QUALITY_TOGETHER_BODY = 'Checks run on every change, not on a combination. Before they open together, Changes runs the contrast checks on the combined tokens.';
 
 /** Errors say how to fix. */
 export function readError(kind: 'rate' | 'missing' | 'other', title: string, signIn: string, resetAt?: string | null): string {

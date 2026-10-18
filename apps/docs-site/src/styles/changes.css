@@ -1308,8 +1308,8 @@ details[open] > summary .cg-sec-chev {
   margin: 0;
   padding: 0 var(--space-5) var(--space-3) var(--space-3);
   color: var(--color-text-muted);
-  font-size: var(--typography-caption-size);
-  line-height: var(--typography-caption-line-height);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
 }
 
 .cg-pick-note:empty,
@@ -1321,17 +1321,22 @@ details[open] > summary .cg-sec-chev {
   border-top: var(--border-width-default) solid var(--color-border-default);
 }
 
-.cg-together-bar {
-  display: flex;
-  flex-wrap: wrap;
+/* The sentence and its actions share the first line; the picks and the guardrail span the region under them. */
+.cg-together-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
   gap: var(--space-3) var(--space-4);
   padding: var(--space-3) var(--space-5);
 }
 
+.cg-together-grid:not([data-actions]) .cg-together-line,
+.cg-together-rows,
+.cg-together-guard {
+  grid-column: 1 / -1;
+}
+
 .cg-together-line {
-  flex: 1 1 var(--size-64);
   margin: 0;
   font-size: var(--typography-ui-size);
   line-height: var(--typography-ui-line-height);
@@ -1344,12 +1349,34 @@ details[open] > summary .cg-sec-chev {
 .cg-together-actions {
   display: flex;
   flex-wrap: wrap;
+  justify-content: flex-end;
   gap: var(--space-2);
 }
 
 .cg-together-rows,
 .cg-together-guard {
-  margin: 0 var(--space-5) var(--space-4);
+  margin: 0;
+}
+
+/* A conflict row: the token, then its choices right after it (no empty middle). */
+.cg-together-rows .lib-row {
+  grid-template-columns: minmax(var(--size-40), auto) minmax(0, 1fr);
+}
+
+.cg-opt-val {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-1-5);
+  color: var(--color-text-muted);
+}
+
+.cg-opt-sw {
+  flex: none;
+  width: var(--size-6);
+  height: var(--size-3);
+  border-radius: var(--radius-inset);
+  box-shadow: inset 0 0 0 var(--border-width-default) var(--color-border-emphasis);
 }
 
 /* One primary per view: while changes are checked, trying them is it, so the opener's action steps aside. */
@@ -1363,17 +1390,27 @@ details[open] > summary .cg-sec-chev {
   }
 
   .cg-pick-note,
-  .cg-together-bar {
+  .cg-together-grid {
     padding-inline: var(--space-4);
+  }
+
+  /* On a phone the actions come last, under the picks that unlock them, full width. */
+  .cg-together-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .cg-together-actions {
     flex-direction: column-reverse;
-    width: 100%;
+    order: 3;
   }
 
-  .cg-together-rows,
-  .cg-together-guard {
-    margin-inline: var(--space-4);
+  .cg-together-rows .lib-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* With a checkbox at the start, a phone row has less room: the title wraps instead of shrinking to a few letters. */
+  .cg-row-pick .cg-row-title {
+    flex-wrap: wrap;
+    white-space: normal;
   }
 }

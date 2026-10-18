@@ -1017,7 +1017,7 @@ export function initTokenExplorer() {
       d.marks = marks.marks;
       d.formatBefore = (type, v) => formatValue(type, v);
       const values = [...marks.marks.values()];
-      setBannerBody(bannerBody('tokens', { changed: values.filter((m) => m.kind === 'changed').length, added: values.filter((m) => m.kind === 'added').length, removed: marks.removed.length, together: Boolean(lib.from) }));
+      setBannerBody(bannerBody('tokens', { changed: values.filter((m) => m.kind === 'changed').length, added: values.filter((m) => m.kind === 'added').length, removed: marks.removed.length, together: Boolean(lib.from), picked: lib.picked }));
       root.dataset.view = 'ready';
       render({ keepScroll: true, sync: Boolean(s.selected) });
       if (s.selected && !detail.hidden) openDetail(s.selected);

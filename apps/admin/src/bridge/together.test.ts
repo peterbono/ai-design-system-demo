@@ -103,6 +103,6 @@ describe('lists of changes in the address', () => {
     expect(toggleIncluded([101, 118, 120], [101, 118, 120], 101, false)).toEqual([118, 120]);
     expect(togetherLabel(3)).toBe('These 3 changes');
     expect(togetherLabel(1)).toBe('This change');
-    expect(TOGETHER_HINT).not.toMatch(/—|\b(branch|pull request|merge|commit)\b/i);
+    expect(TOGETHER_HINT).not.toMatch(/\u2014|\b(branch|pull request|merge|commit)\b/i);
   });
 });

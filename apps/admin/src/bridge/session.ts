@@ -156,7 +156,10 @@ export function shouldRender(input: { change: number | null; where: Where; retur
 export const togetherLabel = (n: number) => (n === 1 ? 'This change' : `These ${n} changes`);
 
 /** The one hint line of changes tried together: where they run and why. */
-export const TOGETHER_HINT = "The live product with these changes' tokens applied in your browser. No preview holds all of them.";
+export const TOGETHER_HINT = "The live product, with these changes' tokens applied in your browser only. No preview has all of them together.";
+
+/** Show what changed found nothing on this screen for changes tried together. */
+export const TOGETHER_EMPTY_LINE = "These changes don't touch this screen. Try another screen.";
 
 /** Switches one change on or off, keeping the order Studio listed them in. */
 export function toggleIncluded(all: number[], included: number[], n: number, on: boolean): number[] {
