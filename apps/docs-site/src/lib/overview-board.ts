@@ -5,37 +5,45 @@
 //   - Exploring: running explorations (open exploration pull requests, lib/explorations-view).
 //   - In review: the review queue (lib/review-queue), minus what is ready to ship.
 //   - Ready to ship: changes approved with green tests (who acts now: merge).
-//   - Next release: design system changes shipped since the last release (pending changesets that touch components
+//   - Next release: design system changes approved since the last release (pending changesets that touch components
 //     or tokens). Bridge's own app updates and the release automation stay out: they are not the design system.
-// A card says what in designer words, who is on it, and what holds it, written on the card ("Blocked: a test fails.
-// A developer is on it."), never folded away.
+// A card says what in designer words, what holds it (one status pattern, icon plus label: Blocked or You) and who is
+// on it. The viewer's own avatar never shows: "Needs a developer" rather than "A developer is on it" next to you.
 import type { WhoActs } from './changes';
 import { blockerOf, type TodoChange } from './overview-todo';
 import { isDsChange } from './release-view';
 
 export type ColumnId = 'exploring' | 'review' | 'ready' | 'release';
 
+/** One status pattern for every card: an icon and a label. Blocked is danger, You is neutral. */
+export interface CardStatus {
+  tone: 'blocked' | 'you';
+  label: string;
+}
+
 export interface BoardCard {
   key: string;
   title: string;
-  /** GitHub login of the person on it, null when nobody is known. */
+  /** GitHub login of the person on it; null when nobody is known or it is the viewer. */
   who: string | null;
   /** One sentence: what holds it or what happens next. */
   note: string;
-  /** Status, only for status: blocked (danger tint), yours (your turn), or none. */
-  tone: 'blocked' | 'yours' | null;
-  /** The status word on the card ("Your turn"), null when the note says it (blocked cards start with "Blocked:"). */
-  badge: string | null;
+  status: CardStatus | null;
   href: string;
 }
 
 export interface BoardColumn {
   id: ColumnId;
   label: string;
+  /** Where the column header leads in Changes. */
+  href: string;
   cards: BoardCard[];
-  /** The one quiet line of an empty column. */
-  empty: string;
+  /** How many cards are blocked, for the mobile stage row ("3, 3 blocked"). */
+  blocked: number;
 }
+
+/** Cards shown per column before "+N more": the board stays short so health stays on the first screen. */
+export const CARDS_MAX = 2;
 
 export interface BoardExploration {
   number: number;
@@ -71,30 +79,34 @@ export interface BoardInput {
 const norm = (x: string) => x.trim().toLowerCase().replace(/^@/, '');
 const same = (a: string | null | undefined, b: string | null | undefined) => Boolean(a && b && norm(a) === norm(b));
 const handle = (x: string) => `@${x.replace(/^@/, '')}`;
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+/** The person shown on a card: never the viewer. */
+const other = (login: string | null | undefined, viewer: string | null) => (login && !same(login, viewer) ? login : null);
 
 const LABEL: Record<ColumnId, string> = { exploring: 'Exploring', review: 'In review', ready: 'Ready to ship', release: 'Next release' };
-const EMPTY: Record<ColumnId, string> = {
-  exploring: 'No exploration running.',
-  review: 'Nothing in review.',
-  ready: 'Nothing approved yet.',
-  release: 'Nothing shipped since the last release.',
+const HREF: Record<ColumnId, string> = {
+  exploring: '/studio/changes/?view=explorations',
+  review: '/studio/changes/',
+  ready: '/studio/changes/',
+  release: '/studio/changes/?view=history',
 };
+const BLOCKED: CardStatus = { tone: 'blocked', label: 'Blocked' };
+const YOU: CardStatus = { tone: 'you', label: 'You' };
 
 /** The card of a change in review: the blocker on the card, else who acts now. */
 function reviewCard(c: BoardChange, viewer: string | null, loading: boolean): BoardCard {
-  const base = { key: `change-${c.number}`, title: c.title, who: c.author || null, href: `/studio/changes/?pr=${c.number}` };
+  const base = { key: `change-${c.number}`, title: c.title, who: other(c.author, viewer), href: `/studio/changes/?pr=${c.number}` };
   const who: WhoActs | null = c.who;
-  if (!who) return { ...base, note: loading ? 'Checking what it needs.' : 'Open it to see what it needs.', tone: null, badge: null };
+  if (!who) return { ...base, note: loading ? 'Checking what it needs.' : 'Open it to see what it needs.', status: null };
   const block = blockerOf(c, who, viewer);
   if (block) {
-    const author = who.logins[0];
-    const actor = !author || same(author, viewer) || who.who === 'you' ? 'A developer is' : `${handle(author)} is`;
-    return { ...base, note: `Blocked: ${block.what}. ${actor} on it.`, tone: 'blocked', badge: null };
+    const author = other(who.logins[0], viewer);
+    const actor = !author || who.who === 'you' ? 'Needs a developer.' : `${handle(author)} is on it.`;
+    return { ...base, note: `${cap(block.what)}. ${actor}`, status: BLOCKED };
   }
-  if (who.action === 'wait') return { ...base, note: who.sentence, tone: null, badge: null };
-  const yours = Boolean(viewer) && who.yourTurn;
-  if (yours) return { ...base, note: who.action === 'approve-tech' ? 'Design is approved. Your tech review is next.' : 'Your design review is next.', tone: 'yours', badge: 'Your turn' };
-  return { ...base, note: who.sentence, tone: null, badge: null };
+  if (who.action === 'wait') return { ...base, note: who.sentence, status: null };
+  if (viewer && who.yourTurn) return { ...base, note: who.action === 'approve-tech' ? 'Design is approved. Your tech review is next.' : 'Your design review is next.', status: YOU };
+  return { ...base, note: who.sentence, status: null };
 }
 
 function readyCard(c: BoardChange, viewer: string | null): BoardCard {
@@ -102,15 +114,12 @@ function readyCard(c: BoardChange, viewer: string | null): BoardCard {
   return {
     key: `change-${c.number}`,
     title: c.title,
-    who: c.author || null,
+    who: other(c.author, viewer),
     href: `/studio/changes/?pr=${c.number}`,
     note: yours ? 'Approved and tested. Ship it to put it in the next release.' : `Approved and tested. ${c.who?.sentence.replace(/^Ready to ship: /, '') ?? ''}`.trim(),
-    tone: yours ? 'yours' : null,
-    badge: yours ? 'Your turn' : null,
+    status: yours ? YOU : null,
   };
 }
-
-const KIND_WORD: Record<'major' | 'minor' | 'patch', string> = { major: 'Teams must act when they update.', minor: 'A new option, nothing breaks.', patch: 'A fix, nothing to do.' };
 
 /** The four columns, in the order work moves. Release cards keep only what product teams install. */
 export function boardColumns(input: BoardInput): BoardColumn[] {
@@ -125,10 +134,9 @@ export function boardColumns(input: BoardInput): BoardColumn[] {
   const exploring = input.explorations.map<BoardCard>((e) => ({
     key: `exploration-${e.number}`,
     title: e.name,
-    who: e.author || null,
+    who: other(e.author, viewer),
     note: same(e.author, viewer) ? 'You are trying it. Send it for review once it holds up.' : `${handle(e.author)} is trying it. It never ships as is.`,
-    tone: null,
-    badge: null,
+    status: null,
     href: `/studio/changes/?exploration=${e.number}`,
   }));
   const release = input.release
@@ -136,10 +144,9 @@ export function boardColumns(input: BoardInput): BoardColumn[] {
     .map<BoardCard>((r) => ({
       key: `release-${r.ref}`,
       title: releaseTitle(r.title),
-      who: r.author,
-      note: `Shipped. ${r.bump ? KIND_WORD[r.bump] : 'Goes out with the next release.'}`,
-      tone: null,
-      badge: null,
+      who: other(r.author, viewer),
+      note: 'Approved, goes out in the next release.',
+      status: null,
       href: '/studio/changes/?view=history',
     }));
   const cols: [ColumnId, BoardCard[]][] = [
@@ -148,18 +155,42 @@ export function boardColumns(input: BoardInput): BoardColumn[] {
     ['ready', ready],
     ['release', release],
   ];
-  return cols.map(([id, cards]) => ({ id, label: LABEL[id], cards, empty: EMPTY[id] }));
+  return cols.map(([id, cards]) => ({ id, label: LABEL[id], href: HREF[id], cards, blocked: cards.filter((c) => c.status?.tone === 'blocked').length }));
 }
 
 /** "In review, 3": the column header, also its accessible name. */
 export const columnHeading = (c: Pick<BoardColumn, 'label' | 'cards'>) => `${c.label}, ${c.cards.length}`;
 
+/** The count after a stage name: "3", or "3, 3 blocked" when some are blocked. */
+export const columnMeta = (c: Pick<BoardColumn, 'cards' | 'blocked'>) => (c.blocked ? `${c.cards.length}, ${c.blocked} blocked` : `${c.cards.length}`);
+
+/** The cards a column shows and the "+N more" link under them (empty when they all fit). */
+export function visibleCards<C>(cards: C[], max = CARDS_MAX): { shown: C[]; more: string } {
+  return { shown: cards.slice(0, max), more: cards.length > max ? `+${cards.length - max} more` : '' };
+}
+
+/**
+ * A title split into plain text and token names (dotted lowercase paths like "focus.ring.offset"), so the page sets
+ * token names in Plex Mono.
+ */
+export function splitTokens(title: string): { text: string; token: boolean }[] {
+  const out: { text: string; token: boolean }[] = [];
+  const re = /\b[a-z][a-z0-9-]*(?:\.[a-z0-9-]+)+\b/g;
+  let at = 0;
+  for (const m of title.matchAll(re)) {
+    if (m.index! > at) out.push({ text: title.slice(at, m.index), token: false });
+    out.push({ text: m[0], token: true });
+    at = m.index! + m[0].length;
+  }
+  if (at < title.length) out.push({ text: title.slice(at), token: false });
+  return out;
+}
 /** "4 changes in flight." The board's one summary line. */
 export function inFlightLine(cols: BoardColumn[]): string {
   const n = cols.filter((c) => c.id !== 'release').reduce((s, c) => s + c.cards.length, 0);
   const shipped = cols.find((c) => c.id === 'release')?.cards.length ?? 0;
   const moving = n === 0 ? 'Nothing in flight' : `${n} ${n === 1 ? 'change' : 'changes'} in flight`;
-  return shipped ? `${moving}, ${shipped} shipped for the next release.` : `${moving}.`;
+  return shipped ? `${moving}, ${shipped} approved for the next release.` : `${moving}.`;
 }
 
 /**
@@ -207,6 +238,8 @@ export interface HealthFigure {
   label: string;
   /** One quiet line: the trend or what is left. Null when there is nothing to add. */
   detail: string | null;
+  /** The split per product under a total: "Admin demo 90.2%, Bridge itself 100%." */
+  split: string | null;
   /** Danger only when something fails. */
   tone: 'fail' | null;
   href: string;
@@ -220,7 +253,7 @@ export interface AdoptionMetrics {
 export interface HealthInput {
   contrast: { total: number; fail: number; brands: number };
   /** Per product: the current run and, when it exists, the run before the move to Bridge. */
-  adoption: { now: AdoptionMetrics; before?: AdoptionMetrics | null }[];
+  adoption: { now: AdoptionMetrics; before?: AdoptionMetrics | null; label?: string }[];
   guidance: { total: number; reviewed: number; drafted: number; missing: number };
 }
 
@@ -245,22 +278,27 @@ export function healthFigures(input: HealthInput): HealthFigure[] {
   const { contrast, guidance } = input;
   const out: HealthFigure[] = [];
   const passing = contrast.total - contrast.fail;
+  const where = `in ${contrast.brands} ${contrast.brands === 1 ? 'brand' : 'brands'}, light and dark`;
+  // Failures lead: "0 failing" says the gate holds, a number above 0 says what blocks the token build.
   out.push({
     id: 'contrast',
-    value: contrast.fail ? `${contrast.fail}` : `${passing}`,
-    label: contrast.fail ? `of ${contrast.total} contrast checks fail` : 'contrast checks pass',
-    detail: contrast.fail ? 'The token build waits until they pass.' : `Every pair, in ${contrast.brands} ${contrast.brands === 1 ? 'brand' : 'brands'}, light and dark.`,
+    value: `${contrast.fail} failing`,
+    label: 'contrast checks',
+    detail: contrast.fail ? `${passing} of ${contrast.total} pass. The token build waits until every pair passes.` : `${contrast.total} checked ${where}.`,
+    split: null,
     tone: contrast.fail ? 'fail' : null,
     href: '/studio/quality/',
   });
   const a = combinedAdoption(input.adoption);
   if (a) {
-    const across = `across ${a.products} ${a.products === 1 ? 'product' : 'products'}`;
+    const across = `${a.products} ${a.products === 1 ? 'product' : 'products'}`;
+    const parts = input.adoption.filter((x) => x.now.uiComponentInstances > 0 && x.label).map((x) => `${x.label} ${pct((x.now.dsComponentInstances / x.now.uiComponentInstances) * 100)}`);
     out.push({
       id: 'adoption',
       value: pct(a.now),
       label: 'of components come from Bridge',
-      detail: a.before === null ? `${across[0]!.toUpperCase()}${across.slice(1)}.` : `Up from ${pct(a.before)} before Bridge, ${across}.`,
+      detail: a.before === null ? `Across ${across}.` : `Up from ${pct(a.before)} before Bridge, across ${across}.`,
+      split: parts.length > 1 ? `${parts.join(', ')}.` : null,
       tone: null,
       href: '/studio/quality/#ql-adoption',
     });
@@ -273,6 +311,7 @@ export function healthFigures(input: HealthInput): HealthFigure[] {
     value: `${guidance.reviewed} of ${guidance.total}`,
     label: 'components have reviewed guidance',
     detail: left.length ? `${left.join(', ')}.`.replace(/^./, (c) => c.toUpperCase()) : 'Every component is documented.',
+    split: null,
     tone: null,
     href: '/studio/quality/#ql-findings',
   });

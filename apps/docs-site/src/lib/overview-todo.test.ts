@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { needFromStatus, whoActs } from './changes';
-import { developerLine, headlineFor, isGuidanceChange, moreLabel, isGuidanceOnly, othersLine, overviewTodo, showAllLabel, type TodoChange, type TodoRequest } from './overview-todo';
+import { developerLine, greetingLine, headlineFor, isGuidanceChange, moreLabel, isGuidanceOnly, othersLine, overviewTodo, showAllLabel, type TodoChange, type TodoRequest } from './overview-todo';
 
 const owners = { design: ['peterbono'], tech: ['peterbono'] };
 type Kind = Parameters<typeof needFromStatus>[0];
@@ -174,13 +174,13 @@ describe('overview to-do: work sorted by kind', () => {
       viewer: null,
       owners: ['peterbono'],
     });
-    expect(t.headline).toBe('2 decisions wait.');
+    expect(t.headline).toBe('Connect GitHub to start working on the library.');
     expect(t.mine.map((r) => [r.why, r.action])).toEqual([
       ['Waiting for the design owner (@peterbono) to approve.', 'Open change'],
       ['@ana wants to change Select. Waiting for a design system owner (@peterbono) to decide.', 'Open request'],
     ]);
     expect(t.developer.map((r) => r.why)).toEqual(['Blocked: a test fails. @peterbono needs to fix it before review.']);
-    expect(overviewTodo({ changes: [], requests: [], viewer: null, owners: [] }).headline).toBe('Nothing waits for a decision.');
+    expect(overviewTodo({ changes: [], requests: [], viewer: null, owners: [] }).headline).toBe('Connect GitHub to start working on the library.');
   });
 
   it('lists guidance to review or write in Needs you, so the greeting never says nothing waits beside it', () => {
@@ -191,9 +191,12 @@ describe('overview to-do: work sorted by kind', () => {
       { key: 'guidance-drafted', kind: 'setup', task: 'guidance', title: 'Usage guidance of Icon and VisuallyHidden', why: 'Claude drafted it from the code. Read it, fix it, then mark it reviewed.', action: 'Review guidance', href: '/components/icon/?edit=1' },
     ]);
     const missing = overviewTodo({ changes: [], requests: [], viewer: null, owners: [], guidance: { drafted: [], missing: ['A', 'B', 'C', 'D'].map((name) => ({ name, href: `/${name}` })) } });
-    expect(missing.headline).toBe('1 decision waits.');
+    expect(missing.headline).toBe('Connect GitHub to start working on the library.');
     expect(missing.mine[0]).toMatchObject({ title: 'Usage guidance of A, B and 2 more', action: 'Write guidance', href: '/A' });
     expect(headlineFor([], 'me')).toBe("You're all caught up.");
+    expect(greetingLine('Florian Gouloubi', '1 thing needs you.', 'peterbono')).toBe('Hello, Florian. 1 thing needs you.');
+    expect(greetingLine(null, "You're all caught up.", 'peterbono')).toBe("Hello. You're all caught up.");
+    expect(greetingLine('Florian', 'Connect GitHub to start working on the library.', null)).toBe('Connect GitHub to start working on the library.');
     expect(headlineFor([{ task: 'design' }, { task: 'guidance' }], 'me')).toBe('2 things need you.');
   });
 

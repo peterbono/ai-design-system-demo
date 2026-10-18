@@ -207,8 +207,21 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
  */
 export function headlineFor(mine: Pick<TodoRow, 'task'>[], viewer: string | null): string {
   const n = mine.length;
-  if (!viewer) return n ? `${plural(n, 'decision waits', 'decisions wait')}.` : 'Nothing waits for a decision.';
+  if (!viewer) return SIGNED_OUT_LINE;
   return n ? `${plural(n, 'thing needs', 'things need')} you.` : "You're all caught up.";
+}
+
+/** Signed out, the Overview asks for one thing: connecting GitHub. */
+export const SIGNED_OUT_LINE = 'Connect GitHub to start working on the library.';
+
+/**
+ * The one-line greeting: "Hello, Florian. 1 thing needs you." with the first word of the GitHub profile name, else
+ * "Hello." (never the login, never a stored name). Signed out: the connect line alone.
+ */
+export function greetingLine(profileName: string | null | undefined, headline: string, viewer: string | null): string {
+  if (!viewer) return headline;
+  const first = profileName?.trim().split(/\s+/)[0];
+  return `${first ? `Hello, ${first}.` : 'Hello.'} ${headline}`;
 }
 
 const names = (xs: GuidanceItem[]) => (xs.length <= 2 ? xs.map((x) => x.name).join(' and ') : `${xs.slice(0, 2).map((x) => x.name).join(', ')} and ${xs.length - 2} more`);

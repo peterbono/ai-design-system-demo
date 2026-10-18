@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { needFromStatus, whoActs } from './changes';
-import { boardColumns, columnHeading, combinedAdoption, healthFigures, inFlightLine, releaseTitle, startChangeHref, type BoardChange } from './overview-board';
+import { boardColumns, columnHeading, columnMeta, combinedAdoption, splitTokens, visibleCards, healthFigures, inFlightLine, releaseTitle, startChangeHref, type BoardChange } from './overview-board';
 
 const owners = { design: ['peterbono'], tech: ['peterbono'] };
 type Kind = Parameters<typeof needFromStatus>[0];
@@ -29,20 +29,38 @@ describe('overview board', () => {
       ['Next release', 1],
     ]);
     const review = cols[1]!.cards;
-    expect(review[0]).toMatchObject({ title: 'Change 3', who: 'peterbono', note: 'Blocked: a test fails. A developer is on it.', tone: 'blocked', badge: null, href: '/studio/changes/?pr=3' });
-    expect(review[1]!.note).toBe('Blocked: it clashes with the latest library. @ana is on it.');
-    expect(review[2]).toMatchObject({ tone: 'yours', badge: 'Your turn', note: 'Your design review is next.' });
-    expect(cols[2]!.cards[0]).toMatchObject({ tone: 'yours', note: 'Approved and tested. Ship it to put it in the next release.' });
-    expect(cols[0]!.cards[0]).toMatchObject({ note: 'You are trying it. Send it for review once it holds up.', href: '/studio/changes/?exploration=98' });
-    expect(cols[3]!.cards[0]).toMatchObject({ title: 'Textarea gets a new appearance option for editing existing text in place', note: 'Shipped. A new option, nothing breaks.' });
+    // The viewer's own change: no avatar of the viewer, and nobody is said to be on it.
+    expect(review[0]).toMatchObject({ title: 'Change 3', who: null, note: 'A test fails. Needs a developer.', status: { tone: 'blocked', label: 'Blocked' }, href: '/studio/changes/?pr=3' });
+    expect(review[1]).toMatchObject({ who: 'ana', note: 'It clashes with the latest library. @ana is on it.' });
+    expect(review[2]).toMatchObject({ status: { tone: 'you', label: 'You' }, note: 'Your design review is next.' });
+    expect(cols[1]!.blocked).toBe(2);
+    expect(columnMeta(cols[1]!)).toBe('3, 2 blocked');
+    expect(columnMeta(cols[0]!)).toBe('1');
+    expect(cols[2]!.cards[0]).toMatchObject({ status: { tone: 'you' }, note: 'Approved and tested. Ship it to put it in the next release.' });
+    expect(cols[0]!.cards[0]).toMatchObject({ who: null, note: 'You are trying it. Send it for review once it holds up.', href: '/studio/changes/?exploration=98' });
+    expect(cols[3]!.cards[0]).toMatchObject({ title: 'Textarea gets a new appearance option for editing existing text in place', note: 'Approved, goes out in the next release.', who: null });
+    expect(cols.map((c) => c.href)).toEqual(['/studio/changes/?view=explorations', '/studio/changes/', '/studio/changes/', '/studio/changes/?view=history']);
   });
 
   it('keeps Bridge app updates out of the next release column and says who acts for others', () => {
     const cols = boardColumns({ explorations: [], changes: [change(5, 'ready', 'ana', 'lea'), change(6, 'needs-design', 'ana', null)], release: [studio], viewer: null });
     expect(cols[3]!.cards).toEqual([]);
-    expect(cols[3]!.empty).toBe('Nothing shipped since the last release.');
     expect(cols[2]!.cards[0]!.note).toBe('Approved and tested. @peterbono can ship it.');
-    expect(cols[1]!.cards[0]).toMatchObject({ tone: null, note: 'Waiting for the design owner (@peterbono) to approve.' });
+    expect(cols[1]!.cards[0]).toMatchObject({ status: null, who: 'ana', note: 'Waiting for the design owner (@peterbono) to approve.' });
+    // Signed out, the author is named on a blocked card.
+    const out = boardColumns({ explorations: [], changes: [change(3, 'ci-failing', 'peterbono', null, { failing: 2 })], release: [], viewer: null });
+    expect(out[1]!.cards[0]).toMatchObject({ who: 'peterbono', note: '2 tests fail. @peterbono is on it.' });
+  });
+
+  it('caps each column and sets token names apart', () => {
+    expect(visibleCards([1, 2])).toEqual({ shown: [1, 2], more: '' });
+    expect(visibleCards([1, 2, 3, 4])).toEqual({ shown: [1, 2], more: '+2 more' });
+    expect(splitTokens('Add focus.ring.offset semantic token')).toEqual([
+      { text: 'Add ', token: false },
+      { text: 'focus.ring.offset', token: true },
+      { text: ' semantic token', token: false },
+    ]);
+    expect(splitTokens('Lift cards. On hover')).toEqual([{ text: 'Lift cards. On hover', token: false }]);
   });
 
   it('says a change is being checked while its status loads', () => {
@@ -53,7 +71,7 @@ describe('overview board', () => {
   it('labels columns and the summary line', () => {
     const cols = boardColumns({ explorations: [{ number: 1, name: 'A', author: 'x' }], changes: [change(2, 'ci-failing', 'x', null)], release: [textarea], viewer: null });
     expect(columnHeading(cols[1]!)).toBe('In review, 1');
-    expect(inFlightLine(cols)).toBe('2 changes in flight, 1 shipped for the next release.');
+    expect(inFlightLine(cols)).toBe('2 changes in flight, 1 approved for the next release.');
     expect(inFlightLine(boardColumns({ explorations: [], changes: [], release: [], viewer: null }))).toBe('Nothing in flight.');
   });
 });
@@ -94,20 +112,23 @@ describe('library health', () => {
   it('gives three figures, each a door to Quality', () => {
     const f = healthFigures({
       contrast: { total: 296, fail: 0, brands: 2 },
-      adoption: [{ now: m(239, 265), before: m(0, 526) }, { now: m(210, 210), before: m(47, 89) }],
+      adoption: [
+        { now: m(239, 265), before: m(0, 526), label: 'Admin demo' },
+        { now: m(210, 210), before: m(47, 89), label: 'Bridge itself' },
+      ],
       guidance: { total: 48, reviewed: 46, drafted: 2, missing: 0 },
     });
-    expect(f.map((x) => [x.value, x.label, x.detail, x.href])).toEqual([
-      ['296', 'contrast checks pass', 'Every pair, in 2 brands, light and dark.', '/studio/quality/'],
-      ['94.5%', 'of components come from Bridge', 'Up from 7.6% before Bridge, across 2 products.', '/studio/quality/#ql-adoption'],
-      ['46 of 48', 'components have reviewed guidance', '2 drafted by Claude to review.', '/studio/quality/#ql-findings'],
+    expect(f.map((x) => [x.value, x.label, x.detail, x.split, x.href])).toEqual([
+      ['0 failing', 'contrast checks', '296 checked in 2 brands, light and dark.', null, '/studio/quality/'],
+      ['94.5%', 'of components come from Bridge', 'Up from 7.6% before Bridge, across 2 products.', 'Admin demo 90.2%, Bridge itself 100%.', '/studio/quality/#ql-adoption'],
+      ['46 of 48', 'components have reviewed guidance', '2 drafted by Claude to review.', null, '/studio/quality/#ql-findings'],
     ]);
   });
 
   it('leads with the failures when contrast fails, and leaves adoption out without reports', () => {
     const f = healthFigures({ contrast: { total: 296, fail: 3, brands: 2 }, adoption: [], guidance: { total: 2, reviewed: 2, drafted: 0, missing: 0 } });
     expect(f.map((x) => x.id)).toEqual(['contrast', 'guidance']);
-    expect(f[0]).toMatchObject({ value: '3', label: 'of 296 contrast checks fail', tone: 'fail' });
+    expect(f[0]).toMatchObject({ value: '3 failing', label: 'contrast checks', detail: '293 of 296 pass. The token build waits until every pair passes.', tone: 'fail' });
     expect(f[1]!.detail).toBe('Every component is documented.');
   });
 });

@@ -1,10 +1,11 @@
-/* Studio Overview (Field Guide): one sentence and "Start a change", the Needs you list in a Harbor zone only when
-   something needs the viewer, then the In flight board and three Library health figures. Four type sizes: the h1
-   sentence, the health figures (h2), body for titles, ui for the rest. */
+/* Studio Overview (Field Guide), in reading order: a one-line greeting with its one primary action (the Needs you
+   list under it, in a Harbor zone only when something needs the viewer), Library health as one strip of three
+   figures, then the In flight board. Four type sizes: the greeting and the figures (h2), body for titles, ui for
+   the rest. */
 
 .ov {
   display: grid;
-  gap: var(--space-16);
+  gap: var(--space-10);
   max-width: var(--studio-page-max);
 }
 
@@ -12,8 +13,8 @@
 
 .ov-greet {
   display: grid;
-  gap: var(--space-6);
-  padding: var(--space-10) var(--space-12);
+  gap: var(--space-5);
+  padding: var(--space-8) var(--space-10);
 }
 
 /* Nothing needs the viewer: no zone, one quiet line with the action and the drawing beside it. */
@@ -49,15 +50,17 @@
   gap: var(--space-4) var(--space-8);
 }
 
+/* One line, at the section heading size: the page opens on what to do, not on a banner. */
 .ov-hello {
+  flex: 1 1 var(--size-96);
   margin: 0;
-}
-
-.ov-hello > span {
-  display: block;
+  font-size: var(--typography-h2-size);
+  line-height: var(--typography-h2-line-height);
+  letter-spacing: var(--typography-h2-tracking);
 }
 
 .ov-start {
+  display: flex;
   flex: none;
 }
 
@@ -67,7 +70,8 @@
 
 .ov-note[hidden],
 .ov-todo[hidden],
-.ov-todo-more[hidden] {
+.ov-todo-more[hidden],
+.ov-start > [hidden] {
   display: none;
 }
 
@@ -89,7 +93,7 @@
   justify-content: space-between;
   gap: var(--space-3) var(--space-6);
   margin: 0;
-  padding: var(--space-4) var(--space-5);
+  padding: var(--space-3) var(--space-5);
 }
 
 .ov-todo-row + .ov-todo-row {
@@ -108,14 +112,61 @@
 }
 
 .ov-todo-more {
-  margin: calc(var(--space-4) * -1) 0 0;
+  margin: calc(var(--space-3) * -1) 0 0;
+}
+
+/* Start a change menu: the choice, then one quiet line. */
+.ov-mi {
+  display: grid;
+  gap: var(--space-0-5);
+  padding-block: var(--space-1);
+}
+
+.ov-mi-title {
+  font-weight: var(--font-weight-medium);
+}
+
+/* The component picker, in place under the greeting: one plate, the question, the field and its two buttons
+   (8px apart) on one line. */
+.ov-pick-slot[hidden] {
+  display: none;
+}
+
+.ov-pick {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-container);
+  background-color: var(--color-surface-default);
+}
+
+.ov-pick-line {
+  margin: 0;
+}
+
+.ov-pick-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+.ov-pick-field {
+  flex: 1 1 var(--size-72);
+  max-width: var(--size-120);
+}
+
+.ov-pick-actions {
+  display: inline-flex;
+  gap: var(--space-2);
 }
 
 /* --- Sections ------------------------------------------------------------------------------------------------ */
 
 .ov-section {
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-3);
 }
 
 .ov-section-head {
@@ -131,109 +182,10 @@
 }
 
 .ov-section-line {
-  flex: 1 1 auto;
   margin: 0;
 }
 
-.ov-section-link {
-  margin-left: auto;
-}
-
-/* --- In flight: four columns, cards inside, empty columns stay short ----------------------------------------- */
-
-.ov-board {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  align-items: start;
-  gap: var(--space-4);
-}
-
-.ov-col {
-  display: grid;
-  gap: var(--space-3);
-  padding: var(--space-3);
-  border-radius: var(--radius-container);
-  background-color: var(--color-bg-subtle);
-}
-
-.ov-col-head {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-  margin: 0;
-  padding: var(--space-1) var(--space-2) 0;
-  font-weight: var(--font-weight-semibold);
-}
-
-.ov-col-count {
-  font-weight: var(--font-weight-regular);
-  font-variant-numeric: tabular-nums;
-}
-
-.ov-col-list {
-  display: grid;
-  gap: var(--space-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.ov-bcard-item {
-  margin: 0;
-}
-
-.ov-bcard {
-  display: grid;
-  gap: var(--space-2);
-}
-
-.ov-bcard-title {
-  margin: 0;
-  font-weight: var(--font-weight-semibold);
-}
-
-.ov-bcard-note {
-  margin: 0;
-}
-
-/* Blocked: the sentence in ink with a danger mark, color is never the only signal. */
-.ov-bcard-note.is-blocked {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-1-5);
-}
-
-.ov-bcard-mark {
-  display: inline-flex;
-  flex: none;
-  padding-top: var(--space-0-5);
-  color: var(--color-feedback-danger-icon);
-}
-
-.ov-bcard-foot {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-}
-
-.ov-bcard-who {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1-5);
-}
-
-.ov-col-empty {
-  margin: 0;
-  padding: 0 var(--space-2) var(--space-1);
-}
-
-.ov-col-skel {
-  min-height: var(--size-20);
-}
-
-/* --- Library health: three figures in one row ---------------------------------------------------------------- */
+/* --- Library health: one strip of three figures --------------------------------------------------------------- */
 
 .ov-health {
   display: grid;
@@ -252,7 +204,7 @@
 .ov-fig {
   display: grid;
   align-content: start;
-  gap: var(--space-1);
+  gap: var(--space-0-5);
 }
 
 .ov-fig-value {
@@ -278,21 +230,141 @@
   margin: 0;
 }
 
+/* --- In flight: stages side by side, empty ones collapse to their header -------------------------------------- */
+
+.ov-board {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+}
+
+.ov-board-m {
+  display: none;
+}
+
+.ov-col {
+  display: grid;
+  flex: 1 1 0;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-container);
+  background-color: var(--color-bg-subtle);
+}
+
+.ov-col.is-empty {
+  flex: 0 0 auto;
+}
+
+.ov-col-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-1) var(--space-2) 0;
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+}
+
+.ov-col.is-empty .ov-col-head {
+  padding-bottom: var(--space-1);
+}
+
+.ov-col-count {
+  font-weight: var(--font-weight-regular);
+  font-variant-numeric: tabular-nums;
+}
+
+.ov-col-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ov-col-more {
+  justify-self: start;
+  margin-left: var(--space-2);
+}
+
+.ov-bcard-item {
+  margin: 0;
+}
+
+.ov-bcard {
+  display: grid;
+  gap: var(--space-1-5);
+}
+
+.ov-bcard-title {
+  margin: 0;
+  font-weight: var(--font-weight-semibold);
+  text-wrap: pretty;
+}
+
+/* Token names read as code: Plex Mono, the same size as the title. */
+.ov-token {
+  font-family: var(--font-family-mono);
+  font-size: inherit;
+  font-weight: var(--font-weight-medium);
+}
+
+.ov-bcard-note {
+  margin: 0;
+}
+
+/* One status pattern: icon and label. Blocked is danger, You is quiet. */
+.ov-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  margin: 0;
+  font-weight: var(--font-weight-semibold);
+}
+
+.ov-status-mark {
+  display: inline-flex;
+}
+
+.ov-status.is-blocked .ov-status-mark {
+  color: var(--color-feedback-danger-icon);
+}
+
+.ov-status.is-you .ov-status-mark {
+  color: var(--color-text-muted);
+}
+
+.ov-bcard-who {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  margin: 0;
+}
+
+.ov-col-skel {
+  min-height: var(--size-20);
+}
+
 /* --- Narrower screens ---------------------------------------------------------------------------------------- */
 
 @media (max-width: 1100px) {
   .ov-board {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    flex-wrap: wrap;
+  }
+
+  .ov-col {
+    flex-basis: calc(50% - var(--space-2));
   }
 }
 
 @media (max-width: 760px) {
   .ov {
-    gap: var(--space-12);
+    gap: var(--space-8);
   }
 
   .ov-greet {
-    padding: var(--space-8) var(--space-5);
+    padding: var(--space-6) var(--space-5);
   }
 
   .ov-greet.is-quiet {
@@ -315,9 +387,21 @@
     padding: var(--space-4);
   }
 
-  /* Columns become stacked sections. */
-  .ov-board,
   .ov-health {
     grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-2);
+  }
+
+  /* Stages become one row each, their cards open on tap. */
+  .ov-board {
+    display: none;
+  }
+
+  .ov-board-m {
+    display: block;
+  }
+
+  .ov-board-m .ov-col-list {
+    margin-bottom: var(--space-2);
   }
 }
