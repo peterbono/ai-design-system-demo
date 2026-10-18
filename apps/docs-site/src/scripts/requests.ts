@@ -235,7 +235,7 @@ export function renderRequestDetail(r: RequestRow): string {
   const build = buildState(r);
   const buildBody = r.prs.length
     ? `<ul class="rq-prs">${r.prs.map((p) => `<li><a href="?pr=${p.number}" data-open-pr="${p.number}">Change #${p.number}</a> <span class="cg-muted">${p.merged ? 'shipped' : p.state === 'open' ? 'in review' : 'closed'}${p.author ? `, by @${esc(p.author)}` : ''}</span></li>`).join('')}</ul>`
-    : `<p class="cg-muted">${r.status === 'requested' ? 'No developer has started it yet.' : 'No change was linked to it.'}</p>`;
+    : '';
   const cmd = implementCommand(r.number);
   const active = r.status === 'requested' || r.status === 'in-progress';
   const dev = `<details class="cg-sec cg-dev" id="rq-sec-dev"><summary class="cg-sec-head"><span class="cg-sec-title">For developers</span><span class="cg-sec-meta">${active ? 'Implement with Claude, GitHub' : 'GitHub'}</span><span class="cg-sec-chev" aria-hidden="true"></span></summary>
@@ -265,7 +265,7 @@ export function renderRequestDetail(r: RequestRow): string {
     ${section('rq-sec-summary', 'Summary', esc(r.kindLabel), `<p class="rq-summary">${esc(req?.summary || 'The issue has no Bridge summary. Open it on GitHub to read it.')}</p>${design}`, true)}
     ${pictures ? section('rq-sec-images', pictures.title, '', pictures.body, true) : ''}
     ${section('rq-sec-changes', 'Changes', String(changes.length), table, changes.length > 0)}
-    ${section('rq-sec-build', 'Built by a developer', esc(build), buildBody)}
+    ${r.prs.length ? section('rq-sec-build', 'Built by a developer', esc(build), buildBody) : ''}
     ${dev}
   </div>`;
 }

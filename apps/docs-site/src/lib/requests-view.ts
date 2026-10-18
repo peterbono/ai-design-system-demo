@@ -210,12 +210,14 @@ export function requestOwner(r: Pick<RequestRow, 'assignees' | 'prs'>): string |
   return r.assignees[0] ?? pr?.author ?? null;
 }
 
-/** The "who is on it" words of a row: "@ana is on it", "Not started", "Done by @ana"; empty when declined (the pill says it). */
+/**
+ * The "who is on it" words of a row, only when they add to the status pill: "@ana is on it", "Done by @ana". Empty
+ * when nobody is on it yet ("Requested" says it), when done by nobody known, or declined.
+ */
 export function onItLabel(r: Pick<RequestRow, 'status' | 'assignees' | 'prs'>): string {
   const who = requestOwner(r);
-  if (r.status === 'done') return who ? `Done by @${who}` : 'Done';
-  if (r.status === 'declined') return '';
-  return who ? `@${who} is on it` : 'Not started';
+  if (r.status === 'declined' || !who) return '';
+  return r.status === 'done' ? `Done by @${who}` : `@${who} is on it`;
 }
 
 /** The one-sentence status of a request detail, in a designer's words. */

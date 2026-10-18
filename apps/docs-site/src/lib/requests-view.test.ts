@@ -207,7 +207,7 @@ describe('who is on a request', () => {
   it('reads the assignee first, then the author of the open change, else nobody', () => {
     const [waiting] = requestRows([issue(1)], []);
     expect(requestOwner(waiting!)).toBeNull();
-    expect(onItLabel(waiting!)).toBe('Not started');
+    expect(onItLabel(waiting!)).toBe('');
     expect(requestStateLine(waiting!)).toBe('Waiting for a developer to pick it up.');
     expect(buildState(waiting!)).toBe('Not started');
 
@@ -228,6 +228,7 @@ describe('who is on a request', () => {
     expect(buildState(done!)).toBe('Shipped');
     const [plain] = requestRows([issue(2, { state: 'closed', state_reason: 'completed' })], []);
     expect(requestStateLine(plain!)).toBe('Done.');
+    expect(onItLabel(plain!)).toBe('');
     const [declined] = requestRows([issue(3, { state: 'closed', state_reason: 'not_planned' })], []);
     expect(onItLabel(declined!)).toBe('');
     expect(requestStateLine(declined!)).toBe('Declined: closed on GitHub without a change.');
