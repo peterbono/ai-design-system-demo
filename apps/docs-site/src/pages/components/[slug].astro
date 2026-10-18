@@ -67,12 +67,10 @@ import PreviewScope from '../../components/PreviewScope.astro';
 <Layout title={c.name} description={d?.summary ?? c.description} sources={sources} updated={updated} crumbs={[{ label: 'Catalog', href: '/components/' }, { label: c.name }]} toc={false}>
   <div class="cp-page">
   <div class="cp-main">
-  <div class="le-bar-slot" data-le-bar></div>
-  <div data-le-rail-narrow></div>
   <div class="cp-head">
     <PageHeader className="lib-page-header" title={c.name}>
       <Fragment slot="lead"><span data-le-lead>{d?.summary}</span><span class="le-summary-slot" data-le-summary></span></Fragment>
-      <Badge slot="meta" tone={statusTone}>{status === 'stable' ? 'Stable' : status === 'beta' ? 'Beta' : 'Deprecated'}</Badge>
+      <Fragment slot="meta"><span data-le-read-only><Badge tone={statusTone}>{status === 'stable' ? 'Stable' : status === 'beta' ? 'Beta' : 'Deprecated'}</Badge></span><span data-le-status></span></Fragment>
       <Fragment slot="actions">
         <span data-maintainer-only data-le-read-only><ButtonLink variant="secondary" size="sm" href={`/components/${c.slug}/?edit=1`} iconStart={Pencil} data-le-edit>Edit</ButtonLink></span>
       </Fragment>
@@ -91,6 +89,8 @@ import PreviewScope from '../../components/PreviewScope.astro';
       </ul>
     </div>
   </div>
+  <div class="le-bar-slot" data-le-bar></div>
+  <div data-le-rail-narrow></div>
 
   {
     d?.preview && (

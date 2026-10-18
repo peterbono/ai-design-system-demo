@@ -73,7 +73,8 @@ describe('section states and the To review list', () => {
     expect(toReview(s)).toEqual([{ id: 'accessibility', label: 'Accessibility', done: false, words: 'Outdated' }]);
     s = setValue(s, 'accessibility', ['Decorative by default. Pass a label when it carries meaning.']);
     expect(sectionState(s, 'accessibility')).toBe('filled');
-    expect(toReview(s)).toEqual([{ id: 'accessibility', label: 'Accessibility', done: true, words: 'Updated' }]);
+    expect(toReview(s)).toEqual([]);
+    expect(s.reviewed).toEqual(['accessibility']);
   });
 });
 
@@ -99,11 +100,12 @@ describe('Claude drafts', () => {
     const kept = keepDrafts(drafted, ['doDont']);
     expect(kept.docs.donts).toHaveLength(1);
     expect(pendingSections(kept)).toEqual(['whenNotToUse']);
-    expect(toReview(kept).find((r) => r.id === 'doDont')).toMatchObject({ done: true, words: 'Kept' });
+    expect(toReview(kept).map((r) => r.id)).toEqual(['whenNotToUse']);
+    expect(kept.kept).toEqual(['doDont']);
     const discarded = discardDrafts(kept, ['whenNotToUse']);
     expect(discarded.docs.whenNotToUse).toEqual([]);
     expect(pendingSections(discarded)).toEqual([]);
-    expect(toReview(discarded).map((r) => r.id)).toEqual(['doDont']);
+    expect(toReview(discarded)).toEqual([]);
   });
 
   it('Keep all keeps every pending draft', () => {
@@ -127,10 +129,8 @@ describe('Claude drafts', () => {
 
   it('labels a rewrite of written text as updated, and a checked section as still accurate', () => {
     const s = applyDraft({ ...initEdit(base), outdated: ['accessibility', 'whenToUse'] }, { accessibility: ['New.'] }, ['accessibility', 'whenToUse']);
-    expect(toReview(s)).toEqual([
-      { id: 'whenToUse', label: 'When to use', done: true, words: 'Still accurate' },
-      { id: 'accessibility', label: 'Accessibility', done: false, words: 'Updated by Claude', updated: true },
-    ]);
+    expect(toReview(s)).toEqual([{ id: 'accessibility', label: 'Accessibility', done: false, words: 'Updated by Claude', updated: true }]);
+    expect(s.accurate).toEqual(['whenToUse']);
     expect(sectionState(s, 'whenToUse')).toBe('filled');
   });
 

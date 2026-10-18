@@ -18,17 +18,18 @@ import {
   MenuContent,
   MenuGroup,
   MenuItem,
+  MenuRadioGroup,
+  MenuRadioItem,
   MenuSeparator,
   MenuTrigger,
   Popover,
   PopoverContent,
   PopoverTrigger,
   SegmentedControl,
-  Select,
   Spinner,
   Textarea,
 } from '@bridge-ds/react';
-import { Check, ChevronDown, Circle, CircleCheck, CircleX, Copy, PenLine, Plus, Sparkles, X } from 'lucide-react';
+import { Check, ChevronDown, Circle, CircleX, Copy, PenLine, Plus, Sparkles, X } from 'lucide-react';
 import { DRAFT_PHRASE, type ComponentDocsJson, type DocsGuidance, type ProseKey } from '@bridge-ds/core';
 import { REGISTRY, resolveProps } from './registry';
 import type { ExampleNode } from '../lib/components';
@@ -463,34 +464,28 @@ function SummaryEditor() {
 /* Rail                                                                                                               */
 
 const STATUS_OPTIONS = [
-  { value: 'stable', label: 'Stable' },
-  { value: 'beta', label: 'Beta' },
-  { value: 'deprecated', label: 'Deprecated' },
-];
+  { value: 'stable', label: 'Stable', tone: 'success' },
+  { value: 'beta', label: 'Beta', tone: 'info' },
+  { value: 'deprecated', label: 'Deprecated', tone: 'warning' },
+] as const;
 
-function RailContent({ onStatus, idPrefix }: { onStatus: (v: ComponentDocsJson['status']) => void; idPrefix: string }) {
+function RailContent() {
   const e = useEdit();
   const review = toReview(e.state);
   const go = (id: SectionId) => {
     const el = document.getElementById(`le-sec-${id}`);
     el?.scrollIntoView({ block: 'center' });
-    const target = el?.querySelector<HTMLElement>('textarea, button');
+    const target = el?.querySelector<HTMLElement>('.le-actions button, textarea');
     target?.focus({ preventScroll: true });
   };
   return (
     <>
       <div className="le-rail-group">
-        <p className="cp-toc-title" id={`${idPrefix}status`}>
-          Status
-        </p>
-        <Select size="sm" label="Status" hideLabel options={STATUS_OPTIONS} value={e.state.docs.status ?? 'stable'} onValueChange={(v) => v && onStatus(v as ComponentDocsJson['status'])} />
-      </div>
-      <div className="le-rail-group">
         <p className="cp-toc-title">To review</p>
         {review.length ? (
           <ul className="le-review">
             {review.map((r) => (
-              <li key={r.id} className={r.done ? 'is-done' : ''}>
+              <li key={r.id}>
                 <a
                   href={`#le-sec-${r.id}`}
                   onClick={(ev) => {
@@ -498,19 +493,17 @@ function RailContent({ onStatus, idPrefix }: { onStatus: (v: ComponentDocsJson['
                     go(r.id);
                   }}
                 >
-                  {r.done ? <CircleCheck size={16} aria-hidden="true" /> : <Circle size={16} aria-hidden="true" />}
+                  <Circle size={16} aria-hidden="true" />
                   <span className="le-review-text">
                     {r.label}
-                    <span className="le-review-words">
-                      {r.words}
-                    </span>
+                    <span className="le-review-words">{r.words}</span>
                   </span>
                 </a>
               </li>
             ))}
           </ul>
         ) : (
-          <p className="le-rail-note">Nothing waits for review.</p>
+          <p className="le-rail-note">Nothing waits for a decision.</p>
         )}
       </div>
       <div className="le-rail-group">
@@ -518,6 +511,30 @@ function RailContent({ onStatus, idPrefix }: { onStatus: (v: ComponentDocsJson['
         <p className="le-rail-note">{changedLabel(e.state)}</p>
       </div>
     </>
+  );
+}
+
+/** In edit mode the status pill under the title is the control: same place, same pill, a menu of the three states. */
+function StatusPill({ value, onChange }: { value: NonNullable<ComponentDocsJson['status']>; onChange: (v: NonNullable<ComponentDocsJson['status']>) => void }) {
+  const opt = STATUS_OPTIONS.find((o) => o.value === value) ?? STATUS_OPTIONS[0]!;
+  return (
+    <Menu>
+      <MenuTrigger className="le-status" aria-label={`Status: ${opt.label}. Change status`}>
+        <Badge tone={opt.tone}>
+          {opt.label}
+          <ChevronDown size={14} aria-hidden="true" />
+        </Badge>
+      </MenuTrigger>
+      <MenuContent>
+        <MenuRadioGroup label="Status" value={value} onValueChange={(v) => onChange(v as NonNullable<ComponentDocsJson['status']>)}>
+          {STATUS_OPTIONS.map((o) => (
+            <MenuRadioItem key={o.value} value={o.value} closeOnClick>
+              {o.label}
+            </MenuRadioItem>
+          ))}
+        </MenuRadioGroup>
+      </MenuContent>
+    </Menu>
   );
 }
 
@@ -654,6 +671,38 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
     grab('dont', p.initial.donts);
   }, []);
 
+  // "This section" and "Selected text" exist only while focus (or the selection) is in an editable section. Moving to
+  // the Draft with Claude button or its menu keeps them; anything else clears them.
+  useEffect(() => {
+    if (!editing) return;
+    let toDraft = false;
+    const down = (ev: PointerEvent) => {
+      toDraft = Boolean((ev.target as HTMLElement).closest('[data-le-draft], [role="menu"]'));
+    };
+    const out = (ev: FocusEvent) => {
+      if (!(ev.target as HTMLElement).closest('[data-section]')) return;
+      const next = ev.relatedTarget as HTMLElement | null;
+      if (next?.closest('[data-section]')) return;
+      if (toDraft || next?.closest('[data-le-draft], [role="menu"]')) return;
+      setLastSection(null);
+      setSelection(null);
+    };
+    const into = (ev: FocusEvent) => {
+      const t = ev.target as HTMLElement;
+      if (t.closest('[data-section], [data-le-draft], [role="menu"]')) return;
+      setLastSection(null);
+      setSelection(null);
+    };
+    document.addEventListener('pointerdown', down, true);
+    document.addEventListener('focusout', out);
+    document.addEventListener('focusin', into);
+    return () => {
+      document.removeEventListener('focusin', into);
+      document.removeEventListener('pointerdown', down, true);
+      document.removeEventListener('focusout', out);
+    };
+  }, [editing]);
+
   // Saving an API key (here or anywhere on the page) changes how Claude can be reached.
   useEffect(() => {
     const on = () => ai && setWays(ai.draftAvailability());
@@ -759,6 +808,8 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
   useEffect(() => {
     const page = document.querySelector<HTMLElement>('.cp-page');
     page?.toggleAttribute('data-editing', editing);
+    // The live preview stays on screen, but its sample buttons are not part of editing: out of the tab order.
+    document.querySelectorAll('.hero-pane-inner').forEach((el) => el.toggleAttribute('inert', editing));
     const aside = document.querySelector('.cp-toc');
     aside?.setAttribute('aria-label', editing ? 'Review' : 'On this page');
     if (editing) {
@@ -965,6 +1016,7 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
   const usageSlot = useSlot('[data-le-usage]', editing);
   const railSlot = useSlot('[data-le-rail]', editing);
   const narrowSlot = useSlot('[data-le-rail-narrow]', editing);
+  const statusSlot = useSlot('[data-le-status]', editing);
   if (!editing) return null;
 
   const sectionName = lastSection ? sectionById(lastSection).label : null;
@@ -973,7 +1025,7 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
   const changedNote = changedLabel(state);
   const repoName = `${p.repo.owner}/${p.repo.repo}`;
   const draftButton = (
-    <Button variant="secondary" iconStart={Sparkles} iconEnd={ChevronDown} aria-label="Draft with Claude">
+    <Button variant="secondary" iconStart={Sparkles} iconEnd={ChevronDown} aria-label="Draft with Claude" data-le-draft="">
       Draft<span className="le-long"> with Claude</span>
     </Button>
   );
@@ -1097,7 +1149,7 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
                 Keep all drafts
               </Button>
             )}
-            <RailContent idPrefix="le-n-" onStatus={(v) => setState((s) => ({ ...s, docs: { ...s.docs, status: v } }))} />
+            <RailContent />
           </div>
         </details>
   );
@@ -1107,13 +1159,14 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
       <EditCtx.Provider value={ctx}>
         {barSlot && createPortal(bar, barSlot)}
         {narrowSlot && !wide && createPortal(narrowRail, narrowSlot)}
+        {statusSlot && createPortal(<StatusPill value={state.docs.status ?? 'stable'} onChange={(v) => setState((s) => ({ ...s, docs: { ...s.docs, status: v } }))} />, statusSlot)}
         {summarySlot && createPortal(<SummaryEditor />, summarySlot)}
         {usageSlot && createPortal(<UsageEditor />, usageSlot)}
         {railSlot &&
           wide &&
           createPortal(
             <div className="le-rail">
-              <RailContent idPrefix="le-w-" onStatus={(v) => setState((s) => ({ ...s, docs: { ...s.docs, status: v } }))} />
+              <RailContent />
             </div>,
             railSlot,
           )}

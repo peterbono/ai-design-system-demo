@@ -43,10 +43,37 @@ html:has(.cp-page[data-editing]) {
   z-index: var(--layer-sticky);
   display: grid;
   gap: var(--space-2);
-  margin-bottom: var(--space-6);
-  padding: var(--space-3) 0;
+  /* Takes the place and the height of the Workbench row it replaces (32 + 32), so the page does not move. */
+  margin-top: calc(var(--space-2) * -1);
+  margin-bottom: calc(var(--space-3) - var(--border-width-default));
+  padding: var(--space-2) 0;
   border-bottom: var(--border-width-default) solid var(--color-border-default);
   background-color: var(--color-bg-default);
+}
+
+/* The status pill is the status control while editing. */
+.le-status {
+  display: inline-flex;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: none;
+  cursor: pointer;
+}
+
+.le-status > * {
+  gap: var(--space-1);
+}
+
+.le-status:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+@media (hover: hover) {
+  .le-status:hover > * {
+    text-decoration: underline;
+  }
 }
 
 .le-bar-row {
@@ -210,14 +237,14 @@ html:has(.cp-page[data-editing]) {
   margin: 0 calc(var(--space-2) * -1);
   padding: var(--space-0-5) var(--space-2);
   overflow: hidden;
-  border: var(--border-width-default) solid var(--color-border-default);
+  border: 0;
   border-radius: var(--radius-inset);
   background-color: transparent;
   color: inherit;
   font: inherit;
   letter-spacing: inherit;
   resize: none;
-  transition: border-color var(--motion-duration-instant) var(--motion-easing-standard);
+  transition: background-color var(--motion-duration-instant) var(--motion-easing-standard);
 }
 
 .le-text::placeholder {
@@ -229,14 +256,14 @@ html:has(.cp-page[data-editing]) {
 }
 
 .le-text:focus-visible {
-  border-color: var(--focus-ring-color);
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
   outline-offset: 0;
 }
 
+/* At rest the text reads exactly like the page; a pointer over it shows it can be edited. */
 @media (hover: hover) {
-  .le-text:hover {
-    border-color: var(--color-border-hover);
+  .le-text:hover:not(:focus) {
+    background-color: var(--color-surface-hover);
   }
 }
 

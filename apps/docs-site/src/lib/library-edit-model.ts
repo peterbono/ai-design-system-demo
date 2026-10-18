@@ -176,14 +176,16 @@ export interface ReviewItem {
   updated?: boolean;
 }
 
-/** The rail's To review list: sections with a pending draft or outdated, and the ones already handled (ticked). */
+/**
+ * The rail's To review list: only what still needs a decision, pending Claude drafts and outdated sections. Kept
+ * drafts and sections Claude checked as still accurate leave it (the section heading says "Still accurate").
+ */
 export function toReview(s: EditState): ReviewItem[] {
   const out: ReviewItem[] = [];
   for (const x of SECTIONS) {
     const st = sectionState(s, x.id);
-    if (st === 'drafted') out.push({ id: x.id, label: x.label, done: false, words: s.updated.includes(x.id) ? 'Updated by Claude' : 'Drafted by Claude', updated: s.updated.includes(x.id) });
+    if (st === 'drafted') out.push({ id: x.id, label: x.label, done: false, words: s.updated.includes(x.id) ? 'Updated by Claude' : 'Drafted by Claude', ...(s.updated.includes(x.id) ? { updated: true } : {}) });
     else if (st === 'outdated') out.push({ id: x.id, label: x.label, done: false, words: 'Outdated' });
-    else if (s.reviewed.includes(x.id)) out.push({ id: x.id, label: x.label, done: true, words: s.kept.includes(x.id) ? 'Kept' : s.accurate.includes(x.id) ? 'Still accurate' : 'Updated' });
   }
   return out;
 }
