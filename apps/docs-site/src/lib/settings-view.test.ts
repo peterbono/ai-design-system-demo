@@ -59,6 +59,7 @@ describe('account', () => {
       title: 'Connected as @ana',
       detail: 'acme/ds',
       action: 'Change token',
+      actionKind: 'token',
       badge: { label: 'Can edit', tone: 'success' },
     });
     expect(accountView('connected', { login: 'ana', write: false, repo }).badge).toEqual({ label: 'Read only', tone: 'neutral' });
@@ -71,8 +72,46 @@ describe('account', () => {
     expect(accountView('checking', { write: null, repo })).toEqual({ zone: false, title: 'Checking your GitHub connection.' });
   });
 
+  it('leads with Sign in with GitHub when the site has a GitHub App, the token paste staying a quiet second way', () => {
+    expect(accountView('readonly', { write: null, repo, signIn: true })).toEqual({
+      zone: true,
+      title: 'Sign in with GitHub to approve and send changes.',
+      detail: 'Until then Studio only reads acme/ds.',
+      action: 'Sign in with GitHub',
+      actionKind: 'signin',
+      secondary: 'Use a token instead',
+    });
+    expect(accountView('readonly', { write: null, repo })).toMatchObject({ actionKind: 'token' });
+    expect(accountView('readonly', { write: null, repo }).secondary).toBeUndefined();
+    expect(accountView('rejected', { write: null, repo, signIn: true })).toMatchObject({ action: 'Sign in with GitHub', actionKind: 'signin', secondary: 'Use a token instead' });
+  });
+
+  it('signs out a signed-in account, and says so when its sign-in expired', () => {
+    expect(accountView('connected', { login: 'ana', write: true, repo, mode: 'app', signIn: true })).toMatchObject({ action: 'Sign out', actionKind: 'signout', detail: 'acme/ds' });
+    expect(accountView('rejected', { write: null, repo, mode: 'app', signIn: true })).toEqual({
+      zone: true,
+      title: 'Your GitHub sign-in expired.',
+      detail: 'Studio could not renew it. Sign in again to keep editing.',
+      action: 'Sign in again',
+      actionKind: 'signin',
+    });
+  });
+
+  it('tells a signed-in account without access how to fix it (wrong account, app not installed, read only)', () => {
+    const none = accountView('connected', { login: 'ana', write: false, repo, mode: 'app', reach: false });
+    expect(none.badge).toEqual({ label: 'No access', tone: 'neutral' });
+    expect(none.detail).toMatch(/^@ana cannot edit acme\/ds through Bridge\..*sign in with another GitHub account\.$/);
+    const read = accountView('connected', { login: 'ana', write: false, repo, mode: 'app', reach: true });
+    expect(read.badge).toEqual({ label: 'Read only', tone: 'neutral' });
+    expect(read.detail).toMatch(/Ask an owner for write access/);
+  });
+
   it('never uses an em dash', () => {
-    for (const s of ['checking', 'connected', 'readonly', 'rejected'] as const) expect(JSON.stringify(accountView(s, { login: 'a', write: true, repo }))).not.toContain('\u2014');
+    for (const s of ['checking', 'connected', 'readonly', 'rejected'] as const) {
+      for (const extra of [{}, { signIn: true }, { mode: 'app' as const, signIn: true, reach: false }]) {
+        expect(JSON.stringify(accountView(s, { login: 'a', write: false, repo, ...extra }))).not.toContain('\u2014');
+      }
+    }
   });
 });
 

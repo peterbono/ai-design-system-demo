@@ -5,6 +5,7 @@
 // - The one terminal command that connects a designer's own Claude to this repository through the MCP server.
 // - The Account block for each connection state, and the owner override as one line.
 import type { TierSummary } from './governance';
+import { noReachText, readOnlyText } from './github-signin';
 
 export interface ApprovalRule {
   tier: number;
@@ -68,38 +69,89 @@ export interface AccountView {
   zone: boolean;
   title: string;
   detail?: string;
-  /** The one action: connect (primary, in the zone) or change the token (quiet, on the connected row). */
+  /**
+   * The one action: connect or sign in (primary, in the zone), or change the token or sign out (quiet, on the
+   * connected row).
+   */
   action?: string;
+  /** What the action does: sign in with GitHub, open the token dialog, or sign out. */
+  actionKind?: 'signin' | 'token' | 'signout';
+  /** The quiet second way in, next to Sign in with GitHub: the token paste, for developers. */
+  secondary?: string;
   /** What the token may do on the library, once GitHub said so. */
   badge?: { label: string; tone: 'success' | 'neutral' };
 }
 
-export function accountView(state: AccountState, at: { login?: string; write: boolean | null; repo: string }): AccountView {
+export interface AccountFacts {
+  login?: string;
+  write: boolean | null;
+  repo: string;
+  /** How the browser holds access: a pasted token (default) or a Sign in with GitHub session. */
+  mode?: 'token' | 'app';
+  /** The site has a GitHub App, so Sign in with GitHub is the way in (docs/SIGN-IN.md). */
+  signIn?: boolean;
+  /** Signed in: false when the app does not reach the repository for this account (wrong account, not installed). */
+  reach?: boolean | null;
+}
+
+export function accountView(state: AccountState, at: AccountFacts): AccountView {
+  const app = at.mode === 'app';
   switch (state) {
     case 'checking':
       return { zone: false, title: 'Checking your GitHub connection.' };
-    case 'connected':
+    case 'connected': {
+      const login = at.login ?? 'This account';
+      const noReach = app && at.reach === false;
+      const readOnly = app && !noReach && at.write === false;
       return {
         zone: false,
         title: at.login ? `Connected as @${at.login}` : 'Connected to GitHub',
-        detail: at.repo,
-        action: 'Change token',
-        badge: at.write === null ? undefined : at.write ? { label: 'Can edit', tone: 'success' } : { label: 'Read only', tone: 'neutral' },
+        detail: noReach ? noReachText(login, at.repo) : readOnly ? readOnlyText(login, at.repo, true) : at.repo,
+        action: app ? 'Sign out' : 'Change token',
+        actionKind: app ? 'signout' : 'token',
+        badge: noReach
+          ? { label: 'No access', tone: 'neutral' }
+          : at.write === null
+            ? undefined
+            : at.write
+              ? { label: 'Can edit', tone: 'success' }
+              : { label: 'Read only', tone: 'neutral' },
       };
+    }
     case 'rejected':
-      return {
-        zone: true,
-        title: 'Your GitHub token stopped working.',
-        detail: 'GitHub no longer accepts it: it was revoked, regenerated or has expired. Connect again to keep editing.',
-        action: 'Reconnect GitHub',
-      };
+      return app
+        ? {
+            zone: true,
+            title: 'Your GitHub sign-in expired.',
+            detail: 'Studio could not renew it. Sign in again to keep editing.',
+            action: 'Sign in again',
+            actionKind: 'signin',
+          }
+        : {
+            zone: true,
+            title: 'Your GitHub token stopped working.',
+            detail: 'GitHub no longer accepts it: it was revoked, regenerated or has expired. Connect again to keep editing.',
+            action: 'Reconnect GitHub',
+            actionKind: at.signIn ? 'signin' : 'token',
+            ...(at.signIn ? { action: 'Sign in with GitHub', secondary: 'Use a token instead' } : {}),
+          };
     case 'readonly':
-      return {
-        zone: true,
-        title: 'Connect GitHub to approve and send changes.',
-        detail: `Until then Studio only reads ${at.repo}.`,
-        action: 'Connect GitHub',
-      };
+      return at.signIn
+        ? {
+            zone: true,
+            title: 'Sign in with GitHub to approve and send changes.',
+            detail: `Until then Studio only reads ${at.repo}.`,
+            action: 'Sign in with GitHub',
+            actionKind: 'signin',
+            secondary: 'Use a token instead',
+          }
+        : {
+            zone: true,
+            title: 'Connect GitHub to approve and send changes.',
+            detail: `Until then Studio only reads ${at.repo}.`,
+            action: 'Connect GitHub',
+            actionKind: 'token',
+          };
   }
 }
 

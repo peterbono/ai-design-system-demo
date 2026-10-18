@@ -1,0 +1,92 @@
+---
+// Where GitHub sends the browser back after "Sign in with GitHub" (docs/SIGN-IN.md). Not in the nav. The script
+// (scripts/github-signin.ts) clears the code from the address bar at once, forwards a preview's sign-in to the
+// preview, or trades the code for a token through /api/github/token and returns to the page the sign-in started on.
+// When something goes wrong it shows one sentence that says how to fix it, and a way back in.
+import Layout from '../../../layouts/Layout.astro';
+import Illustration from '../../../components/Illustration.astro';
+import { Button, Link } from '@bridge-ds/react';
+import { GitHubMark } from '../../../components/ds/studio/brand-icons';
+import { signInConfig } from '../../../lib/signin-config';
+import { lastUpdated } from '../../../lib/repo';
+
+const signIn = Boolean(signInConfig());
+const updated = lastUpdated(['apps/docs-site/src/pages/studio/auth/callback.astro', 'apps/docs-site/src/scripts/github-signin.ts', 'apps/docs-site/src/scripts/github-session.ts']);
+---
+
+<Layout title="Sign in" description="Finishing Sign in with GitHub." crumbs={false} updated={updated}>
+  <section class="zone auth-cb" aria-labelledby="auth-cb-title" data-auth-callback data-state="working">
+    <div class="auth-cb-art" aria-hidden="true"><Illustration name="review" width={132} /></div>
+    <div class="auth-cb-text">
+      <h1 id="auth-cb-title" class="auth-cb-title" data-auth-title>Signing you in</h1>
+      <p class="auth-cb-sub" data-auth-sub role="status">{signIn ? 'Finishing the sign-in with GitHub.' : 'Sign in with GitHub is not set up on this site. Use a token from Settings instead.'}</p>
+      <div class="auth-cb-actions st-hideable" data-auth-actions hidden>
+        <Button variant="primary" iconStart={GitHubMark} data-gh-open data-gh-signin>Sign in again</Button>
+        <Link href="/studio/" data-auth-back>Back to Studio</Link>
+      </div>
+    </div>
+  </section>
+</Layout>
+
+<script>
+  import { runCallback } from '../../../scripts/github-signin';
+  void runCallback();
+</script>
+
+<style>
+  .auth-cb {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-4) var(--space-6);
+    max-width: calc(var(--size-64) * 3);
+    margin: var(--space-10) auto;
+    padding: var(--space-6) var(--space-7);
+  }
+
+  .auth-cb-art {
+    display: flex;
+    flex: none;
+    color: var(--color-text-default);
+  }
+
+  .auth-cb-text {
+    display: grid;
+    flex: 1 1 var(--size-60);
+    gap: var(--space-3);
+    min-width: 0;
+  }
+
+  .auth-cb-title {
+    margin: 0;
+    font-family: var(--typography-h2-family);
+    font-size: var(--typography-h2-size);
+    font-weight: var(--typography-h2-weight);
+    letter-spacing: var(--typography-h2-tracking);
+    line-height: var(--typography-h2-line-height);
+  }
+
+  .auth-cb-sub {
+    margin: 0;
+    font-size: var(--typography-ui-size);
+    line-height: var(--typography-ui-line-height);
+  }
+
+  .auth-cb-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3) var(--space-5);
+  }
+
+  @media (max-width: 640px) {
+    .auth-cb {
+      margin: var(--space-6) 0;
+      padding: var(--space-5);
+    }
+
+    .auth-cb-art {
+      display: none;
+    }
+  }
+</style>

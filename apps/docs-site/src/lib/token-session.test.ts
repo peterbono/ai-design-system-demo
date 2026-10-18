@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import { GitHubError } from '@bridge-ds/core';
 import {
+  appMissingPermissionMessage,
   authFailure,
+  STUDIO_SIGNIN_EXPIRED,
   CHECK_MAX_AGE_MS,
   checkFor,
   errorText,
@@ -68,4 +70,18 @@ test('write actions: one message for a refused token, the permission for a missi
   assert.equal(authFailure(new Error('boom')), null);
   assert.equal(errorText(new Error('boom'), 'Not proposed: boom'), 'Not proposed: boom');
   assert.doesNotMatch(STUDIO_TOKEN_REJECTED, /\u2014/);
+});
+
+test('a Sign in with GitHub session: expired sign-in, and missing app permissions go to the repository owner', () => {
+  const rejected = new GitHubError(401, 'x', 'Bad credentials', { auth: 'rejected' });
+  assert.deepEqual(authFailure(rejected, 'create issues', 'app'), { kind: 'rejected', text: STUDIO_SIGNIN_EXPIRED });
+  assert.equal(errorText(rejected, 'fallback', undefined, 'app'), STUDIO_SIGNIN_EXPIRED);
+
+  const perm = new GitHubError(403, 'x', 'Resource not accessible by integration', { auth: 'missing-permission', permission: 'issues' });
+  assert.deepEqual(authFailure(perm, 'create issues', 'app'), {
+    kind: 'missing-permission',
+    text: 'The Bridge GitHub App cannot create issues yet. Ask the repository owner to give it Issues: Read and write.',
+  });
+  assert.match(appMissingPermissionMessage(undefined), /^The Bridge GitHub App is missing a permission for this\. Ask the repository owner/);
+  assert.doesNotMatch(STUDIO_SIGNIN_EXPIRED, /\u2014/);
 });

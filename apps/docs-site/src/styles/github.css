@@ -123,3 +123,13 @@
   flex: 1;
 }
 
+/* Sign in with GitHub (docs/SIGN-IN.md): the dialog's two views, sign in first, the token paste one click away. */
+.gh-view {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.gh-view[hidden] {
+  display: none;
+}
+
