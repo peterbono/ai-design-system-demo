@@ -87,7 +87,7 @@ export interface Opener {
 
 const WHY: Partial<Record<ReviewStatusKind, string>> = {
   'ci-failing': 'is blocked by tests on the developer side',
-  conflict: 'is blocked by a conflict on the developer side',
+  conflict: 'conflicts with the latest library',
   'changes-requested': 'is blocked: a reviewer requested changes',
   'needs-design': 'waits for a design approval',
   'needs-tech': 'waits for a tech approval',
