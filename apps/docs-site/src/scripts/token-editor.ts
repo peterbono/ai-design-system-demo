@@ -35,12 +35,33 @@ import {
   type DraftEdit,
   type Guardrails,
 } from '../lib/editor-model';
-import { esc, getToken, hasWorkingToken, initGitHubConnect, paintGates, prefersSignIn, readRepo, setButtonDisabled, showGhError, studioClient } from './github-session';
+import { esc, getToken, hasWorkingToken, initGitHubConnect, onAccess, paintGates, prefersSignIn, readRepo, relativeTime, setButtonDisabled, setButtonLabel, showGhError, studioClient } from './github-session';
 import { ghVerb } from '../lib/gh-wording';
 import { docsNotesForTokens } from '../lib/docs-draft-model';
 import { cellValue, tierAxis } from '../lib/explorer/model';
 import { numericValue } from '../lib/explorer/format';
 import { prTitleFrom, proposalTitle, reviewSentence, type TitleEdit } from '../lib/propose-copy';
+import {
+  addedSentence,
+  ChangeConflictError,
+  changeDraftKey,
+  changeParam,
+  changeTitle,
+  conflictHref,
+  defaultTarget,
+  draftDestination,
+  isTokenChange,
+  parseChangeDraft,
+  parseTargetValue,
+  scopeBanner,
+  targetOptions,
+  targetValue,
+  type ChangeTarget,
+  type TargetChoice,
+} from '../lib/continue-change';
+import { addToChange, loadChangeTokens, readChange, readTargets } from './continue-change';
+import { ConflictNotice, ScopeBanner, TargetChoice as TargetChoiceView, mountInto, unmountFrom } from '../components/ds/studio/ContinueChange';
+import { createElement } from 'react';
 
 /** Components that paint with a token (build-time usage embedded by the explorer), for the docs notes of a proposal. */
 function usedByComponents(path: string): string[] {
@@ -73,6 +94,27 @@ interface State {
 }
 
 let S: State | null = null;
+
+/**
+ * The editor scoped to one change (/studio/tokens/?change=N, "Edit tokens in this change"): values come from the
+ * change, the draft is kept apart (per change, with the version it was made on) and saving adds to the change.
+ */
+interface Scope {
+  number: number;
+  title: string;
+  /** The change's version the draft is made on: the base of the 3-way check. */
+  baseSha: string | null;
+  state: 'loading' | 'ready' | 'error';
+  error?: string;
+}
+let scope: Scope | null = null;
+/** Outside a change: the changes the viewer can add to, and where the edits go. */
+let targets: ChangeTarget[] = [];
+let choice: TargetChoice = { kind: 'new' };
+const repoKey = () => (S ? `${repoOf(S.config).owner}/${repoOf(S.config).name}` : '');
+const draftKey = () => (scope ? changeDraftKey(repoKey(), scope.number) : DRAFT_KEY);
+/** Edits wait while the change loads or when it cannot be edited. */
+const blocked = () => Boolean(scope && scope.state !== 'ready');
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T | null;
 /** Fields of the add and propose dialogs, by data-ed-field: DS Input and Textarea do not keep a custom id. */
 const field = <T extends HTMLElement>(name: string) => document.querySelector<T>(`[data-ed-field="${name}"]`);
@@ -88,7 +130,11 @@ function loadDraft(): Draft {
 
 function saveDraft() {
   try {
-    if (S) localStorage.setItem(DRAFT_KEY, JSON.stringify(S.draft));
+    if (!S || blocked()) return;
+    if (scope) {
+      if (S.draft.edits.length) localStorage.setItem(draftKey(), JSON.stringify({ edits: S.draft.edits, baseSha: scope.baseSha }));
+      else localStorage.removeItem(draftKey());
+    } else localStorage.setItem(DRAFT_KEY, JSON.stringify(S.draft));
   } catch {
     /* private mode: the draft lives for this page */
   }
@@ -116,7 +162,7 @@ const schedule = () => {
 
 /** Adds or replaces the value edit for one token and mode. Returning to the original value drops the edit. */
 function setValue(t: LogicalToken, mode: string, after: unknown) {
-  if (!S) return;
+  if (!S || blocked()) return;
   const before = S.head.byPath.get(t.path)?.values[mode];
   S.draft.edits = S.draft.edits.filter((e) => !(e.kind === 'value' && e.path === t.path && e.mode === mode));
   if (JSON.stringify(before) !== JSON.stringify(after)) S.draft.edits.push({ kind: 'value', id: uid(), path: t.path, mode, before, after });
@@ -303,7 +349,7 @@ export function aliasOptions(path: string): string[] {
 
 /** Applies several mode values at once (the cell editor's Apply), with one recompute. */
 export function applyValues(values: { path: string; mode: string; value: unknown }[]) {
-  if (!S) return;
+  if (!S || blocked()) return;
   for (const v of values) {
     const t = S.head.byPath.get(v.path);
     if (!t) continue;
@@ -318,7 +364,7 @@ export function applyValues(values: { path: string; mode: string; value: unknown
 /** Sets the description of one token in the draft. Back to the original text drops the edit. */
 export function editDescription(path: string, text: string) {
   const t = S?.head.byPath.get(path);
-  if (!S || !t) return;
+  if (!S || !t || blocked()) return;
   S.draft.edits = S.draft.edits.filter((e) => !(e.kind === 'description' && e.path === path));
   if (text.trim() !== (t.description ?? '').trim()) S.draft.edits.push({ kind: 'description', id: uid(), path, before: t.description, after: text.trim() });
   saveDraft();
@@ -423,6 +469,157 @@ export function undoToken(path: string) {
   recompute();
 }
 
+// ---------------------------------------------------------------------------------------------------------------
+// Continue a change
+
+/** The send button's words, one verb family: add to a change (the one edited, or the default target), else send. */
+export function sendLabel(): string {
+  return scope ? 'Add to this change' : choice.kind === 'change' ? 'Add to change' : 'Send for review';
+}
+
+/** Where the draft goes, for the review sheet's note (null: nothing to say). */
+export function destinationNote(): string | null {
+  if (scope?.state === 'ready') return `Your edits are added to ${scope.title}.`;
+  const t = choice.kind === 'change' ? targets.find((x) => choice.kind === 'change' && x.number === choice.number) : undefined;
+  const n = new Set((S?.draft.edits ?? []).filter((e) => e.kind !== 'docs').map((e) => e.path)).size;
+  return t ? draftDestination(t, n) : null;
+}
+
+function paintScope() {
+  const slot = document.querySelector<HTMLElement>('[data-ed-scope]');
+  if (!slot || !scope) return;
+  slot.hidden = false;
+  document.body.dataset.editScope = scope.state;
+  const words =
+    scope.state === 'error'
+      ? { title: `Cannot edit ${scope.title}`, body: scope.error ?? 'It could not be read. Reload the page to try again.' }
+      : scope.state === 'loading'
+        ? { title: `Opening ${scope.title}`, body: 'Reading its token values. Edits wait until they are in.' }
+        : scopeBanner(scope.title);
+  mountInto(slot, createElement(ScopeBanner, { title: words.title, body: words.body, backHref: `/studio/changes/?pr=${scope.number}` }));
+}
+
+/** Reads the change and its token files, then swaps them in as the values the editor edits. */
+async function openScope(n: number) {
+  if (!S) return;
+  const sc: Scope = { number: n, title: `change #${n}`, baseSha: null, state: 'loading' };
+  scope = sc;
+  paintScope();
+  try {
+    const pull = await readChange(S.config, n);
+    sc.title = changeTitle(pull.title);
+    paintScope();
+    const { owner, name } = repoOf(S.config);
+    if (!isTokenChange(pull, `${owner}/${name}`)) {
+      throw new Error(
+        pull.state !== 'open' || pull.merged_at
+          ? 'It is no longer open, so it takes no more edits. Open Tokens to start a new change.'
+          : 'It is not a token change. Explorations, brands and docs keep their own editors.',
+      );
+    }
+    // A draft made earlier on this change keeps the version it was made on, so the 3-way check stays honest.
+    let stored = parseChangeDraft(null);
+    try {
+      stored = parseChangeDraft(localStorage.getItem(changeDraftKey(`${owner}/${name}`, n)));
+    } catch {
+      /* private mode */
+    }
+    const sha = stored.edits.length && stored.baseSha ? stored.baseSha : pull.head.sha;
+    const loaded = await loadChangeTokens(S.config, sha);
+    Object.assign(S, { config: loaded.config, originals: loaded.originals, head: loaded.head, pairs: loaded.pairs, draft: { edits: stored.edits } });
+    pendingMemo = null;
+    sc.baseSha = sha;
+    sc.state = 'ready';
+  } catch (err) {
+    sc.state = 'error';
+    sc.error = (err as Error).message;
+  }
+  paintScope();
+  recompute();
+}
+
+/** The changes the viewer can add to (signed in, outside a change), and the default choice. */
+async function refreshTargets(): Promise<void> {
+  if (!S || scope) return;
+  try {
+    targets = await readTargets(S.config);
+  } catch {
+    targets = [];
+  }
+  const keep = choice.kind === 'change' && targets.some((t) => choice.kind === 'change' && t.number === choice.number);
+  if (!keep) choice = defaultTarget(targets);
+  // The dialog may already be open (the list reads after sign-in): repaint its choice.
+  if (($('ed-propose-dialog') as HTMLDialogElement | null)?.open) paintSend();
+  document.dispatchEvent(new CustomEvent('bridge:draft'));
+}
+
+/** The send dialog for the current choice: the target radios, the title fields for a new change, the button. */
+function paintSend() {
+  const adding = Boolean(scope) || choice.kind === 'change';
+  const t = scope ? null : targets.find((x) => choice.kind === 'change' && x.number === choice.number);
+  const name = scope?.title ?? t?.title ?? '';
+  const h = $('ed-propose-h');
+  if (h) h.textContent = scope ? `Add to ${name}` : 'Send for review';
+  const fields = field('propose-new');
+  if (fields) fields.hidden = adding;
+  const devNew = field('propose-dev-new');
+  const devAdd = field('propose-dev-add');
+  if (devNew) devNew.hidden = adding;
+  if (devAdd) devAdd.hidden = !adding;
+  const who = field('propose-who');
+  if (who) who.hidden = false;
+  const approvals = 'Approvals given before may need to be given again.';
+  if (who && adding) who.textContent = scope ? `Your edits go on top of ${name}, and reviewers see them there. ${approvals}` : `Reviewers see your edits in the change you pick. ${approvals}`;
+  const go = $<HTMLButtonElement>('ed-propose-go');
+  if (go) setButtonLabel(go, adding ? (scope ? 'Add to this change' : 'Add to change') : 'Send for review');
+  const slot = field('propose-target');
+  if (!slot) return;
+  slot.hidden = Boolean(scope) || !targets.length;
+  if (slot.hidden) {
+    unmountFrom(slot);
+    return;
+  }
+  mountInto(
+    slot,
+    createElement(TargetChoiceView, {
+      options: targetOptions(targets, relativeTime),
+      value: targetValue(choice),
+      onChange: (v: string) => {
+        choice = parseTargetValue(v) ?? { kind: 'new' };
+        clearConflict();
+        paintSend();
+        const sum = proposalSummary();
+        const w = field('propose-who');
+        if (sum && w && choice.kind === 'new') w.textContent = sum.sentence;
+        document.dispatchEvent(new CustomEvent('bridge:draft'));
+      },
+    }),
+  );
+}
+
+/** The conflict notice replaces the dialog's primary: its "Resolve the conflict" is the one next step. */
+function clearConflict() {
+  const slot = field('propose-conflict');
+  const go = field('propose-go');
+  if (go) go.hidden = false;
+  if (!slot) return;
+  slot.hidden = true;
+  unmountFrom(slot);
+}
+
+function showConflict(err: ChangeConflictError) {
+  const slot = field('propose-conflict');
+  if (!slot) return;
+  slot.hidden = false;
+  const go = field('propose-go');
+  if (go) go.hidden = true;
+  const h = $('ed-propose-h');
+  if (h) h.textContent = 'Your edits were not added';
+  const who = field('propose-who');
+  if (who) who.hidden = true;
+  mountInto(slot, createElement(ConflictNotice, { text: err.message, paths: err.paths, href: conflictHref(err.change) }));
+}
+
 export function initTokenEditor() {
   if (S) return;
   // Token files, config and contrast pairs: from the token explorer component (xp-*), or the older page ids.
@@ -433,9 +630,19 @@ export function initTokenEditor() {
   const config = loadConfig(cfgEl.textContent || '{}');
   const originals = JSON.parse(filesEl.textContent || '{}') as Record<string, string>;
   const head = buildTokenSet(originals, layoutOptions(config));
-  S = { config, originals, head, pairs: parseContrastChecks(checksEl?.textContent || undefined), draft: loadDraft(), applied: null, checks: null, contrastBefore: [], contrastAfter: [] };
+  const scoped = changeParam(location.search);
+  S = { config, originals, head, pairs: parseContrastChecks(checksEl?.textContent || undefined), draft: scoped ? emptyDraft() : loadDraft(), applied: null, checks: null, contrastBefore: [], contrastAfter: [] };
+  if (scoped) void openScope(scoped);
 
-  initGitHubConnect(() => paintTray());
+  let lastViewer: string | null = null;
+  initGitHubConnect((v) => {
+    paintTray();
+    // Signed in outside a change: read which changes take more edits (the default target of the send dialog).
+    if (!scoped && v && v.login !== lastViewer) void refreshTargets();
+    lastViewer = v?.login ?? null;
+  });
+  // Write access widens the list (a writer may add to any token change): read it again once known.
+  if (!scoped) onAccess((a) => a && void refreshTargets());
 
   const toggle = $<HTMLButtonElement>('tx-edit-toggle');
   setEditingImpl = (on: boolean) => {
@@ -548,7 +755,10 @@ export function initTokenEditor() {
   // The title starts from the edit in plain words; once the person types their own, a later edit keeps it.
   let autoTitle = '';
   $('ed-propose')?.addEventListener('click', () => {
-    if (!S?.draft.edits.length || !hasWorkingToken()) return;
+    if (!S?.draft.edits.length || !hasWorkingToken() || blocked()) return;
+    clearConflict();
+    $('ed-propose-status')!.textContent = '';
+    paintSend();
     const sum = proposalSummary();
     const titleField = field<HTMLInputElement>('propose-title');
     if (sum && titleField && (!titleField.value.trim() || titleField.value === autoTitle)) {
@@ -556,7 +766,7 @@ export function initTokenEditor() {
       autoTitle = sum.title;
     }
     const who = field('propose-who');
-    if (sum && who) who.textContent = sum.sentence;
+    if (sum && who && !scope && choice.kind === 'new') who.textContent = sum.sentence;
     const pr = field('propose-pr-title');
     if (pr) pr.textContent = prTitleFrom(titleField?.value ?? '') || 'tokens: ...';
     ($<HTMLDialogElement>('ed-propose-dialog') as HTMLDialogElement | null)?.showModal();
@@ -570,6 +780,26 @@ export function initTokenEditor() {
     const go = $<HTMLButtonElement>('ed-propose-go')!;
     const out = $('ed-propose-status')!;
     setButtonDisabled(go, true);
+    clearConflict();
+    const into = scope?.number ?? (choice.kind === 'change' ? choice.number : null);
+    if (into && S?.applied) {
+      out.textContent = 'Adding to the change';
+      try {
+        const r = await addToChange({ n: into, config: S.config, base: S.head, ours: S.applied.proposed, draft: S.draft, scoped: Boolean(scope) });
+        out.textContent = addedSentence(r.added.length, r.title, r.upstream);
+        // Token edits are in the change now; docs edits stay in the local draft (the docs editor sends them).
+        S.draft = { edits: scope ? [] : S.draft.edits.filter((e) => e.kind === 'docs') };
+        saveDraft();
+        location.href = `/studio/changes/?pr=${r.number}&added=${r.added.length}`;
+      } catch (err) {
+        if (err instanceof ChangeConflictError) {
+          out.textContent = '';
+          showConflict(err);
+        } else showGhError(out, err, `Not added: ${(err as Error).message}`, 'add to changes');
+        setButtonDisabled(go, false);
+      }
+      return;
+    }
     out.textContent = 'Sending for review';
     try {
       const n = await propose(field<HTMLInputElement>('propose-title')?.value ?? '', field<HTMLTextAreaElement>('propose-notes')?.value ?? '');

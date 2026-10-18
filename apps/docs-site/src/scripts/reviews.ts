@@ -77,6 +77,7 @@ import {
   type DesignFacts,
 } from '../lib/check-explain';
 import { productPreview, topScreen, tryInProductUrl } from '../lib/try-in-product';
+import { addedNotice, canAddTo, dismissedApprovals, dismissedSentence, isTokenChange } from '../lib/continue-change';
 
 interface User {
   login: string;
@@ -469,6 +470,19 @@ export async function openPr(n: number, push = true) {
     d.innerHTML = renderDetail({ pull, tier, files, reviews, comments, ci, approvals, gate, tokenCount: tokenFiles.length, changesetCount: changesets.length, visual, access, docsPaths, statuses, review, checks });
     wireActions(pull, gate, access);
     wireVisualLink(d);
+    // Continue a change: "Edit tokens in this change", and what was just added when back from the token editor.
+    const editSlot = document.getElementById('rv-edit-in-change');
+    const addedSlot = document.getElementById('rv-added');
+    if (editSlot || addedSlot)
+      void import('../components/ds/studio/ContinueChange').then(({ mountAddedNotice, mountEditInChange }) => {
+        if (seq !== openSeq) return;
+        if (editSlot?.isConnected) mountEditInChange(editSlot, `/studio/tokens/?change=${pull.number}`);
+        if (addedSlot?.isConnected) {
+          mountAddedNotice(addedSlot, addedSlot.dataset.text ?? '');
+          // Said once: a reload or a shared link shows the change without it.
+          history.replaceState(history.state, '', `?pr=${pull.number}`);
+        }
+      });
 
     if (docsPaths.length) {
       const branch = pull.head.ref;
@@ -879,16 +893,24 @@ function renderDetail(x: DetailInput) {
     : '<p class="cg-line rv-what-quiet">No visual change.</p>';
   const tokenBody =
     x.review instanceof Error ? `<p class="rv-error">Could not compute the token diff: ${esc(x.review.message)}. Reload the page to try again.</p>` : x.review ? renderTokenReview(x.review) : '';
-  const tokens = x.tokenCount ? `<div class="rv-what-tokens"><h3 class="rv-what-sub">Token changes</h3><div id="rv-tokens">${tokenBody}</div></div>` : '';
+  // Continue a change: the author or a writer adds more token edits to it from the token editor (lib/continue-change).
+  const editable = x.tokenCount > 0 && isTokenChange(pull, REPO_KEY) && canAddTo(pull, access?.login, write);
+  const tokens = x.tokenCount
+    ? `<div class="rv-what-tokens"><div class="rv-tokens-head"><h3 class="rv-what-sub">Token changes</h3>${editable ? `<span class="rv-edit-in" id="rv-edit-in-change" data-change="${pull.number}"></span>` : ''}</div><div id="rv-tokens">${tokenBody}</div></div>`
+    : '';
+  // Approvals GitHub dismissed (for example after new edits) and nobody gave again: the headline's first words.
+  const dismissed = open ? dismissedSentence(dismissedApprovals(reviews as never, pull.head.sha)) : null;
 
   const devMeta = [plural(files.length, 'file'), ci.total === 0 ? 'no checks yet' : failing ? `${failing} failing ${failing === 1 ? 'check' : 'checks'}` : ci.pending.length ? 'checks running' : 'checks pass'].join(', ');
   // What approval it needs, in plain words and no color. An exploration is tried, never shipped as is.
   const need = isActiveExploration(pull.labels) ? 'Exploration' : approvalNeedLabel(tier);
 
+  const added = Number(new URLSearchParams(location.search).get('added'));
   return `
   <nav class="cg-crumbs" aria-label="Breadcrumb"><a href="./" data-back>Changes</a></nav>
+  ${added > 0 ? `<div class="cg-added" id="rv-added" data-text="${esc(addedNotice(added))}"></div>` : ''}
   <header class="zone cg-pr-open">
-    <p class="cg-pr-who" data-who="${yourTurn ? 'you' : esc(who.who)}">${esc(sentence)}</p>
+    <p class="cg-pr-who" data-who="${yourTurn ? 'you' : esc(who.who)}">${esc(dismissed ? `${dismissed} ${sentence}` : sentence)}</p>
     <h1 class="cg-pr-title">${esc(humanTitle(mdTitleText(pull.title)))}</h1>
     <p class="cg-pr-meta">${avatar(pull.user, 20)}<span>${esc(pull.user.login)}</span>${need ? `<span class="cg-need">${esc(need)}</span>` : ''}</p>
     ${tryIt}

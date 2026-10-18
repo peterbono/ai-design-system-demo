@@ -215,6 +215,8 @@ export function initTokenExplorer() {
     if (s.showDescription) p.set('desc', '1');
     if (s.selected) p.set('t', s.selected);
     if (params.get('edit') === '1') p.set('edit', '1');
+    // The editor scoped to a change (lib/continue-change) keeps its change in the URL.
+    if (params.get('change')) p.set('change', params.get('change')!);
     // The Library page's "Edit in Studio" door follows the selection.
     const door = document.querySelector<HTMLAnchorElement>('[data-xp-studio-link]');
     if (door) {

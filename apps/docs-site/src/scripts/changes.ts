@@ -10,6 +10,8 @@ import type { PullLike } from '../lib/requests-view';
 import { draftCount } from './shell';
 import { docsEdits, draftSummary, tokenEdits } from '../lib/docs-draft-model';
 import type { Draft } from '../lib/editor-model';
+import { addableChanges, defaultTarget, draftDestination, type ChangePullLike } from '../lib/continue-change';
+import { currentViewer, initGitHubConnect, onAccess, readRepo } from './github-session';
 
 type View = 'review' | 'requests' | 'explorations' | 'history';
 
@@ -57,6 +59,25 @@ function paintDraft() {
   const docs = docsEdits(draft);
   const cta = document.querySelector<HTMLAnchorElement>('#cg-draft a');
   if (cta && docs.length && !tokenEdits(draft).length) cta.href = `/components/${docs[0]!.slug}/?edit=1`;
+  paintDestination(tokenEdits(draft).length);
+}
+
+let canWrite = false;
+/** Where the token draft goes when sent: the viewer's own change in review (the default target), else a new one. */
+function paintDestination(edits: number) {
+  const dest = document.getElementById('cg-draft-dest');
+  if (!dest) return;
+  const viewer = currentViewer()?.login;
+  if (!edits || !viewer || !listLoaded) {
+    dest.textContent = '';
+    return;
+  }
+  void listLoaded.then((pulls) => {
+    const r = readRepo();
+    const targets = addableChanges(pulls as unknown as ChangePullLike[], { repo: `${r.owner}/${r.repo}`, viewer, write: canWrite });
+    const choice = defaultTarget(targets);
+    dest.textContent = draftDestination(choice.kind === 'change' ? (targets.find((t) => t.number === choice.number) ?? null) : null, edits);
+  });
 }
 
 function showView(view: View) {
@@ -122,6 +143,11 @@ export function initChanges() {
   initExplorations();
   initRequests();
   paintDraft();
+  initGitHubConnect(() => paintDraft());
+  onAccess((a) => {
+    canWrite = Boolean(a?.write);
+    paintDraft();
+  });
   document.addEventListener('bridge:draft', paintDraft);
   window.addEventListener('storage', paintDraft);
   document.addEventListener('bridge:changes-view', () => ($('cg-main').hidden = true));
@@ -201,4 +227,5 @@ export function initChanges() {
 
   window.addEventListener('popstate', route);
   route();
+  paintDraft();
 }

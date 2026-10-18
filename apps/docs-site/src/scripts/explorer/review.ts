@@ -12,7 +12,7 @@ import type { DraftEdit } from '../../lib/editor-model';
 import { initGitHubConnect, prefersSignIn, setButtonLabel } from '../github-session';
 import { ghAction } from '../../lib/gh-wording';
 import { currentScope } from '../shell';
-import { discardDraft, draftOverrides, editorSnapshot, undoEdit } from '../token-editor';
+import { destinationNote, discardDraft, draftOverrides, editorSnapshot, sendLabel, undoEdit } from '../token-editor';
 import type { ExplorerData } from './types';
 import { esc, icon } from './util';
 import { isStageToken, previewSamples } from '../../lib/preview-fit';
@@ -38,13 +38,23 @@ export function initReview(d: ExplorerData) {
   const open = new Set<string>(['preview']);
   let returnTo: HTMLElement | null = null;
 
+  // Signed out, the note says the draft stays in this browser; signed in, where the edits go (a change in review).
+  const signedOutNote = note?.textContent ?? '';
+  let signedIn = false;
+  const paintFoot = () => {
+    if (propose) {
+      setButtonLabel(propose, signedIn ? sendLabel() : ghAction('send', prefersSignIn()));
+      propose.toggleAttribute('data-gh-open', !signedIn);
+    }
+    if (!note) return;
+    const where = signedIn ? destinationNote() : null;
+    note.textContent = where ?? signedOutNote;
+    note.hidden = signedIn && !where;
+  };
   initGitHubConnect((viewer) => {
     // Without GitHub the primary action connects first (the shared dialog), then proposes: the draft is kept.
-    if (propose) {
-      setButtonLabel(propose, viewer ? 'Send for review' : ghAction('send', prefersSignIn()));
-      propose.toggleAttribute('data-gh-open', !viewer);
-    }
-    if (note) note.hidden = Boolean(viewer);
+    signedIn = Boolean(viewer);
+    paintFoot();
   });
 
   // Docs edits share the draft but are proposed from the docs editor: this sheet reviews token edits only.
@@ -278,6 +288,7 @@ export function initReview(d: ExplorerData) {
   // Proposing replaces the sheet with the propose dialog; the sheet stays behind it.
   document.addEventListener('bridge:draft', () => {
     paintBar();
+    paintFoot();
     if (!sheet.hidden) {
       if (!count()) setOpen(false);
       else paintSheet();
