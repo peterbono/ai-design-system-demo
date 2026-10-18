@@ -273,3 +273,50 @@ export function restoreMeta(s: EditState, m: Partial<EditMeta> | null | undefine
   const ids = (xs: SectionId[] | undefined) => (xs ?? []).filter((id) => valid.includes(id));
   return { ...s, drafts: m.drafts ?? s.drafts, reviewed: ids(m.reviewed), kept: ids(m.kept), updated: ids(m.updated), accurate: ids(m.accurate) };
 }
+
+/* ------------------------------------------------------------------------------------------------------------------ */
+/* The edit bar: the mode signal at the top of the page while editing.                                                */
+
+export type EditBarState = 'clean' | 'saved' | 'unsaved' | 'sent';
+
+/**
+ * The small state under "Editing <name>": nothing changed yet; a draft kept in this browser (editing the published
+ * page saves a local draft as you type); changes not saved anywhere yet (editing a change under review, saved there
+ * only on Save to change); or sent for review (the send dialog shows its result). Drafts that came with the file
+ * (waiting for review) are not a change made here: they do not count until someone keeps or edits them.
+ */
+export function editBarState(o: { dirty: boolean; sent: boolean; savesLocally: boolean }): EditBarState {
+  if (o.sent) return 'sent';
+  if (!o.dirty) return 'clean';
+  return o.savesLocally ? 'saved' : 'unsaved';
+}
+
+export const EDIT_BAR_LABEL: Record<EditBarState, string> = {
+  clean: 'No changes yet',
+  saved: 'Draft saved, not sent',
+  unsaved: 'Unsaved changes',
+  sent: 'Sent for review',
+};
+
+/**
+ * "Keep all" accepts every pending Claude draft at once. It shows only from two drafts (a single draft has its own Keep
+ * next to it) and names what it keeps.
+ */
+export function keepAllLabel(pending: number): string | null {
+  return pending >= 2 ? `Keep all ${pending} Claude drafts` : null;
+}
+
+export type EscapeIntent = 'none' | 'leave-field' | 'cancel';
+
+/**
+ * What Escape does while editing. An open menu, popover or dialog handles its own Escape. In a field, Escape leaves
+ * the field and the text stays. Outside a field it asks to leave editing through Cancel, which confirms first when
+ * something would be lost: Escape never discards silently.
+ */
+export function escapeIntent(o: { overlayOpen: boolean; inField: boolean }): EscapeIntent {
+  if (o.overlayOpen) return 'none';
+  return o.inField ? 'leave-field' : 'cancel';
+}
+
+/** Cancel leaves at once when nothing would be lost, else it asks first. */
+export const cancelNeedsConfirm = (o: { dirty: boolean; pending: number }) => o.dirty || o.pending > 0;
