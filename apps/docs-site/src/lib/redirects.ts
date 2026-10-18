@@ -25,7 +25,7 @@ export const REDIRECTS: Record<string, string> = {
   '/governance': '/how-review-works/',
   '/studio/settings/repository': '/studio/settings/#repository',
   '/studio/settings/governance': '/studio/settings/#approvals',
-  '/studio/settings/integrations': '/studio/settings/#connection',
+  '/studio/settings/integrations': '/studio/settings/#integrations',
   // The theme playground left with the Field Guide redesign: brand and density now switch inside each preview.
   '/playground': '/',
 };

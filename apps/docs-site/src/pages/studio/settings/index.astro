@@ -1,11 +1,12 @@
 ---
-// Studio Settings: one page, five sections in order. Connection (GitHub, then the Figma plugin and MCP as two
-// plain rows), Roles (one sentence, who holds each right and when the visual before and after runs, the edit
-// collapsed and proposed as a pull request on bridge.config.json; then the Protection row, whether every change goes
-// through review, with its one action on the row), Repository (one sentence, Source at rest, the rest collapsed with counts), Approvals (who approves
-// what, one line on the owner override), Integrations (where component change requests go: GitHub always, Jira
-// when the team wants it, proposed as a pull request on bridge.config.json). The old Repository, Governance and Integrations pages redirect to these
-// anchors (lib/redirects.ts); the governance prose lives in the Library (How review works).
+// Studio Settings: one page for designers and design system owners, in this order: Connection (GitHub), Roles (who
+// approves design, who approves tech, who ships, when the visual before and after runs; then the Protection row),
+// Approvals (who approves what, as plain rules without tier numbers, from docs/GOVERNANCE.md), Figma and Claude (the
+// plugin, and the one terminal command that connects your own Claude, with a copy button), Integrations (Jira: one
+// sentence and its status, the setup form proposed as a change to bridge.config.json). Everything a developer needs
+// (repository sources, tiers and modes, previews and snapshot packages, the tier table, MCP details, Jira secrets and
+// workflow) sits in one collapsed "For developers" section at the bottom. The old Repository, Governance and
+// Integrations pages redirect to these anchors (lib/redirects.ts); an anchor inside the developer section opens it.
 import '../../../styles/settings.css';
 import '../../../styles/requests.css';
 import Layout from '../../../layouts/Layout.astro';
@@ -14,6 +15,7 @@ import ButtonLink from '../../../components/ds/ButtonLink';
 import ApprovalsTable from '../../../components/ds/studio/ApprovalsTable';
 import ProtectionRow from '../../../components/ds/studio/ProtectionRow';
 import { GitHubMark } from '../../../components/ds/studio/brand-icons';
+import { Copy } from 'lucide-react';
 import { Button, SegmentedControl } from '@bridge-ds/react';
 import { siteRepo } from '../../../lib/config';
 import { GOVERNANCE_FILE, pluginListing, tierSummaries } from '../../../lib/governance';
@@ -23,6 +25,7 @@ import { HOW_REVIEW_WORKS } from '../../../lib/nav';
 import { exists, GITHUB_URL, lastUpdated, readText } from '../../../lib/repo';
 import { CHOICE_LABEL, roleRows, rolesSummary, VISUAL_MODE_HELP, VISUAL_MODE_LABEL, type RightChoice } from '../../../lib/roles-view';
 import { repoStatus } from '../../../lib/stats';
+import { approvalRules, mcpAddCommand } from '../../../lib/settings-view';
 import { REQUEST_LABEL } from '@bridge-ds/core';
 
 const r = siteRepo();
@@ -82,8 +85,12 @@ const avatar = (login: string) => `https://github.com/${encodeURIComponent(login
 const plugin = pluginListing(exists(pluginReadme) ? readText(pluginReadme) : '');
 const tools = mcpTools().length;
 
-// Approvals.
-const tiers = tierSummaries().map((t) => ({ ...t, approvalsHtml: inline(t.approvals), href: `/studio/changes/?tier=${t.tier}` }));
+// Approvals: plain rules first (no tier numbers), the tier table under "For developers". One source: docs/GOVERNANCE.md.
+const tierRows = tierSummaries();
+const rules = approvalRules(tierRows);
+const tiers = tierRows.map((t) => ({ ...t, approvalsHtml: inline(t.approvals), href: `/studio/changes/?tier=${t.tier}` }));
+// Connect your Claude: the one command, repository from bridge.config.json, the token left as a placeholder.
+const claudeCommand = mcpAddCommand(repoName);
 const ov = r.override;
 
 // Integrations: GitHub issues always; Jira when bridge.config.json says so (the bridge-jira workflow does the sync).
@@ -101,8 +108,8 @@ const intData = JSON.stringify({
   secretsUrl,
 }).replace(/</g, '\\u003c');
 const overrideLine = ov.allowed.length
-  ? `Owner override: ${ov.allowed.map((l) => `@${l}`).join(', ')} may merge when only approvals are missing${ov.requireReason ? `, with a written reason of ${ov.minReasonLength} characters or more` : ''}.`
-  : 'Owner override is off: every merge waits for its approvals.';
+  ? `Owner override: ${ov.allowed.map((l) => `@${l}`).join(', ')} may ship a change when only approvals are missing${ov.requireReason ? `, with a written reason of ${ov.minReasonLength} characters or more` : ''}.`
+  : 'Owner override is off: every change waits for its approvals before it ships.';
 ---
 
 <Layout title="Settings" description="Connect GitHub, the repository this Studio reads, and who approves what." sources={sources} updated={lastUpdated(sources)}>
@@ -120,34 +127,6 @@ const overrideLine = ov.allowed.length
       <Button variant="primary" iconStart={GitHubMark} data-gh-open data-when="readonly rejected"><span data-gh-open-label>Connect GitHub</span></Button>
       <Button variant="secondary" data-gh-open data-when="connected">Change token</Button>
     </div>
-
-    <ul class="set-rows-plain">
-      <li>
-        <div>
-          <p class="set-row-title">DS Bridge Figma plugin</p>
-          <p class="set-row-text">Pull tokens into Figma Variables and send variable edits back as a pull request.</p>
-        </div>
-        <p class="set-row-link">
-          {
-            plugin.url ? (
-              <>
-                <a href={plugin.url}>Community page</a>
-                {plugin.inReview && <span class="set-note">in review</span>}
-              </>
-            ) : (
-              <a href="/install/#figma-plugin">Install it</a>
-            )
-          }
-        </p>
-      </li>
-      <li>
-        <div>
-          <p class="set-row-title">MCP server</p>
-          <p class="set-row-text">Give your own Claude {tools} tools on this design system. It proposes changes for review, never straight to {r.defaultBranch}.</p>
-        </div>
-        <p class="set-row-link"><a href="/agents/#mcp">Connect your Claude</a></p>
-      </li>
-    </ul>
   </section>
 
   <section class="set-block" id="roles" aria-labelledby="set-roles">
@@ -219,85 +198,70 @@ const overrideLine = ov.allowed.length
     <ProtectionRow client:load />
   </section>
 
-  <section class="set-block" id="repository" aria-labelledby="set-repository">
-    <h2 id="set-repository" class="set-h">Repository</h2>
-    <div class="set-lead">
-      <p>
-        Reading <span class="mono">{repoName}</span>, <span class="mono">{r.defaultBranch}</span>, built at <span class="mono">{build.sha}</span>.
-      </p>
-      <ButtonLink variant="secondary" size="sm" iconStart={GitHubMark} href={GITHUB_URL}>Open on GitHub</ButtonLink>
-    </div>
-
-    <h3 class="set-group">Source</h3>
-    <dl class="set-dl">
-      {
-        source.map((x) => (
-          <div>
-            <dt>{x.label}</dt>
-            <dd class="mono">{x.value}</dd>
-          </div>
-        ))
-      }
-    </dl>
-
-    <details class="set-more" id="tiers-and-modes">
-      <summary><span class="set-more-title">Tiers and modes</span> <span class="set-more-n">({tiersAndModes.length})</span><span class="set-chev" aria-hidden="true"></span></summary>
-      <dl class="set-dl">
-        {
-          tiersAndModes.map((x) => (
-            <div>
-              <dt>{x.label}</dt>
-              <dd class="mono">
-                {x.values
-                  ? x.values.map((v, i) => (
-                      <>
-                        {i > 0 && ', '}
-                        {v}
-                        {v === x.defaultValue && <span class="set-default"> (default)</span>}
-                      </>
-                    ))
-                  : x.value}
-              </dd>
-            </div>
-          ))
-        }
-      </dl>
-    </details>
-
-    <details class="set-more" id="owners-and-previews">
-      <summary><span class="set-more-title">Override and previews</span> <span class="set-more-n">({owners.length})</span><span class="set-chev" aria-hidden="true"></span></summary>
-      <dl class="set-dl">
-        {
-          owners.map((x) => (
-            <div>
-              <dt>{x.label}</dt>
-              <dd class="mono">{x.value}</dd>
-            </div>
-          ))
-        }
-      </dl>
-      <p class="set-muted">Change these in a pull request on <span class="mono">{file}</span>: it is a guarded file, reviewed at the highest tier.</p>
-    </details>
-  </section>
-
   <section class="set-block" id="approvals" aria-labelledby="set-approvals">
     <h2 id="set-approvals" class="set-h">Approvals</h2>
-    <ApprovalsTable rows={tiers} />
-    <p class="set-muted">{overrideLine}</p>
-    <p class="set-muted">Gates, the merge rules and what the AI agent may do: <a href={HOW_REVIEW_WORKS}>How review works</a>.</p>
+    <ul class="set-rows-plain set-rules" aria-label="Who approves what">
+      {
+        rules.map((x) => (
+          <li>
+            <p class="set-row-title">{x.what}</p>
+            <p class="set-rule-who">{cap(x.who)}</p>
+          </li>
+        ))
+      }
+    </ul>
+    <p class="set-muted">
+      {overrideLine} How changes are checked and approved: <a href={HOW_REVIEW_WORKS}>How review works</a>.
+    </p>
+  </section>
+
+  <section class="set-block" id="tools" aria-labelledby="set-tools">
+    <h2 id="set-tools" class="set-h">Figma and Claude</h2>
+    <ul class="set-rows-plain">
+      <li>
+        <div>
+          <p class="set-row-title">DS Bridge Figma plugin</p>
+          <p class="set-row-text">Pull tokens into Figma Variables and send variable edits back for review.</p>
+        </div>
+        <p class="set-row-link">
+          {
+            plugin.url ? (
+              <>
+                <a href={plugin.url}>Community page</a>
+                {plugin.inReview && <span class="set-note">in review</span>}
+              </>
+            ) : (
+              <a href="/install/#figma-plugin">Install it</a>
+            )
+          }
+        </p>
+      </li>
+      <li class="set-claude" id="claude">
+        <div>
+          <p class="set-row-title">Connect your Claude</p>
+          <p class="set-row-text">
+            Give your own Claude {tools} tools on this design system. It sends changes for review and never ships them on its own. Run this once in a
+            terminal, with your GitHub token in place of <span class="mono">&lt;your token&gt;</span>.
+          </p>
+        </div>
+        <div class="set-cmd">
+          <code class="set-cmd-text" id="set-claude-cmd">{claudeCommand}</code>
+          <Button variant="secondary" data-density="compact" iconStart={Copy} data-copy-from="set-claude-cmd" aria-label="Copy the command">
+            <span data-copy-label>Copy</span>
+          </Button>
+        </div>
+      </li>
+    </ul>
   </section>
 
   <section class="set-block" id="integrations" aria-labelledby="set-integrations">
     <h2 id="set-integrations" class="set-h">Integrations</h2>
-    <p class="set-muted set-int-lead">
-      Component change requests are GitHub issues labeled <span class="mono">{REQUEST_LABEL}</span>. Developers implement them in a pull request that closes them. Mirror them to Jira if your team plans there.
-    </p>
+    <p class="set-muted set-int-lead">Component change requests live in GitHub. Mirror them to Jira if your team plans there.</p>
 
     <div class="fg-card set-int" data-set-jira>
       <div class="set-int-head">
         <p class="set-row-title">Jira</p>
-        <span class="pill">Recommended</span>
-        <span class="pill is-pass" hidden={!jira}>Connected</span>
+        {jira ? <span class="pill is-pass">Connected</span> : <span class="pill">Not set up</span>}
       </div>
       <p>
         {
@@ -324,27 +288,115 @@ const overrideLine = ov.allowed.length
           </div>
           <p class="rq-error" role="alert" data-int-error hidden></p>
           <div class="rq-actions">
-            <Button variant="secondary" type="submit" data-int-submit data-gh-gate="propose integrations">Propose</Button>
-            <span class="set-muted">Opens a pull request on <span class="mono">{file}</span>. Nothing changes until it merges.</span>
+            <Button variant="secondary" type="submit" data-int-submit data-gh-gate="propose integrations">Send for review</Button>
+            <span class="set-muted">Nothing changes until it ships. A developer then adds the Jira secrets once (For developers, below).</span>
           </div>
           <div class="rq-done" role="status" data-int-done hidden></div>
         </form>
-        <p class="set-int-group">Then, once</p>
-        <ol class="set-checklist">
-          <li>Merge the pull request. <span class="mono">{file}</span> is a guarded file, so it gets the highest review tier.</li>
-          <li>Add the repository secrets <span class="mono">JIRA_EMAIL</span> and <span class="mono">JIRA_API_TOKEN</span> in <a href={secretsUrl}>Settings, Secrets and variables, Actions</a>.</li>
-          <li>The <a href={workflowUrl} class="mono">{workflowFile}</a> workflow creates the Jira issue for each new request and labels the GitHub issue with its key.</li>
-        </ol>
       </details>
     </div>
+  </section>
 
-    <p class="set-muted">
-      <strong>Use your own tools.</strong> Follow requests in GitHub by <a href={issuesUrl}>filtering issues by the {REQUEST_LABEL} label</a>, or link GitHub and Jira with Atlassian's <a href="https://github.com/marketplace/jira-software-github">GitHub for Jira</a> app.
-    </p>
+  <section class="set-block" id="developer" aria-label="For developers">
+    <details class="set-more set-dev" id="for-developers" data-dev-fold>
+      <summary>
+        <span class="set-more-title">For developers</span>
+        <span class="set-more-n">Repository, tiers and modes, previews, MCP, Jira workflow</span>
+        <span class="set-chev" aria-hidden="true"></span>
+      </summary>
+
+      <h3 class="set-group" id="repository">Repository</h3>
+      <div class="set-lead">
+        <p>
+          Reading <span class="mono">{repoName}</span>, <span class="mono">{r.defaultBranch}</span>, built at <span class="mono">{build.sha}</span>.
+        </p>
+        <ButtonLink variant="secondary" size="sm" iconStart={GitHubMark} href={GITHUB_URL}>Open on GitHub</ButtonLink>
+      </div>
+      <dl class="set-dl set-dl-after">
+        {
+          source.map((x) => (
+            <div>
+              <dt>{x.label}</dt>
+              <dd class="mono">{x.value}</dd>
+            </div>
+          ))
+        }
+      </dl>
+
+      <h3 class="set-group" id="tiers-and-modes">Tiers and modes</h3>
+      <dl class="set-dl">
+        {
+          tiersAndModes.map((x) => (
+            <div>
+              <dt>{x.label}</dt>
+              <dd class="mono">
+                {x.values
+                  ? x.values.map((v, i) => (
+                      <>
+                        {i > 0 && ', '}
+                        {v}
+                        {v === x.defaultValue && <span class="set-default"> (default)</span>}
+                      </>
+                    ))
+                  : x.value}
+              </dd>
+            </div>
+          ))
+        }
+      </dl>
+
+      <h3 class="set-group" id="owners-and-previews">Override and previews</h3>
+      <dl class="set-dl">
+        {
+          owners.map((x) => (
+            <div>
+              <dt>{x.label}</dt>
+              <dd class="mono">{x.value}</dd>
+            </div>
+          ))
+        }
+      </dl>
+      <p class="set-muted">Change these in a pull request on <span class="mono">{file}</span>: it is a guarded file, reviewed at the highest tier.</p>
+
+      <h3 class="set-group" id="approval-tiers">Approvals by risk tier</h3>
+      <ApprovalsTable rows={tiers} />
+
+      <h3 class="set-group" id="mcp">MCP server</h3>
+      <p class="set-muted">
+        {tools} tools. Claude works on a <span class="mono">{config.governance?.branchPrefix ?? ''}*</span> branch and opens a pull request, never commits to
+        <span class="mono">{r.defaultBranch}</span>. Clients, local setup and the full tool list: <a href="/agents/#mcp">Agents page</a>.
+      </p>
+
+      <h3 class="set-group" id="jira-workflow">Jira workflow</h3>
+      <ol class="set-checklist">
+        <li>Merge the pull request that changes <span class="mono">{file}</span>. It is a guarded file, so it gets the highest review tier.</li>
+        <li>
+          Add the repository secrets <span class="mono">JIRA_EMAIL</span> and <span class="mono">JIRA_API_TOKEN</span> in <a href={secretsUrl}>Settings, Secrets and variables, Actions</a>.
+        </li>
+        <li>The <a href={workflowUrl} class="mono">{workflowFile}</a> workflow creates the Jira issue for each new request and labels the GitHub issue with its key.</li>
+      </ol>
+      <p class="set-muted">
+        Requests are GitHub issues labeled <span class="mono">{REQUEST_LABEL}</span>, closed by the pull request that implements them. Follow them by
+        <a href={issuesUrl}>filtering issues by that label</a>, or link GitHub and Jira with Atlassian's <a href="https://github.com/marketplace/jira-software-github">GitHub for Jira</a> app.
+      </p>
+    </details>
   </section>
 
   <script type="application/json" id="set-int-data" set:html={intData} />
   <script type="application/json" id="set-roles-data" set:html={rolesData} />
+  <script>
+    // An anchor inside "For developers" (#repository, #tiers-and-modes, #mcp...) opens it, then scrolls there.
+    const revealHash = () => {
+      const id = decodeURIComponent(location.hash.slice(1));
+      const el = id ? document.getElementById(id) : null;
+      const fold = el?.closest<HTMLDetailsElement>('[data-dev-fold]');
+      if (!el || !fold) return;
+      fold.open = true;
+      el.scrollIntoView();
+    };
+    revealHash();
+    window.addEventListener('hashchange', revealHash);
+  </script>
   <script>
     import { initRoles } from '../../../scripts/roles';
     initRoles();

@@ -69,9 +69,11 @@ export const STUDIO_CHANGES_HREF = '/studio/changes/';
  * Adoption pages redirect to it (lib/redirects.ts); each audit report opens under /studio/quality/audits/. */
 export const STUDIO_QUALITY_HREF = '/studio/quality/';
 
-/** Settings is one page: Connection, Repository, Approvals. The old Repository, Governance and Integrations pages
- * redirect to its sections (lib/redirects.ts); the governance prose lives in the Library (How review works). */
-export const SETTINGS_SECTIONS = ['connection', 'repository', 'approvals'] as const;
+/** Settings is one page, its sections in page order: Connection, Roles, Approvals, Figma and Claude (tools),
+ * Integrations, then the collapsed For developers section (developer) that holds Repository. The old Repository,
+ * Governance and Integrations pages redirect to these anchors (lib/redirects.ts); the governance prose lives in the
+ * Library (How review works). */
+export const SETTINGS_SECTIONS = ['connection', 'roles', 'approvals', 'tools', 'integrations', 'developer', 'repository'] as const;
 export const HOW_REVIEW_WORKS = '/how-review-works/';
 
 /** Component families for the catalog page (cards), from the optional `category` in <Name>.docs.json. */

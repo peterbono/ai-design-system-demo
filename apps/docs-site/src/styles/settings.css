@@ -392,3 +392,88 @@
     display: none;
   }
 }
+
+/* Approvals: one plain rule per kind of change, what on the left, who approves on the right (same row as Roles). */
+.set-rules > li {
+  align-items: center;
+}
+
+.set-rules .set-row-title {
+  flex: 1 1 auto;
+}
+
+.set-rule-who {
+  margin: 0;
+}
+
+/* Connect your Claude: the one command and its copy action on the same line. */
+.set-rows-plain > li > .set-cmd {
+  display: flex;
+  flex: 0 0 100%;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.set-cmd-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  overflow-x: auto;
+  border-radius: var(--radius-control);
+  background-color: var(--color-bg-subtle);
+  font-family: var(--font-family-mono);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+  overflow-wrap: anywhere;
+}
+
+/* For developers: one collapsed section at the bottom, its groups as flat headings inside. */
+.set-dev > summary {
+  flex-wrap: wrap;
+  cursor: pointer;
+}
+
+.set-dev > summary:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: var(--radius-control);
+}
+
+.set-dev[open] {
+  padding-bottom: var(--space-6);
+}
+
+.set-dev > .set-group:first-of-type {
+  margin-top: var(--space-2);
+}
+
+.set-dl-after {
+  margin-top: var(--space-4);
+}
+
+@media (max-width: 640px) {
+  .set-cmd {
+    flex-wrap: wrap;
+  }
+
+  .set-cmd-text {
+    flex-basis: 100%;
+  }
+
+  .set-cmd [data-copy-from] {
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Phones: each rule reads as two lines, kind then who approves. */
+  .set-rules > li {
+    display: grid;
+    gap: var(--space-0-5);
+  }
+
+  .set-dev > summary .set-more-n {
+    display: none;
+  }
+}

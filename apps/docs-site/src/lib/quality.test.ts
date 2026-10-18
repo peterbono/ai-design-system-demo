@@ -1,6 +1,6 @@
 // Studio Quality: findings ordering, the opener sentence and the opener's one action.
 import { describe, expect, it } from 'vitest';
-import { adoptionRows, contrastFinding, firstFindingTarget, openerSentence, qualityModel, sortFindings, type Finding } from './quality';
+import { adoptionRows, cleanupTitle, contrastFinding, firstFindingTarget, openerSentence, qualityModel, sortFindings, sparkLabel, sparkPoints, type Finding } from './quality';
 import type { Issue } from './stats';
 
 const combos = ['Bridge light', 'Bridge dark', 'Ocean light', 'Ocean dark'].map((label) => ({ label, pass: 74, total: 74 }));
@@ -77,5 +77,44 @@ describe('adoption rows', () => {
     ]);
     expect(rows[0]).toEqual({ id: 'admin', label: 'Admin demo', token: { from: 0, to: 100 }, component: { from: 0, to: 90.2 }, href: '/studio/quality/audits/admin-after/' });
     expect(rows[1]).toMatchObject({ label: 'X app', token: { from: 10, to: null }, href: '/studio/quality/audits/x-1/' });
+  });
+});
+
+describe('clean up title', () => {
+  it('counts unused tokens, not groups', () => {
+    expect(cleanupTitle(16 + 86)).toBe('102 unused tokens');
+    expect(cleanupTitle(1)).toBe('1 unused token');
+    expect(cleanupTitle(0)).toBe('No unused tokens');
+  });
+
+  it('keeps file paths out of the missing guidance line', () => {
+    const m = qualityModel({ contrast: pass, components: comps, issues: [], editHref: edit });
+    expect(m.findings[0]!.detail).toBe('Its page shows props and tokens only. Add guidance in the docs editor.');
+    expect(m.findings[0]!.detail).not.toContain('docs.json');
+  });
+});
+
+describe('adoption sparkline', () => {
+  const runs = [
+    { tokenAdoption: 0, componentAdoption: 0 },
+    { tokenAdoption: 50, componentAdoption: null },
+    { tokenAdoption: 100, componentAdoption: 90 },
+  ];
+
+  it('spreads runs on x and maps 0 to 100 percent on y, skipping missing values', () => {
+    expect(sparkPoints(runs, 'tokenAdoption', 84, 24)).toBe('2,22 42,12 82,2');
+    expect(sparkPoints(runs, 'componentAdoption', 84, 24)).toBe('2,22 82,4');
+  });
+
+  it('centers a single run and clamps out of range values', () => {
+    expect(sparkPoints([{ tokenAdoption: 120, componentAdoption: -5 }], 'tokenAdoption', 84, 24)).toBe('42,2');
+    expect(sparkPoints([{ tokenAdoption: 120, componentAdoption: -5 }], 'componentAdoption', 84, 24)).toBe('42,22');
+  });
+
+  it('says the first and last run for screen readers', () => {
+    expect(sparkLabel('Admin demo', [runs[0]!, { tokenAdoption: 100, componentAdoption: 90.2 }])).toBe(
+      'Admin demo adoption over 2 runs: tokens 0% to 100%, components 0% to 90.2%.',
+    );
+    expect(sparkLabel('Admin demo', [runs[0]!])).toBe('Admin demo: one run so far.');
   });
 });
