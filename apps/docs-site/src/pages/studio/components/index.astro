@@ -1,10 +1,12 @@
 ---
 // Studio Components: one sentence on the state of the catalog, one primary while guidance is missing, then every
-// component grouped by family (search and the family menu filter it), each row with a thumbnail of the real
-// component. A row opens a drawer: the component live in light and dark, its guidance status, the designer doors
-// (Edit docs, Edit tokens, Library page) and "Request a change": code is the source of truth, so a component
-// change is a GitHub issue (label component-change) that a developer implements. Code, workbench, props and
-// examples sit in one "For developers" fold at the bottom.
+// component grouped by family (search and the family menu filter it), each row with a calm thumbnail of the real
+// component and its facts in words. A row opens a drawer, top to bottom: the family as an eyebrow on the name, one
+// sentence, ONE live preview with a Light/Dark switch, the facts in one line (a pill only when something waits for
+// someone), then one row of actions with a single primary (the guidance while it is missing or in review, else the
+// tokens) and "Request a change": code is the source of truth, so a component change is a GitHub issue (label
+// component-change) that a developer implements. Token origins, code, the component sandbox, props and file paths
+// sit in one "For developers" fold at the bottom.
 import '../../../styles/studio.css';
 import '../../../styles/components-studio.css';
 import '../../../styles/requests.css';
@@ -16,12 +18,12 @@ import ButtonLink from '../../../components/ds/ButtonLink';
 import Example from '../../../components/Example';
 import ComponentsSearch from '../../../components/ds/studio/ComponentsSearch';
 import ComponentsList, { exceptions, type ComponentListRow } from '../../../components/ds/studio/ComponentsList';
-import { Button, Icon, IconButton, Input, Link, Textarea } from '@bridge-ds/react';
-import { BookOpen, FileText, ImagePlus, MessageSquarePlus, Pencil, X } from 'lucide-react';
+import { Button, Icon, IconButton, Input, Link, SegmentedControl, Textarea } from '@bridge-ds/react';
+import { FileText, ImagePlus, MessageSquarePlus, Moon, Pencil, Sun, X } from 'lucide-react';
 import { REQUEST_KINDS } from '@bridge-ds/core';
 import { GitHubMark, StorybookMark } from '../../../components/ds/studio/brand-icons';
-import { docsEditHref, editTokensHref, guidanceState, loadComponents, tokenCountLabel, type ComponentInfo } from '../../../lib/components';
-import { componentsLead, componentsPrimary, productUsage } from '../../../lib/components-studio';
+import { docsEditHref, editTokensHref, guidanceState, loadComponents, type ComponentInfo } from '../../../lib/components';
+import { componentsLead, componentsPrimary, drawerActions, drawerFacts, productUsage, tokenOrigin } from '../../../lib/components-studio';
 import { groupByApp, loadAudits } from '../../../lib/audits';
 import { sourceUrl, STORYBOOK_URL } from '../../../lib/repo';
 import { PAGE_SOURCES, freshness } from '../../../lib/sources';
@@ -30,7 +32,7 @@ const components = loadComponents();
 const updated = freshness(PAGE_SOURCES.components);
 const statusOf = (c: ComponentInfo) => c.docs?.status ?? 'stable';
 // "Used in products": the DS component instances `bridge audit` counted in each audited product (the committed
-// reports under src/data/audits, latest per product). No report: no column.
+// reports under src/data/audits, latest per product). No report: nothing is said about usage.
 const audits = groupByApp(loadAudits()).apps.map((a) => {
   const latest = a.after ?? a.reports[a.reports.length - 1]!;
   return { product: a.app.title.replace(/\s*\(.*$/, ''), components: latest.report.components?.ds ?? {}, label: latest.report.label ?? '' };
@@ -42,7 +44,6 @@ const rows: ComponentListRow[] = components.map((c) => ({
   family: c.category,
   status: statusOf(c),
   guidance: guidanceState(c),
-  tokens: tokenCountLabel(c),
   tokensTotal: c.allTokenPaths.length,
   examples: c.stories.length,
   preview: c.docs?.preview,
@@ -51,12 +52,7 @@ const rows: ComponentListRow[] = components.map((c) => ({
 const families = [...new Set(rows.map((r) => r.family))].map((f) => ({ name: f, n: rows.filter((r) => r.family === f).length }));
 const lead = componentsLead(rows);
 const primary = componentsPrimary(rows, docsEditHref);
-const GUIDANCE_LINE: Record<string, { label: string; tone: string; text: string }> = {
-  ok: { label: 'Guidance written', tone: 'is-pass', text: 'The Library page has its usage guidance.' },
-  review: { label: 'Draft by Claude, needs review', tone: 'is-info', text: 'Claude drafted the guidance from the code. Read it, fix it, then mark it reviewed.' },
-  missing: { label: 'Missing guidance', tone: '', text: 'The Library page shows props and tokens only. Start from what the code tells.' },
-};
-const docsLabel = (g: string) => (g === 'missing' ? 'Add guidance' : g === 'review' ? 'Review docs' : 'Edit docs');
+const docsLabel = (g: string) => (g === 'missing' ? 'Add guidance' : g === 'review' ? 'Review guidance' : 'Edit docs');
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 // A request is always about an existing component here: Visual change first, the most common ask.
 const DEFAULT_KIND = 'visual';
@@ -65,7 +61,7 @@ const defaultHint = REQUEST_KINDS.find((k) => k.value === DEFAULT_KIND)?.hint ??
 
 <Layout
   title="Components"
-  description="Every component by family, with a live thumbnail, its examples, tokens, open requests and the products that use it, and the doors to edit its docs and tokens."
+  description="Every component by family, with a live thumbnail, the products that use it, open requests, examples and tokens, and the doors to edit its docs and tokens."
   sources={PAGE_SOURCES.components}
   updated={updated}
   wide
@@ -100,95 +96,88 @@ const defaultHint = REQUEST_KINDS.find((k) => k.value === DEFAULT_KIND)?.hint ??
 
     <ComponentsList rows={rows} products={audits.length} />
     <p class="cm-none" data-cm-none hidden>No component matches. <button type="button" class="cm-lead-filter" data-cm-reset>Show every component</button></p>
-    {audits.length > 0 && <p class="cm-note">Used in products counts the audited products that render the component: {audits.map((a) => a.product).join(' and ')}, from their last <a href="/studio/quality/">audit report</a>. Requests counts the open change requests.</p>}
+    {audits.length > 0 && <p class="cm-note">Used in names the audited products that render the component ({audits.map((a) => a.product).join(' and ')}), from their last <Link href="/studio/quality/">audit report</Link>. Open requests counts the change requests not shipped yet.</p>}
   </div>
 
   <div class="cm-scrim" data-cm-scrim hidden></div>
   <aside class="cm-drawer" role="dialog" aria-modal="true" aria-labelledby="cm-d-title" data-cm-drawer hidden>
     <header class="cm-d-head">
-      <h2 id="cm-d-title" class="cm-d-title" tabindex="-1" data-cm-d-title>Component</h2>
+      <hgroup class="cm-d-names">
+        <p class="cm-d-eyebrow" data-cm-d-family></p>
+        <h2 id="cm-d-title" class="cm-d-title" tabindex="-1" data-cm-d-title>Component</h2>
+      </hgroup>
       <IconButton icon={X} label="Close" size="sm" data-cm-close />
     </header>
     {
       components.map((c) => {
         const r = rows.find((x) => x.slug === c.slug)!;
-        const g = GUIDANCE_LINE[r.guidance]!;
         const tokensHref = editTokensHref(c);
-        const used = r.usedIn ?? [];
+        const acts = drawerActions({ guidance: r.guidance, hasTokens: Boolean(tokensHref) });
+        const action = (a: 'docs' | 'tokens' | 'request', variant: 'primary' | 'secondary') =>
+          a === 'docs' ? (
+            <ButtonLink variant={variant} href={docsEditHref(c.slug)} iconStart={variant === 'primary' ? FileText : undefined}>
+              {docsLabel(r.guidance)}
+            </ButtonLink>
+          ) : a === 'tokens' && tokensHref ? (
+            <ButtonLink variant={variant} href={tokensHref} iconStart={variant === 'primary' ? Pencil : undefined} data-keep-branch="">
+              Edit tokens
+            </ButtonLink>
+          ) : (
+            <span class="cm-d-req-slot" data-cm-req-slot />
+          );
         return (
-          <section class="cm-d-panel" data-cm-panel={c.slug} data-name={c.name} hidden>
+          <section class="cm-d-panel" data-cm-panel={c.slug} data-name={c.name} data-family={c.category} hidden>
+            <p class="cm-d-summary">
+              {c.docs?.summary ?? c.description ?? 'No summary yet.'}{' '}
+              <Link href={`/components/${c.slug}/`}>Open in the Library</Link>
+            </p>
             {c.docs?.preview ? (
-              <figure class="cm-d-preview" aria-label={`${c.name} in light and dark`}>
-                {['light', 'dark'].map((theme) => (
-                  <div class="cm-d-pv">
-                    <span class="cm-d-pv-label">{theme === 'light' ? 'Light' : 'Dark'}</span>
-                    <div class="xe-frame cm-d-frame" data-theme={theme} aria-hidden="true" inert>
-                      <div class="xe-fit">
-                        <Example node={c.docs!.preview!} />
-                      </div>
-                    </div>
+              <figure class="cm-d-preview" aria-label={`${c.name}, live`}>
+                <div class="xe-frame cm-d-frame" data-theme="light" data-cm-d-frame aria-hidden="true" inert>
+                  <div class="xe-fit">
+                    <Example node={c.docs!.preview!} />
                   </div>
-                ))}
+                </div>
+                <figcaption class="cm-d-pv-bar" data-cm-pv-slot />
               </figure>
             ) : (
-              <p class="cm-d-nopv">No preview yet: the docs have no example to render. Add one with {docsLabel(r.guidance)}.</p>
+              <p class="cm-d-nopv">No preview: the guidance has no example to render.</p>
             )}
-            <p class="cm-d-meta">
-              {c.category}
-              {exceptions(r)
-                .filter((b) => !b.label.startsWith('Missing') && !b.label.startsWith('Draft'))
-                .map((b) => (
-                  <span class={`pill ${b.tone}`}>{b.label}</span>
-                ))}
+            <p class="cm-d-facts">
+              {exceptions(r).map((b) => (
+                <span class={`pill ${b.tone}`}>{b.label}</span>
+              ))}
+              <span>{drawerFacts({ guidance: r.guidance, tokens: r.tokensTotal, usedIn: r.usedIn }).join(' ')}</span>
+              <span data-cm-d-req />
             </p>
-            <p class="cm-d-summary">{c.docs?.summary ?? c.description ?? 'No summary yet.'}</p>
-            <div class="cm-d-guidance">
-              <span class={`pill ${g.tone}`}>{g.label}</span>
-              <p>{g.text}</p>
-            </div>
-            <dl class="cm-d-facts">
-              <div>
-                <dt>Open requests</dt>
-                <dd class="num" data-cm-d-req>Reading</dd>
-              </div>
-              {
-                audits.length > 0 && (
-                  <div>
-                    <dt>Used in products</dt>
-                    <dd>{used.length ? used.map((u) => `${u.product} (${u.instances})`).join(', ') : 'Not in an audited product'}</dd>
-                  </div>
-                )
-              }
-              <div>
-                <dt>Tokens</dt>
-                <dd class="num">{r.tokensTotal}</dd>
-              </div>
-            </dl>
             <div class="cm-d-actions">
-              <ButtonLink variant="primary" href={docsEditHref(c.slug)} iconStart={FileText}>
-                {docsLabel(r.guidance)}
-              </ButtonLink>
-              {tokensHref && (
-                <ButtonLink variant="secondary" href={tokensHref} iconStart={Pencil} data-keep-branch="">
-                  Edit tokens
-                </ButtonLink>
-              )}
-              <ButtonLink variant="ghost" href={`/components/${c.slug}/`} iconStart={BookOpen}>
-                Library page
-              </ButtonLink>
+              {action(acts.primary, 'primary')}
+              {acts.secondary.map((a) => action(a, 'secondary'))}
             </div>
           </section>
         );
       })
     }
-    <section class="cm-req" data-cm-req aria-labelledby="cm-req-h">
-      <h3 id="cm-req-h" class="cm-req-h">Need a change?</h3>
-      <p data-cm-req-intro>A developer builds component changes. Describe what you need and attach the Figma frame.</p>
-      <p data-no-gh>Connect GitHub to request changes.</p>
-      <Button variant="secondary" size="sm" className="cm-req-start" iconStart={GitHubMark} data-gh-open data-no-gh>Connect GitHub</Button>
-      <Button variant="secondary" size="sm" className="cm-req-start" iconStart={MessageSquarePlus} data-cm-req-open data-gh-only hidden aria-expanded="false" aria-controls="cm-req-form">Request a change</Button>
-
+    {/* One Light/Dark switch and one "Request a change" for the whole drawer: scripts/components-studio.ts moves them
+        into the open panel (the switch under its preview, the request into its action row). */}
+    <div class="cm-d-shared" data-cm-shared hidden>
+      <SegmentedControl
+        label="Preview theme"
+        data-vanilla
+        data-cm-theme
+        size="sm"
+        defaultValue="light"
+        items={[
+          { value: 'light', label: 'Light', icon: Sun },
+          { value: 'dark', label: 'Dark', icon: Moon },
+        ]}
+      />
+      <Button variant="secondary" iconStart={GitHubMark} data-gh-open data-no-gh data-cm-req-anon title="Connect GitHub to send a request">Request a change</Button>
+      <Button variant="secondary" iconStart={MessageSquarePlus} data-cm-req-open data-gh-only hidden aria-expanded="false" aria-controls="cm-req-form">Request a change</Button>
+    </div>
+    <section class="cm-req" data-cm-req aria-label="Request a change">
       <form class="rq-form" id="cm-req-form" data-cm-req-form novalidate hidden>
+        <p class="cm-req-intro">A developer builds component changes. Describe what you need and attach the Figma frame.</p>
         <label class="rq-field">
           <span>Kind</span>
           <select name="kind" data-rq-kind>
@@ -234,18 +223,21 @@ const defaultHint = REQUEST_KINDS.find((k) => k.value === DEFAULT_KIND)?.hint ??
             <summary>
               <UiIcon name="code" size={18} />
               <span class="cm-d-dev-label">For developers</span>
-              <span class="cm-d-dev-meta">{plural(c.props.length, 'prop')}, {plural(c.stories.length, 'example')}</span>
               <span class="cm-d-dev-chev"><UiIcon name="chevron" size={16} /></span>
             </summary>
             <div class="cm-d-dev-body">
-              <dl class="cm-d-facts">
+              <dl class="cm-d-dev-facts">
                 <div>
-                  <dt>Props</dt>
-                  <dd class="num">{c.props.length}</dd>
+                  <dt>Tokens</dt>
+                  <dd>{tokenOrigin(c.tokenPaths.length, c.inherited)}</dd>
                 </div>
                 <div>
-                  <dt>Stories</dt>
-                  <dd class="num">{c.stories.length}</dd>
+                  <dt>API</dt>
+                  <dd>{plural(c.props.length, 'prop')}, {plural(c.stories.length, 'Storybook story', 'Storybook stories')}.</dd>
+                </div>
+                <div>
+                  <dt>Files</dt>
+                  <dd><code>{c.files.tsx.replace(/[^/]+$/, '')}</code></dd>
                 </div>
               </dl>
               <ul class="cm-d-links" aria-label={`${c.name} for developers`}>
@@ -259,7 +251,7 @@ const defaultHint = REQUEST_KINDS.find((k) => k.value === DEFAULT_KIND)?.hint ??
                   <li>
                     <Link variant="standalone" href={`${STORYBOOK_URL}/?path=/story/${story.id}`}>
                       <Icon icon={StorybookMark} size="xs" />
-                      Workbench
+                      Component sandbox
                     </Link>
                   </li>
                 )}

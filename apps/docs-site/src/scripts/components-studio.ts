@@ -1,12 +1,17 @@
 // Studio Components controller: filter the list (text, family menu, "need usage guidance"), move between rows with
 // the arrow keys (the list is one tab stop), and open a row's detail drawer. Deep links: ?c=<slug> opens that
 // component's drawer (the Library "Edit in Studio" door), ?guidance=needed shows only what needs guidance.
-// Thumbnails and the drawer preview are scaled to fit their frame; the Requests column fills from the requests
-// Studio already reads (GitHub issues labeled component-change), and leaves the page when they cannot be read.
-import { openRequestCounts } from '../lib/components-studio';
+// Thumbnails and the drawer preview are scaled to fit their frame; the drawer's one Light/Dark switch and its one
+// "Request a change" are moved into the open panel. The Open requests column fills from the requests Studio already
+// reads (GitHub issues labeled component-change), and leaves the page when they cannot be read.
+import { openRequestCounts, requestFact } from '../lib/components-studio';
 import { initRequestForm, resetRequestForm } from './request-form';
 import { fitFrames } from './explorer/preview-frames';
 import { loadRequestRows } from './requests';
+import { selectSegment } from './shell';
+
+// One size for the list thumbnails: a lone control shows a little smaller than life, like its neighbors scaled to fit.
+const THUMB_MAX = 0.7;
 
 export function initComponentsStudio() {
   const root = document.querySelector<HTMLElement>('.cm');
@@ -22,6 +27,10 @@ export function initComponentsStudio() {
   const drawer = document.querySelector<HTMLElement>('[data-cm-drawer]')!;
   const scrim = document.querySelector<HTMLElement>('[data-cm-scrim]')!;
   const title = drawer.querySelector<HTMLElement>('[data-cm-d-title]')!;
+  const eyebrow = drawer.querySelector<HTMLElement>('[data-cm-d-family]');
+  const shared = drawer.querySelector<HTMLElement>('[data-cm-shared]')!;
+  const themeSeg = drawer.querySelector<HTMLElement>('[data-cm-theme]');
+  const reqButtons = [...drawer.querySelectorAll<HTMLElement>('[data-cm-req-open], [data-cm-req-anon]')];
   const panels = [...drawer.querySelectorAll<HTMLElement>('[data-cm-panel]')];
   const devs = [...drawer.querySelectorAll<HTMLDetailsElement>('[data-cm-dev]')];
   const table = root.querySelector<HTMLElement>('[data-cm-table]');
@@ -31,6 +40,9 @@ export function initComponentsStudio() {
   let family = '';
   let onlyGuidance = params.get('guidance') === 'needed';
   let openRow: HTMLTableRowElement | null = null;
+  // The drawer preview's theme: the page theme until the viewer picks one with the switch.
+  let previewTheme: string | null = null;
+  const themeNow = () => previewTheme ?? (document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
 
   const visibleRows = () => rows.filter((r) => !r.hidden);
 
@@ -59,7 +71,7 @@ export function initComponentsStudio() {
     const shown = visibleRows();
     if (none) none.hidden = shown.length > 0;
     if (count) count.textContent = shown.length === rows.length ? '' : `${shown.length} of ${rows.length} components shown`;
-    requestAnimationFrame(() => table && fitFrames(table, { max: 1 }));
+    requestAnimationFrame(() => table && fitFrames(table, { max: THUMB_MAX }));
     // One tab stop: the first visible row, unless the focused one is still visible.
     const active = shown.find((r) => r.tabIndex === 0) ?? shown[0];
     rows.forEach((r) => (r.tabIndex = r === active ? 0 : -1));
@@ -77,6 +89,15 @@ export function initComponentsStudio() {
     });
     paintDrawerRequests(panel);
     title.textContent = panel.dataset.name ?? slug;
+    if (eyebrow) eyebrow.textContent = panel.dataset.family ?? '';
+    // The shared switch goes under this preview (back to its hidden home when there is none), the request into the
+    // action row.
+    const pvSlot = panel.querySelector('[data-cm-pv-slot]');
+    if (themeSeg) (pvSlot ?? shared).append(themeSeg);
+    const reqSlot = panel.querySelector('[data-cm-req-slot]');
+    if (reqSlot) reqSlot.replaceWith(...reqButtons);
+    else panel.querySelector('.cm-d-actions')?.append(...reqButtons);
+    paintTheme(panel);
     drawer.dataset.component = panel.dataset.name ?? slug;
     drawer.dataset.slug = slug;
     resetRequestForm(drawer);
@@ -92,15 +113,24 @@ export function initComponentsStudio() {
     syncUrl();
   }
 
-  /** The drawer's "Open requests" fact, with a link to them in Changes when there are some. */
+  /** The open panel's preview in the chosen theme, the switch showing it. */
+  function paintTheme(panel: HTMLElement) {
+    const theme = themeNow();
+    panel.querySelectorAll<HTMLElement>('[data-cm-d-frame]').forEach((f) => (f.dataset.theme = theme));
+    if (themeSeg) selectSegment(themeSeg, theme);
+  }
+
+  /** The open request part of the drawer's facts line, with a link to them in Changes when there are some. */
   function paintDrawerRequests(panel: HTMLElement) {
-    const dd = panel.querySelector<HTMLElement>('[data-cm-d-req]');
-    if (!dd) return;
-    if (requestCounts === null) dd.textContent = 'Reading';
-    else if (requestCounts === undefined) dd.textContent = 'Not available right now';
-    else {
-      const n = requestCounts.get((panel.dataset.name ?? '').toLowerCase()) ?? 0;
-      dd.innerHTML = n ? `${n} <a href="/studio/changes/?view=requests">See in Changes</a>` : 'None';
+    const el = panel.querySelector<HTMLElement>('[data-cm-d-req]');
+    if (!el) return;
+    const n = requestCounts ? (requestCounts.get((panel.dataset.name ?? '').toLowerCase()) ?? 0) : requestCounts;
+    el.textContent = requestFact(n);
+    if (n) {
+      const a = document.createElement('a');
+      a.href = '/studio/changes/?view=requests';
+      a.textContent = 'See them in Changes';
+      el.append(' ', a);
     }
   }
 
@@ -110,7 +140,7 @@ export function initComponentsStudio() {
       table?.querySelectorAll<HTMLElement>('[data-cm-req-n]').forEach((cell) => {
         const n = requestCounts?.get(cell.dataset.cmReqN ?? '') ?? 0;
         // Only a real count shows: an empty cell reads "none" without adding 47 zeros to the list.
-        cell.textContent = n ? String(n) : '';
+        cell.textContent = n ? `${n} ${n === 1 ? 'request' : 'requests'}` : '';
       });
     } catch {
       // Without the requests (rate limit, offline) the column would only show blanks: it leaves instead.
@@ -174,6 +204,14 @@ export function initComponentsStudio() {
     apply();
   });
   drawer.querySelector('[data-cm-close]')?.addEventListener('click', close);
+  themeSeg?.addEventListener('bridge:segment', (e) => {
+    previewTheme = (e as CustomEvent<{ value: string }>).detail.value;
+    const panel = panels.find((p) => !p.hidden);
+    if (panel) {
+      paintTheme(panel);
+      requestAnimationFrame(() => fitFrames(panel));
+    }
+  });
   initRequestForm(drawer);
   scrim.addEventListener('click', close);
   document.addEventListener('keydown', (e) => {
@@ -201,7 +239,7 @@ export function initComponentsStudio() {
 
   void loadRequestCounts();
   // Thumbnails measure their content: measure again once the web fonts are in, and when the window resizes.
-  const refit = () => requestAnimationFrame(() => table && fitFrames(table, { max: 1 }));
+  const refit = () => requestAnimationFrame(() => table && fitFrames(table, { max: THUMB_MAX }));
   void document.fonts?.ready.then(refit);
   window.addEventListener('resize', refit);
   family = params.get('family') ?? '';
