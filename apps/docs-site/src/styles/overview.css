@@ -8,11 +8,19 @@
    right next to it, never pushed to the far edge. */
 .ov-greet {
   display: grid;
-  grid-template-columns: minmax(0, 68ch) auto;
-  justify-content: start;
-  align-items: end;
+  grid-template-columns: minmax(0, 3fr) minmax(var(--size-40), 2fr);
+  align-items: center;
   gap: var(--space-10);
   padding: var(--space-10) var(--space-12) var(--space-8) calc(var(--space-12) + var(--space-2));
+}
+
+/* The drawing grows with the space beside the list and sits on its vertical middle, so it weighs as much as the
+   text block instead of hiding in a corner. */
+.ov-greet-art {
+  width: 100%;
+  max-width: var(--size-120);
+  height: auto;
+  justify-self: center;
 }
 
 /* Wide screens: the suggestions stand next to the greeting, so the first screen fills the width with no empty
