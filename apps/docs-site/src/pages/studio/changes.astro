@@ -28,6 +28,8 @@ import Example from '../../components/Example';
 import PromoteToReview from '../../components/ds/studio/PromoteToReview';
 import RequestDecide from '../../components/ds/studio/RequestDecide';
 import type { BranchesConfig } from '../../lib/branches';
+import { ghAction, ghButton } from '../../lib/gh-wording';
+import { signInConfig } from '../../lib/signin-config';
 
 const r = siteRepo();
 const checks = readText(CONTRAST_FILE).replace(/</g, '\\u003c');
@@ -46,6 +48,7 @@ const demoHistory = import.meta.env.DEV;
 // Developer work (code only, lib/work-nature) is tagged in each list; this filter shows when a list holds some.
 const workItems = WORK_FILTERS.map((f) => ({ value: f.value, label: f.label }));
 const sources = ['docs/GOVERNANCE.md', '.github/CODEOWNERS', 'docs/PREVIEWS.md', 'docs/EXPLORATIONS.md', '.changeset'];
+const signIn = Boolean(signInConfig());
 ---
 
 <Layout
@@ -178,10 +181,10 @@ const sources = ['docs/GOVERNANCE.md', '.github/CODEOWNERS', 'docs/PREVIEWS.md',
             <span class="rq-hint" id="ex-uc-hint"></span>
           </label>
           <p class="gh-error" id="ex-start-error" role="alert" hidden></p>
-          <p class="rq-hint ex-no-gh" data-no-gh>Connect GitHub to start it here.</p>
+          <p class="rq-hint ex-no-gh" data-no-gh>{ghAction('start it here', signIn)}.</p>
           <p class="ex-actions">
             <Button type="submit" variant="primary" id="ex-start-submit" data-gh-only hidden>Start exploration</Button>
-            <Button variant="secondary" data-no-gh data-gh-open>Connect GitHub</Button>
+            <Button variant="secondary" data-no-gh data-gh-open>{ghButton(signIn)}</Button>
             <Button variant="ghost" data-ex-cancel>Cancel</Button>
           </p>
           <details class="cg-sec cg-dev ex-dev">

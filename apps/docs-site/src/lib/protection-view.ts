@@ -1,5 +1,6 @@
 // Settings > Protection and the Overview line: what the row says and offers for each protection state, in designer
 // words. "Ruleset", "branch" and "force push" appear only in the dialog's "Details for developers".
+import { ghAction } from './gh-wording';
 import { protectionRulesetName, protectionSentence, type ProtectionState } from '@bridge-ds/core';
 
 export type ProtectionRowState = ProtectionState | { kind: 'loading' | 'no-token' };
@@ -13,12 +14,12 @@ export interface ProtectionRowView {
   link?: { label: string; href: string };
 }
 
-export function protectionRow(state: ProtectionRowState, rulesUrl: string): ProtectionRowView {
+export function protectionRow(state: ProtectionRowState, rulesUrl: string, signIn = false): ProtectionRowView {
   switch (state.kind) {
     case 'loading':
       return { text: 'Checking whether every change goes through review.' };
     case 'no-token':
-      return { text: 'Connect GitHub to see whether every change goes through review.' };
+      return { text: `${ghAction('see whether every change goes through review', signIn)}.` };
     case 'unknown':
       return { text: 'GitHub did not let this token read the protection. A repository admin can see it in GitHub settings.' };
     case 'protected':

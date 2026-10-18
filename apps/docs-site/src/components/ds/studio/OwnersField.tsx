@@ -10,7 +10,7 @@ import { Users } from 'lucide-react';
 import { Avatar, AvatarGroup, Combobox, Tag } from '@bridge-ds/react';
 import { parseOwnerEntry, teamKey, type OwnerGroup, type TeamStates, type TeamUnreadableReason } from '@bridge-ds/core';
 import { OWNER_GROUP_LABEL, ownerFromInput, ownerOptions, teamsPickerHint } from '../../../lib/roles-view';
-import { hasWorkingToken, readRepo, studioClient } from '../../../scripts/github-session';
+import { hasWorkingToken, prefersSignIn, readRepo, studioClient } from '../../../scripts/github-session';
 import { loadTeams, teamDirectory } from '../../../scripts/teams';
 
 export interface OwnersFieldProps {
@@ -83,7 +83,7 @@ export default function OwnersField({ group, initial, org }: OwnersFieldProps) {
 
   const typed = ownerFromInput(query);
   const error = typed && 'error' in typed ? typed.error : undefined;
-  const hint = picker ? teamsPickerHint(picker.reason, org) : undefined;
+  const hint = picker ? teamsPickerHint(picker.reason, org, prefersSignIn()) : undefined;
 
   const unreadable = initial
     .map((raw) => parseOwnerEntry(raw))

@@ -8,6 +8,8 @@ import {
   CHECK_MAX_AGE_MS,
   checkFor,
   errorText,
+  rejectedText,
+  STUDIO_SIGNIN_REJECTED,
   needsCheck,
   okCheck,
   rejectedCheck,
@@ -70,6 +72,15 @@ test('write actions: one message for a refused token, the permission for a missi
   assert.equal(authFailure(new Error('boom')), null);
   assert.equal(errorText(new Error('boom'), 'Not proposed: boom'), 'Not proposed: boom');
   assert.doesNotMatch(STUDIO_TOKEN_REJECTED, /\u2014/);
+});
+
+test('a refused token on a site with Sign in with GitHub says sign in, never token', () => {
+  const rejected = new GitHubError(401, 'x', 'Bad credentials', { auth: 'rejected' });
+  assert.equal(authFailure(rejected, 'create issues', 'token', true)?.text, STUDIO_SIGNIN_REJECTED);
+  assert.equal(errorText(rejected, 'fallback', undefined, 'token', true), 'Your GitHub sign-in stopped working. Sign in again, then try again.');
+  assert.equal(rejectedText('token'), STUDIO_TOKEN_REJECTED);
+  assert.equal(rejectedText('app', true), STUDIO_SIGNIN_EXPIRED);
+  assert.doesNotMatch(STUDIO_SIGNIN_REJECTED, /token/i);
 });
 
 test('a Sign in with GitHub session: expired sign-in, and missing app permissions go to the repository owner', () => {

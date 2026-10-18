@@ -15,10 +15,10 @@ import {
   okCheck,
   rejectedCheck,
   sessionState,
-  STUDIO_SIGNIN_EXPIRED,
-  STUDIO_TOKEN_REJECTED,
+  rejectedText,
   type SessionMode,
 } from '../lib/token-session';
+import { ghAction, ghButton, ghVerb } from '../lib/gh-wording';
 import {
   type AppSession,
   authorizeUrl,
@@ -292,7 +292,7 @@ export function studioClient(repo: string, token: string | null = getToken(), op
 
 /** The auth sentence for an error (rejected token or missing permission), or null for any other failure. */
 export function ghAuthFailure(err: unknown, action?: string): AuthFailure | null {
-  return authFailure(err, action, sessionMode());
+  return authFailure(err, action, sessionMode(), prefersSignIn());
 }
 
 /**
@@ -301,7 +301,7 @@ export function ghAuthFailure(err: unknown, action?: string): AuthFailure | null
  */
 export function showGhError(el: HTMLElement, err: unknown, fallback: string, action?: string) {
   const mode = sessionMode();
-  const a = authFailure(err, action, mode);
+  const a = authFailure(err, action, mode, prefersSignIn());
   if (!a) {
     el.textContent = fallback;
     return;
@@ -416,8 +416,8 @@ async function ghGetOnce<T>(url: string, path: string, key: string, opts: { acce
  * the token (the error carries `auth`, so callers can show it with showGhError).
  */
 export async function ghWrite<T>(method: 'POST' | 'PUT' | 'PATCH' | 'DELETE', path: string, body?: unknown): Promise<T> {
-  if (!getToken()) throw new GitHubError(401, 'Connect a GitHub token first.', 'no-token');
-  if (tokenRejected()) throw new GitHubError(401, sessionMode() === 'app' ? STUDIO_SIGNIN_EXPIRED : STUDIO_TOKEN_REJECTED, 'Bad credentials', { auth: 'rejected' });
+  if (!getToken()) throw new GitHubError(401, `${ghVerb(prefersSignIn())} first.`, 'no-token');
+  if (tokenRejected()) throw new GitHubError(401, rejectedText(sessionMode(), prefersSignIn()), 'Bad credentials', { auth: 'rejected' });
   const res = await fetch(`${API}${path}`, {
     method,
     headers: authHeaders({ 'Content-Type': 'application/json' }),
@@ -524,7 +524,7 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
       const text = block.querySelector('[data-gh-status-text]');
       if (text) text.textContent = viewer ? `Connected as @${viewer.login}` : rejected ? (app ? 'Sign-in expired' : 'Token stopped working') : 'Read only';
       const label = block.querySelector('[data-gh-open-label]');
-      if (label) label.textContent = viewer ? (app ? 'Account' : 'Token') : rejected ? (app || signIn ? 'Sign in again' : 'Reconnect') : signIn ? 'Sign in with GitHub' : 'Connect GitHub';
+      if (label) label.textContent = viewer ? (app ? 'Account' : 'Token') : rejected ? (app || signIn ? 'Sign in again' : 'Reconnect') : ghButton(signIn);
       block.querySelectorAll<HTMLElement>('[data-gh-rejected-text]').forEach((el) => (el.textContent = app ? 'Your GitHub sign-in expired' : 'Your GitHub token stopped working'));
       block.querySelectorAll<HTMLElement>('[data-gh-reconnect-label]').forEach((el) => (el.textContent = app ? 'Sign in again' : signIn ? 'Sign in with GitHub' : 'Reconnect'));
       // Change token only for a pasted token on a site without Sign in with GitHub.
@@ -571,7 +571,7 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
     const app = sessionMode() === 'app';
     if (input) input.value = '';
     // Opened from Change token while connected: say so, the saved token stays until the new one is checked.
-    if (title) title.textContent = rejected ? (app || signInView ? 'Sign in again' : 'Reconnect GitHub') : viewer && !app && !signInView ? 'Change GitHub token' : signInView ? 'Sign in with GitHub' : 'Connect GitHub';
+    if (title) title.textContent = rejected ? (app || signInView ? 'Sign in again' : 'Reconnect GitHub') : viewer && !app && !signInView ? 'Change GitHub token' : ghButton(Boolean(signInView));
     if (rejectedNote) rejectedNote.hidden = !rejected;
     if (rejectedNoteText) {
       rejectedNoteText.textContent = app
@@ -820,14 +820,16 @@ export function paintGates(root: ParentNode = document) {
   root.querySelectorAll<HTMLElement>('[data-gh-gate]').forEach((el) => {
     if (on) {
       el.removeAttribute('aria-disabled');
-      if (/^(Connect GitHub|Sign in with GitHub|Your GitHub)/.test(el.dataset.tip ?? '')) delete el.dataset.tip;
+      if (/^(Connect GitHub|Sign in|Your GitHub)/.test(el.dataset.tip ?? '')) delete el.dataset.tip;
     } else {
       el.setAttribute('aria-disabled', 'true');
       el.dataset.tip = rejected
         ? app
           ? `Your GitHub sign-in expired. Sign in again to ${el.dataset.ghGate}.`
-          : `Your GitHub token stopped working. Reconnect to ${el.dataset.ghGate}.`
-        : `${signIn ? 'Sign in with GitHub' : 'Connect GitHub'} to ${el.dataset.ghGate}.`;
+          : signIn
+            ? `Your GitHub sign-in stopped working. Sign in again to ${el.dataset.ghGate}.`
+            : `Your GitHub token stopped working. Reconnect to ${el.dataset.ghGate}.`
+        : `${ghAction(el.dataset.ghGate ?? '', signIn)}.`;
       el.classList.add('has-tip');
     }
   });

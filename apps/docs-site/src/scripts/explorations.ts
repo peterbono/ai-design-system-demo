@@ -42,7 +42,8 @@ import { loadVisualImpact, renderTopChange } from './reviews/visual-impact';
 import { explorationFromRequest, type PullLike, type RequestRow } from '../lib/requests-view';
 import { explorationWork } from '../lib/work-nature';
 import { devTag, markWork, natureAttr } from './work-filter';
-import { currentViewer, esc, ghGet, hasWorkingToken, initGitHubConnect, RateLimitError, readRepo, relativeTime, setButtonBusy, showGhError } from './github-session';
+import { currentViewer, esc, ghGet, hasWorkingToken, initGitHubConnect, prefersSignIn, RateLimitError, readRepo, relativeTime, setButtonBusy, showGhError } from './github-session';
+import { ghAction, rateLimitedLine } from '../lib/gh-wording';
 import { explorationClient, explorationsConfig, startLinkedExploration } from './exploration-start';
 import { forgetRequests, loadRequestRows, requestRow } from './requests';
 
@@ -136,7 +137,7 @@ export function loadExplorations(openPulls?: () => Promise<ExplorationPullLike[]
       $('ex-table').hidden = true;
       $('ex-sentence').textContent =
         err instanceof RateLimitError
-          ? 'GitHub limits anonymous reads to 60 an hour and this browser has used them. Connect GitHub, or try again later.'
+          ? rateLimitedLine(prefersSignIn())
           : `Could not load explorations: ${(err as Error).message}.`;
     } finally {
       list.removeAttribute('aria-busy');
@@ -252,7 +253,7 @@ function wireStart() {
       return;
     }
     if (!hasWorkingToken()) {
-      error.textContent = 'Connect GitHub to start it here, or run the command below in the design system repo.';
+      error.textContent = `${ghAction('start it here', prefersSignIn())}, or run the command below in the design system repo.`;
       error.hidden = false;
       return;
     }
@@ -325,7 +326,7 @@ export function renderExplorationDetail(r: ExplorationRow, opts: { connected: bo
       ? `<a class="btn btn-primary btn-lg" href="?pr=${r.number}" data-open-pr="${r.number}">Open it in In review</a>`
       : opts.connected
         ? `<button type="button" class="btn btn-primary btn-lg" data-ex-promote="${r.number}">Promote to review</button> <button type="button" class="btn btn-secondary btn-lg" data-ex-close-ask="${r.number}">Close</button>`
-        : `<button type="button" class="btn btn-primary btn-lg" data-gh-open>Connect GitHub to promote it</button>`;
+        : `<button type="button" class="btn btn-primary btn-lg" data-gh-open>${ghAction('promote it', prefersSignIn())}</button>`;
   // Filled again by paintTryIt with what Vercel reports: a long branch alias is shortened with a hash, never guessed.
   const resolved = explorationPreviews(r, CFG.apps);
   const previews = resolved.length ? `<div id="ex-previews" aria-live="polite">${previewList(resolved)}</div>` : '<p class="cg-muted">Previews are not set up for this library yet.</p>';
@@ -399,7 +400,7 @@ async function paintTryIt(r: ExplorationRow) {
     const t = tryItCopy(tryItFromComments(comments, r.headSha));
     html = `<p>${esc(t.sentence)}</p>${t.command ? cmdRow('ex-install-cmd', t.command, 'Copy install command') : ''}`;
   } catch (err) {
-    html = `<p class="cg-muted">${err instanceof RateLimitError ? 'GitHub limits anonymous reads: connect GitHub to see the install command here.' : `Could not read the pull request comments: ${esc((err as Error).message)}.`} The "Try this exploration in your product" comment on <a href="${esc(r.url)}" target="_blank" rel="noopener">#${r.number}</a> has it.</p>`;
+    html = `<p class="cg-muted">${err instanceof RateLimitError ? `GitHub limits anonymous reads. ${ghAction('see the install command here', prefersSignIn())}.` : `Could not read the pull request comments: ${esc((err as Error).message)}.`} The "Try this exploration in your product" comment on <a href="${esc(r.url)}" target="_blank" rel="noopener">#${r.number}</a> has it.</p>`;
   }
   if (current?.number !== r.number) return;
   const el = document.getElementById('ex-tryit');
@@ -436,7 +437,7 @@ async function paintVisual(r: ExplorationRow) {
     if (current?.number !== r.number) return;
     renderTopChange(slot, v, `?pr=${r.number}`);
   } catch (err) {
-    slot.innerHTML = `<p class="cg-line rv-what-quiet">${err instanceof RateLimitError ? 'GitHub limits anonymous reads: connect GitHub to see the before and after.' : `Could not read the before and after: ${esc((err as Error).message)}`}</p>`;
+    slot.innerHTML = `<p class="cg-line rv-what-quiet">${err instanceof RateLimitError ? `GitHub limits anonymous reads. ${ghAction('see the before and after', prefersSignIn())}.` : `Could not read the before and after: ${esc((err as Error).message)}`}</p>`;
   }
 }
 

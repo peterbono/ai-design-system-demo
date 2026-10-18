@@ -10,6 +10,10 @@ import HistoryPlanner from '../HistoryPlanner.astro';
 import EditorPreview from '../EditorPreview.tsx';
 import { explorerTokens } from '../../lib/explorer';
 import { loadComponents } from '../../lib/components';
+import { ghAction, ghVerb } from '../../lib/gh-wording';
+import { signInConfig } from '../../lib/signin-config';
+
+const signIn = Boolean(signInConfig());
 
 const palette = explorerTokens()
   .filter((t) => t.layer === 'brand' && t.type === 'color')
@@ -44,10 +48,10 @@ const previews = loadComponents().flatMap((c) => (c.docs?.preview ? [{ name: c.n
       </details>
     </div>
     <footer class="xe-sheet-foot">
-      <p class="xe-sheet-note" data-xe-note>Your draft is kept in this browser. Connect GitHub once, then send it for review.</p>
+      <p class="xe-sheet-note" data-xe-note>Your draft is kept in this browser. {ghVerb(signIn)} once, then send it for review.</p>
       <Button variant="secondary" data-xe-discard>Discard</Button>
       <span class="xe-grow"></span>
-      <Button variant="primary" iconStart={Send} id="ed-propose" data-gh-open disabled>Connect GitHub to send</Button>
+      <Button variant="primary" iconStart={Send} id="ed-propose" data-gh-open disabled>{ghAction('send', signIn)}</Button>
     </footer>
   </aside>
 

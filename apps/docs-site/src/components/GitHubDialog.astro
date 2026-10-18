@@ -10,6 +10,7 @@ import { Alert, Button, IconButton, Input } from '@bridge-ds/react';
 import { X } from 'lucide-react';
 import { siteRepo } from '../lib/config';
 import { signInConfig, signInConfigJson } from '../lib/signin-config';
+import { ghButton } from '../lib/gh-wording';
 import { GitHubMark } from './ds/studio/brand-icons';
 
 const r = siteRepo();
@@ -20,7 +21,7 @@ const signIn = Boolean(signInConfig());
 <dialog class="gh-dialog" id="gh-dialog" aria-labelledby="gh-dialog-title" data-signin={signIn ? signInConfigJson() : undefined}>
   <form method="dialog" class="gh-dialog-box">
     <header class="gh-dialog-head">
-      <h2 id="gh-dialog-title">{signIn ? 'Sign in with GitHub' : 'Connect GitHub'}</h2>
+      <h2 id="gh-dialog-title">{ghButton(signIn)}</h2>
       <IconButton icon={X} label="Close" size="sm" type="submit" value="cancel" />
     </header>
     <Alert tone="warning" className="st-hideable" data-gh-rejected-note hidden announce="off">

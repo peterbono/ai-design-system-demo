@@ -3,7 +3,8 @@
 // stays in this browser (scripts/github-session.ts); nothing here runs without it.
 import { composeNewBrandBody, loadRepoFiles, planNewBrand } from '@bridge-ds/core';
 import { type BrandDraft, draftInput } from '../lib/new-brand';
-import { getToken, studioClient } from './github-session';
+import { getToken, prefersSignIn, studioClient } from './github-session';
+import { ghAction } from '../lib/gh-wording';
 
 export interface ProposedBrand {
   number: number;
@@ -13,7 +14,7 @@ export interface ProposedBrand {
 
 export async function proposeBrand(draft: BrandDraft, repo: { owner: string; name: string; defaultBranch: string }, configTokensRoot: string): Promise<ProposedBrand> {
   const token = getToken();
-  if (!token) throw new Error('Connect GitHub to propose this brand.');
+  if (!token) throw new Error(`${ghAction('propose this brand', prefersSignIn())}.`);
   const probe = studioClient(`${repo.owner}/${repo.name}`, token);
   const mainSha = await probe.getBranchSha(repo.defaultBranch);
   if (!mainSha) throw new Error(`Branch ${repo.defaultBranch} was not found in ${repo.owner}/${repo.name}.`);

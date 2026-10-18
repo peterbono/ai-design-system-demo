@@ -1,7 +1,8 @@
 // App shell behaviour, shipped on every page (small, no framework):
 // theme toggle, copy buttons, the mobile navigation sheet, the Cmd+K command palette, header menus, the "On this
 // page" rail and, in the Studio, the branch scope, the nav counts and the GitHub connection.
-import { getToken, ghGet, initGitHubConnect, readRepo } from './github-session';
+import { getToken, ghGet, initGitHubConnect, prefersSignIn, readRepo } from './github-session';
+import { ghVerb } from '../lib/gh-wording';
 import { loadReviewNeedsYou, rememberedMine, type QueuePullFull } from './needs-you';
 import { initMaintainer } from './maintainer';
 import { mdTitleText } from '../lib/markdown';
@@ -642,7 +643,7 @@ function initStudio() {
       // Rate limited with nothing in the request cache: keep the last count this browser saw.
       setCount('reviews', getToken() ? rememberedMine() : null);
       const note = document.querySelector('[data-branch-note]');
-      if (note) note.textContent = 'GitHub could not be reached, so only main is listed. Connect GitHub or try again in a minute.';
+      if (note) note.textContent = `GitHub could not be reached, so only main is listed. ${ghVerb(prefersSignIn())} or try again in a minute.`;
     })
     .finally(() => list?.removeAttribute('aria-busy'));
 }

@@ -34,7 +34,8 @@ import {
   scopeTask,
   taskPrompt,
 } from '../lib/docs-ai-model';
-import { getToken, hasWorkingToken, readRepo, studioClient } from './github-session';
+import { getToken, hasWorkingToken, prefersSignIn, readRepo, studioClient } from './github-session';
+import { ghVerb } from '../lib/gh-wording';
 
 export type { DraftAvailability, DraftDocsResult, DraftScope, DraftWay } from '../lib/docs-ai-model';
 export { DRAFT_PHRASE };
@@ -142,7 +143,7 @@ async function viaMyClaude(
   signal: AbortSignal | undefined,
   onStatus: ((s: string) => void) | undefined,
 ): Promise<DraftResult> {
-  if (!hasWorkingToken()) throw new Error('Connect GitHub first: your own Claude answers through the repo.');
+  if (!hasWorkingToken()) throw new Error(`${ghVerb(prefersSignIn())} first: your own Claude answers through the repo.`);
   const { full, branch } = repoName();
   const gh = studioClient(full, getToken());
   onStatus?.('Sending the request to your Claude');

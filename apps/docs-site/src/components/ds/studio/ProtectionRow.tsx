@@ -18,7 +18,7 @@ import {
 } from '@bridge-ds/react';
 import { loadProtection, loadRequiredChecks, protectLibrary, protectRefusal, rulesSettingsUrl } from '@bridge-ds/core';
 import { protectionDetails, protectionRow, type ProtectionRowState } from '../../../lib/protection-view';
-import { hasWorkingToken, initGitHubConnect, readRepo, studioClient } from '../../../scripts/github-session';
+import { hasWorkingToken, initGitHubConnect, prefersSignIn, readRepo, studioClient } from '../../../scripts/github-session';
 
 export default function ProtectionRow() {
   const [state, setState] = useState<ProtectionRowState>({ kind: 'loading' });
@@ -50,7 +50,7 @@ export default function ProtectionRow() {
     return () => document.removeEventListener('bridge:auth', run);
   }, [refresh]);
 
-  const view = protectionRow(state, rulesUrl);
+  const view = protectionRow(state, rulesUrl, state.kind === 'no-token' && prefersSignIn());
 
   const start = () => {
     setError(null);
