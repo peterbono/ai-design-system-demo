@@ -9,7 +9,7 @@ import PropsPlayground from '../../components/PropsPlayground.tsx';
 import ButtonLink from '../../components/ds/ButtonLink';
 import PropsTable from '../../components/ds/PropsTable';
 import { Alert, Badge, SegmentedControl, PageHeader } from '@bridge-ds/react';
-import { BookOpen, Columns2, FileCode, Moon, Pencil, Sun } from 'lucide-react';
+import { BookOpen, Columns2, FileCode, Lock, Moon, Pencil, Sun } from 'lucide-react';
 import { loadComponents, playgroundSpec, type ComponentInfo } from '../../lib/components';
 import { lastUpdated, sourceUrl, STORYBOOK_URL } from '../../lib/repo';
 import { BRANDS, BRAND_LABEL, MODES } from '../../lib/tokens';
@@ -66,6 +66,7 @@ import PreviewScope from '../../components/PreviewScope.astro';
 
 <Layout title={c.name} description={d?.summary ?? c.description} sources={sources} updated={updated} crumbs={[{ label: 'Catalog', href: '/components/' }, { label: c.name }]} toc={false}>
   <div class="cp-page">
+  <div class="le-bar-slot" data-le-bar></div>
   <div class="cp-main">
   <div class="cp-head">
     <PageHeader className="lib-page-header" title={c.name}>
@@ -89,7 +90,6 @@ import PreviewScope from '../../components/PreviewScope.astro';
       </ul>
     </div>
   </div>
-  <div class="le-bar-slot" data-le-bar></div>
   <div data-le-rail-narrow></div>
 
   {
@@ -108,7 +108,8 @@ import PreviewScope from '../../components/PreviewScope.astro';
               { value: 'split', label: 'Side by side', icon: Columns2 },
             ]}
           />
-          <span class="hero-stage-note">Rendered with the real component</span>
+          <span class="hero-stage-note" data-le-read-only>Rendered with the real component</span>
+          <span class="le-locked" data-le-locked><Badge icon={Lock}>From the code</Badge></span>
           <PreviewScope />
         </div>
         <div class="hero-stage-panes">
@@ -162,6 +163,7 @@ import PreviewScope from '../../components/PreviewScope.astro';
       </div>
 
       <div class="cp-panel" role="tabpanel" id="tab-tokens" aria-labelledby="tab-tokens-btn" data-panel="tokens">
+      <p class="le-locked le-locked-note" data-le-locked><Badge icon={Lock}>From the code</Badge> <span>Generated from the component, not editable here.</span></p>
       <section aria-labelledby="anatomy">
         <h2 id="anatomy">Anatomy and tokens</h2>
         <p>
@@ -227,6 +229,7 @@ import PreviewScope from '../../components/PreviewScope.astro';
       </div>
 
       <div class="cp-panel" role="tabpanel" id="tab-code" aria-labelledby="tab-code-btn" data-panel="code">
+      <p class="le-locked le-locked-note" data-le-locked><Badge icon={Lock}>From the code</Badge> <span>Generated from the component, not editable here.</span></p>
       <ul class="cp-files" aria-label="Source files">
         {
           fileLinks.map((f) => (
@@ -322,6 +325,7 @@ import PreviewScope from '../../components/PreviewScope.astro';
       </div>
 
       <div class="cp-panel" role="tabpanel" id="tab-changelog" aria-labelledby="tab-changelog-btn" data-panel="changelog">
+      <p class="le-locked le-locked-note" data-le-locked><Badge icon={Lock}>From the code</Badge> <span>Generated from the component, not editable here.</span></p>
         <section aria-labelledby="changes">
           <h2 id="changes">Changelog</h2>
           {

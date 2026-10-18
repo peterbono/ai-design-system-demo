@@ -22,6 +22,11 @@ import {
   setField,
   setValue,
   toReview,
+  cancelNeedsConfirm,
+  EDIT_BAR_LABEL,
+  editBarState,
+  escapeIntent,
+  keepAllLabel,
   type EditState,
 } from './library-edit-model';
 
@@ -176,5 +181,33 @@ describe('send', () => {
     expect(sendTitle('Button')).toBe('Update Button usage guidance');
     expect(changeTitle('button', 'Update Button usage guidance')).toBe('docs(button): update Button usage guidance');
     expect(changeTitle('button', 'docs(button): fix a typo')).toBe('docs(button): fix a typo');
+  });
+});
+
+describe('edit bar', () => {
+  it('says what state the edit is in', () => {
+    expect(editBarState({ dirty: false, sent: false, savesLocally: true })).toBe('clean');
+    expect(editBarState({ dirty: true, sent: false, savesLocally: true })).toBe('saved');
+    expect(editBarState({ dirty: false, sent: false, savesLocally: false })).toBe('clean');
+    expect(editBarState({ dirty: true, sent: false, savesLocally: false })).toBe('unsaved');
+    expect(editBarState({ dirty: true, sent: true, savesLocally: true })).toBe('sent');
+    expect(EDIT_BAR_LABEL.saved).toBe('Draft saved, not sent');
+    expect(EDIT_BAR_LABEL.unsaved).toBe('Unsaved changes');
+    expect(EDIT_BAR_LABEL.sent).toBe('Sent for review');
+  });
+
+  it('offers Keep all only from two drafts, and names it', () => {
+    expect(keepAllLabel(0)).toBeNull();
+    expect(keepAllLabel(1)).toBeNull();
+    expect(keepAllLabel(3)).toBe('Keep all 3 Claude drafts');
+  });
+
+  it('never discards on Escape', () => {
+    expect(escapeIntent({ overlayOpen: true, inField: true })).toBe('none');
+    expect(escapeIntent({ overlayOpen: false, inField: true })).toBe('leave-field');
+    expect(escapeIntent({ overlayOpen: false, inField: false })).toBe('cancel');
+    expect(cancelNeedsConfirm({ dirty: false, pending: 0 })).toBe(false);
+    expect(cancelNeedsConfirm({ dirty: false, pending: 1 })).toBe(true);
+    expect(cancelNeedsConfirm({ dirty: true, pending: 0 })).toBe(true);
   });
 });

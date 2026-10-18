@@ -30,24 +30,29 @@ import {
   Spinner,
   Textarea,
 } from '@bridge-ds/react';
-import { Check, ChevronDown, Circle, CircleX, Copy, PenLine, Plus, Sparkles, X } from 'lucide-react';
+import { Check, ChevronDown, Circle, CircleX, Copy, Ellipsis, PenLine, Plus, Sparkles, X } from 'lucide-react';
 import { DRAFT_PHRASE, type ComponentDocsJson, type DocsGuidance, type ProseKey } from '@bridge-ds/core';
 import { REGISTRY, resolveProps } from './registry';
 import type { ExampleNode } from '../lib/components';
 import { cleanDocs, docsEdits, docsFileText, setDocsEdit, validateDocs, type DocsEdit } from '../lib/docs-draft-model';
 import type { Draft } from '../lib/editor-model';
 import {
+  EDIT_BAR_LABEL,
   SECTIONS,
   applyDraft,
+  cancelNeedsConfirm,
   changeTitle,
   changedLabel,
   discardDrafts,
   docsToSend,
+  editBarState,
   editMeta,
+  escapeIntent,
   fieldId,
   getField,
   initEdit,
   isDirty,
+  keepAllLabel,
   keepDrafts,
   pendingSections,
   replaceSelection,
@@ -259,6 +264,14 @@ function SectionFlag({ id }: { id: SectionId }) {
   return null;
 }
 
+/** On the edge of an editable region, on hover: says the region is editable. Decorative, the fields carry the names. */
+const EditHint = () => (
+  <span className="le-hint" aria-hidden="true">
+    <PenLine size={14} />
+    Edit
+  </span>
+);
+
 const showEditor = (e: Ctx, id: SectionId) => sectionState(e.state, id) !== 'empty' || e.writing.has(id);
 
 /** A list of sentences: one field per item, Enter adds the next item, a remove button per item. */
@@ -359,7 +372,8 @@ function UsageEditor() {
     e.onFocusField({ key: k, index: items.length, part: 'title' });
   };
   const col = (id: 'whenToUse' | 'whenNotToUse') => (
-    <div className={`usage-col ${id === 'whenToUse' ? 'is-use' : 'is-avoid'}`} role="group" aria-labelledby={`le-h-${id}`} data-section={id} id={`le-sec-${id}`}>
+    <div className={`usage-col le-region ${id === 'whenToUse' ? 'is-use' : 'is-avoid'}`} role="group" aria-labelledby={`le-h-${id}`} data-section={id} id={`le-sec-${id}`}>
+      <EditHint />
       <div className="le-head">
         <h3 id={`le-h-${id}`}>
           {id === 'whenToUse' ? <Check size={18} aria-hidden="true" className="le-col-icon" /> : <CircleX size={18} aria-hidden="true" className="le-col-icon" />}
@@ -382,7 +396,8 @@ function UsageEditor() {
         </div>
       </section>
 
-      <section aria-labelledby="le-h-doDont" data-section="doDont" id="le-sec-doDont">
+      <section className="le-region" aria-labelledby="le-h-doDont" data-section="doDont" id="le-sec-doDont">
+        <EditHint />
         <div className="le-head">
           <h2 id="le-h-doDont">Do and don't</h2>
           <SectionFlag id="doDont" />
@@ -407,7 +422,8 @@ function UsageEditor() {
         <ProposalBox keys={['dos', 'donts']} />
       </section>
 
-      <section aria-labelledby="le-h-accessibility" data-section="accessibility" id="le-sec-accessibility">
+      <section className="le-region" aria-labelledby="le-h-accessibility" data-section="accessibility" id="le-sec-accessibility">
+        <EditHint />
         <div className="le-head">
           <h2 id="le-h-accessibility">Accessibility</h2>
           <SectionFlag id="accessibility" />
@@ -417,7 +433,8 @@ function UsageEditor() {
         <ProposalBox keys={['accessibility']} />
       </section>
 
-      <section aria-labelledby="le-h-contentGuidelines" data-section="contentGuidelines" id="le-sec-contentGuidelines">
+      <section className="le-region" aria-labelledby="le-h-contentGuidelines" data-section="contentGuidelines" id="le-sec-contentGuidelines">
+        <EditHint />
         <div className="le-head">
           <h2 id="le-h-contentGuidelines">Content guidelines</h2>
           <SectionFlag id="contentGuidelines" />
@@ -433,7 +450,8 @@ function UsageEditor() {
 function SummaryEditor() {
   const e = useEdit();
   return (
-    <div className="le-summary" role="group" aria-label="Summary" data-section="summary" id="le-sec-summary">
+    <div className="le-summary le-region" role="group" aria-label="Summary" data-section="summary" id="le-sec-summary">
+      <EditHint />
       {showEditor(e, 'summary') && <InlineText field={{ key: 'summary' }} label="Summary" placeholder="One or two sentences: what it is for, and what to use instead." />}
       <div className="le-summary-foot">
         <SectionFlag id="summary" />
@@ -599,17 +617,23 @@ function useSlot(selector: string, on: boolean) {
   return el;
 }
 
-function useWide() {
-  const q = '(min-width: 1320px)';
-  const [wide, setWide] = useState(() => matchMedia(q).matches);
+function useMedia(q: string) {
+  const [match, setMatch] = useState(() => matchMedia(q).matches);
   useEffect(() => {
     const m = matchMedia(q);
-    const on = () => setWide(m.matches);
+    const on = () => setMatch(m.matches);
     m.addEventListener('change', on);
     return () => m.removeEventListener('change', on);
-  }, []);
-  return wide;
+  }, [q]);
+  return match;
 }
+/** From 1320px the rail has its own column. */
+const useWide = () => useMedia('(min-width: 1320px)');
+/** Below 768px (breakpoint.md) the edit bar keeps the label and Send for review; the rest goes into a More menu. */
+const useCompact = () => useMedia('(max-width: 767px)');
+
+/** A menu, popover or dialog is open: it owns Escape. */
+const overlayOpen = () => Boolean(document.querySelector('[role="menu"], [role="dialog"], [role="alertdialog"], dialog[open]'));
 
 export default function LibraryEditMode(p: LibraryEditModeProps) {
   const [editing, setEditing] = useState(false);
@@ -634,11 +658,13 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
   const [busy, setBusy] = useState(false);
   const [sendError, setSendError] = useState('');
   const [copied, setCopied] = useState(false);
+  const [setupDialog, setSetupDialog] = useState(false);
   /** After a draft: the first drafted section, brought into view with focus on its Keep. */
   const [jump, setJump] = useState<SectionId | null>(null);
   const exampleHtml = useRef(new Map<string, string>());
   const loaded = useRef(false);
   const wide = useWide();
+  const compact = useCompact();
 
   const dirty = isDirty(state);
   const pending = pendingSections(state);
@@ -686,6 +712,25 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
       document.removeEventListener('pointerdown', down, true);
       document.removeEventListener('focusout', out);
     };
+  }, [editing]);
+
+  // Escape never discards: in a field it leaves the field, elsewhere it asks to leave editing (Cancel confirms when
+  // something would be lost). Open menus, popovers and dialogs keep their own Escape.
+  const cancelRef = useRef<() => void>(() => undefined);
+  useEffect(() => {
+    if (!editing) return;
+    const onKey = (ev: globalThis.KeyboardEvent) => {
+      if (ev.key !== 'Escape' || ev.defaultPrevented || ev.isComposing) return;
+      const t = ev.target as HTMLElement | null;
+      const inField = Boolean(t?.closest('[data-section] textarea, [data-section] input'));
+      const intent = escapeIntent({ overlayOpen: overlayOpen(), inField });
+      if (intent === 'leave-field') {
+        t?.blur();
+        announce('Left the field. Press Escape again to leave editing.');
+      } else if (intent === 'cancel') cancelRef.current();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
   }, [editing]);
 
   // Saving an API key (here or anywhere on the page) changes how Claude can be reached.
@@ -834,7 +879,8 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
     document.querySelector<HTMLElement>('[data-le-edit] a, a[data-le-edit], [data-le-edit]')?.focus();
   };
 
-  const onCancel = () => (dirty || pending.length ? setConfirm('cancel') : exit(true));
+  const onCancel = () => (cancelNeedsConfirm({ dirty, pending: pending.length }) ? setConfirm('cancel') : exit(true));
+  cancelRef.current = onCancel;
 
   /* Drafting with Claude */
   const runDraft = async (scope: DraftScope, sel?: Selection) => {
@@ -843,7 +889,8 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
     setWays(av);
     const way = av.preferred ?? av.ways[0];
     if (!m || !way) {
-      setSetupOpen(true);
+      if (compact) setSetupDialog(true);
+      else setSetupOpen(true);
       return;
     }
     const ctrl = new AbortController();
@@ -1010,83 +1057,137 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
   const changedNote = changedLabel(state);
   const repoName = `${p.repo.owner}/${p.repo.repo}`;
   const draftButton = (
-    <Button variant="secondary" iconStart={Sparkles} iconEnd={ChevronDown} aria-label="Draft with Claude" data-le-draft="">
-      Draft<span className="le-long"> with Claude</span>
+    <Button variant="secondary" iconStart={Sparkles} iconEnd={ChevronDown} data-le-draft="">
+      Draft with Claude
     </Button>
+  );
+  const keepAll = keepAllLabel(pending.length);
+  const barState = editBarState({ dirty, sent: Boolean(sent), savesLocally: !branch });
+  const sendLabel = branch ? `Save to change${branch.pr ? ` #${branch.pr}` : ''}` : 'Send for review';
+  const sendButton = (
+    <Button variant="primary" disabled={!dirty && !pending.length} onClick={() => void openSend()}>
+      {sendLabel}
+    </Button>
+  );
+  /** What Claude can draft from here: the whole page, the section in focus, the selected text. */
+  const draftItems = (
+    <>
+      <MenuGroup label={compact ? 'Draft with Claude: whole page' : 'Whole page'}>
+        <MenuItem disabled={Boolean(drafting)} onClick={() => void runDraft({ kind: 'page-fill' })}>
+          Fill empty and outdated sections
+        </MenuItem>
+        <MenuItem disabled={Boolean(drafting)} onClick={() => setConfirm('rewrite')}>
+          Rewrite every section
+        </MenuItem>
+      </MenuGroup>
+      {sectionName && lastSection && (
+        <>
+          <MenuSeparator />
+          <MenuGroup label={`This section (${sectionName})`}>
+            <MenuItem disabled={Boolean(drafting)} onClick={() => void draftSection(lastSection)}>
+              Draft this section
+            </MenuItem>
+          </MenuGroup>
+        </>
+      )}
+      {selection && selKey && (
+        <>
+          <MenuSeparator />
+          <MenuGroup label="Selected text">
+            {(['clearer', 'shorter', 'voice'] as const).map((mode) => (
+              <MenuItem key={mode} disabled={Boolean(drafting)} onClick={() => void runDraft({ kind: 'selection', key: selKey, text: selection.text, mode }, selection)}>
+                {mode === 'clearer' ? 'Clearer' : mode === 'shorter' ? 'Shorter' : 'Bridge voice'}
+              </MenuItem>
+            ))}
+          </MenuGroup>
+        </>
+      )}
+    </>
+  );
+  const claudeSetup = (onDone: () => void) => (
+    <ClaudeSetup
+      repo={repoName}
+      ai={ai}
+      onSaved={() => {
+        if (ai) setWays(ai.draftAvailability());
+        onDone();
+        announce('Key saved in this browser. Draft with Claude is ready.');
+      }}
+    />
   );
 
   const bar = (
-    <div className="le-bar" role="region" aria-label={`Editing ${p.name}`}>
+    <div className="le-bar" role="region" aria-label={`Editing ${p.name}`} data-state={barState}>
       <div className="le-bar-row">
-        <p className="le-bar-title">
-          Editing <strong>{p.name}</strong>
-        </p>
-        {dirty && <Badge>Unsaved changes</Badge>}
-        <div className="le-bar-actions">
-        {pending.length > 1 && (
-          <Button className="le-keep-all" variant="ghost" iconStart={Check} onClick={() => setState((s) => keepDrafts(s))}>
-            Keep all
-          </Button>
-        )}
-        {canDraft ? (
-          <Menu>
-            <MenuTrigger render={draftButton} />
-            <MenuContent align="end" className="le-menu">
-              <MenuGroup label="Whole page">
-                <MenuItem disabled={Boolean(drafting)} onClick={() => void runDraft({ kind: 'page-fill' })}>
-                  Fill empty and outdated sections
-                </MenuItem>
-                <MenuItem disabled={Boolean(drafting)} onClick={() => setConfirm('rewrite')}>
-                  Rewrite every section
-                </MenuItem>
-              </MenuGroup>
-              {sectionName && lastSection && (
-                <>
-                  <MenuSeparator />
-                  <MenuGroup label={`This section (${sectionName})`}>
-                    <MenuItem disabled={Boolean(drafting)} onClick={() => void draftSection(lastSection)}>
-                      Draft this section
+        <span className="le-bar-mark" aria-hidden="true">
+          <PenLine size={20} />
+        </span>
+        <div className="le-bar-label">
+          <p className="le-bar-title">
+            Editing <strong>{p.name}</strong>
+          </p>
+          <p className="le-bar-state" role="status">
+            {EDIT_BAR_LABEL[barState]}
+          </p>
+        </div>
+        {compact ? (
+          <div className="le-bar-actions">
+            {sendButton}
+            <Menu>
+              <MenuTrigger render={<IconButton icon={Ellipsis} label="More editing actions" variant="secondary" data-le-draft="" />} />
+              <MenuContent align="end" className="le-menu">
+                {canDraft ? (
+                  draftItems
+                ) : (
+                  <MenuGroup label="Claude">
+                    <MenuItem icon={Sparkles} onClick={() => setSetupDialog(true)}>
+                      Draft with Claude
                     </MenuItem>
                   </MenuGroup>
-                </>
-              )}
-              {selection && selKey && (
-                <>
-                  <MenuSeparator />
-                  <MenuGroup label="Selected text">
-                    {(['clearer', 'shorter', 'voice'] as const).map((mode) => (
-                      <MenuItem key={mode} disabled={Boolean(drafting)} onClick={() => void runDraft({ kind: 'selection', key: selKey, text: selection.text, mode }, selection)}>
-                        {mode === 'clearer' ? 'Clearer' : mode === 'shorter' ? 'Shorter' : 'Bridge voice'}
-                      </MenuItem>
-                    ))}
-                  </MenuGroup>
-                </>
-              )}
-            </MenuContent>
-          </Menu>
+                )}
+                {keepAll && (
+                  <>
+                    <MenuSeparator />
+                    <MenuItem icon={Check} onClick={() => setState((s) => keepDrafts(s))}>
+                      {keepAll}
+                    </MenuItem>
+                  </>
+                )}
+                <MenuSeparator />
+                <MenuItem icon={X} onClick={onCancel}>
+                  Cancel editing
+                </MenuItem>
+              </MenuContent>
+            </Menu>
+          </div>
         ) : (
-          <Popover open={setupOpen} onOpenChange={setSetupOpen}>
-            <PopoverTrigger render={draftButton} />
-            <PopoverContent title="Draft with Claude" align="end" showClose className="le-setup-pop">
-              <ClaudeSetup
-                repo={repoName}
-                ai={ai}
-                onSaved={() => {
-                  if (ai) setWays(ai.draftAvailability());
-                  setSetupOpen(false);
-                  announce('Key saved in this browser. Draft with Claude is ready.');
-                }}
-              />
-            </PopoverContent>
-          </Popover>
+          <div className="le-bar-actions">
+            {keepAll && (
+              <Button variant="ghost" iconStart={Check} onClick={() => setState((s) => keepDrafts(s))}>
+                {keepAll}
+              </Button>
+            )}
+            {canDraft ? (
+              <Menu>
+                <MenuTrigger render={draftButton} />
+                <MenuContent align="end" className="le-menu">
+                  {draftItems}
+                </MenuContent>
+              </Menu>
+            ) : (
+              <Popover open={setupOpen} onOpenChange={setSetupOpen}>
+                <PopoverTrigger render={draftButton} />
+                <PopoverContent title="Draft with Claude" align="end" showClose className="le-setup-pop">
+                  {claudeSetup(() => setSetupOpen(false))}
+                </PopoverContent>
+              </Popover>
+            )}
+            <Button variant="ghost" onClick={onCancel}>
+              Cancel
+            </Button>
+            {sendButton}
+          </div>
         )}
-        <Button variant="ghost" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button variant="primary" disabled={!dirty && !pending.length} onClick={() => void openSend()}>
-          {branch ? `Save to change${branch.pr ? ` #${branch.pr}` : ''}` : 'Send for review'}
-        </Button>
-        </div>
       </div>
       {drafting && (
         <div className="le-status" role="status">
@@ -1129,11 +1230,6 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
             <span>Changed: {changedNote.toLowerCase()}</span>
           </summary>
           <div className="le-rail le-rail-in">
-            {pending.length > 1 && (
-              <Button variant="secondary" size="sm" iconStart={Check} onClick={() => setState((s) => keepDrafts(s))}>
-                Keep all drafts
-              </Button>
-            )}
             <RailContent />
           </div>
         </details>
@@ -1182,6 +1278,12 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
             }}
           />
         </AlertDialog>
+
+        <Dialog open={setupDialog} onOpenChange={setSetupDialog}>
+          <DialogContent size="sm" title="Draft with Claude">
+            {claudeSetup(() => setSetupDialog(false))}
+          </DialogContent>
+        </Dialog>
 
         <Dialog open={sendOpen} onOpenChange={(o) => (o ? setSendOpen(true) : sent ? doneSent() : setSendOpen(false))}>
           <DialogContent
