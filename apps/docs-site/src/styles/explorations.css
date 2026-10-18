@@ -221,3 +221,13 @@
     padding: var(--space-3) var(--space-4);
   }
 }
+
+/* The request the form answers, when it was opened from one. */
+.ex-for {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.ex-for[hidden] {
+  display: none;
+}

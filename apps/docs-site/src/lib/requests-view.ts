@@ -52,6 +52,8 @@ export interface PullLike {
   html_url: string;
   title?: string;
   user?: { login: string } | null;
+  /** The branch it comes from: an exploration a request is linked to is found by its branch. */
+  head?: { ref: string } | null;
 }
 
 export interface LinkedPull {
@@ -61,6 +63,8 @@ export interface LinkedPull {
   merged: boolean;
   /** Who wrote the change that closes the request. */
   author: string | null;
+  /** The exploration the request is linked to (its branch), not a change that closes it. */
+  exploration?: boolean;
 }
 
 export interface RequestRow {
@@ -110,6 +114,22 @@ export function linkPulls(pulls: PullLike[]): Map<number, LinkedPull[]> {
       out.set(n, list);
     }
   }
+  return out;
+}
+
+/**
+ * Adds the exploration a request is linked to (`exploration: explore/<slug>` in its block, set by Start an exploration
+ * or `bridge request create --exploration`): the draft pull request on that branch counts as the work on it.
+ */
+function withExploration(issue: IssueLike, linked: Map<number, LinkedPull[]>, pulls: PullLike[]): Map<number, LinkedPull[]> {
+  const branch = parseRequestIssue(issue.body)?.exploration;
+  if (!branch) return linked;
+  const own = linked.get(issue.number) ?? [];
+  const ex = pulls.filter((p) => p.head?.ref === branch && !own.some((o) => o.number === p.number));
+  if (!ex.length) return linked;
+  const out = new Map(linked);
+  const state = (p: PullLike) => (p.state === 'open' ? ('open' as const) : ('closed' as const));
+  out.set(issue.number, [...own, ...ex.map((p) => ({ number: p.number, url: p.html_url, state: state(p), merged: Boolean(p.merged_at), author: p.user?.login ?? null, exploration: true }))]);
   return out;
 }
 
@@ -164,7 +184,7 @@ export function requestRows(issues: IssueLike[], pulls: PullLike[]): RequestRow[
   const linked = linkPulls(pulls);
   return issues
     .filter(isRequestIssue)
-    .map((i) => requestRow(i, linked))
+    .map((i) => requestRow(i, withExploration(i, linked, pulls)))
     .sort((a, b) => ORDER[a.status] - ORDER[b.status] || b.createdAt.localeCompare(a.createdAt) || b.number - a.number);
 }
 
@@ -225,8 +245,57 @@ export function requestStateLine(r: Pick<RequestRow, 'status' | 'assignees' | 'p
   const who = requestOwner(r);
   if (r.status === 'done') return who ? `Done by @${who}.` : 'Done.';
   if (r.status === 'declined') return 'Declined: closed on GitHub without a change.';
-  if (who) return `In progress by @${who}.`;
-  return 'Waiting for a developer to pick it up.';
+  if (r.prs.some((p) => p.exploration && p.state === 'open')) return who ? `@${who} is exploring it.` : 'Someone is exploring it.';
+  if (r.status === 'in-progress') return who ? `In progress by @${who}.` : 'In progress.';
+  if (who) return `@${who} is on it. The change has not started yet.`;
+  return 'Nobody is on it yet.';
+}
+
+export interface RequestDecision {
+  /** decide: the viewer is an owner and may act; wait: someone else decides; status: someone is on it or it is closed. */
+  kind: 'decide' | 'wait' | 'status';
+  sentence: string;
+}
+
+const login = (x: string) => x.trim().replace(/^@/, '').toLowerCase();
+
+/**
+ * What the top of a request says, and whether it offers the decision (Start an exploration, Assign someone, Decline).
+ * Only a waiting request nobody is on gets one, and only for a design system owner who is connected (owners after
+ * rights, the same lists the reviews count). Everyone else reads who decides; owners come from the config, never guessed.
+ */
+export function requestDecision(r: Pick<RequestRow, 'status' | 'assignees' | 'prs'>, ctx: { viewer: string | null; owners: string[] }): RequestDecision {
+  if (r.status !== 'requested' || requestOwner(r) || r.prs.length) return { kind: 'status', sentence: requestStateLine(r) };
+  const owners = [...new Set(ctx.owners.map((o) => o.trim().replace(/^@/, '')).filter(Boolean))];
+  if (ctx.viewer && owners.some((o) => login(o) === login(ctx.viewer!))) return { kind: 'decide', sentence: 'Nobody is on it yet. You decide what happens next.' };
+  if (!owners.length) return { kind: 'wait', sentence: 'Nobody is on it yet. A design system owner decides what happens next: name them in Settings, Roles.' };
+  const names = owners.length <= 2 ? owners.map((o) => `@${o}`).join(' or ') : `@${owners[0]} or ${owners.length - 1} more`;
+  return { kind: 'wait', sentence: `Nobody is on it yet. A design system owner (${names}) decides what happens next.${ctx.viewer ? '' : ' Connect GitHub if that is you.'}` };
+}
+
+/** The Start an exploration form, filled from a request: its title as the name (60 characters at most), its summary as the purpose. */
+export function explorationFromRequest(r: Pick<RequestRow, 'component' | 'title' | 'request'>): { name: string; purpose: string } {
+  const title = r.title.trim().replace(/\.$/, '');
+  let name = title.toLowerCase().includes(r.component.toLowerCase()) ? title : `${r.component}: ${title.charAt(0).toLowerCase()}${title.slice(1)}`;
+  if (name.length > 60) name = name.slice(0, 60).replace(/\s+\S*$/, '').replace(/[\s:,.-]+$/, '');
+  const purpose = r.request?.summary?.trim() || `Answer the request "${r.component}: ${title}".`;
+  return { name, purpose };
+}
+
+/** "Who should work on it?" options: people who can push, the viewer first ("you"), then by login. */
+export function assigneeOptions(people: { login: string }[], viewer: string | null): { value: string; label: string }[] {
+  const seen = new Set<string>();
+  const me = login(viewer ?? '');
+  const out = people.filter((p) => p.login && !seen.has(login(p.login)) && seen.add(login(p.login)));
+  out.sort((a, b) => Number(login(b.login) === me) - Number(login(a.login) === me) || a.login.localeCompare(b.login));
+  return out.map((p) => ({ value: p.login, label: me && login(p.login) === me ? `@${p.login} (you)` : `@${p.login}` }));
+}
+
+/** What the decline dialog says about who reads the reason. */
+export function declineAudience(requester: string): string {
+  return requester
+    ? `@${requester.replace(/^@/, '')} gets a GitHub notification with your reason, and it stays on the request.`
+    : 'The reason is posted on the request, where the requester and the team read it.';
 }
 
 /** Where the change that builds a request stands, for its section header: "Not started", "In review", "Shipped". */

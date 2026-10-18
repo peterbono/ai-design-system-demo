@@ -3,7 +3,19 @@
 // `explore/<slug>` branch; starting, promoting and closing go through the core helpers (explorations-github.ts) with
 // the viewer's token, the same code the MCP server and the CLI run. Reads stay inside the anonymous budget: the open
 // pull requests In review already read, plus the request list the Requests view caches. Pure rules: lib/explorations-view.ts.
-import { approverLists, type BranchPreview, type BranchPreviewSources, closeExplorationOnGitHub, EXPLORATION_PREFIX, promoteExplorationOnGitHub, startExplorationOnGitHub, type ExplorationUseCase, type Rights } from '@bridge-ds/core';
+import {
+  approverLists,
+  type BranchPreview,
+  type BranchPreviewSources,
+  closeExplorationOnGitHub,
+  EXPLORATION_PREFIX,
+  linkRequestToExplorationOnGitHub,
+  promoteExplorationOnGitHub,
+  requestIssueTitle,
+  startExplorationOnGitHub,
+  type ExplorationUseCase,
+  type Rights,
+} from '@bridge-ds/core';
 import {
   branchFor,
   explorationPreviews,
@@ -31,9 +43,9 @@ import { touchesVisuals } from '../lib/visual-impact';
 import type { Tier } from '../lib/review-rules';
 import type { PromoteAskDetail } from '../components/ds/studio/PromoteToReview';
 import { loadVisualImpact, renderTopChange } from './reviews/visual-impact';
-import type { PullLike } from '../lib/requests-view';
+import { explorationFromRequest, type PullLike, type RequestRow } from '../lib/requests-view';
 import { currentViewer, esc, getToken, ghGet, hasWorkingToken, initGitHubConnect, RateLimitError, readRepo, relativeTime, setButtonBusy, showGhError, studioClient } from './github-session';
-import { loadRequestRows } from './requests';
+import { forgetRequests, loadRequestRows, requestRow } from './requests';
 
 const repo = readRepo();
 const R = `/repos/${repo.owner}/${repo.repo}`;
@@ -152,9 +164,46 @@ function paintStartPreview(form: HTMLFormElement) {
   $('ex-uc-hint').textContent = useCaseHint(f.useCase);
 }
 
+/** The request the form answers, when it was opened from one (Start an exploration on a request). */
+let forRequest: RequestRow | null = null;
+
+function paintFor() {
+  const note = $('ex-for');
+  if (!note) return;
+  note.hidden = !forRequest;
+  note.innerHTML = forRequest
+    ? `For the request <a href="?request=${forRequest.number}" data-open-request="${forRequest.number}">${esc(requestIssueTitle(forRequest))}</a>. Once it starts, the request shows you are exploring it.`
+    : '';
+}
+
+/** Opens the form filled from a request (?view=explorations&for=N): its title as the name, its summary as the purpose. */
+export async function startForRequest(n: number) {
+  const form = $<HTMLFormElement>('ex-start');
+  const opener = $<HTMLButtonElement>('ex-start-open');
+  if (!form || !opener) return;
+  const r = await requestRow(n);
+  if (Number(new URLSearchParams(location.search).get('for')) !== n) return;
+  forRequest = r;
+  form.hidden = false;
+  opener.setAttribute('aria-expanded', 'true');
+  $('ex-done').hidden = true;
+  if (r) {
+    const f = explorationFromRequest(r);
+    (form.elements.namedItem('name') as HTMLInputElement).value = f.name;
+    (form.elements.namedItem('purpose') as HTMLTextAreaElement).value = f.purpose;
+  }
+  paintFor();
+  paintStartAuth();
+  paintStartPreview(form);
+  form.querySelector<HTMLInputElement>('[name="name"]')?.focus();
+}
+
 function closeStart(focus = true) {
   const form = $<HTMLFormElement>('ex-start');
   const opener = $<HTMLButtonElement>('ex-start-open');
+  forRequest = null;
+  paintFor();
+  if (new URLSearchParams(location.search).has('for')) history.replaceState({}, '', '?view=explorations');
   form.reset();
   form.hidden = true;
   $('ex-start-error').hidden = true;
@@ -203,16 +252,29 @@ function wireStart() {
       return;
     }
     setButtonBusy(submit, true, 'Starting exploration');
+    const req = forRequest;
     try {
       const s = await startExplorationOnGitHub(
         client(),
         { name: f.name, purpose: f.purpose, ...(f.useCase ? { useCase: f.useCase as ExplorationUseCase } : {}), ...(currentViewer()?.login ? { author: currentViewer()!.login } : {}) },
-        { base: CFG.defaultBranch, packages: CFG.packages, apps: CFG.apps },
+        { base: CFG.defaultBranch, packages: CFG.packages, apps: CFG.apps, ...(req ? { requests: [{ number: req.number, title: requestIssueTitle(req) }] } : {}) },
       );
+      // Started for a request: link it the way `bridge request create --exploration` does, and put the starter on it.
+      let linked = '';
+      if (req) {
+        try {
+          const l = await linkRequestToExplorationOnGitHub(client(), req.number, s.branch, { assignee: currentViewer()?.login ?? null });
+          forgetRequests();
+          const warn = l.warnings.length ? ` <span class="cg-muted">${l.warnings.map(esc).join(' ')}</span>` : '';
+          linked = ` The request <a href="?request=${req.number}" data-open-request="${req.number}">${esc(requestIssueTitle(req))}</a> is linked to it.${warn}`;
+        } catch (err) {
+          linked = ` <span class="cg-muted">The request could not be linked: ${esc((err as Error).message)}</span>`;
+        }
+      }
       closeStart(false);
       const done = $('ex-done');
       done.hidden = false;
-      done.innerHTML = `<p><strong>${esc(f.name.trim())} is ready.</strong> <a href="?exploration=${s.pr}" data-open-exploration="${s.pr}">Open exploration #${s.pr}</a>. Its previews appear in a few minutes.</p>`;
+      done.innerHTML = `<p><strong>${esc(f.name.trim())} is ready.</strong> <a href="?exploration=${s.pr}" data-open-exploration="${s.pr}">Open exploration #${s.pr}</a>. Its previews appear in a few minutes.${linked}</p>`;
       void loadExplorations(undefined, true).then(() => {
         // The list from GitHub may not show the new pull request yet: keep it on screen.
         if (!rows.some((r) => r.number === s.pr)) $('ex-sentence').textContent = `${explorationsSummary(rows)} #${s.pr} appears here in a moment.`;

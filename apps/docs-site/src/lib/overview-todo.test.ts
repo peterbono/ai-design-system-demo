@@ -63,8 +63,8 @@ describe('overview to-do', () => {
     const t = overviewTodo({ changes: [], requests: [request(81), request(65, { requester: '' })], viewer: 'peterbono', owners: ['peterbono'] });
     expect(t.headline).toBe('2 requests wait for you.');
     expect(t.mine.map((r) => [r.title, r.why, r.action, r.href])).toEqual([
-      ['Select: Add a native Select', 'Asked by @ana. Nobody is on it yet.', 'Triage', '/studio/changes/?request=81'],
-      ['Select: Add a native Select', 'Nobody is on it yet.', 'Triage', '/studio/changes/?request=65'],
+      ['Select: Add a native Select', 'Asked by @ana. Nobody is on it yet: explore it, assign someone or decline it.', 'Open request', '/studio/changes/?request=81'],
+      ['Select: Add a native Select', 'Nobody is on it yet: explore it, assign someone or decline it.', 'Open request', '/studio/changes/?request=65'],
     ]);
   });
 

@@ -19,8 +19,6 @@ import { humanDate } from '../lib/stats';
 import { BRANDS, DEFAULT_BRAND } from '../lib/tokens';
 import { Breadcrumb, Button, IconButton, Kbd } from '@bridge-ds/react';
 import { Menu as MenuIcon, Moon, Search, X } from 'lucide-react';
-import IconLink from '../components/ds/IconLink';
-import { GitHubMark } from '../components/ds/brand-icons';
 
 export interface Crumb {
   label: string;
@@ -116,8 +114,8 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
         </span>
       </Button>
       <div class="topbar-actions">
-        {/* Studio keeps the theme with the account (GitHubAccount menu, or the side nav foot until connected): one less control on every page. */}
-        {!isStudio && <IconButton icon={Moon} label="Dark theme" id="theme-toggle" data-theme-toggle aria-pressed="false" title="Dark theme" className="shell-wide" />}
+        {/* Same place in the Library and in Studio, so people find it in both. */}
+        <IconButton icon={Moon} label="Dark theme" id="theme-toggle" data-theme-toggle aria-pressed="false" title="Dark theme" className="shell-wide" />
         {
           isStudio ? (
             <>
@@ -129,8 +127,6 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
             </>
           ) : (
             <>
-              <IconLink href={GITHUB_URL} icon={GitHubMark} label="View the repository on GitHub" title="GitHub" className="shell-wide" />
-              <span class="topbar-rule shell-wide" aria-hidden="true"></span>
               <div class="team shell-wide" data-team>
                 <a class="hd-btn team-open" href={STUDIO_HOME}>Open Studio</a>
                 <a class="team-avatar" href={STUDIO_HOME} data-team-avatar hidden>

@@ -360,3 +360,37 @@
     padding: var(--space-4);
   }
 }
+
+/* The decision on a request nobody is on: three actions on one row, the first one primary. */
+.rq-decide {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+#rq-state:focus {
+  outline: none;
+}
+
+/* Assign someone, in place of the decision row: the person field fills the row, its buttons sit on the field line. */
+.rq-assign {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.rq-assign-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+.rq-assign-person {
+  flex: 0 1 var(--size-120);
+  min-width: 0;
+}
+
+#rq-assign-slot[hidden] {
+  display: none;
+}

@@ -283,6 +283,12 @@ describe('explorations on GitHub', () => {
     expect(gh.pulls).toHaveLength(1);
   });
 
+  it('start for a request: the draft pull request lists the request it answers', async () => {
+    const gh = fakeGitHub();
+    await startExplorationOnGitHub(gh.client(), { name: 'Native select', purpose: 'Pages without React need one.' }, { ...settings, requests: [{ number: 81, title: 'Select: add a native Select' }] });
+    expect(gh.pulls[0].body).toContain('Requests implemented here:\n- #81 Select: add a native Select');
+  });
+
   it('list, promote (note removed, labels, ready for review via GraphQL) and close', async () => {
     const gh = fakeGitHub();
     const c = gh.client();

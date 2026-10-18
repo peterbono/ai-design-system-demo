@@ -3,8 +3,8 @@
 // end side. Freshness and sources live in the page meta line at the end of the page (Layout.astro).
 //   title   the page name, as in the side nav
 //   art     one of src/brand/illustrations.ts
-//   studio  where this page is edited in the Studio. Shown as a small "Edit in Studio" button right after the
-//           title, to maintainers only (a GitHub token with write access); visitors see a plain title.
+//   studio  where this page is edited in the Studio. Shown as a quiet "Edit in Studio" ghost button in the zone's
+//           top right corner, to maintainers only (a GitHub token with write access); visitors see a plain title.
 //   studioLabel  the button text, when the Studio page is not an editor ("Open in Studio")
 // Slots: default (the lead), "actions" (one or two buttons under the lead, for everyone).
 import ButtonLink from './ds/ButtonLink';
@@ -25,18 +25,16 @@ const { title, art, studio, studioLabel = 'Edit in Studio' } = Astro.props;
 
 <section class="zone lib-zone">
   <header class="lib-zone-text lib-page-header">
-    <div class="lib-title-row">
-      <h1 class="lib-title">{title}</h1>
-      {
-        studio && (
-          <span class="lib-studio" data-maintainer-only>
-            <ButtonLink variant="secondary" size="sm" iconStart={Pencil} href={studio}>{studioLabel}</ButtonLink>
-          </span>
-        )
-      }
-    </div>
+    <h1 class="lib-title">{title}</h1>
     <div class="lib-lead"><slot /></div>
     {Astro.slots.has('actions') && <div class="lib-actions"><slot name="actions" /></div>}
   </header>
+  {
+    studio && (
+      <span class="lib-studio" data-maintainer-only>
+        <ButtonLink variant="ghost" size="sm" iconStart={Pencil} href={studio}>{studioLabel}</ButtonLink>
+      </span>
+    )
+  }
   {art && <Illustration name={art} width={112} class="lib-zone-art" />}
 </section>
