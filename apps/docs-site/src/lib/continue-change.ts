@@ -268,8 +268,8 @@ export function changeParam(search: string): number | null {
   return Number.isInteger(n) && n > 0 ? n : null;
 }
 
-/** The token editor scoped to a change. */
-export const editInChangeHref = (n: number) => `/studio/tokens/?change=${n}`;
+/** The token editor scoped to a change: ?change=N&edit=1 (lib/view-scope has the address model; ?change=N alone views it). */
+export { editInChangeHref } from './view-scope';
 
 const BUMPS = ['patch', 'minor', 'major'] as const;
 type Bump = (typeof BUMPS)[number];

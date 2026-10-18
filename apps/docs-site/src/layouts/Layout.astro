@@ -12,6 +12,7 @@ import GitHubAccount from '../components/GitHubAccount.astro';
 import GitHubDialog from '../components/GitHubDialog.astro';
 import Icon from '../components/Icon.astro';
 import Logo from '../components/Logo.astro';
+import ViewAsChange from '../components/ViewAsChange.astro';
 import { LIBRARY_HOME, SPACE_LABEL, STUDIO_HOME, locate, navFor, type Space } from '../lib/nav';
 import { siteRepoJson } from '../lib/config';
 import { GITHUB_URL, STORYBOOK_URL, sourceUrl } from '../lib/repo';
@@ -46,6 +47,8 @@ const space: Space = here.space;
 const nav = navFor(space);
 const isStudio = space === 'studio';
 const isHome = path === LIBRARY_HOME || path === STUDIO_HOME;
+// Tokens, Components and Quality can show the library as an open change (lib/view-scope): the selector and the banner.
+const viewAware = isStudio && Boolean(here.item?.branchAware) && here.item?.href === path;
 // Library reading pages get the right "On this page" rail: it only shows from 1320px, where the column beside the
 // 960px reading width is otherwise empty, and only with two sections or more. Studio and wide pages opt in.
 const showToc = toc ?? (!isStudio && !wide && !isHome);
@@ -114,6 +117,7 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
         </span>
       </Button>
       <div class="topbar-actions">
+        {viewAware && <ViewAsChange />}
         {/* Same place in the Library and in Studio, so people find it in both. */}
         <IconButton icon={Moon} label="Dark theme" id="theme-toggle" data-theme-toggle aria-pressed="false" title="Dark theme" className="shell-wide" />
         {

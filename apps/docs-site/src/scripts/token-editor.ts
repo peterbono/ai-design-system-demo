@@ -45,7 +45,6 @@ import {
   addedSentence,
   ChangeConflictError,
   changeDraftKey,
-  changeParam,
   changeTitle,
   conflictHref,
   defaultTarget,
@@ -61,6 +60,7 @@ import {
   type TargetChoice,
 } from '../lib/continue-change';
 import { addToChange, loadChangeTokens, readChange, readTargets } from './continue-change';
+import { scopeHref, scopeOf } from '../lib/view-scope';
 import { ConflictNotice, ScopeBanner, TargetChoice as TargetChoiceView, mountInto, unmountFrom } from '../components/ds/studio/ContinueChange';
 import { createElement } from 'react';
 
@@ -97,7 +97,7 @@ interface State {
 let S: State | null = null;
 
 /**
- * The editor scoped to one change (/studio/tokens/?change=N, "Edit tokens in this change"): values come from the
+ * The editor scoped to one change (/studio/tokens/?change=N&edit=1, "Edit tokens in this change"): values come from the
  * change, the draft is kept apart (per change, with the version it was made on) and saving adds to the change.
  */
 interface Scope {
@@ -497,7 +497,7 @@ function paintScope() {
       : scope.state === 'loading'
         ? { title: `Opening ${scope.title}`, body: 'Reading its token values. Edits wait until they are in.' }
         : scopeBanner(scope.title);
-  mountInto(slot, createElement(ScopeBanner, { title: words.title, body: words.body, backHref: `/studio/changes/?pr=${scope.number}` }));
+  mountInto(slot, createElement(ScopeBanner, { title: words.title, body: words.body, backHref: `/studio/changes/?pr=${scope.number}`, viewHref: scopeHref(location, { kind: 'view', change: scope.number }) }));
 }
 
 /** Reads the change and its token files, then swaps them in as the values the editor edits. */
@@ -679,7 +679,10 @@ export function initTokenEditor() {
   const config = loadConfig(cfgEl.textContent || '{}');
   const originals = JSON.parse(filesEl.textContent || '{}') as Record<string, string>;
   const head = buildTokenSet(originals, layoutOptions(config));
-  const scoped = changeParam(location.search);
+  // One address model (lib/view-scope): ?change=N views a change (read only), ?change=N&edit=1 edits it here.
+  const pageScope = scopeOf(location.search, location.pathname);
+  const scoped = pageScope.kind === 'edit' ? pageScope.change : null;
+  const viewing = pageScope.kind === 'view';
   S = { config, originals, head, pairs: parseContrastChecks(checksEl?.textContent || undefined), draft: scoped ? emptyDraft() : loadDraft(), applied: null, checks: null, contrastBefore: [], contrastAfter: [] };
   if (scoped) void openScope(scoped);
 
@@ -695,6 +698,7 @@ export function initTokenEditor() {
 
   const toggle = $<HTMLButtonElement>('tx-edit-toggle');
   setEditingImpl = (on: boolean) => {
+    if (on && viewing) return;
     document.body.classList.toggle('is-editing', on);
     toggle?.setAttribute('aria-pressed', String(on));
     try {
@@ -714,7 +718,8 @@ export function initTokenEditor() {
   }
   recompute();
   // Studio Tokens turns edit mode on itself (the explorer in mode "edit"); the Drafts page only shows the tray.
-  if (startEditing || (S.draft.edits.length && !$('ed-tray')?.dataset.variant)) setEditing(true);
+  // Viewing a change is read only: nothing turns editing on (the draft stays as it is, for the latest library).
+  if (!viewing && (startEditing || (S.draft.edits.length && !$('ed-tray')?.dataset.variant))) setEditing(true);
 
   const tray = $('ed-tray');
   // Side sheet: the header's Drafts button opens the tray on the right, whatever the count.

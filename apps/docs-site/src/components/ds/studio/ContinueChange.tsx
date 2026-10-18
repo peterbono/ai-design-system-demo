@@ -31,12 +31,29 @@ export interface ScopeBannerProps {
   body: string;
   /** The change page. */
   backHref: string;
+  /** The same page viewing the change, read only (lib/view-scope): "Stop editing". */
+  viewHref?: string;
 }
 
-/** Persistent while the token editor is scoped to a change: what is edited, where edits go, the way out. */
-export function ScopeBanner({ title, body, backHref }: ScopeBannerProps) {
+/** Persistent while the token editor is scoped to a change: what is edited, where edits go, the ways out. */
+export function ScopeBanner({ title, body, backHref, viewHref }: ScopeBannerProps) {
   return (
-    <Alert tone="neutral" icon={PenLine} announce="off" title={title} actions={<ButtonLink href={backHref}>Back to the change</ButtonLink>}>
+    <Alert
+      tone="neutral"
+      icon={PenLine}
+      announce="off"
+      title={title}
+      actions={
+        <>
+          <ButtonLink href={backHref}>Back to the change</ButtonLink>
+          {viewHref && (
+            <Link href={viewHref} variant="standalone">
+              Stop editing
+            </Link>
+          )}
+        </>
+      }
+    >
       {body}
     </Alert>
   );

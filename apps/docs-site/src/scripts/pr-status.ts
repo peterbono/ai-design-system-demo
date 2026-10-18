@@ -194,7 +194,8 @@ export function whoChip(
   return `<span class="pill rv-status ${statusTone(kind)}" data-status="${esc(kind)}"${who.yourTurn ? ' data-yours' : ''}${who.short ? ` title="${esc(who.sentence)}"` : ''}>${esc(label)}</span>`;
 }
 
-function readCached(p: PullForStatus): CachedStatus | null {
+/** The status kept for this version of a change in this tab, or null (no read). */
+export function readCached(p: PullForStatus): CachedStatus | null {
   try {
     const { owner, repo } = readRepo();
     const raw = sessionStorage.getItem(statusCacheKey(`${owner}/${repo}`, p.number, p.head.sha));

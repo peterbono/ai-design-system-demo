@@ -1,7 +1,8 @@
 // The center table: an ARIA grid (div based, so section groups can use content-visibility and stay cheap with 535
 // rows). Groups are collapsible section rows, the header is sticky, there is one column per relevant mode, plus code
 // syntax and description columns. Rows render in chunks: the first screenful synchronously, the rest on idle.
-import { codeSyntax, SYNTAX_LABEL } from '../../lib/explorer/format';
+import { codeSyntax, modeName, SYNTAX_LABEL } from '../../lib/explorer/format';
+import { ADDED_LABEL, beforeText, CHANGED_LABEL, type TokenMark } from '../../lib/view-scope';
 import { sectionsFor, type Column, type Section, type XToken } from '../../lib/explorer/model';
 import { cellHtml, cellLabel, studioCellHtml } from './cells';
 import { editedModes } from '../token-editor';
@@ -12,13 +13,13 @@ import { copyButton, esc, icon } from './util';
 export const ROW_HEIGHT = 56;
 
 /** Minimum width of a mode column in rem: Studio cells carry the alias, the value and a chevron. */
-const modeMin = (s: ExplorerState) => (s.mode === 'edit' ? 12 : 10.5);
+const modeMin = (s: ExplorerState) => (s.mode === 'edit' || s.flat ? 12 : 10.5);
 
 /** CSS grid-template-columns for the current columns. */
 export function gridTemplate(view: View, s: ExplorerState): string {
   const modes = view.columns.map(() => `minmax(${modeMin(s)}rem, 1fr)`).join(' ');
   // Studio gives the name the larger share: names stay on one line next to the details panel at laptop widths.
-  const name = s.mode === 'edit' ? 'minmax(9.5rem, 1.6fr)' : 'minmax(9.5rem, 1.1fr)';
+  const name = s.mode === 'edit' || s.flat ? 'minmax(9.5rem, 1.6fr)' : 'minmax(9.5rem, 1.1fr)';
   return [name, modes, s.showCode ? 'minmax(13rem, 0.9fr)' : '', s.showDescription ? 'minmax(16rem, 1.2fr)' : ''].filter(Boolean).join(' ');
 }
 
@@ -49,24 +50,31 @@ function subLabel(c: Column): string {
 
 function rowHtml(d: ExplorerData, t: XToken, view: View, s: ExplorerState, section: Section, index: number): string {
   const editable = s.mode === 'edit';
+  // Studio (flat) cells look the same read only (a change shown, lib/view-scope) as in edit mode, without the editor.
+  const studio = editable || s.flat;
   const rel = !s.flat && section.key === t.group ? t.name : t.path;
-  const unused = t.used ? '' : '<span class="xp-flag">Unused</span>';
+  const mark = d.marks?.get(t.path);
+  // Usage is the latest library's: a token new in the change has none to say.
+  const unused = t.used || mark?.kind === 'added' ? '' : '<span class="xp-flag">Unused</span>';
+  const changed = mark ? markHtml(mark, d) : '';
   // Studio: the name opens the read-only details, the value cells open the editor. No copy buttons in the cells
   // (C copies, and the row menu); the row menu sits at the end of the name cell.
   const nameEnd = editable
     ? `<button type="button" class="xp-rowmenu" data-xp-rowmenu tabindex="-1" aria-label="Actions for ${esc(t.path)}" aria-haspopup="menu">${icon('more', 16)}</button>`
-    : copyButton(codeSyntax(t.path, t.tier, s.syntax), `${SYNTAX_LABEL[s.syntax]} ${codeSyntax(t.path, t.tier, s.syntax)}`);
+    : studio
+      ? ''
+      : copyButton(codeSyntax(t.path, t.tier, s.syntax), `${SYNTAX_LABEL[s.syntax]} ${codeSyntax(t.path, t.tier, s.syntax)}`);
   // Studio: a long name wraps at its dots (never mid-segment) instead of hiding behind an ellipsis when the details
   // panel narrows the table. The Library keeps one line with the full name on hover.
-  const shownName = editable ? esc(rel).replace(/\./g, '.<wbr>') : esc(rel);
-  const name = `<div role="rowheader" class="xp-td is-name" aria-colindex="1" tabindex="-1" data-col="0"><span class="xp-name"><span class="xp-name-main mono"${editable ? '' : ` title="${esc(t.path)}"`}>${shownName}</span>${unused}</span>${nameEnd}</div>`;
+  const shownName = studio ? esc(rel).replace(/\./g, '.<wbr>') : esc(rel);
+  const name = `<div role="rowheader" class="xp-td is-name" aria-colindex="1" tabindex="-1" data-col="0"><span class="xp-name"><span class="xp-name-main mono"${studio ? '' : ` title="${esc(t.path)}"`}>${shownName}</span>${changed}${unused}</span>${nameEnd}</div>`;
   const edited = editable ? editedModes(t.path) : new Set<string>();
   const cells = view.columns
     .map(
       (c, i) =>
         `<div role="gridcell" class="xp-td is-mode" aria-colindex="${i + 2}" tabindex="-1" data-col="${i + 1}" data-colkey="${esc(c.key)}" aria-label="${esc(cellLabel(d, t.path, c))}"${
           editable ? ' aria-readonly="false" aria-haspopup="dialog"' : ''
-        }>${editable ? studioCellHtml(d, t.path, c, edited.has(modeKeyFor(t.tier, c))) : cellHtml(d, t.path, c, editable)}</div>`,
+        }>${studio ? studioCellHtml(d, t.path, c, edited.has(modeKeyFor(t.tier, c))) : cellHtml(d, t.path, c, editable)}</div>`,
     )
     .join('');
   let n = view.columns.length + 1;
@@ -78,6 +86,13 @@ function rowHtml(d: ExplorerData, t: XToken, view: View, s: ExplorerState, secti
     : '';
   const selected = s.selected === t.path;
   return `<div role="row" class="xp-tr" data-path="${esc(t.path)}" aria-rowindex="${index}" aria-selected="${selected}">${name}${cells}${code}${desc}</div>`;
+}
+
+/** "Changed in this change" on a token the viewed change defines differently; its latest library value on hover and for screen readers. */
+function markHtml(mark: TokenMark, d: ExplorerData): string {
+  const before = beforeText(mark, d.formatBefore ?? ((_t, v) => JSON.stringify(v)), modeName);
+  const label = mark.kind === 'added' ? ADDED_LABEL : CHANGED_LABEL;
+  return `<span class="xp-flag xp-flag-change" data-before="${esc(before)}">${esc(label)}<span class="sr-only">. ${esc(before)}</span></span>`;
 }
 
 function sectionHead(sec: Section, view: View, s: ExplorerState, index: number): string {
@@ -177,7 +192,7 @@ export function refreshRow(host: HTMLElement, d: ExplorerData, view: View, s: Ex
   row.querySelectorAll<HTMLElement>('.xp-td.is-mode').forEach((cell, i) => {
     const col = view.columns[i];
     if (!col) return;
-    cell.innerHTML = s.mode === 'edit' && t ? studioCellHtml(d, path, col, edited.has(modeKeyFor(t.tier, col))) : cellHtml(d, path, col, false);
+    cell.innerHTML = (s.mode === 'edit' || s.flat) && t ? studioCellHtml(d, path, col, edited.has(modeKeyFor(t.tier, col))) : cellHtml(d, path, col, false);
     cell.setAttribute('aria-label', cellLabel(d, path, col));
   });
 }

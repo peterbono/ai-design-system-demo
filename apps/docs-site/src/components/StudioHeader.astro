@@ -1,24 +1,18 @@
 ---
-// Page header for every Studio page: the title (h2 role, Fraunces 30) with the branch this view reads right next to
-// it, an optional count, an optional one-line muted subtitle, and actions on the end side.
+// Page header for every Studio page: the title (h2 role, Fraunces 30), an optional count, an optional one-line muted
+// subtitle, and actions on the end side. Which version of the library a page shows (the latest, or an open change) is
+// picked in the top bar on the pages that can show a change (components/ViewAsChange.astro), not here.
 //   title     the page name (the h1)
 //   subtitle  one short line, only when the title alone does not say what the page holds
 //   countId   id of a live count next to the title, filled by the page script (open pull requests, branches)
-//   branch    show the branch picker (default: every Studio page outside Settings)
 // Slots: "actions" (buttons on the end side), default (extra inline meta after the subtitle).
-import Icon from './Icon.astro';
-import { SETTINGS_HOME, locate } from '../lib/nav';
-
 interface Props {
   title: string;
   subtitle?: string;
   countId?: string;
   countLabel?: string;
-  branch?: boolean;
 }
-const path = Astro.url.pathname.replace(/\/?$/, '/');
-const here = locate(path);
-const { title, subtitle, countId, countLabel, branch = !path.startsWith(SETTINGS_HOME) } = Astro.props;
+const { title, subtitle, countId, countLabel } = Astro.props;
 ---
 
 <header class="st-head">
@@ -28,32 +22,6 @@ const { title, subtitle, countId, countLabel, branch = !path.startsWith(SETTINGS
         {title}
         {countId && <span class="st-count num" id={countId} aria-label={countLabel}></span>}
       </h1>
-      {
-        branch && (
-          <details class="menu scope-pick" data-menu id="branch-menu">
-            <summary class="scope-pick-trigger" aria-label="Branch: main. Change branch" title="Branch this Studio view reads">
-              <Icon name="branch" size={16} />
-              <span class="mono" data-branch-label>main</span>
-              <span class="scope-pick-chev" aria-hidden="true"><Icon name="chevron" size={12} /></span>
-            </summary>
-            <div class="menu-panel" role="group" aria-label="Branches">
-              <p class="menu-title">Branch</p>
-              <ul class="menu-list" data-branch-list aria-busy="true">
-                <li>
-                  <a class="menu-item" href="?" data-branch="">
-                    <span class="mono">main</span>
-                    <span class="menu-note">Default branch</span>
-                  </a>
-                </li>
-              </ul>
-              <p class="menu-help" data-branch-note>
-                {here.item?.branchAware ? 'This page reads the branch you pick.' : 'This page reads main. Changes opens the pull request of the branch you pick.'}
-              </p>
-              <a class="menu-foot" href="/studio/changes/#other-branches" data-keep-branch>All branches and previews</a>
-            </div>
-          </details>
-        )
-      }
     </div>
     {subtitle && <p class="st-sub">{subtitle}</p>}
     <slot />

@@ -21,7 +21,7 @@ export interface NavItem {
   icon?: IconName;
   /** Sits slightly apart from the pages above it (All tokens under the foundations). */
   apart?: boolean;
-  /** Studio pages that read the branch chosen next to the page title (?branch=). Others show main and say so. */
+  /** Studio pages that can show the library as an open change (?change=N, lib/view-scope): "Viewing" in the top bar. */
   branchAware?: boolean;
   /** One line for search, llms.txt and the group pages. */
   meta?: string;
@@ -38,6 +38,8 @@ export interface NavEntry {
   children?: NavItem[];
   /** Live count filled in the browser: open pull requests waiting for a review. The one number the nav shows. */
   badge?: 'reviews';
+  /** Page entry that can show the library as an open change (see NavItem). */
+  branchAware?: boolean;
 }
 
 export const LIBRARY_HOME = '/';
@@ -98,10 +100,10 @@ export function libraryNav(): NavEntry[] {
 export function studioNav(): NavEntry[] {
   return [
     { href: STUDIO_HOME, label: 'Overview', icon: 'gauge', meta: 'What waits for you, suggestions and activity' },
-    { href: '/studio/tokens/', label: 'Tokens', icon: 'grid', meta: 'Edit tokens into a draft, with live preview and guardrails' },
-    { href: '/studio/components/', label: 'Components', icon: 'diamonds', meta: 'Status, tokens, code and Figma links per component' },
+    { href: '/studio/tokens/', label: 'Tokens', icon: 'grid', branchAware: true, meta: 'Edit tokens into a draft, with live preview and guardrails' },
+    { href: '/studio/components/', label: 'Components', icon: 'diamonds', branchAware: true, meta: 'Status, tokens, code and Figma links per component' },
     { href: STUDIO_CHANGES_HREF, label: 'Changes', icon: 'branch', badge: 'reviews', meta: 'Changes to review, requests, explorations and the history of shipped token changes, with undo' },
-    { href: STUDIO_QUALITY_HREF, label: 'Quality', icon: 'shield', meta: 'Contrast gate, token validation, docs completeness and adoption, most severe first' },
+    { href: STUDIO_QUALITY_HREF, label: 'Quality', icon: 'shield', branchAware: true, meta: 'Contrast gate, token validation, docs completeness and adoption, most severe first' },
     { href: SETTINGS_HOME, label: 'Settings', icon: 'sliders', meta: 'GitHub connection, the repository this workspace reads, and who approves what' },
   ];
 }
@@ -115,7 +117,7 @@ export function spaceOf(path: string): Space {
 }
 
 /** Every page entry of one top-level entry: itself when it is a page, else its children. */
-const pagesOf = (e: NavEntry): NavItem[] => (e.children ?? (e.href ? [{ href: e.href, label: e.label, icon: e.icon, meta: e.meta }] : []));
+const pagesOf = (e: NavEntry): NavItem[] => (e.children ?? (e.href ? [{ href: e.href, label: e.label, icon: e.icon, meta: e.meta, branchAware: e.branchAware }] : []));
 
 /**
  * Where a page sits: its top-level entry and page, for breadcrumbs, the expanded group and the current link.
