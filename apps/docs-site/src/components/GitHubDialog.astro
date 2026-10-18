@@ -2,39 +2,70 @@
 // The Connect GitHub dialog. Include once per page, outside any element that gets hidden.
 // The native <dialog> stays (scripts/github-session.ts opens it from any [data-gh-open] and from gated actions);
 // the controls inside are DS components. Script hooks are data attributes: DS Input drops a custom id.
+// When the site has a GitHub App (GITHUB_APP_CLIENT_ID at build, docs/SIGN-IN.md), the dialog leads with
+// "Sign in with GitHub" and keeps the token paste one quiet click away ("Use a token instead"). Without it the
+// dialog is the token paste only. data-signin carries the build-time settings for the browser.
 import { Alert, Button, IconButton, Input } from '@bridge-ds/react';
 import { X } from 'lucide-react';
 import { siteRepo } from '../lib/config';
+import { signInConfig, signInConfigJson } from '../lib/signin-config';
+import { GitHubMark } from './ds/studio/brand-icons';
 
 const r = siteRepo();
 const tokenUrl = `https://github.com/settings/personal-access-tokens/new?description=Bridge%20for%20${encodeURIComponent(`${r.owner}/${r.repo}`)}`;
+const signIn = Boolean(signInConfig());
 ---
 
-<dialog class="gh-dialog" id="gh-dialog" aria-labelledby="gh-dialog-title">
+<dialog class="gh-dialog" id="gh-dialog" aria-labelledby="gh-dialog-title" data-signin={signIn ? signInConfigJson() : undefined}>
   <form method="dialog" class="gh-dialog-box">
     <header class="gh-dialog-head">
       <h2 id="gh-dialog-title">Connect GitHub</h2>
       <IconButton icon={X} label="Close" size="sm" type="submit" value="cancel" />
     </header>
     <Alert tone="warning" className="st-hideable" data-gh-rejected-note hidden announce="off">
-      GitHub no longer accepts the saved token: it was revoked, regenerated or has expired. Paste a new one to replace it.
+      <span data-gh-rejected-note-text>GitHub no longer accepts the saved token: it was revoked, regenerated or has expired. Paste a new one to replace it.</span>
     </Alert>
-    <p>
-      Reading pull requests works without a token. To approve, comment, merge or propose token changes, paste a
-      <strong>fine-grained personal access token</strong> limited to <code>{r.owner}/{r.repo}</code>.
-    </p>
-    <ol class="gh-steps">
-      <li><a href={tokenUrl} target="_blank" rel="noopener">Create a token on GitHub</a>, repository access: only <code>{r.repo}</code>.</li>
-      <li>Permissions: Pull requests read and write, Contents read and write, Commit statuses and Checks read.</li>
-      <li>Paste it below. It stays in this browser (localStorage) and is only sent to api.github.com.</li>
-    </ol>
-    <Input label="Token" type="password" autoComplete="off" spellCheck={false} placeholder="github_pat_..." data-gh-token />
-    <Alert tone="danger" className="st-hideable" data-gh-error hidden><span data-gh-error-text></span></Alert>
+    {
+      signIn && (
+        <div class="gh-view" data-gh-view="signin">
+          <p>Sign in to approve, comment and send changes. Reading works without it.</p>
+          <Button variant="primary" iconStart={GitHubMark} fullWidth data-gh-signin>
+            Sign in with GitHub
+          </Button>
+          <Alert tone="danger" className="st-hideable" data-gh-signin-error hidden>
+            <span data-gh-signin-error-text />
+          </Alert>
+          <p class="gh-quiet">
+            <Button variant="ghost" size="sm" data-gh-show-token>Use a token instead</Button>
+          </p>
+        </div>
+      )
+    }
+    <div class="gh-view" data-gh-view="token" hidden={signIn}>
+      <p>
+        Reading pull requests works without a token. To approve, comment, merge or propose token changes, paste a
+        <strong>fine-grained personal access token</strong> limited to <code>{r.owner}/{r.repo}</code>.
+      </p>
+      <ol class="gh-steps">
+        <li><a href={tokenUrl} target="_blank" rel="noopener">Create a token on GitHub</a>, repository access: only <code>{r.repo}</code>.</li>
+        <li>Permissions: Pull requests read and write, Contents read and write, Commit statuses and Checks read.</li>
+        <li>Paste it below. It stays in this browser (localStorage) and is only sent to api.github.com.</li>
+      </ol>
+      <Input label="Token" type="password" autoComplete="off" spellCheck={false} placeholder="github_pat_..." data-gh-token />
+      <Alert tone="danger" className="st-hideable" data-gh-error hidden><span data-gh-error-text></span></Alert>
+      {
+        signIn && (
+          <p class="gh-quiet">
+            <Button variant="ghost" size="sm" data-gh-show-signin>Sign in with GitHub instead</Button>
+          </p>
+        )
+      }
+    </div>
     <footer class="gh-dialog-foot">
       <Button variant="secondary" size="sm" className="st-hideable" data-gh-forget-dialog hidden>Disconnect</Button>
       <span class="gh-spacer"></span>
-      <Button variant="secondary" size="sm" type="submit" value="cancel">Cancel</Button>
-      <Button variant="primary" size="sm" data-gh-save>Check and connect</Button>
+      <Button variant="secondary" size="sm" type="submit" value="cancel" className="st-hideable" data-gh-cancel hidden={signIn}>Cancel</Button>
+      <Button variant="primary" size="sm" className="st-hideable" data-gh-save hidden={signIn}>Check and connect</Button>
     </footer>
   </form>
 </dialog>

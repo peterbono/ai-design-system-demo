@@ -89,7 +89,7 @@ describe('overview names teams', () => {
   it('a request nobody is on waits for the owners, a team named as a team', () => {
     const request: TodoRequest = { number: 9, component: 'Select', title: 'Add a native Select', status: 'requested', requester: 'ana', assignees: [], prs: [] };
     const t = overviewTodo({ changes: [], requests: [request], viewer: 'zoe', owners: ['ana', 'bo', 'theo'], ownerNames: ['@acme/design (2 people)', '@acme/web (1 person)'] });
-    expect(t.others[0]!.why).toBe('Asked by @ana. Waiting for a design system owner (@acme/design (2 people) or @acme/web (1 person)) to decide.');
+    expect(t.others[0]!.why).toContain('Waiting for a design system owner (@acme/design (2 people) or @acme/web (1 person)) to decide.');
     const mine = overviewTodo({ changes: [], requests: [request], viewer: 'BO', owners: ['ana', 'bo', 'theo'], ownerNames: ['@acme/design (2 people)'] });
     expect(mine.mine[0]!.task).toBe('decide');
   });

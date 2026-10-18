@@ -168,16 +168,14 @@ export function requestFact(n: number | null | undefined): string {
   return n ? `${words(n, 'open request')}.` : 'No open request.';
 }
 
-export type DrawerAction = 'docs' | 'tokens' | 'request';
+export type DrawerAction = 'docs' | 'change';
 
 /**
  * The drawer's actions, one primary: the guidance while it is missing or waits for a review (the Library page is
- * incomplete until then), else the tokens (the change a designer makes herself), else the docs (a layout component
- * paints with no token). The others follow as secondary, the request always last and never primary: a developer
- * builds it.
+ * incomplete until then), else "Change this component" (the designer drives the change: its tokens, an exploration
+ * Claude builds, or a mismatch report). The other one follows as secondary.
  */
-export function drawerActions(input: { guidance: GuidanceState; hasTokens: boolean }): { primary: DrawerAction; secondary: DrawerAction[] } {
-  const available = (['docs', 'tokens', 'request'] as DrawerAction[]).filter((a) => a !== 'tokens' || input.hasTokens);
-  const primary: DrawerAction = input.guidance === 'ok' && input.hasTokens ? 'tokens' : 'docs';
-  return { primary, secondary: available.filter((a) => a !== primary) };
+export function drawerActions(input: { guidance: GuidanceState }): { primary: DrawerAction; secondary: DrawerAction[] } {
+  const primary: DrawerAction = input.guidance === 'ok' ? 'change' : 'docs';
+  return { primary, secondary: primary === 'change' ? ['docs'] : ['change'] };
 }

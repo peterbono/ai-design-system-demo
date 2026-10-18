@@ -1,4 +1,4 @@
-// Studio Changes > Requests, the Components "Request a change" form, the Settings Integrations card and the Overview
+// Studio Changes > Requests, the Components "Change this component" forms, the Settings Integrations card and the Overview
 // line: the pure rules behind component change requests. No DOM, no fetch: unit tested in requests-view.test.ts.
 //
 // Variables are pull requests people approve. Components need code, so a component change is a request: a GitHub
@@ -240,6 +240,15 @@ export function onItLabel(r: Pick<RequestRow, 'status' | 'assignees' | 'prs'>): 
   return r.status === 'done' ? `Done by @${who}` : `@${who} is on it`;
 }
 
+/**
+ * Who asks, in a designer's words: a request is someone who wants to change a component, not a ticket.
+ * "@ana wants to change Button", or "Someone wants to change Button" when the issue names nobody.
+ */
+export function wantsToChange(requester: string, component: string): string {
+  const who = requester.trim().replace(/^@/, '');
+  return `${who ? `@${who}` : 'Someone'} wants to change ${component.trim() || 'a component'}`;
+}
+
 /** The one-sentence status of a request detail, in a designer's words. */
 export function requestStateLine(r: Pick<RequestRow, 'status' | 'assignees' | 'prs'>): string {
   const who = requestOwner(r);
@@ -334,7 +343,7 @@ export function freshList<T>(entry: CachedList<T> | null | undefined, now: numbe
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// Request a change (Studio Components drawer)
+// Change this component (Studio Components drawer): the request a form sends
 
 export interface RequestForm {
   kind: string;

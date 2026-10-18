@@ -235,7 +235,7 @@
   vertical-align: baseline;
 }
 
-/* One row of actions, one primary, the same control height; the request joins it (scripts/components-studio.ts). */
+/* One row of actions, one primary, the same control height. */
 .cm-d-actions {
   display: flex;
   flex-wrap: wrap;
@@ -417,8 +417,32 @@
   overflow-wrap: anywhere;
 }
 
-.cm-drawer[data-mode="request"] .cm-d-dev {
+/* Change this component: the steps take the place of the actions row, under the component they change. */
+.cm-drawer[data-mode="change"] .cm-d-actions,
+.cm-drawer[data-mode="change"] .cm-d-dev {
   display: none;
+}
+
+.cm-req.cm-chg {
+  gap: var(--space-5);
+  padding-block-start: var(--space-4);
+  border-top: var(--border-width-default) solid var(--color-border-default);
+}
+
+.cm-chg[hidden],
+.cm-chg [hidden] {
+  display: none;
+}
+
+.cm-chg-title {
+  margin: 0;
+  font-size: var(--typography-ui-size);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--typography-ui-line-height);
+}
+
+.cm-chg-done {
+  margin-block-start: var(--space-4);
 }
 
 /* Request form: the image attachment and the change rows (DS Inputs). */

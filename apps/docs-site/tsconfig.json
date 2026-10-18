@@ -5,6 +5,6 @@
     "jsxImportSource": "react",
     "customConditions": ["source"]
   },
-  "include": [".astro/types.d.ts", "src", "astro.config.mjs", "../../packages/react/src/css-modules.d.ts"],
+  "include": [".astro/types.d.ts", "src", "api", "astro.config.mjs", "../../packages/react/src/css-modules.d.ts"],
   "exclude": ["dist"]
 }

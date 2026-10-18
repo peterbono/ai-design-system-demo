@@ -1,11 +1,11 @@
 // Studio Components controller: filter the list (text, family menu, "need usage guidance"), move between rows with
 // the arrow keys (the list is one tab stop), and open a row's detail drawer. Deep links: ?c=<slug> opens that
 // component's drawer (the Library "Edit in Studio" door), ?guidance=needed shows only what needs guidance.
-// Thumbnails and the drawer preview are scaled to fit their frame; the drawer's one Light/Dark switch and its one
-// "Request a change" are moved into the open panel. The Open requests column fills from the requests Studio already
-// reads (GitHub issues labeled component-change), and leaves the page when they cannot be read.
+// Thumbnails and the drawer preview are scaled to fit their frame; the drawer's one Light/Dark switch moves under the
+// open preview, and "Change this component" opens its steps in place (scripts/request-form.ts). The Open requests
+// column fills from the requests Studio already reads (GitHub issues labeled component-change), and leaves the page when they cannot be read.
 import { openRequestCounts, requestFact } from '../lib/components-studio';
-import { initRequestForm, resetRequestForm } from './request-form';
+import { clearChangeDone, initChangeFlow, resetChangeFlow } from './request-form';
 import { fitFrames } from './explorer/preview-frames';
 import { loadRequestRows } from './requests';
 import { selectSegment } from './shell';
@@ -30,7 +30,6 @@ export function initComponentsStudio() {
   const eyebrow = drawer.querySelector<HTMLElement>('[data-cm-d-family]');
   const shared = drawer.querySelector<HTMLElement>('[data-cm-shared]')!;
   const themeSeg = drawer.querySelector<HTMLElement>('[data-cm-theme]');
-  const reqButtons = [...drawer.querySelectorAll<HTMLElement>('[data-cm-req-open], [data-cm-req-anon]')];
   const panels = [...drawer.querySelectorAll<HTMLElement>('[data-cm-panel]')];
   const devs = [...drawer.querySelectorAll<HTMLDetailsElement>('[data-cm-dev]')];
   const table = root.querySelector<HTMLElement>('[data-cm-table]');
@@ -90,17 +89,16 @@ export function initComponentsStudio() {
     paintDrawerRequests(panel);
     title.textContent = panel.dataset.name ?? slug;
     if (eyebrow) eyebrow.textContent = panel.dataset.family ?? '';
-    // The shared switch goes under this preview (back to its hidden home when there is none), the request into the
-    // action row.
+    // The shared switch goes under this preview (back to its hidden home when there is none).
     const pvSlot = panel.querySelector('[data-cm-pv-slot]');
     if (themeSeg) (pvSlot ?? shared).append(themeSeg);
-    const reqSlot = panel.querySelector('[data-cm-req-slot]');
-    if (reqSlot) reqSlot.replaceWith(...reqButtons);
-    else panel.querySelector('.cm-d-actions')?.append(...reqButtons);
     paintTheme(panel);
     drawer.dataset.component = panel.dataset.name ?? slug;
     drawer.dataset.slug = slug;
-    resetRequestForm(drawer);
+    drawer.dataset.hasTokens = String(Boolean(panel.dataset.tokensHref));
+    drawer.dataset.tokensHref = panel.dataset.tokensHref ?? '';
+    resetChangeFlow(drawer);
+    clearChangeDone(drawer);
     openRow?.removeAttribute('aria-expanded');
     openRow = row;
     row.setAttribute('aria-expanded', 'true');
@@ -212,12 +210,12 @@ export function initComponentsStudio() {
       requestAnimationFrame(() => fitFrames(panel));
     }
   });
-  initRequestForm(drawer);
+  initChangeFlow(drawer);
   scrim.addEventListener('click', close);
   document.addEventListener('keydown', (e) => {
-    // Escape inside the request form closes the form first, not the drawer.
-    if (e.key === 'Escape' && drawer.dataset.mode === 'request') {
-      resetRequestForm(drawer, true);
+    // Escape inside Change this component closes that step first, not the drawer.
+    if (e.key === 'Escape' && drawer.dataset.mode === 'change') {
+      resetChangeFlow(drawer, true);
       return;
     }
     if (e.key === 'Escape') close();

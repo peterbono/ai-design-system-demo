@@ -129,10 +129,9 @@ describe('Studio Components list cells and drawer, in words', () => {
     expect(requestFact(2)).toBe('2 open requests.');
   });
 
-  it('one primary: guidance while it is missing or in review, else tokens, never the request', () => {
-    expect(drawerActions({ guidance: 'missing', hasTokens: true })).toEqual({ primary: 'docs', secondary: ['tokens', 'request'] });
-    expect(drawerActions({ guidance: 'review', hasTokens: false })).toEqual({ primary: 'docs', secondary: ['request'] });
-    expect(drawerActions({ guidance: 'ok', hasTokens: true })).toEqual({ primary: 'tokens', secondary: ['docs', 'request'] });
-    expect(drawerActions({ guidance: 'ok', hasTokens: false })).toEqual({ primary: 'docs', secondary: ['request'] });
+  it('one primary: guidance while it is missing or in review, else Change this component', () => {
+    expect(drawerActions({ guidance: 'missing' })).toEqual({ primary: 'docs', secondary: ['change'] });
+    expect(drawerActions({ guidance: 'review' })).toEqual({ primary: 'docs', secondary: ['change'] });
+    expect(drawerActions({ guidance: 'ok' })).toEqual({ primary: 'change', secondary: ['docs'] });
   });
 });
