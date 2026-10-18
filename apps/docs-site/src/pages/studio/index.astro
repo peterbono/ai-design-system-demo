@@ -5,6 +5,7 @@ import Layout from '../../layouts/Layout.astro';
 import Icon from '../../components/Icon.astro';
 import Illustration from '../../components/Illustration.astro';
 import ButtonLink from '../../components/ds/ButtonLink';
+import { Link } from '@bridge-ds/react';
 import { releases } from '../../lib/changelog';
 import { docsEditHref, guidanceState, loadComponents } from '../../lib/components';
 import { mdTitleText, oneLineTitle } from '../../lib/markdown';
@@ -44,9 +45,9 @@ const guide = undocumented.length
       }
     : s.issues[0]
     ? { title: s.issues[0].title, text: s.issues[0].detail, cta: 'Open', href: s.issues[0].href }
-    : { title: 'Check visual impact', text: 'Every pull request gets screenshots of the stories and screens it changes. Look before you approve.', cta: 'Open Changes', href: '/studio/changes/' };
+    : { title: 'Check visual impact', text: 'Every change gets screenshots of the examples and screens it touches. Look before you approve.', cta: 'Open Changes', href: '/studio/changes/' };
 
-// Shipped, not released yet: the bottom of the activity list. Open changes are added on top in the browser. Only
+// Shipped, not released yet. Open changes are not repeated here: the greeting lists them, as to-dos. Only
 // changesets say which packages a change touches: the design system ones (components, tokens) are listed, Bridge's
 // own app updates (Studio, plugin, CLI, Claude connector) fold into one labelled row.
 const pending = releases()
@@ -69,69 +70,87 @@ const adoption = adoptionRows(groupByApp(loadAudits()).apps).filter((a) => a.com
   wide
 >
   <div class="ov">
-    <section class="zone ov-greet" aria-labelledby="ov-hello">
-      <div class="ov-greet-copy">
-        <h1 id="ov-hello" class="ov-hello">
-          <span data-hello>Hello.</span>
-          <span class="ov-hello-line" data-review-line>Here is what waits for you.</span>
-        </h1>
-        <ul class="ov-wait" data-wait-list aria-label="Changes waiting for you" hidden></ul>
-        <p class="t-body" data-review-sentence>Changes in review load from GitHub.</p>
-        <ButtonLink variant="primary" href="/studio/changes/" data-start-review data-keep-branch>Start reviewing</ButtonLink>
-        <p class="t-ui ov-health">
-          <span class:list={['ov-dot', { 'is-fail': failing > 0 }]} aria-hidden="true"></span>
-          {failing === 0 ? health : <a href="/studio/quality/">{health}</a>}
-        </p>
-        <p class="t-ui ov-health" data-requests-line hidden>
-          <span class="ov-dot is-wait" aria-hidden="true"></span>
-          <a href="/studio/changes/?view=requests" data-keep-branch data-requests-link></a>
-        </p>
-        <p class="t-ui ov-health" data-protection-line hidden>
-          <span class="ov-dot is-wait" aria-hidden="true"></span>
-          <a href="/studio/settings/#roles" data-keep-branch data-protection-link></a>
-        </p>
-      </div>
-      <Illustration name="review" class="ov-greet-art" />
-    </section>
-
-    <section class:list={['ov-sugg', { 'is-single': adoption.length === 0 }]} aria-label="Suggested next steps">
-      <article class="fg-card ov-card">
-        <div>
-          <h2 class="t-h3">{guide.title}</h2>
-          <p class="t-body t-muted">{guide.text}</p>
-          <ButtonLink size="sm" href={guide.href} data-keep-branch>{guide.cta}</ButtonLink>
+    <div class="ov-top">
+      <section class="zone ov-greet" aria-labelledby="ov-hello">
+        <div class="ov-greet-copy">
+          <h1 id="ov-hello" class="ov-hello">
+            <span data-hello>Hello.</span>
+            <span class="ov-hello-line" data-todo-headline>Here is what waits for you.</span>
+          </h1>
+          <p class="t-body ov-note" data-todo-note>Changes in review load from GitHub.</p>
+          <ul class="ov-todo" data-todo-list aria-label="Waiting for you" aria-busy="true">
+            <li class="ov-todo-row ov-skel" aria-hidden="true"></li>
+          </ul>
+          <p class="t-ui ov-todo-all" data-todo-all hidden>
+            <Link href="/studio/changes/" data-todo-all-link>Show all</Link>
+          </p>
+          <details class="ov-others" data-todo-others hidden>
+            <summary class="t-ui ov-others-sum"><span data-todo-others-line></span><span class="ov-chev" aria-hidden="true"></span></summary>
+            <ul class="ov-todo" data-todo-others-list aria-label="Waiting on someone else"></ul>
+          </details>
+          <p class="ov-todo-empty" data-todo-empty hidden>
+            <ButtonLink variant="primary" href="/studio/tokens/" data-keep-branch>Edit tokens</ButtonLink>
+          </p>
         </div>
-        <Illustration name="guide" width={96} />
-      </article>
-      {
-        adoption.length > 0 && (
-          <article class="fg-card ov-card ov-adoption">
-            <div>
-              <h2 class="t-h3">Adoption</h2>
-              <ul class="t-body t-muted ov-adopt-list">
-                {adoption.map((a) => (
-                  <li>
-                    {a.label}: <strong class="num">{formatPct(a.component.to)}</strong> components, <strong class="num">{formatPct(a.token.to)}</strong> tokens
-                  </li>
-                ))}
-              </ul>
-              <ButtonLink size="sm" href="/studio/quality/#ql-adoption" data-keep-branch>
-                See adoption
-              </ButtonLink>
-            </div>
-            <Illustration name="components" width={96} />
-          </article>
-        )
-      }
-    </section>
+        <Illustration name="review" class="ov-greet-art" />
+      </section>
 
+      <section class="ov-sugg" aria-label="Suggested next steps">
+        <article class="fg-card ov-card">
+          <div>
+            <h2 class="t-h3">{guide.title}</h2>
+            <p class="t-body t-muted">{guide.text}</p>
+            <ButtonLink size="sm" href={guide.href} data-keep-branch>{guide.cta}</ButtonLink>
+          </div>
+          <Illustration name="guide" width={96} />
+        </article>
+        <article class="fg-card ov-card ov-quality">
+          <div>
+            <h2 class="t-h3">Quality</h2>
+            <p class="t-body t-muted ov-health">
+              <span class:list={['ov-dot', { 'is-fail': failing > 0 }]} aria-hidden="true"></span>
+              {health}
+            </p>
+            {
+              adoption.length > 0 && (
+                <ul class="t-body t-muted ov-adopt-list">
+                  {adoption.map((a) => (
+                    <li>
+                      {a.label}: <strong class="num">{formatPct(a.component.to)}</strong> components, <strong class="num">{formatPct(a.token.to)}</strong> tokens
+                    </li>
+                  ))}
+                </ul>
+              )
+            }
+            <ButtonLink size="sm" href={failing > 0 ? '/studio/quality/' : adoption.length ? '/studio/quality/#ql-adoption' : '/studio/quality/'} data-keep-branch>
+              {failing > 0 ? 'Fix contrast' : 'See quality'}
+            </ButtonLink>
+          </div>
+          <Illustration name="components" width={96} />
+        </article>
+      </section>
+    </div>
+
+    <template data-todo-row="primary">
+      <li class="ov-todo-row">
+        <span class="ov-todo-text"><b class="t-body" data-title></b><span class="t-ui t-muted" data-why></span></span>
+        <ButtonLink variant="primary" href="/studio/changes/" data-act>Open change</ButtonLink>
+      </li>
+    </template>
+    <template data-todo-row="secondary">
+      <li class="ov-todo-row">
+        <span class="ov-todo-text"><b class="t-body" data-title></b><span class="t-ui t-muted" data-why></span></span>
+        <ButtonLink variant="secondary" href="/studio/changes/" data-act>Open change</ButtonLink>
+      </li>
+    </template>
+
+    {(merged.length > 0 || appUpdates > 0) && (
     <section class="ov-activity" aria-labelledby="ov-activity-title">
       <header class="ov-activity-head">
-        <h2 id="ov-activity-title" class="t-h3">Activity</h2>
-        <a href="/studio/changes/" class="fg-link" data-keep-branch>See all</a>
+        <h2 id="ov-activity-title" class="t-h3">Recently shipped</h2>
+        <a href="/studio/changes/?view=history" class="fg-link" data-keep-branch>See all</a>
       </header>
-      <ul class="fg-card ov-list" aria-live="polite">
-        <li class="ov-row ov-skel" data-pulls-placeholder aria-hidden="true"></li>
+      <ul class="fg-card ov-list">
         {
           merged.map((e) => (
             <li class="ov-row">
@@ -161,35 +180,20 @@ const adoption = adoptionRows(groupByApp(loadAudits()).apps).filter((a) => a.com
         }
       </ul>
     </section>
+    )}
   </div>
 
   <script>
-    // Owners only: one quiet line when nothing protects the library. Nobody else sees it, and no new section.
     import { loadProtection } from '@bridge-ds/core';
-    import { overviewProtectionLine } from '../../lib/protection-view';
-    import { hasWorkingToken, initGitHubConnect, readRepo, studioClient } from '../../scripts/github-session';
-    import { owners } from '../../scripts/pr-status';
-    const line = document.querySelector<HTMLElement>('[data-protection-line]');
-    const link = line?.querySelector<HTMLElement>('[data-protection-link]');
-    initGitHubConnect(async (v) => {
-      if (!line || !link) return;
-      const o = owners();
-      const isOwner = Boolean(v && [...o.design, ...o.tech].includes(v.login));
-      if (!isOwner || !hasWorkingToken()) return void (line.hidden = true);
-      const r = readRepo();
-      const text = overviewProtectionLine(await loadProtection(studioClient(`${r.owner}/${r.repo}`), r.defaultBranch), isOwner);
-      link.textContent = text ?? '';
-      line.hidden = !text;
-    });
-  </script>
-  <script>
-    import { currentViewer, esc, ghGet, initGitHubConnect, readRepo, RateLimitError } from '../../scripts/github-session';
-    import { loadStatuses, owners, shippers, whoChip, type PullForStatus, type PullStatus } from '../../scripts/pr-status';
-    import { mdTitleText, oneLineTitle } from '../../lib/markdown';
+    import { currentViewer, ghGet, hasWorkingToken, initGitHubConnect, readRepo, RateLimitError, studioClient } from '../../scripts/github-session';
+    import { loadStatuses, owners, shippers, type PullForStatus, type PullStatus } from '../../scripts/pr-status';
+    import { oneLineTitle } from '../../lib/markdown';
     import { byUrgency, needFromStatus, whoActs, type WhoActs } from '../../lib/changes';
-    import { queueCountLine, queueSentence, reviewQueue } from '../../lib/review-queue';
+    import { reviewQueue } from '../../lib/review-queue';
     import { humanTitle } from '../../lib/pr-title';
-    import { overviewRequestsLine, type PullLike } from '../../lib/requests-view';
+    import { overviewProtectionLine } from '../../lib/protection-view';
+    import { othersLine, overviewTodo, showAllLabel, TODO_MAX, type TodoRequest, type TodoRow } from '../../lib/overview-todo';
+    import type { PullLike } from '../../lib/requests-view';
     import { loadRequestRows } from '../../scripts/requests';
 
     interface Pull extends PullForStatus {
@@ -199,170 +203,156 @@ const adoption = adoptionRows(groupByApp(loadAudits()).apps).filter((a) => a.com
       html_url: string;
     }
 
-    const $ = (sel: string) => document.querySelector<HTMLElement>(sel);
+    const $ = <T extends HTMLElement = HTMLElement>(sel: string) => document.querySelector<T>(sel);
     const hello = $('[data-hello]');
-    const line = $('[data-review-line]');
-    const sentence = $('[data-review-sentence]');
-    const start = document.querySelector<HTMLAnchorElement>('[data-start-review]');
-    const list = $('.ov-list');
-    const placeholder = $('[data-pulls-placeholder]');
+    const headline = $('[data-todo-headline]');
+    const note = $('[data-todo-note]');
+    const todoList = $('[data-todo-list]');
+    const all = $('[data-todo-all]');
+    const allLink = $<HTMLAnchorElement>('[data-todo-all-link]');
+    const othersBox = $('[data-todo-others]');
+    const othersText = $('[data-todo-others-line]');
+    const othersList = $('[data-todo-others-list]');
+    const empty = $('[data-todo-empty]');
 
-    let repaint: (() => void) | null = null;
-    // "Hello Florian." only when a GitHub login is known (first word of the profile name, else the login).
-    initGitHubConnect((v) => {
-      const viewer = v ?? currentViewer();
-      if (!hello) return;
-      const name = viewer ? (viewer.name?.trim().split(/\s+/)[0] ?? viewer.login) : '';
-      hello.textContent = name ? `Hello ${name}.` : 'Hello.';
-      repaint?.();
-    });
+    // Everything the to-do list is made of. Each source fills its part and repaints.
+    const state = {
+      open: [] as Pull[],
+      statuses: new Map<number, PullStatus | null>(),
+      loaded: false,
+      done: false,
+      requests: [] as TodoRequest[],
+      unprotected: false,
+    };
 
-    const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    // Blocked on the developer side: tests fail or it conflicts with the latest library. A designer cannot fix it,
-    // so it gets one quiet link to GitHub, never a card.
-    const DEV_SIDE = new Set(['ci-failing', 'conflict']);
+    const siteOwners = () => {
+      const o = owners();
+      return [...new Set([...o.design, ...o.tech])];
+    };
+    const overrideBy = (): string[] => {
+      try {
+        return (JSON.parse(document.getElementById('bridge-repo')?.textContent || '{}') as { override?: { allowed?: string[] } }).override?.allowed ?? [];
+      } catch {
+        return [];
+      }
+    };
 
-    const row = (p: Pull, st: PullStatus | null, skipped: boolean) =>
-      `<li class="ov-row" data-pr="${p.number}"><a class="ov-row-link" href="/studio/changes/?pr=${p.number}">
-        <span class="t-body ov-row-title"><b title="${esc(mdTitleText(humanTitle(p.title)))}">${esc(oneLineTitle(humanTitle(p.title)))}</b> <span class="t-muted">#${p.number}</span></span>
-        ${whoChip(st?.kind ?? null, { author: p.user.login, approvers: st?.approvers, changesRequested: st?.changesRequested, failing: st?.failing, skipped })}
-        <span class="t-ui t-muted ov-row-date">${esc(shortDate(p.updated_at))}</span></a></li>`;
-
-    /** Who acts now on a pull request, for the connected viewer (same rules as the pull request header). */
+    /** Who acts now on a change, for the connected viewer (same rules as the change detail). */
     const whoFor = (p: Pull, st: PullStatus | null | undefined): WhoActs | null =>
-      st ? whoActs(needFromStatus(st.kind, { failing: st.failing, changesRequestedBy: st.changesRequested }), { owners: owners(), shippers: shippers(), author: p.user.login, viewer: currentViewer()?.login ?? null, approvers: st.approvers }) : null;
+      st
+        ? whoActs(needFromStatus(st.kind, { failing: st.failing, changesRequestedBy: st.changesRequested }), {
+            owners: owners(),
+            shippers: shippers(),
+            overrideBy: overrideBy(),
+            author: p.user.login,
+            viewer: currentViewer()?.login ?? null,
+            approvers: st.approvers,
+          })
+        : null;
 
-    /**
-     * Waiting for you: the changes where the connected viewer must act, first in the greeting. Nothing waiting: one
-     * quiet line. Without a GitHub login nobody is "you", so the greeting keeps the plain review count. Returns the
-     * pull requests it lists.
-     */
-    function waitingForYou(open: Pull[], statuses: Map<number, PullStatus | null>, done: boolean): Set<number> {
-      const viewer = currentViewer()?.login;
-      const box = $('[data-wait-list]');
-      if (!viewer || !box) return new Set();
-      // `open` is already the review queue (no running exploration, no release automation).
-      const order = byUrgency(open.map((p) => ({ number: p.number, kind: statuses.get(p.number)?.kind ?? null, updated_at: p.updated_at }))).map((o) => o.number);
-      const pool = open;
-      const mine = pool
-        .map((p) => ({ p, who: whoFor(p, statuses.get(p.number)) }))
-        .filter((x): x is { p: Pull; who: WhoActs } => Boolean(x.who?.yourTurn))
-        .sort((a, b) => order.indexOf(a.p.number) - order.indexOf(b.p.number));
-      const n = mine.length;
-      const others = pool.length - n;
-      const wait = (k: number) => `${k} ${k === 1 ? 'change waits' : 'changes wait'}`;
-      if (!done && !n) {
-        if (line) line.textContent = 'Checking what waits for you.';
-        if (sentence) sentence.textContent = queueCountLine(pool.length);
-        box.hidden = true;
-        return new Set();
-      }
-      if (line) line.textContent = n === 0 ? 'Nothing waits for you.' : `${wait(n)} for you.`;
-      if (sentence) {
-        // One quiet line about the rest, or nothing when everything open is yours.
-        const rest = n ? `${others} more ${others === 1 ? 'waits' : 'wait'}` : wait(others);
-        sentence.textContent = others ? `${rest} on someone else.` : n ? '' : 'Every change is shipped.';
-        sentence.hidden = !sentence.textContent;
-      }
-      box.innerHTML = mine
-        .slice(0, 3)
-        .map(({ p, who }) => `<li><a href="/studio/changes/?pr=${p.number}">${esc(oneLineTitle(humanTitle(p.title)))}</a> <span class="t-muted">#${p.number}: ${esc(who.sentence.replace(/^Your turn: /, ''))}</span></li>`)
-        .join('') + (n > 3 ? `<li class="t-muted">And ${n - 3} more in <a href="/studio/changes/">Changes</a>.</li>` : '');
-      box.hidden = n === 0;
-      if (start) {
-        if (n) {
-          start.href = `/studio/changes/?pr=${mine[0]!.p.number}`;
-          start.textContent = `Review #${mine[0]!.p.number}`;
-        } else {
-          start.textContent = 'Start reviewing';
-        }
-      }
-      return new Set(mine.slice(0, 3).map((x) => x.p.number));
+    const urgent = () => {
+      const byNum = new Map(state.open.map((p) => [p.number, p]));
+      return byUrgency(state.open.map((p) => ({ number: p.number, kind: state.statuses.get(p.number)?.kind ?? null, updated_at: p.updated_at }))).map((o) => byNum.get(o.number)!);
+    };
+
+    /** One row: what, why, and the task on a DS button. The first row of the list carries the one primary action. */
+    function rowEl(r: TodoRow, primary: boolean): HTMLElement {
+      const tpl = document.querySelector<HTMLTemplateElement>(`template[data-todo-row="${primary ? 'primary' : 'secondary'}"]`)!;
+      const li = (tpl.content.firstElementChild as HTMLElement).cloneNode(true) as HTMLElement;
+      li.dataset.key = r.key;
+      li.querySelector('[data-title]')!.textContent = r.title;
+      li.querySelector('[data-why]')!.textContent = r.why;
+      const a = li.querySelector<HTMLAnchorElement>('[data-act]')!;
+      a.href = r.href;
+      a.textContent = r.action;
+      a.setAttribute('aria-label', `${r.action}: ${r.title}`);
+      return li;
     }
 
-    /** The developer-side blocker, as one quiet link to GitHub after the sentence. Empty when nothing is blocked. */
-    function devLink(open: Pull[], statuses: Map<number, PullStatus | null>): string {
-      const blocked = open.filter((p) => DEV_SIDE.has(statuses.get(p.number)?.kind ?? ''));
-      if (!blocked.length) return '';
-      const r = readRepo();
-      const href = blocked.length === 1 ? blocked[0]!.html_url : `https://github.com/${r.owner}/${r.repo}/pulls`;
-      return ` <a href="${esc(href)}" target="_blank" rel="noopener">Open on GitHub</a>`;
+    function paintTodo() {
+      if (!headline || !todoList) return;
+      const viewer = currentViewer()?.login ?? null;
+      const changes = urgent().map((p) => {
+        const st = state.statuses.get(p.number);
+        return { number: p.number, title: oneLineTitle(humanTitle(p.title)), who: whoFor(p, st), failing: st?.failing };
+      });
+      const t = overviewTodo({ changes, requests: state.requests, viewer, owners: siteOwners(), unprotected: state.unprotected, loading: !state.done });
+      // Statuses still loading and nothing yours yet: say so rather than "Nothing waits for you".
+      const checking = viewer && !state.done && !t.mine.length && state.open.length > 0;
+      headline.textContent = checking ? 'Checking what waits for you.' : t.headline;
+      todoList.removeAttribute('aria-busy');
+      todoList.replaceChildren(...(checking ? [] : t.mine.slice(0, TODO_MAX).map((r, i) => rowEl(r, i === 0))));
+      todoList.hidden = checking || t.mine.length === 0;
+      const more = showAllLabel(t.mine.length);
+      if (all && allLink) {
+        all.hidden = !more;
+        allLink.textContent = more;
+      }
+      if (othersBox && othersText && othersList) {
+        const text = viewer && !checking ? othersLine(t.others.length, t.mine.length) : '';
+        othersBox.hidden = !text;
+        othersText.textContent = text;
+        othersList.replaceChildren(...t.others.map((r) => rowEl(r, false)));
+      }
+      if (note) {
+        note.textContent = !viewer && t.mine.length ? 'Connect GitHub to see what waits for you.' : !t.mine.length && !t.others.length && !checking ? 'Every change is shipped. Start the next one from Tokens.' : '';
+        note.hidden = !note.textContent;
+      }
+      if (empty) empty.hidden = Boolean(checking || t.mine.length || t.others.length);
     }
 
-    /**
-     * The hero: the count (the same number as the nav badge and the In review tab, lib/review-queue), then one or two
-     * sentences on what the changes wait for, with the developer-side blockers linked to GitHub.
-     */
-    function summarize(open: Pull[], statuses: Map<number, PullStatus | null>, done = false) {
-      const n = open.length;
-      if (sentence) sentence.hidden = false;
-      if (line) line.textContent = queueCountLine(n);
-      if (!sentence) return;
-      if (n === 0) {
-        sentence.textContent = 'Every change is shipped. Start a draft from Tokens when you need the next one.';
-        if (start) {
-          start.href = '/studio/tokens/';
-          start.textContent = 'Edit tokens';
-        }
-        return;
+    // "Hello Florian." only when a GitHub login is known (first word of the profile name, else the login).
+    initGitHubConnect(async (v) => {
+      const viewer = v ?? currentViewer();
+      if (hello) {
+        const name = viewer ? (viewer.name?.trim().split(/\s+/)[0] ?? viewer.login) : '';
+        hello.textContent = name ? `Hello ${name}.` : 'Hello.';
       }
-      sentence.innerHTML = `${esc(queueSentence(open.map((p) => statuses.get(p.number)?.kind ?? null)))}${devLink(open, statuses)}`;
-      const first = byUrgency(open.map((p) => ({ number: p.number, kind: statuses.get(p.number)?.kind ?? null, updated_at: p.updated_at })))[0]!;
-      if (start) start.href = `/studio/changes/?pr=${first.number}`;
-      waitingForYou(open, statuses, done);
-      // With a viewer, "Waiting for you" rewrites the sentence: keep the developer-side link after it.
-      const link = devLink(open, statuses);
-      if (currentViewer() && link && sentence.textContent) sentence.insertAdjacentHTML('beforeend', link);
-    }
+      if (state.loaded) paintTodo();
+      // Owners only: a setup row when nothing protects the library.
+      const o = owners();
+      const isOwner = Boolean(v && [...o.design, ...o.tech].includes(v.login));
+      if (!isOwner || !hasWorkingToken()) {
+        state.unprotected = false;
+      } else {
+        const r = readRepo();
+        state.unprotected = Boolean(overviewProtectionLine(await loadProtection(studioClient(`${r.owner}/${r.repo}`), r.defaultBranch), isOwner));
+      }
+      if (state.loaded) paintTodo();
+    });
 
     const r = readRepo();
     ghGet<Pull[]>(`/repos/${r.owner}/${r.repo}/pulls?state=open&per_page=100`)
       .then((f) => {
         // The review queue: the same list, and so the same count, as the nav badge and the In review tab.
-        const open = reviewQueue(f.data).sort((a, b) => b.updated_at.localeCompare(a.updated_at));
-        const statuses = new Map<number, PullStatus | null>(open.map((p) => [p.number, null]));
-        let done = false;
-        const skipped = new Set<number>();
-        const MAX = 5;
-        const paint = () => {
-          const order = byUrgency(open.map((p) => ({ number: p.number, kind: statuses.get(p.number)?.kind ?? null, updated_at: p.updated_at })));
-          const byNum = new Map(open.map((p) => [p.number, p]));
-          const sorted = order.map((o) => byNum.get(o.number)!);
-          list?.querySelectorAll('[data-pr]').forEach((el) => el.remove());
-          placeholder?.insertAdjacentHTML('beforebegin', sorted.slice(0, MAX).map((p) => row(p, statuses.get(p.number) ?? null, skipped.has(p.number))).join(''));
-          summarize(open, statuses, done);
-        };
-        placeholder?.setAttribute('hidden', '');
-        paint();
-        repaint = paint;
-        // Component change requests that wait: one line under the health line, from the open pull requests read
-        // above plus one cached issues list (no closed pull requests needed to know what waits).
+        state.open = reviewQueue(f.data).sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+        state.statuses = new Map(state.open.map((p) => [p.number, null]));
+        state.loaded = true;
+        paintTodo();
+        // Component change requests: from the open pull requests read above plus one cached issues list.
         void loadRequestRows({ openPulls: f.data as unknown as PullLike[], closed: false })
           .then((rows) => {
-            const text = overviewRequestsLine(rows);
-            const box = $('[data-requests-line]');
-            const link = $('[data-requests-link]');
-            if (!text || !box || !link) return;
-            link.textContent = `${text}.`;
-            box.hidden = false;
+            state.requests = rows;
+            paintTodo();
           })
           .catch(() => undefined);
-        void loadStatuses(open, (p, st, isSkipped) => {
-          statuses.set(p.number, st);
-          if (isSkipped) skipped.add(p.number);
+        void loadStatuses(state.open, (p, st) => {
+          state.statuses.set(p.number, st);
         }).then(() => {
-          done = true;
-          paint();
+          state.done = true;
+          paintTodo();
         });
       })
       .catch((err) => {
-        placeholder?.setAttribute('hidden', '');
-        if (line) line.textContent = 'Reviews are out of reach for now.';
-        if (sentence)
-          sentence.textContent =
+        if (todoList) todoList.hidden = true;
+        if (headline) headline.textContent = 'Reviews are out of reach for now.';
+        if (note) {
+          note.hidden = false;
+          note.textContent =
             err instanceof RateLimitError
               ? 'GitHub limits anonymous reads to 60 an hour and this browser has used them. Connect GitHub, or try again later.'
-              : 'GitHub could not be reached. Open Reviews to retry.';
+              : 'GitHub could not be reached. Open Changes to retry.';
+        }
       });
   </script>
 </Layout>
