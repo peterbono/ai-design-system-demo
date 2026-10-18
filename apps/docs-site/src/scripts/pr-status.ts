@@ -82,6 +82,8 @@ export async function ciFor(sha: string, opts: { lean?: boolean } = {}) {
 /** A status plus the review facts the who-acts line and the row need (lib/changes whoActs). */
 export interface PullStatus extends ReviewStatus {
   approvers?: string[];
+  /** The design approval is in (summarizeApprovals design): the waiting-for-code rule reads it (lib/change-status). */
+  design?: boolean;
   changesRequested?: string[];
   failing?: number;
   /** Names of the failing checks ("Changeset present"), so the Overview can name the blocker. */
@@ -145,6 +147,7 @@ export async function pullStatus(p: PullForStatus, opts: { lean?: boolean } = {}
   return {
     ...status,
     approvers: approvals?.approvers,
+    design: approvals?.design,
     changesRequested: approvals?.changesRequested,
     failing: ci?.failed.length,
     failingChecks: ci?.failed.map((f) => f.name),

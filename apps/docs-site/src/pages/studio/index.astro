@@ -11,7 +11,7 @@ import Layout from '../../layouts/Layout.astro';
 import Illustration from '../../components/Illustration.astro';
 import ButtonLink from '../../components/ds/ButtonLink';
 import StartChange from '../../components/ds/studio/StartChange';
-import { Button, Card, CardBody, Link, Skeleton } from '@bridge-ds/react';
+import { Badge, Button, Card, CardBody, Link, Skeleton } from '@bridge-ds/react';
 import { releases } from '../../lib/changelog';
 import { docsEditHref, guidanceState, loadComponents } from '../../lib/components';
 import { git } from '../../lib/repo';
@@ -97,16 +97,18 @@ const signIn = Boolean(signInConfig());
 
     <template data-todo-row="primary">
       <li class="ov-todo-row">
-        <span class="ov-todo-text"><b class="t-body" data-title></b><span class="t-ui t-muted" data-why></span></span>
+        <span class="ov-todo-text"><span class="ov-todo-head"><b class="t-body" data-title></b><span data-state></span></span><span class="t-ui t-muted" data-why></span></span>
         <ButtonLink variant="primary" href="/studio/changes/" data-act>Open change</ButtonLink>
       </li>
     </template>
     <template data-todo-row="secondary">
       <li class="ov-todo-row">
-        <span class="ov-todo-text"><b class="t-body" data-title></b><span class="t-ui t-muted" data-why></span></span>
+        <span class="ov-todo-text"><span class="ov-todo-head"><b class="t-body" data-title></b><span data-state></span></span><span class="t-ui t-muted" data-why></span></span>
         <ButtonLink variant="secondary" href="/studio/changes/" data-act>Open change</ButtonLink>
       </li>
     </template>
+    <!-- The lifecycle badge of a change row (lib/change-status todoBadge), one DS Badge per tone, cloned by the script. -->
+    {(['neutral', 'info', 'success', 'danger'] as const).map((tone) => <template data-state-badge={tone}><Badge tone={tone} size="sm" /></template>)}
 
     <section class="ov-section" aria-labelledby="ov-health-title">
       <h2 id="ov-health-title" class="t-body ov-section-title">Library health</h2>
@@ -246,6 +248,13 @@ const signIn = Boolean(signInConfig());
       li.dataset.key = r.key;
       li.querySelector('[data-title]')!.textContent = r.title;
       li.querySelector('[data-why]')!.textContent = r.why;
+      const slot = li.querySelector('[data-state]');
+      const badge = r.state && document.querySelector<HTMLTemplateElement>(`template[data-state-badge="${r.state.tone}"]`)?.content.firstElementChild;
+      if (slot && badge && r.state) {
+        const b = badge.cloneNode(true) as HTMLElement;
+        b.textContent = r.state.label;
+        slot.replaceWith(b);
+      } else slot?.remove();
       const a = li.querySelector<HTMLAnchorElement>('[data-act]')!;
       a.href = r.href;
       a.textContent = r.action;

@@ -115,6 +115,15 @@ describe('overview board', () => {
     expect(inFlightLine(cols)).toBe('2 changes in flight, 1 approved for the next release.');
     expect(inFlightLine(boardColumns({ explorations: [], changes: [], release: [], viewer: null }))).toBe('Nothing in flight.');
   });
+
+  it('says a change that waits for code is approved, never blocked (lib/change-status)', () => {
+    const cols = boardColumns({ explorations: [], changes: [change(7, 'ci-failing', 'ana', 'peterbono', { failing: 1, lifecycle: 'waiting' })], release: [], viewer: 'peterbono' });
+    expect(cols[1]!.cards[0]).toMatchObject({ note: 'Approved, waiting for code.', status: null });
+    expect(cols[1]!.blocked).toBe(0);
+    const draft = boardColumns({ explorations: [], changes: [change(8, 'draft', 'ana', 'peterbono', { lifecycle: 'draft' })], release: [], viewer: 'peterbono' });
+    expect(draft[1]!.cards[0]).toMatchObject({ note: 'Draft. Nobody is asked to review it yet.', status: null });
+    expect(draft[1]!.blocked).toBe(0);
+  });
 });
 
 describe('release titles in designer words', () => {

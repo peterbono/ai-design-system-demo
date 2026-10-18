@@ -10,6 +10,7 @@ import { currentViewer, hasWorkingToken } from './github-session';
 import { loadStatuses, owners, shippers, teamPeople, type PullForStatus, type PullStatus } from './pr-status';
 import { loadTeams } from './teams';
 import { agentMade, workNature, type VisualSignal } from '../lib/work-nature';
+import { rowLifecycle } from '../lib/change-status';
 
 export interface QueuePullFull extends PullForStatus {
   state: string;
@@ -57,12 +58,15 @@ export function whoFor(p: PullForStatus, st: PullStatus | null | undefined): Who
 export function todoChange(p: QueuePullFull, st: PullStatus | null | undefined, visual: 'ready' | null = null, impact: VisualSignal = null): TodoChange & { author: string; assignees: string[] } {
   const title = oneLineTitle(humanTitle(p.title));
   const guidance = isGuidanceChange(p.head.ref, st?.guidanceOnly);
+  const nature = workNature({ title, labels: p.labels ?? null, files: st?.files ?? null, visual: impact ?? (st?.touchesVisuals ? 'pending' : null), guidance }).nature;
   return {
     number: p.number,
     author: p.user.login,
     assignees: (p.assignees ?? []).map((a) => a.login),
     title,
-    nature: workNature({ title, labels: p.labels ?? null, files: st?.files ?? null, visual: impact ?? (st?.touchesVisuals ? 'pending' : null), guidance }).nature,
+    nature,
+    // The same lifecycle as the Changes list and the change status line, once the status is read.
+    lifecycle: st ? rowLifecycle(p, { ...st, nature, tier: st.tier ?? null }) : undefined,
     agent: agentMade({ body: p.body ?? null, labels: p.labels ?? null }),
     who: whoFor(p, st),
     failing: st?.failing,
