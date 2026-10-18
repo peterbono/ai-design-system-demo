@@ -95,22 +95,22 @@ describe('pull request opener', () => {
   const green = summarizeCi([{ name: 'Build', status: 'completed', conclusion: 'success' }]);
 
   it('says what blocks it, then what it needs after that', () => {
-    const gate = mergeGate({ tier: 2, ci: red, approvals: approvals(), draft: false, state: 'open' });
+    const gate = mergeGate({ tier: 1, ci: red, approvals: approvals(), draft: false, state: 'open' });
     expect(detailSentence({ state: 'open', ci: red, gate, changesRequestedBy: [] })).toBe('Blocked: the Guardrails test fails. After that it needs 1 approval.');
     const t3 = mergeGate({ tier: 3, ci: green, approvals: approvals(), draft: false, state: 'open' });
     expect(detailSentence({ state: 'open', ci: green, gate: t3, changesRequestedBy: [] })).toBe('Waiting for a design and a tech approval. Tests pass.');
-    const ok = mergeGate({ tier: 2, ci: green, approvals: approvals({ approvers: ['a'] }), draft: false, state: 'open' });
+    const ok = mergeGate({ tier: 1, ci: green, approvals: approvals({ approvers: ['a'] }), draft: false, state: 'open' });
     expect(detailSentence({ state: 'open', ci: green, gate: ok, changesRequestedBy: [] })).toMatch(/^Ready to ship/);
   });
 
   it('picks one primary: the failing run, connect, approve or merge', () => {
-    const gate = mergeGate({ tier: 2, ci: red, approvals: approvals(), draft: false, state: 'open' });
+    const gate = mergeGate({ tier: 1, ci: red, approvals: approvals(), draft: false, state: 'open' });
     expect(primaryAction({ state: 'open', ci: red, gate, connected: false, canWrite: false })).toEqual({ kind: 'open-run', label: 'Open failing test', url: 'https://github.com/run/1' });
-    const waiting = mergeGate({ tier: 2, ci: green, approvals: approvals(), draft: false, state: 'open' });
+    const waiting = mergeGate({ tier: 1, ci: green, approvals: approvals(), draft: false, state: 'open' });
     expect(primaryAction({ state: 'open', ci: green, gate: waiting, connected: false, canWrite: false }).kind).toBe('connect');
     expect(primaryAction({ state: 'open', ci: green, gate: waiting, connected: true, canWrite: true }).kind).toBe('approve');
     expect(primaryAction({ state: 'open', ci: green, gate: waiting, connected: true, canWrite: true, isAuthor: true }).kind).toBe('github');
-    const ready = mergeGate({ tier: 2, ci: green, approvals: approvals({ approvers: ['a'] }), draft: false, state: 'open' });
+    const ready = mergeGate({ tier: 1, ci: green, approvals: approvals({ approvers: ['a'] }), draft: false, state: 'open' });
     expect(primaryAction({ state: 'open', ci: green, gate: ready, connected: true, canWrite: true }).kind).toBe('merge');
     expect(primaryAction({ state: 'open', ci: green, gate: ready, connected: true, canWrite: false }).kind).toBe('github');
   });
@@ -270,9 +270,9 @@ describe('who acts now', () => {
 
   it('asks any reviewer when the config names no owner, never the author', () => {
     const none = { design: [], tech: [] };
-    expect(whoActs(detail({ tier: 2 }), { owners: none, author: 'ann' }).sentence).toBe('Waiting for a reviewer to approve.');
-    expect(whoActs(detail({ tier: 2 }), { owners: none, author: 'ann', viewer: 'zoe' }).yourTurn).toBe(true);
-    expect(whoActs(detail({ tier: 2 }), { owners: none, author: 'ann', viewer: 'ann' }).yourTurn).toBe(false);
+    expect(whoActs(detail({ tier: 1 }), { owners: none, author: 'ann' }).sentence).toBe('Waiting for a reviewer to approve.');
+    expect(whoActs(detail({ tier: 1 }), { owners: none, author: 'ann', viewer: 'zoe' }).yourTurn).toBe(true);
+    expect(whoActs(detail({ tier: 1 }), { owners: none, author: 'ann', viewer: 'ann' }).yourTurn).toBe(false);
   });
 
   it('gives list rows the same short line from their status alone', () => {
@@ -296,7 +296,7 @@ describe('approval rows', () => {
   it('shows the rows the tier needs, as mergeGate counts them', () => {
     expect(requiredApprovals(3)).toEqual(['design', 'tech']);
     expect(requiredApprovals(null)).toEqual(['design', 'tech']);
-    expect(requiredApprovals(2)).toEqual(['approval']);
+    expect(requiredApprovals(2)).toEqual(['design', 'tech']);
     expect(requiredApprovals(1)).toEqual(['approval']);
   });
 

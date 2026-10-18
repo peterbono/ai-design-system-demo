@@ -71,7 +71,7 @@ describe('effective tier: the list and the detail use the same rule', () => {
 
   it('says what approval is needed in plain words, no tier number', () => {
     expect(approvalNeedLabel(3)).toBe('Design + tech');
-    expect(approvalNeedLabel(2)).toBe('One approval');
+    expect(approvalNeedLabel(2)).toBe('Design + tech');
     expect(approvalNeedLabel(1)).toBe('One approval');
     expect(approvalNeedLabel(null)).toBe('');
     expect(approvalNeedLong(3)).not.toMatch(/tier/i);

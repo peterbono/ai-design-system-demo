@@ -118,10 +118,10 @@ function who(groups: readonly OwnerGroup[]): string {
 /**
  * Who approves a change sent from Studio, from its risk tier and `governance.rights`. Tier 3 (every token value,
  * add, rename or delete): a design and a tech approval, "The design owner and a developer will approve it; nothing
- * ships before both." Tier 1 and 2 (a description only): one approval.
+ * ships before both." Tier 2 (new component, variant or prop) too. Tier 1 (a description only): one approval.
  */
 export function reviewSentence(tier: 1 | 2 | 3, rights?: Rights | null): string {
-  if (tier !== 3) return 'One reviewer will approve it; nothing ships before that.';
+  if (tier === 1) return 'One reviewer will approve it; nothing ships before that.';
   const designGroups = rights?.approveDesign ?? ['design'];
   const techGroups = rights?.approveTech ?? ['tech'];
   const design = who(designGroups);

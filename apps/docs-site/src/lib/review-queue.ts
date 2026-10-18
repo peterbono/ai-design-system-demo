@@ -54,15 +54,15 @@ export function effectiveTier(labels: LabelLike[], body: string | null | undefin
 
 /** Plain words for the approval a tier needs. Never colored: color is for status. Empty while unknown. */
 export function approvalNeedLabel(tier: Tier | null | undefined): string {
-  if (tier === 3) return 'Design + tech';
-  if (tier === 1 || tier === 2) return 'One approval';
+  if (tier === 2 || tier === 3) return 'Design + tech';
+  if (tier === 1) return 'One approval';
   return '';
 }
 
 /** The longer form, for filters: what kind of change and what it needs. */
 export function approvalNeedLong(tier: Tier | null | undefined): string {
   if (tier === 3) return 'Token changes, design + tech approval';
-  if (tier === 2) return 'Component changes, one approval';
+  if (tier === 2) return 'Component changes, design + tech approval';
   if (tier === 1) return 'Docs fixes, one approval';
   return 'Any change';
 }

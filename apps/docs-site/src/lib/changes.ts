@@ -181,7 +181,7 @@ export type ApprovalRole = 'design' | 'tech' | 'approval';
 
 const EMPTY_CI: CiSummary = { state: 'pass', total: 0, passed: 0, failed: [], pending: [] };
 
-/** The approvals a tier needs, as mergeGate counts them (Tier 3: design and tech; below: one approval). */
+/** The approvals a tier needs, as mergeGate counts them (Tier 2 and 3: design and tech; Tier 1: one approval). */
 export function requiredApprovals(tier: Tier | null): ApprovalRole[] {
   const gate = mergeGate({ tier, ci: EMPTY_CI, approvals: { approvers: [], changesRequested: [], design: false, tech: false }, draft: false, state: 'open' });
   return gate.missing.map((m) => (m === 'design approval' ? 'design' : m === 'tech approval' ? 'tech' : 'approval'));

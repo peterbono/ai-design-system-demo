@@ -114,8 +114,9 @@ describe('mergeGate owner override', () => {
     expect(gate({ approvals: both })).toEqual({ allowed: true, reasons: [], overridable: false, missing: [], canShip: true });
   });
 
-  it('Tier 1 and 2 report one missing approval', () => {
-    expect(gate({ tier: 2 })).toMatchObject({ overridable: true, missing: ['approval'] });
+  it('Tier 1 reports one missing approval, Tier 2 a design and a tech approval (docs/GOVERNANCE.md)', () => {
+    expect(gate({ tier: 1 })).toMatchObject({ overridable: true, missing: ['approval'] });
+    expect(gate({ tier: 2 })).toMatchObject({ overridable: true, missing: ['design approval', 'tech approval'] });
   });
 });
 
@@ -256,9 +257,10 @@ describe('reviewStatus', () => {
     expect(st({ tier: null, approvals: designOnly }).kind).toBe('needs-tech');
   });
 
-  it('Tier 1 and 2 need one approval only', () => {
+  it('Tier 1 needs one approval only, Tier 2 needs design and tech', () => {
     expect(st({ tier: 1, approvals: designOnly }).kind).toBe('ready');
-    expect(st({ tier: 2, approvals: none }).kind).toBe('needs-approval');
+    expect(st({ tier: 1, approvals: none }).kind).toBe('needs-approval');
+    expect(st({ tier: 2, approvals: none }).kind).toBe('needs-design');
   });
 
   it('without configured owners, two approvers stand in for design and tech', () => {
