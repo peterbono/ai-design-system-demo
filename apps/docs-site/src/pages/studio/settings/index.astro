@@ -1,12 +1,17 @@
 ---
-// Studio Settings: one page for designers and design system owners, in this order: Connection (GitHub), Roles (who
-// approves design, who approves tech, who ships, when the visual before and after runs; then the Protection row),
-// Approvals (who approves what, as plain rules without tier numbers, from docs/GOVERNANCE.md), Figma and Claude (the
-// plugin, and the one terminal command that connects your own Claude, with a copy button), Integrations (Jira: one
-// sentence and its status, the setup form proposed as a change to bridge.config.json). Everything a developer needs
-// (repository sources, tiers and modes, previews and snapshot packages, the tier table, MCP details, Jira secrets and
-// workflow) sits in one collapsed "For developers" section at the bottom. The old Repository, Governance and
-// Integrations pages redirect to these anchors (lib/redirects.ts); an anchor inside the developer section opens it.
+// Studio Settings: one page for designers and design system owners. Each section is a band: on wide screens its
+// title and one sentence sit in a left column, its rows in a DS Card on the right, with every value close to its
+// label; the page stops at 1200px so nothing stretches across a wide monitor. In order:
+//   Account       the GitHub connection: a compact row once connected, the page's one Harbor zone (with a Field
+//                 Guide drawing and Connect GitHub) while Studio is read only.
+//   Review rules  who approves design, who approves tech and who ships (edited in place, sent for review as a change
+//                 to bridge.config.json), what each kind of change needs (plain rules from docs/GOVERNANCE.md, no
+//                 tier numbers) and the owner override as a fold.
+//   Safety        protection of the library and when the visual before and after runs, each with its action.
+//   Figma and Claude, Integrations (Jira), then one collapsed "For developers" section: repository sources, tiers
+//   and modes, previews and snapshot packages, the tier table, MCP details, Jira secrets and workflow.
+// The old Repository, Governance and Integrations pages redirect to these anchors (lib/redirects.ts); an anchor inside
+// the developer section opens it.
 import '../../../styles/settings.css';
 import '../../../styles/requests.css';
 import Layout from '../../../layouts/Layout.astro';
@@ -14,18 +19,21 @@ import StudioHeader from '../../../components/StudioHeader.astro';
 import ButtonLink from '../../../components/ds/ButtonLink';
 import ApprovalsTable from '../../../components/ds/studio/ApprovalsTable';
 import ProtectionRow from '../../../components/ds/studio/ProtectionRow';
+import ChangeRules from '../../../components/ds/studio/ChangeRules';
+import SettingsAccount from '../../../components/ds/studio/SettingsAccount';
+import Illustration from '../../../components/Illustration.astro';
 import { GitHubMark } from '../../../components/ds/studio/brand-icons';
 import { Copy } from 'lucide-react';
-import { Button, SegmentedControl } from '@bridge-ds/react';
+import { Badge, Button, Card, CardBody, CardHeader, Link, SegmentedControl } from '@bridge-ds/react';
 import { siteRepo } from '../../../lib/config';
 import { GOVERNANCE_FILE, pluginListing, tierSummaries } from '../../../lib/governance';
 import { inline } from '../../../lib/markdown';
 import { mcpTools } from '../../../lib/mcp';
 import { HOW_REVIEW_WORKS } from '../../../lib/nav';
 import { exists, GITHUB_URL, lastUpdated, readText } from '../../../lib/repo';
-import { CHOICE_LABEL, roleRows, rolesSummary, VISUAL_MODE_HELP, VISUAL_MODE_LABEL, type RightChoice } from '../../../lib/roles-view';
+import { CHOICE_LABEL, roleRows, VISUAL_MODE_HELP, VISUAL_MODE_LABEL, type RightChoice } from '../../../lib/roles-view';
 import { repoStatus } from '../../../lib/stats';
-import { approvalRules, mcpAddCommand } from '../../../lib/settings-view';
+import { approvalRules, mcpAddCommand, overrideText } from '../../../lib/settings-view';
 import { REQUEST_LABEL } from '@bridge-ds/core';
 
 const r = siteRepo();
@@ -64,14 +72,12 @@ const tiersAndModes: Row[] = [
 ];
 const previewApps = Object.keys(config.previews?.apps ?? {});
 const owners: Row[] = [
-  { label: 'Owner override', value: list(r.override.allowed) },
   { label: 'Preview deploys', value: list(previewApps) },
   { label: 'Snapshot packages', value: list(config.previews?.packages ?? []) },
 ];
 
-// Roles: who approves design, who approves tech, who ships, and when the visual before and after runs.
+// Review rules: who approves design, who approves tech, who ships. Safety: when the visual before and after runs.
 const roles = roleRows(r.owners, r.rights);
-const rolesLine = rolesSummary(r.owners, r.rights);
 const mode = r.visualImpact.mode;
 const choices = (['design', 'tech', 'both'] as RightChoice[]).map((c) => ({ value: c, label: CHOICE_LABEL[c] }));
 const rolesData = JSON.stringify({
@@ -81,7 +87,7 @@ const rolesData = JSON.stringify({
 }).replace(/</g, '\\u003c');
 const avatar = (login: string) => `https://github.com/${encodeURIComponent(login)}.png?size=40`;
 
-// Connection rows.
+// Figma and Claude rows.
 const plugin = pluginListing(exists(pluginReadme) ? readText(pluginReadme) : '');
 const tools = mcpTools().length;
 
@@ -91,7 +97,7 @@ const rules = approvalRules(tierRows);
 const tiers = tierRows.map((t) => ({ ...t, approvalsHtml: inline(t.approvals), href: `/studio/changes/?tier=${t.tier}` }));
 // Connect your Claude: the one command, repository from bridge.config.json, the token left as a placeholder.
 const claudeCommand = mcpAddCommand(repoName);
-const ov = r.override;
+const override = overrideText(r.override);
 
 // Integrations: GitHub issues always; Jira when bridge.config.json says so (the bridge-jira workflow does the sync).
 const jira = r.integrations.jira;
@@ -107,280 +113,329 @@ const intData = JSON.stringify({
   workflowUrl,
   secretsUrl,
 }).replace(/</g, '\\u003c');
-const overrideLine = ov.allowed.length
-  ? `Owner override: ${ov.allowed.map((l) => `@${l}`).join(', ')} may ship a change when only approvals are missing${ov.requireReason ? `, with a written reason of ${ov.minReasonLength} characters or more` : ''}.`
-  : 'Owner override is off: every change waits for its approvals before it ships.';
 ---
 
-<Layout title="Settings" description="Connect GitHub, the repository this Studio reads, and who approves what." sources={sources} updated={lastUpdated(sources)} wide>
-  <StudioHeader title="Settings" />
+<Layout title="Settings" description="Your GitHub connection, who approves what, how the library stays safe, and the tools that work on it." sources={sources} updated={lastUpdated(sources)} wide>
+  <div class="set-page">
+    <StudioHeader title="Settings" />
 
-  <section class="set-block" id="connection" aria-labelledby="set-connection">
-    <h2 id="set-connection" class="set-h">Connection</h2>
-    <div class="zone set-open" data-gh-connect data-state="readonly">
-      <p class="set-open-line" data-when="readonly">Read only. Connect GitHub to approve, propose and undo.</p>
-      <p class="set-open-line" data-when="checking">Checking your GitHub token.</p>
-      <p class="set-open-line" data-when="connected">
-        Connected as <span data-set-login></span> <span data-set-access>with write access to</span> {repoName}.
-      </p>
-      <p class="set-open-line" data-when="rejected">Your GitHub token stopped working. GitHub no longer accepts it: it was revoked, regenerated or has expired.</p>
-      <Button variant="primary" iconStart={GitHubMark} data-gh-open data-when="readonly rejected"><span data-gh-open-label>Connect GitHub</span></Button>
-      <Button variant="secondary" data-gh-open data-when="connected">Change token</Button>
-    </div>
-  </section>
+    <section class="set-band" id="connection" aria-labelledby="set-account">
+      <div class="set-band-intro">
+        <h2 id="set-account" class="set-h">Account</h2>
+        <p class="set-intro">Studio acts on GitHub with your own token. It stays in this browser.</p>
+      </div>
+      <div class="set-band-body">
+        <SettingsAccount client:load repo={repoName}>
+          <Illustration name="review" width={132} />
+        </SettingsAccount>
+      </div>
+    </section>
 
-  <section class="set-block" id="roles" aria-labelledby="set-roles">
-    <div class="set-h-row">
-      <h2 id="set-roles" class="set-h">Roles</h2>
-      <Button variant="secondary" data-density="compact" data-roles-edit aria-controls="set-roles-form">Edit</Button>
-    </div>
-    <p class="set-summary">{rolesLine}</p>
-    <form class="set-roles-form" id="set-roles-form" data-roles-form data-editing="false" novalidate>
-      <ul class="set-rows-plain set-roles">
-        {
-          roles.map((x) => (
-            <li>
+    <section class="set-band" id="roles" aria-labelledby="set-rules">
+      <div class="set-band-intro">
+        <h2 id="set-rules" class="set-h">Review rules</h2>
+        <p class="set-intro">Who approves a change before it ships, and what each kind of change needs. <Link href={HOW_REVIEW_WORKS}>How review works</Link></p>
+      </div>
+      <div class="set-band-body">
+        <Card aria-labelledby="set-roles-title">
+          <CardHeader>
+            <h3 id="set-roles-title" class="set-card-title">Who approves and ships</h3>
+            <Button variant="secondary" data-density="compact" data-roles-edit aria-controls="set-roles-form" data-gh-gate="edit the roles">Edit</Button>
+          </CardHeader>
+          <CardBody>
+            <form class="set-form" id="set-roles-form" data-roles-form data-editing="false" novalidate>
+              <div class="set-rows">
+                {
+                  roles.map((x) => (
+                    <div class="set-row">
+                      <div>
+                        <p class="set-row-label" id={`set-role-${x.right}`}>
+                          {x.label}
+                        </p>
+                        <p class="set-row-help">{x.help}</p>
+                      </div>
+                      <div class="set-row-value">
+                        <p class="set-who" data-view>
+                          {x.logins.length > 0 && (
+                            <span class="set-avatars" aria-hidden="true">
+                              {x.logins.slice(0, 3).map((l) => (
+                                <img class="set-avatar" src={avatar(l)} alt="" width="20" height="20" loading="lazy" />
+                              ))}
+                            </span>
+                          )}
+                          <span>
+                            {x.who}
+                            {x.logins.length > 0 ? (
+                              <span class="set-quiet"> {x.logins.map((l) => `@${l}`).join(', ')}</span>
+                            ) : (
+                              x.who !== 'Anyone with write access' && <span class="set-quiet"> nobody listed yet</span>
+                            )}
+                          </span>
+                        </p>
+                        <SegmentedControl data-edit aria-labelledby={`set-role-${x.right}`} data-vanilla data-right={x.right} data-initial={x.choice ?? ''} defaultValue={x.choice ?? undefined} items={choices} />
+                      </div>
+                    </div>
+                  ))
+                }
+              </div>
+              <div class="set-savebar" data-edit>
+                <div class="rq-actions">
+                  <Button variant="primary" type="submit" data-roles-submit disabled>Send for review</Button>
+                  <Button variant="secondary" data-roles-cancel>Cancel</Button>
+                  <span class="set-muted">Your team approves it before it applies.</span>
+                </div>
+                <p class="rq-error" role="alert" data-roles-error hidden></p>
+              </div>
+              <div class="rq-done" role="status" data-roles-done hidden></div>
+            </form>
+          </CardBody>
+        </Card>
+        <div id="approvals">
+          <ChangeRules client:visible rules={rules.map((x) => ({ what: x.what, who: cap(x.who) }))} override={override} />
+        </div>
+      </div>
+    </section>
+
+    <section class="set-band" id="safety" aria-labelledby="set-safety">
+      <div class="set-band-intro">
+        <h2 id="set-safety" class="set-h">Safety</h2>
+        <p class="set-intro">What keeps unreviewed changes out of the library, and when the visual before and after runs.</p>
+      </div>
+      <div class="set-band-body">
+        <Card>
+          <CardBody>
+            <div class="set-rows">
               <div>
-                <p class="set-row-title" id={`set-role-${x.right}`}>{x.label}</p>
-                <p class="set-row-text">{x.help}</p>
+                <ProtectionRow client:load />
               </div>
-              <div class="set-role-value">
-                <p class="set-who" data-view>
-                  {x.logins.length > 0 && (
-                    <span class="set-avatars" aria-hidden="true">
-                      {x.logins.slice(0, 3).map((l) => (
-                        <img class="set-avatar" src={avatar(l)} alt="" width="20" height="20" loading="lazy" />
-                      ))}
-                    </span>
-                  )}
-                  <span>
-                    {x.who}
-                    {x.logins.length > 0 ? <span class="set-who-logins"> {x.logins.map((l) => `@${l}`).join(', ')}</span> : x.who !== 'Anyone with write access' && <span class="set-who-logins"> nobody listed yet</span>}
-                  </span>
-                </p>
-                <SegmentedControl data-edit aria-labelledby={`set-role-${x.right}`} data-vanilla data-right={x.right} data-initial={x.choice ?? ''} defaultValue={x.choice ?? undefined} items={choices} />
-              </div>
-            </li>
-          ))
-        }
-        <li>
-          <div>
-            <p class="set-row-title" id="set-role-visual">Visual before and after</p>
-            <p class="set-row-text" data-visual-help data-auto={VISUAL_MODE_HELP.auto} data-on-demand={VISUAL_MODE_HELP['on-demand']}>{VISUAL_MODE_HELP[mode]}</p>
-          </div>
-          <div class="set-role-value">
-            <p class="set-who" data-view>{VISUAL_MODE_LABEL[mode]}</p>
-            <SegmentedControl
-              data-edit
-              aria-labelledby="set-role-visual"
-              data-vanilla
-              data-visual-mode
-              data-initial={mode}
-              defaultValue={mode}
-              items={[
-                { value: 'auto', label: VISUAL_MODE_LABEL.auto },
-                { value: 'on-demand', label: VISUAL_MODE_LABEL['on-demand'] },
-              ]}
-            />
-          </div>
-        </li>
-      </ul>
-      <div class="set-savebar" data-edit>
-        <div class="rq-actions">
-          <Button variant="primary" type="submit" data-roles-submit disabled>Propose changes</Button>
-          <Button variant="secondary" data-roles-cancel>Cancel</Button>
-          <span class="set-muted">Your team reviews this before it applies.</span>
-        </div>
-        <p class="rq-error" role="alert" data-roles-error hidden></p>
-      </div>
-      <div class="rq-done" role="status" data-roles-done hidden></div>
-    </form>
-    <ProtectionRow client:load />
-  </section>
-
-  <section class="set-block" id="approvals" aria-labelledby="set-approvals">
-    <h2 id="set-approvals" class="set-h">Approvals</h2>
-    <ul class="set-rows-plain set-rules" aria-label="Who approves what">
-      {
-        rules.map((x) => (
-          <li>
-            <p class="set-row-title">{x.what}</p>
-            <p class="set-rule-who">{cap(x.who)}</p>
-          </li>
-        ))
-      }
-    </ul>
-    <p class="set-muted">
-      {overrideLine} How changes are checked and approved: <a href={HOW_REVIEW_WORKS}>How review works</a>.
-    </p>
-  </section>
-
-  <section class="set-block" id="tools" aria-labelledby="set-tools">
-    <h2 id="set-tools" class="set-h">Figma and Claude</h2>
-    <ul class="set-rows-plain">
-      <li>
-        <div>
-          <p class="set-row-title">DS Bridge Figma plugin</p>
-          <p class="set-row-text">Pull tokens into Figma Variables and send variable edits back for review.</p>
-        </div>
-        <p class="set-row-link">
-          {
-            plugin.url ? (
-              <>
-                <a href={plugin.url}>Community page</a>
-                {plugin.inReview && <span class="set-note">in review</span>}
-              </>
-            ) : (
-              <a href="/install/#figma-plugin">Install it</a>
-            )
-          }
-        </p>
-      </li>
-      <li class="set-claude" id="claude">
-        <div>
-          <p class="set-row-title">Connect your Claude</p>
-          <p class="set-row-text">
-            Give your own Claude {tools} tools on this design system. It sends changes for review and never ships them on its own. Run this once in a
-            terminal, with your GitHub token in place of <span class="mono">&lt;your token&gt;</span>.
-          </p>
-        </div>
-        <div class="set-cmd">
-          <code class="set-cmd-text" id="set-claude-cmd">{claudeCommand}</code>
-          <Button variant="secondary" data-density="compact" iconStart={Copy} data-copy-from="set-claude-cmd" aria-label="Copy the command">
-            <span data-copy-label>Copy</span>
-          </Button>
-        </div>
-      </li>
-    </ul>
-  </section>
-
-  <section class="set-block" id="integrations" aria-labelledby="set-integrations">
-    <h2 id="set-integrations" class="set-h">Integrations</h2>
-    <p class="set-muted set-int-lead">Component change requests live in GitHub. Mirror them to Jira if your team plans there.</p>
-
-    <div class="fg-card set-int" data-set-jira>
-      <div class="set-int-head">
-        <p class="set-row-title">Jira</p>
-        {jira ? <span class="pill is-pass">Connected</span> : <span class="pill">Not set up</span>}
-      </div>
-      <p>
-        {
-          jira
-            ? `Each new request becomes a ${jira.issueType ?? 'Task'} in ${jira.project} on ${jira.baseUrl.replace(/^https:\/\//, '')}, with a link back to GitHub.`
-            : 'Each new request becomes a Jira issue in your project, with a link back to GitHub. Optional: skip it if your team follows requests in GitHub.'
-        }
-      </p>
-      <details class="set-more" id="jira-setup">
-        <summary><span class="set-more-title">{jira ? 'Change Jira settings' : 'Set up Jira'}</span><span class="set-chev" aria-hidden="true"></span></summary>
-        <form class="rq-form" data-int-form novalidate>
-          <div class="rq-pair">
-            <label class="rq-field"><span>Jira site</span><input name="baseUrl" type="url" inputmode="url" autocomplete="off" placeholder="https://acme.atlassian.net" value={jira?.baseUrl ?? ''} /></label>
-            <label class="rq-field"><span>Project key</span><input name="project" autocomplete="off" placeholder="DS" value={jira?.project ?? ''} /></label>
-          </div>
-          <div class="rq-pair">
-            <label class="rq-field"><span>Issue type</span><input name="issueType" autocomplete="off" value={jira?.issueType ?? 'Task'} /></label>
-            <label class="rq-field"><span>Jira labels</span><input name="jiraLabels" autocomplete="off" placeholder="design-system" value={(jira?.labels ?? []).join(', ')} /></label>
-          </div>
-          <p class="set-int-group">Every request, in GitHub</p>
-          <div class="rq-pair">
-            <label class="rq-field"><span>Labels</span><input name="requestLabels" autocomplete="off" placeholder="design" value={(reqCfg.labels ?? []).join(', ')} /></label>
-            <label class="rq-field"><span>Assignees</span><input name="assignees" autocomplete="off" placeholder="@login" value={(reqCfg.assignees ?? []).map((a) => `@${a}`).join(', ')} /></label>
-          </div>
-          <p class="rq-error" role="alert" data-int-error hidden></p>
-          <div class="rq-actions">
-            <Button variant="secondary" type="submit" data-int-submit data-gh-gate="propose integrations">Send for review</Button>
-            <span class="set-muted">Nothing changes until it ships. A developer then adds the Jira secrets once (For developers, below).</span>
-          </div>
-          <div class="rq-done" role="status" data-int-done hidden></div>
-        </form>
-      </details>
-    </div>
-  </section>
-
-  <section class="set-block" id="developer" aria-label="For developers">
-    <details class="set-more set-dev" id="for-developers" data-dev-fold>
-      <summary>
-        <span class="set-more-title">For developers</span>
-        <span class="set-more-n">Repository, tiers and modes, previews, MCP, Jira workflow</span>
-        <span class="set-chev" aria-hidden="true"></span>
-      </summary>
-
-      <h3 class="set-group" id="repository">Repository</h3>
-      <div class="set-lead">
-        <p>
-          Reading <span class="mono">{repoName}</span>, <span class="mono">{r.defaultBranch}</span>, built at <span class="mono">{build.sha}</span>.
-        </p>
-        <ButtonLink variant="secondary" size="sm" iconStart={GitHubMark} href={GITHUB_URL}>Open on GitHub</ButtonLink>
-      </div>
-      <dl class="set-dl set-dl-after">
-        {
-          source.map((x) => (
-            <div>
-              <dt>{x.label}</dt>
-              <dd class="mono">{x.value}</dd>
+              <form class="set-row set-form" id="set-visual-form" data-roles-form data-editing="false" novalidate>
+                <p class="set-row-label" id="set-role-visual">Visual before and after</p>
+                <div class="set-row-value">
+                  <p class="set-who" data-view>{VISUAL_MODE_LABEL[mode]}</p>
+                  <SegmentedControl
+                    data-edit
+                    aria-labelledby="set-role-visual"
+                    data-vanilla
+                    data-visual-mode
+                    data-initial={mode}
+                    defaultValue={mode}
+                    items={[
+                      { value: 'auto', label: VISUAL_MODE_LABEL.auto },
+                      { value: 'on-demand', label: VISUAL_MODE_LABEL['on-demand'] },
+                    ]}
+                  />
+                  <p class="set-row-help" data-visual-help data-auto={VISUAL_MODE_HELP.auto} data-on-demand={VISUAL_MODE_HELP['on-demand']}>{VISUAL_MODE_HELP[mode]}</p>
+                </div>
+                <div class="set-row-action" data-view>
+                  <Button variant="secondary" data-density="compact" data-roles-edit data-visual-edit aria-controls="set-visual-form" data-gh-gate="change when it runs">Change</Button>
+                </div>
+                <div class="set-savebar set-row-full" data-edit>
+                  <div class="rq-actions">
+                    <Button variant="primary" type="submit" data-roles-submit disabled>Send for review</Button>
+                    <Button variant="secondary" data-roles-cancel>Cancel</Button>
+                    <span class="set-muted">Your team approves it before it applies.</span>
+                  </div>
+                  <p class="rq-error" role="alert" data-roles-error hidden></p>
+                </div>
+                <div class="rq-done set-row-full" role="status" data-roles-done hidden></div>
+              </form>
             </div>
-          ))
-        }
-      </dl>
+          </CardBody>
+        </Card>
+      </div>
+    </section>
 
-      <h3 class="set-group" id="tiers-and-modes">Tiers and modes</h3>
-      <dl class="set-dl">
-        {
-          tiersAndModes.map((x) => (
-            <div>
-              <dt>{x.label}</dt>
-              <dd class="mono">
-                {x.values
-                  ? x.values.map((v, i) => (
+    <section class="set-band" id="tools" aria-labelledby="set-tools">
+      <div class="set-band-intro">
+        <h2 id="set-tools" class="set-h">Figma and Claude</h2>
+        <p class="set-intro">Work on the library from Figma or from your own Claude. Both send their changes for review.</p>
+      </div>
+      <div class="set-band-body">
+        <Card>
+          <CardBody>
+            <div class="set-rows">
+              <div class="set-row">
+                <p class="set-row-label">Figma plugin</p>
+                <p class="set-row-value">Pull tokens into Figma Variables and send variable edits back for review.</p>
+                <p class="set-row-action">
+                  {
+                    plugin.url ? (
                       <>
-                        {i > 0 && ', '}
-                        {v}
-                        {v === x.defaultValue && <span class="set-default"> (default)</span>}
+                        <Link href={plugin.url}>Community page</Link>
+                        {plugin.inReview && <span class="set-quiet">in review</span>}
                       </>
-                    ))
-                  : x.value}
-              </dd>
+                    ) : (
+                      <Link href="/install/#figma-plugin">Install it</Link>
+                    )
+                  }
+                </p>
+              </div>
+              <div class="set-row" id="claude">
+                <p class="set-row-label">Your own Claude</p>
+                <div class="set-row-value set-row-span">
+                  <p>
+                    Gives your Claude {tools} tools on this design system. It sends changes for review and never ships them on its own. Run this once in a terminal, with your
+                    GitHub token in place of <span class="mono">&lt;your token&gt;</span>.
+                  </p>
+                  <div class="set-cmd">
+                    <code class="set-cmd-text" id="set-claude-cmd">{claudeCommand}</code>
+                    <Button variant="secondary" data-density="compact" iconStart={Copy} data-copy-from="set-claude-cmd" aria-label="Copy the command">
+                      <span data-copy-label>Copy</span>
+                    </Button>
+                  </div>
+                </div>
+              </div>
             </div>
-          ))
-        }
-      </dl>
+          </CardBody>
+        </Card>
+      </div>
+    </section>
 
-      <h3 class="set-group" id="owners-and-previews">Override and previews</h3>
-      <dl class="set-dl">
-        {
-          owners.map((x) => (
-            <div>
-              <dt>{x.label}</dt>
-              <dd class="mono">{x.value}</dd>
+    <section class="set-band" id="integrations" aria-labelledby="set-integrations">
+      <div class="set-band-intro">
+        <h2 id="set-integrations" class="set-h">Integrations</h2>
+        <p class="set-intro">Component change requests live in GitHub. Mirror them to Jira if your team plans there.</p>
+      </div>
+      <div class="set-band-body">
+        <Card data-set-jira>
+          <CardBody>
+            <div class="set-rows">
+              <div class="set-row">
+                <p class="set-row-label">
+                  Jira
+                  {
+                    jira ? (
+                      <Badge tone="success" size="sm" dot>
+                        Connected
+                      </Badge>
+                    ) : (
+                      <Badge size="sm">Not set up</Badge>
+                    )
+                  }
+                </p>
+                <p class="set-row-value set-row-span">
+                  {
+                    jira
+                      ? `Each new request becomes a ${jira.issueType ?? 'Task'} in ${jira.project} on ${jira.baseUrl.replace(/^https:\/\//, '')}, with a link back to GitHub.`
+                      : 'Each new request becomes a Jira issue in your project, with a link back to GitHub. Optional: skip it if your team follows requests in GitHub.'
+                  }
+                </p>
+              </div>
             </div>
-          ))
-        }
-      </dl>
-      <p class="set-muted">Change these in a pull request on <span class="mono">{file}</span>: it is a guarded file, reviewed at the highest tier.</p>
+            <details class="set-more set-jira-setup" id="jira-setup">
+              <summary><span class="set-more-title">{jira ? 'Change Jira settings' : 'Set up Jira'}</span><span class="set-chev" aria-hidden="true"></span></summary>
+              <form class="rq-form" data-int-form novalidate>
+                <div class="rq-pair">
+                  <label class="rq-field"><span>Jira site</span><input name="baseUrl" type="url" inputmode="url" autocomplete="off" placeholder="https://acme.atlassian.net" value={jira?.baseUrl ?? ''} /></label>
+                  <label class="rq-field"><span>Project key</span><input name="project" autocomplete="off" placeholder="DS" value={jira?.project ?? ''} /></label>
+                </div>
+                <div class="rq-pair">
+                  <label class="rq-field"><span>Issue type</span><input name="issueType" autocomplete="off" value={jira?.issueType ?? 'Task'} /></label>
+                  <label class="rq-field"><span>Jira labels</span><input name="jiraLabels" autocomplete="off" placeholder="design-system" value={(jira?.labels ?? []).join(', ')} /></label>
+                </div>
+                <p class="set-int-group">Every request, in GitHub</p>
+                <div class="rq-pair">
+                  <label class="rq-field"><span>Labels</span><input name="requestLabels" autocomplete="off" placeholder="design" value={(reqCfg.labels ?? []).join(', ')} /></label>
+                  <label class="rq-field"><span>Assignees</span><input name="assignees" autocomplete="off" placeholder="@login" value={(reqCfg.assignees ?? []).map((a) => `@${a}`).join(', ')} /></label>
+                </div>
+                <p class="rq-error" role="alert" data-int-error hidden></p>
+                <div class="rq-actions">
+                  <Button variant="secondary" type="submit" data-int-submit data-gh-gate="propose integrations">Send for review</Button>
+                  <span class="set-muted">Nothing changes until it ships. A developer then adds the Jira secrets once (For developers, below).</span>
+                </div>
+                <div class="rq-done" role="status" data-int-done hidden></div>
+              </form>
+            </details>
+          </CardBody>
+        </Card>
+      </div>
+    </section>
 
-      <h3 class="set-group" id="approval-tiers">Approvals by risk tier</h3>
-      <ApprovalsTable rows={tiers} />
+    <section class="set-dev-block" id="developer" aria-label="For developers">
+      <details class="set-more set-dev" id="for-developers" data-dev-fold>
+        <summary>
+          <span class="set-more-title">For developers</span>
+          <span class="set-more-n">Repository, tiers and modes, previews, MCP, Jira workflow</span>
+          <span class="set-chev" aria-hidden="true"></span>
+        </summary>
 
-      <h3 class="set-group" id="mcp">MCP server</h3>
-      <p class="set-muted">
-        {tools} tools. Claude works on a <span class="mono">{config.governance?.branchPrefix ?? ''}*</span> branch and opens a pull request, never commits to
-        <span class="mono">{r.defaultBranch}</span>. Clients, local setup and the full tool list: <a href="/agents/#mcp">Agents page</a>.
-      </p>
+        <h3 class="set-group" id="repository">Repository</h3>
+        <div class="set-lead">
+          <p>
+            Reading <span class="mono">{repoName}</span>, <span class="mono">{r.defaultBranch}</span>, built at <span class="mono">{build.sha}</span>.
+          </p>
+          <ButtonLink variant="secondary" size="sm" iconStart={GitHubMark} href={GITHUB_URL}>Open on GitHub</ButtonLink>
+        </div>
+        <dl class="set-dl set-dl-after">
+          {
+            source.map((x) => (
+              <div>
+                <dt>{x.label}</dt>
+                <dd class="mono">{x.value}</dd>
+              </div>
+            ))
+          }
+        </dl>
 
-      <h3 class="set-group" id="jira-workflow">Jira workflow</h3>
-      <ol class="set-checklist">
-        <li>Merge the pull request that changes <span class="mono">{file}</span>. It is a guarded file, so it gets the highest review tier.</li>
-        <li>
-          Add the repository secrets <span class="mono">JIRA_EMAIL</span> and <span class="mono">JIRA_API_TOKEN</span> in <a href={secretsUrl}>Settings, Secrets and variables, Actions</a>.
-        </li>
-        <li>The <a href={workflowUrl} class="mono">{workflowFile}</a> workflow creates the Jira issue for each new request and labels the GitHub issue with its key.</li>
-      </ol>
-      <p class="set-muted">
-        Requests are GitHub issues labeled <span class="mono">{REQUEST_LABEL}</span>, closed by the pull request that implements them. Follow them by
-        <a href={issuesUrl}>filtering issues by that label</a>, or link GitHub and Jira with Atlassian's <a href="https://github.com/marketplace/jira-software-github">GitHub for Jira</a> app.
-      </p>
-    </details>
-  </section>
+        <h3 class="set-group" id="tiers-and-modes">Tiers and modes</h3>
+        <dl class="set-dl">
+          {
+            tiersAndModes.map((x) => (
+              <div>
+                <dt>{x.label}</dt>
+                <dd class="mono">
+                  {x.values
+                    ? x.values.map((v, i) => (
+                        <>
+                          {i > 0 && ', '}
+                          {v}
+                          {v === x.defaultValue && <span class="set-default"> (default)</span>}
+                        </>
+                      ))
+                    : x.value}
+                </dd>
+              </div>
+            ))
+          }
+        </dl>
+
+        <h3 class="set-group" id="owners-and-previews">Previews</h3>
+        <dl class="set-dl">
+          {
+            owners.map((x) => (
+              <div>
+                <dt>{x.label}</dt>
+                <dd class="mono">{x.value}</dd>
+              </div>
+            ))
+          }
+        </dl>
+        <p class="set-muted">Change these in a pull request on <span class="mono">{file}</span>: it is a guarded file, reviewed at the highest tier.</p>
+
+        <h3 class="set-group" id="approval-tiers">Approvals by risk tier</h3>
+        <ApprovalsTable rows={tiers} />
+
+        <h3 class="set-group" id="mcp">MCP server</h3>
+        <p class="set-muted">
+          {tools} tools. Claude works on a <span class="mono">{config.governance?.branchPrefix ?? ''}*</span> branch and opens a pull request, never commits to
+          <span class="mono">{r.defaultBranch}</span>. Clients, local setup and the full tool list: <a href="/agents/#mcp">Agents page</a>.
+        </p>
+
+        <h3 class="set-group" id="jira-workflow">Jira workflow</h3>
+        <ol class="set-checklist">
+          <li>Merge the pull request that changes <span class="mono">{file}</span>. It is a guarded file, so it gets the highest review tier.</li>
+          <li>
+            Add the repository secrets <span class="mono">JIRA_EMAIL</span> and <span class="mono">JIRA_API_TOKEN</span> in <a href={secretsUrl}>Settings, Secrets and variables, Actions</a>.
+          </li>
+          <li>The <a href={workflowUrl} class="mono">{workflowFile}</a> workflow creates the Jira issue for each new request and labels the GitHub issue with its key.</li>
+        </ol>
+        <p class="set-muted">
+          Requests are GitHub issues labeled <span class="mono">{REQUEST_LABEL}</span>, closed by the pull request that implements them. Follow them by
+          <a href={issuesUrl}>filtering issues by that label</a>, or link GitHub and Jira with Atlassian's <a href="https://github.com/marketplace/jira-software-github">GitHub for Jira</a> app.
+        </p>
+      </details>
+    </section>
+  </div>
 
   <script type="application/json" id="set-int-data" set:html={intData} />
   <script type="application/json" id="set-roles-data" set:html={rolesData} />
@@ -404,16 +459,5 @@ const overrideLine = ov.allowed.length
   <script>
     import { initIntegrations } from '../../../scripts/integrations';
     initIntegrations();
-  </script>
-  <script>
-    import { currentViewer, initGitHubConnect, onAccess } from '../../../scripts/github-session';
-    const login = () => document.querySelectorAll<HTMLElement>('[data-set-login]').forEach((el) => (el.textContent = currentViewer()?.login ?? ''));
-    initGitHubConnect(login);
-    onAccess((a) => {
-      login();
-      document.querySelectorAll<HTMLElement>('[data-set-access]').forEach((el) => {
-        el.textContent = !a ? 'on' : a.write ? 'with write access to' : 'with read access only to';
-      });
-    });
   </script>
 </Layout>

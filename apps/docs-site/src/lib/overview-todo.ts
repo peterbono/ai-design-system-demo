@@ -152,7 +152,7 @@ export function overviewTodo(input: TodoInput): Todo {
     else (viewer ? others : mine).push({ ...base, why: c.who.sentence, action: 'Open change' });
   }
 
-  if (input.unprotected && owner) mine.push({ key: 'protect', kind: 'setup', title: 'Protect your library', why: 'Anyone can change it without a review.', action: 'Protect it', href: '/studio/settings/#roles' });
+  if (input.unprotected && owner) mine.push({ key: 'protect', kind: 'setup', title: 'Protect your library', why: 'Anyone can change it without a review.', action: 'Protect it', href: '/studio/settings/#protection' });
 
   for (const r of input.requests) {
     // In progress: its change is in the list above. Done and declined wait for nobody.

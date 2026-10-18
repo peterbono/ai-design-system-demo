@@ -112,16 +112,26 @@ describe('settings', () => {
     expect(page.indexOf('id="tiers-and-modes"')).toBeGreaterThan(dev);
   });
 
-  it('opens Connection with one action per state, keeps developer details in one collapsed section', () => {
-    expect(page).toContain('Read only. Connect GitHub to approve, propose and undo.');
-    // At rest one primary (Connect GitHub). Roles' "Propose changes" is the primary of its edit mode only, inside
-    // the save bar that shows after Edit.
+  it('opens on the Account band, keeps one primary per edit mode and developer details in one collapsed section', () => {
+    // The connection states (and Connect GitHub, the one primary at rest) live in the Account island.
+    expect(page).toMatch(/<SettingsAccount client:load[^>]*>\s*<Illustration name="review"/);
+    // Review rules and Safety each send for review from a save bar that shows only after Edit or Change.
     expect(page.match(/variant="primary"/g)).toHaveLength(2);
-    expect(page).toMatch(/<div class="set-savebar" data-edit>\s*<div class="rq-actions">\s*<Button variant="primary" type="submit" data-roles-submit/);
+    expect(page.match(/<div class="set-savebar[^"]*" data-edit>\s*<div class="rq-actions">\s*<Button variant="primary" type="submit" data-roles-submit/g)).toHaveLength(2);
     expect(page.match(/For developers<\/span>/g)).toHaveLength(1);
     expect(page).toMatch(/<details class="set-more set-dev" id="for-developers" data-dev-fold>/);
     expect(page).not.toMatch(/<details[^>]* open/);
-    expect(page).not.toContain('<Badge');
+    // No summary sentence repeating the role rows; badges only for a status.
+    expect(page).not.toContain('rolesSummary');
+    expect(page.match(/<Badge/g)).toHaveLength(2);
+  });
+
+  it('puts every band in the 1200px page, Account first and For developers last', () => {
+    const order = ['id="connection"', 'id="roles"', 'id="safety"', 'id="tools"', 'id="integrations"', 'id="developer"'].map((x) => page.indexOf(x));
+    expect(order.every((i) => i > 0)).toBe(true);
+    expect([...order].sort((x, y) => x - y)).toEqual(order);
+    expect(page.match(/<section class="set-band"/g)).toHaveLength(5);
+    expect(page.indexOf('<div class="set-page">')).toBeLessThan(order[0]!);
   });
 
   it('links Approvals to the Library guide and each tier to the Changes filter', () => {

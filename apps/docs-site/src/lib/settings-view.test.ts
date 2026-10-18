@@ -1,7 +1,7 @@
 // Studio Settings: approvals in plain words and the Claude connect command.
 import { describe, expect, it } from 'vitest';
 import { tierSummaries } from './governance';
-import { approvalRules, mcpAddCommand, plainApprovals, ruleSentence } from './settings-view';
+import { accountView, approvalRules, mcpAddCommand, overrideText, plainApprovals, ruleSentence } from './settings-view';
 
 const GOVERNANCE = `# Governance
 
@@ -48,5 +48,44 @@ describe('connect your Claude', () => {
   it('builds the one command for the repository and never fills the token in', () => {
     expect(mcpAddCommand('acme/ds')).toBe('claude mcp add bridge -s user -e GITHUB_TOKEN=<your token> -- npx -y @bridge-ds/mcp --repo acme/ds');
     expect(mcpAddCommand('acme/ds')).not.toMatch(/gh[pousr]_|github_pat_/);
+  });
+});
+
+describe('account', () => {
+  const repo = 'acme/ds';
+  it('shows a compact row once connected, with the access as a badge and a quiet action', () => {
+    expect(accountView('connected', { login: 'ana', write: true, repo })).toEqual({
+      zone: false,
+      title: 'Connected as @ana',
+      detail: 'acme/ds',
+      action: 'Change token',
+      badge: { label: 'Can edit', tone: 'success' },
+    });
+    expect(accountView('connected', { login: 'ana', write: false, repo }).badge).toEqual({ label: 'Read only', tone: 'neutral' });
+    expect(accountView('connected', { login: 'ana', write: null, repo }).badge).toBeUndefined();
+  });
+
+  it('opens the Harbor zone with the primary action only when Studio cannot act', () => {
+    expect(accountView('readonly', { write: null, repo })).toMatchObject({ zone: true, action: 'Connect GitHub' });
+    expect(accountView('rejected', { write: null, repo })).toMatchObject({ zone: true, action: 'Reconnect GitHub' });
+    expect(accountView('checking', { write: null, repo })).toEqual({ zone: false, title: 'Checking your GitHub connection.' });
+  });
+
+  it('never uses an em dash', () => {
+    for (const s of ['checking', 'connected', 'readonly', 'rejected'] as const) expect(JSON.stringify(accountView(s, { login: 'a', write: true, repo }))).not.toContain('\u2014');
+  });
+});
+
+describe('owner override', () => {
+  it('names who may ship past missing approvals, and the reason rule', () => {
+    expect(overrideText({ allowed: ['ana', 'bo'], requireReason: true, minReasonLength: 20 })).toEqual({
+      on: true,
+      text: '@ana, @bo may ship a change when only approvals are missing, with a written reason of 20 characters or more.',
+    });
+    expect(overrideText({ allowed: ['ana'], requireReason: false }).text).toBe('@ana may ship a change when only approvals are missing.');
+  });
+
+  it('says what happens when nobody may override', () => {
+    expect(overrideText({ allowed: [] })).toEqual({ on: false, text: 'Every change waits for its approvals before it ships.' });
   });
 });

@@ -86,7 +86,7 @@ describe('overview to-do', () => {
     const t = overviewTodo({ changes: [change(3, 'ci-failing', 'peterbono', 'peterbono')], requests: [request(81)], viewer: 'peterbono', owners: ['peterbono'], unprotected: true });
     expect(t.headline).toBe('1 change, 1 request and a setup step wait for you.');
     expect(t.mine.map((r) => r.kind)).toEqual(['change', 'setup', 'request']);
-    expect(t.mine[1]).toMatchObject({ title: 'Protect your library', action: 'Protect it', href: '/studio/settings/#roles' });
+    expect(t.mine[1]).toMatchObject({ title: 'Protect your library', action: 'Protect it', href: '/studio/settings/#protection' });
     const notOwner = overviewTodo({ changes: [], requests: [], viewer: 'ana', owners: ['peterbono'], unprotected: true });
     expect(notOwner.mine).toEqual([]);
   });
