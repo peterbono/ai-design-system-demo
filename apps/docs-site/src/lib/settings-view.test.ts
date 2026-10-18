@@ -72,18 +72,20 @@ describe('account', () => {
     expect(accountView('checking', { write: null, repo })).toEqual({ zone: false, title: 'Checking your GitHub connection.' });
   });
 
-  it('leads with Sign in with GitHub when the site has a GitHub App, the token paste staying a quiet second way', () => {
+  it('offers only Sign in with GitHub when the site has a GitHub App, never a token paste', () => {
     expect(accountView('readonly', { write: null, repo, signIn: true })).toEqual({
       zone: true,
       title: 'Sign in with GitHub to approve and send changes.',
       detail: 'Until then Studio only reads acme/ds.',
       action: 'Sign in with GitHub',
       actionKind: 'signin',
-      secondary: 'Use a token instead',
     });
     expect(accountView('readonly', { write: null, repo })).toMatchObject({ actionKind: 'token' });
-    expect(accountView('readonly', { write: null, repo }).secondary).toBeUndefined();
-    expect(accountView('rejected', { write: null, repo, signIn: true })).toMatchObject({ action: 'Sign in with GitHub', actionKind: 'signin', secondary: 'Use a token instead' });
+    expect(accountView('rejected', { write: null, repo, signIn: true })).toMatchObject({ action: 'Sign in with GitHub', actionKind: 'signin' });
+    expect(accountView('rejected', { write: null, repo, signIn: true }).detail).not.toMatch(/token instead|paste/i);
+    // A token pasted before the site had a GitHub App: it can only be disconnected, not changed.
+    expect(accountView('connected', { login: 'ana', write: true, repo, signIn: true })).toMatchObject({ action: 'Disconnect', actionKind: 'signout' });
+    expect(accountView('connected', { login: 'ana', write: true, repo })).toMatchObject({ action: 'Change token', actionKind: 'token' });
   });
 
   it('signs out a signed-in account, and says so when its sign-in expired', () => {

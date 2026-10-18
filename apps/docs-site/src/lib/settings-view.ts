@@ -76,8 +76,6 @@ export interface AccountView {
   action?: string;
   /** What the action does: sign in with GitHub, open the token dialog, or sign out. */
   actionKind?: 'signin' | 'token' | 'signout';
-  /** The quiet second way in, next to Sign in with GitHub: the token paste, for developers. */
-  secondary?: string;
   /** What the token may do on the library, once GitHub said so. */
   badge?: { label: string; tone: 'success' | 'neutral' };
 }
@@ -107,8 +105,9 @@ export function accountView(state: AccountState, at: AccountFacts): AccountView 
         zone: false,
         title: at.login ? `Connected as @${at.login}` : 'Connected to GitHub',
         detail: noReach ? noReachText(login, at.repo) : readOnly ? readOnlyText(login, at.repo, true) : at.repo,
-        action: app ? 'Sign out' : 'Change token',
-        actionKind: app ? 'signout' : 'token',
+        // A token pasted before the site had Sign in with GitHub: no token paste any more, only the way out.
+        action: app ? 'Sign out' : at.signIn ? 'Disconnect' : 'Change token',
+        actionKind: app || at.signIn ? 'signout' : 'token',
         badge: noReach
           ? { label: 'No access', tone: 'neutral' }
           : at.write === null
@@ -133,7 +132,7 @@ export function accountView(state: AccountState, at: AccountFacts): AccountView 
             detail: 'GitHub no longer accepts it: it was revoked, regenerated or has expired. Connect again to keep editing.',
             action: 'Reconnect GitHub',
             actionKind: at.signIn ? 'signin' : 'token',
-            ...(at.signIn ? { action: 'Sign in with GitHub', secondary: 'Use a token instead' } : {}),
+            ...(at.signIn ? { detail: 'GitHub no longer accepts it: it was revoked, regenerated or has expired. Sign in to keep editing.', action: 'Sign in with GitHub' } : {}),
           };
     case 'readonly':
       return at.signIn
@@ -143,7 +142,6 @@ export function accountView(state: AccountState, at: AccountFacts): AccountView 
             detail: `Until then Studio only reads ${at.repo}.`,
             action: 'Sign in with GitHub',
             actionKind: 'signin',
-            secondary: 'Use a token instead',
           }
         : {
             zone: true,

@@ -157,7 +157,7 @@ export const SIGNIN_TEXT = {
   slow: 'The sign-in took more than 10 minutes, so GitHub dropped it. Sign in again.',
   unknownOrigin: 'This sign-in started on a site Bridge does not recognize. Open Studio and sign in again from there.',
   noCode: 'GitHub came back without a sign-in code. Sign in again.',
-  notConfigured: 'Sign in with GitHub is not set up on this site yet. Ask the site owner to finish the setup, or use a token instead.',
+  notConfigured: 'Sign in with GitHub is not set up on this site yet. Ask the site owner to finish the setup.',
   misconfigured: 'GitHub refused the sign-in settings of this site. Ask the site owner to check the GitHub App client ID and secret.',
   badCode: 'GitHub did not accept the sign-in code: it works once and expires after 10 minutes. Sign in again.',
   redirectMismatch: 'This site address is not registered on the Bridge GitHub App. Ask the site owner to add the callback URL, then sign in again.',

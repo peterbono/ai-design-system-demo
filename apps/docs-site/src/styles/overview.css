@@ -64,6 +64,14 @@
   flex: none;
 }
 
+/* Signed out, the side nav foot holds Sign in with GitHub on every Studio page. Where the side nav shows, the greeting
+   does not repeat it; on phones (side nav in the menu sheet) the greeting carries it next to its sentence. */
+@media (min-width: 961px) {
+  .ov-start > [data-connect] {
+    display: none;
+  }
+}
+
 .ov-note {
   margin: 0;
 }
@@ -366,14 +374,6 @@
 
 .ov-col-skel {
   min-height: var(--size-20);
-}
-
-/* --- The shell on this page -------------------------------------------------------------------------------- */
-
-/* Signed out, the greeting holds the one Connect GitHub: the side nav keeps only its quiet "Read only" line here.
-   This stylesheet loads on the Overview only, so every other page keeps the side nav button. */
-.gh-acct-connect > [data-gh-open] {
-  display: none;
 }
 
 /* --- Narrower screens ---------------------------------------------------------------------------------------- */

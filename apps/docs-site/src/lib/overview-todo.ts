@@ -229,6 +229,9 @@ export function headlineFor(mine: Pick<TodoRow, 'task'>[], viewer: string | null
 /** Signed out, the Overview asks for one thing: connecting GitHub. */
 export const SIGNED_OUT_LINE = 'Connect GitHub to start working on the library.';
 
+/** The signed-out line in the words of the site's one way in: Sign in with GitHub when it has a GitHub App. */
+export const signedOutLine = (signIn: boolean): string => (signIn ? 'Sign in with GitHub to start working on the library.' : SIGNED_OUT_LINE);
+
 /**
  * The one-line greeting: "Hello, Florian. 1 thing needs you." with the first word of the GitHub profile name, else
  * "Hello." (never the login, never a stored name). Signed out: the connect line alone.
