@@ -268,8 +268,8 @@
   margin: 0;
 }
 
-/* Components drawer: the request form (opened from the action row, takes the place of the facts and actions) and
-   the sent confirmation. Empty while neither shows. */
+/* Components drawer: Change this component (opened from the action row, takes the place of the facts and actions).
+   Empty while nothing in it shows. */
 .cm-req {
   display: grid;
   gap: var(--space-3);
@@ -279,18 +279,11 @@
   display: none;
 }
 
-.cm-req-intro {
-  margin: 0;
-  font-size: var(--typography-ui-size);
-  line-height: var(--typography-ui-line-height);
-}
-
 .cm-req-start {
   justify-self: start;
 }
 
-.cm-drawer[data-mode="request"] .cm-d-actions,
-.cm-drawer[data-mode="request"] .cm-d-facts {
+.cm-drawer[data-mode="change"] .cm-d-facts {
   display: none;
 }
 
