@@ -8,8 +8,12 @@ import {
   noVisibleDifference,
   changeSummary,
   designerName,
+  roleOfToken,
+  stepOfToken,
   tokenChanges,
   toHex,
+  contrastRatio,
+  isSubtle,
   placeToolbar,
   readableTitle,
   readChange,
@@ -253,7 +257,7 @@ describe('token diff', () => {
   });
   it('lists the tokens whose value changed, with their CSS variable, designer name and theme', () => {
     expect(tokenChanges(file, v('{palette.neutral.0}'), v('{palette.neutral.50}'))).toEqual([
-      { path: 'color.bg.default', cssVar: '--color-bg-default', name: 'Page canvas', type: 'color', theme: 'light', brand: null },
+      { path: 'color.bg.default', cssVar: '--color-bg-default', name: 'Page canvas', step: null, type: 'color', theme: 'light', brand: null },
     ]);
     expect(tokenChanges(file, v('{palette.neutral.0}'), v('{palette.neutral.0}', 'New words only'))).toEqual([]);
   });
@@ -265,7 +269,8 @@ describe('token diff', () => {
 
   it('names tokens like designers do and reads colours as hex', () => {
     expect(designerName('color.text.muted', 'Secondary text.')).toBe('Secondary text');
-    expect(designerName('color.bg.default', null)).toBe('bg default');
+    expect(designerName('color.bg.default', null)).toBe('Bg default');
+    expect(designerName('palette.primary.700', null)).toBe('Primary 700');
     expect(toHex('rgb(245, 247, 249)')).toBe('#f5f7f9');
     expect(toHex('rgba(0, 0, 0, 0.5)')).toBe('#00000080');
     expect(toHex('16px')).toBe('16px');
@@ -274,5 +279,28 @@ describe('token diff', () => {
   it('turns the change title into the phrase after "This change:"', () => {
     expect(changeSummary('tokens: darker default background')).toBe('darker default background.');
     expect(changeSummary('CTA buttons.')).toBe('CTA buttons.');
+  });
+});
+
+describe('subtle colour changes', () => {
+  it('measures contrast between the two sides and flags near-identical colours', () => {
+    expect(contrastRatio('rgb(255, 255, 255)', 'rgb(0, 0, 0)')).toBeCloseTo(21, 0);
+    expect(contrastRatio('rgb(255, 255, 255)', 'rgb(245, 247, 249)')).toBeLessThan(1.1);
+    expect(isSubtle('rgb(255, 255, 255)', 'rgb(245, 247, 249)')).toBe(true);
+    expect(isSubtle('rgb(11, 74, 139)', 'rgb(3, 98, 82)')).toBe(false);
+    expect(contrastRatio('12px', '16px')).toBeNull();
+    expect(isSubtle('12px', '16px')).toBe(false);
+  });
+});
+
+describe('token roles', () => {
+  it('leads with the role a change edits, the palette step second', () => {
+    expect(roleOfToken('palette.primary.700', null)).toBe('Brand primary');
+    expect(roleOfToken('palette.link.600', null)).toBe('Link');
+    expect(roleOfToken('color.text.muted', 'Secondary text.')).toBe('Secondary text');
+    expect(stepOfToken('palette.primary.700')).toBe('Primary 700');
+    expect(stepOfToken('color.bg.default')).toBeNull();
+    const [t] = tokenChanges('packages/tokens/src/brands/bridge.tokens.json', { palette: { primary: { 700: { $value: '{color.harbor.700}' } } } }, { palette: { primary: { 700: { $value: '{color.teal.700}' } } } });
+    expect(t).toMatchObject({ name: 'Brand primary', step: 'Primary 700', theme: null, brand: 'bridge', cssVar: '--palette-primary-700' });
   });
 });
