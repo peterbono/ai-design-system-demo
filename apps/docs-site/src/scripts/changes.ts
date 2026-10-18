@@ -98,6 +98,11 @@ function route() {
   // Start an exploration from a request: the form, filled from it.
   const forRequest = Number(params.get('for'));
   if (view === 'explorations' && forRequest) void startForRequest(forRequest);
+  // From the Overview "Start a change", New component: the start form, open and empty.
+  else if (view === 'explorations' && params.get('start') === 'new') {
+    const opener = document.getElementById('ex-start-open');
+    if (opener?.getAttribute('aria-expanded') !== 'true') opener?.click();
+  }
   // Branch scope from the Studio header: open the pull request of that branch, if it has one.
   const branch = params.get('branch');
   if (view === 'review' && branch && listLoaded)

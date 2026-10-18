@@ -184,6 +184,18 @@ export function resetChangeFlow(drawer: HTMLElement, focusOpener = false) {
   if (focusOpener && wasOpen) opener?.focus();
 }
 
+/**
+ * Picks an intent from outside the drawer (the Overview "Start a change" deep link): the radio shows it as picked and
+ * the step that follows opens. "Adjust the look" stays unpicked on a component with no token.
+ */
+export function pickChangeIntent(drawer: HTMLElement, intent: ChangeIntent) {
+  if (drawer.dataset.mode !== 'change') return;
+  if (intent === 'look' && drawer.dataset.hasTokens !== 'true') return;
+  showIntent(drawer, intent);
+  const detail: IntentSetDetail = { value: intent, hasTokens: drawer.dataset.hasTokens === 'true' };
+  document.dispatchEvent(new CustomEvent(INTENT_SET_EVENT, { detail }));
+}
+
 /** Hides what the last change said (a new component, or a new change). */
 export function clearChangeDone(drawer: HTMLElement) {
   const done = q<HTMLElement>(drawer, '[data-rq-done]');
