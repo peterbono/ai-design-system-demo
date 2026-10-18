@@ -1,15 +1,15 @@
 {
   "version": 1,
   "tool": "@bridge-ds/visual",
-  "createdAt": "2026-10-18T00:41:27.689Z",
-  "durationMs": 149688,
+  "createdAt": "2026-10-18T00:45:00.129Z",
+  "durationMs": 136282,
   "base": {
     "ref": "42442225691db9067fa6b0643423c682932e7f8d",
     "sha": "42442225691db9067fa6b0643423c682932e7f8d"
   },
   "head": {
-    "ref": "929e233aeb9d8c37c1cf817b23954e55151803a9",
-    "sha": "929e233aeb9d8c37c1cf817b23954e55151803a9"
+    "ref": "ab439f5ebce5a16ed9ef63cb7dc69ae48b3ee1b7",
+    "sha": "ab439f5ebce5a16ed9ef63cb7dc69ae48b3ee1b7"
   },
   "options": {
     "only": [
@@ -32,7 +32,6 @@
     "tokens": [],
     "vars": [],
     "files": [
-      ".bridge/explorations/textarea-inline.md",
       ".changeset/textarea-inline.md",
       "apps/docs-site/src/components/LibraryEditMode.tsx",
       "apps/docs-site/src/styles/library-edit.css",
