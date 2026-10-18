@@ -480,7 +480,9 @@ export function initTokenExplorer() {
     document.body.classList.toggle('no-scroll', drawer);
     if (drawer || opts.focusTitle) {
       returnFocus ??= document.activeElement as HTMLElement | null;
-      detail.querySelector<HTMLElement>('#xp-d-title')?.focus();
+      // Studio focuses its title; the Library details take focus on the panel (the heading is not a control).
+      detail.tabIndex = -1;
+      (detail.querySelector<HTMLElement>('#xp-d-title[tabindex]') ?? detail).focus();
     }
     syncUrl();
   }
