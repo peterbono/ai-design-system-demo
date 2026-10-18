@@ -268,24 +268,20 @@
   margin: 0;
 }
 
-/* Components drawer: the request block, and a focused drawer while the form is open. */
+/* Components drawer: the request form (opened from the action row, takes the place of the facts and actions) and
+   the sent confirmation. Empty while neither shows. */
 .cm-req {
   display: grid;
   gap: var(--space-3);
-  padding-top: var(--space-5);
-  border-top: var(--border-width-default) solid var(--color-border-default);
 }
 
-.cm-req > p {
-  margin: 0;
-  font-size: var(--typography-ui-size);
-  line-height: var(--typography-ui-line-height);
+.cm-req:not(:has(> :not([hidden]))) {
+  display: none;
 }
 
-.cm-req-h {
+.cm-req-intro {
   margin: 0;
   font-size: var(--typography-ui-size);
-  font-weight: var(--font-weight-semibold);
   line-height: var(--typography-ui-line-height);
 }
 
@@ -294,9 +290,7 @@
 }
 
 .cm-drawer[data-mode="request"] .cm-d-actions,
-.cm-drawer[data-mode="request"] .cm-d-links,
-.cm-drawer[data-mode="request"] .cm-d-facts,
-.cm-drawer[data-mode="request"] .cm-d-guidance {
+.cm-drawer[data-mode="request"] .cm-d-facts {
   display: none;
 }
 

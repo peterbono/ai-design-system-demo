@@ -125,11 +125,17 @@
   font-weight: var(--font-weight-medium);
 }
 
-.cm-tokens {
+/* Facts in words ("4 examples", "40 tokens"): quieter than the name, never wrapped. */
+.cm-table .cm-col-used,
+.cm-table .cm-col-req,
+.cm-table .cm-col-dev {
   white-space: nowrap;
 }
 
-.cm-tok-short,
+.cm-muted {
+  color: var(--color-text-muted);
+}
+
 .cm-pill-short {
   display: none;
 }
@@ -164,7 +170,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
-  width: min(100%, calc(var(--size-96) + var(--size-20)));
+  width: min(100%, var(--size-140));
   padding: var(--space-6);
   overflow-y: auto;
   border-left: var(--border-width-default) solid var(--color-border-default);
@@ -177,6 +183,22 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-3);
+}
+
+/* The family sits on the name as a quiet eyebrow: one group, read as "Actions / IconButton". */
+.cm-d-names {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  margin: 0;
+}
+
+.cm-d-eyebrow {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--typography-ui-line-height);
 }
 
 .cm-d-title {
@@ -197,53 +219,31 @@
   margin: 0;
 }
 
-.cm-d-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-  color: var(--color-text-muted);
-}
-
 .cm-d-summary {
   font-size: var(--typography-body-size);
   line-height: var(--typography-body-line-height);
 }
 
-.cm-d-guidance {
-  display: grid;
-  justify-items: start;
-  gap: var(--space-2);
-  padding: var(--space-4);
-  border-radius: var(--radius-container);
-  background-color: var(--color-bg-subtle);
-}
-
-.cm-d-guidance p {
-  margin: 0;
-  color: var(--color-text-muted);
-}
-
+/* The facts in one line of words; a pill leads only when something waits for someone. */
 .cm-d-facts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3) var(--space-8);
-  margin: 0;
-}
-
-.cm-d-facts dt {
   color: var(--color-text-muted);
+  line-height: var(--typography-ui-line-height);
 }
 
-.cm-d-facts dd {
-  margin: 0;
-  font-weight: var(--font-weight-semibold);
+.cm-d-facts .pill {
+  margin-right: var(--space-2);
+  vertical-align: baseline;
 }
 
+/* One row of actions, one primary, the same control height; the request joins it (scripts/components-studio.ts). */
 .cm-d-actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
+}
+
+.cm-d-actions [hidden] {
+  display: none;
 }
 
 .cm-d-links a {
@@ -254,6 +254,7 @@
 
 .cm-d-links {
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
   gap: var(--space-2) var(--space-5);
   margin: 0;
@@ -314,35 +315,31 @@
   line-height: var(--typography-ui-line-height);
 }
 
-/* Drawer: the component live, light above dark, first: full width keeps the variants at a readable scale. */
+/* Drawer: the component live in one frame, the Light/Dark switch under it on the right. */
 .cm-d-preview {
   display: grid;
-  gap: var(--space-3);
+  gap: var(--space-2);
   margin: 0;
 }
 
-.cm-d-pv {
-  display: grid;
-  gap: var(--space-1-5);
-  min-width: 0;
-}
-
-.cm-d-pv-label {
-  color: var(--color-text-muted);
-}
-
 .cm-d-frame {
-  height: calc(var(--size-20) + var(--size-10));
+  height: calc(var(--size-20) + var(--size-20));
+}
+
+.cm-d-pv-bar {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.cm-d-shared[hidden] {
+  display: none;
 }
 
 .cm-d-nopv {
-  padding: var(--space-4);
-  border-radius: var(--radius-container);
-  background-color: var(--color-bg-subtle);
   color: var(--color-text-muted);
 }
 
-/* Drawer: one "For developers" fold at the bottom (code, workbench, props, stories). */
+/* Drawer: one "For developers" fold at the bottom (token origins, props, file paths, code, component sandbox). */
 .cm-d-dev {
   border-top: var(--border-width-default) solid var(--color-border-default);
   border-bottom: var(--border-width-default) solid var(--color-border-default);
@@ -381,9 +378,8 @@
   font-weight: var(--font-weight-semibold);
 }
 
-.cm-d-dev-meta {
+.cm-d-dev-chev {
   margin-left: auto;
-  color: var(--color-text-muted);
 }
 
 .cm-d-dev[open] .cm-d-dev-chev svg {
@@ -392,8 +388,33 @@
 
 .cm-d-dev-body {
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-3);
   padding: 0 0 var(--space-4);
+}
+
+.cm-d-dev-facts {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.cm-d-dev-facts > div {
+  display: grid;
+  grid-template-columns: var(--size-16) minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+.cm-d-dev-facts dt {
+  color: var(--color-text-muted);
+}
+
+.cm-d-dev-facts dd {
+  margin: 0;
+}
+
+.cm-d-dev-facts code {
+  font-family: var(--font-family-mono);
+  overflow-wrap: anywhere;
 }
 
 .cm-drawer[data-mode="request"] .cm-d-dev {
@@ -441,20 +462,17 @@
   gap: var(--space-2);
 }
 
-/* Phones: keep the thumbnail, the name and the open requests; tokens, examples and products stay in the drawer.
+/* Phones: keep the thumbnail, the name and the open requests; products, examples and tokens stay in the drawer.
    Nothing scrolls sideways. */
 @media (max-width: 640px) {
   .cm-search {
     flex-basis: 100%;
   }
 
-  /* Phones: the total only ("40"); the split stays in the drawer. */
-  .cm-tok-full,
   .cm-pill-full {
     display: none;
   }
 
-  .cm-tok-short,
   .cm-pill-short {
     display: inline;
   }
@@ -474,6 +492,11 @@
 
   .cm-drawer {
     padding: var(--space-5) var(--space-4);
+  }
+
+  /* The action row fills its width when it wraps: no ragged short buttons. */
+  .cm-drawer .cm-d-actions > * {
+    flex: 1 1 auto;
   }
 
   .cm-table .cm-col-dev,
