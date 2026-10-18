@@ -14,6 +14,8 @@ import { currentScope } from '../shell';
 import { discardDraft, draftOverrides, editorSnapshot, undoEdit } from '../token-editor';
 import type { ExplorerData } from './types';
 import { esc, icon } from './util';
+import { previewSamples } from '../../lib/preview-fit';
+import { fitFrames, sampleFrame, sampleNames } from './preview-frames';
 
 const FALLBACK_SAMPLES = ['Card', 'Table', 'Button'];
 const MODE_NAME: Record<string, string> = { light: 'Light', dark: 'Dark', bridge: 'Bridge', ocean: 'Ocean', comfortable: 'Comfortable', compact: 'Compact', value: 'Value' };
@@ -31,13 +33,14 @@ export function initReview(d: ExplorerData) {
   const note = document.querySelector<HTMLElement>('[data-xe-note]');
   const samples = document.querySelector<HTMLTemplateElement>('template[data-xe-samples]');
   if (!bar || !sheet || !scrim || !body || !title) return;
-  const open = new Set<string>();
+  // The visual preview is what a designer reviews first: open by default, the other sections on demand.
+  const open = new Set<string>(['preview']);
   let returnTo: HTMLElement | null = null;
 
   initGitHubConnect((viewer) => {
     // Without GitHub the primary action connects first (the shared dialog), then proposes: the draft is kept.
     if (propose) {
-      setButtonLabel(propose, viewer ? 'Propose change' : 'Connect GitHub to propose');
+      setButtonLabel(propose, viewer ? 'Send for review' : 'Connect GitHub to send');
       propose.toggleAttribute('data-gh-open', !viewer);
     }
     if (note) note.hidden = Boolean(viewer);
@@ -143,9 +146,11 @@ export function initReview(d: ExplorerData) {
         ? `${compBody}${styleBody}`
         : '<p class="xe-empty">No component or global stylesheet reads it. It can still be used by product code.</p>';
 
-    const available = samples ? [...samples.content.querySelectorAll<HTMLElement>('[data-sample]')].map((x) => x.dataset.sample!) : [];
-    const picked = comps.map((c) => c.name).filter((n) => available.includes(n)).slice(0, 3);
-    const shown = picked.length ? picked : FALLBACK_SAMPLES.filter((n) => available.includes(n));
+    const shown = previewSamples(
+      comps.map((c) => c.name),
+      sampleNames(samples),
+      { max: 4, fallback: FALLBACK_SAMPLES },
+    ).names;
     const previewMeta = shown.join(', ');
 
     const sec = (key: string, ic: 'contrast' | 'box' | 'eye', label: string, meta: string, content: string, tone = '') =>
@@ -153,12 +158,15 @@ export function initReview(d: ExplorerData) {
         tone === 'is-pass' ? icon('check', 14) : tone === 'is-fail' ? icon('alert', 14) : ''
       }${esc(meta)}</span><span class="xe-acc-chev">${icon('chevron', 16)}</span></summary><div class="xe-acc-body">${content}</div></details>`;
     return `<p class="xe-lab">Impact</p>
+      ${sec('preview', 'eye', 'Visual preview', previewMeta, `<div data-xe-preview data-samples="${esc(shown.join(','))}"></div>`)}
       ${sec('contrast', 'contrast', 'Contrast', contrastMeta, rows.length ? `<ul class="xe-pairlist">${pairList}</ul>` : '<p class="xe-empty">No checked contrast pair moves with this change.</p>', rows.length ? (failing ? 'is-fail' : 'is-pass') : '')}
-      ${sec('used', 'box', 'Used by', usedMeta, usedBody)}
-      ${sec('preview', 'eye', 'Visual preview', previewMeta, `<div data-xe-preview data-samples="${esc(shown.join(','))}"></div>`)}`;
+      ${sec('used', 'box', 'Used by', usedMeta, usedBody)}`;
   }
 
-  /** Before and after frames of the real components, per edited mode; unchanged modes get one line. */
+  /**
+   * Light and dark side by side, before above after, each frame filled with the real components that use the edited
+   * token (scaled to fit). A theme the draft does not touch shows one frame, labeled unchanged.
+   */
   function paintPreview(host: HTMLElement, edits: DraftEdit[]) {
     const snap = editorSnapshot();
     if (!snap || !samples) return;
@@ -167,47 +175,37 @@ export function initReview(d: ExplorerData) {
     const t = value ? snap.head.byPath.get(value.path) : undefined;
     const scope = currentScope();
     const axis = t ? tierAxis(t.tier) : undefined;
-    const modes = t ? Object.keys(t.values) : ['light'];
     const touched = new Set(edits.filter((e): e is ValueEdit => e.kind === 'value' && e.path === value?.path).map((e) => e.mode));
-    const isBg = value && /\.(bg|surface)\./.test(value.path) && t?.type === 'color';
+    const isBg = value && /\.(bg|surface)(\.|$)/.test(value.path) && t?.type === 'color';
     const stage = isBg ? `var(--${value!.path.replace(/\./g, '-')})` : 'var(--color-bg-default)';
-    const frame = (m: string, after: boolean) => {
-      const ctx = { brand: axis === 'brand' ? m : scope.brand, theme: axis === 'theme' ? m : 'light', density: axis === 'density' ? m : scope.density };
-      const el = document.createElement('div');
-      el.className = 'xe-frame';
-      el.dataset.theme = ctx.theme;
-      el.dataset.brand = ctx.brand;
-      el.dataset.density = ctx.density;
-      el.style.setProperty('--xe-stage', stage);
-      if (after) for (const [k, v] of Object.entries(draftOverrides(ctx))) el.style.setProperty(k, v);
-      for (const n of names) {
-        const s = samples.content.querySelector(`[data-sample="${CSS.escape(n)}"]`);
-        if (s) el.append(s.cloneNode(true));
-      }
-      el.querySelectorAll('[id]').forEach((x) => x.removeAttribute('id'));
-      el.querySelectorAll('input, button, a, [tabindex]').forEach((x) => x.setAttribute('tabindex', '-1'));
-      el.inert = true;
-      return el;
+    const brand = axis === 'brand' && value ? value.mode : scope.brand;
+    const themes = d.modes.themes.length ? d.modes.themes : ['light'];
+    const label = (text: string) => {
+      const p = document.createElement('p');
+      p.className = 'xe-pv-label';
+      p.textContent = text;
+      return p;
     };
     host.replaceChildren();
     const grid = document.createElement('div');
     grid.className = 'xe-pv';
-    const lines: string[] = [];
-    for (const m of modes) {
-      if (!touched.has(m) && touched.size) {
-        const v = value ? cellValue(snap.proposed, value.path, { brand: axis === 'brand' ? m : scope.brand, theme: axis === 'theme' ? m : 'light', density: scope.density }) : null;
-        lines.push(`<p class="xe-pvn">${swatch(v?.hex)}${esc(modeLabel(m))} is unchanged${v ? `, ${esc(v.alias ? swatchLabel(v.alias) : v.line)}` : ''}.</p>`);
-        continue;
+    for (const theme of themes) {
+      const ctx = { brand, theme, density: axis === 'density' && value ? value.mode : scope.density };
+      // Theme tokens change only in the edited themes; brand, base and density edits show in every theme.
+      const changed = !value || axis !== 'theme' || touched.has(theme);
+      const col = document.createElement('div');
+      col.className = 'xe-pv-col';
+      const name = modeLabel(theme);
+      if (changed) col.append(label(`${name}, before`), sampleFrame(samples, names, ctx, {}, stage), label(`${name}, after`), sampleFrame(samples, names, ctx, draftOverrides(ctx), stage));
+      else {
+        col.classList.add('is-unchanged');
+        col.append(label(`${name}, unchanged`), sampleFrame(samples, names, ctx, draftOverrides(ctx), stage));
       }
-      for (const after of [false, true]) {
-        const col = document.createElement('div');
-        col.innerHTML = `<p class="xe-pv-label">${esc(modeLabel(m))}, ${after ? 'after' : 'before'}</p>`;
-        col.append(frame(m, after));
-        grid.append(col);
-      }
+      grid.append(col);
     }
     host.append(grid);
-    host.insertAdjacentHTML('beforeend', `<p class="xe-legend">${esc(names.join(', '))} as they render ${isBg ? 'on this background' : 'on the page canvas'}.</p>${lines.join('')}`);
+    host.insertAdjacentHTML('beforeend', `<p class="xe-legend">${esc(names.join(', '))} as they render ${isBg ? 'on this background' : 'on the page canvas'}.</p>`);
+    requestAnimationFrame(() => fitFrames(grid));
   }
 
   const paintSheet = () => {
@@ -219,11 +217,12 @@ export function initReview(d: ExplorerData) {
       body.innerHTML = '<p class="xe-empty">No change in your draft. Click a value in the table to change it.</p>';
       return;
     }
-    const scroll = body.scrollTop;
+    const scroller = body.closest<HTMLElement>('[data-xe-sheet-scroll]') ?? body;
+    const scroll = scroller.scrollTop;
     body.innerHTML = `${changeCards(tokenOnly(snap.draft.edits))}${impact(tokenOnly(snap.draft.edits))}`;
     const pv = body.querySelector<HTMLElement>('[data-xe-preview]');
     if (pv && open.has('preview')) paintPreview(pv, tokenOnly(snap.draft.edits));
-    body.scrollTop = scroll;
+    scroller.scrollTop = scroll;
   };
 
   const setOpen = (on: boolean) => {

@@ -1,14 +1,17 @@
 // The Studio cell editor: ONE popover anchored to the value cell (a bottom sheet on phones). It decides from the
 // swatches: palette families as tabs, one ramp with the current step ringed, one contrast line for the pending value,
 // and More options (raw value, the other mode, the description) on demand. Nothing changes until Apply, which adds
-// the edit to the local draft (scripts/token-editor.ts: same draft, guardrails and pull request as before).
+// the edit to the local draft (scripts/token-editor.ts: same draft, guardrails and pull request as before). Under the
+// contrast line, a mini preview of the real components that use the token, light and dark, repaints on every pick.
 import { aliasTarget, hexToRgba, isAlias, parseColor, rgbaToDtcg, rgbaToHex, type ContrastResult } from '@bridge-ds/core';
 import { contrastSummary, shortName, summarizePairs, type ContrastSummary } from '../../lib/explorer/contrast-summary';
-import { transitiveDependents } from '../../lib/explorer/flow';
+import { componentsUsing, transitiveDependents } from '../../lib/explorer/flow';
+import { previewSamples } from '../../lib/preview-fit';
+import { fitFrames, sampleFrame, sampleNames, sampleTemplate } from './preview-frames';
 import { cssText } from '../../lib/explorer/format';
 import { cellValue, modeKeyFor, tierAxis, type Column } from '../../lib/explorer/model';
 import { familyTabs, locateSwatch, rampFamilies, rampTicks, swatchLabel, type RampFamily, type Swatch } from '../../lib/explorer/swatch-ramp';
-import { aliasOptions, applyValues, draftDescription, draftValue, editDescription, previewContrast } from '../token-editor';
+import { aliasOptions, applyValues, draftDescription, draftValue, editDescription, pendingOverrides, previewContrast } from '../token-editor';
 import type { ExplorerData } from './types';
 import { esc, icon } from './util';
 
@@ -120,6 +123,13 @@ export function openInlineEditor(opts: { container: HTMLElement; cell: HTMLEleme
     (axis === 'brand' ? r.brand === m : r.brand === col.ctx.brand) &&
     (axis === 'theme' ? r.theme === m : true);
 
+  // The real components that paint with this token, for the mini preview (at most three, light and dark).
+  const tpl = sampleTemplate();
+  const using = componentsUsing(path, [...affected].filter((p) => p !== path), d.usage).map((c) => c.name);
+  const shown = previewSamples(using, sampleNames(tpl), { max: 3 });
+  const isBg = isColor && /\.(bg|surface)(\.|$)/.test(path);
+  const themes = d.modes.themes.length ? d.modes.themes : ['light'];
+
   const pop = document.createElement('div');
   pop.className = 'xe-pop';
   pop.setAttribute('role', 'dialog');
@@ -144,6 +154,10 @@ export function openInlineEditor(opts: { container: HTMLElement; cell: HTMLEleme
       : `<button type="button" role="radio" class="xe-step${was ? ' is-was' : ''}" aria-checked="${selected}" tabindex="${tab ? 0 : -1}" data-xe-pick="${esc(s.path)}" data-i="${i}"><span class="mono">${esc(s.step)}</span><span class="xe-step-v">${esc(s.value ?? '')}</span></button>`;
 
   const draw = () => {
+    drawPop();
+    paintPreview();
+  };
+  const drawPop = () => {
     const target = isAlias(state.value) ? aliasTarget(state.value) : undefined;
     const startTarget = isAlias(start) ? aliasTarget(start) : undefined;
     const fam = families[state.family];
@@ -201,6 +215,7 @@ export function openInlineEditor(opts: { container: HTMLElement; cell: HTMLEleme
       <div class="xe-pick">${isColor ? `<span class="xe-big" style="background-color:${esc(hex ?? 'transparent')}" aria-hidden="true"></span>` : ''}<span><span class="xe-pick-name mono">${esc(valueText(t.type, state.value))}</span><span class="xe-pick-sub mono">${sub}</span></span></div>
       ${picker}
       ${status}
+      ${shown.usesToken ? `<div class="xe-pop-pv" data-xe-pop-pv><p class="xe-pop-pv-label">${esc(shown.names.join(', '))}, as they will look</p><div class="xe-pop-pv-grid" data-xe-pop-pv-grid></div></div>` : ''}
       ${more}
       <div class="xe-foot">
         ${fam ? `<button type="button" class="xe-more-btn" aria-expanded="${state.moreOpen}" aria-controls="${id}-more" data-xe-more>${icon('chevron', 14)}More options</button>` : ''}
@@ -208,6 +223,25 @@ export function openInlineEditor(opts: { container: HTMLElement; cell: HTMLEleme
         <button type="button" class="btn btn-secondary btn-sm" data-xe-cancel>Cancel</button>
         <button type="button" class="btn btn-primary btn-sm" data-xe-apply>Apply</button>
       </div>`;
+  };
+
+  /** Light and dark frames of the components, with the pending value painted on top of the draft. */
+  const paintPreview = () => {
+    const grid = pop.querySelector<HTMLElement>('[data-xe-pop-pv-grid]');
+    if (!grid || !tpl || !shown.usesToken) return;
+    const pending = [{ path, mode, value: state.value }];
+    if (state.otherOn && other && state.otherValue !== undefined) pending.push({ path, mode: other.mode, value: state.otherValue });
+    const stage = isBg ? `var(--${path.replace(/\./g, '-')})` : 'var(--color-bg-default)';
+    for (const theme of themes) {
+      const ctx = { brand: axis === 'brand' ? mode : col.ctx.brand, theme, density: col.ctx.density };
+      const edited = axis !== 'theme' || theme === mode || (state.otherOn && other?.mode === theme);
+      const cell = document.createElement('div');
+      cell.className = 'xe-pv-col';
+      cell.innerHTML = `<p class="xe-pv-label">${esc(theme.charAt(0).toUpperCase() + theme.slice(1))}${edited ? '' : ', unchanged'}</p>`;
+      cell.append(sampleFrame(tpl, shown.names, ctx, pendingOverrides(pending, ctx), stage));
+      grid.append(cell);
+    }
+    requestAnimationFrame(() => fitFrames(grid));
   };
 
   let timer = 0;

@@ -2,7 +2,7 @@
 // mode, the token flow (upstream alias chain per mode, downstream tokens and components), contrast pairs with AA
 // badges per brand and theme, and the token's history (the existing history panel fills itself in).
 import { contextLabel, TIER_NAMES, tokenHistory } from '@bridge-ds/core';
-import { aliasLabel, CATEGORY_LABEL, codeSyntax, SYNTAX_LABEL, type Syntax } from '../../lib/explorer/format';
+import { aliasLabel, CATEGORY_LABEL, codeSyntax, STUDIO_TIER_NAMES, SYNTAX_LABEL, type Syntax } from '../../lib/explorer/format';
 import { componentsUsing, contrastFor, stylesUsing, usedByLine, directDependents, introducedIn, transitiveDependents, upstreamLanes, type PairRow } from '../../lib/explorer/flow';
 import { cellValue, studioHref, type Column } from '../../lib/explorer/model';
 import { activeReport, loadHistory } from '../history/state';
@@ -31,7 +31,15 @@ function swatch(hex?: string) {
   return hex ? `<span class="xp-mini" style="background-color:${hex}" aria-hidden="true"></span>` : '';
 }
 
-function flowParts(d: ExplorerData, path: string, columns: Column[]) {
+/** Studio words the flow uses: collection names for designers, and plain headings. The Library keeps its own. */
+interface FlowWords {
+  tiers: Record<string, string>;
+  aliasedBy: string;
+}
+const LIBRARY_WORDS: FlowWords = { tiers: TIER_NAMES, aliasedBy: 'Aliased by' };
+const STUDIO_WORDS: FlowWords = { tiers: STUDIO_TIER_NAMES, aliasedBy: 'Tokens that point to it' };
+
+function flowParts(d: ExplorerData, path: string, columns: Column[], words: FlowWords = LIBRARY_WORDS) {
   const lanes = upstreamLanes(d.set, path, columns);
   const type = d.set.byPath.get(path)?.type;
   const upstream = lanes
@@ -40,7 +48,7 @@ function flowParts(d: ExplorerData, path: string, columns: Column[]) {
       const nodes = lane.nodes
         .map((n, i) => {
           const self = i === 0;
-          const tier = n.tier ? TIER_NAMES[n.tier] : 'Missing';
+          const tier = n.tier ? words.tiers[n.tier] : 'Missing';
           const sw = type === 'color' ? `<span class="xp-node-sw">${lane.columns.map((c) => swatch(n.values[c.key]?.hex)).join('')}</span>` : '';
           const last = i === lane.nodes.length - 1;
           const value = last ? `<span class="xp-node-value mono">${esc(lane.columns.map((c) => n.values[c.key]?.css ?? '').filter((v, j, a) => a.indexOf(v) === j).join(' / '))}</span>` : '';
@@ -64,7 +72,7 @@ function flowParts(d: ExplorerData, path: string, columns: Column[]) {
   const depList = deps.length
     ? `<ul class="xp-deps">${deps
         .slice(0, MAX_DOWNSTREAM)
-        .map((x) => `<li><button type="button" class="xp-chip" data-goto="${esc(x.path)}" title="${esc(x.path)}">${esc(aliasLabel(x.path))}</button><span class="xp-dep-tier">${esc(TIER_NAMES[x.tier])}</span></li>`)
+        .map((x) => `<li><button type="button" class="xp-chip" data-goto="${esc(x.path)}" title="${esc(x.path)}">${esc(aliasLabel(x.path))}</button><span class="xp-dep-tier">${esc(words.tiers[x.tier] ?? x.tier)}</span></li>`)
         .join('')}</ul>${deps.length > MAX_DOWNSTREAM ? `<p class="small muted">and ${deps.length - MAX_DOWNSTREAM} more</p>` : ''}`
     : '<p class="xp-empty-line">No token aliases this one.</p>';
   const compList = comps.length
@@ -73,7 +81,7 @@ function flowParts(d: ExplorerData, path: string, columns: Column[]) {
   const styleList = styles.length
     ? `<h4 class="xp-d-sub">Global styles <span class="xp-d-n">${styles.length}</span></h4><ul class="xp-comps">${styles.map((f) => `<li><span class="mono">${esc(f)}</span></li>`).join('')}</ul>`
     : '';
-  const aliased = `<h4 class="xp-d-sub">Aliased by <span class="xp-d-n">${deps.length}</span>${all.length > deps.length ? `<span class="muted small"> (${all.length} through aliases)</span>` : ''}</h4>${depList}`;
+  const aliased = `<h4 class="xp-d-sub">${esc(words.aliasedBy)} <span class="xp-d-n">${deps.length}</span>${all.length > deps.length ? `<span class="muted small"> (${all.length} through aliases)</span>` : ''}</h4>${depList}`;
   const steps = Math.max(0, ...lanes.map((l) => l.nodes.length));
   return { upstream, aliased, compList, comps, styles, styleList, steps };
 }
@@ -89,13 +97,14 @@ function flow(d: ExplorerData, path: string, columns: Column[]): string {
 }
 
 /**
- * Studio: the details are read-only and compact. Name, one line of description, the value per mode, then Token flow,
- * Used by and History collapsed with their counts, and one Edit that opens the cell editor (there is one editor).
+ * Studio: the details are read-only and compact. Name, one line of description, the value per mode, then "Where the
+ * value comes from" (the alias chain), Used by and History collapsed with their counts, and one Edit that opens the
+ * cell editor (there is one editor).
  */
 function renderStudioDetail(host: HTMLElement, d: ExplorerData, view: View, path: string) {
   const x = d.byPath.get(path)!;
   const columns = view.columns;
-  const f = flowParts(d, path, columns);
+  const f = flowParts(d, path, columns, STUDIO_WORDS);
   const val = (c: Column) => {
     const v = cellValue(d.set, path, c.ctx);
     const sw = v.hex ? `<span class="xp-d-ms" style="background-color:${esc(v.css)}" aria-hidden="true"></span>` : '';
@@ -117,7 +126,7 @@ function renderStudioDetail(host: HTMLElement, d: ExplorerData, view: View, path
       ${x.description ? `<p class="xp-d-line" title="${esc(x.description)}">${esc(x.description)}</p>` : '<p class="xp-d-line muted">No description yet.</p>'}
       <div class="xp-d-vals" style="--xp-n:${Math.min(columns.length, 2)}">${columns.map(val).join('')}</div>
       <div class="xp-d-accs">
-        ${acc('flow', 'branch', 'Token flow', `${f.steps} step${f.steps === 1 ? '' : 's'}`, `<h4 class="xp-d-sub">Upstream</h4>${f.upstream}${f.aliased}`)}
+        ${acc('flow', 'branch', 'Where the value comes from', `${f.steps} step${f.steps === 1 ? '' : 's'}`, `${f.upstream}${f.aliased}`)}
         ${acc('used', 'box', 'Used by', usedByLine(f.comps.length, f.styles), `${f.comps.length || !f.styles.length ? f.compList : ''}${f.styleList}`)}
         ${acc('history', 'clock', 'History', 'Reading', '<div class="tx-d-foot" hidden></div>')}
       </div>

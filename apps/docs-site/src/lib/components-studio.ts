@@ -44,3 +44,44 @@ export function componentsPrimary(list: LeadInput[], editHref: (slug: string) =>
   if (review) return { label: 'Review guidance', href: editHref(review.slug) };
   return null;
 }
+
+/**
+ * Open component change requests per component name (waiting or in progress), from the request rows Studio reads
+ * (scripts/requests.ts). Names match case-insensitively; a request for a component that does not exist yet (a new
+ * component) counts under its own name and simply matches no row.
+ */
+export function openRequestCounts(rows: { component: string; status: string }[]): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const r of rows) {
+    if (r.status !== 'requested' && r.status !== 'in-progress') continue;
+    const key = r.component.trim().toLowerCase();
+    if (key) out.set(key, (out.get(key) ?? 0) + 1);
+  }
+  return out;
+}
+
+/** One audited product and the DS component instances `bridge audit` counted in it, by exported name. */
+export interface ProductAudit {
+  product: string;
+  components: Record<string, number>;
+}
+
+/**
+ * Where each component is used, from the committed `bridge audit` reports (one per product): instances per product,
+ * parts included (TableHeader counts for Table, CardBody for Card: the longest component name that starts the part
+ * name wins). Products with no instance are left out.
+ */
+export function productUsage(audits: ProductAudit[], names: string[]): Map<string, { product: string; instances: number }[]> {
+  const byLength = [...names].sort((a, b) => b.length - a.length);
+  const owner = (part: string) => (names.includes(part) ? part : byLength.find((n) => part.startsWith(n) && /^[A-Z]/.test(part.slice(n.length))));
+  const out = new Map<string, { product: string; instances: number }[]>();
+  for (const a of audits) {
+    const counts = new Map<string, number>();
+    for (const [part, n] of Object.entries(a.components)) {
+      const c = owner(part);
+      if (c && n > 0) counts.set(c, (counts.get(c) ?? 0) + n);
+    }
+    for (const [c, n] of counts) (out.get(c) ?? out.set(c, []).get(c)!).push({ product: a.product, instances: n });
+  }
+  return out;
+}

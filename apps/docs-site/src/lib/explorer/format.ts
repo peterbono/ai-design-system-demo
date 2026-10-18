@@ -1,6 +1,13 @@
 // Token explorer formatting, as pure functions: human alias labels, code syntax, CSS text of resolved values,
 // type categories for the "By type" lens. No DOM: unit tested in format.test.ts.
-import { aliasTarget, isAlias, parseColor, parseDimension, rgbaToHex, type Tier } from '@bridge-ds/core';
+import { aliasTarget, isAlias, parseColor, parseDimension, rgbaToHex, TIER_NAMES, type Tier } from '@bridge-ds/core';
+
+/**
+ * Collection names in Studio, for designers: the "base" tier (theme-independent semantic tokens such as radius and
+ * spacing roles) reads "Foundation". The Library and the Figma plugin keep TIER_NAMES, which mirror the Figma
+ * collections.
+ */
+export const STUDIO_TIER_NAMES: Record<Tier, string> = { ...TIER_NAMES, base: 'Foundation' };
 
 /** "palette.neutral.900" -> "neutral / 900". Drops the namespace root when the path is deep enough to stay clear. */
 export function aliasLabel(path: string): string {

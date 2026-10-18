@@ -1,7 +1,10 @@
-// Visual preview of the token review sheet: real @bridge-ds/react components, rendered to static HTML at build time,
-// one sample per component (data-sample="<Name>"). scripts/explorer/review.ts clones the samples of the components
-// that use the edited token into before and after frames, and paints the draft as CSS variable overrides on the
-// after frame, so the preview repaints without React.
+// Component samples for Studio Tokens previews (the value popover and the draft review): real @bridge-ds/react
+// components, rendered to static HTML at build time, one sample per component (data-sample="<Name>"). A few are
+// written here for a compact frame; every other component brings its Library preview (docs.json "preview"), so any
+// component that uses a token can be shown. scripts/explorer/preview-frames.ts clones them into frames and paints
+// the draft as CSS variable overrides, so the preview repaints without React.
+import Example from './Example';
+import type { ExampleNode } from '../lib/components';
 import {
   Alert,
   Avatar,
@@ -29,9 +32,18 @@ import {
   Tag,
 } from '@bridge-ds/react';
 
-export default function EditorPreview() {
+const OWN = ['Card', 'Table', 'Button', 'Input', 'Alert', 'Badge', 'Tabs', 'Checkbox', 'Switch', 'Tag', 'Link', 'Progress', 'Avatar', 'Kbd'];
+
+export default function EditorPreview({ previews = [] }: { previews?: { name: string; node: ExampleNode }[] }) {
   return (
     <div className="xe-samples">
+      {previews
+        .filter((p) => !OWN.includes(p.name))
+        .map((p) => (
+          <div key={p.name} data-sample={p.name}>
+            <Example node={p.node} />
+          </div>
+        ))}
       <div data-sample="Card">
         <Card>
           <CardHeader>Release 0.2</CardHeader>

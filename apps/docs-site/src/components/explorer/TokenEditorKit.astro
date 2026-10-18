@@ -4,19 +4,22 @@
 // TokenExplorer includes it in mode="edit". The cell editor popover is built by scripts/explorer/inline-edit.ts.
 import Icon from '../Icon.astro';
 import { Alert, Button, IconButton, Input, Textarea } from '@bridge-ds/react';
-import { GitPullRequest, X } from 'lucide-react';
+import { Send, X } from 'lucide-react';
 import GitHubDialog from '../GitHubDialog.astro';
 import HistoryPlanner from '../HistoryPlanner.astro';
 import EditorPreview from '../EditorPreview.tsx';
 import { explorerTokens } from '../../lib/explorer';
+import { loadComponents } from '../../lib/components';
 
 const palette = explorerTokens()
   .filter((t) => t.layer === 'brand' && t.type === 'color')
   .map((t) => t.path);
+// Library previews of every component, so the popover and the review can show any component that uses a token.
+const previews = loadComponents().flatMap((c) => (c.docs?.preview ? [{ name: c.name, node: c.docs.preview }] : []));
 ---
 
 <div class="xp-kit" data-xp-kit>
-  <template data-xe-samples><EditorPreview /></template>
+  <template data-xe-samples><EditorPreview previews={previews} /></template>
 
   <div class="xe-bar" data-xe-bar role="region" aria-label="Draft" hidden>
     <span class="xe-bar-dot" aria-hidden="true"></span>
@@ -30,13 +33,21 @@ const palette = explorerTokens()
       <h2 id="xe-sheet-title" class="xe-sheet-title" data-xe-sheet-title tabindex="-1">Review changes</h2>
       <IconButton icon={X} label="Close the review" size="sm" data-xe-close />
     </header>
-    <div class="xe-sheet-body" data-xe-sheet-body></div>
+    <div class="xe-sheet-body" data-xe-sheet-scroll>
+      <div data-xe-sheet-body></div>
+      <details class="xe-acc xe-dev" data-xe-dev>
+        <summary><Icon name="code" size={18} /><span class="xe-acc-label">For developers</span><span class="xe-acc-meta">Export JSON</span><span class="xe-acc-chev"><Icon name="chevron" size={16} /></span></summary>
+        <div class="xe-acc-body xe-dev-body">
+          <p class="xe-empty">Sending for review opens a pull request from a <code>tokens/*</code> branch: the edited token files with minimal diffs, plus a changeset. The JSON export holds the same files and the edit list, to apply by hand or from a script.</p>
+          <Button variant="secondary" size="sm" id="ed-export">Export JSON</Button>
+        </div>
+      </details>
+    </div>
     <footer class="xe-sheet-foot">
-      <p class="xe-sheet-note" data-xe-note>Your draft is kept in this browser. Connect GitHub once, then propose.</p>
+      <p class="xe-sheet-note" data-xe-note>Your draft is kept in this browser. Connect GitHub once, then send it for review.</p>
       <Button variant="secondary" data-xe-discard>Discard</Button>
-      <Button variant="ghost" id="ed-export">Export JSON</Button>
       <span class="xe-grow"></span>
-      <Button variant="primary" iconStart={GitPullRequest} id="ed-propose" data-gh-open disabled>Connect GitHub to propose</Button>
+      <Button variant="primary" iconStart={Send} id="ed-propose" data-gh-open disabled>Connect GitHub to send</Button>
     </footer>
   </aside>
 
@@ -60,20 +71,26 @@ const palette = explorerTokens()
     </form>
   </dialog>
 
-  <dialog class="gh-dialog" id="ed-propose-dialog" aria-labelledby="ed-propose-h">
+  <dialog class="gh-dialog" id="ed-propose-dialog" aria-labelledby="ed-propose-h" aria-describedby="ed-propose-who">
     <form method="dialog" class="gh-dialog-box">
       <header class="gh-dialog-head">
-        <h2 id="ed-propose-h">Propose change</h2>
+        <h2 id="ed-propose-h">Send for review</h2>
         <IconButton icon={X} label="Close" size="sm" type="submit" value="cancel" />
       </header>
-      <p>Bridge creates a <code>tokens/*</code> branch, commits the edited token files with minimal diffs and a changeset, and opens a pull request for design and tech review.</p>
-      <Input label="Title" data-ed-field="propose-title" placeholder="tokens: soften the page background" />
+      <p id="ed-propose-who" data-ed-field="propose-who">The design owner and a developer will approve it; nothing ships before both.</p>
+      <Input label="Title" data-ed-field="propose-title" placeholder="Darker primary action fill" />
       <Textarea label="Why" data-ed-field="propose-notes" rows={3} placeholder="What problem this solves, and where reviewers should look." />
-      <p class="small" id="ed-propose-status" role="status" aria-live="polite"></p>
+      <p class="small xe-propose-status" id="ed-propose-status" role="status" aria-live="polite"></p>
+      <details class="xe-acc xe-dev">
+        <summary><Icon name="code" size={18} /><span class="xe-acc-label">For developers</span><span class="xe-acc-chev"><Icon name="chevron" size={16} /></span></summary>
+        <div class="xe-acc-body">
+          <p class="xe-empty">Bridge creates a <code>tokens/*</code> branch, commits the edited token files with minimal diffs and a changeset, and opens a pull request titled <code data-ed-field="propose-pr-title">tokens: ...</code>, labeled with its risk tier.</p>
+        </div>
+      </details>
       <footer class="gh-dialog-foot">
         <span class="gh-spacer"></span>
         <Button variant="secondary" size="sm" type="submit" value="cancel">Cancel</Button>
-        <Button variant="primary" size="sm" id="ed-propose-go">Open pull request</Button>
+        <Button variant="primary" size="sm" id="ed-propose-go">Send for review</Button>
       </footer>
     </form>
   </dialog>

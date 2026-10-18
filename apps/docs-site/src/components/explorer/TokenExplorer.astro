@@ -9,6 +9,7 @@ import '../../styles/editor.css';
 import '../../styles/reviews.css';
 import '../../styles/history.css';
 import '../../styles/token-explorer.css';
+import '../../styles/preview-frames.css';
 import Icon from '../Icon.astro';
 import SummaryButton from '../ds/studio/SummaryButton';
 import ButtonLink from '../ds/ButtonLink';
@@ -17,7 +18,7 @@ import { Plus, Search, SlidersHorizontal } from 'lucide-react';
 import TokenEditorKit from './TokenEditorKit.astro';
 import ExplorerData from './ExplorerData.astro';
 import XpKeys from './XpKeys.astro';
-import { CATEGORY_LABEL, CATEGORY_ORDER, SYNTAX_LABEL, modeName } from '../../lib/explorer/format';
+import { CATEGORY_LABEL, CATEGORY_ORDER, STUDIO_TIER_NAMES, SYNTAX_LABEL, modeName } from '../../lib/explorer/format';
 import { modesOf } from '../../lib/explorer/model';
 import { tokenFiles } from '../../lib/explorer';
 import { exists, readText } from '../../lib/repo';
@@ -89,16 +90,6 @@ const lensLabel = (text: string) => createElement(RFragment, null, `${text} `, c
                 Options <span class="xp-filter-n num" data-xp-filter-n hidden>0</span>
               </SummaryButton>
               <div class="xp-menu-panel xp-options-panel">
-                <fieldset class="xp-opt-set">
-                  <legend>Collections</legend>
-                  {TIER_ORDER.map((t) => <label><input type="checkbox" name="xp-ft" value={t} />{TIER_NAMES[t]}</label>)}
-                </fieldset>
-                <fieldset class="xp-opt-set">
-                  <legend>Usage</legend>
-                  <label><input type="radio" name="xp-usage" value="" checked />Any</label>
-                  <label><input type="radio" name="xp-usage" value="used" />In use</label>
-                  <label><input type="radio" name="xp-usage" value="unused" />Unused</label>
-                </fieldset>
                 <div class="xp-modebar" data-xp-modebar>
                   <div class="xp-menu-field" data-xp-mode-field="brand" hidden>
                     <span aria-hidden="true">Brand</span>
@@ -131,6 +122,19 @@ const lensLabel = (text: string) => createElement(RFragment, null, `${text} `, c
                   <span class="xp-switch-track" aria-hidden="true"><span class="xp-switch-thumb"></span></span>
                   <span>Exact match</span>
                 </button>
+                <details class="xp-opt-adv" data-xp-advanced>
+                  <summary><span>Advanced</span><span class="xp-opt-adv-meta">Collections and usage</span><Icon name="chevron" size={14} /></summary>
+                  <fieldset class="xp-opt-set">
+                    <legend>Collections</legend>
+                    {TIER_ORDER.map((t) => <label><input type="checkbox" name="xp-ft" value={t} />{STUDIO_TIER_NAMES[t]}</label>)}
+                  </fieldset>
+                  <fieldset class="xp-opt-set">
+                    <legend>Usage</legend>
+                    <label><input type="radio" name="xp-usage" value="" checked />Any</label>
+                    <label><input type="radio" name="xp-usage" value="used" />In use</label>
+                    <label><input type="radio" name="xp-usage" value="unused" />Unused</label>
+                  </fieldset>
+                </details>
                 <Button variant="secondary" size="sm" className="st-xp-clear-filters" data-xp-clear-filters>Reset options</Button>
                 <p class="xp-menu-keys small muted"><XpKeys /></p>
               </div>

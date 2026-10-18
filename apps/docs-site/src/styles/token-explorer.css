@@ -3137,32 +3137,22 @@
   gap: var(--space-3);
 }
 
+.xe-pv-col {
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+}
+
 .xe-pv-label {
-  margin: 0 0 var(--space-1-5);
+  margin: 0;
   color: var(--color-text-muted);
   font-size: var(--typography-caption-size);
   font-weight: var(--font-weight-medium);
   line-height: var(--typography-caption-line-height);
 }
 
-.xe-frame {
-  display: grid;
-  align-content: start;
-  gap: var(--space-3);
-  min-height: var(--size-40);
-  padding: var(--space-3);
-  overflow: hidden;
-  border-radius: var(--radius-control);
-  box-shadow: inset 0 0 0 var(--border-width-default) var(--color-border-default);
-  background-color: var(--xe-stage);
-  color: var(--color-text-default);
-  pointer-events: none;
-}
-
-/* Real components at a reading scale: the frame shows the page, not one control. */
-.xe-frame [data-sample] {
-  min-width: 0;
-  zoom: 0.62;
+.xe-pv .xe-frame {
+  height: var(--size-40);
 }
 
 .xe-legend {
@@ -3528,4 +3518,132 @@
   .xp[data-surface="app"] {
     margin: 0;
   }
+}
+
+/* Value popover: the real components that use the token, light and dark, repainted on every pick. */
+.xe-pop-pv {
+  display: grid;
+  gap: var(--space-1-5);
+  margin: var(--space-3) var(--space-4) 0;
+}
+
+.xe-pop-pv-label {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--typography-caption-size);
+  line-height: var(--typography-caption-line-height);
+}
+
+.xe-pop-pv-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.xe-pop-pv .xe-pv-col {
+  gap: var(--space-1);
+}
+
+.xe-pop-pv .xe-frame {
+  height: var(--size-20);
+  padding: var(--space-2);
+}
+
+/* Studio Tokens list, designer pass. Names wrap at their dots (grid.ts adds the break points) when the table narrows,
+   so the whole name stays readable with the details panel open and on phones; a row grows instead of truncating. */
+.xp[data-surface="app"] .xp-name-main {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.xp[data-surface="app"] .xp-td.is-name {
+  padding-block: var(--space-1);
+}
+
+/* A swatch you can judge: 24px, the DS inset radius, next to a value at the UI size. */
+.xp[data-surface="app"] .xp-ms {
+  width: var(--size-6);
+  height: var(--size-6);
+}
+
+.xp[data-surface="app"] .xp-field-end {
+  font-size: var(--typography-ui-size);
+}
+
+/* With the details panel open on a laptop screen, the hex steps back (the panel shows it for the selected token, and
+   every cell keeps it on hover) so names and palette steps stay whole. */
+@media (max-width: 1599px) {
+  .xp[data-surface="app"].has-detail .xp-field-end {
+    display: none;
+  }
+}
+
+/* Options: collections and usage under Advanced, collapsed until one of them filters the table. */
+.xp-opt-adv {
+  display: grid;
+  gap: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: var(--border-width-default) solid var(--color-border-default);
+}
+
+.xp-opt-adv > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--size-8);
+  color: var(--color-text-default);
+  font-weight: var(--font-weight-semibold);
+  list-style: none;
+  cursor: pointer;
+}
+
+.xp-opt-adv > summary::-webkit-details-marker {
+  display: none;
+}
+
+.xp-opt-adv > summary:focus-visible {
+  border-radius: var(--radius-inset);
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.xp-opt-adv-meta {
+  margin-left: auto;
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-regular);
+}
+
+.xp-opt-adv > summary .icon {
+  display: inline-flex;
+  color: var(--color-text-muted);
+}
+
+.xp-opt-adv[open] > summary .icon svg {
+  transform: rotate(90deg);
+}
+
+/* Review sheet and send dialog: one "For developers" fold at the bottom. */
+.xe-dev {
+  margin-top: var(--space-6);
+}
+
+.xe-dev-body {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-3);
+}
+
+/* A theme the draft does not change shows one frame, as tall as the before and after pair next to it. */
+.xe-pv-col.is-unchanged {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.xe-pv-col.is-unchanged .xe-frame {
+  height: auto;
+  min-height: var(--size-40);
+}
+
+.xe-propose-status:empty {
+  display: none;
 }
