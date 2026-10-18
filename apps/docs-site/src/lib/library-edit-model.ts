@@ -1,0 +1,275 @@
+// Edit mode of a Library component page, as pure functions: which sections exist, what changed since the page on
+// main (or on a change's branch), the Claude drafts waiting for Keep or Discard, the To review list of the rail and
+// text replacements for a selection. The island (components/LibraryEditMode.tsx) keeps an EditState and calls these.
+import { markClaudeDraft, missingProse, sectionsNeedingReview, type ComponentDocsJson, type DocsGuidance, type ProseKey } from '@bridge-ds/core';
+import { cleanDocs } from './docs-draft-model';
+
+/** Editable sections, in page order. Do and don't is one section that holds two keys. */
+export const SECTIONS = [
+  { id: 'summary', label: 'Summary', keys: ['summary'] },
+  { id: 'whenToUse', label: 'When to use', keys: ['whenToUse'] },
+  { id: 'whenNotToUse', label: 'When not to use', keys: ['whenNotToUse'] },
+  { id: 'doDont', label: "Do and don't", keys: ['dos', 'donts'] },
+  { id: 'accessibility', label: 'Accessibility', keys: ['accessibility'] },
+  { id: 'contentGuidelines', label: 'Content guidelines', keys: ['contentGuidelines'] },
+] as const satisfies readonly { id: string; label: string; keys: readonly ProseKey[] }[];
+
+export type SectionId = (typeof SECTIONS)[number]['id'];
+export type Section = (typeof SECTIONS)[number];
+
+export const sectionOf = (key: ProseKey): Section => SECTIONS.find((s) => (s.keys as readonly ProseKey[]).includes(key))!;
+export const sectionById = (id: SectionId): Section => SECTIONS.find((s) => s.id === id)!;
+export const sectionLabel = (id: SectionId) => sectionById(id).label;
+
+type ProseValue = ComponentDocsJson[ProseKey];
+
+export interface EditState {
+  /** The docs on main (or on the change's branch), the reference for "changed". */
+  base: ComponentDocsJson;
+  /** What the page shows now, Claude drafts included. */
+  docs: ComponentDocsJson;
+  /** Pending Claude drafts: the value each key had before the draft, for Discard. */
+  drafts: Partial<Record<ProseKey, ProseValue>>;
+  /** Sections the code says are out of date (from the drafting engine). */
+  outdated: ProseKey[];
+  /** Sections that were drafted or outdated and that someone then kept or rewrote: ticked in To review. */
+  reviewed: SectionId[];
+  /** Sections whose Claude draft was kept (credited as drafted by Claude when sent). */
+  kept: SectionId[];
+  /** Written sections Claude rewrote (they had text): "Updated by Claude" instead of "Drafted by Claude". */
+  updated: SectionId[];
+  /** Written sections Claude checked against newer code and left as they are: "Still accurate". */
+  accurate: SectionId[];
+}
+
+const emptyOf = (k: ProseKey) => (k === 'summary' ? '' : []) as ProseValue;
+
+/**
+ * Starts editing. Sections the file itself marks as waiting for review (needsReview with draftedSections, a draft from
+ * CI or from an earlier send) come back as pending drafts; discarding one empties it.
+ */
+export function initEdit(base: ComponentDocsJson, docs: ComponentDocsJson = base): EditState {
+  const drafts: EditState['drafts'] = {};
+  for (const k of sectionsNeedingReview(docs)) if (!isEmptyValue(docs[k])) drafts[k] = emptyOf(k);
+  return { base, docs, drafts, outdated: [], reviewed: [], kept: [], updated: [], accurate: [] };
+}
+
+const norm = (v: unknown) => JSON.stringify(v ?? null);
+const cleaned = (d: ComponentDocsJson) => cleanDocs(d);
+
+/** True when a prose value has no content: blank summary, empty list, list of blank items. */
+export function isEmptyValue(v: ProseValue | undefined): boolean {
+  if (v === undefined || v === null) return true;
+  if (typeof v === 'string') return !v.trim();
+  return !(v as (string | DocsGuidance)[]).some((x) => (typeof x === 'string' ? x.trim() : x.title.trim() || x.text.trim()));
+}
+
+/** Prose keys whose cleaned value differs from the base. */
+export function changedKeys(s: Pick<EditState, 'base' | 'docs'>): ProseKey[] {
+  const a = cleaned(s.base);
+  const b = cleaned(s.docs);
+  return (['summary', 'whenToUse', 'whenNotToUse', 'dos', 'donts', 'accessibility', 'contentGuidelines'] as ProseKey[]).filter((k) => norm(a[k] ?? (k === 'summary' ? '' : [])) !== norm(b[k] ?? (k === 'summary' ? '' : [])));
+}
+
+/** Sections with at least one changed key, in page order. */
+export const changedSections = (s: Pick<EditState, 'base' | 'docs'>): SectionId[] => {
+  const keys = changedKeys(s);
+  return SECTIONS.filter((x) => x.keys.some((k) => keys.includes(k))).map((x) => x.id);
+};
+
+/** The page reads a missing status as stable, so does this. */
+/** What docs.json says about review: pending drafts go out as needsReview with draftedSections. */
+const reviewMeta = (d: Partial<ComponentDocsJson>) => JSON.stringify([d.needsReview === true, d.needsReview === true ? (d.draftedSections ?? null) : null]);
+
+export const statusChanged = (s: Pick<EditState, 'base' | 'docs'>) => (s.base.status ?? 'stable') !== (s.docs.status ?? 'stable');
+
+/** Anything to send: a changed section or a changed status. */
+export const isDirty = (s: Pick<EditState, 'base' | 'docs'> & Partial<EditState>) =>
+  changedKeys(s).length > 0 || statusChanged(s) || (s.drafts !== undefined && reviewMeta(docsToSend(s as EditState)) !== reviewMeta(s.base));
+
+export type SectionState = 'drafted' | 'outdated' | 'empty' | 'filled';
+
+/** What a section shows under its heading: Keep and Discard, a Write and Draft line, or nothing. */
+export function sectionState(s: EditState, id: SectionId): SectionState {
+  const sec = sectionById(id);
+  const keys = sec.keys as readonly ProseKey[];
+  if (keys.some((k) => k in s.drafts)) return 'drafted';
+  if (keys.every((k) => isEmptyValue(s.docs[k]))) return 'empty';
+  if (keys.some((k) => s.outdated.includes(k)) && !s.reviewed.includes(id) && !changedKeys(s).some((k) => keys.includes(k))) return 'outdated';
+  return 'filled';
+}
+
+/** Sections that are empty or outdated: what "Fill empty and outdated sections" works on. */
+export const sectionsToFill = (s: EditState): SectionId[] => SECTIONS.filter((x) => ['empty', 'outdated'].includes(sectionState(s, x.id))).map((x) => x.id);
+
+/** Prose keys missing on the page (core's rule), for the page-level hint. */
+export const missingKeys = (d: Partial<ComponentDocsJson>): ProseKey[] => missingProse(d);
+
+/**
+ * Puts Claude's sections on the page as pending drafts. A key drafted twice keeps its first "before". `checked` lists
+ * written sections Claude verified against the code: left unchanged they are "Still accurate" (reviewed, nothing to
+ * keep); returned in `sections` they are "Updated by Claude".
+ */
+export function applyDraft(s: EditState, sections: Partial<Record<ProseKey, ProseValue>>, checked: readonly ProseKey[] = []): EditState {
+  const drafts = { ...s.drafts };
+  const updated = SECTIONS.filter((x) => x.keys.some((k) => k in sections && !isEmptyValue(s.docs[k]))).map((x) => x.id);
+  const accurate = SECTIONS.filter((x) => x.keys.some((k) => checked.includes(k) && !(k in sections))).map((x) => x.id);
+  const docs = { ...s.docs } as ComponentDocsJson & Record<string, unknown>;
+  for (const [k, v] of Object.entries(sections) as [ProseKey, ProseValue][]) {
+    if (v === undefined) continue;
+    if (!(k in drafts)) drafts[k] = s.docs[k] as ProseValue;
+    docs[k] = v as never;
+  }
+  const touched = SECTIONS.filter((x) => x.keys.some((k) => k in sections)).map((x) => x.id);
+  return {
+    ...s,
+    docs,
+    drafts,
+    reviewed: [...new Set([...s.reviewed.filter((id) => !touched.includes(id)), ...accurate])],
+    kept: s.kept.filter((id) => !touched.includes(id)),
+    updated: [...new Set([...s.updated.filter((id) => !touched.includes(id)), ...updated])],
+    accurate: [...new Set([...s.accurate.filter((id) => !touched.includes(id)), ...accurate])],
+  };
+}
+
+/** Keeps the drafts of these sections (all when omitted): the text stays, the section is ticked as reviewed. */
+export function keepDrafts(s: EditState, ids?: SectionId[]): EditState {
+  const which = ids ?? pendingSections(s);
+  const drop = which.flatMap((id) => sectionById(id).keys as readonly ProseKey[]);
+  const drafts = Object.fromEntries(Object.entries(s.drafts).filter(([k]) => !drop.includes(k as ProseKey))) as EditState['drafts'];
+  return { ...s, drafts, reviewed: [...new Set([...s.reviewed, ...which])], kept: [...new Set([...s.kept, ...which])] };
+}
+
+/** Discards the drafts of these sections: each key goes back to the text it had before Claude. */
+export function discardDrafts(s: EditState, ids: SectionId[]): EditState {
+  const drop = ids.flatMap((id) => sectionById(id).keys as readonly ProseKey[]);
+  const docs = { ...s.docs } as ComponentDocsJson & Record<string, unknown>;
+  const drafts = { ...s.drafts };
+  for (const k of drop) {
+    if (!(k in drafts)) continue;
+    // A draft that came with the file has no text before it: discarding empties the section.
+    const before = drafts[k];
+    if (before === undefined) delete docs[k];
+    else docs[k] = before as never;
+    delete drafts[k];
+  }
+  return { ...s, docs, drafts, updated: s.updated.filter((id) => !ids.includes(id)) };
+}
+
+/** Sections with a pending draft, in page order. */
+export const pendingSections = (s: EditState): SectionId[] => SECTIONS.filter((x) => x.keys.some((k) => k in s.drafts)).map((x) => x.id);
+
+/** Writes one prose value (an edit by the person). Editing an outdated section counts as reviewing it. */
+export function setValue<K extends ProseKey>(s: EditState, key: K, value: ComponentDocsJson[K]): EditState {
+  const id = sectionOf(key).id;
+  const reviewed = s.outdated.includes(key) && !s.reviewed.includes(id) ? [...s.reviewed, id] : s.reviewed;
+  return { ...s, docs: { ...s.docs, [key]: value }, reviewed };
+}
+
+export interface ReviewItem {
+  id: SectionId;
+  label: string;
+  done: boolean;
+  /** "Drafted by Claude", "Outdated", "Kept", "Updated". */
+  words: string;
+  /** True for a section Claude rewrote (it had text). */
+  updated?: boolean;
+}
+
+/**
+ * The rail's To review list: only what still needs a decision, pending Claude drafts and outdated sections. Kept
+ * drafts and sections Claude checked as still accurate leave it (the section heading says "Still accurate").
+ */
+export function toReview(s: EditState): ReviewItem[] {
+  const out: ReviewItem[] = [];
+  for (const x of SECTIONS) {
+    const st = sectionState(s, x.id);
+    if (st === 'drafted') out.push({ id: x.id, label: x.label, done: false, words: s.updated.includes(x.id) ? 'Updated by Claude' : 'Drafted by Claude', ...(s.updated.includes(x.id) ? { updated: true } : {}) });
+    else if (st === 'outdated') out.push({ id: x.id, label: x.label, done: false, words: 'Outdated' });
+  }
+  return out;
+}
+
+/** Where an editable text lives in docs.json: a prose key, an item, and for Do and don't the title or the text. */
+export interface FieldRef {
+  key: ProseKey;
+  index?: number;
+  part?: 'title' | 'text';
+}
+
+export const fieldId = (f: FieldRef) => [f.key, f.index ?? '', f.part ?? ''].join(':');
+
+export function getField(d: ComponentDocsJson, f: FieldRef): string {
+  const v = d[f.key];
+  if (typeof v === 'string') return v;
+  const item = (v ?? [])[f.index ?? 0];
+  if (item === undefined) return '';
+  return typeof item === 'string' ? item : item[f.part ?? 'text'];
+}
+
+export function setField(d: ComponentDocsJson, f: FieldRef, text: string): ProseValue {
+  const v = d[f.key];
+  if (typeof v === 'string' || f.key === 'summary') return text;
+  const list = [...((v ?? []) as (string | DocsGuidance)[])];
+  const i = f.index ?? 0;
+  const cur = list[i];
+  list[i] = typeof cur === 'object' && cur !== null ? { ...cur, [f.part ?? 'text']: text } : text;
+  return list as ProseValue;
+}
+
+/** Replaces the selected range of a field. Falls back to the first match of the selected text when the range moved. */
+export function replaceSelection(value: string, sel: { start: number; end: number; text: string }, replacement: string): string {
+  if (value.slice(sel.start, sel.end) === sel.text) return value.slice(0, sel.start) + replacement + value.slice(sel.end);
+  const i = value.indexOf(sel.text);
+  return i < 0 ? value : value.slice(0, i) + replacement + value.slice(i + sel.text.length);
+}
+
+/** Title of the change, as the send panel prefills it. */
+export const sendTitle = (name: string) => `Update ${name} usage guidance`;
+
+/** The pull request title: the conventional docs prefix the repo uses, then the person's words. */
+export function changeTitle(slug: string, title: string): string {
+  const t = title.trim();
+  if (/^[a-z]+(\([^)]*\))?!?:\s/.test(t)) return t;
+  return `docs(${slug}): ${t.charAt(0).toLowerCase()}${t.slice(1)}`;
+}
+
+/**
+ * The docs.json to send. Kept Claude drafts are credited (draftedBy "claude"); drafts still pending go out marked
+ * "needsReview" so the review in Changes asks for them.
+ */
+export function docsToSend(s: EditState): ComponentDocsJson {
+  const { needsReview: _n, draftedSections: _d, ...rest } = s.docs;
+  const pending = (Object.keys(s.drafts) as ProseKey[]).filter((k) => !isEmptyValue(s.docs[k]));
+  if (pending.length) return markClaudeDraft(rest as ComponentDocsJson, pending);
+  const d = rest as ComponentDocsJson;
+  if (s.kept?.length) d.draftedBy = 'claude';
+  // Every draft reviewed here: a file that waited for review is accepted (needsReview false, as acceptDocsDraft does).
+  if (s.base.needsReview === true || s.docs.needsReview === true) d.needsReview = false;
+  return d;
+}
+
+/** "2 sections", "1 section and the status", for the rail's Changed line. */
+export function changedLabel(s: Pick<EditState, 'base' | 'docs'>): string {
+  const n = changedSections(s).length;
+  const parts = [n ? `${n} ${n === 1 ? 'section' : 'sections'}` : '', statusChanged(s) ? 'the status' : ''].filter(Boolean);
+  return parts.join(' and ') || 'Nothing yet';
+}
+
+/** What the edit state keeps across reloads, besides the docs text (that lives in the local draft). */
+export interface EditMeta {
+  drafts: EditState['drafts'];
+  reviewed: SectionId[];
+  kept: SectionId[];
+  updated?: SectionId[];
+  accurate?: SectionId[];
+}
+
+export const editMeta = (s: EditState): EditMeta => ({ drafts: s.drafts, reviewed: s.reviewed, kept: s.kept, updated: s.updated, accurate: s.accurate });
+
+export function restoreMeta(s: EditState, m: Partial<EditMeta> | null | undefined): EditState {
+  if (!m) return s;
+  const valid = SECTIONS.map((x) => x.id) as SectionId[];
+  const ids = (xs: SectionId[] | undefined) => (xs ?? []).filter((id) => valid.includes(id));
+  return { ...s, drafts: m.drafts ?? s.drafts, reviewed: ids(m.reviewed), kept: ids(m.kept), updated: ids(m.updated), accurate: ids(m.accurate) };
+}

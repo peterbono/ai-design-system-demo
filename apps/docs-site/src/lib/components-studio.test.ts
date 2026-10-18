@@ -32,7 +32,7 @@ describe('Studio Components lead and primary', () => {
   it('on this repo: every component has a docs editor link and a guidance state', () => {
     const all = loadComponents();
     for (const c of all) {
-      expect(docsEditHref(c.slug)).toBe(`/studio/components/docs/${c.slug}/`);
+      expect(docsEditHref(c.slug)).toBe(`/components/${c.slug}/?edit=1`);
       expect(['ok', 'review', 'missing']).toContain(guidanceState(c));
     }
     expect(componentsLead(all.map((c) => ({ slug: c.slug, status: c.docs?.status ?? 'stable', guidance: guidanceState(c) }))).status).toBe(`${all.length} components, all stable.`);

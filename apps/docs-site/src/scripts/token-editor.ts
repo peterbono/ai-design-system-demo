@@ -140,7 +140,7 @@ function paintTray() {
   // request, so it is the one gated action (data-gh-gate): without a connection a click opens Connect GitHub.
   const propose = $<HTMLButtonElement>('ed-propose');
   if (propose) {
-    // Docs edits share the draft but are proposed from the docs editor (Studio > Components > Edit docs).
+    // Docs edits share the draft but are sent from the Library page's edit mode (Edit docs).
     setButtonDisabled(propose, !rows.some((r) => r.edit.kind !== 'docs') || fails > 0);
     paintGates(propose.parentElement ?? document);
   }
