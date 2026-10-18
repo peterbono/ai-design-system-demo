@@ -14,6 +14,7 @@ import { categories } from './resources/categories';
 import { reviews } from './resources/reviews';
 import { invoices } from './resources/invoices';
 import { Segments } from './resources/segments/Segments';
+import { BridgeToolbar } from './bridge/BridgeToolbar';
 
 function Admin() {
   const { tenant, theme, density, locale, dataVersion } = usePreferences();
@@ -47,6 +48,7 @@ function Admin() {
             <Resource name="categories" {...categories} />
             <Resource name="reviews" {...reviews} />
           </CoreAdmin>
+          <BridgeToolbar />
         </ToastProvider>
       </TooltipProvider>
     </ThemeProvider>

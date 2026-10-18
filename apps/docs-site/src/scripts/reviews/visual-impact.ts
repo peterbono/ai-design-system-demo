@@ -56,6 +56,8 @@ export interface VisualSummary {
   /** The biggest change (first in visualState order) and where its images live, for the before/after on top. */
   top?: VisualShot;
   base?: string;
+  /** Every changed story and screen, most changed first ("Try it in the product" opens the top admin screen). */
+  shots?: VisualShot[];
   /** The manifest could not be read (not a 404). */
   error?: string;
 }
@@ -137,7 +139,7 @@ export async function loadVisualImpact(
   const top = shots[0]!;
   const img = (p: string | undefined, label: string) => (p ? `<img src="${esc(`${base}/${p}`)}" alt="" loading="lazy" title="${label}" />` : '');
   const thumb = top.images.before && top.images.after ? `<span class="cg-thumb" aria-hidden="true">${img(top.images.before, 'Before')}${img(top.images.after, 'After')}</span>` : '';
-  return { changed: shots.length, thumb, top, base };
+  return { changed: shots.length, thumb, top, base, shots };
 }
 
 /**
@@ -161,10 +163,10 @@ export function renderTopChange(slot: HTMLElement, v: VisualSummary, allHref: st
   const n = v.changed;
   // How to use it on first sight: the gesture, then what is compared, in plain words.
   const t = v.top;
-  const where = t.brand ? `${t.brand.charAt(0).toUpperCase()}${t.brand.slice(1)} ${t.theme}` : t.theme;
+  // "Order edit, light": the screen and the theme; the shop is the same for every screen of a change.
   slot.innerHTML = `<div class="rv-what-head"><p class="cg-line">Drag the handle to compare before and after.</p>${
     n > 1 ? `<a href="${esc(allHref)}" data-open-visual>See all ${n} screens</a>` : ''
-  }</div>${shotCard(t, v.base)}<p class="small muted rv-what-caption">${esc(t.kind === 'route' ? 'App screen' : 'Component examples')}: ${esc(t.label)}${where ? `, ${esc(where)}` : ''}. ${n > 1 ? `The screen that changes most of the ${n} that change.` : 'The only screen that changes.'}</p>`;
+  }</div>${shotCard(t, v.base, t.theme)}<p class="small muted rv-what-caption">${esc(t.kind === 'route' ? 'App screen' : 'Component examples')}: ${esc(t.label)}${t.theme ? `, ${esc(t.theme)}` : ''}. ${n > 1 ? `The screen that changes most of the ${n} that change.` : 'The only screen that changes.'}</p>`;
   wire(slot);
 }
 
@@ -229,7 +231,8 @@ async function notRun(slot: HTMLElement, o: { owner: string; repo: string; pr: n
  */
 const START = 25;
 
-function shotCard(s: VisualShot, base: string): string {
+/** One before/after card. `meta` replaces the mode line (the change view on top says the theme only). */
+function shotCard(s: VisualShot, base: string, meta: string = modeLabel(s)): string {
   const size = s.size.after ?? s.size.before ?? { width: 4, height: 3 };
   const url = (p?: string) => (p ? `${base}/${p}` : '');
   const alt = `${s.label}, ${modeLabel(s)}`;
@@ -255,7 +258,7 @@ function shotCard(s: VisualShot, base: string): string {
       : s.images.after || s.images.before
         ? `<img class="vi-single" src="${esc(url(s.images.after ?? s.images.before))}" alt="${esc(alt)}" loading="lazy" />`
         : `<p class="small muted">${esc(s.error ?? 'No image')}</p>`;
-  return `<article class="vi-shot"><header class="vi-shot-head"><h3>${esc(s.label)}</h3><span class="small muted">${esc(modeLabel(s))}</span><span class="pill ${tone}">${esc(changeLabel(s))}</span></header>${compare}</article>`;
+  return `<article class="vi-shot"><header class="vi-shot-head"><h3>${esc(s.label)}</h3><span class="small muted">${esc(meta)}</span><span class="pill ${tone}">${esc(changeLabel(s))}</span></header>${compare}</article>`;
 }
 
 function wire(root: HTMLElement) {

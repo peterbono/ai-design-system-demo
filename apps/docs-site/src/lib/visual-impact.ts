@@ -6,6 +6,8 @@ export interface VisualShot {
   key: string;
   kind: 'story' | 'route';
   label: string;
+  /** Admin hash route of an app screen ("/orders/12"). */
+  route?: string;
   tenant?: string;
   brand: string;
   theme: string;

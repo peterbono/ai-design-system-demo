@@ -1,0 +1,334 @@
+/* The Bridge toolbar floats over the admin's content column: bottom right by default, docked left or centre on demand,
+   lifted above the page's primary buttons when every dock would cover one. Compact density: every control is 36px.
+   The border stays neutral: Deep Harbor belongs to the product page. Tokens only. */
+.anchor {
+  position: fixed;
+  inset-inline: var(--space-4);
+  bottom: var(--space-4);
+  z-index: var(--layer-sticky);
+  display: flex;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+
+.anchor[data-dock="start"] {
+  justify-content: flex-start;
+}
+
+.anchor[data-dock="center"] {
+  justify-content: center;
+}
+
+/* Never over the sidebar: the docks live in the content column (the shell's sidebar is size-60 wide above 1024px). */
+@media (min-width: 1025px) {
+  .anchor {
+    inset-inline-start: calc(var(--size-60) + var(--space-4));
+  }
+}
+
+.panel,
+.pill {
+  box-sizing: border-box;
+  border: var(--border-width-default) solid var(--color-border-default);
+  background-color: var(--color-surface-raised);
+  box-shadow: var(--elevation-overlay);
+  color: var(--color-text-default);
+  font-family: var(--typography-ui-family);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+  pointer-events: auto;
+}
+
+.panel[data-dragging],
+.pill[data-dragging] {
+  box-shadow: var(--elevation-modal);
+}
+
+.panel {
+  display: grid;
+  grid-template-areas:
+    "grip title actions collapse"
+    ". mode mode mode"
+    ". note note note";
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  max-width: min(100%, var(--size-240));
+  padding: var(--space-1-5);
+  border-radius: var(--radius-overlay);
+}
+
+.grip {
+  grid-area: grip;
+  cursor: grab;
+  touch-action: none;
+}
+
+.panel[data-dragging] .grip {
+  cursor: grabbing;
+}
+
+.title {
+  display: flex;
+  grid-area: title;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: var(--size-40);
+  margin: 0;
+}
+
+.brand {
+  flex: none;
+  font-family: var(--font-family-display);
+  font-size: var(--typography-ui-size);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* Desktop: the helper line says "This change: <title>", so the first row keeps the wordmark only. */
+.panel .name {
+  display: none;
+}
+
+.name,
+.pillTitle {
+  overflow: hidden;
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.actions {
+  display: flex;
+  grid-area: actions;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.sides {
+  flex: none;
+}
+
+.collapse {
+  grid-area: collapse;
+}
+
+.count {
+  margin-inline-start: var(--space-1-5);
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.mode {
+  display: flex;
+  grid-area: mode;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-4);
+  min-width: 0;
+}
+
+.modeText {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--typography-caption-size);
+  line-height: var(--typography-caption-line-height);
+}
+
+.modeText strong {
+  color: var(--color-text-default);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* Before and after of each changed token: two swatches and its designer name; the values sit in the tooltip. */
+.pairs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--typography-caption-size);
+  line-height: var(--typography-caption-line-height);
+}
+
+.pair {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.swatch {
+  box-sizing: border-box;
+  width: var(--size-5);
+  height: var(--size-5);
+  border: var(--border-width-default) solid var(--color-border-strong);
+  border-radius: var(--radius-inset);
+}
+
+.pairName {
+  margin-inline-start: var(--space-1);
+  color: var(--color-text-default);
+}
+
+.more {
+  font-variant-numeric: tabular-nums;
+}
+
+.noteRow {
+  grid-area: note;
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.note {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--typography-caption-size);
+  line-height: var(--typography-caption-line-height);
+}
+
+.noteRow .note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--space-2);
+  color: var(--color-text-default);
+}
+
+.panel .noteRow {
+  padding-inline-start: calc(var(--size-9) + var(--space-2));
+}
+
+.noteAction {
+  flex: none;
+}
+
+.sheet {
+  width: min(90vw, var(--size-80));
+}
+
+.list {
+  display: grid;
+  max-height: var(--size-60);
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--control-height-md);
+}
+
+.screenLink,
+.here {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--control-height-md);
+}
+
+.here {
+  font-weight: var(--font-weight-semibold);
+}
+
+.meta {
+  flex: none;
+  color: var(--color-text-muted);
+  font-size: var(--typography-caption-size);
+  line-height: var(--typography-caption-line-height);
+}
+
+/* In the sheet on phones only: the token pairs and the way back, which the toolbar row has no room for. */
+.sheetPhone {
+  display: none;
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-height-md);
+}
+
+.pill {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: min(100%, var(--size-120));
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-4);
+  border-radius: var(--radius-pill);
+}
+
+/* With a note under it, the pill becomes a small card. */
+.pill[data-note] {
+  padding-bottom: var(--space-2);
+  border-radius: var(--radius-overlay);
+}
+
+.pill .noteRow {
+  padding-inline-end: var(--space-3);
+}
+
+@media (max-width: 760px) {
+  .anchor {
+    inset-inline: var(--space-2);
+    bottom: var(--space-2);
+  }
+
+  /* Phone: the change name and collapse, then the sides and Screens; no wordmark, no helper line. */
+  .panel {
+    grid-template-areas:
+      "title collapse"
+      "actions actions"
+      "note note";
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-2);
+    width: 100%;
+    padding-inline-start: var(--space-3);
+  }
+
+  .panel .noteRow {
+    padding-inline-start: 0;
+  }
+
+  .grip,
+  .brand,
+  .mode,
+  .studio {
+    display: none;
+  }
+
+  .panel .name {
+    display: block;
+  }
+
+  .title {
+    min-width: 0;
+  }
+
+  .actions {
+    justify-content: space-between;
+  }
+
+  .pill {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+
+  .sheetPhone {
+    display: block;
+    margin-top: var(--space-2);
+  }
+}
+
+/* Below 480px the action takes its own line. */
+@media (max-width: 480px) {
+  .noteAction {
+    flex-basis: 100%;
+    justify-content: flex-start;
+  }
+}
