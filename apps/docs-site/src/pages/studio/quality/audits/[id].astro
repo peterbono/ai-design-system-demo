@@ -1,15 +1,32 @@
 ---
-// One adoption audit report, opened from Studio Quality ("See what is left"). Each committed `bridge audit` report
-// under src/data/audits gets a route. It leads with the two gauges and the trend across runs, then where the
-// component instances come from and the hardcoded values by category; what was scanned, the file tables and the
-// CLI sit in one "For developers" disclosure at the end.
+// One adoption report, opened from Studio Quality ("See what is left"). Each committed `bridge audit` report under
+// src/data/audits gets a route. Read top to bottom:
+//   1. the product name and one summary sentence (now, and before the move to Bridge);
+//   2. the two metrics, the same AdoptionMetric block as the Quality rows, each with one plain sentence;
+//   3. the trend across runs, only when there are two runs or more;
+//   4. where components come from: one bar with its legend and counts, the per-component lists on demand;
+//   5. hard-coded values: one success line when none is left, else the table by category;
+//   6. "How adoption is measured", then one "For developers" fold (other runs, what was scanned, files, fixes, CLI).
 import Layout from '../../../../layouts/Layout.astro';
 import StudioHeader from '../../../../components/StudioHeader.astro';
+import AdoptionMetric from '../../../../components/AdoptionMetric.astro';
+import Icon from '../../../../components/Icon.astro';
 import { TopFilesTable, TopFixesTable, TrendTable } from '../../../../components/ds/studio/AdoptionTables';
-import { categoryRows, componentBreakdown, formatDelta, formatPct, adoptionTone, groupByApp, loadAudits, trendPoints, type AuditEntry, type TrendPoint } from '../../../../lib/audits';
-import { APP_SHORT, auditHref } from '../../../../lib/quality';
+import { categoryRows, componentBreakdown, formatDelta, formatPct, groupByApp, loadAudits, trendPoints, type AuditEntry } from '../../../../lib/audits';
+import {
+  ADOPTION_MEANING,
+  APP_SHORT,
+  adoptionSummary,
+  auditHref,
+  baselineSince,
+  componentSentence,
+  componentSources,
+  deltaPhrase,
+  hardcodedLine,
+  tokenSentence,
+  trendLabels,
+} from '../../../../lib/quality';
 import { PAGE_SOURCES, freshness } from '../../../../lib/sources';
-import '../../../../styles/process.css';
 import '../../../../styles/adoption.css';
 import '../../../../styles/quality.css';
 
@@ -18,345 +35,315 @@ export function getStaticPaths() {
 }
 
 const { entry: current } = Astro.props as { entry: AuditEntry };
+const r = current.report;
 const updated = freshness(PAGE_SOURCES.adoption);
-const grouped = groupByApp(loadAudits());
-const group = grouped.apps.find((a) => a.reports.some((e) => e.id === current.id));
-const appLabel = group ? (APP_SHORT[group.app.id] ?? group.app.title) : 'Other reports';
+const group = groupByApp(loadAudits()).apps.find((a) => a.reports.some((e) => e.id === current.id));
+const appLabel = group ? (APP_SHORT[group.app.id] ?? group.app.title) : (r.label ?? current.id);
+// The run before the move to Bridge, when this page is a later run; this page is that run when the app has a later one.
+const isBeforeRun = !!group?.after && group.before?.id === current.id;
+const beforeRun = group?.before && group.before.id !== current.id ? group.before : undefined;
+const title = isBeforeRun ? `${appLabel} before Bridge` : appLabel;
+const summary = adoptionSummary(r.metrics, beforeRun?.report.metrics ?? null, isBeforeRun);
 const siblings = (group?.reports ?? []).filter((e) => e.id !== current.id);
-const entries = [current];
-const trends = group ? [{ id: group.app.id, title: group.app.title, points: trendPoints(group.reports.map((e) => e.report)) }] : [];
 
-const R = 52;
-const C = 2 * Math.PI * R;
-const arc = (pct: number | null) => `${((pct ?? 0) / 100) * C} ${C}`;
-const date = (iso: string) => iso.slice(0, 10);
+const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+const since = r.baseline ? baselineSince(r.baseline.generatedAt === group?.before?.report.generatedAt, group?.app.baselineNote, shortDate(r.baseline.generatedAt)) : '';
+const metrics = [
+  { label: 'Tokens', value: r.metrics.tokenAdoption, text: tokenSentence(r.metrics, isBeforeRun), note: deltaPhrase(r.baseline?.tokenAdoption.delta, since) },
+  { label: 'Components', value: r.metrics.componentAdoption, text: componentSentence(r.metrics, isBeforeRun), note: deltaPhrase(r.baseline?.componentAdoption.delta, since) },
+];
+
+// Trend: every run of this product, oldest first. Hidden below two runs: never an empty block.
+const trend = group ? trendPoints(group.reports.map((e) => e.report)) : [];
+const labels = trendLabels(trend, group?.after ? group.before?.report.generatedAt : undefined, shortDate);
+// Two drawings of the same chart, each with a viewBox about as wide as it renders, so the axis text keeps the UI size:
+// one per screen width band (CSS shows one).
+const chart = (TW: number, TH: number, cls: string) => {
+  const PAD = { l: 48, r: 48, t: 16, b: 36 };
+  const tx = (i: number) => PAD.l + (trend.length > 1 ? (i / (trend.length - 1)) * (TW - PAD.l - PAD.r) : (TW - PAD.l - PAD.r) / 2);
+  const ty = (v: number) => PAD.t + (1 - v / 100) * (TH - PAD.t - PAD.b);
+  const line = (key: 'tokenAdoption' | 'componentAdoption') =>
+    trend
+      .map((p, i) => (p[key] === null ? null : `${tx(i)},${ty(p[key]!)}`))
+      .filter(Boolean)
+      .join(' ');
+  return { TW, TH, PAD, tx, ty, line, cls };
+};
+const charts = [chart(960, 220, 'ad-chart-wide'), chart(1520, 260, 'ad-chart-xwide'), chart(320, 200, 'ad-chart-narrow')];
+
+const comps = componentBreakdown(r);
+const sources = componentSources(comps);
+const SRC_CLASS = { ds: 'ad-ds', foreign: 'ad-foreign', native: 'ad-native', recreated: 'ad-recreated' } as const;
 const w = (n: number, max: number) => `${max ? (n / max) * 100 : 0}%`;
-
-// Trend chart geometry: x by run index, y by percent.
-// The viewBox is about as wide as the chart renders, so axis labels keep the UI size and the end labels fit.
-const TW = 960;
-const TH = 240;
-const PAD = { l: 48, r: 48, t: 16, b: 32 };
-const tx = (trend: TrendPoint[], i: number) => PAD.l + (trend.length > 1 ? (i / (trend.length - 1)) * (TW - PAD.l - PAD.r) : (TW - PAD.l - PAD.r) / 2);
-const ty = (v: number) => PAD.t + (1 - v / 100) * (TH - PAD.t - PAD.b);
-const line = (trend: TrendPoint[], key: 'tokenAdoption' | 'componentAdoption') =>
-  trend
-    .map((p, i) => (p[key] === null ? null : `${tx(trend, i)},${ty(p[key]!)}`))
-    .filter(Boolean)
-    .join(' ');
+const cats = categoryRows(r);
+const catMax = Math.max(1, ...cats.map((c) => c.hardcoded));
+const exactTotal = cats.reduce((a, c) => a + c.exact, 0);
 ---
 
 <Layout
-  title={current.report.label ?? current.id}
-  description={`Adoption audit report: ${current.report.label ?? current.id}, tokens and components, what is left to migrate.`}
+  title={title}
+  description={`Adoption of the design system in ${appLabel}: tokens and components, now and before the move to Bridge.`}
   sources={PAGE_SOURCES.adoption}
   updated={updated}
-  crumbs={[{ label: 'Quality', href: '/studio/quality/' }, { label: current.report.label ?? current.id }]}
+  crumbs={[{ label: 'Quality', href: '/studio/quality/' }, { label: title }]}
 >
-  <StudioHeader title={current.report.label ?? current.id} subtitle={`${appLabel}: what is left to move to the design system tokens and components.`} branch={false} />
-  {
-    siblings.length > 0 && (
-      <p class="ql-muted ql-siblings">
-        Other runs of {appLabel}:{' '}
-        {siblings.map((e, i) => (
-          <>
-            {i > 0 && ', '}
-            <a href={auditHref(e.id)}>{e.report.label ?? e.id}</a>
-          </>
-        ))}
-      </p>
-    )
-  }
-  <details class="ad-howto">
-    <summary>How adoption is measured</summary>
-    <p>
-      <strong>Token adoption</strong> is token usages divided by token usages plus hardcoded values (colors, lengths, radii, shadows, durations,
-      z-index, fonts). <strong>Component adoption</strong> is DS component instances divided by every UI component instance: DS components,
-      components from other UI libraries, native elements that should be DS components (<code>&lt;button&gt;</code>, <code>&lt;input&gt;</code>,
-      <code>&lt;select&gt;</code>, <code>&lt;dialog&gt;</code>, <code>&lt;table&gt;</code>, links, images), router links outside a DS component,
-      charts, and local components that re-create a DS component. Providers do not count.
-    </p>
-  </details>
+  <div class="ad-page">
+    <StudioHeader title={title} subtitle={summary} branch={false} />
 
+    <section class="ad-metrics" aria-label="Adoption">
+      {
+        metrics.map((m) => (
+          <div class="fg-card ad-metric">
+            <AdoptionMetric label={m.label} value={m.value} note={m.note}>
+              <span class="am-text">{m.text}</span>
+            </AdoptionMetric>
+          </div>
+        ))
+      }
+    </section>
 
-  {
-    entries.map((entry) => {
-      const r = entry.report;
-      const cats = categoryRows(r);
-      const catMax = Math.max(1, ...cats.map((c) => c.hardcoded));
-      const comps = componentBreakdown(r);
-      const gauges = [
-        {
-          key: 'tokens',
-          title: 'Token adoption',
-          pct: r.metrics.tokenAdoption,
-          sub: `${r.metrics.tokenUsages} token usages, ${r.metrics.hardcoded} hardcoded values`,
-          extra: r.metrics.themeRefs ? `${r.metrics.themeRefs} references to another theme (MUI theme, Tailwind scale), counted apart` : '',
-          delta: r.baseline?.tokenAdoption.delta,
-        },
-        {
-          key: 'components',
-          title: 'Component adoption',
-          pct: r.metrics.componentAdoption,
-          sub: `${r.metrics.dsComponentInstances} of ${r.metrics.uiComponentInstances} UI component instances`,
-          extra: '',
-          delta: r.baseline?.componentAdoption.delta,
-        },
-      ];
-      return (
-        <section class="ad-report" id={entry.id} aria-label="Adoption report">
-          <div class="ad-gauges">
-            {gauges.map((g) => (
-              <figure class={`ad-gauge is-${adoptionTone(g.pct)}`}>
-                <svg viewBox="0 0 140 140" role="img" aria-label={`${g.title}: ${formatPct(g.pct)}`}>
-                  <circle cx="70" cy="70" r={R} class="ad-ring-track" />
-                  <circle cx="70" cy="70" r={R} class="ad-ring" stroke-dasharray={arc(g.pct)} transform="rotate(-90 70 70)" />
-                  <text x="70" y="70" class="ad-ring-value" text-anchor="middle" dominant-baseline="central">
-                    {formatPct(g.pct)}
-                  </text>
-                </svg>
-                <figcaption>
-                  <h3>{g.title}</h3>
-                  <p class="num">{g.sub}</p>
-                  {g.extra && <p class="muted small">{g.extra}</p>}
-                  {g.delta !== undefined && g.delta !== null && (
-                    <p class={`pill ${g.delta >= 0 ? 'is-pass' : 'is-fail'}`}>
-                      {formatDelta(g.delta)} points since {r.baseline?.label ?? date(r.baseline!.generatedAt)}
-                    </p>
-                  )}
-                </figcaption>
-              </figure>
+    {
+      trend.length > 1 && (
+        <section class="ad-sec" aria-labelledby="ad-trend">
+          <div class="ad-sec-head">
+            <h2 id="ad-trend" class="ql-h">Over time</h2>
+            <span class="ad-keys" aria-hidden="true">
+              <span><span class="ad-key ad-tok" />Tokens</span>
+              <span><span class="ad-key ad-comp" />Components</span>
+            </span>
+          </div>
+          <figure class="fg-card ad-chart">
+            {charts.map(({ TW, TH, PAD, tx, ty, line, cls }) => (
+              <svg
+                class={cls}
+                viewBox={`0 0 ${TW} ${TH}`}
+                role="img"
+                aria-label={`${appLabel} adoption over ${trend.length} runs: ${trend.map((p, i) => `${labels[i]}, tokens ${formatPct(p.tokenAdoption)}, components ${formatPct(p.componentAdoption)}`).join('; ')}`}
+              >
+                {[0, 50, 100].map((v) => (
+                  <g>
+                    <line x1={PAD.l} x2={TW - PAD.r} y1={ty(v)} y2={ty(v)} class="ad-grid" />
+                    <text x={PAD.l - 10} y={ty(v)} class="ad-axis" text-anchor="end" dominant-baseline="central">{`${v}%`}</text>
+                  </g>
+                ))}
+                <polyline points={line('tokenAdoption')} class="ad-line ad-tok" />
+                <polyline points={line('componentAdoption')} class="ad-line ad-comp" />
+                {trend.map((p, i) => (
+                  <g>
+                    {p.tokenAdoption !== null && <circle cx={tx(i)} cy={ty(p.tokenAdoption)} r="5" class="ad-dot ad-tok" />}
+                    {p.componentAdoption !== null && <circle cx={tx(i)} cy={ty(p.componentAdoption)} r="5" class="ad-dot ad-comp" />}
+                    <text x={tx(i)} y={TH - 6} class="ad-axis" text-anchor={i === 0 ? 'start' : i === trend.length - 1 ? 'end' : 'middle'} dx={i === 0 ? -PAD.l / 2 : i === trend.length - 1 ? PAD.r / 2 : 0}>
+                      {labels[i]}
+                    </text>
+                  </g>
+                ))}
+              </svg>
             ))}
-          </div>
+          </figure>
+        </section>
+      )
+    }
 
-          {trends.map(({ id, title, points: trend }) => (
-            <section class="ad-trend" aria-labelledby={`trend-${id}-title`}>
-              <div class="section-head">
-                <div>
-                  <h2 id={`trend-${id}-title`}>Trend</h2>
-                  <p>{title}: adoption across runs, from each report and the baselines it was compared with.</p>
-                </div>
-              </div>
-              {trend.length < 2 ? (
-                <p class="process-empty">One run so far. The trend appears from the second run.</p>
-              ) : (
-                <figure class="ad-card ad-trend-chart">
-                  <ul class="legend legend-inline ad-legend" aria-hidden="true">
-                    <li><span class="ad-key ad-tok" />Token adoption</li>
-                    <li><span class="ad-key ad-comp" />Component adoption</li>
-                  </ul>
-                  <svg viewBox={`0 0 ${TW} ${TH}`} role="img" aria-label={`${title} adoption trend: ${trend.map((p) => `${p.label} tokens ${formatPct(p.tokenAdoption)}, components ${formatPct(p.componentAdoption)}`).join('; ')}`}>
-                    {[0, 50, 100].map((v) => (
-                      <g>
-                        <line x1={PAD.l} x2={TW - PAD.r} y1={ty(v)} y2={ty(v)} class="ad-grid" />
-                        <text x={PAD.l - 6} y={ty(v)} class="ad-axis" text-anchor="end" dominant-baseline="central">{`${v}%`}</text>
-                      </g>
-                    ))}
-                    <polyline points={line(trend, 'tokenAdoption')} class="ad-line ad-tok" />
-                    <polyline points={line(trend, 'componentAdoption')} class="ad-line ad-comp" />
-                    {trend.map((p, i) => (
-                      <g>
-                        {p.tokenAdoption !== null && <circle cx={tx(trend, i)} cy={ty(p.tokenAdoption)} r="4" class="ad-dot ad-tok" />}
-                        {p.componentAdoption !== null && <circle cx={tx(trend, i)} cy={ty(p.componentAdoption)} r="4" class="ad-dot ad-comp" />}
-                        <text x={tx(trend, i)} y={TH - 8} class="ad-axis" text-anchor="middle">{date(p.generatedAt)}</text>
-                      </g>
-                    ))}
-                  </svg>
-                  <figcaption>
-                    <TrendTable rows={trend.map((p) => ({ label: p.label, date: date(p.generatedAt), tokenAdoption: formatPct(p.tokenAdoption), componentAdoption: formatPct(p.componentAdoption), hardcoded: p.hardcoded }))} />
-                  </figcaption>
-                </figure>
-              )}
-            </section>
-          ))}
-
-          <div class="section-head">
-            <div>
-              <h2>Components</h2>
-              <p>Where the {comps.total} UI component instances come from.</p>
-            </div>
-          </div>
-          {comps.total > 0 && (
-            <div class="ad-split" role="img" aria-label={`DS ${comps.ds}, other libraries ${comps.foreign}, native elements ${comps.native}, re-created ${comps.recreated}`}>
-              {comps.ds > 0 && <span class="ad-seg ad-exact" style={`width: ${w(comps.ds, comps.total)}`} title={`DS ${comps.ds}`} />}
-              {comps.foreign > 0 && <span class="ad-seg ad-none" style={`width: ${w(comps.foreign, comps.total)}`} title={`Other libraries ${comps.foreign}`} />}
-              {comps.native > 0 && <span class="ad-seg ad-near" style={`width: ${w(comps.native, comps.total)}`} title={`Native ${comps.native}`} />}
-              {comps.recreated > 0 && <span class="ad-seg ad-recreated" style={`width: ${w(comps.recreated, comps.total)}`} title={`Re-created ${comps.recreated}`} />}
-            </div>
-          )}
-          <div class="ad-comp-grid">
-            <article class="ad-card">
-              <h3>
-                <span class="ad-key ad-exact" aria-hidden="true" />
-                Design system <span class="num muted">{comps.ds}</span>
-              </h3>
-              {comps.dsTop.length ? (
-                <ul class="ad-list">
-                  {comps.dsTop.map((x) => (
-                    <li>
-                      <code>{x.name}</code>
-                      <span class="num">{x.count}</span>
-                    </li>
+    {
+      comps.total > 0 && (
+        <section class="ad-sec" aria-labelledby="ad-sources">
+          <h2 id="ad-sources" class="ql-h">Where components come from</h2>
+          <details class="fg-card ql-more ad-src">
+            <summary class="ql-row ad-src-row">
+              <span class="ad-src-main">
+                <span class="ad-split" aria-hidden="true">
+                  {sources.map((s) => (
+                    <span class={`ad-seg ${SRC_CLASS[s.key]}`} style={`width: ${w(s.count, comps.total)}`} />
                   ))}
-                </ul>
-              ) : (
-                <p class="muted small">No DS component used yet.</p>
-              )}
-            </article>
-            {comps.libraries.map((l) => (
-              <article class="ad-card">
-                <h3>
-                  <span class="ad-key ad-none" aria-hidden="true" />
-                  <code>{l.name}</code> <span class="num muted">{l.instances}</span>
-                </h3>
-                <ul class="ad-list">
-                  {l.top.map((x) => (
-                    <li>
-                      <code>{x.name}</code>
-                      <span class="num">{x.count}</span>
-                    </li>
+                </span>
+                <span class="ad-keys">
+                  {sources.map((s) => (
+                    <span>
+                      <span class={`ad-key ${SRC_CLASS[s.key]}`} aria-hidden="true" />
+                      {s.label} <strong class="num">{s.count}</strong>
+                    </span>
                   ))}
-                </ul>
-              </article>
-            ))}
-            {comps.native > 0 && (
-              <article class="ad-card">
-                <h3>
-                  <span class="ad-key ad-near" aria-hidden="true" />
-                  Native elements <span class="num muted">{comps.native}</span>
-                </h3>
-                <ul class="ad-list">
-                  {comps.nativeTop.map((x) => (
-                    <li>
-                      <code>{`<${x.name}>`}</code>
-                      <span class="num">{x.count}</span>
-                    </li>
-                  ))}
-                </ul>
-              </article>
-            )}
-            {r.components.recreated.length > 0 && (
-              <article class="ad-card">
-                <h3>
-                  <span class="ad-key ad-recreated" aria-hidden="true" />
-                  Re-created <span class="num muted">{comps.recreated}</span>
-                </h3>
-                <p class="muted small">Local components named like a DS component.</p>
-                <ul class="ad-list">
-                  {r.components.recreated.slice(0, 8).map((x) => (
-                    <li>
-                      <span>
-                        <code>{x.name}</code>
-                      </span>
-                      <span class="num">{x.instances}</span>
-                    </li>
-                  ))}
-                </ul>
-              </article>
-            )}
-          </div>
-
-          <div class="section-head">
-            <div>
-              <h2>Hardcoded values by category</h2>
-              <p>Exact: the value equals a token, safe to replace. Near: a token is close (nearest color in OKLab, nearest scale step). None: no token fits, the value may need a new token or a design decision.</p>
-            </div>
-          </div>
-          {cats.length === 0 ? (
-            <p class="muted">No hardcoded value found.</p>
-          ) : (
-            <div class="table-wrap">
-              <ul class="legend legend-inline ad-legend" aria-hidden="true">
-                <li><span class="ad-key ad-exact" />Exact token</li>
-                <li><span class="ad-key ad-near" />Near token</li>
-                <li><span class="ad-key ad-none" />No token</li>
-              </ul>
-              <table class="ad-cats">
-                <caption class="sr-only">Hardcoded values per category, split by how well a token matches</caption>
-                <thead>
-                  <tr>
-                    <th scope="col">Category</th>
-                    <th scope="col" class="ad-bar-col">Share</th>
-                    <th scope="col" class="num">Hardcoded</th>
-                    <th scope="col" class="num">Exact</th>
-                    <th scope="col" class="num">Near</th>
-                    <th scope="col" class="num">None</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {cats.map((c) => (
-                    <tr>
-                      <th scope="row">{c.label}</th>
-                      <td class="ad-bar-col">
-                        <span class="ad-track" style={`width: ${w(c.hardcoded, catMax)}`}>
-                          {c.exact > 0 && <span class="ad-seg ad-exact" style={`width: ${w(c.exact, c.hardcoded)}`} />}
-                          {c.near > 0 && <span class="ad-seg ad-near" style={`width: ${w(c.near, c.hardcoded)}`} />}
-                          {c.none > 0 && <span class="ad-seg ad-none" style={`width: ${w(c.none, c.hardcoded)}`} />}
-                        </span>
-                      </td>
-                      <td class="num">{c.hardcoded}</td>
-                      <td class="num">{c.exact}</td>
-                      <td class="num">{c.near}</td>
-                      <td class="num">{c.none}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          <details class="ql-local ad-dev" id="for-developers">
-            <summary>For developers</summary>
-            <header class="ad-head">
-              <div>
-                <h2>What was scanned</h2>
-                <p class="muted small">
-                  <code>{r.target.path}</code>, {r.target.files} files scanned, run on {date(r.generatedAt)} with bridge {r.tool.version}. Design system:{' '}
-                  {r.designSystem.packages.map((p) => <code>{p}</code>)}, {r.designSystem.tokens} tokens, {r.designSystem.components} components.
-                </p>
-              </div>
-              <span class="muted small">
-                <code>{`${'src/data/audits/'}${entry.file}`}</code>
+                </span>
               </span>
-            </header>
-
-            <div class="section-head">
-              <div>
-                <h2>Top offending files</h2>
-                <p>Files with the most hardcoded values and non-DS components. Start the migration here.</p>
+              <span class="ql-detail ad-src-act">Show components</span>
+              <span class="ql-chev" aria-hidden="true"><Icon name="chevron" size={16} /></span>
+            </summary>
+            <div class="ql-more-body ad-src-body">
+              <div class="ad-col">
+                <h3><span class="ad-key ad-ds" aria-hidden="true" />Bridge</h3>
+                {comps.dsTop.length ? (
+                  <ul class="ad-list">
+                    {comps.dsTop.map((x) => (
+                      <li><code>{x.name}</code><span class="num">{x.count}</span></li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p class="ql-muted">No Bridge component yet.</p>
+                )}
               </div>
+              {comps.libraries.map((l) => (
+                <div class="ad-col">
+                  <h3><span class="ad-key ad-foreign" aria-hidden="true" /><code>{l.name}</code></h3>
+                  <ul class="ad-list">
+                    {l.top.map((x) => (
+                      <li><code>{x.name}</code><span class="num">{x.count}</span></li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+              {comps.native > 0 && (
+                <div class="ad-col">
+                  <h3><span class="ad-key ad-native" aria-hidden="true" />Plain HTML elements</h3>
+                  <ul class="ad-list">
+                    {comps.nativeTop.map((x) => (
+                      <li><code>{`<${x.name}>`}</code><span class="num">{x.count}</span></li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {r.components.recreated.length > 0 && (
+                <div class="ad-col">
+                  <h3><span class="ad-key ad-recreated" aria-hidden="true" />Look-alikes</h3>
+                  <ul class="ad-list">
+                    {r.components.recreated.slice(0, 8).map((x) => (
+                      <li><code>{x.name}</code><span class="num">{x.instances}</span></li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
-            {r.topFiles.length === 0 ? (
-              <p class="muted">Nothing to fix.</p>
-            ) : (
-              <TopFilesTable rows={r.topFiles.slice(0, 12)} />
-            )}
-
-            <div class="section-head">
-              <div>
-                <h2>Top fixes</h2>
-                <p>The most repeated literals and the token that replaces them. Exact matches in CSS files can be fixed with <code>bridge audit --fix</code>.</p>
-              </div>
-            </div>
-            {r.topFixes.length === 0 ? (
-              <p class="muted">No repeated literal.</p>
-            ) : (
-              <TopFixesTable rows={r.topFixes.slice(0, 15)} />
-            )}
-
-            {r.baseline && (
-              <p class="muted small">
-                Since {r.baseline.label ?? date(r.baseline.generatedAt)}: hardcoded values {r.baseline.hardcoded.before} to {r.baseline.hardcoded.after} ({formatDelta(r.baseline.hardcoded.delta)}),{' '}
-                {r.baseline.improved.length} files improved, {r.baseline.regressed.length} regressed, {r.baseline.newFiles.length} new.
-              </p>
-            )}
-            <p class="ql-muted">
-              Track progress with <code>bridge audit &lt;path&gt; --baseline previous.json --json next.json</code>, then commit the report under <code>src/data/audits/</code>.
-            </p>
           </details>
         </section>
-      );
-    })
-  }
+      )
+    }
 
+    <section class="ad-sec" aria-labelledby="ad-hardcoded">
+      <h2 id="ad-hardcoded" class="ql-h">Hard-coded values</h2>
+      {
+        cats.length === 0 ? (
+          <p class="ad-ok">
+            <Icon name="check" size={16} />
+            {hardcodedLine(0, 0, isBeforeRun)}
+          </p>
+        ) : (
+          <>
+            <p class="ql-muted ad-lead">{hardcodedLine(r.metrics.hardcoded, exactTotal, isBeforeRun)} How close each value is to a token is explained below.</p>
+            <div class="fg-card ad-cats-card">
+              <span class="ad-keys ad-cats-keys" aria-hidden="true">
+                <span><span class="ad-key ad-exact" />Exact token</span>
+                <span><span class="ad-key ad-near" />Near token</span>
+                <span><span class="ad-key ad-none" />No token</span>
+              </span>
+              <div class="table-wrap">
+                <table class="ad-cats">
+                  <caption class="sr-only">Hard-coded values per category, split by how well a token matches</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Category</th>
+                      <th scope="col" class="ad-bar-col">Share</th>
+                      <th scope="col" class="num">Values</th>
+                      <th scope="col" class="num">Exact</th>
+                      <th scope="col" class="num">Near</th>
+                      <th scope="col" class="num">None</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cats.map((c) => (
+                      <tr>
+                        <th scope="row">{c.label}</th>
+                        <td class="ad-bar-col">
+                          <span class="ad-track" style={`width: ${w(c.hardcoded, catMax)}`}>
+                            {c.exact > 0 && <span class="ad-seg ad-exact" style={`width: ${w(c.exact, c.hardcoded)}`} />}
+                            {c.near > 0 && <span class="ad-seg ad-near" style={`width: ${w(c.near, c.hardcoded)}`} />}
+                            {c.none > 0 && <span class="ad-seg ad-none" style={`width: ${w(c.none, c.hardcoded)}`} />}
+                          </span>
+                        </td>
+                        <td class="num">{c.hardcoded}</td>
+                        <td class="num">{c.exact}</td>
+                        <td class="num">{c.near}</td>
+                        <td class="num">{c.none}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
+        )
+      }
+    </section>
+
+    <ul class="fg-card ql-list ad-sec">
+      <li class="ql-row-wrap">
+        <details class="ql-more" id="how-measured">
+          <summary class="ql-row ad-fold-row">
+            <span class="ql-main">
+              <span class="ql-title">How adoption is measured</span>
+              <span class="ql-detail">{ADOPTION_MEANING}</span>
+            </span>
+            <span class="ql-chev" aria-hidden="true"><Icon name="chevron" size={16} /></span>
+          </summary>
+          <div class="ql-more-body ad-howto">
+            <p>
+              <strong>Tokens</strong>: token uses divided by token uses plus hard-coded values (colors, lengths, radii, shadows, durations, layers, fonts).
+            </p>
+            <p>
+              <strong>Components</strong>: Bridge components divided by every UI component in the product: Bridge components, components from other
+              libraries, plain HTML elements that should be Bridge components (buttons, inputs, selects, dialogs, tables, links, images), charts, and
+              local components that look like a Bridge component. Providers do not count.
+            </p>
+            <p>
+              <strong>Hard-coded values</strong>: exact means the value equals a token, safe to replace. Near means a token is close (the nearest color
+              as the eye sees it, the nearest step of a scale). None means no token fits: the value may need a new token or a design decision.
+            </p>
+          </div>
+        </details>
+      </li>
+    </ul>
+
+    <details class="ql-local ad-dev" id="for-developers">
+      <summary>For developers</summary>
+      <div class="ad-dev-body">
+        {
+          siblings.length > 0 && (
+            <p class="ql-muted">
+              Compare with other runs of {appLabel}:{' '}
+              {siblings.map((e, i) => (
+                <>
+                  {i > 0 && ', '}
+                  <a href={auditHref(e.id)}>{e.report.label ?? e.id}</a> ({shortDate(e.report.generatedAt)})
+                </>
+              ))}
+              .
+            </p>
+          )
+        }
+        {
+          trend.length > 1 && (
+            <div class="ad-scroll"><TrendTable rows={trend.map((p) => ({ label: p.label, date: p.generatedAt.slice(0, 10), tokenAdoption: formatPct(p.tokenAdoption), componentAdoption: formatPct(p.componentAdoption), hardcoded: p.hardcoded }))} /></div>
+          )
+        }
+        <h3 class="ql-h">What was scanned</h3>
+        <p class="ql-muted">
+          Run label <code>{r.label ?? current.id}</code>: <code>{r.target.path}</code>, {r.target.files} files, run on {r.generatedAt.slice(0, 10)} with bridge {r.tool.version}.
+          Design system: {r.designSystem.packages.map((p, i) => <>{i > 0 && ', '}<code>{p}</code></>)}, {r.designSystem.tokens} tokens, {r.designSystem.components} components.
+          {r.metrics.themeRefs > 0 && ` ${r.metrics.themeRefs} references to another theme (MUI theme, Tailwind scale) are counted apart.`} Report: <code>{`src/data/audits/${current.file}`}</code>.
+        </p>
+        {
+          r.baseline && (
+            <p class="ql-muted">
+              Since <code>{r.baseline.label ?? r.baseline.generatedAt.slice(0, 10)}</code>: hard-coded values {r.baseline.hardcoded.before} to {r.baseline.hardcoded.after} ({formatDelta(r.baseline.hardcoded.delta)}),{' '}
+              {r.baseline.improved.length} files improved, {r.baseline.regressed.length} regressed, {r.baseline.newFiles.length} new.
+            </p>
+          )
+        }
+        <h3 class="ql-h">Top offending files</h3>
+        {r.topFiles.length === 0 ? <p class="ql-muted">Nothing to fix.</p> : <div class="ad-scroll"><TopFilesTable rows={r.topFiles.slice(0, 12)} /></div>}
+        <h3 class="ql-h">Top fixes</h3>
+        <p class="ql-muted">The most repeated literals and the token that replaces them. Exact matches in CSS files can be fixed with <code>bridge audit --fix</code>.</p>
+        {r.topFixes.length === 0 ? <p class="ql-muted">No repeated literal.</p> : <div class="ad-scroll"><TopFixesTable rows={r.topFixes.slice(0, 15)} /></div>}
+        <pre class="ql-cmd"><code>bridge audit &lt;path&gt; --baseline previous.json --json next.json   # then commit it under src/data/audits/</code></pre>
+      </div>
+    </details>
+  </div>
 </Layout>

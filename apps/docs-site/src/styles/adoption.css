@@ -1,166 +1,92 @@
-/* Adoption page: gauges, category bars, component split, trend. Design system tokens only. */
+/* Adoption: the AdoptionMetric block (Studio Quality rows and report pages) and the report page. Four sizes: the page
+   title (StudioHeader), h3 for the metric values, body for section titles, ui for everything else. Sections are
+   spaced on one step (space-8). Design system tokens only. */
 
-.ad-cmd {
-  max-width: 100%;
-  margin: 0;
-  overflow-x: auto;
+/* One metric: small label, the current value big, the baseline quiet. */
+.am {
+  display: grid;
+  gap: var(--space-0-5);
+  min-width: 0;
+  align-content: start;
 }
 
-.ad-picker {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2) var(--space-4);
-  margin: 0 0 var(--space-8);
+.am-label,
+.am-note {
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
 }
 
-.ad-picker ul {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
+.am-value {
+  color: var(--color-text-default);
+  font-family: var(--typography-h3-family);
+  font-size: var(--typography-h3-size);
+  font-weight: var(--typography-h3-weight);
+  line-height: var(--typography-h3-line-height);
 }
 
-.ad-picker a {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-1-5) var(--space-3);
-  border: var(--border-width-default) solid var(--color-border-default);
-  border-radius: var(--radius-pill);
-  background-color: var(--color-surface-default);
+.am-text {
+  margin-top: var(--space-1);
   color: var(--color-text-default);
   font-size: var(--typography-ui-size);
-  text-decoration: none;
+  line-height: var(--typography-ui-line-height);
 }
 
-.ad-picker a:hover {
-  border-color: var(--color-border-emphasis);
+/* Report page */
+
+.ad-page {
+  max-width: var(--studio-page-max);
 }
 
-.ad-report {
-  margin: 0 0 calc(var(--space-12) + var(--space-2));
-  padding-top: var(--space-4);
-  border-top: var(--border-width-default) solid var(--color-border-default);
+.ad-page .ad-sec {
+  margin-top: var(--space-8);
 }
 
-.ad-head {
+.ad-sec-head {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
-  gap: var(--space-2) var(--space-6);
-  margin-bottom: var(--space-6);
+  gap: var(--space-2) var(--space-5);
+  margin-bottom: var(--space-3);
 }
 
-.ad-head h2 {
-  margin: 0 0 var(--space-1);
-}
-
-.ad-head p {
+.ad-sec-head .ql-h {
   margin: 0;
 }
 
-.ad-head code {
-  overflow-wrap: anywhere;
-}
-
-/* Gauges */
-
-.ad-gauges {
+.ad-metrics {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--size-80)), 1fr));
   gap: var(--space-4);
-  margin-bottom: var(--space-8);
 }
 
-.ad-gauge.is-none {
-  --tone: var(--color-text-muted);
-}
-
-.ad-gauge {
-  display: flex;
-  align-items: center;
-  gap: var(--space-5);
-  margin: 0;
+.ad-metric {
   padding: var(--space-5);
-  border: var(--border-width-default) solid var(--color-border-default);
-  border-radius: var(--radius-container);
-  background-color: var(--color-surface-default);
-  box-shadow: var(--elevation-raised);
 }
 
-.ad-gauge svg {
-  width: calc(var(--size-40) - var(--size-6));
-  height: auto;
-  flex-shrink: 0;
+.ad-page .ad-lead {
+  margin-bottom: var(--space-3);
 }
 
-.ad-gauge h3 {
-  margin: 0 0 var(--space-1);
-  font-family: var(--font-family-sans);
-  font-size: var(--typography-body-size);
-}
-
-.ad-gauge p {
-  margin: 0 0 var(--space-2);
-  font-size: var(--typography-ui-size);
-}
-
-.ad-gauge figcaption {
-  min-width: 0;
-}
-
-/* The baseline label can be long ("react-admin demo, original MUI source"): let the delta pill wrap. */
-.ad-gauge .pill {
-  height: auto;
-  min-height: var(--size-6);
-  padding-block: var(--space-0-5);
-  white-space: normal;
-}
-
-.ad-ring-track {
-  fill: transparent;
-  stroke: var(--color-chart-track);
-  stroke-width: 14;
-}
-
-.ad-ring {
-  fill: transparent;
-  stroke: var(--tone);
-  stroke-linecap: round;
-  stroke-width: 14;
-}
-
-.ad-ring-value {
-  fill: var(--color-text-default);
-  font-family: var(--font-family-sans);
-  font-size: var(--typography-h3-size);
-  font-variant-numeric: tabular-nums;
-  font-weight: var(--font-weight-bold);
-}
-
-/* Keys and bars */
-
-.ad-legend {
+/* Legend keys, on one line with their counts. */
+.ad-keys {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2) var(--space-5);
-  margin: 0;
-  padding: var(--space-3) var(--space-4);
-  border-bottom: var(--border-width-default) solid var(--color-border-default);
+  gap: var(--space-1) var(--space-5);
   color: var(--color-text-muted);
   font-size: var(--typography-ui-size);
-  list-style: none;
+  line-height: var(--typography-ui-line-height);
 }
 
-.ad-legend li {
+.ad-keys > span {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1-5);
-  margin: 0;
+}
+
+.ad-keys strong {
+  color: var(--color-text-default);
 }
 
 .ad-key {
@@ -172,14 +98,18 @@
   background-color: var(--c);
 }
 
+/* Series colors: component sources, hard-coded matches, trend lines. */
+.ad-ds,
 .ad-exact {
   --c: var(--color-chart-series-3);
 }
 
+.ad-native,
 .ad-near {
   --c: var(--color-chart-series-4);
 }
 
+.ad-foreign,
 .ad-none {
   --c: var(--color-chart-series-1);
 }
@@ -196,14 +126,72 @@
   --c: var(--color-chart-series-1);
 }
 
-.ad-cats .ad-bar-col {
-  width: 40%;
-  min-width: calc(var(--size-64) / 2);
+/* Trend */
+
+.ad-chart {
+  margin: 0;
+  padding: var(--space-4) var(--space-5);
 }
 
-.ad-track {
+.ad-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.ad-chart .ad-chart-narrow,
+.ad-chart .ad-chart-xwide {
+  display: none;
+}
+
+@media (min-width: 1600px) {
+  .ad-chart .ad-chart-wide {
+    display: none;
+  }
+
+  .ad-chart .ad-chart-xwide {
+    display: block;
+  }
+}
+
+.ad-grid {
+  stroke: var(--color-chart-grid);
+  stroke-dasharray: 3 3;
+}
+
+.ad-axis {
+  fill: var(--color-chart-axis);
+  font-family: var(--typography-ui-family);
+  font-size: var(--typography-ui-size);
+}
+
+.ad-line {
+  fill: transparent;
+  stroke: var(--c);
+  stroke-width: 2.5;
+}
+
+.ad-dot {
+  fill: var(--color-surface-default);
+  stroke: var(--c);
+  stroke-width: 2.5;
+}
+
+/* Where components come from: the bar and its legend are the summary of a disclosure. */
+.ql-row.ad-src-row {
+  grid-template-columns: minmax(0, 1fr) auto var(--size-6);
+  padding-block: var(--space-4);
+}
+
+.ad-src-main {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.ad-split {
   display: flex;
-  height: calc(var(--space-3) + var(--space-0-5));
+  height: var(--size-3);
   overflow: hidden;
   border-radius: var(--radius-pill);
   background-color: var(--color-chart-track);
@@ -215,43 +203,19 @@
   background-color: var(--c);
 }
 
-.ad-split {
-  display: flex;
-  height: var(--size-4);
-  margin-bottom: var(--space-4);
-  overflow: hidden;
-  border-radius: var(--radius-pill);
-  background-color: var(--color-chart-track);
+.ad-src-body {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--size-40)), 1fr));
+  gap: var(--space-5);
 }
 
-/* Component cards */
-
-.ad-comp-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, calc(var(--size-60) - var(--space-4))), 1fr));
-  gap: var(--space-4);
-  margin-bottom: var(--space-8);
-}
-
-.ad-card {
-  margin: 0;
-  padding: var(--space-4) var(--space-5);
-  border: var(--border-width-default) solid var(--color-border-default);
-  border-radius: var(--radius-container);
-  background-color: var(--color-surface-default);
-  box-shadow: var(--elevation-raised);
-}
-
-.ad-card h3 {
+.ad-col h3 {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  margin: 0 0 var(--space-3);
+  margin: 0 0 var(--space-2);
+  font-family: var(--typography-ui-family);
   font-size: var(--typography-ui-size);
-}
-
-.ad-card h3 code {
-  overflow-wrap: anywhere;
+  font-weight: var(--font-weight-semibold);
 }
 
 .ad-list {
@@ -270,79 +234,108 @@
   margin: 0;
 }
 
-.ad-path code {
+.ad-col code,
+.ad-list code {
+  font-size: var(--typography-ui-size);
   overflow-wrap: anywhere;
 }
 
-/* Trend */
+/* Hard-coded values */
 
-.ad-trend-chart svg {
-  display: block;
-  width: 100%;
-  height: auto;
-  margin: var(--space-4) 0;
+.ad-ok {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-text-default);
+  font-size: var(--typography-ui-size);
 }
 
-.ad-trend-chart .ad-legend {
-  padding: 0;
-  border-bottom: 0;
+.ad-ok .icon {
+  color: var(--color-feedback-success-text);
 }
 
-.ad-trend-chart .table-wrap {
-  margin-bottom: 0;
+.ad-cats-card {
+  overflow: hidden;
+}
+
+.ad-cats-keys {
+  padding: var(--space-3) var(--space-5);
+  border-bottom: var(--border-width-default) solid var(--color-border-default);
+}
+
+.ad-cats-card .table-wrap {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
   box-shadow: none;
 }
 
-.ad-grid {
-  stroke: var(--color-chart-grid);
-  stroke-dasharray: 3 3;
+.ad-cats .ad-bar-col {
+  width: 40%;
+  min-width: calc(var(--size-64) / 2);
 }
 
-.ad-axis {
-  fill: var(--color-chart-axis);
-  font-size: var(--typography-ui-size);
+.ad-track {
+  display: flex;
+  height: var(--size-3);
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-chart-track);
 }
 
-.ad-line {
-  fill: transparent;
-  stroke: var(--c);
-  stroke-width: 2.5;
-}
+/* How adoption is measured, For developers */
 
-.ad-dot {
-  fill: var(--color-surface-default);
-  stroke: var(--c);
-  stroke-width: 2.5;
-}
-
-@media (max-width: 640px) {
-  .ad-gauge {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-}
-
-/* Studio density: card titles in UI type, the measuring rules folded under the header. */
-.ad-head h2 {
-  font-family: var(--font-family-sans);
-  font-size: var(--typography-ui-size);
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: var(--font-tracking-snug);
-  line-height: var(--font-line-height-snug);
-}
-
-.ad-howto {
-  margin: calc(var(--space-2) * -1) 0 var(--space-5);
-  color: var(--color-text-muted);
-  font-size: var(--typography-ui-size);
-}
-
-.ad-howto summary {
-  width: fit-content;
-  cursor: pointer;
+.ql-row.ad-fold-row {
+  grid-template-columns: minmax(0, 1fr) var(--size-6);
 }
 
 .ad-howto p {
   max-width: 80ch;
-  margin: var(--space-2) 0 0;
+  margin: 0;
+}
+
+.ad-dev-body {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.ad-dev-body .ql-h {
+  margin: var(--space-3) 0 0;
+}
+
+.ad-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.ad-scroll code {
+  white-space: nowrap;
+}
+
+.ad-dev-body p code {
+  overflow-wrap: anywhere;
+}
+
+.ad-page .ad-dev {
+  margin-top: var(--space-8);
+}
+
+@media (max-width: 760px) {
+  .ad-src-act {
+    display: none;
+  }
+
+  .ad-metric {
+    padding: var(--space-4);
+  }
+
+  .ad-chart .ad-chart-wide {
+    display: none;
+  }
+
+  .ad-chart .ad-chart-narrow {
+    display: block;
+  }
 }
