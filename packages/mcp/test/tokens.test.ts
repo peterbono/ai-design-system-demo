@@ -9,6 +9,13 @@ import { REPO } from './helpers.js';
 let ctx: BridgeContext;
 const RESOLVED = join(REPO, 'packages/tokens/dist/resolved.json');
 
+// Expectations come from the live sources (token files, the token build), never from hard-coded current values:
+// a designer may change any token in Studio.
+const srcValue = (file: string, path: string) =>
+  path.split('.').reduce((o: any, k) => o[k], JSON.parse(readFileSync(join(REPO, 'packages/tokens/src', file), 'utf8'))).$value as string;
+const built = () => JSON.parse(readFileSync(RESOLVED, 'utf8')) as { values: Record<string, Record<string, Record<string, string>>> };
+const unbrace = (v: string) => v.replace(/^\{|\}$/g, '');
+
 beforeAll(async () => {
   if (!existsSync(RESOLVED)) execFileSync('node', ['build.mjs'], { cwd: join(REPO, 'packages/tokens'), stdio: 'pipe' });
   ctx = await BridgeContext.create({ root: REPO });
@@ -74,8 +81,8 @@ describe('real repo tokens', () => {
     expect(comp.tokens.every((t) => t.tier === 'component')).toBe(true);
     const dark = await ops.listTokens(ctx, { prefix: 'color.text', type: 'color', mode: { theme: 'dark' } });
     const muted = dark.tokens.find((t) => t.path === 'color.text.muted');
-    expect(muted?.value).toBe('#a0aab5');
-    expect(muted?.alias).toBe('{palette.neutral.400}');
+    expect(muted?.value).toBe(built().values.bridge!.dark!['color.text.muted']);
+    expect(muted?.alias).toBe(srcValue('semantic/dark.tokens.json', 'color.text.muted'));
     const page = await ops.listTokens(ctx, { limit: 10, offset: 10 });
     expect(page.tokens).toHaveLength(10);
     expect(page.next).toBe('offset 20');
@@ -86,8 +93,13 @@ describe('real repo tokens', () => {
     const t = await ops.getToken(ctx, { path: 'var(--color-text-muted)' });
     expect(t.path).toBe('color.text.muted');
     expect(t.tier).toBe('semantic');
-    expect(t.values).toHaveLength(4);
-    expect(t.values[0]!.chain).toEqual(['color.text.muted', 'palette.neutral.600', 'color.ink.600']);
+    // Values collapse where modes agree: every combination is covered, whatever the live values are.
+    expect(new Set(t.values.flatMap((v) => v.modes)).size).toBe(8);
+    const bridgeLight = t.values.find((v) => v.modes.includes('brand=bridge,theme=light,density=comfortable'))!;
+    const role = unbrace(srcValue('semantic/light.tokens.json', 'color.text.muted'));
+    expect(bridgeLight.chain.slice(0, 2)).toEqual(['color.text.muted', role]);
+    if (role.startsWith('palette.')) expect(bridgeLight.chain[2]).toBe(unbrace(srcValue('brands/bridge.tokens.json', role)));
+    expect(bridgeLight.value).toBe(built().values.bridge!.light!['color.text.muted']);
     expect(t.definedIn.map((d) => d.file)).toContain('packages/tokens/src/semantic/dark.tokens.json');
     expect(t.referencedBy.length).toBeGreaterThan(0);
     expect(t.usedIn.length).toBeGreaterThan(0);
@@ -101,7 +113,7 @@ describe('real repo tokens', () => {
     expect(words.results[0]!.path).toMatch(/^focus\.ring\./);
     const v = await ops.searchTokens(ctx, { query: '--color-text-muted' });
     expect(v.results[0]!.path).toBe('color.text.muted');
-    const hex = await ops.searchTokens(ctx, { query: '#5b6672', type: 'color' });
+    const hex = await ops.searchTokens(ctx, { query: built().values.bridge!.light!['color.text.muted']!, type: 'color' });
     expect(hex.results.map((r) => r.path)).toContain('color.text.muted');
   });
 });

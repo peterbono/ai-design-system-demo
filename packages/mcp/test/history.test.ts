@@ -11,20 +11,26 @@ const LIGHT = 'packages/tokens/src/semantic/light.tokens.json';
 let dir: string;
 let ctx: BridgeContext;
 
-function commitMuted(from: string, to: string, message: string, date: string) {
+/** Set light color.text.muted to `to`, whatever it is now. */
+function setMuted(to: string) {
   const f = join(dir, LIGHT);
   const text = readFileSync(f, 'utf8');
   const i = text.indexOf('"muted"', text.indexOf('"text"'));
-  writeFileSync(f, text.slice(0, i) + text.slice(i).replace(from, to));
+  writeFileSync(f, text.slice(0, i) + text.slice(i).replace(/"\$value": "[^"]*"/, `"$value": "${to}"`));
+}
+
+function commitMuted(to: string, message: string, date: string) {
+  setMuted(to);
   execFileSync('git', ['commit', '-q', '-am', message], { cwd: dir, env: { ...process.env, GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date } });
 }
 
 beforeAll(async () => {
   dir = tempGitRepo(REPO, REAL_PATHS);
   const old = '2026-09-01T10:00:00Z';
+  // tempGitRepo starts muted text at the PINNED 600, so the history below is a real change whatever main says.
   execFileSync('git', ['commit', '-q', '--amend', '--no-edit', `--date=${old}`], { cwd: dir, env: { ...process.env, GIT_COMMITTER_DATE: old } });
-  commitMuted('{palette.neutral.600}', '{palette.neutral.700}', 'feat(tokens): darken muted text (#3)', '2026-10-01T10:00:00Z');
-  commitMuted('{palette.neutral.700}', '{palette.neutral.800}', 'fix(tokens): muted text even darker (#7)', '2026-10-02T10:00:00Z');
+  commitMuted('{palette.neutral.700}', 'feat(tokens): darken muted text (#3)', '2026-10-01T10:00:00Z');
+  commitMuted('{palette.neutral.800}', 'fix(tokens): muted text even darker (#7)', '2026-10-02T10:00:00Z');
   ctx = await BridgeContext.create({ root: dir });
 });
 

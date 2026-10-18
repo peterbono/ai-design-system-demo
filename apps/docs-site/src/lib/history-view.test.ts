@@ -1,10 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { LayeredTokenSet, composeProposalBody, demoHistory, planRevert } from '@bridge-ds/core';
+import { LayeredTokenSet, applyTokenEdits, composeProposalBody, demoHistory, planRevert } from '@bridge-ds/core';
 import { authorsOf, countsLabel, demoBeforeFiles, humanAuthored, laterThan, realSummary, viewTimeline } from './history-view';
 import { currentTokenFiles, siteConfig } from './history';
 
 const config = siteConfig();
-const files = currentTokenFiles(config);
+// The demo is built backwards from the current files, and a step whose "before" equals today's value drops out.
+// Pin the three values the demo steps touch, so a designer editing them in Studio never breaks these tests.
+const files = Object.fromEntries(
+  applyTokenEdits(new LayeredTokenSet(config, new Map(Object.entries(currentTokenFiles(config)))), [
+    { op: 'set', path: 'color.text.muted', file: 'semantic/light.tokens.json', value: '{palette.neutral.600}' },
+    { op: 'set', path: 'button.radius', file: 'components/button.tokens.json', value: '{radius.control}' },
+    { op: 'set', path: 'alert.radius', file: 'components/feedback.tokens.json', description: 'Inline alerts are containers.' },
+  ]).files,
+);
 const demo = demoHistory(config, new Map(Object.entries(files)));
 const muted = (f: Record<string, string>) => new LayeredTokenSet(config, new Map(Object.entries(f))).defs.find((d) => d.path === 'color.text.muted' && d.file === 'semantic/light.tokens.json')!.value;
 

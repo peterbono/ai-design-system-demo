@@ -40,6 +40,9 @@ export function historyFixture(): Fixture {
   };
   const config = realConfig();
   let files = new Map(Object.entries(realFiles()));
+  // Pin the fixture's starting value: the real one may change in Studio at any time, and the history below
+  // (600 -> 700 -> 800) must stay a real change whatever main says today.
+  files = applyTokenEdits(new LayeredTokenSet(config, files), [{ op: 'set', path: 'color.text.muted', value: '{palette.neutral.600}', file: LIGHT }]).files;
   const writeTokens = () => {
     for (const [f, text] of files) write(`${ROOT}/${f}`, text);
   };

@@ -10,6 +10,19 @@ import { fixCss, loadDesignSystem, runAudit } from '../src/node/audit';
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '../../..');
 const FIX = join(dirname(fileURLToPath(import.meta.url)), 'fixtures/audit');
 const ds = () => loadDesignSystem(REPO).index;
+/**
+ * A real token's value in the default mode. Tests read the live tokens, which a designer may change in Studio:
+ * literals that must match a token come from here, never from a hard-coded copy of today's value.
+ */
+const live = (path: string) => {
+  const { set } = loadDesignSystem(REPO);
+  return set.resolve(path, set.defaultCombo).css;
+};
+/** The same color moved by 2/255 on each channel: a near miss, never an exact match. */
+const nudge = (hex: string) =>
+  '#' + [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).map((c) => (c > 250 ? c - 2 : c + 2).toString(16).padStart(2, '0')).join('');
+// Token families that fit a text color (the audit prefers these for `color`).
+const TEXT_FAMILY = /(^|\.)(text|fg|icon|foreground|link)(\.|-|$)/;
 const audit = (app: string) => runAudit(join(FIX, app), { ds: REPO, displayPath: app, label: app });
 const tmp: string[] = [];
 afterAll(() => tmp.forEach((d) => rmSync(d, { recursive: true, force: true })));
@@ -66,21 +79,25 @@ describe('declarations', () => {
 describe('suggestions', () => {
   test('exact token values, nearest by deltaE across modes, nearest scale step', () => {
     const i = ds();
-    const exact = i.suggest('color', '#15202b', 'color')!;
+    const text = live('color.text.default');
+    const exact = i.suggest('color', text, 'color')!;
     assert.equal(exact.level, 'exact');
-    assert.equal(exact.token, 'color.text.default', 'semantic text token for a text color');
-    const near = i.suggest('color', '#18232f', 'color')!;
+    assert.equal(exact.value.toLowerCase(), text.toLowerCase());
+    // Several text tokens may share the value: any semantic text token is the right answer.
+    assert.match(exact.token, TEXT_FAMILY, 'semantic text token for a text color');
+    const near = i.suggest('color', nudge(text), 'color')!;
     assert.equal(near.level, 'high');
     assert.ok(near.distance > 0 && near.distance < 2);
-    assert.match(i.suggest('color', '#15202b', 'background-color')!.token, /(bg|surface|solid|primary\.bg)/, 'a background token for a background');
-    assert.deepEqual([i.suggest('spacing', '16px')!.token, i.suggest('spacing', '16px')!.level], ['space.4', 'exact']);
-    const step = i.suggest('spacing', '13px')!;
+    assert.match(i.suggest('color', text, 'background-color')!.token, /(bg|surface|solid|primary\.bg)/, 'a background token for a background');
+    const space4 = live('space.4');
+    assert.deepEqual([i.suggest('spacing', space4)!.token, i.suggest('spacing', space4)!.level], ['space.4', 'exact']);
+    const step = i.suggest('spacing', `${parseFloat(live('space.3')) + 1}px`)!;
     assert.equal(step.token, 'space.3');
     assert.notEqual(step.level, 'exact');
-    assert.equal(i.suggest('radius', '10px')!.level, 'exact');
-    assert.equal(i.suggest('z-index', '1000')!.token, 'layer.dropdown', 'the semantic layer over the z scale');
-    assert.equal(i.suggest('duration', '150ms')!.level, 'exact');
-    assert.equal(i.suggest('font-weight', '600')!.level, 'exact');
+    assert.equal(i.suggest('radius', live('radius.lg'))!.level, 'exact');
+    assert.equal(i.suggest('z-index', live('layer.dropdown'))!.token, 'layer.dropdown', 'the semantic layer over the z scale');
+    assert.equal(i.suggest('duration', live('motion.duration.fast'))!.level, 'exact');
+    assert.equal(i.suggest('font-weight', live('font.weight.semibold'))!.level, 'exact');
   });
 
   test('a dark theme color matches a semantic token in the dark mode, not only a primitive', () => {
@@ -110,11 +127,14 @@ describe('bridge audit on fixtures', () => {
     assert.equal(r.components.foreign['@mui/icons-material'], undefined, 'icons are not UI components');
     const app = r.files.find((f) => f.path === 'src/App.tsx')!;
     const byValue = (v: string) => app.findings.find((f) => f.value === v);
-    assert.deepEqual([byValue('#15202b')!.source, byValue('#15202b')!.line, byValue('#15202b')!.suggestion!.token], ['sx', 18, 'color.text.default']);
+    // The fixture's literals are fixed and the tokens are live: expect what the index suggests for them today.
+    const i = ds();
+    assert.deepEqual([byValue('#15202b')!.source, byValue('#15202b')!.line, byValue('#15202b')!.suggestion!.token], ['sx', 18, i.suggest('color', '#15202b', 'color')!.token]);
     assert.equal(byValue('13px')!.category, 'spacing');
     assert.equal(byValue('16')!.source, 'styled');
     assert.equal(byValue('red')!.source, 'style');
-    assert.equal(byValue('1200')!.suggestion!.token, 'layer.modal');
+    assert.equal(byValue('1200')!.suggestion!.token, i.suggest('z-index', '1200')!.token);
+    assert.match(byValue('1200')!.suggestion!.token, /^layer\./, 'the semantic layer over the z scale');
     assert.ok(!app.findings.some((f) => f.value === '2'), 'sx p: 2 is a theme spacing unit, not a hardcoded value');
     assert.equal(app.components.find((c) => c.name === 'TextField')!.suggestion, 'Input');
     assert.equal(app.components.filter((c) => c.name === 'Card').length, 2, 'styled(Card) renders a MUI Card');
@@ -123,7 +143,10 @@ describe('bridge audit on fixtures', () => {
     assert.deepEqual(theme.findings.map((f) => f.category).sort(), ['color', 'color', 'font-family', 'radius']);
     const css = r.files.find((f) => f.path === 'src/styles.css')!;
     assert.equal(css.tokenUsages, 2);
-    assert.deepEqual(css.findings.filter((f) => f.autofix).map((f) => f.value), ['#15202b', '16px', '12px', '150ms', '1000']);
+    // Autofix marks exactly the literals the CSS fixer would replace with the live tokens.
+    const planned = planCssFixes(readFileSync(join(FIX, 'mui-app/src/styles.css'), 'utf8'), 'css', i).edits.map((e) => e.from);
+    assert.ok(planned.length > 0);
+    assert.deepEqual(css.findings.filter((f) => f.autofix).map((f) => f.value), planned);
     assert.match(auditMarkdown(r), /Token adoption \| \*\*\d/);
   });
 
@@ -132,7 +155,8 @@ describe('bridge audit on fixtures', () => {
     const page = r.files.find((f) => f.path === 'app/page.tsx')!;
     const vals = page.findings.map((f) => f.value);
     for (const v of ['bg-[#15202b]', 'text-[13px]', 'p-[13px]', 'rounded-[10px]', 'shadow-[0_1px_2px_rgba(0,0,0,0.2)]', 'z-[1300]', 'border-[#dce3eb]', 'bg-gray-100']) assert.ok(vals.includes(v), v);
-    assert.equal(page.findings.find((f) => f.value === 'bg-[#15202b]')!.suggestion!.level, 'exact');
+    // Arbitrary values keep the index's full confidence; only palette classes are capped.
+    assert.equal(page.findings.find((f) => f.value === 'bg-[#15202b]')!.suggestion!.level, ds().suggest('color', '#15202b')!.level);
     assert.equal(page.findings.find((f) => f.value === 'bg-gray-100')!.suggestion!.level !== 'exact', true, 'palette classes are capped below exact');
     assert.equal(page.tokenUsages, 2);
     assert.ok(page.themeRefs >= 1);
@@ -170,10 +194,17 @@ describe('bridge audit on fixtures', () => {
 
 describe('autofix', () => {
   test('replaces exact token matches in CSS only, keeps everything else byte for byte', () => {
-    const src = readFileSync(join(FIX, 'mui-app/src/styles.css'), 'utf8');
+    // The same shape as the mui-app fixture, written with today's token values so every literal has an exact match.
+    const text = live('color.text.default');
+    const [space4, radius, fast, dropdown] = ['space.4', 'radius.control', 'motion.duration.fast', 'layer.dropdown'].map(live) as [string, string, string, string];
+    const step = `${parseFloat(live('space.3')) + 1}px`;
+    const src = ['/* Page chrome */', '.header {', `  color: ${text};`, `  padding: ${space4} ${step};`, `  border-radius: ${radius};`, '  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);', `  transition: color ${fast} ease;`, `  z-index: ${dropdown};`, '  font-family: var(--font-family-sans);', '}', ''].join('\n');
+    const textFix = ds().suggest('color', text, 'color')!;
+    assert.equal(textFix.level, 'exact');
+    assert.match(textFix.token, TEXT_FAMILY);
     const { edits, output } = planCssFixes(src, 'css', ds());
-    assert.deepEqual(edits.map((e) => `${e.line}:${e.from}->${e.to}`), ['3:#15202b->var(--color-text-default)', '4:16px->var(--space-4)', '5:12px->var(--radius-control)', '7:150ms->var(--motion-duration-fast)', '8:1000->var(--layer-dropdown)']);
-    assert.match(output, /padding: var\(--space-4\) 13px;/);
+    assert.deepEqual(edits.map((e) => `${e.line}:${e.from}->${e.to}`), [`3:${text}->var(${textFix.cssVar})`, `4:${space4}->var(--space-4)`, `5:${radius}->var(--radius-control)`, `7:${fast}->var(--motion-duration-fast)`, `8:${dropdown}->var(--layer-dropdown)`]);
+    assert.ok(output.includes(`padding: var(--space-4) ${step};`), output);
     assert.match(output, /box-shadow: 0 1px 2px rgba\(0, 0, 0, 0.2\);/);
     assert.equal(output.replace(/var\(--[\w-]+\)/g, 'X').split('\n').length, src.split('\n').length);
     const again = planCssFixes(output, 'css', ds());
@@ -184,17 +215,24 @@ describe('autofix', () => {
     const dir = mkdtempSync(join(tmpdir(), 'bridge-audit-'));
     tmp.push(dir);
     cpSync(join(FIX, 'mui-app'), dir, { recursive: true });
+    const src = readFileSync(join(FIX, 'mui-app/src/styles.css'), 'utf8');
+    // How many literals match a token exactly depends on the live tokens: compare with the planner.
+    const plan = planCssFixes(src, 'css', ds());
+    assert.ok(plan.edits.length > 0);
     const dry = fixCss(dir, ds(), false);
-    assert.equal(dry[0]!.edits.length, 5);
-    assert.equal(readFileSync(join(dir, 'src/styles.css'), 'utf8'), readFileSync(join(FIX, 'mui-app/src/styles.css'), 'utf8'));
+    assert.equal(dry[0]!.edits.length, plan.edits.length);
+    assert.equal(readFileSync(join(dir, 'src/styles.css'), 'utf8'), src);
     fixCss(dir, ds(), true);
-    assert.match(readFileSync(join(dir, 'src/styles.css'), 'utf8'), /var\(--layer-dropdown\)/);
+    assert.equal(readFileSync(join(dir, 'src/styles.css'), 'utf8'), plan.output);
     assert.equal(fixCss(dir, ds(), false).length, 0);
   });
 
   test('a single file can be audited on its own', () => {
-    const f = auditFile('x.tsx', 'export const A = () => <div style={{ color: "#15202b" }} />;', ds());
-    assert.equal(f.findings[0]!.suggestion!.token, 'color.text.default');
+    const text = live('color.text.default');
+    const f = auditFile('x.tsx', `export const A = () => <div style={{ color: "${text}" }} />;`, ds());
+    assert.equal(f.findings[0]!.suggestion!.token, ds().suggest('color', text, 'color')!.token);
+    assert.equal(f.findings[0]!.suggestion!.level, 'exact');
+    assert.match(f.findings[0]!.suggestion!.token, TEXT_FAMILY);
   });
 });
 

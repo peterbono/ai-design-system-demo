@@ -67,7 +67,10 @@ describe('bridge_propose_token_change (local)', () => {
     expect(p.bump).toBe('minor');
     expect(p.files).toEqual([LIGHT, '.changeset/bridge-darken-muted-text.md']);
     expect(p.prBody).toContain('- [x] Tier 3');
-    expect(p.prBody).toContain('| `color.text.muted` | value | `#5b6672` (');
+    // The before value is the resolved muted text of the copy (PINNED alias, live primitive), not a hard-coded hex.
+    const set = await ctx.tokens();
+    const before = set.resolve('color.text.muted', { brand: 'bridge', theme: 'light', density: 'comfortable' }).css;
+    expect(p.prBody).toContain(`| \`color.text.muted\` | value | \`${before}\` (`);
     expect(p.prBody).toContain('## Contrast before and after');
     expect(p.prBody).not.toMatch(/\u2014/);
     expect(git(dir, 'branch', '--list', 'bridge/*').trim()).toBe('');

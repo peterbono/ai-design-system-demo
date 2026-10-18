@@ -64,7 +64,8 @@ describe('alias labels and code syntax', () => {
     expect(cssText('cubicBezier', [0.2, 0, 0, 1])).toBe('cubic-bezier(0.2, 0, 0, 1)');
     expect(cssText('color', { colorSpace: 'srgb', components: [0, 0, 0], alpha: 0.5, hex: '#000000' })).toBe('rgb(0 0 0 / 0.5)');
     expect(valueLine('color', { colorSpace: 'srgb', components: [0, 0, 0], alpha: 0.5, hex: '#000000' })).toBe('#000000 50%');
-    expect(cssText('shadow', set.byPath.get('shadow.1')!.values.value)).toMatch(/^0px 1px 2px 0px rgb\(13 24 37 \/ 0\.06\), /);
+    // Shape, not the live shadow values: offsets in px, then an rgb() color with alpha, layers comma separated.
+    expect(cssText('shadow', set.byPath.get('shadow.1')!.values.value)).toMatch(/^-?\d+(\.\d+)?px -?\d+(\.\d+)?px \d+(\.\d+)?px -?\d+(\.\d+)?px rgb\(\d+ \d+ \d+ \/ [\d.]+\), /);
   });
 
   it('files tokens under a type category and spots foregrounds', () => {
@@ -155,7 +156,7 @@ describe('mode columns', () => {
 describe('cells', () => {
   it('shows the alias, the resolved value and brand overrides', () => {
     const light = cellValue(set, 'color.text.muted', { brand: 'bridge', theme: 'light', density: 'comfortable' });
-    expect(light.alias).toMatch(/^palette\.neutral\./);
+    expect(light.alias).toMatch(/^palette\./);
     expect(light.hex).toMatch(/^#[0-9a-f]{6}$/);
     expect(light.chain[0]).toBe('color.text.muted');
     const o = set.overrides[0]!;
@@ -210,7 +211,9 @@ describe('token flow', () => {
     const deps = directDependents(set, 'color.text.muted');
     expect(deps.length).toBeGreaterThan(0);
     expect(deps.every((d) => set.byPath.get(d.path)!.tier === 'component')).toBe(true);
-    const all = transitiveDependents(set, 'palette.neutral.600');
+    // Whichever palette role muted text aliases today lists it downstream.
+    const role = cellValue(set, 'color.text.muted', { brand: 'bridge', theme: 'light', density: 'comfortable' }).alias!;
+    const all = transitiveDependents(set, role);
     expect(all).toContain('color.text.muted');
     const comps = componentsUsing('color.text.muted', transitiveDependents(set, 'color.text.muted'), usage);
     expect(comps.map((c) => c.name)).toContain('Field');

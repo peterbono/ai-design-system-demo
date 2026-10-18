@@ -10,7 +10,7 @@ import { classifyLayered, contrastDelta, diffLayered, layeredImpact, runLayeredC
 import { applyTokenEdits, coerceValue } from '../src/token-edits';
 import { parseContrastChecks } from '../src/wcag';
 import { commitToNewLocalBranch, branchExists } from '../src/node/git-local';
-import { realChecksText, realConfig, realFiles } from './helpers';
+import { otherThan, realChecksText, realConfig, realFiles } from './helpers';
 
 const realSet = () => new LayeredTokenSet(realConfig(), new Map(Object.entries(realFiles())));
 
@@ -54,7 +54,10 @@ test('layered set resolves the real tokens in every mode and validates clean', (
   const set = realSet();
   assert.equal(set.combos().length, 8);
   const r = set.resolve('color.text.muted', { brand: 'bridge', theme: 'light', density: 'comfortable' });
-  assert.deepEqual(r.chain, ['color.text.muted', 'palette.neutral.600', 'color.ink.600']);
+  // Semantic -> palette role -> primitive, whichever role and ramp step the live tokens pick.
+  assert.equal(r.chain[0], 'color.text.muted');
+  assert.match(r.chain[1]!, /^palette\./);
+  assert.match(r.chain.at(-1)!, /^color\./);
   assert.match(r.css, /^#[0-9a-f]{6}$/);
   assert.equal(set.tierOf('color.text.muted'), 'semantic');
   assert.equal(set.tierOfFile('semantic/base.tokens.json'), 'base');
@@ -79,14 +82,16 @@ test('object-form and top-level-array contrast files parse', () => {
 
 test('edits are minimal diffs; diff and tier use the shared rules', () => {
   const set = realSet();
-  const r = applyTokenEdits(set, [{ op: 'set', path: 'menu.item.bg-highlight', value: '{color.surface.hover}' }]);
+  const highlight = set.defs.find((d) => d.path === 'menu.item.bg-highlight')!.value;
+  const r = applyTokenEdits(set, [{ op: 'set', path: 'menu.item.bg-highlight', value: otherThan(highlight, '{color.surface.hover}', '{color.surface.hover-raised}') }]);
   const before = set.files.get('components/overlays.tokens.json')!.split('\n');
   const after = r.files.get('components/overlays.tokens.json')!.split('\n');
   assert.equal(after.length, before.length);
   assert.equal(after.filter((l, i) => l !== before[i]).length, 1);
   assert.deepEqual(r.touched, ['components/overlays.tokens.json']);
 
-  const desc = applyTokenEdits(set, [{ op: 'set', path: 'color.text.muted', description: 'Secondary text.', file: 'semantic/light.tokens.json' }]);
+  const mutedDesc = set.defs.find((d) => d.path === 'color.text.muted' && d.file === 'semantic/light.tokens.json')!.description;
+  const desc = applyTokenEdits(set, [{ op: 'set', path: 'color.text.muted', description: otherThan(mutedDesc, 'Secondary text.', 'Secondary text, edited.'), file: 'semantic/light.tokens.json' }]);
   const dc = diffLayered(set, new LayeredTokenSet(set.config, desc.files));
   assert.deepEqual(dc.map((c) => [c.kind, c.fields]), [['changed', ['description']]]);
   assert.deepEqual(classifyLayered(dc), { tier: 1, bump: 'patch', reasons: ['Token description changed: color.text.muted'], label: 'Tier 1: low risk, one code owner' });

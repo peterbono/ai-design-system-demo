@@ -1,6 +1,7 @@
 // MCP protocol smoke test: spawn the built server over stdio like Claude Code does, list, call, read.
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { MCP_DIST, REPO } from './helpers.js';
@@ -83,12 +84,19 @@ describe('MCP over stdio', () => {
     expect(r.isError).toBeFalsy();
     const data = JSON.parse(text(r));
     expect(data.cssVar).toBe('--color-text-muted');
-    expect(data.values).toHaveLength(4);
+    // Values collapse where modes agree, so how many groups depends on the live tokens: check every mode is covered.
+    const modes = (data.values as { modes: string[] }[]).flatMap((v) => v.modes);
+    const config = JSON.parse(readFileSync(join(REPO, 'bridge.config.json'), 'utf8')) as { modes: Record<string, { values: string[] }> };
+    const combos = Object.values(config.modes).reduce((n, m) => n * m.values.length, 1);
+    expect(modes.includes('all') || new Set(modes).size === combos).toBe(true);
   });
 
   it('calls bridge_check_contrast, with and without edits', async () => {
     const all = JSON.parse(text(await client.callTool({ name: 'bridge_check_contrast', arguments: {} })));
-    expect(all.checks).toBe(296);
+    // Every pair in every brand x theme: derived from the live files, so a new brand or pair needs no test edit.
+    const config = JSON.parse(readFileSync(join(REPO, 'bridge.config.json'), 'utf8')) as { modes: Record<string, { values: string[] }>; contrast: { path: string } };
+    const { pairs } = JSON.parse(readFileSync(join(REPO, config.contrast.path), 'utf8')) as { pairs: unknown[] };
+    expect(all.checks).toBe(pairs.length * config.modes.brand!.values.length * config.modes.theme!.values.length);
     expect(all.failing).toBe(0);
     const edit = JSON.parse(text(await client.callTool({ name: 'bridge_check_contrast', arguments: { edits: [{ op: 'set', path: 'color.text.muted', value: '{palette.neutral.300}', mode: { theme: 'light' } }] } })));
     expect(edit.newFailures.length).toBeGreaterThan(0);
@@ -104,8 +112,14 @@ describe('MCP over stdio', () => {
     const { resources } = await client.listResources();
     expect(resources.map((r) => r.uri)).toEqual(expect.arrayContaining(['bridge://tokens/resolved', 'bridge://design-language', 'bridge://guidelines', 'bridge://components/Button']));
     const resolved = JSON.parse((await client.readResource({ uri: 'bridge://tokens/resolved' })).contents[0]!.text as string);
-    expect(resolved.values['color.text.muted']).toBe('#5b6672');
-    expect(resolved.overrides['brand=bridge,theme=dark,density=comfortable']['color.text.muted']).toBe('#a0aab5');
+    // Compare with bridge_get_token rather than hard-coded hex values: a designer may change the token.
+    const token = JSON.parse(text(await client.callTool({ name: 'bridge_get_token', arguments: { path: 'color.text.muted' } })));
+    const valueIn = (combo: string) => (token.values as { value: string; modes: string[] }[]).find((v) => v.modes.includes('all') || v.modes.includes(combo))!.value;
+    const light = valueIn('brand=bridge,theme=light,density=comfortable');
+    const dark = valueIn('brand=bridge,theme=dark,density=comfortable');
+    expect(light).toMatch(/^#[0-9a-f]{6}$/i);
+    expect(resolved.values['color.text.muted']).toBe(light);
+    expect(resolved.overrides['brand=bridge,theme=dark,density=comfortable']?.['color.text.muted']).toBe(dark === light ? undefined : dark);
     const button = JSON.parse((await client.readResource({ uri: 'bridge://components/Button' })).contents[0]!.text as string);
     expect(button.name).toBe('Button');
   });
@@ -113,9 +127,18 @@ describe('MCP over stdio', () => {
   it('serves the four prompts; audit embeds token suggestions', async () => {
     const { prompts } = await client.listPrompts();
     expect(prompts.map((p) => p.name).sort()).toEqual(['add-component', 'audit-ui-for-tokens', 'migrate-file-to-ds', 'review-token-pr']);
-    const p = await client.getPrompt({ name: 'audit-ui-for-tokens', arguments: { code: '.card { background: #ffffff; padding: 16px; }' } });
+    // The literals are live values (page background, space 4), so a designer changing them never breaks this test.
+    const resolved = JSON.parse((await client.readResource({ uri: 'bridge://tokens/resolved' })).contents[0]!.text as string);
+    const canvas = resolved.values['color.bg.default'] as string;
+    expect(canvas).toMatch(/^#[0-9a-f]{6}$/i);
+    const p = await client.getPrompt({ name: 'audit-ui-for-tokens', arguments: { code: `.card { background: ${canvas}; padding: ${resolved.values['space.4']}; }` } });
     const body = (p.messages[0]!.content as { text: string }).text;
-    expect(body).toContain('var(--color-bg-default)');
+    const findings = JSON.parse(/```json\n([\s\S]*?)\n```/.exec(body)![1]!) as { text: string; suggestions: { cssVar: string; path: string; value: string; exact: boolean }[] }[];
+    const color = findings.find((f) => f.text === canvas)!;
+    // An exact background token comes first. Several tokens may share the value: any of them is a right answer.
+    expect(color.suggestions[0]).toMatchObject({ exact: true, value: canvas });
+    expect(color.suggestions[0]!.path).toMatch(/(^|\.)(bg|surface|background|fill)(\.|-|$)/);
+    expect(body).toContain(color.suggestions[0]!.cssVar);
     expect(body).toContain('var(--space-4)');
   });
 

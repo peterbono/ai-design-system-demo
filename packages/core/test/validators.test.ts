@@ -71,7 +71,13 @@ test('brand and density tokens must alias primitives', () => {
 
 test('brand overrides follow the semantic rule and must override an existing token', () => {
   const files = realFiles();
-  files['brands/ocean.light.tokens.json'] = files['brands/ocean.light.tokens.json']!.replace('"{palette.primary.600}"', '"{color.steel.600}"').replace('"bg-hover": {', '"bg-hoover": {');
+  // Edit the parsed override, whatever palette role it points to today.
+  const ocean = JSON.parse(files['brands/ocean.light.tokens.json']!);
+  const primary = ocean.color.action.primary;
+  primary.bg.$value = '{color.steel.600}';
+  primary['bg-hoover'] = primary['bg-hover'];
+  delete primary['bg-hover'];
+  files['brands/ocean.light.tokens.json'] = JSON.stringify(ocean, null, 2);
   const c = codes(buildTokenSet(files));
   assert.ok(c.includes('alias-tier:color.action.primary.bg'), c.join('\n'));
   assert.ok(c.includes('override-orphan:color.action.primary.bg-hoover'), c.join('\n'));
