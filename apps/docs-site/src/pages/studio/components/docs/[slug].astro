@@ -1,43 +1,27 @@
 ---
-// Studio > Components > Edit docs: one component's docs.json as a form, with its Library Usage tab live beside it.
-// Starts from the docs on main, or from the deterministic pre-fill (props, tokens, anatomy, contrast) when the
-// component has none. Changes go to the local draft and are proposed as a Tier 1 pull request.
-import '../../../../styles/component.css';
-import '../../../../styles/library.css';
-import '../../../../styles/docs-editor.css';
-import Layout from '../../../../layouts/Layout.astro';
-import StudioHeader from '../../../../components/StudioHeader.astro';
-import DocsEditor from '../../../../components/DocsEditor';
-import { loadComponents, tokenCountLabel, type ComponentInfo } from '../../../../lib/components';
-import { componentPrefill } from '../../../../lib/docs-prefill';
-import { siteRepo } from '../../../../lib/config';
-import { lastUpdated, readText, exists } from '../../../../lib/repo';
+// The separate Studio docs editor became the Library page's edit mode: /studio/components/docs/<slug>/ now lands on
+// /components/<slug>/?edit=1, with ?pr and ?ref carried over (editing the docs of an open change).
+import { docsEditHref, loadComponents } from '../../../../lib/components';
+import { redirectScript } from '../../../../lib/redirects';
 
 export function getStaticPaths() {
-  return loadComponents().map((c) => ({ params: { slug: c.slug }, props: { c } }));
+  return loadComponents().map((c) => ({ params: { slug: c.slug } }));
 }
 
-const { c } = Astro.props as { c: ComponentInfo };
-const pre = componentPrefill(c);
-const original = exists(c.files.docs) ? readText(c.files.docs) : null;
-const r = siteRepo();
-const sources = [c.files.docs, c.files.tsx, c.files.css].filter((f) => exists(f));
-const facts = {
-  propsTable: pre.propsTable,
-  tokens: `${tokenCountLabel(c)}${c.inherited.length ? ` (${c.allTokenPaths.length} in all)` : ''}`,
-  contrastNotes: pre.contrastNotes,
-  changelogLine: pre.changelogLine,
-  missing: pre.missing,
-};
-const subtitle = c.docs
-  ? c.docs.needsReview
-    ? 'Claude drafted this guidance from the code. Review it here before it ships.'
-    : 'Edit the guidance. Your changes go to your draft first.'
-  : 'No guidance yet. The form starts from what the code tells: props, tokens and anatomy.';
+const to = docsEditHref(Astro.params.slug!);
 ---
 
-<Layout title={`${c.name} docs`} description={`Edit the usage guidance of ${c.name}, with its Library page live beside the form.`} sources={sources} updated={lastUpdated(sources)} wide toc={false}>
-  <nav class="cg-crumbs de-crumbs" aria-label="Breadcrumb"><a href="/studio/components/" data-keep-branch>Components</a><span aria-hidden="true">/</span><span>{c.name}</span></nav>
-  <StudioHeader title={`${c.name} docs`} subtitle={subtitle} branch={false} />
-  <DocsEditor client:load name={c.name} slug={c.slug} path={c.files.docs} original={original} initial={original ? JSON.parse(original) : pre.draft} facts={facts} repo={{ owner: r.owner, repo: r.repo }} />
-</Layout>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Redirecting to {to}</title>
+    <meta name="robots" content="noindex" />
+    <link rel="canonical" href={to} />
+    <Fragment set:html={redirectScript(to)} />
+    <meta http-equiv="refresh" content={`0;url=${to}`} />
+  </head>
+  <body>
+    <a href={to}>Edit the docs on the Library page</a>
+  </body>
+</html>

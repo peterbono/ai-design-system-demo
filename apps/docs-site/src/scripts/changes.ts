@@ -52,10 +52,10 @@ function paintDraft() {
   $('cg-draft').hidden = n === 0;
   const draft = readDraft();
   $('cg-draft-n').textContent = draftSummary(draft);
-  // Docs edits only: propose them from the docs editor of the first one.
+  // Docs edits only: send them from the edit mode of the first one's Library page.
   const docs = docsEdits(draft);
   const cta = document.querySelector<HTMLAnchorElement>('#cg-draft a');
-  if (cta && docs.length && !tokenEdits(draft).length) cta.href = `/studio/components/docs/${docs[0]!.slug}/`;
+  if (cta && docs.length && !tokenEdits(draft).length) cta.href = `/components/${docs[0]!.slug}/?edit=1`;
 }
 
 function showView(view: View) {

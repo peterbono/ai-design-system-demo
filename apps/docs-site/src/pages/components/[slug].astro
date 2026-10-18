@@ -1,6 +1,7 @@
 ---
 import '../../styles/component.css';
 import '../../styles/library.css';
+import '../../styles/library-edit.css';
 import Layout from '../../layouts/Layout.astro';
 import Example from '../../components/Example.tsx';
 import UsagePanelStatic from '../../components/UsagePanelStatic';
@@ -15,6 +16,11 @@ import { BRANDS, BRAND_LABEL, MODES } from '../../lib/tokens';
 import { releases } from '../../lib/changelog';
 import { mdTitleHtml } from '../../lib/markdown';
 import { humanDate } from '../../lib/stats';
+import { componentPrefill } from '../../lib/docs-prefill';
+import { siteRepo } from '../../lib/config';
+import { exists, readText } from '../../lib/repo';
+import LibraryEditMode from '../../components/LibraryEditMode';
+import GitHubDialog from '../../components/GitHubDialog.astro';
 
 export function getStaticPaths() {
   return loadComponents().map((c) => ({ params: { slug: c.slug }, props: { c } }));
@@ -45,6 +51,10 @@ const nameRe = new RegExp(`\\b${c.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\
 const notes = releases().flatMap((r) =>
   r.entries.filter((e) => nameRe.test(e.title) || e.packages.some((p) => nameRe.test(p))).map((e) => ({ ...e, release: r.name, date: e.date ?? r.date })),
 );
+// Edit mode (?edit=1, maintainers): the docs on main, or the deterministic pre-fill when there are none.
+const originalDocs = exists(c.files.docs) ? readText(c.files.docs) : null;
+const editInitial = originalDocs ? JSON.parse(originalDocs) : componentPrefill(c).draft;
+const repo = siteRepo();
 const tabs = [
   { id: 'usage', label: 'Usage' },
   { id: 'tokens', label: 'Tokens' },
@@ -57,11 +67,14 @@ import PreviewScope from '../../components/PreviewScope.astro';
 <Layout title={c.name} description={d?.summary ?? c.description} sources={sources} updated={updated} crumbs={[{ label: 'Catalog', href: '/components/' }, { label: c.name }]} toc={false}>
   <div class="cp-page">
   <div class="cp-main">
+  <div class="le-bar-slot" data-le-bar></div>
+  <div data-le-rail-narrow></div>
   <div class="cp-head">
-    <PageHeader className="lib-page-header" title={c.name} lead={d?.summary}>
+    <PageHeader className="lib-page-header" title={c.name}>
+      <Fragment slot="lead"><span data-le-lead>{d?.summary}</span><span class="le-summary-slot" data-le-summary></span></Fragment>
       <Badge slot="meta" tone={statusTone}>{status === 'stable' ? 'Stable' : status === 'beta' ? 'Beta' : 'Deprecated'}</Badge>
       <Fragment slot="actions">
-        <span data-maintainer-only><ButtonLink variant="secondary" size="sm" href={`/studio/components/?c=${c.slug}`} iconStart={Pencil}>Edit in Studio</ButtonLink></span>
+        <span data-maintainer-only data-le-read-only><ButtonLink variant="secondary" size="sm" href={`/components/${c.slug}/?edit=1`} iconStart={Pencil} data-le-edit>Edit</ButtonLink></span>
       </Fragment>
     </PageHeader>
     <div class="cp-meta">
@@ -114,7 +127,7 @@ import PreviewScope from '../../components/PreviewScope.astro';
 
   {
     !d && (
-      <Alert tone="warning" announce="off" className="lib-block-gap">
+      <Alert tone="warning" announce="off" className="lib-block-gap" data-le-read>
         No usage guidance yet. Add <code>{c.files.docs}</code> to fill this page. Props and tokens below are generated from the code.
       </Alert>
     )
@@ -134,6 +147,7 @@ import PreviewScope from '../../components/PreviewScope.astro';
   <div class="cp-layout">
     <div class="cp-body">
       <div class="cp-panel" role="tabpanel" id="tab-usage" aria-labelledby="tab-usage-btn" data-panel="usage">
+      <div data-le-read>
       {d && <UsagePanelStatic docs={d} />}
 
       {
@@ -143,6 +157,8 @@ import PreviewScope from '../../components/PreviewScope.astro';
           </p>
         )
       }
+      </div>
+      <div data-le-usage></div>
       </div>
 
       <div class="cp-panel" role="tabpanel" id="tab-tokens" aria-labelledby="tab-tokens-btn" data-panel="tokens">
@@ -336,10 +352,13 @@ import PreviewScope from '../../components/PreviewScope.astro';
   </div>
 
   <aside class="cp-toc" aria-label="On this page">
-    <p class="cp-toc-title">On this page</p>
-    <ul data-cp-toc></ul>
+    <p class="cp-toc-title" data-le-read>On this page</p>
+    <ul data-cp-toc data-le-read></ul>
+    <div data-le-rail></div>
   </aside>
   </div>
+  <LibraryEditMode client:only="react" name={c.name} slug={c.slug} path={c.files.docs} original={originalDocs} initial={editInitial} repo={{ owner: repo.owner, repo: repo.repo }} />
+  <GitHubDialog />
 
   <script>
     // Preview theme: a static DS SegmentedControl driven by shell.ts (data-vanilla), which emits bridge:segment.

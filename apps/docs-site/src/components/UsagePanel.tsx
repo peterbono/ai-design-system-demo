@@ -1,6 +1,6 @@
 // The Usage tab of a Library component page: when to use, do and don't, accessibility, content guidelines. One
 // renderer for the static Library page (examples rendered at build time with every Lucide icon) and the live preview
-// of the docs editor (a hydrated island with a small icon set), so the editor shows the real page.
+// of edit mode share the markup and classes, so editing keeps the read layout.
 import type { ComponentType } from 'react';
 import { Badge } from '@bridge-ds/react';
 import { Check, X } from 'lucide-react';
