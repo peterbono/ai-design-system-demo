@@ -19,8 +19,6 @@ import { humanDate } from '../lib/stats';
 import { BRANDS, DEFAULT_BRAND } from '../lib/tokens';
 import { Breadcrumb, Button, IconButton, Kbd } from '@bridge-ds/react';
 import { Menu as MenuIcon, Moon, Search, X } from 'lucide-react';
-import IconLink from '../components/ds/IconLink';
-import { GitHubMark } from '../components/ds/brand-icons';
 
 export interface Crumb {
   label: string;
@@ -129,8 +127,6 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
             </>
           ) : (
             <>
-              <IconLink href={GITHUB_URL} icon={GitHubMark} label="View the repository on GitHub" title="GitHub" className="shell-wide" />
-              <span class="topbar-rule shell-wide" aria-hidden="true"></span>
               <div class="team shell-wide" data-team>
                 <a class="hd-btn team-open" href={STUDIO_HOME}>Open Studio</a>
                 <a class="team-avatar" href={STUDIO_HOME} data-team-avatar hidden>

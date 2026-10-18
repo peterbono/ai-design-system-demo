@@ -700,7 +700,20 @@ pre code {
   border-top: 0;
 }
 
-:root[data-space="studio"] .rail-foot {
+/* GitHub sits at the foot of the side nav in both spaces: the account in Studio, the repository in the Library. */
+:root:not([data-space="studio"]) .rail-tools {
+  display: flex;
+  padding-top: 0;
+  border-top: 0;
+}
+
+@media (min-width: 961px) {
+  :root:not([data-space="studio"]) .rail-tools [data-theme-toggle] {
+    display: none;
+  }
+}
+
+.rail-foot {
   border-top: var(--border-width-default) solid var(--color-border-default);
   padding-top: var(--space-4);
 }
