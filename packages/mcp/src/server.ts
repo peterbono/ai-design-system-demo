@@ -50,6 +50,7 @@ export function createServer(ctx: BridgeContext): McpServer {
     {
       instructions: [
         'Bridge exposes a design system repo (DTCG tokens, components, docs) to you.',
+        'Every write goes through a branch and a pull request, never straight to the default branch: the library only changes through reviewed pull requests, and on a protected repo GitHub refuses direct pushes anyway.',
         'Read before you write: bridge_get_guidelines for the repo rules, bridge_search_tokens / bridge_get_token before using or proposing a token.',
         'Never hardcode a value in UI code when a token exists; never invent a token name (check it with bridge_get_token).',
         'bridge_audit measures how a product codebase adopts the design system (hardcoded values, foreign UI components) and suggests the tokens and components to use.',

@@ -190,6 +190,52 @@
   }
 }
 
+/* Protection: one more row under Roles, same row component. The action sits on the row it acts on; the row steps
+   aside while Roles is being edited. */
+.set-protection {
+  margin-top: 0;
+}
+
+.set-protection > li {
+  align-items: center;
+}
+
+/* On a phone the lone action fills its bar. */
+@media (max-width: 640px) {
+  .set-protection [data-protect-action] {
+    width: 100%;
+  }
+}
+
+.set-roles-form[data-editing="true"] ~ * .set-protection {
+  display: none;
+}
+
+.set-protect-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding-left: var(--space-5);
+}
+
+.set-protect-note {
+  margin: var(--space-4) 0;
+  color: var(--color-text-muted);
+}
+
+.set-protect-error {
+  margin-bottom: var(--space-4);
+}
+
+.set-protect-dev {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding-left: var(--space-5);
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+}
+
 /* Repository: one sentence and the way to GitHub, then Source at rest and two collapsed groups. */
 .set-lead {
   display: flex;
