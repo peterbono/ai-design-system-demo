@@ -308,8 +308,10 @@ export interface TokenChange {
   path: string;
   /** CSS variable the token builds to, "--color-bg-default". */
   cssVar: string;
-  /** What designers call it: the first phrase of its description ("Page canvas"), else its path in words. */
+  /** The role it plays, what designers call it: "Page canvas" (its description), "Brand primary" (a palette role). */
   name: string;
+  /** The exact step, second: "Primary 700" for a palette step, null for a semantic token. */
+  step: string | null;
   type: string | null;
   /** The theme and brand its file applies to (null: every one). */
   theme: string | null;
@@ -331,11 +333,29 @@ function leaves(node: unknown, path: string[] = [], inheritedType: string | null
   return out;
 }
 
-/** Designer name of a token: the first phrase of its description, else its path in words ("bg default"). */
+/** Palette roles a brand re-points (brands/<brand>.tokens.json), in designers' words. */
+const PALETTE_ROLES: Record<string, string> = { primary: 'Brand primary', link: 'Link', neutral: 'Neutral', accent: 'Accent', success: 'Success', warning: 'Warning', danger: 'Danger', info: 'Info', categorical: 'Chart colours' };
+
+/** The role a token plays: its description's first phrase, a palette role ("Brand primary"), else its path in words. */
+export function roleOfToken(path: string, description: string | null): string {
+  const first = description?.split(/[.:;(]/)[0]?.trim();
+  if (first && first.length <= 40) return first;
+  const m = /^palette\.([a-z-]+)\./.exec(path);
+  if (m) return PALETTE_ROLES[m[1]!] ?? designerName(`palette.${m[1]}`, null);
+  return designerName(path, null);
+}
+
+/** The palette step, shown second: "palette.primary.700" -> "Primary 700"; null for other tokens. */
+export function stepOfToken(path: string): string | null {
+  return path.startsWith('palette.') ? designerName(path, null) : null;
+}
+
+/** Designer name of a token: the first phrase of its description, else its path in words ("Bg default"). */
 export function designerName(path: string, description: string | null): string {
   const first = description?.split(/[.:;(]/)[0]?.trim();
   if (first && first.length <= 40) return first;
-  return path.replace(/^color\./, '').split('.').join(' ');
+  const words = path.replace(/^(color|palette)\./, '').split('.').join(' ');
+  return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
 /**
@@ -355,7 +375,8 @@ export function tokenChanges(file: string, before: unknown, after: unknown): Tok
     out.push({
       path,
       cssVar: `--${path.split('.').join('-')}`,
-      name: designerName(path, y?.description ?? x?.description ?? null),
+      name: roleOfToken(path, y?.description ?? x?.description ?? null),
+      step: stepOfToken(path),
       type: y?.type ?? x?.type ?? null,
       theme: scope.theme,
       brand: scope.brand,
@@ -363,6 +384,29 @@ export function tokenChanges(file: string, before: unknown, after: unknown): Tok
   }
   return out;
 }
+
+/** WCAG contrast ratio between two rgb() colours, or null when either is not rgb (a non-colour value). */
+export function contrastRatio(a: string, b: string): number | null {
+  const lum = (c: string) => {
+    const m = /^rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(c.trim());
+    if (!m) return null;
+    const [r, g, bl] = [m[1], m[2], m[3]].map((n) => {
+      const v = Number(n) / 255;
+      return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+    }) as [number, number, number];
+    return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
+  };
+  const x = lum(a);
+  const y = lum(b);
+  if (x === null || y === null) return null;
+  return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+}
+
+/** Two colours under 1.1:1 read as the same at a glance: the swatch says "Subtle change" so it does not look broken. */
+export const isSubtle = (a: string, b: string): boolean => {
+  const r = contrastRatio(a, b);
+  return r !== null && r < 1.1;
+};
 
 /** rgb(245, 247, 249) -> #f5f7f9; anything else as is. */
 export function toHex(color: string): string {
