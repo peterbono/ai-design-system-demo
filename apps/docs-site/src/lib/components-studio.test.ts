@@ -103,12 +103,12 @@ describe('Studio Components list cells and drawer, in words', () => {
     }
   });
 
-  it('names the products, or counts them past two', () => {
-    expect(usedInCell(undefined)).toBe('');
-    expect(usedInCell([])).toBe('');
-    expect(usedInCell([{ product: 'Admin demo' }])).toBe('Admin demo');
-    expect(usedInCell([{ product: 'Admin demo' }, { product: 'Bridge itself' }])).toBe('Admin demo and Bridge itself');
-    expect(usedInCell([{ product: 'A' }, { product: 'B' }, { product: 'C' }])).toBe('3 products');
+  it('gives one tag per product, then +N past two', () => {
+    expect(usedInCell(undefined)).toEqual([]);
+    expect(usedInCell([])).toEqual([]);
+    expect(usedInCell([{ product: 'Admin demo' }])).toEqual(['Admin demo']);
+    expect(usedInCell([{ product: 'Admin demo' }, { product: 'Bridge itself' }])).toEqual(['Admin demo', 'Bridge itself']);
+    expect(usedInCell([{ product: 'A' }, { product: 'B' }, { product: 'C' }])).toEqual(['A', '+2']);
   });
 
   it('says where the tokens come from', () => {

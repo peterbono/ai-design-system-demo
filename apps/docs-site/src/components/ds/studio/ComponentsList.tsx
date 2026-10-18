@@ -2,11 +2,11 @@
 // starts with a calm thumbnail of the real component (one sample of its Library preview, never a destructive one:
 // lib/components-studio thumbnailNode; rendered at build time and scaled to fit by scripts/components-studio.ts; a
 // component without a preview shows an empty frame, never a stand-in image), then what a designer reads, in words:
-// the products that use it (from the committed `bridge audit` reports), open requests (filled in the browser from
+// the products that use it as tags (from the committed `bridge audit` reports), open requests (filled in the browser from
 // the requests Studio already reads), examples and tokens. Badges only for exceptions (missing guidance, a Claude
 // draft to review, beta, deprecated). The whole row opens the detail drawer: rows are one tab stop with arrow keys
 // between them, Enter opens.
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@bridge-ds/react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Tag } from '@bridge-ds/react';
 import type { ExampleNode, GuidanceState } from '../../../lib/components';
 import { thumbnailNode, usedInCell } from '../../../lib/components-studio';
 import Example from '../../Example';
@@ -106,7 +106,11 @@ export default function ComponentsList({ rows, products }: { rows: ComponentList
                 </TableCell>
                 {withUsage && (
                   <TableCell className="cm-col-used">
-                    {usedInCell(r.usedIn)}
+                    <span className="cm-used-tags">
+                      {usedInCell(r.usedIn).map((p) => (
+                        <Tag key={p} size="sm">{p}</Tag>
+                      ))}
+                    </span>
                   </TableCell>
                 )}
                 {/* Filled in the browser: "1 request", empty when there is none. */}

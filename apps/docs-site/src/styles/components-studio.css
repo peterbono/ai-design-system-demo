@@ -513,3 +513,10 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Used in: one quiet tag per product, on one line. */
+.cm-used-tags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
