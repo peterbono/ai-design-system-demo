@@ -41,7 +41,7 @@ test('holders and approver lists follow the groups', () => {
 
 test('ship policy: tech owners by default, design owners when the team says so', () => {
   const tech = shipPolicy(owners, DEFAULT_RIGHTS)!;
-  assert.deepEqual(tech, { logins: ['theo', 'tara'], groups: ['tech'] });
+  assert.deepEqual(tech, { logins: ['theo', 'tara'], groups: ['tech'], entries: ['theo', 'tara'] });
   assert.equal(canShip('dana', tech), false);
   assert.equal(canShip('@Theo', tech), true);
   assert.equal(canShip(null, tech), false);

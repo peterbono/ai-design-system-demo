@@ -4,12 +4,12 @@
 // ships, it is not merged; developer details sit in one "For developers" fold.
 // Without a token every action deep-links to GitHub. When GitHub cannot be read, the last list this browser saw
 // stays on screen, labelled with its time (lib/changes.ts).
-import { isActiveExploration, type Rights } from '@bridge-ds/core';
+import { isActiveExploration, type Rights, type ShipPolicy } from '@bridge-ds/core';
+import { loadTeams, siteApprovers, siteShipPolicy, teamDirectory } from './teams';
 import { approvalNeedLabel, approvalNeedLong, effectiveTier, isAutomationPull, reviewQueue } from '../lib/review-queue';
 import {
   allowedMergeMethods,
   canWrite,
-  approverLists,
   mergeGate,
   NO_OVERRIDE,
   openPulls,
@@ -20,7 +20,6 @@ import {
   parseChangeset,
   parseOverrideComment,
   pullState,
-  shipPolicy,
   summarizeApprovals,
   summarizeCi,
   type MergeMethod,
@@ -53,7 +52,7 @@ import type { Root } from 'react-dom/client';
 import { currentViewer, esc, ghGet, ghWrite, hasWorkingToken, initGitHubConnect, RateLimitError, readRepo, relativeTime, showGhError } from './github-session';
 import { analyzeTokenFiles, isTokenFile, type TokenReview } from './reviews/token-review';
 import { loadVisualImpact, renderTopChange } from './reviews/visual-impact';
-import { ciFor, loadStatuses, whoChip, type PullStatus } from './pr-status';
+import { ciFor, loadStatuses, teamPeople, whoChip, type PullStatus } from './pr-status';
 import { mdTitleHtml, mdTitleText } from '../lib/markdown';
 import { humanTitle } from '../lib/pr-title';
 import { touchesVisuals } from '../lib/visual-impact';
@@ -114,9 +113,10 @@ const SITE = (() => {
     return {};
   }
 })();
-// Approvals count against who holds each right (governance.rights), shipping against the ship right.
-const OWNERS = approverLists(SITE.owners ?? { design: [], tech: [] }, SITE.rights);
-const SHIP = shipPolicy(SITE.owners ?? { design: [], tech: [] }, SITE.rights);
+// Approvals count against who holds each right (governance.rights), shipping against the ship right. GitHub teams
+// in governance.owners count as their members once read (scripts/teams.ts): read at call time, not at load.
+const OWNERS = () => siteApprovers();
+const SHIP = () => siteShipPolicy();
 const OVERRIDE: OverridePolicy = SITE.override ?? NO_OVERRIDE;
 const BRANCHES: BranchesConfig = (() => {
   try {
@@ -177,7 +177,7 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 /** People around a pull request, for the who-acts line (lib/changes whoActs). */
 function people(author: string, extra: Partial<People> = {}): People {
-  return { owners: OWNERS, author, viewer: currentViewer()?.login ?? null, overrideBy: OVERRIDE.allowed, shippers: SHIP?.logins, ...extra };
+  return { owners: OWNERS(), ...teamPeople(), author, viewer: currentViewer()?.login ?? null, overrideBy: OVERRIDE.allowed, shippers: SHIP()?.logins, ...extra };
 }
 
 /** One chip per row: the status color and who acts now (pr-status whoChip, shared with the Overview). */
@@ -399,6 +399,7 @@ export async function openPr(n: number, push = true) {
       // Same request as ciFor's commit status (shared in flight): the Vercel statuses say which previews are built.
       ghGet<{ statuses: { context: string; state: string; target_url?: string | null }[] }>(`${R}/commits/${pull.head.sha}/status`).then((f) => f.data.statuses).catch(() => []),
       mergeable,
+      loadTeams(),
     ]);
     pull.mergeable = merges;
     // A newer openPr (other PR, or the viewer changed) owns the page now.
@@ -407,8 +408,10 @@ export async function openPr(n: number, push = true) {
     // editor and the MCP server use) computes from the changed files. The In review rows use the same rule.
     const tier = effectiveTier(pull.labels, pull.body, files);
     current = { pull, tier };
-    const approvals = summarizeApprovals(reviews, OWNERS, pull.user.login);
-    const gate = mergeGate({ tier, ci, approvals, draft: pull.draft, mergeable: pull.mergeable, state: pull.state, merged_at: pull.merged_at, viewer: access?.login, override: OVERRIDE, exploration: isActiveExploration(pull.labels), ship: SHIP });
+    const approvals = summarizeApprovals(reviews, OWNERS(), pull.user.login);
+    const ship = await viewerShipPolicy(SHIP(), access?.login);
+    if (seq !== openSeq) return;
+    const gate = mergeGate({ tier, ci, approvals, draft: pull.draft, mergeable: pull.mergeable, state: pull.state, merged_at: pull.merged_at, viewer: access?.login, override: OVERRIDE, exploration: isActiveExploration(pull.labels), ship });
     const tokenFiles = files.filter((f) => isTokenFile(f.filename));
     const changesets = files.filter((f) => /^\.changeset\/(?!README).+\.md$/.test(f.filename) && f.status !== 'removed');
     const visual = touchesVisuals(files.map((f) => f.filename));
@@ -487,6 +490,17 @@ export async function openPr(n: number, push = true) {
     if (err instanceof RateLimitError) showNotice('warn', 'GitHub limits anonymous reads to 60 an hour. Connect GitHub, or open this pull request on GitHub.');
     else showNotice('fail', `Could not load pull request #${n}: ${(err as Error).message}`);
   }
+}
+
+/**
+ * The ship policy for the gate, with the viewer's team membership checked on GitHub (one membership read per team,
+ * cached; none when the viewer is listed by name or no team holds the right). A member is added to the logins.
+ */
+async function viewerShipPolicy(policy: ShipPolicy | null, viewer: string | null | undefined): Promise<ShipPolicy | null> {
+  if (!policy || !viewer || !policy.entries?.some((e) => e.includes('/'))) return policy;
+  if (policy.logins.some((l) => l.toLowerCase() === viewer.toLowerCase())) return policy;
+  const r = await teamDirectory().memberOfAny(policy.entries, viewer).catch(() => ({ member: false }));
+  return r.member ? { ...policy, logins: [...policy.logins, viewer] } : policy;
 }
 
 interface DetailInput {

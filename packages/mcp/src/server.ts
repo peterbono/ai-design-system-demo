@@ -281,7 +281,7 @@ export function createServer(ctx: BridgeContext): McpServer {
     'bridge_get_review',
     {
       title: 'Get review',
-      description: 'Review a token change: designer-readable diff table, contrast before -> after, new validation errors, downstream impact, computed risk tier (and a warning if labelled lower), and for PRs the CI status and approvals. Pass `pr` (GitHub) or `branch` (local proposal branch).',
+      description: 'Review a token change: designer-readable diff table, contrast before -> after, new validation errors, downstream impact, computed risk tier (and a warning if labelled lower), and for PRs the CI status, approvals and roles: who may approve design, approve tech and ship, with GitHub teams named and their size, and any team that cannot be read with the fix. Pass `pr` (GitHub) or `branch` (local proposal branch).',
       inputSchema: { pr: z.number().int().positive().optional(), branch: z.string().optional() },
       annotations: { readOnlyHint: true, openWorldHint: true },
     },

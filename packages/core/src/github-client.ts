@@ -628,6 +628,57 @@ export class GitHubClient {
     return r.map((c) => ({ login: c.login, avatarUrl: c.avatar_url ?? '' }));
   }
 
+  /** Whether a token is sent with each request (TeamReader). */
+  get hasToken(): boolean {
+    return Boolean(this.token);
+  }
+
+  /** Every page of a list endpoint (per_page 100), up to `maxPages`. */
+  private async paginate<T>(path: string, maxPages = 20): Promise<T[]> {
+    const out: T[] = [];
+    const sep = path.includes('?') ? '&' : '?';
+    for (let page = 1; page <= maxPages; page++) {
+      const r = await this.request<T[]>('GET', `${path}${sep}per_page=100&page=${page}`);
+      out.push(...r);
+      if (r.length < 100) break;
+    }
+    return out;
+  }
+
+  /** Every member login of an organization team (needs read:org, or Members: Read on a fine-grained token). */
+  async listTeamMembers(org: string, slug: string): Promise<string[]> {
+    const r = await this.paginate<{ login: string }>(`/orgs/${encodeURIComponent(org)}/teams/${encodeURIComponent(slug)}/members`);
+    return r.map((m) => m.login);
+  }
+
+  /** A user's membership of a team: "active", "pending", or null when GitHub says they are not a member (404). */
+  async getTeamMembership(org: string, slug: string, login: string): Promise<'active' | 'pending' | null> {
+    try {
+      const r = await this.request<{ state: string }>('GET', `/orgs/${encodeURIComponent(org)}/teams/${encodeURIComponent(slug)}/memberships/${encodeURIComponent(login)}`);
+      return r.state === 'active' ? 'active' : 'pending';
+    } catch (err) {
+      if (err instanceof GitHubError && err.status === 404) return null;
+      throw err;
+    }
+  }
+
+  /** "User" or "Organization" for a login, null when GitHub does not know it. */
+  async getAccountType(login: string): Promise<'User' | 'Organization' | null> {
+    try {
+      const r = await this.request<{ type?: string }>('GET', `/users/${encodeURIComponent(login)}`);
+      return r.type === 'Organization' ? 'Organization' : r.type === 'User' ? 'User' : null;
+    } catch (err) {
+      if (err instanceof GitHubError && err.status === 404) return null;
+      throw err;
+    }
+  }
+
+  /** The organization's teams this token can see. */
+  async listOrgTeams(org: string): Promise<{ slug: string; name: string }[]> {
+    const r = await this.paginate<{ slug: string; name: string }>(`/orgs/${encodeURIComponent(org)}/teams`);
+    return r.map((t) => ({ slug: t.slug, name: t.name }));
+  }
+
   /** Create or update a binary file (base64 content) on a branch, e.g. a Figma export attached to a request. */
   async putBase64File(input: { path: string; base64: string; branch: string; message: string }): Promise<string> {
     this.assertWritableBranch(input.branch);

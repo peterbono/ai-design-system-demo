@@ -18,6 +18,7 @@
 import type { IntegrationsConfig } from './requests';
 import { PREVIEW_APP_LABELS, type PreviewApps, type PreviewsConfig } from './previews';
 import { normalizeRights, rightsProblems, visualImpactProblems, type Rights, type VisualImpactConfig } from './rights';
+import { ownerEntryProblems } from './teams';
 
 /** File name Bridge looks for at the repository root. */
 export const CONFIG_FILE = 'bridge.config.json';
@@ -86,6 +87,10 @@ export interface ComponentsConfig {
   specs?: string | undefined;
 }
 
+/**
+ * Design and tech owners. Each entry is a person ("peterbono" or "@peterbono") or a GitHub team ("@acme/design"),
+ * whose members GitHub manages (teams.ts expands them).
+ */
 export interface Owners {
   design: string[];
   tech: string[];
@@ -112,7 +117,7 @@ export interface GovernanceConfig {
   labels: string[];
   /** Files whose change is Tier 3 on its own, repo-relative; a trailing "/" matches a directory. */
   guardrails: string[];
-  /** GitHub logins that count as design and tech owners. Empty: two distinct approvers stand in. */
+  /** People and teams that count as design and tech owners. Empty: two distinct approvers stand in. */
   owners: Owners;
   /** Owner override for missing approvals only (never CI, changes requested or drafts). Absent: no override. */
   override?: OverridePolicy | undefined;
@@ -463,9 +468,7 @@ export function loadConfig(source: string | unknown): BridgeConfig {
     else {
       for (const k of ['protectedBranches', 'labels', 'guardrails']) if (gov[k] !== undefined && !(Array.isArray(gov[k]) && (gov[k] as unknown[]).every((x) => typeof x === 'string'))) problems.push(`"governance.${k}" must be a list of strings`);
       if (gov.branchPrefix !== undefined && !isStr(gov.branchPrefix)) problems.push('"governance.branchPrefix" must be a non-empty string');
-      const o = gov.owners;
-      if (o !== undefined && (!isObj(o) || ['design', 'tech'].some((k) => o[k] !== undefined && !(Array.isArray(o[k]) && (o[k] as unknown[]).every((x) => typeof x === 'string')))))
-        problems.push('"governance.owners" must be { "design": [logins], "tech": [logins] }');
+      problems.push(...ownerEntryProblems(gov.owners));
       const ov = gov.override;
       if (ov !== undefined) {
         if (!isObj(ov)) problems.push('"governance.override" must be an object');

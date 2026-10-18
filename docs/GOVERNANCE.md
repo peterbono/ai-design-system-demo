@@ -90,6 +90,40 @@ on `bridge.config.json` (a guardrail file, so it is reviewed at Tier 3).
 - The same rules live in `@bridge-ds/core` (`rights.ts`: `approverLists`, `shipPolicy`, `canShip`) for Studio, the
   CLI and the MCP server.
 
+### Roles by team
+
+An owner entry is a person or a GitHub team. A company assigns roles by team and manages who is in each team in
+GitHub, as it already does for code owners. Bridge stores no membership: it reads it from GitHub when it needs it.
+
+```json
+"owners": { "design": ["@acme/design"], "tech": ["@acme/web", "theo"] }
+```
+
+- A person is a login, with or without `@`: `"theo"`, `"@theo"`. A team is `"@org/team-slug"`, the slug from the
+  team's URL on GitHub. Anything else fails `bridge check` (and every Bridge surface that loads the config) with
+  the entry named and both forms spelled out.
+- A team counts as its members: an approval counts for a role when the reviewer is in a listed team, and a member
+  of a team holding the ship right may ship. Studio checks the viewer's membership of that team before it enables
+  Ship.
+- Sentences name the team as a team, with its size: "Waiting for the design owner (@acme/design (4 people)) to
+  approve.", "Only the tech owner can ship this (@acme/web (6 people))."
+- Reading a team needs a token that may read the organization: `read:org` on a classic token, or Members: Read on
+  the organization for a fine-grained token. GitHub never shows team members anonymously.
+- **A team Bridge cannot read is never treated as empty**, because an empty owner list means "any reviewer counts".
+  It keeps its place: nobody's approval counts for it and nobody ships through it, and every surface says why and
+  how to fix it. The reasons: no token or a refused one (connect GitHub), a token without `read:org`, a team slug
+  GitHub does not know, or a repository owned by a personal account (teams only exist in organizations: list
+  people instead, or move the repository to an organization).
+- Studio Settings, Review rules shows each team as a chip with its member count and avatars, and its Edit mode
+  takes a person or a team (it suggests the organization's teams when the token can list them). The change is sent
+  for review like any other edit of `bridge.config.json`.
+- `bridge check` lists the teams with their size and reports each team it cannot read, with the fix. Like the
+  protection line, this never changes the exit code (a CI token often cannot read organization teams). The MCP
+  review tool returns the same roles: who may approve design, approve tech and ship, with teams named.
+- In `@bridge-ds/core`, `teams.ts` parses entries (`parseOwnerEntry`) and reads teams with `TeamDirectory`
+  (paginated `GET /orgs/{org}/teams/{slug}/members`, `GET /orgs/{org}/teams/{slug}/memberships/{user}` for one
+  person, cached for five minutes), returning a typed "cannot read" state with its reason.
+
 ## Visual before and after
 
 `.github/workflows/visual-impact.yml` screenshots what a pull request changes, before and after. When it runs is

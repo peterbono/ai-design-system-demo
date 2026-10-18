@@ -10,6 +10,7 @@
 // is ready reads green, not red.
 import { CONFLICT_REASON, mergeGate, type ApprovalSummary, type CiSummary, type MergeGate, type MissingApproval, type PullState, type ReviewStatusKind, type Tier } from './review-rules';
 import type { TokenReview } from './token-review';
+import { entriesFor, type TeamStates } from '@bridge-ds/core';
 
 export type StatusGroup = 'blocked' | 'waiting' | 'ready' | 'neutral';
 
@@ -256,8 +257,14 @@ export function needFromStatus(kind: ReviewStatusKind | null | undefined, extra:
 }
 
 export interface People {
-  /** governance.owners in bridge.config.json. */
+  /** governance.owners in bridge.config.json, after rights, GitHub teams expanded to their members once read. */
   owners: { design: string[]; tech: string[] };
+  /** The same lists as the config names them (people and "@org/team" entries), so sentences name a team as a team. */
+  entries?: { design: string[]; tech: string[] };
+  /** The ship right as the config names it (people and teams). */
+  shipEntries?: string[];
+  /** Team states read from GitHub ("@acme/design (4 people)"). */
+  teams?: TeamStates;
   /** Login of the pull request author. GitHub refuses self-approval. */
   author: string;
   /** Login of the connected viewer, if any. */
@@ -304,7 +311,8 @@ export interface WhoActs {
 const norm = (x: string) => x.trim().toLowerCase().replace(/^@/, '');
 const same = (a: string | null | undefined, b: string | null | undefined) => Boolean(a && b && norm(a) === norm(b));
 const uniq = (xs: string[]) => xs.filter((x, i) => xs.findIndex((y) => norm(y) === norm(x)) === i);
-const at = (xs: string[]) => (xs.length <= 2 ? xs.map((x) => `@${x}`).join(' or ') : `${xs.slice(0, 2).map((x) => `@${x}`).join(', ')} or ${xs.length - 2} more`);
+const or = (xs: string[]) => (xs.length <= 2 ? xs.join(' or ') : `${xs.slice(0, 2).join(', ')} or ${xs.length - 2} more`);
+const at = (xs: string[]) => or(xs.map((x) => `@${x.replace(/^@/, '')}`));
 const checks = (n: number) => (n === 1 ? 'the failing check' : n > 1 ? `${n} failing checks` : 'the failing checks');
 
 /** Owners listed for a role in the config (both lists for a plain approval), before removing anyone. */
@@ -336,10 +344,20 @@ const YOUR_APPROVAL: Record<ApprovalRole, string> = { design: 'approve the desig
 const SHORT_APPROVAL: Record<ApprovalRole, string> = { design: 'Design owner to approve', tech: 'Tech owner to approve', approval: 'Reviewer to approve' };
 const YOUR_SHORT: Record<ApprovalRole, string> = { design: 'Your turn: approve design', tech: 'Your turn: approve tech', approval: 'Your turn: approve' };
 
-/** "the design owner (@a)", "a reviewer", "the design and tech owners (@a)". */
-function namedRole(role: ApprovalRole, logins: string[]): string {
-  if (role === 'approval') return logins.length ? `a reviewer (${at(logins)})` : 'a reviewer';
-  return logins.length ? `the ${ROLE_NAME[role]} (${at(logins)})` : `a ${ROLE_NAME[role]}`;
+/**
+ * Who can still act, as the sentence names them: people as "@login", a team as "@acme/design (4 people)" when one
+ * of its members can (or its members are unknown). Without config entries, the logins as they are.
+ */
+export function namesFor(role: ApprovalRole, logins: string[], p: Pick<People, 'entries' | 'teams'>): string {
+  if (!p.entries) return at(logins);
+  const labels = entriesFor(listedFor(role, p.entries), logins, p.teams);
+  return labels.length ? or(labels) : at(logins);
+}
+
+/** "the design owner (@a)", "a reviewer", "the design owner (@acme/design (4 people))". */
+function namedRole(role: ApprovalRole, logins: string[], p: People): string {
+  if (role === 'approval') return logins.length ? `a reviewer (${namesFor(role, logins, p)})` : 'a reviewer';
+  return logins.length ? `the ${ROLE_NAME[role]} (${namesFor(role, logins, p)})` : `a ${ROLE_NAME[role]}`;
 }
 
 /**
@@ -375,12 +393,12 @@ export function whoActs(need: Need, p: People): WhoActs {
       return authorTurn('resolve-conflict', 'resolve a conflict with the latest library', 'resolve a conflict with the latest library', 'Author to resolve a conflict', 'Your turn: resolve a conflict');
     case 'checks-running': {
       const next = need.then[0];
-      const then = next ? ` Then ${namedRole(next, eligibleFor(next, p).logins)} approves.` : ' Then it is ready to publish.';
+      const then = next ? ` Then ${namedRole(next, eligibleFor(next, p).logins, p)} approves.` : ' Then it is ready to publish.';
       return { who: 'nobody', logins: [], yourTurn: false, action: 'wait', sentence: `Tests are still running.${then}`, short: 'Tests running' };
     }
     case 'checking-merge': {
       const next = need.then[0];
-      const then = next ? ` Then ${namedRole(next, eligibleFor(next, p).logins)} approves.` : '';
+      const then = next ? ` Then ${namedRole(next, eligibleFor(next, p).logins, p)} approves.` : '';
       return { who: 'nobody', logins: [], yourTurn: false, action: 'wait', sentence: `Checking that it fits the latest library.${then}`, short: 'Checking' };
     }
     case 'approve': {
@@ -401,17 +419,18 @@ export function whoActs(need: Need, p: People): WhoActs {
       const sameOwners = tech && tech.logins.length === e.logins.length && tech.logins.every((l) => e.logins.some((x) => same(x, l)));
       const sentence =
         both && sameOwners && e.logins.length
-          ? `Waiting for the design and tech owners (${at(e.logins)}) to approve.`
+          ? `Waiting for the design and tech owners (${namesFor('approval', e.logins, p)}) to approve.`
           : both && tech && (tech.logins.length || tech.open)
-            ? `Waiting for ${namedRole('design', e.logins)} and ${namedRole('tech', tech.logins)} to approve.`
-            : `Waiting for ${namedRole(role, e.logins)} to approve.`;
+            ? `Waiting for ${namedRole('design', e.logins, p)} and ${namedRole('tech', tech.logins, p)} to approve.`
+            : `Waiting for ${namedRole(role, e.logins, p)} to approve.`;
       return { who: role === 'approval' ? 'reviewer' : role, logins: e.logins, yourTurn: false, action: APPROVE_ACTION[role], sentence, short: SHORT_APPROVAL[role] };
     }
     case 'ready': {
       const owners = (p.shippers?.length ? uniq(p.shippers) : uniq([...p.owners.design, ...p.owners.tech])).map((x) => x.replace(/^@/, ''));
       const mine = p.canMerge ?? owners.some((o) => same(o, p.viewer));
       if (p.viewer && mine) return { who: 'you', logins: [p.viewer], yourTurn: true, action: 'merge', sentence: 'Your turn: ready to ship.', short: 'Your turn: ship it' };
-      const who = owners.length ? at(owners) : 'an owner';
+      const named = p.teams && (p.shipEntries ?? p.entries) ? entriesFor(p.shipEntries ?? [...p.entries!.design, ...p.entries!.tech], owners, p.teams) : [];
+      const who = named.length ? or(named) : owners.length ? at(owners) : 'an owner';
       return { who: 'owner', logins: owners, yourTurn: false, action: 'merge', sentence: `Ready to ship: ${who} can ship it.`, short: 'Ready to ship' };
     }
   }
@@ -457,7 +476,7 @@ export function approvalRows(input: { tier: Tier | null; approvals: ApprovalSumm
     const text = canAct
       ? 'Waiting for you'
       : e.logins.length
-        ? `Waiting for ${at(e.logins)}`
+        ? `Waiting for ${namesFor(role, e.logins, p)}`
         : e.open
           ? 'Waiting for a reviewer'
           : `Waiting: no other ${ROLE_NAME[role]} can approve`;

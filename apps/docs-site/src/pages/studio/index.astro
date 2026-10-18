@@ -194,9 +194,10 @@ const adoption = adoptionRows(groupByApp(loadAudits()).apps).filter((a) => a.com
   </div>
 
   <script>
-    import { loadProtection } from '@bridge-ds/core';
+    import { entryLabel, loadProtection } from '@bridge-ds/core';
     import { currentViewer, ghGet, hasWorkingToken, initGitHubConnect, readRepo, RateLimitError, studioClient } from '../../scripts/github-session';
-    import { loadStatuses, owners, shippers, type PullForStatus, type PullStatus } from '../../scripts/pr-status';
+    import { loadStatuses, owners, shippers, teamPeople, type PullForStatus, type PullStatus } from '../../scripts/pr-status';
+    import { loadTeams } from '../../scripts/teams';
     import { oneLineTitle } from '../../lib/markdown';
     import { byUrgency, needFromStatus, whoActs, type WhoActs } from '../../lib/changes';
     import { reviewQueue } from '../../lib/review-queue';
@@ -246,6 +247,11 @@ const adoption = adoptionRows(groupByApp(loadAudits()).apps).filter((a) => a.com
       const o = owners();
       return [...new Set([...o.design, ...o.tech])];
     };
+    // The owners as the config names them: a GitHub team reads "@acme/design (4 people)".
+    const ownerNames = () => {
+      const { entries, teams } = teamPeople();
+      return [...new Set([...entries.design, ...entries.tech].map((e) => entryLabel(e, teams)))];
+    };
     const overrideBy = (): string[] => {
       try {
         return (JSON.parse(document.getElementById('bridge-repo')?.textContent || '{}') as { override?: { allowed?: string[] } }).override?.allowed ?? [];
@@ -260,6 +266,7 @@ const adoption = adoptionRows(groupByApp(loadAudits()).apps).filter((a) => a.com
         ? whoActs(needFromStatus(st.kind, { failing: st.failing, changesRequestedBy: st.changesRequested }), {
             owners: owners(),
             shippers: shippers(),
+            ...teamPeople(),
             overrideBy: overrideBy(),
             author: p.user.login,
             viewer: currentViewer()?.login ?? null,
@@ -306,7 +313,7 @@ const adoption = adoptionRows(groupByApp(loadAudits()).apps).filter((a) => a.com
           guidance: isGuidanceChange(p.head.ref, st?.guidanceOnly),
         };
       });
-      const t = overviewTodo({ changes, requests: state.requests, viewer, owners: siteOwners(), unprotected: state.unprotected, loading: !state.done });
+      const t = overviewTodo({ changes, requests: state.requests, viewer, owners: siteOwners(), ownerNames: ownerNames(), unprotected: state.unprotected, loading: !state.done });
       // Statuses still loading and nothing yours yet: say so rather than "Nothing waits for you".
       const checking = viewer && !state.done && !t.mine.length && state.open.length > 0;
       headline.textContent = checking ? 'Checking what waits for you.' : t.headline;
@@ -368,6 +375,8 @@ const adoption = adoptionRows(groupByApp(loadAudits()).apps).filter((a) => a.com
       }
       if (state.loaded) paintTodo();
       // Owners only: a setup row when nothing protects the library.
+      // GitHub teams in the owner lists count as their members (no request without teams).
+      await loadTeams();
       const o = owners();
       const isOwner = Boolean(v && [...o.design, ...o.tech].includes(v.login));
       if (!isOwner || !hasWorkingToken()) {
