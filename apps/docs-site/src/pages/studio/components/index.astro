@@ -1,28 +1,41 @@
 ---
 // Studio Components: one sentence on the state of the catalog, one primary while guidance is missing, then every
-// component grouped by family (search and the family menu filter it). A row opens a drawer with the guidance status
-// and the doors: Edit docs, Edit tokens, Code, Workbench, Library page, and "Request a change": code is the source
-// of truth, so a component change is a GitHub issue (label component-change) that a pull request closes.
+// component grouped by family (search and the family menu filter it), each row with a thumbnail of the real
+// component. A row opens a drawer: the component live in light and dark, its guidance status, the designer doors
+// (Edit docs, Edit tokens, Library page) and "Request a change": code is the source of truth, so a component
+// change is a GitHub issue (label component-change) that a developer implements. Code, workbench, props and
+// examples sit in one "For developers" fold at the bottom.
 import '../../../styles/studio.css';
 import '../../../styles/components-studio.css';
 import '../../../styles/requests.css';
+import '../../../styles/preview-frames.css';
 import Layout from '../../../layouts/Layout.astro';
 import StudioHeader from '../../../components/StudioHeader.astro';
+import UiIcon from '../../../components/Icon.astro';
 import ButtonLink from '../../../components/ds/ButtonLink';
+import Example from '../../../components/Example';
 import ComponentsSearch from '../../../components/ds/studio/ComponentsSearch';
 import ComponentsList, { exceptions, type ComponentListRow } from '../../../components/ds/studio/ComponentsList';
-import { Button, Icon, IconButton, Link } from '@bridge-ds/react';
-import { BookOpen, FileText, MessageSquarePlus, Pencil, X } from 'lucide-react';
+import { Button, Icon, IconButton, Input, Link, Textarea } from '@bridge-ds/react';
+import { BookOpen, FileText, ImagePlus, MessageSquarePlus, Pencil, X } from 'lucide-react';
 import { REQUEST_KINDS } from '@bridge-ds/core';
 import { GitHubMark, StorybookMark } from '../../../components/ds/studio/brand-icons';
 import { docsEditHref, editTokensHref, guidanceState, loadComponents, tokenCountLabel, type ComponentInfo } from '../../../lib/components';
-import { componentsLead, componentsPrimary } from '../../../lib/components-studio';
+import { componentsLead, componentsPrimary, productUsage } from '../../../lib/components-studio';
+import { groupByApp, loadAudits } from '../../../lib/audits';
 import { sourceUrl, STORYBOOK_URL } from '../../../lib/repo';
 import { PAGE_SOURCES, freshness } from '../../../lib/sources';
 
 const components = loadComponents();
 const updated = freshness(PAGE_SOURCES.components);
 const statusOf = (c: ComponentInfo) => c.docs?.status ?? 'stable';
+// "Used in products": the DS component instances `bridge audit` counted in each audited product (the committed
+// reports under src/data/audits, latest per product). No report: no column.
+const audits = groupByApp(loadAudits()).apps.map((a) => {
+  const latest = a.after ?? a.reports[a.reports.length - 1]!;
+  return { product: a.app.title.replace(/\s*\(.*$/, ''), components: latest.report.components?.ds ?? {}, label: latest.report.label ?? '' };
+});
+const usage = productUsage(audits, components.map((c) => c.name));
 const rows: ComponentListRow[] = components.map((c) => ({
   slug: c.slug,
   name: c.name,
@@ -31,7 +44,9 @@ const rows: ComponentListRow[] = components.map((c) => ({
   guidance: guidanceState(c),
   tokens: tokenCountLabel(c),
   tokensTotal: c.allTokenPaths.length,
-  stories: c.stories.length,
+  examples: c.stories.length,
+  preview: c.docs?.preview,
+  usedIn: audits.length ? (usage.get(c.name) ?? []) : undefined,
 }));
 const families = [...new Set(rows.map((r) => r.family))].map((f) => ({ name: f, n: rows.filter((r) => r.family === f).length }));
 const lead = componentsLead(rows);
@@ -42,11 +57,15 @@ const GUIDANCE_LINE: Record<string, { label: string; tone: string; text: string 
   missing: { label: 'Missing guidance', tone: '', text: 'The Library page shows props and tokens only. Start from what the code tells.' },
 };
 const docsLabel = (g: string) => (g === 'missing' ? 'Add guidance' : g === 'review' ? 'Review docs' : 'Edit docs');
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+// A request is always about an existing component here: Visual change first, the most common ask.
+const DEFAULT_KIND = 'visual';
+const defaultHint = REQUEST_KINDS.find((k) => k.value === DEFAULT_KIND)?.hint ?? '';
 ---
 
 <Layout
   title="Components"
-  description="Every component by family, with its tokens, stories and guidance status, and the doors to edit its docs and tokens."
+  description="Every component by family, with a live thumbnail, its examples, tokens, open requests and the products that use it, and the doors to edit its docs and tokens."
   sources={PAGE_SOURCES.components}
   updated={updated}
   wide
@@ -79,8 +98,9 @@ const docsLabel = (g: string) => (g === 'missing' ? 'Add guidance' : g === 'revi
     </div>
     <p class="cm-count" data-cm-count role="status" aria-live="polite"></p>
 
-    <ComponentsList rows={rows} />
+    <ComponentsList rows={rows} products={audits.length} />
     <p class="cm-none" data-cm-none hidden>No component matches. <button type="button" class="cm-lead-filter" data-cm-reset>Show every component</button></p>
+    {audits.length > 0 && <p class="cm-note">Used in products counts the audited products that render the component: {audits.map((a) => a.product).join(' and ')}, from their last <a href="/studio/quality/">audit report</a>. Requests counts the open change requests.</p>}
   </div>
 
   <div class="cm-scrim" data-cm-scrim hidden></div>
@@ -94,9 +114,25 @@ const docsLabel = (g: string) => (g === 'missing' ? 'Add guidance' : g === 'revi
         const r = rows.find((x) => x.slug === c.slug)!;
         const g = GUIDANCE_LINE[r.guidance]!;
         const tokensHref = editTokensHref(c);
-        const story = c.stories[0];
+        const used = r.usedIn ?? [];
         return (
           <section class="cm-d-panel" data-cm-panel={c.slug} data-name={c.name} hidden>
+            {c.docs?.preview ? (
+              <figure class="cm-d-preview" aria-label={`${c.name} in light and dark`}>
+                {['light', 'dark'].map((theme) => (
+                  <div class="cm-d-pv">
+                    <span class="cm-d-pv-label">{theme === 'light' ? 'Light' : 'Dark'}</span>
+                    <div class="xe-frame cm-d-frame" data-theme={theme} aria-hidden="true" inert>
+                      <div class="xe-fit">
+                        <Example node={c.docs!.preview!} />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </figure>
+            ) : (
+              <p class="cm-d-nopv">No preview yet: the docs have no example to render. Add one with {docsLabel(r.guidance)}.</p>
+            )}
             <p class="cm-d-meta">
               {c.category}
               {exceptions(r)
@@ -112,16 +148,20 @@ const docsLabel = (g: string) => (g === 'missing' ? 'Add guidance' : g === 'revi
             </div>
             <dl class="cm-d-facts">
               <div>
+                <dt>Open requests</dt>
+                <dd class="num" data-cm-d-req>Reading</dd>
+              </div>
+              {
+                audits.length > 0 && (
+                  <div>
+                    <dt>Used in products</dt>
+                    <dd>{used.length ? used.map((u) => `${u.product} (${u.instances})`).join(', ') : 'Not in an audited product'}</dd>
+                  </div>
+                )
+              }
+              <div>
                 <dt>Tokens</dt>
-                <dd class="num">{r.tokens}</dd>
-              </div>
-              <div>
-                <dt>Props</dt>
-                <dd class="num">{c.props.length}</dd>
-              </div>
-              <div>
-                <dt>Stories</dt>
-                <dd class="num">{c.stories.length}</dd>
+                <dd class="num">{r.tokensTotal}</dd>
               </div>
             </dl>
             <div class="cm-d-actions">
@@ -133,36 +173,17 @@ const docsLabel = (g: string) => (g === 'missing' ? 'Add guidance' : g === 'revi
                   Edit tokens
                 </ButtonLink>
               )}
+              <ButtonLink variant="ghost" href={`/components/${c.slug}/`} iconStart={BookOpen}>
+                Library page
+              </ButtonLink>
             </div>
-            <ul class="cm-d-links" aria-label={`${c.name} elsewhere`}>
-              <li>
-                <Link variant="standalone" href={`/components/${c.slug}/`}>
-                  <Icon icon={BookOpen} size="xs" />
-                  Library page
-                </Link>
-              </li>
-              <li>
-                <Link variant="standalone" href={sourceUrl(c.files.tsx)}>
-                  <Icon icon={GitHubMark} size="xs" />
-                  Code
-                </Link>
-              </li>
-              {story && (
-                <li>
-                  <Link variant="standalone" href={`${STORYBOOK_URL}/?path=/story/${story.id}`}>
-                    <Icon icon={StorybookMark} size="xs" />
-                    Workbench
-                  </Link>
-                </li>
-              )}
-            </ul>
           </section>
         );
       })
     }
     <section class="cm-req" data-cm-req aria-labelledby="cm-req-h">
       <h3 id="cm-req-h" class="cm-req-h">Need a change?</h3>
-      <p data-cm-req-intro>Code is the source of truth, so a component change is a request: a GitHub issue that a developer, or Claude, implements in a pull request.</p>
+      <p data-cm-req-intro>A developer builds component changes. Describe what you need and attach the Figma frame.</p>
       <p data-no-gh>Connect GitHub to request changes.</p>
       <Button variant="secondary" size="sm" className="cm-req-start" iconStart={GitHubMark} data-gh-open data-no-gh>Connect GitHub</Button>
       <Button variant="secondary" size="sm" className="cm-req-start" iconStart={MessageSquarePlus} data-cm-req-open data-gh-only hidden aria-expanded="false" aria-controls="cm-req-form">Request a change</Button>
@@ -171,35 +192,83 @@ const docsLabel = (g: string) => (g === 'missing' ? 'Add guidance' : g === 'revi
         <label class="rq-field">
           <span>Kind</span>
           <select name="kind" data-rq-kind>
-            {REQUEST_KINDS.map((k) => <option value={k.value}>{k.label}</option>)}
+            {REQUEST_KINDS.map((k) => <option value={k.value} selected={k.value === DEFAULT_KIND}>{k.label}</option>)}
           </select>
-          <span class="rq-hint" data-rq-kind-hint>{REQUEST_KINDS[0]!.hint}</span>
+          <span class="rq-hint" data-rq-kind-hint>{defaultHint}</span>
         </label>
-        <label class="rq-field">
-          <span>Title</span>
-          <input name="title" type="text" autocomplete="off" placeholder="Add a danger ghost variant" required aria-required="true" />
-        </label>
-        <label class="rq-field">
-          <span>Summary</span>
-          <textarea name="summary" rows="4" placeholder="What should change, and why. Where you need it." required aria-required="true"></textarea>
-        </label>
-        <fieldset class="rq-changes" data-rq-changes>
+        <Input label="Title" name="title" autoComplete="off" placeholder="Add a danger ghost variant" required />
+        <Textarea label="Summary" name="summary" rows={4} placeholder="What should change, and why. Where you need it." required />
+        <Input label="Figma link (optional)" name="figma" type="url" inputMode="url" autoComplete="off" placeholder="https://www.figma.com/design/..." hint="In Figma, right-click the frame, then Copy link to selection." />
+        <div class="cm-req-img" data-rq-image-box>
+          <span class="cm-req-img-label" id="cm-req-img-label">Image (optional)</span>
+          <p class="cm-req-img-hint" data-rq-image-hint>Paste a screenshot anywhere in this form, or attach a file. PNG, JPEG, GIF or WebP, up to 5 MB.</p>
+          <input class="sr-only" type="file" accept="image/png,image/jpeg,image/gif,image/webp" tabindex="-1" aria-hidden="true" data-rq-image-file />
+          <Button variant="secondary" size="sm" className="cm-req-start" type="button" iconStart={ImagePlus} aria-describedby="cm-req-img-label" data-rq-image-pick>Attach an image</Button>
+          <div class="cm-req-img-preview" data-rq-image-preview hidden>
+            <img alt="Attached image" data-rq-image-img />
+            <Button variant="ghost" size="sm" type="button" data-rq-image-remove>Remove image</Button>
+          </div>
+        </div>
+        <fieldset class="rq-changes cm-req-changes" data-rq-changes>
           <legend>Changes (optional)</legend>
-          <div class="rq-change" data-rq-change>
-            <input name="field" aria-label="What changes" placeholder="What: radius" autocomplete="off" />
-            <input name="before" aria-label="Now" placeholder="Now: 12" autocomplete="off" />
-            <input name="after" aria-label="Requested" placeholder="Requested: 6" autocomplete="off" />
+          <div class="cm-req-change" data-rq-change>
+            <Input name="field" aria-label="What changes" placeholder="What: radius" autoComplete="off" size="sm" />
+            <Input name="before" aria-label="Now" placeholder="Now: 12" autoComplete="off" size="sm" />
+            <Input name="after" aria-label="Requested" placeholder="Requested: 6" autoComplete="off" size="sm" />
           </div>
           <Button variant="ghost" size="sm" className="cm-req-start" type="button" data-rq-add-row>Add a row</Button>
         </fieldset>
         <p class="rq-error" role="alert" data-rq-error hidden></p>
         <div class="rq-actions">
-          <Button variant="primary" type="submit" data-rq-submit>Open request</Button>
+          <Button variant="primary" type="submit" data-rq-submit>Send request</Button>
           <Button variant="ghost" type="button" data-rq-cancel>Cancel</Button>
         </div>
       </form>
       <div class="rq-done" role="status" data-rq-done hidden></div>
     </section>
+    {
+      components.map((c) => {
+        const story = c.stories[0];
+        return (
+          <details class="cm-d-dev" data-cm-dev={c.slug} hidden>
+            <summary>
+              <UiIcon name="code" size={18} />
+              <span class="cm-d-dev-label">For developers</span>
+              <span class="cm-d-dev-meta">{plural(c.props.length, 'prop')}, {plural(c.stories.length, 'example')}</span>
+              <span class="cm-d-dev-chev"><UiIcon name="chevron" size={16} /></span>
+            </summary>
+            <div class="cm-d-dev-body">
+              <dl class="cm-d-facts">
+                <div>
+                  <dt>Props</dt>
+                  <dd class="num">{c.props.length}</dd>
+                </div>
+                <div>
+                  <dt>Stories</dt>
+                  <dd class="num">{c.stories.length}</dd>
+                </div>
+              </dl>
+              <ul class="cm-d-links" aria-label={`${c.name} for developers`}>
+                <li>
+                  <Link variant="standalone" href={sourceUrl(c.files.tsx)}>
+                    <Icon icon={GitHubMark} size="xs" />
+                    Code
+                  </Link>
+                </li>
+                {story && (
+                  <li>
+                    <Link variant="standalone" href={`${STORYBOOK_URL}/?path=/story/${story.id}`}>
+                      <Icon icon={StorybookMark} size="xs" />
+                      Workbench
+                    </Link>
+                  </li>
+                )}
+              </ul>
+            </div>
+          </details>
+        );
+      })
+    }
   </aside>
 
   <script>

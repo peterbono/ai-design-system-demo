@@ -1,7 +1,12 @@
 // Studio Components controller: filter the list (text, family menu, "need usage guidance"), move between rows with
 // the arrow keys (the list is one tab stop), and open a row's detail drawer. Deep links: ?c=<slug> opens that
 // component's drawer (the Library "Edit in Studio" door), ?guidance=needed shows only what needs guidance.
+// Thumbnails and the drawer preview are scaled to fit their frame; the Requests column fills from the requests
+// Studio already reads (GitHub issues labeled component-change), and leaves the page when they cannot be read.
+import { openRequestCounts } from '../lib/components-studio';
 import { initRequestForm, resetRequestForm } from './request-form';
+import { fitFrames } from './explorer/preview-frames';
+import { loadRequestRows } from './requests';
 
 export function initComponentsStudio() {
   const root = document.querySelector<HTMLElement>('.cm');
@@ -18,6 +23,10 @@ export function initComponentsStudio() {
   const scrim = document.querySelector<HTMLElement>('[data-cm-scrim]')!;
   const title = drawer.querySelector<HTMLElement>('[data-cm-d-title]')!;
   const panels = [...drawer.querySelectorAll<HTMLElement>('[data-cm-panel]')];
+  const devs = [...drawer.querySelectorAll<HTMLDetailsElement>('[data-cm-dev]')];
+  const table = root.querySelector<HTMLElement>('[data-cm-table]');
+  // Open requests by lowercased component name: null while reading, undefined when GitHub could not be read.
+  let requestCounts: Map<string, number> | null | undefined = null;
   const params = new URLSearchParams(location.search);
   let family = '';
   let onlyGuidance = params.get('guidance') === 'needed';
@@ -50,6 +59,7 @@ export function initComponentsStudio() {
     const shown = visibleRows();
     if (none) none.hidden = shown.length > 0;
     if (count) count.textContent = shown.length === rows.length ? '' : `${shown.length} of ${rows.length} components shown`;
+    requestAnimationFrame(() => table && fitFrames(table, { max: 1 }));
     // One tab stop: the first visible row, unless the focused one is still visible.
     const active = shown.find((r) => r.tabIndex === 0) ?? shown[0];
     rows.forEach((r) => (r.tabIndex = r === active ? 0 : -1));
@@ -61,6 +71,11 @@ export function initComponentsStudio() {
     const panel = panels.find((p) => p.dataset.cmPanel === slug);
     if (!panel) return;
     panels.forEach((p) => (p.hidden = p !== panel));
+    devs.forEach((x) => {
+      x.hidden = x.dataset.cmDev !== slug;
+      x.open = false;
+    });
+    paintDrawerRequests(panel);
     title.textContent = panel.dataset.name ?? slug;
     drawer.dataset.component = panel.dataset.name ?? slug;
     drawer.dataset.slug = slug;
@@ -73,7 +88,37 @@ export function initComponentsStudio() {
     document.body.classList.add('no-scroll');
     // Focus the title: screen readers announce the component, and Tab reaches the actions next.
     title.focus();
+    requestAnimationFrame(() => fitFrames(panel));
     syncUrl();
+  }
+
+  /** The drawer's "Open requests" fact, with a link to them in Changes when there are some. */
+  function paintDrawerRequests(panel: HTMLElement) {
+    const dd = panel.querySelector<HTMLElement>('[data-cm-d-req]');
+    if (!dd) return;
+    if (requestCounts === null) dd.textContent = 'Reading';
+    else if (requestCounts === undefined) dd.textContent = 'Not available right now';
+    else {
+      const n = requestCounts.get((panel.dataset.name ?? '').toLowerCase()) ?? 0;
+      dd.innerHTML = n ? `${n} <a href="/studio/changes/?view=requests">See in Changes</a>` : 'None';
+    }
+  }
+
+  async function loadRequestCounts() {
+    try {
+      requestCounts = openRequestCounts(await loadRequestRows({ closed: false }));
+      table?.querySelectorAll<HTMLElement>('[data-cm-req-n]').forEach((cell) => {
+        const n = requestCounts?.get(cell.dataset.cmReqN ?? '') ?? 0;
+        // Only a real count shows: an empty cell reads "none" without adding 47 zeros to the list.
+        cell.textContent = n ? String(n) : '';
+      });
+    } catch {
+      // Without the requests (rate limit, offline) the column would only show blanks: it leaves instead.
+      requestCounts = undefined;
+      table?.classList.add('cm-no-req');
+    }
+    const open = panels.find((p) => !p.hidden);
+    if (open && !drawer.hidden) paintDrawerRequests(open);
   }
 
   function close() {
@@ -154,6 +199,11 @@ export function initComponentsStudio() {
     }
   });
 
+  void loadRequestCounts();
+  // Thumbnails measure their content: measure again once the web fonts are in, and when the window resizes.
+  const refit = () => requestAnimationFrame(() => table && fitFrames(table, { max: 1 }));
+  void document.fonts?.ready.then(refit);
+  window.addEventListener('resize', refit);
   family = params.get('family') ?? '';
   if (q) q.value = params.get('q') ?? '';
   apply();

@@ -14,7 +14,7 @@ export type RequestStatus = 'requested' | 'in-progress' | 'done' | 'declined';
 export const REQUEST_KINDS: { value: RequestKind; label: string; hint: string }[] = [
   { value: 'new-component', label: 'New component', hint: 'A component the design system does not have yet.' },
   { value: 'new-variant', label: 'New variant', hint: 'A size, tone or state the component does not have yet.' },
-  { value: 'prop-change', label: 'Prop change', hint: 'Add, rename or change a prop or its default.' },
+  { value: 'prop-change', label: 'Option change (prop)', hint: 'Add, rename or change an option (a prop in code) or its default.' },
   { value: 'structure', label: 'Structure change', hint: 'A part was added, removed or moved.' },
   { value: 'visual', label: 'Visual change', hint: 'Spacing, radius, layout or icon placement.' },
   { value: 'token-binding', label: 'Token change', hint: 'The component should paint with another token.' },

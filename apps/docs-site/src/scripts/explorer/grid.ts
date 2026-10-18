@@ -12,12 +12,14 @@ import { copyButton, esc, icon } from './util';
 export const ROW_HEIGHT = 56;
 
 /** Minimum width of a mode column in rem: Studio cells carry the alias, the value and a chevron. */
-const modeMin = (s: ExplorerState) => (s.mode === 'edit' ? 15 : 10.5);
+const modeMin = (s: ExplorerState) => (s.mode === 'edit' ? 12 : 10.5);
 
 /** CSS grid-template-columns for the current columns. */
 export function gridTemplate(view: View, s: ExplorerState): string {
   const modes = view.columns.map(() => `minmax(${modeMin(s)}rem, 1fr)`).join(' ');
-  return ['minmax(9.5rem, 1.1fr)', modes, s.showCode ? 'minmax(13rem, 0.9fr)' : '', s.showDescription ? 'minmax(16rem, 1.2fr)' : ''].filter(Boolean).join(' ');
+  // Studio gives the name the larger share: names stay on one line next to the details panel at laptop widths.
+  const name = s.mode === 'edit' ? 'minmax(9.5rem, 1.6fr)' : 'minmax(9.5rem, 1.1fr)';
+  return [name, modes, s.showCode ? 'minmax(13rem, 0.9fr)' : '', s.showDescription ? 'minmax(16rem, 1.2fr)' : ''].filter(Boolean).join(' ');
 }
 
 export const colCount = (view: View, s: ExplorerState) => 1 + view.columns.length + (s.showCode ? 1 : 0) + (s.showDescription ? 1 : 0);
@@ -54,7 +56,10 @@ function rowHtml(d: ExplorerData, t: XToken, view: View, s: ExplorerState, secti
   const nameEnd = editable
     ? `<button type="button" class="xp-rowmenu" data-xp-rowmenu tabindex="-1" aria-label="Actions for ${esc(t.path)}" aria-haspopup="menu">${icon('more', 16)}</button>`
     : copyButton(codeSyntax(t.path, t.tier, s.syntax), `${SYNTAX_LABEL[s.syntax]} ${codeSyntax(t.path, t.tier, s.syntax)}`);
-  const name = `<div role="rowheader" class="xp-td is-name" aria-colindex="1" tabindex="-1" data-col="0"><span class="xp-name"><span class="xp-name-main mono" title="${esc(t.path)}">${esc(rel)}</span>${unused}</span>${nameEnd}</div>`;
+  // Studio: a long name wraps at its dots (never mid-segment) instead of hiding behind an ellipsis when the details
+  // panel narrows the table. The Library keeps one line with the full name on hover.
+  const shownName = editable ? esc(rel).replace(/\./g, '.<wbr>') : esc(rel);
+  const name = `<div role="rowheader" class="xp-td is-name" aria-colindex="1" tabindex="-1" data-col="0"><span class="xp-name"><span class="xp-name-main mono"${editable ? '' : ` title="${esc(t.path)}"`}>${shownName}</span>${unused}</span>${nameEnd}</div>`;
   const edited = editable ? editedModes(t.path) : new Set<string>();
   const cells = view.columns
     .map(

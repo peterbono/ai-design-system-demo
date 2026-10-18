@@ -2,8 +2,8 @@
 // column per relevant mode in the center, a detail panel with the token flow on the right. Builds the token set in
 // the browser with @bridge-ds/core from the embedded token files. In edit mode, cells edit through the existing
 // token editor (draft, guardrails, tray, pull request); the page's "Edit tokens" toggle switches modes at runtime.
-import { TIER_NAMES, TIER_ORDER, type Tier } from '@bridge-ds/core';
-import { CATEGORY_LABEL, CATEGORY_ORDER, modeName, typeCategory, type Syntax, type TypeCategory } from '../../lib/explorer/format';
+import { TIER_ORDER, type Tier } from '@bridge-ds/core';
+import { CATEGORY_LABEL, CATEGORY_ORDER, modeName, STUDIO_TIER_NAMES, typeCategory, type Syntax, type TypeCategory } from '../../lib/explorer/format';
 import {
   activeFilterCount,
   applyFilters,
@@ -306,12 +306,12 @@ export function initTokenExplorer() {
     const sel = s.selection;
     const scope = scoped();
     const tiers = s.filters.tiers.length ? [...s.filters.tiers].sort((a, b) => tierRank(a) - tierRank(b)) : [];
-    const tierWord = (t: Tier) => (t === 'primitive' ? 'Primitive' : TIER_NAMES[t]);
+    const tierWord = (t: Tier) => (t === 'primitive' ? 'Primitive' : STUDIO_TIER_NAMES[t]);
     const names = tiers.map((t, i) => (i ? tierWord(t).toLowerCase() : tierWord(t)));
     const which = comp
       ? `Tokens used by ${compLabel(comp)}`
       : sel.lens === 'collections' && sel.group
-        ? `${TIER_NAMES[sel.tier as Tier] ?? 'All'} tokens in ${sel.group}`
+        ? `${STUDIO_TIER_NAMES[sel.tier as Tier] ?? 'All'} tokens in ${sel.group}`
         : !names.length || names.length === TIER_ORDER.length
           ? 'All tokens'
           : `${names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0]} tokens`;
@@ -323,6 +323,9 @@ export function initTokenExplorer() {
     const n = ((comp ? isAllTiers(s.filters.tiers) : isDefaultTiers(s.filters.tiers)) || sel.lens !== 'collections' || sel.group ? 0 : 1) + (s.filters.usage ? 1 : 0) + (s.filters.exact ? 1 : 0);
     filterN.textContent = String(n);
     filterN.hidden = n === 0;
+    // Collections and usage live under Advanced in Options: open it while one of them filters the table.
+    const adv = filtersEl.querySelector<HTMLDetailsElement>('[data-xp-advanced]');
+    if (adv && n - (s.filters.exact ? 1 : 0) > 0) adv.open = true;
     renderChips();
   }
 

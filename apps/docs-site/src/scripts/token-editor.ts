@@ -37,6 +37,9 @@ import {
 } from '../lib/editor-model';
 import { esc, getToken, hasWorkingToken, initGitHubConnect, paintGates, readRepo, setButtonDisabled, showGhError, studioClient } from './github-session';
 import { docsNotesForTokens } from '../lib/docs-draft-model';
+import { cellValue, tierAxis } from '../lib/explorer/model';
+import { numericValue } from '../lib/explorer/format';
+import { prTitleFrom, proposalTitle, reviewSentence, type TitleEdit } from '../lib/propose-copy';
 
 /** Components that paint with a token (build-time usage embedded by the explorer), for the docs notes of a proposal. */
 function usedByComponents(path: string): string[] {
@@ -221,7 +224,7 @@ async function propose(title: string, notes: string): Promise<number> {
   if (validation.blocking.length) throw new Error(`Guardrails block this change on the latest main: ${validation.blocking[0]!.message}`);
   const branch = branchName(draftSlug(S.draft), new Date());
   const risk = classifyRisk({ tokenChanges: applied.changes, config });
-  const prTitle = title.trim() || `tokens: ${applied.changes.length} token change${applied.changes.length > 1 ? 's' : ''} from Bridge`;
+  const prTitle = prTitleFrom(title) || prTitleFrom(proposalSummary()?.title ?? '') || `tokens: ${applied.changes.length} token change${applied.changes.length > 1 ? 's' : ''} from Bridge`;
   const body = composePrBody({
     changes: applied.changes,
     head,
@@ -337,11 +340,56 @@ export function editedModes(path: string): Set<string> {
  * shows before Apply. Nothing is saved.
  */
 export function previewContrast(pending: { path: string; mode: string; value: unknown }[]): ContrastResult[] {
-  if (!S) return [];
+  const proposed = pendingSet(pending);
+  return S && proposed ? evaluatePairs(proposed.byPath, S.pairs, contrastScope(proposed)) : [];
+}
+
+// The draft with pending values on top, memoized on the pending values: the popover asks for contrast and for the
+// preview overrides of the same pick.
+let pendingMemo: { key: string; set: TokenSet } | null = null;
+function pendingSet(pending: { path: string; mode: string; value: unknown }[]): TokenSet | null {
+  if (!S) return null;
+  const key = JSON.stringify([S.draft.edits, pending]);
+  if (pendingMemo?.key === key) return pendingMemo.set;
   const edits: DraftEdit[] = S.draft.edits.filter((e) => !(e.kind === 'value' && pending.some((p) => p.path === e.path && p.mode === e.mode)));
   for (const p of pending) edits.push({ kind: 'value', id: 'pending', path: p.path, mode: p.mode, before: S.head.byPath.get(p.path)?.values[p.mode], after: p.value });
-  const proposed = applyDraft(S.head, S.originals, { edits }, layoutOptions(S.config)).proposed;
-  return evaluatePairs(proposed.byPath, S.pairs, contrastScope(proposed));
+  const set = applyDraft(S.head, S.originals, { edits }, layoutOptions(S.config)).proposed;
+  pendingMemo = { key, set };
+  return set;
+}
+
+/** CSS overrides that paint the draft plus `pending` values (the popover's pick, before Apply) in one context. */
+export function pendingOverrides(pending: { path: string; mode: string; value: unknown }[], ctx: { brand: string; theme: string; density: string }): Record<string, string> {
+  const proposed = pendingSet(pending);
+  return S && proposed ? previewOverrides(S.head, proposed, ctx) : {};
+}
+
+/**
+ * What the "Send for review" dialog says about the draft: a plain title drafted from the edits ("Darker primary
+ * action fill"), the risk tier and who approves it, from governance.rights.
+ */
+export function proposalSummary(): { title: string; tier: 1 | 2 | 3; sentence: string } | null {
+  if (!S?.applied) return null;
+  const set = S.applied.proposed;
+  const head = S.head;
+  const resolved = (from: typeof head, path: string, mode: string, type: string | undefined) => {
+    const t = head.byPath.get(path) ?? set.byPath.get(path);
+    const axis = t ? tierAxis(t.tier) : undefined;
+    const m = S!.config.modes;
+    const ctx = { brand: m.defaults.brand ?? m.brands[0], theme: m.defaults.theme ?? m.themes[0], density: m.defaults.density ?? m.densities[0] };
+    const v = cellValue(from, path, axis ? { ...ctx, [axis]: mode } : ctx);
+    return type === 'color' ? v.hex : numericValue(v.resolved);
+  };
+  const edits: TitleEdit[] = S.draft.edits
+    .filter((e) => e.kind !== 'docs')
+    .map((e) => {
+      if (e.kind !== 'value') return { kind: e.kind as TitleEdit['kind'], path: e.path };
+      const type = head.byPath.get(e.path)?.type;
+      return { kind: 'value', path: e.path, type, before: resolved(head, e.path, e.mode, type), after: resolved(set, e.path, e.mode, type) };
+    });
+  const risk = classifyRisk({ tokenChanges: S.applied.changes, config: S.config });
+  const tier = (risk.tier === 1 || risk.tier === 2 ? risk.tier : 3) as 1 | 2 | 3;
+  return { title: proposalTitle(edits), tier, sentence: reviewSentence(tier, S.config.governance.rights) };
 }
 
 /** Removes one draft edit by its index in the draft. */
@@ -496,16 +544,32 @@ export function initTokenEditor() {
     recompute();
     ($<HTMLDialogElement>('ed-add-dialog') as HTMLDialogElement).close();
   });
+  // The title starts from the edit in plain words; once the person types their own, a later edit keeps it.
+  let autoTitle = '';
   $('ed-propose')?.addEventListener('click', () => {
     if (!S?.draft.edits.length || !hasWorkingToken()) return;
+    const sum = proposalSummary();
+    const titleField = field<HTMLInputElement>('propose-title');
+    if (sum && titleField && (!titleField.value.trim() || titleField.value === autoTitle)) {
+      titleField.value = sum.title;
+      autoTitle = sum.title;
+    }
+    const who = field('propose-who');
+    if (sum && who) who.textContent = sum.sentence;
+    const pr = field('propose-pr-title');
+    if (pr) pr.textContent = prTitleFrom(titleField?.value ?? '') || 'tokens: ...';
     ($<HTMLDialogElement>('ed-propose-dialog') as HTMLDialogElement | null)?.showModal();
+  });
+  field<HTMLInputElement>('propose-title')?.addEventListener('input', (e) => {
+    const pr = field('propose-pr-title');
+    if (pr) pr.textContent = prTitleFrom((e.target as HTMLInputElement).value) || 'tokens: ...';
   });
   $('ed-export')?.addEventListener('click', downloadDraft);
   $('ed-propose-go')?.addEventListener('click', async () => {
     const go = $<HTMLButtonElement>('ed-propose-go')!;
     const out = $('ed-propose-status')!;
     setButtonDisabled(go, true);
-    out.textContent = 'Creating a branch, committing the token files and a changeset, opening the pull request';
+    out.textContent = 'Sending for review';
     try {
       const n = await propose(field<HTMLInputElement>('propose-title')?.value ?? '', field<HTMLTextAreaElement>('propose-notes')?.value ?? '');
       // Docs edits stay: they are proposed from the docs editor.
@@ -513,7 +577,7 @@ export function initTokenEditor() {
       saveDraft();
       location.href = `/studio/changes/?pr=${n}`;
     } catch (err) {
-      showGhError(out, err, `Not proposed: ${(err as Error).message}`, 'open pull requests');
+      showGhError(out, err, `Not sent: ${(err as Error).message}`, 'open pull requests');
       setButtonDisabled(go, false);
     }
   });

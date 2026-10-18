@@ -1,0 +1,34 @@
+/* Frames of real components (scripts/explorer/preview-frames.ts): the token popover, the draft review and the
+   Components list and drawer. The content sits in the middle and is scaled to fill the frame (--xe-scale, set by
+   fitFrames from lib/preview-fit.ts). Frames show; they never take focus or pointer input. */
+
+.xe-frame {
+  position: relative;
+  min-width: 0;
+  height: var(--size-40);
+  padding: var(--space-3);
+  overflow: hidden;
+  border-radius: var(--radius-control);
+  box-shadow: inset 0 0 0 var(--border-width-default) var(--color-border-default);
+  background-color: var(--xe-stage, var(--color-bg-default));
+  color: var(--color-text-default);
+  pointer-events: none;
+}
+
+.xe-fit {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  justify-items: start;
+  gap: var(--space-3);
+  width: max-content;
+  max-width: var(--size-120);
+  transform: translate(-50%, -50%) scale(var(--xe-scale, 1));
+  transform-origin: center;
+}
+
+.xe-fit > [data-sample] {
+  min-width: 0;
+  max-width: 100%;
+}

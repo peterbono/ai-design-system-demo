@@ -315,7 +315,7 @@ What counts as a component change, and its suggested kind:
 | Change in Figma | Kind |
 | --- | --- |
 | A variant value or axis added or removed | New variant |
-| A component property added, removed, or its type or default changed (an INSTANCE_SWAP default too) | Prop change |
+| A component property added, removed, or its type or default changed (an INSTANCE_SWAP default too) | Option change (prop) |
 | A layer added, removed or moved in a variant, when the render moves with it or the layer is bound to a property | Structure change |
 | Another icon or slot swapped in a variant, when the variant then differs from its code default | Visual change |
 | Another variable bound to a part (fill, stroke, radius, padding, gap, typography...) | Token change |

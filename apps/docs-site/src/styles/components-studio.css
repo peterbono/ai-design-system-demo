@@ -261,7 +261,188 @@
   list-style: none;
 }
 
-/* Phones: keep name, tokens and stories; the filter row wraps and scrolls nothing sideways. */
+/* Thumbnail: the component's Library preview, scaled to fit (scripts/components-studio.ts), on the light canvas. */
+.cm-name-in {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.cm-name-body {
+  min-width: 0;
+}
+
+.cm-thumb {
+  position: relative;
+  flex: none;
+  width: calc(var(--size-20) + var(--size-10));
+  height: var(--size-12);
+  padding: var(--space-1);
+  overflow: hidden;
+  border-radius: var(--radius-inset);
+  box-shadow: inset 0 0 0 var(--border-width-default) var(--color-border-default);
+  background-color: var(--color-bg-default);
+  pointer-events: none;
+}
+
+.cm-thumb-fit {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: block;
+  width: max-content;
+  max-width: var(--size-120);
+  font-weight: var(--font-weight-regular);
+  transform: translate(-50%, -50%) scale(var(--xe-scale, 0.4));
+  transform-origin: center;
+}
+
+.cm-zero {
+  color: var(--color-text-muted);
+}
+
+/* Requests could not be read: the column leaves rather than show blanks. */
+.cm-table.cm-no-req .cm-col-req {
+  display: none;
+}
+
+.cm-note {
+  max-width: 65ch;
+  margin: var(--space-4) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+/* Drawer: the component live, light above dark, first: full width keeps the variants at a readable scale. */
+.cm-d-preview {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.cm-d-pv {
+  display: grid;
+  gap: var(--space-1-5);
+  min-width: 0;
+}
+
+.cm-d-pv-label {
+  color: var(--color-text-muted);
+}
+
+.cm-d-frame {
+  height: calc(var(--size-20) + var(--size-10));
+}
+
+.cm-d-nopv {
+  padding: var(--space-4);
+  border-radius: var(--radius-container);
+  background-color: var(--color-bg-subtle);
+  color: var(--color-text-muted);
+}
+
+/* Drawer: one "For developers" fold at the bottom (code, workbench, props, stories). */
+.cm-d-dev {
+  border-top: var(--border-width-default) solid var(--color-border-default);
+  border-bottom: var(--border-width-default) solid var(--color-border-default);
+  font-size: var(--typography-ui-size);
+}
+
+.cm-d-dev[hidden] {
+  display: none;
+}
+
+.cm-d-dev > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--size-12);
+  list-style: none;
+  cursor: pointer;
+}
+
+.cm-d-dev > summary::-webkit-details-marker {
+  display: none;
+}
+
+.cm-d-dev > summary:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: calc(var(--focus-ring-width) * -1);
+}
+
+.cm-d-dev > summary > .icon,
+.cm-d-dev-chev {
+  display: inline-flex;
+  color: var(--color-text-muted);
+}
+
+.cm-d-dev-label {
+  font-weight: var(--font-weight-semibold);
+}
+
+.cm-d-dev-meta {
+  margin-left: auto;
+  color: var(--color-text-muted);
+}
+
+.cm-d-dev[open] .cm-d-dev-chev svg {
+  transform: rotate(90deg);
+}
+
+.cm-d-dev-body {
+  display: grid;
+  gap: var(--space-4);
+  padding: 0 0 var(--space-4);
+}
+
+.cm-drawer[data-mode="request"] .cm-d-dev {
+  display: none;
+}
+
+/* Request form: the image attachment and the change rows (DS Inputs). */
+.cm-req-img {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-1-5);
+  font-size: var(--typography-ui-size);
+}
+
+.cm-req-img-label {
+  font-weight: var(--font-weight-medium);
+}
+
+.cm-req-img-hint {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.cm-req-img-preview {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+}
+
+.cm-req-img-preview[hidden] {
+  display: none;
+}
+
+.cm-req-img-preview img {
+  display: block;
+  max-width: 100%;
+  max-height: var(--size-40);
+  border-radius: var(--radius-inset);
+  box-shadow: inset 0 0 0 var(--border-width-default) var(--color-border-default);
+}
+
+.cm-req-change {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+/* Phones: keep the thumbnail, the name and the open requests; tokens, examples and products stay in the drawer.
+   Nothing scrolls sideways. */
 @media (max-width: 640px) {
   .cm-search {
     flex-basis: 100%;
@@ -293,5 +474,19 @@
 
   .cm-drawer {
     padding: var(--space-5) var(--space-4);
+  }
+
+  .cm-table .cm-col-dev,
+  .cm-table .cm-col-used {
+    display: none;
+  }
+
+  .cm-thumb {
+    width: var(--size-20);
+    height: var(--size-10);
+  }
+
+  .cm-req-change {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
