@@ -21,6 +21,7 @@ import ApprovalsTable from '../../../components/ds/studio/ApprovalsTable';
 import ProtectionRow from '../../../components/ds/studio/ProtectionRow';
 import ChangeRules from '../../../components/ds/studio/ChangeRules';
 import SettingsAccount from '../../../components/ds/studio/SettingsAccount';
+import { signInConfig } from '../../../lib/signin-config';
 import Illustration from '../../../components/Illustration.astro';
 import { GitHubMark } from '../../../components/ds/studio/brand-icons';
 import { Copy } from 'lucide-react';
@@ -113,6 +114,7 @@ const intData = JSON.stringify({
   workflowUrl,
   secretsUrl,
 }).replace(/</g, '\\u003c');
+const signIn = Boolean(signInConfig());
 ---
 
 <Layout title="Settings" description="Your GitHub connection, who approves what, how the library stays safe, and the tools that work on it." sources={sources} updated={lastUpdated(sources)} wide>
@@ -122,10 +124,10 @@ const intData = JSON.stringify({
     <section class="set-band" id="connection" aria-labelledby="set-account">
       <div class="set-band-intro">
         <h2 id="set-account" class="set-h">Account</h2>
-        <p class="set-intro">Studio acts on GitHub with your own token. It stays in this browser.</p>
+        <p class="set-intro">{signIn ? 'Studio acts on GitHub as you, once you sign in. Your sign-in stays in this browser.' : 'Studio acts on GitHub with your own token. It stays in this browser.'}</p>
       </div>
       <div class="set-band-body">
-        <SettingsAccount client:load repo={repoName}>
+        <SettingsAccount client:load repo={repoName} signIn={signIn}>
           <Illustration name="review" width={132} />
         </SettingsAccount>
       </div>

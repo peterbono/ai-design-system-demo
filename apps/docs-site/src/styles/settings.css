@@ -194,6 +194,14 @@
   color: var(--color-text-default);
 }
 
+/* Sign in with GitHub, with "Use a token instead" quietly under it. */
+.set-account-actions {
+  display: grid;
+  flex: none;
+  justify-items: center;
+  gap: var(--space-1);
+}
+
 /* Who holds a right: avatars, the group, the people. */
 .set-who {
   display: flex;
@@ -516,6 +524,10 @@
 
   .set-account-zone {
     padding: var(--space-5);
+  }
+
+  .set-account-actions {
+    width: 100%;
   }
 
   .set-account-art {

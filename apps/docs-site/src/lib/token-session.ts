@@ -1,7 +1,7 @@
 // Studio GitHub session state, pure (no DOM, no storage): what the sidebar account block shows, when the token
 // must be checked again, and what a write action says when GitHub refuses the token. The browser glue lives in
 // scripts/github-session.ts.
-import { GitHubError, missingPermissionMessage, TOKEN_SETTINGS_URL } from '@bridge-ds/core';
+import { GitHubError, missingPermissionMessage, permissionLabel, TOKEN_SETTINGS_URL } from '@bridge-ds/core';
 
 /** none: no token. checking: first check running. connected: GitHub accepts it. rejected: GitHub refused it (401). */
 export type SessionState = 'none' | 'checking' | 'connected' | 'rejected';
@@ -24,6 +24,8 @@ export interface TokenCheck {
   viewer?: CheckedViewer | null;
   /** Whether the token may write to the repository, once read. */
   write?: boolean | null;
+  /** Signed in with the GitHub App: whether the app reaches the repository for this account, once read. */
+  reach?: boolean | null;
 }
 
 /** A token is checked again once its last check is older than this (one call per hour at most). */
@@ -74,6 +76,19 @@ export const rejectedCheck = (token: string, now: number): TokenCheck => ({ fp: 
 /** The one message every write action shows once GitHub stops accepting the token. */
 export const STUDIO_TOKEN_REJECTED = 'Your GitHub token stopped working. Reconnect GitHub to replace it, then try again.';
 
+/** The same message for a "Sign in with GitHub" session whose refresh failed. */
+export const STUDIO_SIGNIN_EXPIRED = 'Your GitHub sign-in expired. Sign in with GitHub again, then try again.';
+
+/** How the browser holds GitHub access: a pasted token, or a GitHub App sign-in. */
+export type SessionMode = 'token' | 'app';
+
+/** A signed-in user cannot fix a missing app permission: the repository owner grants it on the GitHub App. */
+export function appMissingPermissionMessage(permission: string | undefined, action?: string): string {
+  const what = action ? `The Bridge GitHub App cannot ${action} yet.` : 'The Bridge GitHub App is missing a permission for this.';
+  if (!permission) return `${what} Ask the repository owner to check its permissions (docs/SIGN-IN.md lists them).`;
+  return `${what} Ask the repository owner to give it ${permissionLabel(permission)}: Read and write.`;
+}
+
 export interface AuthFailure {
   kind: 'rejected' | 'missing-permission';
   text: string;
@@ -85,14 +100,18 @@ export interface AuthFailure {
  * The auth part of an error, or null for any other failure. `action` is a verb phrase for the missing permission
  * sentence ("create issues" -> "This token cannot create issues. Add Issues: Read and write on GitHub.").
  */
-export function authFailure(err: unknown, action?: string): AuthFailure | null {
+export function authFailure(err: unknown, action?: string, mode: SessionMode = 'token'): AuthFailure | null {
   if (!(err instanceof GitHubError)) return null;
-  if (err.auth === 'rejected') return { kind: 'rejected', text: STUDIO_TOKEN_REJECTED };
-  if (err.auth === 'missing-permission') return { kind: 'missing-permission', text: missingPermissionMessage(err.permission, action), href: TOKEN_SETTINGS_URL };
+  if (err.auth === 'rejected') return { kind: 'rejected', text: mode === 'app' ? STUDIO_SIGNIN_EXPIRED : STUDIO_TOKEN_REJECTED };
+  if (err.auth === 'missing-permission') {
+    return mode === 'app'
+      ? { kind: 'missing-permission', text: appMissingPermissionMessage(err.permission, action) }
+      : { kind: 'missing-permission', text: missingPermissionMessage(err.permission, action), href: TOKEN_SETTINGS_URL };
+  }
   return null;
 }
 
 /** Plain text for an error: the auth sentence when it is about the token, else `fallback` (the action's own words). */
-export function errorText(err: unknown, fallback: string, action?: string): string {
-  return authFailure(err, action)?.text ?? fallback;
+export function errorText(err: unknown, fallback: string, action?: string, mode: SessionMode = 'token'): string {
+  return authFailure(err, action, mode)?.text ?? fallback;
 }
