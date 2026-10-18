@@ -3,7 +3,7 @@
 // nothing merges while CI fails. Who may ship (merge, which publishes to the products) comes from
 // `governance.rights` in bridge.config.json (@bridge-ds/core rights.ts); GitHub write access is checked as well.
 
-import { approverLists, canShip, holdersOf, shipPolicy, whoCanShipSentence, type ShipPolicy } from '@bridge-ds/core';
+import { approverLists, canShip, holdersOf, shipPolicy, unreadableShipTeams, whoCanShipSentence, type ShipPolicy } from '@bridge-ds/core';
 
 // Shared with Reviews, Settings and the PR status chips: who approves, who ships, and the sentence a blocked viewer reads.
 export { approverLists, canShip, holdersOf, shipPolicy, whoCanShipSentence, type ShipPolicy };
@@ -233,7 +233,8 @@ export function mergeGate(input: {
   const conflict = input.mergeable === false ? [CONFLICT_REASON] : [];
   // Only a known viewer is checked: without a login the Merge button asks to connect first anyway.
   const shipper = !input.viewer || canShip(input.viewer, input.ship);
-  const ship = !shipper && lifecycle !== 'merged' && lifecycle !== 'closed' ? [whoCanShipSentence(input.ship!)] : [];
+  // A team holding the right that GitHub would not show: say why and how to fix it, never treat it as empty.
+  const ship = !shipper && lifecycle !== 'merged' && lifecycle !== 'closed' ? [whoCanShipSentence(input.ship!), ...unreadableShipTeams(input.ship).map((t) => (t.status === 'unreadable' ? t.message : ''))] : [];
   // Order: state, draft, CI, changes requested, approvals, who ships, conflict.
   const reasons = [...blocking, ...approvalReasons, ...ship, ...conflict];
   const allowed = reasons.length === 0;

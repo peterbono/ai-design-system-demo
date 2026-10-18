@@ -5,8 +5,13 @@
 // Backward compatible: a config without `rights` behaves as before it existed. Approvals follow the owner lists,
 // and anyone with write access to the repo may ship. DEFAULT_RIGHTS is what Settings proposes and what new
 // configs get: design owners approve design, tech owners approve tech, tech owners ship.
+//
+// Owner entries may be GitHub teams ("@acme/design", teams.ts). Pass the team states (TeamDirectory.resolve) to the
+// functions below and teams count as their members; without them, or for a team that cannot be read, the team keeps
+// its "@org/slug" place in the lists so they never turn empty, and no login matches it.
 
 import type { Owners } from './config';
+import { entryLabel, expandEntries, expandOwners, unreadableTeams, type TeamState, type TeamStates } from './teams';
 
 /** An owner group from `governance.owners`. */
 export type OwnerGroup = 'design' | 'tech';
@@ -59,7 +64,7 @@ export function rightsProblems(raw: unknown): string[] {
   return out;
 }
 
-/** The logins holding a right: the union of the owner lists of its groups. Empty when those lists are empty. */
+/** The entries (people and teams) holding a right: the union of the owner lists of its groups. Empty when those lists are empty. */
 export function holdersOf(right: Right, owners: Owners, rights: Rights | null | undefined): string[] {
   const groups = (rights ?? DEFAULT_RIGHTS)[right];
   return uniq(groups.flatMap((g) => owners[g] ?? []));
@@ -69,29 +74,53 @@ export function holdersOf(right: Right, owners: Owners, rights: Rights | null | 
  * Owner lists to count approvals against (summarizeApprovals): who may approve design, who may approve tech.
  * Without `rights`, the owner lists as they are.
  */
-export function approverLists(owners: Owners, rights: Rights | null | undefined): Owners {
+export function approverLists(owners: Owners, rights: Rights | null | undefined, teams?: TeamStates | null): Owners {
+  const entries = approverEntries(owners, rights);
+  return teams === undefined ? entries : expandOwners(entries, teams);
+}
+
+/** approverLists before team expansion: the entries as the config names them, for sentences. */
+export function approverEntries(owners: Owners, rights: Rights | null | undefined): Owners {
   if (!rights) return { design: [...owners.design], tech: [...owners.tech] };
   return { design: holdersOf('approveDesign', owners, rights), tech: holdersOf('approveTech', owners, rights) };
 }
 
 /** Who may ship, or null when nobody is singled out (no `rights`, or its groups list no logins): anyone with write access. */
 export interface ShipPolicy {
-  /** Logins allowed to ship. */
+  /** Logins allowed to ship: people, and team members once read. A team not read keeps its "@org/slug" key. */
   logins: string[];
   /** Owner groups holding the right, for the sentence ("the tech owner", "a design or tech owner"). */
   groups: OwnerGroup[];
+  /** The entries as the config names them (people and teams), for the sentence. Absent: `logins`. */
+  entries?: string[];
+  /** Team states known when the policy was built, for the sentence ("@acme/design (4 people)"). */
+  teams?: TeamStates;
 }
 
-export function shipPolicy(owners: Owners, rights: Rights | null | undefined): ShipPolicy | null {
+/**
+ * Who may ship. With `teams` (TeamDirectory.resolve), team members count; a team that cannot be read still holds
+ * the right, so the policy is never dropped to "anyone with write access" because a team was not read.
+ */
+export function shipPolicy(owners: Owners, rights: Rights | null | undefined, teams?: TeamStates | null): ShipPolicy | null {
   if (!rights) return null;
-  const logins = holdersOf('ship', owners, rights);
-  return logins.length ? { logins, groups: [...rights.ship] } : null;
+  const entries = holdersOf('ship', owners, rights);
+  if (!entries.length) return null;
+  const logins = expandEntries(entries, teams);
+  return { logins, groups: [...rights.ship], entries, ...(teams ? { teams } : {}) };
+}
+
+/** Teams in a ship policy that could not be read: the gate names them with the fix. */
+export function unreadableShipTeams(policy: ShipPolicy | null | undefined): TeamState[] {
+  if (!policy?.teams) return [];
+  const keys = new Set((policy.entries ?? []).map((e) => e.trim().toLowerCase().replace(/^@?/, '@')));
+  return unreadableTeams(policy.teams).filter((t) => keys.has(t.key));
 }
 
 /** Whether `login` may ship. No policy: yes (GitHub write access still decides). */
 export function canShip(login: string | null | undefined, policy: ShipPolicy | null | undefined): boolean {
   if (!policy) return true;
-  if (!login) return false;
+  // A login never holds a "/": the "@org/slug" place of a team not read cannot be matched.
+  if (!login || login.includes('/')) return false;
   return policy.logins.map(norm).includes(norm(login));
 }
 
@@ -103,8 +132,9 @@ export function groupsPhrase(groups: readonly OwnerGroup[]): string {
 }
 
 /** The sentence a blocked viewer reads: "Only the tech owner can ship this." */
+/** Teams are named as teams, with their size when known: "Only the tech owner can ship this (@acme/web (4 people))." */
 export function whoCanShipSentence(policy: ShipPolicy): string {
-  const names = policy.logins.map((l) => `@${l.replace(/^@/, '')}`).join(', ');
+  const names = (policy.entries ?? policy.logins).map((l) => entryLabel(l, policy.teams)).join(', ');
   return `Only ${groupsPhrase(policy.groups)} can ship this${names ? ` (${names})` : ''}.`;
 }
 

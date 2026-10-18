@@ -23,6 +23,7 @@ export * from './token-edits';
 export * from './layered-review';
 export * from './governance';
 export * from './rights';
+export * from './teams';
 export * from './protection';
 export * from './protection-github';
 export * from './usage';

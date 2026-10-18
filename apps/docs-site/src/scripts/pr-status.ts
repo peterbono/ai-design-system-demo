@@ -9,10 +9,9 @@ import { touchesVisuals } from '../lib/visual-impact';
 import { currentViewer, esc, ghGet, hasWorkingToken, readRepo } from './github-session';
 import { needFromStatus, statusTone, whoActs } from '../lib/changes';
 import { planStatusReads, statusCacheKey, type CachedStatus } from '../lib/status-budget';
-import type { Rights } from '@bridge-ds/core';
+import type { TeamStates } from '@bridge-ds/core';
+import { loadTeams, siteApproverEntries, siteApprovers, siteShipPolicy, teamSnapshot } from './teams';
 import {
-  approverLists,
-  shipPolicy,
   parseTier,
   pullState,
   reviewStatus,
@@ -39,24 +38,24 @@ export interface PullForStatus {
   head: { sha: string; ref: string };
 }
 
-/** Who may ship (governance.rights), undefined without rights: the owners ship then. */
+/** Who may ship (governance.rights), undefined without rights: the owners ship then. GitHub teams count as their members once read. */
 export function shippers(): string[] | undefined {
-  try {
-    const site = JSON.parse(document.getElementById('bridge-repo')?.textContent || '{}') as { owners?: { design: string[]; tech: string[] }; rights?: Rights | null };
-    return shipPolicy(site.owners ?? { design: [], tech: [] }, site.rights)?.logins;
-  } catch {
-    return undefined;
-  }
+  return siteShipPolicy()?.logins;
 }
 
-/** Who counts as the design and the tech approver: the owner lists, through governance.rights when it is set. */
+/**
+ * Who counts as the design and the tech approver: the owner lists, through governance.rights when it is set, GitHub
+ * teams expanded to their members once read (loadTeams). A team not read yet holds its place and matches nobody.
+ */
 export function owners(): { design: string[]; tech: string[] } {
-  try {
-    const site = JSON.parse(document.getElementById('bridge-repo')?.textContent || '{}') as { owners?: { design: string[]; tech: string[] }; rights?: Rights | null };
-    return approverLists(site.owners ?? { design: [], tech: [] }, site.rights);
-  } catch {
-    return { design: [], tech: [] };
-  }
+  return siteApprovers();
+}
+
+/** People fields for whoActs that name teams as teams: the config entries and the team states read so far. */
+export function teamPeople(): { entries: { design: string[]; tech: string[] }; shipEntries?: string[]; teams?: TeamStates } {
+  const ship = siteShipPolicy();
+  const teams = teamSnapshot();
+  return { entries: siteApproverEntries(), ...(ship?.entries ? { shipEntries: ship.entries } : {}), ...(teams ? { teams } : {}) };
 }
 
 /**
@@ -119,6 +118,8 @@ async function mergeableOf(p: PullForStatus): Promise<boolean | null | undefined
 export async function pullStatus(p: PullForStatus, opts: { lean?: boolean } = {}): Promise<PullStatus> {
   const { owner, repo } = readRepo();
   const labelled = parseTier(p.labels ?? [], p.body);
+  // Approvals count against team members: read the teams of governance.owners first (no request without teams).
+  await loadTeams();
   const [ci, reviews, files] = await Promise.all([
     ciFor(p.head.sha, opts).catch(() => null),
     ghGet<ReviewLike[]>(`/repos/${owner}/${repo}/pulls/${p.number}/reviews?per_page=100`)
@@ -175,6 +176,7 @@ export function whoChip(
   const who = whoActs(needFromStatus(kind, { failing: o.failing, changesRequestedBy: o.changesRequested }), {
     owners: owners(),
     shippers: shippers(),
+    ...teamPeople(),
     author: o.author,
     viewer: currentViewer()?.login ?? null,
     approvers: o.approvers,

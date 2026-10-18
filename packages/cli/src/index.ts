@@ -10,6 +10,7 @@ import { runImpact, type Only } from '@bridge-ds/visual';
 import { runRequest } from './request.js';
 import { runExplore } from './explore.js';
 import { protectionReport, type ProtectionReport } from './protection.js';
+import { rolesReport, type RolesReport } from './roles.js';
 import { brand, BridgeContext, CONFIG_FILE, core, detectConfig, GitRefSource, history as hist, LocalSource, ops, optionsFromArgv, serveStdio, toConfigJson, VERSION, type BridgeConfig } from '@bridge-ds/mcp';
 
 const HELP = `bridge ${VERSION}: design system as code, for you and your Claude
@@ -18,8 +19,10 @@ Usage:
   bridge init [--force]               write bridge.config.json (detected) and .mcp.json for Claude Code
   bridge check [--json] [--strict] [--offline]
                                       validate tokens + contrast gate, and say whether the library is
-                                      protected (reviewed pull requests only; never changes the exit code,
-                                      --offline skips it). Exit 0 ok, 1 failures, 2 setup error
+                                      protected (reviewed pull requests only) and who is in the GitHub
+                                      teams named as owners, reporting teams it cannot read (neither
+                                      changes the exit code; --offline skips both). Exit 0 ok, 1 failures,
+                                      2 setup error
   bridge tokens <query> [--json]      search tokens by name, description or value
   bridge diff <base> [--json|--md]    designer-readable token diff: working tree vs <base> (git ref)
   bridge propose --title "..." --set path=value [--set ...] [--file f | --mode theme=dark]
@@ -141,8 +144,9 @@ async function check(a: Args, root: string): Promise<number> {
   const warnings = 'warnings' in v ? (v.warnings ?? []) : [];
   const failed = !v.valid || ('failing' in c && (c.failing ?? 0) > 0) || (has(a, 'strict') && warnings.length > 0);
   const protection = await protectionOf(a, root, ctx);
+  const roles = await rolesOf(a, root, ctx);
   if (has(a, 'json')) {
-    print(JSON.stringify({ ok: !failed, validation: v, contrast: c, ...(protection ? { protection: protection.state } : {}) }, null, 2));
+    print(JSON.stringify({ ok: !failed, validation: v, contrast: c, ...(protection ? { protection: protection.state } : {}), ...(roles?.teams.length ? { teams: roles.teams } : {}) }, null, 2));
     return failed ? 1 : 0;
   }
   print(`tokens: ${v.tokens} in ${v.files} files, ${v.modeCombinations} mode combinations`);
@@ -155,6 +159,7 @@ async function check(a: Args, root: string): Promise<number> {
     if (tight) print(`  tightest: ${tight.pair} [${tight.modes}] ${tight.ratio}:1 (min ${tight.min})`);
   } else print(`contrast: ${c.message}`);
   for (const line of protection?.lines ?? []) print(line);
+  for (const line of roles?.lines ?? []) print(line);
   print(failed ? 'FAIL' : 'OK');
   return failed ? 1 : 0;
 }
@@ -171,6 +176,19 @@ async function protectionOf(a: Args, root: string, ctx: BridgeContext): Promise<
   if (!repo) return undefined;
   const token = process.env.BRIDGE_GITHUB_TOKEN || process.env.GITHUB_TOKEN || undefined;
   return protectionReport({ repo, defaultBranch: config.repo?.defaultBranch ?? 'main', token });
+}
+
+/**
+ * Who the GitHub teams in governance.owners are, and which cannot be read (and why). Skipped like the protection
+ * line, and when no team is named. Token: BRIDGE_GITHUB_TOKEN or GITHUB_TOKEN; reading teams needs read:org.
+ */
+async function rolesOf(a: Args, root: string, ctx: BridgeContext): Promise<RolesReport | undefined> {
+  if (has(a, 'offline') || process.env.BRIDGE_OFFLINE === '1') return undefined;
+  const { config } = await ctx.config();
+  const repo = config.repo ? `${config.repo.owner}/${config.repo.name}` : await originRepo(root);
+  if (!repo) return undefined;
+  const token = process.env.BRIDGE_GITHUB_TOKEN || process.env.GITHUB_TOKEN || undefined;
+  return rolesReport({ repo, owners: config.governance.owners, token });
 }
 
 async function tokens(a: Args, root: string) {

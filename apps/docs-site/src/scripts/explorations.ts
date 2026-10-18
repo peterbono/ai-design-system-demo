@@ -4,8 +4,8 @@
 // the viewer's token, the same code the MCP server and the CLI run. Reads stay inside the anonymous budget: the open
 // pull requests In review already read, plus the request list the Requests view caches. Pure rules: lib/explorations-view.ts.
 import {
-  approverLists,
   type BranchPreview,
+  entryLabel,
   type BranchPreviewSources,
   closeExplorationOnGitHub,
   EXPLORATION_PREFIX,
@@ -14,8 +14,8 @@ import {
   requestIssueTitle,
   startExplorationOnGitHub,
   type ExplorationUseCase,
-  type Rights,
 } from '@bridge-ds/core';
+import { loadTeams, siteApproverEntries } from './teams';
 import {
   branchFor,
   explorationPreviews,
@@ -58,15 +58,13 @@ const CFG: ExplorationsConfig = (() => {
   }
 })();
 
-// Who approves: the owner lists after rights, the same lists the review counts approvals against.
-const OWNERS = (() => {
-  try {
-    const site = JSON.parse(document.getElementById('bridge-repo')?.textContent || '{}') as { owners?: { design: string[]; tech: string[] }; rights?: Rights | null };
-    return approverLists(site.owners ?? { design: [], tech: [] }, site.rights);
-  } catch {
-    return { design: [], tech: [] };
-  }
-})();
+// Who approves: the owner lists after rights, the same lists the review counts approvals against. A GitHub team is
+// named as a team with its size once read ("@acme/design (4 people)").
+async function approverNames(): Promise<{ design: string[]; tech: string[] }> {
+  const teams = await loadTeams();
+  const e = siteApproverEntries();
+  return { design: e.design.map((x) => entryLabel(x, teams)), tech: e.tech.map((x) => entryLabel(x, teams)) };
+}
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -490,7 +488,7 @@ function promote(btn: HTMLButtonElement) {
     name: r.name,
     ask: async () => {
       const plan = await promoteExplorationOnGitHub(client(), r.number, { requests: openRequestNumbers(r), dryRun: true });
-      return promoteAsk(plan.tier as Tier, OWNERS);
+      return promoteAsk(plan.tier as Tier, await approverNames());
     },
     confirm: async () => {
       try {

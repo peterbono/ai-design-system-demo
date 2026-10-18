@@ -6,7 +6,7 @@ import { buildAuditReport, compareWithBaseline, DesignSystemIndex, type AuditRep
 import { auditSnippet } from './audit.js';
 import { cssVarsUsed, getComponent, listComponentNames, listComponents, scaffoldComponent, type ScaffoldInput } from './components.js';
 import type { BridgeContext } from './context.js';
-import { baseBranchOf, cssModuleClasses, docsPrompt, prefillDocs, protectedBranchesOf, type DocsContrastInput } from '@bridge-ds/core';
+import { approverEntries, baseBranchOf, cssModuleClasses, docsPrompt, entryLabel, expandOwners, prefillDocs, protectedBranchesOf, shipPolicy, TeamDirectory, unreadableTeams, whoCanShipSentence, type BridgeConfig, type DocsContrastInput, type GitHubClient } from '@bridge-ds/core';
 import { branchExists, collectAuditFiles, commitToNewLocalBranch, currentBranch, git } from '@bridge-ds/core/node';
 import { core, type Combo, type Issue, type PairInput, type TokenEdit, type TokenSet } from './core-adapter.js';
 import { bullets, findSection, toc } from './markdown.js';
@@ -528,6 +528,7 @@ export async function getReview(ctx: BridgeContext, a: { pr?: number; branch?: s
       approvals: [...latest.entries()].filter(([, s]) => s === 'APPROVED').map(([u]) => u),
       changesRequested: [...latest.entries()].filter(([, s]) => s === 'CHANGES_REQUESTED').map(([u]) => u),
     };
+    meta.roles = await reviewRoles(gh, config, meta.approvals as string[]);
   }
   const [before, after] = await Promise.all([setAt(baseSrc, config), setAt(headSrc, config)]);
   const changes = core.diff(before, after);
@@ -553,6 +554,32 @@ export async function getReview(ctx: BridgeContext, a: { pr?: number; branch?: s
     contrastNewFailures: delta.filter((d) => d.passBefore && !d.passAfter).length,
     validation: { errors: errors.length, newErrors: errors.filter((i) => !prevErrors.has(issueKey(i))) },
     impact: imp,
+  };
+}
+
+const sameLogin = (a: string, b: string) => a.trim().toLowerCase().replace(/^@/, '') === b.trim().toLowerCase().replace(/^@/, '');
+
+/**
+ * Who holds each role for a review, teams included: governance.owners through governance.rights, each GitHub team
+ * read from GitHub and named with its size ("@acme/design (4 people)"). An approval counts for a role when the
+ * reviewer is listed or in a listed team. A team that cannot be read is named with the reason, never dropped.
+ */
+export async function reviewRoles(gh: GitHubClient, config: BridgeConfig, approvers: string[]) {
+  const { owners, rights } = config.governance;
+  const teams = await new TeamDirectory(gh).resolve(owners);
+  const entries = approverEntries(owners, rights);
+  const lists = expandOwners(entries, teams);
+  const role = (k: 'design' | 'tech') => ({
+    owners: entries[k].map((e) => entryLabel(e, teams)),
+    approvedBy: approvers.filter((a) => lists[k].some((x) => sameLogin(x, a))),
+  });
+  const ship = shipPolicy(owners, rights, teams);
+  const unreadable = unreadableTeams(teams);
+  return {
+    design: role('design'),
+    tech: role('tech'),
+    ship: ship ? whoCanShipSentence(ship) : 'Anyone with write access can ship.',
+    ...(unreadable.length ? { unreadableTeams: unreadable.map((t) => t.message) } : {}),
   };
 }
 

@@ -72,8 +72,10 @@ export interface TodoInput {
   requests: TodoRequest[];
   /** GitHub login of the connected person, null when nobody is connected. */
   viewer: string | null;
-  /** governance.owners after rights, both roles. They decide on the requests nobody is on. */
+  /** governance.owners after rights, both roles, GitHub teams expanded to their members. They decide on the requests nobody is on. */
   owners: string[];
+  /** The same owners as the config names them, for the sentence ("@acme/design (4 people)"). Absent: `owners`. */
+  ownerNames?: string[];
   /** The library has no protection and the viewer is an owner (lib/protection-view overviewProtectionLine). */
   unprotected?: boolean;
   /** Statuses are still loading: a change without one is being checked, not unreadable. */
@@ -231,7 +233,8 @@ export function overviewTodo(input: TodoInput): Todo {
     const asked = r.requester ? `Asked by ${handle(r.requester)}. ` : '';
     if (owner) groups.mine.push(requestRow(r, 'decide', `${asked}Start an exploration, assign someone or decline it.`, 'Decide'));
     else {
-      const by = input.owners.length ? `a design system owner (${at(input.owners)})` : 'a design system owner';
+      const names = input.ownerNames?.length ? input.ownerNames : input.owners.map(handle);
+      const by = names.length ? `a design system owner (${names.length <= 2 ? names.join(' or ') : `${names[0]} or ${names.length - 1} more`})` : 'a design system owner';
       const row = requestRow(r, viewer ? 'waiting' : 'decide', `${asked}Waiting for ${by} to decide.`, 'Open request');
       (viewer ? groups.others : groups.mine).push(row);
     }

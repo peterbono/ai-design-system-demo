@@ -11,6 +11,7 @@ import { mdTitleHtml } from '../../lib/markdown';
 import { approvalNeedLabel, releasePull, type QueuePull } from '../../lib/review-queue';
 import { historySummary, parseReleaseBody, releaseCard } from '../../lib/release-view';
 import { owners, shippers } from '../pr-status';
+import { loadTeams } from '../teams';
 import { openRevertPlanner } from './planner';
 import { activeReport, DEMO_EVENT, demoOn, loadHistory, setDemo, type Loaded } from './state';
 
@@ -201,7 +202,8 @@ export function initHistory() {
   }
   started = true;
   // The card's action depends on who is connected: repaint it when the viewer changes.
-  initGitHubConnect(() => paintNextRelease());
+  // GitHub teams in the owner lists count as their members once read (no request without teams).
+  initGitHubConnect(() => void loadTeams().then(paintNextRelease));
   loadNextRelease();
   document.addEventListener('click', (ev) => {
     const t = ev.target as HTMLElement;

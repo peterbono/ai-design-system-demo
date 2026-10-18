@@ -4,8 +4,8 @@
 // label; the page stops at 1200px so nothing stretches across a wide monitor. In order:
 //   Account       the GitHub connection: a compact row once connected, the page's one Harbor zone (with a Field
 //                 Guide drawing and Connect GitHub) while Studio is read only.
-//   Review rules  who approves design, who approves tech and who ships (edited in place, sent for review as a change
-//                 to bridge.config.json), what each kind of change needs (plain rules from docs/GOVERNANCE.md, no
+//   Review rules  who the design and tech owners are (people or GitHub teams, read from GitHub), who approves design,
+//                 who approves tech and who ships (edited in place, sent for review as a change to bridge.config.json), what each kind of change needs (plain rules from docs/GOVERNANCE.md, no
 //                 tier numbers) and the owner override as a fold.
 //   Safety        protection of the library and when the visual before and after runs, each with its action.
 //   Figma and Claude, Integrations (Jira), then one collapsed "For developers" section: repository sources, tiers
@@ -31,7 +31,8 @@ import { inline } from '../../../lib/markdown';
 import { mcpTools } from '../../../lib/mcp';
 import { HOW_REVIEW_WORKS } from '../../../lib/nav';
 import { exists, GITHUB_URL, lastUpdated, readText } from '../../../lib/repo';
-import { CHOICE_LABEL, roleRows, VISUAL_MODE_HELP, VISUAL_MODE_LABEL, type RightChoice } from '../../../lib/roles-view';
+import { CHOICE_LABEL, OWNER_GROUP_HELP, OWNER_GROUP_LABEL, roleRows, VISUAL_MODE_HELP, VISUAL_MODE_LABEL, type RightChoice } from '../../../lib/roles-view';
+import OwnersField from '../../../components/ds/studio/OwnersField';
 import { repoStatus } from '../../../lib/stats';
 import { approvalRules, mcpAddCommand, overrideText } from '../../../lib/settings-view';
 import { REQUEST_LABEL } from '@bridge-ds/core';
@@ -85,7 +86,6 @@ const rolesData = JSON.stringify({
   protectedBranches: config.governance?.protectedBranches ?? ['main', 'master'],
   owners: r.owners,
 }).replace(/</g, '\\u003c');
-const avatar = (login: string) => `https://github.com/${encodeURIComponent(login)}.png?size=40`;
 
 // Figma and Claude rows.
 const plugin = pluginListing(exists(pluginReadme) ? readText(pluginReadme) : '');
@@ -146,6 +146,21 @@ const intData = JSON.stringify({
             <form class="set-form" id="set-roles-form" data-roles-form data-editing="false" novalidate>
               <div class="set-rows">
                 {
+                  (['design', 'tech'] as const).map((g) => (
+                    <div class="set-row">
+                      <div>
+                        <p class="set-row-label" id={`set-owners-${g}`}>
+                          {OWNER_GROUP_LABEL[g]}
+                        </p>
+                        <p class="set-row-help">{OWNER_GROUP_HELP[g]}</p>
+                      </div>
+                      <div class="set-row-value">
+                        <OwnersField client:load group={g} org={r.owner} initial={r.owners[g]} />
+                      </div>
+                    </div>
+                  ))
+                }
+                {
                   roles.map((x) => (
                     <div class="set-row">
                       <div>
@@ -155,23 +170,7 @@ const intData = JSON.stringify({
                         <p class="set-row-help">{x.help}</p>
                       </div>
                       <div class="set-row-value">
-                        <p class="set-who" data-view>
-                          {x.logins.length > 0 && (
-                            <span class="set-avatars" aria-hidden="true">
-                              {x.logins.slice(0, 3).map((l) => (
-                                <img class="set-avatar" src={avatar(l)} alt="" width="20" height="20" loading="lazy" />
-                              ))}
-                            </span>
-                          )}
-                          <span>
-                            {x.who}
-                            {x.logins.length > 0 ? (
-                              <span class="set-quiet"> {x.logins.map((l) => `@${l}`).join(', ')}</span>
-                            ) : (
-                              x.who !== 'Anyone with write access' && <span class="set-quiet"> nobody listed yet</span>
-                            )}
-                          </span>
-                        </p>
+                        <p class="set-who" data-view>{x.who}</p>
                         <SegmentedControl data-edit aria-labelledby={`set-role-${x.right}`} data-vanilla data-right={x.right} data-initial={x.choice ?? ''} defaultValue={x.choice ?? undefined} items={choices} />
                       </div>
                     </div>

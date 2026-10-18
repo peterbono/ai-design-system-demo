@@ -194,7 +194,7 @@
   color: var(--color-text-default);
 }
 
-/* Who holds a right: avatars, the group, the people. */
+/* Who holds a right: the owner group. */
 .set-who {
   display: flex;
   flex-wrap: wrap;
@@ -202,20 +202,24 @@
   gap: var(--space-2);
 }
 
-.set-avatars {
+/* Design and tech owners (OwnersField): each person or team on one line of the value, the picker in edit mode. */
+.set-owners {
+  display: grid;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.set-owner-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+}
+
+.set-owner {
   display: inline-flex;
-}
-
-.set-avatar {
-  width: var(--size-5);
-  height: var(--size-5);
-  border: var(--border-width-default) solid var(--color-border-default);
-  border-radius: var(--radius-pill);
-  background-color: var(--color-bg-subtle);
-}
-
-.set-avatar + .set-avatar {
-  margin-left: calc(var(--space-1-5) * -1);
+  align-items: center;
+  gap: var(--space-2);
 }
 
 /* Edit in place: viewing shows who holds each right (or the visual mode); editing swaps it for a segmented control on
