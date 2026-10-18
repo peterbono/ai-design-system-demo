@@ -14,7 +14,7 @@ import { currentScope } from '../shell';
 import { discardDraft, draftOverrides, editorSnapshot, undoEdit } from '../token-editor';
 import type { ExplorerData } from './types';
 import { esc, icon } from './util';
-import { previewSamples } from '../../lib/preview-fit';
+import { isStageToken, previewSamples } from '../../lib/preview-fit';
 import { fitFrames, sampleFrame, sampleNames } from './preview-frames';
 
 const FALLBACK_SAMPLES = ['Card', 'Table', 'Button'];
@@ -176,7 +176,7 @@ export function initReview(d: ExplorerData) {
     const scope = currentScope();
     const axis = t ? tierAxis(t.tier) : undefined;
     const touched = new Set(edits.filter((e): e is ValueEdit => e.kind === 'value' && e.path === value?.path).map((e) => e.mode));
-    const isBg = value && /\.(bg|surface)(\.|$)/.test(value.path) && t?.type === 'color';
+    const isBg = value && isStageToken(value.path) && t?.type === 'color';
     const stage = isBg ? `var(--${value!.path.replace(/\./g, '-')})` : 'var(--color-bg-default)';
     const brand = axis === 'brand' && value ? value.mode : scope.brand;
     const themes = d.modes.themes.length ? d.modes.themes : ['light'];

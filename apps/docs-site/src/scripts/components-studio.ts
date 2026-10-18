@@ -109,8 +109,8 @@ export function initComponentsStudio() {
       requestCounts = openRequestCounts(await loadRequestRows({ closed: false }));
       table?.querySelectorAll<HTMLElement>('[data-cm-req-n]').forEach((cell) => {
         const n = requestCounts?.get(cell.dataset.cmReqN ?? '') ?? 0;
-        cell.textContent = String(n);
-        cell.classList.toggle('cm-zero', n === 0);
+        // Only a real count shows: an empty cell reads "none" without adding 47 zeros to the list.
+        cell.textContent = n ? String(n) : '';
       });
     } catch {
       // Without the requests (rate limit, offline) the column would only show blanks: it leaves instead.

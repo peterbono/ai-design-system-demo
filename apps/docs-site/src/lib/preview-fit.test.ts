@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fitScale, previewSamples } from './preview-fit';
+import { fitScale, isStageToken, previewSamples } from './preview-fit';
 
 describe('fitScale', () => {
   it('shrinks large content to fit the box', () => {
@@ -21,6 +21,17 @@ describe('fitScale', () => {
   it('returns 1 before layout', () => {
     expect(fitScale({ width: 0, height: 0 }, { width: 200, height: 100 })).toBe(1);
     expect(fitScale({ width: 10, height: 10 }, { width: 0, height: 100 })).toBe(1);
+  });
+});
+
+describe('isStageToken', () => {
+  it('takes page backgrounds and surfaces only', () => {
+    expect(isStageToken('color.bg.subtle')).toBe(true);
+    expect(isStageToken('color.surface.raised')).toBe(true);
+    expect(isStageToken('color.background.default')).toBe(true);
+    expect(isStageToken('color.action.primary.bg')).toBe(false);
+    expect(isStageToken('color.feedback.danger.bg')).toBe(false);
+    expect(isStageToken('color.text.default')).toBe(false);
   });
 });
 

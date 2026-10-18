@@ -127,6 +127,7 @@ export default function ComponentsList({ rows, products }: { rows: ComponentList
                     </>
                   )}
                 </TableCell>
+                {/* Filled in the browser: the open request count, empty when there is none. */}
                 <TableCell numeric className="cm-col-req" data-cm-req-n={r.name.toLowerCase()} />
                 {withUsage && (
                   <TableCell numeric className="cm-col-used" aria-label={usedInLine(r.usedIn ?? [])}>

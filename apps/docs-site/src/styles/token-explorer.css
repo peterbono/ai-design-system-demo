@@ -3634,15 +3634,6 @@
   gap: var(--space-3);
 }
 
-/* A theme the draft does not change shows one frame, as tall as the before and after pair next to it. */
-.xe-pv-col.is-unchanged {
-  grid-template-rows: auto minmax(0, 1fr);
-}
-
-.xe-pv-col.is-unchanged .xe-frame {
-  height: auto;
-  min-height: var(--size-40);
-}
 
 .xe-propose-status:empty {
   display: none;

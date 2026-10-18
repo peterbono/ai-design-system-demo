@@ -6,7 +6,7 @@
 import { aliasTarget, hexToRgba, isAlias, parseColor, rgbaToDtcg, rgbaToHex, type ContrastResult } from '@bridge-ds/core';
 import { contrastSummary, shortName, summarizePairs, type ContrastSummary } from '../../lib/explorer/contrast-summary';
 import { componentsUsing, transitiveDependents } from '../../lib/explorer/flow';
-import { previewSamples } from '../../lib/preview-fit';
+import { isStageToken, previewSamples } from '../../lib/preview-fit';
 import { fitFrames, sampleFrame, sampleNames, sampleTemplate } from './preview-frames';
 import { cssText } from '../../lib/explorer/format';
 import { cellValue, modeKeyFor, tierAxis, type Column } from '../../lib/explorer/model';
@@ -127,7 +127,7 @@ export function openInlineEditor(opts: { container: HTMLElement; cell: HTMLEleme
   const tpl = sampleTemplate();
   const using = componentsUsing(path, [...affected].filter((p) => p !== path), d.usage).map((c) => c.name);
   const shown = previewSamples(using, sampleNames(tpl), { max: 3 });
-  const isBg = isColor && /\.(bg|surface)(\.|$)/.test(path);
+  const isBg = isColor && isStageToken(path);
   const themes = d.modes.themes.length ? d.modes.themes : ['light'];
 
   const pop = document.createElement('div');

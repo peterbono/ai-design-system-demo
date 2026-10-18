@@ -21,6 +21,15 @@ export function fitScale(content: Size, box: Size, opts: { max?: number; pad?: n
 }
 
 /**
+ * Whether a token is a page background or surface (color.bg.*, color.surface.*, color.background.*): only then do
+ * preview frames take the edited token as their own background. Any other token (an action fill, a text or border
+ * color) renders on the theme's normal canvas, so the components show the change against what surrounds them.
+ */
+export function isStageToken(path: string): boolean {
+  return /^color\.(bg|background|surface)\./.test(path);
+}
+
+/**
  * Components to preview for a token: the ones that use it and have a sample, in order, at most `max`. When none
  * has a sample, the fallback set (rendered on the page canvas, said so by the caller).
  */
