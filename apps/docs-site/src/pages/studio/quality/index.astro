@@ -17,7 +17,7 @@ import AdoptionMetric from '../../../components/AdoptionMetric.astro';
 import { AUDITS_DIR, groupByApp, loadAudits } from '../../../lib/audits';
 import { ADOPTION_MEANING, adoptionRows, beforeLabel, cleanupTitle, firstFindingTarget, openerSentence, qualityModel, type ComboResult } from '../../../lib/quality';
 import { PAGE_SOURCES, freshness } from '../../../lib/sources';
-import { QUALITY_IN_CHECKS, QUALITY_IN_CHECKS_BODY } from '../../../lib/view-scope';
+import { QUALITY_IN_CHECKS, QUALITY_IN_CHECKS_BODY, QUALITY_TOGETHER, QUALITY_TOGETHER_BODY } from '../../../lib/view-scope';
 import { EmptyState } from '@bridge-ds/react';
 import { ShieldCheck } from 'lucide-react';
 import { dashboard } from '../../../lib/stats';
@@ -61,6 +61,11 @@ const tone = (g: keyof typeof GROUP_TONE) => GROUP_TONE[g];
     <section class="ql-view" data-change-only aria-label="Quality of this change">
       <EmptyState icon={ShieldCheck} title={QUALITY_IN_CHECKS} description={QUALITY_IN_CHECKS_BODY} headingLevel={2} align="start">
         <ButtonLink slot="actions" variant="primary" href="/studio/changes/" data-change-href>See its checks</ButtonLink>
+      </EmptyState>
+    </section>
+    <section class="ql-view" data-together-only aria-label="Quality of these changes together">
+      <EmptyState icon={ShieldCheck} title={QUALITY_TOGETHER} description={QUALITY_TOGETHER_BODY} headingLevel={2} align="start">
+        <ButtonLink slot="actions" variant="primary" href="/studio/changes/">Go to Changes</ButtonLink>
       </EmptyState>
     </section>
 

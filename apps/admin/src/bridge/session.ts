@@ -20,6 +20,9 @@ export interface BridgeBuild {
   adminTemplate: string | null;
   /** VERCEL_ENV of the build ('production', 'preview', 'development'), null off Vercel. */
   deployEnv: string | null;
+  /** The library branch (repo.defaultBranch) and the token files' root (tokens.root): changes tried together. */
+  defaultBranch?: string;
+  tokensRoot?: string;
 }
 
 export const PARAM = 'bridge';
@@ -31,6 +34,11 @@ export const SESSION_KEY = 'bridge-admin:change';
 export const RETURN_KEY = 'bridge-admin:return';
 export const DOCK_KEY = 'bridge-admin:toolbar-dock';
 export const OPEN_KEY = 'bridge-admin:toolbar-open';
+/** Changes tried together: the picks of the tokens they set differently (core encodePicks), from Studio. */
+export const USE_PARAM = 'bridge-use';
+export const USE_KEY = 'bridge-admin:use';
+/** At most this many changes are tried together. */
+export const MAX_TOGETHER = 4;
 
 const safe = <T>(fn: () => T, fallback: T): T => {
   try {
@@ -46,18 +54,47 @@ const safe = <T>(fn: () => T, fallback: T): T => {
  * memory, never the toolbar of the current page.
  */
 export function readChange(search: string, storage: StorageLike | null): number | null {
+  return readChanges(search, storage)[0] ?? null;
+}
+
+/**
+ * The change numbers in "101" or "101,118,120" (an encoded comma too): positive, at most 7 digits, no repeats, at
+ * most MAX_TOGETHER. Anything else in the list makes it unreadable (empty), never a guess.
+ */
+export function parseChanges(raw: string | null | undefined): number[] {
+  const parts = (raw ?? '').trim().split(/,|%2C/i).map((p) => p.trim());
+  if (!parts.every((p) => /^\d{1,7}$/.test(p) && Number(p) > 0)) return [];
+  return [...new Set(parts.map(Number))].slice(0, MAX_TOGETHER);
+}
+
+/**
+ * The changes the toolbar follows: one from "Try it in the product", 2 to 4 from "Try them together". Same memory as
+ * one change: `?bridge=` wins and is kept for the session, `?bridge=off` forgets it, blocked storage only loses the
+ * memory. The picks (`bridge-use`) travel with the list and are kept, or forgotten, with it.
+ */
+export function readChanges(search: string, storage: StorageLike | null): number[] {
   const params = new URLSearchParams(search);
   if (params.has(PARAM)) {
-    const raw = (params.get(PARAM) ?? '').trim();
-    if (!/^\d{1,7}$/.test(raw) || Number(raw) === 0) {
-      if (storage) safe(() => storage.removeItem(SESSION_KEY), undefined);
-      return null;
+    const list = parseChanges(params.get(PARAM));
+    if (!list.length) {
+      if (storage) safe(() => (storage.removeItem(SESSION_KEY), storage.removeItem(USE_KEY)), undefined);
+      return [];
     }
-    if (storage) safe(() => storage.setItem(SESSION_KEY, raw), undefined);
-    return Number(raw);
+    if (storage) {
+      safe(() => storage.setItem(SESSION_KEY, list.join(',')), undefined);
+      const use = params.get(USE_PARAM);
+      safe(() => (use && list.length > 1 ? storage.setItem(USE_KEY, use) : storage.removeItem(USE_KEY)), undefined);
+    }
+    return list;
   }
-  const stored = storage ? safe(() => storage.getItem(SESSION_KEY), null) : null;
-  return stored && /^\d{1,7}$/.test(stored) && Number(stored) > 0 ? Number(stored) : null;
+  return storage ? parseChanges(safe(() => storage.getItem(SESSION_KEY), null)) : [];
+}
+
+/** The picks that came with the list: from the address, else the session. */
+export function readUse(search: string, storage: StorageLike | null): string | null {
+  const params = new URLSearchParams(search);
+  if (params.has(PARAM)) return params.get(USE_PARAM);
+  return storage ? safe(() => storage.getItem(USE_KEY), null) : null;
 }
 
 /** A host that matches the admin preview template (`bridge-admin-git-{branch}-team.vercel.app`), https only. */
@@ -107,10 +144,31 @@ export function whereAmI(host: string, build: Pick<BridgeBuild, 'productionAdmin
  * Whether the toolbar renders. Never without a change from Studio. In production only for the Before side of a code
  * change, that is with a preview to return to: production on its own renders nothing.
  */
-export function shouldRender(input: { change: number | null; where: Where; returnTo: string | null }): boolean {
+export function shouldRender(input: { change: number | null; where: Where; returnTo: string | null; together?: boolean }): boolean {
   if (input.change === null) return false;
+  // Changes tried together run on production: no preview holds all of them.
+  if (input.together) return true;
   if (input.where === 'production') return input.returnTo !== null;
   return true;
+}
+
+/** "These 3 changes": the After side of changes tried together, counting the ones switched on. */
+export const togetherLabel = (n: number) => (n === 1 ? 'This change' : `These ${n} changes`);
+
+/** The one hint line of changes tried together: where they run and why. */
+export const TOGETHER_HINT = "The live product with these changes' tokens applied in your browser. No preview holds all of them.";
+
+/** Switches one change on or off, keeping the order Studio listed them in. */
+export function toggleIncluded(all: number[], included: number[], n: number, on: boolean): number[] {
+  const next = new Set(included);
+  if (on) next.add(n);
+  else next.delete(n);
+  return all.filter((x) => next.has(x));
+}
+
+/** Studio's Changes list, where changes are tried together (and the way back). */
+export function studioChangesUrl(build: Pick<BridgeBuild, 'studio' | 'owner' | 'repo'>): string {
+  return build.studio ? `${build.studio.replace(/\/$/, '')}/studio/changes/` : `https://github.com/${build.owner}/${build.repo}/pulls`;
 }
 
 export type ChangeMode = 'tokens' | 'code';
@@ -414,4 +472,10 @@ export function toHex(color: string): string {
   if (!m) return color;
   const hex = [m[1], m[2], m[3]].map((n) => Number(n).toString(16).padStart(2, '0')).join('');
   return m[4] !== undefined && Number(m[4]) < 1 ? `#${hex}${Math.round(Number(m[4]) * 255).toString(16).padStart(2, '0')}` : `#${hex}`;
+}
+
+/** "from Darker default background", "from #101 and #118": which change a token's value comes from (changes tried together). */
+export function fromText(from: number[], titleOf: (n: number) => string | null): string {
+  const names = from.map((n) => titleOf(n) ?? `#${n}`);
+  return `from ${names.length <= 2 ? names.join(' and ') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`}`;
 }

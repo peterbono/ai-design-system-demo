@@ -6,6 +6,8 @@
 //   (nothing)            Latest library: what is shipped. Tokens edits go to a draft in this browser, as before.
 //   ?change=N            View: the page reads change N as it is now. Read only, nothing is saved. Default for a change.
 //   ?change=N&edit=1     Edit (Studio Tokens only): the token editor scoped to change N, edits are added to it (#114).
+//   ?change=N,M[&use=..] View 2 to 4 token changes together (lib/combine-changes): the latest library plus each one's
+//                        token edits, `use` holding the picks where two of them set a token differently. Read only.
 // "Edit tokens in this change" turns a view into an edit; "Stop editing" (or the selector) turns it back. Other pages
 // ignore edit=1, and links between Studio pages keep the view but never the edit.
 import type { TokenSet } from '@bridge-ds/core';
@@ -21,28 +23,61 @@ const norm = (path: string) => path.replace(/\/?$/, '/');
 
 export const viewsChange = (path: string) => (VIEW_PAGES as readonly string[]).includes(norm(path));
 
-export type LibraryScope = { kind: 'latest' } | { kind: 'view'; change: number } | { kind: 'edit'; change: number };
+/**
+ * `change` is the first (or only) change shown. A view of several changes together also has `changes` (2 to 4, in the
+ * address order) and `use`, the picks of the tokens they set differently (core encodePicks), as the address has it.
+ */
+export type LibraryScope = { kind: 'latest' } | { kind: 'view'; change: number; changes?: number[]; use?: string | null } | { kind: 'edit'; change: number };
 
 export const LATEST: LibraryScope = { kind: 'latest' };
 
-function changeNumber(search: string): number | null {
-  const raw = new URLSearchParams(search).get('change');
-  if (!raw || !/^\d+$/.test(raw)) return null;
-  const n = Number(raw);
-  return Number.isSafeInteger(n) && n > 0 ? n : null;
+/** At most this many changes are shown together. */
+export const MAX_CHANGES = 4;
+
+/**
+ * Change numbers in an address value: "118", "101,118" (or "101%2C118" once encoded). Positive whole numbers, no
+ * repeats, at most MAX_CHANGES; anything else in the list makes it unreadable (empty), never a guess.
+ */
+export function parseChangeList(raw: string | null | undefined): number[] {
+  if (!raw) return [];
+  const parts = raw.split(/,|%2C/i).map((p) => p.trim());
+  if (!parts.every((p) => /^\d{1,7}$/.test(p) && Number(p) > 0)) return [];
+  return [...new Set(parts.map(Number))].slice(0, MAX_CHANGES);
 }
 
 /** The scope of a page from its address. Edit only exists on Studio Tokens; a page that cannot show a change reads the latest library. */
 export function scopeOf(search: string, path: string): LibraryScope {
   if (!viewsChange(path)) return LATEST;
-  const n = changeNumber(search);
-  if (!n) return LATEST;
-  const edit = new URLSearchParams(search).get('edit') === '1' && norm(path) === '/studio/tokens/';
-  return { kind: edit ? 'edit' : 'view', change: n };
+  const params = new URLSearchParams(search);
+  const list = parseChangeList(params.get('change'));
+  if (!list.length) return LATEST;
+  if (list.length > 1) return { kind: 'view', change: list[0]!, changes: list, use: params.get('use') || null };
+  const edit = params.get('edit') === '1' && norm(path) === '/studio/tokens/';
+  return { kind: edit ? 'edit' : 'view', change: list[0]! };
 }
 
 /** The change a scope reads, or null for the latest library. */
 export const scopeChange = (s: LibraryScope) => (s.kind === 'latest' ? null : s.change);
+
+/** Every change a scope shows: none, one, or the 2 to 4 shown together. */
+export const scopeChanges = (s: LibraryScope): number[] => (s.kind === 'latest' ? [] : s.kind === 'view' && s.changes && s.changes.length > 1 ? s.changes : [s.change]);
+
+/** Several changes shown together. */
+export const isTogether = (s: LibraryScope) => scopeChanges(s).length > 1;
+
+/** Sets the scope's parameters on an address. */
+function setScope(p: URLSearchParams, next: LibraryScope) {
+  p.delete('change');
+  p.delete('edit');
+  p.delete('use');
+  if (next.kind === 'latest') return;
+  p.set('change', scopeChanges(next).join(','));
+  if (next.kind === 'edit') p.set('edit', '1');
+  if (next.kind === 'view' && isTogether(next) && next.use) p.set('use', next.use);
+}
+
+/** Commas in a list of changes stay readable in the address ("change=101,118"). */
+const readable = (q: string) => q.replace(/(^|&)change=([\d%2Cc]+)/, (_m, a: string, b: string) => `${a}change=${b.replace(/%2C/gi, ',')}`);
 
 /**
  * The same page in another scope, keeping its other parameters (filters, selection) and hash. A view drops edit=1;
@@ -50,11 +85,8 @@ export const scopeChange = (s: LibraryScope) => (s.kind === 'latest' ? null : s.
  */
 export function scopeHref(loc: { pathname: string; search: string; hash?: string }, next: LibraryScope): string {
   const p = new URLSearchParams(loc.search);
-  p.delete('change');
-  p.delete('edit');
-  if (next.kind !== 'latest') p.set('change', String(next.change));
-  if (next.kind === 'edit') p.set('edit', '1');
-  const q = p.toString();
+  setScope(p, next);
+  const q = readable(p.toString());
   return `${loc.pathname}${q ? `?${q}` : ''}${loc.hash ?? ''}`;
 }
 
@@ -71,13 +103,16 @@ export function keepScopeHref(href: string, scope: LibraryScope, base: string): 
     return href;
   }
   if (url.origin !== new URL(base).origin) return href;
-  url.searchParams.delete('edit');
-  if (viewsChange(url.pathname)) url.searchParams.set('change', String(scope.change));
-  else url.searchParams.delete('change');
-  return url.pathname + url.search + url.hash;
+  if (viewsChange(url.pathname)) setScope(url.searchParams, scope.kind === 'edit' ? { kind: 'view', change: scope.change } : scope);
+  else ['change', 'edit', 'use'].forEach((k) => url.searchParams.delete(k));
+  const q = readable(url.searchParams.toString());
+  return url.pathname + (q ? `?${q}` : '') + url.hash;
 }
 
 export const viewInChangeHref = (n: number, path = '/studio/tokens/') => `${norm(path)}?change=${n}`;
+/** Studio Tokens (or another view page) showing several changes together, with the picks (core encodePicks). */
+export const viewTogetherHref = (numbers: number[], use: string, path = '/studio/tokens/') =>
+  scopeHref({ pathname: norm(path), search: '' }, { kind: 'view', change: numbers[0]!, changes: numbers, use: use || null });
 /** Studio Tokens scoped to a change for editing ("Edit tokens in this change"). */
 export const editInChangeHref = (n: number) => `/studio/tokens/?change=${n}&edit=1`;
 /** The change page. */
@@ -127,6 +162,14 @@ export const optionValue = (n: number | null) => (n ? `change-${n}` : LATEST_VAL
 export function parseOptionValue(v: string | null | undefined): number | null {
   const m = /^change-(\d+)$/.exec(v ?? '');
   return m ? Number(m[1]) : null;
+}
+
+/** The selector's value for several changes shown together. */
+export const togetherValue = (numbers: number[]) => `together-${numbers.join('-')}`;
+
+/** "3 changes together", first under Open changes while they are shown; its description names them. */
+export function togetherOption(numbers: number[], titles: string[]): ViewOption {
+  return { value: togetherValue(numbers), label: `${numbers.length} changes together`, description: titles.length ? names(titles) : numbers.map((n) => `#${n}`).join(', '), group: 'Open changes' };
 }
 
 /** Open changes only, one per change, never the default branch itself; most recently updated first. */
@@ -220,6 +263,8 @@ export interface TokenMark {
   before: Record<string, unknown>;
   /** The token's type, to format values. */
   type: string;
+  /** Changes shown together: the changes whose value the token takes. */
+  from?: number[];
 }
 
 export interface TokenMarks {
@@ -329,23 +374,39 @@ export function pageOf(path: string): ViewPage | null {
 /** The banner's title: the one sentence of the mode, the same on every page. */
 export const bannerTitle = (title: string) => `Viewing the library as ${title}. Nothing is saved.`;
 
+/** "A and B", "A, B and 1 other". */
+const names = (titles: string[]) => (titles.length <= 2 ? titles.join(' and ') : `${titles.slice(0, 2).join(', ')} and ${plural(titles.length - 2, 'other')}`);
+
+/** The banner's title for changes shown together: "Viewing the library with A, B and 1 other. Nothing is saved." */
+export const togetherTitle = (titles: string[]) => `Viewing the library with ${names(titles)}. Nothing is saved.`;
+
+/** The mark of a token changed by changes shown together: which change it comes from ("Changed in #118"). */
+export function fromLabel(kind: 'changed' | 'added', from: number[]): string {
+  return `${kind === 'added' ? 'New in' : 'Changed in'} ${from.map((n) => `#${n}`).join(' and ')}`;
+}
+
 /** What this page shows of the change, in one sentence (null while reading). */
-export function bannerBody(page: ViewPage, x: { changed?: number; added?: number; removed?: number; components?: number; guidance?: string[] }): string {
+export function bannerBody(page: ViewPage, x: { changed?: number; added?: number; removed?: number; components?: number; guidance?: string[]; together?: boolean }): string {
   if (page === 'quality') return '';
+  // Changes shown together speak in the plural, and each mark names its change.
+  const [its, it] = x.together ? ['their', 'They change'] : ['its', 'It changes'];
   if (page === 'tokens') {
     const parts = [x.changed ? `${plural(x.changed, 'token')} changed` : '', x.added ? `${plural(x.added, 'token')} added` : '', x.removed ? `${plural(x.removed, 'token')} removed` : ''].filter(Boolean);
-    return parts.length ? `${list(parts)}, listed first in the table.` : 'It changes no token values.';
+    return parts.length ? `${list(parts)}, listed first in the table${x.together ? ', each marked with its change' : ''}.` : `${it} no token values.`;
   }
   const n = x.components ?? 0;
   const g = x.guidance?.length ?? 0;
-  if (!n && !g) return 'Previews use its tokens. It changes how no component looks.';
+  if (!n && !g) return `Previews use ${its} tokens. ${it} how no component looks.`;
   const what = [n ? `${plural(n, 'component')} ${n === 1 ? 'looks' : 'look'} different` : '', g ? `${g} ${g === 1 ? 'has' : 'have'} edited guidance` : ''].filter(Boolean).join(' and ');
-  return `Previews use its tokens: ${what}, marked in the list.${g ? ' Guidance text here is the latest library\'s.' : ''}`;
+  return `Previews use ${its} tokens: ${what}, marked in the list.${g ? ' Guidance text here is the latest library\'s.' : ''}`;
 }
 
 /** Quality on a change: its numbers live in the change's checks, never main's numbers in their place. */
 export const QUALITY_IN_CHECKS = 'Quality for this change is in its checks';
 export const QUALITY_IN_CHECKS_BODY = 'The contrast gate, token validation and docs checks run on every change. Open the change to see what they found.';
+/** Quality on changes shown together: no numbers exist for a combination here, so none are shown. */
+export const QUALITY_TOGETHER = 'Quality is measured for each change on its own';
+export const QUALITY_TOGETHER_BODY = 'Checks run on every change, not on a combination. Changes runs the contrast checks of these changes together before you open them.';
 
 /** Errors say how to fix. */
 export function readError(kind: 'rate' | 'missing' | 'other', title: string, signIn: string, resetAt?: string | null): string {

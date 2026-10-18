@@ -30,6 +30,16 @@ html[data-view-change] [data-change-only] {
   display: block;
 }
 
+/* Several changes together: Quality has no numbers for a combination, so it says where they are measured. */
+[data-together-only],
+html[data-view-together] [data-change-only] {
+  display: none;
+}
+
+html[data-view-together] [data-together-only] {
+  display: block;
+}
+
 /* Studio Tokens: a view is read only, so the edit affordances leave until "Edit tokens in this change". */
 html[data-view-change]:not([data-view-edit]) .xp-new,
 html[data-view-change]:not([data-view-edit]) .xp-apphead-hint,

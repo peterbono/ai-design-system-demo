@@ -15,6 +15,8 @@ export * from './validators';
 export * from './id-map';
 export * from './diff-engine';
 export * from './token-merge';
+export * from './token-combine';
+export * from './css-overrides';
 export * from './compose';
 export * from './risk';
 export * from './pr-composer';

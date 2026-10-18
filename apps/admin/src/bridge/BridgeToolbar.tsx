@@ -2,9 +2,11 @@
 // browse the real admin and flip between the live product and this change. Token changes swap the live tokens in
 // without a reload; code changes move between the production admin and the change's preview on the same screen.
 // Production renders nothing on its own. It opens collapsed, bottom right of the content column, and moves away from
-// the page's primary and submit buttons.
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
-import { Badge, Button, ButtonGroup, Icon, IconButton, Link, Popover, PopoverContent, PopoverTrigger, ThemeProvider, Tooltip } from '@bridge-ds/react';
+// the page's primary and submit buttons. Several token changes tried together (`?bridge=101,118,120`, from Studio's
+// Changes list) run on the production admin: their combined tokens are applied live (useTogether), each change can
+// be switched off, and Before/After and "Show what changed" work on what is switched on.
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { Badge, Button, ButtonGroup, Checkbox, Icon, IconButton, Link, Popover, PopoverContent, PopoverTrigger, ThemeProvider, Tooltip } from '@bridge-ds/react';
 import { Check, ChevronUp, GripVertical, Info, ListChecks, Minimize2, ScanSearch } from 'lucide-react';
 import { usePreferences } from '../preferences';
 import { isTenantId, TENANT_LIST, TENANTS } from '../tenants';
@@ -19,15 +21,20 @@ import {
   OPEN_KEY,
   PARAM,
   placeToolbar,
-  readChange,
+  readChanges,
   readDock,
   readReturn,
   readScroll,
+  readUse,
   sameScreenOn,
   SCROLL_PARAM,
   shouldRender,
   stepDock,
   studioChangeUrl,
+  studioChangesUrl,
+  fromText,
+  TOGETHER_HINT,
+  togetherLabel,
   contrastRatio,
   isSubtle,
   toHex,
@@ -44,6 +51,7 @@ import { shownRect } from './outline';
 import { useChangedElements } from './useChangedElements';
 import { ChangeOutlines, type Shown } from './ChangeOutlines';
 import { PIN_ATTR, PIN_CLASS, usePinnedBridgeTokens } from './pin';
+import { useTogether } from './useTogether';
 import styles from './BridgeToolbar.module.css';
 
 declare const __BRIDGE_BUILD__: BridgeBuild;
@@ -77,13 +85,15 @@ export function BridgeToolbar() {
   const [setup] = useState(() => {
     const build = __BRIDGE_BUILD__;
     const store = session();
-    const change = readChange(window.location.search, store);
+    const changes = readChanges(window.location.search, store);
     const where = whereAmI(window.location.host, build);
     const returnTo = where === 'production' ? readReturn(window.location.search, store, build.adminTemplate) : null;
-    return { build, change, where, returnTo };
+    // 2 to 4 changes tried together: their tokens are applied live on whatever this admin is (production from Studio).
+    const together = changes.length > 1 ? { changes, use: readUse(window.location.search, store) } : null;
+    return { build, change: changes[0] ?? null, where, returnTo, together };
   });
-  if (!shouldRender(setup)) return null;
-  return <Toolbar build={setup.build} change={setup.change!} onProduction={setup.where === 'production'} returnTo={setup.returnTo} />;
+  if (!shouldRender({ ...setup, together: Boolean(setup.together) })) return null;
+  return <Toolbar build={setup.build} change={setup.change!} onProduction={setup.where === 'production'} returnTo={setup.returnTo} together={setup.together} />;
 }
 
 /**
@@ -226,12 +236,34 @@ function pageObstacles(own: HTMLElement | null): Rect[] {
   return out;
 }
 
-function Toolbar({ build, change, onProduction, returnTo }: { build: BridgeBuild; change: number; onProduction: boolean; returnTo: string | null }) {
-  const { theme, set: setPrefs, tenantId, tenant } = usePreferences();
-  const [facts, setFacts] = useState<ChangeFacts | null>(null);
-  const [error, setError] = useState(false);
-  // On production the toolbar only exists for the live side of a code change.
-  const [side, setSide] = useState<Side>(onProduction ? 'before' : 'after');
+function Toolbar({ build, change, onProduction, returnTo, together: tg }: { build: BridgeBuild; change: number; onProduction: boolean; returnTo: string | null; together: { changes: number[]; use: string | null } | null }) {
+  const { theme, density, set: setPrefs, tenantId, tenant } = usePreferences();
+  const [oneFacts, setFacts] = useState<ChangeFacts | null>(null);
+  const [oneError, setError] = useState(false);
+  // On production the toolbar only exists for the live side of a code change, or for changes tried together (which
+  // open on the combination).
+  const [side, setSide] = useState<Side>(onProduction && !tg ? 'before' : 'after');
+  const T = useTogether(build, tg?.changes ?? null, tg?.use ?? null, { theme, brand: tenant.brand, density }, side === 'after');
+  const titleOf = (n: number) => T?.list?.find((f) => f.number === n)?.title ?? null;
+  // Changes tried together read as one token change: the tokens of what is switched on, the files they edit.
+  const togetherFacts = useMemo<ChangeFacts | null>(() => {
+    if (!T?.list || !T.result) return null;
+    const on = T.list.filter((f) => T.included.includes(f.number));
+    const names = on.map((f) => f.title);
+    return {
+      number: change,
+      title: names.length ? (names.length <= 2 ? names.join(' and ') : `${names.slice(0, 2).join(', ')} and ${names.length - 2} more`) : 'No change switched on',
+      url: '',
+      sha: '',
+      mode: 'tokens',
+      files: [...new Set(on.flatMap((f) => f.source?.files ?? []))],
+      behind: null,
+      tokens: T.result.tokens,
+      screens: null,
+    };
+  }, [T?.list, T?.result, T?.included, change]);
+  const facts = tg ? togetherFacts : oneFacts;
+  const error = tg ? Boolean(T?.error) : oneError;
   const [open, setOpen] = useState(() => {
     try {
       return window.sessionStorage.getItem(OPEN_KEY) === '1';
@@ -249,6 +281,7 @@ function Toolbar({ build, change, onProduction, returnTo }: { build: BridgeBuild
   const hash = useHash();
 
   useEffect(() => {
+    if (tg) return;
     let live = true;
     loadChange(build, change).then(
       (f) => live && setFacts(f),
@@ -257,17 +290,27 @@ function Toolbar({ build, change, onProduction, returnTo }: { build: BridgeBuild
     return () => {
       live = false;
     };
-  }, [build, change]);
+  }, [build, change, tg]);
 
-  const liveUrl = facts?.mode === 'tokens' ? liveTokensUrl(build) : null;
+  // One change: the live tokens.css switches the preview to Before. Changes tried together: this page is the live
+  // product already, and the combination's sheet (useTogether) switches it to After.
+  const liveUrl = !tg && facts?.mode === 'tokens' ? liveTokensUrl(build) : null;
   const [outlines, setOutlines] = useState(false);
   const canOutline = facts?.mode === 'tokens' && (facts.tokens.length ?? 0) > 0;
   const live = useLiveSheet(liveUrl, outlines && canOutline, side === 'before' && facts?.mode === 'tokens');
-  const pairs = usePairs(facts, liveUrl, tenant.brand, side === 'before');
+  const onePairs = usePairs(tg ? null : facts, liveUrl, tenant.brand, side === 'before');
+  const pairs: Pair[] = tg ? (T?.pairs ?? []) : onePairs;
   const noDiff = facts?.mode === 'tokens' ? noVisibleDifference(facts.files, { theme, brand: tenant.brand }) : null;
   // Outlines run only where the change can show: muted in dark for a light-only change.
   const outlinesOn = outlines && canOutline && !noDiff;
-  const diff = useChangedElements(outlinesOn, live.link, (facts?.tokens ?? []).map((t) => t.cssVar), `${hash}|${theme}|${tenantId}`);
+  const diff = useChangedElements(
+    outlinesOn,
+    tg ? (T?.sheet ?? null) : live.link,
+    (facts?.tokens ?? []).map((t) => t.cssVar),
+    // Switching a change on or off repaints the combination: the outlines are measured again.
+    `${hash}|${theme}|${tenantId}|${tg ? (T?.included.join(',') ?? '') : ''}`,
+    tg ? 'after' : 'before',
+  );
   const nameOf = (v: string) => facts?.tokens.find((t) => t.cssVar === v)?.name ?? v;
   // What the outlines draw (visible surfaces) and where: the count and the boxes the toolbar keeps clear of.
   const [shown, setShown] = useState<Shown>({ count: 0, obstacles: [] });
@@ -443,11 +486,12 @@ function Toolbar({ build, change, onProduction, returnTo }: { build: BridgeBuild
     }
   };
 
-  const label = SIDE_LABEL[side];
-  const title = facts?.title ?? `Change ${change}`;
+  const sideLabel = (x: Side) => (x === 'after' && tg ? togetherLabel(T?.included.length ?? tg.changes.length) : SIDE_LABEL[x]);
+  const label = sideLabel(side);
+  const title = facts?.title ?? (tg ? `${tg.changes.length} changes together` : `Change ${change}`);
   const screens = facts?.screens ?? null;
   const canFlip = Boolean(facts) && (facts!.mode === 'tokens' || (side === 'after' ? Boolean(build.productionAdmin) : Boolean(returnTo)));
-  const studio = studioChangeUrl(build, change);
+  const studio = tg ? studioChangesUrl(build) : studioChangeUrl(build, change);
   const behind = facts?.behind ? 'Live has new changes since this change started.' : null;
   // Screens share one shop and theme most of the time: say it once in the sheet's header.
   const shared = screens?.length && screens.every((s) => s.tenant === screens[0]!.tenant && s.theme === screens[0]!.theme) ? screens[0]! : null;
@@ -480,7 +524,12 @@ function Toolbar({ build, change, onProduction, returnTo }: { build: BridgeBuild
   // Most visible first: a ramp change lists its strong steps before its near-white ones.
   const visiblePairs = (noDiff ? [] : pairs).slice().sort((a, b) => (contrastRatio(b.before, b.after) ?? 0) - (contrastRatio(a.before, a.after) ?? 0));
   const hexPair = (before: string, after: string) => `${toHex(before).toUpperCase()} → ${toHex(after).toUpperCase()}`;
-  const pairTip = (p: Pair) => `${p.token.name}${p.token.step ? ` (${p.token.step})` : ''}: ${p.color ? hexPair(p.before, p.after) : `${p.before} → ${p.after}`}`;
+  // Changes tried together: each token says which change its value comes from.
+  const fromOf = (p: Pair | null | undefined) => {
+    const from = (p?.token as { from?: number[] } | undefined)?.from;
+    return tg && from?.length ? fromText(from, titleOf) : null;
+  };
+  const pairTip = (p: Pair) => `${p.token.name}${p.token.step ? ` (${p.token.step})` : ''}${fromOf(p) ? `, ${fromOf(p)}` : ''}: ${p.color ? hexPair(p.before, p.after) : `${p.before} → ${p.after}`}`;
   const splitOf = (before: string, after: string) => (
     <span className={styles.split} aria-hidden="true">
       <span style={{ backgroundColor: before }} />
@@ -541,7 +590,7 @@ function Toolbar({ build, change, onProduction, returnTo }: { build: BridgeBuild
   const sides = (
     <ButtonGroup appearance="attached" aria-label="Compare" className={styles.sides}>
       {(['before', 'after'] as const).map((s) => (
-        <Tooltip className={PIN_CLASS} key={s} content={`${SIDE_LABEL[s]}: ${s === 'before' ? 'what customers see today.' : modeDetail(facts, 'after', 'idle')} Press B to flip.`}>
+        <Tooltip className={PIN_CLASS} key={s} content={`${sideLabel(s)}: ${s === 'before' ? 'what customers see today.' : modeDetail(facts, 'after', 'idle')} Press B to flip.`}>
           <Button
             variant="secondary"
             size="md"
@@ -551,7 +600,7 @@ function Toolbar({ build, change, onProduction, returnTo }: { build: BridgeBuild
             disabled={!canFlip && side !== s}
             onClick={() => choose(s)}
           >
-            {SIDE_LABEL[s]}
+            {sideLabel(s)}
           </Button>
         </Tooltip>
       ))}
@@ -625,6 +674,34 @@ function Toolbar({ build, change, onProduction, returnTo }: { build: BridgeBuild
                   )}
                 </PopoverTrigger>
                 <PopoverContent side="top" align="center" className={`${styles.sheet} ${PIN_CLASS}`} aria-label="Changes">
+                  {tg && T?.list ? (
+                    <section className={styles.sheetSection} aria-label="Changes tried together">
+                      <p className={styles.sectionTitle}>Changes tried together</p>
+                      <p className={styles.note}>{TOGETHER_HINT}</p>
+                      <ul className={styles.list}>
+                        {T.list.map((f) => {
+                          const n = T.result?.tokens.filter((t) => t.from.includes(f.number)).length ?? 0;
+                          const can = f.mode === 'tokens' && Boolean(f.source);
+                          return (
+                            <li key={f.number} className={styles.item}>
+                              <Checkbox
+                                label={f.title}
+                                description={can ? `#${f.number}, ${T.included.includes(f.number) ? `${n} ${n === 1 ? 'token' : 'tokens'} applied` : 'switched off'}` : `#${f.number}. Changes code, so it can't be applied here.`}
+                                checked={T.included.includes(f.number)}
+                                disabled={!can}
+                                onCheckedChange={(on) => T.toggle(f.number, on)}
+                              />
+                            </li>
+                          );
+                        })}
+                      </ul>
+                      {T.result?.unpicked.length ? (
+                        <p className={styles.note}>
+                          {T.result.unpicked.join(', ')}: the change you picked in Studio is off, so the first one listed sets {T.result.unpicked.length === 1 ? 'it' : 'them'}.
+                        </p>
+                      ) : null}
+                    </section>
+                  ) : null}
                   {outlinesOn && shownSurfaces.length ? (
                     <section className={styles.sheetSection} aria-label={`Changed here, ${shownSurfaces.length}`}>
                       <p className={styles.sectionTitle}>Changed here · {shownSurfaces.length}</p>
@@ -723,7 +800,13 @@ function Toolbar({ build, change, onProduction, returnTo }: { build: BridgeBuild
                   </div>
                   {screens === null ? (
                     <p className={`${styles.note} ${styles.sheetFoot}`}>
-                      {facts ? 'The screens this change affects are not measured yet.' : 'Reading the change.'}
+                      {tg
+                        ? facts
+                          ? 'Screens are measured for each change on its own, not for a combination. Show what changed outlines this screen.'
+                          : 'Reading the changes.'
+                        : facts
+                          ? 'The screens this change affects are not measured yet.'
+                          : 'Reading the change.'}
                     </p>
                   ) : screens.length === 0 ? (
                     <p className={`${styles.note} ${styles.sheetFoot}`}>No admin screen changes. Component examples may still change: Studio lists them.</p>
@@ -740,7 +823,7 @@ function Toolbar({ build, change, onProduction, returnTo }: { build: BridgeBuild
             </Tooltip>
             {error ? (
               <p className={styles.noteRow} role="status">
-                Could not read this change. Reload the page to try again.
+                {tg ? 'Could not read these changes. Reload the page to try again.' : 'Could not read this change. Reload the page to try again.'}
               </p>
             ) : null}
           </>
@@ -771,6 +854,9 @@ function Toolbar({ build, change, onProduction, returnTo }: { build: BridgeBuild
             const token = prop ? visiblePairs.find((p) => p.color && toHex(p.after) === toHex(prop.after) && toHex(p.before) === toHex(prop.before)) : null;
             // The role leads ("Brand primary"), the palette step comes second ("Primary 700").
             const name = token?.token.name ?? [...new Set(s.roots.map(nameOf))].slice(0, 2).join(', ');
+            // Changes tried together: the change the value comes from, by the matched token, else by the surface's roots.
+            const rootsFrom = [...new Set(s.roots.flatMap((r) => (facts?.tokens.find((t) => t.cssVar === r) as { from?: number[] } | undefined)?.from ?? []))];
+            const fromLine = fromOf(token) ?? (tg && rootsFrom.length ? fromText(rootsFrom, titleOf) : null);
             return (
               <span className={styles.tip}>
                 {prop ? splitOf(prop.before, prop.after) : null}
@@ -780,6 +866,7 @@ function Toolbar({ build, change, onProduction, returnTo }: { build: BridgeBuild
                     {prop ? `, ${hexPair(prop.before, prop.after)}` : ''}
                   </span>
                   {token?.token.step ? <span className={styles.tipStep}>{token.token.step}</span> : null}
+                  {fromLine ? <span className={styles.tipStep}>{fromLine.charAt(0).toUpperCase() + fromLine.slice(1)}</span> : null}
                 </span>
                 {prop ? subtleOf(prop.before, prop.after) : null}
               </span>

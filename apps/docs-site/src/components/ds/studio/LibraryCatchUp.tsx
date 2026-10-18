@@ -32,7 +32,7 @@ export interface LibraryCatchUpProps {
   resolver?: ResolverSource;
 }
 
-function Value({ v }: { v: ShownValue | null }) {
+export function Value({ v }: { v: ShownValue | null }) {
   if (!v) return <span className="lib-val">Removes the token</span>;
   return (
     <span className="lib-val">

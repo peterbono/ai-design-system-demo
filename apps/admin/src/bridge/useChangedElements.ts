@@ -5,7 +5,7 @@ import { changedElements, type DiffResult } from './outline';
 
 const IGNORE = '[data-bridge-toolbar], [data-bridge-overlay]';
 
-export function useChangedElements(on: boolean, live: HTMLLinkElement | null, vars: string[], screen: string): DiffResult | null {
+export function useChangedElements(on: boolean, live: HTMLLinkElement | HTMLStyleElement | null, vars: string[], screen: string, sheetIs: 'before' | 'after' = 'before'): DiffResult | null {
   const [result, setResult] = useState<DiffResult | null>(null);
   const key = vars.join(',');
   useEffect(() => {
@@ -13,10 +13,10 @@ export function useChangedElements(on: boolean, live: HTMLLinkElement | null, va
       setResult(null);
       return;
     }
-    const run = () => setResult(changedElements(key.split(','), live, (el) => Boolean(el.closest(IGNORE))));
+    const run = () => setResult(changedElements(key.split(','), live, (el) => Boolean(el.closest(IGNORE)), sheetIs));
     // Now, then once the new screen has rendered its data (ra-core loads it asynchronously).
     const ids = [window.setTimeout(run, 0), window.setTimeout(run, 400), window.setTimeout(run, 1200)];
     return () => ids.forEach((id) => window.clearTimeout(id));
-  }, [on, live, key, screen]);
+  }, [on, live, key, screen, sheetIs]);
   return result;
 }

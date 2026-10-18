@@ -157,8 +157,8 @@ export function missingChoices(plan: Pick<TokenMergePlan, 'conflicts'>, choices:
   return plan.conflicts.filter((c) => choiceFor(c, choices) === null);
 }
 
-/** Puts this change's version of a token into the library's file: its value, type, description and extensions. */
-function takeMine(doc: TokenDocument, mine: FlatToken | undefined, existing: FlatToken | undefined): boolean {
+/** Puts this change's version of a token into the library's file: its value, type, description and extensions. Also used by token-combine. */
+export function takeMine(doc: TokenDocument, mine: FlatToken | undefined, existing: FlatToken | undefined): boolean {
   if (!mine) return existing ? removeToken(doc, existing.path) : false;
   let changed = false;
   if (existing && existing.path !== mine.path) changed = removeToken(doc, existing.path) || changed;

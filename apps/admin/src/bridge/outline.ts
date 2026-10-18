@@ -102,10 +102,12 @@ export function shownRect(el: Element): DOMRect | null {
 const visible = (el: Element) => el.getClientRects().length > 0;
 
 /**
- * Compares the candidates under both token sets. `live` is the toolbar's stylesheet with the live tokens (loaded);
- * `ignore` holds the toolbar's own nodes.
+ * Compares the candidates under both token sets. `sheet` is the toolbar's stylesheet that switches sides (loaded):
+ * the live tokens over a change's preview (`sheetIs` 'before', one change), or the combination over the live product
+ * (`sheetIs` 'after', changes tried together). `ignore` holds the toolbar's own nodes.
  */
-export function changedElements(changedVars: string[], live: HTMLLinkElement, ignore: (el: Element) => boolean): DiffResult {
+export function changedElements(changedVars: string[], sheet: HTMLLinkElement | HTMLStyleElement, ignore: (el: Element) => boolean, sheetIs: 'before' | 'after' = 'before'): DiffResult {
+  const live = sheet;
   const t0 = performance.now();
   const rules = pageRules();
   const roots = dependents(rules, changedVars);
@@ -180,6 +182,8 @@ export function changedElements(changedVars: string[], live: HTMLLinkElement, ig
     read();
     still.remove();
   }
+  // With the combination's sheet on, it is the After side: the two reads swap.
+  if (sheetIs === 'after') [withLive, withChange] = [withChange, withLive];
   const elements: ChangedElement[] = [];
   list.forEach((c, i) => {
     const props = c.propList.map((prop, j) => ({ prop, before: withLive[i]![j]!, after: withChange[i]![j]! })).filter((p) => p.before !== p.after);

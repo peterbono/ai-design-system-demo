@@ -30,6 +30,13 @@ import {
   viewCacheKey,
   viewOptions,
   viewsChange,
+  fromLabel,
+  isTogether,
+  parseChangeList,
+  scopeChanges,
+  togetherOption,
+  togetherTitle,
+  viewTogetherHref,
   type ViewPull,
 } from './view-scope';
 
@@ -251,5 +258,48 @@ describe('words', () => {
   it('never uses developer words or em dashes on screen', () => {
     const shown = [bannerTitle('X'), bannerBody('tokens', { changed: 1, removed: 2 }), bannerBody('components', { components: 1, guidance: ['A'] }), readError('rate', 'X', 'Sign in', null), readError('other', 'X', 'Sign in')].join(' ');
     expect(shown).not.toMatch(/\b(branch|pull request|PR|commit|merge|SHA|CI|workflow)\b|—/i);
+  });
+});
+
+describe('several changes together in the address', () => {
+  it('reads a list of 2 to 4 changes, with the picks, as a read-only view', () => {
+    const s = scopeOf('?change=101,118,120&use=118%3Asemantic%2Flight.tokens.json%23path%3Acolor.bg.default', '/studio/tokens/');
+    expect(s).toEqual({ kind: 'view', change: 101, changes: [101, 118, 120], use: '118:semantic/light.tokens.json#path:color.bg.default' });
+    expect(scopeChanges(s)).toEqual([101, 118, 120]);
+    expect(isTogether(s)).toBe(true);
+    // edit=1 never applies to several changes.
+    expect(scopeOf('?change=101,118&edit=1', '/studio/tokens/').kind).toBe('view');
+    // An encoded comma reads the same.
+    expect(scopeChanges(scopeOf('?change=101%2C118', '/studio/components/'))).toEqual([101, 118]);
+  });
+
+  it('parses lists strictly: no repeats, at most 4, nothing half-read', () => {
+    expect(parseChangeList('101,101,118')).toEqual([101, 118]);
+    expect(parseChangeList('1,2,3,4,5')).toEqual([1, 2, 3, 4]);
+    expect(parseChangeList('101,abc')).toEqual([]);
+    expect(parseChangeList('101,0')).toEqual([]);
+    expect(parseChangeList('')).toEqual([]);
+    expect(scopeOf('?change=101,abc', '/studio/tokens/')).toEqual(LATEST);
+    // One change in a list is the plain view of #116.
+    expect(scopeOf('?change=118,118', '/studio/tokens/')).toEqual({ kind: 'view', change: 118 });
+  });
+
+  it('keeps the list and the picks on links between view pages, and drops them elsewhere', () => {
+    const s = scopeOf('?change=101,118&use=118%3Aa%23b', '/studio/tokens/');
+    expect(keepScopeHref('/studio/components/', s, 'https://bridge.test/studio/tokens/')).toBe('/studio/components/?change=101,118&use=118%3Aa%23b');
+    expect(keepScopeHref('/studio/changes/', s, 'https://bridge.test/studio/tokens/')).toBe('/studio/changes/');
+    expect(scopeHref({ pathname: '/studio/quality/', search: '?change=101,118&use=x&q=bg' }, LATEST)).toBe('/studio/quality/?q=bg');
+    expect(scopeHref({ pathname: '/studio/tokens/', search: '?change=101,118&use=x' }, { kind: 'view', change: 118 })).toBe('/studio/tokens/?change=118');
+  });
+
+  it('builds the address of a combination and names it', () => {
+    expect(viewTogetherHref([101, 118], '118:a#b')).toBe('/studio/tokens/?change=101,118&use=118%3Aa%23b');
+    expect(viewTogetherHref([101, 118], '')).toBe('/studio/tokens/?change=101,118');
+    expect(togetherTitle(['Darker canvas', 'Rounder buttons', 'Deeper links'])).toBe('Viewing the library with Darker canvas, Rounder buttons and 1 other. Nothing is saved.');
+    expect(togetherOption([101, 118], ['Darker canvas', 'Rounder buttons'])).toEqual({ value: 'together-101-118', label: '2 changes together', description: 'Darker canvas and Rounder buttons', group: 'Open changes' });
+    expect(fromLabel('changed', [118])).toBe('Changed in #118');
+    expect(fromLabel('added', [101, 118])).toBe('New in #101 and #118');
+    expect(bannerBody('tokens', { changed: 3, together: true })).toBe('3 tokens changed, listed first in the table, each marked with its change.');
+    expect(bannerBody('components', { components: 0, together: true })).toBe('Previews use their tokens. They change how no component looks.');
   });
 });

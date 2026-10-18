@@ -35,8 +35,8 @@ import type { ExplorerData, ExplorerMode, ExplorerState, View } from './types';
 import { copyText, esc, icon } from './util';
 import { selectSegment } from '../shell';
 import { buildTokenSet, contrastScope, evaluatePairs, formatValue, layoutOptions, loadConfig } from '@bridge-ds/core';
-import { bannerBody, changedTokens } from '../../lib/view-scope';
-import { changeLibrary, currentPull, pageScope, readFailure, setBannerBody, setBannerError } from '../view-change';
+import { bannerBody, changedTokens, isTogether } from '../../lib/view-scope';
+import { currentPull, pageScope, readFailure, scopeLibrary, setBannerBody, setBannerError } from '../view-change';
 
 const NARROW = '(max-width: 1099px)';
 let historyPanelReady = false;
@@ -1000,15 +1000,15 @@ export function initTokenExplorer() {
 
   /** Reads the change in the address and shows its token set, the tokens it changes marked (Changed in this change). */
   async function showChange() {
-    const pull = currentPull();
-    if (!pull) return;
+    if (!currentPull()) return;
     try {
-      const p = await pull;
       const config = loadConfig(document.getElementById('xp-config')?.textContent || '{}');
       const main = readJson<Record<string, string>>('xp-files', {});
-      const lib = await changeLibrary(p, main, config.tokens.root);
+      // One change, or several shown together (the latest library plus their edits, each mark saying which one).
+      const lib = await scopeLibrary(main, config.tokens.root);
       const head = buildTokenSet(lib.files, layoutOptions(config));
       const marks = changedTokens(d.head, head);
+      if (lib.from) for (const [path, m] of marks.marks) m.from = lib.from[path];
       d.set = head;
       d.head = head;
       d.tokens = buildTokens(head, d.usage);
@@ -1017,13 +1017,13 @@ export function initTokenExplorer() {
       d.marks = marks.marks;
       d.formatBefore = (type, v) => formatValue(type, v);
       const values = [...marks.marks.values()];
-      setBannerBody(bannerBody('tokens', { changed: values.filter((m) => m.kind === 'changed').length, added: values.filter((m) => m.kind === 'added').length, removed: marks.removed.length }));
+      setBannerBody(bannerBody('tokens', { changed: values.filter((m) => m.kind === 'changed').length, added: values.filter((m) => m.kind === 'added').length, removed: marks.removed.length, together: Boolean(lib.from) }));
       root.dataset.view = 'ready';
       render({ keepScroll: true, sync: Boolean(s.selected) });
       if (s.selected && !detail.hidden) openDetail(s.selected);
     } catch (err) {
       root.dataset.view = 'error';
-      setBannerError(readFailure(err, 'This change'));
+      setBannerError(readFailure(err, isTogether(pageScope()) ? 'These changes' : 'This change'));
     }
   }
 

@@ -2,7 +2,7 @@
 // rows). Groups are collapsible section rows, the header is sticky, there is one column per relevant mode, plus code
 // syntax and description columns. Rows render in chunks: the first screenful synchronously, the rest on idle.
 import { codeSyntax, modeName, SYNTAX_LABEL } from '../../lib/explorer/format';
-import { ADDED_LABEL, beforeText, CHANGED_LABEL, type TokenMark } from '../../lib/view-scope';
+import { ADDED_LABEL, beforeText, CHANGED_LABEL, fromLabel, type TokenMark } from '../../lib/view-scope';
 import { sectionsFor, type Column, type Section, type XToken } from '../../lib/explorer/model';
 import { cellHtml, cellLabel, studioCellHtml } from './cells';
 import { editedModes } from '../token-editor';
@@ -91,7 +91,8 @@ function rowHtml(d: ExplorerData, t: XToken, view: View, s: ExplorerState, secti
 /** "Changed in this change" on a token the viewed change defines differently; its latest library value on hover and for screen readers. */
 function markHtml(mark: TokenMark, d: ExplorerData): string {
   const before = beforeText(mark, d.formatBefore ?? ((_t, v) => JSON.stringify(v)), modeName);
-  const label = mark.kind === 'added' ? ADDED_LABEL : CHANGED_LABEL;
+  // Changes shown together: the mark names the change the value comes from.
+  const label = mark.from?.length ? fromLabel(mark.kind, mark.from) : mark.kind === 'added' ? ADDED_LABEL : CHANGED_LABEL;
   return `<span class="xp-flag xp-flag-change" data-before="${esc(before)}">${esc(label)}<span class="sr-only">. ${esc(before)}</span></span>`;
 }
 

@@ -1278,3 +1278,102 @@ details[open] > summary .cg-sec-chev {
 .cg-added[hidden] {
   display: none;
 }
+
+/* Try several changes together (components/ds/studio/CombineChanges): a DS Checkbox before each open row, then one
+   selection bar at the end of the same card, its sentence and actions on one line. */
+.cg-row-pick {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+}
+
+.cg-pick {
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  padding-left: var(--space-5);
+}
+
+.cg-pick-box {
+  min-width: var(--size-6);
+  min-height: var(--size-6);
+}
+
+.cg-row-pick .cg-row-link {
+  padding-left: var(--space-3);
+}
+
+.cg-pick-note {
+  grid-column: 2;
+  margin: 0;
+  padding: 0 var(--space-5) var(--space-3) var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--typography-caption-size);
+  line-height: var(--typography-caption-line-height);
+}
+
+.cg-pick-note:empty,
+.cg-together:empty {
+  display: none;
+}
+
+.cg-together {
+  border-top: var(--border-width-default) solid var(--color-border-default);
+}
+
+.cg-together-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-4);
+  padding: var(--space-3) var(--space-5);
+}
+
+.cg-together-line {
+  flex: 1 1 var(--size-64);
+  margin: 0;
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.cg-together-line.is-muted {
+  color: var(--color-text-muted);
+}
+
+.cg-together-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.cg-together-rows,
+.cg-together-guard {
+  margin: 0 var(--space-5) var(--space-4);
+}
+
+/* One primary per view: while changes are checked, trying them is it, so the opener's action steps aside. */
+:root[data-together] .cg-open [id="cg-open-cta"] {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .cg-pick {
+    padding-left: var(--space-4);
+  }
+
+  .cg-pick-note,
+  .cg-together-bar {
+    padding-inline: var(--space-4);
+  }
+
+  .cg-together-actions {
+    flex-direction: column-reverse;
+    width: 100%;
+  }
+
+  .cg-together-rows,
+  .cg-together-guard {
+    margin-inline: var(--space-4);
+  }
+}
