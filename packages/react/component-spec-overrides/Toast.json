@@ -1,0 +1,908 @@
+{
+  "$comment": "Drafted with Claude: the generator cannot read Toast (it is shown from the useToast hook under ToastProvider, not placed as a component). Read from Toast.tsx (ToastList) and Toast.module.css; nested Button, IconButton, Icon and Spinner values copied from their generated sets. Check it with Check fidelity in the plugin. When Toast.tsx or Toast.module.css change, the set is marked stale until this draft is checked and codeHash updated. Regenerate component-specs.json after editing (npm run specs).",
+  "source": "drafted",
+  "files": [
+    "packages/react/src/components/Toast/Toast.tsx",
+    "packages/react/src/components/Toast/Toast.module.css"
+  ],
+  "codeHash": "0e9107b7",
+  "reason": "is shown from a hook or a provider, not placed as a component",
+  "name": "Toast",
+  "axes": [
+    {
+      "name": "Tone",
+      "prop": "tone",
+      "values": [
+        "neutral",
+        "info",
+        "success",
+        "warning",
+        "danger",
+        "loading"
+      ],
+      "default": "neutral"
+    }
+  ],
+  "properties": [
+    {
+      "name": "Title",
+      "type": "TEXT",
+      "default": "Tokens published",
+      "prop": "title"
+    },
+    {
+      "name": "Description",
+      "type": "TEXT",
+      "default": "Version 1.4.0 is live.",
+      "prop": "description"
+    },
+    {
+      "name": "Show description",
+      "type": "BOOLEAN",
+      "default": true,
+      "prop": "description"
+    },
+    {
+      "name": "Show action",
+      "type": "BOOLEAN",
+      "default": false,
+      "prop": "action"
+    }
+  ],
+  "parts": [
+    {
+      "id": "root",
+      "name": "Toast",
+      "kind": "frame",
+      "source": "Toast.module.css .toast",
+      "layout": {
+        "direction": "VERTICAL",
+        "primary": "MIN",
+        "counter": "STRETCH"
+      }
+    },
+    {
+      "id": "content",
+      "name": "content",
+      "kind": "frame",
+      "parent": "root",
+      "source": "Toast.module.css .content",
+      "layout": {
+        "direction": "HORIZONTAL",
+        "primary": "MIN",
+        "counter": "MIN"
+      },
+      "clip": true
+    },
+    {
+      "id": "lead",
+      "name": "Lead",
+      "kind": "frame",
+      "parent": "content",
+      "source": "Toast.module.css .icon (margin-block-start)",
+      "layout": {
+        "direction": "VERTICAL",
+        "primary": "MIN",
+        "counter": "MIN"
+      }
+    },
+    {
+      "id": "icon",
+      "name": "Icon",
+      "kind": "icon",
+      "parent": "lead",
+      "source": "Icon.module.css .icon, Icon.module.css .md, Toast.module.css .icon",
+      "icon": "Icon/Info"
+    },
+    {
+      "id": "spinner",
+      "name": "Spinner",
+      "kind": "frame",
+      "parent": "lead",
+      "source": "Spinner.module.css .spinner, Spinner.module.css .signal, Spinner.module.css .md, Toast.module.css .icon",
+      "layout": {
+        "direction": "HORIZONTAL",
+        "primary": "MIN",
+        "counter": "STRETCH"
+      }
+    },
+    {
+      "id": "spinner-svg",
+      "name": "svg",
+      "kind": "vector",
+      "parent": "spinner",
+      "source": "Spinner.module.css .svg",
+      "layout": {
+        "direction": "VERTICAL",
+        "primary": "MIN",
+        "counter": "STRETCH"
+      },
+      "cover": true
+    },
+    {
+      "id": "text",
+      "name": "text",
+      "kind": "frame",
+      "parent": "content",
+      "source": "Toast.module.css .text",
+      "layout": {
+        "direction": "VERTICAL",
+        "primary": "MIN",
+        "counter": "STRETCH"
+      },
+      "grow": true
+    },
+    {
+      "id": "title-text",
+      "name": "Title",
+      "kind": "text",
+      "parent": "text",
+      "source": "Toast.module.css .title",
+      "text": "Title"
+    },
+    {
+      "id": "description-text",
+      "name": "Description",
+      "kind": "text",
+      "parent": "text",
+      "source": "Toast.module.css .description",
+      "text": "Description",
+      "visible": "Show description"
+    },
+    {
+      "id": "actions",
+      "name": "Action",
+      "kind": "frame",
+      "parent": "text",
+      "source": "Toast.module.css .actions",
+      "layout": {
+        "direction": "HORIZONTAL",
+        "primary": "MIN",
+        "counter": "CENTER"
+      },
+      "visible": "Show action"
+    },
+    {
+      "id": "action",
+      "name": "button",
+      "kind": "frame",
+      "parent": "actions",
+      "source": "Button.module.css .button, Button.module.css .secondary, Button.module.css .sm",
+      "layout": {
+        "direction": "HORIZONTAL",
+        "primary": "CENTER",
+        "counter": "CENTER"
+      }
+    },
+    {
+      "id": "action-text",
+      "name": "Label",
+      "kind": "text",
+      "parent": "action",
+      "source": "Button.module.css .label",
+      "characters": "Undo"
+    },
+    {
+      "id": "close",
+      "name": "close",
+      "kind": "frame",
+      "parent": "content",
+      "source": "IconButton.module.css .button, IconButton.module.css .ghost, IconButton.module.css .sm, Toast.module.css .close",
+      "layout": {
+        "direction": "HORIZONTAL",
+        "primary": "CENTER",
+        "counter": "CENTER"
+      }
+    },
+    {
+      "id": "close-icon",
+      "name": "Icon",
+      "kind": "icon",
+      "parent": "close",
+      "source": "Icon.module.css .icon, Icon.module.css .sm",
+      "icon": "Icon/X"
+    }
+  ],
+  "variants": [
+    {
+      "props": {
+        "Tone": "neutral"
+      },
+      "values": {
+        "root": {
+          "fill": "toast.bg",
+          "cornerRadius": "toast.radius",
+          "width": "size.96",
+          "strokeWeight": "border-width.default",
+          "stroke": "toast.border"
+        },
+        "content": {
+          "paddingTop": "space.3",
+          "paddingRight": "space.3",
+          "paddingBottom": "space.3",
+          "paddingLeft": "space.4",
+          "itemSpacing": "space.3"
+        },
+        "lead": {
+          "paddingTop": "space.1-5"
+        },
+        "icon": {
+          "width": "icon.size.md",
+          "height": "icon.size.md",
+          "stroke": "color.text.muted",
+          "strokeWeight": "icon.stroke"
+        },
+        "spinner": {
+          "width": "icon.size.md",
+          "height": "icon.size.md"
+        },
+        "spinner-svg": {},
+        "text": {
+          "paddingTop": "space.1-5",
+          "paddingBottom": "space.1-5",
+          "itemSpacing": "space.0-5"
+        },
+        "title-text": {
+          "textFill": "color.text.default",
+          "fontFamily": "font.family.sans",
+          "fontSize": "font.size.200",
+          "fontWeight": "font.weight.semibold",
+          "lineHeight": "font.line-height.normal"
+        },
+        "description-text": {
+          "textFill": "color.text.muted",
+          "fontFamily": "font.family.sans",
+          "fontSize": "font.size.200",
+          "lineHeight": "font.line-height.normal"
+        },
+        "actions": {
+          "paddingTop": "space.2",
+          "itemSpacing": "space.2"
+        },
+        "action": {
+          "fill": "button.secondary.bg",
+          "cornerRadius": "button.radius",
+          "paddingTop": 0,
+          "paddingRight": "control.padding-x.sm",
+          "paddingBottom": 0,
+          "paddingLeft": "control.padding-x.sm",
+          "itemSpacing": "space.1-5",
+          "minWidth": "control.height.sm",
+          "minHeight": "control.height.sm",
+          "strokeWeight": "border-width.default",
+          "stroke": "button.secondary.border"
+        },
+        "action-text": {
+          "textFill": "button.secondary.text",
+          "fontFamily": "font.family.sans",
+          "fontSize": "font.size.200",
+          "fontWeight": "button.font-weight",
+          "lineHeight": "font.line-height.tight"
+        },
+        "close": {
+          "fill": null,
+          "cornerRadius": "button.radius",
+          "paddingTop": 0,
+          "paddingRight": 0,
+          "paddingBottom": 0,
+          "paddingLeft": 0,
+          "width": "control.height.sm",
+          "minWidth": "control.height.sm",
+          "minHeight": "control.height.sm",
+          "strokeWeight": "border-width.default",
+          "stroke": null
+        },
+        "close-icon": {
+          "width": "icon.size.sm",
+          "height": "icon.size.sm",
+          "stroke": "button.ghost.text",
+          "strokeWeight": "icon.stroke"
+        }
+      },
+      "slots": {
+        "icon": "Icon/Info",
+        "close-icon": "Icon/X"
+      },
+      "hidden": [
+        "lead",
+        "icon",
+        "spinner"
+      ],
+      "vectors": {
+        "spinner-svg": {
+          "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\"><circle cx=\"12\" cy=\"12\" r=\"9.5\" fill=\"none\" stroke=\"#000000\" stroke-width=\"3\" opacity=\"0.2\"/><circle cx=\"12\" cy=\"12\" r=\"9.5\" fill=\"none\" stroke=\"#000000\" stroke-width=\"3\" stroke-linecap=\"round\" stroke-dasharray=\"16.713 59.69\"/></svg>",
+          "strokes": [
+            "color.signal.default",
+            "color.signal.default"
+          ]
+        }
+      }
+    },
+    {
+      "props": {
+        "Tone": "info"
+      },
+      "values": {
+        "root": {
+          "fill": "toast.bg",
+          "cornerRadius": "toast.radius",
+          "width": "size.96",
+          "strokeWeight": "border-width.default",
+          "stroke": "toast.border"
+        },
+        "content": {
+          "paddingTop": "space.3",
+          "paddingRight": "space.3",
+          "paddingBottom": "space.3",
+          "paddingLeft": "space.4",
+          "itemSpacing": "space.3"
+        },
+        "lead": {
+          "paddingTop": "space.1-5"
+        },
+        "icon": {
+          "width": "icon.size.md",
+          "height": "icon.size.md",
+          "stroke": "color.feedback.info.icon",
+          "strokeWeight": "icon.stroke"
+        },
+        "spinner": {
+          "width": "icon.size.md",
+          "height": "icon.size.md"
+        },
+        "spinner-svg": {},
+        "text": {
+          "paddingTop": "space.1-5",
+          "paddingBottom": "space.1-5",
+          "itemSpacing": "space.0-5"
+        },
+        "title-text": {
+          "textFill": "color.text.default",
+          "fontFamily": "font.family.sans",
+          "fontSize": "font.size.200",
+          "fontWeight": "font.weight.semibold",
+          "lineHeight": "font.line-height.normal"
+        },
+        "description-text": {
+          "textFill": "color.text.muted",
+          "fontFamily": "font.family.sans",
+          "fontSize": "font.size.200",
+          "lineHeight": "font.line-height.normal"
+        },
+        "actions": {
+          "paddingTop": "space.2",
+          "itemSpacing": "space.2"
+        },
+        "action": {
+          "fill": "button.secondary.bg",
+          "cornerRadius": "button.radius",
+          "paddingTop": 0,
+          "paddingRight": "control.padding-x.sm",
+          "paddingBottom": 0,
+          "paddingLeft": "control.padding-x.sm",
+          "itemSpacing": "space.1-5",
+          "minWidth": "control.height.sm",
+          "minHeight": "control.height.sm",
+          "strokeWeight": "border-width.default",
+          "stroke": "button.secondary.border"
+        },
+        "action-text": {
+          "textFill": "button.secondary.text",
+          "fontFamily": "font.family.sans",
+          "fontSize": "font.size.200",
+          "fontWeight": "button.font-weight",
+          "lineHeight": "font.line-height.tight"
+        },
+        "close": {
+          "fill": null,
+          "cornerRadius": "button.radius",
+          "paddingTop": 0,
+          "paddingRight": 0,
+          "paddingBottom": 0,
+          "paddingLeft": 0,
+          "width": "control.height.sm",
+          "minWidth": "control.height.sm",
+          "minHeight": "control.height.sm",
+          "strokeWeight": "border-width.default",
+          "stroke": null
+        },
+        "close-icon": {
+          "width": "icon.size.sm",
+          "height": "icon.size.sm",
+          "stroke": "button.ghost.text",
+          "strokeWeight": "icon.stroke"
+        }
+      },
+      "slots": {
+        "icon": "Icon/Info",
+        "close-icon": "Icon/X"
+      },
+      "hidden": [
+        "spinner"
+      ],
+      "vectors": {
+        "spinner-svg": {
+          "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\"><circle cx=\"12\" cy=\"12\" r=\"9.5\" fill=\"none\" stroke=\"#000000\" stroke-width=\"3\" opacity=\"0.2\"/><circle cx=\"12\" cy=\"12\" r=\"9.5\" fill=\"none\" stroke=\"#000000\" stroke-width=\"3\" stroke-linecap=\"round\" stroke-dasharray=\"16.713 59.69\"/></svg>",
+          "strokes": [
+            "color.signal.default",
+            "color.signal.default"
+          ]
+        }
+      }
+    },
+    {
+      "props": {
+        "Tone": "success"
+      },
+      "values": {
+        "root": {
+          "fill": "toast.bg",
+          "cornerRadius": "toast.radius",
+          "width": "size.96",
+          "strokeWeight": "border-width.default",
+          "stroke": "toast.border"
+        },
+        "content": {
+          "paddingTop": "space.3",
+          "paddingRight": "space.3",
+          "paddingBottom": "space.3",
+          "paddingLeft": "space.4",
+          "itemSpacing": "space.3"
+        },
+        "lead": {
+          "paddingTop": "space.1-5"
+        },
+        "icon": {
+          "width": "icon.size.md",
+          "height": "icon.size.md",
+          "stroke": "color.feedback.success.icon",
+          "strokeWeight": "icon.stroke"
+        },
+        "spinner": {
+          "width": "icon.size.md",
+          "height": "icon.size.md"
+        },
+        "spinner-svg": {},
+        "text": {
+          "paddingTop": "space.1-5",
+          "paddingBottom": "space.1-5",
+          "itemSpacing": "space.0-5"
+        },
+        "title-text": {
+          "textFill": "color.text.default",
+          "fontFamily": "font.family.sans",
+          "fontSize": "font.size.200",
+          "fontWeight": "font.weight.semibold",
+          "lineHeight": "font.line-height.normal"
+        },
+        "description-text": {
+          "textFill": "color.text.muted",
+          "fontFamily": "font.family.sans",
+          "fontSize": "font.size.200",
+          "lineHeight": "font.line-height.normal"
+        },
+        "actions": {
+          "paddingTop": "space.2",
+          "itemSpacing": "space.2"
+        },
+        "action": {
+          "fill": "button.secondary.bg",
+          "cornerRadius": "button.radius",
+          "paddingTop": 0,
+          "paddingRight": "control.padding-x.sm",
+          "paddingBottom": 0,
+          "paddingLeft": "control.padding-x.sm",
+          "itemSpacing": "space.1-5",
+          "minWidth": "control.height.sm",
+          "minHeight": "control.height.sm",
+          "strokeWeight": "border-width.default",
+          "stroke": "button.secondary.border"
+        },
+        "action-text": {
+          "textFill": "button.secondary.text",
+          "fontFamily": "font.family.sans",
+          "fontSize": "font.size.200",
+          "fontWeight": "button.font-weight",
+          "lineHeight": "font.line-height.tight"
+        },
+        "close": {
+          "fill": null,
+          "cornerRadius": "button.radius",
+          "paddingTop": 0,
+          "paddingRight": 0,
+          "paddingBottom": 0,
+          "paddingLeft": 0,
+          "width": "control.height.sm",
+          "minWidth": "control.height.sm",
+          "minHeight": "control.height.sm",
+          "strokeWeight": "border-width.default",
+          "stroke": null
+        },
+        "close-icon": {
+          "width": "icon.size.sm",
+          "height": "icon.size.sm",
+          "stroke": "button.ghost.text",
+          "strokeWeight": "icon.stroke"
+        }
+      },
+      "slots": {
+        "icon": "Icon/CircleCheck",
+        "close-icon": "Icon/X"
+      },
+      "hidden": [
+        "spinner"
+      ],
+      "vectors": {
+        "spinner-svg": {
+          "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\"><circle cx=\"12\" cy=\"12\" r=\"9.5\" fill=\"none\" stroke=\"#000000\" stroke-width=\"3\" opacity=\"0.2\"/><circle cx=\"12\" cy=\"12\" r=\"9.5\" fill=\"none\" stroke=\"#000000\" stroke-width=\"3\" stroke-linecap=\"round\" stroke-dasharray=\"16.713 59.69\"/></svg>",
+          "strokes": [
+            "color.signal.default",
+            "color.signal.default"
+          ]
+        }
+      }
+    },
+    {
+      "props": {
+        "Tone": "warning"
+      },
+      "values": {
+        "root": {
+          "fill": "toast.bg",
+          "cornerRadius": "toast.radius",
+          "width": "size.96",
+          "strokeWeight": "border-width.default",
+          "stroke": "toast.border"
+        },
+        "content": {
+          "paddingTop": "space.3",
+          "paddingRight": "space.3",
+          "paddingBottom": "space.3",
+          "paddingLeft": "space.4",
+          "itemSpacing": "space.3"
+        },
+        "lead": {
+          "paddingTop": "space.1-5"
+        },
+        "icon": {
+          "width": "icon.size.md",
+          "height": "icon.size.md",
+          "stroke": "color.feedback.warning.icon",
+          "strokeWeight": "icon.stroke"
+        },
+        "spinner": {
+          "width": "icon.size.md",
+          "height": "icon.size.md"
+        },
+        "spinner-svg": {},
+        "text": {
+          "paddingTop": "space.1-5",
+          "paddingBottom": "space.1-5",
+          "itemSpacing": "space.0-5"
+        },
+        "title-text": {
+          "textFill": "color.text.default",
+          "fontFamily": "font.family.sans",
+          "fontSize": "font.size.200",
+          "fontWeight": "font.weight.semibold",
+          "lineHeight": "font.line-height.normal"
+        },
+        "description-text": {
+          "textFill": "color.text.muted",
+          "fontFamily": "font.family.sans",
+          "fontSize": "font.size.200",
+          "lineHeight": "font.line-height.normal"
+        },
+        "actions": {
+          "paddingTop": "space.2",
+          "itemSpacing": "space.2"
+        },
+        "action": {
+          "fill": "button.secondary.bg",
+          "cornerRadius": "button.radius",
+          "paddingTop": 0,
+          "paddingRight": "control.padding-x.sm",
+          "paddingBottom": 0,
+          "paddingLeft": "control.padding-x.sm",
+          "itemSpacing": "space.1-5",
+          "minWidth": "control.height.sm",
+          "minHeight": "control.height.sm",
+          "strokeWeight": "border-width.default",
+          "stroke": "button.secondary.border"
+        },
+        "action-text": {
+          "textFill": "button.secondary.text",
+          "fontFamily": "font.family.sans",
+          "fontSize": "font.size.200",
+          "fontWeight": "button.font-weight",
+          "lineHeight": "font.line-height.tight"
+        },
+        "close": {
+          "fill": null,
+          "cornerRadius": "button.radius",
+          "paddingTop": 0,
+          "paddingRight": 0,
+          "paddingBottom": 0,
+          "paddingLeft": 0,
+          "width": "control.height.sm",
+          "minWidth": "control.height.sm",
+          "minHeight": "control.height.sm",
+          "strokeWeight": "border-width.default",
+          "stroke": null
+        },
+        "close-icon": {
+          "width": "icon.size.sm",
+          "height": "icon.size.sm",
+          "stroke": "button.ghost.text",
+          "strokeWeight": "icon.stroke"
+        }
+      },
+      "slots": {
+        "icon": "Icon/TriangleAlert",
+        "close-icon": "Icon/X"
+      },
+      "hidden": [
+        "spinner"
+      ],
+      "vectors": {
+        "spinner-svg": {
+          "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\"><circle cx=\"12\" cy=\"12\" r=\"9.5\" fill=\"none\" stroke=\"#000000\" stroke-width=\"3\" opacity=\"0.2\"/><circle cx=\"12\" cy=\"12\" r=\"9.5\" fill=\"none\" stroke=\"#000000\" stroke-width=\"3\" stroke-linecap=\"round\" stroke-dasharray=\"16.713 59.69\"/></svg>",
+          "strokes": [
+            "color.signal.default",
+            "color.signal.default"
+          ]
+        }
+      }
+    },
+    {
+      "props": {
+        "Tone": "danger"
+      },
+      "values": {
+        "root": {
+          "fill": "toast.bg",
+          "cornerRadius": "toast.radius",
+          "width": "size.96",
+          "strokeWeight": "border-width.default",
+          "stroke": "toast.border"
+        },
+        "content": {
+          "paddingTop": "space.3",
+          "paddingRight": "space.3",
+          "paddingBottom": "space.3",
+          "paddingLeft": "space.4",
+          "itemSpacing": "space.3"
+        },
+        "lead": {
+          "paddingTop": "space.1-5"
+        },
+        "icon": {
+          "width": "icon.size.md",
+          "height": "icon.size.md",
+          "stroke": "color.feedback.danger.icon",
+          "strokeWeight": "icon.stroke"
+        },
+        "spinner": {
+          "width": "icon.size.md",
+          "height": "icon.size.md"
+        },
+        "spinner-svg": {},
+        "text": {
+          "paddingTop": "space.1-5",
+          "paddingBottom": "space.1-5",
+          "itemSpacing": "space.0-5"
+        },
+        "title-text": {
+          "textFill": "color.text.default",
+          "fontFamily": "font.family.sans",
+          "fontSize": "font.size.200",
+          "fontWeight": "font.weight.semibold",
+          "lineHeight": "font.line-height.normal"
+        },
+        "description-text": {
+          "textFill": "color.text.muted",
+          "fontFamily": "font.family.sans",
+          "fontSize": "font.size.200",
+          "lineHeight": "font.line-height.normal"
+        },
+        "actions": {
+          "paddingTop": "space.2",
+          "itemSpacing": "space.2"
+        },
+        "action": {
+          "fill": "button.secondary.bg",
+          "cornerRadius": "button.radius",
+          "paddingTop": 0,
+          "paddingRight": "control.padding-x.sm",
+          "paddingBottom": 0,
+          "paddingLeft": "control.padding-x.sm",
+          "itemSpacing": "space.1-5",
+          "minWidth": "control.height.sm",
+          "minHeight": "control.height.sm",
+          "strokeWeight": "border-width.default",
+          "stroke": "button.secondary.border"
+        },
+        "action-text": {
+          "textFill": "button.secondary.text",
+          "fontFamily": "font.family.sans",
+          "fontSize": "font.size.200",
+          "fontWeight": "button.font-weight",
+          "lineHeight": "font.line-height.tight"
+        },
+        "close": {
+          "fill": null,
+          "cornerRadius": "button.radius",
+          "paddingTop": 0,
+          "paddingRight": 0,
+          "paddingBottom": 0,
+          "paddingLeft": 0,
+          "width": "control.height.sm",
+          "minWidth": "control.height.sm",
+          "minHeight": "control.height.sm",
+          "strokeWeight": "border-width.default",
+          "stroke": null
+        },
+        "close-icon": {
+          "width": "icon.size.sm",
+          "height": "icon.size.sm",
+          "stroke": "button.ghost.text",
+          "strokeWeight": "icon.stroke"
+        }
+      },
+      "slots": {
+        "icon": "Icon/CircleAlert",
+        "close-icon": "Icon/X"
+      },
+      "hidden": [
+        "spinner"
+      ],
+      "vectors": {
+        "spinner-svg": {
+          "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\"><circle cx=\"12\" cy=\"12\" r=\"9.5\" fill=\"none\" stroke=\"#000000\" stroke-width=\"3\" opacity=\"0.2\"/><circle cx=\"12\" cy=\"12\" r=\"9.5\" fill=\"none\" stroke=\"#000000\" stroke-width=\"3\" stroke-linecap=\"round\" stroke-dasharray=\"16.713 59.69\"/></svg>",
+          "strokes": [
+            "color.signal.default",
+            "color.signal.default"
+          ]
+        }
+      }
+    },
+    {
+      "props": {
+        "Tone": "loading"
+      },
+      "values": {
+        "root": {
+          "fill": "toast.bg",
+          "cornerRadius": "toast.radius",
+          "width": "size.96",
+          "strokeWeight": "border-width.default",
+          "stroke": "toast.border"
+        },
+        "content": {
+          "paddingTop": "space.3",
+          "paddingRight": "space.3",
+          "paddingBottom": "space.3",
+          "paddingLeft": "space.4",
+          "itemSpacing": "space.3"
+        },
+        "lead": {
+          "paddingTop": "space.1-5"
+        },
+        "icon": {
+          "width": "icon.size.md",
+          "height": "icon.size.md",
+          "stroke": "color.text.muted",
+          "strokeWeight": "icon.stroke"
+        },
+        "spinner": {
+          "width": "icon.size.md",
+          "height": "icon.size.md"
+        },
+        "spinner-svg": {},
+        "text": {
+          "paddingTop": "space.1-5",
+          "paddingBottom": "space.1-5",
+          "itemSpacing": "space.0-5"
+        },
+        "title-text": {
+          "textFill": "color.text.default",
+          "fontFamily": "font.family.sans",
+          "fontSize": "font.size.200",
+          "fontWeight": "font.weight.semibold",
+          "lineHeight": "font.line-height.normal"
+        },
+        "description-text": {
+          "textFill": "color.text.muted",
+          "fontFamily": "font.family.sans",
+          "fontSize": "font.size.200",
+          "lineHeight": "font.line-height.normal"
+        },
+        "actions": {
+          "paddingTop": "space.2",
+          "itemSpacing": "space.2"
+        },
+        "action": {
+          "fill": "button.secondary.bg",
+          "cornerRadius": "button.radius",
+          "paddingTop": 0,
+          "paddingRight": "control.padding-x.sm",
+          "paddingBottom": 0,
+          "paddingLeft": "control.padding-x.sm",
+          "itemSpacing": "space.1-5",
+          "minWidth": "control.height.sm",
+          "minHeight": "control.height.sm",
+          "strokeWeight": "border-width.default",
+          "stroke": "button.secondary.border"
+        },
+        "action-text": {
+          "textFill": "button.secondary.text",
+          "fontFamily": "font.family.sans",
+          "fontSize": "font.size.200",
+          "fontWeight": "button.font-weight",
+          "lineHeight": "font.line-height.tight"
+        },
+        "close": {
+          "fill": null,
+          "cornerRadius": "button.radius",
+          "paddingTop": 0,
+          "paddingRight": 0,
+          "paddingBottom": 0,
+          "paddingLeft": 0,
+          "width": "control.height.sm",
+          "minWidth": "control.height.sm",
+          "minHeight": "control.height.sm",
+          "strokeWeight": "border-width.default",
+          "stroke": null
+        },
+        "close-icon": {
+          "width": "icon.size.sm",
+          "height": "icon.size.sm",
+          "stroke": "button.ghost.text",
+          "strokeWeight": "icon.stroke"
+        }
+      },
+      "slots": {
+        "icon": "Icon/Info",
+        "close-icon": "Icon/X"
+      },
+      "hidden": [
+        "icon"
+      ],
+      "vectors": {
+        "spinner-svg": {
+          "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\"><circle cx=\"12\" cy=\"12\" r=\"9.5\" fill=\"none\" stroke=\"#000000\" stroke-width=\"3\" opacity=\"0.2\"/><circle cx=\"12\" cy=\"12\" r=\"9.5\" fill=\"none\" stroke=\"#000000\" stroke-width=\"3\" stroke-linecap=\"round\" stroke-dasharray=\"16.713 59.69\"/></svg>",
+          "strokes": [
+            "color.signal.default",
+            "color.signal.default"
+          ]
+        }
+      }
+    }
+  ],
+  "unmapped": [
+    {
+      "part": "root",
+      "property": "position",
+      "value": "absolute",
+      "reason": "drawn as one toast; in code toasts stack at the bottom end of the screen and move as they come and go"
+    },
+    {
+      "part": "root",
+      "property": "box-shadow",
+      "value": "var(--toast-shadow)",
+      "reason": "shadows are code-only tokens (no Figma variable)"
+    },
+    {
+      "part": "lead",
+      "property": "margin-block-start",
+      "value": "var(--space-1-5)",
+      "reason": "the icon margin is drawn as the top padding of a Lead frame around the icon"
+    },
+    {
+      "part": "root",
+      "property": "prop timeout",
+      "value": "number",
+      "reason": "not drawn: how long the toast stays"
+    }
+  ]
+}

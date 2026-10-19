@@ -492,11 +492,17 @@ async function configureVariant(variant: ComponentNode, comp: PlannedComponent, 
   for (const part of comp.parts) {
     const node = nodes.get(part.id);
     if (!node || part.id === 'root') continue;
-    if (part.cover) coverParent(node, ctx);
+    if (pv.pins?.[part.id]) pinToParent(node, pv.pins[part.id]!, ctx);
+    else if (part.cover) coverParent(node, ctx);
     else if (comp.pins?.[part.id]) pinToParent(node, comp.pins[part.id]!, ctx);
     else if (part.grow && definite.has(part.parent ?? '')) growInParent(node, comp.parts.find((p) => p.id === part.parent), pv, ctx);
     if (part.stretch || part.fraction !== undefined) stretchInParent(node, part, ctx);
     if (!part.visible) node.visible = !hidden.has(part.id);
+  }
+  // Thumbs last: their track has its final size once its other layers are placed.
+  for (const part of comp.parts) {
+    const node = nodes.get(part.id);
+    if (node && part.at !== undefined) placeAt(node, part.at, ctx);
   }
 }
 
@@ -561,9 +567,33 @@ function pinToParent(node: SceneNode, pin: Partial<Record<'top' | 'right' | 'bot
   if (!parent) return;
   try {
     if ('layoutMode' in parent && parent.layoutMode !== 'NONE') (node as FrameNode).layoutPositioning = 'ABSOLUTE';
+    // Pinned to both edges of an axis (a hairline under a tab list, an indicator under its tab): it spans the parent
+    // between them and stretches with it.
+    const spanX = pin.left !== undefined && pin.right !== undefined;
+    const spanY = pin.top !== undefined && pin.bottom !== undefined;
+    if ((spanX || spanY) && 'resize' in node)
+      (node as FrameNode).resize(spanX ? Math.max(1, parent.width - pin.left! - pin.right!) : node.width, spanY ? Math.max(1, parent.height - pin.top! - pin.bottom!) : node.height);
     node.x = pin.left ?? (pin.right !== undefined ? parent.width - node.width - pin.right : 0);
     node.y = pin.top ?? (pin.bottom !== undefined ? parent.height - node.height - pin.bottom : 0);
-    if ('constraints' in node) node.constraints = { horizontal: pin.right !== undefined && pin.left === undefined ? 'MAX' : 'MIN', vertical: pin.bottom !== undefined && pin.top === undefined ? 'MAX' : 'MIN' };
+    if ('constraints' in node)
+      node.constraints = {
+        horizontal: spanX ? 'STRETCH' : pin.right !== undefined && pin.left === undefined ? 'MAX' : 'MIN',
+        vertical: spanY ? 'STRETCH' : pin.bottom !== undefined && pin.top === undefined ? 'MAX' : 'MIN',
+      };
+  } catch (err) {
+    ctx.problems.push(`${ctx.where}, position: ${errorText(err)}`);
+  }
+}
+
+/** A thumb at the component's value (a slider's): absolute, its center at that share of the parent's width, centered across. */
+function placeAt(node: SceneNode, at: number, ctx: Ctx): void {
+  const parent = node.parent as Box | null;
+  if (!parent) return;
+  try {
+    if ('layoutMode' in parent && parent.layoutMode !== 'NONE') (node as FrameNode).layoutPositioning = 'ABSOLUTE';
+    node.x = Math.round(parent.width * at - node.width / 2);
+    node.y = Math.round((parent.height - node.height) / 2);
+    if ('constraints' in node) node.constraints = { horizontal: 'SCALE', vertical: 'CENTER' };
   } catch (err) {
     ctx.problems.push(`${ctx.where}, position: ${errorText(err)}`);
   }

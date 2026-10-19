@@ -490,6 +490,14 @@ export function expandDecl(d: CssDecl): CssDecl[] {
         { prop: `border-${s}-color`, value: color },
       ]);
     }
+    case 'border-inline-start':
+    case 'border-inline-end':
+    case 'border-block-start':
+    case 'border-block-end': {
+      // Logical sides, left to right and top to bottom (the components are drawn in a left-to-right file).
+      const side = { 'border-inline-start': 'left', 'border-inline-end': 'right', 'border-block-start': 'top', 'border-block-end': 'bottom' }[d.prop]!;
+      return expandDecl({ ...d, prop: `border-${side}` });
+    }
     case 'inset-block-start':
       return [{ prop: 'top', value: d.value }];
     case 'inset-block-end':
@@ -591,6 +599,9 @@ export function computeValues(own: Map<string, Declared>, parent: Map<string, st
       const pv = parent?.get(k);
       if (pv !== undefined) out.set(k, pv);
       else out.delete(k);
+    } else if (k.startsWith('--') && d.value === 'initial') {
+      // A custom property reset on purpose (`--_col-width: initial`): a var() of it leaves the property unset.
+      out.set(k, 'initial');
     } else if (d.value === 'initial' || d.value === 'unset') out.delete(k);
     else out.set(k, d.value);
   }

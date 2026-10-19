@@ -130,6 +130,8 @@ export class SimNode {
   // parent's cross axis, layoutGrow on its main axis). Hugging an axis drops a fill on it, as in Figma.
   layoutAlign = 'INHERIT';
   layoutGrow = 0;
+  /** How a layer follows its parent's resizing (absolute layers: pinned edges, stretched, centered). */
+  constraints: { horizontal: string; vertical: string } = { horizontal: 'MIN', vertical: 'MIN' };
   private axisSizing = { primary: 'FIXED', counter: 'FIXED' };
   private autoLayout(n: SimNode | null): boolean {
     return !!n && (n.layoutMode === 'HORIZONTAL' || n.layoutMode === 'VERTICAL');

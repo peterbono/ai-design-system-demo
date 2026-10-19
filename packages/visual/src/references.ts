@@ -97,7 +97,15 @@ export async function captureFigmaReferences(o: ReferencesOptions): Promise<Refe
       );
       await settle(page, { network: false, quiet: 2, interval: 40, busy: false });
       const error = await page.locator('[data-fidelity-error]').first().textContent({ timeout: 200 }).catch(() => null);
-      const target = page.locator('[data-fidelity-root] > *').first();
+      // A component shown from a hook (a toast) renders outside the root, at the place Base UI puts it: the story marks
+      // it `data-fidelity-target`.
+      let target = page.locator('[data-fidelity-root] > *').first();
+      if (!error && !(await target.count())) {
+        const marked = page.locator('[data-fidelity-target]').first();
+        await marked.waitFor({ state: 'visible', timeout: 3000 }).catch(() => undefined);
+        await settle(page, { network: false, quiet: 2, interval: 40, busy: false });
+        target = marked;
+      }
       if (error || !(await target.count())) {
         variants[j.key] = { skipped: error ?? 'the code example did not render' };
         skipped++;

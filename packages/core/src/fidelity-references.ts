@@ -8,7 +8,7 @@
 // `bridge-visual` branch, the one Visual impact already publishes to, under figma-references/: manifest.json plus one
 // PNG per variant. The plugin reads them through the GitHub contents API with the token it already has.
 
-import { variantKeyOf, type ComponentSpec, type ComponentSpecsFile, type SpecPart, type SpecVariant } from './component-spec';
+import { variantKeyOf, type ComponentSpec, type ComponentSpecsFile, type SpecExample, type SpecPart, type SpecVariant } from './component-spec';
 
 export const FIGMA_REFERENCES_BRANCH = 'bridge-visual';
 export const FIGMA_REFERENCES_DIR = 'figma-references';
@@ -25,7 +25,7 @@ export interface ReferenceRender {
   /** Export name of the component ("Button", "Card"). */
   component: string;
   /** Props from the variant axes and the default property values ("variant": "primary", "disabled": true). */
-  props: Record<string, string | boolean>;
+  props: Record<string, unknown>;
   /** Text children (the Label property) of a simple component. */
   text?: string | undefined;
   /** Compound parts, in order: export name and text ("CardHeader", "Header"). */
@@ -36,6 +36,11 @@ export interface ReferenceRender {
   pseudo?: ReferencePseudo | undefined;
   /** Width token path of the frame the component sits in, for roots that fill their container. */
   width?: string | undefined;
+  /**
+   * Children from the code example the set was drawn with (a table's rows, a form's fields): texts and design system
+   * elements with their props, icons by name. Replaces `text` and `parts`.
+   */
+  children?: (string | SpecExample)[] | undefined;
 }
 
 export type ReferencePlan = { ok: true; render: ReferenceRender } | { ok: false; reason: string };
@@ -61,7 +66,7 @@ const exportName = (name: string) => name.replace(/[^A-Za-z0-9]+/g, '');
 export function planReference(spec: ComponentSpec, variant: SpecVariant, file?: Pick<ComponentSpecsFile, 'slots'>): ReferencePlan {
   // A popup drawn open: the code image shows the component closed, so there is nothing to compare it with.
   if (spec.view === 'popup') return { ok: false, reason: 'drawn open in Figma; the code image shows it closed' };
-  const props: Record<string, string | boolean> = { ...(spec.fixed ?? {}) };
+  const props: Record<string, unknown> = { ...(spec.fixed ?? {}) };
   let pseudo: ReferencePseudo | undefined;
   for (const axis of spec.axes) {
     const value = variant.props[axis.name];
@@ -109,9 +114,10 @@ export function planReference(spec: ComponentSpec, variant: SpecVariant, file?: 
       else if (prop.prop) props[prop.prop] = String(prop.default);
       continue;
     }
-    // BOOLEAN: an optional icon shown by default gets its icon below; any other default-on flag is a prop.
+    // BOOLEAN: an optional icon shown by default gets its icon below; any other default-on flag is a prop, unless the
+    // content it shows is already passed (a description's text, an example's token name).
     const iconPart = spec.parts.find((p) => p.kind === 'icon' && p.visible === prop.name);
-    if (prop.default === true && !iconPart && prop.prop) props[prop.prop] = true;
+    if (prop.default === true && !iconPart && prop.prop && props[prop.prop] === undefined && spec.example?.p?.[prop.prop] === undefined) props[prop.prop] = true;
   }
 
   for (const part of spec.parts) {
@@ -149,13 +155,17 @@ export function planReference(spec: ComponentSpec, variant: SpecVariant, file?: 
     return { ok: false, reason: `the ${p.name} text has no matching option in code` };
   }
 
+  // The code example the content came from: its props (the variant's own win) and children.
+  const example = spec.example;
+  const exampleChildren = example?.children?.length ? example.children : undefined;
   return {
     ok: true,
     render: {
-      component: exportName(spec.view || spec.fixed ? (spec.component ?? spec.name) : spec.name),
-      props,
-      ...(text !== undefined ? { text } : {}),
-      ...(parts ? { parts } : {}),
+      component: exportName(spec.view || spec.fixed || example ? (example?.c ?? spec.component ?? spec.name) : spec.name),
+      props: { ...(example?.p ?? {}), ...props },
+      ...(exampleChildren ? { children: exampleChildren } : {}),
+      ...(text !== undefined && !exampleChildren ? { text } : {}),
+      ...(parts && !exampleChildren ? { parts } : {}),
       ...(Object.keys(icons).length ? { icons } : {}),
       ...(pseudo ? { pseudo } : {}),
       ...(root.fill ? { width: FIGMA_FILL_WIDTH_TOKEN } : {}),

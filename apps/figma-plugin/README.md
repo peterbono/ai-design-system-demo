@@ -164,15 +164,25 @@ The Pull preview has a **Components** group when the repo has `packages/react/co
 `components.specs` in `bridge.config.json`). It lists each coded component as new, updated or unchanged, and
 what cannot be bound. Nothing is written unless you tick **Also pull components (N)** and apply.
 
-Coverage is said, never implied: the group opens with "40 of 47 components are in Figma" (from the `coverage` list
-in the specs file), and the components that are not in Figma are folded under the count, each with the generator's
-plain reason ("Not supported yet: opens a popup", "uses CSS grid"). Layout helpers (Stack, Inline, Grid, Container,
-ButtonGroup, VisuallyHidden) are counted apart: nothing to draw, use auto layout. The generator decides support
-itself from what it can read; there is no list to maintain.
+Coverage is said, never implied: the group opens with "47 of 47 components are in Figma, 1 drafted with Claude" (from
+the `coverage` list in the specs file). Components not in Figma are folded under the count, each with the generator's
+plain reason ("Not supported yet: opens a popup"), and so are the ones drafted with Claude. Layout helpers (Stack,
+Inline, Grid, Container, ButtonGroup, VisuallyHidden) are counted apart: nothing to draw, use auto layout. The
+generator decides support itself from what it can read; there is no list to maintain.
 
-The specs are derived from code, never written by hand: `npm run specs` (root) reads each component's TSX and CSS
-module with the generator in `@bridge-ds/core/node` (`component-specs.ts`, `spec-css.ts`), and a core test fails
-when the committed JSON is out of date.
+The specs are derived from code: `npm run specs` (root) reads each component's TSX and CSS module with the generator
+in `@bridge-ds/core/node` (`component-specs.ts`, `spec-css.ts`), and a core test fails when the committed JSON is out
+of date.
+
+**Drafted with Claude.** What the generator still cannot read (today Toast: it is shown from the `useToast` hook under
+`ToastProvider`, never placed as a component) can be drafted: Claude writes the spec by hand from the code, in the same
+format, in `packages/react/component-spec-overrides/<Name>.json` marked `"source": "drafted"`, with the files it was
+read from and their hash (`codeHash`). `npm run specs` validates it like a generated spec (one variant per axis
+combination, known parts and properties, every token path in the repo with a type the field takes) and fails when it
+does not match. A drafted set is never counted as generated: its coverage is `drafted`, the Pull preview marks it
+"Drafted, check it" ("the code changed since" once the files no longer match `codeHash`), its Figma description says
+so, and Check fidelity compares it with the code like any other set. When the generator learns to read the
+component, the generated set wins.
 
 | From code | In Figma |
 | --- | --- |
@@ -189,6 +199,13 @@ when the committed JSON is out of date.
 | Layers some variants do not render; a prop that moves layers elsewhere | Hidden layers in those variants; one set per value ("Progress/Linear", "Progress/Circular") |
 | A value indicator (`<Progress.Indicator>`), `position: absolute` with token offsets, `width: 100%` | Its share of the track, an absolute layer pinned to its parent's edges, Fill container |
 | React context, `useState` defaults, local render functions, `useMemo`, list methods, examples of the component sandbox | Read to draw what the code shows by default |
+| Functions as values (a default prop), string and list methods, helpers that return elements, plain modules of the package (`utils/color`) | Read too: a token name broken after its dots, a swatch shown when the value is a color |
+| CSS grid whose children span every column, rows with `grid-template-columns: subgrid` | Rows stacked; each row an auto layout row, `0` edge tracks as the gap at its ends, `1fr` tracks Fill container (columns line up per row only) |
+| `::before` / `::after` with empty content that paint (a tab list hairline) | A "Decoration" layer, pinned like the CSS places it, under its siblings when its z-index is negative |
+| A Base UI indicator sized to the selected item (`left: var(--active-tab-left)`), tab panels | Drawn in the selected tab, along its edge or filling it, per variant; only the selected panel |
+| A slider (`<Slider.Thumb>`, a value render function) | The range as a share of the track, the thumb centered at the value, the formatted value |
+| Tables (`<table>`, `<tr>`, `<td>`) | Rows of cells, each cell an equal share of its row, aligned like `vertical-align` and `text-align` |
+| A form's server `errors` | The error summary and the error under the field of the same name; an example's typed value in its field |
 | `children` (or a compound component's parts: CardHeader, CardBody, CardFooter) | A text layer with a TEXT property (`Label`, `Header`...) |
 | A `LucideIcon` prop (`icon`, `iconStart`) | An instance of an icon component (`Icon/Plus`) with an INSTANCE_SWAP property (`Icon`, `Icon start`); optional icons keep their BOOLEAN property (`Icon start`) |
 | A compound part drawn full-bleed in some variant (Card body with `padding="none"`) | An instance of a slot component (`Slot/Card body text` or `Slot/Media`) with an INSTANCE_SWAP property (`Body`) |

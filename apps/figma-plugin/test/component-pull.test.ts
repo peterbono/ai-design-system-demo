@@ -13,7 +13,7 @@ import { exportThumbnails, scanComponents } from '../src/main/components';
 import { onlyComponent, plannedSignature, reviewUpdates, withoutComponents } from '../src/sync/component-review';
 import { takeSnapshot } from '../src/main/snapshot';
 import { DEFAULT_SETTINGS } from '../src/shared/messages';
-import { buildComponentPlan, coverageView, evaluateCalc, loadComponentSpecs, pendingComponents, writablePlan } from '../src/sync/component-pull';
+import { buildComponentPlan, coverageView, draftedSetNote, evaluateCalc, loadComponentSpecs, pendingComponents, writablePlan } from '../src/sync/component-pull';
 import { classifyComponents, pullBaselines, suggestLine, suggestTitle } from '../src/sync/components';
 import { analyze, buildPull } from '../src/sync/flows';
 import { FakeGitHub } from './fake-github';
@@ -662,6 +662,28 @@ test('coverage sets: every generated set binds variables in every variant; state
     ['radio', 'radio-2', 'radio-3'].map((id) => boundName(sim, partOf(group, id), 'fills')),
     ['Component:checkbox/bg', 'Component:checkbox/bg-checked', 'Component:checkbox/bg'],
   );
+  // Tabs: the list hairline (::after) is a layer pinned to the bottom across the list; the indicator sits in the
+  // selected tab, along its bottom, or filling it in the contained variant.
+  const tabs = (props: string) => variantOf(set('Tabs'), `${props}, State=Default`);
+  const underline = tabs('Variant=underline, Size=md, Orientation=horizontal');
+  const hairline = partOf(underline, 'decoration');
+  assert.deepEqual([hairline.layoutPositioning, (hairline.constraints as { horizontal: string }).horizontal, (hairline.constraints as { vertical: string }).vertical], ['ABSOLUTE', 'STRETCH', 'MAX']);
+  assert.equal(hairline.parent!.children[0], hairline, 'drawn under the tabs (z-index -1)');
+  const indicator = partOf(underline, 'indicator');
+  assert.equal(indicator.parent, partOf(underline, 'tab'));
+  assert.equal(boundName(sim, indicator, 'fills'), 'Component:tabs/indicator');
+  assert.deepEqual(indicator.constraints, { horizontal: 'STRETCH', vertical: 'MAX' });
+  assert.deepEqual(partOf(tabs('Variant=contained, Size=md, Orientation=horizontal'), 'indicator').constraints, { horizontal: 'STRETCH', vertical: 'STRETCH' });
+  assert.deepEqual(partOf(tabs('Variant=underline, Size=md, Orientation=vertical'), 'indicator').constraints, { horizontal: 'MIN', vertical: 'STRETCH' });
+  // Slider: the thumb is placed at the value over its track; Table: rows of cells sharing the row; Checklist: rows.
+  assert.equal(partOf(variantOf(set('Slider'), 'State=Default'), 'thumb').layoutPositioning, 'ABSOLUTE');
+  const table = variantOf(set('Table'), 'State=Default');
+  assert.equal(partOf(table, 'row-2').layoutMode, 'HORIZONTAL');
+  assert.deepEqual(['cell', 'cell-2'].map((id) => partOf(table, id).layoutSizingHorizontal), ['FILL', 'FILL']);
+  assert.equal(partOf(set('Checklist').children[0]!, 'row').layoutMode, 'HORIZONTAL');
+  // Toast: drafted with Claude, said in its description; a variant per tone.
+  assert.ok(set('Toast').description.startsWith('Drafted with Claude'));
+  assert.equal(set('Toast').children.length, 6);
   // A filled button's transparent 1px border still takes its room, like CSS border-box (fidelity check, PR 137).
   const primary = variantOf(set('Button'), 'Variant=primary, Size=md, State=Default');
   assert.deepEqual([primary.strokes.length, primary.strokes[0]!.opacity, primary.strokesIncludedInLayout, primary.strokeAlign], [1, 0, true, 'INSIDE']);
@@ -673,17 +695,31 @@ test('coverage sets: every generated set binds variables in every variant; state
   assert.deepEqual(sim.sets().map((s) => s.id), ids);
 });
 
-test('coverage: the count of components in Figma, the others with a plain reason, layout helpers apart; never complete without the list', async () => {
+test('coverage: the count of components in Figma, drafted ones named, the others with a plain reason, layout helpers apart; never complete without the list', async () => {
   const { plan, specs } = await pulledFile();
   const view = coverageView(plan);
   const cov = specs.coverage!;
   const visual = cov.filter((c) => c.status !== 'layout');
-  assert.equal(view.headline, `${visual.filter((c) => c.status === 'generated').length} of ${visual.length} components are in Figma`);
-  assert.equal(view.missing.length, visual.filter((c) => c.status === 'unsupported').length);
-  assert.ok(view.missing.every((m) => m.reason.startsWith('Not supported yet: ')));
-  assert.ok(view.missing.some((m) => m.name === 'Tabs' && m.reason === 'Not supported yet: draws with ::before or ::after'));
+  const drafted = visual.filter((c) => c.status === 'drafted');
+  // Every visual component is in Figma: generated, or drafted with Claude (counted in Figma, never as generated).
+  assert.equal(view.headline, `${visual.filter((c) => c.status === 'generated').length + drafted.length} of ${visual.length} components are in Figma, ${drafted.length} drafted with Claude`);
+  assert.equal(view.headline, '47 of 47 components are in Figma, 1 drafted with Claude');
+  assert.deepEqual(view.drafted.map((d) => d.name), ['Toast']);
+  assert.ok(view.drafted[0]!.reason.startsWith('Drafted with Claude, the generator cannot read it: it is shown from a hook'));
+  assert.equal(view.missing.length, 0);
+  assert.equal(view.complete, true);
   assert.deepEqual(view.layout, cov.filter((c) => c.status === 'layout').map((c) => c.name));
-  assert.equal(view.complete, false);
+  // A drafted set carries its note into the plan and the Figma description.
+  const toast = plan.components.find((c) => c.name === 'Toast')!;
+  assert.deepEqual(toast.drafted, { reason: 'is shown from a hook or a provider, not placed as a component' });
+  assert.equal(draftedSetNote(toast.drafted!), 'Drafted, check it');
+  assert.equal(draftedSetNote({ reason: 'x', stale: true }), 'Drafted, the code changed since: check it');
+  assert.ok(toast.description.startsWith('Drafted with Claude from packages/react/src/components/Toast'));
+  // Not supported yet: listed with the generator's reason, and the file is not complete.
+  const partial = coverageView({ components: plan.components, coverage: [{ name: 'Button', status: 'generated' }, { name: 'Tabs', status: 'unsupported', reason: 'draws with ::before or ::after' }, { name: 'Stack', status: 'layout' }] });
+  assert.equal(partial.headline, '1 of 2 components are in Figma');
+  assert.deepEqual(partial.missing, [{ name: 'Tabs', reason: 'Not supported yet: draws with ::before or ::after' }]);
+  assert.equal(partial.complete, false);
   // An older file with no coverage list: the count of what it has, and no claim that nothing is missing.
   const old = coverageView({ components: plan.components.slice(0, 6) });
   assert.equal(old.headline, '6 components are in Figma. The code does not list the others yet.');

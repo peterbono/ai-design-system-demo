@@ -1,5 +1,5 @@
 // Which components are in Figma: the coverage list `npm run specs` writes into packages/react/component-specs.json
-// (generated, not supported yet with the generator's reason, or a layout helper with nothing to draw). The Studio
+// (generated, drafted with Claude, not supported yet with the generator's reason, or a layout helper with nothing to draw). The Studio
 // Components page shows it as a quiet "In Figma" column. Same data as the DS Bridge plugin's Pull tab.
 
 import type { SpecCoverage } from '@bridge-ds/core';
@@ -18,6 +18,7 @@ export function loadFigmaCoverage(): Map<string, SpecCoverage> {
 export function figmaCell(entry: SpecCoverage | undefined): { label: string; title?: string } | undefined {
   if (!entry) return undefined;
   if (entry.status === 'generated') return { label: 'Yes' };
+  if (entry.status === 'drafted') return { label: 'Drafted', title: 'Drafted with Claude where the code cannot be read on its own: in Figma, check it against the code.' };
   if (entry.status === 'layout') return { label: 'Auto layout', title: 'A layout helper: nothing to draw, use auto layout in Figma.' };
   return { label: 'Not yet', ...(entry.reason ? { title: `Not supported yet: ${entry.reason}` } : {}) };
 }
