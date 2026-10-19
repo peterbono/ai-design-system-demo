@@ -12,7 +12,7 @@
     "Sortable headers (sortDirection + onSort, or useTableSort) on columns users reorder by.",
     "Selectable rows: a Checkbox in the first cell, selected on the row, bulk actions above the table.",
     "Compact density for expert, data-heavy screens.",
-    "Column widths when one column should not take the space of the others: width on the header cell, as a token length (var(--size-24)), a percentage or a fraction (0.35), plus minWidth for a floor. layout fixed keeps them exact while data loads.",
+    "Column widths when one column should not take the space of the others: width on the header cell, as a token length (var(--size-20)), a percentage or a fraction (0.35), plus minWidth for a floor. layout fixed keeps them exact while data loads.",
     "narrowLayout stack when people read the table on a phone: under about 480px each row becomes a card, every value under its column name. Keep scroll (the default) for wide data people compare across rows."
   ],
   "whenNotToUse": [

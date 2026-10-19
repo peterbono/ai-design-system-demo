@@ -99,11 +99,18 @@
   box-shadow: var(--elevation-raised);
 }
 
+/* The ring sits inside the segment: the track scrolls, so a ring outside it would be clipped. */
 .segment:focus-visible {
   position: relative;
   z-index: 1;
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
-  outline-offset: var(--focus-ring-offset);
+  outline-offset: calc(var(--focus-ring-width) * -1);
+}
+
+/* On the Deep Harbor fill the ring turns to the fill's text color, one ring width inside the edge. */
+.strong .segment[aria-checked="true"]:focus-visible {
+  outline-color: var(--color-control-checked-fg);
+  outline-offset: calc(var(--focus-ring-width) * -2);
 }
 
 .segment:disabled,

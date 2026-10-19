@@ -110,7 +110,7 @@ export const ColumnWidths: Story = {
         <TableRow>
           <TableHead width={0.35}>Change</TableHead>
           <TableHead>Needs</TableHead>
-          <TableHead width="var(--size-24)" numeric>
+          <TableHead width="var(--size-20)" numeric>
             Approvals
           </TableHead>
         </TableRow>
@@ -133,7 +133,7 @@ export const ColumnWidths: Story = {
 
 /** narrowLayout="stack" in a phone-wide container: every row is a card, each value under its column name. */
 export const StackedOnPhone: Story = {
-  decorators: [(S) => <div style={{ width: 358 }}><S /></div>],
+  decorators: [(S) => <div style={{ width: 358, maxWidth: '100%' }}><S /></div>],
   render: () => (
     <Table caption="Tokens changed in this release" narrowLayout="stack">
       <TableHeader>

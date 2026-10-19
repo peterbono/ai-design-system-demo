@@ -248,6 +248,11 @@
   color: var(--color-text-default);
 }
 
+/* With badges the check keeps its slot on every item, so the badges line up in one column. */
+.item:not([data-selected]) .indicatorSlot {
+  visibility: hidden;
+}
+
 .groupLabel {
   padding: var(--space-2) var(--space-2) var(--space-1);
   color: var(--color-text-muted);

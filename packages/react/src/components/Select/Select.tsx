@@ -165,7 +165,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
                       {o.description && <span className={styles.itemDescription}>{o.description}</span>}
                     </span>
                     {o.badge != null && <span className={styles.badge}>{o.badge}</span>}
-                    <BaseSelect.ItemIndicator className={styles.indicator}>
+                    <BaseSelect.ItemIndicator keepMounted={hasBadges} className={cx(styles.indicator, hasBadges && styles.indicatorSlot)}>
                       <Icon icon={Check} size="sm" />
                     </BaseSelect.ItemIndicator>
                   </BaseSelect.Item>

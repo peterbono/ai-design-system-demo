@@ -100,7 +100,7 @@ describe('Table', () => {
         <TableHeader>
           <TableRow>
             <TableHead width={0.35}>Change</TableHead>
-            <TableHead width="var(--size-24)" minWidth="var(--size-16)">
+            <TableHead width="var(--size-20)" minWidth="var(--size-16)">
               Approvals
             </TableHead>
           </TableRow>
@@ -115,7 +115,7 @@ describe('Table', () => {
     );
     const [change, approvals] = screen.getAllByRole('columnheader') as [HTMLElement, HTMLElement];
     expect(change.style.getPropertyValue('--_col-width')).toBe('35%');
-    expect(approvals.style.getPropertyValue('--_col-width')).toBe('var(--size-24)');
+    expect(approvals.style.getPropertyValue('--_col-width')).toBe('var(--size-20)');
     expect(approvals.style.getPropertyValue('--_col-min-width')).toBe('var(--size-16)');
   });
 

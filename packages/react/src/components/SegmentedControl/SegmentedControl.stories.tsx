@@ -61,7 +61,7 @@ export const Strong: Story = { args: { label: 'Status', appearance: 'strong', it
 /** Seven segments in a phone-wide container: the track scrolls sideways, the page does not. */
 export const ManyOnPhone: Story = {
   args: { label: 'Status', appearance: 'strong', size: 'sm', items: statuses, defaultValue: 'blocked' },
-  decorators: [(S) => <div style={{ width: 358, outline: '1px dashed var(--color-border-default)' }}><S /></div>],
+  decorators: [(S) => <div style={{ width: 358, maxWidth: '100%', outline: '1px dashed var(--color-border-default)' }}><S /></div>],
 };
 
 /** A visible label sits outside the track, to its left, as a caption on the track's center line. Inside the track it
@@ -126,7 +126,7 @@ export const AllStates: Story = {
         <SegmentedControl label="Status strong sm" appearance="strong" size="sm" items={statuses.slice(0, 4)} defaultValue="you" />
       </Specimen>
       <Specimen label="Seven segments at phone width (scrolls sideways)">
-        <div style={{ width: 358 }}>
+        <div style={{ width: 358, maxWidth: '100%' }}>
           <SegmentedControl label="Status phone" appearance="strong" size="sm" items={statuses} defaultValue="open" />
         </div>
       </Specimen>

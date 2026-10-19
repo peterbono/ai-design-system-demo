@@ -189,6 +189,10 @@
     display: none;
   }
 
+  .stack .caption {
+    display: block;
+  }
+
   .stack .tbody .row {
     padding-block: var(--space-2);
     border-bottom: var(--border-width-default) solid var(--table-border);
@@ -198,11 +202,9 @@
     border-bottom: 0;
   }
 
+  /* The column name sits above its value: the value keeps its own flow (inline markup, wrapping text, a badge). */
   .stack .cell {
-    display: grid;
-    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
-    gap: var(--space-3);
-    align-items: baseline;
+    display: block;
     width: auto;
     min-width: 0;
     height: auto;
@@ -213,17 +215,14 @@
 
   .stack .cell::before {
     content: attr(data-label);
+    display: block;
     color: var(--table-header-text);
     font-size: var(--font-size-100);
     font-weight: var(--font-weight-medium);
     letter-spacing: var(--font-tracking-wide);
   }
 
-  /* No column name (a title cell, the empty row): the value takes the whole line. */
-  .stack .cell:is(:not([data-label]), [data-label=""]) {
-    display: block;
-  }
-
+  /* No column name (a title cell, the empty row): the value alone. */
   .stack .cell:is(:not([data-label]), [data-label=""])::before {
     content: none;
   }
