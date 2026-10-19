@@ -1,6 +1,6 @@
 // Library foundation pages: copy on token names and on each row's copy button (the CSS variable by default; the
-// button's menu copies as JS or the Figma name, and the last choice is remembered per browser), a toast, arrow keys
-// on the specimen brand and density switches, and opening a token row in the detail drawer
+// button's menu copies as JS or the Figma name, and the last choice is remembered per browser), a toast, and opening
+// a token row in the detail drawer
 // (scripts/explorer/drawer.ts listens to [data-fd-open]). Plain DOM, no framework.
 import { parseCopyFormat, type CopyFormat } from '../lib/library-rows';
 import { copyText } from './explorer/util';
@@ -88,17 +88,5 @@ export function initFoundations() {
     if (row && !t.closest('a, button, summary, details, input, select, textarea')) {
       row.querySelector<HTMLButtonElement>('[data-fd-open]')?.click();
     }
-  });
-
-  // Specimen brand and density switches (radio groups): arrow keys move and pick.
-  document.addEventListener('keydown', (e) => {
-    const opt = (e.target as HTMLElement).closest<HTMLElement>('[data-fd-scope] [role="radio"]');
-    if (!opt || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
-    const all = [...opt.closest('[data-fd-scope]')!.querySelectorAll<HTMLElement>('[role="radio"]')];
-    const i = all.indexOf(opt);
-    const next = all[(i + (e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? all.length - 1 : 1)) % all.length];
-    e.preventDefault();
-    next?.click();
-    next?.focus();
   });
 }

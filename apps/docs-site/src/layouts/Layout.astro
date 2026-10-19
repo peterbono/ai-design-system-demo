@@ -19,7 +19,9 @@ import { GITHUB_URL, STORYBOOK_URL, sourceUrl } from '../lib/repo';
 import { humanDate } from '../lib/stats';
 import { BRANDS, DEFAULT_BRAND } from '../lib/tokens';
 import { Breadcrumb, Button, IconButton, Kbd } from '@bridge-ds/react';
-import { Menu as MenuIcon, Moon, Search, X } from 'lucide-react';
+import { BookOpen, Menu as MenuIcon, Moon, Search, X } from 'lucide-react';
+import ButtonLink from '../components/ds/ButtonLink';
+import { GitHubMark } from '../components/ds/studio/brand-icons';
 
 export interface Crumb {
   label: string;
@@ -123,16 +125,14 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
         {
           isStudio ? (
             <>
-              <a class="hd-btn team-open lib-open" href={LIBRARY_HOME} aria-label="View published library" title="View published library">
-                <Icon name="book" size={16} />
+              <ButtonLink variant="secondary" size="sm" className="team-open lib-open" href={LIBRARY_HOME} iconStart={BookOpen} aria-label="View published library" title="View published library">
                 <span class="hd-label">Library</span>
-                <Icon name="out" size={16} />
-              </a>
+              </ButtonLink>
             </>
           ) : (
             <>
               <div class="team shell-wide" data-team>
-                <a class="hd-btn team-open" href={STUDIO_HOME}>Open Studio</a>
+                <ButtonLink variant="secondary" size="sm" className="team-open" href={STUDIO_HOME}>Open Studio</ButtonLink>
                 <a class="team-avatar" href={STUDIO_HOME} data-team-avatar hidden>
                   <img alt="" width="28" height="28" data-team-avatar-img />
                   <span class="sr-only" data-team-avatar-label>Your Studio</span>
@@ -177,6 +177,7 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
               const id = `nav-group-${n}`;
               return (
                 <li class="nav-group">
+                  <!-- bridge-audit-ignore-next-line: a side nav group opener styled as its sibling nav links (with the review count badge and chevron); the DS SidebarNav is a React island and would rebuild the whole rail -->
                   <button type="button" class="nav-link nav-toggle" aria-expanded={open ? 'true' : 'false'} aria-controls={id} data-nav-group data-active={open || undefined}>
                     <Icon name={entry.icon} size={20} />
                     <span>{entry.label}</span>
@@ -205,8 +206,8 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
         </ul>
         <div class="rail-foot">
           <div class="rail-tools">
-            <button type="button" class="rail-tool" data-theme-toggle aria-pressed="false" aria-label="Dark theme"><Icon name="moon" size={20} /><span>Theme</span></button>
-            {!isStudio && <a class="rail-tool" href={GITHUB_URL}><Icon name="github" size={20} /><span>GitHub</span></a>}
+            <Button variant="ghost" iconStart={Moon} data-theme-toggle aria-pressed="false" aria-label="Dark theme">Theme</Button>
+            {!isStudio && <ButtonLink variant="ghost" iconStart={GitHubMark} href={GITHUB_URL}>GitHub</ButtonLink>}
           </div>
           {
             isStudio ? (
@@ -214,7 +215,7 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
             ) : (
               <div class="rail-team">
                 <p>Maintaining Bridge? Edit tokens and review changes.</p>
-                <a class="hd-btn" href={STUDIO_HOME}>Open Studio</a>
+                <ButtonLink variant="secondary" href={STUDIO_HOME}>Open Studio</ButtonLink>
               </div>
             )
           }
@@ -290,10 +291,12 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
       </main>
     </div>
 
+    <!-- bridge-audit-ignore-next-line: search palette, a native modal <dialog> opened by a plain script (showModal, focus trap, Escape); the DS Dialog is a React island, so moving it is a rewrite of the script. Follow-up: DS Dialog with a static open/close contract -->
     <dialog class="palette" id="palette" aria-label="Search">
       <form method="dialog" class="palette-box" role="search">
         <div class="palette-input">
           <Icon name="search" />
+          <!-- bridge-audit-ignore-next-line: the palette field is a borderless combobox header driven by scripts/shell.ts (listbox, arrow keys); a DS Input would draw a field box inside the palette. Follow-up: DS Combobox or command palette -->
           <input
             id="palette-q"
             type="search"

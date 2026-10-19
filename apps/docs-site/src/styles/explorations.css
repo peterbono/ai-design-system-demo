@@ -79,9 +79,15 @@
   font-size: var(--typography-ui-size);
 }
 
-.ex-form .rq-field,
+.ex-form > div,
 .ex-no-gh {
   max-width: calc(var(--size-80) * 3);
+}
+
+/* The use case DS Select and its hint, which follows the pick (scripts/explorations.ts). */
+.ex-uc {
+  display: grid;
+  gap: var(--space-1-5);
 }
 
 .ex-form[hidden],

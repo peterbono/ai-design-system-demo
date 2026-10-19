@@ -2,9 +2,9 @@
 // The light token list of a Library foundation page: one row per token with a preview (a dual light and dark swatch
 // for colors and shadows, a shape, bar or sample otherwise), the name once (a click copies it; the copy button copies the CSS variable, or the last format picked in its menu),
 // a one-line role, a muted alias line and a neutral usage chip. A click on the row opens the explorer's detail panel.
-import { IconButton } from '@bridge-ds/react';
+import { Button, IconButton } from '@bridge-ds/react';
 import Icon from '../Icon.astro';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Copy } from 'lucide-react';
 import type { FoundationRow } from '../../lib/foundations';
 import { anchorOf, MODES } from '../../lib/tokens';
 
@@ -75,21 +75,20 @@ const short = (r: FoundationRow) => r.type === 'shadow';
           </span>
           <span class="fd-main">
             <span class="fd-name-line">
+              <!-- bridge-audit-ignore-next-line: the token name itself is the copy target, in Plex Mono at body size; a DS Button would restyle the name. The DS copy button beside it does the same job -->
               <button type="button" class="fd-name" data-fd-copy data-copy-css={r.copy.css} data-copy-js={r.copy.js} data-copy-figma={r.copy.figma} title={`Copy CSS variable ${r.copy.css}`}>
                 {r.path}
               </button>
               <span class="fd-copy">
-                <button type="button" class="fd-copy-btn" data-fd-copy data-fd-copy-icon data-copy-css={r.copy.css} data-copy-js={r.copy.js} data-copy-figma={r.copy.figma} aria-label={`Copy CSS variable ${r.copy.css}`} title="Copy CSS variable">
-                  <Icon name="copy" size={14} />
-                </button>
+                <IconButton icon={Copy} variant="ghost" size="sm" className="fd-copy-btn" label={`Copy CSS variable ${r.copy.css}`} title="Copy CSS variable" data-fd-copy data-fd-copy-icon data-copy-css={r.copy.css} data-copy-js={r.copy.js} data-copy-figma={r.copy.figma} />
                 <details class="fd-copy-more" data-menu>
                   <summary class="fd-copy-chev" aria-label={`Other copy formats for ${r.path}`} title="Copy as">
                     <Icon name="chevronDown" size={12} />
                   </summary>
                   <div class="fd-copy-menu" role="menu" aria-label={`Copy ${r.path} as`}>
-                    <button type="button" role="menuitemradio" aria-checked="true" data-fd-copy-as="css">Copy CSS variable</button>
-                    <button type="button" role="menuitemradio" aria-checked="false" data-fd-copy-as="js">Copy as JS</button>
-                    <button type="button" role="menuitemradio" aria-checked="false" data-fd-copy-as="figma">Copy Figma name</button>
+                    <Button variant="ghost" size="sm" role="menuitemradio" aria-checked="true" data-fd-copy-as="css">Copy CSS variable</Button>
+                    <Button variant="ghost" size="sm" role="menuitemradio" aria-checked="false" data-fd-copy-as="js">Copy as JS</Button>
+                    <Button variant="ghost" size="sm" role="menuitemradio" aria-checked="false" data-fd-copy-as="figma">Copy Figma name</Button>
                   </div>
                 </details>
               </span>

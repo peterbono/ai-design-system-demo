@@ -11,6 +11,7 @@ import { signInConfig } from '../lib/signin-config';
 const signIn = Boolean(signInConfig());
 ---
 
+<!-- bridge-audit-ignore-next-line: Undo planner, a native modal <dialog> opened by a plain script (showModal, focus trap, Escape); the DS Dialog is a React island, so moving it is a rewrite of the script. Follow-up: DS Dialog with a static open/close contract -->
 <dialog class="hp-panel" id="hp-dialog" aria-labelledby="hp-title">
   <div class="hp-box">
     <header class="hp-head">

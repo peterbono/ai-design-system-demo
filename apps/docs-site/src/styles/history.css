@@ -85,24 +85,14 @@
   margin-bottom: var(--space-5);
 }
 
-.hs-filters .gh-field {
+/* The DS Input (token) and the two DS Select islands share the row; the token field takes the most room. */
+.hs-filters > :not(button) {
   flex: 1 1 calc(var(--size-96) / 2);
   min-width: 0;
 }
 
-.hs-filters .gh-field:first-child {
+.hs-filters > :first-child {
   flex: 2 1 var(--size-64);
-}
-
-.hs-filters select {
-  width: 100%;
-  padding: var(--space-2) var(--space-2);
-  border: var(--border-width-default) solid var(--color-border-emphasis);
-  border-radius: var(--radius-control);
-  background-color: var(--color-surface-default);
-  color: var(--color-text-default);
-  font: inherit;
-  font-size: var(--typography-ui-size);
 }
 
 .hs-sparse {

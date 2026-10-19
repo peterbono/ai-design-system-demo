@@ -48,26 +48,13 @@
   padding: var(--space-2) var(--space-2) var(--space-2);
 }
 
-.ramp-copy {
+/* The hex is a DS link Button (copies the CSS variable): code reads in Plex Mono. */
+.ramp-meta .ramp-copy {
   justify-self: start;
-  min-height: var(--size-6);
-  padding: 0;
-  border: 0;
-  background-color: transparent;
-  color: var(--color-text-default);
   font-family: var(--font-family-mono);
-  font-size: var(--typography-ui-size);
-  text-decoration: underline;
-  text-decoration-color: var(--color-border-emphasis);
-  text-underline-offset: 0.25em;
-  cursor: pointer;
 }
 
-.ramp-copy:hover {
-  text-decoration-color: currentcolor;
-}
-
-.ramp-copy[data-copied] {
+.ramp-meta .ramp-copy[data-copied] {
   color: var(--color-feedback-success-text);
 }
 
@@ -169,52 +156,6 @@
   font-size: var(--typography-ui-size);
   line-height: var(--typography-ui-line-height);
   font-weight: var(--font-weight-medium);
-}
-
-.fd-scope {
-  /* Same metrics as the DS SegmentedControl (md): a 44px target on the subtle track, the selected option a
-     raised plate. Kept as static markup because scripts/shell.ts drives it with data-set-brand/density. */
-  display: inline-flex;
-  align-items: stretch;
-  min-height: var(--control-height-md);
-  padding: var(--space-0-5);
-  border: var(--border-width-default) solid var(--color-border-default);
-  border-radius: var(--radius-control);
-  background-color: var(--color-bg-subtle);
-}
-
-.fd-scope-opt {
-  display: inline-flex;
-  align-items: center;
-  padding: 0 var(--space-3);
-  border: 0;
-  border-radius: var(--radius-inset);
-  background-color: transparent;
-  color: var(--color-text-muted);
-  font: inherit;
-  font-size: var(--font-size-200);
-  font-weight: var(--font-weight-medium);
-  line-height: var(--font-line-height-tight);
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.fd-scope-opt[aria-checked="true"] {
-  background-color: var(--color-surface-default);
-  color: var(--color-text-default);
-  box-shadow: var(--elevation-raised);
-}
-
-.fd-scope-opt:focus-visible {
-  outline: var(--focus-ring-width) solid var(--focus-ring-color);
-  outline-offset: var(--focus-ring-offset);
-}
-
-@media (hover: hover) {
-  .fd-scope-opt:not([aria-checked="true"]):hover {
-    background-color: var(--color-surface-hover);
-    color: var(--color-text-default);
-  }
 }
 
 /* Specimen: one panel per theme, stacked when there is no room for two. */
@@ -960,7 +901,6 @@
   }
 }
 
-.fd-copy-btn,
 .fd-copy-chev {
   display: inline-grid;
   place-items: center;
@@ -969,11 +909,6 @@
   background-color: transparent;
   color: var(--color-text-muted);
   cursor: pointer;
-}
-
-.fd-copy-btn {
-  width: var(--size-8);
-  border-radius: var(--radius-control) 0 0 var(--radius-control);
 }
 
 .fd-copy-btn[data-copied] {
@@ -995,14 +930,12 @@
   display: none;
 }
 
-.fd-copy-btn:focus-visible,
 .fd-copy-chev:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
   outline-offset: var(--focus-ring-offset);
 }
 
 @media (hover: hover) {
-  .fd-copy-btn:hover,
   .fd-copy-chev:hover {
     background-color: var(--color-bg-subtle);
     color: var(--color-text-default);
@@ -1015,6 +948,7 @@
   left: 0;
   z-index: var(--layer-dropdown);
   display: grid;
+  justify-items: start;
   min-width: var(--size-40);
   padding: var(--space-1);
   border: var(--border-width-default) solid var(--color-border-default);
@@ -1024,34 +958,9 @@
   cursor: default;
 }
 
-.fd-copy-menu button {
-  display: flex;
-  align-items: center;
-  min-height: var(--size-8);
-  padding: 0 var(--space-2);
-  border: 0;
-  border-radius: var(--radius-control);
-  background-color: transparent;
-  color: var(--color-text-default);
-  font: inherit;
-  font-size: var(--typography-ui-size);
-  text-align: left;
-  cursor: pointer;
-}
-
-.fd-copy-menu button[aria-checked="true"] {
+/* The current format (scripts/foundations.ts sets aria-checked on the DS Buttons). */
+.fd-copy-menu [data-fd-copy-as][aria-checked="true"] {
   font-weight: var(--font-weight-semibold);
-}
-
-.fd-copy-menu button:focus-visible {
-  outline: var(--focus-ring-width) solid var(--focus-ring-color);
-  outline-offset: calc(var(--focus-ring-width) * -1);
-}
-
-@media (hover: hover) {
-  .fd-copy-menu button:hover {
-    background-color: var(--color-bg-subtle);
-  }
 }
 
 .fd-role {

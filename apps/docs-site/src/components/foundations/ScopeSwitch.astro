@@ -1,9 +1,10 @@
 ---
-// Compact brand or density switch in a specimen header, only on specimens it changes. The preview scope is one
-// state for the site (scripts/shell.ts reads [data-set-brand] / [data-set-density] clicks and keeps aria-checked in
-// step); scripts/foundations.ts adds arrow keys.
+// Compact brand or density switch in a specimen header, only on specimens it changes: a static DS SegmentedControl
+// (data-vanilla). The preview scope is one state for the site: scripts/shell.ts sets it from the switch's
+// bridge:segment event and selects the matching segment in every [data-scope-switch] on the page.
 // The label sits outside the track, as a caption to its left: inside the same pill it would read as one more option.
 // The track holds the options only and takes its accessible name from the label (aria-labelledby).
+import { SegmentedControl } from '@bridge-ds/react';
 import { BRANDS, BRAND_LABEL, DENSITIES, DENSITY_LABEL } from '../../lib/tokens';
 
 interface Props {
@@ -20,19 +21,5 @@ const labelId = `fd-scope-${axis}-${Math.random().toString(36).slice(2, 8)}`;
 
 {show && (<div class="fd-scope-field">
   <span class="fd-scope-label" id={labelId}>{name}</span>
-  <div class="fd-scope" role="radiogroup" aria-labelledby={labelId} data-fd-scope>
-    {
-      options.map((o, i) =>
-        axis === 'brand' ? (
-          <button type="button" role="radio" class="fd-scope-opt" aria-checked={i === 0 ? 'true' : 'false'} data-set-brand={o.value}>
-            {o.label}
-          </button>
-        ) : (
-          <button type="button" role="radio" class="fd-scope-opt" aria-checked={i === 0 ? 'true' : 'false'} data-set-density={o.value}>
-            {o.label}
-          </button>
-        ),
-      )
-    }
-  </div>
+  <SegmentedControl aria-labelledby={labelId} data-vanilla data-scope-switch={axis} defaultValue={options[0]!.value} items={options} />
 </div>)}

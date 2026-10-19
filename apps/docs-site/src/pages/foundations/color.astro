@@ -1,5 +1,6 @@
 ---
 import Layout from '../../layouts/Layout.astro';
+import { Button } from '@bridge-ds/react';
 import LibraryKit from '../../components/foundations/LibraryKit.astro';
 import TokenGroup from '../../components/foundations/TokenGroup.astro';
 import type { SpecimenGroup } from '../../components/foundations/Specimens.tsx';
@@ -65,9 +66,9 @@ import LibraryHeader from '../../components/LibraryHeader.astro';
                       <strong>{p.segments.slice(2).join('.') || p.segments.slice(1).join('.')}</strong>
                     </span>
                     <span class="ramp-meta">
-                      <button type="button" class="ramp-copy" data-copy={`var(${p.cssVar})`} aria-label={`Copy CSS variable var(${p.cssVar})`} title={`Copy var(${p.cssVar})`}>
+                      <Button variant="link" size="sm" className="ramp-copy" data-copy={`var(${p.cssVar})`} aria-label={`Copy CSS variable var(${p.cssVar})`} title={`Copy var(${p.cssVar})`}>
                         {p.hex}
-                      </button>
+                      </Button>
                       <span class={n ? 'ramp-n' : 'ramp-n is-unused'}>{n > 0 ? `${n} semantic` : 'Unused'}</span>
                     </span>
                   </div>

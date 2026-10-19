@@ -18,6 +18,7 @@ const tokenUrl = `https://github.com/settings/personal-access-tokens/new?descrip
 const signIn = Boolean(signInConfig());
 ---
 
+<!-- bridge-audit-ignore-next-line: Connect GitHub, a native modal <dialog> opened by a plain script (showModal, focus trap, Escape); the DS Dialog is a React island, so moving it is a rewrite of the script. Follow-up: DS Dialog with a static open/close contract -->
 <dialog class="gh-dialog" id="gh-dialog" aria-labelledby="gh-dialog-title" data-signin={signIn ? signInConfigJson() : undefined}>
   <form method="dialog" class="gh-dialog-box">
     <header class="gh-dialog-head">

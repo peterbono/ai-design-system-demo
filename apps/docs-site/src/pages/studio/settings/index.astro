@@ -24,7 +24,7 @@ import SettingsAccount from '../../../components/ds/studio/SettingsAccount';
 import { signInConfig } from '../../../lib/signin-config';
 import Illustration from '../../../components/Illustration.astro';
 import { GitHubMark } from '../../../components/ds/studio/brand-icons';
-import { Badge, Button, Card, CodeBlock, CardBody, CardHeader, Link, SegmentedControl } from '@bridge-ds/react';
+import { Badge, Button, Card, CodeBlock, CardBody, CardHeader, Input, Link, SegmentedControl } from '@bridge-ds/react';
 import { siteRepo } from '../../../lib/config';
 import { GOVERNANCE_FILE, pluginListing, tierSummaries } from '../../../lib/governance';
 import { inline } from '../../../lib/markdown';
@@ -321,17 +321,17 @@ const signIn = Boolean(signInConfig());
               <summary><span class="set-more-title">{jira ? 'Change Jira settings' : 'Set up Jira'}</span><span class="set-chev" aria-hidden="true"></span></summary>
               <form class="rq-form" data-int-form novalidate>
                 <div class="rq-pair">
-                  <label class="rq-field"><span>Jira site</span><input name="baseUrl" type="url" inputmode="url" autocomplete="off" placeholder="https://acme.atlassian.net" value={jira?.baseUrl ?? ''} /></label>
-                  <label class="rq-field"><span>Project key</span><input name="project" autocomplete="off" placeholder="DS" value={jira?.project ?? ''} /></label>
+                  <Input label="Jira site" name="baseUrl" type="url" inputMode="url" autoComplete="off" placeholder="https://acme.atlassian.net" defaultValue={jira?.baseUrl ?? ''} />
+                  <Input label="Project key" name="project" autoComplete="off" placeholder="DS" defaultValue={jira?.project ?? ''} />
                 </div>
                 <div class="rq-pair">
-                  <label class="rq-field"><span>Issue type</span><input name="issueType" autocomplete="off" value={jira?.issueType ?? 'Task'} /></label>
-                  <label class="rq-field"><span>Jira labels</span><input name="jiraLabels" autocomplete="off" placeholder="design-system" value={(jira?.labels ?? []).join(', ')} /></label>
+                  <Input label="Issue type" name="issueType" autoComplete="off" defaultValue={jira?.issueType ?? 'Task'} />
+                  <Input label="Jira labels" name="jiraLabels" autoComplete="off" placeholder="design-system" defaultValue={(jira?.labels ?? []).join(', ')} />
                 </div>
                 <p class="set-int-group">Every request, in GitHub</p>
                 <div class="rq-pair">
-                  <label class="rq-field"><span>Labels</span><input name="requestLabels" autocomplete="off" placeholder="design" value={(reqCfg.labels ?? []).join(', ')} /></label>
-                  <label class="rq-field"><span>Assignees</span><input name="assignees" autocomplete="off" placeholder="@login" value={(reqCfg.assignees ?? []).map((a) => `@${a}`).join(', ')} /></label>
+                  <Input label="Labels" name="requestLabels" autoComplete="off" placeholder="design" defaultValue={(reqCfg.labels ?? []).join(', ')} />
+                  <Input label="Assignees" name="assignees" autoComplete="off" placeholder="@login" defaultValue={(reqCfg.assignees ?? []).map((a) => `@${a}`).join(', ')} />
                 </div>
                 <p class="rq-error" role="alert" data-int-error hidden></p>
                 <div class="rq-actions">

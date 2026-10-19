@@ -222,60 +222,16 @@
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
-  height: var(--size-9);
-  padding: 0 var(--space-1) 0 var(--space-2);
-  border: var(--border-width-default) solid var(--color-border-emphasis);
-  border-radius: var(--radius-control);
-  background-color: var(--color-surface-default);
-  color: var(--color-text-muted);
 }
 
-.xp-search:focus-within {
-  border-color: var(--color-signal-default);
-}
-
-.xp-search input {
-  flex: 1;
+/* The DS Input (components/ds/TokenSearch) takes the row; the Library's Exact toggle sits after it. */
+.xp-search-field {
+  flex: 1 1 auto;
   min-width: 0;
-  height: 100%;
-  border: 0;
-  background-color: transparent;
-  color: var(--color-text-default);
-  font: inherit;
-  font-size: var(--typography-ui-size);
-  caret-color: var(--color-signal-default);
-}
-
-.xp-search input:focus {
-  outline: none;
 }
 
 .xp-search:focus-within .xp-slash {
   display: none;
-}
-
-.xp-exact {
-  flex: none;
-  height: var(--size-7);
-  padding: 0 var(--space-2);
-  border: var(--border-width-default) solid transparent;
-  border-radius: var(--radius-control);
-  background-color: transparent;
-  color: var(--color-text-muted);
-  font: inherit;
-  font-size: var(--typography-ui-size);
-  font-weight: var(--font-weight-medium);
-  cursor: pointer;
-}
-
-.xp-exact:hover {
-  background-color: var(--color-bg-subtle);
-}
-
-.xp-exact[aria-pressed="true"] {
-  border-color: var(--color-border-emphasis);
-  background-color: var(--color-action-primary-bg);
-  color: var(--color-action-primary-text);
 }
 
 .xp-filters {
@@ -322,7 +278,7 @@
   box-shadow: var(--elevation-modal);
 }
 
-.xp-filters-panel fieldset {
+.xp-fset {
   display: grid;
   gap: var(--space-1);
   margin: 0;
@@ -330,27 +286,14 @@
   border: 0;
 }
 
-.xp-filters-panel legend {
+.xp-fset legend {
   margin-bottom: var(--space-1);
   color: var(--color-text-muted);
   font-size: var(--typography-ui-size);
   font-weight: var(--font-weight-semibold);
 }
 
-.xp-filters-panel label {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: var(--size-7);
-  font-size: var(--typography-ui-size);
-  cursor: pointer;
-}
-
-.xp-filters-panel input {
-  accent-color: var(--color-action-primary-bg);
-}
-
-.xp-filters-panel > .btn {
+.xp-filters-panel > .st-xp-clear-filters {
   grid-column: 1 / -1;
   justify-self: start;
 }
@@ -364,51 +307,8 @@
 
 .xp-modebar[hidden],
 .xp-modebar [data-xp-mode-field][hidden],
-.xp-modebar .xp-switch[hidden] {
+.xp-modebar .xp-combos[hidden] {
   display: none;
-}
-
-.xp-switch {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: var(--size-8);
-  padding: 0 var(--space-1);
-  border: 0;
-  background-color: transparent;
-  color: var(--color-text-default);
-  font: inherit;
-  font-size: var(--typography-ui-size);
-  cursor: pointer;
-}
-
-.xp-switch-track {
-  position: relative;
-  width: var(--size-8);
-  height: var(--size-5);
-  border-radius: var(--radius-pill);
-  background-color: var(--color-border-emphasis);
-  transition: background-color var(--motion-duration-fast) var(--motion-easing-standard);
-}
-
-.xp-switch-thumb {
-  position: absolute;
-  top: var(--space-0-5);
-  left: var(--space-0-5);
-  width: var(--size-4);
-  height: var(--size-4);
-  border-radius: 50%;
-  background-color: var(--color-surface-default);
-  box-shadow: var(--elevation-raised);
-  transition: transform var(--motion-duration-fast) var(--motion-easing-standard);
-}
-
-.xp-switch[aria-checked="true"] .xp-switch-track {
-  background-color: var(--color-action-primary-bg);
-}
-
-.xp-switch[aria-checked="true"] .xp-switch-thumb {
-  transform: translateX(var(--space-3));
 }
 
 .xp-view {
@@ -418,21 +318,9 @@
   margin-left: auto;
 }
 
-.xp-select select {
-  height: var(--size-8);
-  padding: 0 var(--space-7) 0 var(--space-2);
-  border: var(--border-width-default) solid var(--color-border-emphasis);
-  border-radius: var(--radius-control);
-  background-color: var(--color-surface-default);
-  color: var(--color-text-default);
-  font: inherit;
-  font-size: var(--typography-ui-size);
-}
-
-.xp-toggle[aria-pressed="true"] {
-  border-color: var(--color-action-primary-bg);
-  background-color: var(--color-action-primary-bg);
-  color: var(--color-action-primary-text);
+/* The code syntax menu (DS Select island) keeps the width of its longest syntax. */
+.xp-view [data-bridged-select] {
+  min-width: var(--size-40);
 }
 
 .xp-heading {
@@ -1558,8 +1446,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .xp-switch-track,
-  .xp-switch-thumb,
   .xp-sec-icon,
   .xp-tree-twist svg {
     transition: none;
@@ -1695,7 +1581,6 @@
 .xp[data-surface="app"] .xp-search {
   flex: 1 1 auto;
   min-width: calc(var(--size-64) / 2);
-  height: var(--size-8);
 }
 
 .xp[data-surface="app"] .xp-tools .btn {
@@ -1779,21 +1664,6 @@
   font-weight: var(--font-weight-semibold);
 }
 
-.xp-menu-field select {
-  height: var(--size-8);
-  padding: 0 var(--space-2);
-  border: var(--border-width-default) solid var(--color-border-emphasis);
-  border-radius: var(--radius-control);
-  background-color: var(--color-surface-default);
-  color: var(--color-text-default);
-  font: inherit;
-  font-size: var(--typography-ui-size);
-}
-
-.xp-menu-panel .xp-switch {
-  justify-content: flex-start;
-  padding: 0;
-}
 
 .xp-menu-keys {
   margin: 0;
@@ -2779,26 +2649,6 @@ body:has([data-xe-bar]:not([hidden])) .xp[data-surface="app"] .xp-grid {
   background-color: var(--color-bg-zone);
 }
 
-.xe-bar-review {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1-5);
-  height: var(--size-9);
-  padding: 0 var(--space-3);
-  border: 0;
-  border-radius: var(--radius-inset);
-  background-color: var(--color-bg-default);
-  color: var(--color-text-default);
-  font: inherit;
-  font-weight: var(--font-weight-semibold);
-  cursor: pointer;
-}
-
-.xe-bar-review:focus-visible {
-  outline: var(--focus-ring-width) solid var(--focus-ring-color);
-  outline-offset: var(--focus-ring-offset);
-}
-
 /* The review sheet */
 
 .xe-scrim {
@@ -3671,20 +3521,7 @@ body:has([data-xe-bar]:not([hidden])) .xp[data-surface="app"] .xp-grid {
   font-weight: var(--font-weight-semibold);
 }
 
-.xp-opt-set label {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: var(--size-7);
-  font-size: var(--typography-ui-size);
-  cursor: pointer;
-}
-
-.xp-opt-set input {
-  accent-color: var(--color-action-primary-bg);
-}
-
-.xp-options-panel > .btn {
+.xp-options-panel > .st-xp-clear-filters {
   justify-self: start;
 }
 
