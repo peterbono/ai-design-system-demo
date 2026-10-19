@@ -1,0 +1,94 @@
+name: Figma references
+
+# Code images for the Figma plugin's "Check fidelity" (Pull tab): one PNG per generated Figma variant, rendered from
+# code by the hidden Storybook story "Internal/Figma reference" with the same props, texts, icons, state and width
+# as the variant the plugin draws (planReference in @bridge-ds/core), at 2x like the plugin's exports.
+#
+# Published next to the Visual impact images, on the orphan branch `bridge-visual`, under figma-references/
+# (manifest.json + <component>/<variant>.png). Only the latest main is kept: the folder is replaced on each run.
+# The plugin reads them through the GitHub contents API with the designer's own token (api.github.com only).
+# The workflow artifact keeps the images for 14 days as a fallback.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/tokens/src/**'
+      - 'packages/react/src/**'
+      - 'packages/react/component-specs.json'
+      - '.storybook/**'
+  workflow_dispatch:
+
+concurrency:
+  group: figma-references
+  cancel-in-progress: true
+
+permissions:
+  contents: write # push to the bridge-visual branch
+
+env:
+  VISUAL_BRANCH: bridge-visual
+
+jobs:
+  references:
+    name: Figma references
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build Storybook and the bridge CLI
+        run: |
+          npm run build-storybook
+          npm run mcp:build
+
+      - name: Capture the code images
+        env:
+          # ubuntu-latest ships Google Chrome; playwright-core drives it, no browser download.
+          BRIDGE_CHROME_CHANNEL: chrome
+        run: node packages/cli/dist/index.js figma-references --storybook storybook-static --out figma-references --sha "$GITHUB_SHA"
+
+      - name: Upload images
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: figma-references
+          path: figma-references
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Publish to the bridge-visual branch
+        run: |
+          set -euo pipefail
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          dir="$RUNNER_TEMP/bridge-visual"
+          if git ls-remote --exit-code --heads origin "$VISUAL_BRANCH" > /dev/null; then
+            git fetch --depth 1 origin "$VISUAL_BRANCH"
+            git worktree add --detach "$dir" FETCH_HEAD
+          else
+            git worktree add --detach "$dir" HEAD
+            git -C "$dir" checkout --orphan "$VISUAL_BRANCH"
+            git -C "$dir" rm -rfq .
+            printf '# bridge-visual\n\nImages written by .github/workflows/visual-impact.yml (pr-<number>/) and figma-references.yml (figma-references/).\n' > "$dir/README.md"
+          fi
+          rm -rf "$dir/figma-references"
+          cp -R figma-references "$dir/figma-references"
+          cd "$dir"
+          git add -A
+          git commit -qm "figma references: main at ${GITHUB_SHA:0:7}" || { echo "Nothing new to publish"; exit 0; }
+          # Visual impact publishes other folders: on a race, rebase and retry.
+          for i in 1 2 3 4; do
+            if git push -q origin "HEAD:refs/heads/$VISUAL_BRANCH"; then exit 0; fi
+            sleep $((i * 3))
+            git fetch -q --depth 20 origin "$VISUAL_BRANCH" && git rebase -q FETCH_HEAD
+          done
+          exit 1

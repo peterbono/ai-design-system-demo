@@ -192,6 +192,8 @@ export interface RequestMap {
   'set-experimental': { request: { targets: { kind: 'variable' | 'component'; id: string }[]; value: boolean }; response: { updated: number } };
   /** PNG thumbnails (base64, 2x) of nodes, for the Pull "Review updates" before and after. */
   thumbnails: { request: { nodeIds: string[]; width: number }; response: Record<string, string> };
+  /** Fidelity check: PNG (base64) of variants of a generated set at `scale`, keyed by variant key. Read only. */
+  'fidelity-export': { request: { nodeId: string; keys: string[]; scale: number }; response: Record<string, string> };
   /** Build or update the component sets of a plan on the Components page, bound to the variables. */
   'apply-components': { request: { plan: ComponentPullPlan }; response: ComponentApplyReport };
 }

@@ -6,7 +6,8 @@ import { isAbsolute, join, relative, resolve } from 'node:path';
 import { auditMarkdown, type AuditReport } from '@bridge-ds/core/audit';
 import { findDesignSystemRoot, fixCss, loadAllowlist, loadDesignSystem, originRepo, runAudit } from '@bridge-ds/core/node';
 import { fileURLToPath } from 'node:url';
-import { runImpact, type Only } from '@bridge-ds/visual';
+import { captureFigmaReferences, runImpact, type Only } from '@bridge-ds/visual';
+import { execFileSync } from 'node:child_process';
 import { runRequest } from './request.js';
 import { runExplore } from './explore.js';
 import { protectionReport, type ProtectionReport } from './protection.js';
@@ -44,6 +45,11 @@ Usage:
                                       visual impact: build Storybook and the app at both refs, screenshot
                                       what the change touches, pixel-diff, write manifest.json + images.
                                       Exit 0 even with diffs (2 on setup errors). Needs Chrome installed.
+  bridge figma-references [--storybook storybook-static] [--specs packages/react/component-specs.json]
+                 [--out figma-references] [--sha <sha>] [--only Button,Card] [--json]
+                                      code images for the Figma fidelity check: one PNG per generated
+                                      Figma variant from a built Storybook, plus manifest.json.
+                                      Needs Chrome installed
   bridge history [token] [--json] [--limit n] [--author a] [--tier n] [--version v]
                                       token history: versions, merged changes, who, when, why
   bridge revert <pr|commit|id> [--dry-run] [--restore-conflicts] [--use-before path@file] [--json]
@@ -333,6 +339,28 @@ async function brandCmd(a: Args, root: string): Promise<number> {
   return r.status === 'blocked' ? 1 : 0;
 }
 
+async function figmaReferences(a: Args, root: string): Promise<number> {
+  let sha = flag(a, 'sha');
+  if (!sha) {
+    try {
+      sha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+    } catch {
+      sha = 'unknown';
+    }
+  }
+  const only = (flag(a, 'only') ?? '').split(',').filter(Boolean);
+  const r = await captureFigmaReferences({
+    storybook: resolve(root, flag(a, 'storybook') ?? 'storybook-static'),
+    specs: resolve(root, flag(a, 'specs') ?? 'packages/react/component-specs.json'),
+    out: resolve(root, flag(a, 'out') ?? 'figma-references'),
+    sha,
+    ...(only.length ? { only } : {}),
+    log: has(a, 'json') ? undefined : (line) => print(line),
+  });
+  if (has(a, 'json')) print(JSON.stringify({ manifest: r.manifestPath, captured: r.captured, skipped: r.skipped }, null, 2));
+  return 0;
+}
+
 async function impact(a: Args, root: string): Promise<number> {
   const only = (flag(a, 'only') ?? '').split(',').filter(Boolean) as Only[];
   for (const x of only) if (x !== 'stories' && x !== 'app') throw new UsageError(`--only takes stories or app, got "${x}"`);
@@ -589,6 +617,8 @@ async function main(): Promise<number> {
       return brandCmd(a, root);
     case 'impact':
       return impact(a, root);
+    case 'figma-references':
+      return figmaReferences(a, root);
     case 'history':
       return historyCmd(a, root);
     case 'revert':

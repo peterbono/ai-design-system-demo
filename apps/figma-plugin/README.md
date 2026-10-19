@@ -233,6 +233,39 @@ flags variants removed in code with an `[orphan] ` description, like variables. 
 touched, and new sets go on a **Components** page. After building, each set's signature is stored as its baseline
 (`signature`, the one Push compares), so a Push right after a pull sends no component request.
 
+### Check fidelity (does each component look like the code?)
+
+The generator can build a set that has the right variants and bindings but still looks wrong (a compound part
+drawn too short, a missing transparent border, a text style not carried over). **Check fidelity**, under the
+Components group of the Pull preview, catches that: it exports every generated variant with `exportAsync` (PNG,
+2x) and compares it, in the plugin, with an image of the same variant rendered from code. Per component it says
+**Matches the code** or **Differs from the code: 12% of pixels, size 120x40 vs 118x40** (the variant that differs
+most), with **In Figma**, **In code** and **Differences** (the code image faded, different pixels in red) side by
+side, and the other variants that differ under a disclosure. Nothing in the file changes.
+
+- **Code images.** `.github/workflows/figma-references.yml` runs on main when components, tokens, the specs or
+  Storybook change: it builds Storybook and runs `bridge figma-references`, which renders each variant with the
+  hidden story `Internal/Figma reference` (props from the variant axes, the Figma texts and icons, the state forced
+  with the pseudo-states addon, block-level roots at the `size.80` width the plugin draws them at), Bridge brand,
+  light, comfortable, at 2x. Images go to the `bridge-visual` branch (the one Visual impact publishes to) under
+  `figma-references/`: `manifest.json` (commit, scale, spec hash and image per variant key) and one PNG per variant.
+- **Mapping.** `planReference` in `@bridge-ds/core` reads the same spec the set was built from. An axis with a
+  prop becomes that prop; State becomes hover, pressed or focus (pseudo-states) or `disabled`; the Label text is
+  the children; an input placeholder becomes `placeholder`; a compound component's parts become its exported
+  parts (`CardHeader`...). A variant that code cannot render the same way is not compared and says why (Card
+  `Padding=none` shows the `Slot/Media` placeholder, which code has no example of). A set pulled from another
+  version of the specs than the images is not compared ("Update the component, then check again").
+- **Tolerance.** Two pixels are the same when their color distance is under 0.1 (YIQ, as pixelmatch), or when each
+  one's color is found within one CSS pixel of the same place in the other image: Figma and Chrome rasterize text
+  and curves differently, half a pixel apart. Where only one image has pixels (a size difference), any visible
+  color counts. A variant matches when at most 3% of its pixels differ and its size is within 1 CSS pixel. On the
+  current sets, correct variants stay under 2%.
+- **Network.** The manifest and images are read through `api.github.com` (contents API, branch `bridge-visual`)
+  with the token already saved: no new domain, the token goes nowhere new.
+- **Report.** `runFidelityCheck` (`src/sync/fidelity.ts`) returns a `FidelityReport` (`@bridge-ds/core`): JSON with
+  the commit of the code images, the options and one result per component and variant, ready to be stored and
+  shown in Studio Quality later.
+
 ### Push (Figma to Git)
 
 1. Snapshot of the variables, converted back to DTCG.

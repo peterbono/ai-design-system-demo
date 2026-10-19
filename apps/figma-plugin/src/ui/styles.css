@@ -309,6 +309,8 @@ input.select, .group-check input { flex: none; width: 14px; height: 14px; margin
 }
 .thumb-empty { display: flex; align-items: center; justify-content: center; color: var(--text-3); padding: var(--s2); text-align: center; }
 .thumb figcaption { color: var(--text-3); }
+/* Fidelity check: Figma, code and differences side by side. */
+.thumbs.three { grid-template-columns: 1fr 1fr 1fr; }
 
 /* Writing help under a field: Copy for Claude, Paste Claude's answer, Draft with Claude (with an API key). */
 .assist { display: flex; flex-direction: column; gap: var(--s2); }
