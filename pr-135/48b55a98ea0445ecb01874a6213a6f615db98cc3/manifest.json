@@ -1,15 +1,15 @@
 {
   "version": 1,
   "tool": "@bridge-ds/visual",
-  "createdAt": "2026-10-19T23:17:33.933Z",
-  "durationMs": 323206,
+  "createdAt": "2026-10-19T23:34:20.025Z",
+  "durationMs": 333897,
   "base": {
     "ref": "340d5f5328e6bc1f1519d635eea3e561116e3c1d",
     "sha": "340d5f5328e6bc1f1519d635eea3e561116e3c1d"
   },
   "head": {
-    "ref": "29dbbb71bffbbf4ef5144d78e28bdb00f61b1869",
-    "sha": "29dbbb71bffbbf4ef5144d78e28bdb00f61b1869"
+    "ref": "48b55a98ea0445ecb01874a6213a6f615db98cc3",
+    "sha": "48b55a98ea0445ecb01874a6213a6f615db98cc3"
   },
   "options": {
     "only": [
@@ -112,6 +112,7 @@
       ".changeset/avatar-illustrated.md",
       "apps/docs-site/src/components/Example.tsx",
       "apps/docs-site/src/components/LibraryEditMode.tsx",
+      "apps/docs-site/src/components/ds/studio/BranchRow.tsx",
       "apps/docs-site/src/components/ds/studio/BranchesList.tsx",
       "apps/docs-site/src/components/ds/studio/ComponentsList.tsx",
       "apps/docs-site/src/components/ds/studio/QualityShare.tsx",
@@ -136,7 +137,10 @@
       "apps/docs-site/src/styles/components-studio.css",
       "apps/docs-site/src/styles/library-edit.css",
       "apps/docs-site/src/styles/quality.css",
+      "apps/docs-site/src/styles/review-queue.css",
       "apps/docs-site/src/styles/site.css",
+      "apps/docs-site/src/styles/studio-home.css",
+      "apps/figma-plugin/test/component-pull.test.ts",
       "package-lock.json",
       "packages/react/component-specs.json",
       "packages/react/package.json",
@@ -243,7 +247,7 @@
     "added": 0,
     "removed": 0,
     "errors": 0,
-    "maxPercent": 2.64
+    "maxPercent": 6.99
   },
   "shots": [
     {
@@ -4945,11 +4949,18 @@
       "storyId": "forms-input--all-states",
       "brand": "ocean",
       "theme": "dark",
-      "status": "unchanged",
-      "changedPixels": 0,
+      "status": "changed",
+      "changedPixels": 62239,
       "totalPixels": 890880,
-      "percent": 0,
-      "boxes": [],
+      "percent": 6.99,
+      "boxes": [
+        {
+          "x": 32,
+          "y": 688,
+          "width": 848,
+          "height": 182
+        }
+      ],
       "size": {
         "before": {
           "width": 1024,
@@ -4960,7 +4971,12 @@
           "height": 870
         }
       },
-      "images": {}
+      "images": {
+        "before": "before/story__forms-input--all-states__ocean-dark.png",
+        "after": "after/story__forms-input--all-states__ocean-dark.png",
+        "diff": "diff/story__forms-input--all-states__ocean-dark.png",
+        "composite": "composite/story__forms-input--all-states__ocean-dark.png"
+      }
     },
     {
       "key": "story__forms-numberfield--all-states__ocean-dark",
@@ -5185,18 +5201,11 @@
       "storyId": "feedback-emptystate--all-states",
       "brand": "ocean",
       "theme": "dark",
-      "status": "changed",
-      "changedPixels": 28124,
+      "status": "unchanged",
+      "changedPixels": 0,
       "totalPixels": 1065984,
-      "percent": 2.64,
-      "boxes": [
-        {
-          "x": 32,
-          "y": 672,
-          "width": 960,
-          "height": 369
-        }
-      ],
+      "percent": 0,
+      "boxes": [],
       "size": {
         "before": {
           "width": 1024,
@@ -5207,12 +5216,7 @@
           "height": 1041
         }
       },
-      "images": {
-        "before": "before/story__feedback-emptystate--all-states__ocean-dark.png",
-        "after": "after/story__feedback-emptystate--all-states__ocean-dark.png",
-        "diff": "diff/story__feedback-emptystate--all-states__ocean-dark.png",
-        "composite": "composite/story__feedback-emptystate--all-states__ocean-dark.png"
-      }
+      "images": {}
     },
     {
       "key": "story__feedback-progress--all-states__ocean-dark",
