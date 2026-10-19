@@ -49,7 +49,7 @@ describe('navigation data', () => {
     expect(locate('/foundations/accessibility/')).toMatchObject({ space: 'library', group: 'Foundations', item: { label: 'Accessibility' } });
     expect(locate('/tokens/')).toMatchObject({ space: 'library', group: 'Foundations', item: { label: 'All tokens' } });
     expect(locate('/studio/changes/')).toMatchObject({ space: 'studio', item: { label: 'Branches' } });
-    expect(locate('/studio/review/')).toMatchObject({ space: 'studio', item: { label: 'Overview' } });
+    expect(locate('/studio/review/')).toMatchObject({ space: 'studio', item: { label: 'Home' } });
     expect(locate('/components/button/').entry?.label).toBe('Components');
     expect(locate('/studio/settings/')).toMatchObject({ space: 'studio', item: { label: 'Settings' } });
     expect(locate(HOW_REVIEW_WORKS)).toMatchObject({ space: 'library', group: 'Use', item: { label: 'How review works' } });
@@ -71,7 +71,7 @@ describe('navigation shape', () => {
 
 describe('studio nav', () => {
   it('lists Overview, Tokens, Components, Branches, Quality, Settings', () => {
-    expect(navFor('studio').map((e) => e.label)).toEqual(['Overview', 'Tokens', 'Components', 'Branches', 'Quality', 'Settings']);
+    expect(navFor('studio').map((e) => e.label)).toEqual(['Home', 'Branches', 'Tokens', 'Components', 'Quality', 'Settings']);
   });
 
   it('makes Changes one page with the review count, and drops the pages it replaced', () => {

@@ -100,10 +100,10 @@ export function libraryNav(): NavEntry[] {
 
 export function studioNav(): NavEntry[] {
   return [
-    { href: STUDIO_HOME, label: 'Overview', icon: 'gauge', meta: 'What waits for you, suggestions and activity' },
+    { href: STUDIO_HOME, label: 'Home', icon: 'gauge', meta: 'What waits for you, suggestions and activity' },
+    { href: STUDIO_CHANGES_HREF, label: VOCAB.Branches, icon: 'branch', badge: 'reviews', meta: 'Branches in review, explorations and the history of merged token changes, with undo' },
     { href: '/studio/tokens/', label: 'Tokens', icon: 'grid', branchAware: true, meta: 'Edit tokens into a draft, with live preview and guardrails' },
     { href: '/studio/components/', label: 'Components', icon: 'diamonds', branchAware: true, meta: 'Status, tokens, code and Figma links per component' },
-    { href: STUDIO_CHANGES_HREF, label: VOCAB.Branches, icon: 'branch', badge: 'reviews', meta: 'Branches in review, explorations and the history of merged token changes, with undo' },
     { href: STUDIO_QUALITY_HREF, label: 'Quality', icon: 'shield', branchAware: true, meta: 'Contrast gate, token validation, docs completeness and adoption, most severe first' },
     { href: SETTINGS_HOME, label: 'Settings', icon: 'sliders', meta: 'GitHub connection, the repository this workspace reads, and who approves what' },
   ];
