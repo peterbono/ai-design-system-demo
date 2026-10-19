@@ -180,7 +180,7 @@ export interface NeedRow {
 
 /** The verb on a Needs you row's button. */
 export function rowAction(kind: NeedKind): string {
-  return { review: 'Review', health: 'Fix', own: 'Open', guidance: 'Check guidance', setup: 'Set up' }[kind];
+  return { review: 'Review', health: 'Fix', own: 'Open', guidance: 'Review', setup: 'Set up' }[kind];
 }
 
 const RANK: Record<NeedKind, number> = { review: 0, health: 1, own: 2, guidance: 3, setup: 4 };

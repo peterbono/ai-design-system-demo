@@ -233,7 +233,7 @@ describe('page state', () => {
 describe('rowAction', () => {
   it('gives each kind of row a verb', () => {
     expect(rowAction('review')).toBe('Review');
-    expect(rowAction('guidance')).toBe('Check guidance');
+    expect(rowAction('guidance')).toBe('Review');
     expect(rowAction('health')).toBe('Fix');
   });
 });
