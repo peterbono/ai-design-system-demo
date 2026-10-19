@@ -1,0 +1,117 @@
+import { describe, expect, it } from 'vitest';
+import {
+  barCopy,
+  boxDisabled,
+  emptyWhoLine,
+  finishedParam,
+  groupByProduct,
+  mergedLine,
+  mergedThisMonth,
+  onlyLine,
+  productOf,
+  selectable,
+  showsForWho,
+  whoFilterParam,
+} from './branches-page';
+import { jargonIn } from './vocabulary';
+
+describe('whose work', () => {
+  it('opens on All unless the address says otherwise', () => {
+    expect(whoFilterParam('')).toBe('all');
+    expect(whoFilterParam('?who=mine')).toBe('mine');
+    expect(whoFilterParam('?who=waiting')).toBe('waiting');
+    expect(whoFilterParam('?who=nobody')).toBe('all');
+  });
+
+  it('Mine keeps the viewer branches, whatever the case or @', () => {
+    expect(showsForWho('mine', { author: 'Ann', yourTurn: false }, '@ann')).toBe(true);
+    expect(showsForWho('mine', { author: 'dana', yourTurn: true }, 'ann')).toBe(false);
+  });
+
+  it('Waiting on me keeps the rows whose next step is the viewer', () => {
+    expect(showsForWho('waiting', { author: 'dana', yourTurn: true }, 'ann')).toBe(true);
+    expect(showsForWho('waiting', { author: 'dana', yourTurn: false }, 'ann')).toBe(false);
+  });
+
+  it('signed out, only All shows rows', () => {
+    expect(showsForWho('all', { author: 'dana', yourTurn: false }, null)).toBe(true);
+    expect(showsForWho('mine', { author: 'dana', yourTurn: false }, null)).toBe(false);
+    expect(emptyWhoLine('mine', false)).toBe('Sign in to see your branches.');
+    expect(emptyWhoLine('waiting', true)).toBe('No branch waits on you.');
+  });
+});
+
+describe('product groups', () => {
+  it('a branch touching apps/admin belongs to the Admin demo, the rest to the library', () => {
+    expect(productOf(['apps/admin/src/Billing.tsx', 'packages/react/src/Badge.tsx'])).toBe('admin');
+    expect(productOf(['packages/tokens/src/semantic/light.tokens.json'])).toBe('library');
+    expect(productOf(null)).toBe('library');
+    expect(productOf(['apps/administration/x.ts'])).toBe('library');
+  });
+
+  it('groups keep the row order, the product first, and drop empty groups', () => {
+    const rows = [
+      { n: 1, product: 'library' as const },
+      { n: 2, product: 'admin' as const },
+      { n: 3, product: 'library' as const },
+    ];
+    expect(groupByProduct(rows).map((g) => [g.label, g.rows.map((r) => r.n)])).toEqual([
+      ['Admin demo', [2]],
+      ['Library', [1, 3]],
+    ]);
+    expect(groupByProduct(rows.filter((r) => r.product === 'library')).map((g) => g.key)).toEqual(['library']);
+    expect(groupByProduct([])).toEqual([]);
+  });
+});
+
+describe('finished branches', () => {
+  it('old ?status= links still land on their list', () => {
+    expect(finishedParam('')).toEqual({ finished: false, only: null });
+    expect(finishedParam('?status=merged')).toEqual({ finished: true, only: null });
+    expect(finishedParam('?status=shipped')).toEqual({ finished: true, only: null });
+    expect(finishedParam('?status=closed')).toEqual({ finished: true, only: null });
+    expect(finishedParam('?status=draft')).toEqual({ finished: false, only: 'draft' });
+    expect(finishedParam('?status=open')).toEqual({ finished: false, only: null });
+    expect(onlyLine('waiting')).toBe('Showing branches waiting for code only.');
+    expect(onlyLine(null)).toBeNull();
+  });
+
+  it('counts what merged since the first of the month', () => {
+    const now = new Date(2026, 9, 20, 12);
+    const rows = [{ merged_at: new Date(2026, 9, 2).toISOString() }, { merged_at: new Date(2026, 8, 30).toISOString() }, { merged_at: null }, {}];
+    expect(mergedThisMonth(rows, now)).toBe(1);
+  });
+
+  it('says a floor when every recent branch read merged this month', () => {
+    expect(mergedLine(12, 30, 30)).toBe('12 merged this month.');
+    expect(mergedLine(30, 30, 30)).toBe('30+ merged this month.');
+    expect(mergedLine(0, 4, 30)).toBe('Nothing merged this month.');
+  });
+});
+
+describe('selection', () => {
+  it('only token branches get a checkbox', () => {
+    expect(selectable({ tokenOnly: true })).toBe(true);
+    expect(selectable({ tokenOnly: false })).toBe(false);
+    expect(selectable({ tokenOnly: null })).toBe(false);
+  });
+
+  it('after 4, the other boxes disable and the checked ones stay free', () => {
+    expect(boxDisabled([1, 2, 3], 9)).toBe(false);
+    expect(boxDisabled([1, 2, 3, 4], 9)).toBe(true);
+    expect(boxDisabled([1, 2, 3, 4], 2)).toBe(false);
+  });
+
+  it('the bar: nothing, one (try it alone), two to four (preview together)', () => {
+    expect(barCopy(0)).toBeNull();
+    expect(barCopy(1)).toEqual({ title: '1 branch selected', hint: 'Select up to 3 more to preview them together', action: 'alone', label: 'Try it alone' });
+    expect(barCopy(3)).toEqual({ title: '3 branches selected', hint: null, action: 'together', label: 'Preview together' });
+  });
+
+  it('speaks designer words only', () => {
+    for (const n of [1, 2, 4]) {
+      const c = barCopy(n)!;
+      expect(jargonIn(`${c.title} ${c.hint ?? ''} ${c.label}`)).toEqual([]);
+    }
+  });
+});

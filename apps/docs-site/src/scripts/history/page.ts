@@ -21,6 +21,8 @@ const AUTHOR = 'hs-author';
 const TIER = 'hs-tier';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
+/** The Token filter field. The DS Input's Field gives the input its own id, so the page marks it with an attribute. */
+const tokenField = () => document.querySelector<HTMLInputElement>('[data-hs-token]')!;
 let L: Loaded | null = null;
 const BASE = '/studio/changes/?view=history';
 
@@ -36,7 +38,7 @@ function current(): { report: HistoryReport | null; demo: boolean } {
 }
 
 function filter(): HistoryFilter {
-  const token = $<HTMLInputElement>('hs-token').value.trim();
+  const token = tokenField().value.trim();
   const author = selectValue(AUTHOR);
   const tier = Number(selectValue(TIER));
   return { ...(token ? { token } : {}), ...(author ? { author } : {}), ...(tier ? { tier: tier as 1 | 2 | 3 } : {}) };
@@ -245,7 +247,7 @@ export function initHistory() {
     const on = toggle.getAttribute('aria-expanded') !== 'true';
     toggle.setAttribute('aria-expanded', String(on));
     $('hs-filters').hidden = !on;
-    if (on) $<HTMLInputElement>('hs-token').focus();
+    if (on) tokenField().focus();
   });
   document.getElementById('hs-demo')?.addEventListener('click', () => setDemo(!demoOn()));
   document.addEventListener(DEMO_EVENT, () => {
@@ -268,7 +270,7 @@ export function initHistory() {
   });
   // Deep link from a token drawer: ?view=history&token=color.text.muted opens the filters, prefilled.
   const token = new URLSearchParams(location.search).get('token');
-  const tokenInput = document.getElementById('hs-token') as HTMLInputElement | null;
+  const tokenInput = document.querySelector<HTMLInputElement>('[data-hs-token]');
   if (token && tokenInput) {
     tokenInput.value = token;
     toggle.setAttribute('aria-expanded', 'true');

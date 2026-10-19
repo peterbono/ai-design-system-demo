@@ -21,6 +21,7 @@ import {
   overrideRefusedComment,
   parseOverrideComment,
   pullState,
+  REVIEW_STATUS,
   summarizeApprovals,
   summarizeCi,
   type MergeMethod,
@@ -41,6 +42,7 @@ import {
   tierParam,
   whoActs,
   writeSnapshot,
+  statusTone,
   type ApprovalRow,
   type CachedPull,
   type People,
@@ -54,15 +56,14 @@ import { currentViewer, esc, ghGet, ghWrite, GitHubError, hasWorkingToken, initG
 import { ghAction, ghVerb } from '../lib/gh-wording';
 import { analyzeTokenFiles, isTokenFile, type TokenReview } from './reviews/token-review';
 import { loadVisualImpact, renderTopChange } from './reviews/visual-impact';
-import { ciFor, loadStatuses, rowWho, teamPeople, whoChip, type PullStatus } from './pr-status';
+import { ciFor, loadStatuses, rowWho, teamPeople, type PullStatus } from './pr-status';
 import { mdTitleText } from '../lib/markdown';
 import { humanTitle } from '../lib/pr-title';
-import { branchCount, jiraKeyOf, VOCAB } from '../lib/vocabulary';
+import { jiraKeyOf, VOCAB, withoutJiraKey } from '../lib/vocabulary';
 import { touchesVisuals } from '../lib/visual-impact';
 import { isDocsFile } from '../lib/pr-docs';
 import { loadDocsSection, renderDocsSection } from './reviews/docs-section';
-import { workNature, type FileSignals, type WorkNature } from '../lib/work-nature';
-import { devTag, markWork, natureAttr } from './work-filter';
+import { agentMade, workNature, type FileSignals, type WorkNature } from '../lib/work-nature';
 import {
   approvalHelp,
   checkStory,
@@ -79,10 +80,11 @@ import { productPreview, topScreen, tryInProductUrl } from '../lib/try-in-produc
 import { canShare, shareState, showShare, type ShareState } from '../lib/share-change';
 import { addedNotice, canAddTo, dismissedApprovals, dismissedSentence, editInChangeHref, isTokenChange } from '../lib/continue-change';
 import { backToDraft, detailStatus, mountStatus, statusFallback, unmountStatus, type DetailStatus } from './change-status';
-import { currentStatus, initStatusFilter, lifecycleChip, lifecycleOfRow } from './status-filter';
-import { byLifecycle, emptyFilterLine, needsClosed, showsUnderStatus, statusOpener } from '../lib/change-status';
-import { ROWS_EVENT, type RowsDetail } from '../lib/combine-changes';
-import { behindTag, conflictLine, conflictRows, freshness, libraryLine, nextSteps, resolveLabel, type CompareLike, type Freshness } from '../lib/library-sync';
+import { lifecycleOfRow } from './status-filter';
+import { byLifecycle, LIFECYCLE, lifecycleTone, type Lifecycle } from '../lib/change-status';
+import { isRunningExploration } from '../lib/explorations-view';
+import type { BranchesListProps, ListRow } from '../components/ds/studio/BranchesList';
+import { conflictLine, conflictRows, freshness, libraryLine, nextSteps, resolveLabel, type CompareLike, type Freshness } from '../lib/library-sync';
 import { bringInLatest, checkGuardrail, commitResolution, readCompare, readConflicts, readDismissStale, waitForNewHead } from './reviews/library-sync';
 
 interface User {
@@ -196,8 +198,6 @@ function showNotice(tone: 'warn' | 'fail' | 'info', text: string) {
   n.textContent = text;
 }
 
-/** What approval the change needs, in plain words and no color ("Design + tech"). Empty while the files are read. */
-const needTag = (t: Tier | null) => `<span class="cg-need">${esc(approvalNeedLabel(t))}</span>`;
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 /** People around a pull request, for the who-acts line (lib/changes whoActs). */
@@ -205,10 +205,9 @@ function people(author: string, extra: Partial<People> = {}): People {
   return { owners: OWNERS(), ...teamPeople(), author, viewer: currentViewer()?.login ?? null, overrideBy: OVERRIDE.allowed, shippers: SHIP()?.logins, ...extra };
 }
 
-/** One chip per row: the status color and who acts now (pr-status whoChip, shared with the Overview). */
+/** The facts of a row the who-acts rules read (pr-status rowWho, shared with the Home). */
 const facts = (r: Row) => ({ author: r.user.login, approvers: r.approvers, changesRequested: r.changesRequested, failing: r.failing, failingChecks: r.failingChecks, pending: r.pending, skipped: r.skipped });
-const chip = (r: Row) => whoChip(r.kind, facts(r));
-/** Who acts now on a row, for the opener: the viewer's turn first, never a change only a developer can move (lib/changes openerFor). */
+/** Who acts now on a row: the viewer's turn feeds Waiting on me. */
 function turnOf(r: Row) {
   const who = rowWho(r.kind, facts(r));
   return { yourTurn: who?.yourTurn ?? false, developer: who?.who === 'developer' };
@@ -219,10 +218,11 @@ function avatar(u: User | null, size = 24) {
   return `<img class="rv-avatar" src="${esc(u.avatar_url)}&s=${size * 2}" alt="" width="${size}" height="${size}" loading="lazy" />`;
 }
 
-const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
 // ---------------------------------------------------------------------------------------------------------------
-// In review
+// The Branches list (components/ds/studio/BranchesList): every open branch, the running explorations with them, and
+// the recently closed ones behind one line. This file reads GitHub and hands the rows over; the list groups, filters
+// and selects.
 
 interface Row {
   number: number;
@@ -232,14 +232,21 @@ interface Row {
   kind: ReviewStatusKind | null;
   skipped: boolean;
   head: { ref: string; sha: string };
+  base?: { ref: string; sha: string };
   user: { login: string };
+  body?: string | null;
   draft?: boolean;
-  /** Pull request state and merge time: Shipped and Closed rows (status filter). */
+  /** Pull request state and merge time: Merged and Closed rows. */
   state?: string;
   merged_at?: string | null;
   labels?: { name: string }[];
+  /** A running exploration: tried, never reviewed as is (status pill "Exploration"). */
+  exploration?: boolean;
   /** Design or developer work (lib/work-nature): title and labels first, then the changed files once read. */
   nature: WorkNature;
+  /** What the changed files say, once the status read them. */
+  signals?: FileSignals | null;
+  guidance?: boolean;
   /** From the status read: who approved, who asked for changes, how many checks fail. */
   approvers?: string[];
   changesRequested?: string[];
@@ -253,95 +260,87 @@ interface Row {
   behindBy?: number | null;
 }
 
-/** `pick`: the row starts with the slot of its "try together" checkbox and ends with the slot of its note. */
-function rowHtml(r: Row, pick = false) {
-  const title = humanTitle(mdTitleText(r.title));
-  const key = jiraKeyOf(r.title);
-  return `<li class="cg-row${pick ? ' cg-row-pick' : ''}" data-pr="${r.number}" ${natureAttr(r.nature)}>${pick ? `<span class="cg-pick" data-together-slot="${r.number}"></span>` : ''}<a class="cg-row-link" href="?pr=${r.number}" data-open-pr="${r.number}">
-    <span class="cg-row-title">${key ? `<span class="mono cg-jira">${esc(key)}</span> ` : ''}<span class="cg-row-name" title="${esc(title)}">${esc(title)}</span> <span class="cg-num">#${r.number}</span> ${devTag(r.nature)}${behindHtml(r.behindBy)}</span>
-    ${needTag(r.tier)}
-    ${lifecycleChip(r) ?? chip(r)}
-    <time class="cg-date" datetime="${esc(r.updated_at)}">${esc(shortDate(r.updated_at))}</time></a>${pick ? `<p class="cg-pick-note" data-together-note="${r.number}"></p>` : ''}</li>`;
-}
+/** How many recently closed branches are read for "N merged this month" (one request). */
+const CLOSED_LIMIT = 30;
 
-/** Try several changes together: the selection mounts once, at the end of the list's card (CombineChanges). */
-let togetherMounted = false;
-function mountTogether() {
-  const el = document.getElementById('cg-together');
-  if (togetherMounted || !el) return;
-  togetherMounted = true;
-  void Promise.all([import('../components/ds/studio/CombineChanges'), import('./view-change')]).then(([{ mountCombineChanges }, { readFailure }]) => {
-    mountCombineChanges(el, { admin: el.dataset.admin || null, failure: (err) => readFailure(err, 'A checked branch') });
-    // The first paint happened before the module was in: announce the rows again.
-    paintRows(openRows, false);
-  });
-}
-
-/** The open rows last painted, and the recently closed ones once the Shipped or Closed filter asked for them. */
+/** The open rows last painted, the open explorations, and the recently closed ones once read. */
 let openRows: Row[] = [];
+let exploreRows: Row[] = [];
 let closedRows: Row[] | null = null;
-/** "Library moved on: 12 updates" after the title: plain words, no color (the status chip holds the color). */
-function behindHtml(n: number | null | undefined) {
-  const tag = behindTag(n);
-  return tag ? ` <span class="cg-behind">${esc(tag)}</span>` : '';
+let listLoading = true;
+
+/** The status pill of a row: its lifecycle in words, else who acts now (pr-status rowWho), the same tone rules. */
+function pillOf(r: Row, lifecycle: Lifecycle | 'exploration'): ListRow['pill'] {
+  if (lifecycle === 'exploration') return { label: 'Exploration', tone: 'neutral' };
+  if (lifecycle !== 'ready') return { label: LIFECYCLE[lifecycle].short, tone: lifecycleTone(lifecycle) };
+  if (r.skipped) return { label: 'Status unknown', tone: 'neutral' };
+  if (!r.kind) return { label: 'Checking', tone: 'neutral' };
+  const who = rowWho(r.kind, facts(r));
+  return { label: who?.short ?? REVIEW_STATUS[r.kind].label, tone: statusTone(r.kind) };
 }
+
+function listRow(r: Row): ListRow {
+  const lifecycle: Lifecycle | 'exploration' = r.exploration ? 'exploration' : lifecycleOfRow(r);
+  return {
+    number: r.number,
+    title: humanTitle(mdTitleText(withoutJiraKey(r.title))),
+    jira: jiraKeyOf(r.title),
+    author: r.user.login,
+    agent: agentMade({ body: r.body ?? null, labels: r.labels ?? null }),
+    opens: r.exploration ? 'exploration' : 'pr',
+    pill: pillOf(r, lifecycle),
+    lifecycle,
+    yourTurn: !r.exploration && lifecycle !== 'shipped' && lifecycle !== 'closed' && turnOf(r).yourTurn,
+    behindBy: r.behindBy ?? null,
+    signals: r.signals ?? null,
+    guidance: Boolean(r.guidance),
+    head: r.head,
+    base: r.base ?? null,
+    merged_at: r.merged_at ?? null,
+  };
+}
+
+let listMount: HTMLElement | null = null;
 
 function paintRows(rows: Row[], loading: boolean) {
   openRows = rows;
-  const list = $('rv-list');
+  listLoading = loading;
+  const el = (listMount ??= document.getElementById('cg-list'));
+  if (!el) return;
   const tier = tierParam(location.search);
-  const status = currentStatus();
-  const pool = needsClosed(status) ? (closedRows ?? []) : rows;
-  // Most urgent first, then waiting for code, then drafts (lib/change-status byLifecycle); then the status filter.
-  const sorted = byLifecycle(filterByTier(byUrgency(pool), tier).map((r) => ({ r, lifecycle: lifecycleOfRow(r) })))
-    .filter((x) => showsUnderStatus(status, x.lifecycle))
-    .map((x) => x.r);
-  const none = status !== 'open' ? emptyFilterLine(status) : `Nothing waits here: ${approvalNeedLong(tier).toLowerCase()}.`;
-  // Open changes can be tried together (2 or more listed): each row gets its checkbox slot.
-  const pick = status === 'open' && sorted.length >= 2;
-  list.innerHTML = sorted.length ? sorted.map((r) => rowHtml(r, pick)).join('') : `<li class="cg-row cg-none">${esc(needsClosed(status) && !closedRows ? 'Reading recent branches from GitHub.' : none)}</li>`;
-  const detail: RowsDetail = { show: pick, listed: pick ? sorted.map((r) => ({ number: r.number, title: r.title, sha: r.head.sha })) : [] };
-  document.dispatchEvent(new CustomEvent(ROWS_EVENT, { detail }));
-  if (pick) mountTogether();
-  // Another status than Open always shows its list, even when nothing is open; the opener speaks about open changes.
-  if (status !== 'open') {
-    $('cg-table').hidden = false;
-    $('cg-empty').hidden = true;
-    $('cg-opener').hidden = true;
-  } else if (rows.length) $('cg-opener').hidden = false;
-  markWork(list);
-  const filter = document.getElementById('cg-tier-filter');
-  if (filter) {
-    filter.hidden = !tier;
-    const label = filter.querySelector('[data-tier-label]');
-    if (label) label.textContent = approvalNeedLong(tier).toLowerCase();
-  }
-  const count = $('rv-count');
-  count.textContent = String(rows.length);
-  count.hidden = rows.length === 0;
-  const opener = statusOpener(rows.map((r) => ({ ...r, ...turnOf(r), lifecycle: lifecycleOfRow(r) })));
-  const sentence = $('cg-open-sentence');
-  const cta = document.getElementById('cg-open-cta') as HTMLAnchorElement | null;
-  sentence.textContent = loading ? `${branchCount(rows.length)} in review. Checking their tests and approvals.` : opener.sentence;
-  if (cta && opener.action) {
-    cta.href = `?pr=${opener.action.pr}`;
-    cta.dataset.openPr = String(opener.action.pr);
-    cta.textContent = opener.action.label;
-    cta.hidden = false;
-  } else if (cta && !loading) cta.hidden = true;
+  // Most urgent first, then waiting for code, then drafts (lib/change-status byLifecycle); explorations last.
+  const sorted = byLifecycle(filterByTier(byUrgency(rows), tier).map((r) => ({ r, lifecycle: lifecycleOfRow(r) }))).map((x) => x.r);
+  const closed = closedRows ? filterByTier(closedRows, tier) : null;
+  const props: BranchesListProps = {
+    rows: [...sorted, ...(tier ? [] : exploreRows)].map(listRow),
+    closed: closed ? closed.map(listRow) : null,
+    closedLimit: CLOSED_LIMIT,
+    loading,
+    viewer: currentViewer()?.login ?? null,
+    connected: hasWorkingToken(),
+    admin: el.dataset.admin || null,
+    tokensRoot: el.dataset.tokensRoot || 'packages/tokens/src',
+    tierLabel: tier ? approvalNeedLong(tier).toLowerCase() : null,
+    failure: (err) =>
+      err instanceof RateLimitError ? `GitHub limits anonymous reads to 60 an hour. ${ghVerb(prefersSignIn())} to preview ${VOCAB.branches} together.` : `Could not read a checked ${VOCAB.branch}: ${(err as Error).message}`,
+    readClosed: () => void loadClosed(),
+  };
+  void import('../components/ds/studio/BranchesList').then(({ paintBranchesList }) => paintBranchesList(el, props));
 }
 
 function showEmpty(empty: boolean) {
-  $('cg-opener').hidden = empty;
-  $('cg-table').hidden = empty;
+  $('cg-list').hidden = empty;
   $('cg-empty').hidden = !empty;
 }
 
-function paintAsOf(at: string | null) {
+/** The muted line under the filters when GitHub cannot be read live. */
+function paintAsOf(text: string | null) {
   const el = $('cg-asof');
-  el.hidden = !at;
-  if (at) el.textContent = `Showing the list ${asOf(at)}: GitHub cannot be read right now. ${ghAction('see live status', prefersSignIn())}.`;
+  el.hidden = !text;
+  if (text) el.textContent = text;
 }
+
+const asOfLine = (at: string) => `Showing the list ${asOf(at)}: GitHub cannot be read right now. ${ghAction('see live status', prefersSignIn())}.`;
 
 const natureOf = (title: string, labels: { name: string }[] | undefined, files: FileSignals | null = null) => workNature({ title: humanTitle(mdTitleText(title)), labels: labels ?? null, files }).nature;
 
@@ -354,67 +353,64 @@ const toRow = (p: Pull | CachedPull, kind: ReviewStatusKind | null): Row => ({
   kind,
   skipped: false,
   head: { ref: p.head.ref, sha: p.head.sha },
+  ...('base' in p && p.base ? { base: { ref: p.base.ref, sha: p.base.sha } } : {}),
   user: { login: p.user.login },
   draft: p.draft,
+  ...('body' in p ? { body: p.body } : {}),
   ...('state' in p ? { state: p.state, merged_at: p.merged_at } : {}),
   ...('labels' in p ? { labels: p.labels } : {}),
   nature: natureOf(p.title, 'labels' in p ? p.labels : undefined),
 });
 
-/**
- * Loads and paints the In review list. Returns every open pull request (running explorations and the release pull
- * request included, which the list leaves out: Explorations and History read them from here).
- */
-/** Shipped and Closed: the 30 most recently closed changes, read once. */
-async function loadClosed() {
-  if (closedRows) return;
-  try {
-    const f = await ghGet<Pull[]>(`${R}/pulls?state=closed&sort=updated&direction=desc&per_page=30`);
-    // Release automation and explorations have their own places (History, Explorations).
-    closedRows = f.data.filter((p) => !isAutomationPull(p) && !p.labels.some((l) => l.name === 'exploration')).map((p) => toRow(p, pullState(p) === 'merged' ? 'merged' : 'closed'));
-  } catch (err) {
-    closedRows = [];
-    showNotice('warn', err instanceof RateLimitError ? `GitHub limits anonymous reads to 60 an hour. ${ghVerb(prefersSignIn())} to see merged and closed branches.` : `Could not read recent branches: ${(err as Error).message}`);
-  }
-  paintRows(openRows, false);
+/** The most recently closed branches, read once: the "N merged this month" line and Show merged. */
+let closedRead: Promise<void> | null = null;
+function loadClosed(): Promise<void> {
+  closedRead ??= (async () => {
+    try {
+      const f = await ghGet<Pull[]>(`${R}/pulls?state=closed&sort=updated&direction=desc&per_page=${CLOSED_LIMIT}`);
+      // Release automation stays out (History holds releases).
+      closedRows = f.data.filter((p) => !isAutomationPull(p)).map((p) => toRow(p, pullState(p) === 'merged' ? 'merged' : 'closed'));
+    } catch (err) {
+      closedRows = [];
+      showNotice('warn', err instanceof RateLimitError ? `GitHub limits anonymous reads to 60 an hour. ${ghVerb(prefersSignIn())} to see merged and closed ${VOCAB.branches}.` : `Could not read recent ${VOCAB.branches}: ${(err as Error).message}`);
+    }
+    paintRows(openRows, listLoading);
+  })();
+  return closedRead;
 }
 
-let statusFilterOn = false;
-
+/**
+ * Loads and paints the Branches list. Returns every open pull request (running explorations and the release pull
+ * request included: Explorations and History read them from here).
+ */
 export async function loadList(): Promise<{ number: number; head: { ref: string } }[]> {
-  if (!statusFilterOn) {
-    statusFilterOn = true;
-    initStatusFilter(() => {
-      paintRows(openRows, false);
-      if (needsClosed(currentStatus())) void loadClosed();
-    });
-    if (needsClosed(currentStatus())) void loadClosed();
-  }
-  const list = $('rv-list');
-  list.setAttribute('aria-busy', 'true');
   const snapshot = readSnapshot(storage(), REPO_KEY);
   const known = new Map<number, ReviewStatusKind | null>((snapshot?.pulls ?? []).map((p) => [p.number, p.kind]));
   let live: { pulls: Pull[]; staleAt?: string | null } | null = null;
   let failure: unknown = null;
   let allOpen: Pull[] = [];
+  paintRows([], true);
   try {
     const f = await ghGet<Pull[]>(`${R}/pulls?state=open&per_page=100`);
     allOpen = openPulls(f.data);
-    // The review queue: running explorations live in Explorations, the release pull request in History.
+    // The review queue, and the running explorations listed with it under their own status.
     live = { pulls: reviewQueue(allOpen), staleAt: f.stale ? (f.cachedAt ?? new Date(0).toISOString()) : null };
+    exploreRows = allOpen.filter((p) => isRunningExploration({ state: p.state, labels: p.labels as never })).map((p) => ({ ...toRow(p, null), exploration: true }));
   } catch (err) {
     failure = err;
   }
+  // The closed list is one read, after the open one; the line it feeds sits at the end of the list.
+  void loadClosed();
   const src = listSource(live, snapshot);
-  list.removeAttribute('aria-busy');
 
   if (src.kind === 'unavailable') {
     showEmpty(false);
-    $('cg-table').hidden = true;
-    $('cg-open-sentence').textContent =
+    paintRows([], false);
+    paintAsOf(
       failure instanceof RateLimitError
         ? `GitHub limits anonymous reads to 60 an hour and this browser has used them, with no saved list yet. ${ghVerb(prefersSignIn())}, or try again later.`
-        : `Could not load branches: ${(failure as Error | null)?.message ?? 'GitHub did not answer'}.`;
+        : `Could not load ${VOCAB.branches}: ${(failure as Error | null)?.message ?? 'GitHub did not answer'}.`,
+    );
     return [];
   }
 
@@ -423,15 +419,15 @@ export async function loadList(): Promise<{ number: number; head: { ref: string 
     const rows = src.pulls.filter((p) => !isAutomationPull(p)).map((p) => ({ ...toRow(p, p.kind), skipped: !p.kind }));
     showEmpty(rows.length === 0);
     paintRows(rows, false);
-    paintAsOf(src.at);
+    paintAsOf(asOfLine(src.at));
     return src.pulls;
   }
 
   const pulls = src.pulls;
-  paintAsOf(src.kind === 'stale' ? src.at : null);
-  showEmpty(pulls.length === 0);
+  paintAsOf(src.kind === 'stale' ? asOfLine(src.at) : null);
+  showEmpty(pulls.length === 0 && exploreRows.length === 0);
   if (!pulls.length) {
-    $('rv-count').hidden = true;
+    paintRows([], false);
     writeSnapshot(storage(), REPO_KEY, [], new Date());
     return allOpen;
   }
@@ -447,7 +443,11 @@ export async function loadList(): Promise<{ number: number; head: { ref: string 
     r.skipped = skipped && !r.kind;
     if (st && st.kind !== 'unknown') Object.assign(r, { approvers: st.approvers, changesRequested: st.changesRequested, failing: st.failing, design: st.design, failingChecks: st.failingChecks, pending: st.pending });
     if (st?.tier) r.tier = st.tier;
-    if (st?.files) r.nature = natureOf(r.title, r.labels, st.files);
+    if (st?.files) {
+      r.nature = natureOf(r.title, r.labels, st.files);
+      r.signals = st.files;
+    }
+    if (st?.guidanceOnly) r.guidance = true;
     paintRows([...rows.values()], false);
   });
   paintRows([...rows.values()], false);

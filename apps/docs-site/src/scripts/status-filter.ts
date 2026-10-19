@@ -1,13 +1,7 @@
-// Changes > All changes: the status filter (All open, Draft, Ready for review, Approved waiting for code, Shipped,
-// Closed) and the row chip of each lifecycle state (lib/change-status), in one DS Select (StatusFilterSelect). The filter lives
-// in the address as ?status=. Shipped and Closed read the recently closed pull requests once, only when picked.
-import { badgeHtml, tooltipAttributes } from '@bridge-ds/react/dom';
-import { LIFECYCLE, lifecycleTone, rowLifecycle, STATUS_FILTER_EVENT, STATUS_SYNC_EVENT, statusFilterParam, waitingSentence, type Lifecycle, type StatusFilter } from '../lib/change-status';
-import { namesFor } from '../lib/changes';
+// The lifecycle of a list row (lib/change-status), for the status pill on Branches (scripts/reviews.ts).
+import { rowLifecycle, type Lifecycle } from '../lib/change-status';
 import type { ReviewStatusKind, Tier } from '../lib/review-rules';
 import type { WorkNature } from '../lib/work-nature';
-import { teamPeople } from './pr-status';
-import { siteApprovers } from './teams';
 
 /** What a list row knows to place itself in the lifecycle. */
 export interface LifecycleRow {
@@ -25,50 +19,3 @@ export interface LifecycleRow {
 }
 
 export const lifecycleOfRow = (r: LifecycleRow): Lifecycle => rowLifecycle({ state: r.state ?? 'open', draft: r.draft, merged_at: r.merged_at }, r);
-
-/**
- * The row chip of a state the review flow does not explain: Draft, Waiting for code, Shipped, Closed (the same DS Badge
- * as the other rows, the same words as the status line). Null for Ready for review: the who-acts chip says more.
- */
-export function lifecycleChip(r: LifecycleRow): string | null {
-  const l = lifecycleOfRow(r);
-  if (l === 'ready') return null;
-  let tip = '';
-  if (l === 'waiting') {
-    const tech = siteApprovers().tech.map((x) => x.replace(/^@/, ''));
-    tip = waitingSentence({ failing: r.failing ?? r.failingChecks?.length ?? 0, techOwners: tech.length ? namesFor('tech', tech, teamPeople()) : null });
-  }
-  return badgeHtml(LIFECYCLE[l].label, {
-    tone: lifecycleTone(l),
-    size: 'sm',
-    className: 'rv-status',
-    attributes: { 'data-lifecycle': l, ...(tip ? tooltipAttributes(tip, { focusable: true }) : {}) },
-  });
-}
-
-const root = () => document.querySelector<HTMLElement>('.cg');
-
-export const currentStatus = (): StatusFilter => (root()?.dataset.status as StatusFilter | undefined) ?? 'open';
-
-function apply(f: StatusFilter) {
-  const r = root();
-  if (!r) return;
-  if (f === 'open') delete r.dataset.status;
-  else r.dataset.status = f;
-  document.dispatchEvent(new CustomEvent(STATUS_SYNC_EVENT, { detail: f }));
-}
-
-/** Reads ?status= and follows the control. `repaint` paints the list again under the new filter. */
-export function initStatusFilter(repaint: () => void) {
-  apply(statusFilterParam(location.search));
-  const pick = (value: string) => {
-    const f = statusFilterParam(`?status=${value}`);
-    apply(f);
-    const url = new URL(location.href);
-    if (f === 'open') url.searchParams.delete('status');
-    else url.searchParams.set('status', f);
-    history.replaceState(history.state, '', url);
-    repaint();
-  };
-  document.addEventListener(STATUS_FILTER_EVENT, (e) => pick((e as CustomEvent<string>).detail));
-}

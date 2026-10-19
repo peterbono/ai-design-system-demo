@@ -8,15 +8,11 @@ import {
   keepListed,
   namesOf,
   onlyTokens,
-  selectionLine,
-  INTRO_LINE,
-  CHOOSE_LABEL,
   shortTitle,
   togetherGuardrail,
   togetherRows,
   toggleChange,
   tokenFilesOf,
-  tryLabel,
   tryTogetherUrl,
   useLabel,
   VIEW_LABEL,
@@ -75,14 +71,7 @@ describe('selection', () => {
     expect(keepListed([101, 118, 999], [118, 101])).toEqual([101, 118]);
   });
 
-  it('says what to do next, in designer words', () => {
-    expect(selectionLine(0, false)).toBe('Check 2 to 4 token branches to try them together.');
-    expect(selectionLine(1, false)).toBe('Check one more token branch to try them together.');
-    expect(selectionLine(3, false)).toBe('Combining 3 branches.');
-    expect(selectionLine(4, true)).toBe('Up to 4 branches at a time. Uncheck one to add another.');
-    expect(INTRO_LINE).toBe('Try 2 to 4 token branches together before they merge.');
-    expect(CHOOSE_LABEL).toBe('Choose branches');
-    expect(tryLabel(3)).toBe('Try 3 branches together');
+  it('names the library view in designer words (the bar words: branches-page.test.ts)', () => {
     expect(VIEW_LABEL).toBe('View the library with them');
   });
 });
@@ -150,7 +139,7 @@ describe('where it opens', () => {
   });
 
   it('never uses developer words or em dashes on screen', () => {
-    const shown = [CODE_LINE, INTRO_LINE, CHOOSE_LABEL, selectionLine(0, false), selectionLine(4, true), combineSummary({ changes: 2, tokens: 3, conflicts: 1, missing: 1 }), tryLabel(2), VIEW_LABEL].join(' ');
+    const shown = [CODE_LINE, combineSummary({ changes: 2, tokens: 3, conflicts: 1, missing: 1 }), VIEW_LABEL].join(' ');
     expect(jargonIn(shown)).toEqual([]);
     expect(shown).not.toMatch(/\u2014/);
   });

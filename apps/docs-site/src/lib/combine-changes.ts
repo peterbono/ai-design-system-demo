@@ -10,22 +10,12 @@ import { viewTitle } from './view-scope';
 
 export const MIN_TOGETHER = 2;
 
-/** The Changes list announces each paint: the open rows it shows, each with a checkbox slot (data-together-slot). */
-export const ROWS_EVENT = 'bridge:together-rows';
-
-export interface RowsDetail {
-  /** False under another status than Open, or with fewer than 2 rows: nothing to combine. */
-  show: boolean;
-  listed: { number: number; title: string; sha: string }[];
-}
 export const MAX_TOGETHER = 4;
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 /** Said on the row of a change that edits more than tokens. */
 export const CODE_LINE = "This one changes code, so it can't be combined here.";
-/** The way on for a refused change, linked to its page (where "Try it in the product" is). */
-export const ALONE_LABEL = 'Try it on its own';
 
 /**
  * Whether a change only edits tokens: token files under the tokens root, the contrast gate and release notes
@@ -43,7 +33,7 @@ export function tokenFilesOf(files: string[], tokensRoot: string): string[] {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// Selection on the Changes list
+// Selection on Branches (the floating bar: components/ds/studio/CombineChanges)
 
 export type Toggle = { selected: number[]; refused: null } | { selected: number[]; refused: 'full' };
 
@@ -58,24 +48,7 @@ export function toggleChange(selected: number[], n: number, on: boolean): Toggle
 /** Only changes still in the list stay selected (one shipped or closed meanwhile goes). */
 export const keepListed = (selected: number[], listed: number[]) => selected.filter((n) => listed.includes(n));
 
-export const tryLabel = (n: number) => `Try ${n} branches together`;
 export const VIEW_LABEL = 'View the library with them';
-
-/**
- * Before anyone picks: the list shows no checkboxes (progressive disclosure, one action instead of one box per row).
- * The bar says what trying together does and offers one button that turns the checkboxes on.
- */
-export const INTRO_LINE = `Try 2 to ${MAX_TOGETHER} token branches together before they merge.`;
-export const CHOOSE_LABEL = 'Choose branches';
-export const CANCEL_LABEL = 'Cancel';
-
-/** The bar's sentence before the combination is read: what to do next. */
-export function selectionLine(count: number, refused: boolean): string {
-  if (refused) return `Up to ${MAX_TOGETHER} branches at a time. Uncheck one to add another.`;
-  if (count === 0) return `Check 2 to ${MAX_TOGETHER} token branches to try them together.`;
-  if (count === 1) return 'Check one more token branch to try them together.';
-  return `Combining ${count} branches.`;
-}
 
 // ---------------------------------------------------------------------------------------------------------------
 // The combination, in words

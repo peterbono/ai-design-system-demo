@@ -1,6 +1,9 @@
-// Studio Branches page controller: the views (All branches, Explorations, History, and Requests when request triage is
-// on in Studio, lib/studio-flags) as tabs, a branch opened in place (?pr=N), a component change request opened in place
-// (?request=N), the local draft strip, and the routes old pages redirect to (?view=history, #other-branches, ?branch=).
+// Studio Branches page controller: the list (every branch, explorations included), the views the header and old
+// addresses reach (History ?view=history, the exploration start form ?view=explorations&start=new or &for=N, Requests
+// ?view=requests when request triage is on in Studio, lib/studio-flags), a branch opened in place (?pr=N), a component
+// change request opened in place (?request=N), the local draft strip, and the routes old pages redirect to
+// (#other-branches, ?branch=). The header names the view: "Branches" with a History link, or the view's own name with
+// a link back to all branches.
 import { initWorkFilter } from './work-filter';
 import { closePr, initReviewAuth, loadList, openPr } from './reviews';
 import { initHistory } from './history/page';
@@ -18,7 +21,6 @@ import { REQUEST_TRIAGE_IN_STUDIO } from '../lib/studio-flags';
 type View = 'review' | 'requests' | 'explorations' | 'history';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
-const tabs = () => [...document.querySelectorAll<HTMLAnchorElement>('[data-cg-view]')];
 let listLoaded: Promise<{ number: number; head: { ref: string } }[]> | null = null;
 const VIEW_QUERY: Record<View, string> = { review: '', requests: '?view=requests', explorations: '?view=explorations', history: '?view=history' };
 
@@ -32,12 +34,20 @@ const openPullsForExplorations = () => {
   return listLoaded.then((pulls) => (pulls.every((p) => 'body' in p) ? (pulls as unknown as ExplorationPullLike[]) : null));
 };
 
+const VIEW_TITLE: Record<View, string> = { review: 'Branches', requests: 'Requests', explorations: 'Explorations', history: 'History' };
+
 function selectTab(view: View) {
-  for (const t of tabs()) {
-    const on = t.dataset.cgView === view;
-    t.setAttribute('aria-selected', String(on));
-    t.tabIndex = on ? 0 : -1;
-  }
+  const title = document.querySelector<HTMLElement>('#cg-main .st-title');
+  if (title) title.textContent = VIEW_TITLE[view];
+  $('cg-history-link').hidden = view !== 'review';
+  $('cg-back-link').hidden = view === 'review';
+  // One primary per view: History and the start form have their own, so Create branch steps down to secondary there
+  // (components/ds/studio/StartChange START_CHANGE_EVENT; on the list the selection bar decides).
+  // The island reads data-start-variant when it mounts after this, and the event when it is already there.
+  const variant = view !== 'review' || document.querySelector('.cg-bar') ? 'secondary' : 'primary';
+  const slot = document.querySelector<HTMLElement>('[data-greet]');
+  if (slot) slot.dataset.startVariant = variant;
+  document.dispatchEvent(new CustomEvent('bridge:start-change', { detail: { variant, hidden: false } }));
   $('cg-review').hidden = view !== 'review';
   $('cg-requests').hidden = view !== 'requests';
   $('cg-explore').hidden = view !== 'explorations';
@@ -117,8 +127,10 @@ function route() {
     return;
   }
   const v = params.get('view');
-  // Request triage off (teams triage in Jira): ?view=requests opens All branches.
-  const view: View = v === 'history' || v === 'explorations' || (v === 'requests' && REQUEST_TRIAGE_IN_STUDIO) ? v : 'review';
+  // Request triage off (teams triage in Jira): ?view=requests opens All branches. Explorations are rows of the list:
+  // ?view=explorations opens its own view only to start one (Create branch > New component, or from a request).
+  const starting = Boolean(Number(params.get('for'))) || params.get('start') === 'new';
+  const view: View = v === 'history' || (v === 'explorations' && starting) || (v === 'requests' && REQUEST_TRIAGE_IN_STUDIO) ? v : 'review';
   showView(view);
   // Start an exploration from a request: the form, filled from it.
   const forRequest = Number(params.get('for'));
@@ -188,12 +200,6 @@ export function initChanges() {
       void openExploration(Number(ex.dataset.openExploration));
       return;
     }
-    if (t.closest('[data-back-explorations]')) {
-      e.preventDefault();
-      history.pushState({}, '', '?view=explorations');
-      showView('explorations');
-      return;
-    }
     if (t.closest('[data-back-requests]')) {
       e.preventDefault();
       history.pushState({}, '', '?view=requests');
@@ -213,19 +219,6 @@ export function initChanges() {
       history.pushState({}, '', VIEW_QUERY[view] || location.pathname);
       showView(view);
     }
-  });
-
-  // Tabs: arrow keys move between them (they are links, so Enter and middle click keep working).
-  document.querySelector('[role="tablist"]')?.addEventListener('keydown', (e) => {
-    const k = (e as KeyboardEvent).key;
-    if (k !== 'ArrowLeft' && k !== 'ArrowRight') return;
-    const all = tabs();
-    const i = all.indexOf(document.activeElement as HTMLAnchorElement);
-    if (i < 0) return;
-    e.preventDefault();
-    const next = all[(i + (k === 'ArrowRight' ? 1 : -1) + all.length) % all.length]!;
-    next.focus();
-    next.click();
   });
 
   window.addEventListener('popstate', route);
