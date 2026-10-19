@@ -139,8 +139,8 @@ function OnlyReviewerHint({ needs, snoozed }: { needs: NeedRow[]; snoozed: boole
   };
   return (
     <p className="t-ui t-muted sh-hint">
-      {line.text} <Link href="/studio/settings/#roles">Add a reviewer</Link>
-      <span aria-hidden="true"> · </span>
+      <span>{line.text}</span>
+      <Link href="/studio/settings/#roles">Add a reviewer</Link>
       <Button variant="ghost" size="sm" onClick={notNow}>
         Not now
       </Button>
@@ -224,8 +224,8 @@ function Branches({ branches, published, now, components }: { branches: BranchCa
       </ul>
       {latest && (
         <p className="t-ui t-muted sh-published">
-          Published this week: <b className="sh-strong">{latest.title}</b> in <code className="sh-mono">{latest.release}</code>
-. <Link href="/changelog/">See what shipped</Link>
+          Published this week: <b className="sh-strong">{latest.title}</b> in <code className="sh-mono">{latest.release}</code>.{' '}
+          <Link href="/changelog/">See what shipped</Link>
         </p>
       )}
     </section>
@@ -305,7 +305,7 @@ export function StudioHome(p: StudioHomeProps) {
               </h1>
               <p className="t-body">{p.signedOut.line}</p>
               <span className="sh-connect">
-                <Button variant="primary" data-gh-open data-gh-signin={p.signedOut.signIn ? '' : undefined}>
+                <Button variant="primary" className="sh-connect-btn" data-gh-open data-gh-signin={p.signedOut.signIn ? '' : undefined}>
                   {p.signedOut.button}
                 </Button>
               </span>

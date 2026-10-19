@@ -144,7 +144,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-1);
+  gap: var(--space-1) var(--space-3);
 }
 
 /* --- Health ------------------------------------------------------------------------------------------------- */
@@ -231,7 +231,7 @@
 }
 
 .sh-published {
-  margin: 0;
+  margin: var(--space-2) 0 0;
 }
 
 .sh-mono {
@@ -242,7 +242,6 @@
 
 .sh-zone-empty {
   gap: var(--space-6);
-  padding: var(--space-10);
 }
 
 .sh-choices {
@@ -279,10 +278,6 @@
     padding: var(--space-5) var(--space-4);
   }
 
-  .sh-zone-empty {
-    padding: var(--space-6) var(--space-4);
-  }
-
   .sh-hello {
     font-size: var(--typography-h2-size);
     line-height: var(--typography-h2-line-height);
@@ -313,7 +308,8 @@
     display: none;
   }
 
-  .sh-more-btn {
+  .sh-more .sh-more-btn,
+  .sh-connect .sh-connect-btn {
     flex: 1 1 100%;
   }
 
