@@ -43,7 +43,7 @@ export function initReview(d: ExplorerData) {
   let signedIn = false;
   const paintFoot = () => {
     if (propose) {
-      setButtonLabel(propose, signedIn ? sendLabel() : ghAction('send', prefersSignIn()));
+      setButtonLabel(propose, signedIn ? sendLabel() : ghAction('request review', prefersSignIn()));
       propose.toggleAttribute('data-gh-open', !signedIn);
     }
     if (!note) return;
@@ -68,7 +68,7 @@ export function initReview(d: ExplorerData) {
     const n = count();
     bar.hidden = n === 0 || !sheet.hidden;
     const label = bar.querySelector('[data-xe-bar-count]');
-    if (label) label.textContent = `${n} change${n === 1 ? '' : 's'}`;
+    if (label) label.textContent = `${n} edit${n === 1 ? '' : 's'}`;
   };
 
   const swatch = (hex?: string) => (hex ? `<span class="xe-ms" style="background-color:${esc(hex)}" aria-hidden="true"></span>` : '');

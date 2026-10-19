@@ -209,8 +209,8 @@ export function mergeGate(input: {
   const missing: MissingApproval[] = [];
   const approvalReasons: string[] = [];
   const lifecycle = pullState(input);
-  if (lifecycle === 'merged') blocking.push('This pull request is already merged.');
-  else if (lifecycle === 'closed') blocking.push('This pull request is closed.');
+  if (lifecycle === 'merged') blocking.push('This branch is already merged.');
+  else if (lifecycle === 'closed') blocking.push('This branch is closed.');
   if (input.exploration && lifecycle !== 'merged' && lifecycle !== 'closed') blocking.push('It is an exploration: promote it to review first.');
   if (input.draft) blocking.push('It is a draft. Mark it ready for review on GitHub first.');
   if (input.ci.state === 'fail') blocking.push(`Tests fail: ${input.ci.failed.map((f) => f.name).join(', ')}.`);
@@ -245,7 +245,7 @@ export function mergeGate(input: {
 }
 
 /** The gate reason of a conflict, in the words a designer reads. Detected by identity, never by regex. */
-export const CONFLICT_REASON = 'It conflicts with the latest library: resolve it under Latest library on the change.';
+export const CONFLICT_REASON = 'It conflicts with main: resolve it with Update from main on the branch.';
 
 export const OVERRIDE_HEADING = '**Bridge owner override**';
 
@@ -253,7 +253,7 @@ export const OVERRIDE_HEADING = '**Bridge owner override**';
 export function overrideReasonProblem(reason: string, policy: OverridePolicy): string | null {
   if (!policy.requireReason) return null;
   const n = reason.trim().length;
-  if (n === 0) return `Write why this ships without the missing approvals, in at least ${policy.minReasonLength} characters.`;
+  if (n === 0) return `Write why this merges without the missing approvals, in at least ${policy.minReasonLength} characters.`;
   if (n < policy.minReasonLength) return `Write at least ${policy.minReasonLength} characters (${n} so far), so the history says why.`;
   return null;
 }
@@ -340,7 +340,7 @@ export interface ReviewStatus {
  * and closed. Risk tiers never take a color.
  */
 export const REVIEW_STATUS: Record<ReviewStatusKind, { label: string; tone: StatusTone }> = {
-  merged: { label: 'Shipped', tone: 'neutral' },
+  merged: { label: 'Merged', tone: 'neutral' },
   closed: { label: 'Closed', tone: 'neutral' },
   draft: { label: 'Draft', tone: 'neutral' },
   'ci-failing': { label: 'Blocked by tests', tone: 'danger' },
@@ -351,7 +351,7 @@ export const REVIEW_STATUS: Record<ReviewStatusKind, { label: string; tone: Stat
   'needs-approval': { label: 'Needs approval', tone: 'info' },
   conflict: { label: 'Conflict', tone: 'danger' },
   checking: { label: 'Checking', tone: 'neutral' },
-  ready: { label: 'Ready to ship', tone: 'success' },
+  ready: { label: 'Ready to merge', tone: 'success' },
   unknown: { label: 'Status unknown', tone: 'neutral' },
 };
 

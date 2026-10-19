@@ -177,13 +177,13 @@ const matrixRows = (g: (typeof groups)[number]): MatrixRow[] =>
       <h3>The build gate</h3>
       <p>
         The pairs live in <code>{CONTRAST_FILE}</code>. The token build resolves each one in every brand and theme and fails below its minimum, so a token
-        change that breaks a pair never ships. To gate a new combination, add <code>{'["<fg token>", "<bg token>", <min>]'}</code> to that file.
+        change that breaks a pair is never merged into main. To gate a new combination, add <code>{'["<fg token>", "<bg token>", <min>]'}</code> to that file.
       </p>
       <h3>When a pair fails</h3>
       <ul>
         <li>Fix it with a token change, never locally in a screen or a component. A local fix hides the problem and the next team hits it again.</li>
-        <li>Open an issue or a DS Bridge proposal with the pair, the ratio and where it shows up. A token change is Tier 3: design and tech owners both approve it.</li>
-        <li>Until it ships, avoid that pair in new places.</li>
+        <li>Open an issue, or create a branch in Studio and request review, with the pair, the ratio and where it shows up. A token change is Tier 3: design and tech owners both approve it.</li>
+        <li>Until the fix is merged, avoid that pair in new places.</li>
       </ul>
       <p data-maintainer-only>
         <Link href="/studio/quality/" variant="standalone">See every check in Studio Quality</Link>

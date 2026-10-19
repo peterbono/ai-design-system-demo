@@ -6,14 +6,15 @@
 //   3. the trend across runs, only when there are two runs or more;
 //   4. where components come from: one bar with its legend and counts, the per-component lists on demand;
 //   5. hard-coded values: one success line when none is left, else the table by category;
-//   6. "How adoption is measured", then one "For developers" fold (other runs, what was scanned, files, fixes, CLI).
+//   6. "How adoption is measured", then one quiet line: the other runs of the product and the report on GitHub. No
+//      developer fold: files, fixes and the CLI stay on GitHub and the Library Agents page.
 import Layout from '../../../../layouts/Layout.astro';
 import StudioHeader from '../../../../components/StudioHeader.astro';
 import AdoptionMetric from '../../../../components/AdoptionMetric.astro';
 import { siteIcon } from '../../../../brand/site-icons';
-import { CodeBlock, Icon, Link } from '@bridge-ds/react';
-import { HardcodedCategoriesTable, TopFilesTable, TopFixesTable, TrendTable } from '../../../../components/ds/studio/AdoptionTables';
-import { categoryRows, componentBreakdown, formatDelta, formatPct, groupByApp, loadAudits, trendPoints, type AuditEntry } from '../../../../lib/audits';
+import { Icon, Link } from '@bridge-ds/react';
+import { HardcodedCategoriesTable } from '../../../../components/ds/studio/AdoptionTables';
+import { categoryRows, componentBreakdown, formatPct, groupByApp, loadAudits, trendPoints, type AuditEntry } from '../../../../lib/audits';
 import {
   ADOPTION_MEANING,
   APP_SHORT,
@@ -28,6 +29,8 @@ import {
   trendLabels,
 } from '../../../../lib/quality';
 import { PAGE_SOURCES, freshness } from '../../../../lib/sources';
+import { sourceUrl } from '../../../../lib/repo';
+import { VOCAB } from '../../../../lib/vocabulary';
 import '../../../../styles/adoption.css';
 import '../../../../styles/quality.css';
 
@@ -268,49 +271,22 @@ const exactTotal = cats.reduce((a, c) => a + c.exact, 0);
       </li>
     </ul>
 
-    <details class="ql-local ad-dev" id="for-developers">
-      <summary>For developers</summary>
-      <div class="ad-dev-body">
-        {
-          siblings.length > 0 && (
-            <p class="ql-muted">
-              Compare with other runs of {appLabel}:{' '}
-              {siblings.map((e, i) => (
-                <>
-                  {i > 0 && ', '}
-                  <Link href={auditHref(e.id)}>{e.report.label ?? e.id}</Link> ({shortDate(e.report.generatedAt)})
-                </>
-              ))}
-              .
-            </p>
-          )
-        }
-        {
-          trend.length > 1 && (
-            <TrendTable rows={trend.map((p) => ({ label: p.label, date: p.generatedAt.slice(0, 10), tokenAdoption: formatPct(p.tokenAdoption), componentAdoption: formatPct(p.componentAdoption), hardcoded: p.hardcoded }))} />
-          )
-        }
-        <h3 class="ql-h">What was scanned</h3>
-        <p class="ql-muted">
-          Run label <code>{r.label ?? current.id}</code>: <code>{r.target.path}</code>, {r.target.files} files, run on {r.generatedAt.slice(0, 10)} with bridge {r.tool.version}.
-          Design system: {r.designSystem.packages.map((p, i) => <>{i > 0 && ', '}<code>{p}</code></>)}, {r.designSystem.tokens} tokens, {r.designSystem.components} components.
-          {r.metrics.themeRefs > 0 && ` ${r.metrics.themeRefs} references to another theme (MUI theme, Tailwind scale) are counted apart.`} Report: <code>{`src/data/audits/${current.file}`}</code>.
-        </p>
-        {
-          r.baseline && (
-            <p class="ql-muted">
-              Since <code>{r.baseline.label ?? r.baseline.generatedAt.slice(0, 10)}</code>: hard-coded values {r.baseline.hardcoded.before} to {r.baseline.hardcoded.after} ({formatDelta(r.baseline.hardcoded.delta)}),{' '}
-              {r.baseline.improved.length} files improved, {r.baseline.regressed.length} regressed, {r.baseline.newFiles.length} new.
-            </p>
-          )
-        }
-        <h3 class="ql-h">Top offending files</h3>
-        {r.topFiles.length === 0 ? <p class="ql-muted">Nothing to fix.</p> : <TopFilesTable rows={r.topFiles.slice(0, 12)} />}
-        <h3 class="ql-h">Top fixes</h3>
-        <p class="ql-muted">The most repeated literals and the token that replaces them. Exact matches in CSS files can be fixed with <code>bridge audit --fix</code>.</p>
-        {r.topFixes.length === 0 ? <p class="ql-muted">No repeated literal.</p> : <TopFixesTable rows={r.topFixes.slice(0, 15)} />}
-        <CodeBlock className="ql-cmd" label="Make the next report" code="bridge audit <path> --baseline previous.json --json next.json   # then commit it under src/data/audits/" />
-      </div>
-    </details>
+    <p class="ql-muted ad-runs">
+      {
+        siblings.length > 0 && (
+          <span>
+            Other runs of {appLabel}:{' '}
+            {siblings.map((e, i) => (
+              <>
+                {i > 0 && ', '}
+                <Link href={auditHref(e.id)}>{e.report.label ?? e.id}</Link> ({shortDate(e.report.generatedAt)})
+              </>
+            ))}
+            .
+          </span>
+        )
+      }
+      <Link href={sourceUrl(`apps/docs-site/src/data/audits/${current.file}`)} external>{VOCAB.openOnGitHub}</Link>
+    </p>
   </div>
 </Layout>

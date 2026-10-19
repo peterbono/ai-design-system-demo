@@ -60,7 +60,7 @@ const signIn = Boolean(signInConfig());
       </dl>
       <p class="menu-help" data-gh-perm-help hidden>This token can read but not write. Reviews and token proposals need Contents and Pull requests write access.</p>
       <div class="menu-actions">
-        {!signIn && <Button variant="ghost" size="sm" iconStart={Pencil} className="st-hideable" data-gh-open data-gh-token-only>Change token</Button>}
+        {!signIn && <Button variant="ghost" size="sm" iconStart={Pencil} className="st-hideable" data-gh-open data-gh-token-only>Reconnect GitHub</Button>}
         <ButtonLink variant="ghost" size="sm" iconStart={Settings} href="/studio/settings/#connection" data-keep-branch>Settings</ButtonLink>
         <Button variant="ghost" size="sm" iconStart={LogOut} data-gh-forget><span data-gh-forget-label>Disconnect</span></Button>
       </div>

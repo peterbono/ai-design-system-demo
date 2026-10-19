@@ -59,7 +59,7 @@ export async function loadDocsSection(slot: HTMLElement, paths: string[], ctx: C
           pill.textContent = PR_DOC_PILL.reviewed.label;
         }
         b.remove();
-        status.textContent = sha ? `${b.dataset.docsName} accepted in ${sha.slice(0, 7)}.` : `${b.dataset.docsName} was already accepted.`;
+        status.textContent = sha ? `${b.dataset.docsName} accepted.` : `${b.dataset.docsName} was already accepted.`;
       } catch (err) {
         b.disabled = false;
         status.textContent = `Not accepted: ${(err as Error).message}`;

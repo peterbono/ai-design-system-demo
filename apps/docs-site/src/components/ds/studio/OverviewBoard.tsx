@@ -1,4 +1,4 @@
-// The Studio Overview "In flight" board: four stages (Exploring, In review, Ready to ship, Next release). Wide
+// The Studio Overview "In flight" board: four stages (Exploring, In review, Ready to merge, Next release). Wide
 // screens: columns whose header links to the stage in Changes, at most two DS Cards each then "+N more"; an empty
 // stage collapses to its header. Narrow screens: one DS Accordion row per stage with its count, the cards open on
 // tap. A card: the title (token names in Plex Mono), one status pattern (icon and label: Blocked or You), what holds

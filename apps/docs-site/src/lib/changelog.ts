@@ -65,7 +65,7 @@ export function releases(): Release[] {
   return releasesCache;
 }
 
-/** Where the release dates came from on this build, for the "For developers" section. */
+/** Where the release dates came from on this build (git tags or the CHANGELOG headings), for build diagnostics. */
 export function releaseDateSource(): string {
   releases();
   return sourceNote;

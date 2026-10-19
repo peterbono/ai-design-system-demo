@@ -20,14 +20,14 @@ export function PrMoreMenu({ override, onDraft, onClose }: PrMoreMenuProps) {
       <MenuContent side="top" align="end">
         {override && (
           <MenuGroup label={override.rule}>
-            <MenuItem onClick={override.onSelect}>Ship as owner override</MenuItem>
+            <MenuItem onClick={override.onSelect}>Merge as owner override</MenuItem>
           </MenuGroup>
         )}
         {override && (onDraft || onClose) && <MenuSeparator />}
         {onDraft && <MenuItem onClick={onDraft}>Back to draft</MenuItem>}
         {onClose && (
           <MenuItem tone="danger" onClick={onClose}>
-            Close without shipping
+            Close without merging
           </MenuItem>
         )}
       </MenuContent>

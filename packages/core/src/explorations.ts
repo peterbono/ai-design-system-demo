@@ -58,6 +58,8 @@ export interface Exploration {
   source?: ExplorationSource | undefined;
   /** The AI agent that started it ("claude"), when one did: the GitHub account alone cannot tell. */
   agent?: string | undefined;
+  /** A Jira ticket key ("DS-42"), first in the pull request title so Jira's GitHub integration links it. */
+  jira?: string | undefined;
 }
 
 const MARK = 'bridge-exploration';
@@ -258,6 +260,9 @@ export function promotionPlan(input: {
   date?: Date | undefined;
 }): PromotionPlan {
   const exploration = parseExplorationBody(input.body);
+  // A Jira key first in the title ("DS-42 Exploration: pill buttons") stays first after promotion.
+  const jira = /^([A-Z][A-Z0-9_]*-\d+)\s+/.exec(input.title)?.[1] ?? null;
+  const title = jira ? input.title.slice(jira.length).trim() : input.title;
   const removeFiles = input.files.filter((f) => f.path.startsWith(`${EXPLORATION_NOTES_DIR}/`) && f.status !== 'removed').map((f) => f.path);
   const files = input.files.filter((f) => !f.path.startsWith(`${EXPLORATION_NOTES_DIR}/`));
   const risk = classifyRisk({ files, ...(input.config ? { config: input.config } : {}) });
@@ -275,13 +280,13 @@ export function promotionPlan(input: {
   const body = [
     `**Promoted from an exploration on ${date}.** Review it like any change: the tier below comes from the files it touches.`,
     '',
-    kept || `## ${input.title.replace(/^Exploration:\s*/i, '')}`,
+    kept || `## ${title.replace(/^Exploration:\s*/i, '')}`,
     '',
     `**Risk tier:** ${risk.tier}.`,
     ...risk.reasons.slice(0, 8).map((r) => `- ${r}`),
     ...(closes.length ? ['', ...closes.map((n) => `Closes #${n}`)] : []),
   ].join('\n');
-  const t = input.title.replace(/^Exploration:\s*/i, '').trim() || exploration?.name || input.title;
+  const t = title.replace(/^Exploration:\s*/i, '').trim() || exploration?.name || title;
   return {
     tier: risk.tier,
     reasons: risk.reasons,
@@ -289,7 +294,7 @@ export function promotionPlan(input: {
     addLabels,
     removeFiles,
     body,
-    title: t.charAt(0).toUpperCase() + t.slice(1),
+    title: `${jira ? `${jira} ` : ''}${t.charAt(0).toUpperCase()}${t.slice(1)}`,
     markReady: true,
   };
 }

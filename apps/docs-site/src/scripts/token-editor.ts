@@ -38,6 +38,7 @@ import {
 import { badgeHtml, closeDialog, isDialogOpen, openDialog, tokenValueHtml } from '@bridge-ds/react/dom';
 import { esc, getToken, hasWorkingToken, initGitHubConnect, onAccess, paintGates, prefersSignIn, readRepo, relativeTime, setButtonDisabled, setButtonLabel, showGhError, studioClient } from './github-session';
 import { ghVerb } from '../lib/gh-wording';
+import { branchWithJiraKey, parseJiraKey, titleWithJiraKey, VOCAB } from '../lib/vocabulary';
 import { docsNotesForTokens } from '../lib/docs-draft-model';
 import { cellValue, tierAxis } from '../lib/explorer/model';
 import { numericValue } from '../lib/explorer/format';
@@ -205,7 +206,7 @@ function paintTray() {
   tray.hidden = !asPage && n === 0 && tray.dataset.sheet !== 'true';
   const empty = $('ed-drafts-empty');
   if (empty) empty.hidden = n > 0;
-  $('ed-tray-count')!.textContent = n ? `${n} draft change${n > 1 ? 's' : ''}` : 'No draft changes yet';
+  $('ed-tray-count')!.textContent = n ? `${n} draft edit${n > 1 ? 's' : ''}` : 'No draft edits yet';
   const status = $('ed-tray-status')!;
   status.textContent = !n ? 'Open a token to edit it.' : fails ? `${fails} guardrail${fails > 1 ? 's' : ''} block proposing` : 'Guardrails pass';
   status.className = `ed-tray-status ${!n ? '' : fails ? 'is-fail' : 'is-pass'}`;
@@ -235,24 +236,7 @@ function paintTray() {
     : `<li class="ed-tray-empty">${asPage ? 'No draft yet. Open a token in Studio Tokens and change a value: it lands here.' : 'Edits you make show up here, with before and after values and their contrast impact.'}</li>`;
 }
 
-function downloadDraft() {
-  if (!S?.applied) return;
-  const payload = {
-    $comment: 'Bridge token draft. Apply the files to the token root, or open a pull request with them.',
-    repo: `${repoOf(S.config).owner}/${repoOf(S.config).name}`,
-    tokensRoot: S.config.tokens.root,
-    edits: S.draft.edits,
-    files: S.applied.files,
-  };
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `bridge-draft-${draftSlug(S.draft)}.json`;
-  a.click();
-  URL.revokeObjectURL(a.href);
-}
-
-async function propose(title: string, notes: string): Promise<number> {
+async function propose(title: string, notes: string, jira: string | null): Promise<number> {
   if (!S) throw new Error('Editor not ready');
   const token = getToken();
   if (!token) throw new Error(`${ghVerb(prefersSignIn())} first.`);
@@ -267,12 +251,12 @@ async function propose(title: string, notes: string): Promise<number> {
   const head = buildTokenSet(latest.files, opts);
   const pairs = parseContrastChecks(latest.contrastChecks);
   const applied = applyDraft(head, latest.files, S.draft, opts);
-  if (!applied.changes.length) throw new Error('main already has these values. Nothing to propose.');
+  if (!applied.changes.length) throw new Error('main already has these values, so there is nothing to review.');
   const validation = validateProposal(applied.proposed, head, pairs);
-  if (validation.blocking.length) throw new Error(`Guardrails block this change on the latest main: ${validation.blocking[0]!.message}`);
-  const branch = branchName(draftSlug(S.draft), new Date());
+  if (validation.blocking.length) throw new Error(`Guardrails block these edits on main: ${validation.blocking[0]!.message}`);
+  const branch = branchWithJiraKey(branchName(draftSlug(S.draft), new Date()), jira);
   const risk = classifyRisk({ tokenChanges: applied.changes, config });
-  const prTitle = prTitleFrom(title) || prTitleFrom(proposalSummary()?.title ?? '') || `tokens: ${applied.changes.length} token change${applied.changes.length > 1 ? 's' : ''} from Bridge`;
+  const baseTitle = prTitleFrom(title) || prTitleFrom(proposalSummary()?.title ?? '') || `tokens: ${applied.changes.length} token change${applied.changes.length > 1 ? 's' : ''} from Bridge`;
   const body = composePrBody({
     changes: applied.changes,
     head,
@@ -286,7 +270,7 @@ async function propose(title: string, notes: string): Promise<number> {
       surface: 'the Bridge web editor',
       authoredBy: 'Human designer in the Bridge web editor (no AI involved in the values)',
     },
-    title: prTitle,
+    title: baseTitle,
     notes: [notes.trim(), docsNotesForTokens(applied.changes.map((c) => (c.target ?? c.current)!.path), usedByComponents)].filter(Boolean).join('\n\n'),
     upstreamPaths: [],
     resolvedConflicts: [],
@@ -294,9 +278,11 @@ async function propose(title: string, notes: string): Promise<number> {
   const files: { path: string; sha: string }[] = [];
   for (const [rel, text] of Object.entries(applied.files)) files.push({ path: `${latest.tokensPath}/${rel}`, sha: await client.createBlob(text) });
   if (config.changeset) {
-    const cs = composeChangeset(applied.changes, { title: prTitle, branch, packageName: config.changeset.package, source: 'from the Bridge web editor' });
+    const cs = composeChangeset(applied.changes, { title: baseTitle, branch, packageName: config.changeset.package, source: 'from the Bridge web editor' });
     files.push({ path: cs.path, sha: await client.createBlob(cs.content) });
   }
+  // The Jira key goes first in the title (and the branch name) so Jira's GitHub integration links them.
+  const prTitle = titleWithJiraKey(baseTitle, jira);
   const tree = await client.createTree(latest.treeSha, files);
   const commit = await client.createCommit(commitMessage(prTitle, applied.changes, 'Proposed with the Bridge token editor.'), tree, [mainSha]);
   await client.createBranch(branch, commit);
@@ -413,7 +399,7 @@ export function pendingOverrides(pending: { path: string; mode: string; value: u
 }
 
 /**
- * What the "Send for review" dialog says about the draft: a plain title drafted from the edits ("Darker primary
+ * What the "Create branch" dialog says about the draft: a plain title drafted from the edits ("Darker primary
  * action fill"), the risk tier and who approves it, from governance.rights.
  */
 export function proposalSummary(): { title: string; tier: 1 | 2 | 3; sentence: string } | null {
@@ -473,9 +459,9 @@ export function undoToken(path: string) {
 // ---------------------------------------------------------------------------------------------------------------
 // Continue a change
 
-/** The send button's words, one verb family: add to a change (the one edited, or the default target), else send. */
+/** The send button's words, one verb family: add to a branch (the one edited, or the default target), else request review. */
 export function sendLabel(): string {
-  return scope ? 'Add to this change' : choice.kind === 'change' ? 'Add to change' : 'Send for review';
+  return scope ? 'Add to this branch' : choice.kind === 'change' ? 'Add to branch' : VOCAB.requestReview;
 }
 
 /** Where the draft goes, for the review sheet's note (null: nothing to say). */
@@ -503,7 +489,7 @@ function paintScope() {
 /** Reads the change and its token files, then swaps them in as the values the editor edits. */
 async function openScope(n: number) {
   if (!S) return;
-  const sc: Scope = { number: n, title: `change #${n}`, baseSha: null, state: 'loading' };
+  const sc: Scope = { number: n, title: `branch #${n}`, baseSha: null, state: 'loading' };
   scope = sc;
   paintScope();
   try {
@@ -514,8 +500,8 @@ async function openScope(n: number) {
     if (!isTokenChange(pull, `${owner}/${name}`)) {
       throw new Error(
         pull.state !== 'open' || pull.merged_at
-          ? 'It is no longer open, so it takes no more edits. Open Tokens to start a new change.'
-          : 'It is not a token change. Explorations, brands and docs keep their own editors.',
+          ? 'It is no longer open, so it takes no more edits. Open Tokens to create a new branch.'
+          : 'This branch does not edit tokens. Explorations, brands and docs keep their own editors.',
       );
     }
     // A draft made earlier on this change keeps the version it was made on, so the 3-way check stays honest.
@@ -560,19 +546,15 @@ function paintSend() {
   const t = scope ? null : targets.find((x) => choice.kind === 'change' && x.number === choice.number);
   const name = scope?.title ?? t?.title ?? '';
   const h = $('ed-propose-dialog-title');
-  if (h) h.textContent = scope ? `Add to ${name}` : 'Send for review';
+  if (h) h.textContent = scope ? `Add to ${name}` : VOCAB.createBranch;
   const fields = field('propose-new');
   if (fields) fields.hidden = adding;
-  const devNew = field('propose-dev-new');
-  const devAdd = field('propose-dev-add');
-  if (devNew) devNew.hidden = adding;
-  if (devAdd) devAdd.hidden = !adding;
   const who = field('propose-who');
   if (who) who.hidden = false;
   const approvals = 'Approvals given before may need to be given again.';
-  if (who && adding) who.textContent = scope ? `Your edits go on top of ${name}, and reviewers see them there. ${approvals}` : `Reviewers see your edits in the change you pick. ${approvals}`;
+  if (who && adding) who.textContent = scope ? `Your edits go on top of ${name}, and reviewers see them there. ${approvals}` : `Reviewers see your edits in the branch you pick. ${approvals}`;
   const go = $<HTMLButtonElement>('ed-propose-go');
-  if (go) setButtonLabel(go, adding ? (scope ? 'Add to this change' : 'Add to change') : 'Send for review');
+  if (go) setButtonLabel(go, sendLabel());
   const slot = field('propose-target');
   if (!slot) return;
   slot.hidden = Boolean(scope) || !targets.length;
@@ -605,7 +587,7 @@ function paintSend() {
 async function addInto(into: number, keepMine: string[] = []) {
   const out = $('ed-propose-status')!;
   if (!S?.applied) return;
-  out.textContent = 'Adding to the change';
+  out.textContent = 'Adding to the branch';
   try {
     const r = await addToChange({ n: into, config: S.config, base: S.head, ours: S.applied.proposed, draft: S.draft, scoped: Boolean(scope), keepMine });
     out.textContent = addedSentence(r.added.length, r.title, r.upstream);
@@ -617,7 +599,7 @@ async function addInto(into: number, keepMine: string[] = []) {
     if (err instanceof ChangeConflictError) {
       out.textContent = '';
       showConflict(err);
-    } else showGhError(out, err, `Not added: ${(err as Error).message}`, 'add to changes');
+    } else showGhError(out, err, `Not added: ${(err as Error).message}`, 'add to branches');
   }
 }
 
@@ -661,7 +643,7 @@ function showConflict(err: ChangeConflictError) {
         recompute();
         if (S.draft.edits.some((e) => e.kind !== 'docs')) void addInto(err.change);
         else {
-          $('ed-propose-status')!.textContent = 'Your edit was dropped. The change keeps its value, so there is nothing left to add.';
+          $('ed-propose-status')!.textContent = 'Your edit was dropped. The branch keeps its value, so there is nothing left to add.';
           paintSend();
         }
       },
@@ -779,7 +761,7 @@ export function initTokenEditor() {
     recompute();
   });
   $('ed-discard')?.addEventListener('click', () => {
-    if (!S || !S.draft.edits.length || !window.confirm('Discard every draft change?')) return;
+    if (!S || !S.draft.edits.length || !window.confirm('Discard every draft edit?')) return;
     S.draft = emptyDraft();
     saveDraft();
     recompute();
@@ -821,15 +803,8 @@ export function initTokenEditor() {
     }
     const who = field('propose-who');
     if (sum && who && !scope && choice.kind === 'new') who.textContent = sum.sentence;
-    const pr = field('propose-pr-title');
-    if (pr) pr.textContent = prTitleFrom(titleField?.value ?? '') || 'tokens: ...';
     openDialog('ed-propose-dialog');
   });
-  field<HTMLInputElement>('propose-title')?.addEventListener('input', (e) => {
-    const pr = field('propose-pr-title');
-    if (pr) pr.textContent = prTitleFrom((e.target as HTMLInputElement).value) || 'tokens: ...';
-  });
-  $('ed-export')?.addEventListener('click', downloadDraft);
   $('ed-propose-go')?.addEventListener('click', async () => {
     const go = $<HTMLButtonElement>('ed-propose-go')!;
     const out = $('ed-propose-status')!;
@@ -841,15 +816,27 @@ export function initTokenEditor() {
       setButtonDisabled(go, false);
       return;
     }
-    out.textContent = 'Sending for review';
+    let jira: string | null;
+    const jiraField = field<HTMLInputElement>('propose-jira');
+    jiraField?.removeAttribute('aria-invalid');
     try {
-      const n = await propose(field<HTMLInputElement>('propose-title')?.value ?? '', field<HTMLTextAreaElement>('propose-notes')?.value ?? '');
+      jira = parseJiraKey(jiraField?.value);
+    } catch (err) {
+      out.textContent = (err as Error).message;
+      setButtonDisabled(go, false);
+      jiraField?.setAttribute('aria-invalid', 'true');
+      jiraField?.focus();
+      return;
+    }
+    out.textContent = 'Creating the branch';
+    try {
+      const n = await propose(field<HTMLInputElement>('propose-title')?.value ?? '', field<HTMLTextAreaElement>('propose-notes')?.value ?? '', jira);
       // Docs edits stay: they are proposed from the docs editor.
       S!.draft = { edits: S!.draft.edits.filter((e) => e.kind === 'docs') };
       saveDraft();
       location.href = `/studio/changes/?pr=${n}`;
     } catch (err) {
-      showGhError(out, err, `Not sent: ${(err as Error).message}`, 'open pull requests');
+      showGhError(out, err, `Not created: ${(err as Error).message}`, 'create branches');
       setButtonDisabled(go, false);
     }
   });

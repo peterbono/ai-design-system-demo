@@ -76,7 +76,7 @@ export function ConflictNotice({ text, paths, href, onKeepMine, onKeepTheirs }: 
   const escape = (p: string) => p.replace(/[.*+?^$()|[\]\\{}]/g, '\\$&');
   const parts = paths.length ? text.split(new RegExp('(' + paths.map(escape).join('|') + ')')) : [text];
   return (
-    <Alert tone="warning" title="The same token changed in your edits and in the change" actions={
+    <Alert tone="warning" title="The same token changed in your edits and in the branch" actions={
         <>
           <Button variant="primary" onClick={onKeepMine}>
             Keep mine
@@ -89,7 +89,7 @@ export function ConflictNotice({ text, paths, href, onKeepMine, onKeepTheirs }: 
     >
       <p>{parts.map((part, i) => (paths.includes(part) ? <code key={i}>{part}</code> : part))}</p>
       <p>
-        <Link href={href}>Compare both values on the change</Link>
+        <Link href={href}>Compare both values on the branch</Link>
       </p>
       {paths.length > 1 && (
         <ul className="xe-conflict-list">
@@ -104,8 +104,8 @@ export function ConflictNotice({ text, paths, href, onKeepMine, onKeepTheirs }: 
   );
 }
 
-/** "Edit tokens in this change" on a change page: opens the token editor scoped to it. */
-export function EditInChange({ href, label = 'Edit tokens in this change' }: { href: string; label?: string }) {
+/** "Edit tokens in this branch" on a change page: opens the token editor scoped to it. */
+export function EditInChange({ href, label = 'Edit tokens in this branch' }: { href: string; label?: string }) {
   return (
     <ButtonLink href={href} iconStart={PenLine}>
       {label}
@@ -148,7 +148,7 @@ export const mountAddedNotice = (el: HTMLElement, text: string) =>
     />,
   );
 
-/** Mounts "Edit tokens in this change" into a change page slot. */
+/** Mounts "Edit tokens in this branch" into a change page slot. */
 export const mountEditInChange = (el: HTMLElement, href: string) => mountInto(el, <EditInChange href={href} />);
 
 /** Unmounts what `mountInto` rendered into `el`. */

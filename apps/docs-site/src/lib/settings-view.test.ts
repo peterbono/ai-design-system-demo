@@ -1,7 +1,7 @@
 // Studio Settings: approvals in plain words and the Claude connect command.
 import { describe, expect, it } from 'vitest';
 import { tierSummaries } from './governance';
-import { accountView, approvalRules, mcpAddCommand, overrideText, plainApprovals, ruleSentence } from './settings-view';
+import { accountView, approvalRules, overrideText, plainApprovals, ruleSentence } from './settings-view';
 
 const GOVERNANCE = `# Governance
 
@@ -44,13 +44,6 @@ describe('approval rules', () => {
   });
 });
 
-describe('connect your Claude', () => {
-  it('builds the one command for the repository and never fills the token in', () => {
-    expect(mcpAddCommand('acme/ds')).toBe('claude mcp add bridge -s user -e GITHUB_TOKEN=<your token> -- npx -y @bridge-ds/mcp --repo acme/ds');
-    expect(mcpAddCommand('acme/ds')).not.toMatch(/gh[pousr]_|github_pat_/);
-  });
-});
-
 describe('account', () => {
   const repo = 'acme/ds';
   it('shows a compact row once connected, with the access as a badge and a quiet action', () => {
@@ -58,7 +51,7 @@ describe('account', () => {
       zone: false,
       title: 'Connected as @ana',
       detail: 'acme/ds',
-      action: 'Change token',
+      action: 'Reconnect GitHub',
       actionKind: 'token',
       badge: { label: 'Can edit', tone: 'success' },
     });
@@ -75,7 +68,7 @@ describe('account', () => {
   it('offers only Sign in with GitHub when the site has a GitHub App, never a token paste', () => {
     expect(accountView('readonly', { write: null, repo, signIn: true })).toEqual({
       zone: true,
-      title: 'Sign in with GitHub to approve and send changes.',
+      title: 'Sign in with GitHub to approve and request reviews.',
       detail: 'Until then Studio only reads acme/ds.',
       action: 'Sign in with GitHub',
       actionKind: 'signin',
@@ -85,7 +78,7 @@ describe('account', () => {
     expect(accountView('rejected', { write: null, repo, signIn: true }).detail).not.toMatch(/token instead|paste/i);
     // A token pasted before the site had a GitHub App: it can only be disconnected, not changed.
     expect(accountView('connected', { login: 'ana', write: true, repo, signIn: true })).toMatchObject({ action: 'Disconnect', actionKind: 'signout' });
-    expect(accountView('connected', { login: 'ana', write: true, repo })).toMatchObject({ action: 'Change token', actionKind: 'token' });
+    expect(accountView('connected', { login: 'ana', write: true, repo })).toMatchObject({ action: 'Reconnect GitHub', actionKind: 'token' });
   });
 
   it('signs out a signed-in account, and says so when its sign-in expired', () => {
@@ -118,15 +111,15 @@ describe('account', () => {
 });
 
 describe('owner override', () => {
-  it('names who may ship past missing approvals, and the reason rule', () => {
+  it('names who may merge past missing approvals, and the reason rule', () => {
     expect(overrideText({ allowed: ['ana', 'bo'], requireReason: true, minReasonLength: 20 })).toEqual({
       on: true,
-      text: '@ana, @bo may ship a change when only approvals are missing, with a written reason of 20 characters or more.',
+      text: '@ana, @bo may merge a branch when only approvals are missing, with a written reason of 20 characters or more.',
     });
-    expect(overrideText({ allowed: ['ana'], requireReason: false }).text).toBe('@ana may ship a change when only approvals are missing.');
+    expect(overrideText({ allowed: ['ana'], requireReason: false }).text).toBe('@ana may merge a branch when only approvals are missing.');
   });
 
   it('says what happens when nobody may override', () => {
-    expect(overrideText({ allowed: [] })).toEqual({ on: false, text: 'Every change waits for its approvals before it ships.' });
+    expect(overrideText({ allowed: [] })).toEqual({ on: false, text: 'Every branch waits for its approvals before it is merged.' });
   });
 });

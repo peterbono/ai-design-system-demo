@@ -227,7 +227,7 @@ describe('who is on a request', () => {
 
     const [assigned] = requestRows([issue(1, { assignees: [{ login: 'dev' }] })], []);
     expect(onItLabel(assigned!)).toBe('@dev is on it');
-    expect(requestStateLine(assigned!)).toBe('@dev is on it. The change has not started yet.');
+    expect(requestStateLine(assigned!)).toBe('@dev is on it. The work has not started yet.');
 
     const [building] = requestRows([issue(1)], [pull(40, 'Closes #1', { user: { login: 'ana' } })]);
     expect(requestOwner(building!)).toBe('ana');
@@ -239,7 +239,7 @@ describe('who is on a request', () => {
     const [done] = requestRows([issue(1, { state: 'closed', state_reason: 'completed' })], [pull(9, 'fixes #1', { state: 'closed', merged_at: '2026-10-10T00:00:00Z', user: { login: 'ana' } })]);
     expect(onItLabel(done!)).toBe('Done by @ana');
     expect(requestStateLine(done!)).toBe('Done by @ana.');
-    expect(buildState(done!)).toBe('Shipped');
+    expect(buildState(done!)).toBe('Merged');
     const [plain] = requestRows([issue(2, { state: 'closed', state_reason: 'completed' })], []);
     expect(requestStateLine(plain!)).toBe('Done.');
     expect(onItLabel(plain!)).toBe('');
@@ -278,7 +278,7 @@ describe('deciding on a request', () => {
 
   it('shows the status, no decision, once someone is on it, a change exists or it is closed', () => {
     const [assigned] = requestRows([issue(1, { assignees: [{ login: 'dev' }] })], []);
-    expect(requestDecision(assigned!, { viewer: 'flo', owners })).toEqual({ kind: 'status', sentence: '@dev is on it. The change has not started yet.' });
+    expect(requestDecision(assigned!, { viewer: 'flo', owners })).toEqual({ kind: 'status', sentence: '@dev is on it. The work has not started yet.' });
     const [closedChange] = requestRows([issue(1)], [pull(40, 'Closes #1', { state: 'closed' })]);
     expect(requestDecision(closedChange!, { viewer: 'flo', owners }).kind).toBe('status');
     const [declined] = requestRows([issue(3, { state: 'closed', state_reason: 'not_planned' })], []);

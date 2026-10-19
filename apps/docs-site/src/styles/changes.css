@@ -315,21 +315,11 @@ details[open] > summary .cg-sec-chev {
   margin: 0;
 }
 
-.cg-links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
 .cg-more > summary {
   color: var(--color-text-link);
   font-size: var(--typography-ui-size);
   cursor: pointer;
   list-style: none;
-}
-
-.cg-cs-bumps {
-  font-weight: var(--font-weight-semibold);
 }
 
 /* Pull request (and history entry) detail */
@@ -752,80 +742,30 @@ ul.rv-needs {
   margin-bottom: var(--space-3);
 }
 
-/* For developers: files, checks, changeset and previews, one disclosure, inner sections as flat rows. */
-.cg-dev-body {
-  gap: 0;
-  padding-bottom: var(--space-2);
-}
-
-.cg-dev-body > .cg-sec {
-  border: 0;
-  border-top: var(--border-width-default) solid var(--color-border-default);
-  border-radius: 0;
-  background-color: transparent;
-}
-
-.cg-dev-body > .cg-sec > .cg-sec-head,
-.cg-dev-body > .cg-sec > .cg-sec-body {
-  padding-inline: 0;
-}
-
 @media (max-width: 760px) {
   .rv-ap-acts .btn-lg {
     flex: 1 1 100%;
   }
 }
 
-/* For developers: the GitHub links first, then failing checks with the tests they name. */
-.rv-dev-links {
-  gap: var(--space-2) var(--space-6);
-  margin: 0;
-  padding: var(--space-2) 0 var(--space-3);
-}
-
-.cg-dev-body .rv-checks li {
-  flex-wrap: wrap;
-}
-
-.rv-cases {
-  display: grid;
-  flex-basis: 100%;
-  gap: var(--space-1);
-  margin: var(--space-1) 0 0;
-  padding: 0 0 0 var(--space-6);
-  list-style: none;
-}
-
-.rv-cases li {
-  display: grid;
-  gap: var(--space-0-5);
-  overflow-wrap: anywhere;
-}
-
-/* What approval a change needs, in plain words ("Design + tech"): text, never a colored pill. Color is for status. */
-.cg-need {
+/* The Jira ticket key a branch title starts with, apart and in mono before the title (lib/vocabulary jiraKeyOf). */
+.cg-jira {
   color: var(--color-text-muted);
   font-size: var(--typography-ui-size);
   white-space: nowrap;
 }
 
-/* One "For developers" fold per page, at the bottom: links to what lives on GitHub. */
-.cg-dev-page {
-  margin-top: var(--space-8);
+/* "Open on GitHub": the one quiet way to the developer view, last on the line of the thing it opens. */
+.cg-gh {
+  margin-inline-start: auto;
+  font-size: var(--typography-ui-size);
 }
 
-.cg-dev-page > .cg-sec-body {
-  display: grid;
-  gap: var(--space-3);
-  padding: 0 var(--space-5) var(--space-4);
-}
-
-.cg-dev-page > .cg-sec-body > p {
-  margin: 0;
-}
-
-.cg-dev-page .cg-links {
-  gap: var(--space-2) var(--space-6);
+/* What approval a branch needs, in plain words ("Design + tech"): text, never a colored pill. Color is for status. */
+.cg-need {
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+  white-space: nowrap;
 }
 
 /* Conversation: the count, the last word, and GitHub for the thread. */
@@ -904,10 +844,6 @@ ul.rv-needs {
 
   .rv-conv-last {
     grid-template-columns: minmax(0, 1fr);
-    padding-inline: var(--space-4);
-  }
-
-  .cg-dev-page > .cg-sec-body {
     padding-inline: var(--space-4);
   }
 }

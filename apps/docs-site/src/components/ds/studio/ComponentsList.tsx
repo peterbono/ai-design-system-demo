@@ -17,7 +17,7 @@ export interface ComponentListRow {
   family: string;
   status: 'stable' | 'beta' | 'deprecated';
   guidance: GuidanceState;
-  /** Tokens it paints with, own and inherited (where they come from is in the drawer's For developers). */
+  /** Tokens it paints with, own and inherited (own and inherited are counted together). */
   tokensTotal: number;
   /** Storybook stories, shown to designers as examples. */
   examples: number;

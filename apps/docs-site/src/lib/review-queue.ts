@@ -9,6 +9,7 @@
 import { classifyRisk } from '@bridge-ds/core';
 import { isRunningExploration } from './explorations-view';
 import { openPulls, parseTier, type LabelLike, type PullStateLike, type ReviewStatusKind, type Tier } from './review-rules';
+import { branchCount } from './vocabulary';
 
 export interface QueuePull extends PullStateLike {
   state: string;
@@ -89,7 +90,7 @@ const VERB: Record<Bucket, [one: string, many: string]> = {
   design: ['waits for design approval', 'wait for design approval'],
   tech: ['waits for tech approval', 'wait for tech approval'],
   approval: ['waits for one approval', 'wait for one approval'],
-  ready: ['is ready to ship', 'are ready to ship'],
+  ready: ['is ready to merge', 'are ready to merge'],
   author: ['waits for its author to answer a review', 'wait for their authors to answer a review'],
   developer: ['is blocked on the developer side', 'are blocked on the developer side'],
   draft: ['is still a draft', 'are still drafts'],
@@ -107,7 +108,7 @@ export function queueBuckets(kinds: (ReviewStatusKind | null | undefined)[]): { 
 }
 
 /**
- * "3 changes wait for design approval. 1 is blocked on the developer side." The first sentence names the noun,
+ * "3 branches wait for design approval. 1 is blocked on the developer side." The first sentence names the noun,
  * the next ones only the count. At most three sentences; the rest folds into the last one ("2 more are ...").
  */
 export function queueSentence(kinds: (ReviewStatusKind | null | undefined)[]): string {
@@ -116,7 +117,7 @@ export function queueSentence(kinds: (ReviewStatusKind | null | undefined)[]): s
   const shown = parts.length > 3 ? parts.slice(0, 2) : parts;
   const out = shown.map(({ bucket, n }, i) => {
     const verb = VERB[bucket][n === 1 ? 0 : 1];
-    return i === 0 ? `${n} ${n === 1 ? 'change' : 'changes'} ${verb}.` : `${n} ${verb}.`;
+    return i === 0 ? `${branchCount(n)} ${verb}.` : `${n} ${verb}.`;
   });
   if (parts.length > 3) {
     const rest = parts.slice(2).reduce((s, p) => s + p.n, 0);
@@ -125,7 +126,7 @@ export function queueSentence(kinds: (ReviewStatusKind | null | undefined)[]): s
   return out.join(' ');
 }
 
-/** "4 changes in review." The count line, the same number as the nav badge and the In review tab. */
+/** "4 branches in review." The count line, the same number as the nav badge and the In review tab. */
 export function queueCountLine(n: number): string {
-  return n === 0 ? 'Nothing waits for a review.' : `${n} ${n === 1 ? 'change' : 'changes'} in review.`;
+  return n === 0 ? 'Nothing waits for a review.' : `${branchCount(n)} in review.`;
 }

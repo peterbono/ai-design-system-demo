@@ -45,7 +45,7 @@ test('ship policy: tech owners by default, design owners when the team says so',
   assert.equal(canShip('dana', tech), false);
   assert.equal(canShip('@Theo', tech), true);
   assert.equal(canShip(null, tech), false);
-  assert.equal(whoCanShipSentence(tech), 'Only the tech owner can ship this (@theo, @tara).');
+  assert.equal(whoCanShipSentence(tech), 'Only the tech owner can merge this (@theo, @tara).');
   const both = shipPolicy(owners, normalizeRights({ ship: ['design', 'tech'] }))!;
   assert.equal(canShip('dana', both), true);
   assert.equal(groupsPhrase(both.groups), 'a design or tech owner');

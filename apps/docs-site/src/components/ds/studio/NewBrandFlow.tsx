@@ -20,7 +20,7 @@ import {
   Switch,
   TokenValue,
 } from '@bridge-ds/react';
-import { ArrowLeft, ArrowRight, CircleAlert, CircleCheck, GitPullRequest } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CircleAlert, CircleCheck, GitBranch } from 'lucide-react';
 import { BRAND_FONTS, RADIUS_PRESETS, type BrandSource, brandPreviewVariables, checkBrandSlug, listBrands, loadConfig } from '@bridge-ds/core';
 import {
   type BrandDraft,
@@ -41,6 +41,7 @@ import {
 import { ghAuthFailure, hasWorkingToken, tokenRejected } from '../../../scripts/github-session';
 import { type ProposedBrand, proposeBrand } from '../../../scripts/new-brand';
 import { ghAction } from '../../../lib/gh-wording';
+import { parseJiraKey, VOCAB } from '../../../lib/vocabulary';
 
 export interface NewBrandFlowProps {
   files: Record<string, string>;
@@ -69,6 +70,7 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
   const [error, setError] = useState<string | null>(null);
   const [errorHref, setErrorHref] = useState<string | null>(null);
   const [done, setDone] = useState<ProposedBrand | null>(null);
+  const [jira, setJira] = useState('');
   const headingId = useId();
 
   useEffect(() => {
@@ -115,11 +117,11 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
     setError(null);
     try {
       const repo = source.config.repo ?? { owner: 'peterbono', name: 'ai-design-system-demo', defaultBranch: 'main' };
-      const pr = await proposeBrand(draft, repo, source.config.tokens.root);
+      const pr = await proposeBrand(draft, repo, source.config.tokens.root, parseJiraKey(jira));
       setDone(pr);
       saveDraft(null);
     } catch (e) {
-      const auth = ghAuthFailure(e, 'open pull requests');
+      const auth = ghAuthFailure(e, 'create branches');
       setError(auth?.text ?? (e as Error).message);
       setErrorHref(auth?.href ?? null);
     } finally {
@@ -165,14 +167,12 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
       <section className="nb" aria-labelledby={headingId}>
         <div className="nb-done">
           <h2 className="nb-step-title" id={headingId} tabIndex={-1}>
-            Pull request #{done.number} opened
+            Branch created
           </h2>
-          <p className="nb-lead">
-            {draft.name} waits for design and tech approval on <span className="mono">{done.branch}</span>. The Library shows it once the pull request is merged.
-          </p>
+          <p className="nb-lead">{draft.name} stays a draft on its own branch until design and tech approve it. The Library shows it once it is merged into main.</p>
           <div className="nb-actions">
-            <Button variant="primary" iconStart={GitPullRequest} render={<a href={`/studio/changes/?pr=${done.number}`} />}>
-              Open the review
+            <Button variant="primary" iconStart={GitBranch} render={<a href={`/studio/changes/?pr=${done.number}`} />}>
+              Open the branch
             </Button>
           </div>
         </div>
@@ -378,23 +378,15 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
               <dt>Review</dt>
               <dd className="nb-tier">
                 <Badge tone="neutral">Tier 3</Badge>
-                <span>Needs design and tech approval. Opens as a draft pull request.</span>
+                <span>Needs design and tech approval. Starts as a draft branch.</span>
               </dd>
             </div>
           </dl>
-          <div className="nb-files">
-            <h3 className="nb-files-title">Files in the pull request</h3>
-            <ul>
-              {plan.files.map((f) => (
-                <li key={f.path}>
-                  <span className="nb-file-kind">{f.action === 'create' ? 'New' : 'Edit'}</span>
-                  <span className="mono">{f.path}</span>
-                </li>
-              ))}
-            </ul>
+          <div className="nb-jira">
+            <Input label="Jira ticket" value={jira} onChange={(e) => setJira(e.currentTarget.value)} placeholder="DS-42" hint="Optional. Links this branch to the ticket in Jira." spellCheck={false} autoComplete="off" />
           </div>
           {(errors.length > 0 || slugIssues.length > 0) && (
-            <Alert tone="danger" title="Fix these before proposing">
+            <Alert tone="danger" title="Fix these first">
               <ul className="nb-issues">
                 {[...slugIssues, ...errors].slice(0, 5).map((i) => (
                   <li key={`${i.code}${i.path ?? ''}`}>{i.message}</li>
@@ -403,7 +395,7 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
             </Alert>
           )}
           {error && (
-            <Alert tone="danger" title="The pull request was not opened">
+            <Alert tone="danger" title="The branch was not created">
               {error}
               {errorHref && (
                 <>
@@ -434,16 +426,16 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
             Continue
           </Button>
         ) : connected ? (
-          <Button key="propose" variant="primary" iconStart={GitPullRequest} loading={busy} disabled={!ready} onClick={propose}>
-            Propose brand
+          <Button key="propose" variant="primary" iconStart={GitBranch} loading={busy} disabled={!ready} onClick={propose}>
+            {VOCAB.createBranch}
           </Button>
         ) : (
           <Button key="connect" variant="primary" data-gh-open="">
-            {ghAction('propose', signIn, rejected)}
+            {ghAction('create the branch', signIn, rejected)}
           </Button>
         )}
-        {draft.step === 3 && !ready && <span className="nb-actions-note">{plan.contrast.failing.length ? 'Proposing needs every contrast pair to pass.' : 'Fix the problems above to propose.'}</span>}
-        {draft.step === 3 && ready && !connected && <span className="nb-actions-note">The draft stays in this browser until you propose it.</span>}
+        {draft.step === 3 && !ready && <span className="nb-actions-note">{plan.contrast.failing.length ? 'Creating the branch needs every contrast pair to pass.' : 'Fix the problems above to create the branch.'}</span>}
+        {draft.step === 3 && ready && !connected && <span className="nb-actions-note">The draft stays in this browser until you create the branch.</span>}
       </div>
     </section>
   );

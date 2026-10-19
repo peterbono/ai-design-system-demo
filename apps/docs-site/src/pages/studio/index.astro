@@ -1,8 +1,8 @@
 ---
 // Studio Overview, in the order a designer reads it (Linear home: my queue, then what moves):
-//   1. One sentence and one primary action, "Start a change". The Harbor zone opens only when something needs the
+//   1. One sentence and one primary action, "Create branch". The Harbor zone opens only when something needs the
 //      viewer, and then holds the Needs you list: every designer decision in one list, one row component.
-//   2. In flight: a board in four columns, Exploring, In review, Ready to ship, Next release, blockers written on
+//   2. In flight: a board in four columns, Exploring, In review, Ready to merge, Next release, blockers written on
 //      the cards (lib/overview-board.ts). Developer work (code only, lib/work-nature.ts) folds into one quiet line
 //      under the board, and never reaches Needs you or the Changes badge.
 //   3. Library health: three figures, each a door to Quality.
@@ -62,7 +62,7 @@ const figures = healthFigures({
 });
 
 const pickable = comps.map((c) => ({ name: c.name, slug: c.slug, family: c.category })).sort((a, b) => a.name.localeCompare(b.name));
-const COLUMNS = ['Exploring', 'In review', 'Ready to ship', 'Next release'];
+const COLUMNS = ['Exploring', 'In review', 'Ready to merge', 'Next release'];
 const signIn = Boolean(signInConfig());
 ---
 
@@ -98,13 +98,13 @@ const signIn = Boolean(signInConfig());
     <template data-todo-row="primary">
       <li class="ov-todo-row">
         <span class="ov-todo-text"><span class="ov-todo-head"><b class="t-body" data-title></b><span data-state></span></span><span class="t-ui t-muted" data-why></span></span>
-        <ButtonLink variant="primary" href="/studio/changes/" data-act>Open change</ButtonLink>
+        <ButtonLink variant="primary" href="/studio/changes/" data-act>Open branch</ButtonLink>
       </li>
     </template>
     <template data-todo-row="secondary">
       <li class="ov-todo-row">
         <span class="ov-todo-text"><span class="ov-todo-head"><b class="t-body" data-title></b><span data-state></span></span><span class="t-ui t-muted" data-why></span></span>
-        <ButtonLink variant="secondary" href="/studio/changes/" data-act>Open change</ButtonLink>
+        <ButtonLink variant="secondary" href="/studio/changes/" data-act>Open branch</ButtonLink>
       </li>
     </template>
     <!-- The lifecycle badge of a change row (lib/change-status todoBadge), one DS Badge per tone, cloned by the script. -->
@@ -137,7 +137,7 @@ const signIn = Boolean(signInConfig());
     <section class="ov-section" aria-labelledby="ov-flight-title">
       <header class="ov-section-head">
         <h2 id="ov-flight-title" class="t-body ov-section-title">In flight</h2>
-        <p class="t-ui t-muted ov-section-line" data-flight-line>Reading changes from GitHub.</p>
+        <p class="t-ui t-muted ov-section-line" data-flight-line>Reading branches from GitHub.</p>
       </header>
       <div data-board>
         <div class="ov-board" aria-busy="true">
@@ -225,7 +225,7 @@ const signIn = Boolean(signInConfig());
       expanded: false,
       /** The GitHub check answered (connected or not). */
       connectKnown: false,
-      /** The component picker of Start a change is open: its Continue is the one primary meanwhile. */
+      /** The component picker of Create branch is open: its Continue is the one primary meanwhile. */
       picking: false,
     };
     let boardRoot: Root | null = null;
@@ -265,7 +265,7 @@ const signIn = Boolean(signInConfig());
     /** The queue as the to-do and the board read it (scripts/needs-you, the same as the Changes badge). */
     const changesNow = () => urgent().map((p) => todoChange(p, state.statuses.get(p.number), state.visual.get(p.number) ?? null, state.impact.get(p.number) ?? null));
 
-    /** Start a change: its weight next to the first need, hidden signed out (Connect GitHub takes its place). */
+    /** Create branch: its weight next to the first need, hidden signed out (Connect GitHub takes its place). */
     function setStart(variant: 'primary' | 'secondary', hidden: boolean) {
       if (!greet) return;
       greet.dataset.startVariant = variant;
@@ -307,7 +307,7 @@ const signIn = Boolean(signInConfig());
       // One primary at a time: while the picker is open its Continue leads, the first need steps back.
       todoList.replaceChildren(...shown.map((r, i) => rowEl(r, i === 0 && !state.picking ? 'primary' : 'secondary')));
       todoList.hidden = mine.length === 0;
-      // The first need is the primary action; Start a change steps back to secondary, and leads again when caught up.
+      // The first need is the primary action; Create branch steps back to secondary, and leads again when caught up.
       setStart(mine.length ? 'secondary' : 'primary', false);
       if (more && moreBtn) {
         const label = state.expanded ? '' : moreLabel(mine.length);
@@ -448,9 +448,9 @@ const signIn = Boolean(signInConfig());
           note.textContent =
             err instanceof RateLimitError
               ? rateLimitedLine(prefersSignIn())
-              : 'GitHub could not be reached. Open Changes to retry.';
+              : 'GitHub could not be reached. Open Branches to retry.';
         }
-        if (flightLine) flightLine.textContent = 'Changes are out of reach for now.';
+        if (flightLine) flightLine.textContent = 'Branches are out of reach for now.';
         boardEl?.replaceChildren();
       });
   </script>

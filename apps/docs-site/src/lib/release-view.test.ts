@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { jargonIn } from './vocabulary';
 import { historySummary, isDsChange, packageLine, parseReleaseBody, releaseCard, splitActivity, waitingLine } from './release-view';
 
 // Shape of the body the changesets action writes on the release pull request (trimmed from #58).
@@ -67,7 +68,7 @@ describe('release card', () => {
   const card = releaseCard(parseReleaseBody(BODY));
 
   it('says how many changes and that they are ready to publish', () => {
-    expect(card.title).toBe('Next release: 4 changes, ready to publish.');
+    expect(card.title).toBe('Next release: 4 merged branches, ready to publish.');
   });
 
   it('puts the design system packages first, in plain words', () => {
@@ -83,12 +84,13 @@ describe('release card', () => {
 
   it('has no developer words in what a designer reads', () => {
     const text = [card.title, ...card.lines, card.tools].join(' ');
-    expect(text).not.toMatch(/pull request|\bPR\b|merge|changeset|npm|\bCI\b|@bridge-ds/i);
+    expect(jargonIn(text)).toEqual([]);
+    expect(text).not.toMatch(/npm|@bridge-ds/i);
   });
 
   it('says what is live when no release waits', () => {
-    expect(waitingLine('v1.0.0', 14)).toBe('v1.0.0 is live. 14 changes wait for the next release.');
-    expect(waitingLine('v1.0.0', 1)).toBe('v1.0.0 is live. 1 change waits for the next release.');
+    expect(waitingLine('v1.0.0', 14)).toBe('v1.0.0 is live. 14 merged branches wait for the next release.');
+    expect(waitingLine('v1.0.0', 1)).toBe('v1.0.0 is live. 1 merged branch waits for the next release.');
     expect(waitingLine('v1.0.0', 0)).toBe('v1.0.0 is live. Nothing waits for the next release.');
   });
 });

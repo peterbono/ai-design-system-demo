@@ -23,6 +23,7 @@ import {
   USE_CASE_EMPTY_HINT,
   tryItFromComments,
 } from './explorations-view';
+import { jargonIn } from './vocabulary';
 import type { IssueLike } from './requests-view';
 
 const cfg = { owner: 'acme', repo: 'ds', defaultBranch: 'main', apps: { docs: 'https://docs-git-{branch}-acme.vercel.app' }, packages: ['@bridge-ds/tokens', '@bridge-ds/react'] };
@@ -147,10 +148,10 @@ describe('designer words', () => {
 
   it('says what each use case is for without branch or pull request words', () => {
     for (const v of ['user-test', 'stakeholder-demo', 'ab-idea', 'terminal', 'other', '']) {
-      expect(useCaseHint(v)).not.toMatch(/branch|pull request|\bmain\b|commit/i);
+      expect(jargonIn(useCaseHint(v))).toEqual([]);
     }
     expect(useCaseHint('')).toBe(USE_CASE_EMPTY_HINT);
-    for (const s of ['active', 'promoted', 'closed'] as const) expect(explorationStateLine(s)).not.toMatch(/branch|pull request|merge/i);
+    for (const s of ['active', 'promoted', 'closed'] as const) expect(jargonIn(explorationStateLine(s))).toEqual([]);
   });
 });
 
@@ -158,7 +159,7 @@ describe('promoteAsk', () => {
   it('names the design and tech approvers for a token or component change', () => {
     expect(promoteAsk(3, { design: ['ana'], tech: ['@ben', 'cy'] })).toEqual({
       who: '@ana (design) and @ben and @cy (tech) will be asked to approve.',
-      next: 'It becomes ready for review. Design and tech approve, then it ships.',
+      next: 'It moves to In review. Design and tech approve, then it can be merged.',
     });
     expect(promoteAsk(3, { design: ['ana'], tech: ['ana'] }).who).toBe('@ana will be asked to approve, for design and for tech.');
     expect(promoteAsk(null, { design: [], tech: [] }).who).toBe('A design owner and a tech owner will be asked to approve.');
@@ -166,7 +167,7 @@ describe('promoteAsk', () => {
 
   it('asks one approval for Tier 1, design and tech from Tier 2 up', () => {
     expect(promoteAsk(2, { design: ['ana'], tech: ['ben'] }).who).toMatch(/@ana \(design\).*@ben \(tech\)/);
-    expect(promoteAsk(1, { design: ['ana'], tech: ['ben'] })).toEqual({ who: 'One teammate will be asked to approve: any reviewer can.', next: 'It becomes ready for review. One approval, then it ships.' });
-    expect(promotedLine(64)).toBe('Promoted. #64 is ready for review now, waiting for its approvals.');
+    expect(promoteAsk(1, { design: ['ana'], tech: ['ben'] })).toEqual({ who: 'One teammate will be asked to approve: any reviewer can.', next: 'It moves to In review. One approval, then it can be merged.' });
+    expect(promotedLine(64)).toBe('Promoted. #64 is in review now, waiting for its approvals.');
   });
 });

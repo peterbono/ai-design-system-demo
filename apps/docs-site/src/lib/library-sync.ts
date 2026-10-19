@@ -1,7 +1,8 @@
-// Bring in the latest library: how far a change is behind the library it started from, whether it conflicts, and how
+// Update from main: how far a change is behind the library it started from, whether it conflicts, and how
 // a designer resolves token conflicts ("Keep mine" or "Use the library's", the Tokens Studio yours/theirs model in
 // designer words). Pure rules from GitHub API shapes (compare, pull request, rulesets) and token sets: no fetch, no
 // DOM. scripts/reviews/library-sync.ts reads and writes; components/ds/studio/LibraryCatchUp.tsx paints the flow.
+import { VOCAB } from './vocabulary';
 import { choiceFor, formatValue, isAlias, aliasTarget, modeDisplayName, parseColor, rgbaToHex, type FlatToken, type MergeChoices, type MergeSide, type TokenMergeConflict, type TokenSet } from '@bridge-ds/core';
 import { shown, type ShownValue, type TokenReview } from './token-review';
 
@@ -51,15 +52,15 @@ export function freshness(input: { compare: CompareLike | null | undefined; merg
   return { state: behindBy > 0 ? 'behind' : 'current', behindBy, mergeBase };
 }
 
-/** "The library has moved on: 3 updates since this change started." Null when there is nothing to say. */
+/** "main has moved on: 3 updates since this branch started." Null when there is nothing to say. */
 export function libraryLine(f: Freshness): string | null {
   if (!f.behindBy || (f.state !== 'behind' && f.state !== 'conflict')) return null;
-  return `The library has moved on: ${plural(f.behindBy, 'update')} since this change started.`;
+  return `${VOCAB.main} has moved on: ${plural(f.behindBy, 'update')} since this ${VOCAB.branch} started.`;
 }
 
-/** The row tag of the Changes list, in the words of the detail line: "Library moved on: 12 updates". Null when up to date or unknown. */
+/** The row tag of the Changes list, in the words of the detail line: "main moved on: 12 updates". Null when up to date or unknown. */
 export function behindTag(behindBy: number | null | undefined): string | null {
-  return behindBy && behindBy > 0 ? `Library moved on: ${plural(behindBy, 'update')}` : null;
+  return behindBy && behindBy > 0 ? `${VOCAB.main} moved on: ${plural(behindBy, 'update')}` : null;
 }
 
 /** Every path a compare file names: a renamed file counts under its old name too. */
@@ -89,14 +90,14 @@ export function conflictRoute(o: { tokenFiles: string[]; codeFiles: string[] }, 
 
 /** The conflict row sentence, in designer words. `conflicts` is null while the tokens are being read. */
 export function conflictLine(route: ConflictRoute, conflicts: number | null): string {
-  if (route.kind === 'code') return route.alsoTokens ? 'This change also conflicts in code. A developer resolves that part.' : 'This change conflicts with the latest library in code. A developer resolves it.';
-  if (conflicts === null) return 'It conflicts with the latest library. Reading which tokens.';
-  if (conflicts === 0) return 'The same token files changed here and in the library, but no token changed on both sides. Bridge can combine them.';
-  return `${plural(conflicts, 'token')} changed here and in the latest library. Pick which value to keep.`;
+  if (route.kind === 'code') return route.alsoTokens ? `This ${VOCAB.branch} also conflicts in code. A developer resolves that part.` : `This ${VOCAB.branch} conflicts with ${VOCAB.main} in code. A developer resolves it.`;
+  if (conflicts === null) return `It conflicts with ${VOCAB.main}. Reading which tokens.`;
+  if (conflicts === 0) return `The same token files changed here and on ${VOCAB.main}, but no token changed on both sides. Bridge can combine them.`;
+  return `${plural(conflicts, 'token')} changed here and on ${VOCAB.main}. Pick which value to keep.`;
 }
 
 /** The button of the conflict row: what the designer does next. */
-export const resolveLabel = (conflicts: number) => (conflicts > 0 ? `Resolve ${plural(conflicts, 'conflict')}` : 'Bring in the latest library');
+export const resolveLabel = (conflicts: number) => (conflicts > 0 ? `Resolve ${plural(conflicts, 'conflict')}` : VOCAB.updateFromMain);
 
 // ---------------------------------------------------------------------------------------------------------------
 // What happens next: checks run again, approvals may need renewing
@@ -191,11 +192,11 @@ export function conflictRows(conflicts: TokenMergeConflict[], sets: { base: Toke
     const renamed = c.mine && c.theirs && c.mine.path !== c.theirs.path;
     const note =
       c.removedOn === 'theirs'
-        ? 'Removed in the latest library: pick one.'
+        ? `Removed on ${VOCAB.main}: pick one.`
         : c.removedOn === 'mine'
-          ? 'Removed in this change: pick one.'
+          ? `Removed on this ${VOCAB.branch}: pick one.`
           : renamed
-            ? `Renamed to ${c.theirs!.path} in the latest library.`
+            ? `Renamed to ${c.theirs!.path} on ${VOCAB.main}.`
             : sameShown(library, mine)
               ? 'Same value, different description or settings.'
               : null;
@@ -239,7 +240,7 @@ export function resolution(conflicts: TokenMergeConflict[], choices: MergeChoice
   }
   if (missing) return { missing, mine, theirs, ready: false, sentence: `Pick a value for ${plural(missing, 'more token')}.` };
   if (!conflicts.length) return { missing, mine, theirs, ready: true, sentence: 'Combines both sides: no token changed on both.' };
-  const parts = [mine ? `yours for ${plural(mine, 'token')}` : '', theirs ? `the library's for ${plural(theirs, 'token')}` : ''].filter(Boolean);
+  const parts = [mine ? `yours for ${plural(mine, 'token')}` : '', theirs ? `${VOCAB.main}'s for ${plural(theirs, 'token')}` : ''].filter(Boolean);
   return { missing, mine, theirs, ready: true, sentence: `Keeps ${parts.join(' and ')}.` };
 }
 

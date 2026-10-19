@@ -293,9 +293,9 @@ export function editBarState(o: { dirty: boolean; sent: boolean; savesLocally: b
 
 export const EDIT_BAR_LABEL: Record<EditBarState, string> = {
   clean: 'No changes yet',
-  saved: 'Draft saved, not sent',
+  saved: 'Draft saved in this browser',
   unsaved: 'Unsaved changes',
-  sent: 'Sent for review',
+  sent: 'Review requested',
 };
 
 /**

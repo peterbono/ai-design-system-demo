@@ -1,7 +1,7 @@
 // Right detail panel (a drawer on narrow screens and on the Library foundation pages). Library (read mode): the name
 // as a plain heading, one summary first (a large specimen next to the value with copy, where the value comes from on
-// one line, one plain sentence), then collapsed rows: Aliased by, Used by, Contrast, History, and one "For developers"
-// fold at the bottom (code names, the developer note, the files). One action, "Edit in Studio", in the footer.
+// one line, one plain sentence), then collapsed rows: Aliased by, Used by, Contrast, History, and Names in code and
+// Figma (with one quiet "Open on GitHub" link to the file). One action, "Edit in Studio", in the footer.
 // Studio (edit mode): renderStudioDetail, read-only and compact. The history panel fills its section itself.
 import { contextLabel, TIER_NAMES, tokenHistory } from '@bridge-ds/core';
 import { contrastMeta, definedIn, splitDescription, summarySentence, usedByRows, type UsedByRow } from '../../lib/explorer/detail-summary';
@@ -295,15 +295,16 @@ function renderLibraryDetail(host: HTMLElement, d: ExplorerData, view: View, pat
   const used = comps.length + styles.length ? acc('used', 'box', 'Used by', usedByLine(comps.length, styles), rowList(usedByRows(path, all, comps, styles, d.reads).map(usedRow))) : '';
   const c = t.type === 'color' ? contrastParts(d, path) : undefined;
   const contrast = c ? acc('contrast', 'contrast', 'Contrast', contrastMeta(c.pairs, c.failing), c.body) : '';
+  // The names a token goes by in code and in Figma, the same for designers and developers. Where it is defined is one
+  // quiet link to GitHub on that line; install notes in the description belong to the Install page, not here.
   const files = definedIn(t.files, d.tokensRoot ?? '');
-  const dev = acc(
-    'dev',
+  const source = files.length && d.repo ? `https://github.com/${d.repo.owner}/${d.repo.name}/blob/${d.repo.defaultBranch}/${files[0]}` : null;
+  const named = acc(
+    'names',
     'code',
-    'For developers',
-    'Code names and files',
-    `${names(path, t.tier)}${desc.developer ? `<p class="xp-dd-note">${esc(desc.developer)}</p>` : ''}${
-      files.length ? `<p class="xp-dd-files"><span class="muted">Defined in</span> ${files.map((f) => `<code>${esc(f)}</code>`).join(' ')}</p>` : ''
-    }`,
+    'Names in code and Figma',
+    'CSS, JS, DTCG and Figma',
+    `${names(path, t.tier)}${source ? `<p class="xp-dd-files"><a href="${esc(source)}" target="_blank" rel="noopener">Open on GitHub</a></p>` : ''}`,
   );
 
   host.innerHTML = `
@@ -324,7 +325,7 @@ function renderLibraryDetail(host: HTMLElement, d: ExplorerData, view: View, pat
       <div class="xp-d-accs">
         ${aliased}${used}${contrast}
         ${acc('history', 'clock', 'History', 'Reading', '<div class="tx-d-foot" hidden></div>')}
-        ${dev}
+        ${named}
       </div>
     </div>
     <div class="xp-d-editbar xp-dd-editbar" data-maintainer-only><a class="btn btn-primary xp-dd-edit" href="${esc(studioHref(path))}" data-xp-studio>${icon('pencil', 16)}Edit in Studio</a></div>`;

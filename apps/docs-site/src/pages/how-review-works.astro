@@ -30,12 +30,12 @@ const whoRows = who ? who.rows.map((row) => row.map(inline)) : [];
 
 const journey: { title: string; text: string }[] = [
   { title: 'Explore in Figma', text: 'A designer tries the change on real screens. Nothing in Figma reaches the product by itself.' },
-  { title: 'Propose with Bridge', text: 'The DS Bridge Figma plugin, or Studio Tokens, turns the proposal into a pull request against the token files. An issue works too; then the AI agent or a maintainer writes the pull request.' },
-  { title: 'Pull request', text: 'The change is a diff on a branch, with a risk tier, a changelog entry and a note on what to review.' },
+  { title: 'Create a branch and request review', text: 'In Studio or the DS Bridge Figma plugin, a designer creates a branch off main and requests a review, the way Figma branching works. On GitHub that branch is a pull request against the token files. An issue works too; then the AI agent or a maintainer writes the pull request.' },
+  { title: 'Pull request', text: 'The branch is a diff with a risk tier, a changelog entry and a note on what to review. Studio shows it as a branch with its status: Draft, In review, Approved, waiting for code, Merged or Closed.' },
   { title: 'CI guardrails', text: 'Checks run on every pull request: tokens build, types check, no raw colors or shadows in components, Storybook builds, a changelog entry exists.' },
   { title: 'Design and tech review', text: 'The design owner checks both themes, contrast and keyboard focus. The tech owner checks naming, API and version bump. Token changes need both.' },
-  { title: 'Merge', text: 'A person who owns that area merges. The AI agent never merges.' },
-  { title: 'Release', text: 'Changesets bumps the version and writes the changelog from the entries collected in each pull request.' },
+  { title: 'Review and merge', text: 'A person who owns that area merges the branch into main. The AI agent never merges.' },
+  { title: 'Publish', text: 'Changesets bumps the version and writes the changelog from the entries collected in each pull request.' },
   { title: 'Docs update themselves', text: 'This site rebuilds from the repo: color tables, contrast checks, component pages, the changelog and llms.txt. Figma variables are re-imported from the same files.' },
 ];
 
@@ -50,7 +50,7 @@ const requestSteps: { title: string; text: string }[] = [
   { title: 'Review and merge', text: 'The pull request goes through the same tiers and gates as any other change. When it merges, the request closes as done.' },
 ];
 const exploreSteps: { title: string; text: string }[] = [
-  { title: 'Start', text: 'From Studio Changes, `bridge explore start <name>` or Claude (`bridge_start_exploration`): a branch `explore/<name>` from main and a draft pull request labeled `exploration`. Token edits and requests filed on it land there, never on main.' },
+  { title: 'Start', text: 'From Studio Branches, Explorations, `bridge explore start <name>` or Claude (`bridge_start_exploration`): a branch `explore/<name>` from main and a draft pull request labeled `exploration`. Token edits and requests filed on it land there, never on main.' },
   { title: 'Try it in a product staging branch', text: 'Every push publishes snapshot packages (`npm i @bridge-ds/react@<snapshot>`) and per-branch previews: a coded prototype for a user test, a stakeholder demo or an A/B idea on real screens.' },
   { title: 'Promote or close', text: 'It is never merged as is: the `Exploration not merged as is` check fails while the label is on. Promote to review removes the label, adds the tier labels and marks it ready, then the usual gates apply. Otherwise, close it.' },
 ];
@@ -85,7 +85,7 @@ const allowed = r.override.allowed.map((l) => `@${l}`).join(', ');
       <summary><h2>Component change requests</h2><span class="rw-n">3 steps</span></summary>
       <p>
         Variables are data: a variable edit is a pull request you approve. Components are code: a component change is a request, and a pull request that closes it does the work.
-        Follow requests in <Link href="/studio/changes/?view=requests">Studio Changes</Link>, in GitHub by the <code>component-change</code> label, or in Jira when Settings connects it.
+        Teams triage requests where they plan: in GitHub by the <code>component-change</code> label, or in Jira when Settings connects it.
       </p>
       <ol class="rw-steps">
         {
@@ -103,7 +103,7 @@ const allowed = r.override.allowed.map((l) => `@${l}`).join(', ');
       <summary><h2>Explorations</h2><span class="rw-n">3 steps</span></summary>
       <p>
         An exploration tries experimental variables and components in a real product staging branch without touching main. Follow them in{' '}
-        <Link href="/studio/changes/?view=explorations">Studio Changes, Explorations</Link>, or in GitHub by the <code>exploration</code> label.
+        <Link href="/studio/changes/?view=explorations">Studio Branches, Explorations</Link>, or in GitHub by the <code>exploration</code> label.
       </p>
       <ol class="rw-steps">
         {

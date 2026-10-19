@@ -279,7 +279,7 @@
   background-color: transparent;
 }
 
-/* How adoption is measured, For developers */
+/* How adoption is measured, then the quiet line of other runs and the report on GitHub */
 
 .ql-row.ad-fold-row {
   grid-template-columns: minmax(0, 1fr) var(--size-6);
@@ -290,21 +290,11 @@
   margin: 0;
 }
 
-.ad-dev-body {
-  display: grid;
-  gap: var(--space-3);
-  min-width: 0;
-}
-
-.ad-dev-body .ql-h {
-  margin: var(--space-3) 0 0;
-}
-
-.ad-dev-body p code {
-  overflow-wrap: anywhere;
-}
-
-.ad-page .ad-dev {
+.ad-runs {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
   margin-top: var(--space-8);
 }
 

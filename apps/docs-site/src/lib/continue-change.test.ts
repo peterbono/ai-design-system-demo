@@ -90,6 +90,7 @@ describe('which changes take more token edits', () => {
     expect(changeTitle('tokens: darker default background')).toBe('Darker default background');
     expect(changeTitle('feat(tokens): Forest brand')).toBe('Forest brand');
     expect(changeTitle('Plain title')).toBe('Plain title');
+    expect(changeTitle('DS-42 tokens: darker default background')).toBe('Darker default background');
   });
 });
 
@@ -109,17 +110,17 @@ describe('where the edits go', () => {
     const opts = targetOptions(many, () => '2 hours ago');
     expect(opts).toHaveLength(4);
     expect(opts[0]).toMatchObject({ label: 'Add to Darker default background' });
-    expect(opts[0]!.description).toBe('Your change, updated 2 hours ago.');
-    expect(opts[3]).toMatchObject({ value: 'new', label: 'Start a new change' });
+    expect(opts[0]!.description).toBe('Your branch, updated 2 hours ago.');
+    expect(opts[3]).toMatchObject({ value: 'new', label: 'Create a new branch' });
     expect(targetOptions(targets.filter((t) => !t.mine), () => 'today')[0]!.description).toMatch(/^Opened by ben/);
     for (const c of [{ kind: 'new' } as const, { kind: 'change', number: 12 } as const]) expect(parseTargetValue(targetValue(c))).toEqual(c);
     expect(parseTargetValue('nope')).toBeNull();
   });
 
   it('tells the Changes draft strip where the draft goes', () => {
-    expect(draftDestination(targets[0]!)).toBe('Sending adds them to Darker default background.');
-    expect(draftDestination(targets[0]!, 1)).toBe('Sending adds it to Darker default background.');
-    expect(draftDestination(null)).toBe('Sending starts a new change.');
+    expect(draftDestination(targets[0]!)).toBe('They go to Darker default background.');
+    expect(draftDestination(targets[0]!, 1)).toBe('It goes to Darker default background.');
+    expect(draftDestination(null)).toBe('Requesting review creates a new branch.');
   });
 });
 
@@ -190,8 +191,8 @@ describe('3-way check against the change as it is now', () => {
   });
 
   it('says what stopped and how to fix it, linking to the conflict flow', () => {
-    expect(conflictSentence(['color.bg.default'])).toBe('Someone also edited color.bg.default in this change after you opened it. Nothing was saved, so no edit is lost. Keep your value, or keep theirs and drop your edit.');
-    expect(conflictSentence(['color.bg.default'], false)).toBe('This change already edits color.bg.default, to another value than yours. Nothing was saved, so no edit is lost. Keep your value, or keep theirs and drop your edit.');
+    expect(conflictSentence(['color.bg.default'])).toBe('Someone also edited color.bg.default in this branch after you opened it. Nothing was saved, so no edit is lost. Keep your value, or keep theirs and drop your edit.');
+    expect(conflictSentence(['color.bg.default'], false)).toBe('This branch already edits color.bg.default, to another value than yours. Nothing was saved, so no edit is lost. Keep your value, or keep theirs and drop your edit.');
     expect(conflictSentence(['a', 'b'])).toContain('a and b');
     expect(conflictSentence(['a', 'b', 'c'])).toContain('a and 2 other tokens');
     expect(unresolved(['a', 'b'], ['a'])).toEqual(['b']);
@@ -233,9 +234,9 @@ describe('words and storage', () => {
   it('writes the banner, the status and the comment', () => {
     expect(scopeBanner('Darker default background').title).toBe('Editing: Darker default background');
     expect(addedSentence(1, 'X', 0)).toBe('Added 1 edit to X.');
-    expect(addedNotice(1)).toBe('Added 1 edit to this change. Reviewers see it now.');
-    expect(addedNotice(3)).toBe('Added 3 edits to this change. Reviewers see them now.');
-    expect(addedSentence(2, 'X', 1)).toBe('Added 2 edits to X. It had moved since you opened it: 1 other token stays as the change has it.');
+    expect(addedNotice(1)).toBe('Added 1 edit to this branch. Reviewers see it now.');
+    expect(addedNotice(3)).toBe('Added 3 edits to this branch. Reviewers see them now.');
+    expect(addedSentence(2, 'X', 1)).toBe('Added 2 edits to X. It had moved since you opened it: 1 other token stays as the branch has it.');
     expect(addedComment(['a.b'], 'ana')).toBe('@ana added token edits from the Bridge token editor:\n\n- `a.b`');
   });
 });

@@ -12,6 +12,7 @@
 // are in starts expanded. Deeper levels (each component) live as cards on their group page, not in the nav.
 import type { IconName } from '../brand/icons';
 import { loadComponents } from './components';
+import { VOCAB } from './vocabulary';
 
 export type Space = 'library' | 'studio';
 
@@ -71,11 +72,11 @@ export const STUDIO_CHANGES_HREF = '/studio/changes/';
  * Adoption pages redirect to it (lib/redirects.ts); each audit report opens under /studio/quality/audits/. */
 export const STUDIO_QUALITY_HREF = '/studio/quality/';
 
-/** Settings is one page, its sections in page order: Connection, Roles, Approvals, Figma and Claude (tools),
- * Integrations, then the collapsed For developers section (developer) that holds Repository. The old Repository,
- * Governance and Integrations pages redirect to these anchors (lib/redirects.ts); the governance prose lives in the
- * Library (How review works). */
-export const SETTINGS_SECTIONS = ['connection', 'roles', 'approvals', 'tools', 'integrations', 'developer', 'repository'] as const;
+/** Settings is one page, its sections in page order: Connection with the Repository line (the library it reads),
+ * Roles, Approvals, Figma and Claude (tools), Integrations. No developer section: settings speak designer words with
+ * a "How it works on GitHub" link. The old Repository, Governance and Integrations pages redirect to these anchors
+ * (lib/redirects.ts); the governance prose lives in the Library (How review works). */
+export const SETTINGS_SECTIONS = ['connection', 'repository', 'roles', 'approvals', 'tools', 'integrations'] as const;
 export const HOW_REVIEW_WORKS = '/how-review-works/';
 
 /** Component families for the catalog page (cards), from the optional `category` in <Name>.docs.json. */
@@ -102,7 +103,7 @@ export function studioNav(): NavEntry[] {
     { href: STUDIO_HOME, label: 'Overview', icon: 'gauge', meta: 'What waits for you, suggestions and activity' },
     { href: '/studio/tokens/', label: 'Tokens', icon: 'grid', branchAware: true, meta: 'Edit tokens into a draft, with live preview and guardrails' },
     { href: '/studio/components/', label: 'Components', icon: 'diamonds', branchAware: true, meta: 'Status, tokens, code and Figma links per component' },
-    { href: STUDIO_CHANGES_HREF, label: 'Changes', icon: 'branch', badge: 'reviews', meta: 'Changes to review, requests, explorations and the history of shipped token changes, with undo' },
+    { href: STUDIO_CHANGES_HREF, label: VOCAB.Branches, icon: 'branch', badge: 'reviews', meta: 'Branches in review, explorations and the history of merged token changes, with undo' },
     { href: STUDIO_QUALITY_HREF, label: 'Quality', icon: 'shield', branchAware: true, meta: 'Contrast gate, token validation, docs completeness and adoption, most severe first' },
     { href: SETTINGS_HOME, label: 'Settings', icon: 'sliders', meta: 'GitHub connection, the repository this workspace reads, and who approves what' },
   ];

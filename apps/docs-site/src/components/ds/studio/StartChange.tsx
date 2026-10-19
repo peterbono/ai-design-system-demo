@@ -1,4 +1,4 @@
-// "Start a change" on the Studio Overview. A DS Menu with the same intents as "Change this component"
+// "Create branch" on the Studio Overview (VOCAB.createBranch, Figma's word). A DS Menu with the same intents as "Change this component"
 // (lib/change-intent.ts) plus a new component, one plain line under each:
 //   - Adjust the look: Studio Tokens.
 //   - Add a variant or option, Something looks wrong: pick the component in place, under the greeting (a DS
@@ -7,6 +7,7 @@
 //   - New component: Changes > Explorations with the start form open (?view=explorations&start=new).
 // The page decides its weight (`bridge:start-change`): the primary when nothing needs the viewer, secondary when the
 // first need is the primary, hidden signed out (Connect GitHub takes its place).
+import { VOCAB } from '../../../lib/vocabulary';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown, Component, CopyPlus, MessageSquareWarning, Palette } from 'lucide-react';
@@ -99,7 +100,7 @@ export default function StartChange({ components }: StartChangeProps) {
         <MenuTrigger
           render={
             <Button variant={look.variant} iconEnd={ChevronDown} fullWidth data-start-change>
-              Start a change
+              {VOCAB.createBranch}
             </Button>
           }
         />

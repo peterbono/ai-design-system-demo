@@ -147,7 +147,7 @@ export function trayRows(head: TokenSet, proposed: TokenSet, draft: Draft): Tray
     if (edit.kind === 'add') return { edit, index, label: edit.path, context: 'new token', before: null, after: { text: Object.entries(edit.values).map(([m, v]) => `${m}: ${String(v)}`).join(', '), hex: null } };
     if (edit.kind === 'description') return { edit, index, label: edit.path, context: 'description', before: { text: edit.before ?? 'No description', hex: null }, after: { text: edit.after || 'No description', hex: null } };
     if (edit.kind === 'rename') return { edit, index, label: `${edit.path} -> ${edit.to}`, context: 'rename', before: null, after: null };
-    if (edit.kind === 'docs') return { edit, index, label: `${edit.component} docs`, context: 'docs', before: null, after: { text: 'Send it from its Library page', hex: null } };
+    if (edit.kind === 'docs') return { edit, index, label: `${edit.component} docs`, context: 'docs', before: null, after: { text: 'Request review from its Library page', hex: null } };
     return { edit, index, label: edit.path, context: 'delete', before: null, after: null };
   });
 }

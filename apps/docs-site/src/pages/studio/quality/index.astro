@@ -2,7 +2,8 @@
 // Studio Quality: one page for the checks and the adoption of the system (it replaced Checks and Adoption, which
 // redirect here). A Harbor opener with one sentence and one action, one list of findings most severe first, the
 // housekeeping collapsed, then adoption in one row per product (current value big, the value before the move to Bridge
-// as a quiet label; the trend is on each report page). File paths and the commands to run the checks locally sit in one "For developers" disclosure.
+// as a quiet label; the trend is on each report page). No developer fold: file paths and commands live on GitHub and
+// on the Library Agents page.
 import '../../../styles/adoption.css';
 import '../../../styles/quality.css';
 import Layout from '../../../layouts/Layout.astro';
@@ -14,11 +15,11 @@ import { GROUP_TONE } from '../../../lib/changes';
 import { docsEditHref, guidanceState, loadComponents } from '../../../lib/components';
 import { CONTRAST_FILE } from '../../../lib/contrast';
 import AdoptionMetric from '../../../components/AdoptionMetric.astro';
-import { AUDITS_DIR, groupByApp, loadAudits } from '../../../lib/audits';
+import { groupByApp, loadAudits } from '../../../lib/audits';
 import { ADOPTION_MEANING, adoptionRows, beforeLabel, cleanupTitle, firstFindingTarget, openerSentence, qualityModel, type ComboResult } from '../../../lib/quality';
 import { PAGE_SOURCES, freshness } from '../../../lib/sources';
 import { QUALITY_IN_CHECKS, QUALITY_IN_CHECKS_BODY, QUALITY_TOGETHER, QUALITY_TOGETHER_BODY } from '../../../lib/view-scope';
-import { Badge, CodeBlock, EmptyState, Icon, Link } from '@bridge-ds/react';
+import { Badge, EmptyState, Icon, Link } from '@bridge-ds/react';
 import { ShieldCheck } from 'lucide-react';
 import { dashboard } from '../../../lib/stats';
 import { BRAND_LABEL, TOKEN_SOURCE_FILES, type Brand } from '../../../lib/tokens';
@@ -56,16 +57,16 @@ const tone = (g: keyof typeof GROUP_TONE) => GROUP_TONE[g];
     <StudioHeader title="Quality" />
     <div class="view-banner" data-view-banner hidden></div>
 
-    {/* Showing an open change (?change=N, lib/view-scope): these numbers are the latest library's, so they give way to
-        one line that points to the change's own checks (html[data-view-change], set before the page paints). */}
-    <section class="ql-view" data-change-only aria-label="Quality of this change">
+    {/* Showing an open branch (?change=N, lib/view-scope): these numbers are main's, so they give way to
+        one line that points to the branch's own checks (html[data-view-change], set before the page paints). */}
+    <section class="ql-view" data-change-only aria-label="Quality of this branch">
       <EmptyState icon={ShieldCheck} title={QUALITY_IN_CHECKS} description={QUALITY_IN_CHECKS_BODY} headingLevel={2} align="start">
         <ButtonLink slot="actions" variant="primary" href="/studio/changes/" data-change-href>See its checks</ButtonLink>
       </EmptyState>
     </section>
-    <section class="ql-view" data-together-only aria-label="Quality of these changes together">
+    <section class="ql-view" data-together-only aria-label="Quality of these branches together">
       <EmptyState icon={ShieldCheck} title={QUALITY_TOGETHER} description={QUALITY_TOGETHER_BODY} headingLevel={2} align="start">
-        <ButtonLink slot="actions" variant="primary" href="/studio/changes/">Go to Changes</ButtonLink>
+        <ButtonLink slot="actions" variant="primary" href="/studio/changes/">Go to Branches</ButtonLink>
       </EmptyState>
     </section>
 
@@ -177,17 +178,5 @@ const tone = (g: keyof typeof GROUP_TONE) => GROUP_TONE[g];
       )
     }
 
-    <details class="ql-local" id="for-developers" data-latest-only>
-      <summary>For developers</summary>
-      <p class="ql-muted">Contrast pairs come from <code>{CONTRAST_FILE}</code>. Adoption reports are committed under <code>{AUDITS_DIR}</code>.</p>
-      <p class="ql-muted">CI runs these checks on every pull request. Run them before you push to see the same result.</p>
-      <CodeBlock
-        className="ql-cmd"
-        label="Run the checks locally"
-        code={`npm run bridge -- check    # config, token validation, contrast gate
-npm run tokens:build       # DTCG to CSS and TS, fails on contrast
-npm run audit:docs         # adoption audit of this app, fails on regression`}
-      />
-    </details>
   </div>
 </Layout>

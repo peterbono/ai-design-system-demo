@@ -64,8 +64,8 @@ export async function readChange(config: BridgeConfig, n: number): Promise<Chang
   const res = await freshFetch(`https://api.github.com/repos/${owner}/${name}/pulls/${n}`, {
     headers: { Accept: 'application/vnd.github+json', ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}) },
   });
-  if (res.status === 404) throw new Error(`Change #${n} was not found. It may have been deleted.`);
-  if (!res.ok) throw new GitHubError(res.status, `GitHub answered ${res.status} for change #${n}.`);
+  if (res.status === 404) throw new Error(`Branch #${n} was not found. It may have been deleted.`);
+  if (!res.ok) throw new GitHubError(res.status, `GitHub answered ${res.status} for branch #${n}.`);
   return (await res.json()) as ChangePull;
 }
 
@@ -106,8 +106,8 @@ export async function addToChange(input: { n: number; config: BridgeConfig; base
   const pull = await readChange(config, n);
   const { owner, name } = repoName(config);
   const title = changeTitle(pull.title);
-  if (!isTokenChange(pull, `${owner}/${name}`)) throw new Error(`${title} no longer takes edits: it shipped, closed or is not a token change. Start a new change instead.`);
-  if (!canAddTo(pull, viewer, write)) throw new Error(`Only ${pull.user?.login ?? 'the author'} or someone with write access can add to ${title}. Start a new change instead.`);
+  if (!isTokenChange(pull, `${owner}/${name}`)) throw new Error(`${title} no longer takes edits: it was merged, closed or has no token edits. Create a new branch instead.`);
+  if (!canAddTo(pull, viewer, write)) throw new Error(`Only ${pull.user?.login ?? 'the author'} or someone with write access can add to ${title}. Create a new branch instead.`);
 
   const client = freshClient(config);
   const branch = pull.head.ref;

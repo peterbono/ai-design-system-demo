@@ -1,13 +1,12 @@
 // Settings > Safety > Protection: one row of the Safety card, the same row as the visual before and after. It says
 // whether every change to the library goes through review and, when not, offers one action on the same row:
-// "Protect the library" (or "Complete protection"). The action confirms in a DS Dialog that says what changes in plain words, keeps the GitHub terms in
-// a collapsed "Details for developers", then creates the repository ruleset with the viewer's token. Refusals
+// "Protect the library" (or "Complete protection"). The action confirms in a DS Dialog that says what changes in plain
+// words, with a "How it works on GitHub" link for the GitHub terms, then creates the repository ruleset with the
+// viewer's token. Refusals
 // (not an admin, a token without Administration, a plan without rulesets) get one sentence and a link to GitHub
 // settings, never silence.
 import { useCallback, useEffect, useState } from 'react';
 import {
-  Accordion,
-  AccordionItem,
   Alert,
   Button,
   ButtonGroup,
@@ -17,7 +16,8 @@ import {
   Link,
 } from '@bridge-ds/react';
 import { loadProtection, loadRequiredChecks, protectLibrary, protectRefusal, rulesSettingsUrl } from '@bridge-ds/core';
-import { protectionDetails, protectionRow, type ProtectionRowState } from '../../../lib/protection-view';
+import { protectionRow, RULESETS_HELP_URL, type ProtectionRowState } from '../../../lib/protection-view';
+import { VOCAB } from '../../../lib/vocabulary';
 import { hasWorkingToken, initGitHubConnect, prefersSignIn, readRepo, studioClient } from '../../../scripts/github-session';
 
 export default function ProtectionRow() {
@@ -116,18 +116,21 @@ export default function ProtectionRow() {
         >
           <ul className="set-protect-list">
             <li>
-              <strong>Changes go through review.</strong> Each change is a pull request that someone approves before it ships.
+              <strong>Every branch goes through review.</strong> Someone approves it before it is merged into main.
             </li>
             <li>
               <strong>Checks must pass.</strong>{' '}
-              {checks === null ? 'Reading your checks from GitHub.' : checks.length ? `The ${checks.length} checks your team already runs must pass before a change ships.` : 'Your repository runs no checks yet, so only review applies.'}
+              {checks === null ? 'Reading your checks from GitHub.' : checks.length ? `The ${checks.length} checks your team already runs must pass before a branch is merged.` : 'Your repository runs no checks yet, so only review applies.'}
             </li>
             <li>
-              <strong>Nobody rewrites history.</strong> Shipped changes stay as they are, and nobody can delete the library.
+              <strong>Nobody rewrites history.</strong> Merged branches stay as they are, and nobody can delete the library.
             </li>
           </ul>
           <p className="set-protect-note">
-            Owners can still ship through Bridge. Repository admins keep the override: they may ship a change before its approvals, but never change the library directly.
+            Owners can still merge from Studio. Repository admins keep the override: they may merge a branch before its approvals, but never change main directly.{' '}
+            <Link href={RULESETS_HELP_URL} external>
+              {VOCAB.howOnGitHub}
+            </Link>
           </p>
           {error && (
             <Alert tone="danger" className="set-protect-error">
@@ -137,15 +140,6 @@ export default function ProtectionRow() {
               </Link>
             </Alert>
           )}
-          <Accordion appearance="flush">
-            <AccordionItem value="dev" title="Details for developers">
-              <ul className="set-protect-dev">
-                {protectionDetails(repo.defaultBranch, checks ?? []).map((line) => (
-                  <li key={line}>{line}</li>
-                ))}
-              </ul>
-            </AccordionItem>
-          </Accordion>
         </DialogContent>
       </Dialog>
     </div>

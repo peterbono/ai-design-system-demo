@@ -374,38 +374,16 @@
   gap: var(--space-3);
 }
 
-.nb-files {
+.nb-jira {
   display: grid;
-  gap: var(--space-3);
-  font-size: var(--typography-ui-size);
-  line-height: var(--typography-ui-line-height);
 }
 
-.nb-files-title {
-  margin: 0;
-  font-size: var(--typography-ui-size);
-  line-height: var(--typography-ui-line-height);
-  font-weight: var(--font-weight-semibold);
-}
-
-.nb-files ul,
 .nb-issues {
   display: grid;
   gap: var(--space-2);
   margin: 0;
   padding: 0;
   list-style: none;
-}
-
-.nb-files li {
-  display: grid;
-  grid-template-columns: var(--size-10) minmax(0, 1fr);
-  gap: var(--space-2);
-  overflow-wrap: anywhere;
-}
-
-.nb-file-kind {
-  color: var(--color-text-muted);
 }
 
 .nb-actions {

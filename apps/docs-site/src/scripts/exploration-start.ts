@@ -33,13 +33,13 @@ export interface LinkedStart {
  */
 export async function startLinkedExploration(
   cfg: ExplorationsConfig,
-  e: { name: string; purpose: string; useCase?: ExplorationUseCase; author?: string },
+  e: { name: string; purpose: string; useCase?: ExplorationUseCase; author?: string; jira?: string },
   request?: { number: number; title: string } | null,
 ): Promise<LinkedStart> {
   const gh = explorationClient(cfg);
   const started = await startExplorationOnGitHub(
     gh,
-    { name: e.name, purpose: e.purpose, source: 'studio', ...(e.useCase ? { useCase: e.useCase } : {}), ...(e.author ? { author: e.author } : {}) },
+    { name: e.name, purpose: e.purpose, source: 'studio', ...(e.useCase ? { useCase: e.useCase } : {}), ...(e.author ? { author: e.author } : {}), ...(e.jira ? { jira: e.jira } : {}) },
     { base: cfg.defaultBranch, packages: cfg.packages, apps: cfg.apps, ...(request ? { requests: [request] } : {}) },
   );
   if (!request) return { started };

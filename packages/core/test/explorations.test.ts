@@ -129,6 +129,7 @@ describe('exploration pull request', () => {
     expect(plan.removeLabels).toEqual(['exploration']);
     expect(plan.removeFiles).toEqual(['.bridge/explorations/pill-buttons.md']);
     expect(plan.title).toBe('Pill buttons');
+    expect(promotionPlan({ title: 'DS-42 Exploration: pill buttons', body: '', labels: [], files: [] }).title).toBe('DS-42 Pill buttons');
     expect(plan.body).toMatch(/^\*\*Promoted from an exploration on 2026-10-20\.\*\*/);
     expect(plan.body).toContain('**Risk tier:** 3.');
     expect(plan.body).toContain('Closes #40\nCloses #41');
@@ -284,6 +285,12 @@ describe('explorations on GitHub', () => {
     await expect(startExplorationOnGitHub(gh.client(''), { name: 'Other', purpose: 'x' }, settings)).rejects.toThrow(/needs a GitHub token/);
     await expect(startExplorationOnGitHub(gh.client(), { name: '', purpose: '' }, settings)).rejects.toBeInstanceOf(GitHubError);
     expect(gh.pulls).toHaveLength(1);
+  });
+
+  it('start with a Jira ticket: the key goes first in the pull request title', async () => {
+    const gh = fakeGitHub();
+    await startExplorationOnGitHub(gh.client(), { name: 'Pill buttons', purpose: 'Rounder buttons.', jira: 'DS-42' }, settings);
+    expect(gh.pulls[0].title).toBe('DS-42 Exploration: pill buttons');
   });
 
   it('start for a request: the draft pull request lists the request it answers', async () => {

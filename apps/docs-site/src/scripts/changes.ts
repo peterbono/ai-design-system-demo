@@ -1,5 +1,6 @@
-// Studio Changes page controller: the four views (In review, Requests, Explorations, History) as tabs, a pull request opened in
-// place (?pr=N), a component change request opened in place (?request=N), the local draft strip, and the routes old pages redirect to (?view=history, #other-branches, ?branch=).
+// Studio Branches page controller: the views (All branches, Explorations, History, and Requests when request triage is
+// on in Studio, lib/studio-flags) as tabs, a branch opened in place (?pr=N), a component change request opened in place
+// (?request=N), the local draft strip, and the routes old pages redirect to (?view=history, #other-branches, ?branch=).
 import { initWorkFilter } from './work-filter';
 import { closePr, initReviewAuth, loadList, openPr } from './reviews';
 import { initHistory } from './history/page';
@@ -12,6 +13,7 @@ import { docsEdits, draftSummary, tokenEdits } from '../lib/docs-draft-model';
 import type { Draft } from '../lib/editor-model';
 import { addableChanges, defaultTarget, draftDestination, type ChangePullLike } from '../lib/continue-change';
 import { currentViewer, initGitHubConnect, onAccess, readRepo } from './github-session';
+import { REQUEST_TRIAGE_IN_STUDIO } from '../lib/studio-flags';
 
 type View = 'review' | 'requests' | 'explorations' | 'history';
 
@@ -63,7 +65,7 @@ function paintDraft() {
 }
 
 let canWrite = false;
-/** Where the token draft goes when sent: the viewer's own change in review (the default target), else a new one. */
+/** Where the token draft goes when sent: the viewer's own branch in review (the default target), else a new one. */
 function paintDestination(edits: number) {
   const dest = document.getElementById('cg-draft-dest');
   if (!dest) return;
@@ -115,7 +117,8 @@ function route() {
     return;
   }
   const v = params.get('view');
-  const view: View = v === 'history' || v === 'requests' || v === 'explorations' ? v : 'review';
+  // Request triage off (teams triage in Jira): ?view=requests opens All branches.
+  const view: View = v === 'history' || v === 'explorations' || (v === 'requests' && REQUEST_TRIAGE_IN_STUDIO) ? v : 'review';
   showView(view);
   // Start an exploration from a request: the form, filled from it.
   const forRequest = Number(params.get('for'));

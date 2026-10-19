@@ -11,6 +11,7 @@
 // on it. The viewer's own avatar never shows: "Needs a developer" rather than "A developer is on it" next to you.
 // Who comes from real markers (lib/work-nature makerOf): Claude when an agent made it, "You" only for what the viewer
 // started from Studio. Developer work (lib/work-nature) leaves the columns for one quiet line under the board.
+import { branchCount } from './vocabulary';
 import type { WhoActs } from './changes';
 import { blockerOf, type TodoChange } from './overview-todo';
 import { isDsChange } from './release-view';
@@ -94,7 +95,7 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 /** The person shown on a card: never the viewer. */
 const other = (login: string | null | undefined, viewer: string | null) => (login && !same(login, viewer) ? login : null);
 
-const LABEL: Record<ColumnId, string> = { exploring: 'Exploring', review: 'In review', ready: 'Ready to ship', release: 'Next release' };
+const LABEL: Record<ColumnId, string> = { exploring: 'Exploring', review: 'In review', ready: 'Ready to merge', release: 'Next release' };
 const HREF: Record<ColumnId, string> = {
   exploring: '/studio/changes/?view=explorations',
   review: '/studio/changes/',
@@ -140,7 +141,7 @@ function readyCard(c: BoardChange, viewer: string | null): BoardCard {
     title: c.title,
     who: other(c.author, viewer),
     href: `/studio/changes/?pr=${c.number}`,
-    note: yours ? 'Approved and tested. Ship it to put it in the next release.' : `Approved and tested. ${c.who?.sentence.replace(/^Ready to ship: /, '') ?? ''}`.trim(),
+    note: yours ? 'Approved and tested. Merge it to put it in the next release.' : `Approved and tested. ${c.who?.sentence.replace(/^Ready to merge: /, '') ?? ''}`.trim(),
     status: yours ? YOU : null,
   };
 }
@@ -151,7 +152,7 @@ type Natured = BoardCard & { nature: WorkNature };
 export function explorationNote(e: BoardExploration, viewer: string | null): string {
   const m = e.maker ?? makerOf({ author: e.author, viewer });
   // Whoever started it with the viewer's account (Claude, the viewer, a tool) waits for the viewer to send it on.
-  return `${explorationMakerLine(m)} ${m.kind === 'person' ? 'Sent for review once it holds up.' : 'Send it for review once it holds up.'}`;
+  return `${explorationMakerLine(m)} ${m.kind === 'person' ? 'Goes to review once it holds up.' : 'Request a review once it holds up.'}`;
 }
 
 /** Every card of the board with its nature, column by column. */
@@ -181,7 +182,7 @@ function allCards(input: BoardInput): [ColumnId, Natured[]][] {
       key: `release-${r.ref}`,
       title: releaseTitle(r.title),
       who: other(r.author, viewer),
-      note: 'Approved, goes out in the next release.',
+      note: 'Merged, goes out in the next release.',
       status: null,
       href: '/studio/changes/?view=history',
       nature: 'design',
@@ -247,7 +248,7 @@ export function splitTokens(title: string): { text: string; token: boolean }[] {
 export function inFlightLine(cols: BoardColumn[]): string {
   const n = cols.filter((c) => c.id !== 'release').reduce((s, c) => s + c.cards.length, 0);
   const shipped = cols.find((c) => c.id === 'release')?.cards.length ?? 0;
-  const moving = n === 0 ? 'Nothing in flight' : `${n} ${n === 1 ? 'change' : 'changes'} in flight`;
+  const moving = n === 0 ? 'Nothing in flight' : `${branchCount(n)} in flight`;
   return shipped ? `${moving}, ${shipped} approved for the next release.` : `${moving}.`;
 }
 

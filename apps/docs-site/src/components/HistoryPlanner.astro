@@ -6,6 +6,7 @@ import { Alert, Button } from '@bridge-ds/react';
 import ScriptDialog from './ds/ScriptDialog.astro';
 import { ghAction } from '../lib/gh-wording';
 import { signInConfig } from '../lib/signin-config';
+import { VOCAB } from '../lib/vocabulary';
 
 const signIn = Boolean(signInConfig());
 ---
@@ -18,7 +19,7 @@ const signIn = Boolean(signInConfig());
   <div class="hp-foot" slot="footer">
     <p class="hp-status" id="hp-status" role="status" aria-live="polite"></p>
     <Button variant="secondary" data-dialog-close>Cancel</Button>
-    <Button variant="primary" className="st-hideable" data-gh-open id="hp-connect" hidden>{ghAction('propose', signIn)}</Button>
-    <Button variant="primary" className="st-hideable" id="hp-propose">Propose undo</Button>
+    <Button variant="primary" className="st-hideable" data-gh-open id="hp-connect" hidden>{ghAction('request review', signIn)}</Button>
+    <Button variant="primary" className="st-hideable" id="hp-propose">{VOCAB.requestReview}</Button>
   </div>
 </ScriptDialog>

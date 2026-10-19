@@ -1,12 +1,12 @@
-// The lifecycle of a change, in designer words, from GitHub data only. Pure: no DOM, no fetch. Unit tested in
+// The lifecycle of a branch, in designer words (Figma branching, lib/vocabulary), from GitHub data only. Pure: no DOM, no fetch. Unit tested in
 // change-status.test.ts. Shared by the change detail (status line), the Changes list (status filter, row chip) and
 // the Overview "For you" rows, so the three say the same thing.
 //
 //   Draft                       the change is a draft (GitHub draft flag, explorations included)
-//   Ready for review            open and not a draft: the review flow says what it needs (lib/changes whoActs)
+//   In review                   open and not a draft: the review flow says what it needs (lib/changes whoActs)
 //   Approved, waiting for code  the design approval is in and only developer work stands between it and shipping
-//   Shipped                     merged
-//   Closed                      closed without shipping
+//   Merged                      merged ('shipped' is the internal id, kept for ?status=shipped links)
+//   Closed                      closed without merging
 //
 // "Waiting for code" never guesses. It holds only when every one of these is read from GitHub or the repo: the work
 // is design work (lib/work-nature), the design approval the tier needs is given (lib/review-rules summarizeApprovals),
@@ -18,6 +18,7 @@ import { pullState, type PullState, type ReviewStatusKind, type Tier } from './r
 import { GROUP_TONE, openerFor, type Opener, type OpenerRow, type StatusTone } from './changes';
 import type { WorkNature } from './work-nature';
 import type { TokenSet } from '@bridge-ds/core';
+import { branchCount, STATUS_WORDS, VOCAB } from './vocabulary';
 
 export type Lifecycle = 'draft' | 'ready' | 'waiting' | 'shipped' | 'closed';
 
@@ -25,11 +26,11 @@ export type Lifecycle = 'draft' | 'ready' | 'waiting' | 'shipped' | 'closed';
 export type LifecycleTone = StatusTone;
 
 export const LIFECYCLE: Record<Lifecycle, { label: string; short: string }> = {
-  draft: { label: 'Draft', short: 'Draft' },
-  ready: { label: 'Ready for review', short: 'Ready for review' },
-  waiting: { label: 'Approved, waiting for code', short: 'Waiting for code' },
-  shipped: { label: 'Shipped', short: 'Shipped' },
-  closed: { label: 'Closed', short: 'Closed' },
+  draft: { label: STATUS_WORDS.draft, short: STATUS_WORDS.draft },
+  ready: { label: STATUS_WORDS.inReview, short: STATUS_WORDS.inReview },
+  waiting: { label: STATUS_WORDS.waiting, short: STATUS_WORDS.waitingShort },
+  shipped: { label: STATUS_WORDS.merged, short: STATUS_WORDS.merged },
+  closed: { label: STATUS_WORDS.closed, short: STATUS_WORDS.closed },
 };
 
 /**
@@ -162,7 +163,7 @@ export function reopenEligibility(x: {
 }
 
 /** The sentence a closed change shows when its branch is gone. */
-export const GONE_SENTENCE = "This change can't be reopened: its work was removed.";
+export const GONE_SENTENCE = `This ${VOCAB.branch} can't be reopened: its work was removed.`;
 
 /**
  * The one action of the status line. Draft: the author marks it ready (an exploration is promoted from its own flow,
@@ -179,9 +180,9 @@ export function statusAction(x: { lifecycle: Lifecycle; isAuthor: boolean; canWr
 }
 
 export const ACTION_LABEL: Record<Exclude<StatusAction, null>, string> = {
-  'mark-ready': 'Mark as ready',
-  reopen: 'Reopen this change',
-  restart: 'Start again from this change',
+  'mark-ready': VOCAB.requestReview,
+  reopen: `Reopen this ${VOCAB.branch}`,
+  restart: `Start again from this ${VOCAB.branch}`,
 };
 
 /** The sentence of the status line for the states the review flow does not already explain. */
@@ -190,12 +191,12 @@ export function lifecycleSentence(x: { lifecycle: Lifecycle; isAuthor: boolean; 
   switch (x.lifecycle) {
     case 'draft':
       if (x.exploration) return null;
-      return x.isAuthor ? 'Mark it ready when you want a review. Until then nobody is asked to review it.' : `Waiting for @${x.author} to mark it ready for review.`;
+      return x.isAuthor ? 'Request a review when it is ready. Until then nobody is asked to review it.' : `Waiting for @${x.author} to request a review.`;
     case 'shipped':
-      return x.mergedAt ? `Shipped into the library on ${day(x.mergedAt)}.` : 'Shipped into the library.';
+      return x.mergedAt ? `Merged into ${VOCAB.main} on ${day(x.mergedAt)}.` : `Merged into ${VOCAB.main}.`;
     case 'closed':
       if (x.reopen?.kind === 'gone') return GONE_SENTENCE;
-      return x.closedAt ? `Closed without shipping on ${day(x.closedAt)}.` : 'Closed without shipping.';
+      return x.closedAt ? `Closed without merging on ${day(x.closedAt)}.` : 'Closed without merging.';
     default:
       return null;
   }
@@ -235,9 +236,10 @@ export const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
 export const STATUS_FILTER_EVENT = 'bridge:status-filter';
 export const STATUS_SYNC_EVENT = 'bridge:status-sync';
 
-/** The filter from the address (?status=waiting), Open by default. */
+/** The filter from the address (?status=waiting), Open by default. ?status=merged reads as the Merged filter too. */
 export function statusFilterParam(search: string): StatusFilter {
-  const v = new URLSearchParams(search).get('status');
+  const raw = new URLSearchParams(search).get('status');
+  const v = raw === 'merged' ? 'shipped' : raw;
   return STATUS_FILTERS.some((f) => f.value === v) ? (v as StatusFilter) : 'open';
 }
 
@@ -253,9 +255,9 @@ export function byLifecycle<R extends { lifecycle: Lifecycle }>(rows: R[]): R[] 
 }
 
 /**
- * The In review opener with the lifecycle. It counts the changes in review and the drafts apart, names the most urgent
- * change someone in Studio can move (never one that waits for code: nobody in Studio acts on it), then how many wait
- * for code. Same urgency order and words as before (lib/changes openerFor).
+ * The opener of All branches with the lifecycle. It counts the branches in review, waiting for code and in draft apart,
+ * then names the most urgent branch someone in Studio can move (never one that waits for code: nobody in Studio acts
+ * on it). Same urgency order and words as before (lib/changes openerFor).
  */
 export function statusOpener(rows: (OpenerRow & { lifecycle: Lifecycle })[]): Opener {
   const drafts = rows.filter((r) => r.lifecycle === 'draft').length;
@@ -263,14 +265,18 @@ export function statusOpener(rows: (OpenerRow & { lifecycle: Lifecycle })[]): Op
   const active = review.filter((r) => r.lifecycle !== 'waiting');
   const waiting = review.length - active.length;
   if (!drafts && !waiting) return openerFor(rows);
-  const head = review.length
-    ? `${plural(review.length, 'change')} in review${drafts ? ` and ${plural(drafts, 'draft')}` : ''}.`
-    : `${plural(drafts, 'draft')}, nothing in review yet.`;
-  const tail = waiting ? ` ${waiting === review.length ? (waiting === 1 ? 'It is approved and waits' : 'All are approved and wait') : `${waiting} ${waiting === 1 ? 'waits' : 'wait'}`} for code.` : '';
-  if (!active.length) return { sentence: `${head}${tail}`, action: null };
+  if (!review.length) return { sentence: `${plural(drafts, 'draft')}, nothing in review yet.`, action: null };
+  // Each status counted apart, in the words of its badge: "1 branch in review, 2 waiting for code and 1 draft."
+  const parts = [
+    active.length ? `${branchCount(active.length)} in review` : '',
+    waiting ? `${active.length ? waiting : branchCount(waiting)} waiting for code` : '',
+    drafts ? plural(drafts, 'draft') : '',
+  ].filter(Boolean);
+  const head = `${parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : parts[0]}.`;
+  if (!active.length) return { sentence: head, action: null };
   const first = openerFor(active);
-  const why = first.sentence.replace(/^\d+ changes? in review\. /, '');
-  return { sentence: `${head} ${why}${tail}`, action: first.action };
+  const why = first.sentence.replace(/^\d+ branch(es)? in review\. /, '');
+  return { sentence: `${head} ${why}`, action: first.action };
 }
 
 /** The filters that read finished changes (one more GitHub read, only when picked). */
@@ -280,15 +286,15 @@ export const needsClosed = (filter: StatusFilter) => filter === 'shipped' || fil
 export function emptyFilterLine(filter: StatusFilter): string {
   switch (filter) {
     case 'draft':
-      return 'No change is a draft.';
+      return `No ${VOCAB.branch} is a draft.`;
     case 'ready':
-      return 'No change is ready for review.';
+      return `No ${VOCAB.branch} is in review.`;
     case 'waiting':
-      return 'No approved change waits for code.';
+      return `No approved ${VOCAB.branch} waits for code.`;
     case 'shipped':
-      return 'No change shipped recently.';
+      return `No ${VOCAB.branch} was merged recently.`;
     case 'closed':
-      return 'No change was closed recently.';
+      return `No ${VOCAB.branch} was closed recently.`;
     default:
       return 'Nothing to review.';
   }
@@ -336,8 +342,8 @@ export function draftFromTokenSets(base: TokenSet, head: TokenSet): { draft: Dra
 
 /** What "Start again" says once the draft is ready, or why it could not be. */
 export function restartLine(x: { carried: number; skipped: number; draftBusy: boolean }): { ok: boolean; text: string } {
-  if (x.draftBusy) return { ok: false, text: 'You already have a draft in this browser. Send it for review or clear it in Tokens, then start again.' };
-  if (!x.carried) return { ok: false, text: 'This change has no token value to carry over. Start a new change from Tokens instead.' };
+  if (x.draftBusy) return { ok: false, text: 'You already have a draft in this browser. Request a review of it or clear it in Tokens, then start again.' };
+  if (!x.carried) return { ok: false, text: `This ${VOCAB.branch} has no token value to carry over. Create a new ${VOCAB.branch} from Tokens instead.` };
   const skipped = x.skipped ? ` ${plural(x.skipped, 'other edit')} (new, removed or brand-only tokens) could not be carried over.` : '';
-  return { ok: true, text: `${plural(x.carried, 'token edit')} copied into your draft.${skipped} Opening Tokens to send it for review.` };
+  return { ok: true, text: `${plural(x.carried, 'token edit')} copied into your draft.${skipped} Opening Tokens to request a review.` };
 }

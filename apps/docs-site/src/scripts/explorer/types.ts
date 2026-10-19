@@ -40,6 +40,8 @@ export interface ExplorerData {
   modes: Modes;
   /** Repository directory of the token files (bridge.config.json tokens.root), for "Defined in". */
   tokensRoot?: string;
+  /** The repository (bridge.config.json repo), for the quiet "Open on GitHub" link of a token's file. */
+  repo?: { owner: string; name: string; defaultBranch: string };
   /** Component name -> token paths its CSS reads (the components index), for the "Used by" rows. */
   reads?: Record<string, string[]>;
   /** Studio Tokens showing an open change (lib/view-scope): the tokens it changes, against the latest library. */

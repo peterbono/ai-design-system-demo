@@ -322,12 +322,6 @@
   font-weight: var(--font-weight-regular);
 }
 
-.hp-dl {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
 .hp-status {
   flex-basis: 100%;
   margin: 0;
@@ -431,20 +425,6 @@
   align-items: center;
   gap: var(--space-1-5);
   cursor: pointer;
-}
-
-.hp-meta p {
-  overflow-wrap: anywhere;
-}
-
-.hp-pr pre {
-  max-height: var(--size-64);
-  overflow: auto;
-  padding: var(--space-3);
-  border-radius: var(--radius-control);
-  background-color: var(--color-bg-subtle);
-  font-size: var(--typography-ui-size);
-  white-space: pre-wrap;
 }
 
 .hp-foot {

@@ -71,7 +71,7 @@ export function explorationSummary(p: PullRequestSummary, _owner: string, _repo:
     url: p.url,
     branch: p.headRef,
     slug,
-    name: e?.name ?? p.title.replace(/^Exploration:\s*/i, ''),
+    name: e?.name ?? p.title.replace(/^[A-Z][A-Z0-9_]*-\d+\s+/, '').replace(/^Exploration:\s*/i, ''),
     purpose: e?.purpose ?? '',
     ...(e?.useCase ? { useCase: e.useCase } : {}),
     status: explorationStatus({ state: p.state, labels: p.labels, headRef: p.headRef, body: p.body }),
@@ -123,7 +123,8 @@ export async function startExplorationOnGitHub(gh: GitHubClient, e: Exploration,
     files: [{ path: explorationNotePath(slug), content: explorationNote(full) }],
   });
   const ctx = { owner: gh.owner, repo: gh.name, packages: s.packages, apps: s.apps, ...(s.requests?.length ? { requests: s.requests } : {}) };
-  const pr = await x.createPullRequest({ title: explorationPrTitle(full), head: branch, base: s.base, body: explorationPrBody(full, ctx), draft: true });
+  const title = full.jira ? `${full.jira.trim().toUpperCase()} ${explorationPrTitle(full)}` : explorationPrTitle(full);
+  const pr = await x.createPullRequest({ title, head: branch, base: s.base, body: explorationPrBody(full, ctx), draft: true });
   await x.addLabels(pr.number, [EXPLORATION_LABEL]);
   // The number exists now: the body gets the install command.
   await x.updatePullRequest(pr.number, { body: explorationPrBody(full, { ...ctx, pr: pr.number }) }).catch(() => undefined);

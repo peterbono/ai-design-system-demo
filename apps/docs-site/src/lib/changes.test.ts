@@ -77,11 +77,11 @@ describe('urgency', () => {
 
   it('writes the opener about the most urgent change, with one action', () => {
     expect(openerFor(rows.map((r) => ({ ...r, title: `PR ${r.number}` })))).toEqual({
-      sentence: '6 changes in review. #3 is blocked by failing checks.',
+      sentence: '6 branches in review. #3 is blocked by failing checks.',
       action: { label: 'Review #3', pr: 3 },
     });
-    expect(openerFor([{ number: 2, kind: 'needs-design', title: 'x' }]).sentence).toBe('1 change in review. #2 waits for a design approval.');
-    expect(openerFor([{ number: 1, kind: 'ready', title: 'x' }]).sentence).toBe('1 change in review. #1 is ready to ship.');
+    expect(openerFor([{ number: 2, kind: 'needs-design', title: 'x' }]).sentence).toBe('1 branch in review. #2 waits for a design approval.');
+    expect(openerFor([{ number: 1, kind: 'ready', title: 'x' }]).sentence).toBe('1 branch in review. #1 is ready to merge.');
     expect(openerFor([]).action).toBeNull();
   });
 
@@ -92,12 +92,12 @@ describe('urgency', () => {
       { number: 1, kind: 'ready', title: 'x', yourTurn: true },
       { number: 7, kind: 'needs-design', title: 'x', yourTurn: true, updated_at: '2026-10-16T00:00:00Z' },
     ]);
-    expect(opener).toEqual({ sentence: '4 changes in review. Your turn on #7: it waits for a design approval.', action: { label: 'Review #7', pr: 7 } });
+    expect(opener).toEqual({ sentence: '4 branches in review. Your turn on #7: it waits for a design approval.', action: { label: 'Review #7', pr: 7 } });
   });
 
   it('says a change waits on a developer, with no button, when nothing else is the viewer turn', () => {
     const dev = { number: 3, kind: 'ci-failing' as const, title: 'x', developer: true, updated_at: '2026-10-18T00:00:00Z' };
-    expect(openerFor([dev, { number: 2, kind: 'needs-tech', title: 'x' }])).toEqual({ sentence: '2 changes in review. #3 waits on a developer to fix its tests.', action: null });
+    expect(openerFor([dev, { number: 2, kind: 'needs-tech', title: 'x' }])).toEqual({ sentence: '2 branches in review. #3 waits on a developer to fix its tests.', action: null });
     // The most urgent change is not a developer's: it is named with its button, as before.
     expect(openerFor([{ ...dev, developer: false }, { number: 2, kind: 'needs-tech', title: 'x' }]).action).toEqual({ label: 'Review #3', pr: 3 });
   });
@@ -118,7 +118,7 @@ describe('pull request opener', () => {
     const t3 = mergeGate({ tier: 3, ci: green, approvals: approvals(), draft: false, state: 'open' });
     expect(detailSentence({ state: 'open', ci: green, gate: t3, changesRequestedBy: [] })).toBe('Waiting for a design and a tech approval. Tests pass.');
     const ok = mergeGate({ tier: 1, ci: green, approvals: approvals({ approvers: ['a'] }), draft: false, state: 'open' });
-    expect(detailSentence({ state: 'open', ci: green, gate: ok, changesRequestedBy: [] })).toMatch(/^Ready to ship/);
+    expect(detailSentence({ state: 'open', ci: green, gate: ok, changesRequestedBy: [] })).toMatch(/^Ready to merge/);
   });
 
   it('picks one primary: the failing run, connect, approve or merge', () => {
@@ -248,7 +248,7 @@ describe('who acts now', () => {
     expect(whoActs(detail({ ci: red }), { owners, author: 'ann', viewer: 'dana' }).sentence).toBe('Waiting for @ann to fix 2 failing checks.');
     expect(whoActs(detail({ ci: red }), { owners, author: 'ann', viewer: 'ann' })).toMatchObject({ yourTurn: true, action: 'fix-checks', sentence: 'Your turn: fix 2 failing checks.' });
     expect(whoActs(detail({ a: { changesRequested: ['dana'] } }), { owners, author: 'ann' }).sentence).toBe('Waiting for @ann to address the changes @dana requested.');
-    expect(whoActs(detail({ state: 'draft' }), { owners, author: 'ann' }).sentence).toBe('Waiting for @ann to mark this draft ready for review.');
+    expect(whoActs(detail({ state: 'draft' }), { owners, author: 'ann' }).sentence).toBe('Waiting for @ann to request a review of this draft.');
     expect(whoActs(detail({ mergeable: false, a: { approvers: ['dana', 'theo'], design: true, tech: true } }), { owners, author: 'ann' }).action).toBe('resolve-conflict');
     expect(whoActs(detail({ state: 'draft', exploration: true }), { owners, author: 'ann' }).action).toBe('promote');
   });
@@ -258,7 +258,7 @@ describe('who acts now', () => {
     const gate = mergeGate({ tier: 3, ci: green, approvals: a, draft: false, mergeable: null, state: 'open' });
     const need = needFromDetail({ state: 'open', ci: green, gate, changesRequestedBy: [], mergeable: null });
     expect(need.kind).toBe('checking-merge');
-    expect(whoActs(need, { owners, author: 'ann' }).sentence).toBe('Checking that it fits the latest library. Then the design owner (@dana) approves.');
+    expect(whoActs(need, { owners, author: 'ann' }).sentence).toBe('Checking that it fits main. Then the design owner (@dana) approves.');
     // A known conflict wins, in the detail as in the list.
     const conflict = mergeGate({ tier: 3, ci: green, approvals: a, draft: false, mergeable: false, state: 'open' });
     expect(needFromDetail({ state: 'open', ci: green, gate: conflict, changesRequestedBy: [], mergeable: false }).kind).toBe('resolve-conflict');
@@ -270,20 +270,20 @@ describe('who acts now', () => {
 
   it('says who ships a ready change, and gives the viewer the merge when they can', () => {
     const ready = detail({ a: { approvers: ['dana', 'theo'], design: true, tech: true } });
-    expect(whoActs(ready, { owners, author: 'ann' }).sentence).toBe('Ready to ship: @dana or @theo can ship it.');
-    expect(whoActs(ready, { owners, author: 'ann', viewer: 'ann', canMerge: true })).toMatchObject({ yourTurn: true, action: 'merge', short: 'Your turn: ship it' });
+    expect(whoActs(ready, { owners, author: 'ann' }).sentence).toBe('Ready to merge: @dana or @theo can merge it.');
+    expect(whoActs(ready, { owners, author: 'ann', viewer: 'ann', canMerge: true })).toMatchObject({ yourTurn: true, action: 'merge', short: 'Your turn: merge it' });
     expect(whoActs(ready, { owners, author: 'ann', viewer: 'zoe', canMerge: false }).yourTurn).toBe(false);
   });
 
   it('names only who holds the ship right when the team set one', () => {
     const ready = detail({ a: { approvers: ['dana', 'theo'], design: true, tech: true } });
-    expect(whoActs(ready, { owners, shippers: ['theo'], author: 'ann' }).sentence).toBe('Ready to ship: @theo can ship it.');
+    expect(whoActs(ready, { owners, shippers: ['theo'], author: 'ann' }).sentence).toBe('Ready to merge: @theo can merge it.');
     expect(whoActs(ready, { owners, shippers: ['theo'], author: 'ann', viewer: 'dana' }).yourTurn).toBe(false);
   });
 
   it('asks for the owner override when the only owner wrote the change', () => {
     const solo = { design: ['pat'], tech: ['pat'] };
-    expect(whoActs(detail({}), { owners: solo, author: 'pat', overrideBy: ['pat'] }).sentence).toBe('No other design owner can approve. @pat can ship it with the owner override.');
+    expect(whoActs(detail({}), { owners: solo, author: 'pat', overrideBy: ['pat'] }).sentence).toBe('No other design owner can approve. @pat can merge it with the owner override.');
     expect(whoActs(detail({}), { owners: solo, author: 'pat', viewer: 'pat', overridable: true })).toMatchObject({ yourTurn: true, action: 'override' });
   });
 
@@ -299,7 +299,7 @@ describe('who acts now', () => {
     expect(whoActs(needFromStatus('needs-design'), p).short).toBe('Design owner to approve');
     expect(whoActs(needFromStatus('needs-tech'), p).short).toBe('Tech owner to approve');
     expect(whoActs(needFromStatus('ci-failing'), p).short).toBe('Blocked by tests');
-    expect(whoActs(needFromStatus('ready'), p).short).toBe('Ready to ship');
+    expect(whoActs(needFromStatus('ready'), p).short).toBe('Ready to merge');
     expect(whoActs(needFromStatus('ci-running'), p).short).toBe('Tests running');
     expect(whoActs(needFromStatus('checking'), p).short).toBe('Checking');
     expect(whoActs(needFromStatus('needs-design'), { ...p, viewer: 'dana' }).short).toBe('Your turn: approve design');

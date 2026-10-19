@@ -191,9 +191,9 @@ describe('edit bar', () => {
     expect(editBarState({ dirty: false, sent: false, savesLocally: false })).toBe('clean');
     expect(editBarState({ dirty: true, sent: false, savesLocally: false })).toBe('unsaved');
     expect(editBarState({ dirty: true, sent: true, savesLocally: true })).toBe('sent');
-    expect(EDIT_BAR_LABEL.saved).toBe('Draft saved, not sent');
+    expect(EDIT_BAR_LABEL.saved).toBe('Draft saved in this browser');
     expect(EDIT_BAR_LABEL.unsaved).toBe('Unsaved changes');
-    expect(EDIT_BAR_LABEL.sent).toBe('Sent for review');
+    expect(EDIT_BAR_LABEL.sent).toBe('Review requested');
   });
 
   it('offers Keep all only from two drafts, and names it', () => {

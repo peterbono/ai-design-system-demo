@@ -2,8 +2,7 @@
 // Everything token editing needs besides the explorer itself: the slim draft bar, the review sheet (before and after,
 // impact, a visual preview of real components), the add and propose dialogs, the GitHub and revert dialogs.
 // TokenExplorer includes it in mode="edit". The cell editor popover is built by scripts/explorer/inline-edit.ts.
-import { Alert, Button, ButtonGroup, Icon, IconButton, Input, Textarea } from '@bridge-ds/react';
-import { siteIcon } from '../../brand/site-icons';
+import { Alert, Button, ButtonGroup, IconButton, Input, Textarea } from '@bridge-ds/react';
 import { ArrowRight, Send, X } from 'lucide-react';
 import GitHubDialog from '../GitHubDialog.astro';
 import ScriptDialog from '../ds/ScriptDialog.astro';
@@ -28,7 +27,7 @@ const previews = loadComponents().flatMap((c) => (c.docs?.preview ? [{ name: c.n
 
   <div class="xe-bar" data-xe-bar role="region" aria-label="Draft" hidden>
     <span class="xe-bar-dot" aria-hidden="true"></span>
-    <span class="xe-bar-count" data-xe-bar-count aria-live="polite">1 change</span>
+    <span class="xe-bar-count" data-xe-bar-count aria-live="polite">1 edit</span>
     <Button variant="inverse" iconEnd={ArrowRight} data-xe-review>Review</Button>
   </div>
 
@@ -40,25 +39,18 @@ const previews = loadComponents().flatMap((c) => (c.docs?.preview ? [{ name: c.n
     </header>
     <div class="xe-sheet-body" data-xe-sheet-scroll>
       <div data-xe-sheet-body></div>
-      <details class="xe-acc xe-dev" data-xe-dev>
-        <summary><Icon icon={siteIcon('code')} size="md" /><span class="xe-acc-label">For developers</span><span class="xe-acc-meta">Export JSON</span><span class="xe-acc-chev"><Icon icon={siteIcon('chevron')} size="sm" /></span></summary>
-        <div class="xe-acc-body xe-dev-body">
-          <p class="xe-empty">Sending for review opens a pull request from a <code>tokens/*</code> branch: the edited token files with minimal diffs, plus a changeset. The JSON export holds the same files and the edit list, to apply by hand or from a script.</p>
-          <Button variant="secondary" size="sm" id="ed-export">Export JSON</Button>
-        </div>
-      </details>
     </div>
     <footer class="xe-sheet-foot">
-      <p class="xe-sheet-note" data-xe-note>Your draft is kept in this browser. {ghVerb(signIn)} once, then send it for review.</p>
+      <p class="xe-sheet-note" data-xe-note>Your draft is kept in this browser. {ghVerb(signIn)} once, then request review.</p>
       <Button variant="secondary" data-xe-discard>Discard</Button>
       <span class="xe-grow"></span>
-      <Button variant="primary" iconStart={Send} id="ed-propose" data-gh-open disabled>{ghAction('send', signIn)}</Button>
+      <Button variant="primary" iconStart={Send} id="ed-propose" data-gh-open disabled>{ghAction('request review', signIn)}</Button>
     </footer>
   </aside>
 
   <ScriptDialog id="ed-add-dialog" title="New semantic color" closeLabel="Close">
     <div class="gh-dialog-body">
-      <p>A semantic token names a job, like <code>color.bg.canvas</code>. Point each theme at a palette role so brands can re-theme it. It stays a draft in this browser until you propose it; proposing a new token is Tier 3.</p>
+      <p>A semantic token names a job, like <code>color.bg.canvas</code>. Point each theme at a palette role so brands can re-theme it. It stays a draft in this browser until you request review; a new token needs a design and a tech approval.</p>
       <Input label="Name" data-ed-field="add-path" placeholder="color.bg.canvas" spellCheck={false} autoComplete="off" />
       <Input label="Light points to" data-ed-field="add-light" list="ed-palette" placeholder="palette.neutral.50" spellCheck={false} autoComplete="off" />
       <Input label="Dark points to" data-ed-field="add-dark" list="ed-palette" placeholder="palette.neutral.950" spellCheck={false} autoComplete="off" />
@@ -73,28 +65,22 @@ const previews = loadComponents().flatMap((c) => (c.docs?.preview ? [{ name: c.n
     </Fragment>
   </ScriptDialog>
 
-  <ScriptDialog id="ed-propose-dialog" title="Send for review" closeLabel="Close" popup={{ 'aria-describedby': 'ed-propose-who' }}>
+  <ScriptDialog id="ed-propose-dialog" title="Create branch" closeLabel="Close" popup={{ 'aria-describedby': 'ed-propose-who' }}>
     <div class="gh-dialog-body">
-      <p id="ed-propose-who" data-ed-field="propose-who">The design owner and a developer will approve it; nothing ships before both.</p>
+      <p id="ed-propose-who" data-ed-field="propose-who">A design owner and a tech owner approve it before it is merged into main.</p>
       <div class="xe-propose-target" data-ed-field="propose-target" hidden></div>
       <div class="xe-propose-new" data-ed-field="propose-new">
         <Input label="Title" data-ed-field="propose-title" placeholder="Darker primary action fill" />
         <Textarea label="Why" data-ed-field="propose-notes" rows={3} placeholder="What problem this solves, and where reviewers should look." />
+        <Input label="Jira ticket" data-ed-field="propose-jira" placeholder="DS-42" hint="Optional. Links this branch to the ticket in Jira." spellCheck={false} autoComplete="off" />
       </div>
       <div class="xe-propose-conflict" data-ed-field="propose-conflict" hidden></div>
       <p class="small xe-propose-status" id="ed-propose-status" role="status" aria-live="polite"></p>
-      <details class="xe-acc xe-dev">
-        <summary><Icon icon={siteIcon('code')} size="md" /><span class="xe-acc-label">For developers</span><span class="xe-acc-chev"><Icon icon={siteIcon('chevron')} size="sm" /></span></summary>
-        <div class="xe-acc-body">
-          <p class="xe-empty" data-ed-field="propose-dev-new">Bridge creates a <code>tokens/*</code> branch, commits the edited token files with minimal diffs and a changeset, and opens a pull request titled <code data-ed-field="propose-pr-title">tokens: ...</code>, labeled with its risk tier.</p>
-          <p class="xe-empty" data-ed-field="propose-dev-add" hidden>Bridge rereads the pull request's branch, runs the same 3-way token diff as the Figma plugin against the version you edited, commits the edited token files on top of the branch head with a fast-forward only update (never a force push), updates its changeset and comments the token list on the pull request.</p>
-        </div>
-      </details>
     </div>
     <Fragment slot="footer">
       <ButtonGroup align="end">
         <Button variant="secondary" data-dialog-close>Cancel</Button>
-        <span class="xe-go" data-ed-field="propose-go"><Button variant="primary" id="ed-propose-go">Send for review</Button></span>
+        <span class="xe-go" data-ed-field="propose-go"><Button variant="primary" id="ed-propose-go">Request review</Button></span>
       </ButtonGroup>
     </Fragment>
   </ScriptDialog>

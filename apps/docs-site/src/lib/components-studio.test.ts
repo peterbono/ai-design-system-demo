@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { componentsLead, componentsPrimary, drawerActions, drawerFacts, openRequestCounts, productUsage, requestFact, thumbnailNode, tokenOrigin, usedInCell, type LeadInput } from './components-studio';
+import { componentsLead, componentsPrimary, drawerActions, drawerFacts, openRequestCounts, productUsage, requestFact, thumbnailNode, usedInCell, type LeadInput } from './components-studio';
 import { docsEditHref, guidanceState, loadComponents } from './components';
 import { exceptions } from '../components/ds/studio/ComponentsList';
 
@@ -111,12 +111,6 @@ describe('Studio Components list cells and drawer, in words', () => {
     expect(usedInCell([{ product: 'A' }, { product: 'B' }, { product: 'C' }])).toEqual(['A', '+2']);
   });
 
-  it('says where the tokens come from', () => {
-    expect(tokenOrigin(1, [{ from: 'Button', paths: Array(39).fill('x') }])).toBe('1 token of its own and 39 from Button.');
-    expect(tokenOrigin(0, [{ from: 'Button', paths: ['a', 'b'] }, { from: 'Input', paths: ['c'] }])).toBe('No token of its own and 2 from Button and 1 from Input.');
-    expect(tokenOrigin(40, [{ from: 'Button', paths: [] }])).toBe('40 tokens, all its own.');
-    expect(tokenOrigin(0, [])).toBe('No token.');
-  });
 
   it('says the drawer facts in one line of words', () => {
     expect(drawerFacts({ guidance: 'ok', tokens: 40, usedIn: [{ product: 'Admin demo', instances: 4 }] }).join(' ')).toBe('Used in Admin demo (4 places). 40 tokens. Usage guidance written.');

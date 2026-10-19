@@ -257,7 +257,7 @@ export function requestStateLine(r: Pick<RequestRow, 'status' | 'assignees' | 'p
   if (r.status === 'declined') return 'Declined: closed on GitHub without a change.';
   if (r.prs.some((p) => p.exploration && p.state === 'open')) return who ? `@${who} is exploring it.` : 'Someone is exploring it.';
   if (r.status === 'in-progress') return who ? `In progress by @${who}.` : 'In progress.';
-  if (who) return `@${who} is on it. The change has not started yet.`;
+  if (who) return `@${who} is on it. The work has not started yet.`;
   return 'Nobody is on it yet.';
 }
 
@@ -311,7 +311,7 @@ export function declineAudience(requester: string): string {
 /** Where the change that builds a request stands, for its section header: "Not started", "In review", "Shipped". */
 export function buildState(r: Pick<RequestRow, 'prs'>): string {
   if (r.prs.some((p) => p.state === 'open')) return 'In review';
-  if (r.prs.some((p) => p.merged)) return 'Shipped';
+  if (r.prs.some((p) => p.merged)) return 'Merged';
   return r.prs.length ? 'Closed' : 'Not started';
 }
 

@@ -63,22 +63,22 @@ describe('prTitleFrom', () => {
 
 describe('reviewSentence', () => {
   it('names both approvers for a token change', () => {
-    expect(reviewSentence(3)).toBe('The design owner and a developer will approve it; nothing ships before both.');
+    expect(reviewSentence(3)).toBe('A design owner and a tech owner approve it before it is merged into main.');
     expect(reviewSentence(3, { approveDesign: ['design'], approveTech: ['tech'], ship: ['tech'] })).toBe(
-      'The design owner and a developer will approve it; nothing ships before both.',
+      'A design owner and a tech owner approve it before it is merged into main.',
     );
   });
 
   it('follows the configured rights', () => {
     expect(reviewSentence(3, { approveDesign: ['design', 'tech'], approveTech: ['tech'], ship: ['tech'] })).toBe(
-      'The design owner or a developer will approve the design and a developer the code; nothing ships before both.',
+      'A design owner or a tech owner approves the design and a tech owner the code before it is merged into main.',
     );
     expect(reviewSentence(3, { approveDesign: ['design'], approveTech: ['design'], ship: ['design'] })).toBe(
-      'The design owner will approve the design and the code; nothing ships before both approvals.',
+      'A design owner approves the design and the code before it is merged into main.',
     );
   });
 
   it('asks one approval for a description change', () => {
-    expect(reviewSentence(1)).toBe('One reviewer will approve it; nothing ships before that.');
+    expect(reviewSentence(1)).toBe('One reviewer approves it before it is merged into main.');
   });
 });

@@ -336,7 +336,7 @@ export function initChangeFlow(drawer: HTMLElement) {
       if (mode !== 'explore') {
         resetChangeFlow(drawer);
         done.innerHTML = `<p><strong>${esc(sentLine(mode, created.number))}</strong></p>
-          <p><a href="/studio/changes/?request=${created.number}">See it in Changes</a></p>`;
+          <p><a href="/studio/changes/?request=${created.number}">See the request</a></p>`;
         done.hidden = false;
         return;
       }

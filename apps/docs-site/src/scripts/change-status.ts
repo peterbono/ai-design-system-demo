@@ -168,7 +168,7 @@ export async function mountStatus(
   const runs: Record<Exclude<typeof kind, null>, () => Promise<string | void>> = {
     'mark-ready': async () => {
       await studioClient(`${owner}/${repo}`).markReadyForReview(pull.number);
-      pending = 'Marked ready for review. Reviewers can see it now.';
+      pending = 'Review requested. Reviewers can see it now.';
       await x.reload();
     },
     reopen: async () => {
@@ -198,6 +198,6 @@ export async function mountStatus(
 export async function backToDraft(n: number, reload: () => Promise<void>) {
   const { owner, repo } = readRepo();
   await studioClient(`${owner}/${repo}`).convertToDraft(n);
-  pending = 'Back to draft. Reviewers are not asked until you mark it ready again.';
+  pending = 'Back to draft. Reviewers are not asked until you request a review again.';
   await reload();
 }

@@ -131,11 +131,11 @@ export function groupsPhrase(groups: readonly OwnerGroup[]): string {
   return `a ${g.join(' or ')} owner`;
 }
 
-/** The sentence a blocked viewer reads: "Only the tech owner can ship this." */
-/** Teams are named as teams, with their size when known: "Only the tech owner can ship this (@acme/web (4 people))." */
+/** The sentence a blocked viewer reads: "Only the tech owner can merge this." */
+/** Teams are named as teams, with their size when known: "Only the tech owner can merge this (@acme/web (4 people))." */
 export function whoCanShipSentence(policy: ShipPolicy): string {
   const names = (policy.entries ?? policy.logins).map((l) => entryLabel(l, policy.teams)).join(', ');
-  return `Only ${groupsPhrase(policy.groups)} can ship this${names ? ` (${names})` : ''}.`;
+  return `Only ${groupsPhrase(policy.groups)} can merge this${names ? ` (${names})` : ''}.`;
 }
 
 /** Visual before and after: on every pull request that touches tokens or components, or only when asked. */

@@ -151,10 +151,10 @@ describe('statusAction and lifecycleSentence', () => {
     expect(statusAction({ ...x, lifecycle: 'closed', reopen: { kind: 'gone' }, tokenEdits: false })).toBe(null);
   });
   it('says the state in plain words', () => {
-    expect(lifecycleSentence({ lifecycle: 'draft', isAuthor: false, author: 'ann' })).toBe('Waiting for @ann to mark it ready for review.');
-    expect(lifecycleSentence({ lifecycle: 'shipped', isAuthor: false, author: 'ann', mergedAt: '2026-10-03T12:00:00Z' })).toBe('Shipped into the library on Oct 3, 2026.');
+    expect(lifecycleSentence({ lifecycle: 'draft', isAuthor: false, author: 'ann' })).toBe('Waiting for @ann to request a review.');
+    expect(lifecycleSentence({ lifecycle: 'shipped', isAuthor: false, author: 'ann', mergedAt: '2026-10-03T12:00:00Z' })).toBe('Merged into main on Oct 3, 2026.');
     expect(lifecycleSentence({ lifecycle: 'closed', isAuthor: true, author: 'ann', reopen: { kind: 'gone' } })).toBe(GONE_SENTENCE);
-    expect(lifecycleSentence({ lifecycle: 'closed', isAuthor: true, author: 'ann' })).toBe('Closed without shipping.');
+    expect(lifecycleSentence({ lifecycle: 'closed', isAuthor: true, author: 'ann' })).toBe('Closed without merging.');
     expect(lifecycleSentence({ lifecycle: 'ready', isAuthor: true, author: 'ann' })).toBe(null);
   });
 });
@@ -165,12 +165,12 @@ describe('statusOpener', () => {
       { number: 43, title: 'A', kind: 'ci-failing' as const, lifecycle: 'waiting' as const, updated_at: '2026-10-16' },
       { number: 42, title: 'B', kind: 'needs-design' as const, lifecycle: 'ready' as const, updated_at: '2026-10-17' },
     ];
-    expect(statusOpener(rows)).toEqual({ sentence: '2 changes in review. #42 waits for a design approval. 1 waits for code.', action: { label: 'Review #42', pr: 42 } });
-    expect(statusOpener([rows[0]!])).toEqual({ sentence: '1 change in review. It is approved and waits for code.', action: null });
-    expect(statusOpener([rows[1]!]).sentence).toBe('1 change in review. #42 waits for a design approval.');
+    expect(statusOpener(rows)).toEqual({ sentence: '1 branch in review and 1 waiting for code. #42 waits for a design approval.', action: { label: 'Review #42', pr: 42 } });
+    expect(statusOpener([rows[0]!])).toEqual({ sentence: '1 branch waiting for code.', action: null });
+    expect(statusOpener([rows[1]!]).sentence).toBe('1 branch in review. #42 waits for a design approval.');
     // Drafts are counted apart: they are not in review.
     const draft = { number: 41, title: 'C', kind: 'draft' as const, lifecycle: 'draft' as const, updated_at: '2026-10-18' };
-    expect(statusOpener([...rows, draft]).sentence).toBe('2 changes in review and 1 draft. #42 waits for a design approval. 1 waits for code.');
+    expect(statusOpener([...rows, draft]).sentence).toBe('1 branch in review, 1 waiting for code and 1 draft. #42 waits for a design approval.');
     expect(statusOpener([draft])).toEqual({ sentence: '1 draft, nothing in review yet.', action: null });
   });
 
@@ -178,8 +178,8 @@ describe('statusOpener', () => {
     const blocked = { number: 50, title: 'D', kind: 'ci-failing' as const, lifecycle: 'ready' as const, updated_at: '2026-10-18', developer: true };
     const mine = { number: 42, title: 'B', kind: 'needs-design' as const, lifecycle: 'ready' as const, updated_at: '2026-10-17', yourTurn: true };
     const waitingCode = { number: 43, title: 'A', kind: 'ci-failing' as const, lifecycle: 'waiting' as const, updated_at: '2026-10-16' };
-    expect(statusOpener([blocked, mine, waitingCode])).toEqual({ sentence: '3 changes in review. Your turn on #42: it waits for a design approval. 1 waits for code.', action: { label: 'Review #42', pr: 42 } });
-    expect(statusOpener([blocked, waitingCode])).toEqual({ sentence: '2 changes in review. #50 waits on a developer to fix its tests. 1 waits for code.', action: null });
+    expect(statusOpener([blocked, mine, waitingCode])).toEqual({ sentence: '2 branches in review and 1 waiting for code. Your turn on #42: it waits for a design approval.', action: { label: 'Review #42', pr: 42 } });
+    expect(statusOpener([blocked, waitingCode])).toEqual({ sentence: '1 branch in review and 1 waiting for code. #50 waits on a developer to fix its tests.', action: null });
   });
 
   it('lists work someone can move first, then waiting for code, then drafts', () => {
@@ -190,7 +190,7 @@ describe('statusOpener', () => {
 
 describe('todoBadge', () => {
   it('says the lifecycle in the status line words and tone, whatever the row asks', () => {
-    expect(todoBadge('ready')).toEqual({ label: 'Ready for review', tone: 'info' });
+    expect(todoBadge('ready')).toEqual({ label: 'In review', tone: 'info' });
     expect(todoBadge('draft')).toEqual({ label: 'Draft', tone: 'neutral' });
     expect(todoBadge('waiting')).toEqual({ label: 'Approved, waiting for code', tone: 'neutral' });
   });
@@ -198,11 +198,13 @@ describe('todoBadge', () => {
 
 describe('status filter', () => {
   it('names each state exactly as the status model does', () => {
-    expect(STATUS_FILTERS.map((f) => f.label)).toEqual(['All open', 'Draft', 'Ready for review', 'Approved, waiting for code', 'Shipped', 'Closed']);
+    expect(STATUS_FILTERS.map((f) => f.label)).toEqual(['All open', 'Draft', 'In review', 'Approved, waiting for code', 'Merged', 'Closed']);
     expect(STATUS_FILTERS.slice(1).map((f) => f.label)).toEqual(Object.values(LIFECYCLE).map((l) => l.label));
   });
   it('reads the address, Open by default', () => {
     expect(statusFilterParam('?status=waiting')).toBe('waiting');
+    expect(statusFilterParam('?status=merged')).toBe('shipped');
+    expect(statusFilterParam('?status=shipped')).toBe('shipped');
     expect(statusFilterParam('?status=nope')).toBe('open');
     expect(statusFilterParam('')).toBe('open');
   });
@@ -214,7 +216,7 @@ describe('status filter', () => {
     expect(showsUnderStatus('ready', 'waiting')).toBe(false);
     expect(needsClosed('shipped')).toBe(true);
     expect(needsClosed('draft')).toBe(false);
-    expect(emptyFilterLine('waiting')).toBe('No approved change waits for code.');
+    expect(emptyFilterLine('waiting')).toBe('No approved branch waits for code.');
   });
 });
 
@@ -232,7 +234,7 @@ describe('draftFromTokenSets', () => {
   });
 
   it('says what Start again did, or why it could not', () => {
-    expect(restartLine({ carried: 2, skipped: 0, draftBusy: false })).toEqual({ ok: true, text: '2 token edits copied into your draft. Opening Tokens to send it for review.' });
+    expect(restartLine({ carried: 2, skipped: 0, draftBusy: false })).toEqual({ ok: true, text: '2 token edits copied into your draft. Opening Tokens to request a review.' });
     expect(restartLine({ carried: 1, skipped: 1, draftBusy: false }).text).toContain('1 other edit (new, removed or brand-only tokens) could not be carried over.');
     expect(restartLine({ carried: 2, skipped: 0, draftBusy: true }).ok).toBe(false);
     expect(restartLine({ carried: 0, skipped: 3, draftBusy: false }).ok).toBe(false);

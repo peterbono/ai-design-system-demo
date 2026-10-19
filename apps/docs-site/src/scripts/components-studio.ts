@@ -4,7 +4,11 @@
 // Thumbnails and the drawer preview are scaled to fit their frame; the drawer's one Light/Dark switch moves under the
 // open preview, and "Change this component" opens its steps in place (scripts/request-form.ts). The Open requests
 // column fills from the requests Studio already reads (GitHub issues labeled component-change), and leaves the page when they cannot be read.
+// Teams triage requests where they plan (Jira, GitHub): the drawer links to them on GitHub, not to a Studio list.
+import { REQUEST_LABEL } from '@bridge-ds/core';
 import { openRequestCounts, requestFact } from '../lib/components-studio';
+import { VOCAB } from '../lib/vocabulary';
+import { readRepo } from './github-session';
 import { isChangeIntent } from '../lib/change-intent';
 import { clearChangeDone, initChangeFlow, pickChangeIntent, resetChangeFlow } from './request-form';
 import { fitFrames } from './explorer/preview-frames';
@@ -36,7 +40,6 @@ export function initComponentsStudio() {
   const shared = drawer.querySelector<HTMLElement>('[data-cm-shared]')!;
   const themeSeg = drawer.querySelector<HTMLElement>('[data-cm-theme]');
   const panels = [...drawer.querySelectorAll<HTMLElement>('[data-cm-panel]')];
-  const devs = [...drawer.querySelectorAll<HTMLDetailsElement>('[data-cm-dev]')];
   const table = root.querySelector<HTMLElement>('[data-cm-table]');
   // Open requests by lowercased component name: null while reading, undefined when GitHub could not be read.
   let requestCounts: Map<string, number> | null | undefined = null;
@@ -87,10 +90,6 @@ export function initComponentsStudio() {
     const panel = panels.find((p) => p.dataset.cmPanel === slug);
     if (!panel) return;
     panels.forEach((p) => (p.hidden = p !== panel));
-    devs.forEach((x) => {
-      x.hidden = x.dataset.cmDev !== slug;
-      x.open = false;
-    });
     paintDrawerRequests(panel);
     title.textContent = panel.dataset.name ?? slug;
     if (eyebrow) eyebrow.textContent = panel.dataset.family ?? '';
@@ -123,7 +122,7 @@ export function initComponentsStudio() {
     if (themeSeg) selectSegment(themeSeg, theme);
   }
 
-  /** The open request part of the drawer's facts line, with a link to them in Changes when there are some. */
+  /** The open request part of the drawer's facts line, with a link to them on GitHub when there are some. */
   function paintDrawerRequests(panel: HTMLElement) {
     const el = panel.querySelector<HTMLElement>('[data-cm-d-req]');
     if (!el) return;
@@ -131,8 +130,11 @@ export function initComponentsStudio() {
     el.textContent = requestFact(n);
     if (n) {
       const a = document.createElement('a');
-      a.href = '/studio/changes/?view=requests';
-      a.textContent = 'See them in Changes';
+      const r = readRepo();
+      a.href = `https://github.com/${r.owner}/${r.repo}/issues?q=${encodeURIComponent(`is:issue is:open label:${REQUEST_LABEL} ${panel.dataset.name ?? ''}`.trim())}`;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      a.textContent = VOCAB.openOnGitHub;
       el.append(' ', a);
     }
   }

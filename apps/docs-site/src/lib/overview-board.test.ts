@@ -25,35 +25,35 @@ describe('overview board', () => {
     expect(cols.map((c) => [c.label, c.cards.length])).toEqual([
       ['Exploring', 1],
       ['In review', 3],
-      ['Ready to ship', 1],
+      ['Ready to merge', 1],
       ['Next release', 1],
     ]);
     const review = cols[1]!.cards;
     // The viewer's own change: no avatar of the viewer, and nobody is said to be on it.
     expect(review[0]).toMatchObject({ title: 'Change 3', who: null, note: 'A test fails. No developer yet.', status: { tone: 'blocked', label: 'Blocked' }, href: '/studio/changes/?pr=3' });
-    expect(review[1]).toMatchObject({ who: null, note: 'It clashes with the latest library. @ana is on it.' });
+    expect(review[1]).toMatchObject({ who: null, note: 'It clashes with main. @ana is on it.' });
     expect(review[2]).toMatchObject({ status: { tone: 'you', label: 'You' }, note: 'Your design review is next.' });
     expect(cols[1]!.blocked).toBe(2);
     expect(columnMeta(cols[1]!)).toBe('3, 2 blocked');
     expect(columnMeta({ cards: [1, 2] as never, blocked: 2 })).toBe('2, all blocked');
     expect(cols[2]!.empty).toBe('Nothing approved yet.');
     expect(columnMeta(cols[0]!)).toBe('1');
-    expect(cols[2]!.cards[0]).toMatchObject({ status: { tone: 'you' }, note: 'Approved and tested. Ship it to put it in the next release.' });
+    expect(cols[2]!.cards[0]).toMatchObject({ status: { tone: 'you' }, note: 'Approved and tested. Merge it to put it in the next release.' });
     // The viewer's account, no Studio marker: never "You are trying it" from the login alone.
-    expect(cols[0]!.cards[0]).toMatchObject({ who: null, note: 'Started with your GitHub account. Send it for review once it holds up.', href: '/studio/changes/?exploration=98' });
-    expect(cols[3]!.cards[0]).toMatchObject({ title: 'Textarea gets a new appearance option for editing existing text in place', note: 'Approved, goes out in the next release.', who: null });
+    expect(cols[0]!.cards[0]).toMatchObject({ who: null, note: 'Started with your GitHub account. Request a review once it holds up.', href: '/studio/changes/?exploration=98' });
+    expect(cols[3]!.cards[0]).toMatchObject({ title: 'Textarea gets a new appearance option for editing existing text in place', note: 'Merged, goes out in the next release.', who: null });
     expect(cols.map((c) => c.href)).toEqual(['/studio/changes/?view=explorations', '/studio/changes/', '/studio/changes/', '/studio/changes/?view=history']);
   });
 
   it('keeps Bridge app updates out of the next release column and says who acts for others', () => {
     const cols = boardColumns({ explorations: [], changes: [change(5, 'ready', 'ana', 'lea'), change(6, 'needs-design', 'ana', null)], release: [studio], viewer: null });
     expect(cols[3]!.cards).toEqual([]);
-    expect(cols[2]!.cards[0]!.note).toBe('Approved and tested. @peterbono can ship it.');
+    expect(cols[2]!.cards[0]!.note).toBe('Approved and tested. @peterbono can merge it.');
     expect(cols[1]!.cards[0]).toMatchObject({ status: null, who: null, note: 'Waiting for the design owner (@peterbono) to approve.' });
     // Signed out, the author is named in the third person; one author on the whole board: no avatar.
     const out = boardColumns({ explorations: [{ number: 9, name: 'Pill buttons', author: 'peterbono' }], changes: [change(3, 'ci-failing', 'peterbono', null, { failing: 2 })], release: [], viewer: null });
     expect(out[1]!.cards[0]).toMatchObject({ who: null, note: '2 tests fail. @peterbono is on it.' });
-    expect(out[0]!.cards[0]!.note).toBe('@peterbono is trying it. Sent for review once it holds up.');
+    expect(out[0]!.cards[0]!.note).toBe('@peterbono is trying it. Goes to review once it holds up.');
     // Two authors on the board: each card shows its author.
     const two = boardColumns({ explorations: [{ number: 9, name: 'Pill buttons', author: 'lea' }], changes: [change(3, 'ci-failing', 'ana', null, { failing: 2 })], release: [], viewer: null });
     expect([two[0]!.cards[0]!.who, two[1]!.cards[0]!.who]).toEqual(['lea', 'ana']);
@@ -65,9 +65,9 @@ describe('overview board', () => {
   it('says who from real markers: Claude, or You only when started from Studio', () => {
     const ex = (maker: Parameters<typeof boardColumns>[0]['explorations'][number]['maker']) =>
       boardColumns({ explorations: [{ number: 1, name: 'Pill buttons', author: 'me', maker }], changes: [], release: [], viewer: 'me' })[0]!.cards[0]!.note;
-    expect(ex({ kind: 'claude' })).toBe('Claude is building it. Send it for review once it holds up.');
-    expect(ex({ kind: 'you' })).toBe('You are trying it. Send it for review once it holds up.');
-    expect(ex({ kind: 'account', where: 'cli' })).toBe('Started from the command line with your GitHub account. Send it for review once it holds up.');
+    expect(ex({ kind: 'claude' })).toBe('Claude is building it. Request a review once it holds up.');
+    expect(ex({ kind: 'you' })).toBe('You are trying it. Request a review once it holds up.');
+    expect(ex({ kind: 'account', where: 'cli' })).toBe('Started from the command line with your GitHub account. Request a review once it holds up.');
     // A blocked change Claude drafted with the viewer's account.
     const mine = boardColumns({ explorations: [], changes: [change(3, 'ci-failing', 'me', 'me', { failing: 1, agent: true })], release: [], viewer: 'me' });
     expect(mine[1]!.cards[0]!.note).toBe('A test fails. Claude drafted it, no developer is on it yet.');
@@ -85,10 +85,10 @@ describe('overview board', () => {
     };
     const cols = boardColumns(input);
     expect(cols.map((c) => c.cards.map((x) => x.key))).toEqual([['exploration-64'], ['change-2'], [], []]);
-    expect(inFlightLine(cols)).toBe('2 changes in flight.');
+    expect(inFlightLine(cols)).toBe('2 branches in flight.');
     expect(developerWork(input).map((d) => [d.key, d.stage, d.who])).toEqual([
       ['exploration-98', 'Exploring', null],
-      ['change-7', 'Ready to ship', null],
+      ['change-7', 'Ready to merge', null],
     ]);
     expect(developerWork(input)[0]!.note).toBe('Started from the command line with your GitHub account.');
   });
@@ -112,7 +112,7 @@ describe('overview board', () => {
   it('labels columns and the summary line', () => {
     const cols = boardColumns({ explorations: [{ number: 1, name: 'A', author: 'x' }], changes: [change(2, 'ci-failing', 'x', null)], release: [textarea], viewer: null });
     expect(columnHeading(cols[1]!)).toBe('In review, 1');
-    expect(inFlightLine(cols)).toBe('2 changes in flight, 1 approved for the next release.');
+    expect(inFlightLine(cols)).toBe('2 branches in flight, 1 approved for the next release.');
     expect(inFlightLine(boardColumns({ explorations: [], changes: [], release: [], viewer: null }))).toBe('Nothing in flight.');
   });
 
