@@ -1,5 +1,11 @@
 # @bridge-ds/react
 
+## 1.2.1
+
+### Patch Changes
+
+- 71bbb8e: Usage guidance for Icon.
+
 ## 1.2.0
 
 ### Minor Changes
