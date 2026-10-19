@@ -12,6 +12,7 @@ import {
 } from '../shared/messages';
 import { applyPullPlan } from './apply';
 import { applyComponentPlan, scanGenerated } from './build-components';
+import { exportVariants } from './fidelity';
 import { clearClaudeKey, readClaudeSettings, saveClaudeSettings } from './claude-settings';
 import { baselineImage, exportImage, exportThumbnails, rebaseline, saveSignatures, scanComponents, selectionInfo, setExperimental } from './components';
 import { clearGitHubToken, readGitHubToken, saveGitHubToken, setGitHubTokenState } from './github-token';
@@ -134,6 +135,9 @@ const handlers: Handlers = {
   },
   async 'scan-generated'() {
     return scanGenerated();
+  },
+  async 'fidelity-export'({ nodeId, keys, scale }) {
+    return exportVariants(nodeId, keys, scale);
   },
   async 'apply-components'({ plan }) {
     return applyComponentPlan(plan, (message) => figma.ui.postMessage({ kind: 'progress', message }));

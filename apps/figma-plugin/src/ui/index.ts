@@ -28,6 +28,9 @@ import { NEW_TOKEN_REFUSED, TOKEN_REJECTED_CALLOUT, TOKEN_REJECTED_DETAIL, TOKEN
 import { type ExplorationChoice, explorationTestBuild, newExplorationProblems, runningExplorations, shareMessage, startExploration, targetOf, TestBuildPoller, tryItLinks } from '../sync/explorations';
 import type { BranchPreview, ExplorationTryIt } from '@bridge-ds/core';
 import { type Selection, onProgress, onSelection, request } from './bridge';
+import { type FidelityOutcome, NO_REFERENCES_TEXT, fidelitySummary, runFidelityCheck } from '../sync/fidelity';
+import { fidelityComponentLine, fidelityVerdict } from '@bridge-ds/core';
+import { decodePng, encodePng } from './png';
 import { type Child, h } from './dom';
 import { icon } from './icons';
 import { ILLUSTRATIONS, type IllustrationName } from './illustrations';
@@ -61,6 +64,8 @@ interface PullState {
   after: Record<string, string>;
   /** Component ids updated one by one (or by "Update all"), with their review, kept across re-checks. */
   done: Map<string, ComponentReview>;
+  /** "Check fidelity": running (with its progress line), its outcome, or why it failed. Nothing is written. */
+  fidelity?: { running?: string | undefined; outcome?: FidelityOutcome | undefined; error?: string | undefined } | undefined;
 }
 
 /** Thumbnail width in the review, CSS pixels (two side by side in the 480px plugin). */
@@ -1575,6 +1580,7 @@ function viewPull(): View {
     );
   }
   body.push(componentsGroup(p));
+  body.push(fidelityGroup(p));
   if (prop.skipped.length) body.push(issueList('warn', 'Not written', prop.skipped.map((s) => ({ code: 'file-problem', severity: 'warning', message: `${s.path}: ${s.reason}` }))));
   body.push(notes(a));
 
@@ -1678,6 +1684,91 @@ function componentsGroup(p: PullState): Child {
     ),
   );
   return out;
+}
+
+/** "Check fidelity": exports each generated set's variants and compares them with the code images. Read only. */
+async function checkFidelity(p: PullState): Promise<void> {
+  if (p.fidelity?.running) return;
+  p.fidelity = { running: 'Reading the images of the code' };
+  render();
+  try {
+    const outcome = await runFidelityCheck({
+      client: getClient(),
+      sets: await request('scan-generated', {}),
+      exportVariants: (nodeId, keys, scale) => request('fidelity-export', { nodeId, keys, scale }),
+      decode: decodePng,
+      encode: encodePng,
+      progress: (m) => {
+        if (p.fidelity) p.fidelity.running = m;
+        render();
+      },
+      ...(state.init?.fileName ? { fileName: state.init.fileName } : {}),
+    });
+    p.fidelity = { outcome };
+  } catch (err) {
+    p.fidelity = { error: inlineError(err) ?? 'Could not compare with the code.' };
+  }
+  render();
+}
+
+/** Figma, code and differences side by side for the variant that differs most. */
+function fidelityThumbs(name: string, images: { key: string; figma: string; code: string; diff: string }): HTMLElement {
+  const fig = (src: string, label: string) => h('figure', { class: 'thumb' }, h('img', { src, alt: `${name} ${images.key}, ${label.toLowerCase()}` }), h('figcaption', null, label));
+  return h(
+    'div',
+    { class: 'thumbs three' },
+    fig(`data:image/png;base64,${images.figma}`, 'In Figma'),
+    fig(`data:image/png;base64,${images.code}`, 'In code'),
+    fig(images.diff, 'Differences'),
+  );
+}
+
+/** Pull, after components: does each generated set look like the code? */
+function fidelityGroup(p: PullState): Child {
+  const generated = (p.components?.components ?? []).filter((c) => c.status !== 'new');
+  if (!generated.length) return null;
+  const f = p.fidelity;
+  const outcome = f?.outcome;
+  const action = h(
+    'button',
+    { class: 'btn ghost', 'data-focus-id': 'check-fidelity', disabled: !!f?.running || !!state.busy, onClick: () => void checkFidelity(p) },
+    outcome || f?.error ? 'Compare again' : 'Check fidelity',
+  );
+  let lede = 'Compares every variant with the same variant rendered from the code. Nothing in the file changes.';
+  let content: Child = null;
+  if (f?.running) lede = `${f.running}...`;
+  else if (f?.error) content = h('div', { class: 'callout warn' }, h('div', { class: 'callout-title' }, icon('alert'), 'Could not compare'), h('p', null, f.error));
+  else if (outcome?.kind === 'no-references') lede = NO_REFERENCES_TEXT;
+  else if (outcome?.kind === 'no-sets') lede = 'No component set from code in this file yet. Pull components first.';
+  else if (outcome?.kind === 'done') {
+    lede = `${fidelitySummary(outcome.report)} Code images from ${short(outcome.report.reference.sha)}.`;
+    const order = { differs: 0, matches: 1, 'not-checked': 2 } as const;
+    const rows = [...outcome.items]
+      .sort((a, b) => order[a.result.status] - order[b.result.status])
+      .map((it) => {
+        const r = it.result;
+        const kind =
+          r.status === 'differs' ? h('span', { class: 'kind removed row-end' }, 'Differs') : r.status === 'matches' ? h('span', { class: 'kind added row-end' }, 'Matches') : h('span', { class: 'kind row-end' }, 'Not compared');
+        const others = r.variants.filter((v) => v.status !== 'matches');
+        return h(
+          'li',
+          { class: 'row review' },
+          h('div', { class: 'row-head' }, h('span', { class: 'comp-name' }, it.name), kind),
+          h('p', { class: 'muted' }, fidelityComponentLine(r)),
+          r.status === 'differs' && it.images ? [h('p', { class: 'muted' }, `Most different: ${it.images.key}`), fidelityThumbs(it.name, it.images)] : null,
+          others.length && r.status !== 'not-checked'
+            ? h(
+                'details',
+                { class: 'notes' },
+                h('summary', null, [r.differing ? `${plural(r.differing, 'variant')} ${r.differing === 1 ? 'differs' : 'differ'}` : '', r.skipped ? `${r.skipped} not compared` : ''].filter(Boolean).join(', ')),
+                h('ul', null, others.map((v) => h('li', null, `${v.key}: ${fidelityVerdict(v)}`))),
+              )
+            : null,
+        );
+      });
+    content = rowList('fidelity', rows, 10);
+  }
+  return group('Fidelity to the code', generated.length, action, lede, content);
 }
 
 /** "New brand detected" card: a Brand mode with no file in Git, offered as a new brand (opt-in). */

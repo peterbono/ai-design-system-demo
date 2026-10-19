@@ -47,3 +47,5 @@ export * from './explorations';
 export * from './explorations-github';
 export * from './requests-github';
 export * from './component-spec';
+export * from './fidelity';
+export * from './fidelity-references';

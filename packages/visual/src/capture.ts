@@ -37,8 +37,8 @@ export async function launch(o: LaunchOptions = {}): Promise<Browser> {
   });
 }
 
-export async function newContext(browser: Browser, viewport: Viewport): Promise<BrowserContext> {
-  const ctx = await browser.newContext({ viewport, deviceScaleFactor: 1, reducedMotion: 'reduce', colorScheme: 'light', locale: 'en-US', timezoneId: 'UTC', serviceWorkers: 'block' });
+export async function newContext(browser: Browser, viewport: Viewport, deviceScaleFactor = 1): Promise<BrowserContext> {
+  const ctx = await browser.newContext({ viewport, deviceScaleFactor, reducedMotion: 'reduce', colorScheme: 'light', locale: 'en-US', timezoneId: 'UTC', serviceWorkers: 'block' });
   await ctx.addInitScript(INIT_SCRIPT);
   // Only loopback is real: remote images become a transparent pixel, anything else remote is aborted.
   await ctx.route(/^https?:\/\/(?!127\.0\.0\.1[:/]|localhost[:/])/, (route) =>
