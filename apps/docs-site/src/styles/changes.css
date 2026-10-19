@@ -1039,7 +1039,7 @@ ul.rv-needs {
 
 /* --- Branches: the list ---------------------------------------------------------------------------------------- */
 
-.cg-panel#cg-review,
+#cg-review:not([hidden]),
 .bl {
   display: grid;
   gap: var(--space-6);
@@ -1108,8 +1108,13 @@ ul.rv-needs {
   white-space: nowrap;
 }
 
-/* While the selection bar shows, the list ends above it, so the last row never sits under the bar. */
-.bl:has(.cg-bar) {
+/* The author name never breaks inside ("Claude AI"): the title wraps before it. */
+.bl .sh-row-line {
+  white-space: nowrap;
+}
+
+/* While the selection bar shows, the page ends above it, so the last row and the footer never sit under the bar. */
+body:has(.cg-bar) {
   padding-bottom: calc(var(--size-16) + var(--space-8));
 }
 
@@ -1192,6 +1197,10 @@ ul.rv-needs {
     white-space: normal;
   }
 
+  body:has(.cg-bar) {
+    padding-bottom: calc(var(--size-16) * 2 + var(--space-8));
+  }
+
   .cg-bar-actions > :is(.cg-bar-clear, .cg-bar-alone, .cg-bar-go) {
     flex: 1 1 0;
   }
@@ -1207,6 +1216,8 @@ ul.rv-needs {
   }
 
   .sh-row-body > .bl-behind {
+    flex: 1 1 auto;
+    min-width: 0;
     margin-inline-start: calc(var(--size-16) + var(--space-3));
     white-space: normal;
   }
