@@ -40,7 +40,7 @@ export const siteOwners = () => {
 /** Who acts now on a change, for the connected viewer (same rules as the change detail). */
 export function whoFor(p: PullForStatus, st: PullStatus | null | undefined): WhoActs | null {
   return st
-    ? whoActs(needFromStatus(st.kind, { failing: st.failing, changesRequestedBy: st.changesRequested, developerOnly: developerOnlyFailures(st.failingChecks) }), {
+    ? whoActs(needFromStatus(st.kind, { failing: st.failing, changesRequestedBy: st.changesRequested, developerOnly: developerOnlyFailures(st.failingChecks), pending: st.pending }), {
         owners: owners(),
         shippers: shippers(),
         ...teamPeople(),
