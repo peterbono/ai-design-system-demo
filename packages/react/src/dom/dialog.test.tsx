@@ -123,6 +123,12 @@ describe('bindDialogs', () => {
     await expectNoAxeViolations();
   });
 
+  it('focuses the first action, never the header close button, when the body has no field', () => {
+    document.body.innerHTML = dialogHtml({ id: 'undo', title: 'Undo this change', footer: trusted('<button type="button" data-dialog-close="">Cancel</button><button type="button">Propose undo</button>') });
+    openDialog('undo');
+    expect(document.activeElement).toHaveTextContent('Cancel');
+  });
+
   it('Escape closes it, returns focus to the trigger, unlocks the page and fires cancel then close', () => {
     const { trigger, root, main } = page();
     const events: string[] = [];

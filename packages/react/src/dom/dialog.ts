@@ -171,7 +171,7 @@ export function openDialog(target: DialogTarget, options: OpenDialogOptions = {}
   const first =
     options.initialFocus ??
     popup.querySelector<HTMLElement>('[autofocus], [data-dialog-initial-focus]') ??
-    focusables(popup).find((el) => !el.hasAttribute('data-dialog-close')) ??
+    focusables(popup).find((el) => !el.matches(`.${CSS.escape(styles.close!)}`)) ??
     focusables(popup)[0] ??
     popup;
   first.focus();

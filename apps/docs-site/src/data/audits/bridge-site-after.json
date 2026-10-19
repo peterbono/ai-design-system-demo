@@ -3,10 +3,10 @@
   "schemaVersion": 1,
   "tool": {
     "name": "bridge",
-    "version": "0.3.1"
+    "version": "0.3.2"
   },
   "label": "Bridge docs site, after",
-  "generatedAt": "2026-10-19T12:47:57.496Z",
+  "generatedAt": "2026-10-19T13:13:18.264Z",
   "target": {
     "path": "apps/docs-site/src",
     "files": 267,
@@ -35,8 +35,8 @@
     "tokenUsages": 6198,
     "hardcoded": 1,
     "themeRefs": 65,
-    "dsComponentInstances": 894,
-    "uiComponentInstances": 894
+    "dsComponentInstances": 895,
+    "uiComponentInstances": 895
   },
   "byCategory": {
     "color": {
@@ -51,7 +51,7 @@
       "CardHeader": 2,
       "CardBody": 8,
       "CardFooter": 1,
-      "Button": 141,
+      "Button": 142,
       "Table": 13,
       "TableHeader": 13,
       "TableRow": 28,
@@ -853,7 +853,7 @@
       "tokenUsages": 0,
       "themeRefs": 0,
       "hardcoded": 0,
-      "dsComponents": 3,
+      "dsComponents": 4,
       "otherComponents": 0,
       "findings": [],
       "components": []
