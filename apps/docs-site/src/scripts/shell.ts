@@ -1,7 +1,7 @@
 // App shell behaviour, shipped on every page (small, no framework):
 // theme toggle, copy buttons, the mobile navigation sheet, the Cmd+K command palette, header menus, the "On this
 // page" rail and, in the Studio, the view of a change (scripts/view-change), the nav counts and the GitHub connection.
-import { bindCodeBlocks, bindTooltips } from '@bridge-ds/react/dom';
+import { bindCodeBlocks, bindDialogs, bindTooltips, closeDialog, isDialogOpen, openDialog } from '@bridge-ds/react/dom';
 import { getToken, initGitHubConnect } from './github-session';
 import { loadReviewNeedsYou, rememberedMine, type QueuePullFull } from './needs-you';
 import { initMaintainer } from './maintainer';
@@ -328,8 +328,8 @@ export function fuzzy(query: string, text: string): number {
 const KIND_LABEL = { page: 'Page', component: 'Component', token: 'Token' } as const;
 
 function initPalette() {
-  const dialog = $<HTMLDialogElement>('palette');
-  const input = $<HTMLInputElement>('palette-q');
+  const dialog = $('palette');
+  const input = document.querySelector<HTMLInputElement>('[data-palette-q]');
   const list = $<HTMLUListElement>('palette-list');
   const count = $('palette-count');
   const trigger = $<HTMLButtonElement>('search-open');
@@ -432,8 +432,8 @@ function initPalette() {
   };
 
   const open = async () => {
-    if (dialog.open) return;
-    dialog.showModal();
+    if (isDialogOpen(dialog)) return;
+    openDialog(dialog);
     input.value = '';
     await load();
     search();
@@ -444,9 +444,9 @@ function initPalette() {
   document.addEventListener('keydown', (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
       e.preventDefault();
-      if (dialog.open) dialog.close();
+      if (isDialogOpen(dialog)) closeDialog(dialog);
       else open();
-    } else if (e.key === '/' && !dialog.open && !(e.target as HTMLElement).closest('input, textarea, [contenteditable]')) {
+    } else if (e.key === '/' && !isDialogOpen(dialog) && !(e.target as HTMLElement).closest('input, textarea, [contenteditable]')) {
       e.preventDefault();
       open();
     }
@@ -467,10 +467,6 @@ function initPalette() {
       if (item) window.location.href = item.href;
     }
   });
-  dialog.addEventListener('click', (e) => {
-    if (e.target === dialog) dialog.close();
-  });
-  dialog.addEventListener('close', () => trigger.focus());
 }
 
 /** Header menus (<details data-menu>): close on outside click and on Escape, one open at a time. */
@@ -623,9 +619,10 @@ export function initShell() {
   initStudio();
   initScope();
   initCopy();
-  // DS components rendered without React at runtime (static Astro HTML, script-built rows): tooltips and copy.
+  // DS components rendered without React at runtime (static Astro HTML, script-built rows): tooltips, copy, dialogs.
   bindTooltips();
   bindCodeBlocks();
+  bindDialogs();
   initRail();
   initNavGroups();
   initPalette();

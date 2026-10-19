@@ -2,8 +2,8 @@
 // The light token list of a Library foundation page: one row per token with a preview (a dual light and dark swatch
 // for colors and shadows, a shape, bar or sample otherwise), the name once (a click copies it; the copy button copies the CSS variable, or the last format picked in its menu),
 // a one-line role, a muted alias line and a neutral usage chip. A click on the row opens the explorer's detail panel.
-import { Button, IconButton } from '@bridge-ds/react';
-import Icon from '../Icon.astro';
+import { Button, Icon, IconButton, Link } from '@bridge-ds/react';
+import { siteIcon } from '../../brand/site-icons';
 import { ChevronRight, Copy } from 'lucide-react';
 import type { FoundationRow } from '../../lib/foundations';
 import { anchorOf, MODES } from '../../lib/tokens';
@@ -83,7 +83,7 @@ const short = (r: FoundationRow) => r.type === 'shadow';
                 <IconButton icon={Copy} variant="ghost" size="sm" className="fd-copy-btn" label={`Copy CSS variable ${r.copy.css}`} title="Copy CSS variable" data-fd-copy data-fd-copy-icon data-copy-css={r.copy.css} data-copy-js={r.copy.js} data-copy-figma={r.copy.figma} />
                 <details class="fd-copy-more" data-menu>
                   <summary class="fd-copy-chev" aria-label={`Other copy formats for ${r.path}`} title="Copy as">
-                    <Icon name="chevronDown" size={12} />
+                    <Icon icon={siteIcon('chevronDown')} size="xs" className="icon" />
                   </summary>
                   <div class="fd-copy-menu" role="menu" aria-label={`Copy ${r.path} as`}>
                     <Button variant="ghost" size="sm" role="menuitemradio" aria-checked="true" data-fd-copy-as="css">Copy CSS variable</Button>
@@ -114,7 +114,7 @@ const short = (r: FoundationRow) => r.type === 'shadow';
                       <ul class="fd-pop-list">
                         {r.components.map((c) => (
                           <li>
-                            <a href={c.href}>{c.name}</a>
+                            <Link href={c.href}>{c.name}</Link>
                           </li>
                         ))}
                       </ul>

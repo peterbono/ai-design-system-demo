@@ -2,15 +2,10 @@
 // renderer for the static Library page (examples rendered at build time with every Lucide icon) and the live preview
 // of edit mode share the markup and classes, so editing keeps the read layout.
 import type { ComponentType } from 'react';
-import { Badge } from '@bridge-ds/react';
+import { Badge, Icon } from '@bridge-ds/react';
 import { Check, X } from 'lucide-react';
-import { iconSvg } from '../brand/icons';
+import { siteIcon } from '../brand/site-icons';
 import type { ComponentDocs, ExampleNode } from '../lib/components';
-
-/** Same markup as components/Icon.astro. */
-function SiteIcon({ name, size }: { name: 'check' | 'x'; size: number }) {
-  return <span className="icon" dangerouslySetInnerHTML={{ __html: iconSvg(name, size) }} />;
-}
 
 export interface UsagePanelProps {
   docs: Pick<ComponentDocs, 'whenToUse' | 'whenNotToUse' | 'dos' | 'donts' | 'accessibility' | 'contentGuidelines'>;
@@ -29,7 +24,7 @@ export default function UsagePanel({ docs: d, Example, idPrefix = '' }: UsagePan
         <div className="usage-grid">
           <div className="usage-col is-use">
             <h3>
-              <SiteIcon name="check" size={18} /> Use it for
+              <Icon icon={siteIcon('check')} size="md" className="icon" /> Use it for
             </h3>
             <ul>
               {d.whenToUse.map((x, i) => (
@@ -39,7 +34,7 @@ export default function UsagePanel({ docs: d, Example, idPrefix = '' }: UsagePan
           </div>
           <div className="usage-col is-avoid">
             <h3>
-              <SiteIcon name="x" size={18} /> Not for
+              <Icon icon={siteIcon('x')} size="md" className="icon" /> Not for
             </h3>
             <ul>
               {d.whenNotToUse.map((x, i) => (
@@ -94,7 +89,7 @@ export default function UsagePanel({ docs: d, Example, idPrefix = '' }: UsagePan
         <ul className="a11y-list">
           {d.accessibility.map((x, i) => (
             <li key={i}>
-              <SiteIcon name="check" size={16} />
+              <Icon icon={siteIcon('check')} size="sm" className="icon" />
               <span>{x}</span>
             </li>
           ))}

@@ -413,20 +413,20 @@ const signIn = Boolean(signInConfig());
         <h3 class="set-group" id="mcp">MCP server</h3>
         <p class="set-muted">
           {tools} tools. Claude works on a <span class="mono">{config.governance?.branchPrefix ?? ''}*</span> branch and opens a pull request, never commits to
-          <span class="mono">{r.defaultBranch}</span>. Clients, local setup and the full tool list: <a href="/agents/#mcp">Agents page</a>.
+          <span class="mono">{r.defaultBranch}</span>. Clients, local setup and the full tool list: <Link href="/agents/#mcp">Agents page</Link>.
         </p>
 
         <h3 class="set-group" id="jira-workflow">Jira workflow</h3>
         <ol class="set-checklist">
           <li>Merge the pull request that changes <span class="mono">{file}</span>. It is a guarded file, so it gets the highest review tier.</li>
           <li>
-            Add the repository secrets <span class="mono">JIRA_EMAIL</span> and <span class="mono">JIRA_API_TOKEN</span> in <a href={secretsUrl}>Settings, Secrets and variables, Actions</a>.
+            Add the repository secrets <span class="mono">JIRA_EMAIL</span> and <span class="mono">JIRA_API_TOKEN</span> in <Link href={secretsUrl}>Settings, Secrets and variables, Actions</Link>.
           </li>
-          <li>The <a href={workflowUrl} class="mono">{workflowFile}</a> workflow creates the Jira issue for each new request and labels the GitHub issue with its key.</li>
+          <li>The <Link href={workflowUrl} className="mono">{workflowFile}</Link> workflow creates the Jira issue for each new request and labels the GitHub issue with its key.</li>
         </ol>
         <p class="set-muted">
           Requests are GitHub issues labeled <span class="mono">{REQUEST_LABEL}</span>, closed by the pull request that implements them. Follow them by
-          <a href={issuesUrl}>filtering issues by that label</a>, or link GitHub and Jira with Atlassian's <a href="https://github.com/marketplace/jira-software-github">GitHub for Jira</a> app.
+          <Link href={issuesUrl}>filtering issues by that label</Link>, or link GitHub and Jira with Atlassian's <Link href="https://github.com/marketplace/jira-software-github">GitHub for Jira</Link> app.
         </p>
       </details>
     </section>

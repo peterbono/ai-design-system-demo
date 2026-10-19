@@ -38,9 +38,16 @@ row.innerHTML = badgeHtml('Approved', { tone: 'success', attributes: tooltipAttr
 panel.innerHTML = codeBlockHtml('npm i @bridge-ds/react', { label: 'Install' });
 bindTooltips(); // once per page: every [data-tooltip] element, now or later
 bindCodeBlocks(); // once per page: copy buttons of CodeBlocks rendered without hydration
+
+page.insertAdjacentHTML('beforeend', dialogHtml({ id: 'new-token', title: 'New token', body: trusted(fields), footer: trusted(actions) }));
+bindDialogs(); // [data-dialog-open="new-token"] opens it, [data-dialog-close] and Escape close it
+openDialog('new-token'); // or from a script; closeDialog(id, value) and the root's `close` event mirror <dialog>
 ```
 
-Renderers: `badgeHtml`, `badgeClassName`, `codeBlockHtml`, `tokenValueHtml`, `checklistHtml`, `checklistRowHtml`.
+Renderers: `badgeHtml`, `badgeClassName`, `codeBlockHtml`, `tokenValueHtml`, `checklistHtml`, `checklistRowHtml`,
+`dialogHtml`. The Dialog behaves like the React one: focus moves in and is trapped, the page behind is inert and does
+not scroll, Escape and the scrim close it, focus returns to the trigger; a `<form method="dialog">` inside closes it
+on submit with the button's value (`dialogReturnValue`).
 Text is escaped; pass `trusted(html)` for markup you built and escaped yourself. `bridge audit` counts these calls as
 design system components, and counts homemade look-alikes in script-built markup (`class="pill"`, `data-tip`
 tooltips) against adoption. Your bundler must handle CSS Modules imported from the package (Vite, Astro and Next

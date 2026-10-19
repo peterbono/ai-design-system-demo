@@ -18,6 +18,8 @@ import {
   rejectedText,
   type SessionMode,
 } from '../lib/token-session';
+import { closeDialog, isDialogOpen, openDialog as openDsDialog } from '@bridge-ds/react/dom';
+import { paintAvatar } from './avatar';
 import { ghAction, ghButton, ghVerb } from '../lib/gh-wording';
 import {
   type AppSession,
@@ -111,7 +113,7 @@ export const sessionMode = (): SessionMode => (getToken() && readAppSession() ? 
 
 /** Sign in with GitHub settings, written at build time on the Connect dialog. Null: the site has no GitHub App. */
 export function readSignInConfig(): SignInConfig | null {
-  const raw = document.getElementById('gh-dialog')?.dataset.signin;
+  const raw = document.querySelector<HTMLElement>('#gh-dialog [data-signin]')?.dataset.signin;
   if (!raw) return null;
   try {
     const c = JSON.parse(raw) as SignInConfig | null;
@@ -477,7 +479,7 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
     if (checked) onChange?.(viewer);
     return;
   }
-  const dialog = document.getElementById('gh-dialog') as HTMLDialogElement | null;
+  const dialog = document.getElementById('gh-dialog');
   const input = dialog?.querySelector<HTMLInputElement>('[data-gh-token]') ?? null;
   const errorBox = dialog?.querySelector<HTMLElement>('[data-gh-error]') ?? null;
   const errorText = errorBox?.querySelector<HTMLElement>('[data-gh-error-text]') ?? errorBox;
@@ -535,10 +537,10 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
     document.querySelectorAll<HTMLElement>('[data-gh-acct]').forEach((acct) => {
       const login = viewer ? `@${viewer.login}` : '';
       acct.querySelectorAll('[data-gh-login], [data-gh-login-full]').forEach((el) => (el.textContent = viewer ? (el.hasAttribute('data-gh-login') ? viewer.login : login) : ''));
-      const img = acct.querySelector<HTMLImageElement>('[data-gh-avatar]');
-      if (img) {
-        img.hidden = !viewer;
-        if (viewer && !img.src.startsWith(viewer.avatar_url)) img.src = `${viewer.avatar_url}${viewer.avatar_url.includes('?') ? '&' : '?'}s=40`;
+      const avatar = acct.querySelector<HTMLElement>('[data-gh-avatar]');
+      if (avatar) {
+        avatar.hidden = !viewer;
+        if (viewer) paintAvatar(avatar, viewer.login, viewer.avatar_url, 64);
       }
       acct.querySelector('summary')?.setAttribute('aria-label', viewer ? `GitHub: connected as ${viewer.login}. Account menu` : 'GitHub account');
     });
@@ -581,7 +583,7 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
         : 'GitHub no longer accepts the saved token: it was revoked, regenerated or has expired. Paste a new one to replace it.';
     }
     if (save) setButtonLabel(save, saveLabel());
-    dialog.showModal();
+    openDsDialog(dialog);
     showView();
   };
 
@@ -594,7 +596,7 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
     } catch (err) {
       if (btn) setButtonBusy(btn, false, label);
       // Shown in the dialog, under its Sign in with GitHub button.
-      if (!dialog.open) openDialog();
+      if (!isDialogOpen(dialog)) openDialog();
       showSignInError((err as Error).message);
     }
   };
@@ -629,7 +631,7 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
       if (!v) throw new Error('GitHub did not accept this token. Check that you copied all of it, then try again.');
       viewer = v;
       access = null;
-      dialog.close();
+      closeDialog(dialog);
       paint();
       notify(viewer);
     } catch (err) {
@@ -647,7 +649,7 @@ export function initGitHubConnect(onChange?: (v: Viewer | null) => void) {
     writeAppSession(null);
     viewer = null;
     access = null;
-    if (dialog.open) dialog.close();
+    closeDialog(dialog);
     paint();
     paintAccess();
     notify(null);

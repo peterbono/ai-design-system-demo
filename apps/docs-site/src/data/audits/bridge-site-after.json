@@ -3,21 +3,21 @@
   "schemaVersion": 1,
   "tool": {
     "name": "bridge",
-    "version": "0.1.0"
+    "version": "0.3.1"
   },
   "label": "Bridge docs site, after",
-  "generatedAt": "2026-10-16T23:26:47.573Z",
+  "generatedAt": "2026-10-19T12:47:57.496Z",
   "target": {
     "path": "apps/docs-site/src",
-    "files": 102,
+    "files": 267,
     "skipped": 0
   },
   "designSystem": {
     "packages": [
       "@bridge-ds/react"
     ],
-    "components": 48,
-    "tokens": 563,
+    "components": 53,
+    "tokens": 633,
     "modes": [
       "brand=bridge,theme=light,density=comfortable",
       "brand=bridge,theme=light,density=compact",
@@ -32,51 +32,87 @@
   "metrics": {
     "tokenAdoption": 100,
     "componentAdoption": 100,
-    "tokenUsages": 4667,
-    "hardcoded": 2,
-    "themeRefs": 46,
-    "dsComponentInstances": 210,
-    "uiComponentInstances": 210
+    "tokenUsages": 6198,
+    "hardcoded": 1,
+    "themeRefs": 65,
+    "dsComponentInstances": 894,
+    "uiComponentInstances": 894
   },
   "byCategory": {
     "color": {
-      "hardcoded": 2,
-      "exact": 2,
-      "suggested": 2
+      "hardcoded": 1,
+      "exact": 1,
+      "suggested": 1
     }
   },
   "components": {
     "ds": {
+      "Card": 8,
+      "CardHeader": 2,
+      "CardBody": 8,
+      "CardFooter": 1,
+      "Button": 141,
+      "Table": 13,
+      "TableHeader": 13,
+      "TableRow": 28,
+      "TableHead": 49,
+      "TableBody": 13,
+      "TableCell": 44,
+      "Input": 34,
+      "Alert": 30,
+      "Badge": 83,
       "Tabs": 1,
       "TabsList": 1,
       "Tab": 2,
-      "TabsPanel": 1,
-      "Card": 1,
-      "CardHeader": 1,
-      "Badge": 20,
-      "CardBody": 1,
-      "Input": 4,
-      "CardFooter": 1,
-      "Button": 18,
-      "Alert": 5,
-      "SegmentedControl": 6,
-      "Select": 1,
-      "Switch": 4,
-      "Table": 9,
-      "TableHeader": 9,
-      "TableRow": 18,
-      "TableHead": 39,
-      "TableBody": 9,
-      "TableCell": 34,
-      "Popover": 2,
-      "PopoverTrigger": 2,
-      "PopoverContent": 2,
-      "Link": 9,
-      "Icon": 3,
-      "Tag": 2,
-      "Checkbox": 3,
-      "Progress": 1,
-      "Kbd": 1
+      "Checkbox": 9,
+      "Switch": 11,
+      "Tag": 8,
+      "Link": 94,
+      "Progress": 2,
+      "Avatar": 7,
+      "Kbd": 16,
+      "Icon": 45,
+      "Textarea": 7,
+      "IconButton": 12,
+      "Menu": 5,
+      "MenuTrigger": 5,
+      "MenuContent": 5,
+      "MenuRadioGroup": 1,
+      "MenuRadioItem": 1,
+      "SegmentedControl": 23,
+      "CodeBlock": 24,
+      "MenuGroup": 5,
+      "MenuItem": 14,
+      "MenuSeparator": 6,
+      "Popover": 4,
+      "PopoverTrigger": 4,
+      "PopoverContent": 4,
+      "Spinner": 1,
+      "AlertDialog": 2,
+      "AlertDialogContent": 2,
+      "Dialog": 8,
+      "DialogContent": 7,
+      "Select": 7,
+      "Accordion": 8,
+      "AccordionItem": 9,
+      "RadioGroup": 3,
+      "Radio": 5,
+      "TokenValue": 9,
+      "ChoiceCardGroup": 4,
+      "ChoiceCard": 5,
+      "Banner": 2,
+      "ButtonGroup": 9,
+      "DialogClose": 5,
+      "Slider": 1,
+      "AvatarGroup": 1,
+      "Combobox": 3,
+      "Form": 1,
+      "EmptyState": 4,
+      "Breadcrumb": 1,
+      "PageHeader": 1,
+      "Skeleton": 2,
+      "Tooltip": 5,
+      "Checklist": 6
     },
     "foreign": {},
     "native": {},
@@ -87,14 +123,7 @@
       "path": "scripts/explorer/inline-edit.ts",
       "hardcoded": 1,
       "otherComponents": 0,
-      "tokenUsages": 0,
-      "dsComponents": 0
-    },
-    {
-      "path": "scripts/token-editor.ts",
-      "hardcoded": 1,
-      "otherComponents": 0,
-      "tokenUsages": 0,
+      "tokenUsages": 1,
       "dsComponents": 0
     }
   ],
@@ -102,8 +131,8 @@
     {
       "category": "color",
       "value": "#000000",
-      "count": 2,
-      "files": 2,
+      "count": 1,
+      "files": 1,
       "suggestion": {
         "token": "color.black",
         "cssVar": "--color-black",
@@ -118,6 +147,39 @@
     {
       "path": "brand/icons.ts",
       "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "brand/illustrations.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "brand/site-icons.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/AdoptionMetric.astro",
+      "lang": "astro",
       "tokenUsages": 0,
       "themeRefs": 0,
       "hardcoded": 0,
@@ -149,12 +211,34 @@
       "components": []
     },
     {
+      "path": "components/ds/BridgedSelect.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 2,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
       "path": "components/ds/ButtonLink.tsx",
       "lang": "tsx",
       "tokenUsages": 0,
       "themeRefs": 0,
       "hardcoded": 0,
       "dsComponents": 1,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/ds/DevDetails.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 2,
       "otherComponents": 0,
       "findings": [],
       "components": []
@@ -171,12 +255,45 @@
       "components": []
     },
     {
+      "path": "components/ds/MarkdownTable.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 7,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/ds/PaletteField.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 3,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
       "path": "components/ds/PropsTable.tsx",
       "lang": "tsx",
       "tokenUsages": 0,
       "themeRefs": 0,
       "hardcoded": 0,
       "dsComponents": 14,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/ds/ReleaseEntries.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 10,
       "otherComponents": 0,
       "findings": [],
       "components": []
@@ -204,23 +321,34 @@
       "components": []
     },
     {
-      "path": "components/ds/studio/AdoptionTables.tsx",
-      "lang": "tsx",
+      "path": "components/ds/ScriptDialog.astro",
+      "lang": "astro",
       "tokenUsages": 0,
       "themeRefs": 0,
       "hardcoded": 0,
-      "dsComponents": 45,
+      "dsComponents": 1,
       "otherComponents": 0,
       "findings": [],
       "components": []
     },
     {
-      "path": "components/ds/studio/ApprovalMatrix.tsx",
+      "path": "components/ds/studio/AdoptionTables.tsx",
+      "lang": "tsx",
+      "tokenUsages": 1,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 62,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/ds/studio/ApprovalsTable.tsx",
       "lang": "tsx",
       "tokenUsages": 0,
       "themeRefs": 0,
       "hardcoded": 0,
-      "dsComponents": 10,
+      "dsComponents": 13,
       "otherComponents": 0,
       "findings": [],
       "components": []
@@ -237,12 +365,78 @@
       "components": []
     },
     {
-      "path": "components/ds/studio/ComponentsTable.tsx",
+      "path": "components/ds/studio/ChangeIntent.tsx",
       "lang": "tsx",
       "tokenUsages": 0,
       "themeRefs": 0,
       "hardcoded": 0,
-      "dsComponents": 30,
+      "dsComponents": 2,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/ds/studio/ChangeRules.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 11,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/ds/studio/ChangeStatus.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 2,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/ds/studio/CombineChanges.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 11,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/ds/studio/ComponentsList.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 19,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/ds/studio/ComponentsSearch.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 2,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/ds/studio/ContinueChange.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 8,
       "otherComponents": 0,
       "findings": [],
       "components": []
@@ -259,12 +453,188 @@
       "components": []
     },
     {
+      "path": "components/ds/studio/LibraryCatchUp.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 14,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/ds/studio/NewBrandFlow.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 1,
+      "hardcoded": 0,
+      "dsComponents": 39,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/ds/studio/OverviewBoard.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 13,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/ds/studio/OwnersField.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 5,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/ds/studio/PrMoreMenu.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 9,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/ds/studio/PromoteToReview.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 7,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/ds/studio/ProtectionRow.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 12,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/ds/studio/RequestDecide.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 13,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/ds/studio/SettingsAccount.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 6,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/ds/studio/ShareChange.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 10,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/ds/studio/StartChange.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 13,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/ds/studio/StatusFilterSelect.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 1,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
       "path": "components/ds/studio/SummaryButton.tsx",
       "lang": "tsx",
       "tokenUsages": 0,
       "themeRefs": 0,
       "hardcoded": 0,
       "dsComponents": 1,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/ds/studio/ViewBanner.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 3,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/ds/studio/ViewingSelect.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 2,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/ds/TokenSearch.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 3,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/ds/UsageRadios.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 4,
       "otherComponents": 0,
       "findings": [],
       "components": []
@@ -286,7 +656,7 @@
       "tokenUsages": 0,
       "themeRefs": 0,
       "hardcoded": 0,
-      "dsComponents": 15,
+      "dsComponents": 36,
       "otherComponents": 0,
       "findings": [],
       "components": []
@@ -303,12 +673,100 @@
       "components": []
     },
     {
-      "path": "components/foundations/ContrastTable.tsx",
+      "path": "components/explorer/ExplorerData.astro",
+      "lang": "astro",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/explorer/TokenDetailDrawer.astro",
+      "lang": "astro",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/explorer/TokenEditorKit.astro",
+      "lang": "astro",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 21,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/explorer/TokenExplorer.astro",
+      "lang": "astro",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 20,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/explorer/XpKeys.astro",
+      "lang": "astro",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 9,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/foundations/ContrastMatrix.tsx",
       "lang": "tsx",
       "tokenUsages": 0,
       "themeRefs": 0,
       "hardcoded": 0,
-      "dsComponents": 16,
+      "dsComponents": 10,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/foundations/LibraryKit.astro",
+      "lang": "astro",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/foundations/ScopeSwitch.astro",
+      "lang": "astro",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 1,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/foundations/SpecimenPair.astro",
+      "lang": "astro",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 1,
       "otherComponents": 0,
       "findings": [],
       "components": []
@@ -320,6 +778,137 @@
       "themeRefs": 2,
       "hardcoded": 0,
       "dsComponents": 32,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/foundations/TokenGroup.astro",
+      "lang": "astro",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/foundations/TokenList.astro",
+      "lang": "astro",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 7,
+      "otherComponents": 0,
+      "findings": [],
+      "components": [],
+      "ignored": [
+        {
+          "line": 79,
+          "column": 15,
+          "kind": "component",
+          "what": "button",
+          "reason": "the token name itself is the copy target, in Plex Mono at body size; a DS Button would restyle the name. The DS copy button beside it does the same job",
+          "via": "comment"
+        }
+      ]
+    },
+    {
+      "path": "components/GitHubAccount.astro",
+      "lang": "astro",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 8,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/GitHubConnect.astro",
+      "lang": "astro",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 1,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/GitHubDialog.astro",
+      "lang": "astro",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 10,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/HistoryPlanner.astro",
+      "lang": "astro",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 3,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/Illustration.astro",
+      "lang": "astro",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/LibraryEditMode.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 77,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/LibraryHeader.astro",
+      "lang": "astro",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/Logo.astro",
+      "lang": "astro",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/PreviewScope.astro",
+      "lang": "astro",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
       "otherComponents": 0,
       "findings": [],
       "components": []
@@ -339,6 +928,115 @@
       "path": "components/registry.tsx",
       "lang": "tsx",
       "tokenUsages": 1,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/StudioHeader.astro",
+      "lang": "astro",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/TokenEditorData.astro",
+      "lang": "astro",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/TokenExplorerSlot.astro",
+      "lang": "astro",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/UsagePanel.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 5,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/UsagePanelStatic.tsx",
+      "lang": "tsx",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "components/ViewAsChange.astro",
+      "lang": "astro",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "layouts/Layout.astro",
+      "lang": "astro",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 25,
+      "otherComponents": 0,
+      "findings": [],
+      "components": [],
+      "ignored": [
+        {
+          "line": 183,
+          "column": 19,
+          "kind": "component",
+          "what": "button",
+          "reason": "a side nav group opener styled as its sibling nav links (with the review count badge and chevron); the DS SidebarNav is a React island and would rebuild the whole rail",
+          "via": "comment"
+        }
+      ]
+    },
+    {
+      "path": "lib/a11y-checks.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/all-tokens.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
       "themeRefs": 0,
       "hardcoded": 0,
       "dsComponents": 0,
@@ -369,7 +1067,84 @@
       "components": []
     },
     {
+      "path": "lib/change-intent.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/change-status.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/changelog-model.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
       "path": "lib/changelog.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/changes.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/check-explain.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/combine-changes.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/components-studio.ts",
       "lang": "ts",
       "tokenUsages": 0,
       "themeRefs": 0,
@@ -402,7 +1177,51 @@
       "components": []
     },
     {
+      "path": "lib/continue-change.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
       "path": "lib/contrast.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/docs-ai-model.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/docs-draft-model.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/docs-prefill.ts",
       "lang": "ts",
       "tokenUsages": 0,
       "themeRefs": 0,
@@ -424,7 +1243,40 @@
       "components": []
     },
     {
+      "path": "lib/explorations-view.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
       "path": "lib/explorer.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/explorer/contrast-summary.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/explorer/detail-summary.ts",
       "lang": "ts",
       "tokenUsages": 0,
       "themeRefs": 0,
@@ -468,7 +1320,40 @@
       "components": []
     },
     {
+      "path": "lib/explorer/swatch-ramp.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
       "path": "lib/foundations.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/gh-wording.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/github-signin.ts",
       "lang": "ts",
       "tokenUsages": 0,
       "themeRefs": 0,
@@ -512,7 +1397,7 @@
       "components": []
     },
     {
-      "path": "lib/inspect.ts",
+      "path": "lib/library-edit-model.ts",
       "lang": "ts",
       "tokenUsages": 0,
       "themeRefs": 0,
@@ -524,6 +1409,17 @@
     },
     {
       "path": "lib/library-rows.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/library-sync.ts",
       "lang": "ts",
       "tokenUsages": 0,
       "themeRefs": 0,
@@ -578,7 +1474,128 @@
       "components": []
     },
     {
+      "path": "lib/new-brand.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/npm.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/overview-board.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/overview-todo.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/pr-docs.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/pr-title.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/preview-fit.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/propose-copy.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/protection-view.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/quality.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
       "path": "lib/redirects.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/release-view.ts",
       "lang": "ts",
       "tokenUsages": 0,
       "themeRefs": 0,
@@ -600,6 +1617,39 @@
       "components": []
     },
     {
+      "path": "lib/request-attachments.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/requests-view.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/review-queue.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
       "path": "lib/review-rules.ts",
       "lang": "ts",
       "tokenUsages": 0,
@@ -611,7 +1661,62 @@
       "components": []
     },
     {
+      "path": "lib/roles-view.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
       "path": "lib/search.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/select-bridge.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/settings-view.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/share-change.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/signin-config.ts",
       "lang": "ts",
       "tokenUsages": 0,
       "themeRefs": 0,
@@ -666,7 +1771,40 @@
       "components": []
     },
     {
+      "path": "lib/token-session.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
       "path": "lib/tokens.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/try-in-product.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "lib/view-scope.ts",
       "lang": "ts",
       "tokenUsages": 0,
       "themeRefs": 0,
@@ -688,6 +1826,181 @@
       "components": []
     },
     {
+      "path": "lib/work-nature.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "pages/agents.astro",
+      "lang": "astro",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 21,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "pages/changelog.astro",
+      "lang": "astro",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 11,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "pages/components/[slug].astro",
+      "lang": "astro",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 23,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "pages/components/index.astro",
+      "lang": "astro",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 5,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "pages/docs-ai/[slug].json.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "pages/foundations/accessibility.astro",
+      "lang": "astro",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 9,
+      "otherComponents": 0,
+      "findings": [],
+      "components": [],
+      "ignored": [
+        {
+          "line": 118,
+          "column": 19,
+          "kind": "component",
+          "what": "button",
+          "reason": "the whole contrast row (tile, pair, ratio, Badge) is one target that opens the token drawer; the DS has no row button and Button would truncate it to one label",
+          "via": "comment"
+        }
+      ]
+    },
+    {
+      "path": "pages/foundations/color.astro",
+      "lang": "astro",
+      "tokenUsages": 0,
+      "themeRefs": 2,
+      "hardcoded": 0,
+      "dsComponents": 2,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "pages/foundations/elevation.astro",
+      "lang": "astro",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "pages/foundations/radius.astro",
+      "lang": "astro",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 1,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "pages/foundations/spacing.astro",
+      "lang": "astro",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "pages/foundations/typography.astro",
+      "lang": "astro",
+      "tokenUsages": 6,
+      "themeRefs": 3,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "pages/how-review-works.astro",
+      "lang": "astro",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 2,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "pages/index.astro",
+      "lang": "astro",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 3,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "pages/install.astro",
+      "lang": "astro",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 14,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
       "path": "pages/llms.txt.ts",
       "lang": "ts",
       "tokenUsages": 0,
@@ -701,6 +2014,137 @@
     {
       "path": "pages/search-index.json.ts",
       "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "pages/studio/auth/callback.astro",
+      "lang": "astro",
+      "tokenUsages": 20,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 2,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "pages/studio/brands/new.astro",
+      "lang": "astro",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "pages/studio/changes.astro",
+      "lang": "astro",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 27,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "pages/studio/components/docs/[slug].astro",
+      "lang": "astro",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 1,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "pages/studio/components/index.astro",
+      "lang": "astro",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 28,
+      "otherComponents": 0,
+      "findings": [],
+      "components": [],
+      "ignored": [
+        {
+          "line": 200,
+          "column": 11,
+          "kind": "component",
+          "what": "input",
+          "reason": "hidden file picker behind the DS Button \"Attach an image\"; the DS has no file input",
+          "via": "comment"
+        }
+      ]
+    },
+    {
+      "path": "pages/studio/index.astro",
+      "lang": "astro",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 8,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "pages/studio/library-files.json.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "pages/studio/quality/audits/[id].astro",
+      "lang": "astro",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 5,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "pages/studio/quality/index.astro",
+      "lang": "astro",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 13,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "pages/studio/settings/index.astro",
+      "lang": "astro",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 35,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "pages/studio/tokens.astro",
+      "lang": "astro",
       "tokenUsages": 0,
       "themeRefs": 0,
       "hardcoded": 0,
@@ -732,12 +2176,154 @@
       "components": []
     },
     {
-      "path": "scripts/branches.ts",
+      "path": "pages/tokens/index.astro",
+      "lang": "astro",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 6,
+      "otherComponents": 0,
+      "findings": [],
+      "components": [],
+      "ignored": [
+        {
+          "line": 74,
+          "column": 17,
+          "kind": "component",
+          "what": "button",
+          "reason": "the whole token row (swatches, name, light and dark values) is one target that selects it; the DS has no row button and Button would truncate it to one label",
+          "via": "comment"
+        }
+      ]
+    },
+    {
+      "path": "scripts/a11y-checks.ts",
       "lang": "ts",
       "tokenUsages": 0,
       "themeRefs": 0,
       "hardcoded": 0,
       "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "scripts/all-tokens.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "scripts/avatar.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "scripts/change-status.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "scripts/changes.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "scripts/combine-read.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "scripts/components-studio.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "scripts/continue-change.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "scripts/docs-ai.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "scripts/docs-commit.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "scripts/exploration-start.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "scripts/explorations.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 4,
       "otherComponents": 0,
       "findings": [],
       "components": []
@@ -792,7 +2378,7 @@
       "tokenUsages": 0,
       "themeRefs": 0,
       "hardcoded": 0,
-      "dsComponents": 0,
+      "dsComponents": 1,
       "otherComponents": 0,
       "findings": [],
       "components": []
@@ -811,15 +2397,15 @@
     {
       "path": "scripts/explorer/inline-edit.ts",
       "lang": "ts",
-      "tokenUsages": 0,
+      "tokenUsages": 1,
       "themeRefs": 0,
       "hardcoded": 1,
       "dsComponents": 0,
       "otherComponents": 0,
       "findings": [
         {
-          "line": 28,
-          "column": 49,
+          "line": 48,
+          "column": 70,
           "category": "color",
           "value": "#000000",
           "source": "js",
@@ -833,6 +2419,28 @@
           }
         }
       ],
+      "components": []
+    },
+    {
+      "path": "scripts/explorer/preview-frames.ts",
+      "lang": "ts",
+      "tokenUsages": 1,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "scripts/explorer/review.ts",
+      "lang": "ts",
+      "tokenUsages": 1,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
       "components": []
     },
     {
@@ -880,6 +2488,17 @@
       "components": []
     },
     {
+      "path": "scripts/github-signin.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
       "path": "scripts/history/page.ts",
       "lang": "ts",
       "tokenUsages": 0,
@@ -896,7 +2515,7 @@
       "tokenUsages": 0,
       "themeRefs": 0,
       "hardcoded": 0,
-      "dsComponents": 0,
+      "dsComponents": 3,
       "otherComponents": 0,
       "findings": [],
       "components": []
@@ -918,13 +2537,46 @@
       "tokenUsages": 0,
       "themeRefs": 0,
       "hardcoded": 0,
+      "dsComponents": 2,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "scripts/integrations.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
       "dsComponents": 0,
       "otherComponents": 0,
       "findings": [],
       "components": []
     },
     {
-      "path": "scripts/playground.ts",
+      "path": "scripts/maintainer.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "scripts/needs-you.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "scripts/new-brand.ts",
       "lang": "ts",
       "tokenUsages": 0,
       "themeRefs": 0,
@@ -940,13 +2592,57 @@
       "tokenUsages": 0,
       "themeRefs": 0,
       "hardcoded": 0,
+      "dsComponents": 6,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "scripts/request-form.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
       "dsComponents": 0,
       "otherComponents": 0,
       "findings": [],
       "components": []
     },
     {
+      "path": "scripts/requests.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 4,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
       "path": "scripts/reviews.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 10,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "scripts/reviews/docs-section.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 2,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "scripts/reviews/library-sync.ts",
       "lang": "ts",
       "tokenUsages": 0,
       "themeRefs": 0,
@@ -973,6 +2669,17 @@
       "tokenUsages": 0,
       "themeRefs": 0,
       "hardcoded": 0,
+      "dsComponents": 1,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "scripts/roles.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
       "dsComponents": 0,
       "otherComponents": 0,
       "findings": [],
@@ -990,36 +2697,86 @@
       "components": []
     },
     {
+      "path": "scripts/status-filter.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 2,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "scripts/teams.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
       "path": "scripts/token-editor.ts",
       "lang": "ts",
       "tokenUsages": 0,
       "themeRefs": 0,
-      "hardcoded": 1,
-      "dsComponents": 0,
+      "hardcoded": 0,
+      "dsComponents": 3,
       "otherComponents": 0,
-      "findings": [
-        {
-          "line": 165,
-          "column": 37,
-          "category": "color",
-          "value": "#000000",
-          "source": "js",
-          "suggestion": {
-            "token": "color.black",
-            "cssVar": "--color-black",
-            "value": "#000000",
-            "distance": 0,
-            "confidence": 1,
-            "level": "exact"
-          }
-        }
-      ],
+      "findings": [],
       "components": []
     },
     {
-      "path": "scripts/visual-list.ts",
+      "path": "scripts/vanilla-controls.ts",
       "lang": "ts",
       "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "scripts/view-change.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "scripts/view-components.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 1,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "scripts/work-filter.ts",
+      "lang": "ts",
+      "tokenUsages": 0,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 2,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "styles/a11y.css",
+      "lang": "css",
+      "tokenUsages": 117,
       "themeRefs": 0,
       "hardcoded": 0,
       "dsComponents": 0,
@@ -1030,7 +2787,7 @@
     {
       "path": "styles/adoption.css",
       "lang": "css",
-      "tokenUsages": 107,
+      "tokenUsages": 74,
       "themeRefs": 5,
       "hardcoded": 0,
       "dsComponents": 0,
@@ -1039,10 +2796,32 @@
       "components": []
     },
     {
-      "path": "styles/branches.css",
+      "path": "styles/all-tokens.css",
       "lang": "css",
-      "tokenUsages": 29,
+      "tokenUsages": 137,
       "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "styles/brand.css",
+      "lang": "css",
+      "tokenUsages": 70,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "styles/changes.css",
+      "lang": "css",
+      "tokenUsages": 346,
+      "themeRefs": 1,
       "hardcoded": 0,
       "dsComponents": 0,
       "otherComponents": 0,
@@ -1052,8 +2831,19 @@
     {
       "path": "styles/component.css",
       "lang": "css",
-      "tokenUsages": 272,
+      "tokenUsages": 274,
       "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "styles/components-studio.css",
+      "lang": "css",
+      "tokenUsages": 121,
+      "themeRefs": 2,
       "hardcoded": 0,
       "dsComponents": 0,
       "otherComponents": 0,
@@ -1085,7 +2875,7 @@
     {
       "path": "styles/ds-library.css",
       "lang": "css",
-      "tokenUsages": 33,
+      "tokenUsages": 35,
       "themeRefs": 0,
       "hardcoded": 0,
       "dsComponents": 0,
@@ -1107,7 +2897,18 @@
     {
       "path": "styles/editor.css",
       "lang": "css",
-      "tokenUsages": 193,
+      "tokenUsages": 163,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "styles/explorations.css",
+      "lang": "css",
+      "tokenUsages": 57,
       "themeRefs": 0,
       "hardcoded": 0,
       "dsComponents": 0,
@@ -1118,7 +2919,7 @@
     {
       "path": "styles/foundations.css",
       "lang": "css",
-      "tokenUsages": 587,
+      "tokenUsages": 537,
       "themeRefs": 15,
       "hardcoded": 0,
       "dsComponents": 0,
@@ -1129,7 +2930,7 @@
     {
       "path": "styles/github.css",
       "lang": "css",
-      "tokenUsages": 50,
+      "tokenUsages": 54,
       "themeRefs": 0,
       "hardcoded": 0,
       "dsComponents": 0,
@@ -1140,8 +2941,8 @@
     {
       "path": "styles/history.css",
       "lang": "css",
-      "tokenUsages": 142,
-      "themeRefs": 0,
+      "tokenUsages": 141,
+      "themeRefs": 1,
       "hardcoded": 0,
       "dsComponents": 0,
       "otherComponents": 0,
@@ -1151,7 +2952,18 @@
     {
       "path": "styles/home.css",
       "lang": "css",
-      "tokenUsages": 59,
+      "tokenUsages": 40,
+      "themeRefs": 0,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "styles/library-edit.css",
+      "lang": "css",
+      "tokenUsages": 156,
       "themeRefs": 0,
       "hardcoded": 0,
       "dsComponents": 0,
@@ -1162,7 +2974,7 @@
     {
       "path": "styles/library.css",
       "lang": "css",
-      "tokenUsages": 59,
+      "tokenUsages": 52,
       "themeRefs": 0,
       "hardcoded": 0,
       "dsComponents": 0,
@@ -1171,10 +2983,32 @@
       "components": []
     },
     {
-      "path": "styles/playground.css",
+      "path": "styles/new-brand.css",
       "lang": "css",
-      "tokenUsages": 235,
-      "themeRefs": 0,
+      "tokenUsages": 152,
+      "themeRefs": 1,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "styles/overview.css",
+      "lang": "css",
+      "tokenUsages": 96,
+      "themeRefs": 1,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "styles/preview-frames.css",
+      "lang": "css",
+      "tokenUsages": 9,
+      "themeRefs": 2,
       "hardcoded": 0,
       "dsComponents": 0,
       "otherComponents": 0,
@@ -1184,8 +3018,41 @@
     {
       "path": "styles/process.css",
       "lang": "css",
-      "tokenUsages": 378,
+      "tokenUsages": 326,
       "themeRefs": 5,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "styles/quality.css",
+      "lang": "css",
+      "tokenUsages": 72,
+      "themeRefs": 1,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "styles/requests.css",
+      "lang": "css",
+      "tokenUsages": 84,
+      "themeRefs": 1,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "styles/review-guide.css",
+      "lang": "css",
+      "tokenUsages": 34,
+      "themeRefs": 0,
       "hardcoded": 0,
       "dsComponents": 0,
       "otherComponents": 0,
@@ -1195,8 +3062,8 @@
     {
       "path": "styles/reviews.css",
       "lang": "css",
-      "tokenUsages": 338,
-      "themeRefs": 2,
+      "tokenUsages": 323,
+      "themeRefs": 3,
       "hardcoded": 0,
       "dsComponents": 0,
       "otherComponents": 0,
@@ -1206,7 +3073,7 @@
     {
       "path": "styles/settings.css",
       "lang": "css",
-      "tokenUsages": 39,
+      "tokenUsages": 145,
       "themeRefs": 0,
       "hardcoded": 0,
       "dsComponents": 0,
@@ -1217,8 +3084,8 @@
     {
       "path": "styles/site.css",
       "lang": "css",
-      "tokenUsages": 539,
-      "themeRefs": 4,
+      "tokenUsages": 516,
+      "themeRefs": 1,
       "hardcoded": 0,
       "dsComponents": 0,
       "otherComponents": 0,
@@ -1228,7 +3095,7 @@
     {
       "path": "styles/spaces.css",
       "lang": "css",
-      "tokenUsages": 164,
+      "tokenUsages": 139,
       "themeRefs": 0,
       "hardcoded": 0,
       "dsComponents": 0,
@@ -1239,7 +3106,7 @@
     {
       "path": "styles/studio-app.css",
       "lang": "css",
-      "tokenUsages": 109,
+      "tokenUsages": 80,
       "themeRefs": 0,
       "hardcoded": 0,
       "dsComponents": 0,
@@ -1250,7 +3117,7 @@
     {
       "path": "styles/studio.css",
       "lang": "css",
-      "tokenUsages": 215,
+      "tokenUsages": 213,
       "themeRefs": 0,
       "hardcoded": 0,
       "dsComponents": 0,
@@ -1261,8 +3128,19 @@
     {
       "path": "styles/token-explorer.css",
       "lang": "css",
-      "tokenUsages": 716,
-      "themeRefs": 9,
+      "tokenUsages": 1189,
+      "themeRefs": 14,
+      "hardcoded": 0,
+      "dsComponents": 0,
+      "otherComponents": 0,
+      "findings": [],
+      "components": []
+    },
+    {
+      "path": "styles/view-change.css",
+      "lang": "css",
+      "tokenUsages": 13,
+      "themeRefs": 0,
       "hardcoded": 0,
       "dsComponents": 0,
       "otherComponents": 0,
@@ -1270,231 +3148,58 @@
       "components": []
     }
   ],
-  "history": [
-    {
-      "label": "Bridge docs site, before",
-      "generatedAt": "2026-10-16T22:47:20.766Z",
-      "tokenAdoption": 9.7,
-      "componentAdoption": 52.8,
-      "hardcoded": 2628,
-      "uiComponentInstances": 89,
-      "dsComponentInstances": 47
-    }
-  ],
-  "baseline": {
-    "label": "Bridge docs site, before",
-    "generatedAt": "2026-10-16T22:47:20.766Z",
-    "tokenAdoption": {
-      "before": 9.7,
-      "after": 100,
-      "delta": 90.3
-    },
-    "componentAdoption": {
-      "before": 52.8,
-      "after": 100,
-      "delta": 47.2
-    },
-    "hardcoded": {
-      "before": 2628,
-      "after": 2,
-      "delta": -2626
-    },
-    "byCategory": {
-      "color": {
-        "before": 73,
-        "after": 2,
-        "delta": -71
-      },
-      "spacing": {
-        "before": 1424,
-        "after": 0,
-        "delta": -1424
-      },
-      "size": {
-        "before": 391,
-        "after": 0,
-        "delta": -391
-      },
-      "radius": {
-        "before": 68,
-        "after": 0,
-        "delta": -68
-      },
-      "border-width": {
-        "before": 311,
-        "after": 0,
-        "delta": -311
-      },
-      "shadow": {
-        "before": 12,
-        "after": 0,
-        "delta": -12
-      },
-      "duration": {
-        "before": 29,
-        "after": 0,
-        "delta": -29
-      },
-      "easing": {
-        "before": 2,
-        "after": 0,
-        "delta": -2
-      },
-      "z-index": {
-        "before": 23,
-        "after": 0,
-        "delta": -23
-      },
-      "font-size": {
-        "before": 69,
-        "after": 0,
-        "delta": -69
-      },
-      "font-weight": {
-        "before": 165,
-        "after": 0,
-        "delta": -165
-      },
-      "line-height": {
-        "before": 61,
-        "after": 0,
-        "delta": -61
-      }
-    },
-    "improved": [
+  "ignored": {
+    "total": 5,
+    "comment": 5,
+    "allowlist": 0,
+    "items": [
       {
-        "path": "styles/token-explorer.css",
-        "before": 435,
-        "after": 0
+        "file": "components/foundations/TokenList.astro",
+        "line": 79,
+        "column": 15,
+        "kind": "component",
+        "what": "button",
+        "reason": "the token name itself is the copy target, in Plex Mono at body size; a DS Button would restyle the name. The DS copy button beside it does the same job",
+        "via": "comment"
       },
       {
-        "path": "styles/site.css",
-        "before": 318,
-        "after": 0
+        "file": "layouts/Layout.astro",
+        "line": 183,
+        "column": 19,
+        "kind": "component",
+        "what": "button",
+        "reason": "a side nav group opener styled as its sibling nav links (with the review count badge and chevron); the DS SidebarNav is a React island and would rebuild the whole rail",
+        "via": "comment"
       },
       {
-        "path": "styles/dashboard.css",
-        "before": 214,
-        "after": 0
+        "file": "pages/foundations/accessibility.astro",
+        "line": 118,
+        "column": 19,
+        "kind": "component",
+        "what": "button",
+        "reason": "the whole contrast row (tile, pair, ratio, Badge) is one target that opens the token drawer; the DS has no row button and Button would truncate it to one label",
+        "via": "comment"
       },
       {
-        "path": "styles/process.css",
-        "before": 194,
-        "after": 0
+        "file": "pages/studio/components/index.astro",
+        "line": 200,
+        "column": 11,
+        "kind": "component",
+        "what": "input",
+        "reason": "hidden file picker behind the DS Button \"Attach an image\"; the DS has no file input",
+        "via": "comment"
       },
       {
-        "path": "styles/foundations.css",
-        "before": 192,
-        "after": 0
-      },
-      {
-        "path": "styles/component.css",
-        "before": 184,
-        "after": 0
-      },
-      {
-        "path": "styles/reviews.css",
-        "before": 175,
-        "after": 0
-      },
-      {
-        "path": "styles/playground.css",
-        "before": 123,
-        "after": 0
-      },
-      {
-        "path": "styles/studio.css",
-        "before": 120,
-        "after": 0
-      },
-      {
-        "path": "styles/editor.css",
-        "before": 113,
-        "after": 0
-      },
-      {
-        "path": "styles/history.css",
-        "before": 95,
-        "after": 0
-      },
-      {
-        "path": "styles/spaces.css",
-        "before": 94,
-        "after": 0
-      },
-      {
-        "path": "styles/studio-app.css",
-        "before": 61,
-        "after": 0
-      },
-      {
-        "path": "styles/adoption.css",
-        "before": 55,
-        "after": 0
-      },
-      {
-        "path": "styles/library.css",
-        "before": 39,
-        "after": 0
-      },
-      {
-        "path": "styles/home.css",
-        "before": 38,
-        "after": 0
-      },
-      {
-        "path": "components/foundations/Specimens.tsx",
-        "before": 32,
-        "after": 0
-      },
-      {
-        "path": "styles/connect.css",
-        "before": 29,
-        "after": 0
-      },
-      {
-        "path": "styles/github.css",
-        "before": 24,
-        "after": 0
-      },
-      {
-        "path": "styles/settings.css",
-        "before": 23,
-        "after": 0
-      },
-      {
-        "path": "styles/branches.css",
-        "before": 22,
-        "after": 0
-      },
-      {
-        "path": "components/PropsPlayground.tsx",
-        "before": 10,
-        "after": 0
+        "file": "pages/tokens/index.astro",
+        "line": 74,
+        "column": 17,
+        "kind": "component",
+        "what": "button",
+        "reason": "the whole token row (swatches, name, light and dark values) is one target that selects it; the DS has no row button and Button would truncate it to one label",
+        "via": "comment"
       }
     ],
-    "regressed": [],
-    "newFiles": [
-      "components/ds/AgentToolsTable.tsx",
-      "components/ds/ButtonLink.tsx",
-      "components/ds/IconLink.tsx",
-      "components/ds/PropsTable.tsx",
-      "components/ds/ScopeMenu.tsx",
-      "components/ds/VersionMenu.tsx",
-      "components/ds/brand-icons.ts",
-      "components/ds/scope.ts",
-      "components/ds/studio/AdoptionTables.tsx",
-      "components/ds/studio/ApprovalMatrix.tsx",
-      "components/ds/studio/ComponentsTable.tsx",
-      "components/ds/studio/ContrastFailTable.tsx",
-      "components/ds/studio/SummaryButton.tsx",
-      "components/ds/studio/brand-icons.ts",
-      "components/foundations/ContrastTable.tsx",
-      "styles/ds-library.css",
-      "styles/ds-studio.css"
-    ],
-    "removedFiles": [
-      "brand/tokens.ts"
-    ]
-  }
+    "staleAllowlist": []
+  },
+  "history": []
 }

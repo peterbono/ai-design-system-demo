@@ -14,7 +14,7 @@ import '../../../styles/requests.css';
 import '../../../styles/preview-frames.css';
 import Layout from '../../../layouts/Layout.astro';
 import StudioHeader from '../../../components/StudioHeader.astro';
-import UiIcon from '../../../components/Icon.astro';
+import { siteIcon } from '../../../brand/site-icons';
 import ButtonLink from '../../../components/ds/ButtonLink';
 import Example from '../../../components/Example';
 import ComponentsSearch from '../../../components/ds/studio/ComponentsSearch';
@@ -229,9 +229,9 @@ const signIn = Boolean(signInConfig());
         return (
           <details class="cm-d-dev" data-cm-dev={c.slug} hidden>
             <summary>
-              <UiIcon name="code" size={18} />
+              <Icon icon={siteIcon('code')} size="md" className="icon" />
               <span class="cm-d-dev-label">For developers</span>
-              <span class="cm-d-dev-chev"><UiIcon name="chevron" size={16} /></span>
+              <span class="cm-d-dev-chev"><Icon icon={siteIcon('chevron')} size="sm" className="icon" /></span>
             </summary>
             <div class="cm-d-dev-body">
               <dl class="cm-d-dev-facts">

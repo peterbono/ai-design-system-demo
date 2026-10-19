@@ -104,7 +104,7 @@ export function dsEquivalent(name: string, ds: Set<string>): string | undefined 
   return undefined;
 }
 
-/** The DS component that replaces a native element. */
+/** The DS component that replaces a native element; undefined when the DS has none, and then the element is not a miss. */
 export function nativeEquivalent(tag: string, type: string | undefined, ds: Set<string>): string | undefined {
   const pick = (...c: string[]) => c.find((x) => ds.has(x));
   switch (tag) {

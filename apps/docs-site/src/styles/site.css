@@ -229,7 +229,9 @@ pre code {
   border: 0;
 }
 
-.skip {
+/* a.skip, a.topbar-brand, .rail .nav-link...: the anchors are DS Links (variant subtle); the element or region in the
+   selector lets the site's own row and chip styles win over the Link's color and underline. */
+a.skip {
   position: absolute;
   left: var(--space-4);
   top: calc(var(--space-16) * -1);
@@ -238,9 +240,10 @@ pre code {
   border-radius: var(--radius-control);
   background-color: var(--color-action-primary-bg);
   color: var(--color-action-primary-text);
+  text-decoration-color: currentcolor;
 }
 
-.skip:focus {
+a.skip:focus {
   top: var(--space-2);
 }
 
@@ -398,7 +401,7 @@ pre code {
   background-color: var(--color-bg-default);
 }
 
-.topbar-brand {
+a.topbar-brand {
   display: inline-flex;
   align-items: center;
   min-height: var(--control-height-md);
@@ -457,7 +460,7 @@ pre code {
   border-color: transparent;
 }
 
-.team-avatar {
+a.team-avatar {
   display: inline-flex;
   padding-left: var(--space-1);
   border-left: var(--border-width-default) solid var(--color-border-default);
@@ -467,11 +470,13 @@ pre code {
   display: none;
 }
 
-.team-avatar img {
-  width: var(--size-7);
-  height: var(--size-7);
-  border-radius: var(--radius-pill);
-  background-color: var(--color-surface-inverse);
+/* The photo scripts/avatar.ts lays over a static DS Avatar's initials once the viewer is known. */
+.avatar-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 /* Team tools (Edit in Studio, View source) exist for maintainers only: a GitHub token with write access. */
@@ -528,7 +533,7 @@ pre code {
   margin-top: var(--space-0-5);
 }
 
-.nav-link,
+.rail .nav-link,
 .nav-sub a {
   position: relative;
   display: flex;
@@ -553,7 +558,7 @@ pre code {
 }
 
 @media (hover: hover) {
-  .nav-link:hover,
+  .rail .nav-link:hover,
   .nav-sub a:hover {
     background-color: var(--color-bg-subtle);
     color: var(--color-text-default);
@@ -562,7 +567,7 @@ pre code {
 
 /* Where you are. A page entry: Deep Harbor text on a quiet plate. A group you are in: its label in ink, semibold,
    and the page inside it: Deep Harbor text, the plate and a Deep Harbor marker on the guide line. */
-.nav-link[aria-current="page"],
+.rail .nav-link[aria-current="page"],
 .nav-link[data-active]:not(.nav-toggle),
 .nav-sub a[aria-current="page"] {
   color: var(--color-text-signal);
@@ -803,7 +808,11 @@ main > h1:first-child {
   width: min(var(--size-96) + var(--size-10), calc(100vw - var(--space-8)));
 }
 
+/* The rows are DS Links (subtle): the menu row look wins over the Link's color and underline. */
 .page-source-list .menu-item {
+  border-radius: var(--radius-control);
+  color: var(--color-text-default);
+  text-decoration-line: none;
   min-height: var(--size-9);
   padding: var(--space-1-5) var(--space-2);
   gap: var(--space-3);
@@ -942,22 +951,22 @@ main > h1:first-child {
 }
 
 /* App-rendered data tables only (charts, reviews, adoption). The DS Table component styles itself. */
-table:where(.stacked-table, .rv-table, .ad-cats) {
+table:where(.stacked-table, .rv-table) {
   width: 100%;
   border-collapse: collapse;
   font-size: var(--typography-ui-size);
   font-variant-numeric: tabular-nums;
 }
 
-:where(.stacked-table, .rv-table, .ad-cats) th,
-:where(.stacked-table, .rv-table, .ad-cats) td {
+:where(.stacked-table, .rv-table) th,
+:where(.stacked-table, .rv-table) td {
   padding: var(--space-3) var(--space-4);
   border-bottom: var(--border-width-default) solid var(--color-border-default);
   text-align: left;
   vertical-align: top;
 }
 
-:where(.stacked-table, .rv-table, .ad-cats) thead th {
+:where(.stacked-table, .rv-table) thead th {
   background-color: var(--color-bg-default);
   color: var(--color-text-muted);
   font-size: var(--typography-ui-size);
@@ -965,12 +974,12 @@ table:where(.stacked-table, .rv-table, .ad-cats) {
   white-space: nowrap;
 }
 
-:where(.stacked-table, .rv-table, .ad-cats) tbody tr:last-child td,
-:where(.stacked-table, .rv-table, .ad-cats) tbody tr:last-child th {
+:where(.stacked-table, .rv-table) tbody tr:last-child td,
+:where(.stacked-table, .rv-table) tbody tr:last-child th {
   border-bottom: 0;
 }
 
-:where(.stacked-table, .rv-table, .ad-cats) tbody th {
+:where(.stacked-table, .rv-table) tbody th {
   font-weight: var(--font-weight-medium);
 }
 
@@ -1138,66 +1147,18 @@ tr:target {
   margin: var(--space-4) 0 var(--space-2);
 }
 
-/* Command palette */
-
-.palette {
-  width: min(var(--size-160), calc(100vw - var(--size-8)));
-  max-height: min(calc(var(--size-140) - var(--space-4)), calc(100vh - var(--space-24)));
-  margin: 12vh auto auto;
-  padding: 0;
-  border: var(--border-width-default) solid var(--color-border-default);
-  border-radius: var(--radius-overlay);
-  background-color: var(--color-surface-default);
-  color: var(--color-text-default);
-  box-shadow: var(--elevation-modal);
-  overflow: hidden;
-}
-
-.palette::backdrop {
-  background-color: var(--color-overlay-scrim);
-  backdrop-filter: blur(var(--space-0-5));
-}
+/* Command palette: a DS Dialog (lg) opened by scripts/shell.ts. The field sits on top of the results; the list keeps
+   a minimum height so the dialog does not jump while results come and go. */
 
 .palette-box {
-  display: flex;
-  flex-direction: column;
-  max-height: inherit;
-}
-
-.palette-input {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: 0 var(--space-4);
-  border-bottom: var(--border-width-default) solid var(--color-border-default);
-  color: var(--color-text-muted);
-}
-
-.palette-input input {
-  flex: 1;
-  min-width: 0;
-  height: var(--size-14);
-  border: 0;
-  background-color: transparent;
-  color: var(--color-text-default);
-  font: inherit;
-  font-size: var(--typography-body-size);
-  caret-color: var(--color-signal-default);
-}
-
-.palette-input input:focus {
-  outline: none;
-}
-
-.palette-input input::-webkit-search-cancel-button {
-  display: none;
+  display: grid;
+  gap: var(--space-2);
 }
 
 .palette-list {
-  flex: 1;
+  min-height: min(var(--size-80), 40vh);
   margin: 0;
-  padding: var(--space-2);
-  overflow-y: auto;
+  padding: 0;
   list-style: none;
 }
 
@@ -1294,9 +1255,6 @@ tr:target {
   display: flex;
   gap: var(--space-4);
   margin: 0;
-  padding: var(--space-2) var(--space-4);
-  border-top: var(--border-width-default) solid var(--color-border-default);
-  background-color: var(--color-bg-default);
   color: var(--color-text-muted);
   font-size: var(--typography-ui-size);
 }
@@ -1404,8 +1362,8 @@ tr:target {
     margin-top: var(--space-12);
   }
 
-  :where(.stacked-table, .rv-table, .ad-cats) th,
-  :where(.stacked-table, .rv-table, .ad-cats) td {
+  :where(.stacked-table, .rv-table) th,
+  :where(.stacked-table, .rv-table) td {
     padding: var(--space-2) var(--space-3);
   }
 }

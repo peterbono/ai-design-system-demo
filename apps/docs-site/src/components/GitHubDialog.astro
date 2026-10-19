@@ -1,13 +1,13 @@
 ---
 // The Connect GitHub dialog. Include once per page, outside any element that gets hidden.
-// The native <dialog> stays (scripts/github-session.ts opens it from any [data-gh-open] and from gated actions);
-// the controls inside are DS components. Script hooks are data attributes: DS Input drops a custom id.
+// The DS Dialog for scripts (ScriptDialog: dialogHtml from @bridge-ds/react/dom); scripts/github-session.ts opens it
+// from any [data-gh-open] and from gated actions. Script hooks are data attributes: DS Input drops a custom id.
 // When the site has a GitHub App (GITHUB_APP_CLIENT_ID at build, docs/SIGN-IN.md), the dialog is "Sign in with
 // GitHub" only: designers never see a token paste (developers use their own token in the CLI and MCP). Without it
 // (forks, a local server without the env var) the dialog is the token paste only, so nobody is locked out.
-// data-signin carries the build-time settings for the browser.
-import { Alert, Button, IconButton, Input } from '@bridge-ds/react';
-import { X } from 'lucide-react';
+// data-signin (on the popup) carries the build-time settings for the browser.
+import { Alert, Button, Input, Link } from '@bridge-ds/react';
+import ScriptDialog from './ds/ScriptDialog.astro';
 import { siteRepo } from '../lib/config';
 import { signInConfig, signInConfigJson } from '../lib/signin-config';
 import { ghButton } from '../lib/gh-wording';
@@ -18,13 +18,8 @@ const tokenUrl = `https://github.com/settings/personal-access-tokens/new?descrip
 const signIn = Boolean(signInConfig());
 ---
 
-<!-- bridge-audit-ignore-next-line: Connect GitHub, a native modal <dialog> opened by a plain script (showModal, focus trap, Escape); the DS Dialog is a React island, so moving it is a rewrite of the script. Follow-up: DS Dialog with a static open/close contract -->
-<dialog class="gh-dialog" id="gh-dialog" aria-labelledby="gh-dialog-title" data-signin={signIn ? signInConfigJson() : undefined}>
-  <form method="dialog" class="gh-dialog-box">
-    <header class="gh-dialog-head">
-      <h2 id="gh-dialog-title">{ghButton(signIn)}</h2>
-      <IconButton icon={X} label="Close" size="sm" type="submit" value="cancel" />
-    </header>
+<ScriptDialog id="gh-dialog" title={ghButton(signIn)} size="sm" closeLabel="Close" popup={signIn ? { 'data-signin': signInConfigJson() } : undefined}>
+  <div class="gh-dialog-body">
     <Alert tone="warning" className="st-hideable" data-gh-rejected-note hidden announce="off">
       <span data-gh-rejected-note-text>{signIn ? 'Your GitHub sign-in expired and could not be renewed. Sign in again to keep editing.' : 'GitHub no longer accepts the saved token: it was revoked, regenerated or has expired. Paste a new one to replace it.'}</span>
     </Alert>
@@ -38,6 +33,7 @@ const signIn = Boolean(signInConfig());
           <Alert tone="danger" className="st-hideable" data-gh-signin-error hidden>
             <span data-gh-signin-error-text />
           </Alert>
+          <Button variant="secondary" className="st-hideable" data-gh-forget-dialog hidden>Sign out</Button>
         </div>
       )
     }
@@ -49,7 +45,7 @@ const signIn = Boolean(signInConfig());
             <strong>fine-grained personal access token</strong> limited to <code>{r.owner}/{r.repo}</code>.
           </p>
           <ol class="gh-steps">
-            <li><a href={tokenUrl} target="_blank" rel="noopener">Create a token on GitHub</a>, repository access: only <code>{r.repo}</code>.</li>
+            <li><Link href={tokenUrl} external>Create a token on GitHub</Link>, repository access: only <code>{r.repo}</code>.</li>
             <li>Permissions: Pull requests read and write, Contents read and write, Commit statuses and Checks read.</li>
             <li>Paste it below. It stays in this browser (localStorage) and is only sent to api.github.com.</li>
           </ol>
@@ -58,11 +54,15 @@ const signIn = Boolean(signInConfig());
         </div>
       )
     }
-    <footer class="gh-dialog-foot">
-      <Button variant="secondary" size="sm" className="st-hideable" data-gh-forget-dialog hidden>Disconnect</Button>
-      <span class="gh-spacer"></span>
-      {!signIn && <Button variant="secondary" size="sm" type="submit" value="cancel" data-gh-cancel>Cancel</Button>}
-      {!signIn && <Button variant="primary" size="sm" data-gh-save>Check and connect</Button>}
-    </footer>
-  </form>
-</dialog>
+  </div>
+  {
+    !signIn && (
+      <div class="gh-dialog-actions" slot="footer">
+        <Button variant="secondary" className="st-hideable" data-gh-forget-dialog hidden>Disconnect</Button>
+        <span class="gh-spacer"></span>
+        <Button variant="secondary" data-dialog-close data-gh-cancel>Cancel</Button>
+        <Button variant="primary" data-gh-save>Check and connect</Button>
+      </div>
+    )
+  }
+</ScriptDialog>

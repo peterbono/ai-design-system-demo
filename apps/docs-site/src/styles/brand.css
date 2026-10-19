@@ -93,7 +93,10 @@
   color: var(--color-text-default);
 }
 
+/* A card that is one link (DS Link, subtle): the card's corners and ink win over the Link's. */
 a.fg-card {
+  border-radius: var(--radius-container);
+  color: var(--color-text-default);
   text-decoration: none;
   transition: border-color var(--motion-duration-instant) var(--motion-easing-standard);
 }
@@ -104,18 +107,14 @@ a.fg-card {
   }
 }
 
-/* Underlined standalone link (All release notes, See all). */
-.fg-link {
+/* Underlined standalone link (All release notes, See all): a DS Link (inline) at interface size with a 24px target. */
+a.fg-link {
   display: inline-flex;
   align-items: center;
   min-height: var(--size-6);
-  color: var(--color-text-link);
   font-size: var(--typography-ui-size);
   font-weight: var(--font-weight-semibold);
   line-height: var(--typography-ui-line-height);
-  text-decoration: underline;
-  text-decoration-thickness: var(--border-width-default);
-  text-underline-offset: 0.25em;
 }
 
 /* Library section pages: the page header is a Harbor block with an optional drawing on the end side. */

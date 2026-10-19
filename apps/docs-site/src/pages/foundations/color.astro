@@ -1,6 +1,6 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import { Button } from '@bridge-ds/react';
+import { Button, Link } from '@bridge-ds/react';
 import LibraryKit from '../../components/foundations/LibraryKit.astro';
 import TokenGroup from '../../components/foundations/TokenGroup.astro';
 import type { SpecimenGroup } from '../../components/foundations/Specimens.tsx';
@@ -79,7 +79,7 @@ import LibraryHeader from '../../components/LibraryHeader.astro';
         ))
       }
       <p>
-        Want to know exactly who uses a value? Paste a hex in search, or filter <a href="/tokens/">All tokens</a>.
+        Want to know exactly who uses a value? Paste a hex in search, or filter <Link href="/tokens/">All tokens</Link>.
       </p>
     </section>
   </div>

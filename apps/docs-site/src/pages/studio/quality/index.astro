@@ -7,7 +7,7 @@ import '../../../styles/adoption.css';
 import '../../../styles/quality.css';
 import Layout from '../../../layouts/Layout.astro';
 import StudioHeader from '../../../components/StudioHeader.astro';
-import Icon from '../../../components/Icon.astro';
+import { siteIcon } from '../../../brand/site-icons';
 import ButtonLink from '../../../components/ds/ButtonLink';
 import ContrastFailTable from '../../../components/ds/studio/ContrastFailTable';
 import { GROUP_TONE } from '../../../lib/changes';
@@ -18,7 +18,7 @@ import { AUDITS_DIR, groupByApp, loadAudits } from '../../../lib/audits';
 import { ADOPTION_MEANING, adoptionRows, beforeLabel, cleanupTitle, firstFindingTarget, openerSentence, qualityModel, type ComboResult } from '../../../lib/quality';
 import { PAGE_SOURCES, freshness } from '../../../lib/sources';
 import { QUALITY_IN_CHECKS, QUALITY_IN_CHECKS_BODY, QUALITY_TOGETHER, QUALITY_TOGETHER_BODY } from '../../../lib/view-scope';
-import { Badge, CodeBlock, EmptyState } from '@bridge-ds/react';
+import { Badge, CodeBlock, EmptyState, Icon, Link } from '@bridge-ds/react';
 import { ShieldCheck } from 'lucide-react';
 import { dashboard } from '../../../lib/stats';
 import { BRAND_LABEL, TOKEN_SOURCE_FILES, type Brand } from '../../../lib/tokens';
@@ -88,7 +88,7 @@ const tone = (g: keyof typeof GROUP_TONE) => GROUP_TONE[g];
                       <span class="ql-detail">{f.detail}</span>
                     </span>
                     <Badge tone={tone(f.status.group)} className="ql-badge">{f.status.label}</Badge>
-                    <span class="ql-chev" aria-hidden="true"><Icon name="chevron" size={16} /></span>
+                    <span class="ql-chev" aria-hidden="true"><Icon icon={siteIcon('chevron')} size="sm" className="icon" /></span>
                   </summary>
                   <div class="ql-more-body">
                     <ul class="ql-combos" aria-label="Contrast checks per brand and theme">
@@ -102,7 +102,7 @@ const tone = (g: keyof typeof GROUP_TONE) => GROUP_TONE[g];
                     </ul>
                     {failRows.length > 0 && <ContrastFailTable rows={failRows} />}
                     <p class="ql-muted">
-                      Text needs 4.5:1, UI edges and focus rings 3:1. <a href={f.action!.href}>{f.action!.label}</a>
+                      Text needs 4.5:1, UI edges and focus rings 3:1. <Link href={f.action!.href}>{f.action!.label}</Link>
                     </p>
                   </div>
                 </details>
@@ -116,9 +116,9 @@ const tone = (g: keyof typeof GROUP_TONE) => GROUP_TONE[g];
                   </span>
                   <Badge tone={tone(f.status.group)} className="ql-badge">{f.status.label}</Badge>
                   {f.action ? (
-                    <a class="ql-act" href={f.action.href} aria-label={`${f.action.label}: ${f.title}`}>
+                    <Link variant="standalone" className="ql-act" href={f.action.href} aria-label={`${f.action.label}: ${f.title}`}>
                       {f.action.label}
-                    </a>
+                    </Link>
                   ) : (
                     <span />
                   )}
@@ -137,12 +137,12 @@ const tone = (g: keyof typeof GROUP_TONE) => GROUP_TONE[g];
                     <span class="ql-detail">Nothing breaks: candidates for cleanup, or values waiting for a job.</span>
                   </span>
                   <Badge className="ql-badge">Note</Badge>
-                  <span class="ql-chev" aria-hidden="true"><Icon name="chevron" size={16} /></span>
+                  <span class="ql-chev" aria-hidden="true"><Icon icon={siteIcon('chevron')} size="sm" className="icon" /></span>
                 </summary>
                 <ul class="ql-more-body ql-cleanup">
                   {cleanup.map((i) => (
                     <li>
-                      <a href={i.href}>{i.title}</a>
+                      <Link href={i.href}>{i.title}</Link>
                       <span class="ql-detail">{i.detail}</span>
                     </li>
                   ))}
@@ -166,9 +166,9 @@ const tone = (g: keyof typeof GROUP_TONE) => GROUP_TONE[g];
                   <span class="ql-title">{a.label}</span>
                   <AdoptionMetric label="Tokens" value={a.token.to} note={beforeLabel(a.token.from)} />
                   <AdoptionMetric label="Components" value={a.component.to} note={beforeLabel(a.component.from)} />
-                  <a class="ql-act" href={a.href} aria-label={`See what is left in ${a.label}`}>
+                  <Link variant="standalone" className="ql-act" href={a.href} aria-label={`See what is left in ${a.label}`}>
                     See what is left
-                  </a>
+                  </Link>
                 </div>
               </li>
             ))}

@@ -3728,7 +3728,7 @@ body:has([data-xe-bar]:not([hidden])) .xp[data-surface="app"] .xp-grid {
   color: var(--color-text-muted);
 }
 
-.xp-opt-adv[open] > summary .icon svg {
+.xp-opt-adv[open] > summary .icon {
   transform: rotate(90deg);
 }
 

@@ -35,7 +35,7 @@ import {
   type DraftEdit,
   type Guardrails,
 } from '../lib/editor-model';
-import { badgeHtml, tokenValueHtml } from '@bridge-ds/react/dom';
+import { badgeHtml, closeDialog, isDialogOpen, openDialog, tokenValueHtml } from '@bridge-ds/react/dom';
 import { esc, getToken, hasWorkingToken, initGitHubConnect, onAccess, paintGates, prefersSignIn, readRepo, relativeTime, setButtonDisabled, setButtonLabel, showGhError, studioClient } from './github-session';
 import { ghVerb } from '../lib/gh-wording';
 import { docsNotesForTokens } from '../lib/docs-draft-model';
@@ -550,7 +550,7 @@ async function refreshTargets(): Promise<void> {
   const keep = choice.kind === 'change' && targets.some((t) => choice.kind === 'change' && t.number === choice.number);
   if (!keep) choice = defaultTarget(targets);
   // The dialog may already be open (the list reads after sign-in): repaint its choice.
-  if (($('ed-propose-dialog') as HTMLDialogElement | null)?.open) paintSend();
+  if (isDialogOpen('ed-propose-dialog')) paintSend();
   document.dispatchEvent(new CustomEvent('bridge:draft'));
 }
 
@@ -559,7 +559,7 @@ function paintSend() {
   const adding = Boolean(scope) || choice.kind === 'change';
   const t = scope ? null : targets.find((x) => choice.kind === 'change' && x.number === choice.number);
   const name = scope?.title ?? t?.title ?? '';
-  const h = $('ed-propose-h');
+  const h = $('ed-propose-dialog-title');
   if (h) h.textContent = scope ? `Add to ${name}` : 'Send for review';
   const fields = field('propose-new');
   if (fields) fields.hidden = adding;
@@ -637,7 +637,7 @@ function showConflict(err: ChangeConflictError) {
   slot.hidden = false;
   const go = field('propose-go');
   if (go) go.hidden = true;
-  const h = $('ed-propose-h');
+  const h = $('ed-propose-dialog-title');
   if (h) h.textContent = 'Your edits were not added';
   const who = field('propose-who');
   if (who) who.hidden = true;
@@ -784,7 +784,7 @@ export function initTokenEditor() {
     saveDraft();
     recompute();
   });
-  $('ed-add')?.addEventListener('click', () => ($<HTMLDialogElement>('ed-add-dialog') as HTMLDialogElement | null)?.showModal());
+  $('ed-add')?.addEventListener('click', (e) => openDialog('ed-add-dialog', { returnFocus: e.currentTarget as HTMLElement }));
   $('ed-add-save')?.addEventListener('click', () => {
     if (!S) return;
     const path = (field<HTMLInputElement>('add-path')?.value ?? '').trim();
@@ -804,7 +804,7 @@ export function initTokenEditor() {
     S.draft.edits.push({ kind: 'add', id: uid(), path, type: 'color', tier: 'semantic', values: { light: `{${light}}`, dark: `{${dark}}` } });
     saveDraft();
     recompute();
-    ($<HTMLDialogElement>('ed-add-dialog') as HTMLDialogElement).close();
+    closeDialog('ed-add-dialog', 'add');
   });
   // The title starts from the edit in plain words; once the person types their own, a later edit keeps it.
   let autoTitle = '';
@@ -823,7 +823,7 @@ export function initTokenEditor() {
     if (sum && who && !scope && choice.kind === 'new') who.textContent = sum.sentence;
     const pr = field('propose-pr-title');
     if (pr) pr.textContent = prTitleFrom(titleField?.value ?? '') || 'tokens: ...';
-    ($<HTMLDialogElement>('ed-propose-dialog') as HTMLDialogElement | null)?.showModal();
+    openDialog('ed-propose-dialog');
   });
   field<HTMLInputElement>('propose-title')?.addEventListener('input', (e) => {
     const pr = field('propose-pr-title');

@@ -4,8 +4,8 @@
 // Each row: kind badge, the title at full width, one line on what it means, a small meta line (bump, packages).
 // The rest of a long release and the internal changes are folded; sources and file paths sit in For developers.
 import Layout from '../layouts/Layout.astro';
-import Icon from '../components/Icon.astro';
-import { Badge, Button, EmptyState, Link, Tag } from '@bridge-ds/react';
+import { siteIcon } from '../brand/site-icons';
+import { Badge, Button, EmptyState, Icon, Link, Tag } from '@bridge-ds/react';
 import { Clock, Copy } from 'lucide-react';
 import { releases, releaseDateSource, versionInfo } from '../lib/changelog';
 import { shortPackage, type Entry } from '../lib/changelog-model';
@@ -120,7 +120,7 @@ const latest = all.find((r) => !r.pending);
               <div class="announce">
                 <div class="announce-head">
                   <span class="announce-avatar" aria-hidden="true">
-                    <Icon name="agent" size={18} />
+                    <Icon icon={siteIcon('agent')} size="md" className="icon" />
                   </span>
                   <div>
                     <h3 id={`a-${slug(r.name)}`}>Announcement</h3>

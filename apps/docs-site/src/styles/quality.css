@@ -85,20 +85,13 @@
   font-size: var(--typography-ui-size);
 }
 
-.ql-act {
+/* Row action: a DS Link (standalone, underline on hover) at the row's control height. */
+a.ql-act {
   display: inline-flex;
   align-items: center;
   min-height: var(--size-8);
   justify-self: end;
-  color: var(--color-text-link);
   font-weight: var(--font-weight-semibold);
-  text-decoration: none;
-}
-
-@media (hover: hover) {
-  .ql-act:hover {
-    text-decoration: underline;
-  }
 }
 
 .ql-act:focus-visible,

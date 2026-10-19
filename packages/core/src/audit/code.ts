@@ -133,8 +133,11 @@ export function classifyTag(t: TagUse, imports: ImportMap, ds: DesignSystemIndex
     if (name === 'a' && !t.hasHref) return {};
     // `<Button render={<a href="/x" />}>`: the element only gives the DS component its tag; the DS component is the UI.
     if (t.inRenderProp) return {};
+    // A native element is a miss only when the design system has a component that replaces it: an <img> is fine in
+    // a design system without Image, a <table> in one without Table.
     const suggestion = nativeEquivalent(name, t.type, ds.components);
-    return { component: { ...at, name, kind: 'native', library: 'native', ...(suggestion ? { suggestion } : {}) } };
+    if (!suggestion) return {};
+    return { component: { ...at, name, kind: 'native', library: 'native', suggestion } };
   }
   const root = name.split('.')[0]!;
   const imp = imports.get(root);

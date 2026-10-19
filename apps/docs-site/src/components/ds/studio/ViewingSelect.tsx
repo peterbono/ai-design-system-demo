@@ -28,6 +28,7 @@ export default function ViewingSelect() {
     <Select
       label="View the library as"
       hideLabel
+      size="sm"
       className="view-pick"
       prefix={<span className="view-pick-prefix">Viewing:</span>}
       options={options}

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, describe, test } from 'vitest';
-import { auditFile, auditMarkdown, compareWithBaseline, deltaE, parseCssColor, planCssFixes, scanClassString, scanCssValue, scanJsStyle } from '../src/audit';
+import { DesignSystemIndex, auditFile, auditMarkdown, compareWithBaseline, deltaE, parseCssColor, planCssFixes, scanClassString, scanCssValue, scanJsStyle } from '../src/audit';
 import { fixCss, loadDesignSystem, runAudit } from '../src/node/audit';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '../../..');
@@ -257,17 +257,27 @@ describe('what counts as a UI component instance', () => {
     ');',
   ].join('\n');
 
-  test('providers do not count; router links and anchors in a render prop do not; standalone links, anchors, images and charts do', () => {
+  test('providers do not count; router links and anchors in a render prop do not; standalone links, anchors and charts do', () => {
     const f = auditFile('app.tsx', app, ds());
     assert.equal(f.dsComponents, 4);
     const other = f.components.map((c) => `${c.kind}:${c.library}:${c.name}${c.suggestion ? `>${c.suggestion}` : ''}`);
     assert.deepEqual(other, [
       'foreign:ra-core:LinkBase>Link',
       'native:native:a>Link',
-      'native:native:img',
       'foreign:recharts:AreaChart',
       'foreign:recharts:Area',
     ]);
+  });
+
+  test('a native element counts only when the design system has a component for it', () => {
+    const base = ds();
+    assert.equal(base.components.has('Image'), false);
+    const page = 'export const P = () => <><img src="/p.png" alt="" /><table><tbody /></table></>;';
+    assert.deepEqual(auditFile('p.tsx', page, base).components.map((c) => `${c.name}>${c.suggestion}`), ['table>Table']);
+    const withImage = new DesignSystemIndex(loadDesignSystem(REPO).set, { packages: base.packages, components: [...base.components, 'Image'] });
+    assert.deepEqual(auditFile('p.tsx', page, withImage).components.map((c) => `${c.name}>${c.suggestion}`), ['img>Image', 'table>Table']);
+    const astro = auditFile('p.astro', '---\n---\n<img src="/a.png" alt="Avatar" />\n', base);
+    assert.equal(astro.components.length, 0);
   });
 });
 

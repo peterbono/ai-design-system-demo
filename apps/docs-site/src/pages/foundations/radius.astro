@@ -1,5 +1,6 @@
 ---
 import Layout from '../../layouts/Layout.astro';
+import { Link } from '@bridge-ds/react';
 import ScopeSwitch from '../../components/foundations/ScopeSwitch.astro';
 import LibraryKit from '../../components/foundations/LibraryKit.astro';
 import TokenList from '../../components/foundations/TokenList.astro';
@@ -63,7 +64,7 @@ import LibraryHeader from '../../components/LibraryHeader.astro';
       </header>
       <p class="fd-group-note">
         Every focusable component draws the same ring, so keyboard users always know where they are. Its color is on the
-        <a href="/foundations/color/#focus-ring-color">Color page</a>.
+        <Link href="/foundations/color/#focus-ring-color">Color page</Link>.
       </p>
       <TokenList rows={focus} preview="stroke" label="Focus ring tokens" />
     </section>

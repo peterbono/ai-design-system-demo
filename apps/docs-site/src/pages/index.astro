@@ -3,7 +3,7 @@ import '../styles/home.css';
 import Layout from '../layouts/Layout.astro';
 import Illustration from '../components/Illustration.astro';
 import ButtonLink from '../components/ds/ButtonLink';
-import { Badge } from '@bridge-ds/react';
+import { Badge, Link } from '@bridge-ds/react';
 import { releases, versionInfo } from '../lib/changelog';
 import { changeHeadline, mdTitleText } from '../lib/markdown';
 import { loadComponents } from '../lib/components';
@@ -61,11 +61,11 @@ const topics: { art: IllustrationName; title: string; text: string; href: string
   <section class="hm-topics" aria-label="In the Library">
     {
       topics.map((t) => (
-        <a class="fg-card hm-topic" href={t.href}>
+        <Link variant="subtle" className="fg-card hm-topic" href={t.href}>
           <h2 class="t-h3">{t.title}</h2>
           <p class="t-body t-muted">{t.text}</p>
           <Illustration name={t.art} width={104} class="hm-topic-art" />
-        </a>
+        </Link>
       ))
     }
   </section>
@@ -73,7 +73,7 @@ const topics: { art: IllustrationName; title: string; text: string; href: string
   <section class="hm-week" aria-labelledby="week-title">
     <header class="hm-week-head">
       <h2 id="week-title" class="t-h3">{thisWeek ? 'What changed this week' : 'What changed lately'}</h2>
-      <a href="/changelog/" class="fg-link">All release notes</a>
+      <Link href="/changelog/" className="fg-link">All release notes</Link>
     </header>
     {
       recent.length === 0 ? (
