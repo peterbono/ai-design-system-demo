@@ -299,6 +299,9 @@ export interface StudioHomeProps {
   startHrefs: Record<'tokens' | 'component' | 'guidance', string>;
 }
 
+/** The review drawing without its empty sky: the scene only, so it never makes the greeting taller than its text. */
+const REVIEW_CROP = '0 98 232 86';
+
 export function StudioHome(p: StudioHomeProps) {
   const snoozed = hintSnoozed(readSnooze(), p.now);
   if (p.state === 'signed-out') {
@@ -317,7 +320,7 @@ export function StudioHome(p: StudioHomeProps) {
                 </Button>
               </span>
             </div>
-            <Drawing name="review" width={200} className="sh-art" />
+            <Drawing name="review" width={220} crop={REVIEW_CROP} className="sh-art" />
           </div>
         </section>
       </div>
@@ -353,7 +356,7 @@ export function StudioHome(p: StudioHomeProps) {
             </h1>
             {loading ? <p className="t-body">Checking what needs you.</p> : p.needs.some((r) => r.waitsOnYou) ? <Waiting needs={p.needs} now={p.now} /> : <p className="t-body">{p.needs.length ? 'Your branches need you.' : 'Nothing needs you.'}</p>}
           </div>
-          <Drawing name="review" width={200} className="sh-art" />
+          <Drawing name="review" width={220} crop={REVIEW_CROP} className="sh-art" />
         </div>
         {loading ? (
           <ul className="sh-rows" aria-hidden="true">

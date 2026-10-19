@@ -18,7 +18,7 @@
 
 .sh-head {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: var(--space-6);
 }
 
@@ -47,7 +47,8 @@
 .sh-art {
   flex: none;
   height: auto;
-  margin-block: calc(var(--space-3) * -1) calc(var(--space-5) * -1);
+  /* The ground line rests on the task list below. */
+  margin-block-end: calc(var(--space-5) * -1);
 }
 
 .sh-strong {
