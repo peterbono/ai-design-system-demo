@@ -51,7 +51,7 @@
     "plugins:build": "npm run build -w @bridge-ds/stylelint-plugin && npm run build -w @bridge-ds/eslint-plugin",
     "mcp:test": "npm run mcp:build && vitest run --config packages/mcp/vitest.config.ts",
     "bridge": "node packages/cli/dist/index.js",
-    "audit:docs": "npm run mcp:build && node packages/cli/dist/index.js audit apps/docs-site/src --label \"Bridge docs site, CI\" --baseline apps/docs-site/src/data/audits/bridge-site-after.json --no-regress --fail-under 95 --allowlist apps/docs-site/bridge-audit-allowlist.json"
+    "audit:docs": "npm run mcp:build && node packages/cli/dist/index.js audit apps/docs-site/src --label \"Bridge docs site, CI\" --baseline apps/docs-site/src/data/audits/bridge-site-after.json --no-regress --fail-under 95"
   },
   "devDependencies": {
     "@changesets/cli": "2.31.1",

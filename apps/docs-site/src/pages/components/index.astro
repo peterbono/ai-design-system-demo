@@ -3,7 +3,7 @@ import '../../styles/component.css';
 import '../../styles/library.css';
 import Layout from '../../layouts/Layout.astro';
 import Example from '../../components/Example.tsx';
-import { Badge } from '@bridge-ds/react';
+import { Badge, Link } from '@bridge-ds/react';
 import { loadComponents, type ComponentInfo } from '../../lib/components';
 import { freshness, PAGE_SOURCES } from '../../lib/sources';
 
@@ -50,7 +50,7 @@ import LibraryHeader from '../../components/LibraryHeader.astro';
               <div class="gcard-body">
                 <div class="gcard-title">
                   <h3>
-                    <a href={`/components/${c.slug}/`}>{c.name}</a>
+                    <Link href={`/components/${c.slug}/`}>{c.name}</Link>
                   </h3>
                   <Badge tone={toneOf(statusOf(c))} size="sm">{label(statusOf(c))}</Badge>
                 </div>

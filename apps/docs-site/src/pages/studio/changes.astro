@@ -13,9 +13,9 @@ import Layout from '../../layouts/Layout.astro';
 import StudioHeader from '../../components/StudioHeader.astro';
 import HistoryPlanner from '../../components/HistoryPlanner.astro';
 import Illustration from '../../components/Illustration.astro';
-import Icon from '../../components/Icon.astro';
+import { siteIcon } from '../../brand/site-icons';
 import ButtonLink from '../../components/ds/ButtonLink';
-import { Alert, Button, CodeBlock, Input, Link, SegmentedControl, Switch, Textarea } from '@bridge-ds/react';
+import { Alert, Button, CodeBlock, Icon, Input, Link, SegmentedControl, Switch, Textarea } from '@bridge-ds/react';
 import BridgedSelect from '../../components/ds/BridgedSelect';
 import { WORK_FILTERS } from '../../lib/work-nature';
 import { siteRepo } from '../../lib/config';
@@ -65,16 +65,16 @@ const signIn = Boolean(signInConfig());
     <div id="cg-main">
       <StudioHeader title="Changes" />
       <div class="page-tabs cg-tabs" role="tablist" aria-label="Changes">
-        <a role="tab" id="cg-tab-review" href="/studio/changes/" aria-controls="cg-review" aria-selected="true" tabindex="0" data-cg-view="review">
+        <Link variant="subtle" role="tab" id="cg-tab-review" href="/studio/changes/" aria-controls="cg-review" aria-selected="true" tabIndex={0} data-cg-view="review">
           All changes <span class="cg-tab-n num" id="rv-count" title="Open changes" hidden></span>
-        </a>
-        <a role="tab" id="cg-tab-requests" href="/studio/changes/?view=requests" aria-controls="cg-requests" aria-selected="false" tabindex="-1" data-cg-view="requests">
+        </Link>
+        <Link variant="subtle" role="tab" id="cg-tab-requests" href="/studio/changes/?view=requests" aria-controls="cg-requests" aria-selected="false" tabIndex={-1} data-cg-view="requests">
           Requests <span class="cg-tab-n num" id="rq-count" hidden></span>
-        </a>
-        <a role="tab" id="cg-tab-explore" href="/studio/changes/?view=explorations" aria-controls="cg-explore" aria-selected="false" tabindex="-1" data-cg-view="explorations">
+        </Link>
+        <Link variant="subtle" role="tab" id="cg-tab-explore" href="/studio/changes/?view=explorations" aria-controls="cg-explore" aria-selected="false" tabIndex={-1} data-cg-view="explorations">
           Explorations <span class="cg-tab-n num" id="ex-count" hidden></span>
-        </a>
-        <a role="tab" id="cg-tab-history" href="/studio/changes/?view=history" aria-controls="cg-history" aria-selected="false" tabindex="-1" data-cg-view="history">History</a>
+        </Link>
+        <Link variant="subtle" role="tab" id="cg-tab-history" href="/studio/changes/?view=history" aria-controls="cg-history" aria-selected="false" tabIndex={-1} data-cg-view="history">History</Link>
       </div>
 
       <section class="cg-panel" id="cg-review" role="tabpanel" aria-labelledby="cg-tab-review">
@@ -85,7 +85,7 @@ const signIn = Boolean(signInConfig());
         </section>
 
         <div class="cg-draft" id="cg-draft" hidden>
-          <Icon name="draft" size={20} />
+          <Icon icon={siteIcon('draft')} size="md" className="icon" />
           <p><strong>Your draft:</strong> <span id="cg-draft-n">token edits</span>, only in this browser. <span id="cg-draft-dest"></span></p>
           <ButtonLink size="sm" href="/studio/tokens/#review" data-keep-branch>Review and propose</ButtonLink>
         </div>
@@ -99,7 +99,7 @@ const signIn = Boolean(signInConfig());
             <SegmentedControl label="Show" data-vanilla data-work-filter size="sm" defaultValue="all" items={workItems} />
           </div>
         </div>
-        <p class="cg-muted cg-filter" id="cg-tier-filter" hidden>Showing <span data-tier-label>one kind of change</span> only. <a href="/studio/changes/">Show all</a></p>
+        <p class="cg-muted cg-filter" id="cg-tier-filter" hidden>Showing <span data-tier-label>one kind of change</span> only. <Link href="/studio/changes/">Show all</Link></p>
 
         <div class="fg-card cg-card" id="cg-table">
           <ul class="cg-list" id="rv-list" aria-label="Changes" aria-busy="true">
@@ -116,14 +116,14 @@ const signIn = Boolean(signInConfig());
         <div class="cg-empty" id="cg-empty" hidden>
           <Illustration name="review" width={200} />
           <p class="cg-empty-title">Nothing to review.</p>
-          <p class="cg-muted">Changes proposed from <a href="/studio/tokens/" data-keep-branch>Tokens</a> land here.</p>
+          <p class="cg-muted">Changes proposed from <Link href="/studio/tokens/" data-keep-branch>Tokens</Link> land here.</p>
         </div>
 
         <details class="cg-sec cg-dev cg-dev-page" id="other-branches">
           <summary class="cg-sec-head"><span class="cg-sec-title">For developers</span><span class="cg-sec-meta">Branches and automation on GitHub</span><span class="cg-sec-chev" aria-hidden="true"></span></summary>
           <div class="cg-sec-body">
             <p class="cg-muted">This list holds the changes people review. Branches without a pull request, and the release pull request the changesets action opens, live on GitHub. The release shows as the next release in History.</p>
-            <p class="cg-links"><a href={`${repoUrl}/branches`} target="_blank" rel="noopener">Branches on GitHub</a><a href={`${repoUrl}/pulls`} target="_blank" rel="noopener">All pull requests on GitHub</a></p>
+            <p class="cg-links"><Link href={`${repoUrl}/branches`} external>Branches on GitHub</Link><Link href={`${repoUrl}/pulls`} external>All pull requests on GitHub</Link></p>
           </div>
         </details>
       </section>
@@ -160,7 +160,7 @@ const signIn = Boolean(signInConfig());
           <Illustration name="guide" width={200} />
           <p class="cg-empty-title">No component change request yet.</p>
           <p class="cg-muted rq-empty-text">
-            Designers ask for a new component or a change from the Push tab of the DS Bridge Figma plugin, or from a component in <a href="/studio/components/">Components</a>.
+            Designers ask for a new component or a change from the Push tab of the DS Bridge Figma plugin, or from a component in <Link href="/studio/components/">Components</Link>.
             Developers see each request where they work, on GitHub.
           </p>
         </div>
@@ -281,7 +281,7 @@ const signIn = Boolean(signInConfig());
               </>
             )
           }
-          <a class="cg-hs-log" href="/changelog/">Library changelog</a>
+          <Link className="cg-hs-log" href="/changelog/">Library changelog</Link>
         </div>
       </section>
     </div>

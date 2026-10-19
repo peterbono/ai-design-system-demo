@@ -2,9 +2,9 @@
 
 /* == Shell (Layout.astro) == */
 
-/* Search trigger: a DS ghost Button drawn as a quiet field (36px, subtle fill), up to 384px wide. */
+/* Search trigger: a DS ghost Button drawn as a quiet field (subtle fill), up to 384px wide. Every top bar control is
+   the DS sm size (32px): one height across search, Viewing, theme, Library and the menu button. */
 .topbar .shell-search {
-  --_height: var(--size-9);
   --_bg: var(--color-bg-subtle);
   --_bg-hover: var(--color-bg-muted);
   --_bg-active: var(--color-bg-muted);
@@ -14,11 +14,6 @@
   min-width: 0;
   margin-inline-start: var(--space-2);
   font-weight: var(--font-weight-regular);
-}
-
-/* Top bar icon buttons: 36px, like the search field. */
-.topbar-actions > :where(button, a) {
-  --_height: var(--size-9);
 }
 
 .shell-search-text {

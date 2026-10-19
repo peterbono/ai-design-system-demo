@@ -2,10 +2,11 @@
 // Everything token editing needs besides the explorer itself: the slim draft bar, the review sheet (before and after,
 // impact, a visual preview of real components), the add and propose dialogs, the GitHub and revert dialogs.
 // TokenExplorer includes it in mode="edit". The cell editor popover is built by scripts/explorer/inline-edit.ts.
-import Icon from '../Icon.astro';
-import { Alert, Button, IconButton, Input, Textarea } from '@bridge-ds/react';
+import { Alert, Button, ButtonGroup, Icon, IconButton, Input, Textarea } from '@bridge-ds/react';
+import { siteIcon } from '../../brand/site-icons';
 import { ArrowRight, Send, X } from 'lucide-react';
 import GitHubDialog from '../GitHubDialog.astro';
+import ScriptDialog from '../ds/ScriptDialog.astro';
 import HistoryPlanner from '../HistoryPlanner.astro';
 import EditorPreview from '../EditorPreview.tsx';
 import { explorerTokens } from '../../lib/explorer';
@@ -40,7 +41,7 @@ const previews = loadComponents().flatMap((c) => (c.docs?.preview ? [{ name: c.n
     <div class="xe-sheet-body" data-xe-sheet-scroll>
       <div data-xe-sheet-body></div>
       <details class="xe-acc xe-dev" data-xe-dev>
-        <summary><Icon name="code" size={18} /><span class="xe-acc-label">For developers</span><span class="xe-acc-meta">Export JSON</span><span class="xe-acc-chev"><Icon name="chevron" size={16} /></span></summary>
+        <summary><Icon icon={siteIcon('code')} size="md" /><span class="xe-acc-label">For developers</span><span class="xe-acc-meta">Export JSON</span><span class="xe-acc-chev"><Icon icon={siteIcon('chevron')} size="sm" /></span></summary>
         <div class="xe-acc-body xe-dev-body">
           <p class="xe-empty">Sending for review opens a pull request from a <code>tokens/*</code> branch: the edited token files with minimal diffs, plus a changeset. The JSON export holds the same files and the edit list, to apply by hand or from a script.</p>
           <Button variant="secondary" size="sm" id="ed-export">Export JSON</Button>
@@ -55,34 +56,25 @@ const previews = loadComponents().flatMap((c) => (c.docs?.preview ? [{ name: c.n
     </footer>
   </aside>
 
-  <!-- bridge-audit-ignore-next-line: New token, a native modal <dialog> opened by a plain script (showModal, focus trap, Escape); the DS Dialog is a React island, so moving it is a rewrite of the script. Follow-up: DS Dialog with a static open/close contract -->
-  <dialog class="gh-dialog" id="ed-add-dialog" aria-labelledby="ed-add-title">
-    <form method="dialog" class="gh-dialog-box">
-      <header class="gh-dialog-head">
-        <h2 id="ed-add-title">New semantic color</h2>
-        <IconButton icon={X} label="Close" size="sm" type="submit" value="cancel" />
-      </header>
+  <ScriptDialog id="ed-add-dialog" title="New semantic color" closeLabel="Close">
+    <div class="gh-dialog-body">
       <p>A semantic token names a job, like <code>color.bg.canvas</code>. Point each theme at a palette role so brands can re-theme it. It stays a draft in this browser until you propose it; proposing a new token is Tier 3.</p>
       <Input label="Name" data-ed-field="add-path" placeholder="color.bg.canvas" spellCheck={false} autoComplete="off" />
       <Input label="Light points to" data-ed-field="add-light" list="ed-palette" placeholder="palette.neutral.50" spellCheck={false} autoComplete="off" />
       <Input label="Dark points to" data-ed-field="add-dark" list="ed-palette" placeholder="palette.neutral.950" spellCheck={false} autoComplete="off" />
       <datalist id="ed-palette">{palette.map((p) => <option value={p} />)}</datalist>
       <Alert tone="danger" className="st-hideable" data-ed-field="add-error" hidden><span data-ed-error-text></span></Alert>
-      <footer class="gh-dialog-foot">
-        <span class="gh-spacer"></span>
-        <Button variant="secondary" size="sm" type="submit" value="cancel">Cancel</Button>
-        <Button variant="primary" size="sm" id="ed-add-save">Add to draft</Button>
-      </footer>
-    </form>
-  </dialog>
+    </div>
+    <Fragment slot="footer">
+      <ButtonGroup align="end">
+        <Button variant="secondary" data-dialog-close>Cancel</Button>
+        <Button variant="primary" id="ed-add-save">Add to draft</Button>
+      </ButtonGroup>
+    </Fragment>
+  </ScriptDialog>
 
-  <!-- bridge-audit-ignore-next-line: Send for review, a native modal <dialog> opened by a plain script (showModal, focus trap, Escape); the DS Dialog is a React island, so moving it is a rewrite of the script. Follow-up: DS Dialog with a static open/close contract -->
-  <dialog class="gh-dialog" id="ed-propose-dialog" aria-labelledby="ed-propose-h" aria-describedby="ed-propose-who">
-    <form method="dialog" class="gh-dialog-box">
-      <header class="gh-dialog-head">
-        <h2 id="ed-propose-h">Send for review</h2>
-        <IconButton icon={X} label="Close" size="sm" type="submit" value="cancel" />
-      </header>
+  <ScriptDialog id="ed-propose-dialog" title="Send for review" closeLabel="Close" popup={{ 'aria-describedby': 'ed-propose-who' }}>
+    <div class="gh-dialog-body">
       <p id="ed-propose-who" data-ed-field="propose-who">The design owner and a developer will approve it; nothing ships before both.</p>
       <div class="xe-propose-target" data-ed-field="propose-target" hidden></div>
       <div class="xe-propose-new" data-ed-field="propose-new">
@@ -92,19 +84,20 @@ const previews = loadComponents().flatMap((c) => (c.docs?.preview ? [{ name: c.n
       <div class="xe-propose-conflict" data-ed-field="propose-conflict" hidden></div>
       <p class="small xe-propose-status" id="ed-propose-status" role="status" aria-live="polite"></p>
       <details class="xe-acc xe-dev">
-        <summary><Icon name="code" size={18} /><span class="xe-acc-label">For developers</span><span class="xe-acc-chev"><Icon name="chevron" size={16} /></span></summary>
+        <summary><Icon icon={siteIcon('code')} size="md" /><span class="xe-acc-label">For developers</span><span class="xe-acc-chev"><Icon icon={siteIcon('chevron')} size="sm" /></span></summary>
         <div class="xe-acc-body">
           <p class="xe-empty" data-ed-field="propose-dev-new">Bridge creates a <code>tokens/*</code> branch, commits the edited token files with minimal diffs and a changeset, and opens a pull request titled <code data-ed-field="propose-pr-title">tokens: ...</code>, labeled with its risk tier.</p>
           <p class="xe-empty" data-ed-field="propose-dev-add" hidden>Bridge rereads the pull request's branch, runs the same 3-way token diff as the Figma plugin against the version you edited, commits the edited token files on top of the branch head with a fast-forward only update (never a force push), updates its changeset and comments the token list on the pull request.</p>
         </div>
       </details>
-      <footer class="gh-dialog-foot">
-        <span class="gh-spacer"></span>
-        <Button variant="secondary" size="sm" type="submit" value="cancel">Cancel</Button>
-        <span class="xe-go" data-ed-field="propose-go"><Button variant="primary" size="sm" id="ed-propose-go">Send for review</Button></span>
-      </footer>
-    </form>
-  </dialog>
+    </div>
+    <Fragment slot="footer">
+      <ButtonGroup align="end">
+        <Button variant="secondary" data-dialog-close>Cancel</Button>
+        <span class="xe-go" data-ed-field="propose-go"><Button variant="primary" id="ed-propose-go">Send for review</Button></span>
+      </ButtonGroup>
+    </Fragment>
+  </ScriptDialog>
 
   <GitHubDialog />
   <HistoryPlanner />

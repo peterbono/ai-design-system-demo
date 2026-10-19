@@ -5,6 +5,7 @@
 // <html data-signed-in> and <html data-maintainer> drive the CSS. The head script of Layout.astro paints them from
 // the last check (localStorage, keyed to the token's last characters) so nothing jumps on load; this module checks
 // the token again at most every ten minutes, and on every connect or disconnect.
+import { paintAvatar } from './avatar';
 import { API, getToken, markTokenRejected, readRepo, tokenRejected } from './github-session';
 
 const KEY = 'bridge.gh.maintainer';
@@ -46,8 +47,8 @@ function paint(m: MaintainerState | null) {
   root.toggleAttribute('data-maintainer', Boolean(m?.write));
   document.querySelectorAll<HTMLElement>('[data-team-avatar]').forEach((a) => {
     a.hidden = !m;
-    const img = a.querySelector<HTMLImageElement>('[data-team-avatar-img]');
-    if (img && m && m.avatar) img.src = `${m.avatar}${m.avatar.includes('?') ? '&' : '?'}s=56`;
+    const avatar = a.querySelector<HTMLElement>('[data-team-avatar-img]');
+    if (avatar && m) paintAvatar(avatar, m.login, m.avatar, 64);
     const label = a.querySelector('[data-team-avatar-label]');
     if (label && m) label.textContent = `Studio, signed in as ${m.login}`;
   });

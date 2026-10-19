@@ -1,7 +1,7 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import Icon from '../components/Icon.astro';
-import { CodeBlock, Link } from '@bridge-ds/react';
+import { siteIcon } from '../brand/site-icons';
+import { CodeBlock, Icon, Link } from '@bridge-ds/react';
 import AgentToolsTable from '../components/ds/AgentToolsTable';
 import { GITHUB_URL, readJson, sourceUrl } from '../lib/repo';
 import { PAGE_SOURCES, freshness } from '../lib/sources';
@@ -72,20 +72,20 @@ import LibraryHeader from '../components/LibraryHeader.astro';
   updated={updated}
 >
   <LibraryHeader title="Agents" art="guide" updated={updated}>
-    Three ways in, all generated from the same token files, components and rules. <a href="#mcp">The MCP server</a> gives Claude Code, Claude Desktop or any MCP client a structured view and proposes changes as pull requests. <a href="#cli">The bridge CLI</a> does the same from a terminal or CI. <a href="#llms">llms.txt</a> is the whole documentation as plain text, for any agent that can read a URL.
+    Three ways in, all generated from the same token files, components and rules. <Link href="#mcp">The MCP server</Link> gives Claude Code, Claude Desktop or any MCP client a structured view and proposes changes as pull requests. <Link href="#cli">The bridge CLI</Link> does the same from a terminal or CI. <Link href="#llms">llms.txt</Link> is the whole documentation as plain text, for any agent that can read a URL.
   </LibraryHeader>
 
   <ul class="cx-facts" aria-label="At a glance">
-    <li><Icon name="check" size={16} /> Free and open source, MIT</li>
-    <li><Icon name="check" size={16} /> Local: no account, no backend</li>
-    <li><Icon name="check" size={16} /> Your repo, your Claude, your GitHub token</li>
-    <li><Icon name="check" size={16} /> Any DTCG token repo</li>
+    <li><Icon icon={siteIcon('check')} size="sm" className="icon" /> Free and open source, MIT</li>
+    <li><Icon icon={siteIcon('check')} size="sm" className="icon" /> Local: no account, no backend</li>
+    <li><Icon icon={siteIcon('check')} size="sm" className="icon" /> Your repo, your Claude, your GitHub token</li>
+    <li><Icon icon={siteIcon('check')} size="sm" className="icon" /> Any DTCG token repo</li>
   </ul>
 
   <h2 id="llms">llms.txt</h2>
   <p>
     One source, two outputs. The pages you read and the file an agent reads come from the same build, so they cannot disagree.
-    <a href="/llms.txt">/llms.txt</a> holds the agent rules from <code>AGENTS.md</code>, every semantic token with its light and dark value, the
+    <Link href="/llms.txt">/llms.txt</Link> holds the agent rules from <code>AGENTS.md</code>, every semantic token with its light and dark value, the
     scales, failing contrast pairs, and each component's props and usage rules.
   </p>
   <dl class="stat-strip" aria-label="What /llms.txt contains, counted from the generated file">
@@ -100,11 +100,11 @@ import LibraryHeader from '../components/LibraryHeader.astro';
   </dl>
   <ul class="why-list">
     <li>
-      <span class="why-icon" aria-hidden="true"><Icon name="layers" size={18} /></span>
+      <span class="why-icon" aria-hidden="true"><Icon icon={siteIcon('layers')} size="md" className="icon" /></span>
       <p>Agents follow short, structured context better than long prose style guides. Values come from the token files, not from a copy.</p>
     </li>
     <li>
-      <span class="why-icon" aria-hidden="true"><Icon name="shield" size={18} /></span>
+      <span class="why-icon" aria-hidden="true"><Icon icon={siteIcon('shield')} size="md" className="icon" /></span>
       <p>The hard rules are not only in this text: CI blocks raw colors and shadows, so an agent that ignores the file still cannot merge.</p>
     </li>
   </ul>
@@ -192,7 +192,7 @@ import LibraryHeader from '../components/LibraryHeader.astro';
       safety.map((s) => (
         <li>
           <span class="why-icon" aria-hidden="true">
-            <Icon name="shield" size={18} />
+            <Icon icon={siteIcon('shield')} size="md" className="icon" />
           </span>
           <p>
             {s.title && <strong>{s.title}. </strong>}
@@ -204,6 +204,6 @@ import LibraryHeader from '../components/LibraryHeader.astro';
   </ul>
 
   <p class="small muted">
-    Full guide: <a href={sourceUrl(AI_DOC)}>{AI_DOC}</a>. Source and license: <a href={GITHUB_URL}>GitHub</a>, MIT.
+    Full guide: <Link href={sourceUrl(AI_DOC)}>{AI_DOC}</Link>. Source and license: <Link href={GITHUB_URL}>GitHub</Link>, MIT.
   </p>
 </Layout>

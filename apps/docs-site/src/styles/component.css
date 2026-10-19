@@ -389,7 +389,15 @@
   background-color: var(--color-feedback-danger-text);
 }
 
+/* Linked chips are DS Links (subtle): the chip's corners and ink win over the Link's. */
+a.tchip {
+  border-radius: var(--radius-control);
+  color: var(--color-text-default);
+  text-decoration-line: none;
+}
+
 a.tchip:hover {
+  color: var(--color-text-default);
   border-color: var(--color-border-emphasis);
   background-color: var(--color-surface-default);
 }

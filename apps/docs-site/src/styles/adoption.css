@@ -255,25 +255,9 @@
   color: var(--color-feedback-success-text);
 }
 
-.ad-cats-card {
-  overflow: hidden;
-}
-
+/* The legend of the category table (a DS Table, components/ds/studio/AdoptionTables.tsx) sits on the line above it. */
 .ad-cats-keys {
-  padding: var(--space-3) var(--space-5);
-  border-bottom: var(--border-width-default) solid var(--color-border-default);
-}
-
-.ad-cats-card .table-wrap {
-  margin: 0;
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
-}
-
-.ad-cats .ad-bar-col {
-  width: 40%;
-  min-width: calc(var(--size-64) / 2);
+  margin-bottom: var(--space-3);
 }
 
 .ad-track {

@@ -16,11 +16,6 @@
   }
 }
 
-/* The top bar's controls are 36px (the search field, the icon buttons): the Select matches them. */
-.topbar .view-pick {
-  --_height: var(--size-9);
-}
-
 .view-pick-prefix {
   color: var(--color-text-muted);
 }

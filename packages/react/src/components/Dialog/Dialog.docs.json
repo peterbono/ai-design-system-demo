@@ -6,7 +6,8 @@
   "whenToUse": [
     "A task of one to three fields that belongs to the current page and needs the user's full attention.",
     "Reviewing something before committing it, like release notes before Publish.",
-    "Size sm for one field, md (default) for short forms, lg for reading or comparing content."
+    "Size sm for one field, md (default) for short forms, lg for reading or comparing content.",
+    "Plain-script pages without React render it with dialogHtml() from @bridge-ds/react/dom and call bindDialogs() once: the same look, focus trap, Escape, scrim and focus return. Never a homemade modal or a restyled native dialog."
   ],
   "whenNotToUse": [
     "Confirming a destructive action: use AlertDialog, which cannot be dismissed by clicking outside.",

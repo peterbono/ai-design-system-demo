@@ -3,6 +3,7 @@
 // /components/<slug>/?edit=1, with ?pr and ?ref carried over (editing the docs of an open change).
 import { docsEditHref, loadComponents } from '../../../../lib/components';
 import { redirectScript } from '../../../../lib/redirects';
+import { Link } from '@bridge-ds/react';
 
 export function getStaticPaths() {
   return loadComponents().map((c) => ({ params: { slug: c.slug } }));
@@ -22,6 +23,6 @@ const to = docsEditHref(Astro.params.slug!);
     <meta http-equiv="refresh" content={`0;url=${to}`} />
   </head>
   <body>
-    <a href={to}>Edit the docs on the Library page</a>
+    <Link href={to}>Edit the docs on the Library page</Link>
   </body>
 </html>

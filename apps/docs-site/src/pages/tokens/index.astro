@@ -4,7 +4,7 @@
 // Deep links: ?t=<token path> (and ?focus=) select a token; a primitive path pre-fills the filter instead.
 import '../../styles/all-tokens.css';
 import Layout from '../../layouts/Layout.astro';
-import { Button, Icon, IconButton, Input, SegmentedControl } from '@bridge-ds/react';
+import { Button, Icon, IconButton, Input, Link, SegmentedControl } from '@bridge-ds/react';
 import { ClipboardCopy, Search, X } from 'lucide-react';
 import { allTokenRows, typeChips } from '../../lib/all-tokens';
 import { versionInfo } from '../../lib/changelog';
@@ -110,7 +110,7 @@ const panelData = Object.fromEntries(rows.map((r) => [r.path, { cssVar: r.cssVar
         </ul>
         <p class="at-empty" data-at-empty hidden>
           No token matches this filter. Try a name like <span class="mono">bg.zone</span>, a CSS variable or a hex.
-          <span data-at-elsewhere hidden> <span class="mono" data-at-elsewhere-name></span> is not a semantic token: <a href="/studio/tokens/" data-at-elsewhere-link>see it in Studio Tokens</a>.</span>
+          <span data-at-elsewhere hidden> <span class="mono" data-at-elsewhere-name></span> is not a semantic token: <Link href="/studio/tokens/" data-at-elsewhere-link>see it in Studio Tokens</Link>.</span>
         </p>
       </section>
 

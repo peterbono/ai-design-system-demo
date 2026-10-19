@@ -60,6 +60,31 @@
   font-size: var(--typography-h3-size);
 }
 
+/* Body and footer row of a DS Dialog a script opens (components/ds/ScriptDialog.astro): stacked blocks, then the
+   actions on one line with the secondary ones pushed to the start by .gh-spacer. */
+.gh-dialog-body {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.gh-dialog-body p {
+  margin: 0;
+  line-height: var(--font-line-height-normal);
+}
+
+/* A disclosure that ends the body: the body gap spaces it, and the footer band closes it (no second rule). */
+.gh-dialog-body > .xe-acc:last-child {
+  margin-top: 0;
+  border-bottom: 0;
+}
+
+.gh-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 .gh-dialog p {
   margin: 0;
   font-size: var(--typography-ui-size);

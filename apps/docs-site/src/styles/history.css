@@ -234,56 +234,11 @@
   margin-top: var(--space-3);
 }
 
-/* Planner: a side panel the width of the token review sheet (.xe-sheet), one primary pinned in the footer. */
-.hp-panel {
-  position: fixed;
-  inset: 0 0 0 auto;
-  width: min(calc(var(--size-96) + var(--size-20)), 100vw);
-  max-width: 100vw;
-  height: 100dvh;
-  max-height: 100dvh;
-  margin: 0 0 0 auto;
-  padding: 0;
-  border: 0;
-  border-left: var(--border-width-default) solid var(--color-border-default);
-  background-color: var(--color-surface-default);
-  box-shadow: var(--elevation-modal);
-  color: var(--color-text-default);
-  font-size: var(--typography-ui-size);
-}
-
-.hp-panel::backdrop {
-  background-color: var(--color-overlay-scrim);
-}
-
-.hp-box {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-
-.hp-head {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-5) var(--space-6) var(--space-4);
-}
-
-.hp-title {
-  flex: 1;
-  margin: 0;
-  font-size: var(--typography-h3-size);
-  line-height: var(--typography-h3-line-height);
-}
-
+/* Planner: the DS Dialog (lg) a script opens (components/HistoryPlanner.astro); one primary pinned in its footer. */
 .hp-scroll {
   display: grid;
-  flex: 1;
   align-content: start;
   gap: var(--space-3);
-  min-height: 0;
-  padding: 0 var(--space-6) var(--space-6);
-  overflow-y: auto;
 }
 
 .hp-sub {
@@ -498,8 +453,6 @@
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-2) var(--space-3);
-  padding: var(--space-4) var(--space-6);
-  border-top: var(--border-width-default) solid var(--color-border-default);
 }
 
 .hp-foot [hidden] {

@@ -10,10 +10,10 @@ import '../../styles/reviews.css';
 import '../../styles/history.css';
 import '../../styles/token-explorer.css';
 import '../../styles/preview-frames.css';
-import Icon from '../Icon.astro';
+import { siteIcon } from '../../brand/site-icons';
 import SummaryButton from '../ds/studio/SummaryButton';
 import ButtonLink from '../ds/ButtonLink';
-import { Button, Checkbox, EmptyState, SegmentedControl, Switch } from '@bridge-ds/react';
+import { Button, Checkbox, EmptyState, Icon, SegmentedControl, Switch } from '@bridge-ds/react';
 import BridgedSelect from '../ds/BridgedSelect';
 import TokenSearch from '../ds/TokenSearch';
 import UsageRadios from '../ds/UsageRadios';
@@ -116,7 +116,7 @@ const lensLabel = (text: string) => createElement(RFragment, null, `${text} `, c
                 <Switch data-vanilla data-xp-desc size="sm" label="Description column" />
                 <Switch data-vanilla data-xp-exact size="sm" label="Exact match" description="The whole name, variable or hex" />
                 <details class="xp-opt-adv" data-xp-advanced>
-                  <summary><span>Advanced</span><span class="xp-opt-adv-meta">Collections and usage</span><Icon name="chevron" size={14} /></summary>
+                  <summary><span>Advanced</span><span class="xp-opt-adv-meta">Collections and usage</span><Icon icon={siteIcon('chevron')} size="sm" className="icon" /></summary>
                   <fieldset class="xp-opt-set">
                     <legend>Collections</legend>
                     {TIER_ORDER.map((t) => <Checkbox data-vanilla name="xp-ft" value={t} label={STUDIO_TIER_NAMES[t]} />)}

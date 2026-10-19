@@ -1,0 +1,41 @@
+---
+// The DS Dialog for dialogs a plain script opens: dialogHtml() from @bridge-ds/react/dom renders the exact markup of
+// <DialogContent> (same classes, same look), with the slots rendered on the server as its body and footer. Scripts
+// open and close it with openDialog(id) / closeDialog(id) or [data-dialog-open="id"] triggers; bindDialogs() gives it
+// the React Dialog behavior (focus trap, Escape, scrim, focus return, aria-modal, scroll lock). No client React.
+//   id, title, description, size, hideClose, closeLabel, disablePointerDismissal: as in dialogHtml
+//   class: layout class on the popup; popup: extra attributes on the popup (data-* hooks, aria-*)
+// Slots: default (the body), "footer" (actions, a ButtonGroup or the page's own row).
+import { dialogHtml, trusted, type DialogSize, type HtmlAttributes } from '@bridge-ds/react/dom';
+
+interface Props {
+  id: string;
+  title: string;
+  description?: string;
+  size?: DialogSize;
+  hideClose?: boolean;
+  closeLabel?: string;
+  disablePointerDismissal?: boolean;
+  class?: string;
+  popup?: HtmlAttributes;
+}
+
+const { id, title, description, size, hideClose, closeLabel, disablePointerDismissal, class: className, popup } = Astro.props;
+const body = Astro.slots.has('default') ? await Astro.slots.render('default') : undefined;
+const footer = Astro.slots.has('footer') ? await Astro.slots.render('footer') : undefined;
+const html = dialogHtml({
+  id,
+  title,
+  ...(description ? { description } : {}),
+  ...(size ? { size } : {}),
+  ...(hideClose ? { hideClose } : {}),
+  ...(closeLabel ? { closeLabel } : {}),
+  ...(disablePointerDismissal ? { disablePointerDismissal } : {}),
+  ...(className ? { className } : {}),
+  ...(popup ? { attributes: popup } : {}),
+  ...(body?.trim() ? { body: trusted(body) } : {}),
+  ...(footer?.trim() ? { footer: trusted(footer) } : {}),
+});
+---
+
+<Fragment set:html={html} />

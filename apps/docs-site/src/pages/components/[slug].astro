@@ -8,7 +8,7 @@ import UsagePanelStatic from '../../components/UsagePanelStatic';
 import PropsPlayground from '../../components/PropsPlayground.tsx';
 import ButtonLink from '../../components/ds/ButtonLink';
 import PropsTable from '../../components/ds/PropsTable';
-import { Alert, Badge, SegmentedControl, PageHeader } from '@bridge-ds/react';
+import { Alert, Badge, Link, SegmentedControl, PageHeader } from '@bridge-ds/react';
 import { BookOpen, Columns2, FileCode, Lock, Moon, Pencil, Sun } from 'lucide-react';
 import { loadComponents, playgroundSpec, type ComponentInfo } from '../../lib/components';
 import { lastUpdated, sourceUrl, STORYBOOK_URL } from '../../lib/repo';
@@ -137,10 +137,10 @@ import PreviewScope from '../../components/PreviewScope.astro';
   <nav class="page-tabs" role="tablist" aria-label={`${c.name} documentation`} data-cp-tabs>
     {
       tabs.map((t, i) => (
-        <a role="tab" id={`tab-${t.id}-btn`} href={`#${t.id}`} aria-controls={`tab-${t.id}`} aria-selected={i === 0 ? 'true' : 'false'} tabindex={i === 0 ? 0 : -1} data-tab={t.id}>
+        <Link variant="subtle" role="tab" id={`tab-${t.id}-btn`} href={`#${t.id}`} aria-controls={`tab-${t.id}`} aria-selected={i === 0 ? 'true' : 'false'} tabIndex={i === 0 ? 0 : -1} data-tab={t.id}>
           {t.label}
           {t.id === 'changelog' && notes.length > 0 && <span class="muted num"> {notes.length}</span>}
-        </a>
+        </Link>
       ))
     }
   </nav>
@@ -167,7 +167,7 @@ import PreviewScope from '../../components/PreviewScope.astro';
       <section aria-labelledby="anatomy">
         <h2 id="anatomy">Anatomy and tokens</h2>
         <p>
-          Read from <a href={sourceUrl(c.files.css)}><code>{c.files.css}</code></a> at build time. Every value is a token: open one to see its
+          Read from <Link href={sourceUrl(c.files.css)}><code>{c.files.css}</code></Link> at build time. Every value is a token: open one to see its
           alias chain in both themes.
         </p>
         <div class="token-summary">
@@ -195,9 +195,9 @@ import PreviewScope from '../../components/PreviewScope.astro';
                 <div class="anatomy-tokens">
                   {r.vars.map((v) =>
                     tokenHref(v) ? (
-                      <a class:list={['tchip', v.kind === 'primitive' || v.kind === 'brand' ? 'is-primitive' : 'is-semantic']} href={tokenHref(v)}>
+                      <Link variant="subtle" className={`tchip ${v.kind === 'primitive' || v.kind === 'brand' ? 'is-primitive' : 'is-semantic'}`} href={tokenHref(v)}>
                         {v.name}
-                      </a>
+                      </Link>
                     ) : (
                       <span class="tchip is-unknown">{v.name}</span>
                     ),
@@ -212,13 +212,13 @@ import PreviewScope from '../../components/PreviewScope.astro';
             <section class="cp-inherited" aria-labelledby={`inherited-${i.slug}`}>
               <h3 id={`inherited-${i.slug}`}>From {i.from}</h3>
               <p class="muted">
-                {c.name} reuses the stylesheet of <a href={`/components/${i.slug}/#tokens`}>{i.from}</a>, so it also paints with these {i.paths.length} tokens. Changing them changes both.
+                {c.name} reuses the stylesheet of <Link href={`/components/${i.slug}/#tokens`}>{i.from}</Link>, so it also paints with these {i.paths.length} tokens. Changing them changes both.
               </p>
               <div class="anatomy-tokens">
                 {i.paths.map((p) => (
-                  <a class="tchip is-semantic" href={`/tokens/?t=${encodeURIComponent(p)}`}>
+                  <Link variant="subtle" className="tchip is-semantic" href={`/tokens/?t=${encodeURIComponent(p)}`}>
                     --{p.replace(/\./g, '-')}
-                  </a>
+                  </Link>
                 ))}
               </div>
             </section>
@@ -244,7 +244,7 @@ import PreviewScope from '../../components/PreviewScope.astro';
       <section aria-labelledby="props">
         <h2 id="props">Props</h2>
         <p>
-          Parsed from the TypeScript types in <a href={sourceUrl(c.files.tsx)}><code>{c.files.tsx}</code></a>, so this table cannot drift from the
+          Parsed from the TypeScript types in <Link href={sourceUrl(c.files.tsx)}><code>{c.files.tsx}</code></Link>, so this table cannot drift from the
           code.
           {c.inherits && <> It also accepts every native <code>{`<${c.inherits}>`}</code> attribute{c.omitted.length > 0 ? <> except <code>{c.omitted.join(', ')}</code>.</> : '.'}</>}
         </p>
@@ -299,7 +299,7 @@ import PreviewScope from '../../components/PreviewScope.astro';
           fixtures; the guidance on this page is the user documentation
           {mainStory && (
             <>
-              {' '}(<a href={`${STORYBOOK_URL}/?path=/story/${mainStory.id}`}>open {c.name} in Storybook</a>)
+              {' '}(<Link href={`${STORYBOOK_URL}/?path=/story/${mainStory.id}`}>open {c.name} in Storybook</Link>)
             </>
           )}
           .
@@ -348,7 +348,7 @@ import PreviewScope from '../../components/PreviewScope.astro';
               <p class="muted">No release note mentions {c.name} yet.</p>
             )
           }
-          <p class="small"><a href="/changelog/">All release notes</a></p>
+          <p class="small"><Link href="/changelog/">All release notes</Link></p>
         </section>
       </div>
     </div>

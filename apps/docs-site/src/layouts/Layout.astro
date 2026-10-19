@@ -10,7 +10,8 @@ import '../styles/ds-studio.css';
 import '../styles/brand.css';
 import GitHubAccount from '../components/GitHubAccount.astro';
 import GitHubDialog from '../components/GitHubDialog.astro';
-import Icon from '../components/Icon.astro';
+import ScriptDialog from '../components/ds/ScriptDialog.astro';
+import PaletteField from '../components/ds/PaletteField';
 import Logo from '../components/Logo.astro';
 import ViewAsChange from '../components/ViewAsChange.astro';
 import { LIBRARY_HOME, SPACE_LABEL, STUDIO_HOME, locate, navFor, type Space } from '../lib/nav';
@@ -18,7 +19,8 @@ import { siteRepoJson } from '../lib/config';
 import { GITHUB_URL, STORYBOOK_URL, sourceUrl } from '../lib/repo';
 import { humanDate } from '../lib/stats';
 import { BRANDS, DEFAULT_BRAND } from '../lib/tokens';
-import { Breadcrumb, Button, IconButton, Kbd } from '@bridge-ds/react';
+import { Avatar, Breadcrumb, Button, Icon, IconButton, Kbd, Link } from '@bridge-ds/react';
+import { siteIcon } from '../brand/site-icons';
 import { BookOpen, Menu as MenuIcon, Moon, Search, X } from 'lucide-react';
 import ButtonLink from '../components/ds/ButtonLink';
 import { GitHubMark } from '../components/ds/studio/brand-icons';
@@ -107,13 +109,13 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
     </script>
   </head>
   <body>
-    <a class="skip" href="#main">Skip to content</a>
+    <Link variant="subtle" className="skip" href="#main">Skip to content</Link>
     <header class="topbar">
-      <a class="topbar-brand" href={isStudio ? STUDIO_HOME : LIBRARY_HOME} aria-label={isStudio ? 'Bridge Studio, overview' : 'Bridge, home'}>
+      <Link variant="subtle" className="topbar-brand" href={isStudio ? STUDIO_HOME : LIBRARY_HOME} aria-label={isStudio ? 'Bridge Studio, overview' : 'Bridge, home'}>
         <Logo />
         {isStudio && <span class="topbar-space" aria-hidden="true">Studio</span>}
-      </a>
-      <Button variant="ghost" iconStart={Search} className="shell-search" id="search-open" aria-haspopup="dialog" aria-controls="palette" aria-label={searchLabel}>
+      </Link>
+      <Button variant="ghost" size="sm" iconStart={Search} className="shell-search" id="search-open" aria-haspopup="dialog" aria-controls="palette" aria-label={searchLabel}>
         <span class="shell-search-text">
           <span class="shell-search-label">{searchLabel}</span>
         </span>
@@ -121,7 +123,7 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
       <div class="topbar-actions">
         {viewAware && <ViewAsChange />}
         {/* Same place in the Library and in Studio, so people find it in both. */}
-        <IconButton icon={Moon} label="Dark theme" id="theme-toggle" data-theme-toggle aria-pressed="false" title="Dark theme" className="shell-wide" />
+        <IconButton icon={Moon} size="sm" label="Dark theme" id="theme-toggle" data-theme-toggle aria-pressed="false" title="Dark theme" className="shell-wide" />
         {
           isStudio ? (
             <>
@@ -133,15 +135,15 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
             <>
               <div class="team shell-wide" data-team>
                 <ButtonLink variant="secondary" size="sm" className="team-open" href={STUDIO_HOME}>Open Studio</ButtonLink>
-                <a class="team-avatar" href={STUDIO_HOME} data-team-avatar hidden>
-                  <img alt="" width="28" height="28" data-team-avatar-img />
+                <Link variant="subtle" className="team-avatar" href={STUDIO_HOME} data-team-avatar hidden>
+                  <Avatar name="Studio" size="sm" decorative data-team-avatar-img />
                   <span class="sr-only" data-team-avatar-label>Your Studio</span>
-                </a>
+                </Link>
               </div>
             </>
           )
         }
-        <span class="rail-toggle-slot"><IconButton icon={MenuIcon} label="Open navigation" id="rail-toggle" aria-controls="rail" aria-expanded="false" /></span>
+        <span class="rail-toggle-slot"><IconButton icon={MenuIcon} size="sm" label="Open navigation" id="rail-toggle" aria-controls="rail" aria-expanded="false" /></span>
       </div>
     </header>
 
@@ -159,8 +161,8 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
                 const inside = !current && here.entry?.label === entry.label;
                 return (
                   <li>
-                    <a class="nav-link" href={entry.href} aria-current={current ? 'page' : undefined} data-active={inside || undefined} data-keep-branch={isStudio || undefined}>
-                      <Icon name={entry.icon} size={20} />
+                    <Link variant="subtle" className="nav-link" href={entry.href} aria-current={current ? 'page' : undefined} data-active={inside ? '' : undefined} data-keep-branch={isStudio ? '' : undefined}>
+                      <Icon icon={siteIcon(entry.icon)} size="md" className="icon" />
                       <span>{entry.label}</span>
                       {entry.badge && (
                         <span class="rail-num" data-nav-count={entry.badge} hidden>
@@ -169,7 +171,7 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
                           <span class="sr-only"> waiting for a review</span>
                         </span>
                       )}
-                    </a>
+                    </Link>
                   </li>
                 );
               }
@@ -179,7 +181,7 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
                 <li class="nav-group">
                   <!-- bridge-audit-ignore-next-line: a side nav group opener styled as its sibling nav links (with the review count badge and chevron); the DS SidebarNav is a React island and would rebuild the whole rail -->
                   <button type="button" class="nav-link nav-toggle" aria-expanded={open ? 'true' : 'false'} aria-controls={id} data-nav-group data-active={open || undefined}>
-                    <Icon name={entry.icon} size={20} />
+                    <Icon icon={siteIcon(entry.icon)} size="md" className="icon" />
                     <span>{entry.label}</span>
                     {entry.badge && (
                       <span class="rail-num" data-nav-count={entry.badge} hidden>
@@ -188,14 +190,14 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
                         <span class="sr-only"> waiting for a review</span>
                       </span>
                     )}
-                    <span class="nav-chev" aria-hidden="true"><Icon name="chevron" size={16} /></span>
+                    <span class="nav-chev" aria-hidden="true"><Icon icon={siteIcon('chevron')} size="sm" className="icon" /></span>
                   </button>
                   <ul class="nav-sub" id={id} hidden={!open}>
                     {entry.children!.map((item) => (
                       <li class:list={[{ 'nav-apart': item.apart }]}>
-                        <a href={item.href} aria-current={isCurrent(item.href) ? 'page' : undefined} data-keep-branch={isStudio || undefined}>
+                        <Link variant="subtle" href={item.href} aria-current={isCurrent(item.href) ? 'page' : undefined} data-keep-branch={isStudio ? '' : undefined}>
                           <span>{item.label}</span>
-                        </a>
+                        </Link>
                       </li>
                     ))}
                   </ul>
@@ -246,13 +248,13 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
         }
         <div class="page-end">
           <div class="page-meta">
-            <Icon name="clock" size={16} />
+            <Icon icon={siteIcon('clock')} size="sm" className="icon" />
             <span title="From the git history of this page's source files">Updated {humanDate(updated ?? null)}</span>
             {
               files.length > 0 && (
                 <details class="menu page-source" data-menu data-maintainer-only={!isStudio || undefined}>
                   <summary class="page-source-trigger">
-                    <Icon name="code" size={16} />
+                    <Icon icon={siteIcon('code')} size="sm" className="icon" />
                     <span>View source</span>
                   </summary>
                   <div class="menu-panel page-source-panel" role="group" aria-label="Source files">
@@ -260,10 +262,10 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
                     <ul class="page-source-list">
                       {files.map((s) => (
                         <li>
-                          <a class="menu-item" href={sourceUrl(s)} title={s}>
+                          <Link variant="subtle" className="menu-item" href={sourceUrl(s)} title={s}>
                             <span class="mono">{s}</span>
-                            <Icon name="out" size={16} />
-                          </a>
+                            <Icon icon={siteIcon('out')} size="sm" className="icon" />
+                          </Link>
                         </li>
                       ))}
                     </ul>
@@ -280,9 +282,9 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
                   <p>Free and open source design system, MIT</p>
                 </div>
                 <nav class="site-footer-links" aria-label="Footer">
-                  <a href={GITHUB_URL}>GitHub<span>Source and issues</span></a>
-                  <a href="/llms.txt">For AI agents<span class="mono">llms.txt</span></a>
-                  <a href={STORYBOOK_URL}>Contribute<span>Storybook workbench</span></a>
+                  <Link variant="subtle" href={GITHUB_URL}>GitHub<span>Source and issues</span></Link>
+                  <Link variant="subtle" href="/llms.txt">For AI agents<span class="mono">llms.txt</span></Link>
+                  <Link variant="subtle" href={STORYBOOK_URL}>Contribute<span>Storybook workbench</span></Link>
                 </nav>
               </footer>
             )
@@ -291,34 +293,17 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
       </main>
     </div>
 
-    <!-- bridge-audit-ignore-next-line: search palette, a native modal <dialog> opened by a plain script (showModal, focus trap, Escape); the DS Dialog is a React island, so moving it is a rewrite of the script. Follow-up: DS Dialog with a static open/close contract -->
-    <dialog class="palette" id="palette" aria-label="Search">
-      <form method="dialog" class="palette-box" role="search">
-        <div class="palette-input">
-          <Icon name="search" />
-          <!-- bridge-audit-ignore-next-line: the palette field is a borderless combobox header driven by scripts/shell.ts (listbox, arrow keys); a DS Input would draw a field box inside the palette. Follow-up: DS Combobox or command palette -->
-          <input
-            id="palette-q"
-            type="search"
-            placeholder="Search tokens, components, pages, or paste a hex"
-            autocomplete="off"
-            spellcheck="false"
-            role="combobox"
-            aria-expanded="true"
-            aria-controls="palette-list"
-            aria-autocomplete="list"
-            aria-label="Search"
-          />
-          <Kbd keys="Esc" size="sm" />
-        </div>
+    <ScriptDialog id="palette" title="Search" size="lg" closeLabel="Close search">
+      <div class="palette-box" role="search">
+        <PaletteField />
         <ul id="palette-list" class="palette-list" role="listbox" aria-label="Results"></ul>
-        <p class="palette-foot">
-          <span><Kbd keys="↑" size="sm" /> <Kbd keys="↓" size="sm" /> to move</span>
-          <span><Kbd keys="↵" size="sm" /> to open</span>
-          <span id="palette-count" aria-live="polite"></span>
-        </p>
-      </form>
-    </dialog>
+      </div>
+      <p class="palette-foot" slot="footer">
+        <span><Kbd keys="↑" size="sm" /> <Kbd keys="↓" size="sm" /> to move</span>
+        <span><Kbd keys="↵" size="sm" /> to open</span>
+        <span id="palette-count" aria-live="polite"></span>
+      </p>
+    </ScriptDialog>
 
     {isStudio && <GitHubDialog />}
     <p class="sr-only" role="status" aria-live="polite" id="live"></p>

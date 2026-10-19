@@ -17,7 +17,7 @@ import {
   type RevertResolution,
   type TokenHistoryItem,
 } from '@bridge-ds/core';
-import { badgeHtml, tokenValueHtml } from '@bridge-ds/react/dom';
+import { badgeHtml, isDialogOpen, openDialog, tokenValueHtml } from '@bridge-ds/react/dom';
 import { reviewTokenChange, type TokenReview } from '../../lib/token-review';
 import { undoSentence } from '../../lib/changes';
 import { humanAuthored, laterThan, shortDate } from '../../lib/history-view';
@@ -255,11 +255,6 @@ async function propose(): Promise<number> {
 function wire() {
   if (wired) return;
   wired = true;
-  const dialog = $<HTMLDialogElement>('hp-dialog');
-  $('hp-close')?.addEventListener('click', () => dialog?.close());
-  dialog?.addEventListener('click', (e) => {
-    if (e.target === dialog) dialog.close();
-  });
   $('hp-body')?.addEventListener('change', (e) => {
     const r = (e.target as HTMLElement).closest<HTMLInputElement>('input[type=radio][data-key]');
     if (!r) return;
@@ -301,14 +296,13 @@ async function open(r: Request) {
   req = r;
   resolutions = {};
   plan = null;
-  const dialog = $<HTMLDialogElement>('hp-dialog');
-  const title = $('hp-title');
+  const title = $('hp-dialog-title');
   if (title) title.textContent = r.kind === 'revert' ? 'Undo this change' : 'Restore this value';
   const flag = $('hp-demo-flag');
   if (flag) flag.hidden = !r.demo;
   const body = $('hp-body');
   if (body) body.innerHTML = '<p class="muted">Reading main and planning</p>';
-  if (dialog && !dialog.open) dialog.showModal();
+  if (!isDialogOpen('hp-dialog')) openDialog('hp-dialog');
   syncFoot();
   ctx = await loadHistory();
   base = await loadBase(ctx, r.demo);

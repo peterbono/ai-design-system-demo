@@ -199,12 +199,8 @@
   }
 }
 
-.gh-acct-avatar {
-  flex: none;
-  width: var(--size-8);
-  height: var(--size-8);
-  border-radius: var(--radius-pill);
-  background-color: var(--color-bg-subtle);
+.gh-acct-avatar[hidden] {
+  display: none;
 }
 
 .gh-acct-text {

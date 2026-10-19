@@ -112,9 +112,11 @@
   background-color: var(--color-surface-pressed);
 }
 
+/* The raised surface, not the default one: in dark the default surface is the track's own color, so the plate
+   vanished. Raised is white in light (unchanged) and one step lighter than the track in dark. */
 .segment[aria-checked="true"] {
   border-color: var(--color-border-default);
-  background-color: var(--color-surface-default);
+  background-color: var(--color-surface-raised);
   color: var(--color-text-default);
   box-shadow: var(--elevation-raised);
 }

@@ -6,6 +6,7 @@
 import '../styles/library.css';
 import '../styles/review-guide.css';
 import Layout from '../layouts/Layout.astro';
+import { Link } from '@bridge-ds/react';
 import LibraryHeader from '../components/LibraryHeader.astro';
 import MarkdownTable from '../components/ds/MarkdownTable';
 import { siteRepo } from '../lib/config';
@@ -84,7 +85,7 @@ const allowed = r.override.allowed.map((l) => `@${l}`).join(', ');
       <summary><h2>Component change requests</h2><span class="rw-n">3 steps</span></summary>
       <p>
         Variables are data: a variable edit is a pull request you approve. Components are code: a component change is a request, and a pull request that closes it does the work.
-        Follow requests in <a href="/studio/changes/?view=requests">Studio Changes</a>, in GitHub by the <code>component-change</code> label, or in Jira when Settings connects it.
+        Follow requests in <Link href="/studio/changes/?view=requests">Studio Changes</Link>, in GitHub by the <code>component-change</code> label, or in Jira when Settings connects it.
       </p>
       <ol class="rw-steps">
         {
@@ -102,7 +103,7 @@ const allowed = r.override.allowed.map((l) => `@${l}`).join(', ');
       <summary><h2>Explorations</h2><span class="rw-n">3 steps</span></summary>
       <p>
         An exploration tries experimental variables and components in a real product staging branch without touching main. Follow them in{' '}
-        <a href="/studio/changes/?view=explorations">Studio Changes, Explorations</a>, or in GitHub by the <code>exploration</code> label.
+        <Link href="/studio/changes/?view=explorations">Studio Changes, Explorations</Link>, or in GitHub by the <code>exploration</code> label.
       </p>
       <ol class="rw-steps">
         {
