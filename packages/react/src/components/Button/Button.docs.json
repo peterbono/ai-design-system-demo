@@ -14,11 +14,15 @@
     "Secondary: the alternatives next to the primary, like Save as draft or Request changes.",
     "Ghost: low-emphasis actions repeated in lists, tables or toolbars (Edit, View diff), where filled buttons would fight for attention.",
     "Danger: destructive actions (Delete, Revoke access). Usually inside a confirmation dialog.",
+    "Pressed: a toggle that stays on, like Compare or Show what changed in a toolbar. Set pressed to true or false; the selected look and aria-pressed follow it.",
+    "Link: an action on this screen inside a sentence, like \"Show only these\" after a count. It looks like a link and stays a button.",
+    "Inverse: the action on a strong surface (Deep Harbor, the inverse terminal bars), where secondary would disappear.",
     "Size sm in dense rows and toolbars, md everywhere else, lg only for a single call to action on an empty or onboarding screen. Heights follow the density setting."
   ],
   "whenNotToUse": [
     "Going to another page or URL: use Link. Links and buttons are announced differently and users expect Cmd+click to open links in a new tab.",
-    "Turning a setting on or off: use Switch or Checkbox.",
+    "Navigation with variant link: a link-looking button still does not go anywhere. Use Link to go to another page.",
+    "Turning a setting on or off in a form: use Switch or Checkbox. A pressed Button is for toolbar toggles that change the view.",
     "Picking one of several views: use Tabs or an attached ButtonGroup.",
     "More than three actions in one row: keep the main ones and move the rest to a Menu behind an IconButton."
   ],
@@ -45,6 +49,14 @@
       "text": "The button stays in place and focusable, so keyboard users do not lose their position. Change the label to the present participle.",
       "example": { "c": "Row", "children": [
         { "c": "Button", "p": { "variant": "primary", "loading": true }, "children": ["Publishing"] }
+      ] }
+    },
+    {
+      "title": "A toggle says its state with pressed",
+      "text": "Pass pressed true or false, never swap variants to show the state. The look, aria-pressed and a script driving a static page stay in step.",
+      "example": { "c": "Row", "children": [
+        { "c": "Button", "p": { "variant": "secondary", "pressed": false }, "children": ["Compare"] },
+        { "c": "Button", "p": { "variant": "secondary", "pressed": true }, "children": ["Show what changed"] }
       ] }
     }
   ],
@@ -78,6 +90,8 @@
     "The focus ring (focus.ring.color, 2px, offset 2px) shows on keyboard focus only, never on mouse click.",
     "Loading sets aria-busy and aria-disabled, ignores clicks, and keeps the button focusable so keyboard users keep their place.",
     "Disabled removes the button from the tab order and explains nothing. Prefer an enabled button plus a message saying what is missing.",
+    "pressed sets aria-pressed, so screen readers announce a toggle button and its state. Leave it unset on plain buttons: aria-pressed false still announces a toggle.",
+    "Variant link keeps the native button: Enter and Space work, it is announced as a button, and the focus ring is the DS ring.",
     "With render={<a href />} the element stays a link (role link), which is right for navigation styled as a button.",
     "Heights are 32/40/48px comfortable and 28/32/40px compact: all above the WCAG 2.2 minimum target of 24px."
   ],
@@ -94,6 +108,9 @@
     "secondary": "Secondary variant",
     "ghost": "Ghost variant",
     "danger": "Danger variant",
+    "link": "Link variant: text link look, button semantics",
+    "inverse": "Inverse variant, on strong surfaces",
+    "toggle": "Toggle (pressed set): the selected look follows aria-pressed",
     "sm": "Size sm",
     "md": "Size md (default)",
     "lg": "Size lg",

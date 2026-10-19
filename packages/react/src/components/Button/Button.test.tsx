@@ -48,6 +48,38 @@ describe('Button', () => {
     expect(screen.getByRole('link', { name: 'Open tokens' })).toHaveAttribute('href', '/tokens');
   });
 
+  it('pressed makes a toggle: aria-pressed follows the prop, unset stays a plain button', async () => {
+    const { rerender } = render(<Button variant="secondary" pressed={false}>Compare</Button>);
+    const button = screen.getByRole('button', { name: 'Compare' });
+    expect(button).toHaveAttribute('aria-pressed', 'false');
+    rerender(<Button variant="secondary" pressed>Compare</Button>);
+    expect(button).toHaveAttribute('aria-pressed', 'true');
+    rerender(<Button variant="secondary">Compare</Button>);
+    expect(button).not.toHaveAttribute('aria-pressed');
+    await expectNoAxeViolations();
+  });
+
+  it('link and inverse variants stay native buttons', async () => {
+    const onClick = vi.fn();
+    render(
+      <p>
+        Two components need guidance. <Button variant="link" pressed={false} onClick={onClick}>Show only these</Button>
+        <Button variant="inverse">Copy command</Button>
+      </p>,
+    );
+    const link = screen.getByRole('button', { name: 'Show only these' });
+    expect(link.tagName).toBe('BUTTON');
+    await userEvent.click(link);
+    expect(onClick).toHaveBeenCalledOnce();
+    expect(screen.getByRole('button', { name: 'Copy command' })).toHaveAttribute('type', 'button');
+    await expectNoAxeViolations();
+  });
+
+  it('IconButton pressed sets aria-pressed', () => {
+    render(<IconButton icon={Plus} label="Show outlines" pressed />);
+    expect(screen.getByRole('button', { name: 'Show outlines' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
   it('IconButton takes its accessible name from label', async () => {
     render(<IconButton icon={Plus} label="Add token" />);
     const button = screen.getByRole('button', { name: 'Add token' });

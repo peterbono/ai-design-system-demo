@@ -1,5 +1,5 @@
 {
-  "summary": "Picks one of two to five views or modes, shown side by side as attached buttons: the brand of a preview, the density, light or dark. The choice applies at once, on the current screen.",
+  "summary": "Picks one of a few views or modes, shown side by side as attached buttons: the brand of a preview, the density, light or dark. The choice applies at once, on the current screen.",
   "preview": {
     "c": "SegmentedControl",
     "p": {
@@ -13,7 +13,8 @@
   },
   "whenToUse": [
     "Switching how the same content is shown: Light or Dark, Comfortable or Compact, Grid or List.",
-    "Two to five short options that fit on one line, where seeing every option at once helps the choice.",
+    "Short options where seeing every option at once helps the choice: two to five usually, more for filters people switch between often (status filters). On a phone the track scrolls sideways and never widens the page.",
+    "Appearance strong when the control is what the view is about (the status filter of a list): the selected segment fills with Deep Harbor. At most one strong control per view.",
     "The change applies immediately, with no Save button.",
     "Size sm in toolbars, menus and dense panels; md everywhere else. Heights follow the density setting.",
     "fullWidth inside a narrow panel or menu, so the segments share the width equally."
@@ -21,7 +22,7 @@
   "whenNotToUse": [
     "Switching between panels of different content: use Tabs, which link each tab to its panel.",
     "A setting in a form that is saved later: use RadioGroup, which shows a label and help per option.",
-    "More than five options or long labels: use Select.",
+    "Long labels, or options people pick once and forget: use Select.",
     "Turning one thing on or off: use Switch.",
     "Triggering actions (Export, Delete): use Button or an attached ButtonGroup."
   ],
@@ -62,6 +63,27 @@
             }
           }
         ]
+      }
+    },
+    {
+      "title": "Strong for the control the view is about",
+      "text": "A list filtered by status: the selected filter fills with Deep Harbor, the strongest signal on the screen. Six short filters are fine; on a phone they scroll sideways.",
+      "example": {
+        "c": "SegmentedControl",
+        "p": {
+          "label": "Status",
+          "appearance": "strong",
+          "size": "sm",
+          "defaultValue": "open",
+          "items": [
+            { "value": "open", "label": "Open" },
+            { "value": "you", "label": "Needs you" },
+            { "value": "review", "label": "In review" },
+            { "value": "ready", "label": "Ready" },
+            { "value": "blocked", "label": "Blocked" },
+            { "value": "shipped", "label": "Shipped" }
+          ]
+        }
       }
     },
     {
@@ -116,7 +138,7 @@
     },
     {
       "title": "Too many or too long options",
-      "text": "Past five segments or two words each, the row wraps or truncates and stops reading as one control. Use Select.",
+      "text": "Two or three words per segment make the track longer than the screen and stop reading as one control. Keep labels to one or two words, or use Select.",
       "example": {
         "c": "SegmentedControl",
         "p": {
@@ -139,7 +161,8 @@
     "Base UI RadioGroup with native button radios: role radiogroup on the row, role radio and aria-checked on each segment.",
     "Tab enters the group on the selected segment and leaves it; arrow keys move the selection, Home and End jump to the ends.",
     "Give the group a name: aria-labelledby pointing at the visible label outside the track, or label (aria-label) when the context already names it.",
-    "The selected segment is marked by a raised plate and a darker text color, not by color alone.",
+    "The selected segment is marked by a raised plate (or the Deep Harbor fill with strong) and a darker text color, not by color alone.",
+    "When the track scrolls, arrow keys still move the selection and the selected segment scrolls into view.",
     "The focus ring (focus.ring.color) shows on keyboard focus only.",
     "Rendered without JavaScript, the HTML keeps role, aria-checked and data-value, so a small script can drive it: flip aria-checked and tabindex, and handle arrow keys."
   ],
@@ -153,6 +176,7 @@
     "root": "Track holding the segments",
     "sm": "Size sm",
     "fullWidth": "Full-width track, equal segments",
+    "strong": "Strong appearance: Deep Harbor selected segment",
     "segment": "One option (native button, role radio)",
     "leading": "Decoration before the label, for example a color swatch",
     "icon": "Leading Lucide icon",

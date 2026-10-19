@@ -124,8 +124,8 @@ describe('the selector', () => {
     const opts = viewOptions([pull(1), pull(2, { draft: true })], { defaultBranch: 'main', lifecycleOf: (p) => (p.draft ? 'draft' : 'ready') });
     expect(opts[0]).toMatchObject({ value: 'latest', label: 'Latest library' });
     expect(opts.slice(1)).toEqual([
-      { value: 'change-2', label: 'Change 2', description: 'Draft, by ana', group: 'Open changes' },
-      { value: 'change-1', label: 'Change 1', description: 'Ready for review, by ana', group: 'Open changes' },
+      { value: 'change-2', label: 'Change 2', description: 'by ana', group: 'Open changes', status: { label: 'Draft', tone: 'neutral' } },
+      { value: 'change-1', label: 'Change 1', description: 'by ana', group: 'Open changes', status: { label: 'Ready for review', tone: 'neutral' } },
     ]);
   });
 
@@ -133,7 +133,7 @@ describe('the selector', () => {
     const shipped = pull(9, { state: 'closed', merged_at: '2026-10-02' });
     const opts = viewOptions([pull(1)], { defaultBranch: 'main', lifecycleOf: () => 'shipped', current: shipped });
     expect(opts.map((o) => o.value)).toEqual(['latest', 'change-9', 'change-1']);
-    expect(opts[1]!.description).toBe('Shipped, by ana');
+    expect(opts[1]).toMatchObject({ description: 'by ana', status: { label: 'Shipped', tone: 'neutral' } });
   });
 
   it('round-trips option values', () => {

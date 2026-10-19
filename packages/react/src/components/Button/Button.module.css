@@ -81,6 +81,87 @@
   --_text: var(--button-danger-text);
 }
 
+/* Inverse: the action on a strong surface (Deep Harbor, color.surface.inverse). A plain surface plate that reads in
+   both themes, because the strong surfaces invert with the theme too. */
+.inverse {
+  --_bg: var(--color-surface-default);
+  --_bg-hover: var(--color-surface-hover);
+  --_bg-active: var(--color-surface-pressed);
+  --_text: var(--color-text-default);
+}
+
+/* Link: reads as a text link inside a sentence, keeps button semantics (an action here, not navigation). It takes
+   the font of the surrounding text; the target stays at least 24px tall through its line box and padding. */
+.button.link {
+  --_text: var(--color-text-link);
+  --_height: auto;
+  --_px: 0;
+
+  min-width: 0;
+  min-height: 0;
+  padding-block: var(--space-0-5);
+  border: 0;
+  border-radius: var(--radius-inset);
+  font: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: var(--border-width-default);
+  text-underline-offset: var(--space-1);
+  white-space: normal;
+  vertical-align: baseline;
+}
+
+@media (hover: hover) {
+  .link:hover:not([data-disabled]) {
+    --_text: var(--color-text-link-hover);
+
+    background-color: transparent;
+  }
+}
+
+.link:active:not([data-disabled]) {
+  background-color: transparent;
+}
+
+/* The ring stands clear of the glyphs and the underline (the block padding gives it room inside the line box),
+   without inline padding that would move the text. */
+.link:focus-visible {
+  outline-offset: var(--border-width-strong);
+}
+
+.link .label {
+  overflow: visible;
+}
+
+.button.link:has(> .icon):not(.iconOnly) {
+  padding-inline: 0;
+}
+
+/* Toggle (the `pressed` prop): the selected look follows aria-pressed, so a script can drive a static toggle. The
+   selected fill and a Deep Harbor edge, like a selected SegmentedControl option; the 2px offset ring stays for focus. */
+.toggle[aria-pressed="true"]:not(.link, .primary, .danger) {
+  --_bg: var(--color-surface-selected);
+  --_bg-hover: var(--color-surface-selected);
+  --_bg-active: var(--color-surface-selected);
+  --_text: var(--color-text-default);
+  --_border: var(--color-control-checked-bg);
+}
+
+/* Hover on a pressed toggle: the edge steps to the checked hover color, so turning it off still looks clickable. */
+@media (hover: hover) {
+  .toggle[aria-pressed="true"]:not(.link, .primary, .danger, [data-disabled]):hover {
+    --_border: var(--color-control-checked-bg-hover);
+
+    box-shadow: inset 0 0 0 var(--border-width-default) var(--color-control-checked-bg-hover);
+  }
+}
+
+/* A pressed link reads as the current choice: ink text, heavier, still underlined so it stays clickable. */
+.link.toggle[aria-pressed="true"] {
+  --_text: var(--color-text-default);
+
+  font-weight: var(--font-weight-semibold);
+}
+
 /* Sizes follow density tokens */
 .sm {
   --_height: var(--control-height-sm);
@@ -139,7 +220,8 @@
   cursor: not-allowed;
 }
 
-.ghost[data-disabled]:not([data-loading]) {
+.ghost[data-disabled]:not([data-loading]),
+.link[data-disabled]:not([data-loading]) {
   --_bg: transparent;
 }
 

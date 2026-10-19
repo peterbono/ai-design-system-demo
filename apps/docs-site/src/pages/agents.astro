@@ -117,7 +117,7 @@ import LibraryHeader from '../components/LibraryHeader.astro';
         <span class="terminal-title"><Icon name="terminal" size={15} /> <span>GET /llms.txt</span></span>
         <span class="terminal-actions">
           <a class="terminal-link" href="/llms.txt">Open raw</a>
-          <Button variant="secondary" size="sm" iconStart={Copy} data-copy="" data-copy-from="llms">
+          <Button variant="inverse" size="sm" iconStart={Copy} data-copy="" data-copy-from="llms">
             <span data-copy-label>Copy llms.txt</span>
           </Button>
         </span>
@@ -139,7 +139,7 @@ import LibraryHeader from '../components/LibraryHeader.astro';
       <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
       <span class="terminal-title"><Icon name="terminal" size={15} /> <span>Terminal</span></span>
       <span class="terminal-actions">
-        <Button variant="secondary" size="sm" iconStart={Copy} data-copy={claudeCode}><span data-copy-label>Copy</span></Button>
+        <Button variant="inverse" size="sm" iconStart={Copy} data-copy={claudeCode}><span data-copy-label>Copy</span></Button>
       </span>
     </div>
     <pre class="terminal-body cx-pre" tabindex="0" aria-label="Claude Code command">{claudeCode}</pre>
@@ -156,7 +156,7 @@ import LibraryHeader from '../components/LibraryHeader.astro';
       <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
       <span class="terminal-title"><Icon name="file" size={15} /> <span>claude_desktop_config.json</span></span>
       <span class="terminal-actions">
-        <Button variant="secondary" size="sm" iconStart={Copy} data-copy={desktopRemote}><span data-copy-label>Copy</span></Button>
+        <Button variant="inverse" size="sm" iconStart={Copy} data-copy={desktopRemote}><span data-copy-label>Copy</span></Button>
       </span>
     </div>
     <pre class="terminal-body cx-pre" tabindex="0" aria-label="Claude Desktop configuration">{desktopRemote}</pre>
@@ -207,7 +207,7 @@ import LibraryHeader from '../components/LibraryHeader.astro';
       <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
       <span class="terminal-title"><Icon name="terminal" size={15} /> <span>Terminal</span></span>
       <span class="terminal-actions">
-        <Button variant="secondary" size="sm" iconStart={Copy} data-copy={cliRun}><span data-copy-label>Copy</span></Button>
+        <Button variant="inverse" size="sm" iconStart={Copy} data-copy={cliRun}><span data-copy-label>Copy</span></Button>
       </span>
     </div>
     <pre class="terminal-body cx-pre" tabindex="0" aria-label="Run bridge init">{cliRun}</pre>

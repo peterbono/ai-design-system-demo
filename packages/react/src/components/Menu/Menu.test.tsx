@@ -2,6 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { expectNoAxeViolations } from '../../test/axe';
+import { Pencil } from 'lucide-react';
 import { Button } from '../Button';
 import { Menu, MenuCheckboxItem, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from './Menu';
 
@@ -68,5 +69,22 @@ describe('Menu', () => {
     await user.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
     await waitFor(() => expect(trigger).toHaveFocus());
+  });
+  it('renders leading icons, Lucide or an element, hidden from assistive tech', async () => {
+    const user = userEvent.setup();
+    render(
+      <Menu>
+        <MenuTrigger render={<Button variant="secondary" />}>Token actions</MenuTrigger>
+        <MenuContent>
+          <MenuItem icon={Pencil}>Rename</MenuItem>
+          <MenuItem icon={<svg data-testid="brand" />}>Open in Figma</MenuItem>
+        </MenuContent>
+      </Menu>,
+    );
+    await user.click(screen.getByRole('button', { name: 'Token actions' }));
+    const rename = await screen.findByRole('menuitem', { name: 'Rename' });
+    expect(rename.querySelector('svg')?.closest('[aria-hidden="true"]')).not.toBeNull();
+    expect(screen.getByRole('menuitem', { name: 'Open in Figma' })).toContainElement(screen.getByTestId('brand'));
+    await expectNoAxeViolations(screen.getByRole('menu'));
   });
 });

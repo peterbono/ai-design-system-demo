@@ -2,14 +2,14 @@
 // (lib/change-intent.ts) plus a new component, one plain line under each:
 //   - Adjust the look: Studio Tokens.
 //   - Add a variant or option, Something looks wrong: pick the component in place, under the greeting (a DS
-//     Combobox; inside a DS Dialog its list opens behind the dialog, the gap #90 found), then its Components drawer
-//     opens on that intent (?c=<slug>&intent=<intent>, scripts/components-studio.ts).
+//     Combobox, each component with its family on a second line), then its Components drawer opens on that intent
+//     (?c=<slug>&intent=<intent>, scripts/components-studio.ts).
 //   - New component: Changes > Explorations with the start form open (?view=explorations&start=new).
 // The page decides its weight (`bridge:start-change`): the primary when nothing needs the viewer, secondary when the
 // first need is the primary, hidden signed out (Connect GitHub takes its place).
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Component, CopyPlus, MessageSquareWarning, Palette } from 'lucide-react';
 import { Button, Combobox, Form, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '@bridge-ds/react';
 import { CHANGE_INTENTS, type ChangeIntent } from '../../../lib/change-intent';
 import { startChangeHref } from '../../../lib/overview-board';
@@ -104,17 +104,17 @@ export default function StartChange({ components }: StartChangeProps) {
           }
         />
         <MenuContent align="end">
-          <MenuItem label={label('look')} onClick={() => go(startChangeHref('look'))}>
+          <MenuItem icon={Palette} label={label('look')} onClick={() => go(startChangeHref('look'))}>
             <Item title={label('look')} line={LINE.look} />
           </MenuItem>
-          <MenuItem label={label('variant')} onClick={() => open('variant')}>
+          <MenuItem icon={CopyPlus} label={label('variant')} onClick={() => open('variant')}>
             <Item title={label('variant')} line={LINE.variant} />
           </MenuItem>
-          <MenuItem label="New component" onClick={() => go(startChangeHref('new'))}>
+          <MenuItem icon={Component} label="New component" onClick={() => go(startChangeHref('new'))}>
             <Item title="New component" line={LINE.new} />
           </MenuItem>
           <MenuSeparator />
-          <MenuItem label={label('wrong')} onClick={() => open('wrong')}>
+          <MenuItem icon={MessageSquareWarning} label={label('wrong')} onClick={() => open('wrong')}>
             <Item title={label('wrong')} line={LINE.wrong} />
           </MenuItem>
         </MenuContent>
@@ -141,7 +141,7 @@ export default function StartChange({ components }: StartChangeProps) {
                   ref={field}
                   label="Component"
                   placeholder="Type a name, for example Button"
-                  options={components.map((c) => ({ value: c.slug, label: c.name }))}
+                  options={components.map((c) => ({ value: c.slug, label: c.name, description: c.family }))}
                   value={slug}
                   onValueChange={(v) => setSlug(typeof v === 'string' ? v : null)}
                 />

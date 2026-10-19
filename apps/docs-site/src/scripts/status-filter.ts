@@ -1,8 +1,7 @@
 // Changes > In review: the status filter (Open, Draft, Ready for review, Waiting for code, Shipped, Closed) and the
 // row chip of each lifecycle state (lib/change-status). A DS SegmentedControl rendered by changes.astro, driven
-// statically (scripts/shell.ts), and on phones the same choices in a DS Select (StatusFilterSelect). The filter lives
-// in the address as ?status=. Shipped and Closed read the recently closed pull requests once, only when picked.
-import { LIFECYCLE, lifecycleTone, PILL_OF, rowLifecycle, STATUS_FILTER_EVENT, STATUS_SYNC_EVENT, statusFilterParam, waitingSentence, type Lifecycle, type StatusFilter } from '../lib/change-status';
+// statically (scripts/shell.ts); on phones its track scrolls sideways. The filter lives in the address as ?status=. Shipped and Closed read the recently closed pull requests once, only when picked.
+import { LIFECYCLE, lifecycleTone, PILL_OF, rowLifecycle, statusFilterParam, waitingSentence, type Lifecycle, type StatusFilter } from '../lib/change-status';
 import { namesFor } from '../lib/changes';
 import type { ReviewStatusKind, Tier } from '../lib/review-rules';
 import type { WorkNature } from '../lib/work-nature';
@@ -53,7 +52,6 @@ function apply(f: StatusFilter) {
   if (f === 'open') delete r.dataset.status;
   else r.dataset.status = f;
   document.querySelectorAll<HTMLElement>('[data-status-filter]').forEach((c) => selectSegment(c, f));
-  document.dispatchEvent(new CustomEvent(STATUS_SYNC_EVENT, { detail: f }));
 }
 
 /** Reads ?status= and follows the control. `repaint` paints the list again under the new filter. */
@@ -72,5 +70,4 @@ export function initStatusFilter(repaint: () => void) {
     if (!(e.target as HTMLElement).closest('[data-status-filter]')) return;
     pick((e as CustomEvent<{ value: string }>).detail.value);
   });
-  document.addEventListener(STATUS_FILTER_EVENT, (e) => pick((e as CustomEvent<string>).detail));
 }

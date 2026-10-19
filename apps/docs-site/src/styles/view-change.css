@@ -2,9 +2,18 @@
    the page, and what each page hides or marks while it shows a change. html[data-view-change] is set before the page
    paints (components/ViewAsChange.astro), so latest library numbers never flash in place of the change's. */
 
+/* Wide enough for "Viewing:", a change title and its status badge (the Select's badge slot). */
 .view-pick-wrap {
-  flex: 0 1 calc(var(--size-64) + var(--size-16));
+  flex: 0 1 calc(var(--size-80) + var(--size-20));
   min-width: 0;
+}
+
+/* Wide screens: the actions column gives the selector room for a change title and its status badge; the search
+   column gives up a little (site.css sets the three columns). */
+@media (min-width: 961px) {
+  .topbar:has(.view-pick-wrap) {
+    grid-template-columns: minmax(0, 1fr) minmax(0, var(--size-96)) minmax(0, 1.4fr);
+  }
 }
 
 /* The top bar's controls are 36px (the search field, the icon buttons): the Select matches them. */

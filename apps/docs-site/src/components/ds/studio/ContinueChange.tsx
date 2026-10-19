@@ -43,6 +43,7 @@ export function ScopeBanner({ title, body, backHref, viewHref }: ScopeBannerProp
       icon={PenLine}
       announce="off"
       title={title}
+      actionsPlacement="inline"
       actions={
         <>
           <ButtonLink href={backHref}>Back to the change</ButtonLink>

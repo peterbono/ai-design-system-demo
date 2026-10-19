@@ -102,6 +102,66 @@ function TokenTable({ rows = ROWS, sticky = false, maxHeight, caption = 'Tokens 
 
 export const SortableAndSelectable: Story = { render: () => <TokenTable /> };
 export const StickyHeader: Story = { render: () => <TokenTable sticky maxHeight="var(--size-60)" rows={[...ROWS, ...ROWS.map((r) => ({ ...r, name: `${r.name}-alt` }))]} /> };
+/** Column widths: a fixed token width, a fraction of the table and a minimum. layout="fixed" keeps them exact. */
+export const ColumnWidths: Story = {
+  render: () => (
+    <Table aria-label="What each kind of change needs" layout="fixed">
+      <TableHeader>
+        <TableRow>
+          <TableHead width={0.25}>Change</TableHead>
+          <TableHead>Needs</TableHead>
+          <TableHead width="var(--size-20)" numeric>
+            Approvals
+          </TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        <TableRow>
+          <TableCell>Token value</TableCell>
+          <TableCell>A design owner approves; the visual before and after runs on every theme.</TableCell>
+          <TableCell numeric>1</TableCell>
+        </TableRow>
+        <TableRow>
+          <TableCell>New component</TableCell>
+          <TableCell>A design owner and a tech owner approve; tests and the accessibility checks pass.</TableCell>
+          <TableCell numeric>2</TableCell>
+        </TableRow>
+      </TableBody>
+    </Table>
+  ),
+};
+
+/** narrowLayout="stack" in a phone-wide container: every row is a card, each value beside its column name. */
+export const StackedOnPhone: Story = {
+  decorators: [(S) => <div style={{ width: 358, maxWidth: '100%' }}><S /></div>],
+  render: () => (
+    <Table caption="Tokens changed in this release" narrowLayout="stack">
+      <TableHeader>
+        <TableRow>
+          <TableHead>Token</TableHead>
+          <TableHead>Owner</TableHead>
+          <TableHead numeric>Uses</TableHead>
+          <TableHead>Status</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {ROWS.slice(0, 3).map((r) => (
+          <TableRow key={r.name}>
+            <TableCell label="">
+              <code>{r.name}</code>
+            </TableCell>
+            <TableCell>{r.owner}</TableCell>
+            <TableCell numeric>{r.uses}</TableCell>
+            <TableCell>
+              <Badge tone={r.status.tone}>{r.status.label}</Badge>
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  ),
+};
+
 export const Empty: Story = { render: () => <TokenTable rows={[]} /> };
 
 export const AllStates: Story = {

@@ -1,4 +1,4 @@
-import { forwardRef, useMemo, useRef, type InputHTMLAttributes, type ReactNode } from 'react';
+import { forwardRef, useMemo, useRef, type InputHTMLAttributes, type ReactNode, type RefObject } from 'react';
 import { Combobox as BaseCombobox } from '@base-ui/react/combobox';
 import { Check, ChevronDown, X } from 'lucide-react';
 import { cx } from '../../utils/cx';
@@ -64,6 +64,11 @@ export interface ComboboxProps
   open?: boolean;
   defaultOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
+  /**
+   * Where the popup is rendered. Default: the end of the body, above every layer including a Dialog or Drawer, so
+   * the list is never covered. Pass an element (or a ref) to keep it inside a container, for example a shadow root.
+   */
+  portalContainer?: HTMLElement | ShadowRoot | RefObject<HTMLElement | ShadowRoot | null> | null;
 }
 
 interface OptionGroup {
@@ -106,6 +111,7 @@ export const Combobox = forwardRef<HTMLInputElement, ComboboxProps>(function Com
     open,
     defaultOpen,
     onOpenChange,
+    portalContainer,
     className,
     ...rest
   },
@@ -218,7 +224,7 @@ export const Combobox = forwardRef<HTMLInputElement, ComboboxProps>(function Com
           <Icon icon={ChevronDown} size="sm" />
         </BaseCombobox.Trigger>
       </BaseCombobox.InputGroup>
-      <BaseCombobox.Portal>
+      <BaseCombobox.Portal container={portalContainer ?? undefined}>
         <BaseCombobox.Positioner className={styles.positioner} sideOffset={4} {...scope}>
           <BaseCombobox.Popup className={styles.popup} aria-busy={loading || undefined}>
             <BaseCombobox.Status className={styles.status}>

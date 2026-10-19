@@ -28,20 +28,6 @@ body.is-editing p.ed-only {
   gap: var(--space-2);
 }
 
-.tx-edit-toggle .when-on,
-.tx-edit-toggle[aria-pressed="true"] .when-off {
-  display: none;
-}
-
-.tx-edit-toggle[aria-pressed="true"] .when-on {
-  display: inline;
-}
-
-.tx-edit-toggle[aria-pressed="true"] {
-  background-color: var(--color-signal-default);
-  color: var(--color-action-primary-text);
-}
-
 .ed-banner {
   align-items: flex-start;
   gap: var(--space-2);

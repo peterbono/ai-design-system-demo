@@ -82,11 +82,67 @@
   white-space: nowrap;
 }
 
+/* With badges the value is a row: the label truncates, the badge keeps its size. In a trigger under 20em (a phone)
+   the badge leaves the trigger so the label keeps the room; the list still shows it on every option. */
+.valueWithBadge {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  container-type: inline-size;
+}
+
+@container (max-width: 20em) {
+  .valueWithBadge .badge {
+    display: none;
+  }
+}
+
+.valueText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.badge {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+}
+
 .value[data-placeholder] {
   color: var(--input-placeholder);
 }
 
-.trigger[data-disabled] .value[data-placeholder] {
+.trigger[data-disabled] /* With badges the value is a row: the label truncates, the badge keeps its size. In a trigger under 20em (a phone)
+   the badge leaves the trigger so the label keeps the room; the list still shows it on every option. */
+.valueWithBadge {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  container-type: inline-size;
+}
+
+@container (max-width: 20em) {
+  .valueWithBadge .badge {
+    display: none;
+  }
+}
+
+.valueText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.badge {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+}
+
+.value[data-placeholder] {
   color: var(--color-text-disabled);
 }
 
@@ -109,8 +165,9 @@
 }
 
 /* Popup (listbox) */
+/* The popover layer, above the modal layer: a list opened from inside a Dialog or Drawer shows on top of it. */
 .positioner {
-  z-index: var(--layer-dropdown);
+  z-index: var(--layer-popover);
   outline: none;
 }
 
@@ -205,6 +262,11 @@
   display: inline-flex;
   flex: none;
   color: var(--color-text-default);
+}
+
+/* With badges the check keeps its slot on every item, so the badges line up in one column. */
+.item:not([data-selected]) .indicatorSlot {
+  visibility: hidden;
 }
 
 .groupLabel {

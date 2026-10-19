@@ -6,7 +6,8 @@
   "whenToUse": [
     "A condition that affects what the user is doing here: a failed build, a protected branch, contrast warnings.",
     "Tone follows meaning: danger for failed or blocked, warning for needs attention, success for a finished task that changed this page, info for context, neutral when there is no judgement.",
-    "Inside a form or card, above the content it is about."
+    "Inside a form or card, above the content it is about.",
+    "actionsPlacement inline for one short message and one action, like a banner saying which change you are viewing with Back to latest at the end of the line. It wraps under the text on a phone. Keep below for a title plus a longer description."
   ],
   "whenNotToUse": [
     "Confirming an action the user just took (Copied, Saved): use a Toast.",
@@ -71,6 +72,8 @@
     "content": "Text column",
     "title": "Title",
     "description": "Description",
+    "inline": "Inline actions: the message and its action on one line",
+    "text": "Title and description, when actions are inline",
     "actions": "Actions",
     "dismiss": "Dismiss button"
   }

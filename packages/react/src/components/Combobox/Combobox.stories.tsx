@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { Search } from 'lucide-react';
 import { Specimen, SpecimenStack, StateGrid } from '../../stories/StateGrid';
+import { Button } from '../Button';
+import { Dialog, DialogClose, DialogContent } from '../Dialog';
 import { Icon } from '../Icon';
 import { Combobox, type ComboboxOption } from './Combobox';
 
@@ -35,6 +37,34 @@ type Story = StoryObj<typeof meta>;
 const narrow = [(Story: () => JSX.Element) => <div style={{ maxWidth: 360 }}><Story /></div>];
 
 export const Default: Story = { decorators: narrow };
+
+const FAMILIES: ComboboxOption[] = [
+  { value: 'button', label: 'Button', description: 'Actions' },
+  { value: 'select', label: 'Select', description: 'Forms' },
+  { value: 'combobox', label: 'Combobox', description: 'Forms' },
+  { value: 'dialog', label: 'Dialog', description: 'Overlays' },
+  { value: 'table', label: 'Table', description: 'Data display' },
+];
+
+/** Inside a Dialog: the list opens above the dialog (popover layer), focus stays in the dialog. */
+export const InsideDialog: Story = {
+  render: () => (
+    <Dialog defaultOpen>
+      <DialogContent
+        title="Add a variant"
+        description="Which component gets the new option?"
+        footer={
+          <>
+            <DialogClose render={<Button variant="secondary" />}>Cancel</DialogClose>
+            <Button>Continue</Button>
+          </>
+        }
+      >
+        <Combobox label="Component" options={FAMILIES} placeholder="Type a name, for example Button" defaultOpen />
+      </DialogContent>
+    </Dialog>
+  ),
+};
 export const Grouped: Story = {
   decorators: narrow,
   args: { label: 'Reviewer', options: REVIEWERS, placeholder: 'Search people', hint: undefined },

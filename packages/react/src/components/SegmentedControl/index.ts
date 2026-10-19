@@ -1,2 +1,2 @@
-export { SegmentedControl } from './SegmentedControl';
-export type { SegmentedControlProps, SegmentedControlItem, SegmentedControlSize, SegmentAttributes } from './SegmentedControl';
+export { SegmentedControl, markSegmentOverflow } from './SegmentedControl';
+export type { SegmentedControlProps, SegmentedControlItem, SegmentedControlSize, SegmentedControlAppearance, SegmentAttributes } from './SegmentedControl';

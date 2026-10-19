@@ -17,13 +17,27 @@ function lucideIcon(name: string) {
   return hit;
 }
 
+const isNode = (v: unknown): v is Exclude<ExampleNode, string> =>
+  typeof v === 'object' && v !== null && !Array.isArray(v) && typeof (v as { c?: unknown }).c === 'string';
+
+/** Example nodes inside props (a Badge in a Select option's `badge`) render as elements too. */
+function resolveNested(value: unknown): unknown {
+  if (isNode(value)) return render(value);
+  if (Array.isArray(value)) return value.map(resolveNested);
+  if (typeof value === 'object' && value !== null && Object.getPrototypeOf(value) === Object.prototype) {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, resolveNested(v)]));
+  }
+  return value;
+}
+
 function render(node: ExampleNode, key?: number): ReactNode {
   if (typeof node === 'string') return node;
   const Comp = REGISTRY[node.c];
   if (!Comp) throw new Error(`docs-site: unknown example component "${node.c}". Add it to registry.tsx.`);
   const children = node.children?.map((child, i) => render(child, i));
+  const props = resolveNested(resolveProps(node.p, lucideIcon)) as Record<string, unknown>;
   return (
-    <Comp key={key} {...resolveProps(node.p, lucideIcon)}>
+    <Comp key={key} {...props}>
       {children}
     </Comp>
   );

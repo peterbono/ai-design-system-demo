@@ -821,16 +821,6 @@
   font-weight: var(--font-weight-semibold);
 }
 
-.terminal .copy {
-  border-color: var(--color-text-muted);
-  background-color: transparent;
-  color: var(--color-text-inverse);
-}
-
-.terminal .copy:hover {
-  border-color: var(--color-text-inverse);
-}
-
 .terminal-body {
   max-height: calc(var(--size-64) * 2);
   overflow: auto;

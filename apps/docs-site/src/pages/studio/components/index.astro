@@ -78,9 +78,9 @@ const signIn = Boolean(signInConfig());
         {lead.guidance && (
           <>
             {' '}
-            <button type="button" class="cm-lead-filter" data-cm-guidance aria-pressed="false" title="Show only these">
-              {lead.guidance}
-            </button>
+            <Button variant="link" pressed={false} data-cm-guidance title="Show only these">
+              {lead.guidance.replace(/\.$/, '')}
+            </Button>{lead.guidance.endsWith('.') && '.'}
           </>
         )}
       </p>
@@ -101,7 +101,7 @@ const signIn = Boolean(signInConfig());
     <p class="cm-count" data-cm-count role="status" aria-live="polite"></p>
 
     <ComponentsList rows={rows} products={audits.length} />
-    <p class="cm-none" data-cm-none hidden>No component matches. <button type="button" class="cm-lead-filter" data-cm-reset>Show every component</button></p>
+    <p class="cm-none" data-cm-none hidden>No component matches. <Button variant="link" data-cm-reset>Show every component</Button></p>
     {audits.length > 0 && <p class="cm-note">Used in names the audited products that render the component ({audits.map((a) => a.product).join(' and ')}), from their last <Link href="/studio/quality/">audit report</Link>. Open requests counts the change requests not shipped yet.</p>}
   </div>
 

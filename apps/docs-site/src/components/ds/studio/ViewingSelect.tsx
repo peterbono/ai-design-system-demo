@@ -1,9 +1,10 @@
 // "Viewing: Latest library" in the Studio top bar, on the pages that can show a change (Tokens, Components, Quality):
-// one DS Select with the latest library and the open changes, each with its status. A hydrated island (client:load):
+// one DS Select with the latest library and the open changes, each with its status as a DS Badge (the Select's badge
+// slot, so the trigger shows it too). A hydrated island (client:load):
 // scripts/view-change.ts reads the changes and sends the options (VIEW_OPTIONS_EVENT); a pick goes back as
 // VIEW_PICK_EVENT and the script moves to the same page in that scope (lib/view-scope, ?change=N).
 import { useEffect, useState } from 'react';
-import { Select } from '@bridge-ds/react';
+import { Badge, Select } from '@bridge-ds/react';
 import { LATEST_LABEL, LATEST_VALUE, VIEW_OPTIONS_EVENT, VIEW_PICK_EVENT, VIEW_READY_EVENT, type ViewOption, type ViewOptionsDetail } from '../../../lib/view-scope';
 
 export default function ViewingSelect() {
@@ -15,7 +16,14 @@ export default function ViewingSelect() {
     document.dispatchEvent(new CustomEvent(VIEW_READY_EVENT));
     return () => document.removeEventListener(VIEW_OPTIONS_EVENT, on);
   }, []);
-  const options: ViewOption[] = state.options;
+  const options = state.options.map(({ status, ...o }: ViewOption) => ({
+    ...o,
+    badge: status ? (
+      <Badge tone={status.tone} size="sm">
+        {status.label}
+      </Badge>
+    ) : undefined,
+  }));
   return (
     <Select
       label="View the library as"

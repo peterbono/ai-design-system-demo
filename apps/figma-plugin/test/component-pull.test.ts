@@ -66,9 +66,9 @@ test('spec: Button axes, properties and token bindings come from Button.tsx and 
   assert.equal(button.hash, hashSpec(button));
   assert.deepEqual(
     button.axes.map((a) => `${a.name}=${a.values.join('|')}`),
-    ['Variant=primary|secondary|ghost|danger', 'Size=sm|md|lg', 'State=Default|Hover|Pressed|Disabled'],
+    ['Variant=primary|secondary|ghost|danger|link|inverse', 'Size=sm|md|lg', 'State=Default|Hover|Pressed|Disabled'],
   );
-  assert.equal(button.variants.length, 48);
+  assert.equal(button.variants.length, 72);
   assert.deepEqual(
     button.properties.map((p) => `${p.type} ${p.name}`),
     ['TEXT Label', 'BOOLEAN Icon start', 'BOOLEAN Icon end'],
@@ -120,7 +120,7 @@ test('apply: 6 component sets on a Components page, bound to the variables, with
   const page = sim.root.children.find((p) => p.name === 'Components')!;
   assert.deepEqual(page.children.map((s) => `${s.type}:${s.name}`), SPEC_COMPONENTS.map((n) => `COMPONENT_SET:${n}`));
   const button = page.children[0]!;
-  assert.equal(button.children.length, 48);
+  assert.equal(button.children.length, 72);
   const defs = button.componentPropertyDefinitions;
   assert.deepEqual(
     Object.entries(defs).map(([k, d]) => `${k.replace(/#.*$/, '')}:${d.type}`).sort(),
@@ -324,13 +324,13 @@ test('grid: rows of different heights are evenly spaced, columns as wide as thei
   }
   layoutVariants(set as unknown as ComponentSetNode, comp);
   const rows = [...new Set(set.children.map((c) => c.y))].sort((x, y) => x - y);
-  assert.equal(rows.length, 12);
+  assert.equal(rows.length, 18);
   const rowOf = (y: number) => set.children.filter((c) => c.y === y);
   const gaps = rows.slice(1).map((y, i) => y - (rows[i]! + Math.max(...rowOf(rows[i]!).map((c) => c.height))));
   assert.deepEqual([...new Set(gaps)], [24], 'the same gap between every row');
   const cols = [...new Set(set.children.map((c) => c.x))].sort((x, y) => x - y);
   assert.deepEqual(cols, [24, 148, 292, 416]);
-  assert.equal(set.height, rows[11]! + 48 + 24);
+  assert.equal(set.height, rows[17]! + 48 + 24);
 });
 
 // ---------------------------------------------------------------------------------------------

@@ -15,6 +15,10 @@
 }
 
 .table {
+  /* Column width props are set per cell; a nested table never inherits them. */
+  --_col-width: initial;
+  --_col-min-width: initial;
+
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
@@ -23,6 +27,15 @@
   font-size: var(--font-size-200);
   line-height: var(--font-line-height-snug);
   font-variant-numeric: tabular-nums;
+}
+
+/* layout="fixed": columns follow the header widths exactly; long words wrap instead of widening a column. */
+.fixed {
+  table-layout: fixed;
+}
+
+.fixed .cell {
+  overflow-wrap: anywhere;
 }
 
 .caption {
@@ -69,6 +82,13 @@
 .gridLines .cell + .cell,
 .gridLines .head + .head {
   border-inline-start: var(--border-width-default) solid var(--table-border);
+}
+
+/* Column widths (width and minWidth props). Unset, both fall back to auto. */
+.head,
+.cell {
+  width: var(--_col-width);
+  min-width: var(--_col-min-width);
 }
 
 .numeric {
@@ -150,4 +170,83 @@
   padding: var(--space-8) var(--table-cell-padding-x);
   color: var(--color-text-muted);
   text-align: center;
+}
+
+/* narrowLayout="stack": in a container under 30em (480px), each row becomes a card and every value sits beside its
+   column name (data-label, filled from the header row). The scroller is the size container. */
+.stack {
+  container-type: inline-size;
+}
+
+@container (max-width: 30em) {
+  .stack .table,
+  .stack .tbody,
+  .stack .row {
+    display: block;
+  }
+
+  .stack .thead {
+    display: none;
+  }
+
+  .stack .caption {
+    display: block;
+  }
+
+  /* Records are cards: a full-strength divider between them, stronger than the hairline between desktop rows. */
+  .stack .tbody .row {
+    padding-block: var(--space-2);
+    border-bottom: var(--border-width-default) solid var(--color-border-default);
+  }
+
+  .stack .tbody .row:last-child {
+    border-bottom: 0;
+  }
+
+  /* Two columns: the column name (muted, 40%) beside its value. The name is positioned, so the value keeps its own
+     flow (inline markup, wrapping text, a badge) and every wrapped line stays in the value column. */
+  .stack .cell {
+    position: relative;
+    display: block;
+    width: auto;
+    min-width: 0;
+    height: auto;
+    padding-block: var(--space-1);
+    padding-inline-start: calc(40% + var(--space-3));
+    border: 0;
+    text-align: start;
+  }
+
+  .stack .cell::before {
+    content: attr(data-label);
+    position: absolute;
+    inset-inline-start: var(--table-cell-padding-x);
+    width: calc(40% - var(--table-cell-padding-x));
+    overflow: hidden;
+    color: var(--table-header-text);
+    font-size: var(--font-size-100);
+    font-weight: var(--font-weight-medium);
+    letter-spacing: var(--font-tracking-wide);
+    line-height: var(--font-line-height-normal);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* No column name (a title cell, the empty row): the value alone, full width, as the card's heading. */
+  .stack .cell:is(:not([data-label]), [data-label=""]) {
+    padding-inline-start: var(--table-cell-padding-x);
+    font-weight: var(--font-weight-medium);
+  }
+
+  .stack .cell:is(:not([data-label]), [data-label=""])::before {
+    content: none;
+  }
+
+  .stack .gridLines .cell + .cell {
+    border-inline-start: 0;
+  }
+
+  .stack .empty {
+    display: block;
+  }
 }

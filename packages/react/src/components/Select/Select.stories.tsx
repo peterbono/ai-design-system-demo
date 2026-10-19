@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { Palette } from 'lucide-react';
 import { Specimen, SpecimenStack, StateGrid } from '../../stories/StateGrid';
+import { Badge } from '../Badge';
 import { Icon } from '../Icon';
 import { Select, type SelectOption } from './Select';
 
@@ -43,6 +44,19 @@ export const WithError: Story = { decorators: narrow, args: { error: 'Pick a the
 export const Grouped: Story = {
   decorators: narrow,
   args: { label: 'Token', options: TOKEN_GROUPS, placeholder: 'Choose a token', hint: undefined },
+};
+
+const CHANGES: SelectOption[] = [
+  { value: 'latest', label: 'Latest library', description: 'What is shipped' },
+  { value: 'change-12', label: 'Darker default background', description: 'by florian', group: 'Open changes', badge: <Badge tone="info" size="sm">In review</Badge> },
+  { value: 'change-14', label: 'New radius scale', description: 'by sam', group: 'Open changes', badge: <Badge tone="success" size="sm">Ready</Badge> },
+  { value: 'change-15', label: 'Focus ring on dark surfaces', description: 'by alex', group: 'Open changes', badge: <Badge tone="warning" size="sm">Changes asked</Badge> },
+];
+
+/** A status Badge on each option and in the trigger (the Studio "Viewing" select). */
+export const WithBadges: Story = {
+  decorators: [(Story) => <div style={{ maxWidth: 360, minHeight: 320 }}><Story /></div>],
+  args: { label: 'View the library as', options: CHANGES, defaultValue: 'change-12', defaultOpen: true, hint: undefined },
 };
 
 /** The popup rendered open, for review and screenshots. */

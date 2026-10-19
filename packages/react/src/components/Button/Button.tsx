@@ -7,7 +7,11 @@ import { Icon, type LucideIcon } from '../Icon';
 import { Spinner } from '../Spinner';
 import styles from './Button.module.css';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
+/**
+ * `link` looks like a text link but stays a button (an action on this screen, not navigation); `inverse` is the
+ * action on a strong surface (Deep Harbor, `color.surface.inverse`).
+ */
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'link' | 'inverse';
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -23,6 +27,11 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   iconEnd?: LucideIcon;
   /** Stretch to the width of the container. */
   fullWidth?: boolean;
+  /**
+   * Makes the button a toggle: sets `aria-pressed` and shows the selected look when true. Leave unset for a plain
+   * button. A script can flip `aria-pressed` on a statically rendered toggle: the look follows the attribute.
+   */
+  pressed?: boolean;
   /**
    * Render another element with button styling, for example a router link: `render={<a href="/tokens" />}`.
    * The element keeps its own role (a link stays a link), so only use it for navigation.
@@ -41,10 +50,10 @@ const Rendered = forwardRef<HTMLElement, RenderedProps>(function Rendered({ rend
 
 /** Triggers an action on the current screen. Wraps the Base UI Button. */
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  { variant = 'primary', size = 'md', loading = false, iconStart, iconEnd, fullWidth = false, disabled, className, children, type = 'button', render, ...rest },
+  { variant = 'primary', size = 'md', loading = false, iconStart, iconEnd, fullWidth = false, pressed, disabled, className, children, type = 'button', render, ...rest },
   ref,
 ) {
-  const classes = cx(styles.button, styles[variant], styles[size], fullWidth && styles.fullWidth, className);
+  const classes = cx(styles.button, styles[variant], styles[size], fullWidth && styles.fullWidth, pressed !== undefined && styles.toggle, className);
   const content = (
     <>
       {loading ? <Spinner size="sm" className={styles.icon} /> : iconStart && <Icon icon={iconStart} size="sm" className={styles.icon} />}
@@ -67,6 +76,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       disabled={disabled || loading}
       focusableWhenDisabled={loading}
       aria-busy={loading || undefined}
+      aria-pressed={pressed}
       data-loading={loading || undefined}
       {...rest}
     >

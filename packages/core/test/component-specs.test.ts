@@ -19,7 +19,7 @@ describe('component specs', () => {
   it('Button: axes from union props, State from the CSS, a text and two icon properties', () => {
     const [button] = generateRepoComponentSpecs(ROOT, ['Button']).components;
     expect(button!.axes.map((a) => [a.name, a.values, a.default])).toEqual([
-      ['Variant', ['primary', 'secondary', 'ghost', 'danger'], 'primary'],
+      ['Variant', ['primary', 'secondary', 'ghost', 'danger', 'link', 'inverse'], 'primary'],
       ['Size', ['sm', 'md', 'lg'], 'md'],
       ['State', ['Default', 'Hover', 'Pressed', 'Disabled'], 'Default'],
     ]);
@@ -42,7 +42,7 @@ describe('component specs', () => {
     expect(secondaryHover.text).toMatchObject({ textFill: 'button.secondary.text', fontSize: 'font.size.300', fontWeight: 'button.font-weight' });
     expect(v({ Variant: 'primary', Size: 'md', State: 'Disabled' }).root).toMatchObject({ fill: 'color.action.disabled.bg', stroke: null });
     expect(v({ Variant: 'ghost', Size: 'md', State: 'Disabled' }).root!.fill).toBeNull();
-    expect(button!.unmapped.map((u) => u.property)).toEqual(['prop loading', 'prop fullWidth']);
+    expect(button!.unmapped.map((u) => u.property)).toEqual(['prop loading', 'prop fullWidth', 'prop pressed']);
   });
 
   it('swaps: icon parts default to the docs or story icon, Card body is a content slot, icons and slots sections', () => {
@@ -56,8 +56,8 @@ describe('component specs', () => {
     const card = file.components.find((c) => c.name === 'Card')!;
     expect(card.variants.map((v) => `${v.props.Padding}:${v.slots!['body-text']}`)).toEqual(['none:Slot/Media', 'compact:Slot/Card body text', 'default:Slot/Card body text']);
     expect(card.properties.map((p) => p.name)).toEqual(['Header', 'Footer']);
-    // The required icon of IconButton is drawn now: no longer reported as unmapped.
-    expect(file.components.find((c) => c.name === 'IconButton')!.unmapped.map((u) => u.property)).toEqual(['prop loading']);
+    // The required icon of IconButton is drawn now: no longer reported as unmapped. Loading and the toggle state are not drawn.
+    expect(file.components.find((c) => c.name === 'IconButton')!.unmapped.map((u) => u.property)).toEqual(['prop loading', 'prop pressed']);
     const names = file.icons!.map((i) => i.name);
     for (const n of ['Pencil', 'Plus', 'ChevronDown', 'CircleCheck', 'Layers', 'Image', 'Info', 'MoreHorizontal']) expect(names).toContain(n);
     expect(names).toEqual([...names].sort());

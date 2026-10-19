@@ -182,7 +182,7 @@ function Header({ onOpenNav }: { onOpenNav: () => void }) {
             icon={compact ? Rows3 : Rows4}
             variant="ghost"
             size="sm"
-            aria-pressed={compact}
+            pressed={compact}
             label={translate('shell.compact_density', { _: 'Compact density' })}
             onClick={() => set({ density: compact ? 'comfortable' : 'compact' })}
           />

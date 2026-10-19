@@ -76,6 +76,27 @@
   margin-block-start: var(--space-2);
 }
 
+/* actionsPlacement="inline": the actions end the message line and wrap under it when the line gets too narrow.
+   Their negative block margin keeps a sm button inside the line box, so the text and the icon stay on one line. */
+.inline .content {
+  flex-flow: row wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+}
+
+.text {
+  display: flex;
+  flex: 1 1 24ch;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.inline .actions {
+  flex: none;
+  margin-block: calc((var(--font-size-200) * var(--font-line-height-normal) - var(--control-height-sm)) / 2);
+}
+
 /* Pull the dismiss button into the padding so its glyph lines up with the text block. */
 .dismiss {
   margin-block: calc(var(--space-1) * -1);

@@ -13,7 +13,7 @@ export default function ChangeRules({ rules, override }: ChangeRulesProps) {
       <Table aria-label="Approvals each kind of change needs">
         <TableHeader>
           <TableRow>
-            <TableHead>Change</TableHead>
+            <TableHead width={0.35}>Change</TableHead>
             <TableHead>Needs</TableHead>
           </TableRow>
         </TableHeader>

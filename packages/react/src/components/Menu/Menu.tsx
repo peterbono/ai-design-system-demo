@@ -1,4 +1,4 @@
-import { forwardRef, type HTMLAttributes, type ReactNode } from 'react';
+import { forwardRef, isValidElement, type HTMLAttributes, type ReactElement, type ReactNode } from 'react';
 import { Menu as BaseMenu } from '@base-ui/react/menu';
 import { Check, ChevronRight } from 'lucide-react';
 import { cx } from '../../utils/cx';
@@ -91,8 +91,11 @@ export const MenuContent = forwardRef<HTMLDivElement, MenuContentProps>(function
 export type MenuItemTone = 'default' | 'danger';
 
 interface ItemDecor {
-  /** Lucide icon before the label. Keep icons on all items of a group or on none. */
-  icon?: LucideIcon;
+  /**
+   * Icon before the label: a Lucide icon, or an element such as `<Icon icon={Figma} />` or a brand mark. Muted, and
+   * hidden from assistive tech. When one item has an icon, every item keeps the slot so labels line up.
+   */
+  icon?: LucideIcon | ReactElement;
   /** Keyboard shortcut hint, shown muted at the end: "E", "Cmd+D". Purely visual; bind the shortcut yourself. */
   shortcut?: string;
 }
@@ -113,7 +116,7 @@ function ItemContent({ icon, shortcut, children, end }: ItemDecor & { children: 
   return (
     <>
       <span className={styles.leading} aria-hidden="true">
-        {icon && <Icon icon={icon} size="sm" />}
+        {icon && (isValidElement(icon) ? icon : <Icon icon={icon as LucideIcon} size="sm" />)}
       </span>
       <span className={styles.label}>{children}</span>
       {shortcut && (

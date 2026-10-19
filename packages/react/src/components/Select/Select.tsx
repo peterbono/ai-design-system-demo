@@ -1,4 +1,4 @@
-import { forwardRef, Fragment, useMemo, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import { forwardRef, Fragment, useMemo, type ButtonHTMLAttributes, type ReactNode, type RefObject } from 'react';
 import { Select as BaseSelect } from '@base-ui/react/select';
 import { Check, ChevronDown } from 'lucide-react';
 import { cx } from '../../utils/cx';
@@ -19,6 +19,11 @@ export interface SelectOption {
   disabled?: boolean;
   /** Group heading. Consecutive options with the same group are rendered under one label. */
   group?: string;
+  /**
+   * A Badge (or Tag) after the label: a count, a status. Shown on the item and, when this option is selected, in the
+   * trigger. Its text is part of what assistive tech reads for the option, so keep it short ("In review", "3").
+   */
+  badge?: ReactNode;
 }
 
 export interface SelectProps
@@ -53,6 +58,11 @@ export interface SelectProps
   /** Open on first render (uncontrolled). */
   defaultOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
+  /**
+   * Where the popup is rendered. Default: the end of the body, above every layer including a Dialog or Drawer, so
+   * the list is never covered. Pass an element (or a ref) to keep it inside a container, for example a shadow root.
+   */
+  portalContainer?: HTMLElement | ShadowRoot | RefObject<HTMLElement | ShadowRoot | null> | null;
 }
 
 interface OptionGroup {
@@ -90,6 +100,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
     open,
     defaultOpen,
     onOpenChange,
+    portalContainer,
     className,
     ...rest
   },
@@ -98,6 +109,8 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
   const field = useFieldContext();
   const scope = useScopeAttributes();
   const items = useMemo(() => options.map((o) => ({ value: o.value, label: o.label })), [options]);
+  const byValue = useMemo(() => new Map(options.map((o) => [o.value, o])), [options]);
+  const hasBadges = options.some((o) => o.badge != null);
   const groups = useMemo(() => groupOptions(options), [options]);
 
   const select = (
@@ -120,12 +133,27 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
         {...rest}
       >
         {prefix != null && <span className={styles.affix}>{prefix}</span>}
-        <BaseSelect.Value className={styles.value} placeholder={placeholder} />
+        {hasBadges ? (
+          <BaseSelect.Value className={cx(styles.value, styles.valueWithBadge)} placeholder={placeholder}>
+            {(v: string | null) => {
+              const o = v == null ? undefined : byValue.get(v);
+              if (!o) return v == null ? placeholder : v;
+              return (
+                <>
+                  <span className={styles.valueText}>{o.label}</span>
+                  {o.badge != null && <span className={styles.badge}>{o.badge}</span>}
+                </>
+              );
+            }}
+          </BaseSelect.Value>
+        ) : (
+          <BaseSelect.Value className={styles.value} placeholder={placeholder} />
+        )}
         <BaseSelect.Icon className={styles.chevron}>
           <Icon icon={ChevronDown} size="sm" />
         </BaseSelect.Icon>
       </BaseSelect.Trigger>
-      <BaseSelect.Portal>
+      <BaseSelect.Portal container={portalContainer ?? undefined}>
         <BaseSelect.Positioner className={styles.positioner} sideOffset={4} alignItemWithTrigger={false} {...scope}>
           <BaseSelect.Popup className={styles.popup}>
             <BaseSelect.List className={styles.list}>
@@ -136,7 +164,8 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
                       <BaseSelect.ItemText className={styles.itemText}>{o.label}</BaseSelect.ItemText>
                       {o.description && <span className={styles.itemDescription}>{o.description}</span>}
                     </span>
-                    <BaseSelect.ItemIndicator className={styles.indicator}>
+                    {o.badge != null && <span className={styles.badge}>{o.badge}</span>}
+                    <BaseSelect.ItemIndicator keepMounted={hasBadges} className={cx(styles.indicator, hasBadges && styles.indicatorSlot)}>
                       <Icon icon={Check} size="sm" />
                     </BaseSelect.ItemIndicator>
                   </BaseSelect.Item>

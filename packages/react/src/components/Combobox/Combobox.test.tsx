@@ -2,6 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { expectNoAxeViolations } from '../../test/axe';
+import { Dialog, DialogContent } from '../Dialog';
 import { Field } from '../Field';
 import { Combobox, type ComboboxOption } from './Combobox';
 
@@ -65,5 +66,21 @@ describe('Combobox', () => {
     expect(screen.getByRole('button', { name: 'Remove Ada Moreau' })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Remove Ada Moreau' }));
     expect(onValueChange).toHaveBeenCalledWith([]);
+  });
+  it('works inside a Dialog: the list opens, a pick lands in the input and focus stays in the dialog', async () => {
+    render(
+      <Dialog defaultOpen>
+        <DialogContent title="Start a change">
+          <Combobox label="Component" options={[{ value: 'button', label: 'Button', description: 'Actions' }, { value: 'select', label: 'Select', description: 'Forms' }]} />
+        </DialogContent>
+      </Dialog>,
+    );
+    const input = await screen.findByRole('combobox', { name: 'Component' });
+    await userEvent.click(input);
+    const option = await screen.findByRole('option', { name: /Select/ });
+    expect(option).toHaveTextContent('Forms');
+    await userEvent.click(option);
+    await waitFor(() => expect(input).toHaveValue('Select'));
+    expect(screen.getByRole('dialog')).toContainElement(document.activeElement as HTMLElement);
   });
 });
