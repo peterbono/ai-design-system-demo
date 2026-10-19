@@ -1,0 +1,903 @@
+{
+  "version": 1,
+  "tool": "@bridge-ds/visual",
+  "createdAt": "2026-10-19T21:48:13.140Z",
+  "sha": "5a8000847f99e9a132f3fefc359a1695af429588",
+  "scale": 2,
+  "mode": {
+    "brand": "bridge",
+    "theme": "light",
+    "density": "comfortable"
+  },
+  "storyId": "internal-figma-reference--variant",
+  "components": {
+    "Button": {
+      "specHash": "3999ade2",
+      "variants": {
+        "Size=sm, State=Default, Variant=primary": {
+          "file": "button/size-sm__state-default__variant-primary.png",
+          "width": 71,
+          "height": 32
+        },
+        "Size=sm, State=Hover, Variant=primary": {
+          "file": "button/size-sm__state-hover__variant-primary.png",
+          "width": 71,
+          "height": 32
+        },
+        "Size=sm, State=Pressed, Variant=primary": {
+          "file": "button/size-sm__state-pressed__variant-primary.png",
+          "width": 71,
+          "height": 32
+        },
+        "Size=sm, State=Disabled, Variant=primary": {
+          "file": "button/size-sm__state-disabled__variant-primary.png",
+          "width": 71,
+          "height": 32
+        },
+        "Size=md, State=Default, Variant=primary": {
+          "file": "button/size-md__state-default__variant-primary.png",
+          "width": 79,
+          "height": 44
+        },
+        "Size=md, State=Hover, Variant=primary": {
+          "file": "button/size-md__state-hover__variant-primary.png",
+          "width": 79,
+          "height": 44
+        },
+        "Size=md, State=Pressed, Variant=primary": {
+          "file": "button/size-md__state-pressed__variant-primary.png",
+          "width": 79,
+          "height": 44
+        },
+        "Size=md, State=Disabled, Variant=primary": {
+          "file": "button/size-md__state-disabled__variant-primary.png",
+          "width": 79,
+          "height": 44
+        },
+        "Size=lg, State=Default, Variant=primary": {
+          "file": "button/size-lg__state-default__variant-primary.png",
+          "width": 93,
+          "height": 48
+        },
+        "Size=lg, State=Hover, Variant=primary": {
+          "file": "button/size-lg__state-hover__variant-primary.png",
+          "width": 93,
+          "height": 48
+        },
+        "Size=lg, State=Pressed, Variant=primary": {
+          "file": "button/size-lg__state-pressed__variant-primary.png",
+          "width": 93,
+          "height": 48
+        },
+        "Size=lg, State=Disabled, Variant=primary": {
+          "file": "button/size-lg__state-disabled__variant-primary.png",
+          "width": 93,
+          "height": 48
+        },
+        "Size=sm, State=Default, Variant=secondary": {
+          "file": "button/size-sm__state-default__variant-secondary.png",
+          "width": 71,
+          "height": 32
+        },
+        "Size=sm, State=Hover, Variant=secondary": {
+          "file": "button/size-sm__state-hover__variant-secondary.png",
+          "width": 71,
+          "height": 32
+        },
+        "Size=sm, State=Pressed, Variant=secondary": {
+          "file": "button/size-sm__state-pressed__variant-secondary.png",
+          "width": 71,
+          "height": 32
+        },
+        "Size=sm, State=Disabled, Variant=secondary": {
+          "file": "button/size-sm__state-disabled__variant-secondary.png",
+          "width": 71,
+          "height": 32
+        },
+        "Size=md, State=Default, Variant=secondary": {
+          "file": "button/size-md__state-default__variant-secondary.png",
+          "width": 79,
+          "height": 44
+        },
+        "Size=md, State=Hover, Variant=secondary": {
+          "file": "button/size-md__state-hover__variant-secondary.png",
+          "width": 79,
+          "height": 44
+        },
+        "Size=md, State=Pressed, Variant=secondary": {
+          "file": "button/size-md__state-pressed__variant-secondary.png",
+          "width": 79,
+          "height": 44
+        },
+        "Size=md, State=Disabled, Variant=secondary": {
+          "file": "button/size-md__state-disabled__variant-secondary.png",
+          "width": 79,
+          "height": 44
+        },
+        "Size=lg, State=Default, Variant=secondary": {
+          "file": "button/size-lg__state-default__variant-secondary.png",
+          "width": 93,
+          "height": 48
+        },
+        "Size=lg, State=Hover, Variant=secondary": {
+          "file": "button/size-lg__state-hover__variant-secondary.png",
+          "width": 93,
+          "height": 48
+        },
+        "Size=lg, State=Pressed, Variant=secondary": {
+          "file": "button/size-lg__state-pressed__variant-secondary.png",
+          "width": 93,
+          "height": 48
+        },
+        "Size=lg, State=Disabled, Variant=secondary": {
+          "file": "button/size-lg__state-disabled__variant-secondary.png",
+          "width": 93,
+          "height": 48
+        },
+        "Size=sm, State=Default, Variant=ghost": {
+          "file": "button/size-sm__state-default__variant-ghost.png",
+          "width": 71,
+          "height": 32
+        },
+        "Size=sm, State=Hover, Variant=ghost": {
+          "file": "button/size-sm__state-hover__variant-ghost.png",
+          "width": 71,
+          "height": 32
+        },
+        "Size=sm, State=Pressed, Variant=ghost": {
+          "file": "button/size-sm__state-pressed__variant-ghost.png",
+          "width": 71,
+          "height": 32
+        },
+        "Size=sm, State=Disabled, Variant=ghost": {
+          "file": "button/size-sm__state-disabled__variant-ghost.png",
+          "width": 71,
+          "height": 32
+        },
+        "Size=md, State=Default, Variant=ghost": {
+          "file": "button/size-md__state-default__variant-ghost.png",
+          "width": 79,
+          "height": 44
+        },
+        "Size=md, State=Hover, Variant=ghost": {
+          "file": "button/size-md__state-hover__variant-ghost.png",
+          "width": 79,
+          "height": 44
+        },
+        "Size=md, State=Pressed, Variant=ghost": {
+          "file": "button/size-md__state-pressed__variant-ghost.png",
+          "width": 79,
+          "height": 44
+        },
+        "Size=md, State=Disabled, Variant=ghost": {
+          "file": "button/size-md__state-disabled__variant-ghost.png",
+          "width": 79,
+          "height": 44
+        },
+        "Size=lg, State=Default, Variant=ghost": {
+          "file": "button/size-lg__state-default__variant-ghost.png",
+          "width": 93,
+          "height": 48
+        },
+        "Size=lg, State=Hover, Variant=ghost": {
+          "file": "button/size-lg__state-hover__variant-ghost.png",
+          "width": 93,
+          "height": 48
+        },
+        "Size=lg, State=Pressed, Variant=ghost": {
+          "file": "button/size-lg__state-pressed__variant-ghost.png",
+          "width": 93,
+          "height": 48
+        },
+        "Size=lg, State=Disabled, Variant=ghost": {
+          "file": "button/size-lg__state-disabled__variant-ghost.png",
+          "width": 93,
+          "height": 48
+        },
+        "Size=sm, State=Default, Variant=danger": {
+          "file": "button/size-sm__state-default__variant-danger.png",
+          "width": 71,
+          "height": 32
+        },
+        "Size=sm, State=Hover, Variant=danger": {
+          "file": "button/size-sm__state-hover__variant-danger.png",
+          "width": 71,
+          "height": 32
+        },
+        "Size=sm, State=Pressed, Variant=danger": {
+          "file": "button/size-sm__state-pressed__variant-danger.png",
+          "width": 71,
+          "height": 32
+        },
+        "Size=sm, State=Disabled, Variant=danger": {
+          "file": "button/size-sm__state-disabled__variant-danger.png",
+          "width": 71,
+          "height": 32
+        },
+        "Size=md, State=Default, Variant=danger": {
+          "file": "button/size-md__state-default__variant-danger.png",
+          "width": 79,
+          "height": 44
+        },
+        "Size=md, State=Hover, Variant=danger": {
+          "file": "button/size-md__state-hover__variant-danger.png",
+          "width": 79,
+          "height": 44
+        },
+        "Size=md, State=Pressed, Variant=danger": {
+          "file": "button/size-md__state-pressed__variant-danger.png",
+          "width": 79,
+          "height": 44
+        },
+        "Size=md, State=Disabled, Variant=danger": {
+          "file": "button/size-md__state-disabled__variant-danger.png",
+          "width": 79,
+          "height": 44
+        },
+        "Size=lg, State=Default, Variant=danger": {
+          "file": "button/size-lg__state-default__variant-danger.png",
+          "width": 93,
+          "height": 48
+        },
+        "Size=lg, State=Hover, Variant=danger": {
+          "file": "button/size-lg__state-hover__variant-danger.png",
+          "width": 93,
+          "height": 48
+        },
+        "Size=lg, State=Pressed, Variant=danger": {
+          "file": "button/size-lg__state-pressed__variant-danger.png",
+          "width": 93,
+          "height": 48
+        },
+        "Size=lg, State=Disabled, Variant=danger": {
+          "file": "button/size-lg__state-disabled__variant-danger.png",
+          "width": 93,
+          "height": 48
+        },
+        "Size=sm, State=Default, Variant=link": {
+          "file": "button/size-sm__state-default__variant-link.png",
+          "width": 44,
+          "height": 25
+        },
+        "Size=sm, State=Hover, Variant=link": {
+          "file": "button/size-sm__state-hover__variant-link.png",
+          "width": 44,
+          "height": 25
+        },
+        "Size=sm, State=Pressed, Variant=link": {
+          "file": "button/size-sm__state-pressed__variant-link.png",
+          "width": 44,
+          "height": 25
+        },
+        "Size=sm, State=Disabled, Variant=link": {
+          "file": "button/size-sm__state-disabled__variant-link.png",
+          "width": 44,
+          "height": 25
+        },
+        "Size=md, State=Default, Variant=link": {
+          "file": "button/size-md__state-default__variant-link.png",
+          "width": 44,
+          "height": 25
+        },
+        "Size=md, State=Hover, Variant=link": {
+          "file": "button/size-md__state-hover__variant-link.png",
+          "width": 44,
+          "height": 25
+        },
+        "Size=md, State=Pressed, Variant=link": {
+          "file": "button/size-md__state-pressed__variant-link.png",
+          "width": 44,
+          "height": 25
+        },
+        "Size=md, State=Disabled, Variant=link": {
+          "file": "button/size-md__state-disabled__variant-link.png",
+          "width": 44,
+          "height": 25
+        },
+        "Size=lg, State=Default, Variant=link": {
+          "file": "button/size-lg__state-default__variant-link.png",
+          "width": 44,
+          "height": 25
+        },
+        "Size=lg, State=Hover, Variant=link": {
+          "file": "button/size-lg__state-hover__variant-link.png",
+          "width": 44,
+          "height": 25
+        },
+        "Size=lg, State=Pressed, Variant=link": {
+          "file": "button/size-lg__state-pressed__variant-link.png",
+          "width": 44,
+          "height": 25
+        },
+        "Size=lg, State=Disabled, Variant=link": {
+          "file": "button/size-lg__state-disabled__variant-link.png",
+          "width": 44,
+          "height": 25
+        },
+        "Size=sm, State=Default, Variant=inverse": {
+          "file": "button/size-sm__state-default__variant-inverse.png",
+          "width": 71,
+          "height": 32
+        },
+        "Size=sm, State=Hover, Variant=inverse": {
+          "file": "button/size-sm__state-hover__variant-inverse.png",
+          "width": 71,
+          "height": 32
+        },
+        "Size=sm, State=Pressed, Variant=inverse": {
+          "file": "button/size-sm__state-pressed__variant-inverse.png",
+          "width": 71,
+          "height": 32
+        },
+        "Size=sm, State=Disabled, Variant=inverse": {
+          "file": "button/size-sm__state-disabled__variant-inverse.png",
+          "width": 71,
+          "height": 32
+        },
+        "Size=md, State=Default, Variant=inverse": {
+          "file": "button/size-md__state-default__variant-inverse.png",
+          "width": 79,
+          "height": 44
+        },
+        "Size=md, State=Hover, Variant=inverse": {
+          "file": "button/size-md__state-hover__variant-inverse.png",
+          "width": 79,
+          "height": 44
+        },
+        "Size=md, State=Pressed, Variant=inverse": {
+          "file": "button/size-md__state-pressed__variant-inverse.png",
+          "width": 79,
+          "height": 44
+        },
+        "Size=md, State=Disabled, Variant=inverse": {
+          "file": "button/size-md__state-disabled__variant-inverse.png",
+          "width": 79,
+          "height": 44
+        },
+        "Size=lg, State=Default, Variant=inverse": {
+          "file": "button/size-lg__state-default__variant-inverse.png",
+          "width": 93,
+          "height": 48
+        },
+        "Size=lg, State=Hover, Variant=inverse": {
+          "file": "button/size-lg__state-hover__variant-inverse.png",
+          "width": 93,
+          "height": 48
+        },
+        "Size=lg, State=Pressed, Variant=inverse": {
+          "file": "button/size-lg__state-pressed__variant-inverse.png",
+          "width": 93,
+          "height": 48
+        },
+        "Size=lg, State=Disabled, Variant=inverse": {
+          "file": "button/size-lg__state-disabled__variant-inverse.png",
+          "width": 93,
+          "height": 48
+        }
+      }
+    },
+    "IconButton": {
+      "specHash": "79e2a2db",
+      "variants": {
+        "Size=sm, State=Default, Variant=primary": {
+          "file": "iconbutton/size-sm__state-default__variant-primary.png",
+          "width": 32,
+          "height": 32
+        },
+        "Size=sm, State=Hover, Variant=primary": {
+          "file": "iconbutton/size-sm__state-hover__variant-primary.png",
+          "width": 32,
+          "height": 32
+        },
+        "Size=sm, State=Pressed, Variant=primary": {
+          "file": "iconbutton/size-sm__state-pressed__variant-primary.png",
+          "width": 32,
+          "height": 32
+        },
+        "Size=sm, State=Disabled, Variant=primary": {
+          "file": "iconbutton/size-sm__state-disabled__variant-primary.png",
+          "width": 32,
+          "height": 32
+        },
+        "Size=md, State=Default, Variant=primary": {
+          "file": "iconbutton/size-md__state-default__variant-primary.png",
+          "width": 44,
+          "height": 44
+        },
+        "Size=md, State=Hover, Variant=primary": {
+          "file": "iconbutton/size-md__state-hover__variant-primary.png",
+          "width": 44,
+          "height": 44
+        },
+        "Size=md, State=Pressed, Variant=primary": {
+          "file": "iconbutton/size-md__state-pressed__variant-primary.png",
+          "width": 44,
+          "height": 44
+        },
+        "Size=md, State=Disabled, Variant=primary": {
+          "file": "iconbutton/size-md__state-disabled__variant-primary.png",
+          "width": 44,
+          "height": 44
+        },
+        "Size=lg, State=Default, Variant=primary": {
+          "file": "iconbutton/size-lg__state-default__variant-primary.png",
+          "width": 48,
+          "height": 48
+        },
+        "Size=lg, State=Hover, Variant=primary": {
+          "file": "iconbutton/size-lg__state-hover__variant-primary.png",
+          "width": 48,
+          "height": 48
+        },
+        "Size=lg, State=Pressed, Variant=primary": {
+          "file": "iconbutton/size-lg__state-pressed__variant-primary.png",
+          "width": 48,
+          "height": 48
+        },
+        "Size=lg, State=Disabled, Variant=primary": {
+          "file": "iconbutton/size-lg__state-disabled__variant-primary.png",
+          "width": 48,
+          "height": 48
+        },
+        "Size=sm, State=Default, Variant=secondary": {
+          "file": "iconbutton/size-sm__state-default__variant-secondary.png",
+          "width": 32,
+          "height": 32
+        },
+        "Size=sm, State=Hover, Variant=secondary": {
+          "file": "iconbutton/size-sm__state-hover__variant-secondary.png",
+          "width": 32,
+          "height": 32
+        },
+        "Size=sm, State=Pressed, Variant=secondary": {
+          "file": "iconbutton/size-sm__state-pressed__variant-secondary.png",
+          "width": 32,
+          "height": 32
+        },
+        "Size=sm, State=Disabled, Variant=secondary": {
+          "file": "iconbutton/size-sm__state-disabled__variant-secondary.png",
+          "width": 32,
+          "height": 32
+        },
+        "Size=md, State=Default, Variant=secondary": {
+          "file": "iconbutton/size-md__state-default__variant-secondary.png",
+          "width": 44,
+          "height": 44
+        },
+        "Size=md, State=Hover, Variant=secondary": {
+          "file": "iconbutton/size-md__state-hover__variant-secondary.png",
+          "width": 44,
+          "height": 44
+        },
+        "Size=md, State=Pressed, Variant=secondary": {
+          "file": "iconbutton/size-md__state-pressed__variant-secondary.png",
+          "width": 44,
+          "height": 44
+        },
+        "Size=md, State=Disabled, Variant=secondary": {
+          "file": "iconbutton/size-md__state-disabled__variant-secondary.png",
+          "width": 44,
+          "height": 44
+        },
+        "Size=lg, State=Default, Variant=secondary": {
+          "file": "iconbutton/size-lg__state-default__variant-secondary.png",
+          "width": 48,
+          "height": 48
+        },
+        "Size=lg, State=Hover, Variant=secondary": {
+          "file": "iconbutton/size-lg__state-hover__variant-secondary.png",
+          "width": 48,
+          "height": 48
+        },
+        "Size=lg, State=Pressed, Variant=secondary": {
+          "file": "iconbutton/size-lg__state-pressed__variant-secondary.png",
+          "width": 48,
+          "height": 48
+        },
+        "Size=lg, State=Disabled, Variant=secondary": {
+          "file": "iconbutton/size-lg__state-disabled__variant-secondary.png",
+          "width": 48,
+          "height": 48
+        },
+        "Size=sm, State=Default, Variant=ghost": {
+          "file": "iconbutton/size-sm__state-default__variant-ghost.png",
+          "width": 32,
+          "height": 32
+        },
+        "Size=sm, State=Hover, Variant=ghost": {
+          "file": "iconbutton/size-sm__state-hover__variant-ghost.png",
+          "width": 32,
+          "height": 32
+        },
+        "Size=sm, State=Pressed, Variant=ghost": {
+          "file": "iconbutton/size-sm__state-pressed__variant-ghost.png",
+          "width": 32,
+          "height": 32
+        },
+        "Size=sm, State=Disabled, Variant=ghost": {
+          "file": "iconbutton/size-sm__state-disabled__variant-ghost.png",
+          "width": 32,
+          "height": 32
+        },
+        "Size=md, State=Default, Variant=ghost": {
+          "file": "iconbutton/size-md__state-default__variant-ghost.png",
+          "width": 44,
+          "height": 44
+        },
+        "Size=md, State=Hover, Variant=ghost": {
+          "file": "iconbutton/size-md__state-hover__variant-ghost.png",
+          "width": 44,
+          "height": 44
+        },
+        "Size=md, State=Pressed, Variant=ghost": {
+          "file": "iconbutton/size-md__state-pressed__variant-ghost.png",
+          "width": 44,
+          "height": 44
+        },
+        "Size=md, State=Disabled, Variant=ghost": {
+          "file": "iconbutton/size-md__state-disabled__variant-ghost.png",
+          "width": 44,
+          "height": 44
+        },
+        "Size=lg, State=Default, Variant=ghost": {
+          "file": "iconbutton/size-lg__state-default__variant-ghost.png",
+          "width": 48,
+          "height": 48
+        },
+        "Size=lg, State=Hover, Variant=ghost": {
+          "file": "iconbutton/size-lg__state-hover__variant-ghost.png",
+          "width": 48,
+          "height": 48
+        },
+        "Size=lg, State=Pressed, Variant=ghost": {
+          "file": "iconbutton/size-lg__state-pressed__variant-ghost.png",
+          "width": 48,
+          "height": 48
+        },
+        "Size=lg, State=Disabled, Variant=ghost": {
+          "file": "iconbutton/size-lg__state-disabled__variant-ghost.png",
+          "width": 48,
+          "height": 48
+        },
+        "Size=sm, State=Default, Variant=danger": {
+          "file": "iconbutton/size-sm__state-default__variant-danger.png",
+          "width": 32,
+          "height": 32
+        },
+        "Size=sm, State=Hover, Variant=danger": {
+          "file": "iconbutton/size-sm__state-hover__variant-danger.png",
+          "width": 32,
+          "height": 32
+        },
+        "Size=sm, State=Pressed, Variant=danger": {
+          "file": "iconbutton/size-sm__state-pressed__variant-danger.png",
+          "width": 32,
+          "height": 32
+        },
+        "Size=sm, State=Disabled, Variant=danger": {
+          "file": "iconbutton/size-sm__state-disabled__variant-danger.png",
+          "width": 32,
+          "height": 32
+        },
+        "Size=md, State=Default, Variant=danger": {
+          "file": "iconbutton/size-md__state-default__variant-danger.png",
+          "width": 44,
+          "height": 44
+        },
+        "Size=md, State=Hover, Variant=danger": {
+          "file": "iconbutton/size-md__state-hover__variant-danger.png",
+          "width": 44,
+          "height": 44
+        },
+        "Size=md, State=Pressed, Variant=danger": {
+          "file": "iconbutton/size-md__state-pressed__variant-danger.png",
+          "width": 44,
+          "height": 44
+        },
+        "Size=md, State=Disabled, Variant=danger": {
+          "file": "iconbutton/size-md__state-disabled__variant-danger.png",
+          "width": 44,
+          "height": 44
+        },
+        "Size=lg, State=Default, Variant=danger": {
+          "file": "iconbutton/size-lg__state-default__variant-danger.png",
+          "width": 48,
+          "height": 48
+        },
+        "Size=lg, State=Hover, Variant=danger": {
+          "file": "iconbutton/size-lg__state-hover__variant-danger.png",
+          "width": 48,
+          "height": 48
+        },
+        "Size=lg, State=Pressed, Variant=danger": {
+          "file": "iconbutton/size-lg__state-pressed__variant-danger.png",
+          "width": 48,
+          "height": 48
+        },
+        "Size=lg, State=Disabled, Variant=danger": {
+          "file": "iconbutton/size-lg__state-disabled__variant-danger.png",
+          "width": 48,
+          "height": 48
+        },
+        "Size=sm, State=Default, Variant=inverse": {
+          "file": "iconbutton/size-sm__state-default__variant-inverse.png",
+          "width": 32,
+          "height": 32
+        },
+        "Size=sm, State=Hover, Variant=inverse": {
+          "file": "iconbutton/size-sm__state-hover__variant-inverse.png",
+          "width": 32,
+          "height": 32
+        },
+        "Size=sm, State=Pressed, Variant=inverse": {
+          "file": "iconbutton/size-sm__state-pressed__variant-inverse.png",
+          "width": 32,
+          "height": 32
+        },
+        "Size=sm, State=Disabled, Variant=inverse": {
+          "file": "iconbutton/size-sm__state-disabled__variant-inverse.png",
+          "width": 32,
+          "height": 32
+        },
+        "Size=md, State=Default, Variant=inverse": {
+          "file": "iconbutton/size-md__state-default__variant-inverse.png",
+          "width": 44,
+          "height": 44
+        },
+        "Size=md, State=Hover, Variant=inverse": {
+          "file": "iconbutton/size-md__state-hover__variant-inverse.png",
+          "width": 44,
+          "height": 44
+        },
+        "Size=md, State=Pressed, Variant=inverse": {
+          "file": "iconbutton/size-md__state-pressed__variant-inverse.png",
+          "width": 44,
+          "height": 44
+        },
+        "Size=md, State=Disabled, Variant=inverse": {
+          "file": "iconbutton/size-md__state-disabled__variant-inverse.png",
+          "width": 44,
+          "height": 44
+        },
+        "Size=lg, State=Default, Variant=inverse": {
+          "file": "iconbutton/size-lg__state-default__variant-inverse.png",
+          "width": 48,
+          "height": 48
+        },
+        "Size=lg, State=Hover, Variant=inverse": {
+          "file": "iconbutton/size-lg__state-hover__variant-inverse.png",
+          "width": 48,
+          "height": 48
+        },
+        "Size=lg, State=Pressed, Variant=inverse": {
+          "file": "iconbutton/size-lg__state-pressed__variant-inverse.png",
+          "width": 48,
+          "height": 48
+        },
+        "Size=lg, State=Disabled, Variant=inverse": {
+          "file": "iconbutton/size-lg__state-disabled__variant-inverse.png",
+          "width": 48,
+          "height": 48
+        }
+      }
+    },
+    "Badge": {
+      "specHash": "ba2734bf",
+      "variants": {
+        "Appearance=subtle, Size=sm, Tone=neutral": {
+          "file": "badge/appearance-subtle__size-sm__tone-neutral.png",
+          "width": 50,
+          "height": 20
+        },
+        "Appearance=subtle, Size=md, Tone=neutral": {
+          "file": "badge/appearance-subtle__size-md__tone-neutral.png",
+          "width": 64,
+          "height": 26
+        },
+        "Appearance=solid, Size=sm, Tone=neutral": {
+          "file": "badge/appearance-solid__size-sm__tone-neutral.png",
+          "width": 50,
+          "height": 20
+        },
+        "Appearance=solid, Size=md, Tone=neutral": {
+          "file": "badge/appearance-solid__size-md__tone-neutral.png",
+          "width": 64,
+          "height": 26
+        },
+        "Appearance=subtle, Size=sm, Tone=success": {
+          "file": "badge/appearance-subtle__size-sm__tone-success.png",
+          "width": 50,
+          "height": 20
+        },
+        "Appearance=subtle, Size=md, Tone=success": {
+          "file": "badge/appearance-subtle__size-md__tone-success.png",
+          "width": 64,
+          "height": 26
+        },
+        "Appearance=solid, Size=sm, Tone=success": {
+          "file": "badge/appearance-solid__size-sm__tone-success.png",
+          "width": 50,
+          "height": 20
+        },
+        "Appearance=solid, Size=md, Tone=success": {
+          "file": "badge/appearance-solid__size-md__tone-success.png",
+          "width": 64,
+          "height": 26
+        },
+        "Appearance=subtle, Size=sm, Tone=warning": {
+          "file": "badge/appearance-subtle__size-sm__tone-warning.png",
+          "width": 50,
+          "height": 20
+        },
+        "Appearance=subtle, Size=md, Tone=warning": {
+          "file": "badge/appearance-subtle__size-md__tone-warning.png",
+          "width": 64,
+          "height": 26
+        },
+        "Appearance=solid, Size=sm, Tone=warning": {
+          "file": "badge/appearance-solid__size-sm__tone-warning.png",
+          "width": 50,
+          "height": 20
+        },
+        "Appearance=solid, Size=md, Tone=warning": {
+          "file": "badge/appearance-solid__size-md__tone-warning.png",
+          "width": 64,
+          "height": 26
+        },
+        "Appearance=subtle, Size=sm, Tone=danger": {
+          "file": "badge/appearance-subtle__size-sm__tone-danger.png",
+          "width": 50,
+          "height": 20
+        },
+        "Appearance=subtle, Size=md, Tone=danger": {
+          "file": "badge/appearance-subtle__size-md__tone-danger.png",
+          "width": 64,
+          "height": 26
+        },
+        "Appearance=solid, Size=sm, Tone=danger": {
+          "file": "badge/appearance-solid__size-sm__tone-danger.png",
+          "width": 50,
+          "height": 20
+        },
+        "Appearance=solid, Size=md, Tone=danger": {
+          "file": "badge/appearance-solid__size-md__tone-danger.png",
+          "width": 64,
+          "height": 26
+        },
+        "Appearance=subtle, Size=sm, Tone=info": {
+          "file": "badge/appearance-subtle__size-sm__tone-info.png",
+          "width": 50,
+          "height": 20
+        },
+        "Appearance=subtle, Size=md, Tone=info": {
+          "file": "badge/appearance-subtle__size-md__tone-info.png",
+          "width": 64,
+          "height": 26
+        },
+        "Appearance=solid, Size=sm, Tone=info": {
+          "file": "badge/appearance-solid__size-sm__tone-info.png",
+          "width": 50,
+          "height": 20
+        },
+        "Appearance=solid, Size=md, Tone=info": {
+          "file": "badge/appearance-solid__size-md__tone-info.png",
+          "width": 64,
+          "height": 26
+        }
+      }
+    },
+    "Tag": {
+      "specHash": "fb00e3b3",
+      "variants": {
+        "Size=sm, State=Default, Tone=neutral": {
+          "file": "tag/size-sm__state-default__tone-neutral.png",
+          "width": 39,
+          "height": 20
+        },
+        "Size=sm, State=Disabled, Tone=neutral": {
+          "file": "tag/size-sm__state-disabled__tone-neutral.png",
+          "width": 39,
+          "height": 20
+        },
+        "Size=md, State=Default, Tone=neutral": {
+          "file": "tag/size-md__state-default__tone-neutral.png",
+          "width": 39,
+          "height": 24
+        },
+        "Size=md, State=Disabled, Tone=neutral": {
+          "file": "tag/size-md__state-disabled__tone-neutral.png",
+          "width": 39,
+          "height": 24
+        },
+        "Size=sm, State=Default, Tone=signal": {
+          "file": "tag/size-sm__state-default__tone-signal.png",
+          "width": 39,
+          "height": 20
+        },
+        "Size=sm, State=Disabled, Tone=signal": {
+          "file": "tag/size-sm__state-disabled__tone-signal.png",
+          "width": 39,
+          "height": 20
+        },
+        "Size=md, State=Default, Tone=signal": {
+          "file": "tag/size-md__state-default__tone-signal.png",
+          "width": 39,
+          "height": 24
+        },
+        "Size=md, State=Disabled, Tone=signal": {
+          "file": "tag/size-md__state-disabled__tone-signal.png",
+          "width": 39,
+          "height": 24
+        }
+      }
+    },
+    "Input": {
+      "specHash": "258d9d34",
+      "variants": {
+        "Size=sm, State=Default": {
+          "file": "input/size-sm__state-default.png",
+          "width": 320,
+          "height": 32
+        },
+        "Size=sm, State=Hover": {
+          "file": "input/size-sm__state-hover.png",
+          "width": 320,
+          "height": 32
+        },
+        "Size=sm, State=Disabled": {
+          "file": "input/size-sm__state-disabled.png",
+          "width": 320,
+          "height": 32
+        },
+        "Size=md, State=Default": {
+          "file": "input/size-md__state-default.png",
+          "width": 320,
+          "height": 44
+        },
+        "Size=md, State=Hover": {
+          "file": "input/size-md__state-hover.png",
+          "width": 320,
+          "height": 44
+        },
+        "Size=md, State=Disabled": {
+          "file": "input/size-md__state-disabled.png",
+          "width": 320,
+          "height": 44
+        },
+        "Size=lg, State=Default": {
+          "file": "input/size-lg__state-default.png",
+          "width": 320,
+          "height": 48
+        },
+        "Size=lg, State=Hover": {
+          "file": "input/size-lg__state-hover.png",
+          "width": 320,
+          "height": 48
+        },
+        "Size=lg, State=Disabled": {
+          "file": "input/size-lg__state-disabled.png",
+          "width": 320,
+          "height": 48
+        }
+      }
+    },
+    "Card": {
+      "specHash": "ea25bf4d",
+      "variants": {
+        "Padding=none": {
+          "skipped": "Figma shows a placeholder (Slot/Media) that code has no example of"
+        },
+        "Padding=compact": {
+          "file": "card/padding-compact.png",
+          "width": 320,
+          "height": 129
+        },
+        "Padding=default": {
+          "file": "card/padding-default.png",
+          "width": 320,
+          "height": 145
+        }
+      }
+    }
+  }
+}
