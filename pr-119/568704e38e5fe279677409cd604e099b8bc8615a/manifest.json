@@ -1,15 +1,15 @@
 {
   "version": 1,
   "tool": "@bridge-ds/visual",
-  "createdAt": "2026-10-19T09:21:23.163Z",
-  "durationMs": 318832,
+  "createdAt": "2026-10-19T09:35:43.740Z",
+  "durationMs": 285893,
   "base": {
-    "ref": "357b97323a904dea8d0eed837a6dc5900497ef0c",
-    "sha": "357b97323a904dea8d0eed837a6dc5900497ef0c"
+    "ref": "f8037b6069d5c0349f18918e05d910a807536e54",
+    "sha": "f8037b6069d5c0349f18918e05d910a807536e54"
   },
   "head": {
-    "ref": "58a8c4f2ae91ea954326ecff50c30e6c6858021e",
-    "sha": "58a8c4f2ae91ea954326ecff50c30e6c6858021e"
+    "ref": "568704e38e5fe279677409cd604e099b8bc8615a",
+    "sha": "568704e38e5fe279677409cd604e099b8bc8615a"
   },
   "options": {
     "only": [
@@ -277,8 +277,8 @@
   },
   "summary": {
     "shots": 288,
-    "changed": 2,
-    "unchanged": 206,
+    "changed": 0,
+    "unchanged": 208,
     "added": 80,
     "removed": 0,
     "errors": 0,
@@ -914,17 +914,17 @@
       "theme": "light",
       "status": "unchanged",
       "changedPixels": 0,
-      "totalPixels": 815104,
+      "totalPixels": 962560,
       "percent": 0,
       "boxes": [],
       "size": {
         "before": {
           "width": 1024,
-          "height": 796
+          "height": 940
         },
         "after": {
           "width": 1024,
-          "height": 796
+          "height": 940
         }
       },
       "images": {}
@@ -1202,17 +1202,17 @@
       "theme": "light",
       "status": "unchanged",
       "changedPixels": 0,
-      "totalPixels": 815104,
+      "totalPixels": 817152,
       "percent": 0,
       "boxes": [],
       "size": {
         "before": {
           "width": 1024,
-          "height": 796
+          "height": 798
         },
         "after": {
           "width": 1024,
-          "height": 796
+          "height": 798
         }
       },
       "images": {}
@@ -1322,17 +1322,17 @@
       "theme": "light",
       "status": "unchanged",
       "changedPixels": 0,
-      "totalPixels": 820224,
+      "totalPixels": 1047552,
       "percent": 0,
       "boxes": [],
       "size": {
         "before": {
           "width": 1024,
-          "height": 801
+          "height": 1023
         },
         "after": {
           "width": 1024,
-          "height": 801
+          "height": 1023
         }
       },
       "images": {}
@@ -2638,17 +2638,17 @@
       "theme": "dark",
       "status": "unchanged",
       "changedPixels": 0,
-      "totalPixels": 815104,
+      "totalPixels": 962560,
       "percent": 0,
       "boxes": [],
       "size": {
         "before": {
           "width": 1024,
-          "height": 796
+          "height": 940
         },
         "after": {
           "width": 1024,
-          "height": 796
+          "height": 940
         }
       },
       "images": {}
@@ -2926,17 +2926,17 @@
       "theme": "dark",
       "status": "unchanged",
       "changedPixels": 0,
-      "totalPixels": 815104,
+      "totalPixels": 817152,
       "percent": 0,
       "boxes": [],
       "size": {
         "before": {
           "width": 1024,
-          "height": 796
+          "height": 798
         },
         "after": {
           "width": 1024,
-          "height": 796
+          "height": 798
         }
       },
       "images": {}
@@ -3046,17 +3046,17 @@
       "theme": "dark",
       "status": "unchanged",
       "changedPixels": 0,
-      "totalPixels": 820224,
+      "totalPixels": 1047552,
       "percent": 0,
       "boxes": [],
       "size": {
         "before": {
           "width": 1024,
-          "height": 801
+          "height": 1023
         },
         "after": {
           "width": 1024,
-          "height": 801
+          "height": 1023
         }
       },
       "images": {}
@@ -4362,17 +4362,17 @@
       "theme": "light",
       "status": "unchanged",
       "changedPixels": 0,
-      "totalPixels": 815104,
+      "totalPixels": 962560,
       "percent": 0,
       "boxes": [],
       "size": {
         "before": {
           "width": 1024,
-          "height": 796
+          "height": 940
         },
         "after": {
           "width": 1024,
-          "height": 796
+          "height": 940
         }
       },
       "images": {}
@@ -4650,17 +4650,17 @@
       "theme": "light",
       "status": "unchanged",
       "changedPixels": 0,
-      "totalPixels": 815104,
+      "totalPixels": 817152,
       "percent": 0,
       "boxes": [],
       "size": {
         "before": {
           "width": 1024,
-          "height": 796
+          "height": 798
         },
         "after": {
           "width": 1024,
-          "height": 796
+          "height": 798
         }
       },
       "images": {}
@@ -4770,17 +4770,17 @@
       "theme": "light",
       "status": "unchanged",
       "changedPixels": 0,
-      "totalPixels": 820224,
+      "totalPixels": 1047552,
       "percent": 0,
       "boxes": [],
       "size": {
         "before": {
           "width": 1024,
-          "height": 801
+          "height": 1023
         },
         "after": {
           "width": 1024,
-          "height": 801
+          "height": 1023
         }
       },
       "images": {}
@@ -6086,17 +6086,17 @@
       "theme": "dark",
       "status": "unchanged",
       "changedPixels": 0,
-      "totalPixels": 815104,
+      "totalPixels": 962560,
       "percent": 0,
       "boxes": [],
       "size": {
         "before": {
           "width": 1024,
-          "height": 796
+          "height": 940
         },
         "after": {
           "width": 1024,
-          "height": 796
+          "height": 940
         }
       },
       "images": {}
@@ -6180,24 +6180,11 @@
       "storyId": "forms-checkbox--all-states",
       "brand": "ocean",
       "theme": "dark",
-      "status": "changed",
-      "changedPixels": 1828,
+      "status": "unchanged",
+      "changedPixels": 0,
       "totalPixels": 815104,
-      "percent": 0.22,
-      "boxes": [
-        {
-          "x": 160,
-          "y": 720,
-          "width": 336,
-          "height": 76
-        },
-        {
-          "x": 32,
-          "y": 752,
-          "width": 80,
-          "height": 32
-        }
-      ],
+      "percent": 0,
+      "boxes": [],
       "size": {
         "before": {
           "width": 1024,
@@ -6208,12 +6195,7 @@
           "height": 796
         }
       },
-      "images": {
-        "before": "before/story__forms-checkbox--all-states__ocean-dark.png",
-        "after": "after/story__forms-checkbox--all-states__ocean-dark.png",
-        "diff": "diff/story__forms-checkbox--all-states__ocean-dark.png",
-        "composite": "composite/story__forms-checkbox--all-states__ocean-dark.png"
-      }
+      "images": {}
     },
     {
       "key": "story__forms-checkboxgroup--all-states__ocean-dark",
@@ -6392,17 +6374,17 @@
       "theme": "dark",
       "status": "unchanged",
       "changedPixels": 0,
-      "totalPixels": 815104,
+      "totalPixels": 817152,
       "percent": 0,
       "boxes": [],
       "size": {
         "before": {
           "width": 1024,
-          "height": 796
+          "height": 798
         },
         "after": {
           "width": 1024,
-          "height": 796
+          "height": 798
         }
       },
       "images": {}
@@ -6512,17 +6494,17 @@
       "theme": "dark",
       "status": "unchanged",
       "changedPixels": 0,
-      "totalPixels": 820224,
+      "totalPixels": 1047552,
       "percent": 0,
       "boxes": [],
       "size": {
         "before": {
           "width": 1024,
-          "height": 801
+          "height": 1023
         },
         "after": {
           "width": 1024,
-          "height": 801
+          "height": 1023
         }
       },
       "images": {}
@@ -6534,18 +6516,11 @@
       "storyId": "feedback-emptystate--all-states",
       "brand": "ocean",
       "theme": "dark",
-      "status": "changed",
-      "changedPixels": 28124,
+      "status": "unchanged",
+      "changedPixels": 0,
       "totalPixels": 1065984,
-      "percent": 2.64,
-      "boxes": [
-        {
-          "x": 32,
-          "y": 672,
-          "width": 960,
-          "height": 369
-        }
-      ],
+      "percent": 0,
+      "boxes": [],
       "size": {
         "before": {
           "width": 1024,
@@ -6556,12 +6531,7 @@
           "height": 1041
         }
       },
-      "images": {
-        "before": "before/story__feedback-emptystate--all-states__ocean-dark.png",
-        "after": "after/story__feedback-emptystate--all-states__ocean-dark.png",
-        "diff": "diff/story__feedback-emptystate--all-states__ocean-dark.png",
-        "composite": "composite/story__feedback-emptystate--all-states__ocean-dark.png"
-      }
+      "images": {}
     },
     {
       "key": "story__feedback-progress--all-states__ocean-dark",
