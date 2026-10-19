@@ -1,4 +1,4 @@
-import { forwardRef, type HTMLAttributes } from 'react';
+import { Fragment, forwardRef, type HTMLAttributes, type ReactNode } from 'react';
 import { cx } from '../../utils/cx';
 import { swatchColor } from '../../utils/color';
 import styles from './TokenValue.module.css';
@@ -23,6 +23,22 @@ export interface TokenValueProps extends Omit<HTMLAttributes<HTMLSpanElement>, '
   size?: TokenValueSize;
 }
 
+/** Token paths break only after a dot (`color.action.<wbr>primary.<wbr>bg`), never inside a segment. */
+export function breakAfterDots(text: string): ReactNode {
+  const parts = text.split('.');
+  if (parts.length < 2) return text;
+  return parts.map((p, i) => (
+    <Fragment key={i}>
+      {p}
+      {i < parts.length - 1 && (
+        <>
+          .<wbr />
+        </>
+      )}
+    </Fragment>
+  ));
+}
+
 /**
  * A token name and its value in IBM Plex Mono, with a color swatch when the value is a color. For token tables,
  * before and after values, and conflict choices. Static: no interaction.
@@ -34,14 +50,14 @@ export const TokenValue = forwardRef<HTMLSpanElement, TokenValueProps>(function 
   const color = swatchColor(swatch, resolved, value);
   const body = (
     <>
-      <span className={styles.value}>{value}</span>
+      <span className={styles.value}>{breakAfterDots(value)}</span>
       {resolved != null && resolved !== value && <span className={styles.resolved}>{resolved}</span>}
     </>
   );
   return (
     <span ref={ref} className={cx(styles.root, styles[size], previous && styles.previous, className)} {...rest}>
       {color && <span className={styles.swatch} style={{ backgroundColor: color }} aria-hidden="true" />}
-      {name && <span className={styles.name}>{name}</span>}
+      {name && <span className={styles.name}>{breakAfterDots(name)}</span>}
       {previous ? <del className={styles.text}>{body}</del> : <span className={styles.text}>{body}</span>}
     </span>
   );

@@ -41,7 +41,7 @@
 
 .name {
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .name + .text {
@@ -59,12 +59,12 @@
 }
 
 .value {
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .resolved {
   color: var(--color-text-muted);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .previous {

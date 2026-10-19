@@ -1,7 +1,10 @@
 .root {
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: var(--space-1-5);
+  width: 100%;
+  max-width: 100%;
   min-width: 0;
   font-family: var(--font-family-sans);
 }
@@ -67,4 +70,15 @@
 
 .copy {
   flex: none;
+}
+
+/* Phones: a command is read whole and never scrolls behind the button; long lines wrap. */
+@media (max-width: 640px) {
+  .pre {
+    white-space: pre-wrap;
+  }
+
+  .code {
+    overflow-wrap: anywhere;
+  }
 }

@@ -20,16 +20,19 @@ export interface TokenValueHtmlOptions {
   attributes?: HtmlAttributes;
 }
 
+/** Token paths break only after a dot, the markup `breakAfterDots` renders. */
+const breakable = (text: string) => text.split('.').map(escapeHtml).join('.<wbr/>');
+
 /** The exact markup of `<TokenValue>` as an HTML string, for token tables built in plain scripts. Text is escaped. */
 export function tokenValueHtml(value: string, options: TokenValueHtmlOptions = {}): string {
   const { name, resolved, swatch, previous = false, size = 'md', className } = options;
   const color = swatchColor(swatch, resolved, value);
-  const body = `<span class="${styles.value}">${escapeHtml(value)}</span>${resolved != null && resolved !== value ? `<span class="${styles.resolved}">${escapeHtml(resolved)}</span>` : ''}`;
+  const body = `<span class="${styles.value}">${breakable(value)}</span>${resolved != null && resolved !== value ? `<span class="${styles.resolved}">${escapeHtml(resolved)}</span>` : ''}`;
   const tag = previous ? 'del' : 'span';
   return (
     `<span class="${classNames(styles.root, styles[size], previous && styles.previous, className)}"${attrs(options.attributes)}>` +
     (color ? `<span class="${styles.swatch}" style="background-color:${escapeHtml(color)}" aria-hidden="true"></span>` : '') +
-    (name ? `<span class="${styles.name}">${escapeHtml(name)}</span>` : '') +
+    (name ? `<span class="${styles.name}">${breakable(name)}</span>` : '') +
     `<${tag} class="${styles.text}">${body}</${tag}></span>`
   );
 }
