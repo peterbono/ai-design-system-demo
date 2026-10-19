@@ -27,7 +27,7 @@ const previews = loadComponents().flatMap((c) => (c.docs?.preview ? [{ name: c.n
 
   <div class="xe-bar" data-xe-bar role="region" aria-label="Draft" hidden>
     <span class="xe-bar-dot" aria-hidden="true"></span>
-    <span class="xe-bar-count" data-xe-bar-count aria-live="polite">1 change</span>
+    <span class="xe-bar-count" data-xe-bar-count aria-live="polite">1 edit</span>
     <Button variant="inverse" iconEnd={ArrowRight} data-xe-review>Review</Button>
   </div>
 
@@ -67,7 +67,7 @@ const previews = loadComponents().flatMap((c) => (c.docs?.preview ? [{ name: c.n
 
   <ScriptDialog id="ed-propose-dialog" title="Create branch" closeLabel="Close" popup={{ 'aria-describedby': 'ed-propose-who' }}>
     <div class="gh-dialog-body">
-      <p id="ed-propose-who" data-ed-field="propose-who">The design owner and a developer will approve it; nothing is merged before both.</p>
+      <p id="ed-propose-who" data-ed-field="propose-who">A design owner and a tech owner approve it before it is merged into main.</p>
       <div class="xe-propose-target" data-ed-field="propose-target" hidden></div>
       <div class="xe-propose-new" data-ed-field="propose-new">
         <Input label="Title" data-ed-field="propose-title" placeholder="Darker primary action fill" />

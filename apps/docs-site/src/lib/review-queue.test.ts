@@ -11,6 +11,7 @@ import {
   releasePull,
   reviewQueue,
 } from './review-queue';
+import { jargonIn } from './vocabulary';
 
 const pr = (n: number, extra: Record<string, unknown> = {}) => ({ number: n, state: 'open', draft: false, labels: [] as { name: string }[], head: { ref: `agent/x-${n}` }, user: { login: 'pat' }, ...extra });
 
@@ -80,24 +81,24 @@ describe('effective tier: the list and the detail use the same rule', () => {
 
 describe('queue sentence', () => {
   it('reads like the audit asks: design approvals first, then the developer side', () => {
-    expect(queueSentence(['needs-design', 'needs-design', 'needs-design', 'ci-failing'])).toBe('3 changes wait for design approval. 1 is blocked on the developer side.');
+    expect(queueSentence(['needs-design', 'needs-design', 'needs-design', 'ci-failing'])).toBe('3 branches wait for design approval. 1 is blocked on the developer side.');
   });
 
   it('counts a merge conflict on the developer side too', () => {
-    expect(queueSentence(['conflict', 'ci-failing'])).toBe('2 changes are blocked on the developer side.');
+    expect(queueSentence(['conflict', 'ci-failing'])).toBe('2 branches are blocked on the developer side.');
   });
 
   it('says one change in the singular', () => {
-    expect(queueSentence(['ready'])).toBe('1 change is ready to ship.');
+    expect(queueSentence(['ready'])).toBe('1 branch is ready to merge.');
   });
 
   it('counts unread statuses as still being checked', () => {
-    expect(queueSentence(['needs-approval', null, 'unknown'])).toBe('1 change waits for one approval. 2 are still being checked.');
+    expect(queueSentence(['needs-approval', null, 'unknown'])).toBe('1 branch waits for one approval. 2 are still being checked.');
   });
 
   it('folds anything past three groups into one sentence', () => {
     const s = queueSentence(['needs-design', 'needs-tech', 'ready', 'ci-failing', 'draft']);
-    expect(s).toBe('1 change waits for design approval. 1 waits for tech approval. 3 more are on the way.');
+    expect(s).toBe('1 branch waits for design approval. 1 waits for tech approval. 3 more are on the way.');
   });
 
   it('adds up to the queue length', () => {
@@ -107,13 +108,14 @@ describe('queue sentence', () => {
 
   it('never uses developer words', () => {
     const s = queueSentence(['needs-design', 'ci-failing', 'conflict', 'ready', 'changes-requested']);
-    expect(s).not.toMatch(/pull request|\bPR\b|merge|branch|\bCI\b|tier/i);
+    expect(jargonIn(s)).toEqual([]);
+    expect(s).not.toMatch(/\btier\b/i);
   });
 
   it('has a count line for empty and filled queues', () => {
     expect(queueCountLine(0)).toBe('Nothing waits for a review.');
-    expect(queueCountLine(1)).toBe('1 change in review.');
-    expect(queueCountLine(4)).toBe('4 changes in review.');
+    expect(queueCountLine(1)).toBe('1 branch in review.');
+    expect(queueCountLine(4)).toBe('4 branches in review.');
     expect(queueSentence([])).toBe('Nothing waits for a review.');
   });
 });

@@ -154,7 +154,7 @@ export function renderTopChange(slot: HTMLElement, v: VisualSummary, allHref: st
   }
   if (v.changed === null) {
     if (v.paintedTop) return;
-    slot.innerHTML = '<p class="cg-line rv-what-quiet">The before and after is being prepared. It runs on its own for every change to tokens or components.</p>';
+    slot.innerHTML = '<p class="cg-line rv-what-quiet">The before and after is being prepared. It runs on its own whenever tokens or components change.</p>';
     return;
   }
   if (v.changed === 0 || !v.top || !v.base) {

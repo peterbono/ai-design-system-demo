@@ -97,7 +97,7 @@ export function accountView(state: AccountState, at: AccountFacts): AccountView 
         title: at.login ? `Connected as @${at.login}` : 'Connected to GitHub',
         detail: noReach ? noReachText(login, at.repo) : readOnly ? readOnlyText(login, at.repo, true) : at.repo,
         // A token pasted before the site had Sign in with GitHub: no token paste any more, only the way out.
-        action: app ? 'Sign out' : at.signIn ? 'Disconnect' : 'Change token',
+        action: app ? 'Sign out' : at.signIn ? 'Disconnect' : 'Reconnect GitHub',
         actionKind: app || at.signIn ? 'signout' : 'token',
         badge: noReach
           ? { label: 'No access', tone: 'neutral' }

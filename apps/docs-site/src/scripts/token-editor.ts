@@ -206,7 +206,7 @@ function paintTray() {
   tray.hidden = !asPage && n === 0 && tray.dataset.sheet !== 'true';
   const empty = $('ed-drafts-empty');
   if (empty) empty.hidden = n > 0;
-  $('ed-tray-count')!.textContent = n ? `${n} draft change${n > 1 ? 's' : ''}` : 'No draft changes yet';
+  $('ed-tray-count')!.textContent = n ? `${n} draft edit${n > 1 ? 's' : ''}` : 'No draft edits yet';
   const status = $('ed-tray-status')!;
   status.textContent = !n ? 'Open a token to edit it.' : fails ? `${fails} guardrail${fails > 1 ? 's' : ''} block proposing` : 'Guardrails pass';
   status.className = `ed-tray-status ${!n ? '' : fails ? 'is-fail' : 'is-pass'}`;
@@ -761,7 +761,7 @@ export function initTokenEditor() {
     recompute();
   });
   $('ed-discard')?.addEventListener('click', () => {
-    if (!S || !S.draft.edits.length || !window.confirm('Discard every draft change?')) return;
+    if (!S || !S.draft.edits.length || !window.confirm('Discard every draft edit?')) return;
     S.draft = emptyDraft();
     saveDraft();
     recompute();
@@ -817,12 +817,15 @@ export function initTokenEditor() {
       return;
     }
     let jira: string | null;
+    const jiraField = field<HTMLInputElement>('propose-jira');
+    jiraField?.removeAttribute('aria-invalid');
     try {
-      jira = parseJiraKey(field<HTMLInputElement>('propose-jira')?.value);
+      jira = parseJiraKey(jiraField?.value);
     } catch (err) {
       out.textContent = (err as Error).message;
       setButtonDisabled(go, false);
-      field<HTMLInputElement>('propose-jira')?.focus();
+      jiraField?.setAttribute('aria-invalid', 'true');
+      jiraField?.focus();
       return;
     }
     out.textContent = 'Creating the branch';

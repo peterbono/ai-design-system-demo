@@ -165,12 +165,12 @@ describe('statusOpener', () => {
       { number: 43, title: 'A', kind: 'ci-failing' as const, lifecycle: 'waiting' as const, updated_at: '2026-10-16' },
       { number: 42, title: 'B', kind: 'needs-design' as const, lifecycle: 'ready' as const, updated_at: '2026-10-17' },
     ];
-    expect(statusOpener(rows)).toEqual({ sentence: '2 branches in review. #42 waits for a design approval. 1 waits for code.', action: { label: 'Review #42', pr: 42 } });
-    expect(statusOpener([rows[0]!])).toEqual({ sentence: '1 branch in review. It is approved and waits for code.', action: null });
+    expect(statusOpener(rows)).toEqual({ sentence: '1 branch in review and 1 waiting for code. #42 waits for a design approval.', action: { label: 'Review #42', pr: 42 } });
+    expect(statusOpener([rows[0]!])).toEqual({ sentence: '1 branch waiting for code.', action: null });
     expect(statusOpener([rows[1]!]).sentence).toBe('1 branch in review. #42 waits for a design approval.');
     // Drafts are counted apart: they are not in review.
     const draft = { number: 41, title: 'C', kind: 'draft' as const, lifecycle: 'draft' as const, updated_at: '2026-10-18' };
-    expect(statusOpener([...rows, draft]).sentence).toBe('2 branches in review and 1 draft. #42 waits for a design approval. 1 waits for code.');
+    expect(statusOpener([...rows, draft]).sentence).toBe('1 branch in review, 1 waiting for code and 1 draft. #42 waits for a design approval.');
     expect(statusOpener([draft])).toEqual({ sentence: '1 draft, nothing in review yet.', action: null });
   });
 
@@ -178,8 +178,8 @@ describe('statusOpener', () => {
     const blocked = { number: 50, title: 'D', kind: 'ci-failing' as const, lifecycle: 'ready' as const, updated_at: '2026-10-18', developer: true };
     const mine = { number: 42, title: 'B', kind: 'needs-design' as const, lifecycle: 'ready' as const, updated_at: '2026-10-17', yourTurn: true };
     const waitingCode = { number: 43, title: 'A', kind: 'ci-failing' as const, lifecycle: 'waiting' as const, updated_at: '2026-10-16' };
-    expect(statusOpener([blocked, mine, waitingCode])).toEqual({ sentence: '3 branches in review. Your turn on #42: it waits for a design approval. 1 waits for code.', action: { label: 'Review #42', pr: 42 } });
-    expect(statusOpener([blocked, waitingCode])).toEqual({ sentence: '2 branches in review. #50 waits on a developer to fix its tests. 1 waits for code.', action: null });
+    expect(statusOpener([blocked, mine, waitingCode])).toEqual({ sentence: '2 branches in review and 1 waiting for code. Your turn on #42: it waits for a design approval.', action: { label: 'Review #42', pr: 42 } });
+    expect(statusOpener([blocked, waitingCode])).toEqual({ sentence: '1 branch in review and 1 waiting for code. #50 waits on a developer to fix its tests.', action: null });
   });
 
   it('lists work someone can move first, then waiting for code, then drafts', () => {

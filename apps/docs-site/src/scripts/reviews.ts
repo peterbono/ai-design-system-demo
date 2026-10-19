@@ -775,7 +775,7 @@ function needsHtml(x: {
 }
 
 /** A draft asks nobody yet: its approval rows say so instead of "Waiting". */
-const DRAFT_ROWS: Partial<Record<ApprovalRow['role'], string>> = { design: 'Not asked until it is marked ready', tech: 'Not asked until it is marked ready', approval: 'Not asked until it is marked ready' };
+const DRAFT_ROWS: Partial<Record<ApprovalRow['role'], string>> = { design: 'Not asked until a review is requested', tech: 'Not asked until a review is requested', approval: 'Not asked until a review is requested' };
 
 /** The author's next step happens on GitHub: the button names it. */
 const AUTHOR_CTA: Partial<Record<WhoActs['action'], string>> = {

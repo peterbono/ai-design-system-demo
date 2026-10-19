@@ -107,9 +107,9 @@ export function prTitleFrom(title: string): string {
   return `tokens: ${t.charAt(0).toLowerCase()}${t.slice(1)}`;
 }
 
-const WHO: Record<OwnerGroup, string> = { design: 'the design owner', tech: 'a developer' };
+const WHO: Record<OwnerGroup, string> = { design: 'a design owner', tech: 'a tech owner' };
 
-/** "the design owner", "a developer", "the design owner or a developer". */
+/** "a design owner", "a tech owner", "a design owner or a tech owner". */
 function who(groups: readonly OwnerGroup[]): string {
   const list = groups.length ? groups : (['design'] as OwnerGroup[]);
   return list.map((g) => WHO[g]).join(' or ');
@@ -117,16 +117,16 @@ function who(groups: readonly OwnerGroup[]): string {
 
 /**
  * Who approves a change sent from Studio, from its risk tier and `governance.rights`. Tier 3 (every token value,
- * add, rename or delete): a design and a tech approval, "The design owner and a developer will approve it; nothing
- * ships before both." Tier 2 (new component, variant or prop) too. Tier 1 (a description only): one approval.
+ * add, rename or delete): a design and a tech approval, "A design owner and a tech owner approve it before it is
+ * merged into main." Tier 2 (new component, variant or prop) too. Tier 1 (a description only): one approval.
  */
 export function reviewSentence(tier: 1 | 2 | 3, rights?: Rights | null): string {
-  if (tier === 1) return 'One reviewer will approve it; nothing is merged before that.';
+  if (tier === 1) return 'One reviewer approves it before it is merged into main.';
   const designGroups = rights?.approveDesign ?? ['design'];
   const techGroups = rights?.approveTech ?? ['tech'];
   const design = who(designGroups);
   const tech = who(techGroups);
-  if (design === tech) return `${cap(design)} will approve the design and the code; nothing is merged before both approvals.`;
-  if (designGroups.length > 1 || techGroups.length > 1) return `${cap(design)} will approve the design and ${tech} the code; nothing is merged before both.`;
-  return `${cap(design)} and ${tech} will approve it; nothing is merged before both.`;
+  if (design === tech) return `${cap(design)} approves the design and the code before it is merged into main.`;
+  if (designGroups.length > 1 || techGroups.length > 1) return `${cap(design)} approves the design and ${tech} the code before it is merged into main.`;
+  return `${cap(design)} and ${tech} approve it before it is merged into main.`;
 }

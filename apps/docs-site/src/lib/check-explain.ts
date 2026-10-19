@@ -173,7 +173,7 @@ export function checkStory(input: {
       devLine = { state: 'fail', text: `${plural(n, tests ? 'developer test' : 'developer check')} ${n === 1 ? 'fails' : 'fail'} on this ${VOCAB.branch}. A developer needs to look at ${n === 1 ? 'it' : 'them'}.` };
     else devLine = { state: 'fail', text: `${plural(n, tests ? 'developer test' : 'developer check')} ${n === 1 ? 'fails' : 'fail'}. A developer fixes ${n === 1 ? 'it' : 'them'}.` };
   } else if (input.pending) devLine = { state: 'pending', text: `${plural(input.pending, 'check')} still running.` };
-  else if (input.passed) devLine = { state: 'pass', text: 'Developer tests pass.' };
+  else if (input.passed) devLine = { state: 'pass', text: 'All pass.' };
 
   return { design: designLine, developer: devLine, designFails: designLine?.state === 'fail', developerFailing: n, oldValue };
 }

@@ -88,7 +88,7 @@ describe('checkStory', () => {
     const s = checkStory({ failed: [classifyCheck({ name: 'Guardrails', step: 'Build tokens (DTCG to CSS variables + TS, contrast gate)' })], pending: 0, passed: 10, design, tokenOnly: true });
     expect(s.design).toEqual({ state: 'fail', text: 'color.text.muted on color.bg.default drops to 3.50:1 in Bridge light, below 4.50:1. 1 more pair fails too. Change color.text.muted so they pass.' });
     expect(s.designFails).toBe(true);
-    expect(s.developer).toEqual({ state: 'pass', text: 'Developer tests pass.' });
+    expect(s.developer).toEqual({ state: 'pass', text: 'All pass.' });
   });
 
   it('says a token problem is the designer’s, and a missing release note a developer’s', () => {
@@ -99,7 +99,7 @@ describe('checkStory', () => {
 
   it('reports running and passing checks', () => {
     expect(checkStory({ failed: [], pending: 2, passed: 5, design: null, tokenOnly: false })).toMatchObject({ design: null, developer: { state: 'pending', text: '2 checks still running.' } });
-    expect(checkStory({ failed: [], pending: 0, passed: 5, design: null, tokenOnly: false }).developer).toEqual({ state: 'pass', text: 'Developer tests pass.' });
+    expect(checkStory({ failed: [], pending: 0, passed: 5, design: null, tokenOnly: false }).developer).toEqual({ state: 'pass', text: 'All pass.' });
   });
 });
 

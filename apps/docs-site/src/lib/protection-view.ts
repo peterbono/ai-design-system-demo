@@ -25,7 +25,7 @@ export function protectionRow(state: ProtectionRowState, rulesUrl: string, signI
     case 'no-token':
       return { text: `${ghAction('see whether every change goes through review', signIn)}.` };
     case 'unknown':
-      return { text: 'GitHub did not let this token read the protection. A repository admin can see it in GitHub settings.' };
+      return { text: 'Studio cannot see who may merge into main with your GitHub access. A GitHub admin of the library can see it.' };
     case 'protected':
       return { text: protectionSentence(state), link: { label: VOCAB.openOnGitHub, href: state.url ?? rulesUrl } };
     case 'unprotected':

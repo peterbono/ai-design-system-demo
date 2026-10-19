@@ -255,9 +255,9 @@ export function byLifecycle<R extends { lifecycle: Lifecycle }>(rows: R[]): R[] 
 }
 
 /**
- * The In review opener with the lifecycle. It counts the changes in review and the drafts apart, names the most urgent
- * change someone in Studio can move (never one that waits for code: nobody in Studio acts on it), then how many wait
- * for code. Same urgency order and words as before (lib/changes openerFor).
+ * The opener of All branches with the lifecycle. It counts the branches in review, waiting for code and in draft apart,
+ * then names the most urgent branch someone in Studio can move (never one that waits for code: nobody in Studio acts
+ * on it). Same urgency order and words as before (lib/changes openerFor).
  */
 export function statusOpener(rows: (OpenerRow & { lifecycle: Lifecycle })[]): Opener {
   const drafts = rows.filter((r) => r.lifecycle === 'draft').length;
@@ -265,14 +265,18 @@ export function statusOpener(rows: (OpenerRow & { lifecycle: Lifecycle })[]): Op
   const active = review.filter((r) => r.lifecycle !== 'waiting');
   const waiting = review.length - active.length;
   if (!drafts && !waiting) return openerFor(rows);
-  const head = review.length
-    ? `${branchCount(review.length)} in review${drafts ? ` and ${plural(drafts, 'draft')}` : ''}.`
-    : `${plural(drafts, 'draft')}, nothing in review yet.`;
-  const tail = waiting ? ` ${waiting === review.length ? (waiting === 1 ? 'It is approved and waits' : 'All are approved and wait') : `${waiting} ${waiting === 1 ? 'waits' : 'wait'}`} for code.` : '';
-  if (!active.length) return { sentence: `${head}${tail}`, action: null };
+  if (!review.length) return { sentence: `${plural(drafts, 'draft')}, nothing in review yet.`, action: null };
+  // Each status counted apart, in the words of its badge: "1 branch in review, 2 waiting for code and 1 draft."
+  const parts = [
+    active.length ? `${branchCount(active.length)} in review` : '',
+    waiting ? `${active.length ? waiting : branchCount(waiting)} waiting for code` : '',
+    drafts ? plural(drafts, 'draft') : '',
+  ].filter(Boolean);
+  const head = `${parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : parts[0]}.`;
+  if (!active.length) return { sentence: head, action: null };
   const first = openerFor(active);
   const why = first.sentence.replace(/^\d+ branch(es)? in review\. /, '');
-  return { sentence: `${head} ${why}${tail}`, action: first.action };
+  return { sentence: `${head} ${why}`, action: first.action };
 }
 
 /** The filters that read finished changes (one more GitHub read, only when picked). */

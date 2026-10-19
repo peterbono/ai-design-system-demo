@@ -51,7 +51,7 @@ describe('account', () => {
       zone: false,
       title: 'Connected as @ana',
       detail: 'acme/ds',
-      action: 'Change token',
+      action: 'Reconnect GitHub',
       actionKind: 'token',
       badge: { label: 'Can edit', tone: 'success' },
     });
@@ -78,7 +78,7 @@ describe('account', () => {
     expect(accountView('rejected', { write: null, repo, signIn: true }).detail).not.toMatch(/token instead|paste/i);
     // A token pasted before the site had a GitHub App: it can only be disconnected, not changed.
     expect(accountView('connected', { login: 'ana', write: true, repo, signIn: true })).toMatchObject({ action: 'Disconnect', actionKind: 'signout' });
-    expect(accountView('connected', { login: 'ana', write: true, repo })).toMatchObject({ action: 'Change token', actionKind: 'token' });
+    expect(accountView('connected', { login: 'ana', write: true, repo })).toMatchObject({ action: 'Reconnect GitHub', actionKind: 'token' });
   });
 
   it('signs out a signed-in account, and says so when its sign-in expired', () => {
