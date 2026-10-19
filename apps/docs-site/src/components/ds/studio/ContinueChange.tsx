@@ -43,7 +43,6 @@ export function ScopeBanner({ title, body, backHref, viewHref }: ScopeBannerProp
       appearance="neutral"
       icon={PenLine}
       title={title}
-      actionsPlacement="inline"
       actions={
         <>
           {viewHref && (
