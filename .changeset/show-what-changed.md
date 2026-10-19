@@ -1,5 +1,0 @@
----
-"@bridge-ds/admin": minor
----
-
-Show what changed. The Bridge toolbar in the admin demo outlines every surface of the current screen whose computed style differs between the live product and a token change: the live tokens are switched on and off inside one task (no visible flash, transitions held), and only real differences are kept. A surface is the outermost changed element (a sticky or fixed one counts on its own, a chart counts once); it gets a dashed Deep Harbor frame, and a role chip ("Page", "Save bar (Save changes)", "Link (Open customer)", "Shop logo", "Chart") on hover, from its list row, or briefly when outlines turn on. Tooltips lead with the role the change edits ("Brand primary") and its before and after. The toggle counts the visible surfaces ("Show what changed · 3"), the Changes sheet lists them first as focusable rows (screen reader equivalent), and the toolbar keeps clear of them. Press C to toggle. The toolbar and the outlines keep Bridge's own colours, pinned from the live tokens, whatever the change does. Code changes do not get it: their live side is another origin whose styles cannot be read.

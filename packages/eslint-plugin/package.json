@@ -1,6 +1,6 @@
 {
   "name": "@bridge-ds/eslint-plugin",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "description": "ESLint rules for product code that uses a Bridge design system: bridge/no-hardcoded-style-values (raw values in style, sx, styled and theme objects, with the token to use) and bridge/prefer-ds-components (native elements and foreign UI libraries). Reads the tokens through @bridge-ds/core and bridge.config.json.",
   "license": "MIT",
