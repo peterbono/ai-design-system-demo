@@ -102,11 +102,8 @@ describe('changeLifecycle and rowLifecycle', () => {
     expect(pullState({ state: 'closed', merged_at: null })).toBe('closed');
   });
 
-  it('takes the tone of the review status while ready, grey otherwise', () => {
-    expect(lifecycleTone('ready', 'ci-failing')).toBe('danger');
-    expect(lifecycleTone('ready', 'needs-design')).toBe('info');
-    expect(lifecycleTone('ready', 'ready')).toBe('success');
-    expect(lifecycleTone('ready', null)).toBe('neutral');
+  it('tones the lifecycle state alone: Ready for review is never red because a check fails', () => {
+    expect(lifecycleTone('ready')).toBe('info');
     expect(lifecycleTone('waiting')).toBe('neutral');
     expect(lifecycleTone('shipped')).toBe('neutral');
     expect(lifecycleTone('draft')).toBe('neutral');
@@ -177,6 +174,14 @@ describe('statusOpener', () => {
     expect(statusOpener([draft])).toEqual({ sentence: '1 draft, nothing in review yet.', action: null });
   });
 
+  it("points at the viewer's turn first, never at a change only a developer can move", () => {
+    const blocked = { number: 50, title: 'D', kind: 'ci-failing' as const, lifecycle: 'ready' as const, updated_at: '2026-10-18', developer: true };
+    const mine = { number: 42, title: 'B', kind: 'needs-design' as const, lifecycle: 'ready' as const, updated_at: '2026-10-17', yourTurn: true };
+    const waitingCode = { number: 43, title: 'A', kind: 'ci-failing' as const, lifecycle: 'waiting' as const, updated_at: '2026-10-16' };
+    expect(statusOpener([blocked, mine, waitingCode])).toEqual({ sentence: '3 changes in review. Your turn on #42: it waits for a design approval. 1 waits for code.', action: { label: 'Review #42', pr: 42 } });
+    expect(statusOpener([blocked, waitingCode])).toEqual({ sentence: '2 changes in review. #50 waits on a developer to fix its tests. 1 waits for code.', action: null });
+  });
+
   it('lists work someone can move first, then waiting for code, then drafts', () => {
     const l = (lifecycle: 'ready' | 'waiting' | 'draft', n: number) => ({ n, lifecycle });
     expect(byLifecycle([l('waiting', 1), l('draft', 2), l('ready', 3), l('ready', 4)]).map((r) => r.n)).toEqual([3, 4, 1, 2]);
@@ -184,11 +189,10 @@ describe('statusOpener', () => {
 });
 
 describe('todoBadge', () => {
-  it('says the lifecycle in the status line words, toned by what the row asks', () => {
-    expect(todoBadge('ready', 'ship')).toEqual({ label: 'Ready for review', tone: 'success' });
-    expect(todoBadge('ready', 'design')).toEqual({ label: 'Ready for review', tone: 'info' });
-    expect(todoBadge('draft', 'finish')).toEqual({ label: 'Draft', tone: 'neutral' });
-    expect(todoBadge('waiting', 'blocked')).toEqual({ label: 'Approved, waiting for code', tone: 'neutral' });
+  it('says the lifecycle in the status line words and tone, whatever the row asks', () => {
+    expect(todoBadge('ready')).toEqual({ label: 'Ready for review', tone: 'info' });
+    expect(todoBadge('draft')).toEqual({ label: 'Draft', tone: 'neutral' });
+    expect(todoBadge('waiting')).toEqual({ label: 'Approved, waiting for code', tone: 'neutral' });
   });
 });
 

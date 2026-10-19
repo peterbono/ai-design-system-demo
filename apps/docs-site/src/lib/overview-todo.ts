@@ -168,9 +168,9 @@ type Group = 'mine' | 'developer' | 'others' | 'devWork';
 function changeRow(c: TodoChange, input: TodoInput): { group: Group; row: TodoRow } {
   const { viewer } = input;
   const base = { key: `change-${c.number}`, kind: 'change' as const, title: c.title, href: changeHref(c.number) };
-  // The lifecycle badge of the row, toned by the task (lib/change-status todoBadge). Only when the state is known.
-  const state = (task: TodoTask) => (c.lifecycle ? { state: { lifecycle: c.lifecycle, ...todoBadge(c.lifecycle, task) } } : {});
-  const open = (group: Group, task: TodoTask, why: string) => ({ group, row: { ...base, task, why, action: 'Open change', ...state(task) } });
+  // The lifecycle badge of the row, in the same words and tone as the status line (lib/change-status todoBadge). Only when the state is known.
+  const state = c.lifecycle ? { state: { lifecycle: c.lifecycle, ...todoBadge(c.lifecycle) } } : {};
+  const open = (group: Group, task: TodoTask, why: string) => ({ group, row: { ...base, task, why, action: 'Open change', ...state } });
   // Code only: no design decision waits on anyone in the Studio.
   if (c.nature === 'developer') return open('devWork', 'waiting', 'Developer work.');
   const who = c.who;
@@ -179,7 +179,7 @@ function changeRow(c: TodoChange, input: TodoInput): { group: Group; row: TodoRo
   if (c.lifecycle === 'waiting') return open('developer', 'blocked', 'Design is approved. A developer finishes the code before it ships.');
   // The viewer's own draft (not one an agent made with their account): marking it ready is theirs to do.
   if (who.action === 'mark-ready' && who.yourTurn && viewer && !c.agent)
-    return { group: 'mine', row: { ...base, task: 'finish', why: 'Reviewers are not asked until you mark it ready.', action: 'Open draft', ...state('finish') } };
+    return { group: 'mine', row: { ...base, task: 'finish', why: 'Reviewers are not asked until you mark it ready.', action: 'Open draft', ...state } };
 
   // Technical blockers: named, delegated to the author, or to "a developer" when the author is the viewer.
   const block = blockerOf(c, who, viewer);
@@ -198,7 +198,7 @@ function changeRow(c: TodoChange, input: TodoInput): { group: Group; row: TodoRo
   // Signed out nobody is "you": the decision shows with who makes it, the button only opens the change.
   if (!viewer) return open('mine', task, who.sentence);
   if (!yours) return open('others', 'waiting', who.sentence);
-  return { group: 'mine', row: { ...base, task, ...yourTask(c, who, task), ...state(task) } };
+  return { group: 'mine', row: { ...base, task, ...yourTask(c, who, task), ...state } };
 }
 
 /** The exact task of a change that waits for the viewer, and what happens once it is done. */

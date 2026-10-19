@@ -15,7 +15,7 @@
 import type { Draft, DraftEdit } from './editor-model';
 import { classifyCheck, type CheckKind } from './check-explain';
 import { pullState, type PullState, type ReviewStatusKind, type Tier } from './review-rules';
-import { GROUP_TONE, openerFor, statusGroup, type Opener, type OpenerRow, type StatusTone } from './changes';
+import { GROUP_TONE, openerFor, type Opener, type OpenerRow, type StatusTone } from './changes';
 import type { WorkNature } from './work-nature';
 import type { TokenSet } from '@bridge-ds/core';
 
@@ -33,12 +33,13 @@ export const LIFECYCLE: Record<Lifecycle, { label: string; short: string }> = {
 };
 
 /**
- * The tone of the status badge. Ready for review takes the tone of what the review flow says (blocked, waiting for
- * an approval, ready to ship). Waiting for code is grey: nobody in Studio acts on it (a quiet wait, never a call to act).
+ * The tone of the status badge: the lifecycle state alone, so the same words always wear the same colour. Ready for
+ * review is the waiting tone (in review, waiting for its reviewers), whatever its checks say: a failing check is its
+ * own signal (the checklist and the "Blocked by tests" chip), never a red "Ready for review". The other states are
+ * grey: waiting for code is a quiet wait nobody in Studio acts on, the rest are done or not asked yet.
  */
-export function lifecycleTone(l: Lifecycle, review?: ReviewStatusKind | null): LifecycleTone {
-  if (l === 'ready') return GROUP_TONE[statusGroup(review)];
-  return 'neutral';
+export function lifecycleTone(l: Lifecycle): LifecycleTone {
+  return l === 'ready' ? GROUP_TONE.waiting : 'neutral';
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -204,12 +205,11 @@ export function lifecycleSentence(x: { lifecycle: Lifecycle; isAuthor: boolean; 
 // Overview "For you": the same badge on each change row
 
 /**
- * The badge of a For you change row: its lifecycle in the same words as the status line, and the tone of what the row
- * asks (ship: ready, green; an approval: waiting, violet; finishing a draft: grey).
+ * The badge of a For you change row: its lifecycle in the same words and the same tone as the status line (the task
+ * is said by the row's words and action, never by recolouring the lifecycle).
  */
-export function todoBadge(l: Lifecycle, task: string): { label: string; tone: LifecycleTone } {
-  const review: ReviewStatusKind | null = task === 'ship' ? 'ready' : task === 'design' || task === 'guidance' ? 'needs-approval' : null;
-  return { label: LIFECYCLE[l].label, tone: l === 'ready' ? lifecycleTone(l, review) : lifecycleTone(l) };
+export function todoBadge(l: Lifecycle): { label: string; tone: LifecycleTone } {
+  return { label: LIFECYCLE[l].label, tone: lifecycleTone(l) };
 }
 
 // ---------------------------------------------------------------------------------------------------------------

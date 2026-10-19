@@ -10,7 +10,7 @@ import { fileSignals, type FileSignals } from '../lib/work-nature';
 import { badgeHtml, tooltipAttributes } from '@bridge-ds/react/dom';
 import { currentViewer, ghGet, hasWorkingToken, prefersSignIn, readRepo } from './github-session';
 import { ghAction } from '../lib/gh-wording';
-import { needFromStatus, statusTone, whoActs } from '../lib/changes';
+import { needFromStatus, statusTone, whoActs, type WhoActs } from '../lib/changes';
 import { developerOnlyFailures } from '../lib/check-explain';
 import { planStatusReads, statusCacheKey, type CachedStatus } from '../lib/status-budget';
 import type { TeamStates } from '@bridge-ds/core';
@@ -179,12 +179,12 @@ export function statusChip(s: ReviewStatus | null, opts: { skipped?: boolean } =
  * who acts now ("Design owner to approve", "Your turn: approve design"), from the same whoActs as the pull request
  * header. Falls back to the plain status label when the who-acts line adds nothing (unknown, merged, closed).
  */
-export function whoChip(
-  kind: ReviewStatusKind | null,
-  o: { author: string; approvers?: string[]; changesRequested?: string[]; failing?: number; failingChecks?: string[]; skipped?: boolean },
-): string {
-  if (o.skipped || !kind) return statusChip(null, { skipped: o.skipped });
-  const who = whoActs(needFromStatus(kind, { failing: o.failing, changesRequestedBy: o.changesRequested, developerOnly: developerOnlyFailures(o.failingChecks) }), {
+type RowFacts = { author: string; approvers?: string[]; changesRequested?: string[]; failing?: number; failingChecks?: string[]; skipped?: boolean };
+
+/** Who acts now on a list row (lib/changes whoActs), or null while its status is unknown. Shared by the chip and the opener. */
+export function rowWho(kind: ReviewStatusKind | null, o: RowFacts): WhoActs | null {
+  if (o.skipped || !kind) return null;
+  return whoActs(needFromStatus(kind, { failing: o.failing, changesRequestedBy: o.changesRequested, developerOnly: developerOnlyFailures(o.failingChecks) }), {
     owners: owners(),
     shippers: shippers(),
     ...teamPeople(),
@@ -192,6 +192,11 @@ export function whoChip(
     viewer: currentViewer()?.login ?? null,
     approvers: o.approvers,
   });
+}
+
+export function whoChip(kind: ReviewStatusKind | null, o: RowFacts): string {
+  const who = rowWho(kind, o);
+  if (!who || !kind) return statusChip(null, { skipped: o.skipped });
   const label = who.short ?? REVIEW_STATUS[kind].label;
   return badgeHtml(label, {
     tone: statusTone(kind),

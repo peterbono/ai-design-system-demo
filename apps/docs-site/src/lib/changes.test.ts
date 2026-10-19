@@ -76,12 +76,29 @@ describe('urgency', () => {
 
   it('writes the opener about the most urgent change, with one action', () => {
     expect(openerFor(rows.map((r) => ({ ...r, title: `PR ${r.number}` })))).toEqual({
-      sentence: '6 changes in review. #3 is blocked by tests on the developer side.',
+      sentence: '6 changes in review. #3 is blocked by failing checks.',
       action: { label: 'Review #3', pr: 3 },
     });
     expect(openerFor([{ number: 2, kind: 'needs-design', title: 'x' }]).sentence).toBe('1 change in review. #2 waits for a design approval.');
     expect(openerFor([{ number: 1, kind: 'ready', title: 'x' }]).sentence).toBe('1 change in review. #1 is ready to ship.');
     expect(openerFor([]).action).toBeNull();
+  });
+
+  it("points at the most urgent change where it is the viewer's turn, before a more urgent one", () => {
+    const opener = openerFor([
+      { number: 3, kind: 'ci-failing', title: 'x', developer: true, updated_at: '2026-10-18T00:00:00Z' },
+      { number: 2, kind: 'needs-tech', title: 'x', updated_at: '2026-10-17T00:00:00Z' },
+      { number: 1, kind: 'ready', title: 'x', yourTurn: true },
+      { number: 7, kind: 'needs-design', title: 'x', yourTurn: true, updated_at: '2026-10-16T00:00:00Z' },
+    ]);
+    expect(opener).toEqual({ sentence: '4 changes in review. Your turn on #7: it waits for a design approval.', action: { label: 'Review #7', pr: 7 } });
+  });
+
+  it('says a change waits on a developer, with no button, when nothing else is the viewer turn', () => {
+    const dev = { number: 3, kind: 'ci-failing' as const, title: 'x', developer: true, updated_at: '2026-10-18T00:00:00Z' };
+    expect(openerFor([dev, { number: 2, kind: 'needs-tech', title: 'x' }])).toEqual({ sentence: '2 changes in review. #3 waits on a developer to fix its tests.', action: null });
+    // The most urgent change is not a developer's: it is named with its button, as before.
+    expect(openerFor([{ ...dev, developer: false }, { number: 2, kind: 'needs-tech', title: 'x' }]).action).toEqual({ label: 'Review #3', pr: 3 });
   });
 });
 

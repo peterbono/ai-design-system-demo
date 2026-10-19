@@ -14,7 +14,7 @@ export default function TokenSearch({ surface }: TokenSearchProps) {
     <Input
       id="xp-q"
       className="xp-search-field"
-      size="sm"
+      size={app ? 'md' : 'sm'}
       type="search"
       placeholder={app ? 'Filter tokens' : 'Name, CSS variable or hex'}
       aria-label={app ? 'Filter tokens by name, CSS variable or hex' : 'Search tokens'}

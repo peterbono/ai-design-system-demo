@@ -129,7 +129,7 @@ describe('the selector', () => {
     expect(opts[0]).toMatchObject({ value: 'latest', label: 'Latest library' });
     expect(opts.slice(1)).toEqual([
       { value: 'change-2', label: 'Change 2', description: 'by ana', group: 'Open changes', status: { label: 'Draft', tone: 'neutral' } },
-      { value: 'change-1', label: 'Change 1', description: 'by ana', group: 'Open changes', status: { label: 'Ready for review', tone: 'neutral' } },
+      { value: 'change-1', label: 'Change 1', description: 'by ana', group: 'Open changes', status: { label: 'Ready for review', tone: 'info' } },
     ]);
   });
 

@@ -51,6 +51,11 @@
   display: none;
 }
 
+/* Nothing is the viewer's turn: the opener has no action (the DS button's own display must not win over hidden). */
+.cg-open [id="cg-open-cta"][hidden] {
+  display: none;
+}
+
 .cg-open-sentence {
   flex: 1 1 calc(var(--size-64) + var(--size-20));
   margin: 0;

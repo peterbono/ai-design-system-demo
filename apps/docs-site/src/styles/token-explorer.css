@@ -1583,12 +1583,9 @@
   min-width: calc(var(--size-64) / 2);
 }
 
+/* The Studio toolbar row: every control at the DS control height (md), the buttons as the DS draws them. */
 .xp[data-surface="app"] .xp-tools .btn {
   flex: none;
-  gap: var(--space-1-5);
-  min-height: var(--size-8);
-  padding: 0 var(--space-2);
-  font-size: var(--typography-ui-size);
 }
 
 .xp[data-surface="app"] .xp-new {
@@ -3448,8 +3445,9 @@ body:has([data-xe-bar]:not([hidden])) .xp[data-surface="app"] .xp-grid {
   flex: none;
   align-items: center;
   gap: var(--space-1-5);
-  height: var(--size-8);
-  padding: 0 var(--space-3);
+  /* A primary touch target: the DS control height, like the filter field and the buttons on the same row. */
+  min-height: var(--control-height-md);
+  padding: 0 var(--control-padding-x-sm);
   border: var(--border-width-default) solid var(--color-border-default);
   border-radius: var(--radius-pill);
   background-color: var(--color-surface-default);
@@ -3496,7 +3494,7 @@ body:has([data-xe-bar]:not([hidden])) .xp[data-surface="app"] .xp-grid {
 }
 
 .xp-options {
-  height: var(--size-8);
+  min-height: var(--control-height-md);
 }
 
 .xp-options-panel {

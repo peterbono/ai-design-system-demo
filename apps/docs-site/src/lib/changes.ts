@@ -79,17 +79,21 @@ export function byUrgency<R extends UrgencyRow>(rows: R[]): R[] {
 
 export interface OpenerRow extends UrgencyRow {
   title: string;
+  /** Who acts now (whoActs) says it is the viewer. Unknown while the status is read, and for a visitor. */
+  yourTurn?: boolean;
+  /** Only developer tests fail: a developer acts, never the designer (whoActs who "developer"). */
+  developer?: boolean;
 }
 
 export interface Opener {
-  /** "3 changes in review. #3 is blocked by tests on the developer side." */
+  /** "3 changes in review. Your turn on #3: it waits for a design approval." */
   sentence: string;
-  /** The one primary action: review the most urgent pull request. Null when nothing is open. */
+  /** The one primary action: open the change to act on first. Null when nothing is open or it waits on a developer. */
   action: { label: string; pr: number } | null;
 }
 
 const WHY: Partial<Record<ReviewStatusKind, string>> = {
-  'ci-failing': 'is blocked by tests on the developer side',
+  'ci-failing': 'is blocked by failing checks',
   conflict: 'conflicts with the latest library',
   'changes-requested': 'is blocked: a reviewer requested changes',
   'needs-design': 'waits for a design approval',
@@ -101,14 +105,23 @@ const WHY: Partial<Record<ReviewStatusKind, string>> = {
   draft: 'is still a draft',
 };
 
-/** The In review opener: how many are open, the state of the most urgent one, and "Review #N". */
+/**
+ * The In review opener: how many are open, then the change to open first, with "Review #N". The most urgent change
+ * where it is the viewer's turn comes first, so a designer is never sent to a change only a developer can move. With
+ * none, the most urgent change overall; when that one waits on a developer, the sentence says so and there is no button.
+ */
 export function openerFor(rows: OpenerRow[]): Opener {
   const n = rows.length;
   if (!n) return { sentence: 'Nothing to review.', action: null };
-  const first = byUrgency(rows)[0]!;
+  const sorted = byUrgency(rows);
   const count = `${n} ${n === 1 ? 'change' : 'changes'} in review.`;
+  const mine = sorted.find((r) => r.yourTurn);
+  const first = mine ?? sorted[0]!;
+  const action = { label: `Review #${first.number}`, pr: first.number };
+  if (!mine && first.developer) return { sentence: `${count} #${first.number} waits on a developer to fix its tests.`, action: null };
   const why = first.kind ? WHY[first.kind] : undefined;
-  return { sentence: why ? `${count} #${first.number} ${why}.` : `${count} Open one to see its tests and approvals.`, action: { label: `Review #${first.number}`, pr: first.number } };
+  if (mine) return { sentence: `${count} Your turn on #${first.number}: it ${why ?? 'needs you'}.`, action };
+  return { sentence: why ? `${count} #${first.number} ${why}.` : `${count} Open one to see its tests and approvals.`, action };
 }
 
 // ---------------------------------------------------------------------------------------------------------------
