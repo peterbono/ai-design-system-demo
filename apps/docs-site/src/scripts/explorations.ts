@@ -47,6 +47,10 @@ import { currentViewer, esc, ghGet, hasWorkingToken, initGitHubConnect, prefersS
 import { ghAction, rateLimitedLine } from '../lib/gh-wording';
 import { explorationClient, explorationsConfig, startLinkedExploration } from './exploration-start';
 import { forgetRequests, loadRequestRows, requestRow } from './requests';
+import { setSelect } from '../lib/select-bridge';
+
+// The use case menu of Start an exploration (BridgedSelect id).
+const USE_CASE = 'ex-use-case';
 
 const repo = readRepo();
 const R = `/repos/${repo.owner}/${repo.repo}`;
@@ -211,6 +215,7 @@ function closeStart(focus = true) {
   paintFor();
   if (new URLSearchParams(location.search).has('for')) history.replaceState({}, '', '?view=explorations');
   form.reset();
+  setSelect(USE_CASE, { value: '' });
   form.hidden = true;
   $('ex-start-error').hidden = true;
   form.querySelectorAll('[aria-invalid]').forEach((el) => el.removeAttribute('aria-invalid'));
@@ -237,6 +242,13 @@ function wireStart() {
   form.querySelector('[data-ex-cancel]')?.addEventListener('click', () => closeStart());
   form.addEventListener('input', (e) => {
     (e.target as HTMLElement).removeAttribute('aria-invalid');
+    error.hidden = true;
+    paintStartPreview(form);
+  });
+  // The use case is a DS Select island (components/ds/BridgedSelect, name useCase): its hidden input holds the pick
+  // and sends change once it holds it.
+  form.addEventListener('change', (e) => {
+    if ((e.target as HTMLInputElement).name !== 'useCase') return;
     error.hidden = true;
     paintStartPreview(form);
   });

@@ -13,7 +13,10 @@ import '../../styles/preview-frames.css';
 import Icon from '../Icon.astro';
 import SummaryButton from '../ds/studio/SummaryButton';
 import ButtonLink from '../ds/ButtonLink';
-import { Button, EmptyState, Kbd, SegmentedControl } from '@bridge-ds/react';
+import { Button, Checkbox, EmptyState, SegmentedControl, Switch } from '@bridge-ds/react';
+import BridgedSelect from '../ds/BridgedSelect';
+import TokenSearch from '../ds/TokenSearch';
+import UsageRadios from '../ds/UsageRadios';
 import { Plus, Search, SlidersHorizontal } from 'lucide-react';
 import TokenEditorKit from './TokenEditorKit.astro';
 import ExplorerData from './ExplorerData.astro';
@@ -81,9 +84,7 @@ const lensLabel = (text: string) => createElement(RFragment, null, `${text} `, c
         app ? (
           <div class="xp-tools">
             <div class="xp-search" role="search">
-              <Icon name="search" size={16} />
-              <label class="sr-only" for="xp-q">Filter tokens by name, CSS variable or hex</label>
-              <input id="xp-q" type="search" placeholder="Filter tokens" autocomplete="off" spellcheck="false" aria-keyshortcuts="F" data-xp-q />
+              <TokenSearch surface="app" />
             </div>
             <div class="xp-chips" role="group" aria-label="Filter by type" data-xp-chips></div>
             <span class="xp-grow" aria-hidden="true"></span>
@@ -104,38 +105,23 @@ const lensLabel = (text: string) => createElement(RFragment, null, `${text} `, c
                     <span aria-hidden="true">Density</span>
                     <SegmentedControl label="Density" data-vanilla data-xp-density size="sm" fullWidth defaultValue={modes.densities[0]} items={modes.densities.map((x) => ({ value: x, label: modeName(x) }))} />
                   </div>
-                  <button type="button" class="xp-switch" role="switch" aria-checked="false" data-combos hidden>
-                    <span class="xp-switch-track" aria-hidden="true"><span class="xp-switch-thumb"></span></span>
-                    <span>All {combos} combinations</span>
-                  </button>
+                  <div class="xp-combos" data-combos-field hidden>
+                    <Switch data-vanilla data-combos size="sm" label={`All ${combos} combinations`} />
+                  </div>
                 </div>
-                <label class="xp-menu-field">
-                  <span>Code column</span>
-                  <select data-xp-syntax>
-                    <option value="">Hidden</option>
-                    {Object.entries(SYNTAX_LABEL).map(([k, v]) => <option value={k}>{v}</option>)}
-                  </select>
-                </label>
-                <button type="button" class="xp-switch" role="switch" aria-checked="false" data-xp-desc>
-                  <span class="xp-switch-track" aria-hidden="true"><span class="xp-switch-thumb"></span></span>
-                  <span>Description column</span>
-                </button>
-                <button type="button" class="xp-switch" role="switch" aria-checked="false" data-xp-exact title="Match the whole name, variable or hex">
-                  <span class="xp-switch-track" aria-hidden="true"><span class="xp-switch-thumb"></span></span>
-                  <span>Exact match</span>
-                </button>
+                <div class="xp-menu-field">
+                  <span aria-hidden="true">Code column</span>
+                  <BridgedSelect client:load id="xp-syntax" label="Code column" hideLabel value="" options={[{ value: '', label: 'Hidden' }, ...Object.entries(SYNTAX_LABEL).map(([k, v]) => ({ value: k, label: v }))]} />
+                </div>
+                <Switch data-vanilla data-xp-desc size="sm" label="Description column" />
+                <Switch data-vanilla data-xp-exact size="sm" label="Exact match" description="The whole name, variable or hex" />
                 <details class="xp-opt-adv" data-xp-advanced>
                   <summary><span>Advanced</span><span class="xp-opt-adv-meta">Collections and usage</span><Icon name="chevron" size={14} /></summary>
                   <fieldset class="xp-opt-set">
                     <legend>Collections</legend>
-                    {TIER_ORDER.map((t) => <label><input type="checkbox" name="xp-ft" value={t} />{STUDIO_TIER_NAMES[t]}</label>)}
+                    {TIER_ORDER.map((t) => <Checkbox data-vanilla name="xp-ft" value={t} label={STUDIO_TIER_NAMES[t]} />)}
                   </fieldset>
-                  <fieldset class="xp-opt-set">
-                    <legend>Usage</legend>
-                    <label><input type="radio" name="xp-usage" value="" checked />Any</label>
-                    <label><input type="radio" name="xp-usage" value="used" />In use</label>
-                    <label><input type="radio" name="xp-usage" value="unused" />Unused</label>
-                  </fieldset>
+                  <UsageRadios />
                 </details>
                 <Button variant="secondary" size="sm" className="st-xp-clear-filters" data-xp-clear-filters>Reset options</Button>
                 <p class="xp-menu-keys small muted"><XpKeys /></p>
@@ -151,29 +137,21 @@ const lensLabel = (text: string) => createElement(RFragment, null, `${text} `, c
             </div>
             <div class="xp-tools">
               <div class="xp-search" role="search">
-                <Icon name="search" size={16} />
-                <label class="sr-only" for="xp-q">Search tokens</label>
-                <input id="xp-q" type="search" placeholder="Name, CSS variable or hex" autocomplete="off" spellcheck="false" aria-keyshortcuts="F" data-xp-q />
-                <Kbd keys="F" size="sm" className="xp-slash" aria-hidden="true" />
-                <button type="button" class="xp-exact" aria-pressed="false" data-xp-exact title="Match the whole name, variable or hex">Exact</button>
+                <TokenSearch surface="library" />
+                <Button variant="secondary" size="sm" pressed={false} data-xp-exact title="Match the whole name, variable or hex">Exact</Button>
               </div>
               <details class="xp-filters" data-xp-filters>
                 <SummaryButton variant="secondary" size="sm" iconStart={SlidersHorizontal}>Filters <span class="xp-filter-n num" data-xp-filter-n hidden>0</span></SummaryButton>
                 <div class="xp-filters-panel">
-                  <fieldset>
+                  <fieldset class="xp-fset">
                     <legend>Collection</legend>
-                    {TIER_ORDER.map((t) => <label><input type="checkbox" name="xp-ft" value={t} />{TIER_NAMES[t]}</label>)}
+                    {TIER_ORDER.map((t) => <Checkbox data-vanilla name="xp-ft" value={t} label={TIER_NAMES[t]} />)}
                   </fieldset>
-                  <fieldset>
+                  <fieldset class="xp-fset">
                     <legend>Type</legend>
-                    {CATEGORY_ORDER.map((c) => <label><input type="checkbox" name="xp-fc" value={c} />{CATEGORY_LABEL[c]}</label>)}
+                    {CATEGORY_ORDER.map((c) => <Checkbox data-vanilla name="xp-fc" value={c} label={CATEGORY_LABEL[c]} />)}
                   </fieldset>
-                  <fieldset>
-                    <legend>Usage</legend>
-                    <label><input type="radio" name="xp-usage" value="" checked />Any</label>
-                    <label><input type="radio" name="xp-usage" value="used" />In use</label>
-                    <label><input type="radio" name="xp-usage" value="unused" />Unused</label>
-                  </fieldset>
+                  <UsageRadios />
                   <Button variant="secondary" size="sm" className="st-xp-clear-filters" data-xp-clear-filters>Clear filters</Button>
                 </div>
               </details>
@@ -184,18 +162,13 @@ const lensLabel = (text: string) => createElement(RFragment, null, `${text} `, c
                 <div data-xp-mode-field="density" hidden>
                   <SegmentedControl label="Density" data-vanilla data-xp-density size="sm" defaultValue={modes.densities[0]} items={modes.densities.map((x) => ({ value: x, label: modeName(x) }))} />
                 </div>
-                <button type="button" class="xp-switch" role="switch" aria-checked="false" data-combos hidden>
-                  <span class="xp-switch-track" aria-hidden="true"><span class="xp-switch-thumb"></span></span>
-                  <span>All {combos} combinations</span>
-                </button>
+                <div class="xp-combos" data-combos-field hidden>
+                  <Switch data-vanilla data-combos size="sm" label={`All ${combos} combinations`} />
+                </div>
               </div>
               <div class="xp-view">
-                <label class="xp-select"><span class="sr-only">Code syntax</span>
-                  <select data-xp-syntax>
-                    {Object.entries(SYNTAX_LABEL).map(([k, v]) => <option value={k}>{v}</option>)}
-                  </select>
-                </label>
-                <button type="button" class="btn btn-secondary btn-sm xp-toggle" aria-pressed="false" data-xp-desc>Description</button>
+                <BridgedSelect client:load id="xp-syntax" label="Code syntax" hideLabel value={Object.keys(SYNTAX_LABEL)[0] ?? ''} options={Object.entries(SYNTAX_LABEL).map(([k, v]) => ({ value: k, label: v }))} />
+                <Button variant="secondary" size="sm" pressed={false} data-xp-desc>Description</Button>
               </div>
             </div>
           </>

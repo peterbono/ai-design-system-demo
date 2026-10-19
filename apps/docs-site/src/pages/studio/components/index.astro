@@ -18,6 +18,7 @@ import UiIcon from '../../../components/Icon.astro';
 import ButtonLink from '../../../components/ds/ButtonLink';
 import Example from '../../../components/Example';
 import ComponentsSearch from '../../../components/ds/studio/ComponentsSearch';
+import BridgedSelect from '../../../components/ds/BridgedSelect';
 import ComponentsList, { exceptions, type ComponentListRow } from '../../../components/ds/studio/ComponentsList';
 import { Badge, Button, Icon, IconButton, Input, Link, SegmentedControl, Textarea } from '@bridge-ds/react';
 import { FileText, ImagePlus, Moon, Pencil, Sun, X } from 'lucide-react';
@@ -90,13 +91,15 @@ const signIn = Boolean(signInConfig());
 
     <div class="cm-tools" role="search">
       <ComponentsSearch />
-      <label class="cm-fam">
-        <span class="sr-only">Family</span>
-        <select data-cm-fam>
-          <option value="">All families ({rows.length})</option>
-          {families.map((f) => <option value={f.name}>{f.name} ({f.n})</option>)}
-        </select>
-      </label>
+      <BridgedSelect
+        client:load
+        id="cm-fam"
+        label="Family"
+        hideLabel
+        className="cm-fam"
+        value=""
+        options={[{ value: '', label: 'All families', count: rows.length }, ...families.map((f) => ({ value: f.name, label: f.name, count: f.n }))]}
+      />
     </div>
     <p class="cm-count" data-cm-count role="status" aria-live="polite"></p>
 
@@ -193,6 +196,7 @@ const signIn = Boolean(signInConfig());
         <div class="cm-req-img" data-rq-image-box>
           <span class="cm-req-img-label" id="cm-req-img-label">Image (optional)</span>
           <p class="cm-req-img-hint" data-rq-image-hint>Paste a screenshot anywhere in this form, or attach a file. PNG, JPEG, GIF or WebP, up to 5 MB.</p>
+          <!-- bridge-audit-ignore-next-line: hidden file picker behind the DS Button "Attach an image"; the DS has no file input -->
           <input class="sr-only" type="file" accept="image/png,image/jpeg,image/gif,image/webp" tabindex="-1" aria-hidden="true" data-rq-image-file />
           <Button variant="secondary" size="sm" className="cm-req-start" type="button" iconStart={ImagePlus} aria-describedby="cm-req-img-label" data-rq-image-pick>Attach an image</Button>
           <div class="cm-req-img-preview" data-rq-image-preview hidden>

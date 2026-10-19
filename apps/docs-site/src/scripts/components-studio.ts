@@ -11,6 +11,10 @@ import { fitFrames } from './explorer/preview-frames';
 import { loadRequestRows } from './requests';
 import { selectSegment } from './shell';
 import { initViewOnComponents } from './view-components';
+import { onSelectPick, setSelect } from '../lib/select-bridge';
+
+// The family menu: a DS Select island (components/ds/BridgedSelect, id cm-fam), each family with its count as a Badge.
+const FAMILY_SELECT = 'cm-fam';
 
 // One size for the list thumbnails: a lone control shows a little smaller than life, like its neighbors scaled to fit.
 const THUMB_MAX = 0.7;
@@ -20,7 +24,6 @@ export function initComponentsStudio() {
   if (!root || root.dataset.ready) return;
   root.dataset.ready = '';
   const q = root.querySelector<HTMLInputElement>('[data-cm-q]');
-  const famSelect = root.querySelector<HTMLSelectElement>('[data-cm-fam]');
   const guidanceBtn = root.querySelector<HTMLButtonElement>('[data-cm-guidance]');
   const rows = [...root.querySelectorAll<HTMLTableRowElement>('[data-cm-row]')];
   const bodies = [...root.querySelectorAll<HTMLElement>('[data-cm-family]')];
@@ -67,7 +70,7 @@ export function initComponentsStudio() {
       r.hidden = !hit;
     }
     for (const b of bodies) b.hidden = !b.querySelector('[data-cm-row]:not([hidden])');
-    if (famSelect) famSelect.value = family;
+    setSelect(FAMILY_SELECT, { value: family });
     guidanceBtn?.setAttribute('aria-pressed', String(onlyGuidance));
     const shown = visibleRows();
     if (none) none.hidden = shown.length > 0;
@@ -189,8 +192,8 @@ export function initComponentsStudio() {
   });
 
   q?.addEventListener('input', apply);
-  famSelect?.addEventListener('change', () => {
-    family = famSelect.value;
+  onSelectPick(FAMILY_SELECT, (v) => {
+    family = v;
     apply();
   });
   guidanceBtn?.addEventListener('click', () => {

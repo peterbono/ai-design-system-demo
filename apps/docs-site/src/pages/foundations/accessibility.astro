@@ -114,6 +114,7 @@ const matrixRows = (g: (typeof groups)[number]): MatrixRow[] =>
               const first = resultFor(p, COMBOS[0]!);
               return (
                 <li>
+                  <!-- bridge-audit-ignore-next-line: the whole contrast row (tile, pair, ratio, Badge) is one target that opens the token drawer; the DS has no row button and Button would truncate it to one label -->
                   <button type="button" class="a11y-row" data-fd-open={p.fg} title={rowTitle(p, first)}>
                     <span class="a11y-tile" data-theme={COMBOS[0]!.mode} data-brand={COMBOS[0]!.brand} data-scope-fixed aria-hidden="true" style={`background-color: ${cssVar(p.bg)}`}>
                       {p.usage === 'text' ? <span style={`color: ${cssVar(p.fg)}`}>Aa</span> : <i style={`border-color: ${cssVar(p.fg)}`} />}

@@ -14,6 +14,10 @@ import { owners, shippers } from '../pr-status';
 import { loadTeams } from '../teams';
 import { openRevertPlanner } from './planner';
 import { activeReport, DEMO_EVENT, demoOn, loadHistory, setDemo, type Loaded } from './state';
+import { onSelectPick, selectValue, setSelect } from '../../lib/select-bridge';
+
+const AUTHOR = 'hs-author';
+const TIER = 'hs-tier';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 let L: Loaded | null = null;
@@ -32,8 +36,8 @@ function current(): { report: HistoryReport | null; demo: boolean } {
 
 function filter(): HistoryFilter {
   const token = $<HTMLInputElement>('hs-token').value.trim();
-  const author = $<HTMLSelectElement>('hs-author').value;
-  const tier = Number($<HTMLSelectElement>('hs-tier').value);
+  const author = selectValue(AUTHOR);
+  const tier = Number(selectValue(TIER));
   return { ...(token ? { token } : {}), ...(author ? { author } : {}), ...(tier ? { tier: tier as 1 | 2 | 3 } : {}) };
 }
 
@@ -71,10 +75,9 @@ function paintList() {
   document.getElementById('hs-demo')?.setAttribute('aria-checked', String(demo));
   const entries = report?.entries ?? [];
   // Filters follow the report on screen.
-  const authorSel = $<HTMLSelectElement>('hs-author');
-  const keep = authorSel.value;
-  authorSel.innerHTML = `<option value="">Anyone</option>${authorsOf(entries).map((a) => `<option value="${esc(a)}">${esc(a)}</option>`).join('')}`;
-  authorSel.value = authorsOf(entries).includes(keep) ? keep : '';
+  const authors = authorsOf(entries);
+  const keep = selectValue(AUTHOR);
+  setSelect(AUTHOR, { options: [{ value: '', label: 'Anyone' }, ...authors.map((a) => ({ value: a, label: a }))], value: authors.includes(keep) ? keep : '' });
   const paths = [...new Set(entries.filter((e) => !e.bulk).flatMap((e) => e.changes.map((c) => c.path)))].sort();
   $('hs-paths').innerHTML = paths.map((p) => `<option value="${esc(p)}"></option>`).join('');
 
@@ -249,7 +252,15 @@ export function initHistory() {
     window.clearTimeout(timer);
     timer = window.setTimeout(paintList, 100);
   });
-  $('hs-filters').addEventListener('reset', () => setTimeout(paintList, 0));
+  // The Author and Kind of change menus are DS Select islands (components/ds/BridgedSelect): a pick repaints, and
+  // Clear filters puts them back on their first option.
+  onSelectPick(AUTHOR, () => paintList());
+  onSelectPick(TIER, () => paintList());
+  $('hs-filters').addEventListener('reset', () => {
+    setSelect(AUTHOR, { value: '' });
+    setSelect(TIER, { value: '' });
+    setTimeout(paintList, 0);
+  });
   // Deep link from a token drawer: ?view=history&token=color.text.muted opens the filters, prefilled.
   const token = new URLSearchParams(location.search).get('token');
   const tokenInput = document.getElementById('hs-token') as HTMLInputElement | null;

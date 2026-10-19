@@ -15,7 +15,8 @@ import HistoryPlanner from '../../components/HistoryPlanner.astro';
 import Illustration from '../../components/Illustration.astro';
 import Icon from '../../components/Icon.astro';
 import ButtonLink from '../../components/ds/ButtonLink';
-import { Alert, Button, CodeBlock, Link, SegmentedControl } from '@bridge-ds/react';
+import { Alert, Button, CodeBlock, Input, Link, SegmentedControl, Switch, Textarea } from '@bridge-ds/react';
+import BridgedSelect from '../../components/ds/BridgedSelect';
 import { WORK_FILTERS } from '../../lib/work-nature';
 import { siteRepo } from '../../lib/config';
 import { EXPLORATION_USE_CASES } from '@bridge-ds/core';
@@ -174,20 +175,21 @@ const signIn = Boolean(signInConfig());
 
         <form class="fg-card rq-form ex-form" id="ex-start" aria-label="Start an exploration" novalidate hidden>
           <p class="ex-for" id="ex-for" hidden></p>
-          <label class="rq-field">Name
-            <input name="name" autocomplete="off" maxlength="60" placeholder="Pill buttons" aria-describedby="ex-name-hint" />
-            <span class="rq-hint" id="ex-name-hint">Teammates see this name in Changes and in the Figma plugin.</span>
-          </label>
-          <label class="rq-field">What do you want to learn?
-            <textarea name="purpose" rows="2" placeholder="Do rounder buttons read as friendlier in checkout?"></textarea>
-          </label>
-          <label class="rq-field">Use case
-            <select name="useCase" aria-describedby="ex-uc-hint">
-              <option value="">Not set</option>
-              {EXPLORATION_USE_CASES.map((u) => <option value={u.value}>{u.label}</option>)}
-            </select>
-            <span class="rq-hint" id="ex-uc-hint"></span>
-          </label>
+          <Input label="Name" name="name" autoComplete="off" maxLength={60} placeholder="Pill buttons" hint="Teammates see this name in Changes and in the Figma plugin." />
+          <Textarea label="What do you want to learn?" name="purpose" rows={2} placeholder="Do rounder buttons read as friendlier in checkout?" />
+          <div class="ex-uc">
+            <BridgedSelect
+              client:load
+              id="ex-use-case"
+              label="Use case"
+              name="useCase"
+              size="md"
+              value=""
+              aria-describedby="ex-uc-hint"
+              options={[{ value: '', label: 'Not set' }, ...EXPLORATION_USE_CASES.map((u) => ({ value: u.value, label: u.label }))]}
+            />
+            <p class="rq-hint" id="ex-uc-hint"></p>
+          </div>
           <p class="gh-error" id="ex-start-error" role="alert" hidden></p>
           <p class="rq-hint ex-no-gh" data-no-gh>{ghAction('start it here', signIn)}.</p>
           <p class="ex-actions">
@@ -243,10 +245,21 @@ const signIn = Boolean(signInConfig());
           <Button variant="secondary" size="sm" id="hs-filter-toggle" aria-expanded="false" aria-controls="hs-filters">Filter</Button>
         </div>
         <form class="hs-filters" id="hs-filters" role="search" aria-label="Filter history" hidden>
-          <label class="gh-field"><span>Token</span><input id="hs-token" list="hs-paths" placeholder="color.text.muted or color.text" autocomplete="off" spellcheck="false" /></label>
+          <Input label="Token" size="sm" id="hs-token" list="hs-paths" placeholder="color.text.muted or color.text" autoComplete="off" spellCheck={false} />
           <datalist id="hs-paths"></datalist>
-          <label class="gh-field"><span>Author</span><select id="hs-author"><option value="">Anyone</option></select></label>
-          <label class="gh-field"><span>Kind of change</span><select id="hs-tier"><option value="">Any change</option><option value="3">Token changes, design + tech approval</option><option value="2">Component changes, design + tech approval</option><option value="1">Docs fixes, one approval</option></select></label>
+          <BridgedSelect client:load id="hs-author" label="Author" value="" options={[{ value: '', label: 'Anyone' }]} />
+          <BridgedSelect
+            client:load
+            id="hs-tier"
+            label="Kind of change"
+            value=""
+            options={[
+              { value: '', label: 'Any change' },
+              { value: '3', label: 'Token changes', description: 'Design and tech approval' },
+              { value: '2', label: 'Component changes', description: 'Design and tech approval' },
+              { value: '1', label: 'Docs fixes', description: 'One approval' },
+            ]}
+          />
           <Button type="reset" variant="secondary" size="sm" id="hs-clear">Clear filters</Button>
         </form>
         <Alert tone="warning" announce="off" title="Demo data: fixture changes, not this repository's history." className="st-hideable st-hs-banner" id="hs-banner" hidden>Nothing here can be proposed.</Alert>
@@ -263,10 +276,7 @@ const signIn = Boolean(signInConfig());
           {
             demoHistory && (
               <>
-                <button type="button" class="hs-switch" id="hs-demo" role="switch" aria-checked="false">
-                  <span class="hs-switch-track" aria-hidden="true"><span class="hs-switch-thumb"></span></span>
-                  <span>Show demo history</span>
-                </button>
+                <Switch label="Show demo history" size="sm" id="hs-demo" data-vanilla="" />
                 <span class="cg-muted">Development only: fixture changes, to try the timeline and undo.</span>
               </>
             )

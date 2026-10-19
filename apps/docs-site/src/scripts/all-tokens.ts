@@ -19,7 +19,6 @@ export function initAllTokens() {
   if (!root || !dataEl) return;
   const data = JSON.parse(dataEl.textContent || '{}') as Record<string, PanelToken>;
   const q = root.querySelector<HTMLInputElement>('[data-at-q]');
-  const chips = [...root.querySelectorAll<HTMLButtonElement>('[data-at-type]')];
   const rows = [...root.querySelectorAll<HTMLElement>('[data-at-row]')];
   const empty = root.querySelector<HTMLElement>('[data-at-empty]');
   const panel = root.querySelector<HTMLElement>('[data-at-panel]');
@@ -46,17 +45,6 @@ export function initAllTokens() {
     const selected = rows.find((r) => r.hasAttribute('data-selected'));
     if (visible.length && (!selected || selected.hidden)) select(visible[0]!.dataset.atRow!, { url: false });
     announce(shown === 1 ? '1 token' : `${shown} tokens`);
-  };
-
-  const setType = (value: string, focus = false) => {
-    type = value as AllType | 'all';
-    chips.forEach((c) => {
-      const on = c.dataset.atType === value;
-      c.setAttribute('aria-checked', String(on));
-      c.tabIndex = on ? 0 : -1;
-      if (on && focus) c.focus();
-    });
-    apply();
   };
 
   const paintPanel = (path: string) => {
@@ -133,17 +121,10 @@ export function initAllTokens() {
     }
   });
 
-  root.querySelector('[data-at-chips]')?.addEventListener('click', (e) => {
-    const c = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-at-type]');
-    if (c) setType(c.dataset.atType ?? 'all');
-  });
-  root.querySelector('[data-at-chips]')?.addEventListener('keydown', (e) => {
-    const ke = e as KeyboardEvent;
-    const i = chips.findIndex((c) => c.getAttribute('aria-checked') === 'true');
-    const step = ke.key === 'ArrowRight' || ke.key === 'ArrowDown' ? 1 : ke.key === 'ArrowLeft' || ke.key === 'ArrowUp' ? -1 : 0;
-    if (!step) return;
-    ke.preventDefault();
-    setType(chips[(i + step + chips.length) % chips.length].dataset.atType ?? 'all', true);
+  // Type filter: a static DS SegmentedControl; scripts/shell.ts selects the segment and reports it (bridge:segment).
+  root.querySelector('[data-at-chips]')?.addEventListener('bridge:segment', (e) => {
+    type = (e as CustomEvent<{ value: string }>).detail.value as AllType | 'all';
+    apply();
   });
 
   root.querySelector('[data-at-rows]')?.addEventListener('click', (e) => {

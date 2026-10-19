@@ -4,7 +4,7 @@
 // Deep links: ?t=<token path> (and ?focus=) select a token; a primitive path pre-fills the filter instead.
 import '../../styles/all-tokens.css';
 import Layout from '../../layouts/Layout.astro';
-import { Button, Icon, IconButton, Input } from '@bridge-ds/react';
+import { Button, Icon, IconButton, Input, SegmentedControl } from '@bridge-ds/react';
 import { ClipboardCopy, Search, X } from 'lucide-react';
 import { allTokenRows, typeChips } from '../../lib/all-tokens';
 import { versionInfo } from '../../lib/changelog';
@@ -18,6 +18,8 @@ const chips = typeChips(rows);
 const version = versionInfo().current;
 const MODES = ['light', 'dark'];
 const searchIcon = createElement(Icon, { icon: Search, size: 'sm' });
+// Type filter: a static DS SegmentedControl (data-vanilla), each type with its count; scripts/all-tokens.ts follows it.
+const chipItems = chips.map((c) => ({ value: c.value, label: createElement('span', null, `${c.label} `, createElement('span', { className: 'at-chip-n num' }, c.count)) }));
 // What the panel needs, keyed by path. Everything else is in the rendered rows.
 const panelData = Object.fromEntries(rows.map((r) => [r.path, { cssVar: r.cssVar, type: r.type, description: r.description, light: r.light, dark: r.dark }]));
 ---
@@ -41,6 +43,7 @@ const panelData = Object.fromEntries(rows.map((r) => [r.path, { cssVar: r.cssVar
     <div class="at-bar">
       <Input
         className="at-filter"
+        size="sm"
         type="search"
         label="Filter tokens"
         hideLabel
@@ -50,15 +53,7 @@ const panelData = Object.fromEntries(rows.map((r) => [r.path, { cssVar: r.cssVar
         spellCheck={false}
         data-at-q
       />
-      <div class="at-chips" role="radiogroup" aria-label="Type" data-at-chips>
-        {
-          chips.map((c, i) => (
-            <button type="button" class="at-chip" role="radio" aria-checked={i === 0 ? 'true' : 'false'} tabindex={i === 0 ? 0 : -1} data-at-type={c.value}>
-              {c.label} <span class="at-chip-n num">{c.count}</span>
-            </button>
-          ))
-        }
-      </div>
+      <SegmentedControl className="at-chips" label="Type" size="sm" data-vanilla data-at-chips defaultValue="all" items={chipItems} />
     </div>
 
     <div class="at-split">
@@ -75,6 +70,7 @@ const panelData = Object.fromEntries(rows.map((r) => [r.path, { cssVar: r.cssVar
           {
             rows.map((r) => (
               <li class="at-row" data-at-row={r.path} data-type={r.type} data-search={r.search} data-same={r.light.short === r.dark.short ? '' : undefined}>
+                <!-- bridge-audit-ignore-next-line: the whole token row (swatches, name, light and dark values) is one target that selects it; the DS has no row button and Button would truncate it to one label -->
                 <button type="button" class="at-row-main" aria-controls="at-panel" aria-pressed="false" data-at-open={r.path}>
                   {r.type === 'color' ? (
                     <span class="at-sw" aria-hidden="true">

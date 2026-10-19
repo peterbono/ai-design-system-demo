@@ -49,56 +49,11 @@
 }
 
 .at-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.at-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1-5);
-  height: var(--size-9);
-  padding: 0 var(--space-4);
-  border: var(--border-width-default) solid var(--color-border-default);
-  border-radius: var(--radius-pill);
-  background-color: var(--color-surface-default);
-  color: var(--color-text-default);
-  font-family: var(--typography-ui-family);
-  font-size: var(--typography-ui-size);
-  font-weight: var(--font-weight-medium);
-  line-height: var(--typography-ui-line-height);
-  cursor: pointer;
-  transition-property: background-color, border-color, color;
-  transition-duration: var(--motion-duration-instant);
-  transition-timing-function: var(--motion-easing-standard);
+  min-width: 0;
 }
 
 .at-chip-n {
   color: var(--color-text-muted);
-}
-
-.at-chip[aria-checked="true"] {
-  border-color: var(--color-surface-inverse);
-  background-color: var(--color-surface-inverse);
-  color: var(--color-text-inverse);
-}
-
-.at-chip[aria-checked="true"] .at-chip-n {
-  color: var(--color-text-inverse);
-  opacity: 0.8;
-}
-
-.at-chip:focus-visible {
-  outline: var(--focus-ring-width) solid var(--focus-ring-color);
-  outline-offset: var(--focus-ring-offset);
-}
-
-@media (hover: hover) {
-  .at-chip[aria-checked="false"]:hover {
-    border-color: var(--color-border-hover);
-    background-color: var(--color-surface-hover);
-  }
 }
 
 /* ---- List and panel */
@@ -443,15 +398,8 @@
     width: 100%;
   }
 
-  .at-chips {
-    flex-wrap: nowrap;
-    max-width: 100%;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-
-  .at-chip {
-    flex: none;
+  .at-filter {
+    width: 100%;
   }
 
   .at-lh {

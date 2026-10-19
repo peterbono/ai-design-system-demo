@@ -28,6 +28,8 @@ import { cellValue } from '../../lib/explorer/model';
 import { codeSyntax } from '../../lib/explorer/format';
 import { initReview } from './review';
 import { loadExplorerData, readJson } from './data';
+import { onSelectPick, setSelect } from '../../lib/select-bridge';
+import { paintVanilla } from '../vanilla-controls';
 import { renderDetail, syntaxes } from './detail';
 import { refreshRow, renderGrid } from './grid';
 import { closeInlineEditor, inlineEditorOpen, openInlineEditor } from './inline-edit';
@@ -71,7 +73,8 @@ export function initTokenExplorer() {
   const filtersEl = $<HTMLDetailsElement>('[data-xp-filters]');
   const filterN = $<HTMLElement>('[data-xp-filter-n]');
   const modebar = $<HTMLElement>('[data-xp-modebar]');
-  const syntaxSel = $<HTMLSelectElement>('[data-xp-syntax]');
+  // The code syntax menu is a DS Select island (components/ds/BridgedSelect, id xp-syntax).
+  const SYNTAX_SELECT = 'xp-syntax';
   const descBtn = $<HTMLButtonElement>('[data-xp-desc]');
   const title = $<HTMLElement>('[data-xp-title]');
   const count = $<HTMLElement>('[data-xp-count]');
@@ -84,7 +87,9 @@ export function initTokenExplorer() {
   const densitySeg = root.querySelector<HTMLElement>('[data-xp-density]');
   const brandField = root.querySelector<HTMLElement>('[data-xp-mode-field="brand"]');
   const densityField = root.querySelector<HTMLElement>('[data-xp-mode-field="density"]');
+  // Switches and filter checkboxes and radios are static DS controls (data-vanilla, scripts/vanilla-controls.ts).
   const combosBtn = root.querySelector<HTMLElement>('[data-combos]');
+  const combosField = root.querySelector<HTMLElement>('[data-combos-field]');
   // Studio surface only: the Modes and View menus, and the row density control.
   const app = root.dataset.surface === 'app';
   const modesMenu = root.querySelector<HTMLDetailsElement>('[data-xp-modes-menu]');
@@ -369,7 +374,8 @@ export function initTokenExplorer() {
     );
     filtersEl.querySelectorAll<HTMLInputElement>('input[name="xp-fc"]').forEach((i) => (i.checked = s.filters.categories.includes(i.value as TypeCategory)));
     filtersEl.querySelectorAll<HTMLInputElement>('input[name="xp-usage"]').forEach((i) => (i.checked = i.value === s.filters.usage));
-    syntaxSel.value = s.showCode ? s.syntax : '';
+    paintVanilla(filtersEl);
+    setSelect(SYNTAX_SELECT, { value: s.showCode ? s.syntax : '' });
     descBtn.setAttribute(descBtn.getAttribute('role') === 'switch' ? 'aria-checked' : 'aria-pressed', String(s.showDescription));
 
     // Brand and density selectors and the combinations switch are rendered by TokenExplorer.astro; show the ones
@@ -383,7 +389,7 @@ export function initTokenExplorer() {
     if (brandSeg) selectSegment(brandSeg, s.view.brand);
     if (densitySeg) selectSegment(densitySeg, s.view.density);
     if (combosBtn) {
-      combosBtn.hidden = !plan.combos;
+      if (combosField) combosField.hidden = !plan.combos;
       combosBtn.setAttribute('aria-checked', String(s.view.allCombos));
     }
     const any = showBrand || showDensity || plan.combos;
@@ -745,9 +751,9 @@ export function initTokenExplorer() {
   brandSeg?.addEventListener('bridge:segment', (e) => changeView(() => (s.view.brand = segValue(e))));
   densitySeg?.addEventListener('bridge:segment', (e) => changeView(() => (s.view.density = segValue(e))));
   combosBtn?.addEventListener('click', () => changeView(() => (s.view.allCombos = !s.view.allCombos)));
-  syntaxSel.addEventListener('change', () => {
-    s.showCode = syntaxSel.value !== '';
-    if (s.showCode) s.syntax = syntaxSel.value as Syntax;
+  onSelectPick(SYNTAX_SELECT, (v) => {
+    s.showCode = v !== '';
+    if (s.showCode) s.syntax = v as Syntax;
     render({ keepScroll: true });
   });
   descBtn.addEventListener('click', () => {

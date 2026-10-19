@@ -5,6 +5,7 @@ import { bindCodeBlocks, bindTooltips } from '@bridge-ds/react/dom';
 import { getToken, initGitHubConnect } from './github-session';
 import { loadReviewNeedsYou, rememberedMine, type QueuePullFull } from './needs-you';
 import { initMaintainer } from './maintainer';
+import { initVanillaControls } from './vanilla-controls';
 import { initViewChange, readOpenPulls } from './view-change';
 
 interface SearchItem {
@@ -81,8 +82,8 @@ function applyScope(scope: Scope, within: ParentNode = document) {
     if (el.dataset.brand !== scope.brand) el.dataset.brand = scope.brand;
     if (el.dataset.density !== scope.density) el.dataset.density = scope.density;
   });
-  document.querySelectorAll<HTMLElement>('[data-set-brand]').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.setBrand === scope.brand)));
-  document.querySelectorAll<HTMLElement>('[data-set-density]').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.setDensity === scope.density)));
+  // Specimen brand and density switches (components/foundations/ScopeSwitch.astro, static SegmentedControls).
+  document.querySelectorAll<HTMLElement>('[data-scope-switch]').forEach((s) => paintSegments(s, s.dataset.scopeSwitch === 'density' ? scope.density : scope.brand));
   document.querySelectorAll<HTMLElement>('[data-scope-label]').forEach((l) => {
     const key = l.dataset.scopeLabel as keyof Scope;
     l.textContent = labelOf(scope[key]);
@@ -105,11 +106,10 @@ function initScope() {
   };
   // React islands (scope menu, props playground) ask for a change with an event; see components/ds/scope.ts.
   document.addEventListener('bridge:set-scope', (e) => set((e as CustomEvent<Partial<Scope>>).detail ?? {}));
-  document.addEventListener('click', (e) => {
-    const t = (e.target as HTMLElement).closest<HTMLElement>('[data-set-brand], [data-set-density]');
-    if (!t) return;
-    if (t.dataset.setBrand) set({ brand: t.dataset.setBrand });
-    if (t.dataset.setDensity) set({ density: t.dataset.setDensity });
+  document.addEventListener('bridge:segment', (e) => {
+    const sw = (e.target as HTMLElement).closest<HTMLElement>('[data-scope-switch]');
+    const value = (e as CustomEvent<{ value: string }>).detail.value;
+    if (sw) set(sw.dataset.scopeSwitch === 'density' ? { density: value } : { brand: value });
   });
   // Islands and drawers add themed scopes after load: keep them in step.
   let queued = false;
@@ -617,6 +617,7 @@ export function initShell() {
   initTheme();
   initMaintainer();
   initSegmented();
+  initVanillaControls();
   initMenus();
   initToc();
   initStudio();

@@ -1,0 +1,5 @@
+---
+"@bridge-ds/docs-site": patch
+---
+
+The docs site uses its own components for every form control. The Studio Components "All families" filter is a DS Select with each family's count as a badge (it was a native select with its arrow stuck to the edge). Token explorer search, switches, filter checkboxes and radios, code syntax menu and draft bar Review; Changes exploration form and history filters; Settings integration fields; Library token type filter, scope switches, copy buttons and the header links are DS Input, Textarea, Select, Switch, Checkbox, RadioGroup, SegmentedControl, Button, IconButton and ButtonLink, and the homemade CSS that styled the native ones is gone. Plain scripts drive them through two small contracts: `lib/select-bridge` (a DS Select island that talks to a script by events, `BridgedSelect`) and `scripts/vanilla-controls` (static Switch, Checkbox and RadioGroup marked `data-vanilla`). The raw controls left are marked with a `bridge-audit-ignore-next-line` reason (script-driven dialogs, the search palette field, a hidden file picker and four whole-row buttons), and their entries are gone from the temporary audit allowlist.
