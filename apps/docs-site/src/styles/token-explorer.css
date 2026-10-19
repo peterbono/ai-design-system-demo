@@ -2737,9 +2737,32 @@
 }
 
 /* While the draft bar shows, the table ends above it (its height and both its gaps): the last rows scroll clear of
-   it at every width, inside the table on a laptop and on the page on a phone. */
-body:has([data-xe-bar]:not([hidden])) .xp[data-surface="app"] .xp-scroll {
+   it at every width (padding on the grid itself, which overflows its scroller on a phone). */
+body:has([data-xe-bar]:not([hidden])) .xp[data-surface="app"] .xp-grid {
   padding-bottom: calc(var(--size-12) + var(--space-6) * 2);
+}
+
+/* On a phone the bar docks: full width at the bottom edge, the count on the left and Review on the right, and the
+   page reserves its height so no row ever sits under it. */
+@media (max-width: 640px) {
+  .xe-bar {
+    right: 0;
+    bottom: 0;
+    left: 0;
+    justify-content: space-between;
+    height: var(--size-14);
+    padding: 0 var(--space-4);
+    border-radius: 0;
+    transform: none;
+  }
+
+  .xe-bar-count {
+    flex: 1 1 auto;
+  }
+
+  body:has([data-xe-bar]:not([hidden])) .xp[data-surface="app"] .xp-grid {
+    padding-bottom: var(--size-14);
+  }
 }
 
 .xe-bar-dot {
@@ -3725,6 +3748,13 @@ body:has([data-xe-bar]:not([hidden])) .xp[data-surface="app"] .xp-scroll {
 
   .xp[data-surface="app"] .xp-tools .xp-grow {
     display: none;
+  }
+
+  /* The Studio top bar scrolls away on a phone: the column header sticks to the top edge, on its own surface. */
+  .xp[data-surface="app"] .xp-head {
+    top: 0;
+    border-bottom: var(--border-width-default) solid var(--color-border-default);
+    background-color: var(--color-bg-default);
   }
 
   /* Every brand and theme (more than two value columns): one labeled line per value instead of columns too narrow
