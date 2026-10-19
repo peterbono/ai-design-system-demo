@@ -46,12 +46,23 @@ export interface CssElement {
   isRoot: boolean;
   /** A text field: matches input, :disabled, [data-disabled] in the disabled state, ::placeholder. */
   inputLike: boolean;
+  /**
+   * A Base UI part (`<BaseCheckbox.Root>`, `<BaseSwitch.Thumb>`): carries the data attributes Base UI sets from the
+   * component's state (data-checked, data-unchecked, data-indeterminate, data-disabled).
+   */
+  baseUi?: boolean | undefined;
+  /** Base UI parts: their checked state, the drawn one ("state") or their own (a checked option in a group). */
+  checked?: 'state' | 'true' | 'false' | 'mixed' | undefined;
+  /** data-* and aria-* attributes the JSX sets for the props drawn (`data-invalid={invalid || undefined}`), as strings. */
+  attrs?: Map<string, string> | undefined;
 }
 
 export interface CssState {
   hover: boolean;
   active: boolean;
   disabled: boolean;
+  /** Checked state Base UI parts and native checkboxes carry: undefined when the component has none. */
+  checked?: 'true' | 'false' | 'mixed' | undefined;
 }
 
 export const DEFAULT_STATE: CssState = { hover: false, active: false, disabled: false };
@@ -272,14 +283,30 @@ function siblingsBefore(el: CssElement): CssElement[] {
   return idx < 0 ? [] : sibs.slice(0, idx);
 }
 
+/** Base UI's checked attributes for a state: data-checked, data-unchecked or data-indeterminate, and aria-checked. */
+function checkedAttr(name: string, checked: CssState['checked']): string | undefined {
+  if (checked === undefined) return undefined;
+  if (name === 'aria-checked') return checked;
+  if (name === 'data-checked') return checked === 'true' ? '' : undefined;
+  if (name === 'data-unchecked') return checked === 'false' ? '' : undefined;
+  if (name === 'data-indeterminate') return checked === 'mixed' ? '' : undefined;
+  return undefined;
+}
+
 function attrMatches(el: CssElement, s: Extract<Simple, { t: 'attr' }>, state: CssState): boolean {
   switch (s.name) {
     case 'data-disabled':
     case 'disabled':
-      return state.disabled && (el.isRoot || el.inputLike);
-    default:
-      // data-loading, data-pressed, data-invalid, aria-invalid, readonly, data-popup-open...: not part of the drawn states.
-      return false;
+      return state.disabled && (el.isRoot || el.inputLike || !!el.baseUi);
+    default: {
+      // Base UI parts carry the checked state; any element carries the data-* and aria-* attributes its JSX sets.
+      const own = el.checked === 'state' || (el.inputLike && el.checked === undefined) ? state.checked : el.checked;
+      const fromState = el.baseUi || el.inputLike ? checkedAttr(s.name, own) : undefined;
+      const v = fromState ?? el.attrs?.get(s.name);
+      // data-loading, data-pressed, data-popup-open...: not set by the drawn props, so not part of the drawn states.
+      if (v === undefined) return false;
+      return s.value === undefined || s.value === v;
+    }
   }
 }
 
@@ -295,6 +322,10 @@ function pseudoMatches(el: CssElement, s: Extract<Simple, { t: 'pseudo' }>, stat
       return !state.disabled;
     case 'placeholder-shown':
       return el.inputLike;
+    case 'checked':
+      return (el.inputLike || !!el.baseUi) && (el.checked === 'state' || el.checked === undefined ? state.checked : el.checked) === 'true';
+    case 'indeterminate':
+      return (el.inputLike || !!el.baseUi) && (el.checked === 'state' || el.checked === undefined ? state.checked : el.checked) === 'mixed';
     case 'not':
       return !(s.args ?? []).some((a) => matchComplex(a, el, state, module));
     case 'is':
@@ -459,6 +490,25 @@ export function expandDecl(d: CssDecl): CssDecl[] {
         { prop: `border-${s}-color`, value: color },
       ]);
     }
+    case 'text-decoration': {
+      const line = parts.filter((x) => /^(none|underline|overline|line-through)$/.test(x));
+      return line.length ? [{ prop: 'text-decoration-line', value: line.join(' ') }] : [d];
+    }
+    case 'gap': {
+      const [row, col = row] = parts;
+      return [
+        { prop: 'row-gap', value: row! },
+        { prop: 'column-gap', value: col! },
+      ];
+    }
+    case 'flex-flow': {
+      const out: CssDecl[] = [];
+      for (const x of parts) {
+        if (/^(row|column)(-reverse)?$/.test(x)) out.push({ prop: 'flex-direction', value: x });
+        else if (/wrap/.test(x)) out.push({ prop: 'flex-wrap', value: x });
+      }
+      return out.length ? out : [d];
+    }
     case 'font':
       return d.value === 'inherit' ? ['font-family', 'font-size', 'font-weight', 'line-height'].map((prop) => ({ prop, value: 'inherit' })) : [d];
     default:
@@ -479,7 +529,9 @@ function splitBorder(parts: string[]): { width: string; color: string } {
 }
 
 /** Properties a child inherits from its parent (custom properties always inherit). */
-export const INHERITED = new Set(['color', 'font-family', 'font-size', 'font-weight', 'line-height', 'letter-spacing', 'cursor', 'white-space', 'visibility']);
+// text-decoration is not inherited in CSS, but it is drawn through the text of the element's inline children: for
+// the drawn text it behaves as inherited.
+export const INHERITED = new Set(['color', 'font-family', 'font-size', 'font-weight', 'line-height', 'letter-spacing', 'cursor', 'white-space', 'visibility', 'text-decoration-line', 'text-decoration-color']);
 
 export interface Declared {
   prop: string;

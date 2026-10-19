@@ -10,7 +10,7 @@
 // swapped through INSTANCE_SWAP properties whose preferred values list them, like a Figma library.
 
 import { variantKeyOf } from '@bridge-ds/core';
-import type { SpecField, SpecPart } from '@bridge-ds/core';
+import type { SpecField, SpecLayout, SpecPart } from '@bridge-ds/core';
 import type { ComponentApplyReport, ComponentPullPlan, GeneratedSet, PlannedComponent, PlannedField, PlannedIcon, PlannedSlot, PlannedValue, PlannedVariant } from '../sync/component-pull';
 import { buildSignature } from '../sync/components';
 import { readComponent } from './components';
@@ -165,15 +165,18 @@ const FRAME_FIELDS: SpecField[] = [
   'paddingBottom',
   'paddingLeft',
   'itemSpacing',
+  'counterAxisSpacing',
   'width',
   'height',
   'minWidth',
   'minHeight',
+  'opacity',
 ];
-const TEXT_FIELDS: SpecField[] = ['textFill', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing'];
-const ICON_FIELDS: SpecField[] = ['width', 'height', 'stroke', 'strokeWeight'];
+const TEXT_FIELDS: SpecField[] = ['textFill', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing', 'textDecoration', 'opacity'];
+const ICON_FIELDS: SpecField[] = ['width', 'height', 'stroke', 'strokeWeight', 'opacity'];
 
 const BLACK: SolidPaint = { type: 'SOLID', color: { r: 0, g: 0, b: 0 } };
+const TRANSPARENT: SolidPaint = { type: 'SOLID', color: { r: 0, g: 0, b: 0 }, opacity: 0 };
 
 interface Ctx {
   vars: Variables;
@@ -230,6 +233,13 @@ function reset(node: SceneNode, field: SpecField): void {
       case 'fontWeight':
         bind(node, field, null);
         return;
+      case 'opacity':
+        bind(node, field, null);
+        n.opacity = 1;
+        return;
+      case 'textDecoration':
+        n.textDecoration = 'NONE';
+        return;
       default:
         bind(node, field, null);
         n[field] = 0;
@@ -247,11 +257,18 @@ function apply(node: SceneNode, f: PlannedField, ctx: Ctx): void {
   };
   try {
     if (v.kind === 'none') {
-      if (f.field === 'stroke') n.strokes = [];
+      // A transparent border still takes its width in code (box-sizing): keep an invisible stroke so it counts in layout.
+      if (f.field === 'stroke') n.strokes = [TRANSPARENT];
       else n.fills = [];
       return;
     }
     if (v.kind === 'number') {
+      // A literal replaces a binding the layer had (an icon instance's stroke width from its master).
+      try {
+        if (f.field !== 'cornerRadius') bind(node, f.field, null);
+      } catch {
+        /* nothing bound */
+      }
       if (f.field === 'cornerRadius') n.cornerRadius = v.value;
       else n[f.field] = v.value;
       return;
@@ -261,6 +278,10 @@ function apply(node: SceneNode, f: PlannedField, ctx: Ctx): void {
       return;
     }
     if (v.kind === 'font') return; // fontName is set with the text, from the family list
+    if (v.kind === 'keyword') {
+      n[f.field] = v.value;
+      return;
+    }
     const variable = ctx.vars.find(v);
     if (!variable) return fail(`no variable "${v.name}" in ${v.collection}. Pull the variables, then pull components again.`);
     if (variable.resolvedType !== v.resolvedType) return fail(`"${v.name}" is a ${variable.resolvedType} variable, expected ${v.resolvedType}.`);
@@ -303,8 +324,8 @@ function findPart(variant: ComponentNode, id: string): SceneNode | undefined {
   return variant.findOne((n) => n.getSharedPluginData(NS, 'part') === id) ?? undefined;
 }
 
-function setupFrame(node: Box, part: SpecPart): void {
-  const l = part.layout ?? { direction: 'HORIZONTAL', primary: 'MIN', counter: 'MIN' };
+function setupFrame(node: Box, part: SpecPart, layout?: SpecLayout): void {
+  const l = layout ?? part.layout ?? { direction: 'HORIZONTAL', primary: 'MIN', counter: 'MIN' };
   node.layoutMode = l.direction;
   node.primaryAxisAlignItems = l.primary;
   node.counterAxisAlignItems = l.counter === 'STRETCH' ? 'MIN' : l.counter;
@@ -312,6 +333,10 @@ function setupFrame(node: Box, part: SpecPart): void {
   node.counterAxisSizingMode = 'AUTO';
   // overflow: hidden in code (a card): the footer fill stays inside the rounded corners.
   node.clipsContent = !!part.clip;
+  // Borders take room like CSS borders (border-box): drawn inside, counted in the auto layout size.
+  node.strokeAlign = 'INSIDE';
+  node.strokesIncludedInLayout = true;
+  if (l.direction === 'HORIZONTAL') node.layoutWrap = l.wrap ? 'WRAP' : 'NO_WRAP';
 }
 
 /**
@@ -319,20 +344,27 @@ function setupFrame(node: Box, part: SpecPart): void {
  * axis. Set last: the child's own hug sizing (setupFrame) would otherwise undo it, and FILL needs the node to be inside
  * its auto layout parent already. A text that fills the width wraps: fixed width, height grows.
  */
-function sizeInParent(node: SceneNode, parentPart: SpecPart | undefined): void {
+function sizeInParent(node: SceneNode, parentPart: SpecPart | undefined, definite = true): void {
   if (!parentPart?.layout || parentPart.layout.counter !== 'STRETCH' || !('layoutSizingHorizontal' in node)) return;
+  // A vertical parent that hugs its content has no width to fill: its children hug too (same look for left-aligned
+  // content; filling would turn the parent to a fixed width in Figma).
+  if (parentPart.layout.direction === 'VERTICAL' && !definite) return;
   if (parentPart.layout.direction === 'VERTICAL') {
     node.layoutSizingHorizontal = 'FILL';
     if (node.type === 'TEXT') node.textAutoResize = 'HEIGHT';
   } else if (node.type !== 'TEXT') node.layoutSizingVertical = 'FILL';
 }
 
-/** Generated parts sit under the parent the spec names, in spec order (a re-pull after code removed a wrapper moves them). */
-function placeParts(variant: ComponentNode, comp: PlannedComponent, nodes: Map<string, SceneNode>): void {
+/**
+ * Generated parts sit under the parent the spec names, in spec order (a re-pull after code removed a wrapper moves
+ * them), reversed where the variant's layout is (`flex-direction: row-reverse`: a label before its switch).
+ */
+function placeParts(variant: ComponentNode, comp: PlannedComponent, nodes: Map<string, SceneNode>, pv?: PlannedVariant): void {
   for (const parent of comp.parts) {
     const box = nodes.get(parent.id);
     if (!box || !('children' in box)) continue;
     const kids = comp.parts.filter((p) => p.parent === parent.id).map((p) => nodes.get(p.id)).filter((n): n is SceneNode => !!n);
+    if ((pv?.layout?.[parent.id] ?? parent.layout)?.reverse) kids.reverse();
     kids.forEach((kid, i) => {
       if ((box as Box).children[i] !== kid) (box as Box).insertChild(i, kid);
     });
@@ -370,11 +402,19 @@ async function configureVariant(variant: ComponentNode, comp: PlannedComponent, 
     if (variant.description.startsWith(ORPHAN_PREFIX)) variant.description = variant.description.slice(ORPHAN_PREFIX.length);
   }
   const nodes = new Map<string, SceneNode>();
+  // Parts with a width of their own (a fixed width, a root that fills its container in code) or filling such a parent.
+  const definite = new Set<string>();
+  for (const part of comp.parts) {
+    const parentPart = comp.parts.find((p) => p.id === part.parent);
+    const hasWidth = (pv.parts[part.id] ?? []).some((f) => f.field === 'width');
+    const fills = !!parentPart && definite.has(parentPart.id) && ((parentPart.layout?.direction === 'VERTICAL' && parentPart.layout.counter === 'STRETCH') || (parentPart.layout?.direction === 'HORIZONTAL' && !!part.grow));
+    if (hasWidth || fills) definite.add(part.id);
+  }
   for (const part of comp.parts) {
     let node = findPart(variant, part.id);
     const parent = ((part.parent ? nodes.get(part.parent) : variant) ?? variant) as Box;
-    if (part.swap) {
-      const target = pv.slots?.[part.id] ?? part.swap.default;
+    if (part.swap || part.icon) {
+      const target = pv.slots?.[part.id] ?? part.swap?.default ?? part.icon!;
       const main = ctx.parts.get(target);
       ctx.where = `${comp.name} ${pv.name}, ${part.name}`;
       if (main) {
@@ -388,7 +428,7 @@ async function configureVariant(variant: ComponentNode, comp: PlannedComponent, 
         if ((await inst.getMainComponentAsync())?.id !== main.id) inst.swapComponent(main);
         await styleInstance(inst, part.kind, pv.parts[part.id] ?? [], ctx);
         try {
-          sizeInParent(inst, comp.parts.find((p) => p.id === part.parent));
+          sizeInParent(inst, comp.parts.find((p) => p.id === part.parent), definite.has(part.parent ?? ''));
         } catch (err) {
           ctx.problems.push(`${ctx.where}, fill container: ${errorText(err)}`);
         }
@@ -418,12 +458,16 @@ async function configureVariant(variant: ComponentNode, comp: PlannedComponent, 
       node.fontName = await ctx.fonts.font(fam?.families, w);
       node.textAutoResize = 'WIDTH_AND_HEIGHT';
       const prop = part.text ? comp.properties.find((p) => p.name === part.text) : undefined;
-      if (!node.characters) node.characters = typeof prop?.default === 'string' ? prop.default : part.name;
+      // Text written in code (no TEXT property) follows the code; a property's text keeps what the set has.
+      if (part.characters !== undefined && !prop) {
+        if (node.characters !== part.characters) node.characters = part.characters;
+      } else if (!node.characters) node.characters = typeof prop?.default === 'string' ? prop.default : part.name;
       const key = part.text ? propKeys.get(part.text) : undefined;
-      if (key) node.componentPropertyReferences = { characters: key };
+      const visibleKey = part.visible ? propKeys.get(part.visible) : undefined;
+      if (key || visibleKey) node.componentPropertyReferences = { ...(key ? { characters: key } : {}), ...(visibleKey ? { visible: visibleKey } : {}) };
       for (const f of TEXT_FIELDS) reset(node, f);
     } else if (node.type === 'FRAME' || node.type === 'COMPONENT') {
-      if (part.kind === 'frame') setupFrame(node, part);
+      if (part.kind === 'frame') setupFrame(node, part, pv.layout?.[part.id]);
       else {
         node.layoutMode = 'NONE';
         node.fills = [];
@@ -436,12 +480,48 @@ async function configureVariant(variant: ComponentNode, comp: PlannedComponent, 
     }
     for (const f of fields) apply(node, f, ctx);
     try {
-      sizeInParent(node, parentPart);
+      sizeInParent(node, parentPart, definite.has(part.parent ?? ''));
     } catch (err) {
       ctx.problems.push(`${ctx.where}, fill container: ${errorText(err)}`);
     }
   }
-  placeParts(variant, comp, nodes);
+  placeParts(variant, comp, nodes, pv);
+  // After placing: covers take their parent's size, hidden parts are hidden (unless a BOOLEAN property shows them).
+  const hidden = new Set(pv.hidden ?? []);
+  for (const part of comp.parts) {
+    const node = nodes.get(part.id);
+    if (!node || part.id === 'root') continue;
+    if (part.cover) coverParent(node, ctx);
+    else if (part.grow && definite.has(part.parent ?? '')) growInParent(node, comp.parts.find((p) => p.id === part.parent), pv, ctx);
+    if (!part.visible) node.visible = !hidden.has(part.id);
+  }
+}
+
+/** `flex: 1` in code: the part fills its auto layout parent along the parent's direction. */
+function growInParent(node: SceneNode, parentPart: SpecPart | undefined, pv: PlannedVariant, ctx: Ctx): void {
+  const layout = (parentPart && pv.layout?.[parentPart.id]) ?? parentPart?.layout;
+  if (!layout || !('layoutSizingHorizontal' in node)) return;
+  try {
+    if (layout.direction === 'HORIZONTAL') node.layoutSizingHorizontal = 'FILL';
+    else node.layoutSizingVertical = 'FILL';
+  } catch (err) {
+    ctx.problems.push(`${ctx.where}, fill: ${errorText(err)}`);
+  }
+}
+
+/** A layer drawn over its parent (an avatar photo): absolute in the auto layout, as big as the parent, stretching with it. */
+function coverParent(node: SceneNode, ctx: Ctx): void {
+  const parent = node.parent as Box | null;
+  if (!parent) return;
+  try {
+    if ('layoutMode' in parent && parent.layoutMode !== 'NONE') (node as FrameNode).layoutPositioning = 'ABSOLUTE';
+    node.x = 0;
+    node.y = 0;
+    if ('resize' in node) (node as FrameNode).resize(Math.max(1, parent.width), Math.max(1, parent.height));
+    if ('constraints' in node) node.constraints = { horizontal: 'STRETCH', vertical: 'STRETCH' };
+  } catch (err) {
+    ctx.problems.push(`${ctx.where}, cover: ${errorText(err)}`);
+  }
 }
 
 /**

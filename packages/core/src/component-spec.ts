@@ -16,7 +16,8 @@ export const DEFAULT_COMPONENT_SPECS_FILE = 'packages/react/component-specs.json
 /**
  * A Figma-side property a CSS declaration maps to.
  * Frames: fill (background-color), stroke and stroke weights (border), cornerRadius (border-radius), paddings, itemSpacing
- * (gap), sizes. Text: textFill (color), font family, size, weight, line height, letter spacing.
+ * (gap), sizes. Text: textFill (color), font family, size, weight, line height, letter spacing, and textDecoration (a
+ * keyword, "UNDERLINE" or "STRIKETHROUGH", not a token).
  */
 export type SpecField =
   | 'fill'
@@ -32,16 +33,19 @@ export type SpecField =
   | 'paddingBottom'
   | 'paddingLeft'
   | 'itemSpacing'
+  | 'counterAxisSpacing'
   | 'width'
   | 'height'
   | 'minWidth'
   | 'minHeight'
+  | 'opacity'
   | 'textFill'
   | 'fontFamily'
   | 'fontSize'
   | 'fontWeight'
   | 'lineHeight'
-  | 'letterSpacing';
+  | 'letterSpacing'
+  | 'textDecoration';
 
 export const SPEC_FIELDS: readonly SpecField[] = [
   'fill',
@@ -57,26 +61,30 @@ export const SPEC_FIELDS: readonly SpecField[] = [
   'paddingBottom',
   'paddingLeft',
   'itemSpacing',
+  'counterAxisSpacing',
   'width',
   'height',
   'minWidth',
   'minHeight',
+  'opacity',
   'textFill',
   'fontFamily',
   'fontSize',
   'fontWeight',
   'lineHeight',
   'letterSpacing',
+  'textDecoration',
 ];
 
 /** Fields whose token must be a color. */
 export const COLOR_FIELDS: ReadonlySet<SpecField> = new Set(['fill', 'stroke', 'textFill']);
 
 /**
- * A token path ("button.primary.bg"), a literal zero (`padding: 0`), null: no paint (`transparent`), or a calc() of token
- * paths ("calc(space.2 + space.0-5)", operators + - * / and px numbers): resolved to a number, set but not bound.
+ * A token path ("button.primary.bg"), a literal number (`padding: 0`, a unitless `stroke-width: 3` or `opacity: 0.5`),
+ * null: no paint (`transparent`), or a calc() of token paths ("calc(space.2 + space.0-5)", operators + - * / and px
+ * numbers): resolved to a number, set but not bound.
  */
-export type SpecValue = string | 0 | null;
+export type SpecValue = string | number | null;
 
 export interface SpecLayout {
   direction: 'HORIZONTAL' | 'VERTICAL';
@@ -84,6 +92,10 @@ export interface SpecLayout {
   primary: 'MIN' | 'CENTER' | 'MAX' | 'SPACE_BETWEEN';
   /** align-items. STRETCH: children fill the cross axis. */
   counter: 'MIN' | 'CENTER' | 'MAX' | 'STRETCH';
+  /** `flex-direction: row-reverse | column-reverse`: children are drawn in reverse order. */
+  reverse?: boolean | undefined;
+  /** `flex-wrap: wrap` on a row: items wrap to new lines (Figma auto layout wrap). */
+  wrap?: boolean | undefined;
 }
 
 export interface SpecPart {
@@ -105,11 +117,22 @@ export interface SpecPart {
   clip?: boolean | undefined;
   /** Root only: block-level in code (display block, flex or grid, or width 100%), so it fills its container. Figma draws it at a fixed width. */
   fill?: boolean | undefined;
+  /** Text parts with no TEXT property (content written in code, like a group's option labels): the characters drawn. */
+  characters?: string | undefined;
+  /**
+   * Positioned over its parent instead of flowing in its auto layout (an avatar photo over its initials): `position:
+   * absolute` with `inset: 0`, or `width` and `height` 100%. Drawn as an absolute child that fills its parent.
+   */
+  cover?: boolean | undefined;
+  /** `flex: 1` in code: takes the free space along its parent's auto layout direction (Figma "Fill container"). */
+  grow?: boolean | undefined;
   /**
    * A swappable part: drawn as an instance of a generated component ("Icon/Plus", "Slot/Media") and swapped through an
    * INSTANCE_SWAP property. Icon parts swap between every icon of `icons`; content slots between `options`.
    */
   swap?: SpecSwap | undefined;
+  /** Icon parts whose icon is written in code (a checkbox's check mark): an instance of this icon, with no property. */
+  icon?: string | undefined;
 }
 
 export interface SpecSwap {
@@ -184,6 +207,10 @@ export interface SpecVariant {
   values: Record<string, Partial<Record<SpecField, SpecValue>>>;
   /** Swappable part id -> the component this variant shows by default ("Icon/Plus", "Slot/Media"). */
   slots?: Record<string, string> | undefined;
+  /** Parts this variant does not show (`display: none`, `opacity: 0` or `scale(0)` in this state): hidden layers. */
+  hidden?: string[] | undefined;
+  /** Parts whose auto layout differs from the part's own in this variant (a switch thumb at the end when on). */
+  layout?: Record<string, SpecLayout> | undefined;
 }
 
 /** A declaration, prop or part that has no Figma equivalent in this version, with the reason. */
@@ -196,6 +223,8 @@ export interface SpecUnmapped {
 
 export interface ComponentSpec {
   name: string;
+  /** Component folder the set comes from, when it is not the set's name (Radio comes from RadioGroup). */
+  component?: string | undefined;
   /** FNV-1a of everything else in the spec: unchanged hash, nothing to rebuild. */
   hash: string;
   /** Files it was read from, repo-relative. */
@@ -217,6 +246,32 @@ export interface ComponentSpecsFile {
   iconStyle?: SpecIconStyle | undefined;
   /** Content components slots swap to. */
   slots?: SpecSlot[] | undefined;
+  /**
+   * Every component of the design system and whether it is in Figma: generated (its sets are in `components`),
+   * unsupported (with the generator's reason) or layout (no visual of its own: a layout helper, use auto layout).
+   * Undefined in files written before coverage was recorded.
+   */
+  coverage?: SpecCoverage[] | undefined;
+}
+
+export type CoverageStatus = 'generated' | 'unsupported' | 'layout';
+
+export interface SpecCoverage {
+  /** Component folder name ("RadioGroup"). */
+  name: string;
+  status: CoverageStatus;
+  /** Plain reason, for unsupported and layout components ("opens a popup", "uses CSS grid"). */
+  reason?: string | undefined;
+  /** Sets generated from it, when they are not just its own name ("RadioGroup", "Radio"). */
+  sets?: string[] | undefined;
+}
+
+/** Coverage counts: visual components (generated + unsupported) and layout helpers, from a specs file. */
+export function coverageSummary(file: Pick<ComponentSpecsFile, 'coverage' | 'components'>): { generated: number; visual: number; layout: number; total: number; missing: SpecCoverage[] } {
+  const list = file.coverage ?? file.components.map((c) => ({ name: c.name, status: 'generated' as const }));
+  const generated = list.filter((c) => c.status === 'generated').length;
+  const layout = list.filter((c) => c.status === 'layout').length;
+  return { generated, visual: list.length - layout, layout, total: list.length, missing: list.filter((c) => c.status === 'unsupported') };
 }
 
 /** Figma component name of an icon: "Icon/Plus". */

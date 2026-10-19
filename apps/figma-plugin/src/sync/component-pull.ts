@@ -16,10 +16,13 @@ import {
   DEFAULT_COMPONENT_SPECS_FILE,
   type GitHubClient,
   type SpecAxis,
+  type SpecCoverage,
   type SpecField,
   type SpecPart,
   type SpecProperty,
+  type SpecLayout,
   type SpecSlot,
+  type SpecValue,
   type TokenSet,
   defaultContext,
   parseColor,
@@ -62,7 +65,8 @@ export type PlannedValue =
   | { kind: 'number'; value: number; /** A calc() of tokens, resolved: set, not bound. */ expr?: string | undefined }
   | { kind: 'percent'; value: number; path: string }
   | { kind: 'none' }
-  | { kind: 'font'; families: string[]; path: string };
+  | { kind: 'font'; families: string[]; path: string }
+  | { kind: 'keyword'; value: string };
 
 export interface PlannedField {
   field: SpecField;
@@ -81,6 +85,10 @@ export interface PlannedVariant {
   slots?: Record<string, string> | undefined;
   /** Variables bound inside a swapped-in instance that the variant does not override (a media slot's fill and icon). */
   inner?: PlannedField[] | undefined;
+  /** Parts this variant hides (a check glyph while unchecked). */
+  hidden?: string[] | undefined;
+  /** Parts laid out differently in this variant (a switch thumb at the end when on). */
+  layout?: Record<string, SpecLayout> | undefined;
 }
 
 /** An icon component to build on the Icons page ("Icon/Plus"). */
@@ -110,6 +118,8 @@ export type ComponentStatus = 'new' | 'updated' | 'unchanged';
 export interface PlannedComponent {
   componentId: string;
   name: string;
+  /** Component folder it comes from, when not its own name (the Radio set comes from RadioGroup). */
+  component?: string | undefined;
   hash: string;
   status: ComponentStatus;
   nodeId?: string | undefined;
@@ -142,6 +152,8 @@ export interface ComponentPullPlan {
   iconFields?: PlannedField[] | undefined;
   /** Content slot components (Slots page). */
   slots?: PlannedSlot[] | undefined;
+  /** Every component of the design system and whether it is in Figma (component-specs.json coverage). */
+  coverage?: SpecCoverage[] | undefined;
 }
 
 export interface ComponentApplyReport {
@@ -186,7 +198,11 @@ export async function loadComponentSpecs(
  */
 export const FILL_WIDTH_TOKEN = 'size.80';
 
-const TEXT_ONLY: ReadonlySet<SpecField> = new Set(['textFill', 'fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing']);
+const TEXT_ONLY: ReadonlySet<SpecField> = new Set(['textFill', 'fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing', 'textDecoration']);
+/** Fields any layer takes, text or not. */
+const ANY_LAYER: ReadonlySet<SpecField> = new Set(['opacity']);
+/** Whether a field applies to a text layer (text fields) or to a frame or icon (the others); opacity to both. */
+const fieldFits = (field: SpecField, text: boolean) => ANY_LAYER.has(field) || TEXT_ONLY.has(field) === text;
 
 function numberValue(set: TokenSet, path: string): number | undefined {
   const r = resolve(set.byPath, path, defaultContext(set));
@@ -255,9 +271,10 @@ export function evaluateCalc(expr: string, head: TokenSet): number | { problem: 
 }
 
 /** How one spec value is written in Figma, or the reason it cannot be. */
-export function planValue(field: SpecField, value: string | 0 | null, head: TokenSet): PlannedValue | { problem: string } {
+export function planValue(field: SpecField, value: SpecValue, head: TokenSet): PlannedValue | { problem: string } {
   if (value === null) return COLOR_FIELDS.has(field) ? { kind: 'none' } : { problem: 'no value' };
-  if (value === 0) return { kind: 'number', value: 0 };
+  if (field === 'textDecoration') return typeof value === 'string' && /^(UNDERLINE|STRIKETHROUGH|NONE)$/.test(value) ? { kind: 'keyword', value } : { problem: `${String(value)} is not a text decoration` };
+  if (typeof value === 'number') return COLOR_FIELDS.has(field) ? { problem: `${value}: a color cannot be a number` } : { kind: 'number', value };
   if (value.startsWith('calc(')) {
     if (COLOR_FIELDS.has(field)) return { problem: `${value}: a color cannot be a calc()` };
     const n = evaluateCalc(value, head);
@@ -311,10 +328,10 @@ export function buildComponentPlan(specs: ComponentSpecsFile, source: string, ge
     seen.add(k);
     problems.push(p);
   };
-  const plannedFields = (owner: string, part: string, values: Partial<Record<SpecField, string | 0 | null>>, text: boolean): PlannedField[] => {
+  const plannedFields = (owner: string, part: string, values: Partial<Record<SpecField, SpecValue>>, text: boolean): PlannedField[] => {
     const fields: PlannedField[] = [];
-    for (const [field, value] of Object.entries(values) as [SpecField, string | 0 | null][]) {
-      if (TEXT_ONLY.has(field) !== text) continue;
+    for (const [field, value] of Object.entries(values) as [SpecField, SpecValue][]) {
+      if (!fieldFits(field, text)) continue;
       const pv = planValue(field, value, head);
       if ('problem' in pv) problem({ component: owner, part, property: field, reason: pv.problem });
       else fields.push({ field, value: pv });
@@ -362,8 +379,8 @@ export function buildComponentPlan(specs: ComponentSpecsFile, source: string, ge
       const parts: Record<string, PlannedField[]> = {};
       for (const [part, values] of Object.entries(v.values)) {
         const fields: PlannedField[] = [];
-        for (const [field, value] of Object.entries(values) as [SpecField, string | 0 | null][]) {
-          if (TEXT_ONLY.has(field) !== (kinds.get(part) === 'text')) continue;
+        for (const [field, value] of Object.entries(values) as [SpecField, SpecValue][]) {
+          if (!fieldFits(field, kinds.get(part) === 'text')) continue;
           const pv = planValue(field, value, head);
           if ('problem' in pv) problem({ component: spec.name, part, property: field, reason: pv.problem });
           else {
@@ -383,7 +400,16 @@ export function buildComponentPlan(specs: ComponentSpecsFile, source: string, ge
         parts[part] = [];
         inner = [...(inner ?? []), ...sl.fields.filter((f) => f.field !== 'width' && f.field !== 'height'), ...(sl.iconFields ?? [])];
       }
-      return { key: variantKeyOf(v.props), name: variantName(v.props), props: v.props, parts, ...(v.slots ? { slots: { ...v.slots } } : {}), ...(inner ? { inner } : {}) };
+      return {
+        key: variantKeyOf(v.props),
+        name: variantName(v.props),
+        props: v.props,
+        parts,
+        ...(v.slots ? { slots: { ...v.slots } } : {}),
+        ...(inner ? { inner } : {}),
+        ...(v.hidden?.length ? { hidden: [...v.hidden] } : {}),
+        ...(v.layout ? { layout: { ...v.layout } } : {}),
+      };
     });
     const existing = generated.find((g) => g.componentId === spec.name);
     const keys = new Set(variants.map((v) => v.key));
@@ -394,6 +420,7 @@ export function buildComponentPlan(specs: ComponentSpecsFile, source: string, ge
     components.push({
       componentId: spec.name,
       name: spec.name,
+      ...(spec.component ? { component: spec.component } : {}),
       hash: spec.hash,
       status,
       ...(existing ? { nodeId: existing.nodeId } : {}),
@@ -406,7 +433,41 @@ export function buildComponentPlan(specs: ComponentSpecsFile, source: string, ge
       addedVariants,
     });
   }
-  return { source, components, problems, ...(icons.length ? { icons } : {}), ...(iconFields ? { iconFields } : {}), ...(slots.length ? { slots } : {}) };
+  return {
+    source,
+    components,
+    problems,
+    ...(icons.length ? { icons } : {}),
+    ...(iconFields ? { iconFields } : {}),
+    ...(slots.length ? { slots } : {}),
+    ...(specs.coverage ? { coverage: specs.coverage } : {}),
+  };
+}
+
+/** What the Pull screen says about coverage: the count, then the components not in Figma with a plain reason each. */
+export interface CoverageView {
+  /** "26 of 47 components are in Figma", or "6 components are in Figma" when the file does not list the others. */
+  headline: string;
+  /** Visual components not in Figma yet, each with its reason ("Not supported yet: opens a popup"). */
+  missing: { name: string; reason: string }[];
+  /** Layout helpers (Stack, Grid...): nothing to draw, auto layout does their job. */
+  layout: string[];
+  /** Every visual component is in Figma. */
+  complete: boolean;
+}
+
+export function coverageView(plan: Pick<ComponentPullPlan, 'coverage' | 'components'>): CoverageView {
+  const list = plan.coverage;
+  if (!list) {
+    // An older specs file: it names the sets it has, not the components it leaves out. Never claim it is complete.
+    const n = new Set(plan.components.map((c) => c.name)).size;
+    return { headline: `${n} ${n === 1 ? 'component is' : 'components are'} in Figma. The code does not list the others yet.`, missing: [], layout: [], complete: false };
+  }
+  const visual = list.filter((c) => c.status !== 'layout');
+  const inFigma = visual.filter((c) => c.status === 'generated').length;
+  const missing = visual.filter((c) => c.status !== 'generated').map((c) => ({ name: c.name, reason: c.reason ? `Not supported yet: ${c.reason}` : 'Not added yet' }));
+  const layout = list.filter((c) => c.status === 'layout').map((c) => c.name);
+  return { headline: `${inFigma} of ${visual.length} components are in Figma`, missing, layout, complete: missing.length === 0 };
 }
 
 /** Components a pull would write (new or updated). */

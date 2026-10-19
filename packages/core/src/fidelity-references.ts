@@ -68,6 +68,12 @@ export function planReference(spec: ComponentSpec, variant: SpecVariant, file?: 
       props[axis.prop] = value === 'true' ? true : value === 'false' ? false : value;
       continue;
     }
+    // The Checked axis the generator draws from Base UI's checked state: the checked and indeterminate props.
+    if (axis.name === 'Checked') {
+      props.checked = value === 'true';
+      if (value === 'mixed') props.indeterminate = true;
+      continue;
+    }
     if (axis.name.toLowerCase() !== 'state') return { ok: false, reason: `${axis.name} has no matching option in code` };
     const s = STATE_PSEUDO[value.toLowerCase()];
     if (!s) return { ok: false, reason: `the ${value} state has no code equivalent to render` };
@@ -94,6 +100,9 @@ export function planReference(spec: ComponentSpec, variant: SpecVariant, file?: 
   const icons: Record<string, string> = {};
   for (const prop of spec.properties) {
     if (prop.type === 'TEXT') {
+      // Optional content hidden by default (an input's prefix, a description): not passed, as Figma does not show it.
+      const hidden = spec.properties.some((b) => b.type === 'BOOLEAN' && b.prop === prop.prop && b.default === false);
+      if (hidden && prop.prop) continue;
       if (prop.prop === 'children') text = String(prop.default);
       else if (prop.prop) props[prop.prop] = String(prop.default);
       continue;
@@ -115,7 +124,8 @@ export function planReference(spec: ComponentSpec, variant: SpecVariant, file?: 
   let parts: { component: string; text: string }[] | undefined;
   const loose = spec.properties.filter((p) => p.type === 'TEXT' && !p.prop);
   const frames = children(root.id).filter((p) => p.kind === 'frame');
-  const compound = text === undefined && frames.length > 0 && frames.every((f) => spec.parts.some((p) => p.parent === f.id && p.kind === 'text'));
+  // Compound parts are frames named like their text (CardHeader's "Header") or holding a slot, not a field's box.
+  const compound = text === undefined && frames.length > 0 && frames.every((f) => spec.parts.some((p) => p.parent === f.id && p.kind === 'text' && (p.swap || p.text === f.name)));
   if (compound) {
     parts = [];
     for (const f of frames) {

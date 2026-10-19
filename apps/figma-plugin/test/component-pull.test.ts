@@ -6,14 +6,14 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { type ComponentSpecsFile, hashSpec, parseComponentSpecs } from '@bridge-ds/core';
-import { SPEC_COMPONENTS, generateRepoComponentSpecs } from '@bridge-ds/core/node';
+import { generateRepoComponentSpecs } from '@bridge-ds/core/node';
 import { applyPullPlan } from '../src/main/apply';
 import { applyComponentPlan, layoutVariants, scanGenerated } from '../src/main/build-components';
 import { exportThumbnails, scanComponents } from '../src/main/components';
 import { onlyComponent, plannedSignature, reviewUpdates, withoutComponents } from '../src/sync/component-review';
 import { takeSnapshot } from '../src/main/snapshot';
 import { DEFAULT_SETTINGS } from '../src/shared/messages';
-import { buildComponentPlan, evaluateCalc, loadComponentSpecs, pendingComponents, writablePlan } from '../src/sync/component-pull';
+import { buildComponentPlan, coverageView, evaluateCalc, loadComponentSpecs, pendingComponents, writablePlan } from '../src/sync/component-pull';
 import { classifyComponents, pullBaselines, suggestLine, suggestTitle } from '../src/sync/components';
 import { analyze, buildPull } from '../src/sync/flows';
 import { FakeGitHub } from './fake-github';
@@ -23,7 +23,9 @@ import { realChecksText, realConfigText, realFiles } from './helpers';
 const ROOT = join(process.cwd(), '../..');
 const SPECS_PATH = 'packages/react/component-specs.json';
 const specsText = () => readFileSync(join(ROOT, SPECS_PATH), 'utf8');
-const CODED = ['Badge', 'Button', 'Card', 'IconButton', 'Input', 'Tag'];
+/** The generated sets of the committed file, in file order, and the component folders they come from. */
+const SPEC_COMPONENTS = parseComponentSpecs(specsText()).components.map((c) => c.name);
+const CODED = [...new Set(parseComponentSpecs(specsText()).components.map((c) => c.component ?? c.name))];
 
 function repoFiles(specs = specsText()): Record<string, string> {
   const out: Record<string, string> = {};
@@ -108,18 +110,19 @@ test('plan: every spec is new on a first pull, fields resolve to variables of th
   assert.equal(lh.kind, 'percent', 'unitless line heights are set as a percent, not bound');
   // CSS that has no Figma equivalent is reported before anything is written.
   assert.ok(plan.problems.some((p) => p.component === 'Badge' && p.property === 'minHeight' && /^calc\(size\.6 \+ space\.0-5\) = 26, set, not bound$/.test(p.reason)));
-  assert.ok(plan.problems.some((p) => p.component === 'Input' && p.property === 'prop prefix'));
+  // Optional content is drawn behind a boolean, not reported (an input's prefix).
+  assert.ok(plan.components.find((c) => c.name === 'Input')!.properties.some((p) => p.name === 'Show prefix' && p.type === 'BOOLEAN'));
 });
 
-test('apply: 6 component sets on a Components page, bound to the variables, with text and boolean properties', async () => {
+test('apply: every generated set on a Components page, bound to the variables, with text and boolean properties', async () => {
   const { sim, plan } = await pulledFile();
   const report = await applyComponentPlan(writablePlan(plan));
-  assert.deepEqual([report.created, report.updated, report.unchanged], [6, 0, 0]);
+  assert.deepEqual([report.created, report.updated, report.unchanged], [SPEC_COMPONENTS.length, 0, 0]);
   assert.deepEqual(report.problems, []);
   assert.equal(report.fontNote, undefined);
   const page = sim.root.children.find((p) => p.name === 'Components')!;
   assert.deepEqual(page.children.map((s) => `${s.type}:${s.name}`), SPEC_COMPONENTS.map((n) => `COMPONENT_SET:${n}`));
-  const button = page.children[0]!;
+  const button = page.children.find((s) => s.name === 'Button')!;
   assert.equal(button.children.length, 72);
   const defs = button.componentPropertyDefinitions;
   assert.deepEqual(
@@ -161,28 +164,29 @@ test('baseline: a fresh pull never shows a component request in Push', async () 
   const { plan } = await pulledFile();
   await applyComponentPlan(writablePlan(plan));
   const scanned = await scanComponents(() => {});
-  assert.equal(scanned.components.length, 6);
+  assert.equal(scanned.components.length, SPEC_COMPONENTS.length);
   for (const c of scanned.components) assert.deepEqual(c.baseline, c.signature, `${c.name} baseline equals its signature`);
   const scan = classifyComponents(scanned.components, CODED);
   assert.deepEqual([scan.changed.length, scan.candidates.length, scan.adopt.length], [0, 0, 0]);
   // The UI's after-pull refresh stores the same baselines again.
-  assert.equal(pullBaselines(scanned.components, CODED).length, 6);
+  assert.equal(pullBaselines(scanned.components, CODED).length, SPEC_COMPONENTS.length);
 });
 
 test('idempotent: a second pull finds the sets, writes nothing new and never duplicates them', async () => {
   const first = await pulledFile();
   await applyComponentPlan(writablePlan(first.plan));
   const ids = first.sim.sets().map((s) => s.id);
-  const variantIds = first.sim.sets()[0]!.children.map((c) => c.id);
+  const buttonSet = () => first.sim.sets().find((s) => s.name === 'Button')!;
+  const variantIds = buttonSet().children.map((c) => c.id);
   const again = await pulledFile({ sim: first.sim, gh: first.gh });
   assert.deepEqual(again.plan.components.map((c) => c.status), SPEC_COMPONENTS.map(() => 'unchanged'));
   assert.equal(pendingComponents(again.plan).length, 0);
   // Forcing an update rebuilds in place: same sets, same variants, same layers.
   const forced = { ...again.plan, components: again.plan.components.map((c) => ({ ...c, status: 'updated' as const })) };
   const report = await applyComponentPlan(forced);
-  assert.deepEqual([report.created, report.updated], [0, 6]);
+  assert.deepEqual([report.created, report.updated], [0, SPEC_COMPONENTS.length]);
   assert.deepEqual(first.sim.sets().map((s) => s.id), ids);
-  assert.deepEqual(first.sim.sets()[0]!.children.map((c) => c.id), variantIds);
+  assert.deepEqual(buttonSet().children.map((c) => c.id), variantIds);
   const scanned = await scanComponents(() => {});
   assert.equal(classifyComponents(scanned.components, CODED).changed.length, 0);
 });
@@ -219,7 +223,7 @@ test('fonts: a brand font missing in Figma falls back to Inter, said once', asyn
   const { sim, plan } = await pulledFile({ fonts });
   const report = await applyComponentPlan(writablePlan(plan));
   assert.match(report.fontNote ?? '', /^Instrument Sans.* not available in this Figma, so text uses Inter/);
-  const label = partOf(variantOf(sim.sets()[0]!, 'Variant=primary, Size=md, State=Default'), 'text');
+  const label = partOf(variantOf(sim.sets().find((s) => s.name === 'Button')!, 'Variant=primary, Size=md, State=Default'), 'text');
   assert.deepEqual(label.fontName, { family: 'Inter', style: 'Medium' });
 });
 
@@ -228,7 +232,7 @@ test('variables missing in Figma: the part is reported, never bound to something
   // Someone deleted the Component collection after the pull.
   sim.collections = sim.collections.filter((c) => c.name !== 'Component');
   const report = await applyComponentPlan(writablePlan(plan));
-  assert.equal(report.created, 6);
+  assert.equal(report.created, SPEC_COMPONENTS.length);
   assert.ok(report.problems.some((p) => /Button Variant=primary, Size=sm, State=Default, Button, fill: no variable "button\/primary\/bg" in Component/.test(p)));
 });
 
@@ -276,7 +280,7 @@ test('Card: fixed width from the size scale, parts fill the card, body text wrap
   const resolved = (field: string) => sim.resolveVariable(sim.variables.find((x) => x.id === (header.boundVariables[field] as { id: string }).id)!);
   assert.deepEqual([resolved('fontSize'), resolved('lineHeight'), resolved('fontWeight')], [21, 28, 600]);
   // Inline components still hug.
-  const button = variantOf(sim.sets()[0]!, 'Variant=primary, Size=md, State=Default');
+  const button = variantOf(sim.sets().find((s) => s.name === 'Button')!, 'Variant=primary, Size=md, State=Default');
   assert.equal(button.layoutSizingHorizontal, 'HUG');
   assert.equal(button.clipsContent, false);
 });
@@ -358,9 +362,9 @@ test('review: a fresh build matches its planned signature, so unchanged sets hav
   const scanned = await scanComponents(() => {});
   const forced = { ...plan, components: plan.components.map((c) => ({ ...c, status: 'updated' as const, nodeId: sim.sets().find((s) => s.name === c.name)!.id })) };
   const reviews = reviewUpdates(forced, new Map(scanned.components.map((c) => [c.nodeId, c.signature])));
-  assert.equal(reviews.length, 6);
+  assert.equal(reviews.length, SPEC_COMPONENTS.length);
   for (const r of reviews) assert.deepEqual(r.changes.map((c) => c.field), ['Values set from code'], `${r.name}: no variant, prop or binding difference`);
-  assert.deepEqual(plannedSignature(forced.components[0]!).variantAxes.Size, ['lg', 'md', 'sm']);
+  assert.deepEqual(plannedSignature(forced.components.find((c) => c.name === 'Button')!).variantAxes.Size, ['lg', 'md', 'sm']);
 });
 
 test('review: per set, the variants, props and bound variables an update changes', async () => {
@@ -577,7 +581,10 @@ test('migration: a file pulled before swaps gets instances in place of placehold
   assert.equal(partOf(button.children[0]!, 'icon-start').type, 'FRAME');
   const setIds = first.sim.sets().map((s) => s.id);
   const next = await pulledFile({ sim: first.sim });
-  assert.deepEqual(next.plan.components.filter((c) => c.status === 'updated').map((c) => c.name), ['Button', 'IconButton', 'Badge', 'Tag', 'Card']);
+  const before = specsBeforeSwaps(specs);
+  const withSwaps = specs.components.filter((c) => before.components.find((x) => x.name === c.name)!.hash !== c.hash).map((c) => c.name);
+  for (const n of ['Button', 'IconButton', 'Badge', 'Tag', 'Card']) assert.ok(withSwaps.includes(n), n);
+  assert.deepEqual(next.plan.components.filter((c) => c.status === 'updated').map((c) => c.name), withSwaps);
   const report = await applyComponentPlan(writablePlan(next.plan));
   assert.deepEqual(report.problems, []);
   assert.deepEqual(first.sim.sets().map((s) => s.id), setIds, 'sets updated in place');
@@ -585,7 +592,7 @@ test('migration: a file pulled before swaps gets instances in place of placehold
   assert.equal(propKey(card, 'Body', 'TEXT'), undefined);
   assert.ok(propKey(card, 'Body', 'INSTANCE_SWAP'));
   const scanned = await scanComponents(() => {});
-  assert.equal(scanned.components.length, 6, 'icon and slot components are never Push candidates');
+  assert.equal(scanned.components.length, SPEC_COMPONENTS.length, 'icon and slot components are never Push candidates');
   const scan = classifyComponents(scanned.components, CODED);
   assert.deepEqual([scan.changed.length, scan.candidates.length], [0, 0]);
 });
@@ -624,4 +631,61 @@ test('structure: renaming or wrapping layers of a generated variant sends nothin
   partOf(v, 'text').name = 'Text';
   const scan = classifyComponents((await scanComponents(() => {})).components, CODED);
   assert.equal(scan.changed.length, 0);
+});
+
+test('coverage sets: every generated set binds variables in every variant; states, covers, layouts and underlines are drawn', async () => {
+  const { sim, gh, plan } = await pulledFile();
+  const report = await applyComponentPlan(writablePlan(plan));
+  assert.deepEqual(report.problems, []);
+  for (const s of sim.sets())
+    for (const v of s.children) {
+      const bound = [v, ...v.findAll()].some((n) => Object.keys(n.boundVariables).length > 0);
+      assert.ok(bound, `${s.name} ${v.name} binds at least one variable`);
+    }
+  const set = (name: string) => sim.sets().find((s) => s.name === name)!;
+  // Checkbox: the check mark shows only when checked, the minus only when mixed.
+  const box = (props: string, id: string) => partOf(variantOf(set('Checkbox'), props), id);
+  assert.equal(box('Checked=false, State=Default', 'indicator').visible, false);
+  assert.equal(box('Checked=true, State=Default', 'icon').visible, true);
+  assert.equal(box('Checked=true, State=Default', 'icon-2').visible, false);
+  assert.equal(box('Checked=mixed, State=Default', 'icon').visible, false);
+  // Switch: the thumb sits at the end of the track when on.
+  const track = (checked: string) => partOf(variantOf(set('Switch'), `Label placement=end, Size=md, Checked=${checked}, State=Default`), 'track');
+  assert.equal(track('false').primaryAxisAlignItems, 'MIN');
+  assert.equal(track('true').primaryAxisAlignItems, 'MAX');
+  // Avatar: the initials cover the circle (and the photo, when shown).
+  assert.equal(partOf(variantOf(set('Avatar'), 'Size=md'), 'fallback').layoutPositioning, 'ABSOLUTE');
+  // Link: underlined text. RadioGroup: the preview's option is the checked one.
+  assert.equal(partOf(variantOf(set('Link'), 'Variant=inline, State=Default'), 'text').textDecoration, 'UNDERLINE');
+  const group = variantOf(set('RadioGroup'), 'Orientation=vertical, State=Default');
+  assert.deepEqual(
+    ['radio', 'radio-2', 'radio-3'].map((id) => boundName(sim, partOf(group, id), 'fills')),
+    ['Component:checkbox/bg', 'Component:checkbox/bg-checked', 'Component:checkbox/bg'],
+  );
+  // A filled button's transparent 1px border still takes its room, like CSS border-box (fidelity check, PR 137).
+  const primary = variantOf(set('Button'), 'Variant=primary, Size=md, State=Default');
+  assert.deepEqual([primary.strokes.length, primary.strokes[0]!.opacity, primary.strokesIncludedInLayout, primary.strokeAlign], [1, 0, true, 'INSIDE']);
+  assert.equal(boundName(sim, primary, 'strokeWeight'), 'Base:border-width/default');
+  // A second pull finds every set again: nothing to build, nothing duplicated.
+  const ids = sim.sets().map((s) => s.id);
+  const again = await pulledFile({ sim, gh });
+  assert.equal(pendingComponents(again.plan).length, 0);
+  assert.deepEqual(sim.sets().map((s) => s.id), ids);
+});
+
+test('coverage: the count of components in Figma, the others with a plain reason, layout helpers apart; never complete without the list', async () => {
+  const { plan, specs } = await pulledFile();
+  const view = coverageView(plan);
+  const cov = specs.coverage!;
+  const visual = cov.filter((c) => c.status !== 'layout');
+  assert.equal(view.headline, `${visual.filter((c) => c.status === 'generated').length} of ${visual.length} components are in Figma`);
+  assert.equal(view.missing.length, visual.filter((c) => c.status === 'unsupported').length);
+  assert.ok(view.missing.some((m) => m.name === 'Select' && m.reason === 'Not supported yet: opens a popup'));
+  assert.deepEqual(view.layout, cov.filter((c) => c.status === 'layout').map((c) => c.name));
+  assert.equal(view.complete, false);
+  // An older file with no coverage list: the count of what it has, and no claim that nothing is missing.
+  const old = coverageView({ components: plan.components.slice(0, 6) });
+  assert.equal(old.headline, '6 components are in Figma. The code does not list the others yet.');
+  assert.equal(old.complete, false);
+  assert.equal(coverageView({ components: plan.components, coverage: [{ name: 'Button', status: 'generated' }, { name: 'Box', status: 'unsupported' }] }).missing[0]!.reason, 'Not added yet');
 });

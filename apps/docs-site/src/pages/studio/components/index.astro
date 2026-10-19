@@ -24,6 +24,7 @@ import { FileText, ImagePlus, Moon, Pencil, Sun, X } from 'lucide-react';
 import ChangeIntent from '../../../components/ds/studio/ChangeIntent';
 import { GitHubMark } from '../../../components/ds/studio/brand-icons';
 import { docsEditHref, editTokensHref, guidanceState, loadComponents, type ComponentInfo } from '../../../lib/components';
+import { figmaCell, loadFigmaCoverage } from '../../../lib/figma-coverage';
 import { componentsLead, componentsPrimary, drawerActions, drawerFacts, productUsage } from '../../../lib/components-studio';
 import { groupByApp, loadAudits } from '../../../lib/audits';
 import { PREVIEW_APPS, PREVIEW_PACKAGES, sourceUrl } from '../../../lib/repo';
@@ -43,6 +44,7 @@ const audits = groupByApp(loadAudits()).apps.map((a) => {
   return { product: a.app.title.replace(/\s*\(.*$/, ''), components: latest.report.components?.ds ?? {}, label: latest.report.label ?? '' };
 });
 const usage = productUsage(audits, components.map((c) => c.name));
+const figma = loadFigmaCoverage();
 const rows: ComponentListRow[] = components.map((c) => ({
   slug: c.slug,
   name: c.name,
@@ -53,6 +55,7 @@ const rows: ComponentListRow[] = components.map((c) => ({
   examples: c.stories.length,
   preview: c.docs?.preview,
   usedIn: audits.length ? (usage.get(c.name) ?? []) : undefined,
+  figma: figmaCell(figma.get(c.name)),
 }));
 const families = [...new Set(rows.map((r) => r.family))].map((f) => ({ name: f, n: rows.filter((r) => r.family === f).length }));
 const lead = componentsLead(rows);

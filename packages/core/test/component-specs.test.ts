@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parseComponentSpecs } from '../src/component-spec';
-import { SPEC_COMPONENTS, generateComponentSpec, generateRepoComponentSpecs, serializeComponentSpecs } from '../src/node/component-specs';
+import { generateComponentSpec, generateRepoComponentSpecs, serializeComponentSpecs } from '../src/node/component-specs';
 import { DEFAULT_STATE, declaredFor, parseCssModule, parseSelector } from '../src/node/spec-css';
 
 const ROOT = join(__dirname, '../../..');
@@ -12,8 +12,12 @@ const ROOT = join(__dirname, '../../..');
 describe('component specs', () => {
   it('packages/react/component-specs.json is up to date (run `npm run specs`)', () => {
     const committed = readFileSync(join(ROOT, 'packages/react/component-specs.json'), 'utf8');
-    expect(committed).toBe(serializeComponentSpecs(generateRepoComponentSpecs(ROOT, SPEC_COMPONENTS)));
-    expect(parseComponentSpecs(committed).components.map((c) => c.name)).toEqual(SPEC_COMPONENTS);
+    const file = generateRepoComponentSpecs(ROOT);
+    expect(committed).toBe(serializeComponentSpecs(file));
+    // Every component folder is in the coverage list; every generated folder has its sets in the file.
+    const parsed = parseComponentSpecs(committed);
+    const names = new Set(parsed.components.map((c) => c.component ?? c.name));
+    for (const c of parsed.coverage!) expect(names.has(c.name) || c.status !== 'generated' || c.name === 'Icon').toBe(true);
   });
 
   it('Button: axes from union props, State from the CSS, a text and two icon properties', () => {
@@ -46,7 +50,7 @@ describe('component specs', () => {
   });
 
   it('swaps: icon parts default to the docs or story icon, Card body is a content slot, icons and slots sections', () => {
-    const file = generateRepoComponentSpecs(ROOT, SPEC_COMPONENTS);
+    const file = generateRepoComponentSpecs(ROOT);
     const swap = (c: string, part: string) => file.components.find((x) => x.name === c)!.parts.find((p) => p.id === part)!.swap;
     expect(swap('IconButton', 'icon')).toEqual({ property: 'Icon', default: 'Icon/Pencil', prop: 'icon' });
     expect(swap('Button', 'icon-start')).toEqual({ property: 'Icon start', default: 'Icon/Plus', prop: 'iconStart' });
