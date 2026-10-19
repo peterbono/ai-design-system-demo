@@ -122,9 +122,10 @@
   background-color: transparent;
 }
 
-/* The ring stands clear of the glyphs and the underline, without padding that would move the text. */
+/* The ring stands clear of the glyphs and the underline (the block padding gives it room inside the line box),
+   without inline padding that would move the text. */
 .link:focus-visible {
-  outline-offset: var(--space-1);
+  outline-offset: var(--border-width-strong);
 }
 
 .link .label {
@@ -143,6 +144,15 @@
   --_bg-active: var(--color-surface-selected);
   --_text: var(--color-text-default);
   --_border: var(--color-control-checked-bg);
+}
+
+/* Hover on a pressed toggle: the edge steps to the checked hover color, so turning it off still looks clickable. */
+@media (hover: hover) {
+  .toggle[aria-pressed="true"]:not(.link, .primary, .danger, [data-disabled]):hover {
+    --_border: var(--color-control-checked-bg-hover);
+
+    box-shadow: inset 0 0 0 var(--border-width-default) var(--color-control-checked-bg-hover);
+  }
 }
 
 /* A pressed link reads as the current choice: ink text, heavier, still underlined so it stays clickable. */

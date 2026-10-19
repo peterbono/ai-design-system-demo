@@ -24,9 +24,9 @@ export default function ContrastMatrix({ label, combos, rows }: { label: string;
     <Table aria-label={`${label}: contrast ratio in every brand and theme`} className="ds-a11y-matrix">
       <TableHeader>
         <TableRow>
-          <TableHead>Pair</TableHead>
+          <TableHead width={0.4}>Pair</TableHead>
           {combos.map((c) => (
-            <TableHead key={c.key} data-c={c.key} width={0.17}>
+            <TableHead key={c.key} data-c={c.key} width={0.15}>
               {c.label}
             </TableHead>
           ))}

@@ -193,9 +193,10 @@
     display: block;
   }
 
+  /* Records are cards: a full-strength divider between them, stronger than the hairline between desktop rows. */
   .stack .tbody .row {
     padding-block: var(--space-2);
-    border-bottom: var(--border-width-default) solid var(--table-border);
+    border-bottom: var(--border-width-default) solid var(--color-border-default);
   }
 
   .stack .tbody .row:last-child {
