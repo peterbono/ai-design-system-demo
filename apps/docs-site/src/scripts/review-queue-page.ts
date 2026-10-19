@@ -152,12 +152,12 @@ export function initReviewQueue() {
       title: 'Nothing waits on you.',
       description: failed ?? (signedIn ? 'New reviews, usage guidance drafts and library checks land here.' : `${ghAction('see what waits on you', signIn)}.`),
       actions: signedIn
-        ? h(ButtonLink, { variant: 'primary', href: '/studio/' }, 'Back to Overview')
+        ? h(ButtonLink, { variant: 'primary', href: '/studio/' }, 'Back to Home')
         : h(
             Fragment,
             null,
             h(Button, { variant: 'primary', 'data-gh-open': '', 'data-gh-signin': signIn ? '' : undefined } as ComponentProps<typeof Button>, ghButton(signIn)),
-            h(ButtonLink, { variant: 'secondary', href: '/studio/' }, 'Back to Overview'),
+            h(ButtonLink, { variant: 'secondary', href: '/studio/' }, 'Back to Home'),
           ),
     });
   }
