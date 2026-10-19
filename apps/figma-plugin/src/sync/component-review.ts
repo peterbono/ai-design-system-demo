@@ -30,6 +30,8 @@ export function plannedSignature(c: PlannedComponent): ComponentSignature {
         if (f.value.kind !== 'variable') continue;
         (by[bindingKind(FIGMA_FIELD[f.field] ?? f.field)] ??= []).push(f.value.name);
       }
+    // Vector parts: each shape's stroke.
+    for (const vec of Object.values(v.vectors ?? {})) for (const st of vec.strokes) if (st.kind === 'variable') (by[bindingKind('strokes')] ??= []).push(st.name);
     const bindings: Record<string, string[]> = {};
     for (const k of Object.keys(by).sort()) {
       bindings[k] = sortedUnique(by[k]!);

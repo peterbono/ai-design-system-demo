@@ -26,6 +26,7 @@ import {
   type SpecUnmapped,
   type SpecValue,
   type SpecVariant,
+  type SpecVector,
   hashSpec,
   iconComponentName,
   tokenCssVar,
@@ -33,7 +34,7 @@ import {
 } from '../component-spec';
 import { CONFIG_FILE, loadConfig } from '../config';
 import { buildTokenSet, layoutOptions } from '../token-set';
-import { type CssElement, type CssRule, type CssState, DEFAULT_STATE, computeValues, declaredFor, parseCssModule } from './spec-css';
+import { type CssElement, type CssRule, type CssState, DEFAULT_STATE, computeValues, declaredFor, parseCssModule, splitTop } from './spec-css';
 
 export interface TokenInfo {
   path: string;
@@ -115,6 +116,8 @@ interface ComponentSource {
   lucide: Map<string, string>;
   /** Top-level consts of the file (`const TONE_ICON = { ... }`). */
   consts: Map<string, ts.Expression>;
+  /** Base UI modules the file imports ("checkbox", "switch", "progress"). */
+  baseUiModules: Set<string>;
 }
 
 const NATIVE_ATTRS: Record<string, string> = {
@@ -197,6 +200,7 @@ class Reader {
     const helpers = new Map<string, ts.FunctionDeclaration>();
     const lucide = new Map<string, string>();
     const consts = new Map<string, ts.Expression>();
+    const baseUiModules = new Set<string>();
     for (const st of sf.statements) {
       if (ts.isVariableStatement(st))
         for (const d of st.declarationList.declarations) if (ts.isIdentifier(d.name) && d.initializer && !/forwardRef|^\(/.test(d.initializer.getText(sf).slice(0, 12))) consts.set(d.name.text, d.initializer);
@@ -209,6 +213,7 @@ class Reader {
         continue;
       }
       if (spec.startsWith('@base-ui/react')) {
+        baseUiModules.add(spec.replace(/^@base-ui\/react\/?/, ''));
         const b = st.importClause.namedBindings;
         if (st.importClause.name) baseUi.add(st.importClause.name.text);
         if (b && ts.isNamedImports(b)) for (const e of b.elements) baseUi.add(e.name.text);
@@ -235,7 +240,7 @@ class Reader {
     const fns = componentFunctions(sf);
     const fn = fns.get(name);
     const subcomponents = [...fns].filter(([n]) => n !== name && n.startsWith(name)).map(([n, f]) => ({ name: n, fn: f }));
-    const src: ComponentSource = { name, folder: folder!, file, sf, styles, props, native, fn, subcomponents, exported: fns, baseUi, helpers, lucide, consts };
+    const src: ComponentSource = { name, folder: folder!, file, sf, styles, props, native, fn, subcomponents, exported: fns, baseUi, helpers, lucide, consts, baseUiModules };
     this.cache.set(name, src);
     return src;
   }
@@ -319,6 +324,8 @@ interface Scope {
   preview?: DocChild[] | undefined;
   /** A nested component's checked state, from its props (`defaultChecked`, `indeterminate`). */
   checked?: 'true' | 'false' | 'mixed' | undefined;
+  /** React context values provided above (`<TabsContext.Provider value={...}>`), by context name. */
+  contexts?: Map<string, Value> | undefined;
   /** Component being specified (true) or a nested DS component (false). */
   main: boolean;
 }
@@ -378,6 +385,15 @@ function evaluate(e: ts.Expression, scope: Scope): Value {
     return undefined;
   }
   if (ts.isPrefixUnaryExpression(e) && e.operator === ts.SyntaxKind.ExclamationToken) return !truthy(evaluate(e.operand, scope));
+  if (ts.isPrefixUnaryExpression(e) && e.operator === ts.SyntaxKind.MinusToken) {
+    const v = evaluate(e.operand, scope);
+    return typeof v === 'number' ? -v : OPAQUE;
+  }
+  if (ts.isTypeOfExpression(e)) {
+    const v = evaluate(e.expression, scope);
+    if (v === OPAQUE || isJsx(v)) return OPAQUE;
+    return v === null ? 'object' : Array.isArray(v) ? 'object' : typeof v === 'symbol' ? OPAQUE : typeof v;
+  }
   if (ts.isConditionalExpression(e)) return truthy(evaluate(e.condition, scope)) ? evaluate(e.whenTrue, scope) : evaluate(e.whenFalse, scope);
   if (ts.isBinaryExpression(e)) {
     const op = e.operatorToken.kind;
@@ -420,6 +436,58 @@ function evaluate(e: ts.Expression, scope: Scope): Value {
       }
       return out;
     }
+    // Math on known numbers.
+    const math = /^Math\.(max|min|floor|ceil|round|abs)$/.exec(callee);
+    if (math) {
+      const args = e.arguments.map((a) => evaluate(a, scope));
+      return args.every((a) => typeof a === 'number') ? (Math[math[1] as 'max'] as (...n: number[]) => number)(...(args as number[])) : OPAQUE;
+    }
+    // Object.entries / keys / values of a known object (or of nothing: an empty list).
+    const objFn = /^Object\.(entries|keys|values)$/.exec(callee);
+    if (objFn && e.arguments[0]) {
+      const o = evaluate(e.arguments[0], scope);
+      if (o === undefined || o === null) return [];
+      if (o && typeof o === 'object' && !Array.isArray(o) && !isJsx(o) && !isClass(o)) {
+        const rec = o as Record<string, Value>;
+        return objFn[1] === 'keys' ? Object.keys(rec) : objFn[1] === 'values' ? Object.values(rec) : Object.entries(rec).map(([k, v]) => [k, v]);
+      }
+      return OPAQUE;
+    }
+    // createElement(tag, props, ...children): an element like JSX.
+    if ((callee === 'createElement' || callee === 'React.createElement') && e.arguments[0]) {
+      const tag = evaluate(e.arguments[0], scope);
+      const props = e.arguments[1] ? evaluate(e.arguments[1], scope) : undefined;
+      if (typeof tag !== 'string') return OPAQUE;
+      return { element: tag, props: (props && typeof props === 'object' && !Array.isArray(props) ? props : {}) as Record<string, Value>, kids: e.arguments.slice(2).map((a) => evaluate(a, scope)) } as unknown as Value;
+    }
+    // React context: createContext(default) is its default; useContext reads the nearest provider's value, else it.
+    if ((callee === 'createContext' || callee === 'React.createContext') && e.arguments[0]) return evaluate(e.arguments[0], scope);
+    if ((callee === 'useContext' || callee === 'React.useContext') && e.arguments[0]) {
+      const key = e.arguments[0].getText(sf);
+      return scope.contexts?.has(key) ? scope.contexts.get(key) : evaluate(e.arguments[0], scope);
+    }
+    // Base UI's useRender({ defaultTagName, props }): the element it renders by default.
+    if (callee === 'useRender' && e.arguments[0]) {
+      const o = evaluate(e.arguments[0], scope) as Record<string, Value> | undefined;
+      const props = (o?.props && typeof o.props === 'object' && !Array.isArray(o.props) ? o.props : {}) as Record<string, Value>;
+      return { element: typeof o?.defaultTagName === 'string' ? o.defaultTagName : 'div', props, kids: [] } as unknown as Value;
+    }
+    // useMemo(() => value, deps): the value.
+    if ((callee === 'useMemo' || callee === 'React.useMemo') && e.arguments[0]) return callArrow(e.arguments[0], [], scope);
+    if (ts.isPropertyAccessExpression(e.expression) && /^(map|flatMap|filter|some|every|find)$/.test(e.expression.name.text)) {
+      const list = evaluate(e.expression.expression, scope);
+      if (Array.isArray(list)) return listMethod(list, e.expression.name.text, e.arguments, scope);
+    }
+    // A local arrow function (`const renderItem = (o) => <Item ... />`), called with values.
+    if (ts.isIdentifier(e.expression)) {
+      const fnExpr = scope.inits?.get(e.expression.text) ?? scope.locals.get(e.expression.text);
+      if (fnExpr && (ts.isArrowFunction(fnExpr) || ts.isFunctionExpression(fnExpr)))
+        return callArrow(
+          fnExpr,
+          e.arguments.map((a) => evaluate(a, scope)),
+          scope,
+        );
+    }
     const helper = ts.isIdentifier(e.expression) ? scope.src.helpers.get(e.expression.text) : undefined;
     if (helper) return callHelper(helper, e.arguments.map((a) => evaluate(a, scope)), scope.src);
     return OPAQUE;
@@ -446,16 +514,83 @@ function evaluate(e: ts.Expression, scope: Scope): Value {
  * drawn text is what code renders. Only strings, numbers and booleans go in and come out; anything else is opaque.
  */
 function callHelper(fn: ts.FunctionDeclaration, args: Value[], src: ComponentSource): Value {
-  const isLiteral = (v: Value) => typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean';
-  const literal = args.map((a) => (isTextRef(a) ? a.text : a));
-  if (!literal.every(isLiteral)) return OPAQUE;
+  // Data only: strings, numbers, booleans, and lists or objects of them (a select's options).
+  const isData = (v: Value): boolean =>
+    typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean' || v === null || v === undefined ||
+    (Array.isArray(v) && v.every(isData)) ||
+    (!!v && typeof v === 'object' && !isJsx(v) && !isClass(v) && !isStyles(v) && !isTextRef(v) && Object.values(v as Record<string, Value>).every(isData));
+  const data = args.map((a) => (isTextRef(a) ? a.text : a));
+  if (!data.every(isData)) return OPAQUE;
   try {
     const js = ts.transpileModule(fn.getText(src.sf).replace(/^export\s+(default\s+)?/, ''), { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.None } }).outputText;
     // eslint-disable-next-line @typescript-eslint/no-implied-eval
-    const out: unknown = new Function(`${js}; return ${fn.name!.text}.apply(null, arguments);`)(...literal);
-    return isLiteral(out as Value) ? (out as Value) : OPAQUE;
+    const out: unknown = new Function(`${js}; return ${fn.name!.text}.apply(null, arguments);`)(...structuredClone(data));
+    const v = jsonValue(JSON.parse(JSON.stringify(out ?? null)));
+    return isData(v) ? v : OPAQUE;
   } catch {
     return OPAQUE;
+  }
+}
+
+/** An arrow or function expression called with values (`(o) => ({ value: o.value })`), when its body is readable. */
+function callArrow(fn: ts.Expression, args: Value[], scope: Scope): Value {
+  if (!ts.isArrowFunction(fn) && !ts.isFunctionExpression(fn)) return OPAQUE;
+  const vars = new Map(scope.vars);
+  fn.parameters.forEach((p, i) => {
+    const v = args[i];
+    if (ts.isIdentifier(p.name)) vars.set(p.name.text, v);
+    else if (ts.isObjectBindingPattern(p.name) && v && typeof v === 'object')
+      for (const el of p.name.elements) if (ts.isIdentifier(el.name)) vars.set(el.name.text, (v as Record<string, Value>)[(el.propertyName ?? el.name).getText(scope.src.sf)]);
+    const pattern: ts.BindingName = p.name;
+    if (ts.isArrayBindingPattern(pattern) && Array.isArray(v))
+      pattern.elements.forEach((el, j) => {
+        if (ts.isBindingElement(el) && ts.isIdentifier(el.name)) vars.set(el.name.text, v[j]);
+      });
+  });
+  const inner: Scope = { ...scope, vars, locals: new Map(scope.locals) };
+  if (!ts.isBlock(fn.body)) return evaluate(fn.body, inner);
+  const run = (stmts: readonly ts.Statement[]): { value: Value } | undefined => {
+    for (const st of stmts) {
+      if (ts.isVariableStatement(st)) for (const d of st.declarationList.declarations) if (ts.isIdentifier(d.name) && d.initializer) inner.locals.set(d.name.text, d.initializer);
+      if (ts.isIfStatement(st)) {
+        const c = evaluate(st.expression, inner);
+        if (c === OPAQUE) return { value: OPAQUE };
+        const branch = truthy(c) ? st.thenStatement : st.elseStatement;
+        const r = branch ? run(ts.isBlock(branch) ? branch.statements : [branch]) : undefined;
+        if (r) return r;
+      }
+      // A loop that fills a list cannot be followed: the result is not known.
+      if (ts.isForOfStatement(st) || ts.isForStatement(st) || ts.isWhileStatement(st)) return { value: OPAQUE };
+      if (ts.isReturnStatement(st)) return { value: st.expression ? evaluate(st.expression, inner) : undefined };
+    }
+    return undefined;
+  };
+  return run(fn.body.statements)?.value;
+}
+
+/** List methods on known lists, with a readable callback: map, filter, some, every, find. */
+function listMethod(list: Value[], method: string, args: readonly ts.Expression[], scope: Scope): Value {
+  let fn = args[0];
+  // A callback named by a local (`items.map(renderItem)`).
+  if (fn && ts.isIdentifier(fn)) fn = scope.inits?.get(fn.text) ?? scope.locals.get(fn.text) ?? fn;
+  if (!fn) return OPAQUE;
+  const results = list.map((x, i) => callArrow(fn, [x, i], scope));
+  if (results.some((r) => r === OPAQUE)) return OPAQUE;
+  switch (method) {
+    case 'map':
+      return results;
+    case 'flatMap':
+      return results.flatMap((r) => (Array.isArray(r) ? r : [r]));
+    case 'filter':
+      return list.filter((_, i) => truthy(results[i]));
+    case 'some':
+      return results.some(truthy);
+    case 'every':
+      return results.every(truthy);
+    case 'find':
+      return list.find((_, i) => truthy(results[i]));
+    default:
+      return OPAQUE;
   }
 }
 
@@ -500,14 +635,19 @@ function bindProps(fn: ts.FunctionLikeDeclaration, scope: Scope, given: Record<s
   const names = new Map<string, string>(); // local name -> prop name
   const param = fn.parameters[0];
   if (!param || !ts.isObjectBindingPattern(param.name)) return names;
+  const taken = new Set<string>();
   for (const el of param.name.elements) {
     if (el.dotDotDotToken || !ts.isIdentifier(el.name)) continue;
     const prop = el.propertyName ? el.propertyName.getText(scope.src.sf) : el.name.text;
     names.set(el.name.text, prop);
+    taken.add(prop);
     let v = given[prop];
     if (v === undefined && el.initializer) v = evaluate(el.initializer, scope);
     scope.vars.set(el.name.text, v);
   }
+  // `...rest`: the props given that are not named (children passed through a spread, data attributes).
+  const rest = param.name.elements.find((el) => el.dotDotDotToken && ts.isIdentifier(el.name));
+  if (rest && ts.isIdentifier(rest.name)) scope.vars.set(rest.name.text, Object.fromEntries(Object.entries(given).filter(([k, v]) => !taken.has(k) && v !== undefined && v !== CHILDREN)) as Value);
   return names;
 }
 
@@ -523,6 +663,28 @@ function renderedJsx(fn: ts.FunctionLikeDeclaration, scope: Scope): JsxRef | und
     for (const st of stmts) {
       if (ts.isVariableStatement(st)) {
         for (const d of st.declarationList.declarations) {
+          // const [value, setValue] = useState(initial): the value starts as the initial one.
+          if (ts.isArrayBindingPattern(d.name) && d.initializer && ts.isCallExpression(d.initializer) && /^(React\.)?useState$/.test(d.initializer.expression.getText(scope.src.sf))) {
+            const first = d.name.elements[0];
+            const init = d.initializer.arguments[0];
+            if (first && ts.isBindingElement(first) && ts.isIdentifier(first.name) && init) {
+              scope.locals.set(first.name.text, init);
+              scope.inits?.set(first.name.text, init);
+            }
+            continue;
+          }
+          // const { variant, size } = useContext(Ctx): each name from the object.
+          if (ts.isObjectBindingPattern(d.name) && d.initializer) {
+            const obj = evaluate(d.initializer, scope);
+            for (const el of d.name.elements) {
+              if (!ts.isIdentifier(el.name) || el.dotDotDotToken) continue;
+              const key = (el.propertyName ?? el.name).getText(scope.src.sf);
+              let v = obj && typeof obj === 'object' && !Array.isArray(obj) ? (obj as Record<string, Value>)[key] : undefined;
+              if (v === undefined && el.initializer) v = evaluate(el.initializer, scope);
+              scope.vars.set(el.name.text, v);
+            }
+            continue;
+          }
           if (!ts.isIdentifier(d.name) || !d.initializer) continue;
           scope.locals.set(d.name.text, d.initializer);
           scope.inits?.set(d.name.text, d.initializer);
@@ -576,9 +738,21 @@ interface Node {
   media?: boolean | undefined;
   /** Checked because its `value` is the group's selected option; its Base UI parts (the radio dot) follow it. */
   selectedBy?: boolean | undefined;
+  /** Only drawn while checked (a Base UI indicator that is not kept mounted). */
+  whenChecked?: boolean | undefined;
+  /** Inline SVG: the `<svg>` element's literal attributes; its shapes are in `shapes`, not parts. */
+  svgAttrs?: Record<string, string> | undefined;
+  shapes?: Node[] | undefined;
+  /** Inline style custom properties (`style={{ '--_pct': 64 }}`). */
+  styleVars?: Map<string, string> | undefined;
+  /** A Base UI value indicator (a progress fill): its share of the track, from the root's value, min and max. */
+  fraction?: number | undefined;
 }
 
 const INPUT_TAGS = new Set(['input', 'textarea', 'BaseInput']);
+/** SVG shapes drawn inside an inline `<svg>`. */
+const SVG_SHAPES = /^(circle|path|rect|line|polyline|polygon|ellipse)$/;
+
 /** Text fields: native inputs and Base UI input parts (`<BaseNumberField.Input>`). */
 const isInputTag = (tag: string) => INPUT_TAGS.has(tag) || /\.Input$/.test(tag);
 
@@ -597,6 +771,12 @@ interface RenderContext {
   blockers?: string[] | undefined;
   /** The option a group selects (`defaultValue` of a radio group): Base UI parts with that `value` are checked. */
   selected?: string | undefined;
+  /** The `items` of the nearest Base UI root (a combobox's options), for render functions of its lists. */
+  items?: Value[] | undefined;
+  /** React context values provided above, by context name. */
+  contexts?: Map<string, Value> | undefined;
+  /** The value share of the nearest Base UI root with a numeric value (a progress at 64 of 100: 0.64). */
+  fraction?: number | undefined;
 }
 
 /** A data-* or aria-* attribute value as the DOM gets it, or undefined when React leaves it out. */
@@ -614,13 +794,31 @@ function renderJsx(ref: JsxRef, ctx: RenderContext, visible?: Node['visible']): 
   if (!ts.isJsxElement(jsx) && !ts.isJsxSelfClosingElement(jsx)) return [];
   const open = ts.isJsxElement(jsx) ? jsx.openingElement : jsx;
   const tag = open.tagName.getText(sf);
-  // <Fragment key={...}> and context providers draw their children only, like <>...</>.
+  // <Fragment key={...}> and context providers draw their children only, like <>...</>; a provider's value reaches
+  // the components below it (useContext).
+  if (/\.Provider$/.test(tag) && ts.isJsxElement(jsx)) {
+    const valueAttr = open.attributes.properties.find((a): a is ts.JsxAttribute => ts.isJsxAttribute(a) && a.name.getText(sf) === 'value');
+    const value = valueAttr?.initializer && ts.isJsxExpression(valueAttr.initializer) && valueAttr.initializer.expression ? evaluate(valueAttr.initializer.expression, scope) : undefined;
+    const contexts = new Map(ctx.contexts ?? []);
+    contexts.set(tag.replace(/\.Provider$/, ''), value);
+    const inner = { ...scope, contexts };
+    return renderChildren(jsx.children, inner, { ...ctx, contexts });
+  }
   if (/^(React\.)?Fragment$|\.Provider$/.test(tag)) return ts.isJsxElement(jsx) ? renderChildren(jsx.children, scope, ctx) : [];
   const attrs: Record<string, Value> = {};
   let spreads = false;
+  let spreadChildren: Value;
   for (const a of open.attributes.properties) {
     if (ts.isJsxSpreadAttribute(a)) {
       spreads = true;
+      // A spread of known props (`{...rest}`): their data and aria attributes apply, their children are drawn.
+      const v = evaluate(a.expression, scope);
+      if (v && typeof v === 'object' && !Array.isArray(v) && !isJsx(v) && !isClass(v) && !isElementValue(v)) {
+        for (const [k, x] of Object.entries(v as Record<string, Value>)) {
+          if (k === 'children') spreadChildren = x;
+          else if (/^(data|aria)-/.test(k)) attrs[k] = x;
+        }
+      }
       continue;
     }
     const name = a.name.getText(sf);
@@ -629,6 +827,25 @@ function renderJsx(ref: JsxRef, ctx: RenderContext, visible?: Node['visible']): 
     else if (ts.isJsxExpression(a.initializer) && a.initializer.expression) attrs[name] = evaluate(a.initializer.expression, scope);
   }
   const children = ts.isJsxElement(jsx) ? jsx.children : undefined;
+
+  // A Base UI part with a `render` element (`<BaseDialog.Close render={<IconButton ... />} />`): Base UI renders that
+  // element, with the part's class names added. `render={children}`: what the consumer passes (a trigger).
+  // Base UI parts that only exist in some situations: the empty message of a list that has items, the clear button
+  // of a field with no value, the arrow of a popup (placed by Base UI next to its trigger, not drawn).
+  if (scope.src.baseUi.has(tag.split('.')[0]!) && ((/\.Empty$/.test(tag) && ctx.items?.length) || (/\.Clear$/.test(tag) && ctx.selected === undefined) || /\.Arrow$/.test(tag))) return [];
+
+  // With children of its own (`<Header render={<h3 />}>...`), the part keeps them: drawn as the part.
+  if (scope.src.baseUi.has(tag.split('.')[0]!) && attrs.render !== undefined && !children?.some((c) => !ts.isJsxText(c) || c.text.trim())) {
+    const r = attrs.render;
+    const extra = classList(attrs.className);
+    if (isJsx(r)) {
+      const nodes = renderJsx(r, ctx, visible);
+      if (nodes[0]) nodes[0].classes = [...nodes[0].classes, ...extra];
+      return nodes;
+    }
+    const init = open.attributes.properties.find((a): a is ts.JsxAttribute => ts.isJsxAttribute(a) && a.name.getText(sf) === 'render')?.initializer;
+    if (r === CHILDREN && init && ts.isJsxExpression(init) && init.expression) return renderExpression(init.expression, scope, ctx, visible);
+  }
 
   // A design system component (Icon, Spinner...): rendered through its own TSX and CSS module.
   if (/^[A-Z]/.test(tag) && tag !== ctx.component && ctx.depth < 4 && ctx.reader.exists(tag)) {
@@ -641,6 +858,8 @@ function renderJsx(ref: JsxRef, ctx: RenderContext, visible?: Node['visible']): 
         const lucideName = expr && ts.isIdentifier(expr) ? scope.src.lucide.get(expr.text) : undefined;
         if (lucideName) nested.icon = lucideName;
         else if (isLucide(attrs.icon)) nested.icon = attrs.icon.lucide;
+        // An icon named by an example (`<MenuItem icon={Pencil}>` in the component sandbox): that icon.
+        else if (typeof attrs.icon === 'string' && /^[A-Z]\w*$/.test(attrs.icon)) nested.icon = attrs.icon;
       }
       if (visible) nested.visible = visible;
       return [nested];
@@ -666,7 +885,30 @@ function renderJsx(ref: JsxRef, ctx: RenderContext, visible?: Node['visible']): 
       : {}),
     ...(dataAttrs.size ? { attrs: dataAttrs } : {}),
     ...(/(^img$|\.Image$)/.test(tag) ? { media: true } : {}),
+    // Base UI indicators are only mounted while their item is checked, unless keepMounted.
+    ...(/\.(Item)?Indicator$/.test(tag) && scope.src.baseUi.has(tag.split('.')[0]!) && attrs.keepMounted !== true && ctx.fraction === undefined ? { whenChecked: true } : {}),
   };
+  // Inline style custom properties: they feed the CSS (`style={{ '--_pct': pct }}`).
+  const style = attrs.style;
+  if (style && typeof style === 'object' && !Array.isArray(style) && !isJsx(style)) {
+    const vars = new Map<string, string>();
+    for (const [k, v] of Object.entries(style as Record<string, Value>)) if (k.startsWith('--') && (typeof v === 'number' || typeof v === 'string')) vars.set(k, String(v));
+    if (vars.size) node.styleVars = vars;
+  }
+  // Inline SVG: drawn as one vector layer, its shapes styled by the CSS (stroke, width, opacity, dashes).
+  if (tag === 'svg') {
+    const lit: Record<string, string> = {};
+    for (const [k, v] of Object.entries(attrs)) if ((typeof v === 'string' || typeof v === 'number') && k !== 'className') lit[k] = String(v);
+    node.svgAttrs = lit;
+    node.shapes = children ? renderChildren(children, scope, ctx).filter((c) => SVG_SHAPES.test(c.tag)) : [];
+    return [node];
+  }
+  if (SVG_SHAPES.test(tag)) {
+    const lit: Record<string, string> = {};
+    for (const [k, v] of Object.entries(attrs)) if ((typeof v === 'string' || typeof v === 'number') && k !== 'className') lit[k] = String(v);
+    node.svgAttrs = lit;
+    return [node];
+  }
   if (isInputTag(tag)) {
     // A text field: its box (a textarea's border and padding) and the placeholder text inside. The box is merged away
     // when it draws nothing of its own (an input inside a styled wrapper).
@@ -675,8 +917,23 @@ function renderJsx(ref: JsxRef, ctx: RenderContext, visible?: Node['visible']): 
     node.children = [{ key: '', tag: '#placeholder', classes: [], children: [], kind: 'text', placeholder: true, text: { property: 'Placeholder', default: value } }];
     return [node];
   }
-  if (children) node.children = renderChildren(children, scope, ctx);
+  // A Base UI root with a numeric value (a progress, a meter): its indicator fills that share of the track.
+  if (node.baseUi && /\.Indicator$/.test(tag) && ctx.fraction !== undefined) node.fraction = ctx.fraction;
+  let childCtx: RenderContext = Array.isArray(attrs.items) && node.baseUi ? { ...ctx, items: attrs.items } : ctx;
+  if (node.baseUi && /\.Root$/.test(tag) && typeof attrs.value === 'number') {
+    const min = typeof attrs.min === 'number' ? attrs.min : 0;
+    const max = typeof attrs.max === 'number' ? attrs.max : 100;
+    childCtx = { ...childCtx, fraction: Math.min(1, Math.max(0, (attrs.value - min) / (max - min || 1))) };
+  }
+  if (children) node.children = renderChildren(children, scope, childCtx);
+  else if (spreadChildren !== undefined) node.children = renderValues([spreadChildren], ctx);
   else if (spreads) node.takesChildren = true;
+  // A Base UI value display (`<BaseSelect.Value placeholder=... />`): Base UI writes the text; drawn as its placeholder.
+  if (!node.children.length && node.baseUi && /\.Value$/.test(tag)) {
+    // A value display under a numeric root (a progress at 64): Base UI writes the formatted percentage.
+    const placeholder = ctx.fraction !== undefined ? `${Math.round(ctx.fraction * 100)}%` : typeof attrs.placeholder === 'string' ? attrs.placeholder : 'Value';
+    node.children = [{ key: '', tag: '#text', classes: [], children: [], kind: 'text', text: { property: 'Value', default: placeholder } }];
+  }
   return [node];
 }
 
@@ -749,6 +1006,10 @@ function toggleFor(cond: ts.Expression, scope: Scope): { visible: NonNullable<No
   const prop = scope.toggles.get(local)!;
   const inner = toggledScope(scope, local);
   if (!truthy(evaluate(cond, inner))) return undefined;
+  // Shown whether the prop is set or not (`size === 'lg'` in the other branch): not behind the toggle.
+  const off = { ...scope, vars: new Map(scope.vars), locals: new Map(scope.inits ?? []) };
+  for (const k of scope.inits?.keys() ?? []) off.vars.delete(k);
+  if (truthy(evaluate(cond, off))) return undefined;
   const kind = scope.src.props.get(prop)?.kind;
   const property = kind === 'icon' ? sentenceCase(prop) : `Show ${sentenceCase(prop).toLowerCase()}`;
   return { visible: { property, prop }, scope: inner };
@@ -788,12 +1049,66 @@ function renderExpression(e: ts.Expression, scope: Scope, ctx: RenderContext, vi
   if (typeof v === 'string' && v.trim()) return [{ ...textNode(v.trim()), ...(visible ? { visible } : {}) }];
   if (typeof v === 'number') return [textNode(String(v))];
   if (isJsx(v)) return renderJsx(v, ctx, visible);
+  if (Array.isArray(v) || isElementValue(v)) return renderValues([v], ctx);
   if (v === OPAQUE) {
     const mapped = renderMap(e, scope, ctx);
     if (mapped) return mapped;
+    // A render function child of a Base UI list (`<Combobox.List>{renderItem}</Combobox.List>`): called for each item of
+    // the root's `items`.
+    const fn = functionOf(e, scope);
+    if (fn && ctx.items) return renderValues(ctx.items.map((item) => callArrow(fn, [item], scope)), ctx);
     ctx.blockers?.push('shows content computed while the page runs');
   }
   return [];
+}
+
+/** The function an expression names: an arrow, a local holding one, or the branch of a condition that is one. */
+function functionOf(e: ts.Expression, scope: Scope): ts.ArrowFunction | ts.FunctionExpression | undefined {
+  if (ts.isParenthesizedExpression(e)) return functionOf(e.expression, scope);
+  if (ts.isArrowFunction(e) || ts.isFunctionExpression(e)) return e;
+  if (ts.isIdentifier(e)) {
+    const init = scope.inits?.get(e.text) ?? scope.locals.get(e.text);
+    return init ? functionOf(init, scope) : undefined;
+  }
+  if (ts.isConditionalExpression(e)) {
+    const c = evaluate(e.condition, scope);
+    return c === OPAQUE ? undefined : functionOf(truthy(c) ? e.whenTrue : e.whenFalse, scope);
+  }
+  return undefined;
+}
+
+/** A list of rendered values (a `.map()` of elements, texts): each drawn in order. */
+/** An element made by `createElement` or `useRender`, with its props and children values. */
+interface ElementValue {
+  element: string;
+  props: Record<string, Value>;
+  kids: Value[];
+}
+const isElementValue = (v: Value): v is ElementValue & Value => !!v && typeof v === 'object' && 'element' in (v as object) && 'kids' in (v as object);
+
+function elementNode(el: ElementValue, ctx: RenderContext): Node {
+  const node: Node = { key: '', tag: el.element, classes: classList(el.props.className), children: [], kind: 'frame' };
+  const kids = el.kids.length ? el.kids : el.props.children !== undefined ? [el.props.children] : [];
+  for (const k of kids) {
+    if (k === CHILDREN) node.children.push({ key: '', tag: '#text', classes: [], children: [], kind: 'text', text: { property: 'Label', default: ctx.component, prop: 'children' } });
+    else if (isTextRef(k)) node.children.push({ key: '', tag: '#text', classes: [], children: [], kind: 'text', text: { property: k.textProp === 'children' ? 'Label' : sentenceCase(k.textProp), default: k.text, prop: k.textProp } });
+    else node.children.push(...renderValues([k], ctx));
+  }
+  return node;
+}
+
+function renderValues(list: Value[], ctx: RenderContext): Node[] {
+  const out: Node[] = [];
+  for (const v of list) {
+    if (isElementValue(v)) out.push(elementNode(v, ctx));
+    else if (isChildrenRef(v)) out.push(...renderChildren(v.children, v.scope, ctx));
+    else if (isTextRef(v)) out.push({ key: '', tag: '#text', classes: [], children: [], kind: 'text', text: { property: v.textProp === 'children' ? 'Label' : sentenceCase(v.textProp), default: v.text, prop: v.textProp } });
+    else if (isJsx(v)) out.push(...renderJsx(v, ctx));
+    else if (Array.isArray(v)) out.push(...renderValues(v, ctx));
+    else if ((typeof v === 'string' && v.trim()) || typeof v === 'number') out.push(textNode(String(v).trim()));
+    else if (v === OPAQUE) ctx.blockers?.push('shows content computed while the page runs');
+  }
+  return out;
 }
 
 /**
@@ -855,6 +1170,59 @@ function previewElement(v: unknown, name: string): Exclude<DocChild, string> | u
   return previewElement(n.children, name);
 }
 
+/**
+ * The first element `<name>` of a stories file that has content, as a docs preview element: literal props, icons by
+ * name, text and element children. Expressions it cannot read are left out.
+ */
+function storyElement(sf: ts.SourceFile | undefined, name: string): Exclude<DocChild, string> | undefined {
+  if (!sf) return undefined;
+  const lucide = new Set<string>();
+  for (const st of sf.statements) {
+    if (!ts.isImportDeclaration(st) || unquote(st.moduleSpecifier.getText(sf)) !== 'lucide-react') continue;
+    const b = st.importClause?.namedBindings;
+    if (b && ts.isNamedImports(b)) for (const e of b.elements) lucide.add(e.name.text);
+  }
+  const convert = (n: ts.JsxElement | ts.JsxSelfClosingElement): Exclude<DocChild, string> => {
+    const open = ts.isJsxElement(n) ? n.openingElement : n;
+    const p: Record<string, unknown> = {};
+    for (const a of open.attributes.properties) {
+      if (!ts.isJsxAttribute(a)) continue;
+      const key = a.name.getText(sf);
+      const init = a.initializer;
+      if (!init) p[key] = true;
+      else if (ts.isStringLiteral(init)) p[key] = init.text;
+      else if (ts.isJsxExpression(init) && init.expression) {
+        const e = init.expression;
+        if (ts.isStringLiteral(e) || ts.isNoSubstitutionTemplateLiteral(e)) p[key] = e.text;
+        else if (ts.isNumericLiteral(e)) p[key] = Number(e.text);
+        else if (e.kind === ts.SyntaxKind.TrueKeyword || e.kind === ts.SyntaxKind.FalseKeyword) p[key] = e.kind === ts.SyntaxKind.TrueKeyword;
+        else if (ts.isIdentifier(e) && lucide.has(e.text)) p[key] = e.text;
+      }
+    }
+    const children: DocChild[] = [];
+    if (ts.isJsxElement(n))
+      for (const c of n.children) {
+        if (ts.isJsxText(c)) {
+          const t = c.text.replace(/\s+/g, ' ').trim();
+          if (t) children.push(t);
+        } else if (ts.isJsxElement(c) || ts.isJsxSelfClosingElement(c)) children.push(convert(c));
+        else if (ts.isJsxExpression(c) && c.expression && (ts.isStringLiteral(c.expression) || ts.isNoSubstitutionTemplateLiteral(c.expression))) children.push(c.expression.text);
+      }
+    return { c: open.tagName.getText(sf), ...(Object.keys(p).length ? { p } : {}), ...(children.length ? { children } : {}) };
+  };
+  let found: Exclude<DocChild, string> | undefined;
+  const visit = (n: ts.Node) => {
+    if (found) return;
+    if ((ts.isJsxElement(n) || ts.isJsxSelfClosingElement(n)) && (ts.isJsxElement(n) ? n.openingElement : n).tagName.getText(sf) === name) {
+      const el = convert(n);
+      if (el.children?.some((c) => typeof c !== 'string')) found = el;
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return found;
+}
+
 /** Literal props of a preview element (strings, numbers, booleans): what code gets. */
 function previewProps(el: Exclude<DocChild, string>): Record<string, Value> {
   const out: Record<string, Value> = {};
@@ -901,12 +1269,7 @@ function useRenderElement(fn: ts.FunctionLikeDeclaration, scope: Scope, ctx: Ren
   const opts = evaluate(ret.arguments[0], scope) as Record<string, Value> | undefined;
   const tag = typeof opts?.defaultTagName === 'string' ? opts.defaultTagName : 'div';
   const props = (opts?.props && typeof opts.props === 'object' ? opts.props : {}) as Record<string, Value>;
-  const node: Node = { key: '', tag, classes: classList(props.className), children: [], kind: 'frame' };
-  const kids = props.children;
-  if (isJsx(kids)) node.children = renderJsx(kids, ctx);
-  else if (kids === CHILDREN) node.children = [{ key: '', tag: '#text', classes: [], children: [], kind: 'text', text: { property: 'Label', default: ctx.component, prop: 'children' } }];
-  else if (typeof kids === 'string') node.children = [textNode(kids)];
-  return [node];
+  return [elementNode({ element: tag, props, kids: [] }, ctx)];
 }
 
 /** Renders a component for the given props into a node tree (its root node). */
@@ -914,7 +1277,7 @@ function renderComponent(reader: Reader, name: string, props: Record<string, Val
   const src = reader.load(name);
   const fn = fnOverride ?? src?.fn;
   if (!src || !fn) return undefined;
-  const scope: Scope = { src, vars: new Map(), locals: new Map(), toggles: new Map(), main: ctx.depth === 0, inits: new Map(), ...(preview ? { preview } : {}) };
+  const scope: Scope = { src, vars: new Map(), locals: new Map(), toggles: new Map(), main: ctx.depth === 0, inits: new Map(), ...(preview ? { preview } : {}), ...(ctx.contexts ? { contexts: ctx.contexts } : {}) };
   const given = { ...props };
   if (!scope.main) {
     const on = (k: string) => props[k] === true;
@@ -953,10 +1316,19 @@ function renderComponent(reader: Reader, name: string, props: Record<string, Val
 }
 
 /** A wrapper whose only child is the text becomes the text part itself (Button's `<span class="label">`). */
-function collapseText(n: Node, root = true): Node {
-  n.children = n.children.map((c) => collapseText(c, false));
+function collapseText(n: Node, root = true, boxed: (n: Node) => boolean = () => false): Node {
+  n.children = n.children.map((c) => collapseText(c, false, boxed));
+  // Inline text runs ("Page <span>6</span> of <span>12</span>"): one text layer with the whole sentence, styled like
+  // its first run (Figma would need mixed styles for the rest). Only texts written in code, never a TEXT property.
+  const run = (c: Node): string | undefined =>
+    c.kind === 'text' && c.chars !== undefined && !c.visible ? c.chars : c.tag === 'span' && c.kind === 'frame' && !c.visible && c.children.length === 1 ? run(c.children[0]!) : undefined;
+  if (n.kind === 'frame' && n.children.length > 1 && /^(span|p|label|small|strong|em)$/.test(n.tag) && n.children.every((c) => run(c) !== undefined)) {
+    const chars = n.children.map((c) => run(c)!).join(' ');
+    n.children = [{ ...textNode(chars) }];
+  }
   // Only inline wrappers (span): a block (Card header) keeps its frame for its padding.
-  if (!root && n.tag === 'span' && !n.name && n.kind === 'frame' && n.children.length === 1 && n.children[0]!.kind === 'text' && !n.children[0]!.classes.length && !n.children[0]!.inputLike) {
+  // Not when the span paints a box (a pill, a count badge): the box stays a frame around its text.
+  if (!root && n.tag === 'span' && !n.name && n.kind === 'frame' && n.children.length === 1 && n.children[0]!.kind === 'text' && !n.children[0]!.classes.length && !n.children[0]!.inputLike && !boxed(n)) {
     const t = n.children[0]!;
     return { ...t, tag: n.tag, classes: n.classes, ...(n.visible ? { visible: n.visible } : {}) };
   }
@@ -976,11 +1348,42 @@ interface Built {
 }
 
 /** Renders the main component for one set of axis values, with stable part ids. */
-function build(reader: Reader, src: ComponentSource, props: Record<string, Value>, preview?: DocChild[]): Built | undefined {
+/**
+ * Which part of a component with a popup a set draws: the component without its popup (a select's trigger), or the
+ * popup alone drawn open (`*.Popup` under the `*.Portal`), the way a Figma UI kit draws menus and dialogs.
+ */
+export type SpecView = 'without-popup' | 'popup';
+
+/** The tree without its portals (popups), or the first `*.Popup` under a portal as the root. */
+function applyView(root: Node, view: SpecView | undefined): Node | undefined {
+  if (!view) return root;
+  const isPortal = (n: Node) => /\.Portal$/.test(n.tag);
+  if (view === 'without-popup') {
+    const strip = (n: Node): Node => ({ ...n, children: n.children.filter((c) => !isPortal(c)).map(strip) });
+    return isPortal(root) ? undefined : strip(root);
+  }
+  let found: Node | undefined;
+  const find = (n: Node, inPortal: boolean) => {
+    if (found) return;
+    if (inPortal && /\.Popup$/.test(n.tag)) found = n;
+    for (const c of n.children) find(c, inPortal || isPortal(n));
+  };
+  find(root, false);
+  // Submenus and nested popups stay closed: only the popup itself is drawn open.
+  const strip = (n: Node): Node => ({ ...n, children: n.children.filter((c) => !isPortal(c)).map(strip) });
+  return found ? strip({ ...found, visible: undefined }) : undefined;
+}
+
+function build(reader: Reader, src: ComponentSource, props: Record<string, Value>, preview?: DocChild[], view?: SpecView, rules: CssRule[] = []): Built | undefined {
   const blockers: string[] = [];
   const selected = typeof props.defaultValue === 'string' ? props.defaultValue : undefined;
-  const root = renderComponent(reader, src.name, { ...props, children: CHILDREN }, { reader, depth: 0, component: src.name, blockers, ...(selected !== undefined ? { selected } : {}) }, undefined, preview);
+  const rendered = renderComponent(reader, src.name, { ...props, children: CHILDREN }, { reader, depth: 0, component: src.name, blockers, ...(selected !== undefined ? { selected } : {}) }, undefined, preview);
+  let root = rendered && applyView(rendered, view);
   if (!root) return undefined;
+  // An unstyled outer element around one child (a select's Base UI root around its trigger): the child is the set.
+  const overlay = (n: Node) => POPUP_PART.test(n.tag) || /\.Portal$/.test(n.tag);
+  while (root.children.length === 1 && !root.classes.length && !root.attrs && root.kind === 'frame' && !overlay(root) && root.children[0]!.kind === 'frame' && !root.children[0]!.visible && !overlay(root.children[0]!))
+    root = root.children[0]!;
   // Compound components (Card): children come through props, so draw the parts the file exports (CardHeader...).
   if (root.takesChildren && !root.children.length && src.subcomponents.length) {
     for (const sub of src.subcomponents) {
@@ -999,7 +1402,14 @@ function build(reader: Reader, src: ComponentSource, props: Record<string, Value
     for (const c of n.children) follow(c, inherited);
   };
   follow(root, undefined);
-  const tree = collapseText(root);
+  // A span that paints a box in its default look (background, border or padding): kept as a frame.
+  const boxed = (n: Node) => {
+    const el: CssElement = { tag: n.tag, classes: new Set(n.classes), children: [], present: true, isRoot: false, inputLike: false };
+    const d = declaredFor(rules, el, DEFAULT_STATE);
+    const set = (k: string) => d.has(k) && !/^(0|0px|none|transparent)$/.test(d.get(k)!.value.trim());
+    return ['background-color', 'border-top-width', 'padding-left', 'padding-top'].some(set);
+  };
+  const tree = collapseText(root, true, boxed);
   const parts = new Map<string, Node>();
   const parents = new Map<string, string | undefined>();
   const used = new Set<string>();
@@ -1040,6 +1450,11 @@ function toCssTree(b: Built): Map<string, CssElement> {
     };
     els.set(n.key, el);
     el.children = n.children.map((c) => make(c, el));
+    for (const [i, shape] of (n.shapes ?? []).entries()) {
+      const sel: CssElement = { tag: shape.tag, classes: new Set(shape.classes), parent: el, children: [], present: true, isRoot: false, inputLike: false };
+      els.set(`${n.key}#shape-${i}`, sel);
+      el.children.push(sel);
+    }
     return el;
   };
   make(b.root, undefined);
@@ -1074,6 +1489,15 @@ function resolveValue(raw: string | undefined, values: Map<string, string>, toke
     return { unmapped: `${name} is not a token` };
   }
   if (/^calc\(/i.test(v)) return calcValue(v, values, tokens, depth, parent);
+  // min(a, b) for a size that shrinks on small screens (`min(var(--size-140), 100%)`): the token it is designed at.
+  const mm = /^min\(([\s\S]+)\)$/i.exec(v);
+  if (mm) {
+    for (const arg of splitTop(mm[1]!, ',')) {
+      const r = resolveValue(arg, values, tokens, depth + 1, parent, forColor);
+      if (r && r.unmapped === undefined && typeof r.value === 'string') return r;
+    }
+    return { unmapped: 'min() of no token' };
+  }
   if (v === '100%') return { unmapped: 'fills its container: Figma draws it at a fixed width' };
   if (/%$/.test(v)) return { unmapped: 'relative size: the Figma part hugs its content' };
   return { unmapped: 'literal value, not a token' };
@@ -1245,7 +1669,17 @@ function partValues(node: Node, computed: Map<string, string>, own: Map<string, 
   return out;
 }
 
+/** A grid with no tracks of its own (`display: grid; place-items: center`): one cell, drawn as a centering auto layout. */
+const singleCellGrid = (c: Map<string, string>) =>
+  /grid/.test(c.get('display') ?? '') && ['grid-template-columns', 'grid-template-rows', 'grid-template-areas', 'grid-template', 'grid-auto-flow', 'grid-auto-columns'].every((k) => !c.get(k) || c.get(k) === 'none');
+
 function layoutOf(computed: Map<string, string>): SpecLayout {
+  if (singleCellGrid(computed)) {
+    const align = computed.get('align-items') ?? 'stretch';
+    const justify = computed.get('justify-items') ?? 'stretch';
+    const at = (v: string) => (/center/.test(v) ? 'CENTER' : /end/.test(v) ? 'MAX' : 'MIN');
+    return { direction: 'VERTICAL', primary: at(align), counter: /stretch|normal/.test(justify) ? 'STRETCH' : at(justify) };
+  }
   const dir = computed.get('flex-direction') ?? 'row';
   const display = computed.get('display') ?? 'block';
   const flex = /flex/.test(display);
@@ -1308,8 +1742,89 @@ interface Evaluated {
   hidden: Set<string>;
   /** Parts drawn over their parent (absolute, filling it). */
   cover: Set<string>;
+  /** Absolute parts pinned to their parent's edges, with the offsets. */
+  pins: Map<string, NonNullable<SpecPart['pin']>>;
+  /** Inline SVG parts: their markup and the stroke token of each shape. */
+  vectors: Map<string, SpecVector>;
+  /** Parts as wide or as tall as their parent (`width: 100%`). */
+  stretch: Map<string, { width?: boolean; height?: boolean }>;
   /** What the generator cannot draw faithfully, in plain language. */
   blockers: string[];
+}
+
+/**
+ * An inline `<svg>` as one vector layer: the markup with each shape's CSS written as attributes (stroke width,
+ * opacity, dashes, line caps; `pathLength` dashes converted to lengths, a rotation of the svg baked in), and the
+ * stroke color token of each shape, bound in Figma. Fills other than none, and values that are not tokens or numbers,
+ * cannot be drawn faithfully.
+ */
+function svgVector(node: Node, id: string, els: Map<string, CssElement>, rules: CssRule[], state: CssState, computed: Map<string, string>, tokens: Map<string, TokenInfo>): SpecVector | { blocker: string } {
+  const esc = (v: string) => v.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  const num = (raw: string | undefined, values: Map<string, string>): number | undefined => {
+    if (raw === undefined) return undefined;
+    const t = raw.trim();
+    if (/^-?\d*\.?\d+$/.test(t)) return Number(t);
+    // calc() of numbers and custom properties holding numbers (`calc(100 - var(--_pct))`).
+    const sub = t.replace(/var\(\s*(--[\w-]+)\s*(?:,\s*([^()]+))?\)/g, (_m, name: string, fb: string | undefined) => values.get(name) ?? fb ?? 'NaN');
+    if (/^calc\(/.test(sub) && /^[\d\s.+\-*/()calc]+$/.test(sub)) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-implied-eval
+        const n = Number(new Function(`return (${sub.replace(/calc/g, '')});`)());
+        return Number.isFinite(n) ? n : undefined;
+      } catch {
+        return undefined;
+      }
+    }
+    return undefined;
+  };
+  const strokes: SpecValue[] = [];
+  const shapes: string[] = [];
+  for (const [i, shape] of (node.shapes ?? []).entries()) {
+    const el = els.get(`${id}#shape-${i}`)!;
+    const own = new Map([...declaredFor(rules, el, state)].map(([k, d]) => [k, d.value]));
+    const c = computeValues(declaredFor(rules, el, state), computed);
+    const attrs = { ...shape.svgAttrs };
+    const fill = own.get('fill') ?? attrs.fill;
+    if (fill && !/^(none|transparent)$/.test(fill)) return { blocker: 'draws SVG shapes with fills' };
+    const strokeRaw = own.get('stroke') ?? attrs.stroke ?? node.svgAttrs?.stroke ?? 'currentcolor';
+    const color = resolveValue(strokeRaw, c, tokens, 0, computed, false);
+    if (!color || color.unmapped !== undefined || color.value === undefined) return { blocker: 'draws SVG shapes in colors that are not tokens' };
+    strokes.push(color.value);
+    const out: Record<string, string> = { ...attrs, fill: 'none', stroke: '#000000' };
+    const width = num(own.get('stroke-width') ?? attrs['stroke-width'] ?? attrs.strokeWidth, c);
+    if (width !== undefined) out['stroke-width'] = String(width);
+    const opacity = num(own.get('opacity'), c);
+    if (opacity !== undefined && opacity !== 1) out.opacity = String(opacity);
+    const cap = own.get('stroke-linecap');
+    if (cap) out['stroke-linecap'] = cap;
+    // Dashes against pathLength (a progress ring, a spinner arc): lengths on the real circumference.
+    const pathLength = num(attrs.pathLength, c);
+    const r = num(attrs.r, c);
+    const scale = pathLength && r !== undefined ? (2 * Math.PI * r) / pathLength : 1;
+    const dash = own.get('stroke-dasharray');
+    if (dash) {
+      const parts = splitTop(dash, /\s|,/).map((x) => num(x, c));
+      if (parts.some((x) => x === undefined)) return { blocker: 'draws SVG shapes with dashes it cannot read' };
+      out['stroke-dasharray'] = parts.map((x) => +(x! * scale).toFixed(3)).join(' ');
+    }
+    const offset = own.get('stroke-dashoffset');
+    if (offset) {
+      const o = num(offset, c);
+      if (o === undefined) return { blocker: 'draws SVG shapes with dashes it cannot read' };
+      out['stroke-dashoffset'] = String(+(o * scale).toFixed(3));
+    }
+    delete out.pathLength;
+    delete out.strokeWidth;
+    delete out.key;
+    shapes.push(`<${shape.tag} ${Object.entries(out).map(([k, v]) => `${k}="${esc(v)}"`).join(' ')}/>`);
+  }
+  if (!shapes.length) return { blocker: 'draws SVG it cannot read' };
+  const viewBox = node.svgAttrs?.viewBox ?? '0 0 24 24';
+  const [, , w, h] = viewBox.split(/\s+/).map(Number);
+  // A rotation of the svg (a ring that starts at the top): baked into the drawing around its center.
+  const rot = /^rotate\((-?\d+(?:\.\d+)?)deg\)$/.exec(computed.get('transform')?.trim() ?? '');
+  const body = rot ? `<g transform="rotate(${rot[1]} ${(w ?? 24) / 2} ${(h ?? 24) / 2})">${shapes.join('')}</g>` : shapes.join('');
+  return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${w ?? 24}" height="${h ?? 24}" viewBox="${viewBox}" fill="none">${body}</svg>`, strokes };
 }
 
 /** Base UI parts that only exist while a popup or overlay is open. */
@@ -1333,8 +1848,9 @@ function evaluateVariant(
   tokens: Map<string, TokenInfo>,
   preview?: DocChild[],
   page?: Map<string, string>,
+  view?: SpecView,
 ): Evaluated | undefined {
-  const built = build(reader, src, props, preview);
+  const built = build(reader, src, props, preview, view, rules);
   if (!built) return undefined;
   const els = toCssTree(built);
   const computedById = new Map<string, Map<string, string>>();
@@ -1344,12 +1860,16 @@ function evaluateVariant(
   const layouts = new Map<string, SpecLayout>();
   const hidden = new Set<string>();
   const cover = new Set<string>();
+  const pins = new Map<string, NonNullable<SpecPart['pin']>>();
+  const vectors = new Map<string, SpecVector>();
+  const stretch = new Map<string, { width?: boolean; height?: boolean }>();
   const blockers: string[] = [...built.blockers];
   for (const [id, node] of built.parts) {
     const el = els.get(id)!;
     const parentId = built.parents.get(id);
     const own = declaredFor(rules, el, state);
     let computed = computeValues(own, parentId ? computedById.get(parentId) : page);
+    for (const [k, v] of node.styleVars ?? []) computed.set(k, v);
     const ownValues = new Map([...own].map(([k, d]) => [k, d.value]));
     if (node.placeholder && el.parent) {
       // The placeholder text: the field's values (inherited), then its ::placeholder rules.
@@ -1358,8 +1878,8 @@ function evaluateVariant(
     }
     computedById.set(id, computed);
     ownById.set(id, ownValues);
-    if (POPUP_PART.test(node.tag)) blockers.push('opens a popup');
-    if (/^(svg|circle|path|rect|line|polyline|polygon|ellipse)$/.test(node.tag)) blockers.push('draws SVG shapes');
+    if (POPUP_PART.test(node.tag) && parentId !== undefined) blockers.push('opens a popup');
+
     const parentHidden = parentId !== undefined && hidden.has(parentId);
     const transform = ownValues.get('transform');
     if (
@@ -1368,30 +1888,60 @@ function evaluateVariant(
       computed.get('visibility') === 'hidden' ||
       /^0(\.0+)?$/.test(ownValues.get('opacity')?.trim() ?? '') ||
       /scale\(0\)/.test(transform ?? '') ||
-      visuallyHidden(ownValues)
+      visuallyHidden(ownValues) ||
+      (node.whenChecked && !/^(true|mixed)$/.test((node.checked === 'state' ? state.checked : node.checked) ?? ''))
     )
       hidden.add(id);
     const pv = partValues(node, computed, ownValues, tokens, parentId ? computedById.get(parentId) : page);
     values[id] = pv.values;
+    if (node.svgAttrs && node.tag === 'svg') {
+      const vec = svgVector(node, id, els, rules, state, computed, tokens);
+      if ('blocker' in vec) blockers.push(vec.blocker);
+      else vectors.set(id, vec);
+    }
     // A single-line field centers its text vertically, as browsers draw it; a textarea starts at the top.
     if (node.kind === 'frame') layouts.set(id, node.inputLike && node.tag !== 'textarea' ? { direction: 'HORIZONTAL', primary: 'MIN', counter: 'CENTER' } : layoutOf(computed));
     // A hidden part keeps its values (shown again, it looks right), but what it cannot draw does not matter here.
     if (hidden.has(id)) continue;
+    // Decorations drawn by ::before or ::after (a hairline under a tab list): no layer to draw them on.
+    for (const pseudo of ['before', 'after']) {
+      const d = declaredFor(rules, el, state, pseudo);
+      const paints = ['background-color', 'border-top-width', 'border-bottom-width', 'border-left-width', 'border-right-width', 'box-shadow'].some((k) => d.has(k) && !/^(0|none|transparent)$/.test(d.get(k)!.value));
+      if (d.has('content') && paints) blockers.push('draws with ::before or ::after');
+    }
     // A visible frame with nothing in it and nothing to paint: content the code puts there was not read.
-    if (node.kind === 'frame' && !node.children.length && !node.inputLike && !node.media && Object.values(pv.values).every((x) => x === 0 || x === null || x === undefined))
+    if (node.kind === 'frame' && !node.children.length && !node.inputLike && !node.media && !node.svgAttrs && Object.values(pv.values).every((x) => x === 0 || x === null || x === undefined))
       blockers.push('has parts whose content the generator cannot read yet');
-    if (/grid/.test(computed.get('display') ?? '')) blockers.push('uses CSS grid');
+    if (/grid/.test(computed.get('display') ?? '') && !singleCellGrid(computed)) blockers.push('uses CSS grid');
     // Over its parent: absolute and filling it, or as wide and tall as a parent of fixed size (an avatar photo).
     const position = ownValues.get('position');
     const full = ownValues.get('width') === '100%' && ownValues.get('height') === '100%';
     const pVals = parentId ? values[parentId] : undefined;
-    const inset = /^0(px)?$/.test(ownValues.get('inset') ?? '') || ['top', 'right', 'bottom', 'left'].every((k) => /^0(px)?$/.test(ownValues.get(k) ?? ''));
+    const inset = ['top', 'right', 'bottom', 'left'].every((k) => /^0(px)?$/.test(ownValues.get(k) ?? ''));
     if (parentId && ((position === 'absolute' && (inset || full)) || (position !== 'absolute' && full && pVals?.width !== undefined && pVals?.height !== undefined))) {
       cover.add(id);
       delete pv.values.width;
       delete pv.values.height;
       pv.unmapped = pv.unmapped.filter((u) => u.property !== 'width' && u.property !== 'height');
-    } else if (parentId && (position === 'absolute' || position === 'fixed')) blockers.push('places layers over each other');
+    } else if (parentId && position !== 'absolute' && (ownValues.get('width') === '100%' || ownValues.get('height') === '100%')) {
+      // As wide or as tall as its parent (a progress bar's fill): Fill container on that axis.
+      stretch.set(id, { ...(ownValues.get('width') === '100%' ? { width: true } : {}), ...(ownValues.get('height') === '100%' ? { height: true } : {}) });
+      pv.unmapped = pv.unmapped.filter((u) => !((u.property === 'width' || u.property === 'height') && u.value === '100%'));
+      for (const k of ['width', 'height'] as const) if (ownValues.get(k) === '100%') delete pv.values[k];
+    } else if (parentId && position === 'absolute') {
+      // Pinned to its parent's edges by tokens (a dialog's close button at the top right): an absolute layer in Figma.
+      const pin: NonNullable<SpecPart['pin']> = {};
+      let ok = true;
+      for (const side of ['top', 'right', 'bottom', 'left'] as const) {
+        const raw = ownValues.get(side);
+        if (raw === undefined || raw === 'auto') continue;
+        const r = resolveValue(raw, computed, tokens);
+        if (!r || r.unmapped !== undefined || r.value === null || r.value === undefined) ok = false;
+        else pin[side] = r.value;
+      }
+      if (ok && Object.keys(pin).length) pins.set(id, pin);
+      else blockers.push('places layers over each other');
+    } else if (parentId && position === 'fixed') blockers.push('places layers over each other');
     for (const u of pv.unmapped) unmapped.push({ part: id, ...u });
     // Transforms: scale(0) hides (above); none and scale(1) draw nothing; translateX moves a part inside its row.
     if (transform && !/^(none|scale\(1\))$/.test(transform.trim()) && !translateX(transform) && /^(translate|rotate|scale)/.test(transform.trim()) && !/^0(\.0+)?$/.test(ownValues.get('opacity') ?? '1')) {
@@ -1407,6 +1957,8 @@ function evaluateVariant(
     const siblings = [...built.parts].filter(([cid, n]) => built.parents.get(cid) === parentId && !hidden.has(cid) && !n.visible);
     const parentLayout = parentId ? layouts.get(parentId) : undefined;
     const r = resolveValue(tx, computedById.get(id)!, tokens);
+    // translateX(0), or a gesture offset that is 0 at rest (`var(--swipe-x, 0)`): nothing moves.
+    if (r?.value === 0) continue;
     const pv = parentId ? values[parentId] : undefined;
     const own = values[id] ?? {};
     if (!parentId || !pv || siblings.length !== 1 || parentLayout?.direction !== 'HORIZONTAL' || !r || r.unmapped !== undefined || r.value === null || r.value === undefined) {
@@ -1424,7 +1976,7 @@ function evaluateVariant(
     } else blockers.push('moves a part with a transform');
   }
   const classes = [...built.parts].map(([id, n]) => `${id}:${n.classes.join(',')}:${n.visible?.prop ?? ''}`).join(';');
-  return { built, values, unmapped, layouts, classes, computed: computedById, hidden, cover, blockers };
+  return { built, values, unmapped, layouts, classes, computed: computedById, hidden, cover, pins, vectors, stretch, blockers };
 }
 
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -1437,7 +1989,7 @@ function product(axes: { name: string; values: string[] }[]): Record<string, str
 
 
 /** What a variant draws, to compare two variants. */
-const drawn = (e: Evaluated) => JSON.stringify([e.values, [...e.hidden].sort(), [...e.layouts]]);
+const drawn = (e: Evaluated) => JSON.stringify([e.values, [...e.hidden].sort(), [...e.layouts], [...e.vectors]]);
 
 const BOX_FIELDS: SpecField[] = ['paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft', 'itemSpacing'];
 const PAINT_FIELDS: SpecField[] = ['fill', 'stroke', 'strokeWeight', 'strokeTopWeight', 'strokeRightWeight', 'strokeBottomWeight', 'strokeLeftWeight', 'cornerRadius', 'width', 'height', 'minWidth', 'minHeight'];
@@ -1496,7 +2048,7 @@ function mergeFieldBoxes(parts: SpecPart[], variants: SpecVariant[], unmapped: S
 }
 
 /** Reasons, most telling first: what a designer would recognize as the reason the component is not drawn. */
-const REASON_ORDER = ['opens a popup', 'draws SVG shapes', 'uses CSS grid', 'moves a part with a transform', 'places layers over each other', 'shows content computed while the page runs'];
+const REASON_ORDER = ['opens a popup', 'draws SVG shapes', 'uses CSS grid', 'draws with ::before or ::after', 'moves a part with a transform', 'places layers over each other', 'shows content computed while the page runs'];
 
 /** The one reason recorded for a component the generator cannot draw. */
 function mainReason(reasons: string[]): string {
@@ -1511,11 +2063,11 @@ function mainReason(reasons: string[]): string {
 const CHECKED: Record<string, CssState['checked']> = { false: 'false', true: 'true', mixed: 'mixed' };
 
 /** The spec of one component, or an error message when it cannot be derived. */
-export function generateComponentSpec(name: string, opts: SpecGeneratorOptions): ComponentSpec {
+export function generateComponentSpec(name: string, opts: SpecGeneratorOptions, view?: SpecView, setName = name, fixed: Record<string, string> = {}): ComponentSpec {
   const reader = new Reader(opts);
   const src = reader.load(name);
   if (!src) throw new Error(`${name}: ${opts.componentsDir}/${name}/${name}.tsx was not found.`);
-  if (!src.fn) throw new UnsupportedComponentError(name, 'is not a component the generator can read (no forwardRef or exported function of that name)');
+  if (!src.fn) throw new UnsupportedComponentError(name, 'is shown from a hook or a provider, not placed as a component');
 
   // Every CSS module the rendered tree may use: the component's own, the ones it imports, and those of nested components.
   const modules = new Map<string, string>();
@@ -1547,7 +2099,9 @@ export function generateComponentSpec(name: string, opts: SpecGeneratorOptions):
   findNested(src, 0);
   // Docs preview: content for `{children}` (a group's options) and the components it draws.
   const docs = readDocs(src.folder, opts);
-  const previewEl = previewElement(docs?.preview, name);
+  // The docs preview, else the first example of the component sandbox that gives it content (a menu's items).
+  const fromDocs = previewElement(docs?.preview, name);
+  const previewEl = fromDocs ?? storyElement(readStories(src.folder, opts), name);
   const previewKids = previewEl?.children?.some((c) => typeof c !== 'string') ? previewEl.children : undefined;
   for (const c of docElements(previewKids)) {
     if (typeof c.c !== 'string' || nestedNames.has(c.c) || !reader.exists(c.c)) continue;
@@ -1583,11 +2137,11 @@ export function generateComponentSpec(name: string, opts: SpecGeneratorOptions):
     const v = previewEl?.p?.[p.name];
     if (v === undefined || v === null) continue;
     if (p.kind === 'string' && typeof v === 'string' && (!p.optional || p.name === 'defaultValue')) baseProps[p.name] = v;
-    if (p.kind === 'other' && typeof v === 'object') baseProps[p.name] = jsonValue(v);
+    if (p.kind === 'other' && (typeof v === 'object' || typeof v === 'number' || (typeof v === 'string' && p.name === 'defaultValue'))) baseProps[p.name] = jsonValue(v);
   }
 
   // Axes: string-literal union props that change the rendered classes.
-  const evalAt = (props: Record<string, Value>, state: CssState) => evaluateVariant(reader, src, rules, { ...baseProps, ...props }, state, opts.tokens, previewKids, page);
+  const evalAt = (props: Record<string, Value>, state: CssState) => evaluateVariant(reader, src, rules, { ...baseProps, ...props, ...fixed }, state, opts.tokens, previewKids, page, view);
   const base = evalAt({}, DEFAULT_STATE);
   if (!base) throw new UnsupportedComponentError(name, 'renders in a way the generator cannot read yet');
   const unmappedProps: SpecUnmapped[] = [];
@@ -1599,7 +2153,7 @@ export function generateComponentSpec(name: string, opts: SpecGeneratorOptions):
     for (const [prop] of src.props) defaults.set(prop, scope.vars.get(prop));
   }
   for (const p of src.props.values()) {
-    if (p.kind !== 'union' || !p.values) continue;
+    if (p.kind !== 'union' || !p.values || fixed[p.name] !== undefined) continue;
     const changes = p.values.some((v) => evalAt({ [p.name]: v }, DEFAULT_STATE)?.classes !== base.classes);
     if (!changes) {
       unmappedProps.push({ part: 'root', property: `prop ${p.name}`, value: p.values.join(' | '), reason: 'does not change the styles' });
@@ -1609,8 +2163,10 @@ export function generateComponentSpec(name: string, opts: SpecGeneratorOptions):
     axes.push({ name: sentenceCase(p.name), prop: p.name, values: [...p.values], default: typeof def === 'string' && p.values.includes(def) ? def : p.values[0]! });
   }
 
-  // Checked: Base UI parts of the component itself (a checkbox box, a switch thumb) styled by data-checked.
-  {
+  // Checked: Base UI parts of the component itself (a checkbox box, a switch thumb) styled by data-checked. Not for a
+  // popup drawn open: its options show the preview's selection.
+  const checkable = ['checked', 'defaultChecked', 'indeterminate'].some((p) => src.props.has(p)) || [...src.baseUiModules].some((m) => /^(checkbox|switch|radio|toggle|menu)/.test(m));
+  if (view !== 'popup' && checkable) {
     const on = evalAt({}, { ...DEFAULT_STATE, checked: 'true' });
     const off = evalAt({}, { ...DEFAULT_STATE, checked: 'false' });
     if (on && off && drawn(on) !== drawn(off)) {
@@ -1623,7 +2179,8 @@ export function generateComponentSpec(name: string, opts: SpecGeneratorOptions):
   const propsFor = (combo: Record<string, string>) => Object.fromEntries(axes.filter((a) => a.prop).map((a) => [a.prop!, combo[a.name]!]));
   const stateFor = (combo: Record<string, string>, s: CssState): CssState => (combo.Checked ? { ...s, checked: CHECKED[combo.Checked] } : s);
   const canDisable = src.native === 'button' || src.native === 'input' || src.native === 'textarea' || src.props.has('disabled');
-  const states = STATES.filter((s) => s.name !== 'Disabled' || canDisable);
+  // A popup drawn open is not hovered or pressed as a whole: its own states are not drawn.
+  const states = view === 'popup' ? STATES.slice(0, 1) : STATES.filter((s) => s.name !== 'Disabled' || canDisable);
   const byState = new Map<string, Map<string, Evaluated>>();
   for (const s of states) {
     const m = new Map<string, Evaluated>();
@@ -1656,8 +2213,23 @@ export function generateComponentSpec(name: string, opts: SpecGeneratorOptions):
     }
   }
   // Every variant must have the parts of the default one: a set's variants share their layers.
-  const shape = (ev: Evaluated) => [...ev.built.parts.keys()].join(',');
-  if (evaluated.some((e) => shape(e.ev) !== shape(base))) blockers.add('changes its layers between variants');
+  // Variants share their layers: a part some variants do not render (a value shown only at the large size) is a layer
+  // of the set, hidden in those variants. The parts must keep one parent and one order across variants.
+  const order: string[] = [...base.built.parts.keys()];
+  const owner = new Map<string, Evaluated>(order.map((id) => [id, base]));
+  for (const { ev } of evaluated) {
+    let prev: string | undefined;
+    for (const id of ev.built.parts.keys()) {
+      const known = owner.get(id);
+      if (known && known.built.parents.get(id) !== ev.built.parents.get(id)) blockers.add('changes its layers between variants');
+      if (!known) {
+        order.splice(prev === undefined ? 0 : order.indexOf(prev) + 1, 0, id);
+        owner.set(id, ev);
+      }
+      prev = id;
+    }
+  }
+  for (const { ev } of evaluated) for (const id of order) if (!ev.built.parts.has(id)) ev.hidden.add(id);
   if (blockers.size) throw new UnsupportedComponentError(name, mainReason([...blockers]));
 
   // Axes that change nothing Figma draws (a Spacing prop that only sets margins): left out, reported.
@@ -1682,17 +2254,26 @@ export function generateComponentSpec(name: string, opts: SpecGeneratorOptions):
   const variants: SpecVariant[] = [];
   const unmapped: SpecUnmapped[] = [];
   // Parts no variant shows (a visually hidden legend, a glyph for a state the set does not draw): left out.
-  const neverShown = new Set([...base.built.parts.keys()].filter((id) => evaluated.every((e) => e.ev.hidden.has(id))));
+  const neverShown = new Set(order.filter((id) => evaluated.every((e) => e.ev.hidden.has(id))));
   for (const e of evaluated) {
     const ev = e.ev;
     const values = Object.fromEntries(Object.entries(ev.values).filter(([id]) => !neverShown.has(id)));
-    const hidden = [...ev.hidden].filter((id) => !neverShown.has(id) && !neverShown.has(base.built.parents.get(id) ?? ''));
+    const parentOf = (id: string) => owner.get(id)?.built.parents.get(id) ?? '';
+    const hidden = order.filter((id) => ev.hidden.has(id) && !neverShown.has(id) && !neverShown.has(parentOf(id)));
     const layout: Record<string, SpecLayout> = {};
-    for (const [id, l] of ev.layouts) if (JSON.stringify(l) !== JSON.stringify(base.layouts.get(id))) layout[id] = l;
+    for (const [id, l] of ev.layouts) if (JSON.stringify(l) !== JSON.stringify(owner.get(id)?.layouts.get(id))) layout[id] = l;
     // Icons the code picks per variant (an alert's tone icon): the icon instance each variant shows.
     const icons: Record<string, string> = {};
     for (const [id, n] of ev.built.parts) if (n.kind === 'icon' && n.icon && !neverShown.has(id)) icons[id] = iconComponentName(n.icon);
-    variants.push({ props: e.props, values, ...(Object.keys(icons).length ? { slots: icons } : {}), ...(hidden.length ? { hidden } : {}), ...(Object.keys(layout).length ? { layout } : {}) });
+    const vectors = Object.fromEntries([...ev.vectors].filter(([id]) => !neverShown.has(id)));
+    variants.push({
+      props: e.props,
+      values,
+      ...(Object.keys(icons).length ? { slots: icons } : {}),
+      ...(hidden.length ? { hidden } : {}),
+      ...(Object.keys(layout).length ? { layout } : {}),
+      ...(Object.keys(vectors).length ? { vectors } : {}),
+    });
     unmapped.push(...ev.unmapped.filter((u) => !neverShown.has(u.part)));
   }
   if (variants.length > MAX_VARIANTS) throw new UnsupportedComponentError(name, `has ${variants.length} variants, more than ${MAX_VARIANTS}`);
@@ -1701,8 +2282,10 @@ export function generateComponentSpec(name: string, opts: SpecGeneratorOptions):
   const parts: SpecPart[] = [];
   const properties: SpecProperty[] = [];
   const dropped = new Set<string>();
-  for (const [id, n] of base.built.parts) {
-    const parent = base.built.parents.get(id);
+  for (const id of order) {
+    const at = owner.get(id)!;
+    const n = at.built.parts.get(id)!;
+    const parent = at.built.parents.get(id);
     if (neverShown.has(id) || (parent && dropped.has(parent))) {
       dropped.add(id);
       continue;
@@ -1710,25 +2293,30 @@ export function generateComponentSpec(name: string, opts: SpecGeneratorOptions):
     const cls = n.classes[0]?.split('|')[1];
     const part: SpecPart = {
       id,
-      name: !parent ? name : n.kind === 'text' ? (n.text?.property ?? (cls ? sentenceCase(cls) : 'Text')) : n.visible ? n.visible.property.replace(/^Show /, '').replace(/^./, (c) => c.toUpperCase()) : (n.name ?? (n.kind === 'icon' ? 'Icon' : (cls ?? n.tag))),
-      kind: n.kind,
+      name: !parent ? setName : n.kind === 'text' ? (n.text?.property ?? (cls ? sentenceCase(cls) : 'Text')) : n.visible ? n.visible.property.replace(/^Show /, '').replace(/^./, (c) => c.toUpperCase()) : (n.name ?? (n.kind === 'icon' ? 'Icon' : (cls ?? n.tag))),
+      kind: n.svgAttrs && n.tag === 'svg' ? 'vector' : n.kind,
       ...(parent ? { parent } : {}),
       ...(n.classes.length ? { source: n.classes.map((c) => c.split('|').map((x, i) => (i === 0 ? posix.basename(x) : `.${x}`)).join(' ')).join(', ') } : {}),
-      ...(n.kind === 'frame' ? { layout: base.layouts.get(id) ?? layoutOf(base.computed.get(id) ?? new Map()) } : {}),
-      ...(n.kind === 'frame' && clips(base.computed.get(id)) ? { clip: true } : {}),
-      ...(!parent && fillsContainer(base.computed.get(id), n.tag) ? { fill: true } : {}),
+      ...(n.kind === 'frame' ? { layout: at.layouts.get(id) ?? layoutOf(at.computed.get(id) ?? new Map()) } : {}),
+      ...(n.kind === 'frame' && clips(at.computed.get(id)) ? { clip: true } : {}),
+      ...(!parent && fillsContainer(at.computed.get(id), n.tag) ? { fill: true } : {}),
       ...(n.text ? { text: n.text.property } : {}),
       ...(n.chars !== undefined ? { characters: n.chars } : {}),
       ...(n.visible ? { visible: n.visible.property } : {}),
-      ...(base.cover.has(id) ? { cover: true } : {}),
-      ...(parent && grows(base.computed.get(id)) ? { grow: true } : {}),
+      ...(at.cover.has(id) ? { cover: true } : {}),
+      ...(at.pins.has(id) ? { pin: at.pins.get(id) } : {}),
+      ...(at.stretch.has(id) ? { stretch: at.stretch.get(id) } : {}),
+      ...(n.fraction !== undefined ? { fraction: n.fraction } : {}),
+      ...(parent && grows(at.computed.get(id)) ? { grow: true } : {}),
       ...(n.kind === 'icon' && n.icon ? { icon: iconComponentName(n.icon) } : {}),
     };
     parts.push(part);
     if (n.text && !properties.some((p) => p.name === n.text!.property)) properties.push({ name: n.text.property, type: 'TEXT', default: n.text.default, ...(n.text.prop ? { prop: n.text.prop } : {}) });
   }
-  for (const [id, n] of base.built.parts)
+  for (const id of order) {
+    const n = owner.get(id)!.built.parts.get(id)!;
     if (!dropped.has(id) && n.visible && !properties.some((p) => p.name === n.visible!.property)) properties.push({ name: n.visible.property, type: 'BOOLEAN', default: false, prop: n.visible.prop });
+  }
 
   // Props the spec does not draw (loading, slots...), so readers know what is missing.
   const used = new Set([...axes.map((a) => a.prop), ...properties.map((p) => p.prop), 'disabled', 'className', 'children', 'render']);
@@ -1760,9 +2348,13 @@ export function generateComponentSpec(name: string, opts: SpecGeneratorOptions):
   });
   // Every variant lists all of its fields (even when equal across variants): the plugin binds per variant.
   const source = [src.file, ...[...modules.keys()].sort()];
-  const component = src.folder !== name ? { component: src.folder } : {};
-  const spec: Omit<ComponentSpec, 'hash'> = { name, ...component, source, axes, properties, parts, variants, unmapped: dedup };
-  return { name, ...component, hash: hashSpec(spec), source, axes, properties, parts, variants, unmapped: dedup };
+  const component = {
+    ...(src.folder !== setName ? { component: src.folder } : {}),
+    ...(Object.keys(fixed).length ? { fixed: { ...fixed } } : {}),
+    ...(view ? { view } : {}),
+  };
+  const spec: Omit<ComponentSpec, 'hash'> = { name: setName, ...component, source, axes, properties, parts, variants, unmapped: dedup };
+  return { name: setName, ...component, hash: hashSpec(spec), source, axes, properties, parts, variants, unmapped: dedup };
 }
 
 /** Whether a spec draws anything: a fill, a border, an icon or a text of its own. Layout helpers draw nothing. */
@@ -1771,7 +2363,7 @@ export function specDrawsSomething(spec: ComponentSpec): boolean {
   for (const v of spec.variants)
     for (const [id, vals] of Object.entries(v.values)) {
       const part = kinds.get(id);
-      if (part?.kind === 'icon') return true;
+      if (part?.kind === 'icon' || part?.kind === 'vector') return true;
       if (part?.kind === 'text' && part.text !== 'Label') return true;
       // The children text of a link (its own color or an underline), not the page text a layout helper passes through.
       if (part?.kind === 'text' && (vals.textDecoration !== undefined || (typeof vals.textFill === 'string' && vals.textFill !== 'color.text.default'))) return true;
@@ -2068,6 +2660,26 @@ export function generateComponentSpecs(names: string[], opts: SpecGeneratorOptio
   );
 }
 
+/** One set per value of the union prop whose values change a component's layers, when each value draws faithfully. */
+function splitByLayers(folder: string, opts: SpecGeneratorOptions): ComponentSpec[] {
+  const src = new Reader(opts).load(folder);
+  for (const p of src?.props.values() ?? []) {
+    if (p.kind !== 'union' || !p.values) continue;
+    const out: ComponentSpec[] = [];
+    for (const v of p.values) {
+      try {
+        const spec = generateComponentSpec(folder, opts, undefined, `${folder}/${sentenceCase(v)}`, { [p.name]: v });
+        if (specDrawsSomething(spec)) out.push(spec);
+      } catch {
+        out.length = 0;
+        break;
+      }
+    }
+    if (out.length === p.values.length) return out;
+  }
+  return [];
+}
+
 /** CSS that paints something (a color, a background, a border, a shadow): a component without any is a layout helper. */
 const PAINTS = /(^|[;{\s])(color|background(-color)?|border(-(top|right|bottom|left))?(-color)?|box-shadow|fill|stroke)\s*:(?!\s*(0[;\s}]|none|transparent))/m;
 
@@ -2085,40 +2697,73 @@ export function generateAllComponentSpecs(folders: string[], opts: SpecGenerator
   const cssOf = (folder: string) => [...(reader.load(folder)?.styles.values() ?? [])].map((path) => (opts.read(path) ?? '').replace(/\/\*[\s\S]*?\*\//g, '')).join('\n');
   const paints = (folder: string) => PAINTS.test(cssOf(folder));
   for (const folder of [...folders].sort()) {
-    let main: ComponentSpec | undefined;
-    let reason: string | undefined;
-    try {
-      main = generateComponentSpec(folder, withList);
-    } catch (err) {
-      reason = err instanceof UnsupportedComponentError ? err.reason : 'renders in a way the generator cannot read yet';
+    const reasons: string[] = [];
+    const attempt = (name: string, view?: SpecView, setName?: string): ComponentSpec | undefined => {
+      try {
+        const spec = generateComponentSpec(name, withList, view, setName);
+        return specDrawsSomething(spec) ? spec : undefined;
+      } catch (err) {
+        reasons.push(err instanceof UnsupportedComponentError ? err.reason : 'renders in a way the generator cannot read yet');
+        return undefined;
+      }
+    };
+    const exports = [folder, ...[...(reader.load(folder)?.exported.keys() ?? [])].filter((n) => n !== folder)];
+    const sets: ComponentSpec[] = [];
+    let main = attempt(folder);
+    // Variants with different layers (a linear and a circular progress): one set per value of the prop that changes
+    // them ("Progress/Linear", "Progress/Circular").
+    if (!main && reasons.includes('changes its layers between variants')) {
+      const split = splitByLayers(folder, withList);
+      if (split.length) {
+        sets.push(...split);
+        main = split[0];
+        reasons.length = 0;
+      }
     }
-    if (main && !specDrawsSomething(main)) main = undefined;
-    const fileText = opts.read(`${opts.componentsDir}/${folder}/${folder}.tsx`) ?? '';
+    if (main && !sets.length) {
+      sets.push(main);
+      const compound = new Set(main.parts.map((p) => p.name));
+      for (const other of exports.slice(1)) {
+        if (other.startsWith(folder) && compound.has(other.slice(folder.length))) continue;
+        const spec = attempt(other);
+        if (spec) sets.push(spec);
+      }
+    }
+    // Popups (a select's list, a dialog, a tooltip): drawn open, as their own set, next to what opens them, the way a
+    // Figma UI kit draws them. Base UI behaviour is not drawn, only the look.
+    const hasPopup = /\.(Portal|Popup)\b/.test(opts.read(`${opts.componentsDir}/${folder}/${folder}.tsx`) ?? '');
+    if (!main && hasPopup) {
+      reasons.length = 0;
+      for (const name of exports) {
+        // What opens the popup counts when the component styles it (a select's trigger), not when it is the consumer's
+        // own element (a tooltip's trigger).
+        const closedSpec = attempt(name, 'without-popup');
+        const closed = closedSpec?.parts.some((p) => p.source?.includes(`${folder}.module.css`)) ? closedSpec : undefined;
+        if (closed && !sets.some((x) => x.name === closed.name)) sets.push(closed);
+        const suffix = name === folder ? '' : name.startsWith(folder) ? name.slice(folder.length) : name;
+        const popupName = `${folder}/${sets.some((x) => x.name === `${folder}/Popup`) ? suffix || 'Popup' : 'Popup'}`;
+        // Drawn open by the export that renders the portal itself (DialogContent), not by those that only wrap it.
+        const fnNode = reader.load(name)?.fn;
+        const ownsPortal = !!fnNode && /\.Portal\b/.test(fnNode.getText());
+        const open = ownsPortal ? attempt(name, 'popup', popupName) : undefined;
+        if (open && !sets.some((x) => x.name === open.name)) sets.push(open);
+      }
+    }
     // The icon component: every icon is drawn as its own component on the Icons page.
-    if (!main && folder === ICON_COMPONENT) {
+    if (!sets.length && folder === ICON_COMPONENT) {
       coverage.push({ name: folder, status: 'generated', reason: 'drawn as icon components on the Icons page' });
       continue;
     }
-    // A component made of Base UI popup parts (a dialog, a menu, a toast) opens a popup, whatever it draws first.
-    if (!main && /\.(Portal|Popup|Positioner)\b/.test(fileText)) reason = 'opens a popup';
-    if (!main) {
+    if (!sets.length) {
+      const fileText = opts.read(`${opts.componentsDir}/${folder}/${folder}.tsx`) ?? '';
+      // A component made of Base UI popup parts (a dialog, a menu, a toast) opens a popup, whatever it draws first.
+      const reason = /\.(Portal|Popup|Positioner)\b/.test(fileText) && !reasons.length ? 'opens a popup' : reasons.length ? mainReason(reasons) : undefined;
       if (!paints(folder)) coverage.push({ name: folder, status: 'layout', reason: /inset\(50%\)/.test(cssOf(folder)) ? 'screen reader text only, nothing to draw' : 'layout only, use auto layout' });
       else coverage.push({ name: folder, status: 'unsupported', reason: reason ?? 'draws nothing the generator can read yet' });
       continue;
     }
-    const sets = [main];
-    const compound = new Set(main.parts.map((p) => p.name));
-    for (const other of reader.load(folder)?.exported.keys() ?? []) {
-      if (other === folder || (other.startsWith(folder) && compound.has(other.slice(folder.length)))) continue;
-      try {
-        const spec = generateComponentSpec(other, withList);
-        if (specDrawsSomething(spec)) sets.push(spec);
-      } catch {
-        /* an export the generator cannot draw: the folder is covered by its main set */
-      }
-    }
     components.push(...sets);
-    coverage.push({ name: folder, status: 'generated', ...(sets.length > 1 ? { sets: sets.map((x) => x.name) } : {}) });
+    coverage.push({ name: folder, status: 'generated', ...(sets.length > 1 || sets[0]!.name !== folder ? { sets: sets.map((x) => x.name) } : {}) });
   }
   return specsFile(components, withList, coverage);
 }

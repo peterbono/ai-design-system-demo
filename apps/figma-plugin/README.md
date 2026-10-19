@@ -164,7 +164,7 @@ The Pull preview has a **Components** group when the repo has `packages/react/co
 `components.specs` in `bridge.config.json`). It lists each coded component as new, updated or unchanged, and
 what cannot be bound. Nothing is written unless you tick **Also pull components (N)** and apply.
 
-Coverage is said, never implied: the group opens with "26 of 47 components are in Figma" (from the `coverage` list
+Coverage is said, never implied: the group opens with "40 of 47 components are in Figma" (from the `coverage` list
 in the specs file), and the components that are not in Figma are folded under the count, each with the generator's
 plain reason ("Not supported yet: opens a popup", "uses CSS grid"). Layout helpers (Stack, Inline, Grid, Container,
 ButtonGroup, VisuallyHidden) are counted apart: nothing to draw, use auto layout. The generator decides support
@@ -184,6 +184,11 @@ when the committed JSON is out of date.
 | `translateX` of a switch thumb, `row-reverse`, `flex: 1`, `flex-wrap` | Padding and alignment per variant, reversed order, Fill container, auto layout wrap |
 | Lists and selections of the docs preview (`items.map(...)`, `defaultValue`) | The items drawn, the selected one checked |
 | `text-decoration: underline`, `em` sizes, a transparent border | Underlined text, a multiple of the font size token, a transparent stroke that still takes its room |
+| A Base UI popup (select list, menu, dialog, drawer, popover, tooltip, combobox) | Its own set drawn open ("Select/Popup"), next to the trigger set when the component styles one; submenus closed, arrows left out |
+| An inline `<svg>` (spinner, progress ring) | One vector layer, each shape's stroke bound to its token, dashes and rotation written in |
+| Layers some variants do not render; a prop that moves layers elsewhere | Hidden layers in those variants; one set per value ("Progress/Linear", "Progress/Circular") |
+| A value indicator (`<Progress.Indicator>`), `position: absolute` with token offsets, `width: 100%` | Its share of the track, an absolute layer pinned to its parent's edges, Fill container |
+| React context, `useState` defaults, local render functions, `useMemo`, list methods, examples of the component sandbox | Read to draw what the code shows by default |
 | `children` (or a compound component's parts: CardHeader, CardBody, CardFooter) | A text layer with a TEXT property (`Label`, `Header`...) |
 | A `LucideIcon` prop (`icon`, `iconStart`) | An instance of an icon component (`Icon/Plus`) with an INSTANCE_SWAP property (`Icon`, `Icon start`); optional icons keep their BOOLEAN property (`Icon start`) |
 | A compound part drawn full-bleed in some variant (Card body with `padding="none"`) | An instance of a slot component (`Slot/Card body text` or `Slot/Media`) with an INSTANCE_SWAP property (`Body`) |

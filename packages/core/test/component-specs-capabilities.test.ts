@@ -144,7 +144,7 @@ export const Pages = forwardRef(function Pages({ count }, ref) { return <nav cla
       'c/Tiles/Tiles.tsx': `import styles from './Tiles.module.css';
 export interface TilesProps { label: ReactNode }
 export const Tiles = forwardRef(function Tiles({ label }, ref) { return <div className={styles.grid}><span>{label}</span></div>; });`,
-      'c/Tiles/Tiles.module.css': `.grid { display: grid; background-color: var(--color-bg); }`,
+      'c/Tiles/Tiles.module.css': `.grid { display: grid; grid-template-columns: 1fr 1fr; background-color: var(--color-bg); }`,
       'c/Tip/Tip.tsx': `import { Tooltip as BaseTooltip } from '@base-ui/react/tooltip';
 import styles from './Tip.module.css';
 export interface TipProps { label: ReactNode }
@@ -177,7 +177,7 @@ export const Row = forwardRef(function Row({ children }, ref) { return <div clas
       'c/Board/Board.tsx': `import styles from './Board.module.css';
 export interface BoardProps { children?: ReactNode }
 export const Board = forwardRef(function Board({ children }, ref) { return <div className={styles.board}>{children}</div>; });`,
-      'c/Board/Board.module.css': `.board { display: grid; background-color: var(--color-bg); }`,
+      'c/Board/Board.module.css': `.board { display: grid; grid-template-columns: auto 1fr; background-color: var(--color-bg); }`,
     };
     const file = generateAllComponentSpecs(['Pill', 'Row', 'Board'], options(files));
     expect(file.coverage).toEqual([
@@ -231,5 +231,107 @@ export const Anchor = forwardRef(function Anchor({ children, ...rest }, ref) {
     expect(declaredFor(rules, { ...el, attrs: new Map([['data-invalid', 'true']]) }, DEFAULT_STATE).get('color')?.value).toBe('var(--x)');
     expect(declaredFor(rules, el, DEFAULT_STATE).get('color')).toBeUndefined();
     expect(declaredFor(rules, { ...el, baseUi: true, checked: 'state' as const }, { ...DEFAULT_STATE, checked: 'mixed' }).get('color')?.value).toBe('var(--y)');
+  });
+
+  it('popups: drawn open as their own set, next to the trigger the component styles; options from the docs preview', () => {
+    const files = {
+      'c/Pick/Pick.tsx': `import { Select as BaseSelect } from '@base-ui/react/select';
+import styles from './Pick.module.css';
+export interface PickProps { options: Option[]; defaultValue?: string; placeholder?: string }
+export const Pick = forwardRef(function Pick({ options, defaultValue, placeholder = 'Choose' }, ref) {
+  const items = useMemo(() => options.map((o) => ({ value: o.value, label: o.label })), [options]);
+  return <BaseSelect.Root items={items} defaultValue={defaultValue}>
+    <BaseSelect.Trigger className={styles.trigger}><BaseSelect.Value className={styles.value} placeholder={placeholder} /></BaseSelect.Trigger>
+    <BaseSelect.Portal><BaseSelect.Positioner><BaseSelect.Popup className={styles.popup}><BaseSelect.Arrow className={styles.arrow} />
+      {options.map((o) => <BaseSelect.Item key={o.value} value={o.value} className={styles.item}><BaseSelect.ItemText>{o.label}</BaseSelect.ItemText></BaseSelect.Item>)}
+    </BaseSelect.Popup></BaseSelect.Positioner></BaseSelect.Portal>
+  </BaseSelect.Root>;
+});`,
+      'c/Pick/Pick.module.css': `.trigger { display: flex; padding: var(--space-2); border: var(--border-width-default) solid var(--color-border); }
+.popup { display: flex; flex-direction: column; background-color: var(--color-bg); } .item { padding: var(--space-1); } .item[data-selected] { background-color: var(--color-bg-checked); }
+.arrow { width: var(--space-2); height: var(--space-2); background-color: var(--color-bg); }`,
+      'c/Pick/Pick.docs.json': JSON.stringify({ preview: { c: 'Pick', p: { defaultValue: 'b', options: [{ value: 'a', label: 'Alpha' }, { value: 'b', label: 'Beta' }] } } }),
+    };
+    const file = generateAllComponentSpecs(['Pick'], options(files));
+    expect(file.coverage).toEqual([{ name: 'Pick', status: 'generated', sets: ['Pick', 'Pick/Popup'] }]);
+    const [trigger, popup] = file.components;
+    expect(trigger!.parts.map((p) => p.text ?? p.id)).toEqual(['root', 'value', 'Value']);
+    expect(trigger!.properties.find((p) => p.name === 'Value')!.default).toBe('Choose');
+    // Open: no arrow (Base UI places it), the options of the preview, the default value selected.
+    expect(popup!.parts.filter((p) => p.kind === 'text').map((p) => p.characters)).toEqual(['Alpha', 'Beta']);
+    expect(popup!.variants[0]!.values['item-2']).toMatchObject({ fill: 'color.bg-checked' });
+    expect(popup!.variants[0]!.values.item).not.toHaveProperty('fill', 'color.bg-checked');
+  });
+
+  it('inline SVG as one vector layer: CSS strokes, opacity and pathLength dashes written in, the stroke bound per shape', () => {
+    const files = {
+      'c/Wheel/Wheel.tsx': `import styles from './Wheel.module.css';
+export interface WheelProps { tone?: 'current' | 'signal' }
+export const Wheel = forwardRef(function Wheel({ tone = 'current' }, ref) {
+  return <span className={cx(styles.wheel, styles[tone])}><svg className={styles.svg} viewBox="0 0 24 24" fill="none"><circle className={styles.track} cx="12" cy="12" r="10" /><circle className={styles.arc} cx="12" cy="12" r="10" pathLength="100" /></svg></span>;
+});`,
+      'c/Wheel/Wheel.module.css': `.wheel { display: inline-flex; width: var(--size-4); height: var(--size-4); color: currentcolor; } .signal { color: var(--color-thumb); }
+.svg { width: 100%; height: 100%; } .track, .arc { stroke: currentcolor; stroke-width: 3; } .track { opacity: 0.2; } .arc { stroke-dasharray: 25 100; stroke-linecap: round; }`,
+      'styles/base.css': `:where(html) { color: var(--color-text-default); }`,
+    };
+    const spec = generateComponentSpec('Wheel', options(files, { baseCss: 'styles/base.css' }));
+    expect(spec.parts.map((p) => `${p.id}:${p.kind}${p.cover ? ':cover' : ''}`)).toEqual(['root:frame', 'svg:vector:cover']);
+    const signal = spec.variants.find((v) => v.props.Tone === 'signal')!.vectors!.svg!;
+    expect(signal.strokes).toEqual(['color.thumb', 'color.thumb']);
+    expect(spec.variants.find((v) => v.props.Tone === 'current')!.vectors!.svg!.strokes).toEqual(['color.text-default', 'color.text-default']);
+    expect(signal.svg).toContain('opacity="0.2"');
+    // 25 of pathLength 100 on a circle of radius 10: 25% of 62.832.
+    expect(signal.svg).toMatch(/stroke-dasharray="15\.708 62\.832"/);
+  });
+
+  it('layers only some variants render are hidden in the others; a prop that reshapes the layers splits the set', () => {
+    const files = {
+      'c/Meter/Meter.tsx': `import { Progress as BaseProgress } from '@base-ui/react/progress';
+import styles from './Meter.module.css';
+export interface MeterProps { value: number | null; size?: 'sm' | 'lg'; shape?: 'bar' | 'dot' }
+export const Meter = forwardRef(function Meter({ value, size = 'sm', shape = 'bar' }, ref) {
+  return <BaseProgress.Root value={value} className={cx(styles.meter, styles[size])}>
+    {shape === 'bar' ? <BaseProgress.Track className={styles.track}><BaseProgress.Indicator className={styles.fill} /></BaseProgress.Track> : <span className={styles.dot}><BaseProgress.Value className={styles.value} /></span>}
+    {shape === 'bar' && size === 'lg' && <BaseProgress.Value className={styles.value} />}
+  </BaseProgress.Root>;
+});`,
+      'c/Meter/Meter.module.css': `.meter { display: flex; flex-direction: column; } .lg { gap: var(--space-2); }
+.track { display: flex; height: var(--space-1); background-color: var(--color-border); } .fill { height: 100%; background-color: var(--color-bg-checked); }
+.dot { width: var(--size-4); height: var(--size-4); background-color: var(--color-bg-checked); } .value { color: var(--color-text-muted); }`,
+      'c/Meter/Meter.docs.json': JSON.stringify({ preview: { c: 'Meter', p: { value: 40 } } }),
+    };
+    const file = generateAllComponentSpecs(['Meter'], options(files));
+    expect(file.coverage).toEqual([{ name: 'Meter', status: 'generated', sets: ['Meter/Bar', 'Meter/Dot'] }]);
+    const bar = file.components[0]!;
+    expect(bar.parts.find((p) => p.id === 'fill')).toMatchObject({ fraction: 0.4, stretch: { height: true } });
+    // The value text exists at the large size only: hidden at the small one; Base UI writes the percentage.
+    expect(bar.variants.find((v) => v.props.Size === 'sm')!.hidden).toContain('value');
+    expect(bar.properties.find((p) => p.name === 'Value')!.default).toBe('40%');
+    // The dot shape puts the value inside the dot: another layer tree, its own set.
+    expect(file.components[1]!.parts.find((p) => p.id === 'value')!.parent).toBe('dot');
+  });
+
+  it('React context, render props, rest props, list callbacks and pinned layers', () => {
+    const files = {
+      'c/Bar/Bar.tsx': `import { Dialog as BaseDialog } from '@base-ui/react/dialog';
+import styles from './Bar.module.css';
+const BarContext = createContext({ tone: 'quiet' });
+export interface BarProps { tone?: 'quiet' | 'loud'; children?: ReactNode }
+export const Bar = forwardRef(function Bar({ tone = 'loud', children }, ref) {
+  return <BarContext.Provider value={{ tone }}><div className={styles.bar}><BarItem>{children}</BarItem><BaseDialog.Close className={styles.close} render={<button className={styles.button} />} /></div></BarContext.Provider>;
+});
+export const BarItem = forwardRef(function BarItem({ ...rest }, ref) {
+  const { tone } = useContext(BarContext);
+  return <span className={cx(styles.item, styles[tone])} {...rest} />;
+});`,
+      'c/Bar/Bar.module.css': `.bar { position: relative; display: flex; padding: var(--space-2); } .item { padding: var(--space-1); } .loud { background-color: var(--color-danger); }
+.close { position: absolute; inset-block-start: var(--space-1); inset-inline-end: var(--space-2); } .button { width: var(--size-4); height: var(--size-4); background-color: var(--color-bg); }`,
+    };
+    const spec = generateComponentSpec('Bar', options(files));
+    // The item reads the tone from the context Bar provides: loud fills it, quiet does not.
+    expect(spec.variants.find((v) => v.props.Tone === 'loud')!.values.item).toMatchObject({ fill: 'color.danger' });
+    expect(spec.variants.find((v) => v.props.Tone === 'quiet')!.values.item!.fill).toBeUndefined();
+    expect(spec.parts.find((p) => p.id === 'item-text' || p.text === 'Label')).toBeTruthy();
+    expect(spec.parts.find((p) => p.pin)).toMatchObject({ pin: { top: 'space.1', right: 'space.2' } });
   });
 });

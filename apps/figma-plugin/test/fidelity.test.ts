@@ -139,12 +139,15 @@ test('runFidelityCheck: every generated set compared with its code images; a bad
   );
   assert.match(card.result.variants[0]!.reason!, /placeholder/);
   assert.equal(card.images?.diff, 'data:image/png;base64,80x46');
-  for (const i of out.items.filter((x) => x.result.component !== 'Card')) assert.equal(i.result.status, 'matches', i.result.component);
+  // Popups drawn open have no code image to compare with (the code renders them closed): not checked, said so.
+  const open = out.items.filter((x) => /\/Popup$/.test(x.result.component));
+  for (const i of open) assert.equal(i.result.status, 'not-checked', i.result.component);
+  for (const i of out.items.filter((x) => x.result.component !== 'Card' && !open.includes(x))) assert.equal(i.result.status, 'matches', i.result.component);
   assert.equal(out.report.summary.differs, 1);
-  assert.equal(out.report.summary.matches, sets.length - 1);
+  assert.equal(out.report.summary.matches, sets.length - 1 - open.length);
   assert.deepEqual(out.report.reference, { sha: 'abc1234def', createdAt: '2026-10-19T00:00:00.000Z' });
   assert.equal(out.report.file, 'UI kit');
-  assert.equal(fidelitySummary(out.report), `1 component differs from the code, ${sets.length - 1} match.`);
+  assert.match(fidelitySummary(out.report), new RegExp(`^1 component differs from the code, ${sets.length - 1 - open.length} match`));
 });
 
 test('runFidelityCheck: no published images, a set from another version, a set with no code image', async () => {

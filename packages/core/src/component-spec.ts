@@ -103,7 +103,8 @@ export interface SpecPart {
   id: string;
   /** Layer name in Figma. */
   name: string;
-  kind: 'frame' | 'text' | 'icon';
+  /** vector: an inline SVG drawn from the variant's `vectors` markup (a spinner arc, a progress ring). */
+  kind: 'frame' | 'text' | 'icon' | 'vector';
   /** Parent part id; undefined for the root (the variant itself). */
   parent?: string | undefined;
   /** CSS module class the part is styled by ("Button.module.css .label"), for people reading the spec. */
@@ -124,6 +125,15 @@ export interface SpecPart {
    * absolute` with `inset: 0`, or `width` and `height` 100%. Drawn as an absolute child that fills its parent.
    */
   cover?: boolean | undefined;
+  /**
+   * `position: absolute` with token offsets (a dialog's close button): out of the auto layout, pinned to the parent's
+   * edges by these offsets (top, right, bottom, left).
+   */
+  pin?: { top?: SpecValue; right?: SpecValue; bottom?: SpecValue; left?: SpecValue } | undefined;
+  /** `width: 100%` or `height: 100%` in a parent of that size: Fill container on that axis. */
+  stretch?: { width?: boolean; height?: boolean } | undefined;
+  /** A value indicator (a progress fill): this share of its parent's width, from the component's value. */
+  fraction?: number | undefined;
   /** `flex: 1` in code: takes the free space along its parent's auto layout direction (Figma "Fill container"). */
   grow?: boolean | undefined;
   /**
@@ -211,6 +221,14 @@ export interface SpecVariant {
   hidden?: string[] | undefined;
   /** Parts whose auto layout differs from the part's own in this variant (a switch thumb at the end when on). */
   layout?: Record<string, SpecLayout> | undefined;
+  /** Vector parts: the SVG this variant draws and the stroke token of each shape, in order. */
+  vectors?: Record<string, SpecVector> | undefined;
+}
+
+/** An inline SVG part: markup with literal geometry (strokes painted #000000) and the token bound to each shape's stroke. */
+export interface SpecVector {
+  svg: string;
+  strokes: SpecValue[];
 }
 
 /** A declaration, prop or part that has no Figma equivalent in this version, with the reason. */
@@ -225,6 +243,10 @@ export interface ComponentSpec {
   name: string;
   /** Component folder the set comes from, when it is not the set's name (Radio comes from RadioGroup). */
   component?: string | undefined;
+  /** Props pinned for this set (`{ variant: 'circular' }` for Progress/Circular, a set per layer tree). */
+  fixed?: Record<string, string> | undefined;
+  /** A popup drawn open (`popup`), or the component without its popup (`without-popup`). */
+  view?: 'popup' | 'without-popup' | undefined;
   /** FNV-1a of everything else in the spec: unchanged hash, nothing to rebuild. */
   hash: string;
   /** Files it was read from, repo-relative. */

@@ -89,6 +89,8 @@ export interface PlannedVariant {
   hidden?: string[] | undefined;
   /** Parts laid out differently in this variant (a switch thumb at the end when on). */
   layout?: Record<string, SpecLayout> | undefined;
+  /** Vector parts: the SVG drawn and the stroke of each shape (a spinner arc, a progress ring). */
+  vectors?: Record<string, { svg: string; hash: string; strokes: PlannedValue[] }> | undefined;
 }
 
 /** An icon component to build on the Icons page ("Icon/Plus"). */
@@ -132,6 +134,8 @@ export interface PlannedComponent {
   removedVariants: string[];
   /** Variant keys code added since the last pull. */
   addedVariants: string[];
+  /** Absolute parts (a dialog's close button): their offsets from the parent's edges, in pixels. */
+  pins?: Record<string, Partial<Record<'top' | 'right' | 'bottom' | 'left', number>>> | undefined;
 }
 
 export interface ComponentProblem {
@@ -409,6 +413,27 @@ export function buildComponentPlan(specs: ComponentSpecsFile, source: string, ge
         ...(inner ? { inner } : {}),
         ...(v.hidden?.length ? { hidden: [...v.hidden] } : {}),
         ...(v.layout ? { layout: { ...v.layout } } : {}),
+        ...(v.vectors
+          ? {
+              vectors: Object.fromEntries(
+                Object.entries(v.vectors).map(([part, vec]) => [
+                  part,
+                  {
+                    svg: vec.svg,
+                    hash: specHash(vec.svg),
+                    strokes: vec.strokes.map((value) => {
+                      const pv = planValue('stroke', value, head);
+                      if ('problem' in pv) {
+                        problem({ component: spec.name, part, property: 'stroke', reason: pv.problem });
+                        return { kind: 'none' } as PlannedValue;
+                      }
+                      return pv;
+                    }),
+                  },
+                ]),
+              ),
+            }
+          : {}),
       };
     });
     const existing = generated.find((g) => g.componentId === spec.name);
@@ -417,7 +442,18 @@ export function buildComponentPlan(specs: ComponentSpecsFile, source: string, ge
     const addedVariants = existing ? variants.map((v) => v.key).filter((k) => !have.has(k)) : [];
     const removedVariants = existing ? existing.variants.filter((k) => !keys.has(k)) : [];
     const status: ComponentStatus = !existing ? 'new' : existing.specHash === spec.hash && !addedVariants.length && !removedVariants.length ? 'unchanged' : 'updated';
+    const pins: NonNullable<PlannedComponent['pins']> = {};
+    for (const part of spec.parts) {
+      if (!part.pin) continue;
+      for (const [side, value] of Object.entries(part.pin) as ['top' | 'right' | 'bottom' | 'left', SpecValue][]) {
+        const pv = planValue('paddingTop', value, head);
+        const n = 'problem' in pv ? undefined : pv.kind === 'number' ? pv.value : pv.kind === 'variable' && typeof pv.value === 'number' ? pv.value : undefined;
+        if (n === undefined) problem({ component: spec.name, part: part.id, property: side, reason: 'problem' in pv ? pv.problem : `${String(value)} is not a size` });
+        else (pins[part.id] ??= {})[side] = n;
+      }
+    }
     components.push({
+      ...(Object.keys(pins).length ? { pins } : {}),
       componentId: spec.name,
       name: spec.name,
       ...(spec.component ? { component: spec.component } : {}),

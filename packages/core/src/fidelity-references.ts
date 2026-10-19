@@ -59,7 +59,9 @@ const exportName = (name: string) => name.replace(/[^A-Za-z0-9]+/g, '');
 
 /** How to render one generated variant from code, or why it cannot be compared. */
 export function planReference(spec: ComponentSpec, variant: SpecVariant, file?: Pick<ComponentSpecsFile, 'slots'>): ReferencePlan {
-  const props: Record<string, string | boolean> = {};
+  // A popup drawn open: the code image shows the component closed, so there is nothing to compare it with.
+  if (spec.view === 'popup') return { ok: false, reason: 'drawn open in Figma; the code image shows it closed' };
+  const props: Record<string, string | boolean> = { ...(spec.fixed ?? {}) };
   let pseudo: ReferencePseudo | undefined;
   for (const axis of spec.axes) {
     const value = variant.props[axis.name];
@@ -136,6 +138,8 @@ export function planReference(spec: ComponentSpec, variant: SpecVariant, file?: 
     }
   }
   for (const p of loose) {
+    // A value display Base UI writes from the component's value (a progress percentage): code writes it too.
+    if (p.name === 'Value') continue;
     const part = spec.parts.find((x) => x.text === p.name);
     if (compound && part && part.parent !== root.id) continue;
     if (part && /placeholder$/.test(part.id)) {
@@ -148,7 +152,7 @@ export function planReference(spec: ComponentSpec, variant: SpecVariant, file?: 
   return {
     ok: true,
     render: {
-      component: exportName(spec.name),
+      component: exportName(spec.view || spec.fixed ? (spec.component ?? spec.name) : spec.name),
       props,
       ...(text !== undefined ? { text } : {}),
       ...(parts ? { parts } : {}),
