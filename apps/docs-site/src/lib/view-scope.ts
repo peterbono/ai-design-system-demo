@@ -11,8 +11,8 @@
 // "Edit tokens in this change" turns a view into an edit; "Stop editing" (or the selector) turns it back. Other pages
 // ignore edit=1, and links between Studio pages keep the view but never the edit.
 import type { TokenSet } from '@bridge-ds/core';
-import type { Lifecycle } from './change-status';
-import { LIFECYCLE } from './change-status';
+import type { Lifecycle, LifecycleTone } from './change-status';
+import { LIFECYCLE, lifecycleTone } from './change-status';
 import { oneLineTitle } from './markdown';
 import { humanTitle } from './pr-title';
 
@@ -140,6 +140,8 @@ export interface ViewOption {
   label: string;
   description: string;
   group?: string;
+  /** The change's status, shown as a Badge after the label (in the list and in the trigger). */
+  status?: { label: string; tone: LifecycleTone };
 }
 
 /** "tokens: darker default background" reads "Darker default background". */
@@ -181,17 +183,27 @@ export function openChanges<P extends ViewPull>(pulls: P[], defaultBranch: strin
 }
 
 /**
- * The selector's options: the latest library, then each open change with its status (lib/change-status). A change
+ * The selector's options: the latest library, then each open change with its status (lib/change-status, a Badge in
+ * the Select) and its author. A change
  * in the address that is not open any more (shipped or closed) stays listed, so the selector always says what the
  * page shows.
  */
 export function viewOptions(pulls: ViewPull[], opts: { defaultBranch: string; lifecycleOf: (p: ViewPull) => Lifecycle; current?: ViewPull | null }): ViewOption[] {
   const open = openChanges(pulls, opts.defaultBranch);
   if (opts.current && !open.some((p) => p.number === opts.current!.number)) open.unshift(opts.current);
-  const describe = (p: ViewPull) => [LIFECYCLE[opts.lifecycleOf(p)].short, p.user?.login ? `by ${p.user.login}` : ''].filter(Boolean).join(', ');
+  const statusOf = (p: ViewPull) => {
+    const l = opts.lifecycleOf(p);
+    return { label: LIFECYCLE[l].short, tone: lifecycleTone(l) };
+  };
   return [
     { value: LATEST_VALUE, label: LATEST_LABEL, description: 'What is shipped' },
-    ...open.map((p) => ({ value: optionValue(p.number), label: viewTitle(p.title), description: describe(p), group: 'Open changes' })),
+    ...open.map((p) => ({
+      value: optionValue(p.number),
+      label: viewTitle(p.title),
+      description: p.user?.login ? `by ${p.user.login}` : '',
+      group: 'Open changes',
+      status: statusOf(p),
+    })),
   ];
 }
 

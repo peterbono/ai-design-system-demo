@@ -48,11 +48,6 @@
   line-height: var(--typography-ui-line-height);
 }
 
-.a11y-compare[aria-pressed="true"] {
-  border-color: var(--color-action-primary-bg);
-  background-color: var(--color-surface-selected);
-}
-
 /* In the compare view every combo shows at once, so the scope only matters on narrow screens (one column). */
 @media (min-width: 641px) {
   .a11y-checks[data-view="compare"] .a11y-scope {
@@ -264,11 +259,6 @@
   overflow-wrap: anywhere;
 }
 
-.a11y-matrix td,
-.a11y-matrix thead th[data-c] {
-  width: 17%;
-}
-
 .a11y-cell {
   display: inline-flex;
   align-items: center;
@@ -306,11 +296,6 @@
 @media (max-width: 640px) {
   .a11y-matrix [data-c]:not([data-on]) {
     display: none;
-  }
-
-  .a11y-matrix td,
-  .a11y-matrix thead th[data-c] {
-    width: auto;
   }
 }
 

@@ -157,6 +157,14 @@ function paintSegments(root: Element, value: string | null) {
     b.toggleAttribute('data-unchecked', !on);
     b.tabIndex = b === stop ? 0 : -1;
   }
+  // Too many segments for the width (a phone): the DS track scrolls sideways; keep the selected one in view.
+  const track = root as HTMLElement;
+  if (current && track.scrollWidth > track.clientWidth) {
+    const start = current.offsetLeft;
+    const end = start + current.offsetWidth;
+    if (start < track.scrollLeft) track.scrollLeft = start;
+    else if (end > track.scrollLeft + track.clientWidth) track.scrollLeft = end - track.clientWidth;
+  }
 }
 
 /** Select a segment of a static SegmentedControl. `emit` dispatches bridge:segment as a user change would. */

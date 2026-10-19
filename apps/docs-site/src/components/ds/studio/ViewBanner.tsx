@@ -25,6 +25,7 @@ export function ViewBanner({ title, body, latestHref, changeHref, editHref, erro
       icon={error ? TriangleAlert : Eye}
       announce="off"
       title={title}
+      actionsPlacement="inline"
       actions={
         <>
           {editHref && (

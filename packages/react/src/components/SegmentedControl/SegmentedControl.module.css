@@ -12,6 +12,7 @@
   box-sizing: border-box;
   display: inline-flex;
   align-items: stretch;
+  min-width: 0;
   max-width: 100%;
   min-height: var(--_height);
   padding: var(--_inset);

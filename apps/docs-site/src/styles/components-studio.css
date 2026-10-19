@@ -11,29 +11,6 @@
   line-height: var(--typography-body-line-height);
 }
 
-.cm-lead-filter {
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--color-text-link);
-  font: inherit;
-  text-decoration: underline;
-  text-underline-offset: var(--space-1);
-  cursor: pointer;
-}
-
-.cm-lead-filter[aria-pressed="true"] {
-  color: var(--color-text-default);
-  font-weight: var(--font-weight-semibold);
-  text-decoration: none;
-}
-
-.cm-lead-filter:focus-visible {
-  border-radius: var(--radius-inset);
-  outline: var(--focus-ring-width) solid var(--focus-ring-color);
-  outline-offset: var(--focus-ring-offset);
-}
-
 .cm-tools {
   display: flex;
   flex-wrap: wrap;

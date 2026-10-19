@@ -569,7 +569,7 @@ function Toolbar({ build, change, onProduction, returnTo, together: tg }: { buil
   const toggleLabel = shownCount === null ? 'Show what changed' : `Show what changed · ${shownCount}`;
   const outlineToggle = canOutline ? (
     <Tooltip className={PIN_CLASS} content={toggleTip}>
-      <Button variant="secondary" size="md" iconStart={outlinesOn ? Check : undefined} aria-pressed={outlinesOn} aria-keyshortcuts="C" disabled={Boolean(noDiff)} onClick={() => setOutlines((o) => !o)}>
+      <Button variant="secondary" size="md" pressed={outlinesOn} aria-keyshortcuts="C" disabled={Boolean(noDiff)} onClick={() => setOutlines((o) => !o)}>
         {toggleLabel}
       </Button>
     </Tooltip>
@@ -578,8 +578,8 @@ function Toolbar({ build, change, onProduction, returnTo, together: tg }: { buil
     <IconButton
       icon={ScanSearch}
       size="md"
-      variant={outlinesOn ? 'secondary' : 'ghost'}
-      aria-pressed={outlinesOn}
+      variant="ghost"
+      pressed={outlinesOn}
       disabled={Boolean(noDiff)}
       label={shownCount === null ? 'Show what changed' : `Show what changed, ${shownCount} ${shownCount === 1 ? 'surface' : 'surfaces'}`}
       className={styles.phoneOnly}
@@ -602,8 +602,7 @@ function Toolbar({ build, change, onProduction, returnTo, together: tg }: { buil
           <Button
             variant="secondary"
             size="md"
-            iconStart={side === s ? Check : undefined}
-            aria-pressed={side === s}
+            pressed={side === s}
             aria-keyshortcuts="B"
             disabled={!canFlip && side !== s}
             onClick={() => choose(s)}

@@ -554,11 +554,6 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .set-table th:nth-child(3),
-  .set-table td:nth-child(3) {
-    display: none;
-  }
-
   .set-dev > summary .set-more-n {
     display: none;
   }

@@ -232,10 +232,6 @@ export const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
   { value: 'closed', label: LIFECYCLE.closed.short },
 ];
 
-/** The phone Select picks a filter (detail: the value); the page tells it the current one back. */
-export const STATUS_FILTER_EVENT = 'bridge:status-filter';
-export const STATUS_SYNC_EVENT = 'bridge:status-sync';
-
 /** The filter from the address (?status=waiting), Open by default. */
 export function statusFilterParam(search: string): StatusFilter {
   const v = new URLSearchParams(search).get('status');

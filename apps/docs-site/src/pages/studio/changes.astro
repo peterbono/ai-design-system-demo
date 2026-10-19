@@ -28,7 +28,6 @@ import { loadComponents } from '../../lib/components';
 import Example from '../../components/Example';
 import PromoteToReview from '../../components/ds/studio/PromoteToReview';
 import RequestDecide from '../../components/ds/studio/RequestDecide';
-import StatusFilterSelect from '../../components/ds/studio/StatusFilterSelect';
 import type { BranchesConfig } from '../../lib/branches';
 import { ghAction, ghButton } from '../../lib/gh-wording';
 import { signInConfig } from '../../lib/signin-config';
@@ -93,8 +92,7 @@ const signIn = Boolean(signInConfig());
         </div>
 
         <div class="cg-status-bar">
-          <div class="cg-status-seg"><SegmentedControl label="Status" data-vanilla data-status-filter defaultValue="open" items={statusItems} /></div>
-          <div class="cg-status-select"><StatusFilterSelect client:media="(max-width: 760px)" /></div>
+          <SegmentedControl label="Status" data-vanilla data-status-filter defaultValue="open" items={statusItems} />
         </div>
 
 <div class="cg-work" data-work-bar hidden>

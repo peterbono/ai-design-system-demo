@@ -26,7 +26,7 @@ export default function ContrastMatrix({ label, combos, rows }: { label: string;
         <TableRow>
           <TableHead>Pair</TableHead>
           {combos.map((c) => (
-            <TableHead key={c.key} data-c={c.key}>
+            <TableHead key={c.key} data-c={c.key} width={0.17}>
               {c.label}
             </TableHead>
           ))}
