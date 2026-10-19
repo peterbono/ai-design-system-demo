@@ -202,6 +202,14 @@ describe('planReference: the code render of each generated variant', () => {
     });
   });
 
+  it('Checkbox: the Checked axis to checked and indeterminate; hidden optional texts are not passed', () => {
+    expect(planReference(spec('Checkbox'), variant('Checkbox', { Checked: 'mixed', State: 'Default' }), file)).toEqual({
+      ok: true,
+      render: { component: 'Checkbox', props: { checked: false, indeterminate: true, label: 'Label' } },
+    });
+    expect(planReference(spec('Checkbox'), variant('Checkbox', { Checked: 'true', State: 'Hover' }), file)).toMatchObject({ ok: true, render: { props: { checked: true }, pseudo: 'hover' } });
+  });
+
   it('skips states and axes code cannot render', () => {
     const s = spec('Tag');
     const v = { ...s.variants[0]!, props: { State: 'Loading' } };

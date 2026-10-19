@@ -20,7 +20,7 @@ import { type ComponentChangeItem, type ComponentScan, type RequestDraft, classi
 import { CLAUDE_MODELS, type ClaudeDraft, type ClaudeDraftInput, ClaudeDraftError, DRAFTED_NOTE, draftWithClaude } from '../sync/claude';
 import { loadCodedComponents, sendComponentRequest } from '../sync/requests';
 import { DRAFT_PHRASE, type DraftField, DraftPoller, type MyClaudeTarget, finishMyClaudeDrafts, mcpSnippets, planFill, startMyClaudeDrafts } from '../sync/my-claude';
-import { type ComponentApplyReport, type ComponentPullPlan, type PlannedComponent, buildComponentPlan, loadComponentSpecs } from '../sync/component-pull';
+import { type ComponentApplyReport, type ComponentPullPlan, type CoverageView, type PlannedComponent, buildComponentPlan, coverageView, loadComponentSpecs } from '../sync/component-pull';
 import { type ComponentReview, onlyComponent, reviewUpdates } from '../sync/component-review';
 import type { ComponentSignature } from '../sync/components';
 import { type Destination, type PublishItem, type PublishResult, applyDestination, componentKey, defaultUnchecked, experimentalTokenIds, groupState, heldTokenIds, isChecked, publish, publishItems, setGroup, variableIdsOf, variableKey } from '../sync/publish';
@@ -1655,24 +1655,29 @@ function componentsGroup(p: PullState): Child {
   const upToDate = plan.components.filter((c) => c.status === 'unchanged' && !p.done.has(c.componentId));
   const out: Child[] = [];
   if (reviews.length) out.push(reviewGroup(p, reviews));
+  // Honest coverage: how many coded components are in Figma, and why the others are not (folded under the count).
+  const cov = coverageView(plan);
+  // Sets and components: a component can bring more than one set (RadioGroup and Radio), counts are per component.
+  const freshComponents = new Set(fresh.map((c) => c.component ?? c.name)).size;
   out.push(
     group(
       fresh.length ? 'New components' : 'Components',
-      fresh.length || plan.components.length,
+      fresh.length ? freshComponents : new Set(plan.components.map((c) => c.component ?? c.name)).size,
       fresh.length
         ? h(
             'label',
             { class: 'check' },
             h('input', { type: 'checkbox', checked: p.includeComponents, 'data-focus-id': 'pull-components', onChange: (e: Event) => { p.includeComponents = (e.target as HTMLInputElement).checked; render(); } }),
-            `Also pull new components (${fresh.length})`,
+            `Also pull new components (${freshComponents})`,
           )
         : null,
       fresh.length
-        ? 'Component sets on a "Components" page, built from the code and bound to these variables. Sets are updated in place on the next pull, never duplicated.'
+        ? `${cov.headline}. New ones are built on a "Components" page from the code and bound to these variables, then updated in place on the next pull.`
         : reviews.length
-          ? `${upToDate.length ? `Up to date: ${upToDate.map((c) => c.name).join(', ')}.` : ''}`.trim() || 'The other component sets match the code.'
-          : 'The component sets in this file match the code.',
+          ? `${cov.headline}. ${upToDate.length ? `Up to date: ${upToDate.map((c) => c.name).join(', ')}.` : 'The others in this file match the code.'}`
+          : `${cov.headline}. The ones in this file match the code.`,
       [
+        coverageDetails(cov),
         fresh.length
           ? rowList(
               'pull-components',
@@ -1769,6 +1774,20 @@ function fidelityGroup(p: PullState): Child {
     content = rowList('fidelity', rows, 10);
   }
   return group('Fidelity to the code', generated.length, action, lede, content);
+}
+
+/** The components not in Figma, each with its reason, and the layout helpers, folded under the count. */
+function coverageDetails(cov: CoverageView): Child {
+  if (!cov.missing.length && !cov.layout.length) return null;
+  return h(
+    'details',
+    { class: 'notes candidates' },
+    h('summary', { 'data-focus-id': 'coverage-missing' }, cov.missing.length ? `${plural(cov.missing.length, 'component')} not in Figma yet` : 'Layout helpers'),
+    cov.missing.length
+      ? h('ul', { class: 'rows' }, cov.missing.map((m) => h('li', { class: 'row' }, h('div', { class: 'row-head' }, h('span', { class: 'comp-name' }, m.name), h('span', { class: 'muted' }, m.reason)))))
+      : null,
+    cov.layout.length ? h('p', { class: 'muted' }, `${plural(cov.layout.length, 'layout helper')} with no Figma counterpart, use auto layout: ${cov.layout.join(', ')}.`) : null,
+  );
 }
 
 /** "New brand detected" card: a Brand mode with no file in Git, offered as a new brand (opt-in). */

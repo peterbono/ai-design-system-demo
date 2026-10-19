@@ -3,7 +3,7 @@
 // every fill, stroke, radius, padding, gap, size and text property) the DS Bridge Figma plugin pulls as component sets.
 // Derived from the component TSX and CSS modules by @bridge-ds/core/node (component-specs.ts). Never edit the JSON.
 //
-//   npm run specs            regenerate the file
+//   npm run specs            regenerate the file (every component folder; the generator decides what it can draw)
 //   npm run specs -- --check exit 1 when the committed file is out of date (the core test suite checks it too)
 //   npm run specs -- Button  print one spec instead of writing the file
 import * as esbuild from 'esbuild';
@@ -38,12 +38,13 @@ try {
     outfile,
     logLevel: 'warning',
   });
-  const { generateRepoComponentSpecs, serializeComponentSpecs, SPEC_COMPONENTS } = await import(pathToFileURL(outfile).href);
+  const { generateRepoComponentSpecs, serializeComponentSpecs } = await import(pathToFileURL(outfile).href);
   if (only.length) {
     const file = generateRepoComponentSpecs(ROOT, only);
     console.log(JSON.stringify(file.components, null, 2));
   } else {
-    const text = serializeComponentSpecs(generateRepoComponentSpecs(ROOT, SPEC_COMPONENTS));
+    const file = generateRepoComponentSpecs(ROOT);
+    const text = serializeComponentSpecs(file);
     let current = '';
     try {
       current = readFileSync(OUT, 'utf8');
@@ -58,7 +59,10 @@ try {
       console.log('component-specs.json is up to date.');
     } else {
       writeFileSync(OUT, text);
-      console.log(`Wrote packages/react/component-specs.json (${SPEC_COMPONENTS.join(', ')}).`);
+      const cov = file.coverage ?? [];
+      const visual = cov.filter((c) => c.status !== 'layout');
+      console.log(`Wrote packages/react/component-specs.json: ${visual.filter((c) => c.status === 'generated').length} of ${visual.length} components in Figma (${file.components.length} sets), ${cov.length - visual.length} layout helpers.`);
+      for (const c of cov) if (c.status === 'unsupported') console.log(`  not in Figma: ${c.name}, ${c.reason}`);
     }
   }
 } finally {

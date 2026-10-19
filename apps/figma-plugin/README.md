@@ -162,8 +162,13 @@ prefix in its description, so you can rebind layers before deleting it yourself.
 
 The Pull preview has a **Components** group when the repo has `packages/react/component-specs.json` (or
 `components.specs` in `bridge.config.json`). It lists each coded component as new, updated or unchanged, and
-what cannot be bound. Nothing is written unless you tick **Also pull components (N)** and apply. Version 1 covers
-Button, IconButton, Badge, Tag, Input and Card.
+what cannot be bound. Nothing is written unless you tick **Also pull components (N)** and apply.
+
+Coverage is said, never implied: the group opens with "26 of 47 components are in Figma" (from the `coverage` list
+in the specs file), and the components that are not in Figma are folded under the count, each with the generator's
+plain reason ("Not supported yet: opens a popup", "uses CSS grid"). Layout helpers (Stack, Inline, Grid, Container,
+ButtonGroup, VisuallyHidden) are counted apart: nothing to draw, use auto layout. The generator decides support
+itself from what it can read; there is no list to maintain.
 
 The specs are derived from code, never written by hand: `npm run specs` (root) reads each component's TSX and CSS
 module with the generator in `@bridge-ds/core/node` (`component-specs.ts`, `spec-css.ts`), and a core test fails
@@ -173,6 +178,12 @@ when the committed JSON is out of date.
 | --- | --- |
 | A string-literal union prop that changes the styles (`variant`, `size`, `tone`, `appearance`, `padding`) | A variant property with the code values (`Variant=primary`) |
 | `:hover`, `:active`, `[data-disabled]` / `:disabled` rules that change a value | A `State` axis (Default, Hover, Pressed, Disabled), only the states that differ |
+| Base UI `[data-checked]`, `[data-indeterminate]` rules (checkbox, switch, radio) | A `Checked` axis (false, true, mixed), glyphs hidden per variant |
+| Content props (`label`, `description`, `error`) | TEXT properties; optional ones behind a BOOLEAN ("Show description") |
+| `display: none`, `opacity: 0`, `scale(0)` in a state | The layer hidden in that variant |
+| `translateX` of a switch thumb, `row-reverse`, `flex: 1`, `flex-wrap` | Padding and alignment per variant, reversed order, Fill container, auto layout wrap |
+| Lists and selections of the docs preview (`items.map(...)`, `defaultValue`) | The items drawn, the selected one checked |
+| `text-decoration: underline`, `em` sizes, a transparent border | Underlined text, a multiple of the font size token, a transparent stroke that still takes its room |
 | `children` (or a compound component's parts: CardHeader, CardBody, CardFooter) | A text layer with a TEXT property (`Label`, `Header`...) |
 | A `LucideIcon` prop (`icon`, `iconStart`) | An instance of an icon component (`Icon/Plus`) with an INSTANCE_SWAP property (`Icon`, `Icon start`); optional icons keep their BOOLEAN property (`Icon start`) |
 | A compound part drawn full-bleed in some variant (Card body with `padding="none"`) | An instance of a slot component (`Slot/Card body text` or `Slot/Media`) with an INSTANCE_SWAP property (`Body`) |

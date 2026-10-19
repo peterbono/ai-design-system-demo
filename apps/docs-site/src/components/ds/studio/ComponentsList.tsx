@@ -25,6 +25,8 @@ export interface ComponentListRow {
   preview?: ExampleNode | undefined;
   /** Products that use it, from the audit reports; undefined when no report exists (the column is left out). */
   usedIn?: { product: string; instances: number }[] | undefined;
+  /** Whether it is in the Figma UI kit (component-specs.json coverage): a word and the reason when it is not. */
+  figma?: { label: string; title?: string } | undefined;
 }
 
 /** The exception badges of a row, in the Studio status colors: violet waits for someone, grey for the rest. */
@@ -45,7 +47,8 @@ const words = (n: number, one: string) => `${n} ${n === 1 ? one : `${one}s`}`;
 export default function ComponentsList({ rows, products }: { rows: ComponentListRow[]; products: number }) {
   const families = [...new Set(rows.map((r) => r.family))];
   const withUsage = products > 0;
-  const cols = withUsage ? 5 : 4;
+  const withFigma = rows.some((r) => r.figma);
+  const cols = 4 + (withUsage ? 1 : 0) + (withFigma ? 1 : 0);
   return (
     <Table aria-label="Components by family. Arrow keys move between rows, Enter opens one." className="cm-table" data-cm-table="">
       <TableHeader>
@@ -55,6 +58,7 @@ export default function ComponentsList({ rows, products }: { rows: ComponentList
           <TableHead className="cm-col-req">Open requests</TableHead>
           <TableHead className="cm-col-dev">Examples</TableHead>
           <TableHead className="cm-col-dev">Tokens</TableHead>
+          {withFigma && <TableHead className="cm-col-dev">In Figma</TableHead>}
         </TableRow>
       </TableHeader>
       {families.map((family) => (
@@ -117,6 +121,11 @@ export default function ComponentsList({ rows, products }: { rows: ComponentList
                 <TableCell className="cm-col-req" data-cm-req-n={r.name.toLowerCase()} />
                 <TableCell className="cm-col-dev cm-muted">{words(r.examples, 'example')}</TableCell>
                 <TableCell className="cm-col-dev cm-muted">{words(r.tokensTotal, 'token')}</TableCell>
+                {withFigma && (
+                  <TableCell className="cm-col-dev cm-muted" title={r.figma?.title}>
+                    {r.figma?.label}
+                  </TableCell>
+                )}
               </TableRow>
             ))}
         </TableBody>

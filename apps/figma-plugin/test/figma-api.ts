@@ -425,7 +425,7 @@ export class SimFigma {
   notices: string[] = [];
 
   constructor(opts: { fonts?: { family: string; style: string }[] } = {}) {
-    this.fonts = opts.fonts ?? ['Regular', 'Medium', 'Semi Bold', 'Bold'].flatMap((style) => [{ family: 'Inter', style }, { family: 'Instrument Sans', style }, { family: 'Fraunces', style }]);
+    this.fonts = opts.fonts ?? ['Regular', 'Medium', 'Semi Bold', 'Bold'].flatMap((style) => [{ family: 'Inter', style }, { family: 'Instrument Sans', style }, { family: 'Fraunces', style }, { family: 'IBM Plex Mono', style }]);
     this.root = new SimNode('DOCUMENT', this);
     this.root.name = 'Test file';
     this.currentPage = this.createPage();
