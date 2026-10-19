@@ -1,10 +1,10 @@
 // Component specs are derived from code: the committed packages/react/component-specs.json must match what the
 // generator reads from the component TSX and CSS modules today. Run `npm run specs` after changing a component.
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { parseComponentSpecs } from '../src/component-spec';
-import { generateComponentSpec, generateRepoComponentSpecs, serializeComponentSpecs } from '../src/node/component-specs';
+import { parseComponentSpecs, validateComponentSpec } from '../src/component-spec';
+import { generateComponentSpec, generateRepoComponentSpecs, repoSpecOptions, serializeComponentSpecs } from '../src/node/component-specs';
 import { DEFAULT_STATE, declaredFor, parseCssModule, parseSelector } from '../src/node/spec-css';
 
 const ROOT = join(__dirname, '../../..');
@@ -17,7 +17,24 @@ describe('component specs', () => {
     // Every component folder is in the coverage list; every generated folder has its sets in the file.
     const parsed = parseComponentSpecs(committed);
     const names = new Set(parsed.components.map((c) => c.component ?? c.name));
-    for (const c of parsed.coverage!) expect(names.has(c.name) || c.status !== 'generated' || c.name === 'Icon').toBe(true);
+    for (const c of parsed.coverage!) expect(names.has(c.name) || (c.status !== 'generated' && c.status !== 'drafted') || c.name === 'Icon').toBe(true);
+  });
+
+  it('every set, generated or drafted, matches the format and names tokens of the repo; drafts only where the generator cannot read', () => {
+    const parsed = parseComponentSpecs(readFileSync(join(ROOT, 'packages/react/component-specs.json'), 'utf8'));
+    const { opts } = repoSpecOptions(ROOT);
+    const types = new Map([...opts.tokens.values()].map((t) => [t.path, t.type]));
+    for (const spec of parsed.components) expect(validateComponentSpec(spec, types)).toEqual([]);
+    const drafts = readdirSync(join(ROOT, 'packages/react/component-spec-overrides')).filter((f) => f.endsWith('.json')).map((f) => f.replace(/\.json$/, ''));
+    expect(parsed.coverage!.filter((c) => c.status === 'drafted').map((c) => c.name)).toEqual(drafts);
+    for (const name of drafts) {
+      const spec = parsed.components.find((c) => (c.component ?? c.name) === name)!;
+      expect(spec.drafted).toBeDefined();
+      // Drafted from the code as it is: when the code changes, redraft and update codeHash (see the file's $comment).
+      expect(spec.drafted!.stale).toBeUndefined();
+    }
+    // Every visual component is in Figma (generated or drafted with Claude); drafted ones are never counted as generated.
+    expect(parsed.coverage!.filter((c) => c.status === 'unsupported')).toEqual([]);
   });
 
   it('Button: axes from union props, State from the CSS, a text and two icon properties', () => {

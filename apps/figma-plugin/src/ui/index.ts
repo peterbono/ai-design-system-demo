@@ -20,7 +20,7 @@ import { type ComponentChangeItem, type ComponentScan, type RequestDraft, classi
 import { CLAUDE_MODELS, type ClaudeDraft, type ClaudeDraftInput, ClaudeDraftError, DRAFTED_NOTE, draftWithClaude } from '../sync/claude';
 import { loadCodedComponents, sendComponentRequest } from '../sync/requests';
 import { DRAFT_PHRASE, type DraftField, DraftPoller, type MyClaudeTarget, finishMyClaudeDrafts, mcpSnippets, planFill, startMyClaudeDrafts } from '../sync/my-claude';
-import { type ComponentApplyReport, type ComponentPullPlan, type CoverageView, type PlannedComponent, buildComponentPlan, coverageView, loadComponentSpecs } from '../sync/component-pull';
+import { type ComponentApplyReport, type ComponentPullPlan, type CoverageView, type PlannedComponent, buildComponentPlan, coverageView, draftedSetNote, loadComponentSpecs } from '../sync/component-pull';
 import { type ComponentReview, onlyComponent, reviewUpdates } from '../sync/component-review';
 import type { ComponentSignature } from '../sync/components';
 import { type Destination, type PublishItem, type PublishResult, applyDestination, componentKey, defaultUnchecked, experimentalTokenIds, groupState, heldTokenIds, isChecked, publish, publishItems, setGroup, variableIdsOf, variableKey } from '../sync/publish';
@@ -1626,6 +1626,7 @@ function reviewGroup(p: PullState, reviews: ComponentReview[], title = 'Componen
         { class: 'row-head' },
         h('span', { class: 'comp-name' }, r.name),
         variants ? h('span', { class: 'muted' }, variants) : null,
+        p.components?.components.find((c) => c.componentId === r.componentId)?.drafted ? h('span', { class: 'muted' }, 'Drafted, check it') : null,
         done
           ? h('span', { class: 'kind added row-end' }, 'Updated')
           : h('button', { class: 'btn row-end', 'data-focus-id': `update-${r.componentId}`, disabled: !!state.busy || p.proposal.unresolvedConflicts.length > 0, onClick: () => updateComponent(r.componentId) }, 'Update'),
@@ -1681,7 +1682,20 @@ function componentsGroup(p: PullState): Child {
         fresh.length
           ? rowList(
               'pull-components',
-              fresh.map((c) => h('li', { class: 'row' }, h('div', { class: 'row-head' }, h('span', { class: 'kind added' }, 'New'), h('span', { class: 'comp-name' }, c.name), h('span', { class: 'muted' }, plural(c.variants.length, 'variant'))))),
+              fresh.map((c) =>
+                h(
+                  'li',
+                  { class: 'row' },
+                  h(
+                    'div',
+                    { class: 'row-head' },
+                    h('span', { class: 'kind added' }, 'New'),
+                    h('span', { class: 'comp-name' }, c.name),
+                    h('span', { class: 'muted' }, plural(c.variants.length, 'variant')),
+                    c.drafted ? h('span', { class: 'kind row-end', title: 'Drafted with Claude: DS Bridge cannot read this component on its own. Check fidelity compares it with the code.' }, draftedSetNote(c.drafted)) : null,
+                  ),
+                ),
+              ),
               10,
             )
           : null,
@@ -1778,13 +1792,15 @@ function fidelityGroup(p: PullState): Child {
 
 /** The components not in Figma, each with its reason, and the layout helpers, folded under the count. */
 function coverageDetails(cov: CoverageView): Child {
-  if (!cov.missing.length && !cov.layout.length) return null;
+  if (!cov.missing.length && !cov.layout.length && !cov.drafted.length) return null;
+  const summary = cov.missing.length ? `${plural(cov.missing.length, 'component')} not in Figma yet` : cov.drafted.length ? `${plural(cov.drafted.length, 'component')} drafted with Claude, check ${cov.drafted.length === 1 ? 'it' : 'them'}` : 'Layout helpers';
+  const rows = [...cov.missing, ...cov.drafted];
   return h(
     'details',
     { class: 'notes candidates' },
-    h('summary', { 'data-focus-id': 'coverage-missing' }, cov.missing.length ? `${plural(cov.missing.length, 'component')} not in Figma yet` : 'Layout helpers'),
-    cov.missing.length
-      ? h('ul', { class: 'rows' }, cov.missing.map((m) => h('li', { class: 'row' }, h('div', { class: 'row-head' }, h('span', { class: 'comp-name' }, m.name), h('span', { class: 'muted' }, m.reason)))))
+    h('summary', { 'data-focus-id': 'coverage-missing' }, summary),
+    rows.length
+      ? h('ul', { class: 'rows' }, rows.map((m) => h('li', { class: 'row' }, h('div', { class: 'row-head' }, h('span', { class: 'comp-name' }, m.name), h('span', { class: 'muted' }, m.reason)))))
       : null,
     cov.layout.length ? h('p', { class: 'muted' }, `${plural(cov.layout.length, 'layout helper')} with no Figma counterpart, use auto layout: ${cov.layout.join(', ')}.`) : null,
   );

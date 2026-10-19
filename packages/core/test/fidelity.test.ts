@@ -220,6 +220,25 @@ describe('planReference: the code render of each generated variant', () => {
     });
   });
 
+  it('sets drawn from a code example render that example; drafted sets render from their props', () => {
+    const tabs = planReference(spec('Tabs'), variant('Tabs', { Variant: 'contained', Size: 'md', Orientation: 'vertical', State: 'Default' }), file);
+    expect(tabs.ok && tabs.render).toMatchObject({ component: 'Tabs', props: { defaultValue: 'tokens', variant: 'contained', size: 'md', orientation: 'vertical' }, width: 'size.80' });
+    expect(tabs.ok && tabs.render.children!.map((c) => (typeof c === 'string' ? c : c.c))).toEqual(['TabsList', 'TabsPanel', 'TabsPanel', 'TabsPanel']);
+    expect(tabs.ok && tabs.render.text).toBeUndefined();
+    const slider = planReference(spec('Slider'), variant('Slider', { State: 'Disabled' }), file);
+    expect(slider).toEqual({ ok: true, render: { component: 'Slider', props: { defaultValue: 4.5, min: 3, max: 7, step: 0.5, disabled: true }, width: 'size.80' } });
+    // TokenValue: the example's token name and resolved value, shown by default in Figma, are passed as written.
+    expect(planReference(spec('TokenValue'), variant('TokenValue', { Size: 'md' }), file)).toEqual({
+      ok: true,
+      render: { component: 'TokenValue', props: { value: '{color.harbor.700}', name: 'color.action.primary.bg', resolved: '#0B4A8B', size: 'md' } },
+    });
+    expect(spec('Toast').drafted).toBeDefined();
+    expect(planReference(spec('Toast'), variant('Toast', { Tone: 'danger' }), file)).toEqual({
+      ok: true,
+      render: { component: 'Toast', props: { tone: 'danger', title: 'Tokens published', description: 'Version 1.4.0 is live.' } },
+    });
+  });
+
   it('plans every variant of the current specs, with stable image paths', () => {
     const all = planReferences(file);
     expect(all.length).toBe(file.components.reduce((n, c) => n + c.variants.length, 0));

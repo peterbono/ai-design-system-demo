@@ -134,6 +134,11 @@ export interface SpecPart {
   stretch?: { width?: boolean; height?: boolean } | undefined;
   /** A value indicator (a progress fill): this share of its parent's width, from the component's value. */
   fraction?: number | undefined;
+  /**
+   * A thumb placed at the component's value (a slider's): out of the auto layout, its center at this share of its
+   * parent's width, centered on the parent's height.
+   */
+  at?: number | undefined;
   /** `flex: 1` in code: takes the free space along its parent's auto layout direction (Figma "Fill container"). */
   grow?: boolean | undefined;
   /**
@@ -223,6 +228,8 @@ export interface SpecVariant {
   layout?: Record<string, SpecLayout> | undefined;
   /** Vector parts: the SVG this variant draws and the stroke token of each shape, in order. */
   vectors?: Record<string, SpecVector> | undefined;
+  /** Absolute parts placed differently in this variant (offsets from the parent's edges, like SpecPart.pin). */
+  pins?: Record<string, NonNullable<SpecPart['pin']>> | undefined;
 }
 
 /** An inline SVG part: markup with literal geometry (strokes painted #000000) and the token bound to each shape's stroke. */
@@ -247,6 +254,17 @@ export interface ComponentSpec {
   fixed?: Record<string, string> | undefined;
   /** A popup drawn open (`popup`), or the component without its popup (`without-popup`). */
   view?: 'popup' | 'without-popup' | undefined;
+  /**
+   * Drafted with Claude, not generated: the generator cannot read this component, so its spec was written by hand from
+   * the code (packages/react/component-spec-overrides/<Name>.json, `"source": "drafted"`) and validated like a generated
+   * one. Shown in the plugin as "Drafted, check it". `stale`: the code it was drafted from changed since.
+   */
+  drafted?: { reason: string; stale?: boolean | undefined } | undefined;
+  /**
+   * The code example the set's content comes from (the docs preview or a component sandbox example): the element, its
+   * props and children, so the fidelity check renders the same thing. Not in the hash: it does not change the drawing.
+   */
+  example?: SpecExample | undefined;
   /** FNV-1a of everything else in the spec: unchanged hash, nothing to rebuild. */
   hash: string;
   /** Files it was read from, repo-relative. */
@@ -256,6 +274,13 @@ export interface ComponentSpec {
   parts: SpecPart[];
   variants: SpecVariant[];
   unmapped: SpecUnmapped[];
+}
+
+/** An element of a code example: component export name, literal props, children (texts or elements). */
+export interface SpecExample {
+  c: string;
+  p?: Record<string, unknown> | undefined;
+  children?: (string | SpecExample)[] | undefined;
 }
 
 export interface ComponentSpecsFile {
@@ -276,24 +301,124 @@ export interface ComponentSpecsFile {
   coverage?: SpecCoverage[] | undefined;
 }
 
-export type CoverageStatus = 'generated' | 'unsupported' | 'layout';
+export type CoverageStatus = 'generated' | 'drafted' | 'unsupported' | 'layout';
 
 export interface SpecCoverage {
   /** Component folder name ("RadioGroup"). */
   name: string;
   status: CoverageStatus;
-  /** Plain reason, for unsupported and layout components ("opens a popup", "uses CSS grid"). */
+  /** Plain reason, for unsupported, drafted and layout components ("opens a popup", "uses CSS grid"). */
   reason?: string | undefined;
   /** Sets generated from it, when they are not just its own name ("RadioGroup", "Radio"). */
   sets?: string[] | undefined;
 }
 
-/** Coverage counts: visual components (generated + unsupported) and layout helpers, from a specs file. */
-export function coverageSummary(file: Pick<ComponentSpecsFile, 'coverage' | 'components'>): { generated: number; visual: number; layout: number; total: number; missing: SpecCoverage[] } {
+/**
+ * Coverage counts from a specs file: visual components (generated, drafted with Claude, unsupported), in Figma
+ * (generated + drafted), and layout helpers.
+ */
+export function coverageSummary(file: Pick<ComponentSpecsFile, 'coverage' | 'components'>): { generated: number; drafted: number; inFigma: number; visual: number; layout: number; total: number; missing: SpecCoverage[] } {
   const list = file.coverage ?? file.components.map((c) => ({ name: c.name, status: 'generated' as const }));
   const generated = list.filter((c) => c.status === 'generated').length;
+  const drafted = list.filter((c) => c.status === 'drafted').length;
   const layout = list.filter((c) => c.status === 'layout').length;
-  return { generated, visual: list.length - layout, layout, total: list.length, missing: list.filter((c) => c.status === 'unsupported') };
+  return { generated, drafted, inFigma: generated + drafted, visual: list.length - layout, layout, total: list.length, missing: list.filter((c) => c.status === 'unsupported') };
+}
+
+const LAYOUT_DIRECTIONS = new Set(['HORIZONTAL', 'VERTICAL']);
+const PRIMARY = new Set(['MIN', 'CENTER', 'MAX', 'SPACE_BETWEEN']);
+const COUNTER = new Set(['MIN', 'CENTER', 'MAX', 'STRETCH']);
+const PART_KINDS = new Set(['frame', 'text', 'icon', 'vector']);
+
+/**
+ * Checks a component spec against the format (the schema every set follows, generated or drafted): axes and their
+ * variants (one per combination, no extra), properties, parts (one root, known parents in order, text and visibility
+ * properties that exist), each value's field and type, and, given `tokenTypes` (token path -> $type), that every token
+ * path exists and has a type the field takes. Returns the problems in plain language, none when the spec is valid.
+ */
+export function validateComponentSpec(spec: Omit<ComponentSpec, 'hash'> & { hash?: string }, tokenTypes?: Map<string, string>): string[] {
+  const out: string[] = [];
+  const at = (where: string, why: string) => out.push(`${spec.name ?? 'spec'}: ${where}: ${why}`);
+  if (typeof spec.name !== 'string' || !spec.name) return ['the spec has no name'];
+  if (!Array.isArray(spec.axes) || !Array.isArray(spec.properties) || !Array.isArray(spec.parts) || !Array.isArray(spec.variants) || !Array.isArray(spec.unmapped)) return [`${spec.name}: axes, properties, parts, variants and unmapped must be lists`];
+  const axisNames = new Set<string>();
+  for (const a of spec.axes) {
+    if (!a.name || axisNames.has(a.name)) at('axes', `"${a.name}" is missing or repeated`);
+    axisNames.add(a.name);
+    if (!Array.isArray(a.values) || !a.values.length) at(`axis ${a.name}`, 'has no values');
+    else if (!a.values.includes(a.default)) at(`axis ${a.name}`, `default "${a.default}" is not one of its values`);
+  }
+  const props = new Map<string, SpecProperty>();
+  for (const p of spec.properties) {
+    if (props.has(p.name)) at('properties', `"${p.name}" is repeated`);
+    props.set(p.name, p);
+    if (p.type !== 'TEXT' && p.type !== 'BOOLEAN') at(`property ${p.name}`, `type ${String(p.type)} is not TEXT or BOOLEAN`);
+    else if (typeof p.default !== (p.type === 'TEXT' ? 'string' : 'boolean')) at(`property ${p.name}`, `default must be a ${p.type === 'TEXT' ? 'text' : 'true or false'}`);
+  }
+  const parts = new Map<string, SpecPart>();
+  for (const part of spec.parts) {
+    if (!part.id || parts.has(part.id)) at('parts', `id "${part.id}" is missing or repeated`);
+    if (!PART_KINDS.has(part.kind)) at(`part ${part.id}`, `kind ${String(part.kind)} is not frame, text, icon or vector`);
+    if (part.parent === undefined) {
+      if ([...parts.values()].some((x) => x.parent === undefined)) at(`part ${part.id}`, 'a second root (every other part needs a parent)');
+    } else if (!parts.has(part.parent)) at(`part ${part.id}`, `parent "${part.parent}" is not a part listed before it`);
+    else if (parts.get(part.parent)!.kind !== 'frame') at(`part ${part.id}`, `parent "${part.parent}" is not a frame`);
+    if (part.layout && (!LAYOUT_DIRECTIONS.has(part.layout.direction) || !PRIMARY.has(part.layout.primary) || !COUNTER.has(part.layout.counter))) at(`part ${part.id}`, 'layout is not a valid auto layout');
+    if (part.text !== undefined && props.get(part.text)?.type !== 'TEXT') at(`part ${part.id}`, `text property "${part.text}" does not exist`);
+    if (part.visible !== undefined && props.get(part.visible)?.type !== 'BOOLEAN') at(`part ${part.id}`, `visibility property "${part.visible}" does not exist`);
+    if (part.kind === 'text' && part.text === undefined && part.characters === undefined && !part.swap) at(`part ${part.id}`, 'a text part needs a TEXT property or its characters');
+    parts.set(part.id, part);
+  }
+  if (!spec.parts.length || spec.parts[0]!.parent !== undefined) at('parts', 'the first part must be the root');
+  const expected = spec.axes.reduce((n, a) => n * (a.values?.length || 1), 1);
+  if (spec.variants.length !== expected) at('variants', `${spec.variants.length} variants for ${expected} combinations of the axes`);
+  const seen = new Set<string>();
+  for (const v of spec.variants) {
+    const key = variantKeyOf(v.props ?? {});
+    const where = `variant ${key}`;
+    if (seen.has(key)) at(where, 'is repeated');
+    seen.add(key);
+    for (const a of spec.axes) if (!a.values?.includes(v.props?.[a.name] ?? '')) at(where, `${a.name} is not one of its values`);
+    for (const k of Object.keys(v.props ?? {})) if (!axisNames.has(k)) at(where, `${k} is not an axis`);
+    for (const [id, fields] of Object.entries(v.values ?? {})) {
+      const part = parts.get(id);
+      if (!part) {
+        at(where, `values for "${id}", which is not a part`);
+        continue;
+      }
+      for (const [field, value] of Object.entries(fields ?? {}) as [SpecField, SpecValue][]) {
+        if (!SPEC_FIELDS.includes(field)) at(`${where}, ${id}`, `${field} is not a field`);
+        else if (value === null) {
+          if (!COLOR_FIELDS.has(field)) at(`${where}, ${id}`, `${field} cannot be empty (only colors can be none)`);
+        } else if (typeof value === 'number') {
+          if (COLOR_FIELDS.has(field)) at(`${where}, ${id}`, `${field} cannot be a number`);
+        } else if (typeof value !== 'string') at(`${where}, ${id}`, `${field} must be a token path, a number or none`);
+        else if (field === 'textDecoration') {
+          if (!/^(UNDERLINE|STRIKETHROUGH|NONE)$/.test(value)) at(`${where}, ${id}`, `${value} is not a text decoration`);
+        } else if (tokenTypes) {
+          for (const path of value.startsWith('calc(') ? (value.match(/[A-Za-z][\w.-]*/g) ?? []).filter((x) => x !== 'calc' && !/^\d|^px$/.test(x)) : [value]) {
+            const type = tokenTypes.get(path);
+            if (!type) at(`${where}, ${id}`, `${path} is not a token`);
+            else if (!value.startsWith('calc(') && !FIELD_TOKEN_TYPES(field).includes(type)) at(`${where}, ${id}`, `${path} is a ${type} token, ${field} needs ${FIELD_TOKEN_TYPES(field).join(' or ')}`);
+          }
+        }
+      }
+    }
+    for (const id of v.hidden ?? []) if (!parts.has(id)) at(where, `hides "${id}", which is not a part`);
+    for (const id of Object.keys(v.layout ?? {})) if (!parts.has(id)) at(where, `lays out "${id}", which is not a part`);
+    for (const [id, vec] of Object.entries(v.vectors ?? {})) if (parts.get(id)?.kind !== 'vector' || !/^<svg[\s>]/.test(vec.svg)) at(where, `vector "${id}" is not a vector part with an SVG`);
+    for (const id of Object.keys(v.slots ?? {})) if (!parts.has(id)) at(where, `shows a component in "${id}", which is not a part`);
+  }
+  return out;
+}
+
+/** Token types a field takes (a color for fills, a dimension or number for sizes). */
+function FIELD_TOKEN_TYPES(field: SpecField): string[] {
+  if (COLOR_FIELDS.has(field)) return ['color'];
+  if (field === 'fontFamily') return ['fontFamily'];
+  if (field === 'fontWeight') return ['fontWeight', 'number'];
+  if (field === 'opacity') return ['number'];
+  return ['dimension', 'number'];
 }
 
 /** Figma component name of an icon: "Icon/Plus". */
@@ -309,9 +434,9 @@ export function specHash(text: string): string {
   return (h >>> 0).toString(16).padStart(8, '0');
 }
 
-/** Hash of a spec without its own hash field. */
+/** Hash of a spec without its own hash field (and without its code example, which does not change the drawing). */
 export function hashSpec(spec: Omit<ComponentSpec, 'hash'> | ComponentSpec): string {
-  const { hash: _ignored, ...rest } = spec as ComponentSpec;
+  const { hash: _ignored, example: _example, ...rest } = spec as ComponentSpec;
   return specHash(JSON.stringify(rest));
 }
 
