@@ -12,3 +12,9 @@ describe('humanTitle', () => {
     expect(humanTitle('Release v1.2: notes')).toBe('Release v1.2: notes');
   });
 });
+
+describe("humanTitle with a Jira key", () => {
+  it("drops the leading key too", () => {
+    expect(humanTitle("DS-42 tokens: darker primary")).toBe("Darker primary");
+  });
+});
