@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "tool": "@bridge-ds/visual",
+  "createdAt": "2026-10-19T11:44:56.563Z",
+  "durationMs": 909,
+  "base": {
+    "ref": "d49951d3a43cf9cd7a0d7c3b223b3c23cef52e63",
+    "sha": "d49951d3a43cf9cd7a0d7c3b223b3c23cef52e63"
+  },
+  "head": {
+    "ref": "71bbb8e8b527e56b6608927fb72f30f3b362396c",
+    "sha": "71bbb8e8b527e56b6608927fb72f30f3b362396c"
+  },
+  "options": {
+    "only": [
+      "stories",
+      "app"
+    ],
+    "threshold": 0.03,
+    "viewport": {
+      "stories": {
+        "width": 1024,
+        "height": 768
+      },
+      "app": {
+        "width": 1280,
+        "height": 800
+      }
+    }
+  },
+  "selection": {
+    "tokens": [],
+    "vars": [],
+    "files": [
+      ".changeset/docs-icon-mvf6sf79.md",
+      "packages/react/src/components/Icon/Icon.docs.json"
+    ],
+    "components": [],
+    "stories": [],
+    "fallback": null,
+    "app": {
+      "include": false,
+      "reason": "No token, component or app change"
+    }
+  },
+  "summary": {
+    "shots": 0,
+    "changed": 0,
+    "unchanged": 0,
+    "added": 0,
+    "removed": 0,
+    "errors": 0,
+    "maxPercent": 0
+  },
+  "shots": []
+}
