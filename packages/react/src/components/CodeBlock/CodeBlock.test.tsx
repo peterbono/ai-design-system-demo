@@ -50,11 +50,17 @@ describe('CodeBlock', () => {
   });
 
   it('the scroll area is focusable when lines do not wrap, not when they wrap', () => {
-    const { rerender } = render(<CodeBlock code="npx @bridge-ds/cli publish" wrap={false} />);
-    const pre = () => screen.getByText('npx @bridge-ds/cli publish').closest('pre');
+    const { rerender, container } = render(<CodeBlock code="npx @bridge-ds/cli publish" wrap={false} />);
+    const pre = () => container.querySelector('pre');
     expect(pre()).toHaveAttribute('tabindex', '0');
     rerender(<CodeBlock code="npx @bridge-ds/cli publish" />);
     expect(pre()).not.toHaveAttribute('tabindex');
+    // Wrapped lines break at spaces only: each word is one unbreakable run, the copied text is unchanged.
+    expect([...container.querySelectorAll('code > span')].map((s) => s.textContent)).toEqual(['npx', '@bridge-ds/cli', 'publish']);
+    expect(container.querySelector('code')).toHaveTextContent('npx @bridge-ds/cli publish');
+    // Several lines: the layout matters, so it scrolls by default.
+    rerender(<CodeBlock code={'a\n  b'} />);
+    expect(pre()).toHaveAttribute('tabindex', '0');
   });
 
   it('hideCopy removes the button and the live region', async () => {

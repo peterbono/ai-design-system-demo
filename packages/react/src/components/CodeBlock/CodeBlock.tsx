@@ -3,7 +3,7 @@ import { Check, Copy } from 'lucide-react';
 import { cx } from '../../utils/cx';
 import { Button } from '../Button';
 import { VisuallyHidden } from '../VisuallyHidden';
-import { CODE_BLOCK_COPIED_MS, copyText } from '../../utils/copy';
+import { CODE_BLOCK_COPIED_MS, copyText, splitRuns } from '../../utils/copy';
 import styles from './CodeBlock.module.css';
 
 export interface CodeBlockProps extends Omit<HTMLAttributes<HTMLDivElement>, 'children' | 'onCopy'> {
@@ -12,8 +12,9 @@ export interface CodeBlockProps extends Omit<HTMLAttributes<HTMLDivElement>, 'ch
   /** What the code is, above the block: "Install", "Add the MCP server". Also names the copy button. */
   label?: ReactNode;
   /**
-   * Long lines wrap at spaces (default), so a command is read whole and never hides behind the copy button. Pass
-   * `false` for code whose layout matters (aligned columns): lines then scroll sideways inside the block.
+   * Commands wrap, code scrolls. By default a one-line command wraps at spaces only (never inside a package name or a
+   * flag), so it is read whole and never hides behind the copy button; code with several lines keeps its layout and
+   * scrolls sideways inside the block. Pass `true` or `false` to choose.
    */
   wrap?: boolean;
   /** The copy button text. Default "Copy". */
@@ -28,6 +29,11 @@ export interface CodeBlockProps extends Omit<HTMLAttributes<HTMLDivElement>, 'ch
   codeProps?: HTMLAttributes<HTMLElement> & { [key: `data-${string}`]: string | undefined };
 }
 
+/** Each run of non-space characters in a span that never breaks: lines wrap at spaces only. */
+function wordRuns(code: string, className: string): ReactNode {
+  return splitRuns(code).map((run, i) => (/\s/.test(run) ? run : <span key={i} className={className}>{run}</span>));
+}
+
 /**
  * Code or a command in IBM Plex Mono, with a copy button on the same line. The button says "Copied" for two seconds
  * and a polite live region announces it. Long lines wrap, or scroll inside the block (keyboard reachable) with `wrap={false}`.
@@ -37,9 +43,10 @@ export interface CodeBlockProps extends Omit<HTMLAttributes<HTMLDivElement>, 'ch
  * `@bridge-ds/react/dom` wires copy on statically rendered blocks.
  */
 export const CodeBlock = forwardRef<HTMLDivElement, CodeBlockProps>(function CodeBlock(
-  { code, label, wrap = true, copyLabel = 'Copy', copiedLabel = 'Copied', hideCopy = false, onCopy, codeProps, className, ...rest },
+  { code, label, wrap: wrapProp, copyLabel = 'Copy', copiedLabel = 'Copied', hideCopy = false, onCopy, codeProps, className, ...rest },
   ref,
 ) {
+  const wrap = wrapProp ?? !code.includes('\n');
   const [copied, setCopied] = useState(false);
   const [failed, setFailed] = useState(false);
   const [live, setLive] = useState(false);
@@ -79,7 +86,7 @@ export const CodeBlock = forwardRef<HTMLDivElement, CodeBlockProps>(function Cod
       <div className={styles.plate}>
         <pre className={styles.pre} tabIndex={wrap ? undefined : 0}>
           <code ref={codeRef} className={styles.code} data-code-block-code="" {...codeProps}>
-            {code}
+            {wrap ? wordRuns(code, styles.word!) : code}
           </code>
         </pre>
         {!hideCopy && (

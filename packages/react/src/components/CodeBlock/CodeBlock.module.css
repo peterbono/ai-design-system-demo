@@ -65,7 +65,16 @@
 }
 
 .wrap .code {
-  overflow-wrap: break-word;
+  overflow-wrap: normal;
+}
+
+/* Wrapped: lines break at spaces, never inside a package name, a flag or a path. A run longer than the whole line
+   (a long repository slug on a phone) still breaks rather than hiding. */
+.word {
+  display: inline-block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  vertical-align: top;
 }
 
 .copy {

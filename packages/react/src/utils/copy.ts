@@ -1,5 +1,10 @@
 // Clipboard helper shared by CodeBlock and its DOM renderer (@bridge-ds/react/dom). No React.
 
+/** Code split into runs of spaces and runs of other characters, in order: `npx a -b` -> npx, ' ', a, ' ', -b. */
+export function splitRuns(code: string): string[] {
+  return code.split(/(\s+)/).filter((r) => r !== '');
+}
+
 /** How long a copy button says "Copied", in ms. */
 export const CODE_BLOCK_COPIED_MS = 2000;
 

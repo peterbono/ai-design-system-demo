@@ -1,14 +1,14 @@
 import styles from '../components/CodeBlock/CodeBlock.module.css';
 import buttonStyles from '../components/Button/Button.module.css';
 import hiddenStyles from '../components/VisuallyHidden/VisuallyHidden.module.css';
-import { CODE_BLOCK_COPIED_MS, copyText } from '../utils/copy';
+import { CODE_BLOCK_COPIED_MS, copyText, splitRuns } from '../utils/copy';
 import { attrs, classNames, content, escapeHtml, type HtmlAttributes, type TrustedHtml } from './html';
 import { iconHtml } from './icons';
 
 export interface CodeBlockHtmlOptions {
   /** Same as `<CodeBlock label>`: what the code is, above the block. Also names the copy button. */
   label?: string | TrustedHtml;
-  /** Same as `<CodeBlock wrap>`. Default `true`. */
+  /** Same as `<CodeBlock wrap>`: by default one-line commands wrap at spaces, code with several lines scrolls. */
   wrap?: boolean;
   /** Same as `<CodeBlock copyLabel>`. Default "Copy". */
   copyLabel?: string;
@@ -32,13 +32,13 @@ const copyButton = (copyLabel: string, name: string | undefined, icon: 'copy' | 
  * `bindCodeBlocks()` once so its copy button works. `code` is escaped.
  */
 export function codeBlockHtml(code: string, options: CodeBlockHtmlOptions = {}): string {
-  const { label, wrap = true, copyLabel = 'Copy', copiedLabel, hideCopy = false, className } = options;
+  const { label, wrap = !code.includes('\n'), copyLabel = 'Copy', copiedLabel, hideCopy = false, className } = options;
   const name = typeof label === 'string' ? `${copyLabel} ${label.toLowerCase()}` : undefined;
   const rootAttrs = attrs({ ...(copiedLabel && copiedLabel !== 'Copied' ? { 'data-copied-label': copiedLabel } : {}), ...options.attributes });
   return (
     `<div class="${classNames(styles.root, wrap && styles.wrap, className)}" data-code-block=""${rootAttrs}>` +
     (label != null ? `<div class="${styles.label}">${content(label)}</div>` : '') +
-    `<div class="${styles.plate}"><pre class="${styles.pre}"${wrap ? '' : ' tabindex="0"'}><code class="${styles.code}" data-code-block-code=""${attrs(options.codeAttributes)}>${escapeHtml(code)}</code></pre>` +
+    `<div class="${styles.plate}"><pre class="${styles.pre}"${wrap ? '' : ' tabindex="0"'}><code class="${styles.code}" data-code-block-code=""${attrs(options.codeAttributes)}>${wrap ? splitRuns(code).map((r) => (/\s/.test(r) ? escapeHtml(r) : `<span class="${styles.word}">${escapeHtml(r)}</span>`)).join('') : escapeHtml(code)}</code></pre>` +
     (hideCopy ? '' : copyButton(copyLabel, name, 'copy')) +
     `</div>` +
     (hideCopy ? '' : `<span class="${hiddenStyles.hidden}" role="status" data-code-block-status=""></span>`) +
