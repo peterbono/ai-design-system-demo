@@ -131,10 +131,10 @@ export function waitingSince(
 /** Whole days between two moments (0 under a day). */
 export const daysSince = (iso: string, now: number) => Math.max(0, Math.floor((now - new Date(iso).getTime()) / DAY));
 
-/** "Waiting 4 days", "Waiting 1 day", "Waiting since today". */
+/** "Waiting 4 days", "Waiting 1 day", "New today". */
 export function waitingLabel(iso: string, now: number): string {
   const d = daysSince(iso, now);
-  return d === 0 ? 'Waiting since today' : `Waiting ${d} ${d === 1 ? 'day' : 'days'}`;
+  return d === 0 ? 'New today' : `Waiting ${d} ${d === 1 ? 'day' : 'days'}`;
 }
 
 /** "Oldest: 4 days" over the rows that wait for someone, null under a day or without any. */
@@ -176,6 +176,11 @@ export interface NeedRow {
   number?: number;
   /** The viewer is the only person who can review it. */
   onlyReviewer?: boolean;
+}
+
+/** The verb on a Needs you row's button. */
+export function rowAction(kind: NeedKind): string {
+  return { review: 'Review', health: 'Fix', own: 'Open', guidance: 'Check guidance', setup: 'Set up' }[kind];
 }
 
 const RANK: Record<NeedKind, number> = { review: 0, health: 1, own: 2, guidance: 3, setup: 4 };
