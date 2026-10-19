@@ -1,0 +1,6 @@
+---
+"@bridge-ds/core": minor
+"@bridge-ds/figma-plugin": minor
+---
+
+Figma coverage goes from 26 to 40 of 47 components. Popups are drawn open as their own sets, the way a Figma UI kit draws them ("Select/Popup", "Dialog/Popup", "Menu/Popup", "Tooltip/Popup"...), next to the trigger set when the component styles one. Inline SVG (Spinner, the Progress ring) is drawn as one vector layer with each stroke bound to its token. Layers that only some variants render are hidden in the others, and a prop that moves layers elsewhere splits the component into one set per value ("Progress/Linear", "Progress/Circular", "Pagination/Full", "Pagination/Compact"). New generator capabilities: React context, `useState` defaults, local render functions and list callbacks, `useMemo`, `createElement`, Base UI render props and value indicators, `position: absolute` with token offsets, `width: 100%` as Fill container, single-cell grids, examples of the component sandbox as content. Still not in Figma, with the generator's reason: Checklist (CSS grid columns), Form and Slider and TokenValue (content computed while the page runs), Table, Tabs (decorations drawn with ::after) and Toast (shown from a hook). The fidelity check marks popups drawn open as not compared, since the code image shows them closed.

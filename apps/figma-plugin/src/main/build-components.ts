@@ -472,6 +472,7 @@ async function configureVariant(variant: ComponentNode, comp: PlannedComponent, 
         node.layoutMode = 'NONE';
         node.fills = [];
       }
+      if (part.kind === 'vector' && node.type === 'FRAME') drawVector(node, pv.vectors?.[part.id], ctx);
       for (const f of part.kind === 'icon' ? ICON_FIELDS : FRAME_FIELDS) reset(node, f);
       if (part.visible) {
         const key = propKeys.get(part.visible);
@@ -492,8 +493,53 @@ async function configureVariant(variant: ComponentNode, comp: PlannedComponent, 
     const node = nodes.get(part.id);
     if (!node || part.id === 'root') continue;
     if (part.cover) coverParent(node, ctx);
+    else if (comp.pins?.[part.id]) pinToParent(node, comp.pins[part.id]!, ctx);
     else if (part.grow && definite.has(part.parent ?? '')) growInParent(node, comp.parts.find((p) => p.id === part.parent), pv, ctx);
+    if (part.stretch || part.fraction !== undefined) stretchInParent(node, part, ctx);
     if (!part.visible) node.visible = !hidden.has(part.id);
+  }
+}
+
+/**
+ * An inline SVG of the code (a spinner arc, a progress ring): its shapes as vectors in the part's frame, scaling with
+ * it, redrawn only when the SVG changed, each shape's stroke bound to its token.
+ */
+function drawVector(frame: FrameNode, vec: { svg: string; hash: string; strokes: PlannedValue[] } | undefined, ctx: Ctx): void {
+  if (!vec) return;
+  frame.clipsContent = false;
+  if (frame.getSharedPluginData(NS, 'svgHash') !== vec.hash || !frame.children.length) {
+    for (const c of [...frame.children]) c.remove();
+    const drawn = figma.createNodeFromSvg(vec.svg);
+    try {
+      frame.resizeWithoutConstraints(drawn.width, drawn.height);
+      for (const c of [...drawn.children]) {
+        frame.appendChild(c);
+        if ('constraints' in c) c.constraints = { horizontal: 'SCALE', vertical: 'SCALE' };
+      }
+    } finally {
+      drawn.remove();
+    }
+    frame.setSharedPluginData(NS, 'svgHash', vec.hash);
+  }
+  const shapes = frame.findAll((n) => ['VECTOR', 'ELLIPSE', 'LINE', 'RECTANGLE', 'POLYGON', 'STAR', 'BOOLEAN_OPERATION'].includes(n.type));
+  shapes.forEach((shape, i) => {
+    const value = vec.strokes[i];
+    if (value) apply(shape, { field: 'stroke', value }, ctx);
+  });
+}
+
+/** `width: 100%` / `height: 100%`: Fill container on that axis; a value indicator: its share of the parent's width. */
+function stretchInParent(node: SceneNode, part: SpecPart, ctx: Ctx): void {
+  const parent = node.parent as Box | null;
+  if (!parent || !('layoutSizingHorizontal' in node)) return;
+  try {
+    if (part.stretch?.height) node.layoutSizingVertical = 'FILL';
+    if (part.fraction !== undefined) {
+      node.layoutSizingHorizontal = 'FIXED';
+      (node as FrameNode).resize(Math.max(1, Math.round(parent.width * part.fraction)), node.height);
+    } else if (part.stretch?.width) node.layoutSizingHorizontal = 'FILL';
+  } catch (err) {
+    ctx.problems.push(`${ctx.where}, fill: ${errorText(err)}`);
   }
 }
 
@@ -506,6 +552,20 @@ function growInParent(node: SceneNode, parentPart: SpecPart | undefined, pv: Pla
     else node.layoutSizingVertical = 'FILL';
   } catch (err) {
     ctx.problems.push(`${ctx.where}, fill: ${errorText(err)}`);
+  }
+}
+
+/** `position: absolute` with offsets: out of the auto layout, placed from the parent's edges, constrained to them. */
+function pinToParent(node: SceneNode, pin: Partial<Record<'top' | 'right' | 'bottom' | 'left', number>>, ctx: Ctx): void {
+  const parent = node.parent as Box | null;
+  if (!parent) return;
+  try {
+    if ('layoutMode' in parent && parent.layoutMode !== 'NONE') (node as FrameNode).layoutPositioning = 'ABSOLUTE';
+    node.x = pin.left ?? (pin.right !== undefined ? parent.width - node.width - pin.right : 0);
+    node.y = pin.top ?? (pin.bottom !== undefined ? parent.height - node.height - pin.bottom : 0);
+    if ('constraints' in node) node.constraints = { horizontal: pin.right !== undefined && pin.left === undefined ? 'MAX' : 'MIN', vertical: pin.bottom !== undefined && pin.top === undefined ? 'MAX' : 'MIN' };
+  } catch (err) {
+    ctx.problems.push(`${ctx.where}, position: ${errorText(err)}`);
   }
 }
 

@@ -224,7 +224,9 @@ describe('planReference: the code render of each generated variant', () => {
     const all = planReferences(file);
     expect(all.length).toBe(file.components.reduce((n, c) => n + c.variants.length, 0));
     const skipped = all.filter((x) => !x.plan.ok).map((x) => `${x.component} ${x.key}`);
-    expect(skipped).toEqual(['Card Padding=none']);
+    // Popups drawn open have no closed-state code image to match; the Card media placeholder has no code example.
+    expect(skipped.filter((x) => !/\/Popup /.test(x))).toEqual(['Card Padding=none']);
+    expect(all.filter((x) => /\/Popup$/.test(x.component)).every((x) => !x.plan.ok && /drawn open/.test(x.plan.reason))).toBe(true);
     expect(referenceImagePath('Button', 'Size=md, State=Default, Variant=primary')).toBe('button/size-md__state-default__variant-primary.png');
   });
 });
