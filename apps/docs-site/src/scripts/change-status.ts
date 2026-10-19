@@ -23,7 +23,7 @@ import {
 } from '../lib/change-status';
 import type { CheckStory, ClassifiedCheck } from '../lib/check-explain';
 import { namesFor } from '../lib/changes';
-import { pullState, reviewStatus, type ApprovalSummary, type CiSummary, type Tier } from '../lib/review-rules';
+import { pullState, type ApprovalSummary, type Tier } from '../lib/review-rules';
 import { workNature } from '../lib/work-nature';
 import { humanTitle } from '../lib/pr-title';
 import { mdTitleText } from '../lib/markdown';
@@ -61,7 +61,6 @@ export interface DetailStatus {
 export function detailStatus(x: {
   pull: StatusPull;
   tier: Tier | null;
-  ci: CiSummary;
   approvals: ApprovalSummary;
   story: CheckStory;
   checks: ClassifiedCheck[];
@@ -82,8 +81,7 @@ export function detailStatus(x: {
     failing: x.checks,
   });
   const lifecycle = changeLifecycle({ state, waiting });
-  const review = reviewStatus({ state: x.pull.state, draft: x.pull.draft, merged_at: x.pull.merged_at, ci: x.ci, approvals: x.approvals, tier: x.tier, mergeable: x.pull.mergeable }).kind;
-  const base = { lifecycle, label: LIFECYCLE[lifecycle].label, tone: lifecycleTone(lifecycle, review) };
+  const base = { lifecycle, label: LIFECYCLE[lifecycle].label, tone: lifecycleTone(lifecycle) };
   if (lifecycle === 'waiting') {
     const tech = siteApprovers().tech.map((l) => l.replace(/^@/, ''));
     const names = tech.length ? namesFor('tech', tech, teamPeople()) : null;

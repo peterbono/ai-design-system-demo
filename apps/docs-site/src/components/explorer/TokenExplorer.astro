@@ -89,7 +89,7 @@ const lensLabel = (text: string) => createElement(RFragment, null, `${text} `, c
             <div class="xp-chips" role="group" aria-label="Filter by type" data-xp-chips></div>
             <span class="xp-grow" aria-hidden="true"></span>
             <details class="xp-menu xp-options" data-xp-filters>
-              <SummaryButton variant="secondary" size="sm" iconStart={SlidersHorizontal} title="Collections, usage, brand and modes, columns">
+              <SummaryButton variant="secondary" size="md" iconStart={SlidersHorizontal} title="Collections, usage, brand and modes, columns">
                 Options <span class="xp-filter-n num" data-xp-filter-n hidden>0</span>
               </SummaryButton>
               <div class="xp-menu-panel xp-options-panel">
@@ -127,7 +127,7 @@ const lensLabel = (text: string) => createElement(RFragment, null, `${text} `, c
                 <p class="xp-menu-keys small muted"><XpKeys /></p>
               </div>
             </details>
-            <Button variant="primary" size="sm" iconStart={Plus} className="xp-new" id="ed-add" data-tooltip="Adds a draft in this browser. No GitHub needed." aria-label="New token">New token</Button>
+            <Button variant="primary" size="md" iconStart={Plus} className="xp-new" id="ed-add" data-tooltip="Adds a draft in this browser. No GitHub needed." aria-label="New token">New token</Button>
           </div>
         ) : (
           <>

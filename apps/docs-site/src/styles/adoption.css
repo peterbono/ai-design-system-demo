@@ -98,32 +98,41 @@
   background-color: var(--c);
 }
 
-/* Series colors: component sources, hard-coded matches, trend lines. */
+/* Series colors: component sources, hard-coded matches, trend lines. Data, not status: never the success, warning or
+   info hues (chart series 2 to 4), which would read as pass, warn and waiting. The series the chart is about is Deep
+   Harbor (the checked control color: Deep Harbor in light, lightened in dark); look-alikes of Bridge are the same
+   Deep Harbor, hatched with the surface (they look like Bridge but are not); the rest are two neutrals far apart in
+   both themes. Every series has its label and count in the legend, a gap of surface keeps neighbours apart, and the
+   second trend line is dashed, so nothing relies on hue alone. */
 .ad-ds,
-.ad-exact {
-  --c: var(--color-chart-series-3);
+.ad-exact,
+.ad-tok,
+.ad-recreated {
+  --c: var(--color-control-checked-bg);
 }
 
-.ad-native,
-.ad-near {
-  --c: var(--color-chart-series-4);
+.ad-seg.ad-recreated,
+.ad-key.ad-recreated {
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0 var(--space-0-5),
+    var(--color-surface-default) var(--space-0-5) var(--space-1)
+  );
 }
 
 .ad-foreign,
-.ad-none {
-  --c: var(--color-chart-series-1);
-}
-
-.ad-recreated {
-  --c: var(--color-chart-series-5);
-}
-
-.ad-tok {
-  --c: var(--color-chart-series-2);
-}
-
+.ad-near,
 .ad-comp {
-  --c: var(--color-chart-series-1);
+  --c: var(--color-text-muted);
+}
+
+.ad-native,
+.ad-none {
+  --c: var(--color-text-disabled);
+}
+
+.ad-line.ad-comp {
+  stroke-dasharray: var(--space-1-5) var(--space-1);
 }
 
 /* Trend */
@@ -191,10 +200,11 @@
 
 .ad-split {
   display: flex;
+  gap: var(--space-0-5);
   height: var(--size-3);
   overflow: hidden;
   border-radius: var(--radius-pill);
-  background-color: var(--color-chart-track);
+  background-color: transparent;
 }
 
 .ad-seg {
@@ -262,10 +272,11 @@
 
 .ad-track {
   display: flex;
+  gap: var(--space-0-5);
   height: var(--size-3);
   overflow: hidden;
   border-radius: var(--radius-pill);
-  background-color: var(--color-chart-track);
+  background-color: transparent;
 }
 
 /* How adoption is measured, For developers */

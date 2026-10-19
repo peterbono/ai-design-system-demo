@@ -55,7 +55,7 @@ import { currentViewer, esc, ghGet, ghWrite, GitHubError, hasWorkingToken, initG
 import { ghAction, ghVerb } from '../lib/gh-wording';
 import { analyzeTokenFiles, isTokenFile, type TokenReview } from './reviews/token-review';
 import { loadVisualImpact, renderTopChange } from './reviews/visual-impact';
-import { ciFor, loadStatuses, teamPeople, whoChip, type PullStatus } from './pr-status';
+import { ciFor, loadStatuses, rowWho, teamPeople, whoChip, type PullStatus } from './pr-status';
 import { mdTitleHtml, mdTitleText } from '../lib/markdown';
 import { humanTitle } from '../lib/pr-title';
 import { touchesVisuals } from '../lib/visual-impact';
@@ -208,7 +208,13 @@ function people(author: string, extra: Partial<People> = {}): People {
 }
 
 /** One chip per row: the status color and who acts now (pr-status whoChip, shared with the Overview). */
-const chip = (r: Row) => whoChip(r.kind, { author: r.user.login, approvers: r.approvers, changesRequested: r.changesRequested, failing: r.failing, failingChecks: r.failingChecks, skipped: r.skipped });
+const facts = (r: Row) => ({ author: r.user.login, approvers: r.approvers, changesRequested: r.changesRequested, failing: r.failing, failingChecks: r.failingChecks, skipped: r.skipped });
+const chip = (r: Row) => whoChip(r.kind, facts(r));
+/** Who acts now on a row, for the opener: the viewer's turn first, never a change only a developer can move (lib/changes openerFor). */
+function turnOf(r: Row) {
+  const who = rowWho(r.kind, facts(r));
+  return { yourTurn: who?.yourTurn ?? false, developer: who?.who === 'developer' };
+}
 
 function avatar(u: User | null, size = 24) {
   if (!u) return '';
@@ -312,7 +318,7 @@ function paintRows(rows: Row[], loading: boolean) {
   const count = $('rv-count');
   count.textContent = String(rows.length);
   count.hidden = rows.length === 0;
-  const opener = statusOpener(rows.map((r) => ({ ...r, lifecycle: lifecycleOfRow(r) })));
+  const opener = statusOpener(rows.map((r) => ({ ...r, ...turnOf(r), lifecycle: lifecycleOfRow(r) })));
   const sentence = $('cg-open-sentence');
   const cta = document.getElementById('cg-open-cta') as HTMLAnchorElement | null;
   sentence.textContent = loading ? `${plural(rows.length, 'change')} in review. Checking their tests and approvals.` : opener.sentence;
@@ -876,7 +882,7 @@ function renderDetail(x: DetailInput) {
   const exploration = isActiveExploration(pull.labels);
   // Approvals GitHub dismissed (for example after new edits) and nobody gave again: the headline's first words.
   const dismissed = open ? dismissedSentence(dismissedApprovals(reviews as never, pull.head.sha)) : null;
-  const status = detailStatus({ pull, tier, ci, approvals, story, checks: x.checks, files: files.map((f) => f.filename), exploration, isAuthor, sentence, yourTurn });
+  const status = detailStatus({ pull, tier, approvals, story, checks: x.checks, files: files.map((f) => f.filename), exploration, isAuthor, sentence, yourTurn });
   if (dismissed) status.sentence = `${dismissed} ${status.sentence}`;
   statusNow = status;
   if (status.lifecycle === 'waiting') {
