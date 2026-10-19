@@ -18,7 +18,7 @@ const tokenUrl = `https://github.com/settings/personal-access-tokens/new?descrip
 const signIn = Boolean(signInConfig());
 ---
 
-<ScriptDialog id="gh-dialog" title={ghButton(signIn)} size="sm" closeLabel="Close" popup={signIn ? { 'data-signin': signInConfigJson() } : undefined}>
+<ScriptDialog id="gh-dialog" title={ghButton(signIn)} closeLabel="Close" popup={signIn ? { 'data-signin': signInConfigJson() } : undefined}>
   <div class="gh-dialog-body">
     <Alert tone="warning" className="st-hideable" data-gh-rejected-note hidden announce="off">
       <span data-gh-rejected-note-text>{signIn ? 'Your GitHub sign-in expired and could not be renewed. Sign in again to keep editing.' : 'GitHub no longer accepts the saved token: it was revoked, regenerated or has expired. Paste a new one to replace it.'}</span>
@@ -47,9 +47,9 @@ const signIn = Boolean(signInConfig());
           <ol class="gh-steps">
             <li><Link href={tokenUrl} external>Create a token on GitHub</Link>, repository access: only <code>{r.repo}</code>.</li>
             <li>Permissions: Pull requests read and write, Contents read and write, Commit statuses and Checks read.</li>
-            <li>Paste it below. It stays in this browser (localStorage) and is only sent to api.github.com.</li>
+            <li>Paste it below. It stays in this browser and is only sent to GitHub.</li>
           </ol>
-          <Input label="Token" type="password" autoComplete="off" spellCheck={false} placeholder="github_pat_..." data-gh-token />
+          <Input label="Token" type="password" autoComplete="off" spellCheck={false} placeholder="github_pat_..." data-gh-token data-dialog-initial-focus />
           <Alert tone="danger" className="st-hideable" data-gh-error hidden><span data-gh-error-text></span></Alert>
         </div>
       )

@@ -72,6 +72,12 @@
   line-height: var(--font-line-height-normal);
 }
 
+/* A disclosure that ends the body: the body gap spaces it, and the footer band closes it (no second rule). */
+.gh-dialog-body > .xe-acc:last-child {
+  margin-top: 0;
+  border-bottom: 0;
+}
+
 .gh-dialog-actions {
   display: flex;
   flex-wrap: wrap;
