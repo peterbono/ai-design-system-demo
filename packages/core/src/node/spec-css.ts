@@ -287,7 +287,7 @@ function siblingsBefore(el: CssElement): CssElement[] {
 function checkedAttr(name: string, checked: CssState['checked']): string | undefined {
   if (checked === undefined) return undefined;
   if (name === 'aria-checked') return checked;
-  if (name === 'data-checked') return checked === 'true' ? '' : undefined;
+  if (name === 'data-checked' || name === 'data-selected' || name === 'data-active') return checked === 'true' ? '' : undefined;
   if (name === 'data-unchecked') return checked === 'false' ? '' : undefined;
   if (name === 'data-indeterminate') return checked === 'mixed' ? '' : undefined;
   return undefined;
@@ -490,6 +490,39 @@ export function expandDecl(d: CssDecl): CssDecl[] {
         { prop: `border-${s}-color`, value: color },
       ]);
     }
+    case 'inset-block-start':
+      return [{ prop: 'top', value: d.value }];
+    case 'inset-block-end':
+      return [{ prop: 'bottom', value: d.value }];
+    case 'inset-inline-start':
+      return [{ prop: 'left', value: d.value }];
+    case 'inset-inline-end':
+      return [{ prop: 'right', value: d.value }];
+    case 'inset': {
+      const v = boxValues(parts);
+      return v ? SIDES.map((side, i) => ({ prop: side, value: v[i]! })) : [d];
+    }
+    case 'inset-block': {
+      const [a, b = a] = parts;
+      return [
+        { prop: 'top', value: a! },
+        { prop: 'bottom', value: b! },
+      ];
+    }
+    case 'inset-inline': {
+      const [a, b = a] = parts;
+      return [
+        { prop: 'left', value: a! },
+        { prop: 'right', value: b! },
+      ];
+    }
+    case 'place-items': {
+      const [align, justify = align] = parts;
+      return [
+        { prop: 'align-items', value: align! },
+        { prop: 'justify-items', value: justify! },
+      ];
+    }
     case 'text-decoration': {
       const line = parts.filter((x) => /^(none|underline|overline|line-through)$/.test(x));
       return line.length ? [{ prop: 'text-decoration-line', value: line.join(' ') }] : [d];
@@ -553,7 +586,8 @@ export function computeValues(own: Map<string, Declared>, parent: Map<string, st
   const out = new Map<string, string>();
   if (parent) for (const [k, v] of parent) if (k.startsWith('--') || INHERITED.has(k)) out.set(k, v);
   for (const [k, d] of own) {
-    if (d.value === 'inherit') {
+    // `color: currentcolor` is the parent's color (CSS Color 4), like inherit.
+    if (d.value === 'inherit' || (k === 'color' && d.value.trim().toLowerCase() === 'currentcolor')) {
       const pv = parent?.get(k);
       if (pv !== undefined) out.set(k, pv);
       else out.delete(k);

@@ -680,7 +680,8 @@ test('coverage: the count of components in Figma, the others with a plain reason
   const visual = cov.filter((c) => c.status !== 'layout');
   assert.equal(view.headline, `${visual.filter((c) => c.status === 'generated').length} of ${visual.length} components are in Figma`);
   assert.equal(view.missing.length, visual.filter((c) => c.status === 'unsupported').length);
-  assert.ok(view.missing.some((m) => m.name === 'Select' && m.reason === 'Not supported yet: opens a popup'));
+  assert.ok(view.missing.every((m) => m.reason.startsWith('Not supported yet: ')));
+  assert.ok(view.missing.some((m) => m.name === 'Tabs' && m.reason === 'Not supported yet: draws with ::before or ::after'));
   assert.deepEqual(view.layout, cov.filter((c) => c.status === 'layout').map((c) => c.name));
   assert.equal(view.complete, false);
   // An older file with no coverage list: the count of what it has, and no claim that nothing is missing.
