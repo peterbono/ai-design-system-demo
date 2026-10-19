@@ -92,6 +92,11 @@ describe('Astro, Vue and Svelte markup', () => {
     );
   });
 
+  test('homemade look-alikes in markup: pill and tooltip classes, data-tip; an app class containing the word is not one', () => {
+    const f = auditFile('x.astro', '<span class="pill is-pass">Pass</span>\n<span class="cm-pill-row">x</span>\n<span data-tip="Approved">ok</span>\n<span class:list={["pill", x]}>y</span>\n', ds());
+    assert.deepEqual(comps(f), ['1:recreated:.pill>Badge', '3:recreated:[data-tip]>Tooltip', '4:recreated:.pill>Badge']);
+  });
+
   test('markup blocks keep positions: frontmatter, scripts, styles and comments are not template', () => {
     const text = '---\nconst a = 1;\n---\n<!-- <button> -->\n<p>x</p>\n<script type="application/ld+json">{"@type":"Thing"}</script>\n<style lang="scss">a { b: c; }</style>\n';
     const b = markupBlocks(text, 'astro');

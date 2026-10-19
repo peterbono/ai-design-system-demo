@@ -1,7 +1,7 @@
 // Astro, Vue and Svelte files: the frontmatter and <script> blocks go through the TS scanner, <style> blocks
 // through the style sheet audit, and the template markup is read here: DS components used as tags, native
 // elements a DS component should render, re-created DS components, style and class attributes, color attributes.
-import { classifyTag, importsOf, scanCode, tailwindFindings, type CodeScan, type ImportMap } from './code';
+import { classifyTag, importsOf, LOOKALIKE_ATTRS, lookalikesInClassList, scanCode, tailwindFindings, type CodeScan, type ImportMap } from './code';
 import { lineCol } from './css';
 import type { DesignSystemIndex } from './ds-index';
 import { isColorLiteral } from './scan-value';
@@ -196,11 +196,11 @@ export function scanMarkup(path: string, text: string, lang: MarkupLang, ds: Des
   }
 
   /** A JS expression from the template, scanned in place: a prefix line above it keeps its line and column. */
-  const scanExpr = (prefix: string, expr: string, offset: number, suffix: string) => {
+  const scanExpr = (prefix: string, expr: string, offset: number, suffix: string, keepLookalikes = false) => {
     const { line, column } = pos(offset);
     const src = line >= 2 ? `${'\n'.repeat(line - 2)}${prefix}\n${' '.repeat(column - 1)}${expr}${suffix}` : `${prefix}${expr}${suffix}`;
     const c = scanCode(`${path}.tsx`, src, ds);
-    merge({ ...c, components: [], definitions: [], ds: {} });
+    merge({ ...c, components: keepLookalikes ? c.components.filter((x) => x.kind === 'recreated' && x.name.startsWith('.')) : [], definitions: [], ds: {} });
   };
 
   const styleAttr = (a: Attr) => {
@@ -257,10 +257,14 @@ export function scanMarkup(path: string, text: string, lang: MarkupLang, ds: Des
         out.themeRefs += r.themeRefs;
       } else if (/^(class|className|class:list)$/.test(n)) {
         if (a.kind === 'static') {
+          // Homemade look-alikes (`class="pill"`, `class="tooltip"`): the DS component they imitate.
+          for (const l of lookalikesInClassList(a.value, ds.components)) out.components.push({ ...pos(a.valueStart), name: `.${l.token}`, kind: 'recreated', library: 'local', suggestion: l.component });
           const r = tailwindFindings(scanClassString(a.value), a.valueStart, pos, ds);
           out.findings.push(...r.findings);
           out.themeRefs += r.themeRefs;
-        } else if (a.kind === 'expr') scanExpr('cn(', a.value, a.valueStart, ')');
+        } else if (a.kind === 'expr') scanExpr('cn(', a.value, a.valueStart, ')', true);
+      } else if (LOOKALIKE_ATTRS[n] && ds.components.has(LOOKALIKE_ATTRS[n]!)) {
+        out.components.push({ ...pos(a.valueStart - a.name.length - 1), name: `[${n}]`, kind: 'recreated', library: 'local', suggestion: LOOKALIKE_ATTRS[n]! });
       } else if (a.kind === 'static' && !NO_COLOR_ATTR_TAGS.has(lower) && isColorLiteral(a.value)) {
         const suggestion = ds.suggest('color', a.value.trim(), n);
         out.findings.push({ ...pos(a.valueStart), category: 'color', property: n, value: a.value.trim(), source: 'jsx-attr', ...(suggestion ? { suggestion } : {}) });

@@ -501,21 +501,27 @@
     },
     {
       "file": "pages/agents.astro",
-      "line": 76,
+      "line": 75,
       "what": "a",
       "reason": "Raw <a href> in Astro markup; replace it with the DS Link (agent/studio-native-elements, or a follow-up)."
     },
     {
       "file": "pages/agents.astro",
-      "line": 76,
+      "line": 75,
       "what": "a",
       "reason": "Raw <a href> in Astro markup; replace it with the DS Link (agent/studio-native-elements, or a follow-up)."
     },
     {
       "file": "pages/agents.astro",
-      "line": 76,
+      "line": 75,
       "what": "a",
       "reason": "Raw <a href> in Astro markup; replace it with the DS Link (agent/studio-native-elements, or a follow-up)."
+    },
+    {
+      "file": "pages/agents.astro",
+      "line": 79,
+      "what": "Icon",
+      "reason": "components/Icon.astro re-creates the DS Icon; use Icon from @bridge-ds/react (Astro renders it on the server, no client JS). Follow-up to agent/studio-native-elements."
     },
     {
       "file": "pages/agents.astro",
@@ -537,73 +543,37 @@
     },
     {
       "file": "pages/agents.astro",
-      "line": 83,
-      "what": "Icon",
-      "reason": "components/Icon.astro re-creates the DS Icon; use Icon from @bridge-ds/react (Astro renders it on the server, no client JS). Follow-up to agent/studio-native-elements."
-    },
-    {
-      "file": "pages/agents.astro",
-      "line": 89,
+      "line": 88,
       "what": "a",
       "reason": "Raw <a href> in Astro markup; replace it with the DS Link (agent/studio-native-elements, or a follow-up)."
     },
     {
       "file": "pages/agents.astro",
-      "line": 104,
+      "line": 103,
       "what": "Icon",
       "reason": "components/Icon.astro re-creates the DS Icon; use Icon from @bridge-ds/react (Astro renders it on the server, no client JS). Follow-up to agent/studio-native-elements."
     },
     {
       "file": "pages/agents.astro",
-      "line": 108,
+      "line": 107,
       "what": "Icon",
       "reason": "components/Icon.astro re-creates the DS Icon; use Icon from @bridge-ds/react (Astro renders it on the server, no client JS). Follow-up to agent/studio-native-elements."
     },
     {
       "file": "pages/agents.astro",
-      "line": 117,
+      "line": 195,
       "what": "Icon",
       "reason": "components/Icon.astro re-creates the DS Icon; use Icon from @bridge-ds/react (Astro renders it on the server, no client JS). Follow-up to agent/studio-native-elements."
     },
     {
       "file": "pages/agents.astro",
-      "line": 119,
+      "line": 207,
       "what": "a",
       "reason": "Raw <a href> in Astro markup; replace it with the DS Link (agent/studio-native-elements, or a follow-up)."
     },
     {
       "file": "pages/agents.astro",
-      "line": 140,
-      "what": "Icon",
-      "reason": "components/Icon.astro re-creates the DS Icon; use Icon from @bridge-ds/react (Astro renders it on the server, no client JS). Follow-up to agent/studio-native-elements."
-    },
-    {
-      "file": "pages/agents.astro",
-      "line": 157,
-      "what": "Icon",
-      "reason": "components/Icon.astro re-creates the DS Icon; use Icon from @bridge-ds/react (Astro renders it on the server, no client JS). Follow-up to agent/studio-native-elements."
-    },
-    {
-      "file": "pages/agents.astro",
-      "line": 208,
-      "what": "Icon",
-      "reason": "components/Icon.astro re-creates the DS Icon; use Icon from @bridge-ds/react (Astro renders it on the server, no client JS). Follow-up to agent/studio-native-elements."
-    },
-    {
-      "file": "pages/agents.astro",
-      "line": 234,
-      "what": "Icon",
-      "reason": "components/Icon.astro re-creates the DS Icon; use Icon from @bridge-ds/react (Astro renders it on the server, no client JS). Follow-up to agent/studio-native-elements."
-    },
-    {
-      "file": "pages/agents.astro",
-      "line": 246,
-      "what": "a",
-      "reason": "Raw <a href> in Astro markup; replace it with the DS Link (agent/studio-native-elements, or a follow-up)."
-    },
-    {
-      "file": "pages/agents.astro",
-      "line": 246,
+      "line": 207,
       "what": "a",
       "reason": "Raw <a href> in Astro markup; replace it with the DS Link (agent/studio-native-elements, or a follow-up)."
     },
@@ -705,75 +675,45 @@
     },
     {
       "file": "pages/index.astro",
-      "line": 63,
+      "line": 64,
       "what": "a",
       "reason": "Raw <a href> in Astro markup; replace it with the DS Link (agent/studio-native-elements, or a follow-up)."
     },
     {
       "file": "pages/index.astro",
-      "line": 75,
+      "line": 76,
       "what": "a",
       "reason": "Raw <a href> in Astro markup; replace it with the DS Link (agent/studio-native-elements, or a follow-up)."
     },
     {
       "file": "pages/install.astro",
-      "line": 65,
+      "line": 68,
       "what": "a",
       "reason": "Raw <a href> in Astro markup; replace it with the DS Link (agent/studio-native-elements, or a follow-up)."
     },
     {
       "file": "pages/install.astro",
-      "line": 73,
-      "what": "Icon",
-      "reason": "components/Icon.astro re-creates the DS Icon; use Icon from @bridge-ds/react (Astro renders it on the server, no client JS). Follow-up to agent/studio-native-elements."
-    },
-    {
-      "file": "pages/install.astro",
-      "line": 86,
-      "what": "Icon",
-      "reason": "components/Icon.astro re-creates the DS Icon; use Icon from @bridge-ds/react (Astro renders it on the server, no client JS). Follow-up to agent/studio-native-elements."
-    },
-    {
-      "file": "pages/install.astro",
-      "line": 107,
+      "line": 104,
       "what": "a",
       "reason": "Raw <a href> in Astro markup; replace it with the DS Link (agent/studio-native-elements, or a follow-up)."
     },
     {
       "file": "pages/install.astro",
-      "line": 112,
-      "what": "Icon",
-      "reason": "components/Icon.astro re-creates the DS Icon; use Icon from @bridge-ds/react (Astro renders it on the server, no client JS). Follow-up to agent/studio-native-elements."
-    },
-    {
-      "file": "pages/install.astro",
-      "line": 148,
+      "line": 136,
       "what": "a",
       "reason": "Raw <a href> in Astro markup; replace it with the DS Link (agent/studio-native-elements, or a follow-up)."
     },
     {
       "file": "pages/install.astro",
-      "line": 148,
+      "line": 136,
       "what": "a",
       "reason": "Raw <a href> in Astro markup; replace it with the DS Link (agent/studio-native-elements, or a follow-up)."
     },
     {
       "file": "pages/install.astro",
-      "line": 148,
+      "line": 136,
       "what": "a",
       "reason": "Raw <a href> in Astro markup; replace it with the DS Link (agent/studio-native-elements, or a follow-up)."
-    },
-    {
-      "file": "pages/install.astro",
-      "line": 157,
-      "what": "Icon",
-      "reason": "components/Icon.astro re-creates the DS Icon; use Icon from @bridge-ds/react (Astro renders it on the server, no client JS). Follow-up to agent/studio-native-elements."
-    },
-    {
-      "file": "pages/install.astro",
-      "line": 168,
-      "what": "Icon",
-      "reason": "components/Icon.astro re-creates the DS Icon; use Icon from @bridge-ds/react (Astro renders it on the server, no client JS). Follow-up to agent/studio-native-elements."
     },
     {
       "file": "pages/studio/changes.astro",
@@ -909,31 +849,31 @@
     },
     {
       "file": "pages/studio/quality/audits/[id].astro",
-      "line": 169,
+      "line": 170,
       "what": "Icon",
       "reason": "components/Icon.astro re-creates the DS Icon; use Icon from @bridge-ds/react (Astro renders it on the server, no client JS). Follow-up to agent/studio-native-elements."
     },
     {
       "file": "pages/studio/quality/audits/[id].astro",
-      "line": 225,
+      "line": 226,
       "what": "Icon",
       "reason": "components/Icon.astro re-creates the DS Icon; use Icon from @bridge-ds/react (Astro renders it on the server, no client JS). Follow-up to agent/studio-native-elements."
     },
     {
       "file": "pages/studio/quality/audits/[id].astro",
-      "line": 238,
+      "line": 239,
       "what": "table",
       "reason": "Raw <table> in Astro markup; agent/studio-native-elements replaces it with the DS Table."
     },
     {
       "file": "pages/studio/quality/audits/[id].astro",
-      "line": 284,
+      "line": 285,
       "what": "Icon",
       "reason": "components/Icon.astro re-creates the DS Icon; use Icon from @bridge-ds/react (Astro renders it on the server, no client JS). Follow-up to agent/studio-native-elements."
     },
     {
       "file": "pages/studio/quality/audits/[id].astro",
-      "line": 314,
+      "line": 315,
       "what": "a",
       "reason": "Raw <a href> in Astro markup; replace it with the DS Link (agent/studio-native-elements, or a follow-up)."
     },
@@ -975,13 +915,31 @@
     },
     {
       "file": "pages/studio/settings/index.astro",
-      "line": 330,
+      "line": 324,
       "what": "input",
       "reason": "Raw <input> in Astro markup; agent/studio-native-elements replaces it with the DS Input, Checkbox or RadioGroup."
     },
     {
       "file": "pages/studio/settings/index.astro",
-      "line": 331,
+      "line": 325,
+      "what": "input",
+      "reason": "Raw <input> in Astro markup; agent/studio-native-elements replaces it with the DS Input, Checkbox or RadioGroup."
+    },
+    {
+      "file": "pages/studio/settings/index.astro",
+      "line": 328,
+      "what": "input",
+      "reason": "Raw <input> in Astro markup; agent/studio-native-elements replaces it with the DS Input, Checkbox or RadioGroup."
+    },
+    {
+      "file": "pages/studio/settings/index.astro",
+      "line": 329,
+      "what": "input",
+      "reason": "Raw <input> in Astro markup; agent/studio-native-elements replaces it with the DS Input, Checkbox or RadioGroup."
+    },
+    {
+      "file": "pages/studio/settings/index.astro",
+      "line": 333,
       "what": "input",
       "reason": "Raw <input> in Astro markup; agent/studio-native-elements replaces it with the DS Input, Checkbox or RadioGroup."
     },
@@ -993,25 +951,19 @@
     },
     {
       "file": "pages/studio/settings/index.astro",
-      "line": 335,
-      "what": "input",
-      "reason": "Raw <input> in Astro markup; agent/studio-native-elements replaces it with the DS Input, Checkbox or RadioGroup."
+      "line": 416,
+      "what": "a",
+      "reason": "Raw <a href> in Astro markup; replace it with the DS Link (agent/studio-native-elements, or a follow-up)."
     },
     {
       "file": "pages/studio/settings/index.astro",
-      "line": 339,
-      "what": "input",
-      "reason": "Raw <input> in Astro markup; agent/studio-native-elements replaces it with the DS Input, Checkbox or RadioGroup."
+      "line": 423,
+      "what": "a",
+      "reason": "Raw <a href> in Astro markup; replace it with the DS Link (agent/studio-native-elements, or a follow-up)."
     },
     {
       "file": "pages/studio/settings/index.astro",
-      "line": 340,
-      "what": "input",
-      "reason": "Raw <input> in Astro markup; agent/studio-native-elements replaces it with the DS Input, Checkbox or RadioGroup."
-    },
-    {
-      "file": "pages/studio/settings/index.astro",
-      "line": 422,
+      "line": 425,
       "what": "a",
       "reason": "Raw <a href> in Astro markup; replace it with the DS Link (agent/studio-native-elements, or a follow-up)."
     },
@@ -1023,19 +975,7 @@
     },
     {
       "file": "pages/studio/settings/index.astro",
-      "line": 431,
-      "what": "a",
-      "reason": "Raw <a href> in Astro markup; replace it with the DS Link (agent/studio-native-elements, or a follow-up)."
-    },
-    {
-      "file": "pages/studio/settings/index.astro",
-      "line": 435,
-      "what": "a",
-      "reason": "Raw <a href> in Astro markup; replace it with the DS Link (agent/studio-native-elements, or a follow-up)."
-    },
-    {
-      "file": "pages/studio/settings/index.astro",
-      "line": 435,
+      "line": 429,
       "what": "a",
       "reason": "Raw <a href> in Astro markup; replace it with the DS Link (agent/studio-native-elements, or a follow-up)."
     },

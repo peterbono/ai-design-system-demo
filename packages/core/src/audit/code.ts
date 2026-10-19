@@ -49,7 +49,7 @@ export function domRendererComponent(fn: string, components: Set<string>): strin
  * Exact class tokens only, so app classes that merely contain the word (`cm-pill-row`) are not counted.
  */
 export const LOOKALIKE_CLASSES: Record<string, string> = { pill: 'Badge', badge: 'Badge', chip: 'Tag', tooltip: 'Tooltip', tip: 'Tooltip', 'has-tip': 'Tooltip' };
-const LOOKALIKE_ATTRS: Record<string, string> = { 'data-tip': 'Tooltip' };
+export const LOOKALIKE_ATTRS: Record<string, string> = { 'data-tip': 'Tooltip' };
 const HTML_CLASS_RE = /\bclass(?:Name)?\s*=\s*["']([^"'$]*)/g;
 const HTML_ATTR_RE = /\s(data-tip)\s*=/g;
 
