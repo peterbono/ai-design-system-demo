@@ -114,7 +114,7 @@
   color: var(--input-placeholder);
 }
 
-.trigger[data-disabled] /* With badges the value is a row: the label truncates, the badge keeps its size. In a trigger under 20em (a phone)
+/* With badges the value is a row: the label truncates, the badge keeps its size. In a trigger under 20em (a phone)
    the badge leaves the trigger so the label keeps the room; the list still shows it on every option. */
 .valueWithBadge {
   display: flex;
