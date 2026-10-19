@@ -30,9 +30,11 @@
   flex: 1 1 auto;
   min-width: 0;
   margin: 0;
-  padding-block: calc((var(--control-height-sm) - var(--typography-ui-line-height)) / 2);
+  padding: calc((var(--control-height-sm) - var(--typography-ui-line-height)) / 2) 0;
   overflow-x: auto;
+  border: 0;
   border-radius: var(--radius-inset);
+  background-color: transparent;
   color: var(--color-text-default);
   font-family: var(--font-family-mono);
   font-size: var(--typography-ui-size);
@@ -48,11 +50,19 @@
 
 .wrap .pre {
   white-space: pre-wrap;
-  overflow-wrap: anywhere;
 }
 
 .code {
+  padding: 0;
+  border-radius: 0;
+  background-color: transparent;
+  color: inherit;
   font: inherit;
+  overflow-wrap: normal;
+}
+
+.wrap .code {
+  overflow-wrap: anywhere;
 }
 
 .copy {

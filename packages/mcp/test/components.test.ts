@@ -1,5 +1,5 @@
 // Components and docs tools against the real repo.
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { BridgeContext, ops } from '../dist/lib.js';
@@ -11,9 +11,13 @@ beforeAll(async () => {
 });
 
 describe('components and docs (real repo)', () => {
-  it('bridge_list_components: 48 components with family and summary', async () => {
+  it('bridge_list_components: every component folder, with family and summary', async () => {
     const l = await ops.listComponentsOp(ctx, {});
-    expect(l.total).toBe(48);
+    const dir = join(REPO, 'packages/react/src/components');
+    const folders = readdirSync(dir).filter((n) => existsSync(join(dir, n, `${n}.tsx`)));
+    expect(folders.length).toBeGreaterThanOrEqual(53);
+    expect(l.total).toBe(folders.length);
+    expect(l.components.map((c) => c.name)).toEqual(expect.arrayContaining(['Banner', 'Checklist', 'ChoiceCard', 'CodeBlock', 'TokenValue']));
     const button = l.components.find((c) => c.name === 'Button');
     expect(button?.family).toBe('Actions');
     expect(button?.summary).toMatch(/Triggers an action/);

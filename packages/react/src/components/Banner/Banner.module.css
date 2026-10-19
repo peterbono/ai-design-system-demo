@@ -48,14 +48,23 @@
   top: var(--layout-header-height);
 }
 
+.lead {
+  display: flex;
+  flex: 1 1 var(--size-60);
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
 .icon {
   flex: none;
+  margin-block-start: calc((var(--typography-ui-line-height) - var(--icon-size-md)) / 2);
   color: var(--_text);
 }
 
 .content {
   display: flex;
-  flex: 1 1 var(--size-60);
+  flex: 1 1 auto;
   flex-direction: column;
   gap: var(--space-0-5);
   min-width: 0;

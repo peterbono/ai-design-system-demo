@@ -42,12 +42,14 @@ export const Banner = forwardRef<HTMLDivElement, BannerProps>(function Banner(
       className={cx(styles.banner, styles[appearance], sticky === 'top' && styles.stickyTop, sticky === 'below-header' && styles.stickyHeader, className)}
       {...rest}
     >
-      {icon && <Icon icon={icon} size="md" className={styles.icon} />}
-      <div className={styles.content}>
-        <p id={titleId} className={styles.title}>
-          {title}
-        </p>
-        {children != null && children !== false && <div className={styles.description}>{children}</div>}
+      <div className={styles.lead}>
+        {icon && <Icon icon={icon} size="md" className={styles.icon} />}
+        <div className={styles.content}>
+          <p id={titleId} className={styles.title}>
+            {title}
+          </p>
+          {children != null && children !== false && <div className={styles.description}>{children}</div>}
+        </div>
       </div>
       {actions != null && actions !== false && <div className={styles.actions}>{actions}</div>}
     </div>
