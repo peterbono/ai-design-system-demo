@@ -12,7 +12,9 @@
 // its description.
 import { Button } from '@bridge-ds/react';
 import Icon from './Icon.astro';
+import ButtonLink from './ds/ButtonLink';
 import { GitHubMark } from './ds/studio/brand-icons';
+import { LogOut, Pencil, Settings } from 'lucide-react';
 import { siteRepo } from '../lib/config';
 import { signInConfig } from '../lib/signin-config';
 import { ghButton } from '../lib/gh-wording';
@@ -58,9 +60,9 @@ const signIn = Boolean(signInConfig());
       </dl>
       <p class="menu-help" data-gh-perm-help hidden>This token can read but not write. Reviews and token proposals need Contents and Pull requests write access.</p>
       <div class="menu-actions">
-        {!signIn && <button type="button" class="menu-action st-hideable" data-gh-open data-gh-token-only><Icon name="edit" size={16} />Change token</button>}
-        <a class="menu-action" href="/studio/settings/#connection" data-keep-branch><Icon name="settings" size={16} />Settings</a>
-        <button type="button" class="menu-action is-danger" data-gh-forget><Icon name="close" size={16} /><span data-gh-forget-label>Disconnect</span></button>
+        {!signIn && <Button variant="ghost" size="sm" iconStart={Pencil} className="st-hideable" data-gh-open data-gh-token-only>Change token</Button>}
+        <ButtonLink variant="ghost" size="sm" iconStart={Settings} href="/studio/settings/#connection" data-keep-branch>Settings</ButtonLink>
+        <Button variant="ghost" size="sm" iconStart={LogOut} data-gh-forget><span data-gh-forget-label>Disconnect</span></Button>
       </div>
     </div>
   </details>

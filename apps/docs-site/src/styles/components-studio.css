@@ -23,20 +23,10 @@
   flex: 0 1 calc(var(--size-60) + var(--size-10));
 }
 
-.cm-fam select {
-  height: var(--size-8);
-  padding: 0 var(--space-2);
-  border: var(--border-width-default) solid var(--color-border-emphasis);
-  border-radius: var(--radius-control);
-  background-color: var(--color-surface-default);
-  color: var(--color-text-default);
-  font: inherit;
-  font-size: var(--typography-ui-size);
-}
-
-.cm-fam select:focus-visible {
-  outline: var(--focus-ring-width) solid var(--focus-ring-color);
-  outline-offset: var(--focus-ring-offset);
+/* The family menu (DS Select island): wider than 20em, where the DS Select keeps the count badge in its trigger. */
+.cm-tools [data-bridged-select="cm-fam"] {
+  flex: 0 0 auto;
+  min-width: calc(var(--size-80) + var(--space-4));
 }
 
 .cm-count,
@@ -464,7 +454,8 @@
 /* Phones: keep the thumbnail, the name and the open requests; products, examples and tokens stay in the drawer.
    Nothing scrolls sideways. */
 @media (max-width: 640px) {
-  .cm-search {
+  .cm-search,
+  .cm-tools [data-bridged-select="cm-fam"] {
     flex-basis: 100%;
   }
 

@@ -4,7 +4,7 @@
 // TokenExplorer includes it in mode="edit". The cell editor popover is built by scripts/explorer/inline-edit.ts.
 import Icon from '../Icon.astro';
 import { Alert, Button, IconButton, Input, Textarea } from '@bridge-ds/react';
-import { Send, X } from 'lucide-react';
+import { ArrowRight, Send, X } from 'lucide-react';
 import GitHubDialog from '../GitHubDialog.astro';
 import HistoryPlanner from '../HistoryPlanner.astro';
 import EditorPreview from '../EditorPreview.tsx';
@@ -28,7 +28,7 @@ const previews = loadComponents().flatMap((c) => (c.docs?.preview ? [{ name: c.n
   <div class="xe-bar" data-xe-bar role="region" aria-label="Draft" hidden>
     <span class="xe-bar-dot" aria-hidden="true"></span>
     <span class="xe-bar-count" data-xe-bar-count aria-live="polite">1 change</span>
-    <button type="button" class="xe-bar-review" data-xe-review>Review <Icon name="arrowRight" size={16} /></button>
+    <Button variant="inverse" iconEnd={ArrowRight} data-xe-review>Review</Button>
   </div>
 
   <div class="xe-scrim" data-xe-scrim hidden></div>
@@ -55,6 +55,7 @@ const previews = loadComponents().flatMap((c) => (c.docs?.preview ? [{ name: c.n
     </footer>
   </aside>
 
+  <!-- bridge-audit-ignore-next-line: New token, a native modal <dialog> opened by a plain script (showModal, focus trap, Escape); the DS Dialog is a React island, so moving it is a rewrite of the script. Follow-up: DS Dialog with a static open/close contract -->
   <dialog class="gh-dialog" id="ed-add-dialog" aria-labelledby="ed-add-title">
     <form method="dialog" class="gh-dialog-box">
       <header class="gh-dialog-head">
@@ -75,6 +76,7 @@ const previews = loadComponents().flatMap((c) => (c.docs?.preview ? [{ name: c.n
     </form>
   </dialog>
 
+  <!-- bridge-audit-ignore-next-line: Send for review, a native modal <dialog> opened by a plain script (showModal, focus trap, Escape); the DS Dialog is a React island, so moving it is a rewrite of the script. Follow-up: DS Dialog with a static open/close contract -->
   <dialog class="gh-dialog" id="ed-propose-dialog" aria-labelledby="ed-propose-h" aria-describedby="ed-propose-who">
     <form method="dialog" class="gh-dialog-box">
       <header class="gh-dialog-head">

@@ -444,10 +444,6 @@ pre code {
   align-items: center;
 }
 
-.team-open {
-  font-weight: var(--font-weight-semibold);
-}
-
 /* Signed in: "Open Studio" and the avatar share one pill. */
 :root[data-signed-in] .team {
   gap: var(--space-1);
@@ -458,7 +454,6 @@ pre code {
 }
 
 :root[data-signed-in] .team-open {
-  height: calc(var(--size-9) - var(--border-width-default) * 2);
   border-color: transparent;
 }
 
@@ -671,29 +666,6 @@ pre code {
   border-top: var(--border-width-default) solid var(--color-border-default);
 }
 
-.rail-tool {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: var(--size-11);
-  padding: 0 var(--space-3);
-  border: 0;
-  border-radius: var(--radius-control);
-  background-color: transparent;
-  color: var(--color-text-muted);
-  font: inherit;
-  font-weight: var(--font-weight-medium);
-  text-decoration: none;
-  cursor: pointer;
-}
-
-@media (hover: hover) {
-  .rail-tool:hover {
-    background-color: var(--color-bg-subtle);
-    color: var(--color-text-default);
-  }
-}
-
 /* Studio and the Library share one theme control: the moon in the top bar on wide screens, the rail tool on phones. */
 :root[data-space="studio"] .rail-tools {
   padding-top: 0;
@@ -725,10 +697,6 @@ pre code {
   padding: var(--space-4);
   border-radius: var(--radius-container);
   background-color: var(--color-bg-subtle);
-}
-
-.rail-team .hd-btn {
-  justify-content: center;
 }
 
 .scrim {
