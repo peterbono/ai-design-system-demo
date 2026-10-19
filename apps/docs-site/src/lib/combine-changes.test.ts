@@ -130,7 +130,8 @@ describe('the combination', () => {
 
   it('shortens titles at a word and names a combination', () => {
     expect(shortTitle('tokens: darker default background')).toBe('Darker default background');
-    expect(useLabel('Pill buttons')).toBe("Use Pill buttons's");
+    expect(useLabel('Pill buttons')).toBe("Use Pill buttons'");
+    expect(useLabel('Deeper link')).toBe("Use Deeper link's");
     expect(namesOf([{ number: 1, title: 'tokens: a' }, { number: 2, title: 'b' }, { number: 3, title: 'c' }])).toBe('A, B and 1 other');
   });
 });

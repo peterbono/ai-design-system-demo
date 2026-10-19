@@ -684,10 +684,17 @@ function Toolbar({ build, change, onProduction, returnTo, together: tg }: { buil
                         {T.list.map((f) => {
                           const can = f.mode === 'tokens' && Boolean(f.source);
                           const on = T.included.includes(f.number);
-                          // Its tokens, and how many take another change's value here (a pick in Studio).
-                          const total = T.editedBy.get(f.number) ?? 0;
-                          const taken = total - (T.result?.tokens.filter((t) => t.from.includes(f.number)).length ?? 0);
-                          const what = `#${f.number}, ${total} ${total === 1 ? 'token' : 'tokens'}${on && taken > 0 ? `, ${taken} set by another change here` : ''}${on ? '' : ', switched off'}`;
+                          // Its tokens; those another change sets here (a pick in Studio) say which; and whether any shows in
+                          // this theme and brand (a light-only change shows nothing in dark).
+                          const paths = T.editedBy.get(f.number) ?? [];
+                          const byOther = [...new Set(paths.flatMap((p) => T.result?.tokens.find((t) => t.path === p && !t.from.includes(f.number))?.from ?? []))];
+                          const used = paths.length - paths.filter((p) => T.result?.tokens.some((t) => t.path === p && !t.from.includes(f.number))).length;
+                          const showsHere = T.pairs.some((p) => p.token.from.includes(f.number));
+                          const what = !on
+                            ? `#${f.number}, switched off`
+                            : used === 0 && byOther.length
+                              ? `#${f.number}, ${paths.length === 1 ? 'its token is' : `its ${paths.length} tokens are`} set by ${byOther.map((x) => `#${x}`).join(' and ')} here (your pick)`
+                              : `#${f.number}, ${used} of ${paths.length} ${paths.length === 1 ? 'token' : 'tokens'} used${byOther.length ? `, the rest set by ${byOther.map((x) => `#${x}`).join(' and ')} (your pick)` : ''}${showsHere ? '' : `. Nothing of it shows in ${theme}`}`;
                           return (
                             <li key={f.number} className={styles.item}>
                               <Checkbox
@@ -808,7 +815,7 @@ function Toolbar({ build, change, onProduction, returnTo, together: tg }: { buil
                     <p className={`${styles.note} ${styles.sheetFoot}`}>
                       {tg
                         ? facts
-                          ? 'Screens are measured for each change on its own, not for a combination. Show what changed outlines this screen.'
+                          ? 'Screens are measured per change, not for this mix. Show what changed outlines this screen.'
                           : 'Reading the changes.'
                         : facts
                           ? 'The screens this change affects are not measured yet.'

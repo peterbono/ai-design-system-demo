@@ -136,7 +136,11 @@ export function shortTitle(title: string, max = 32): string {
 }
 
 /** The radio label of one change's value. */
-export const useLabel = (title: string) => `Use ${shortTitle(title, 40)}'s`;
+export function useLabel(title: string): string {
+  const t = shortTitle(title, 40);
+  // "Use Stronger borders'", never "borders's".
+  return /s$/i.test(t) ? `Use ${t}'` : `Use ${t}'s`;
+}
 
 /**
  * The rows the designer picks in. Each option's value is resolved in the latest library with only that edit applied

@@ -19,7 +19,7 @@ export interface Together {
   toggle: (n: number, on: boolean) => void;
   result: TogetherResult | null;
   /** Tokens each change edits (by path), whether or not its value is the one applied. */
-  editedBy: Map<number, number>;
+  editedBy: Map<number, string[]>;
   pairs: TogetherPair[];
   /** Nothing differs where the page is, but it does in another theme (or brand): say so, never a silent "After". */
   noDiff: NoDifference | null;
@@ -95,7 +95,7 @@ export function useTogether(build: BridgeBuild, changes: number[] | null, use: s
     included,
     toggle: (n, on) => setIncluded((cur) => toggleIncluded(list?.map((f) => f.number) ?? [], cur, n, on)),
     result,
-    editedBy: new Map(edits.map((e) => [e.number, new Set(e.edits.map((x) => x.path)).size])),
+    editedBy: new Map(edits.map((e) => [e.number, [...new Set(e.edits.map((x) => x.path))]])),
     pairs,
     noDiff,
     sheet,
