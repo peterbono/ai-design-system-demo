@@ -23,6 +23,7 @@ import {
   onlyReviewerLine,
   showsBranch,
   sortBranches,
+  rowAction,
   splitNeeds,
   uniquePeople,
   waitingSentence,
@@ -42,7 +43,7 @@ function Who({ p, size = 'md' }: { p: Person; size?: 'xs' | 'sm' | 'md' }) {
 }
 
 /** One Needs you row: before/after, who, what and why, the status on the right. The title link covers the row. */
-export function NeedRowItem({ row, selected, onSelect }: { row: NeedRow; selected?: boolean; onSelect?: (row: NeedRow) => void }) {
+export function NeedRowItem({ row, selected, onSelect, action }: { row: NeedRow; selected?: boolean; onSelect?: (row: NeedRow) => void; action?: 'primary' | 'secondary' }) {
   const click = onSelect
     ? (e: MouseEvent<HTMLAnchorElement>) => {
         if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
@@ -72,17 +73,22 @@ export function NeedRowItem({ row, selected, onSelect }: { row: NeedRow; selecte
               {row.pill.label}
             </Badge>
           )}
+          {action && (
+            <ButtonLink variant={action} href={row.href} className="sh-row-action" tabIndex={-1} aria-hidden="true">
+              {rowAction(row.kind)}
+            </ButtonLink>
+          )}
         </CardBody>
       </Card>
     </li>
   );
 }
 
-export function NeedList({ rows, selectedKey, onSelect, label = 'Needs you' }: { rows: NeedRow[]; selectedKey?: string | null; onSelect?: (row: NeedRow) => void; label?: string }) {
+export function NeedList({ rows, selectedKey, onSelect, label = 'Needs you', action }: { rows: NeedRow[]; selectedKey?: string | null; onSelect?: (row: NeedRow) => void; label?: string; action?: 'primary' | 'secondary' }) {
   return (
     <ul className="sh-rows" aria-label={label}>
       {rows.map((r) => (
-        <NeedRowItem key={r.key} row={r} selected={selectedKey === r.key} onSelect={onSelect} />
+        <NeedRowItem key={r.key} row={r} selected={selectedKey === r.key} onSelect={onSelect} action={action} />
       ))}
     </ul>
   );
@@ -152,7 +158,8 @@ function Needs({ needs, now, snoozed }: { needs: NeedRow[]; now: number; snoozed
   const { shown, more } = splitNeeds(needs);
   return (
     <>
-      <NeedList rows={shown} />
+      {/* One item: its button is the page's primary. Two or three: secondary buttons. More: no row buttons, "Review all" acts. */}
+      <NeedList rows={shown} action={more ? undefined : shown.length === 1 ? 'primary' : 'secondary'} />
       {more && (
         <div className="sh-more">
           <p className="t-body sh-more-text">

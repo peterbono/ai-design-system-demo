@@ -111,7 +111,8 @@
   min-width: 0;
 }
 
-.sh-row-pill {
+.sh-row-pill,
+.sh-row-action {
   flex: none;
 }
 

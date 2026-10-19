@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  rowAction,
   CLAUDE,
   adoptionDrop,
   ago,
@@ -93,7 +94,7 @@ describe('waiting time', () => {
   it('counts whole days', () => {
     expect(daysSince(daysAgo(0, 23), NOW)).toBe(0);
     expect(daysSince(daysAgo(4, 2), NOW)).toBe(4);
-    expect(waitingLabel(daysAgo(0, 3), NOW)).toBe('Waiting since today');
+    expect(waitingLabel(daysAgo(0, 3), NOW)).toBe('New today');
     expect(waitingLabel(daysAgo(1), NOW)).toBe('Waiting 1 day');
     expect(waitingLabel(daysAgo(4), NOW)).toBe('Waiting 4 days');
   });
@@ -226,5 +227,13 @@ describe('page state', () => {
     expect(homeState({ signedIn: true, loading: true, needs: 1, branches: 0 })).toBe('busy');
     expect(homeState({ signedIn: true, loading: false, needs: 0, branches: 2 })).toBe('busy');
     expect(homeState({ signedIn: true, loading: false, needs: 0, branches: 0 })).toBe('empty');
+  });
+});
+
+describe('rowAction', () => {
+  it('gives each kind of row a verb', () => {
+    expect(rowAction('review')).toBe('Review');
+    expect(rowAction('guidance')).toBe('Review');
+    expect(rowAction('health')).toBe('Fix');
   });
 });
