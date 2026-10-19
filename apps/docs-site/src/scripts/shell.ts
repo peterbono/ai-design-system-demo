@@ -157,14 +157,27 @@ function paintSegments(root: Element, value: string | null) {
     b.toggleAttribute('data-unchecked', !on);
     b.tabIndex = b === stop ? 0 : -1;
   }
-  // Too many segments for the width (a phone): the DS track scrolls sideways; keep the selected one in view.
+  // Too many segments for the width (a phone): the DS track scrolls sideways; keep the selected one in view, clear of
+  // the faded edge (the track's scroll-padding).
   const track = root as HTMLElement;
   if (current && track.scrollWidth > track.clientWidth) {
-    const start = current.offsetLeft;
-    const end = start + current.offsetWidth;
-    if (start < track.scrollLeft) track.scrollLeft = start;
+    const pad = parseFloat(getComputedStyle(track).scrollPaddingInlineStart) || 0;
+    const start = current.offsetLeft - pad;
+    const end = current.offsetLeft + current.offsetWidth + pad;
+    if (start < track.scrollLeft) track.scrollLeft = Math.max(0, start);
     else if (end > track.scrollLeft + track.clientWidth) track.scrollLeft = end - track.clientWidth;
   }
+  markOverflow(track);
+}
+
+/** The DS static contract for a scrolling track: data-overflow names the edges that hide segments (the CSS fades them). */
+function markOverflow(track: HTMLElement) {
+  const max = track.scrollWidth - track.clientWidth;
+  const start = track.scrollLeft > 1;
+  const end = max - track.scrollLeft > 1;
+  const value = start && end ? 'both' : start ? 'start' : end ? 'end' : null;
+  if (value) track.setAttribute('data-overflow', value);
+  else track.removeAttribute('data-overflow');
 }
 
 /** Select a segment of a static SegmentedControl. `emit` dispatches bridge:segment as a user change would. */
@@ -178,6 +191,16 @@ function initSegmented() {
     const checked = root.querySelector<HTMLElement>('[data-segment][aria-checked="true"]');
     paintSegments(root, checked?.dataset.value ?? null);
   });
+  // Scrolling tracks (phones): fade the edges that hide segments, on scroll and on resize.
+  document.addEventListener(
+    'scroll',
+    (e) => {
+      const t = e.target;
+      if (t instanceof HTMLElement && t.matches(SEG_ROOT)) markOverflow(t);
+    },
+    { capture: true, passive: true },
+  );
+  window.addEventListener('resize', () => document.querySelectorAll<HTMLElement>(SEG_ROOT).forEach(markOverflow), { passive: true });
   document.addEventListener('click', (e) => {
     const b = (e.target as HTMLElement).closest<HTMLButtonElement>(`${SEG_ROOT} [data-segment]`);
     const root = b?.closest(SEG_ROOT);

@@ -1,12 +1,12 @@
 /* A track on the subtle background; the selected segment is a raised plate. State reads aria-checked (not
    data-checked) so a statically rendered control can be driven by a script.
-   Too many segments for the width (a phone): the track scrolls sideways inside its container, never the page. Scroll
-   shadows (the local layers cover the edge shadows until there is more to see) say there is more, with no script. */
+   Too many segments for the width (a phone): the track scrolls sideways inside its container, never the page. The
+   edge with more segments behind it fades out (data-overflow, set by the component or the page script). */
 .root {
   --_height: var(--control-height-md);
   --_px: var(--space-3);
   --_inset: var(--space-0-5);
-  --_track: var(--color-bg-subtle);
+  --_fade: var(--space-8);
 
   position: relative;
   box-sizing: border-box;
@@ -18,20 +18,29 @@
   padding: var(--_inset);
   overflow-x: auto;
   overscroll-behavior-x: contain;
+  scroll-padding-inline: var(--_fade);
   scrollbar-width: none;
   border: var(--border-width-default) solid var(--color-border-default);
   border-radius: var(--radius-control);
-  background:
-    linear-gradient(to right, var(--_track) 40%, transparent) left / var(--space-6) 100% no-repeat local,
-    linear-gradient(to left, var(--_track) 40%, transparent) right / var(--space-6) 100% no-repeat local,
-    linear-gradient(to right, var(--color-border-strong), transparent) left / var(--space-2) 100% no-repeat scroll,
-    linear-gradient(to left, var(--color-border-strong), transparent) right / var(--space-2) 100% no-repeat scroll,
-    var(--_track);
+  background-color: var(--color-bg-subtle);
   font-family: var(--font-family-sans);
 }
 
 .root::-webkit-scrollbar {
   display: none;
+}
+
+/* The mask only uses the gradient's alpha: currentcolor is any opaque color. */
+.root[data-overflow="end"] {
+  mask-image: linear-gradient(to right, currentcolor calc(100% - var(--_fade)), transparent);
+}
+
+.root[data-overflow="start"] {
+  mask-image: linear-gradient(to left, currentcolor calc(100% - var(--_fade)), transparent);
+}
+
+.root[data-overflow="both"] {
+  mask-image: linear-gradient(to right, transparent, currentcolor var(--_fade), currentcolor calc(100% - var(--_fade)), transparent);
 }
 
 .sm {

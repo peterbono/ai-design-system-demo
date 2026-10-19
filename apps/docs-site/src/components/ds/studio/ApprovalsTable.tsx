@@ -1,6 +1,6 @@
 // Settings Approvals: who approves what, one row per risk tier, as a DS Table. The tier is a neutral label that
 // opens Changes filtered to that tier; approvals come from docs/GOVERNANCE.md as trusted inline markdown. On a phone
-// each tier stacks as a card (narrowLayout stack), every value under its column name.
+// each tier stacks as a card (narrowLayout stack), every value beside its column name.
 import { Link, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@bridge-ds/react';
 
 export interface ApprovalsTableProps {

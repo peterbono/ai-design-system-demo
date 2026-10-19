@@ -79,8 +79,9 @@ const signIn = Boolean(signInConfig());
           <>
             {' '}
             <Button variant="link" pressed={false} data-cm-guidance title="Show only these">
-              {lead.guidance}
+              {lead.guidance.replace(/\.$/, '')}
             </Button>
+            {lead.guidance.endsWith('.') && '.'}
           </>
         )}
       </p>

@@ -67,7 +67,7 @@ export interface TableProps extends HTMLAttributes<HTMLTableElement> {
   layout?: 'auto' | 'fixed';
   /**
    * In a container narrower than about 480px: `scroll` keeps the columns and scrolls sideways (default); `stack` shows
-   * each row as a card, every value under its column name. Column names come from the header row, or from `label` on a cell.
+   * each row as a card, every value beside its column name. Column names come from the header row, or from `label` on a cell.
    */
   narrowLayout?: TableNarrowLayout;
 }

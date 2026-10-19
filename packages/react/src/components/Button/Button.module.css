@@ -126,32 +126,35 @@
   outline-offset: var(--border-width-strong);
 }
 
+/* Room for the focus ring around the text without moving the text: padding pulled back by the same margin. */
+.button.link:not(.iconOnly) {
+  margin-inline: calc(var(--space-0-5) * -1);
+  padding-inline: var(--space-0-5);
+}
+
 .link .label {
   overflow: visible;
 }
 
 .button.link:has(> .icon):not(.iconOnly) {
-  padding-inline: 0;
+  padding-inline: var(--space-0-5);
 }
 
-/* Toggle (the `pressed` prop): the selected look follows aria-pressed, so a script can drive a static toggle. A
-   selected fill and a doubled Deep Harbor edge, so the state reads without color too. */
+/* Toggle (the `pressed` prop): the selected look follows aria-pressed, so a script can drive a static toggle. The
+   selected fill and a Deep Harbor edge, like a selected SegmentedControl option; the 2px offset ring stays for focus. */
 .toggle[aria-pressed="true"]:not(.link, .primary, .danger) {
   --_bg: var(--color-surface-selected);
   --_bg-hover: var(--color-surface-selected);
   --_bg-active: var(--color-surface-selected);
   --_text: var(--color-text-default);
   --_border: var(--color-action-primary-bg);
-
-  box-shadow: inset 0 0 0 var(--border-width-default) var(--color-action-primary-bg);
 }
 
-/* A pressed link reads as the current choice: plain text weight, no underline. */
+/* A pressed link reads as the current choice: ink text, heavier, still underlined so it stays clickable. */
 .link.toggle[aria-pressed="true"] {
   --_text: var(--color-text-default);
 
   font-weight: var(--font-weight-semibold);
-  text-decoration: none;
 }
 
 /* Sizes follow density tokens */
