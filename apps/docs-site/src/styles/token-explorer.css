@@ -3786,8 +3786,8 @@ body:has([data-xe-bar]:not([hidden])) .xp[data-surface="app"] .xp-grid {
   .xp[data-surface="app"] [data-many] .xp-td.is-mode::before {
     flex: 0 0 40%;
     color: var(--color-text-muted);
-    font-size: var(--typography-caption-size);
-    line-height: var(--typography-caption-line-height);
+    font-size: var(--typography-ui-size);
+    line-height: var(--typography-ui-line-height);
     content: attr(data-label);
   }
 }
