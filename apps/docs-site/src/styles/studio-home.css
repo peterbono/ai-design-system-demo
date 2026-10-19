@@ -47,8 +47,7 @@
 .sh-art {
   flex: none;
   height: auto;
-  /* The ground line rests on the task list below. */
-  margin-block-end: calc(var(--space-5) * -1);
+  /* The ground line keeps the zone's gap above the task list. */
 }
 
 .sh-strong {
@@ -118,7 +117,8 @@
 }
 
 /* The status reads with its row's text; the button goes to the far end (same edge on every row). */
-.sh-row-action {
+/* Two classes: the DS Button resets its own margin with one class, loaded after this file. */
+.sh-row-body > .sh-row-action {
   margin-inline-start: auto;
 }
 
