@@ -1222,3 +1222,8 @@ body:has(.cg-bar) {
     white-space: normal;
   }
 }
+
+/* One primary per view: while the start form is open, its submit is the action, so the opener button steps aside. */
+.cg-open [aria-controls="ex-start"][aria-expanded="true"] {
+  display: none;
+}
