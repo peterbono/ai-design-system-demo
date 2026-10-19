@@ -81,6 +81,7 @@ import { addedNotice, canAddTo, dismissedApprovals, dismissedSentence, editInCha
 import { backToDraft, detailStatus, mountStatus, statusFallback, unmountStatus, type DetailStatus } from './change-status';
 import { currentStatus, initStatusFilter, lifecycleChip, lifecycleOfRow } from './status-filter';
 import { byLifecycle, emptyFilterLine, needsClosed, showsUnderStatus, statusOpener } from '../lib/change-status';
+import { ROWS_EVENT, type RowsDetail } from '../lib/combine-changes';
 import { behindTag, conflictLine, conflictRows, freshness, libraryLine, nextSteps, resolveLabel, type CompareLike, type Freshness } from '../lib/library-sync';
 import { bringInLatest, checkGuardrail, commitResolution, readCompare, readConflicts, readDismissStale, waitForNewHead } from './reviews/library-sync';
 
@@ -246,13 +247,27 @@ interface Row {
   behindBy?: number | null;
 }
 
-function rowHtml(r: Row) {
+/** `pick`: the row starts with the slot of its "try together" checkbox and ends with the slot of its note. */
+function rowHtml(r: Row, pick = false) {
   const title = humanTitle(mdTitleText(r.title));
-  return `<li class="cg-row" data-pr="${r.number}" ${natureAttr(r.nature)}><a class="cg-row-link" href="?pr=${r.number}" data-open-pr="${r.number}">
+  return `<li class="cg-row${pick ? ' cg-row-pick' : ''}" data-pr="${r.number}" ${natureAttr(r.nature)}>${pick ? `<span class="cg-pick" data-together-slot="${r.number}"></span>` : ''}<a class="cg-row-link" href="?pr=${r.number}" data-open-pr="${r.number}">
     <span class="cg-row-title"><span class="cg-row-name" title="${esc(title)}">${esc(title)}</span> <span class="cg-num">#${r.number}</span> ${devTag(r.nature)}${behindHtml(r.behindBy)}</span>
     ${needTag(r.tier)}
     ${lifecycleChip(r) ?? chip(r)}
-    <time class="cg-date" datetime="${esc(r.updated_at)}">${esc(shortDate(r.updated_at))}</time></a></li>`;
+    <time class="cg-date" datetime="${esc(r.updated_at)}">${esc(shortDate(r.updated_at))}</time></a>${pick ? `<p class="cg-pick-note" data-together-note="${r.number}"></p>` : ''}</li>`;
+}
+
+/** Try several changes together: the selection mounts once, at the end of the list's card (CombineChanges). */
+let togetherMounted = false;
+function mountTogether() {
+  const el = document.getElementById('cg-together');
+  if (togetherMounted || !el) return;
+  togetherMounted = true;
+  void Promise.all([import('../components/ds/studio/CombineChanges'), import('./view-change')]).then(([{ mountCombineChanges }, { readFailure }]) => {
+    mountCombineChanges(el, { admin: el.dataset.admin || null, failure: (err) => readFailure(err, 'A checked change') });
+    // The first paint happened before the module was in: announce the rows again.
+    paintRows(openRows, false);
+  });
 }
 
 /** The open rows last painted, and the recently closed ones once the Shipped or Closed filter asked for them. */
@@ -275,7 +290,12 @@ function paintRows(rows: Row[], loading: boolean) {
     .filter((x) => showsUnderStatus(status, x.lifecycle))
     .map((x) => x.r);
   const none = status !== 'open' ? emptyFilterLine(status) : `Nothing waits here: ${approvalNeedLong(tier).toLowerCase()}.`;
-  list.innerHTML = sorted.length ? sorted.map(rowHtml).join('') : `<li class="cg-row cg-none">${esc(needsClosed(status) && !closedRows ? 'Reading recent changes from GitHub.' : none)}</li>`;
+  // Open changes can be tried together (2 or more listed): each row gets its checkbox slot.
+  const pick = status === 'open' && sorted.length >= 2;
+  list.innerHTML = sorted.length ? sorted.map((r) => rowHtml(r, pick)).join('') : `<li class="cg-row cg-none">${esc(needsClosed(status) && !closedRows ? 'Reading recent changes from GitHub.' : none)}</li>`;
+  const detail: RowsDetail = { show: pick, listed: pick ? sorted.map((r) => ({ number: r.number, title: r.title, sha: r.head.sha })) : [] };
+  document.dispatchEvent(new CustomEvent(ROWS_EVENT, { detail }));
+  if (pick) mountTogether();
   // Another status than Open always shows its list, even when nothing is open; the opener speaks about open changes.
   if (status !== 'open') {
     $('cg-table').hidden = false;

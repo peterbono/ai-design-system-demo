@@ -20,7 +20,7 @@ import { WORK_FILTERS } from '../../lib/work-nature';
 import { STATUS_FILTERS } from '../../lib/change-status';
 import { siteRepo } from '../../lib/config';
 import { EXPLORATION_USE_CASES } from '@bridge-ds/core';
-import { lastUpdated, PREVIEW_APPS, PREVIEW_PACKAGES, readText } from '../../lib/repo';
+import { lastUpdated, PREVIEW_APPS, PREVIEW_PACKAGES, PRODUCTION_APPS, readText } from '../../lib/repo';
 import { CONTRAST_FILE } from '../../lib/contrast';
 import { pendingChangesets, versionInfo } from '../../lib/changelog';
 import { waitingLine } from '../../lib/release-view';
@@ -109,6 +109,8 @@ const signIn = Boolean(signInConfig());
             <li class="cg-row cg-skel" aria-hidden="true"></li>
             <li class="cg-row cg-skel" aria-hidden="true"></li>
           </ul>
+          {/* Try several changes together (components/ds/studio/CombineChanges): the selection bar of this list. */}
+          <div class="cg-together" id="cg-together" data-admin={PRODUCTION_APPS.admin ?? ''}></div>
         </div>
 
         <p class="cg-muted cg-work-none" data-work-none hidden></p>

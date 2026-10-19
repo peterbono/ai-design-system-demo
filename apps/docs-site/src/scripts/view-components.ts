@@ -4,8 +4,8 @@
 // banner says both in one sentence. The list, its guidance text and its counts stay the latest library's: it says so.
 import { buildTokenSet, layoutOptions, loadConfig } from '@bridge-ds/core';
 import { previewOverrides } from '../lib/editor-model';
-import { bannerBody, changedComponents, changedGuidance, GUIDANCE_LABEL, LOOKS_LABEL, overrideCss } from '../lib/view-scope';
-import { changeLibrary, currentPull, pageScope, readFailure, setBannerBody, setBannerError } from './view-change';
+import { bannerBody, changedComponents, changedGuidance, GUIDANCE_LABEL, isTogether, LOOKS_LABEL, overrideCss } from '../lib/view-scope';
+import { currentPull, pageScope, readFailure, scopeLibrary, setBannerBody, setBannerError } from './view-change';
 
 interface LibraryFiles {
   tokensRoot: string;
@@ -22,7 +22,7 @@ export async function initViewOnComponents(root: HTMLElement) {
   if (!pull) return;
   root.dataset.view = 'loading';
   try {
-    const [p, latest] = await Promise.all([
+    const [, latest] = await Promise.all([
       pull,
       fetch('/studio/library-files.json').then((r) => {
         if (!r.ok) throw new Error('The latest library could not be read.');
@@ -30,7 +30,7 @@ export async function initViewOnComponents(root: HTMLElement) {
       }),
     ]);
     const config = loadConfig(latest.config);
-    const lib = await changeLibrary(p, latest.files, latest.tokensRoot, [latest.componentsDir]);
+    const lib = await scopeLibrary(latest.files, latest.tokensRoot, [latest.componentsDir]);
     const opts = layoutOptions(config);
     const main = buildTokenSet(latest.files, opts);
     const head = buildTokenSet(lib.files, opts);
@@ -45,7 +45,8 @@ export async function initViewOnComponents(root: HTMLElement) {
 
     const vars = new Set(Object.values(byTheme).flatMap((v) => Object.keys(v)));
     const looks = changedComponents(latest.components, vars);
-    const guidance = changedGuidance(latest.docs, lib.extra);
+    // Changes shown together are token changes only, and have no tree to compare guidance with.
+    const guidance = lib.extra ? changedGuidance(latest.docs, lib.extra) : [];
     const mark = (slug: string, label: string) => {
       const body = root.querySelector(`[data-cm-row="${CSS.escape(slug)}"] .cm-name-body`);
       if (!body) return;
@@ -56,10 +57,10 @@ export async function initViewOnComponents(root: HTMLElement) {
     };
     looks.forEach((s) => mark(s, LOOKS_LABEL));
     guidance.forEach((s) => mark(s, GUIDANCE_LABEL));
-    setBannerBody(bannerBody('components', { components: looks.length, guidance: guidance.map((s) => latest.docs[s]?.name ?? s) }));
+    setBannerBody(bannerBody('components', { components: looks.length, guidance: guidance.map((s) => latest.docs[s]?.name ?? s), together: isTogether(pageScope()) }));
     root.dataset.view = 'ready';
   } catch (err) {
     root.dataset.view = 'error';
-    setBannerError(readFailure(err, 'This change'));
+    setBannerError(readFailure(err, isTogether(pageScope()) ? 'These changes' : 'This change'));
   }
 }

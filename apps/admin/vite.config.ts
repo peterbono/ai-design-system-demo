@@ -7,7 +7,8 @@ const root = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 // What the Bridge toolbar (src/bridge) needs to know about this repository and this deploy, read once at build time:
 // the repository, production Studio and admin, the admin preview template, and whether Vercel builds production.
 const config = JSON.parse(readFileSync(root('../../bridge.config.json'), 'utf8')) as {
-  repo: { owner: string; name: string };
+  repo: { owner: string; name: string; defaultBranch?: string };
+  tokens?: { root?: string };
   previews?: { apps?: { admin?: string }; production?: { docs?: string; admin?: string } };
 };
 const bridgeBuild = {
@@ -17,6 +18,8 @@ const bridgeBuild = {
   productionAdmin: config.previews?.production?.admin ?? null,
   adminTemplate: config.previews?.apps?.admin ?? null,
   deployEnv: process.env.VERCEL_ENV ?? null,
+  defaultBranch: config.repo.defaultBranch ?? 'main',
+  tokensRoot: config.tokens?.root ?? 'packages/tokens/src',
 };
 
 // The admin consumes the design system from source, like Storybook does, so a token or component change
@@ -34,6 +37,8 @@ export default defineConfig({
       { find: '@bridge-ds/tokens/tokens.css', replacement: root('../../packages/tokens/dist/tokens.css') },
       { find: '@bridge-ds/tokens/fonts.css', replacement: root('../../packages/tokens/fonts.css') },
       { find: /^@bridge-ds\/tokens$/, replacement: root('../../packages/tokens/dist/tokens.ts') },
+      // Changes tried together combine token files in the browser (src/bridge/together.ts, loaded only then).
+      { find: /^@bridge-ds\/core$/, replacement: root('../../packages/core/src/index.ts') },
       // The data generator imports the full faker build (every locale, about 2 MB). English is enough.
       { find: /^@faker-js\/faker$/, replacement: '@faker-js/faker/locale/en' },
     ],

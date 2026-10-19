@@ -7,12 +7,15 @@
 //     API (60 reads an hour for visitors), then only the files whose content differs from this build, read from
 //     raw.githubusercontent.com (no API read) or, signed in, from the API. Kept in this browser per version, so the
 //     next page and the next visit read nothing again until the change gets new edits.
-import { GitHubError } from '@bridge-ds/core';
+//   - scopeLibrary(): the same for 2 to 4 changes shown together (?change=N,M): the latest library plus each one's
+//     own token edits (scripts/combine-read, @bridge-ds/core token-combine), with the picks the address carries.
+import { combineChanges, decodePicks, GitHubError } from '@bridge-ds/core';
 import {
   bannerTitle,
   changePageHref,
   editInChangeHref,
   gitBlobSha,
+  isTogether,
   keepScopeHref,
   LATEST,
   optionValue,
@@ -21,8 +24,12 @@ import {
   planFiles,
   readError,
   scopeHref,
+  scopeChanges,
   scopeOf,
   staleKeys,
+  togetherOption,
+  togetherTitle,
+  togetherValue,
   VIEW_CACHE_PREFIX,
   VIEW_OPTIONS_EVENT,
   VIEW_PICK_EVENT,
@@ -41,6 +48,8 @@ import { isTokenChange } from '../lib/continue-change';
 import { ghVerb } from '../lib/gh-wording';
 import { API, getToken, ghGet, hasWorkingToken, prefersSignIn, RateLimitError, readRepo, studioFetch } from './github-session';
 import { readCached, type PullForStatus, type PullStatus } from './pr-status';
+import { readTogetherSource } from './combine-read';
+import { CODE_LINE } from '../lib/combine-changes';
 import { todoChange, type QueuePullFull } from './needs-you';
 
 export interface OpenPull extends ViewPull {
@@ -92,9 +101,33 @@ export function currentPull(): Promise<OpenPull> | null {
   return current;
 }
 
+let currentAll: Promise<OpenPull[]> | null = null;
+
+/** Every change the address shows (one, or the 2 to 4 shown together), in the address order. */
+export function currentPulls(): Promise<OpenPull[]> | null {
+  const scope = pageScope();
+  if (scope.kind === 'latest') return null;
+  const numbers = scopeChanges(scope);
+  currentAll ??= readOpenPulls()
+    .then((f) => f.data)
+    .catch(() => [] as OpenPull[])
+    .then((open) =>
+      Promise.all(
+        numbers.map(async (n) => {
+          const p = open.find((x) => x.number === n);
+          if (p) return p;
+          const { owner, repo } = readRepo();
+          return (await ghGet<OpenPull>(`/repos/${owner}/${repo}/pulls/${n}`)).data;
+        }),
+      ),
+    );
+  return currentAll;
+}
+
 /** Why a read failed, in words that say how to fix it. */
 export function readFailure(err: unknown, title: string): string {
   const reset = err instanceof RateLimitError && err.resetAt ? err.resetAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null;
+  if (err instanceof TogetherError) return err.message;
   const kind = err instanceof RateLimitError ? 'rate' : err instanceof GitHubError && err.status === 404 ? 'missing' : 'other';
   return readError(kind, title, ghVerb(prefersSignIn()), reset);
 }
@@ -220,11 +253,53 @@ export function changeLibrary(pull: OpenPull, main: Record<string, string>, root
   return p;
 }
 
+/** What a page shows: the token files, the component guidance ids (one change only), and where each token comes from. */
+export interface ScopeLibrary {
+  files: Record<string, string>;
+  /** Files of the change's tree under the extra roots (one change only: a combination has no tree). */
+  extra: Record<string, string> | null;
+  /** Changes shown together: token path -> the changes whose value it takes. Null for one change. */
+  from: Record<string, number[]> | null;
+  /** Changes shown together that set a token differently: the address's picks decided. */
+  picked: boolean;
+}
+
+/**
+ * The library a page shows for its address. One change: its token files (changeLibrary). Several together: the latest
+ * library plus each one's own token edits, with the picks of the address. A code change, or a token they set
+ * differently with no pick, stops with a sentence that says how to fix it (never a guess).
+ */
+export async function scopeLibrary(main: Record<string, string>, root: string, extraRoots: string[] = []): Promise<ScopeLibrary> {
+  const scope = pageScope();
+  if (!isTogether(scope)) {
+    const pull = currentPull();
+    if (!pull) return { files: main, extra: null, from: null, picked: false };
+    const lib = await changeLibrary(await pull, main, root, extraRoots);
+    return { files: lib.files, extra: lib.extra, from: null, picked: false };
+  }
+  const pulls = (await currentPulls())!;
+  const sources = await Promise.all(pulls.map((p) => readTogetherSource(p, root)));
+  const code = sources.find((x) => !x.tokens);
+  if (code) throw new TogetherError(`${viewTitle(code.title)}: ${CODE_LINE.charAt(0).toLowerCase()}${CODE_LINE.slice(1)} Go back to Changes and check token changes only.`);
+  const combo = combineChanges(main, sources.map((x) => x.edits!), decodePicks(scope.kind === 'view' ? scope.use : null));
+  if (combo.problems.length) throw new TogetherError(`These changes cannot be combined here: ${combo.problems[0]}.`);
+  if (combo.missing.length) {
+    const n = combo.missing.length;
+    throw new TogetherError(`${n === 1 ? '1 token has' : `${n} tokens have`} different values in these changes. Pick which one to use in Changes, then view them again.`);
+  }
+  return { files: combo.files, extra: null, from: combo.from, picked: combo.conflicts.length > 0 };
+}
+
+/** A combination that cannot be shown as asked: its message is the banner's text. */
+export class TogetherError extends Error {}
+
 // ---------------------------------------------------------------------------------------------------------------
 // Banner
 
 interface BannerState {
   title: string;
+  /** Changes shown together: their titles, in the address order. */
+  titles?: string[];
   body: string;
   error?: boolean;
   editable?: boolean;
@@ -235,7 +310,11 @@ let bannerState: BannerState | null = null;
 function bannerOf(): BannerState | null {
   const scope = pageScope();
   if (scope.kind !== 'view') return null;
-  bannerState ??= { title: `change #${scope.change}`, body: pageOf(location.pathname) === 'quality' ? '' : 'Reading its tokens.' };
+  const together = isTogether(scope);
+  bannerState ??= {
+    title: together ? scopeChanges(scope).map((n) => `#${n}`).join(', ') : `change #${scope.change}`,
+    body: pageOf(location.pathname) === 'quality' ? '' : together ? 'Reading their tokens.' : 'Reading its tokens.',
+  };
   return bannerState;
 }
 
@@ -255,13 +334,15 @@ function bannerProps() {
   if (!slot || scope.kind !== 'view' || !banner) return null;
   slot.hidden = false;
   const page = pageOf(location.pathname);
+  const together = isTogether(scope);
   const props = {
-    title: banner.error ? banner.title : bannerTitle(banner.title),
+    title: banner.error ? banner.title : together ? togetherTitle(banner.titles ?? []) : bannerTitle(banner.title),
     body: banner.body,
     error: banner.error,
     latestHref: scopeHref(location, LATEST),
-    changeHref: page === 'quality' && !banner.error ? null : changePageHref(scope.change),
-    editHref: page === 'tokens' && banner.editable && !banner.error ? editInChangeHref(scope.change) : null,
+    // Changes shown together have no one change page: the way back is the latest library (and Changes, in the nav).
+    changeHref: together || (page === 'quality' && !banner.error) ? null : changePageHref(scope.change),
+    editHref: !together && page === 'tokens' && banner.editable && !banner.error ? editInChangeHref(scope.change) : null,
   };
   return { slot, props };
 }
@@ -278,7 +359,7 @@ export function setBannerBody(body: string) {
 export function setBannerError(text: string) {
   const banner = bannerOf();
   if (!banner) return;
-  Object.assign(banner, { title: 'This change could not be shown', body: text, error: true });
+  Object.assign(banner, { title: isTogether(pageScope()) ? 'These changes could not be shown together' : 'This change could not be shown', body: text, error: true });
   paintBanner();
 }
 
@@ -297,17 +378,22 @@ export function initViewChange() {
 
   // Keep the view while moving between Studio pages (never the edit, which belongs to Tokens).
   if (scope.kind !== 'latest') {
-    const view: LibraryScope = { kind: 'view', change: scope.change };
+    const view: LibraryScope = scope.kind === 'edit' ? { kind: 'view', change: scope.change } : scope;
     document.querySelectorAll<HTMLAnchorElement>('a[data-keep-branch]').forEach((a) => (a.href = keepScopeHref(a.getAttribute('href') ?? '', view, location.href)));
     document.querySelectorAll<HTMLAnchorElement>('a[data-change-href]').forEach((a) => (a.href = changePageHref(scope.change)));
   }
 
   if (!document.querySelector('[data-view-pick]')) return;
-  const value = optionValue(scope.kind === 'latest' ? null : scope.change);
-  const placeholder = scope.kind === 'latest' ? [] : [{ value, label: `Change #${scope.change}`, description: 'Reading it', group: 'Open changes' }];
+  const together = isTogether(scope);
+  const value = together ? togetherValue(scopeChanges(scope)) : optionValue(scope.kind === 'latest' ? null : scope.change);
+  const placeholder = scope.kind === 'latest' ? [] : together ? [togetherOption(scopeChanges(scope), [])] : [{ value, label: `Change #${scope.change}`, description: 'Reading it', group: 'Open changes' }];
+  /** The options with the changes shown together first, as the selector's current value. */
+  const withTogether = (options: ReturnType<typeof viewOptions>, titles: string[]) => (together ? [options[0]!, togetherOption(scopeChanges(scope), titles), ...options.slice(1)] : options);
+  let titles: string[] = [];
   sendOptions({ options: [...viewOptions([], { defaultBranch, lifecycleOf })].concat(placeholder), value });
   document.addEventListener(VIEW_READY_EVENT, () => last && sendOptions(last));
   document.addEventListener(VIEW_PICK_EVENT, (e) => {
+    if ((e as CustomEvent<string>).detail === value) return;
     const n = parseOptionValue((e as CustomEvent<string>).detail);
     location.href = scopeHref(location, n ? { kind: 'view', change: n } : LATEST);
   });
@@ -317,13 +403,24 @@ export function initViewChange() {
   readOpenPulls()
     .then(async (f) => {
       const cur = pull ? await pull.catch(() => null) : null;
-      sendOptions({ options: viewOptions(f.data, { defaultBranch, lifecycleOf, current: cur }), value, note: f.stale ? 'GitHub could not be reached: the changes listed are from your last visit.' : undefined });
+      const all = together ? await (currentPulls() ?? Promise.resolve([])).catch(() => []) : [];
+      titles = all.map((p) => viewTitle(p.title));
+      sendOptions({ options: withTogether(viewOptions(f.data, { defaultBranch, lifecycleOf, current: together ? null : cur }), titles), value, note: f.stale ? 'GitHub could not be reached: the changes listed are from your last visit.' : undefined });
     })
     .catch(async () => {
       const cur = pull ? await pull.catch(() => null) : null;
-      sendOptions({ options: viewOptions([], { defaultBranch, lifecycleOf, current: cur }), value, note: `GitHub could not be reached, so no change is listed. ${ghVerb(prefersSignIn())} or try again in a minute.` });
+      sendOptions({ options: withTogether(viewOptions([], { defaultBranch, lifecycleOf, current: together ? null : cur }), titles), value, note: `GitHub could not be reached, so no change is listed. ${ghVerb(prefersSignIn())} or try again in a minute.` });
     });
-  if (scope.kind === 'view' && pull) {
+  if (together) {
+    currentPulls()!
+      .then((pulls) => {
+        const banner = bannerOf();
+        if (!banner || banner.error) return;
+        banner.titles = pulls.map((p) => viewTitle(p.title));
+        paintBanner();
+      })
+      .catch((err) => setBannerError(readFailure(err, 'These changes')));
+  } else if (scope.kind === 'view' && pull) {
     pull
       .then((p) => {
         const banner = bannerOf();

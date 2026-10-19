@@ -5,7 +5,8 @@
     "types": ["vite/client"],
     "paths": {
       "@bridge-ds/react": ["../../packages/react/src/index.ts"],
-      "@bridge-ds/tokens": ["../../packages/tokens/dist/tokens.ts"]
+      "@bridge-ds/tokens": ["../../packages/tokens/dist/tokens.ts"],
+      "@bridge-ds/core": ["../../packages/core/src/index.ts"]
     }
   },
   "include": ["src"],

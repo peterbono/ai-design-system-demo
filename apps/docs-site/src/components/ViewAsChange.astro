@@ -1,7 +1,7 @@
 ---
 // "Viewing: Latest library" in the Studio top bar, on the pages that can show a change (lib/nav branchAware: Tokens,
 // Components, Quality). The DS Select island lists the open changes (scripts/view-change.ts fills it); picking one
-// shows the page as that change (?change=N, lib/view-scope). The inline script marks the document before the page
+// shows the page as that change (?change=N, or ?change=N,M for changes tried together, lib/view-scope). The inline script marks the document before the page
 // paints, so a page never flashes latest library numbers while it shows a change (html[data-view-change]).
 import '../styles/view-change.css';
 import ViewingSelect from './ds/studio/ViewingSelect';
@@ -9,10 +9,13 @@ import ViewingSelect from './ds/studio/ViewingSelect';
 
 <script is:inline>
   (function () {
-    var m = /[?&]change=(\d+)(?:&|$)/.exec(location.search);
+    var m = /[?&]change=(\d+(?:(?:,|%2C)\d+)*)(?:&|$)/i.exec(location.search);
     if (!m) return;
     var root = document.documentElement;
-    root.setAttribute('data-view-change', m[1]);
+    var list = m[1].split(/,|%2C/i);
+    root.setAttribute('data-view-change', list.join(','));
+    // Several changes shown together (lib/view-scope ?change=N,M): pages say what exists for a combination.
+    if (list.length > 1) root.setAttribute('data-view-together', '');
     if (/[?&]edit=1(?:&|$)/.test(location.search) && /^\/studio\/tokens\/?$/.test(location.pathname)) root.setAttribute('data-view-edit', '');
   })();
 </script>
