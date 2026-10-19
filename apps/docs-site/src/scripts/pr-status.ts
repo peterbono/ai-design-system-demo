@@ -11,6 +11,7 @@ import { badgeHtml, tooltipAttributes } from '@bridge-ds/react/dom';
 import { currentViewer, ghGet, hasWorkingToken, prefersSignIn, readRepo } from './github-session';
 import { ghAction } from '../lib/gh-wording';
 import { needFromStatus, statusTone, whoActs } from '../lib/changes';
+import { developerOnlyFailures } from '../lib/check-explain';
 import { planStatusReads, statusCacheKey, type CachedStatus } from '../lib/status-budget';
 import type { TeamStates } from '@bridge-ds/core';
 import { loadTeams, siteApproverEntries, siteApprovers, siteShipPolicy, teamSnapshot } from './teams';
@@ -180,10 +181,10 @@ export function statusChip(s: ReviewStatus | null, opts: { skipped?: boolean } =
  */
 export function whoChip(
   kind: ReviewStatusKind | null,
-  o: { author: string; approvers?: string[]; changesRequested?: string[]; failing?: number; skipped?: boolean },
+  o: { author: string; approvers?: string[]; changesRequested?: string[]; failing?: number; failingChecks?: string[]; skipped?: boolean },
 ): string {
   if (o.skipped || !kind) return statusChip(null, { skipped: o.skipped });
-  const who = whoActs(needFromStatus(kind, { failing: o.failing, changesRequestedBy: o.changesRequested }), {
+  const who = whoActs(needFromStatus(kind, { failing: o.failing, changesRequestedBy: o.changesRequested, developerOnly: developerOnlyFailures(o.failingChecks) }), {
     owners: owners(),
     shippers: shippers(),
     ...teamPeople(),

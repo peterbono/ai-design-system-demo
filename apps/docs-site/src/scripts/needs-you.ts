@@ -2,6 +2,7 @@
 // the Changes nav badge in the shell, so both read the same rule (lib/overview-todo reviewNeedsYou) from the same
 // statuses. Who acts now: lib/changes whoActs, with the owners, ship rights, teams and override from the config.
 import { needFromStatus, whoActs, type WhoActs } from '../lib/changes';
+import { developerOnlyFailures } from '../lib/check-explain';
 import { oneLineTitle } from '../lib/markdown';
 import { humanTitle } from '../lib/pr-title';
 import { isGuidanceChange, reviewNeedsYou, type TodoChange } from '../lib/overview-todo';
@@ -39,7 +40,7 @@ export const siteOwners = () => {
 /** Who acts now on a change, for the connected viewer (same rules as the change detail). */
 export function whoFor(p: PullForStatus, st: PullStatus | null | undefined): WhoActs | null {
   return st
-    ? whoActs(needFromStatus(st.kind, { failing: st.failing, changesRequestedBy: st.changesRequested }), {
+    ? whoActs(needFromStatus(st.kind, { failing: st.failing, changesRequestedBy: st.changesRequested, developerOnly: developerOnlyFailures(st.failingChecks) }), {
         owners: owners(),
         shippers: shippers(),
         ...teamPeople(),

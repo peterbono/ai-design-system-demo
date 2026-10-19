@@ -314,8 +314,9 @@ export function changedTokens(main: TokenSet, change: TokenSet): TokenMarks {
   return { marks, removed };
 }
 
-export const CHANGED_LABEL = 'Changed in this change';
-export const ADDED_LABEL = 'New in this change';
+// Short on purpose: the banner on top already says which change the page shows, so every marked row does not repeat it.
+export const CHANGED_LABEL = 'Changed';
+export const ADDED_LABEL = 'New';
 /** Components: why a row is marked. */
 export const LOOKS_LABEL = 'Looks different';
 export const GUIDANCE_LABEL = 'Guidance edited';
@@ -415,7 +416,7 @@ export function markLabel(mark: Pick<TokenMark, 'kind' | 'modes' | 'from'>): str
   const theme = onlyTheme(mark);
   if (mark.from?.length) return `${fromLabel(mark.kind, mark.from)}${theme ? `, ${theme} theme only` : ''}`;
   if (mark.kind === 'added') return ADDED_LABEL;
-  return theme ? `Changed in ${theme} theme only` : CHANGED_LABEL;
+  return theme ? `Changed, ${theme} theme only` : CHANGED_LABEL;
 }
 
 /** What this page shows of the change, in one sentence (null while reading). */

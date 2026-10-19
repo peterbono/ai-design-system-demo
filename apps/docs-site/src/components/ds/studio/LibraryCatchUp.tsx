@@ -98,7 +98,7 @@ function Resolver({ source, label, primary }: { source: ResolverSource; label: s
 
   return (
     <Dialog open={open} onOpenChange={(o) => !busy && setOpen(o)}>
-      <Button variant={primary ? 'primary' : 'secondary'} size="lg" onClick={() => setOpen(true)}>
+      <Button variant={primary ? 'primary' : 'secondary'} size="md" onClick={() => setOpen(true)}>
         {label}
       </Button>
       <DialogContent
@@ -153,8 +153,7 @@ function Update({ label, primary, onUpdate }: { label: string; primary: boolean;
   return (
     <Button
       variant={primary ? 'primary' : 'secondary'}
-      size="lg"
-     
+      size="md"
       loading={busy}
       disabled={busy}
       onClick={() => {

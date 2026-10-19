@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { approvalHelp, checkStory, classifyCheck, failingSentence, jobIdFromUrl, reviewAskMessage, shipWhen, type DesignFacts } from './check-explain';
+import { approvalHelp, checkStory, classifyCheck, developerOnlyFailures, failingSentence, jobIdFromUrl, reviewAskMessage, shipWhen, type DesignFacts } from './check-explain';
 
 // The three failing checks of change #101 (color.bg.default from neutral.0 to neutral.50), as GitHub reported them.
 const run = (id: number) => `https://github.com/peterbono/ai-design-system-demo/actions/runs/39133143413/job/${id}`;
@@ -145,5 +145,15 @@ describe('reviewAskMessage and shipWhen', () => {
     expect(shipWhen({ ciFail: true, missingApprovals: 2 })).toBe('Ship unlocks once tests pass and the approvals are in.');
     expect(shipWhen({ ciPending: true, missingApprovals: 1, conflict: true })).toBe('Ship unlocks once tests finish, the approval is in and the conflict is resolved.');
     expect(shipWhen({})).toBeNull();
+  });
+});
+
+describe('developerOnlyFailures', () => {
+  it('is true only when every failing check is a developer check', () => {
+    expect(developerOnlyFailures(['Unit and a11y tests', 'Typecheck'])).toBe(true);
+    expect(developerOnlyFailures(['Unit and a11y tests', 'Contrast checks'])).toBe(false);
+    expect(developerOnlyFailures(['Visual impact'])).toBe(false);
+    expect(developerOnlyFailures([])).toBe(false);
+    expect(developerOnlyFailures(undefined)).toBe(false);
   });
 });

@@ -312,7 +312,7 @@ describe('several changes together in the address', () => {
     expect(onlyTheme({ kind: 'changed', modes: ['value'] })).toBeNull();
     expect(onlyTheme({ kind: 'changed', modes: ['compact'] })).toBeNull();
     expect(onlyTheme({ kind: 'added', modes: ['light'] })).toBeNull();
-    expect(markLabel({ kind: 'changed', modes: ['dark'] })).toBe('Changed in dark theme only');
+    expect(markLabel({ kind: 'changed', modes: ['dark'] })).toBe('Changed, dark theme only');
     expect(markLabel({ kind: 'changed', modes: ['light', 'dark'] })).toBe(CHANGED_LABEL);
     expect(markLabel({ kind: 'added', modes: ['light', 'dark'] })).toBe(ADDED_LABEL);
     expect(markLabel({ kind: 'changed', modes: ['light'], from: [118] })).toBe('Changed in #118, light theme only');

@@ -55,6 +55,8 @@
     ["color.text.on-solid", "color.feedback.warning.solid", 4.5],
     ["color.text.on-solid", "color.feedback.danger.solid", 4.5],
     ["color.text.on-solid", "color.feedback.info.solid", 4.5],
+    ["color.text.on-solid", "color.surface.strong", 4.5],
+    ["color.text.muted", "color.feedback.neutral.bg", 4.5],
     ["color.text.default", "color.selection.bg", 4.5],
     ["color.chart.series.1", "color.surface.default", 3],
     ["color.chart.series.1", "color.bg.default", 3],

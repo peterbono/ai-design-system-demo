@@ -113,9 +113,11 @@
 }
 
 /* The raised surface, not the default one: in dark the default surface is the track's own color, so the plate
-   vanished. Raised is white in light (unchanged) and one step lighter than the track in dark. */
+   vanished. Raised is white in light and one step lighter than the track in dark. Its edge is the checked control
+   color (Deep Harbor in light, light Harbor in dark), the same edge as a pressed Button toggle: border.default was
+   the plate's own color in dark, so the selected segment had no edge there. */
 .segment[aria-checked="true"] {
-  border-color: var(--color-border-default);
+  border-color: var(--color-control-checked-bg);
   background-color: var(--color-surface-raised);
   color: var(--color-text-default);
   box-shadow: var(--elevation-raised);

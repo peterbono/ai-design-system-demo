@@ -289,15 +289,6 @@
   margin: var(--space-3) 0 0;
 }
 
-.ad-scroll {
-  max-width: 100%;
-  overflow-x: auto;
-}
-
-.ad-scroll code {
-  white-space: nowrap;
-}
-
 .ad-dev-body p code {
   overflow-wrap: anywhere;
 }

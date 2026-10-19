@@ -1180,40 +1180,21 @@ tr:target {
   background-color: var(--color-bg-subtle);
 }
 
+/* The kind of a result: the same glyph as the side nav (Components, a page, Tokens) in the muted text color; a color
+   token shows its own color instead, on a bordered tile. */
 .palette-kind {
   display: grid;
   place-items: center;
   width: var(--size-7);
   height: var(--size-7);
   flex-shrink: 0;
-  border: var(--border-width-default) solid var(--color-border-default);
   border-radius: var(--radius-control);
-  background-color: var(--color-bg-default);
-}
-
-.palette-kind::after {
-  content: "";
-  width: var(--space-2);
-  height: var(--space-2);
-  border-radius: var(--radius-inset);
-  background-color: var(--color-chart-series-6);
-}
-
-.palette-kind.kind-component::after {
-  border-radius: 50%;
-  background-color: var(--color-chart-series-2);
-}
-
-.palette-kind.kind-page::after {
-  background-color: var(--color-signal-default);
+  color: var(--color-text-muted);
 }
 
 .palette-kind.has-swatch {
+  border: var(--border-width-default) solid var(--color-border-default);
   background-color: var(--sw);
-}
-
-.palette-kind.has-swatch::after {
-  display: none;
 }
 
 .palette-body {

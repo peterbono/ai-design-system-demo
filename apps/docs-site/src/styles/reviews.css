@@ -524,7 +524,7 @@
   justify-self: start;
 }
 
-.rv-ov-dialog #rv-ov-desc {
+.rv-ov-desc {
   display: grid;
   gap: var(--space-2);
 }
@@ -537,33 +537,14 @@
   font-size: var(--typography-ui-size);
 }
 
-.rv-ov-dialog textarea {
-  resize: vertical;
+/* The developer fold of the override dialog: flush with the dialog body, the merge method under its sentence. */
+.rv-ov-dev > .cg-sec-head {
+  padding-inline: var(--space-4);
 }
 
-.rv-ov-dialog textarea[aria-invalid="true"] {
-  border-color: var(--color-feedback-danger-text);
-}
-
-.rv-ov-dialog select {
-  width: 100%;
-  min-height: var(--size-10);
-  padding: var(--space-2) var(--space-3);
-  border: var(--border-width-default) solid var(--color-border-emphasis);
-  border-radius: var(--radius-control);
-  background-color: var(--color-surface-default);
-  color: var(--color-text-default);
-  font: inherit;
-  font-size: var(--typography-ui-size);
-}
-
-.rv-ov-dialog select:focus-visible {
-  outline: var(--border-width-strong) solid var(--focus-ring-color);
-  outline-offset: var(--border-width-default);
-}
-
-#rv-ov-count {
-  margin-top: calc(var(--space-1-5) * -1);
+.rv-ov-dev > .cg-sec-body {
+  padding-inline: var(--space-4);
+  padding-block-end: var(--space-4);
 }
 
 .rv-actions h2 {

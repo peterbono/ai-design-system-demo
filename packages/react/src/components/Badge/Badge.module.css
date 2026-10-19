@@ -49,8 +49,9 @@
 }
 
 /* Subtle: tinted fill, toned text. Default for lists and tables. */
+/* The neutral status fill, not bg.subtle: in dark bg.subtle is the card color, so the badge lost its fill on cards. */
 .subtle.neutral {
-  --_bg: var(--color-bg-subtle);
+  --_bg: var(--color-feedback-neutral-bg);
   --_border: var(--color-border-default);
   --_text: var(--color-text-muted);
   --_mark: var(--color-text-muted);

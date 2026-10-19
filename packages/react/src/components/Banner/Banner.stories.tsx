@@ -63,7 +63,7 @@ export const StickyTop: Story = {
       <Banner {...args} icon={Eye} actions={backToLatest} sticky="top" />
       {Array.from({ length: 12 }, (_, i) => (
         <p key={i} style={{ margin: 'var(--space-3) var(--space-4)' }}>
-          color.action.primary.bg row {i + 1}
+          color.surface.strong row {i + 1}
         </p>
       ))}
     </div>

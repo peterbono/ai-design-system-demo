@@ -12,10 +12,11 @@ import '../../styles/explorations.css';
 import Layout from '../../layouts/Layout.astro';
 import StudioHeader from '../../components/StudioHeader.astro';
 import HistoryPlanner from '../../components/HistoryPlanner.astro';
+import ScriptDialog from '../../components/ds/ScriptDialog.astro';
 import Illustration from '../../components/Illustration.astro';
 import { siteIcon } from '../../brand/site-icons';
 import ButtonLink from '../../components/ds/ButtonLink';
-import { Alert, Button, CodeBlock, Icon, Input, Link, SegmentedControl, Switch, Textarea } from '@bridge-ds/react';
+import { Alert, Button, ButtonGroup, CodeBlock, Icon, Input, Link, SegmentedControl, Switch, Textarea } from '@bridge-ds/react';
 import BridgedSelect from '../../components/ds/BridgedSelect';
 import { WORK_FILTERS } from '../../lib/work-nature';
 import { siteRepo } from '../../lib/config';
@@ -66,7 +67,7 @@ const signIn = Boolean(signInConfig());
       <StudioHeader title="Changes" />
       <div class="page-tabs cg-tabs" role="tablist" aria-label="Changes">
         <Link variant="subtle" role="tab" id="cg-tab-review" href="/studio/changes/" aria-controls="cg-review" aria-selected="true" tabIndex={0} data-cg-view="review">
-          All changes <span class="cg-tab-n num" id="rv-count" title="Open changes" hidden></span>
+          All<span class="cg-tab-long"> changes</span> <span class="cg-tab-n num" id="rv-count" title="Open changes" hidden></span>
         </Link>
         <Link variant="subtle" role="tab" id="cg-tab-requests" href="/studio/changes/?view=requests" aria-controls="cg-requests" aria-selected="false" tabIndex={-1} data-cg-view="requests">
           Requests <span class="cg-tab-n num" id="rq-count" hidden></span>
@@ -289,6 +290,43 @@ const signIn = Boolean(signInConfig());
   </div>
 
   <HistoryPlanner />
+  {/* The owner override confirmation (scripts/reviews.ts wireOverride fills the change number, the skipped approvals
+      and the allowed ship methods, then opens it). The DS Dialog for plain scripts: focus trap, Escape, scrim. */}
+  <ScriptDialog id="rv-ov" title="Ship as owner override?" closeLabel="Close" disablePointerDismissal popup={{ role: 'alertdialog', 'aria-describedby': 'rv-ov-desc' }}>
+    <div class="gh-dialog-body">
+      <div id="rv-ov-desc" class="rv-ov-desc">
+        <p>This ships the change into the library without:</p>
+        <ul class="rv-ov-missing" data-rv-ov="missing"></ul>
+        <p>Tests pass and nobody asked for changes. Your reason is posted on the change, so History shows who skipped the approvals and why.</p>
+      </div>
+      <Textarea label="Reason" data-rv-ov="reason" rows={3} hint="Shown on the change." placeholder="Solo maintainer, tests pass, I reviewed the token diff and contrast." />
+      <Alert tone="danger" className="st-hideable" data-rv-ov="error" hidden><span data-rv-ov="error-text"></span></Alert>
+      <details class="cg-sec rv-ov-dev" data-rv-ov="dev">
+        <summary class="cg-sec-head"><span class="cg-sec-title">For developers</span><span class="cg-sec-chev" aria-hidden="true"></span></summary>
+        <div class="cg-sec-body">
+          <p>Bridge comments the reason on the pull request as <strong>Bridge owner override</strong>, then merges it into <code data-rv-ov="base">main</code> with the head it was checked on, <span data-rv-ov="method-name">squash and merge</span>.</p>
+          <SegmentedControl
+            label="Merge method"
+            data-vanilla
+            data-rv-ov="method"
+            size="sm"
+            defaultValue="squash"
+            items={[
+              { value: 'squash', label: 'Squash and merge' },
+              { value: 'merge', label: 'Merge commit' },
+              { value: 'rebase', label: 'Rebase and merge' },
+            ]}
+          />
+        </div>
+      </details>
+    </div>
+    <Fragment slot="footer">
+      <ButtonGroup align="end">
+        <Button variant="secondary" data-dialog-close>Cancel</Button>
+        <Button variant="primary" data-rv-ov="go">Post reason and ship</Button>
+      </ButtonGroup>
+    </Fragment>
+  </ScriptDialog>
   <PromoteToReview client:only="react" />
   <RequestDecide client:only="react" />
   <script type="application/json" id="bridge-contrast" set:html={checks} />

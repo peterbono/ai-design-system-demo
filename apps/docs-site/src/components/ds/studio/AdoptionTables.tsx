@@ -1,5 +1,7 @@
 // Studio Adoption: the static tables of an audit report (top files, top fixes, trend), as DS Tables.
-// The Adoption page formats every value; these only lay them out. Row headers use role="rowheader".
+// The Adoption page formats every value; these only lay them out. Row headers use role="rowheader". On a phone each
+// row stacks as a card (narrowLayout="stack"), every value beside its column name: label on each cell, since the page
+// is static and the Table cannot copy the header text without JavaScript.
 import { Badge, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, type BadgeTone } from '@bridge-ds/react';
 import type { CategoryRow } from '../../../lib/audits';
 
@@ -9,7 +11,7 @@ const share = (n: number, max: number) => `${max ? (n / max) * 100 : 0}%`;
 export function HardcodedCategoriesTable({ rows }: { rows: CategoryRow[] }) {
   const max = Math.max(1, ...rows.map((c) => c.hardcoded));
   return (
-    <Table aria-label="Hard-coded values per category, split by how well a token matches">
+    <Table narrowLayout="stack" aria-label="Hard-coded values per category, split by how well a token matches">
       <TableHeader>
         <TableRow>
           <TableHead>Category</TableHead>
@@ -25,18 +27,28 @@ export function HardcodedCategoriesTable({ rows }: { rows: CategoryRow[] }) {
       <TableBody>
         {rows.map((c) => (
           <TableRow key={c.key}>
-            <TableCell role="rowheader">{c.label}</TableCell>
-            <TableCell>
+            <TableCell role="rowheader" label="">
+              {c.label}
+            </TableCell>
+            <TableCell label="Share">
               <span className="ad-track" style={{ width: share(c.hardcoded, max) }}>
                 {c.exact > 0 && <span className="ad-seg ad-exact" style={{ width: share(c.exact, c.hardcoded) }} />}
                 {c.near > 0 && <span className="ad-seg ad-near" style={{ width: share(c.near, c.hardcoded) }} />}
                 {c.none > 0 && <span className="ad-seg ad-none" style={{ width: share(c.none, c.hardcoded) }} />}
               </span>
             </TableCell>
-            <TableCell numeric>{c.hardcoded}</TableCell>
-            <TableCell numeric>{c.exact}</TableCell>
-            <TableCell numeric>{c.near}</TableCell>
-            <TableCell numeric>{c.none}</TableCell>
+            <TableCell numeric label="Values">
+              {c.hardcoded}
+            </TableCell>
+            <TableCell numeric label="Exact">
+              {c.exact}
+            </TableCell>
+            <TableCell numeric label="Near">
+              {c.near}
+            </TableCell>
+            <TableCell numeric label="None">
+              {c.none}
+            </TableCell>
           </TableRow>
         ))}
       </TableBody>
@@ -54,7 +66,7 @@ export interface TopFileRow {
 
 export function TopFilesTable({ rows }: { rows: TopFileRow[] }) {
   return (
-    <Table aria-label="Files with the most hardcoded values">
+    <Table narrowLayout="stack" aria-label="Files with the most hardcoded values">
       <TableHeader>
         <TableRow>
           <TableHead>File</TableHead>
@@ -67,13 +79,21 @@ export function TopFilesTable({ rows }: { rows: TopFileRow[] }) {
       <TableBody>
         {rows.map((f) => (
           <TableRow key={f.path}>
-            <TableCell role="rowheader" className="ad-path">
+            <TableCell role="rowheader" label="" className="ad-path">
               <code>{f.path}</code>
             </TableCell>
-            <TableCell numeric>{f.hardcoded}</TableCell>
-            <TableCell numeric>{f.otherComponents}</TableCell>
-            <TableCell numeric>{f.tokenUsages}</TableCell>
-            <TableCell numeric>{f.dsComponents}</TableCell>
+            <TableCell numeric label="Hardcoded">
+              {f.hardcoded}
+            </TableCell>
+            <TableCell numeric label="Non-DS components">
+              {f.otherComponents}
+            </TableCell>
+            <TableCell numeric label="Token usages">
+              {f.tokenUsages}
+            </TableCell>
+            <TableCell numeric label="DS components">
+              {f.dsComponents}
+            </TableCell>
           </TableRow>
         ))}
       </TableBody>
@@ -93,7 +113,7 @@ const LEVEL_TONE: Record<string, BadgeTone> = { exact: 'success', high: 'info', 
 
 export function TopFixesTable({ rows }: { rows: TopFixRow[] }) {
   return (
-    <Table aria-label="Most repeated literals and the token that replaces them">
+    <Table narrowLayout="stack" aria-label="Most repeated literals and the token that replaces them">
       <TableHeader>
         <TableRow>
           <TableHead>Value</TableHead>
@@ -106,10 +126,10 @@ export function TopFixesTable({ rows }: { rows: TopFixRow[] }) {
       <TableBody>
         {rows.map((f, i) => (
           <TableRow key={`${f.value}-${i}`}>
-            <TableCell role="rowheader">
+            <TableCell role="rowheader" label="">
               <code>{f.value}</code> <span className="muted small">{f.category}</span>
             </TableCell>
-            <TableCell>
+            <TableCell label="Token">
               {f.suggestion ? (
                 <span>
                   <code>{`var(${f.suggestion.cssVar})`}</code> <span className="muted small">{f.suggestion.value}</span>
@@ -118,7 +138,7 @@ export function TopFixesTable({ rows }: { rows: TopFixRow[] }) {
                 <span className="muted">No token fits</span>
               )}
             </TableCell>
-            <TableCell>
+            <TableCell label="Confidence">
               {f.suggestion ? (
                 <Badge size="sm" tone={LEVEL_TONE[f.suggestion.level] ?? 'neutral'}>
                   {f.suggestion.level}
@@ -129,8 +149,12 @@ export function TopFixesTable({ rows }: { rows: TopFixRow[] }) {
                 </Badge>
               )}
             </TableCell>
-            <TableCell numeric>{f.count}</TableCell>
-            <TableCell numeric>{f.files}</TableCell>
+            <TableCell numeric label="Uses">
+              {f.count}
+            </TableCell>
+            <TableCell numeric label="Files">
+              {f.files}
+            </TableCell>
           </TableRow>
         ))}
       </TableBody>
@@ -148,7 +172,7 @@ export interface TrendRow {
 
 export function TrendTable({ rows }: { rows: TrendRow[] }) {
   return (
-    <Table aria-label="Adoption per run">
+    <Table narrowLayout="stack" aria-label="Adoption per run">
       <TableHeader>
         <TableRow>
           <TableHead>Run</TableHead>
@@ -160,12 +184,18 @@ export function TrendTable({ rows }: { rows: TrendRow[] }) {
       <TableBody>
         {rows.map((p, i) => (
           <TableRow key={i}>
-            <TableCell role="rowheader">
+            <TableCell role="rowheader" label="">
               {p.label} <span className="muted small">{p.date}</span>
             </TableCell>
-            <TableCell numeric>{p.tokenAdoption}</TableCell>
-            <TableCell numeric>{p.componentAdoption}</TableCell>
-            <TableCell numeric>{p.hardcoded}</TableCell>
+            <TableCell numeric label="Token adoption">
+              {p.tokenAdoption}
+            </TableCell>
+            <TableCell numeric label="Component adoption">
+              {p.componentAdoption}
+            </TableCell>
+            <TableCell numeric label="Hardcoded">
+              {p.hardcoded}
+            </TableCell>
           </TableRow>
         ))}
       </TableBody>
