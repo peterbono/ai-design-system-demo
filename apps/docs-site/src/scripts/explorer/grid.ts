@@ -90,7 +90,7 @@ function rowHtml(d: ExplorerData, t: XToken, view: View, s: ExplorerState, secti
 }
 
 /**
- * "Changed in this change" (or "Changed in dark theme only") on a token the viewed change defines differently; its
+ * "Changed" (or "Changed, dark theme only") on a token the viewed change defines differently; its
  * latest library value in a DS tooltip on hover (bound once by scripts/shell.ts) and in the row text for screen readers.
  */
 function markHtml(mark: TokenMark, d: ExplorerData): string {

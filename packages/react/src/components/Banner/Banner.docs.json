@@ -41,7 +41,7 @@
     "A landmark region named by its title (role region, aria-labelledby), so screen reader users find the mode in the landmarks list.",
     "Not a live region: the banner is part of the page when it loads. If a mode starts without a page load, move focus to the banner title or announce the mode once.",
     "The actions are real Buttons on the same line as the title, reached with Tab right after the title.",
-    "The strong appearance uses color.action.primary.bg with color.action.primary.text, checked in both themes. The icon and the words carry the mode, never color alone.",
+    "The strong appearance uses color.surface.strong (Deep Harbor in both themes) with color.text.on-solid, 8.87:1, and the focus ring inside it takes the text color. The icon and the words carry the mode, never color alone.",
     "Sticky banners stay under the app header (layout.header.height) and above the content (layer.sticky), so they never hide the header's controls."
   ],
   "contentGuidelines": [

@@ -161,7 +161,7 @@
     "Base UI RadioGroup with native button radios: role radiogroup on the row, role radio and aria-checked on each segment.",
     "Tab enters the group on the selected segment and leaves it; arrow keys move the selection, Home and End jump to the ends.",
     "Give the group a name: aria-labelledby pointing at the visible label outside the track, or label (aria-label) when the context already names it.",
-    "The selected segment is marked by a raised plate (or the Deep Harbor fill with strong) and a darker text color, not by color alone.",
+    "The selected segment is marked by a raised plate with a checked-color edge (or the Deep Harbor fill with strong) and a darker text color, not by color alone.",
     "When the track scrolls, arrow keys still move the selection and the selected segment scrolls into view.",
     "The focus ring (focus.ring.color) shows on keyboard focus only.",
     "Rendered without JavaScript, the HTML keeps role, aria-checked and data-value, so a small script can drive it: flip aria-checked and tabindex, and handle arrow keys."

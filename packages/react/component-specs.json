@@ -5289,7 +5289,7 @@
     },
     {
       "name": "Badge",
-      "hash": "0a47750f",
+      "hash": "ba2734bf",
       "source": [
         "packages/react/src/components/Badge/Badge.tsx",
         "packages/react/src/components/Badge/Badge.module.css",
@@ -5383,7 +5383,7 @@
           },
           "values": {
             "root": {
-              "fill": "color.bg.subtle",
+              "fill": "color.feedback.neutral.bg",
               "cornerRadius": "radius.pill",
               "paddingTop": 0,
               "paddingRight": "space.1-5",
@@ -5421,7 +5421,7 @@
           },
           "values": {
             "root": {
-              "fill": "color.bg.subtle",
+              "fill": "color.feedback.neutral.bg",
               "cornerRadius": "radius.pill",
               "paddingTop": 0,
               "paddingRight": "calc(space.2 + space.0-5)",

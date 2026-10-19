@@ -47,7 +47,8 @@ import {
   type People,
   type WhoActs,
 } from '../lib/changes';
-import { badgeHtml, checklistHtml, checklistRowHtml, codeBlockHtml, tokenValueHtml, trusted, type ChecklistRowHtmlOptions } from '@bridge-ds/react/dom';
+import { badgeHtml, checklistHtml, checklistRowHtml, closeDialog, codeBlockHtml, openDialog, tokenValueHtml, trusted, type ChecklistRowHtmlOptions } from '@bridge-ds/react/dom';
+import { selectSegment } from './shell';
 import { pullEntry, type BranchesConfig } from '../lib/branches';
 import type { Root } from 'react-dom/client';
 import { currentViewer, esc, ghGet, ghWrite, GitHubError, hasWorkingToken, initGitHubConnect, prefersSignIn, RateLimitError, readRepo, relativeTime, showGhError } from './github-session';
@@ -207,7 +208,7 @@ function people(author: string, extra: Partial<People> = {}): People {
 }
 
 /** One chip per row: the status color and who acts now (pr-status whoChip, shared with the Overview). */
-const chip = (r: Row) => whoChip(r.kind, { author: r.user.login, approvers: r.approvers, changesRequested: r.changesRequested, failing: r.failing, skipped: r.skipped });
+const chip = (r: Row) => whoChip(r.kind, { author: r.user.login, approvers: r.approvers, changesRequested: r.changesRequested, failing: r.failing, failingChecks: r.failingChecks, skipped: r.skipped });
 
 function avatar(u: User | null, size = 24) {
   if (!u) return '';
@@ -272,7 +273,7 @@ function mountTogether() {
 /** The open rows last painted, and the recently closed ones once the Shipped or Closed filter asked for them. */
 let openRows: Row[] = [];
 let closedRows: Row[] | null = null;
-/** "12 updates behind" after the title: plain words, no color (the status chip holds the color). */
+/** "Library moved on: 12 updates" after the title: plain words, no color (the status chip holds the color). */
 function behindHtml(n: number | null | undefined) {
   const tag = behindTag(n);
   return tag ? ` <span class="cg-behind">${esc(tag)}</span>` : '';
@@ -1071,37 +1072,7 @@ function renderDetail(x: DetailInput) {
     <div class="cg-actbar-row">${(status.lifecycle === 'draft' && isAuthor) || status.lifecycle === 'shipped' || status.lifecycle === 'closed' ? '' : reviewForm}${shipBits}</div>
     <p class="rv-act-status" id="rv-act-status" role="status" aria-live="polite"></p>
   </footer>
-  ${showOverride ? overrideDialog(pull, gate, access!) : ''}`;
-}
-
-function overrideDialog(pull: Pull, gate: ReturnType<typeof mergeGate>, access: Access) {
-  const min = OVERRIDE.requireReason ? OVERRIDE.minReasonLength : 0;
-  return `<dialog class="gh-dialog rv-ov-dialog" id="rv-ov" role="alertdialog" aria-modal="true" aria-labelledby="rv-ov-title" aria-describedby="rv-ov-desc">
-    <form method="dialog" class="gh-dialog-box" novalidate>
-      <header class="gh-dialog-head"><h2 id="rv-ov-title">Ship #${pull.number} as owner override?</h2></header>
-      <div id="rv-ov-desc">
-        <p>This ships the change into the library (<span class="mono">${esc(pull.base.ref)}</span>) without:</p>
-        <ul class="rv-ov-missing">${gate.missing.map((m) => `<li>${esc(m[0]!.toUpperCase() + m.slice(1))}</li>`).join('')}</ul>
-        <p>Tests pass and nobody requested changes. Bridge posts your reason on the change as <strong>Bridge owner override</strong>, then ships it, so History and the timeline show who skipped the approvals and why.</p>
-      </div>
-      <label class="gh-field" for="rv-ov-reason">
-        <span>Reason${OVERRIDE.requireReason ? '' : ' (optional)'}</span>
-        <textarea id="rv-ov-reason" rows="3" ${min ? `minlength="${min}" required aria-required="true"` : ''} aria-describedby="rv-ov-count" placeholder="Solo maintainer, CI green, I reviewed the token diff and contrast."></textarea>
-      </label>
-      <p class="small muted" id="rv-ov-count">${min ? `At least ${min} characters.` : 'Shown on the pull request.'}</p>
-      ${
-        access.methods.length > 1
-          ? `<label class="gh-field" for="rv-ov-method"><span>Merge method</span><select id="rv-ov-method">${access.methods.map((m) => `<option value="${m}">${METHOD_LABEL[m]}</option>`).join('')}</select></label>`
-          : `<input type="hidden" id="rv-ov-method" value="${access.methods[0] ?? 'squash'}" />`
-      }
-      <p class="gh-error" id="rv-ov-error" role="alert" hidden></p>
-      <footer class="gh-dialog-foot">
-        <span class="gh-spacer"></span>
-        <button type="submit" value="cancel" class="btn btn-secondary btn-sm" autofocus>Cancel</button>
-        <button type="button" class="btn btn-primary btn-sm" id="rv-ov-go">Post reason and ship</button>
-      </footer>
-    </form>
-  </dialog>`;
+`;
 }
 
 function syncAuthViews() {
@@ -1110,75 +1081,127 @@ function syncAuthViews() {
   document.querySelectorAll<HTMLElement>('[data-no-token]').forEach((el) => (el.hidden = has));
 }
 
-/** Wires the override dialog and returns how to open it (the More menu item), or null when there is none. */
+/**
+ * Fills the owner override dialog (the DS Dialog for scripts, rv-ov in pages/studio/changes.astro) for this change and
+ * returns how to open it, or null when the page has none. The dialog outlives a repaint of the detail, so its
+ * listeners are replaced, never stacked: the previous change's are aborted first.
+ */
+let overrideWiring: AbortController | null = null;
 function wireOverride(pull: Pull, access: Access, gate: ReturnType<typeof mergeGate>): (() => void) | null {
-  const dialog = document.getElementById('rv-ov') as HTMLDialogElement | null;
-  if (!dialog) return null;
-  const reason = $<HTMLTextAreaElement>('rv-ov-reason');
-  const count = $('rv-ov-count');
-  const error = $('rv-ov-error');
-  const go = $<HTMLButtonElement>('rv-ov-go');
-  const method = () => (document.getElementById('rv-ov-method') as HTMLSelectElement | HTMLInputElement).value as MergeMethod;
+  const root = document.getElementById('rv-ov');
+  if (!root) return null;
+  overrideWiring?.abort();
+  overrideWiring = new AbortController();
+  const { signal } = overrideWiring;
+  const part = <T extends HTMLElement = HTMLElement>(name: string) => root.querySelector<T>(`[data-rv-ov="${name}"]`)!;
+  const reason = part<HTMLTextAreaElement>('reason');
+  // The DS Textarea's hint (the field's description paragraph) carries the live count. The page is static, so the
+  // textarea is described by it here rather than by the Field on hydration.
+  const count = reason.parentElement?.parentElement?.querySelector<HTMLElement>(':scope > p') ?? document.createElement('p');
+  if (count.id) reason.setAttribute('aria-describedby', count.id);
+  const error = part('error');
+  const errorText = part('error-text');
+  const go = part<HTMLButtonElement>('go');
+  const methodRoot = part('method');
+  const methodName = part('method-name');
   const min = OVERRIDE.requireReason ? OVERRIDE.minReasonLength : 0;
-  const fail = (text: string) => {
-    error.textContent = text;
-    error.hidden = false;
-  };
-  const openDialog = () => {
-    error.hidden = true;
-    dialog.showModal();
-  };
-  reason.addEventListener('input', () => {
+  const allowed: MergeMethod[] = access.methods.length ? access.methods : ['squash'];
+  const countText = () => {
     const n = reason.value.trim().length;
-    count.textContent = min ? (n >= min ? `${n} characters.` : `${n} of at least ${min} characters.`) : 'Shown on the pull request.';
-    reason.removeAttribute('aria-invalid');
-    error.hidden = true;
+    if (!min) return 'Optional. Shown on the change.';
+    if (n === 0) return `At least ${min} characters. Shown on the change.`;
+    return n >= min ? `${n} characters. Shown on the change.` : `${n} of at least ${min} characters.`;
+  };
+  const method = (): MergeMethod => (methodRoot.querySelector<HTMLElement>('[data-segment][aria-checked="true"]')?.dataset.value as MergeMethod | undefined) ?? allowed[0]!;
+  const ready = () => {
+    go.disabled = false;
+    go.textContent = 'Post reason and ship';
+  };
+
+  // This change: its number, the approvals it skips, the library branch and the methods the repository allows.
+  const title = document.getElementById('rv-ov-title');
+  if (title) title.textContent = `Ship #${pull.number} as owner override?`;
+  part('missing').innerHTML = gate.missing.map((m) => `<li>${esc(m[0]!.toUpperCase() + m.slice(1))}</li>`).join('');
+  part('base').textContent = pull.base.ref;
+  reason.value = '';
+  reason.removeAttribute('aria-invalid');
+  if (min) reason.setAttribute('aria-required', 'true');
+  else reason.removeAttribute('aria-required');
+  count.textContent = countText();
+  methodRoot.querySelectorAll<HTMLButtonElement>('[data-segment]').forEach((seg) => {
+    const ok = allowed.includes(seg.dataset.value as MergeMethod);
+    seg.disabled = !ok;
+    seg.hidden = !ok;
   });
-  go.addEventListener('click', async () => {
-    const problem = overrideReasonProblem(reason.value, OVERRIDE);
-    if (problem) {
-      reason.setAttribute('aria-invalid', 'true');
-      fail(problem);
-      reason.focus();
-      return;
-    }
+  // One allowed method: nothing to pick, the summary line names it.
+  methodRoot.hidden = allowed.length < 2;
+  selectSegment(methodRoot, allowed[0]!);
+  methodName.textContent = METHOD_LABEL[method()].toLowerCase();
+  error.hidden = true;
+  ready();
+
+  methodRoot.addEventListener('bridge:segment', () => (methodName.textContent = METHOD_LABEL[method()].toLowerCase()), { signal });
+  reason.addEventListener(
+    'input',
+    () => {
+      count.textContent = countText();
+      reason.removeAttribute('aria-invalid');
+      error.hidden = true;
+    },
+    { signal },
+  );
+  go.addEventListener(
+    'click',
+    async () => {
+      const problem = overrideReasonProblem(reason.value, OVERRIDE);
+      if (problem) {
+        // One message, under the field it is about (its hint); the Alert below is for what GitHub answers.
+        reason.setAttribute('aria-invalid', 'true');
+        count.textContent = problem;
+        error.hidden = true;
+        reason.focus();
+        return;
+      }
+      error.hidden = true;
+      go.disabled = true;
+      go.textContent = 'Posting reason';
+      const body = overrideComment(access.login, reason.value, gate.missing);
+      let comment: { id: number } | null = null;
+      try {
+        comment = await ghWrite<{ id: number }>('POST', `${R}/issues/${pull.number}/comments`, { body });
+      } catch (err) {
+        showGhError(errorText, err, `GitHub did not take the comment, so nothing shipped: ${(err as Error).message}`, 'comment on pull requests');
+        error.hidden = false;
+        ready();
+        return;
+      }
+      go.textContent = 'Shipping';
+      const m = method();
+      try {
+        await ghWrite('PUT', `${R}/pulls/${pull.number}/merge`, {
+          merge_method: m,
+          sha: pull.head.sha,
+          ...(m === 'rebase' ? {} : { commit_message: body.replace(OVERRIDE_HEADING, '').trim() }),
+        });
+      } catch (err) {
+        const msg = (err as Error).message.trim().replace(/[.\s]+$/, '');
+        await ghWrite('PATCH', `${R}/issues/comments/${comment.id}`, { body: overrideRefusedComment(body, msg) }).catch(() => undefined);
+        showGhError(errorText, err, `GitHub refused to ship it: ${msg}. Your reason stays on the change, marked not shipped. The library's protection may need an approving review or an admin bypass.`, 'merge pull requests');
+        error.hidden = false;
+        ready();
+        return;
+      }
+      closeDialog(root, 'shipped');
+      await openPr(pull.number, false);
+      const done = document.getElementById('rv-act-status');
+      if (done) done.textContent = `Shipped as owner override. The reason is on #${pull.number}.`;
+    },
+    { signal },
+  );
+  return () => {
     error.hidden = true;
-    go.disabled = true;
-    go.textContent = 'Posting reason';
-    const body = overrideComment(access.login, reason.value, gate.missing);
-    let comment: { id: number } | null = null;
-    try {
-      comment = await ghWrite<{ id: number }>('POST', `${R}/issues/${pull.number}/comments`, { body });
-    } catch (err) {
-      showGhError(error, err, `GitHub did not take the comment, so nothing was merged: ${(err as Error).message}`, 'comment on pull requests');
-      error.hidden = false;
-      go.disabled = false;
-      go.textContent = 'Post reason and ship';
-      return;
-    }
-    go.textContent = 'Shipping';
-    const m = method();
-    try {
-      await ghWrite('PUT', `${R}/pulls/${pull.number}/merge`, {
-        merge_method: m,
-        sha: pull.head.sha,
-        ...(m === 'rebase' ? {} : { commit_message: body.replace(OVERRIDE_HEADING, '').trim() }),
-      });
-    } catch (err) {
-      const msg = (err as Error).message.trim().replace(/[.\s]+$/, '');
-      await ghWrite('PATCH', `${R}/issues/comments/${comment.id}`, { body: overrideRefusedComment(body, msg) }).catch(() => undefined);
-      showGhError(error, err, `GitHub refused the merge: ${msg}. Your reason stays on the pull request, marked not merged. Branch protection may need an approving review or an admin bypass.`, 'merge pull requests');
-      error.hidden = false;
-      go.disabled = false;
-      go.textContent = 'Post reason and ship';
-      return;
-    }
-    dialog.close();
-    await openPr(pull.number, false);
-    const done = document.getElementById('rv-act-status');
-    if (done) done.textContent = `Shipped as owner override. The reason is on #${pull.number}.`;
-  });
-  return openDialog;
+    openDialog(root, { initialFocus: reason });
+  };
 }
 
 /** The More menu of the open change (DS Menu, a React root): unmounted before the detail repaints. */

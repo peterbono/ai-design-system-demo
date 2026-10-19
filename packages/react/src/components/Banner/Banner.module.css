@@ -1,8 +1,8 @@
 .banner {
-  --_bg: var(--color-action-primary-bg);
-  --_border: var(--color-action-primary-bg);
-  --_text: var(--color-action-primary-text);
-  --_muted: var(--color-action-primary-text);
+  --_bg: var(--color-surface-strong);
+  --_border: var(--color-surface-strong);
+  --_text: var(--color-text-on-solid);
+  --_muted: var(--color-text-on-solid);
 
   box-sizing: border-box;
   display: flex;
@@ -21,10 +21,11 @@
   line-height: var(--typography-ui-line-height);
 }
 
-/* On Deep Harbor the standard ring (Deep Harbor too) would vanish: focus inside a strong banner uses its text color,
-   8.87:1 in light. */
+/* Strong is Deep Harbor in both themes (color.surface.strong): the dark theme's primary action is light blue and read
+   as a Harbor zone. On Deep Harbor the standard ring would vanish: focus inside a strong banner uses its text color,
+   8.87:1 in both themes. */
 .strong {
-  --focus-ring-color: var(--color-action-primary-text);
+  --focus-ring-color: var(--color-text-on-solid);
 }
 
 .neutral {

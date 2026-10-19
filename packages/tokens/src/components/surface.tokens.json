@@ -24,7 +24,8 @@
     },
     "border": {
       "$type": "color",
-      "$value": "{color.border.default}"
+      "$value": "{color.border.emphasis}",
+      "$description": "One step stronger than border.default: in dark, border.default is the raised surface's own color, so a list opened inside a Dialog (same raised surface) had no edge."
     },
     "radius": {
       "$type": "dimension",

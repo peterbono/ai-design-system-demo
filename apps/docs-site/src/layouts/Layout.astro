@@ -297,6 +297,12 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
       <div class="palette-box" role="search">
         <PaletteField />
         <ul id="palette-list" class="palette-list" role="listbox" aria-label="Results"></ul>
+        {/* The kind glyph of each result, cloned by scripts/shell.ts: the side nav's icons, as DS Icons. */}
+        <template id="palette-icons">
+          <span data-kind="page"><Icon icon={siteIcon('doc')} size="sm" /></span>
+          <span data-kind="component"><Icon icon={siteIcon('diamonds')} size="sm" /></span>
+          <span data-kind="token"><Icon icon={siteIcon('grid')} size="sm" /></span>
+        </template>
       </div>
       <p class="palette-foot" slot="footer">
         <span><Kbd keys="↑" size="sm" /> <Kbd keys="↓" size="sm" /> to move</span>

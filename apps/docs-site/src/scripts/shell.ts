@@ -370,6 +370,9 @@ function initPalette() {
       if (item.swatch) {
         sw.classList.add('has-swatch');
         sw.style.setProperty('--sw', item.swatch);
+      } else {
+        const glyph = document.querySelector<HTMLTemplateElement>('#palette-icons')?.content.querySelector(`[data-kind="${item.kind}"] > svg`);
+        if (glyph) sw.appendChild(glyph.cloneNode(true));
       }
       sw.setAttribute('aria-hidden', 'true');
       const body = document.createElement('span');

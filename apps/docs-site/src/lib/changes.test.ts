@@ -327,3 +327,17 @@ describe('approval rows', () => {
     expect(rows).toEqual([expect.objectContaining({ label: 'Approval', state: 'approved', text: 'Approved by @zoe' })]);
   });
 });
+
+describe('failing developer tests on a list row', () => {
+  it('never makes them the author\'s turn: a developer fixes them, as the detail says', () => {
+    const p = { owners: { design: ['dana'], tech: ['theo'] }, author: 'ann', viewer: 'ann' };
+    expect(whoActs(needFromStatus('ci-failing', { failing: 1, developerOnly: true }), p)).toMatchObject({
+      who: 'developer',
+      yourTurn: false,
+      short: 'Blocked by tests',
+      sentence: 'Waiting for a developer to fix the failing check.',
+    });
+    // A failing design rule, or failures not named yet, stay with the author.
+    expect(whoActs(needFromStatus('ci-failing', { failing: 1 }), p)).toMatchObject({ yourTurn: true, short: 'Your turn: fix tests' });
+  });
+});

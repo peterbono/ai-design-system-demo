@@ -43,9 +43,10 @@
   margin-top: var(--space-7);
 }
 
+/* The filter field's column: the DS Input fills it (a phone gives it the whole row). */
 .at-filter {
-  width: var(--size-80);
-  max-width: 100%;
+  flex: 0 1 var(--size-80);
+  min-width: 0;
 }
 
 .at-chips {
@@ -395,11 +396,7 @@
 
 @media (max-width: 640px) {
   .at-filter {
-    width: 100%;
-  }
-
-  .at-filter {
-    width: 100%;
+    flex-basis: 100%;
   }
 
   .at-lh {

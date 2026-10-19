@@ -3465,15 +3465,13 @@ body:has([data-xe-bar]:not([hidden])) .xp[data-surface="app"] .xp-grid {
   font-weight: var(--font-weight-regular);
 }
 
+/* The selected type: the selected fill and the checked-color edge, like a pressed DS Button toggle or a selected
+   SegmentedControl option. The inverse fill was a near-black block in light and a white one in dark, louder than the
+   page's one primary action. */
 .xp-chip-btn[aria-pressed="true"] {
-  border-color: var(--color-surface-inverse);
-  background-color: var(--color-surface-inverse);
-  color: var(--color-text-inverse);
-}
-
-.xp-chip-btn[aria-pressed="true"] .xp-chip-n {
-  color: inherit;
-  opacity: 0.75;
+  border-color: var(--color-control-checked-bg);
+  background-color: var(--color-surface-selected);
+  color: var(--color-text-default);
 }
 
 /* Studio ?component= filter: a removable chip ahead of the type chips. */

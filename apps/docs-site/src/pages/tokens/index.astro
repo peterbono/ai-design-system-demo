@@ -19,6 +19,8 @@ const version = versionInfo().current;
 const MODES = ['light', 'dark'];
 const searchIcon = createElement(Icon, { icon: Search, size: 'sm' });
 // Type filter: a static DS SegmentedControl (data-vanilla), each type with its count; scripts/all-tokens.ts follows it.
+// The filter field and the type control share one DS size (md): a small SegmentedControl is taller than a small Input
+// (its track adds an inset around small-height segments), so the bar read as two heights.
 const chipItems = chips.map((c) => ({ value: c.value, label: createElement('span', null, `${c.label} `, createElement('span', { className: 'at-chip-n num' }, c.count)) }));
 // What the panel needs, keyed by path. Everything else is in the rendered rows.
 const panelData = Object.fromEntries(rows.map((r) => [r.path, { cssVar: r.cssVar, type: r.type, description: r.description, light: r.light, dark: r.dark }]));
@@ -41,19 +43,20 @@ const panelData = Object.fromEntries(rows.map((r) => [r.path, { cssVar: r.cssVar
     </header>
 
     <div class="at-bar">
-      <Input
-        className="at-filter"
-        size="sm"
-        type="search"
-        label="Filter tokens"
-        hideLabel
-        placeholder={`Filter ${rows.length} tokens`}
-        prefix={searchIcon}
-        autoComplete="off"
-        spellCheck={false}
-        data-at-q
-      />
-      <SegmentedControl className="at-chips" label="Type" size="sm" data-vanilla data-at-chips defaultValue="all" items={chipItems} />
+      <div class="at-filter">
+        <Input
+          size="md"
+          type="search"
+          label="Filter tokens"
+          hideLabel
+          placeholder={`Filter ${rows.length} tokens`}
+          prefix={searchIcon}
+          autoComplete="off"
+          spellCheck={false}
+          data-at-q
+        />
+      </div>
+      <SegmentedControl className="at-chips" label="Type" size="md" data-vanilla data-at-chips defaultValue="all" items={chipItems} />
     </div>
 
     <div class="at-split">

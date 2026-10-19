@@ -57,9 +57,9 @@ export function libraryLine(f: Freshness): string | null {
   return `The library has moved on: ${plural(f.behindBy, 'update')} since this change started.`;
 }
 
-/** The row tag of the Changes list: "12 updates behind". Null when up to date or unknown. */
+/** The row tag of the Changes list, in the words of the detail line: "Library moved on: 12 updates". Null when up to date or unknown. */
 export function behindTag(behindBy: number | null | undefined): string | null {
-  return behindBy && behindBy > 0 ? `${plural(behindBy, 'update')} behind` : null;
+  return behindBy && behindBy > 0 ? `Library moved on: ${plural(behindBy, 'update')}` : null;
 }
 
 /** Every path a compare file names: a renamed file counts under its old name too. */

@@ -287,7 +287,7 @@ const exactTotal = cats.reduce((a, c) => a + c.exact, 0);
         }
         {
           trend.length > 1 && (
-            <div class="ad-scroll"><TrendTable rows={trend.map((p) => ({ label: p.label, date: p.generatedAt.slice(0, 10), tokenAdoption: formatPct(p.tokenAdoption), componentAdoption: formatPct(p.componentAdoption), hardcoded: p.hardcoded }))} /></div>
+            <TrendTable rows={trend.map((p) => ({ label: p.label, date: p.generatedAt.slice(0, 10), tokenAdoption: formatPct(p.tokenAdoption), componentAdoption: formatPct(p.componentAdoption), hardcoded: p.hardcoded }))} />
           )
         }
         <h3 class="ql-h">What was scanned</h3>
@@ -305,10 +305,10 @@ const exactTotal = cats.reduce((a, c) => a + c.exact, 0);
           )
         }
         <h3 class="ql-h">Top offending files</h3>
-        {r.topFiles.length === 0 ? <p class="ql-muted">Nothing to fix.</p> : <div class="ad-scroll"><TopFilesTable rows={r.topFiles.slice(0, 12)} /></div>}
+        {r.topFiles.length === 0 ? <p class="ql-muted">Nothing to fix.</p> : <TopFilesTable rows={r.topFiles.slice(0, 12)} />}
         <h3 class="ql-h">Top fixes</h3>
         <p class="ql-muted">The most repeated literals and the token that replaces them. Exact matches in CSS files can be fixed with <code>bridge audit --fix</code>.</p>
-        {r.topFixes.length === 0 ? <p class="ql-muted">No repeated literal.</p> : <div class="ad-scroll"><TopFixesTable rows={r.topFixes.slice(0, 15)} /></div>}
+        {r.topFixes.length === 0 ? <p class="ql-muted">No repeated literal.</p> : <TopFixesTable rows={r.topFixes.slice(0, 15)} />}
         <CodeBlock className="ql-cmd" label="Make the next report" code="bridge audit <path> --baseline previous.json --json next.json   # then commit it under src/data/audits/" />
       </div>
     </details>

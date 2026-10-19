@@ -253,7 +253,7 @@ export const OVERRIDE_HEADING = '**Bridge owner override**';
 export function overrideReasonProblem(reason: string, policy: OverridePolicy): string | null {
   if (!policy.requireReason) return null;
   const n = reason.trim().length;
-  if (n === 0) return 'Write why this merges without the missing approvals.';
+  if (n === 0) return `Write why this ships without the missing approvals, in at least ${policy.minReasonLength} characters.`;
   if (n < policy.minReasonLength) return `Write at least ${policy.minReasonLength} characters (${n} so far), so the history says why.`;
   return null;
 }

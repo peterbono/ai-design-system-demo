@@ -202,7 +202,8 @@ export type Need =
   | { kind: 'closed' }
   | { kind: 'draft' }
   | { kind: 'exploration' }
-  | { kind: 'fix-checks'; failing: number }
+  /** `developerOnly`: every failing check is a developer check, so a developer fixes them, not the author. */
+  | { kind: 'fix-checks'; failing: number; developerOnly?: boolean }
   | { kind: 'address-changes'; by: string[] }
   | { kind: 'resolve-conflict' }
   | { kind: 'checks-running'; then: ApprovalRole[] }
@@ -234,7 +235,7 @@ export function needFromDetail(s: { state: PullState; ci: CiSummary; gate: Merge
 }
 
 /** The need behind a list status chip (reviewStatus), when only the status is known. */
-export function needFromStatus(kind: ReviewStatusKind | null | undefined, extra: { failing?: number; changesRequestedBy?: string[] } = {}): Need {
+export function needFromStatus(kind: ReviewStatusKind | null | undefined, extra: { failing?: number; changesRequestedBy?: string[]; developerOnly?: boolean } = {}): Need {
   switch (kind) {
     case 'merged':
     case 'closed':
@@ -242,7 +243,7 @@ export function needFromStatus(kind: ReviewStatusKind | null | undefined, extra:
     case 'ready':
       return { kind };
     case 'ci-failing':
-      return { kind: 'fix-checks', failing: extra.failing ?? 0 };
+      return { kind: 'fix-checks', failing: extra.failing ?? 0, ...(extra.developerOnly ? { developerOnly: true } : {}) };
     case 'changes-requested':
       return { kind: 'address-changes', by: extra.changesRequestedBy ?? [] };
     case 'conflict':
@@ -303,7 +304,7 @@ export type WhoAction =
 
 export interface WhoActs {
   /** Who acts: the viewer, the author, an owner role, any reviewer, or nobody (finished, or checks running). */
-  who: 'you' | 'author' | 'design' | 'tech' | 'reviewer' | 'owner' | 'nobody';
+  who: 'you' | 'author' | 'design' | 'tech' | 'reviewer' | 'owner' | 'developer' | 'nobody';
   /** Logins named in the sentence, from GitHub or the config. Empty when only a role is known. */
   logins: string[];
   yourTurn: boolean;
@@ -390,6 +391,9 @@ export function whoActs(need: Need, p: People): WhoActs {
     case 'exploration':
       return authorTurn('promote', 'promote this exploration to review, or close it', 'promote this exploration to review', 'Author to promote it', 'Your turn: promote it');
     case 'fix-checks':
+      // Developer tests failing on a design change are a developer's to fix, whoever made it (the detail says the same:
+      // lib/check-explain failingSentence). A failing design rule, or failures not known yet, stay with the author.
+      if (need.developerOnly) return { who: 'developer', logins: [], yourTurn: false, action: 'fix-checks', sentence: `Waiting for a developer to fix ${checks(need.failing)}.`, short: 'Blocked by tests' };
       return authorTurn('fix-checks', `fix ${checks(need.failing)}`, `fix ${checks(need.failing)}`, 'Blocked by tests', 'Your turn: fix tests');
     case 'address-changes': {
       const by = need.by.length ? ` @${need.by.join(', @')} requested` : ' a reviewer requested';

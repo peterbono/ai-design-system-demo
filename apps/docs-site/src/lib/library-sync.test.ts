@@ -65,8 +65,8 @@ describe('libraryLine and behindTag', () => {
   });
 
   it('tags list rows only when behind', () => {
-    expect(behindTag(4)).toBe('4 updates behind');
-    expect(behindTag(1)).toBe('1 update behind');
+    expect(behindTag(4)).toBe('Library moved on: 4 updates');
+    expect(behindTag(1)).toBe('Library moved on: 1 update');
     expect(behindTag(0)).toBeNull();
     expect(behindTag(null)).toBeNull();
   });

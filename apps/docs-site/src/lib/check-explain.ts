@@ -67,6 +67,14 @@ export function classifyCheck(c: CheckFacts): ClassifiedCheck {
   return { ...c, kind, topic, cases };
 }
 
+/**
+ * Every failing check is a developer check (by its name, the only fact a list row has): a developer fixes them, never
+ * the designer who made the change. False when none failed or one of them is a design rule.
+ */
+export function developerOnlyFailures(names: string[] | null | undefined): boolean {
+  return Boolean(names?.length) && names!.every((name) => classifyCheck({ name }).kind === 'developer');
+}
+
 /** What the token review says about design rules (lib/token-review), reduced to what the sentences need. */
 export interface DesignFacts {
   /** Contrast checks evaluated after the change, and how many pass. */
