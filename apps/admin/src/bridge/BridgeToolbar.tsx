@@ -501,6 +501,8 @@ function Toolbar({ build, change, onProduction, returnTo, together: tg }: { buil
   const surfaces = outlinesOn ? (diff?.surfaces ?? []) : [];
   const shownCount = outlinesOn && diff ? shown.count : null;
 
+  // Changes tried together: how many of the switched-on ones show anything in this theme and brand.
+  const activeHere = new Set((T?.pairs ?? []).flatMap((p) => p.token.from)).size;
   const note = shownIn ? (
     <p className={styles.note} role="status">
       Shown in {shownIn}. {tg ? 'These changes only affect' : 'This change only affects'} {shownIn}.
@@ -519,6 +521,10 @@ function Toolbar({ build, change, onProduction, returnTo, together: tg }: { buil
   ) : shownCount === 0 ? (
     <p className={styles.note} role="status">
       {diff?.surfaces.length ? outOfView(diff.surfaces.length) : tg ? TOGETHER_EMPTY_LINE : EMPTY_LINE}
+    </p>
+  ) : tg && T && side === 'after' && activeHere < T.included.length ? (
+    <p className={styles.note} role="status">
+      {activeHere} of these {T.included.length} changes {activeHere === 1 ? 'shows' : 'show'} in {theme}. Changes lists what each one does here.
     </p>
   ) : null;
 
