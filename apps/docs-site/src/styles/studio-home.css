@@ -47,8 +47,7 @@
 .sh-art {
   flex: none;
   height: auto;
-  /* The ground line rests on the task list below. */
-  margin-block-end: calc(var(--space-5) * -1);
+  /* The ground line keeps the zone's gap above the task list. */
 }
 
 .sh-strong {
