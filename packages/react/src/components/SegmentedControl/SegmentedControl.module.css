@@ -1,45 +1,55 @@
 /* A track on the subtle background; the selected segment is a raised plate. State reads aria-checked (not
    data-checked) so a statically rendered control can be driven by a script.
-   Too many segments for the width (a phone): the track scrolls sideways inside its container, never the page. The
-   edge with more segments behind it fades out (data-overflow, set by the component or the page script). */
+   Too many segments for the width (a phone): the inner track scrolls sideways inside the frame, never the page, and
+   the edge with more segments behind it fades out (data-overflow on the root, set by the component or the page
+   script). The frame keeps its border and background, so only the segments fade. */
 .root {
   --_height: var(--control-height-md);
   --_px: var(--space-3);
   --_inset: var(--space-0-5);
   --_fade: var(--space-8);
 
-  position: relative;
   box-sizing: border-box;
   display: inline-flex;
   align-items: stretch;
   min-width: 0;
   max-width: 100%;
   min-height: var(--_height);
-  padding: var(--_inset);
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-  scroll-padding-inline: var(--_fade);
-  scrollbar-width: none;
   border: var(--border-width-default) solid var(--color-border-default);
   border-radius: var(--radius-control);
   background-color: var(--color-bg-subtle);
   font-family: var(--font-family-sans);
 }
 
-.root::-webkit-scrollbar {
+.track {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  flex: 1 1 auto;
+  align-items: stretch;
+  min-width: 0;
+  padding: var(--_inset);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-padding-inline: var(--_fade);
+  scrollbar-width: none;
+  border-radius: inherit;
+}
+
+.track::-webkit-scrollbar {
   display: none;
 }
 
 /* The mask only uses the gradient's alpha: currentcolor is any opaque color. */
-.root[data-overflow="end"] {
+.root[data-overflow="end"] > .track {
   mask-image: linear-gradient(to right, currentcolor calc(100% - var(--_fade)), transparent);
 }
 
-.root[data-overflow="start"] {
+.root[data-overflow="start"] > .track {
   mask-image: linear-gradient(to left, currentcolor calc(100% - var(--_fade)), transparent);
 }
 
-.root[data-overflow="both"] {
+.root[data-overflow="both"] > .track {
   mask-image: linear-gradient(to right, transparent, currentcolor var(--_fade), currentcolor calc(100% - var(--_fade)), transparent);
 }
 
@@ -53,7 +63,7 @@
   width: 100%;
 }
 
-.fullWidth > .segment {
+.fullWidth .segment {
   flex: 1 1 0;
   min-width: max-content;
 }
@@ -68,7 +78,7 @@
   min-width: 0;
   margin: 0;
   padding: 0 var(--_px);
-  border: 0;
+  border: var(--border-width-default) solid transparent;
   border-radius: var(--radius-inset);
   background-color: transparent;
   color: var(--color-text-muted);
@@ -91,9 +101,9 @@
   font-size: var(--font-size-100);
 }
 
+/* Hover changes the text only: a fill would compete with the selected plate (in dark it reads brighter). */
 @media (hover: hover) {
   .segment:hover:not(:disabled, [data-disabled], [aria-checked="true"]) {
-    background-color: var(--color-surface-hover);
     color: var(--color-text-default);
   }
 }
@@ -103,6 +113,7 @@
 }
 
 .segment[aria-checked="true"] {
+  border-color: var(--color-border-default);
   background-color: var(--color-surface-default);
   color: var(--color-text-default);
   box-shadow: var(--elevation-raised);
@@ -130,6 +141,7 @@
 
 /* Strong: the selected segment fills with Deep Harbor (the checked control color). */
 .strong .segment[aria-checked="true"] {
+  border-color: var(--color-control-checked-bg);
   background-color: var(--color-control-checked-bg);
   color: var(--color-control-checked-fg);
   box-shadow: none;
@@ -137,6 +149,7 @@
 
 .segment[aria-checked="true"]:disabled,
 .segment[aria-checked="true"][data-disabled] {
+  border-color: transparent;
   background-color: var(--color-action-disabled-bg);
   box-shadow: none;
 }

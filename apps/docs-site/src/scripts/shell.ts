@@ -157,9 +157,9 @@ function paintSegments(root: Element, value: string | null) {
     b.toggleAttribute('data-unchecked', !on);
     b.tabIndex = b === stop ? 0 : -1;
   }
-  // Too many segments for the width (a phone): the DS track scrolls sideways; keep the selected one in view, clear of
-  // the faded edge (the track's scroll-padding).
-  const track = root as HTMLElement;
+  // Too many segments for the width (a phone): the DS inner track scrolls sideways; keep the selected one in view,
+  // clear of the faded edge (the track's scroll-padding).
+  const track = root.querySelector<HTMLElement>('[data-segment-track]') ?? (root as HTMLElement);
   if (current && track.scrollWidth > track.clientWidth) {
     const pad = parseFloat(getComputedStyle(track).scrollPaddingInlineStart) || 0;
     const start = current.offsetLeft - pad;
@@ -167,17 +167,19 @@ function paintSegments(root: Element, value: string | null) {
     if (start < track.scrollLeft) track.scrollLeft = Math.max(0, start);
     else if (end > track.scrollLeft + track.clientWidth) track.scrollLeft = end - track.clientWidth;
   }
-  markOverflow(track);
+  markOverflow(root as HTMLElement);
 }
 
-/** The DS static contract for a scrolling track: data-overflow names the edges that hide segments (the CSS fades them). */
-function markOverflow(track: HTMLElement) {
+/** The DS static contract for a scrolling track: data-overflow on the root names the edges of its inner track that hide
+ * segments (the CSS fades them). */
+function markOverflow(root: HTMLElement) {
+  const track = root.querySelector<HTMLElement>('[data-segment-track]') ?? root;
   const max = track.scrollWidth - track.clientWidth;
   const start = track.scrollLeft > 1;
   const end = max - track.scrollLeft > 1;
   const value = start && end ? 'both' : start ? 'start' : end ? 'end' : null;
-  if (value) track.setAttribute('data-overflow', value);
-  else track.removeAttribute('data-overflow');
+  if (value) root.setAttribute('data-overflow', value);
+  else root.removeAttribute('data-overflow');
 }
 
 /** Select a segment of a static SegmentedControl. `emit` dispatches bridge:segment as a user change would. */
@@ -195,8 +197,8 @@ function initSegmented() {
   document.addEventListener(
     'scroll',
     (e) => {
-      const t = e.target;
-      if (t instanceof HTMLElement && t.matches(SEG_ROOT)) markOverflow(t);
+      const root = e.target instanceof HTMLElement ? e.target.closest<HTMLElement>(SEG_ROOT) : null;
+      if (root) markOverflow(root);
     },
     { capture: true, passive: true },
   );

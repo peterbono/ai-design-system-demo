@@ -54,27 +54,32 @@ export interface SegmentedControlProps
   name?: string;
 }
 
-/** Marks which edges of a scrolling track hide segments (`data-overflow`), so the CSS fades them. */
+/** The scrolling part of a control: an inner track, so the fade never touches the outer border and background. */
+const trackOf = (root: HTMLElement) => root.querySelector<HTMLElement>('[data-segment-track]') ?? root;
+
+/** Marks which edges of a scrolling track hide segments (`data-overflow` on the root), so the CSS fades them. */
 export function markSegmentOverflow(root: HTMLElement) {
-  const max = root.scrollWidth - root.clientWidth;
-  const start = root.scrollLeft > 1;
-  const end = max - root.scrollLeft > 1;
+  const track = trackOf(root);
+  const max = track.scrollWidth - track.clientWidth;
+  const start = track.scrollLeft > 1;
+  const end = max - track.scrollLeft > 1;
   const value = start && end ? 'both' : start ? 'start' : end ? 'end' : null;
   if (value) root.setAttribute('data-overflow', value);
   else root.removeAttribute('data-overflow');
 }
 
-/** Scrolls the track so the selected segment is fully visible, without moving the page. */
+/** Scrolls the track so the selected segment is fully visible, clear of the faded edge, without moving the page. */
 function revealSelected(root: HTMLElement | null) {
-  if (!root || root.scrollWidth <= root.clientWidth) return;
-  const selected = root.querySelector<HTMLElement>('[data-segment][aria-checked="true"]');
+  if (!root) return;
+  const track = trackOf(root);
+  if (track.scrollWidth <= track.clientWidth) return;
+  const selected = track.querySelector<HTMLElement>('[data-segment][aria-checked="true"]');
   if (!selected) return;
-  // Clear of the faded edge (the track's scroll-padding).
-  const pad = parseFloat(getComputedStyle(root).scrollPaddingInlineStart) || 0;
+  const pad = parseFloat(getComputedStyle(track).scrollPaddingInlineStart) || 0;
   const start = selected.offsetLeft - pad;
   const end = selected.offsetLeft + selected.offsetWidth + pad;
-  if (start < root.scrollLeft) root.scrollLeft = Math.max(0, start);
-  else if (end > root.scrollLeft + root.clientWidth) root.scrollLeft = end - root.clientWidth;
+  if (start < track.scrollLeft) track.scrollLeft = Math.max(0, start);
+  else if (end > track.scrollLeft + track.clientWidth) track.scrollLeft = end - track.clientWidth;
 }
 
 /**
@@ -84,7 +89,8 @@ function revealSelected(root: HTMLElement | null) {
  * Static contract (no hydration): the root carries `data-segmented-control`, each segment `data-segment` and
  * `data-value`, and the selected one `aria-checked="true"`. Styles read `aria-checked`, so a script that flips it
  * (and `tabindex`) drives a statically rendered control. A scrolling track fades the edges named by `data-overflow`
- * (`start`, `end`, `both`): call `markSegmentOverflow(root)` on scroll and resize.
+ * (`start`, `end`, `both`) on the root; the segments sit in an inner `data-segment-track` that scrolls: call
+ * `markSegmentOverflow(root)` on its scroll and on resize.
  */
 export const SegmentedControl = forwardRef<HTMLDivElement, SegmentedControlProps>(function SegmentedControl(
   { items, label, value, defaultValue, onValueChange, size = 'md', appearance = 'default', fullWidth = false, disabled, name, className, ...rest },
@@ -108,13 +114,14 @@ export const SegmentedControl = forwardRef<HTMLDivElement, SegmentedControlProps
   useEffect(() => {
     const root = local.current;
     if (!root) return;
+    const track = trackOf(root);
     const mark = () => markSegmentOverflow(root);
     mark();
-    root.addEventListener('scroll', mark, { passive: true });
+    track.addEventListener('scroll', mark, { passive: true });
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(mark);
-    observer?.observe(root);
+    observer?.observe(track);
     return () => {
-      root.removeEventListener('scroll', mark);
+      track.removeEventListener('scroll', mark);
       observer?.disconnect();
     };
   }, []);
@@ -135,27 +142,29 @@ export const SegmentedControl = forwardRef<HTMLDivElement, SegmentedControlProps
       data-segmented-control=""
       {...rest}
     >
-      {items.map((item) => (
-        <BaseRadio.Root
-          key={item.value}
-          value={item.value}
-          disabled={item.disabled}
-          nativeButton
-          render={<button type="button" />}
-          className={styles.segment}
-          data-segment=""
-          data-value={item.value}
-          {...item.attributes}
-        >
-          {item.leading != null && (
-            <span className={styles.leading} aria-hidden="true">
-              {item.leading}
-            </span>
-          )}
-          {item.icon && <Icon icon={item.icon} size="sm" className={styles.icon} />}
-          <span className={styles.label}>{item.label}</span>
-        </BaseRadio.Root>
-      ))}
+      <div className={styles.track} data-segment-track="">
+        {items.map((item) => (
+          <BaseRadio.Root
+            key={item.value}
+            value={item.value}
+            disabled={item.disabled}
+            nativeButton
+            render={<button type="button" />}
+            className={styles.segment}
+            data-segment=""
+            data-value={item.value}
+            {...item.attributes}
+          >
+            {item.leading != null && (
+              <span className={styles.leading} aria-hidden="true">
+                {item.leading}
+              </span>
+            )}
+            {item.icon && <Icon icon={item.icon} size="sm" className={styles.icon} />}
+            <span className={styles.label}>{item.label}</span>
+          </BaseRadio.Root>
+        ))}
+      </div>
     </BaseRadioGroup>
   );
 });

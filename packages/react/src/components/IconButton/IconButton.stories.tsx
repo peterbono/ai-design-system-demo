@@ -1,8 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { Copy, MoreHorizontal, Pencil, Trash2, X } from 'lucide-react';
 import { Specimen, SpecimenStack, StateGrid } from '../../stories/StateGrid';
-import type { ButtonVariant } from '../Button';
-import { IconButton } from './IconButton';
+import { IconButton, type IconButtonVariant } from './IconButton';
 
 const meta = {
   title: 'Actions/IconButton',
@@ -22,7 +21,7 @@ export const Default: Story = {};
 export const Secondary: Story = { args: { variant: 'secondary', icon: Copy, label: 'Copy token name' } };
 export const Loading: Story = { args: { loading: true } };
 
-const ROWS: { label: string; value: Exclude<ButtonVariant, 'link'> }[] = [
+const ROWS: { label: string; value: IconButtonVariant }[] = [
   { label: 'Ghost', value: 'ghost' },
   { label: 'Secondary', value: 'secondary' },
   { label: 'Primary', value: 'primary' },

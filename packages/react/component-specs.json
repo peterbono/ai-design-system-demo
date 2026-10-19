@@ -3282,7 +3282,7 @@
     },
     {
       "name": "IconButton",
-      "hash": "d873ec5a",
+      "hash": "79e2a2db",
       "source": [
         "packages/react/src/components/IconButton/IconButton.tsx",
         "packages/react/src/components/Button/Button.module.css",
@@ -3291,6 +3291,18 @@
         "packages/react/src/components/Spinner/Spinner.module.css"
       ],
       "axes": [
+        {
+          "name": "Variant",
+          "prop": "variant",
+          "values": [
+            "primary",
+            "secondary",
+            "ghost",
+            "danger",
+            "inverse"
+          ],
+          "default": "ghost"
+        },
         {
           "name": "Size",
           "prop": "size",
@@ -3341,6 +3353,775 @@
       "variants": [
         {
           "props": {
+            "Variant": "primary",
+            "Size": "sm",
+            "State": "Default"
+          },
+          "values": {
+            "root": {
+              "fill": "button.primary.bg",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "space.1-5",
+              "width": "control.height.sm",
+              "minWidth": "control.height.sm",
+              "minHeight": "control.height.sm",
+              "strokeWeight": "border-width.default",
+              "stroke": null
+            },
+            "icon": {
+              "width": "icon.size.sm",
+              "height": "icon.size.sm",
+              "stroke": "button.primary.text",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "primary",
+            "Size": "sm",
+            "State": "Hover"
+          },
+          "values": {
+            "root": {
+              "fill": "button.primary.bg-hover",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "space.1-5",
+              "width": "control.height.sm",
+              "minWidth": "control.height.sm",
+              "minHeight": "control.height.sm",
+              "strokeWeight": "border-width.default",
+              "stroke": null
+            },
+            "icon": {
+              "width": "icon.size.sm",
+              "height": "icon.size.sm",
+              "stroke": "button.primary.text",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "primary",
+            "Size": "sm",
+            "State": "Pressed"
+          },
+          "values": {
+            "root": {
+              "fill": "button.primary.bg-active",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "space.1-5",
+              "width": "control.height.sm",
+              "minWidth": "control.height.sm",
+              "minHeight": "control.height.sm",
+              "strokeWeight": "border-width.default",
+              "stroke": null
+            },
+            "icon": {
+              "width": "icon.size.sm",
+              "height": "icon.size.sm",
+              "stroke": "button.primary.text",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "primary",
+            "Size": "sm",
+            "State": "Disabled"
+          },
+          "values": {
+            "root": {
+              "fill": "color.action.disabled.bg",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "space.1-5",
+              "width": "control.height.sm",
+              "minWidth": "control.height.sm",
+              "minHeight": "control.height.sm",
+              "strokeWeight": "border-width.default",
+              "stroke": null
+            },
+            "icon": {
+              "width": "icon.size.sm",
+              "height": "icon.size.sm",
+              "stroke": "color.action.disabled.text",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "primary",
+            "Size": "md",
+            "State": "Default"
+          },
+          "values": {
+            "root": {
+              "fill": "button.primary.bg",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "control.gap",
+              "width": "control.height.md",
+              "minWidth": "control.height.md",
+              "minHeight": "control.height.md",
+              "strokeWeight": "border-width.default",
+              "stroke": null
+            },
+            "icon": {
+              "width": "icon.size.sm",
+              "height": "icon.size.sm",
+              "stroke": "button.primary.text",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "primary",
+            "Size": "md",
+            "State": "Hover"
+          },
+          "values": {
+            "root": {
+              "fill": "button.primary.bg-hover",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "control.gap",
+              "width": "control.height.md",
+              "minWidth": "control.height.md",
+              "minHeight": "control.height.md",
+              "strokeWeight": "border-width.default",
+              "stroke": null
+            },
+            "icon": {
+              "width": "icon.size.sm",
+              "height": "icon.size.sm",
+              "stroke": "button.primary.text",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "primary",
+            "Size": "md",
+            "State": "Pressed"
+          },
+          "values": {
+            "root": {
+              "fill": "button.primary.bg-active",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "control.gap",
+              "width": "control.height.md",
+              "minWidth": "control.height.md",
+              "minHeight": "control.height.md",
+              "strokeWeight": "border-width.default",
+              "stroke": null
+            },
+            "icon": {
+              "width": "icon.size.sm",
+              "height": "icon.size.sm",
+              "stroke": "button.primary.text",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "primary",
+            "Size": "md",
+            "State": "Disabled"
+          },
+          "values": {
+            "root": {
+              "fill": "color.action.disabled.bg",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "control.gap",
+              "width": "control.height.md",
+              "minWidth": "control.height.md",
+              "minHeight": "control.height.md",
+              "strokeWeight": "border-width.default",
+              "stroke": null
+            },
+            "icon": {
+              "width": "icon.size.sm",
+              "height": "icon.size.sm",
+              "stroke": "color.action.disabled.text",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "primary",
+            "Size": "lg",
+            "State": "Default"
+          },
+          "values": {
+            "root": {
+              "fill": "button.primary.bg",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "control.gap",
+              "width": "control.height.lg",
+              "minWidth": "control.height.lg",
+              "minHeight": "control.height.lg",
+              "strokeWeight": "border-width.default",
+              "stroke": null
+            },
+            "icon": {
+              "width": "icon.size.md",
+              "height": "icon.size.md",
+              "stroke": "button.primary.text",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "primary",
+            "Size": "lg",
+            "State": "Hover"
+          },
+          "values": {
+            "root": {
+              "fill": "button.primary.bg-hover",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "control.gap",
+              "width": "control.height.lg",
+              "minWidth": "control.height.lg",
+              "minHeight": "control.height.lg",
+              "strokeWeight": "border-width.default",
+              "stroke": null
+            },
+            "icon": {
+              "width": "icon.size.md",
+              "height": "icon.size.md",
+              "stroke": "button.primary.text",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "primary",
+            "Size": "lg",
+            "State": "Pressed"
+          },
+          "values": {
+            "root": {
+              "fill": "button.primary.bg-active",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "control.gap",
+              "width": "control.height.lg",
+              "minWidth": "control.height.lg",
+              "minHeight": "control.height.lg",
+              "strokeWeight": "border-width.default",
+              "stroke": null
+            },
+            "icon": {
+              "width": "icon.size.md",
+              "height": "icon.size.md",
+              "stroke": "button.primary.text",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "primary",
+            "Size": "lg",
+            "State": "Disabled"
+          },
+          "values": {
+            "root": {
+              "fill": "color.action.disabled.bg",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "control.gap",
+              "width": "control.height.lg",
+              "minWidth": "control.height.lg",
+              "minHeight": "control.height.lg",
+              "strokeWeight": "border-width.default",
+              "stroke": null
+            },
+            "icon": {
+              "width": "icon.size.md",
+              "height": "icon.size.md",
+              "stroke": "color.action.disabled.text",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "secondary",
+            "Size": "sm",
+            "State": "Default"
+          },
+          "values": {
+            "root": {
+              "fill": "button.secondary.bg",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "space.1-5",
+              "width": "control.height.sm",
+              "minWidth": "control.height.sm",
+              "minHeight": "control.height.sm",
+              "strokeWeight": "border-width.default",
+              "stroke": "button.secondary.border"
+            },
+            "icon": {
+              "width": "icon.size.sm",
+              "height": "icon.size.sm",
+              "stroke": "button.secondary.text",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "secondary",
+            "Size": "sm",
+            "State": "Hover"
+          },
+          "values": {
+            "root": {
+              "fill": "button.secondary.bg-hover",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "space.1-5",
+              "width": "control.height.sm",
+              "minWidth": "control.height.sm",
+              "minHeight": "control.height.sm",
+              "strokeWeight": "border-width.default",
+              "stroke": "button.secondary.border"
+            },
+            "icon": {
+              "width": "icon.size.sm",
+              "height": "icon.size.sm",
+              "stroke": "button.secondary.text",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "secondary",
+            "Size": "sm",
+            "State": "Pressed"
+          },
+          "values": {
+            "root": {
+              "fill": "button.secondary.bg-active",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "space.1-5",
+              "width": "control.height.sm",
+              "minWidth": "control.height.sm",
+              "minHeight": "control.height.sm",
+              "strokeWeight": "border-width.default",
+              "stroke": "button.secondary.border"
+            },
+            "icon": {
+              "width": "icon.size.sm",
+              "height": "icon.size.sm",
+              "stroke": "button.secondary.text",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "secondary",
+            "Size": "sm",
+            "State": "Disabled"
+          },
+          "values": {
+            "root": {
+              "fill": "color.action.disabled.bg",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "space.1-5",
+              "width": "control.height.sm",
+              "minWidth": "control.height.sm",
+              "minHeight": "control.height.sm",
+              "strokeWeight": "border-width.default",
+              "stroke": null
+            },
+            "icon": {
+              "width": "icon.size.sm",
+              "height": "icon.size.sm",
+              "stroke": "color.action.disabled.text",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "secondary",
+            "Size": "md",
+            "State": "Default"
+          },
+          "values": {
+            "root": {
+              "fill": "button.secondary.bg",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "control.gap",
+              "width": "control.height.md",
+              "minWidth": "control.height.md",
+              "minHeight": "control.height.md",
+              "strokeWeight": "border-width.default",
+              "stroke": "button.secondary.border"
+            },
+            "icon": {
+              "width": "icon.size.sm",
+              "height": "icon.size.sm",
+              "stroke": "button.secondary.text",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "secondary",
+            "Size": "md",
+            "State": "Hover"
+          },
+          "values": {
+            "root": {
+              "fill": "button.secondary.bg-hover",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "control.gap",
+              "width": "control.height.md",
+              "minWidth": "control.height.md",
+              "minHeight": "control.height.md",
+              "strokeWeight": "border-width.default",
+              "stroke": "button.secondary.border"
+            },
+            "icon": {
+              "width": "icon.size.sm",
+              "height": "icon.size.sm",
+              "stroke": "button.secondary.text",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "secondary",
+            "Size": "md",
+            "State": "Pressed"
+          },
+          "values": {
+            "root": {
+              "fill": "button.secondary.bg-active",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "control.gap",
+              "width": "control.height.md",
+              "minWidth": "control.height.md",
+              "minHeight": "control.height.md",
+              "strokeWeight": "border-width.default",
+              "stroke": "button.secondary.border"
+            },
+            "icon": {
+              "width": "icon.size.sm",
+              "height": "icon.size.sm",
+              "stroke": "button.secondary.text",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "secondary",
+            "Size": "md",
+            "State": "Disabled"
+          },
+          "values": {
+            "root": {
+              "fill": "color.action.disabled.bg",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "control.gap",
+              "width": "control.height.md",
+              "minWidth": "control.height.md",
+              "minHeight": "control.height.md",
+              "strokeWeight": "border-width.default",
+              "stroke": null
+            },
+            "icon": {
+              "width": "icon.size.sm",
+              "height": "icon.size.sm",
+              "stroke": "color.action.disabled.text",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "secondary",
+            "Size": "lg",
+            "State": "Default"
+          },
+          "values": {
+            "root": {
+              "fill": "button.secondary.bg",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "control.gap",
+              "width": "control.height.lg",
+              "minWidth": "control.height.lg",
+              "minHeight": "control.height.lg",
+              "strokeWeight": "border-width.default",
+              "stroke": "button.secondary.border"
+            },
+            "icon": {
+              "width": "icon.size.md",
+              "height": "icon.size.md",
+              "stroke": "button.secondary.text",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "secondary",
+            "Size": "lg",
+            "State": "Hover"
+          },
+          "values": {
+            "root": {
+              "fill": "button.secondary.bg-hover",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "control.gap",
+              "width": "control.height.lg",
+              "minWidth": "control.height.lg",
+              "minHeight": "control.height.lg",
+              "strokeWeight": "border-width.default",
+              "stroke": "button.secondary.border"
+            },
+            "icon": {
+              "width": "icon.size.md",
+              "height": "icon.size.md",
+              "stroke": "button.secondary.text",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "secondary",
+            "Size": "lg",
+            "State": "Pressed"
+          },
+          "values": {
+            "root": {
+              "fill": "button.secondary.bg-active",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "control.gap",
+              "width": "control.height.lg",
+              "minWidth": "control.height.lg",
+              "minHeight": "control.height.lg",
+              "strokeWeight": "border-width.default",
+              "stroke": "button.secondary.border"
+            },
+            "icon": {
+              "width": "icon.size.md",
+              "height": "icon.size.md",
+              "stroke": "button.secondary.text",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "secondary",
+            "Size": "lg",
+            "State": "Disabled"
+          },
+          "values": {
+            "root": {
+              "fill": "color.action.disabled.bg",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "control.gap",
+              "width": "control.height.lg",
+              "minWidth": "control.height.lg",
+              "minHeight": "control.height.lg",
+              "strokeWeight": "border-width.default",
+              "stroke": null
+            },
+            "icon": {
+              "width": "icon.size.md",
+              "height": "icon.size.md",
+              "stroke": "color.action.disabled.text",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "ghost",
             "Size": "sm",
             "State": "Default"
           },
@@ -3372,6 +4153,7 @@
         },
         {
           "props": {
+            "Variant": "ghost",
             "Size": "sm",
             "State": "Hover"
           },
@@ -3403,6 +4185,7 @@
         },
         {
           "props": {
+            "Variant": "ghost",
             "Size": "sm",
             "State": "Pressed"
           },
@@ -3434,6 +4217,7 @@
         },
         {
           "props": {
+            "Variant": "ghost",
             "Size": "sm",
             "State": "Disabled"
           },
@@ -3465,6 +4249,7 @@
         },
         {
           "props": {
+            "Variant": "ghost",
             "Size": "md",
             "State": "Default"
           },
@@ -3496,6 +4281,7 @@
         },
         {
           "props": {
+            "Variant": "ghost",
             "Size": "md",
             "State": "Hover"
           },
@@ -3527,6 +4313,7 @@
         },
         {
           "props": {
+            "Variant": "ghost",
             "Size": "md",
             "State": "Pressed"
           },
@@ -3558,6 +4345,7 @@
         },
         {
           "props": {
+            "Variant": "ghost",
             "Size": "md",
             "State": "Disabled"
           },
@@ -3589,6 +4377,7 @@
         },
         {
           "props": {
+            "Variant": "ghost",
             "Size": "lg",
             "State": "Default"
           },
@@ -3620,6 +4409,7 @@
         },
         {
           "props": {
+            "Variant": "ghost",
             "Size": "lg",
             "State": "Hover"
           },
@@ -3651,6 +4441,7 @@
         },
         {
           "props": {
+            "Variant": "ghost",
             "Size": "lg",
             "State": "Pressed"
           },
@@ -3682,12 +4473,781 @@
         },
         {
           "props": {
+            "Variant": "ghost",
             "Size": "lg",
             "State": "Disabled"
           },
           "values": {
             "root": {
               "fill": null,
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "control.gap",
+              "width": "control.height.lg",
+              "minWidth": "control.height.lg",
+              "minHeight": "control.height.lg",
+              "strokeWeight": "border-width.default",
+              "stroke": null
+            },
+            "icon": {
+              "width": "icon.size.md",
+              "height": "icon.size.md",
+              "stroke": "color.action.disabled.text",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "danger",
+            "Size": "sm",
+            "State": "Default"
+          },
+          "values": {
+            "root": {
+              "fill": "button.danger.bg",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "space.1-5",
+              "width": "control.height.sm",
+              "minWidth": "control.height.sm",
+              "minHeight": "control.height.sm",
+              "strokeWeight": "border-width.default",
+              "stroke": null
+            },
+            "icon": {
+              "width": "icon.size.sm",
+              "height": "icon.size.sm",
+              "stroke": "button.danger.text",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "danger",
+            "Size": "sm",
+            "State": "Hover"
+          },
+          "values": {
+            "root": {
+              "fill": "button.danger.bg-hover",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "space.1-5",
+              "width": "control.height.sm",
+              "minWidth": "control.height.sm",
+              "minHeight": "control.height.sm",
+              "strokeWeight": "border-width.default",
+              "stroke": null
+            },
+            "icon": {
+              "width": "icon.size.sm",
+              "height": "icon.size.sm",
+              "stroke": "button.danger.text",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "danger",
+            "Size": "sm",
+            "State": "Pressed"
+          },
+          "values": {
+            "root": {
+              "fill": "button.danger.bg-active",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "space.1-5",
+              "width": "control.height.sm",
+              "minWidth": "control.height.sm",
+              "minHeight": "control.height.sm",
+              "strokeWeight": "border-width.default",
+              "stroke": null
+            },
+            "icon": {
+              "width": "icon.size.sm",
+              "height": "icon.size.sm",
+              "stroke": "button.danger.text",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "danger",
+            "Size": "sm",
+            "State": "Disabled"
+          },
+          "values": {
+            "root": {
+              "fill": "color.action.disabled.bg",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "space.1-5",
+              "width": "control.height.sm",
+              "minWidth": "control.height.sm",
+              "minHeight": "control.height.sm",
+              "strokeWeight": "border-width.default",
+              "stroke": null
+            },
+            "icon": {
+              "width": "icon.size.sm",
+              "height": "icon.size.sm",
+              "stroke": "color.action.disabled.text",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "danger",
+            "Size": "md",
+            "State": "Default"
+          },
+          "values": {
+            "root": {
+              "fill": "button.danger.bg",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "control.gap",
+              "width": "control.height.md",
+              "minWidth": "control.height.md",
+              "minHeight": "control.height.md",
+              "strokeWeight": "border-width.default",
+              "stroke": null
+            },
+            "icon": {
+              "width": "icon.size.sm",
+              "height": "icon.size.sm",
+              "stroke": "button.danger.text",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "danger",
+            "Size": "md",
+            "State": "Hover"
+          },
+          "values": {
+            "root": {
+              "fill": "button.danger.bg-hover",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "control.gap",
+              "width": "control.height.md",
+              "minWidth": "control.height.md",
+              "minHeight": "control.height.md",
+              "strokeWeight": "border-width.default",
+              "stroke": null
+            },
+            "icon": {
+              "width": "icon.size.sm",
+              "height": "icon.size.sm",
+              "stroke": "button.danger.text",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "danger",
+            "Size": "md",
+            "State": "Pressed"
+          },
+          "values": {
+            "root": {
+              "fill": "button.danger.bg-active",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "control.gap",
+              "width": "control.height.md",
+              "minWidth": "control.height.md",
+              "minHeight": "control.height.md",
+              "strokeWeight": "border-width.default",
+              "stroke": null
+            },
+            "icon": {
+              "width": "icon.size.sm",
+              "height": "icon.size.sm",
+              "stroke": "button.danger.text",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "danger",
+            "Size": "md",
+            "State": "Disabled"
+          },
+          "values": {
+            "root": {
+              "fill": "color.action.disabled.bg",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "control.gap",
+              "width": "control.height.md",
+              "minWidth": "control.height.md",
+              "minHeight": "control.height.md",
+              "strokeWeight": "border-width.default",
+              "stroke": null
+            },
+            "icon": {
+              "width": "icon.size.sm",
+              "height": "icon.size.sm",
+              "stroke": "color.action.disabled.text",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "danger",
+            "Size": "lg",
+            "State": "Default"
+          },
+          "values": {
+            "root": {
+              "fill": "button.danger.bg",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "control.gap",
+              "width": "control.height.lg",
+              "minWidth": "control.height.lg",
+              "minHeight": "control.height.lg",
+              "strokeWeight": "border-width.default",
+              "stroke": null
+            },
+            "icon": {
+              "width": "icon.size.md",
+              "height": "icon.size.md",
+              "stroke": "button.danger.text",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "danger",
+            "Size": "lg",
+            "State": "Hover"
+          },
+          "values": {
+            "root": {
+              "fill": "button.danger.bg-hover",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "control.gap",
+              "width": "control.height.lg",
+              "minWidth": "control.height.lg",
+              "minHeight": "control.height.lg",
+              "strokeWeight": "border-width.default",
+              "stroke": null
+            },
+            "icon": {
+              "width": "icon.size.md",
+              "height": "icon.size.md",
+              "stroke": "button.danger.text",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "danger",
+            "Size": "lg",
+            "State": "Pressed"
+          },
+          "values": {
+            "root": {
+              "fill": "button.danger.bg-active",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "control.gap",
+              "width": "control.height.lg",
+              "minWidth": "control.height.lg",
+              "minHeight": "control.height.lg",
+              "strokeWeight": "border-width.default",
+              "stroke": null
+            },
+            "icon": {
+              "width": "icon.size.md",
+              "height": "icon.size.md",
+              "stroke": "button.danger.text",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "danger",
+            "Size": "lg",
+            "State": "Disabled"
+          },
+          "values": {
+            "root": {
+              "fill": "color.action.disabled.bg",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "control.gap",
+              "width": "control.height.lg",
+              "minWidth": "control.height.lg",
+              "minHeight": "control.height.lg",
+              "strokeWeight": "border-width.default",
+              "stroke": null
+            },
+            "icon": {
+              "width": "icon.size.md",
+              "height": "icon.size.md",
+              "stroke": "color.action.disabled.text",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "inverse",
+            "Size": "sm",
+            "State": "Default"
+          },
+          "values": {
+            "root": {
+              "fill": "color.surface.default",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "space.1-5",
+              "width": "control.height.sm",
+              "minWidth": "control.height.sm",
+              "minHeight": "control.height.sm",
+              "strokeWeight": "border-width.default",
+              "stroke": null
+            },
+            "icon": {
+              "width": "icon.size.sm",
+              "height": "icon.size.sm",
+              "stroke": "color.text.default",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "inverse",
+            "Size": "sm",
+            "State": "Hover"
+          },
+          "values": {
+            "root": {
+              "fill": "color.surface.hover",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "space.1-5",
+              "width": "control.height.sm",
+              "minWidth": "control.height.sm",
+              "minHeight": "control.height.sm",
+              "strokeWeight": "border-width.default",
+              "stroke": null
+            },
+            "icon": {
+              "width": "icon.size.sm",
+              "height": "icon.size.sm",
+              "stroke": "color.text.default",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "inverse",
+            "Size": "sm",
+            "State": "Pressed"
+          },
+          "values": {
+            "root": {
+              "fill": "color.surface.pressed",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "space.1-5",
+              "width": "control.height.sm",
+              "minWidth": "control.height.sm",
+              "minHeight": "control.height.sm",
+              "strokeWeight": "border-width.default",
+              "stroke": null
+            },
+            "icon": {
+              "width": "icon.size.sm",
+              "height": "icon.size.sm",
+              "stroke": "color.text.default",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "inverse",
+            "Size": "sm",
+            "State": "Disabled"
+          },
+          "values": {
+            "root": {
+              "fill": "color.action.disabled.bg",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "space.1-5",
+              "width": "control.height.sm",
+              "minWidth": "control.height.sm",
+              "minHeight": "control.height.sm",
+              "strokeWeight": "border-width.default",
+              "stroke": null
+            },
+            "icon": {
+              "width": "icon.size.sm",
+              "height": "icon.size.sm",
+              "stroke": "color.action.disabled.text",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "inverse",
+            "Size": "md",
+            "State": "Default"
+          },
+          "values": {
+            "root": {
+              "fill": "color.surface.default",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "control.gap",
+              "width": "control.height.md",
+              "minWidth": "control.height.md",
+              "minHeight": "control.height.md",
+              "strokeWeight": "border-width.default",
+              "stroke": null
+            },
+            "icon": {
+              "width": "icon.size.sm",
+              "height": "icon.size.sm",
+              "stroke": "color.text.default",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "inverse",
+            "Size": "md",
+            "State": "Hover"
+          },
+          "values": {
+            "root": {
+              "fill": "color.surface.hover",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "control.gap",
+              "width": "control.height.md",
+              "minWidth": "control.height.md",
+              "minHeight": "control.height.md",
+              "strokeWeight": "border-width.default",
+              "stroke": null
+            },
+            "icon": {
+              "width": "icon.size.sm",
+              "height": "icon.size.sm",
+              "stroke": "color.text.default",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "inverse",
+            "Size": "md",
+            "State": "Pressed"
+          },
+          "values": {
+            "root": {
+              "fill": "color.surface.pressed",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "control.gap",
+              "width": "control.height.md",
+              "minWidth": "control.height.md",
+              "minHeight": "control.height.md",
+              "strokeWeight": "border-width.default",
+              "stroke": null
+            },
+            "icon": {
+              "width": "icon.size.sm",
+              "height": "icon.size.sm",
+              "stroke": "color.text.default",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "inverse",
+            "Size": "md",
+            "State": "Disabled"
+          },
+          "values": {
+            "root": {
+              "fill": "color.action.disabled.bg",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "control.gap",
+              "width": "control.height.md",
+              "minWidth": "control.height.md",
+              "minHeight": "control.height.md",
+              "strokeWeight": "border-width.default",
+              "stroke": null
+            },
+            "icon": {
+              "width": "icon.size.sm",
+              "height": "icon.size.sm",
+              "stroke": "color.action.disabled.text",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "inverse",
+            "Size": "lg",
+            "State": "Default"
+          },
+          "values": {
+            "root": {
+              "fill": "color.surface.default",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "control.gap",
+              "width": "control.height.lg",
+              "minWidth": "control.height.lg",
+              "minHeight": "control.height.lg",
+              "strokeWeight": "border-width.default",
+              "stroke": null
+            },
+            "icon": {
+              "width": "icon.size.md",
+              "height": "icon.size.md",
+              "stroke": "color.text.default",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "inverse",
+            "Size": "lg",
+            "State": "Hover"
+          },
+          "values": {
+            "root": {
+              "fill": "color.surface.hover",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "control.gap",
+              "width": "control.height.lg",
+              "minWidth": "control.height.lg",
+              "minHeight": "control.height.lg",
+              "strokeWeight": "border-width.default",
+              "stroke": null
+            },
+            "icon": {
+              "width": "icon.size.md",
+              "height": "icon.size.md",
+              "stroke": "color.text.default",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "inverse",
+            "Size": "lg",
+            "State": "Pressed"
+          },
+          "values": {
+            "root": {
+              "fill": "color.surface.pressed",
+              "cornerRadius": "button.radius",
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "itemSpacing": "control.gap",
+              "width": "control.height.lg",
+              "minWidth": "control.height.lg",
+              "minHeight": "control.height.lg",
+              "strokeWeight": "border-width.default",
+              "stroke": null
+            },
+            "icon": {
+              "width": "icon.size.md",
+              "height": "icon.size.md",
+              "stroke": "color.text.default",
+              "strokeWeight": "icon.stroke"
+            }
+          },
+          "slots": {
+            "icon": "Icon/Pencil"
+          }
+        },
+        {
+          "props": {
+            "Variant": "inverse",
+            "Size": "lg",
+            "State": "Disabled"
+          },
+          "values": {
+            "root": {
+              "fill": "color.action.disabled.bg",
               "cornerRadius": "button.radius",
               "paddingTop": 0,
               "paddingRight": 0,

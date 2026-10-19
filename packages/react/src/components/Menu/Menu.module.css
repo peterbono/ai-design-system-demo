@@ -79,7 +79,8 @@
   color: var(--menu-item-text-muted);
 }
 
-.danger .leading {
+.danger .leading,
+.item[data-disabled] .leading {
   color: inherit;
 }
 

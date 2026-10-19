@@ -24,7 +24,7 @@ describe('components and docs (real repo)', () => {
   it('bridge_get_component: props with defaults and union values, docs, tokens, stories', async () => {
     const b = await ops.getComponentOp(ctx, { name: 'Button' });
     expect(b.extends).toBe('ButtonHTMLAttributes<HTMLButtonElement>');
-    expect(b.props.find((p) => p.name === 'variant')).toMatchObject({ default: "'primary'", values: ['primary', 'secondary', 'ghost', 'danger'] });
+    expect(b.props.find((p) => p.name === 'variant')).toMatchObject({ default: "'primary'", values: ['primary', 'secondary', 'ghost', 'danger', 'link', 'inverse'] });
     expect(b.props.find((p) => p.name === 'loading')?.description).toMatch(/spinner/);
     expect(Object.keys(b.docs!)).toEqual(expect.arrayContaining(['whenToUse', 'whenNotToUse', 'dos', 'donts', 'accessibility', 'anatomy']));
     expect(b.tokens.used).toContain('--button-primary-bg');
