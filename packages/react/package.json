@@ -1,6 +1,6 @@
 {
   "name": "@bridge-ds/react",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "type": "module",
   "description": "Bridge design system React components: Base UI behavior, token-only styling through CSS Modules.",
   "license": "MIT",
