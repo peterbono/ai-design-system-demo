@@ -11,6 +11,7 @@ import {
   listSource,
   needFromDetail,
   needFromStatus,
+  pendingApprovals,
   requiredApprovals,
   whoActs,
   openerFor,
@@ -356,5 +357,28 @@ describe('failing developer tests on a list row', () => {
     });
     // A failing design rule, or failures not named yet, stay with the author.
     expect(whoActs(needFromStatus('ci-failing', { failing: 1 }), p)).toMatchObject({ yourTurn: true, short: 'Your turn: fix tests' });
+  });
+
+  it('puts an approval the viewer can give before the developer fix', () => {
+    const p = { owners: { design: ['dana'], tech: ['theo'] }, author: 'ann', viewer: 'dana' };
+    expect(whoActs(needFromStatus('ci-failing', { failing: 2, developerOnly: true, pending: ['design', 'tech'] }), p)).toMatchObject({
+      who: 'you',
+      yourTurn: true,
+      action: 'approve-design',
+      short: 'Your turn: approve design',
+      sentence: 'Your turn: approve the design. A developer fixes 2 failing checks meanwhile.',
+    });
+    // Nothing left for the viewer to approve: still a developer's to fix.
+    expect(whoActs(needFromStatus('ci-failing', { failing: 2, developerOnly: true, pending: ['tech'] }), p)).toMatchObject({ who: 'developer', short: 'Blocked by tests' });
+  });
+});
+
+describe('pendingApprovals', () => {
+  it('lists the approvals the tier still needs, empty when the tier or reviews are unknown', () => {
+    const none = { approvers: [], changesRequested: [], design: false, tech: false };
+    expect(pendingApprovals(2, none)).toEqual(['design', 'tech']);
+    expect(pendingApprovals(2, { ...none, approvers: ['dana'], design: true })).toEqual(['tech']);
+    expect(pendingApprovals(null, none)).toEqual([]);
+    expect(pendingApprovals(2, null)).toEqual([]);
   });
 });

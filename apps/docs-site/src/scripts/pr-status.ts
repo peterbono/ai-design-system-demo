@@ -10,7 +10,7 @@ import { fileSignals, type FileSignals } from '../lib/work-nature';
 import { badgeHtml, tooltipAttributes } from '@bridge-ds/react/dom';
 import { currentViewer, ghGet, hasWorkingToken, prefersSignIn, readRepo } from './github-session';
 import { ghAction } from '../lib/gh-wording';
-import { needFromStatus, statusTone, whoActs, type WhoActs } from '../lib/changes';
+import { needFromStatus, pendingApprovals, statusTone, whoActs, type ApprovalRole, type WhoActs } from '../lib/changes';
 import { developerOnlyFailures } from '../lib/check-explain';
 import { planStatusReads, statusCacheKey, type CachedStatus } from '../lib/status-budget';
 import type { TeamStates } from '@bridge-ds/core';
@@ -90,6 +90,8 @@ export interface PullStatus extends ReviewStatus {
   failing?: number;
   /** Names of the failing checks ("Changeset present"), so the Overview can name the blocker. */
   failingChecks?: string[];
+  /** Approvals still missing (lib/changes pendingApprovals), so a failing test never hides an approval the viewer can give. */
+  pending?: ApprovalRole[];
   /** From the changed files (when read): it touches what the visual impact run captures, or only usage guidance. */
   touchesVisuals?: boolean;
   guidanceOnly?: boolean;
@@ -153,6 +155,7 @@ export async function pullStatus(p: PullForStatus, opts: { lean?: boolean } = {}
     changesRequested: approvals?.changesRequested,
     failing: ci?.failed.length,
     failingChecks: ci?.failed.map((f) => f.name),
+    pending: pendingApprovals(tier, approvals),
     tier,
     ...(names ? { touchesVisuals: touchesVisuals(names), guidanceOnly: isGuidanceOnly(names), files: fileSignals(names) } : {}),
   };
@@ -179,12 +182,12 @@ export function statusChip(s: ReviewStatus | null, opts: { skipped?: boolean } =
  * who acts now ("Design owner to approve", "Your turn: approve design"), from the same whoActs as the pull request
  * header. Falls back to the plain status label when the who-acts line adds nothing (unknown, merged, closed).
  */
-type RowFacts = { author: string; approvers?: string[]; changesRequested?: string[]; failing?: number; failingChecks?: string[]; skipped?: boolean };
+type RowFacts = { author: string; approvers?: string[]; changesRequested?: string[]; failing?: number; failingChecks?: string[]; pending?: ApprovalRole[]; skipped?: boolean };
 
 /** Who acts now on a list row (lib/changes whoActs), or null while its status is unknown. Shared by the chip and the opener. */
 export function rowWho(kind: ReviewStatusKind | null, o: RowFacts): WhoActs | null {
   if (o.skipped || !kind) return null;
-  return whoActs(needFromStatus(kind, { failing: o.failing, changesRequestedBy: o.changesRequested, developerOnly: developerOnlyFailures(o.failingChecks) }), {
+  return whoActs(needFromStatus(kind, { failing: o.failing, changesRequestedBy: o.changesRequested, developerOnly: developerOnlyFailures(o.failingChecks), pending: o.pending }), {
     owners: owners(),
     shippers: shippers(),
     ...teamPeople(),
