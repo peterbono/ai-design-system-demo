@@ -1,0 +1,391 @@
+/* Studio home, direction D (components/ds/studio/StudioHome.tsx). One Harbor zone that answers "what do I do
+   now", a muted health line, then Your branches. Four type sizes: the greeting (h1), the section heading (h2),
+   body for titles and sentences, ui for the rest. Shared by the review queue (sh-rows). */
+
+.sh {
+  display: grid;
+  gap: var(--space-8);
+  max-width: var(--studio-page-max);
+}
+
+/* --- The zone ------------------------------------------------------------------------------------------------ */
+
+.sh-zone {
+  display: grid;
+  gap: var(--space-5);
+  padding: var(--space-7) var(--space-8);
+}
+
+.sh-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+}
+
+.sh-head-text {
+  display: grid;
+  flex: 1;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.sh-head-text > p,
+.sh-zone p {
+  margin: 0;
+}
+
+.sh-hello {
+  margin: 0;
+  font-family: var(--typography-h1-family);
+  font-size: var(--typography-h1-size);
+  font-weight: var(--typography-h1-weight);
+  line-height: var(--typography-h1-line-height);
+  letter-spacing: var(--typography-h1-tracking);
+}
+
+/* The drawing sits by the title block, never beside the task list; it bleeds a little into the zone padding. */
+.sh-art {
+  flex: none;
+  height: auto;
+  margin-block: calc(var(--space-3) * -1) calc(var(--space-5) * -1);
+}
+
+.sh-strong {
+  font-weight: var(--font-weight-semibold);
+}
+
+.sh-waiting {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* Signed out: the side nav foot already holds the button where the side nav shows. */
+.sh-connect {
+  display: flex;
+  margin-block-start: var(--space-2);
+}
+
+
+/* --- Needs you rows ------------------------------------------------------------------------------------------ */
+
+.sh-rows {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sh-row-item {
+  min-width: 0;
+}
+
+.sh-row {
+  border-color: transparent;
+}
+
+.sh-row.is-selected {
+  border-color: var(--color-action-primary-bg);
+  background-color: var(--color-surface-selected);
+}
+
+.sh-row-body {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.sh-row-who {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-8);
+  color: var(--color-text-muted);
+}
+
+.sh-row-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.sh-row-pill {
+  flex: none;
+}
+
+.sh-skel {
+  height: var(--size-16);
+}
+
+.sh-skel-line {
+  max-width: var(--size-96);
+}
+
+/* Beyond three: one grouped row, a dashed Deep Harbor edge on the selected surface, with the one primary action. */
+.sh-more {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+  border: var(--border-width-default) dashed var(--color-action-primary-bg);
+  border-radius: var(--radius-control);
+  background-color: var(--color-surface-selected);
+}
+
+.sh-more-text {
+  flex: 1 1 var(--size-60);
+  margin: 0;
+}
+
+.sh-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+/* --- Health ------------------------------------------------------------------------------------------------- */
+
+.sh-health {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: calc(var(--space-4) * -1) 0 0;
+  padding-inline: var(--space-1);
+}
+
+/* --- Your branches ------------------------------------------------------------------------------------------ */
+
+.sh-section {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.sh-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-4);
+}
+
+.sh-h2 {
+  margin: 0;
+  font-family: var(--typography-h2-family);
+  font-size: var(--typography-h2-size);
+  font-weight: var(--typography-h2-weight);
+  line-height: var(--typography-h2-line-height);
+  letter-spacing: var(--typography-h2-tracking);
+}
+
+.sh-pick[hidden] {
+  display: none;
+}
+
+.sh-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(max(var(--size-60), calc((100% - 3 * var(--space-4)) / 4)), 1fr));
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sh-card-item {
+  display: flex;
+  min-width: 0;
+}
+
+.sh-card {
+  flex: 1;
+}
+
+.sh-card-body {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+}
+
+.sh-card-status {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.sh-card-stage {
+  color: var(--color-text-default);
+  font-weight: var(--font-weight-medium);
+}
+
+/* The last card opens Create branch: a dashed placeholder the size of a card. */
+.sh-cards .sh-create-btn {
+  height: 100%;
+  min-height: var(--size-40);
+  border: var(--border-width-default) dashed var(--color-border-emphasis);
+  border-radius: var(--radius-container);
+}
+
+.sh-published {
+  margin: 0;
+}
+
+.sh-mono {
+  font-family: var(--font-family-mono);
+}
+
+/* --- Nothing at all: three ways to start ---------------------------------------------------------------------- */
+
+.sh-zone-empty {
+  gap: var(--space-6);
+  padding: var(--space-10);
+}
+
+.sh-choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(var(--size-60), 1fr));
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sh-choice {
+  height: 100%;
+  border-color: transparent;
+}
+
+.sh-choice-body {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.sh-choice-title {
+  color: var(--color-text-link);
+  font-family: var(--typography-h3-family);
+  font-size: var(--typography-h3-size);
+  font-weight: var(--typography-h3-weight);
+  line-height: var(--typography-h3-line-height);
+}
+
+/* --- Phones ----------------------------------------------------------------------------------------------------- */
+
+@media (max-width: 640px) {
+  .sh-zone {
+    padding: var(--space-5) var(--space-4);
+  }
+
+  .sh-zone-empty {
+    padding: var(--space-6) var(--space-4);
+  }
+
+  .sh-hello {
+    font-size: var(--typography-h2-size);
+    line-height: var(--typography-h2-line-height);
+  }
+
+  .sh-head .sh-art {
+    display: none;
+  }
+
+  .sh-row-body {
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-3);
+  }
+
+  .sh-row-who {
+    display: none;
+  }
+
+  .sh-row-text {
+    flex-basis: calc(100% - var(--size-16) - var(--space-3));
+  }
+
+  .sh-row-pill {
+    margin-inline-start: calc(var(--size-16) + var(--space-3));
+  }
+
+  .sh-row-sep {
+    display: none;
+  }
+
+  .sh-more-btn {
+    flex: 1 1 100%;
+  }
+
+  .sh-row-line {
+    display: block;
+  }
+
+  .sh-choice-body {
+    grid-template-columns: var(--size-16) minmax(0, 1fr);
+    align-items: center;
+    column-gap: var(--space-4);
+  }
+
+  .sh-choice-body > .ill {
+    grid-row: span 2;
+    width: var(--size-16);
+    height: auto;
+  }
+}
+
+/* --- Create branch (components/ds/studio/StartChange.tsx): the menu items, and the component picker in place. --- */
+
+.ov-mi {
+  display: grid;
+  gap: var(--space-0-5);
+  padding-block: var(--space-1);
+}
+
+.ov-mi-title {
+  font-weight: var(--font-weight-medium);
+}
+
+/* The component picker, in place under the greeting: one plate, the question, the field and its two buttons
+   (8px apart) on one line. */
+.ov-pick-slot[hidden] {
+  display: none;
+}
+
+.ov-pick {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-container);
+  background-color: var(--color-surface-default);
+}
+
+.ov-pick-line {
+  margin: 0;
+}
+
+.ov-pick-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+.ov-pick-field {
+  flex: 1 1 var(--size-72);
+  max-width: var(--size-120);
+}
+
+.ov-pick-actions {
+  display: inline-flex;
+  gap: var(--space-2);
+}
+
+
+/* The site's list rhythm (li + li) does not apply to these grids: the gap spaces them. */
+.sh-rows > li,
+.sh-cards > li,
+.sh-choices > li {
+  margin: 0;
+}

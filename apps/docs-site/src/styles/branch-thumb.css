@@ -1,0 +1,180 @@
+/* Branch thumbnail (components/ds/studio/BranchThumb.tsx): before | after at a glance on Studio home rows and cards.
+   Sizes, fills and lines are tokens; only the drawn values (a swatch hex, a bar length, a corner, a type size) come
+   from the token diff as inline styles. */
+
+.bt {
+  display: flex;
+  flex-shrink: 0;
+  overflow: hidden;
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-inset);
+  background: var(--color-surface-default);
+  color: var(--color-text-muted);
+}
+
+/* 64 by 40: fits a list row without raising it past the control height. */
+.bt--row {
+  width: var(--space-16);
+  height: var(--space-10);
+}
+
+/* Full card width, 136 tall (96 + 40): no single token is that tall. */
+.bt--card {
+  width: 100%;
+  height: calc(var(--space-24) + var(--space-10));
+  border-radius: var(--radius-control);
+}
+
+/* No before/after: one centred icon on the subtle surface. */
+.bt--icon {
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg-subtle);
+}
+
+.bt-half {
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  padding: var(--space-1-5);
+}
+
+.bt--card .bt-half {
+  gap: var(--space-2);
+  padding: var(--space-4);
+}
+
+/* The dashed seam says "compare", the subtle fill says "this is the new one". */
+.bt-after {
+  border-inline-start: var(--border-width-default) dashed var(--color-border-emphasis);
+  background: var(--color-bg-subtle);
+}
+
+/* A side that does not exist (added or removed token): an empty dashed outline. */
+.bt-none {
+  border: var(--border-width-default) dashed var(--color-border-default);
+  background: transparent;
+}
+
+/* Colour: the hairline keeps a white swatch visible on a white half. */
+.bt-swatch {
+  width: 100%;
+  height: 100%;
+  border: var(--border-width-default) solid var(--color-border-emphasis);
+  border-radius: var(--radius-inset);
+}
+
+.bt-swatch.bt-none {
+  border-style: dashed;
+}
+
+/* Space: a bar as long as the value, left-aligned so lengths compare. */
+.bt--space .bt-half {
+  align-items: flex-start;
+}
+
+.bt-bar {
+  display: block;
+  height: var(--space-1-5);
+  border-radius: var(--radius-inset);
+  background: var(--color-action-primary-bg);
+}
+
+.bt--card .bt-bar {
+  height: var(--space-2);
+}
+
+.bt-bar.bt-none {
+  width: 100%;
+}
+
+/* Radius: an outlined shape whose corner is the value. */
+.bt-shape {
+  display: block;
+  width: var(--size-6);
+  height: var(--size-5);
+  border: var(--border-width-strong) solid var(--color-action-primary-bg);
+}
+
+.bt--card .bt-shape {
+  width: var(--size-20);
+  height: var(--size-14);
+}
+
+/* Type: "Aa" in the display face at the drawn size. */
+.bt-glyph {
+  font-family: var(--font-family-display);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--font-line-height-none);
+  color: var(--color-text-default);
+  white-space: nowrap;
+}
+
+.bt-glyph.bt-none {
+  width: var(--size-4);
+  height: var(--size-4);
+}
+
+.bt--card .bt-glyph.bt-none {
+  width: var(--size-12);
+  height: var(--size-12);
+}
+
+/* Image: the visual impact crops, cropped again to the half. */
+.bt--image .bt-half {
+  padding: 0;
+}
+
+.bt-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Text: lines of a paragraph; the after lines in Deep Harbor, the one strong colour. */
+.bt-lines {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.bt--card .bt-lines {
+  gap: var(--space-2);
+}
+
+.bt-line {
+  display: block;
+  height: var(--space-0-5);
+  border-radius: var(--radius-inset);
+  background: var(--color-border-emphasis);
+}
+
+.bt--card .bt-line {
+  height: var(--space-1-5);
+}
+
+.bt-after .bt-line {
+  background: var(--color-action-primary-bg);
+}
+
+.bt-line:nth-child(1) {
+  width: 100%;
+}
+
+.bt-line:nth-child(2) {
+  width: 80%;
+}
+
+.bt-line:nth-child(3) {
+  width: 92%;
+}
+
+.bt-line:nth-child(4) {
+  width: 56%;
+}

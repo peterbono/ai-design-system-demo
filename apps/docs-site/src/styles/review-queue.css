@@ -1,0 +1,171 @@
+/* The review queue (pages/studio/review.astro, scripts/review-queue-page.ts). The home rows on the start side
+   (sh-rows from studio-home.css), sticky and scrollable; the selected item fills the rest; one sticky footer at the
+   bottom of the main area moves through the queue. Phones: the list folds into one Select above the item. */
+
+.rq {
+  max-width: var(--studio-page-max);
+}
+
+.rq-layout {
+  display: grid;
+  grid-template-columns: minmax(0, calc(var(--size-96) + var(--size-4))) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-8);
+}
+
+.rq-layout[hidden],
+.rq-empty[hidden],
+.rq-foot[hidden],
+.rq-card[hidden] {
+  display: none;
+}
+
+/* The list: sticky under the global header, scrolls on its own when it is taller than the screen. */
+.rq-side {
+  position: sticky;
+  top: calc(var(--layout-header-height) + var(--space-4));
+  max-height: calc(100dvh - var(--layout-header-height) - var(--space-8));
+  overflow-y: auto;
+  padding: var(--space-1);
+  overscroll-behavior: contain;
+}
+
+/* In the narrow column the row wraps: the title line first, the status under it. */
+.rq-side .sh-row-body {
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+}
+
+.rq-side .sh-row-who {
+  display: none;
+}
+
+.rq-side .sh-row-text {
+  flex-basis: calc(100% - var(--size-16) - var(--space-3));
+}
+
+.rq-side .sh-row-pill {
+  margin-inline-start: calc(var(--size-16) + var(--space-3));
+}
+
+.rq-pick {
+  display: none;
+}
+
+.rq-main {
+  display: grid;
+  min-width: 0;
+}
+
+/* The breadcrumb of the branch review points back to Branches: here the list is the way back. */
+.rq-detail .cg-crumbs {
+  display: none;
+}
+
+/* One sticky bar on this page: the queue footer. The review's own action bar scrolls with the review. */
+.rq-detail .cg-actbar {
+  position: static;
+}
+
+/* A row that is not a branch: what it is and the link that handles it. */
+.rq-item-body {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-3);
+}
+
+.rq-item-title {
+  margin: 0;
+  font-family: var(--typography-h3-family);
+  font-size: var(--typography-h3-size);
+  font-weight: var(--typography-h3-weight);
+  line-height: var(--typography-h3-line-height);
+}
+
+.rq-item-line {
+  margin: 0;
+}
+
+/* The footer: where the viewer is on the start side, Skip and Approve and next on the end side. */
+.rq-foot {
+  position: sticky;
+  bottom: 0;
+  z-index: var(--layer-sticky);
+  margin-top: var(--space-6);
+  padding: var(--space-3) 0 var(--space-4);
+  border-top: var(--border-width-default) solid var(--color-border-default);
+  background-color: var(--color-bg-default);
+}
+
+.rq-foot-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-4);
+}
+
+.rq-pos {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.rq-foot-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.rq-empty {
+  padding-block: var(--space-12);
+}
+
+/* Phones and narrow windows: one column, the list as a Select, the footer buttons fill the bar. */
+@media (max-width: 960px) {
+  .rq-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-4);
+  }
+
+  .rq-side {
+    display: none;
+  }
+
+  .rq-pick {
+    display: block;
+  }
+
+  .rq-keys {
+    display: none;
+  }
+
+  .rq-foot-actions {
+    flex: 1 1 100%;
+  }
+
+  .rq-foot-actions > * {
+    flex: 1 1 0;
+  }
+}
+
+/* The narrow list: the title on one line, who asks under it, the status after. One height per row. */
+.rq-side .sh-row-sep {
+  display: none;
+}
+
+.rq-side .sh-row-line {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rq-side .sh-row-text > [data-card-primary] {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
