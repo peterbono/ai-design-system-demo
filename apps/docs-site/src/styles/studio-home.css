@@ -108,13 +108,18 @@
 }
 
 .sh-row-text {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
 }
 
 .sh-row-pill,
 .sh-row-action {
   flex: none;
+}
+
+/* The status reads with its row's text; the button goes to the far end (same edge on every row). */
+.sh-row-action {
+  margin-inline-start: auto;
 }
 
 .sh-skel {
