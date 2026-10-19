@@ -1,0 +1,38 @@
+---
+import { Button, Card } from '@bridge-ds/react';
+import Badge from '../components/Badge.astro';
+import Layout from '../layouts/Layout.astro';
+const accent = { color: '#15202b' };
+---
+<Layout>
+  <Card>
+    <Button>Save</Button>
+    <button type="button" class="raw">Raw</button>
+    <input type="hidden" name="csrf" value="x" />
+    <input type="email" name="email" />
+    <select name="size"><option>S</option></select>
+    <a href="/docs">Docs</a>
+    <a id="top"></a>
+    <Badge tone="info">New</Badge>
+    <!-- bridge-audit-ignore-next-line: rich text field, the DS Textarea has no autosize yet -->
+    <textarea rows="2"></textarea>
+    <!-- bridge-audit-ignore-next-line -->
+    <dialog open>Native dialog</dialog>
+    <noscript><a href="/no-js">Plain page</a><button>Reload</button></noscript>
+    <div style="padding: 13px; color: var(--color-text-default)"></div>
+    <p style={{ margin: '13px' }}>Text</p>
+    {[1, 2].map((n) => <button type="button">{n}</button>)}
+    <svg viewBox="0 0 8 8"><path fill="#ff0000" d="M0 0h8v8H0z" /></svg>
+  </Card>
+</Layout>
+
+<style>
+  .raw {
+    border-radius: 10px;
+    gap: var(--space-2);
+  }
+</style>
+
+<script>
+  document.querySelector<HTMLElement>('.raw')!.style.color = '#123456';
+</script>

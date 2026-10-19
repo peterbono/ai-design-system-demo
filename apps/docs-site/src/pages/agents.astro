@@ -52,7 +52,7 @@ const cli = [
   { cmd: 'bridge history [token]', text: 'Token history: versions and merged changes, or every change of one token, with who, when and why.' },
   { cmd: 'bridge revert <pr|commit> --dry-run', text: 'Plans the undo of a merged token change against today: conflicts with later changes shown. Without --dry-run, a new local branch.' },
   { cmd: 'bridge impact --plan', text: 'Visual impact: which stories and app screens a change touches. Without --plan, screenshots both refs and pixel-diffs them (needs Chrome).' },
-  { cmd: 'bridge audit <path>', text: 'Design system adoption in product code: token and component adoption, hardcoded values with the closest token, top files. --fix for exact CSS matches.' },
+  { cmd: 'bridge audit <path>', text: 'Design system adoption in product code (CSS, TSX, Astro, Vue, Svelte): token and component adoption, hardcoded values with the closest token, native elements to replace, top files. --fix for exact CSS matches.' },
   { cmd: 'bridge mcp', text: `Starts the MCP server on stdio, same as npx ${MCP_PACKAGE}.` },
 ];
 const cliRun = `npx ${CLI_PACKAGE} check`;

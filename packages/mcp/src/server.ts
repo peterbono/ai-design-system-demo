@@ -424,13 +424,14 @@ export function createServer(ctx: BridgeContext): McpServer {
     {
       title: 'Audit design system adoption',
       description:
-        'Measure how a product codebase uses this design system (local only). Scans CSS, SCSS, style/sx/styled objects, CSS-in-JS and Tailwind classes for hardcoded colors, spacing, radii, shadows, durations, z-index and fonts, each with the closest token (colors by deltaE across every mode) and a confidence; and JSX for DS components versus foreign UI libraries (MUI, react-admin, Radix, shadcn/ui...), native elements and re-created DS components. Returns token and component adoption, counts by category, top files and top fixes; for a single file (or findings: true) the findings with line numbers.',
+        'Measure how a product codebase uses this design system (local only). Reads CSS, SCSS, Less, TS/JS, TSX/JSX, and Astro, Vue and Svelte files (template markup, frontmatter and <script> blocks, <style> blocks). Finds hardcoded colors, spacing, radii, shadows, durations, z-index and fonts in style sheets, style attributes, style/sx/styled objects, CSS-in-JS and Tailwind classes, each with the closest token (colors by deltaE across every mode) and a confidence; and in JSX and template markup, DS components versus foreign UI libraries (MUI, react-admin, Radix, shadcn/ui...), native elements a DS component should render, and re-created DS components. Hidden inputs and elements inside <noscript> do not count. A `bridge-audit-ignore-next-line: reason` comment on the line above leaves one exception out; an allowlist file lists known file:line exceptions; both need a reason and stay listed under `ignored`. Returns token and component adoption, counts by category, top files and top fixes; for a single file (or findings: true) the findings with line numbers.',
       inputSchema: {
         path: z.string().min(1).describe('Product folder or file, absolute or relative to the design system repo root.'),
         baseline: z.string().optional().describe('Earlier report from `bridge audit --json` to compare with (progress per metric and file).'),
         label: z.string().optional(),
         limit: z.number().int().min(1).max(50).optional().describe('Top files and fixes to return. Default 10.'),
         findings: z.boolean().optional().describe('Include per-file findings with line numbers. Default: only when auditing one file.'),
+        allowlist: z.string().optional().describe('Allowlist file of known exceptions: { "entries": [{ "file", "line", "what"?, "reason" }] }, paths relative to the audited folder.'),
       },
       annotations: RO,
     },

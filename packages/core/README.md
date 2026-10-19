@@ -297,12 +297,12 @@ conflicts table.
 ## audit (`@bridge-ds/core/audit`)
 
 Design system adoption and drift in a product codebase that consumes the DS. Pure (file texts in, report
-out); it reads TSX/JSX with the TypeScript compiler API (syntax only), which is why it is its own entry and the
-Figma plugin never loads it. `@bridge-ds/core/node` adds the disk side.
+out); it reads TSX/JSX, and the frontmatter and scripts of Astro, Vue and Svelte files, with the TypeScript
+compiler API (syntax only), which is why it is its own entry and the Figma plugin never loads it. `@bridge-ds/core/node` adds the disk side.
 
 ```ts
 import { DesignSystemIndex, buildAuditReport, compareWithBaseline, auditMarkdown, planCssFixes, auditFile } from '@bridge-ds/core/audit';
-import { loadDesignSystem, runAudit, collectAuditFiles, fixCss, findDesignSystemRoot } from '@bridge-ds/core/node';
+import { loadDesignSystem, runAudit, collectAuditFiles, fixCss, findDesignSystemRoot, loadAllowlist } from '@bridge-ds/core/node';
 
 const ds = loadDesignSystem('/path/to/ds-repo');               // bridge.config.json: tokens in every mode, components, packages
 const report = runAudit('apps/admin/src', { ds: ds.root, label: 'admin', baseline });  // AuditReport, schemaVersion 1
@@ -310,7 +310,9 @@ const report = runAudit('apps/admin/src', { ds: ds.root, label: 'admin', baselin
 
 - **Scanned**: CSS, SCSS, Less, CSS modules; `style`, MUI `sx`, `styled()`, `makeStyles`, `createTheme` and theme
   objects, styled-components / emotion templates; Tailwind class strings (`className`, `cn()`, `clsx()`, `cva()`,
-  `@apply`); any color literal in code.
+  `@apply`); any color literal in code. Astro, Vue and Svelte files: the frontmatter and `<script>` blocks as
+  TS, `<style>` blocks as CSS/SCSS/Less, and the template markup (tags, `style` and `class` attributes, static
+  `style="..."`, `style={{ ... }}`, Vue `:style`, Svelte `style:prop`, color attributes such as `fill="#..."`).
 - **Hardcoded values**: colors (hex, rgb, hsl, named, bare HSL channels), spacing, sizes, radii, border widths,
   shadows, durations, easings, z-index, font family, size, weight and line height. Each gets the closest token:
   colors by deltaE in OKLab across every mode (semantic tokens and tokens that fit the property win near-ties),
@@ -323,7 +325,16 @@ const report = runAudit('apps/admin/src', { ds: ds.root, label: 'admin', baselin
   (`button`, `input`, `select`, `textarea`, `dialog`, `table`, `a` with `href`, `img`), router links (react-router,
   ra-core `LinkBase`, next/link) unless passed as a DS component's `render` element, chart libraries (recharts,
   Nivo, Chart.js...: foreign with no DS equivalent) and local components named like a DS component. Providers and
-  other non-visual parts never count, DS ones included.
+  other non-visual parts never count, DS ones included. In Astro, Vue and Svelte templates a tag is a DS component
+  when the frontmatter or `<script>` imports it from a DS package (Vue kebab case `<ds-button>` included); a local
+  `Button.astro`, `Button.vue` or `Button.svelte` is a re-created DS component. `<input type="hidden">`, anchors
+  without `href` and anything inside `<noscript>` are not UI instances.
+- **Escape hatches**: `bridge-audit-ignore-next-line: reason` in any comment (`<!-- -->`, `{/* */}`, `/* */`,
+  `//`) leaves the findings of the next line out of the counts. The reason is required: without one, or when the
+  next line has no finding, nothing is ignored and the file lists it under `ignoreErrors`. An allowlist
+  (`runAudit(..., { allowlist: loadAllowlist(path) })`, `{ "entries": [{ "file", "line", "what"?, "reason" }] }`) does
+  the same for known file:line violations. Ignored items stay in the report (`files[].ignored`, `ignored.items`),
+  with their reason; allowlist entries that match nothing are listed in `ignored.staleAllowlist`.
 - **Metrics**: token adoption = token references / (token references + hardcoded values); component adoption =
   DS instances / all UI instances. By category, top files, top fixes, per-file findings with line numbers.
 - **Baseline**: `compareWithBaseline(report, previous)` adds deltas per metric, category and file, and carries the

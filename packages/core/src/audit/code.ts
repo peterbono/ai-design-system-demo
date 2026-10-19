@@ -49,7 +49,7 @@ export function domRendererComponent(fn: string, components: Set<string>): strin
  * Exact class tokens only, so app classes that merely contain the word (`cm-pill-row`) are not counted.
  */
 export const LOOKALIKE_CLASSES: Record<string, string> = { pill: 'Badge', badge: 'Badge', chip: 'Tag', tooltip: 'Tooltip', tip: 'Tooltip', 'has-tip': 'Tooltip' };
-const LOOKALIKE_ATTRS: Record<string, string> = { 'data-tip': 'Tooltip' };
+export const LOOKALIKE_ATTRS: Record<string, string> = { 'data-tip': 'Tooltip' };
 const HTML_CLASS_RE = /\bclass(?:Name)?\s*=\s*["']([^"'$]*)/g;
 const HTML_ATTR_RE = /\s(data-tip)\s*=/g;
 
@@ -88,11 +88,112 @@ function contextForDeclaration(name: string, typeText: string): JsStyleContext |
   return null;
 }
 
+/** Imported name -> module and exported name ('default', '*' for a namespace). */
+export type ImportMap = Map<string, { module: string; imported: string }>;
+
+/** Import declarations of a script (TS or JS), for markup files whose tags use what the script imports. */
+export function importsOf(path: string, text: string): ImportMap {
+  const sf = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, false, kindFor(path));
+  const imports: ImportMap = new Map();
+  for (const node of sf.statements) {
+    if (!ts.isImportDeclaration(node) || !ts.isStringLiteral(node.moduleSpecifier)) continue;
+    const mod = node.moduleSpecifier.text;
+    const c = node.importClause;
+    if (c?.name) imports.set(c.name.text, { module: mod, imported: 'default' });
+    if (c?.namedBindings && ts.isNamespaceImport(c.namedBindings)) imports.set(c.namedBindings.name.text, { module: mod, imported: '*' });
+    if (c?.namedBindings && ts.isNamedImports(c.namedBindings)) for (const el of c.namedBindings.elements) imports.set(el.name.text, { module: mod, imported: (el.propertyName ?? el.name).text });
+  }
+  return imports;
+}
+
+/** One element as written in JSX or in a template (Astro, Vue, Svelte). */
+export interface TagUse {
+  name: string;
+  line: number;
+  column: number;
+  /** Static `type` attribute. */
+  type?: string;
+  hasHref: boolean;
+  /** The element only gives a component its tag or router (`render={<a href="/x" />}`). */
+  inRenderProp?: boolean;
+}
+
+/**
+ * What an element is: a DS component instance, a foreign, native or re-created component, or nothing (providers,
+ * hidden inputs, anchors without href). `localCandidate`: an unimported DS-named tag, re-created only when the file
+ * defines it.
+ */
+export function classifyTag(t: TagUse, imports: ImportMap, ds: DesignSystemIndex): { ds?: string; component?: ComponentFinding; localCandidate?: ComponentFinding } {
+  const { name } = t;
+  const at = { line: t.line, column: t.column };
+  if (/^[a-z][\w-]*$/.test(name)) {
+    if (!ds.nativeElements.includes(name)) return {};
+    if (name === 'input' && t.type === 'hidden') return {};
+    // An anchor without href is not a link (named anchor, placeholder).
+    if (name === 'a' && !t.hasHref) return {};
+    // `<Button render={<a href="/x" />}>`: the element only gives the DS component its tag; the DS component is the UI.
+    if (t.inRenderProp) return {};
+    const suggestion = nativeEquivalent(name, t.type, ds.components);
+    return { component: { ...at, name, kind: 'native', library: 'native', ...(suggestion ? { suggestion } : {}) } };
+  }
+  const root = name.split('.')[0]!;
+  const imp = imports.get(root);
+  const ns = imp?.imported === '*';
+  // Named imports report the exported name (aliases resolved); namespace imports keep Dialog.Root.
+  const shown = imp && !ns && imp.imported !== 'default' ? [imp.imported, ...name.split('.').slice(1)].join('.') : name;
+  const leaf = ns && name.includes('.') ? name.split('.').slice(1).join('.') : shown;
+  if (imp) {
+    const kind = classifyModule(imp.module, ds.packages, ds.foreignLibraries);
+    // Providers and other non-visual parts are not UI instances, from the DS or elsewhere.
+    if (isNonVisual(leaf.split('.').pop()!)) return {};
+    if (kind === 'ds') return { ds: leaf };
+    if (kind === 'charts') return { component: { ...at, name: shown, kind: 'foreign', library: libraryLabel(imp.module, kind) } };
+    if (kind === 'other' && isRouterLink(imp.module, imp.imported === 'default' ? 'default' : leaf)) {
+      if (t.inRenderProp) return {};
+      const suggestion = ds.components.has('Link') ? 'Link' : undefined;
+      return { component: { ...at, name: shown, kind: 'foreign', library: libraryLabel(imp.module, kind), ...(suggestion ? { suggestion } : {}) } };
+    }
+    if (kind === 'foreign' || kind === 'shadcn') {
+      const suggestion = (ns ? dsEquivalent(root, ds.components) : undefined) ?? dsEquivalent(leaf, ds.components);
+      return { component: { ...at, name: shown, kind: 'foreign', library: libraryLabel(imp.module, kind), ...(suggestion ? { suggestion } : {}) } };
+    }
+    if (kind === 'local' && ds.components.has(leaf.split('.')[0]!)) return { component: { ...at, name: leaf, kind: 'recreated', library: 'local', suggestion: leaf.split('.')[0]! } };
+    return {};
+  }
+  if (ds.components.has(root)) return { localCandidate: { ...at, name, kind: 'recreated', library: 'local', suggestion: root } };
+  return {};
+}
+
+/** Findings for Tailwind classes (arbitrary values and palette classes); scale classes count as theme references. */
+export function tailwindFindings(hits: TailwindHit[], offset: number, pos: (offset: number) => { line: number; column: number }, ds: DesignSystemIndex): { findings: StyleFinding[]; themeRefs: number } {
+  const findings: StyleFinding[] = [];
+  let themeRefs = 0;
+  for (const h of hits) {
+    if (h.kind === 'scale') {
+      themeRefs++;
+      continue;
+    }
+    if (h.kind === 'token') continue; // counted by the var() pass over every literal
+    let cat = h.category!;
+    const v = h.value!;
+    const isColor = Boolean(parseCssColor(v));
+    if (cat === 'color-or-size') cat = isColor ? 'color' : 'font-size';
+    else if (cat === 'color-or-width') cat = isColor ? 'color' : 'border-width';
+    else if (cat === 'color-or-shadow') cat = isColor ? 'color' : 'shadow';
+    else if (cat === 'font') cat = /^\d{3}$/.test(v) ? 'font-weight' : 'font-family';
+    if (cat === 'color' && !isColor) continue;
+    const suggestion = ds.suggest(cat as FindingCategory, v);
+    const cap = h.kind === 'palette' && suggestion && suggestion.confidence > 0.6 ? { ...suggestion, confidence: 0.6, level: 'medium' as const } : suggestion;
+    findings.push({ ...pos(offset + h.index), category: cat as FindingCategory, value: h.cls, source: 'tailwind', ...(cap ? { suggestion: cap } : {}) });
+  }
+  return { findings, themeRefs };
+}
+
 export function scanCode(path: string, text: string, ds: DesignSystemIndex): CodeScan {
   const sf = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, kindFor(path));
   const out: CodeScan = { findings: [], tokenUsages: 0, themeRefs: 0, ds: {}, components: [], definitions: [] };
   const handled = new Set<ts.Node>();
-  const imports = new Map<string, { module: string; imported: string }>();
+  const imports: ImportMap = new Map();
   const pos = (offset: number) => {
     const lc = sf.getLineAndCharacterOfPosition(offset);
     return { line: lc.line + 1, column: lc.character + 1 };
@@ -104,24 +205,9 @@ export function scanCode(path: string, text: string, ds: DesignSystemIndex): Cod
   };
 
   const addTailwind = (hits: TailwindHit[], offset: number) => {
-    for (const h of hits) {
-      if (h.kind === 'scale') {
-        out.themeRefs++;
-        continue;
-      }
-      if (h.kind === 'token') continue; // counted by the var() pass over every literal
-      let cat = h.category!;
-      const v = h.value!;
-      const isColor = Boolean(parseCssColor(v));
-      if (cat === 'color-or-size') cat = isColor ? 'color' : 'font-size';
-      else if (cat === 'color-or-width') cat = isColor ? 'color' : 'border-width';
-      else if (cat === 'color-or-shadow') cat = isColor ? 'color' : 'shadow';
-      else if (cat === 'font') cat = /^\d{3}$/.test(v) ? 'font-weight' : 'font-family';
-      if (cat === 'color' && !isColor) continue;
-      const suggestion = ds.suggest(cat as FindingCategory, v);
-      const cap = h.kind === 'palette' && suggestion && suggestion.confidence > 0.6 ? { ...suggestion, confidence: 0.6, level: 'medium' as const } : suggestion;
-      out.findings.push({ ...pos(offset + h.index), category: cat as FindingCategory, value: h.cls, source: 'tailwind', ...(cap ? { suggestion: cap } : {}) });
-    }
+    const r = tailwindFindings(hits, offset, pos, ds);
+    out.themeRefs += r.themeRefs;
+    out.findings.push(...r.findings);
   };
 
   // A literal value in a style object: string, number, template parts, both branches of a condition.
@@ -210,53 +296,13 @@ export function scanCode(path: string, text: string, ds: DesignSystemIndex): Cod
 
   const element = (node: ts.JsxOpeningElement | ts.JsxSelfClosingElement) => {
     const name = jsxName(node.tagName);
-    const at = pos(node.getStart(sf));
-    if (/^[a-z][\w-]*$/.test(name)) {
-      if (!ds.nativeElements.includes(name)) return;
-      const typeAttr = node.attributes.properties.find((p): p is ts.JsxAttribute => ts.isJsxAttribute(p) && p.name.getText(sf) === 'type');
-      const type = typeAttr?.initializer && ts.isStringLiteral(typeAttr.initializer) ? typeAttr.initializer.text : undefined;
-      if (name === 'input' && type === 'hidden') return;
-      // An anchor without href is not a link (named anchor, placeholder).
-      if (name === 'a' && !node.attributes.properties.some((p) => ts.isJsxAttribute(p) && p.name.getText(sf) === 'href')) return;
-      // `<Button render={<a href="/x" />}>`: the element only gives the DS component its tag; the DS component is the UI.
-      if (isRenderElement(node)) return;
-      const suggestion = nativeEquivalent(name, type, ds.components);
-      out.components.push({ ...at, name, kind: 'native', library: 'native', ...(suggestion ? { suggestion } : {}) });
-      return;
-    }
-    const root = name.split('.')[0]!;
-    const imp = imports.get(root);
-    const ns = imp?.imported === '*';
-    // Named imports report the exported name (aliases resolved); namespace imports keep Dialog.Root.
-    const shown = imp && !ns && imp.imported !== 'default' ? [imp.imported, ...name.split('.').slice(1)].join('.') : name;
-    const leaf = ns && name.includes('.') ? name.split('.').slice(1).join('.') : shown;
-    if (imp) {
-      const kind = classifyModule(imp.module, ds.packages, ds.foreignLibraries);
-      // Providers and other non-visual parts are not UI instances, from the DS or elsewhere.
-      if (isNonVisual(leaf.split('.').pop()!)) return;
-      if (kind === 'ds') {
-        out.ds[leaf] = (out.ds[leaf] ?? 0) + 1;
-        return;
-      }
-      if (kind === 'charts') {
-        out.components.push({ ...at, name: shown, kind: 'foreign', library: libraryLabel(imp.module, kind) });
-        return;
-      }
-      if (kind === 'other' && isRouterLink(imp.module, imp.imported === 'default' ? 'default' : leaf)) {
-        if (isRenderElement(node)) return;
-        const suggestion = ds.components.has('Link') ? 'Link' : undefined;
-        out.components.push({ ...at, name: shown, kind: 'foreign', library: libraryLabel(imp.module, kind), ...(suggestion ? { suggestion } : {}) });
-        return;
-      }
-      if (kind === 'foreign' || kind === 'shadcn') {
-        const suggestion = (ns ? dsEquivalent(root, ds.components) : undefined) ?? dsEquivalent(leaf, ds.components);
-        out.components.push({ ...at, name: shown, kind: 'foreign', library: libraryLabel(imp.module, kind), ...(suggestion ? { suggestion } : {}) });
-        return;
-      }
-      if (kind === 'local' && ds.components.has(leaf.split('.')[0]!)) out.components.push({ ...at, name: leaf, kind: 'recreated', library: 'local', suggestion: leaf.split('.')[0]! });
-      return;
-    }
-    if (ds.components.has(root)) pendingLocal.push({ ...at, name, kind: 'recreated', library: 'local', suggestion: root });
+    const typeAttr = node.attributes.properties.find((p): p is ts.JsxAttribute => ts.isJsxAttribute(p) && p.name.getText(sf) === 'type');
+    const type = typeAttr?.initializer && ts.isStringLiteral(typeAttr.initializer) ? typeAttr.initializer.text : undefined;
+    const hasHref = node.attributes.properties.some((p) => ts.isJsxAttribute(p) && p.name.getText(sf) === 'href');
+    const r = classifyTag({ name, ...pos(node.getStart(sf)), ...(type !== undefined ? { type } : {}), hasHref, inRenderProp: isRenderElement(node) }, imports, ds);
+    if (r.ds) out.ds[r.ds] = (out.ds[r.ds] ?? 0) + 1;
+    if (r.component) out.components.push(r.component);
+    if (r.localCandidate) pendingLocal.push(r.localCandidate);
   };
   const pendingLocal: ComponentFinding[] = [];
 

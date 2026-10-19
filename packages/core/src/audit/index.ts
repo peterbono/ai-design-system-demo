@@ -10,3 +10,6 @@ export * from './components';
 export * from './ds-index';
 export * from './code';
 export * from './report';
+export * from './style';
+export * from './ignore';
+export * from './markup';

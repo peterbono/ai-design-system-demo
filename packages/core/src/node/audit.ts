@@ -5,7 +5,8 @@ import { loadConfig, type BridgeConfig } from '../config';
 import { globToRegExp, LayeredTokenSet, selectTokenFiles } from '../layered';
 import { AUDIT_IGNORE_DIRS, buildAuditReport, compareWithBaseline, isAuditable, planCssFixes, type CssFixEdit } from '../audit/report';
 import { DesignSystemIndex } from '../audit/ds-index';
-import type { AuditReport } from '../audit/types';
+import { parseAllowlist } from '../audit/ignore';
+import type { AllowlistEntry, AuditReport } from '../audit/types';
 
 export interface LoadedDesignSystem {
   root: string;
@@ -122,6 +123,13 @@ export interface RunAuditOptions {
   /** Path recorded in the report (default: target relative to cwd). */
   displayPath?: string;
   exclude?: string[];
+  /** Known violations left out of the counts, each with a reason (see loadAllowlist). */
+  allowlist?: AllowlistEntry[];
+}
+
+/** Read an allowlist file: `{ "entries": [{ "file", "line", "what"?, "reason" }] }`, paths relative to the audited folder. */
+export function loadAllowlist(path: string): AllowlistEntry[] {
+  return parseAllowlist(JSON.parse(readFileSync(path, 'utf8')));
 }
 
 /** Audit a product folder against a design system. */
@@ -131,7 +139,7 @@ export function runAudit(target: string, opts: RunAuditOptions = {}): AuditRepor
   const ds = loadDesignSystem(dsRoot);
   const { files, skipped } = collectAuditFiles(target, [...(ds.config.audit?.exclude ?? []), ...(opts.exclude ?? [])]);
   const report = buildAuditReport(
-    { files, skipped, target: opts.displayPath ?? (toPosix(relative(process.cwd(), resolve(target))) || '.'), ...(opts.label ? { label: opts.label } : {}), ...(opts.version ? { version: opts.version } : {}) },
+    { files, skipped, target: opts.displayPath ?? (toPosix(relative(process.cwd(), resolve(target))) || '.'), ...(opts.label ? { label: opts.label } : {}), ...(opts.version ? { version: opts.version } : {}), ...(opts.allowlist ? { allowlist: opts.allowlist } : {}) },
     ds.index,
   );
   return opts.baseline ? compareWithBaseline(report, opts.baseline) : report;

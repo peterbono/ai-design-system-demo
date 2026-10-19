@@ -73,7 +73,7 @@ export interface ComponentFinding {
 export interface FileReport {
   /** Path relative to the audited root, with forward slashes. */
   path: string;
-  lang: 'css' | 'scss' | 'less' | 'tsx' | 'jsx' | 'ts' | 'js';
+  lang: 'css' | 'scss' | 'less' | 'tsx' | 'jsx' | 'ts' | 'js' | 'astro' | 'vue' | 'svelte';
   tokenUsages: number;
   /** References to another theme (MUI theme, Tailwind scale classes): not hardcoded, not the DS either. */
   themeRefs: number;
@@ -83,6 +83,34 @@ export interface FileReport {
   otherComponents: number;
   findings: StyleFinding[];
   components: ComponentFinding[];
+  /** Findings and components left out of the counts on purpose, each with its reason. */
+  ignored?: IgnoredItem[];
+  /** `bridge-audit-ignore-next-line` comments that ignored nothing because they give no reason. */
+  ignoreErrors?: { line: number; message: string }[];
+}
+
+/** Where an ignore comes from: an escape-hatch comment in the file, or an entry of the allowlist file. */
+export type IgnoreVia = 'comment' | 'allowlist';
+
+/** A finding or component the audit saw but does not count, kept in the report so it stays visible. */
+export interface IgnoredItem {
+  line: number;
+  column: number;
+  kind: 'value' | 'component';
+  /** The value as written ("13px") or the element or component name ("select"). */
+  what: string;
+  reason: string;
+  via: IgnoreVia;
+}
+
+/** One entry of an allowlist file: a known violation, left out of the counts for a stated reason. */
+export interface AllowlistEntry {
+  /** Path relative to the audited folder, as in the report. */
+  file: string;
+  line: number;
+  /** Element, component or value on that line ("select", "13px"). Absent: everything on the line. */
+  what?: string;
+  reason: string;
 }
 
 export interface CategoryCount {
@@ -157,6 +185,14 @@ export interface AuditReport {
   topFixes: TopFix[];
   files: FileReport[];
   baseline?: BaselineDiff;
+  /** What was left out of the counts on purpose (escape-hatch comments, allowlist), and allowlist entries that match nothing. */
+  ignored?: {
+    total: number;
+    comment: number;
+    allowlist: number;
+    items: (IgnoredItem & { file: string })[];
+    staleAllowlist: AllowlistEntry[];
+  };
   /** Earlier runs, oldest first (carried over from the baseline). */
   history: HistoryPoint[];
 }

@@ -69,7 +69,7 @@ Working on the server itself: `npm run mcp:build` in a clone of this repo builds
 | `bridge_get_token_history` | Every change of one token, before and after per mode |
 | `bridge_plan_revert` | Dry run of a revert (or a one-token restore) against the current base, conflicts shown |
 | `bridge_propose_revert` | The revert as a local bridge/* branch or a draft PR labelled revert |
-| `bridge_audit` | Adoption in a product folder or file (local): token and component adoption, hardcoded values with the closest token, foreign components with the DS one to use, top files and fixes |
+| `bridge_audit` | Adoption in a product folder or file (local): CSS, SCSS, Less, TS/JS, TSX/JSX, Astro, Vue and Svelte. Token and component adoption, hardcoded values with the closest token, foreign and native components with the DS one to use, top files and fixes; `allowlist` and `bridge-audit-ignore-next-line: reason` comments leave known exceptions out, listed under `ignored` |
 | `bridge_list_requests` | Component change requests (issues labeled `component-change`) with status and linked pull requests |
 | `bridge_get_request` | One request with the component's files and a brief to implement it in a pull request that says "Closes #n" |
 | `bridge_create_request` | File a request as an issue labeled `component-change` (token required; `dryRun` previews; `exploration` targets an exploration branch) |

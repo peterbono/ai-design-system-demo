@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import { auditMarkdown, type AuditReport } from '@bridge-ds/core/audit';
-import { findDesignSystemRoot, fixCss, loadDesignSystem, originRepo, runAudit } from '@bridge-ds/core/node';
+import { findDesignSystemRoot, fixCss, loadAllowlist, loadDesignSystem, originRepo, runAudit } from '@bridge-ds/core/node';
 import { fileURLToPath } from 'node:url';
 import { runImpact, type Only } from '@bridge-ds/visual';
 import { runRequest } from './request.js';
@@ -50,9 +50,15 @@ Usage:
                                       undo a merged token change against HEAD: conflicts shown,
                                       new local bridge/* branch (never pushes, never main)
   bridge audit <path> [--json [out.json]] [--md [out.md]] [--fail-under 80] [--baseline prev.json]
-               [--label "..."] [--ds dir] [--no-regress]
+               [--label "..."] [--ds dir] [--no-regress] [--allowlist known.json]
                                       design system adoption in a product folder: token and component
                                       adoption, hardcoded values with the closest token, top files.
+                                      Reads CSS, SCSS, Less, TS/JS, TSX/JSX, and Astro, Vue and Svelte
+                                      (template markup, frontmatter and <script>, <style> blocks).
+                                      Leave one exception out with a comment on the line above:
+                                      <!-- bridge-audit-ignore-next-line: reason --> (or // or /* */);
+                                      --allowlist lists known file:line exceptions, each with a reason.
+                                      Ignored items stay listed in the report.
                                       Exit 0 ok, 1 under --fail-under or regressed, 2 setup error
   bridge audit <path> --fix [--write] safe autofix: CSS values equal to a token become var(--token).
                                       Dry run unless --write
@@ -456,7 +462,15 @@ async function audit(a: Args, root: string): Promise<number> {
     baseline = JSON.parse(await readFile(baselinePath, 'utf8')) as AuditReport;
   }
   const label = flag(a, 'label');
-  const report = runAudit(target, { ds: dsRoot, version: VERSION, ...(label ? { label } : {}), ...(baseline ? { baseline } : {}) });
+  const allowlistPath = flag(a, 'allowlist');
+  if (allowlistPath && !existsSync(allowlistPath)) throw new UsageError(`Allowlist not found: ${allowlistPath}`);
+  let allowlist;
+  try {
+    allowlist = allowlistPath ? loadAllowlist(allowlistPath) : undefined;
+  } catch (e) {
+    throw new UsageError(`${allowlistPath}: ${(e as Error).message}`);
+  }
+  const report = runAudit(target, { ds: dsRoot, version: VERSION, ...(label ? { label } : {}), ...(baseline ? { baseline } : {}), ...(allowlist ? { allowlist } : {}) });
   const md = auditMarkdown(report);
   const jsonOut = flag(a, 'json');
   const mdOut = flag(a, 'md');
@@ -485,9 +499,16 @@ async function audit(a: Args, root: string): Promise<number> {
       print('  top fixes:');
       for (const f of fixes) print(`    ${f.value} -> var(${f.suggestion!.cssVar})  ${f.suggestion!.level}, ${f.count}x`);
     }
+    const ig = report.ignored;
+    if (ig?.total) print(`  ignored on purpose  ${ig.total} (${ig.comment} by comment, ${ig.allowlist} by the allowlist); listed in --json and --md`);
+    if (ig?.staleAllowlist.length) {
+      print(`  allowlist entries that match nothing any more (remove them):`);
+      for (const e of ig.staleAllowlist) print(`    ${e.file}:${e.line}${e.what ? ` ${e.what}` : ''}`);
+    }
     if (jsonOut) print(`Wrote ${jsonOut}`);
     if (mdOut) print(`Wrote ${mdOut}`);
   }
+  for (const f of report.files) for (const e of f.ignoreErrors ?? []) process.stderr.write(`${report.target.path}/${f.path}:${e.line}: ${e.message}\n`);
   let code = 0;
   const failUnder = flag(a, 'fail-under');
   if (failUnder !== undefined) {
