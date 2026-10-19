@@ -13,7 +13,7 @@ const MCP_COMMAND = 'claude mcp add bridge --env BRIDGE_TOKEN=bridge_live_8f2c41
 const meta = {
   title: 'Data display/CodeBlock',
   component: CodeBlock,
-  args: { code: 'npm install @bridge-ds/react', label: 'Install', wrap: false, hideCopy: false },
+  args: { code: 'npm install @bridge-ds/react', label: 'Install', wrap: true, hideCopy: false },
   argTypes: { label: { control: 'text' }, onCopy: { control: false }, codeProps: { control: false } },
   decorators: [(Story) => <div style={{ maxWidth: 560 }}><Story /></div>],
 } satisfies Meta<typeof CodeBlock>;
@@ -23,7 +23,7 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {};
 export const NoLabel: Story = { args: { label: undefined, code: 'npx @bridge-ds/cli publish --dry-run' } };
-export const LongCommandScrolls: Story = { args: { label: 'Add the MCP server', code: MCP_COMMAND } };
+export const LongCommandScrolls: Story = { args: { label: 'Add the MCP server', code: MCP_COMMAND, wrap: false } };
 export const LongCommandWraps: Story = { args: { label: 'Add the MCP server', code: MCP_COMMAND, wrap: true } };
 export const MultiLine: Story = {
   args: {
@@ -34,8 +34,8 @@ export const MultiLine: Story = {
 export const ReadOnly: Story = { args: { label: 'Token file', code: 'tokens/semantic/color.json', hideCopy: true } };
 export const CustomLabels: Story = { args: { label: 'Token name', code: 'color.action.primary.bg', copyLabel: 'Copy name', copiedLabel: 'Name copied' } };
 
-/** Narrow: a long command keeps one line and scrolls inside the plate; the copy button stays on the same line. */
-export const NarrowLongCommand: Story = { ...phone, args: { label: 'Add the MCP server', code: MCP_COMMAND } };
+/** Narrow with wrap off: a long command keeps one line and scrolls inside the plate; the copy button stays on the same line. */
+export const NarrowLongCommand: Story = { ...phone, args: { label: 'Add the MCP server', code: MCP_COMMAND, wrap: false } };
 /** Narrow and wrapped: the command breaks anywhere, the copy button stays at the top right. */
 export const NarrowWrapped: Story = { ...phone, args: { label: 'Add the MCP server', code: MCP_COMMAND, wrap: true } };
 
@@ -55,7 +55,7 @@ export const AllStates: Story = {
         ]}
         render={(row) => (
           <div style={{ width: 280 }}>
-            <CodeBlock label="Install" code={row === 'short' ? 'npm install @bridge-ds/react' : MCP_COMMAND} wrap={row === 'wrap'} hideCopy={row === 'readonly'} />
+            <CodeBlock label="Install" code={row === 'short' ? 'npm install @bridge-ds/react' : MCP_COMMAND} wrap={row !== 'long'} hideCopy={row === 'readonly'} />
           </div>
         )}
       />

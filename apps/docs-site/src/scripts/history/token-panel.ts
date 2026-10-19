@@ -24,7 +24,7 @@ function itemHtml(it: TokenHistoryItem, i: number, demo: boolean): string {
         : it.kind === 'removed'
           ? `Removed (was ${chip(it.before, it.beforeCss)})`
           : it.fields.includes('value')
-            ? `${chip(it.before, it.beforeCss, true)} <span class="rv-arrow" aria-label="became">-></span> ${chip(it.after, it.afterCss)}`
+            ? `${chip(it.before, it.beforeCss, true)} <span class="rv-arrow"><span aria-hidden="true">→</span><span class="sr-only">became</span></span> ${chip(it.after, it.afterCss)}`
             : 'Description changed';
   const title = demo ? esc(it.title) : `<a href="/studio/changes/?view=history&entry=${encodeURIComponent(it.entryId)}">${esc(it.title)}</a>`;
   // Restoring a value starts a change: Studio only. The Library drawer reads.

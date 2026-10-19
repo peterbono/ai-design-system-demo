@@ -6,7 +6,7 @@
   "whenToUse": [
     "A command the reader runs or pastes: an install line, an MCP server setup, a CLI call.",
     "A short snippet the reader copies as is: a CSS variable in use, an import line.",
-    "Keep commands on one line (the default): a long command scrolls inside the block, so it stays one command. Turn on wrap for prose-like code the reader reads more than pastes.",
+    "Let long commands wrap (the default): they break at spaces, so the reader sees the whole command, never cut behind the copy button. Turn wrap off only for code whose columns must line up; it then scrolls sideways inside the block.",
     "hideCopy for code the reader should read, not paste: a file path, an example output.",
     "Plain-script pages that build rows as HTML strings use codeBlockHtml() and bindCodeBlocks() from @bridge-ds/react/dom: the same markup and the same copy behavior, without React."
   ],

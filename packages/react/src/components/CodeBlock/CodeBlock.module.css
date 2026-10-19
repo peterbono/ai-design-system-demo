@@ -65,20 +65,9 @@
 }
 
 .wrap .code {
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .copy {
   flex: none;
-}
-
-/* Phones: a command is read whole and never scrolls behind the button; long lines wrap. */
-@media (max-width: 640px) {
-  .pre {
-    white-space: pre-wrap;
-  }
-
-  .code {
-    overflow-wrap: anywhere;
-  }
 }

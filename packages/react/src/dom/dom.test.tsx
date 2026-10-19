@@ -34,7 +34,7 @@ describe('codeBlockHtml', () => {
   it.each([
     ['npm install @bridge-ds/react', {}],
     ['npx bridge check', { label: 'Check a project' }],
-    ['line one\nline <two>', { wrap: true, copyLabel: 'Copy code' }],
+    ['line one\nline <two>', { wrap: false, copyLabel: 'Copy code' }],
     ['echo hi', { hideCopy: true, attributes: { id: 'cmd' } }],
     ['npx bridge explore', { codeAttributes: { id: 'ex-cmd' } }],
     ['echo hi', { copiedLabel: 'Copied command', attributes: { 'data-x': '1' } }],

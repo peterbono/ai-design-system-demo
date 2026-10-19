@@ -1,8 +1,9 @@
 .root {
   box-sizing: border-box;
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-1-5);
+  gap: var(--space-0-5) var(--space-1-5);
   max-width: 100%;
   min-width: 0;
   padding: var(--space-0-5) var(--space-1-5);

@@ -23,8 +23,7 @@ describe('CodeBlock', () => {
     const status = screen.getByRole('status');
     expect(status).toHaveTextContent('');
 
-    await userEvent.tab();
-    expect(screen.getByText('npm install @bridge-ds/react').closest('pre')).toHaveFocus();
+    // Wrapped (the default): no scroll stop, Tab goes straight to the copy button.
     await userEvent.tab();
     expect(button).toHaveFocus();
     await userEvent.keyboard('{Enter}');
@@ -51,10 +50,10 @@ describe('CodeBlock', () => {
   });
 
   it('the scroll area is focusable when lines do not wrap, not when they wrap', () => {
-    const { rerender } = render(<CodeBlock code="npx @bridge-ds/cli publish" />);
+    const { rerender } = render(<CodeBlock code="npx @bridge-ds/cli publish" wrap={false} />);
     const pre = () => screen.getByText('npx @bridge-ds/cli publish').closest('pre');
     expect(pre()).toHaveAttribute('tabindex', '0');
-    rerender(<CodeBlock code="npx @bridge-ds/cli publish" wrap />);
+    rerender(<CodeBlock code="npx @bridge-ds/cli publish" />);
     expect(pre()).not.toHaveAttribute('tabindex');
   });
 

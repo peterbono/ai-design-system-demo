@@ -8,7 +8,7 @@ import { iconHtml } from './icons';
 export interface CodeBlockHtmlOptions {
   /** Same as `<CodeBlock label>`: what the code is, above the block. Also names the copy button. */
   label?: string | TrustedHtml;
-  /** Same as `<CodeBlock wrap>`. */
+  /** Same as `<CodeBlock wrap>`. Default `true`. */
   wrap?: boolean;
   /** Same as `<CodeBlock copyLabel>`. Default "Copy". */
   copyLabel?: string;
@@ -32,7 +32,7 @@ const copyButton = (copyLabel: string, name: string | undefined, icon: 'copy' | 
  * `bindCodeBlocks()` once so its copy button works. `code` is escaped.
  */
 export function codeBlockHtml(code: string, options: CodeBlockHtmlOptions = {}): string {
-  const { label, wrap = false, copyLabel = 'Copy', copiedLabel, hideCopy = false, className } = options;
+  const { label, wrap = true, copyLabel = 'Copy', copiedLabel, hideCopy = false, className } = options;
   const name = typeof label === 'string' ? `${copyLabel} ${label.toLowerCase()}` : undefined;
   const rootAttrs = attrs({ ...(copiedLabel && copiedLabel !== 'Copied' ? { 'data-copied-label': copiedLabel } : {}), ...options.attributes });
   return (

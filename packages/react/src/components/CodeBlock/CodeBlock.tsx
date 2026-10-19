@@ -11,7 +11,10 @@ export interface CodeBlockProps extends Omit<HTMLAttributes<HTMLDivElement>, 'ch
   code: string;
   /** What the code is, above the block: "Install", "Add the MCP server". Also names the copy button. */
   label?: ReactNode;
-  /** Wrap long lines instead of scrolling sideways. Default `false`: commands keep one line and scroll. */
+  /**
+   * Long lines wrap at spaces (default), so a command is read whole and never hides behind the copy button. Pass
+   * `false` for code whose layout matters (aligned columns): lines then scroll sideways inside the block.
+   */
   wrap?: boolean;
   /** The copy button text. Default "Copy". */
   copyLabel?: string;
@@ -27,14 +30,14 @@ export interface CodeBlockProps extends Omit<HTMLAttributes<HTMLDivElement>, 'ch
 
 /**
  * Code or a command in IBM Plex Mono, with a copy button on the same line. The button says "Copied" for two seconds
- * and a polite live region announces it. Long lines scroll inside the block (keyboard reachable), or wrap.
+ * and a polite live region announces it. Long lines wrap, or scroll inside the block (keyboard reachable) with `wrap={false}`.
  *
  * Static contract (no hydration): the root carries `data-code-block`, the code `data-code-block-code`, the button
  * `data-code-block-copy` and the live region `data-code-block-status`. `bindCodeBlocks()` from
  * `@bridge-ds/react/dom` wires copy on statically rendered blocks.
  */
 export const CodeBlock = forwardRef<HTMLDivElement, CodeBlockProps>(function CodeBlock(
-  { code, label, wrap = false, copyLabel = 'Copy', copiedLabel = 'Copied', hideCopy = false, onCopy, codeProps, className, ...rest },
+  { code, label, wrap = true, copyLabel = 'Copy', copiedLabel = 'Copied', hideCopy = false, onCopy, codeProps, className, ...rest },
   ref,
 ) {
   const [copied, setCopied] = useState(false);

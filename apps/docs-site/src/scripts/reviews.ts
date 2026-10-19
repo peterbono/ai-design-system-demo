@@ -1444,7 +1444,7 @@ function wireLibrary(x: { pull: Pull; fresh: Freshness; compare: CompareLike | n
 
 /** One side of a token change: the alias or literal, the resolved value muted after an alias, the before struck through. */
 function valueCell(v: { css?: string | null; hex?: string | null; alias?: string | null } | null, previous = false) {
-  if (!v) return '<span class="muted">none</span>';
+  if (!v) return '<span class="muted">Not set</span>';
   return tokenValueHtml(v.alias ? `{${v.alias}}` : (v.css ?? ''), { resolved: v.alias ? (v.css ?? undefined) : undefined, swatch: v.hex ?? false, previous });
 }
 
@@ -1455,7 +1455,7 @@ export function renderTokenReview(review: TokenReview): string {
       (c) => `<tr>
         <th scope="row"><span class="mono">${esc(c.path)}</span><span class="rv-kind-tag is-${c.kind}">${c.kind}</span>${c.context ? `<span class="muted small">${esc(c.context)}</span>` : ''}</th>
         <td>${valueCell(c.before, true)}</td>
-        <td><span class="rv-arrow" aria-label="becomes">-></span></td>
+        <td><span class="rv-arrow"><span aria-hidden="true">→</span><span class="sr-only">becomes</span></span></td>
         <td>${valueCell(c.after)}</td>
       </tr>`,
     )
