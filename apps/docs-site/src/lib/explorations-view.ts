@@ -267,7 +267,7 @@ export function purposeLine(name: string, purpose: string): string | null {
 
 /** The status sentence of an exploration detail, without branch names. */
 export function explorationStateLine(status: ExplorationStatus): string {
-  if (status === 'promoted') return 'Promoted to review: it is a change in In review now, and goes through the usual approvals.';
+  if (status === 'promoted') return 'Promoted to review: it is a change ready for review now, and goes through the usual approvals.';
   if (status === 'closed') return 'Closed without shipping. Its previews stay for reference.';
   return 'It never ships as is: promote it to review when the idea is validated, or close it.';
 }
@@ -281,7 +281,7 @@ const list = (xs: string[]) => (xs.length <= 1 ? (xs[0] ?? '') : `${xs.slice(0, 
 export interface PromoteAsk {
   /** "@ana (design) and @ben (tech) will be asked to approve." */
   who: string;
-  /** "It moves to In review. Design and tech approve, then it ships." */
+  /** "It becomes ready for review. Design and tech approve, then it ships." */
   next: string;
 }
 
@@ -292,7 +292,7 @@ export interface PromoteAsk {
  */
 export function promoteAsk(tier: Tier | null, owners: { design: string[]; tech: string[] }): PromoteAsk {
   if (tier === 1) {
-    return { who: 'One teammate will be asked to approve: any reviewer can.', next: 'It moves to In review. One approval, then it ships.' };
+    return { who: 'One teammate will be asked to approve: any reviewer can.', next: 'It becomes ready for review. One approval, then it ships.' };
   }
   const design = handles(owners.design);
   const tech = handles(owners.tech);
@@ -300,8 +300,8 @@ export function promoteAsk(tier: Tier | null, owners: { design: string[]; tech: 
   const t = tech.length ? `${list(tech)} (tech)` : 'a tech owner';
   const same = design.length > 0 && design.length === tech.length && design.every((x) => tech.includes(x));
   const who = same ? `${list(design)} will be asked to approve, for design and for tech.` : `${d} and ${t} will be asked to approve.`;
-  return { who: `${who.charAt(0).toUpperCase()}${who.slice(1)}`, next: 'It moves to In review. Design and tech approve, then it ships.' };
+  return { who: `${who.charAt(0).toUpperCase()}${who.slice(1)}`, next: 'It becomes ready for review. Design and tech approve, then it ships.' };
 }
 
 /** After the promotion: one sentence, the link goes next to it. */
-export const promotedLine = (n: number) => `Promoted. #${n} is in In review now, waiting for its approvals.`;
+export const promotedLine = (n: number) => `Promoted. #${n} is ready for review now, waiting for its approvals.`;

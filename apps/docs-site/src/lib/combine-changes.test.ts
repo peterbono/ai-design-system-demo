@@ -9,6 +9,8 @@ import {
   namesOf,
   onlyTokens,
   selectionLine,
+  INTRO_LINE,
+  CHOOSE_LABEL,
   shortTitle,
   togetherGuardrail,
   togetherRows,
@@ -77,6 +79,8 @@ describe('selection', () => {
     expect(selectionLine(1, false)).toBe('Check one more token change to try them together.');
     expect(selectionLine(3, false)).toBe('Combining 3 changes.');
     expect(selectionLine(4, true)).toBe('Up to 4 changes at a time. Uncheck one to add another.');
+    expect(INTRO_LINE).toBe('Try 2 to 4 token changes together before they ship.');
+    expect(CHOOSE_LABEL).toBe('Choose changes');
     expect(tryLabel(3)).toBe('Try 3 changes together');
     expect(VIEW_LABEL).toBe('View the library with them');
   });
@@ -145,7 +149,7 @@ describe('where it opens', () => {
   });
 
   it('never uses developer words or em dashes on screen', () => {
-    const shown = [CODE_LINE, selectionLine(0, false), selectionLine(4, true), combineSummary({ changes: 2, tokens: 3, conflicts: 1, missing: 1 }), tryLabel(2), VIEW_LABEL].join(' ');
+    const shown = [CODE_LINE, INTRO_LINE, CHOOSE_LABEL, selectionLine(0, false), selectionLine(4, true), combineSummary({ changes: 2, tokens: 3, conflicts: 1, missing: 1 }), tryLabel(2), VIEW_LABEL].join(' ');
     expect(shown).not.toMatch(/\b(branch|pull request|PR|commit|merge|SHA|CI|workflow)\b|\u2014/i);
   });
 });

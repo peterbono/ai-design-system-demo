@@ -69,7 +69,6 @@ import {
   failingSentence,
   jobIdFromUrl,
   reviewAskMessage,
-  shipWhen,
   type CheckFacts,
   type CheckLine,
   type ClassifiedCheck,
@@ -887,13 +886,18 @@ function renderDetail(x: DetailInput) {
     headerCta = '';
   }
   if (status.lifecycle === 'draft' && isAuthor && write && !exploration) headerCta = '';
+  // When the owner override is how this change ships (the view's primary), it is the ship control: on the title line,
+  // like Ship, and not repeated in the checklist footer.
+  const overrideOnTitle = primary === 'override' && showOverride && !headerCta && status.lifecycle !== 'waiting';
+  if (overrideOnTitle) headerCta = '<button type="button" class="btn btn-primary btn-lg" data-open-override>Ship with owner override</button>';
   if (!access && !headerCta && (lifecycle === 'open' || lifecycle === 'draft')) headerCta = `<button type="button" class="btn btn-primary btn-lg" data-gh-open>${ghAction('review', prefersSignIn())}</button>`;
   // Latest library: one row in the checklist when the change is behind or conflicts, its action on the row (mounted by
   // wireLibrary). Resolving a conflict is the view's primary only when nothing else holds it.
   const libraryRow = libraryRowHtml(x.fresh, !headerCta && primary === null && who.action === 'resolve-conflict', pull.number);
   const failingRun = ci.failed.find((f) => f.url)?.url;
 
-  // Conversation: how many, the last word, and GitHub for the thread (it is where people answer).
+  // Conversation: how many and the last word. People answer with Write a review in the action bar; the full thread on
+  // GitHub is under For developers (Open on GitHub).
   const conversation = [
     ...reviews
       .filter((r) => r.state !== 'PENDING')
@@ -929,7 +933,6 @@ function renderDetail(x: DetailInput) {
           ? `<p class="rv-conv-line">${avatar(last.user, 20)}<span><strong>${esc(last.user?.login ?? 'someone')}</strong> ${esc(kindLabel[last.kind] ?? last.kind.toLowerCase())}${last.at ? `, ${esc(relativeTime(last.at))}` : ''}${quote ? `: <span class="rv-conv-quote">${esc(excerpt(quote))}</span>` : '.'}</span></p>`
           : '<p class="cg-muted rv-conv-line">No reviews or comments yet.</p>'
       }
-      <a class="rv-conv-gh" href="${esc(pull.html_url)}" target="_blank" rel="noopener">Reply on GitHub</a>
     </section>`;
 
   const fileList = `<ul class="rv-files">${files
@@ -986,31 +989,26 @@ function renderDetail(x: DetailInput) {
       </details>
     </div>
     <p data-no-token class="cg-muted">Read only until connected. Or <a href="${esc(pull.html_url)}/files#submit-review" target="_blank" rel="noopener">review on GitHub</a>.</p>`;
-  // Ship sits at the end of the bar; the owner override and Close wait in More (rare, and Close is destructive). When
-  // the owner override is how this change ships (the header's primary), a disabled Ship next to it only competes.
+  // One ship control per view: Ship sits on the title line once the change can ship (headerShip), the owner override
+  // on the approvals it skips; until then the checklist says what shipping needs, so the bar holds no disabled Ship.
+  // Back to draft and Close wait in More (rare, and Close is destructive).
   const overridePath = primary === 'override' && !gate.allowed;
   const hasMore = write && (open || lifecycle === 'draft');
+  // A change that can ship but whose header holds another primary (an approval the viewer gives first): its Ship
+  // stays secondary, at the end of the bar.
+  const barShip = open && gate.allowed && !headerShip && !overridePath;
   const shipBits = write
     ? `<div class="cg-act-end">
         ${hasMore ? '<span class="rv-more" id="rv-more"></span>' : ''}
-        ${headerShip || !open || overridePath ? '' : `<button type="button" class="btn btn-secondary" data-act="MERGE" ${gate.allowed ? '' : 'disabled aria-describedby="rv-merge-why"'}>Ship</button>`}
+        ${barShip ? '<button type="button" class="btn btn-secondary" data-act="MERGE">Ship</button>' : ''}
       </div>`
     : access
       ? `<p class="cg-muted">@${esc(access.login)} cannot write to ${esc(repo.owner)}/${esc(repo.repo)}, so ship and close are off.</p>`
       : '';
-  // Ship unlocks once..., in plain words: the header already says what fails and who acts.
-  const unlocks = shipWhen({
-    draft: pull.draft,
-    ciFail: ci.state === 'fail',
-    ciPending: ci.state === 'pending',
-    changesRequested: approvals.changesRequested.length > 0,
-    missingApprovals: gate.missing.length,
-    conflict: pull.mergeable === false,
-  });
+  // What shipping still needs is the checklist's job; the bar only says when the viewer is not the one who ships.
   const notShipper = gate.canShip ? [] : gate.reasons.filter((r) => /ship/i.test(r));
-  const whyText = [unlocks ?? '', ...notShipper].filter(Boolean).join(' ');
   const quietWhy = status.lifecycle === 'draft' || status.lifecycle === 'waiting';
-  const why = gate.allowed || overridePath || lifecycle === 'merged' || lifecycle === 'closed' || quietWhy || !whyText ? '' : `<p class="cg-muted" id="rv-merge-why">${esc(whyText)}</p>`;
+  const why = overridePath || lifecycle === 'merged' || lifecycle === 'closed' || quietWhy || !notShipper.length ? '' : `<p class="cg-muted" id="rv-merge-why">${esc(notShipper.join(' '))}</p>`;
 
   // What it looks like: the biggest before/after first (filled by openPr), then the token diff as the "what changed"
   // of a token-only change. The full visual list stays one click away.
@@ -1052,11 +1050,10 @@ function renderDetail(x: DetailInput) {
   ${added > 0 ? `<div class="cg-added" id="rv-added" data-text="${esc(addedNotice(added))}"></div>` : ''}
   <header class="zone cg-pr-open">
     <div class="cg-pr-status" id="rv-status">${statusFallback(status)}</div>
-    <h1 class="cg-pr-title">${esc(humanTitle(mdTitleText(pull.title)))}</h1>
+    <div class="cg-pr-head"><h1 class="cg-pr-title">${esc(humanTitle(mdTitleText(pull.title)))}</h1>${headerCta ? `<p class="cg-pr-cta">${headerCta}</p>` : ''}</div>
     <p class="cg-pr-meta">${avatar(pull.user, 20)}<span>${esc(pull.user.login)}</span>${need ? `<span class="cg-need">${esc(need)}</span>` : ''}</p>
     ${tryIt}
-    ${status.lifecycle === 'shipped' || status.lifecycle === 'closed' ? '' : needsHtml({ story, rows, rowText: status.lifecycle === 'draft' ? DRAFT_ROWS : status.lifecycle === 'waiting' ? {} : (help?.rowText ?? {}), why: primary === 'override' || status.lifecycle === 'waiting' ? null : (help?.why ?? (showOverride ? OVERRIDE_RULE : null)), ask: status.lifecycle === 'waiting' ? null : ask, override: showOverride, primary, library: libraryRow })}
-    ${headerCta ? `<p class="cg-pr-cta">${headerCta}</p>` : ''}
+    ${status.lifecycle === 'shipped' || status.lifecycle === 'closed' ? '' : needsHtml({ story, rows, rowText: status.lifecycle === 'draft' ? DRAFT_ROWS : status.lifecycle === 'waiting' ? {} : (help?.rowText ?? {}), why: primary === 'override' || status.lifecycle === 'waiting' ? null : (help?.why ?? (showOverride ? OVERRIDE_RULE : null)), ask: status.lifecycle === 'waiting' ? null : ask, override: showOverride && !overrideOnTitle, primary, library: libraryRow })}
   </header>
   <section class="rv-what" aria-label="What changed">${what}${tokens}</section>
   <div class="cg-secs">

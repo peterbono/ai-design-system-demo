@@ -28,6 +28,20 @@ describe('remote mode (GitHub API)', () => {
     expect(gh.log.some((l) => l.path.startsWith('raw:'))).toBe(true);
   });
 
+  it('without a token, a used-up hourly limit says to set a token, never "this token"', async () => {
+    const gh = fakeGitHub('acme', 'ds', files());
+    let limited = false;
+    const fetch = (async (url: string, init?: RequestInit) =>
+      limited && String(url).startsWith('https://api.github.com')
+        ? new Response(JSON.stringify({ message: 'API rate limit exceeded' }), { status: 403, headers: { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': '1800000000' } })
+        : gh.fetch(url, init)) as typeof globalThis.fetch;
+    const ctx = await BridgeContext.create({ repo: 'acme/ds', fetch });
+    limited = true;
+    const out = (await ops.listReviews(ctx, {})) as { pullRequestsError?: string };
+    expect(out.pullRequestsError).toMatch(/without a token .*GITHUB_TOKEN/);
+    expect(out.pullRequestsError).not.toMatch(/this token/);
+  });
+
   it('with a token: branch + commit + draft PR labelled source: mcp and tier, main untouched', async () => {
     const gh = fakeGitHub('acme', 'ds', files());
     const mainBefore = gh.refs.get('main');

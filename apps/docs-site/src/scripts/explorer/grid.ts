@@ -2,7 +2,7 @@
 // rows). Groups are collapsible section rows, the header is sticky, there is one column per relevant mode, plus code
 // syntax and description columns. Rows render in chunks: the first screenful synchronously, the rest on idle.
 import { codeSyntax, modeName, SYNTAX_LABEL } from '../../lib/explorer/format';
-import { ADDED_LABEL, beforeText, CHANGED_LABEL, fromLabel, type TokenMark } from '../../lib/view-scope';
+import { beforeText, markLabel, type TokenMark } from '../../lib/view-scope';
 import { sectionsFor, type Column, type Section, type XToken } from '../../lib/explorer/model';
 import { cellHtml, cellLabel, studioCellHtml } from './cells';
 import { editedModes } from '../token-editor';
@@ -72,7 +72,7 @@ function rowHtml(d: ExplorerData, t: XToken, view: View, s: ExplorerState, secti
   const cells = view.columns
     .map(
       (c, i) =>
-        `<div role="gridcell" class="xp-td is-mode" aria-colindex="${i + 2}" tabindex="-1" data-col="${i + 1}" data-colkey="${esc(c.key)}" aria-label="${esc(cellLabel(d, t.path, c))}"${
+        `<div role="gridcell" class="xp-td is-mode" aria-colindex="${i + 2}" tabindex="-1" data-col="${i + 1}" data-colkey="${esc(c.key)}" data-label="${esc(c.label)}" aria-label="${esc(cellLabel(d, t.path, c))}"${
           editable ? ' aria-readonly="false" aria-haspopup="dialog"' : ''
         }>${studio ? studioCellHtml(d, t.path, c, edited.has(modeKeyFor(t.tier, c))) : cellHtml(d, t.path, c, editable)}</div>`,
     )
@@ -88,11 +88,11 @@ function rowHtml(d: ExplorerData, t: XToken, view: View, s: ExplorerState, secti
   return `<div role="row" class="xp-tr" data-path="${esc(t.path)}" aria-rowindex="${index}" aria-selected="${selected}">${name}${cells}${code}${desc}</div>`;
 }
 
-/** "Changed in this change" on a token the viewed change defines differently; its latest library value on hover and for screen readers. */
+/** "Changed in this change" (or "Changed in dark theme only") on a token the viewed change defines differently; its latest library value on hover and for screen readers. */
 function markHtml(mark: TokenMark, d: ExplorerData): string {
   const before = beforeText(mark, d.formatBefore ?? ((_t, v) => JSON.stringify(v)), modeName);
-  // Changes shown together: the mark names the change the value comes from.
-  const label = mark.from?.length ? fromLabel(mark.kind, mark.from) : mark.kind === 'added' ? ADDED_LABEL : CHANGED_LABEL;
+  // Changes shown together: the mark names the change the value comes from; a token moved in one theme names it.
+  const label = markLabel(mark);
   return `<span class="xp-flag xp-flag-change" data-before="${esc(before)}">${esc(label)}<span class="sr-only">. ${esc(before)}</span></span>`;
 }
 
@@ -132,6 +132,8 @@ export function renderGrid(host: HTMLElement, d: ExplorerData, view: View, s: Ex
     : sectionsFor(view.visible, s.selection);
   host.style.setProperty('--xp-cols', gridTemplate(view, s));
   host.style.setProperty('--xp-n', String(view.columns.length));
+  // More than two value columns (every brand and theme): a phone stacks them, one labeled line each (token-explorer.css).
+  host.toggleAttribute('data-many', view.columns.length > 2);
   host.style.setProperty('--xp-minw', `${9.5 + modeMin(s) * view.columns.length + (s.showCode ? 13 : 0) + (s.showDescription ? 16 : 0)}rem`);
   host.setAttribute('aria-colcount', String(colCount(view, s)));
   host.setAttribute('aria-rowcount', String(1 + (s.flat ? 0 : sections.length) + view.visible.length));
