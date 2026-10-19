@@ -397,6 +397,27 @@ export function fromLabel(kind: 'changed' | 'added', from: number[]): string {
   return `${kind === 'added' ? 'New in' : 'Changed in'} ${from.map((n) => `#${n}`).join(' and ')}`;
 }
 
+/**
+ * The theme a changed token moves in when it moves in one theme only: every mode it changes ("light", or a brand
+ * override "ocean light") names the same theme. Null when both themes move, for a new token, or for modes that are not
+ * themes (density, a single value).
+ */
+export function onlyTheme(mark: Pick<TokenMark, 'kind' | 'modes'>): 'light' | 'dark' | null {
+  if (mark.kind !== 'changed' || !mark.modes.length) return null;
+  const themes = new Set(mark.modes.map((m) => m.trim().split(/\s+/).pop()));
+  if (themes.size !== 1) return null;
+  const [t] = themes;
+  return t === 'light' || t === 'dark' ? t : null;
+}
+
+/** The words of a token's mark: new or changed, the change it comes from when several are shown, and the one theme it moves in. */
+export function markLabel(mark: Pick<TokenMark, 'kind' | 'modes' | 'from'>): string {
+  const theme = onlyTheme(mark);
+  if (mark.from?.length) return `${fromLabel(mark.kind, mark.from)}${theme ? `, ${theme} theme only` : ''}`;
+  if (mark.kind === 'added') return ADDED_LABEL;
+  return theme ? `Changed in ${theme} theme only` : CHANGED_LABEL;
+}
+
 /** What this page shows of the change, in one sentence (null while reading). */
 export function bannerBody(page: ViewPage, x: { changed?: number; added?: number; removed?: number; components?: number; guidance?: string[]; together?: boolean; picked?: boolean }): string {
   if (page === 'quality') return '';

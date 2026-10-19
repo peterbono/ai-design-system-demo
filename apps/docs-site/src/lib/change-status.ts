@@ -223,14 +223,23 @@ export function todoBadge(l: Lifecycle, task: string): { label: string; tone: Li
 
 export type StatusFilter = 'open' | Lifecycle;
 
+/**
+ * The status filter of the Changes list: the lifecycle in the same words as the status line and the row chips (the
+ * full labels, so "Approved, waiting for code" never reads as a review state), plus "All open", the three open states
+ * together (the default).
+ */
 export const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
-  { value: 'open', label: 'Open' },
-  { value: 'draft', label: LIFECYCLE.draft.short },
-  { value: 'ready', label: LIFECYCLE.ready.short },
-  { value: 'waiting', label: LIFECYCLE.waiting.short },
-  { value: 'shipped', label: LIFECYCLE.shipped.short },
-  { value: 'closed', label: LIFECYCLE.closed.short },
+  { value: 'open', label: 'All open' },
+  { value: 'draft', label: LIFECYCLE.draft.label },
+  { value: 'ready', label: LIFECYCLE.ready.label },
+  { value: 'waiting', label: LIFECYCLE.waiting.label },
+  { value: 'shipped', label: LIFECYCLE.shipped.label },
+  { value: 'closed', label: LIFECYCLE.closed.label },
 ];
+
+/** The status Select picks a filter (detail: the value); the page tells it the current one back. */
+export const STATUS_FILTER_EVENT = 'bridge:status-filter';
+export const STATUS_SYNC_EVENT = 'bridge:status-sync';
 
 /** The filter from the address (?status=waiting), Open by default. */
 export function statusFilterParam(search: string): StatusFilter {

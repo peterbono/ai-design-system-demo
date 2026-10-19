@@ -361,6 +361,25 @@ details[open] > summary .cg-sec-chev {
   margin: 0;
 }
 
+/* The change and its one primary action on one line (Ship, or the author's next step); the action wraps under the
+   title on a phone. */
+.cg-pr-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-6);
+}
+
+.cg-pr-head > * {
+  margin: 0;
+}
+
+.cg-pr-head .cg-pr-title {
+  flex: 1 1 var(--size-80);
+  min-width: 0;
+}
+
 .cg-pr-title {
   font-family: var(--typography-h2-family);
   font-size: var(--typography-h2-size);
@@ -714,9 +733,6 @@ details[open] > summary .cg-sec-chev {
   min-height: var(--control-height-md);
 }
 
-.rv-ap + .cg-pr-cta {
-  margin-top: var(--space-1);
-}
 
 /* What it looks like: the biggest before/after right under the header, then the token diff. */
 .rv-what {
@@ -926,7 +942,7 @@ details[open] > summary .cg-sec-chev {
 /* Conversation: the count, the last word, and GitHub for the thread. */
 .rv-conv-last {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
   gap: var(--space-1) var(--space-4);
   padding: var(--space-3) var(--space-5);
@@ -961,11 +977,6 @@ details[open] > summary .cg-sec-chev {
 
 .rv-conv-quote {
   color: var(--color-text-muted);
-}
-
-.rv-conv-gh {
-  grid-column: 2;
-  grid-row: 1 / span 2;
 }
 
 .rv-more {
@@ -1005,11 +1016,6 @@ details[open] > summary .cg-sec-chev {
   .rv-conv-last {
     grid-template-columns: minmax(0, 1fr);
     padding-inline: var(--space-4);
-  }
-
-  .rv-conv-gh {
-    grid-column: 1;
-    grid-row: auto;
   }
 
   .cg-dev-page > .cg-sec-body {
@@ -1234,11 +1240,32 @@ details[open] > summary .cg-sec-chev {
   margin-top: var(--space-2);
 }
 
-/* Changes list: the status filter, one row above the list. Six segments do not fit a phone: the DS track scrolls
-   sideways inside the bar. */
+/* Changes list: the status Select and, when the list holds developer work, the work filter: one line above the rows. */
 .cg-status-bar {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
   margin-block: var(--space-6) var(--space-3);
+}
+
+.cg-status-select {
+  width: var(--size-64);
+}
+
+.cg-status-bar .cg-work {
+  margin: 0 0 0 auto;
+}
+
+@media (max-width: 760px) {
+  .cg-status-select {
+    flex: 1 1 100%;
+    width: auto;
+  }
+
+  .cg-status-bar .cg-work {
+    margin: 0;
+  }
 }
 
 /* Token changes heading with "Edit tokens in this change" on the same line (the action next to its object). */
@@ -1266,13 +1293,18 @@ details[open] > summary .cg-sec-chev {
 
 /* Try several changes together (components/ds/studio/CombineChanges): a DS Checkbox before each open row, then one
    selection bar at the end of the same card, its sentence and actions on one line. */
-.cg-row-pick {
+/* Try together: the checkbox column exists only while choosing (CombineChanges sets data-picking on the card). */
+[data-picking] .cg-row-pick {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
 }
 
 .cg-pick {
+  display: none;
+}
+
+[data-picking] .cg-pick {
   display: flex;
   align-items: center;
   align-self: stretch;
@@ -1284,7 +1316,7 @@ details[open] > summary .cg-sec-chev {
   min-height: var(--size-6);
 }
 
-.cg-row-pick .cg-row-link {
+[data-picking] .cg-row-pick .cg-row-link {
   padding-left: var(--space-3);
 }
 

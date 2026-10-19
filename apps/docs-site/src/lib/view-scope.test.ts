@@ -31,6 +31,10 @@ import {
   viewOptions,
   viewsChange,
   fromLabel,
+  ADDED_LABEL,
+  CHANGED_LABEL,
+  markLabel,
+  onlyTheme,
   isTogether,
   parseChangeList,
   scopeChanges,
@@ -299,6 +303,20 @@ describe('several changes together in the address', () => {
     expect(togetherOption([101, 118], ['Darker canvas', 'Rounder buttons'])).toEqual({ value: 'together-101-118', label: '2 changes together', description: 'Darker canvas and Rounder buttons', group: 'Open changes' });
     expect(fromLabel('changed', [118])).toBe('Changed in #118');
     expect(fromLabel('added', [101, 118])).toBe('New in #101 and #118');
+  });
+
+  it('names the one theme a token moves in', () => {
+    expect(onlyTheme({ kind: 'changed', modes: ['dark'] })).toBe('dark');
+    expect(onlyTheme({ kind: 'changed', modes: ['light', 'ocean light'] })).toBe('light');
+    expect(onlyTheme({ kind: 'changed', modes: ['light', 'dark'] })).toBeNull();
+    expect(onlyTheme({ kind: 'changed', modes: ['value'] })).toBeNull();
+    expect(onlyTheme({ kind: 'changed', modes: ['compact'] })).toBeNull();
+    expect(onlyTheme({ kind: 'added', modes: ['light'] })).toBeNull();
+    expect(markLabel({ kind: 'changed', modes: ['dark'] })).toBe('Changed in dark theme only');
+    expect(markLabel({ kind: 'changed', modes: ['light', 'dark'] })).toBe(CHANGED_LABEL);
+    expect(markLabel({ kind: 'added', modes: ['light', 'dark'] })).toBe(ADDED_LABEL);
+    expect(markLabel({ kind: 'changed', modes: ['light'], from: [118] })).toBe('Changed in #118, light theme only');
+    expect(markLabel({ kind: 'changed', modes: ['light', 'dark'], from: [118] })).toBe('Changed in #118');
     expect(bannerBody('tokens', { changed: 3, together: true })).toBe('3 tokens changed, listed first in the table, each marked with its change.');
     expect(bannerBody('components', { components: 0, together: true })).toBe('Previews use their tokens. They change how no component looks.');
   });

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
-import { type FetchLike, GitHubClient, GitHubError, loadRepoFiles, parseRepo } from '../src/github-client';
+import { type FetchLike, GitHubClient, GitHubError, loadRepoFiles, parseRepo, rateLimitMessage } from '../src/github-client';
 import { branchName, slugify } from '../src/pr-composer';
 
 interface Call {
@@ -115,6 +115,23 @@ test('exhausted rate limit explains when it resets', async () => {
   });
   const c = new GitHubClient('o/r', 't', fetchImpl, { attempts: 1, baseDelayMs: 0, sleep: async () => undefined });
   await assert.rejects(c.getRepo(), /hourly request limit .* resets at/);
+});
+
+test('exhausted rate limit without a token says how to fix it, never "this token"', async () => {
+  const fetchImpl: FetchLike = async () => ({
+    ok: false,
+    status: 403,
+    headers: { get: (k: string) => ({ 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': '1800000000' })[k] ?? null },
+    json: async () => ({ message: 'API rate limit exceeded' }),
+    text: async () => '',
+  });
+  const anon = new GitHubClient('o/r', '', fetchImpl, { attempts: 1, baseDelayMs: 0, sleep: async () => undefined }, { tokenHint: 'set GITHUB_TOKEN' });
+  await assert.rejects(anon.getRepo(), (e: unknown) => e instanceof GitHubError && e.status === 429 && !/this token/.test(e.message) && /without a token .* resets at .* set GITHUB_TOKEN/.test(e.message));
+  assert.equal(rateLimitMessage({ withToken: true }), "GitHub's hourly request limit for this token is used up. Try again after that.");
+  assert.equal(
+    rateLimitMessage({ withToken: false }),
+    "GitHub's hourly limit for requests without a token (60 an hour) is used up. To keep going now, add a GitHub token: a token gets 5,000 requests an hour.",
+  );
 });
 
 test('branch names follow tokens/<slug>-<yyyymmdd-hhmm>', () => {

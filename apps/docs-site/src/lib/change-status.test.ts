@@ -7,6 +7,7 @@ import {
   emptyFilterLine,
   failingByName,
   GONE_SENTENCE,
+  LIFECYCLE,
   lifecycleSentence,
   lifecycleTone,
   needsClosed,
@@ -14,6 +15,7 @@ import {
   restartLine,
   rowLifecycle,
   showsUnderStatus,
+  STATUS_FILTERS,
   statusAction,
   statusFilterParam,
   statusOpener,
@@ -191,6 +193,10 @@ describe('todoBadge', () => {
 });
 
 describe('status filter', () => {
+  it('names each state exactly as the status model does', () => {
+    expect(STATUS_FILTERS.map((f) => f.label)).toEqual(['All open', 'Draft', 'Ready for review', 'Approved, waiting for code', 'Shipped', 'Closed']);
+    expect(STATUS_FILTERS.slice(1).map((f) => f.label)).toEqual(Object.values(LIFECYCLE).map((l) => l.label));
+  });
   it('reads the address, Open by default', () => {
     expect(statusFilterParam('?status=waiting')).toBe('waiting');
     expect(statusFilterParam('?status=nope')).toBe('open');

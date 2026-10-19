@@ -1,6 +1,7 @@
-// Try several changes together, on the Changes list (In review, Open). A DS Checkbox at the start of each row, and one
-// selection bar at the end of the same card: the sentence of what happens next, then "View the library with them"
-// and "Try 3 changes together" (the view's primary while something is checked). The combination is computed here, in
+// Try several changes together, on the Changes list (All changes, All open). Folded until asked: the bar at the end of
+// the card says what trying together does, with one "Choose changes" button; it turns on a DS Checkbox at the start of
+// each row (one target instead of one per row on the first screen). Then the bar holds the sentence of what happens
+// next, "View the library with them" and "Try 3 changes together" (the view's primary while something is checked). The combination is computed here, in
 // the browser, from the changes' own token edits on top of the latest library (@bridge-ds/core token-combine): tokens
 // two changes set differently get one row each ("Use <change>'s", the rows of Bring in the latest library) and the
 // contrast checks run on the result before anything opens. Code changes are left out and say why on their row.
@@ -13,7 +14,10 @@ import { Alert, Button, Checkbox, Link, Radio, RadioGroup, VisuallyHidden } from
 import { combineChanges, encodePicks, type CombinePicks } from '@bridge-ds/core';
 import {
   ALONE_LABEL,
+  CANCEL_LABEL,
+  CHOOSE_LABEL,
   CODE_LINE,
+  INTRO_LINE,
   combineSummary,
   keepListed,
   MIN_TOGETHER,
@@ -62,6 +66,9 @@ export function CombineChanges({ admin, failure }: CombineChangesProps) {
   const [latest, setLatest] = useState<LatestLibrary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [picks, setPicks] = useState<CombinePicks>({});
+  // The checkboxes show only once the viewer asks to choose (or something is still checked).
+  const [picking, setPicking] = useState(false);
+  const choosing = picking || selected.length > 0;
 
   useEffect(() => {
     const on = (e: Event) => {
@@ -78,6 +85,19 @@ export function CombineChanges({ admin, failure }: CombineChangesProps) {
   useEffect(() => {
     document.documentElement.toggleAttribute('data-together', selected.length > 0 && rows.show);
   }, [selected.length, rows.show]);
+
+  // The rows make room for their checkbox only while choosing (changes.css [data-picking]).
+  useEffect(() => {
+    document.getElementById('cg-table')?.toggleAttribute('data-picking', choosing && rows.show);
+  }, [choosing, rows.show]);
+
+  // "Choose changes" moves focus to the first checkbox, where the next step is.
+  const [focusFirst, setFocusFirst] = useState(false);
+  useEffect(() => {
+    if (!focusFirst || !choosing) return;
+    setFocusFirst(false);
+    document.querySelector<HTMLElement>('[data-together-slot] [role="checkbox"], [data-together-slot] input')?.focus();
+  }, [focusFirst, choosing, slots]);
 
   const byNumber = useMemo(() => new Map(rows.listed.map((r) => [r.number, r])), [rows.listed]);
 
@@ -152,7 +172,7 @@ export function CombineChanges({ admin, failure }: CombineChangesProps) {
     <>
       {slots.map((s) => {
         const row = byNumber.get(s.number);
-        if (!row) return null;
+        if (!row || !choosing) return null;
         return (
           <span key={s.number}>
             {createPortal(
@@ -180,11 +200,36 @@ export function CombineChanges({ admin, failure }: CombineChangesProps) {
       })}
       {/* One region: the sentence and the actions on one line, then what the sentence asks for (picks), then the
           guardrail. On a phone the actions come last, under what unlocks them. */}
-      <div className="cg-together-grid" data-actions={n >= MIN_TOGETHER || undefined}>
+      <div className="cg-together-grid" data-actions>
         <p className={n >= MIN_TOGETHER || error ? 'cg-together-line' : 'cg-together-line is-muted'} aria-live="polite">
-          {line}
+          {choosing ? line : INTRO_LINE}
         </p>
-        {n >= MIN_TOGETHER ? (
+        {!choosing ? (
+          <div className="cg-together-actions">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setPicking(true);
+                setFocusFirst(true);
+              }}
+            >
+              {CHOOSE_LABEL}
+            </Button>
+          </div>
+        ) : n < MIN_TOGETHER ? (
+          <div className="cg-together-actions">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setSelected([]);
+                setRefused(false);
+                setPicking(false);
+              }}
+            >
+              {CANCEL_LABEL}
+            </Button>
+          </div>
+        ) : (
           <div className="cg-together-actions">
             <Button variant="secondary" disabled={!open} onClick={() => (location.href = viewTogetherHref(selected, use))}>
               {VIEW_LABEL}
@@ -196,7 +241,7 @@ export function CombineChanges({ admin, failure }: CombineChangesProps) {
               </Button>
             ) : null}
           </div>
-        ) : null}
+        )}
         {combo && combo.conflictRows.length ? (
           <ul className="lib-rows cg-together-rows" aria-label="Tokens these changes set differently">
             {combo.conflictRows.map((r) => (

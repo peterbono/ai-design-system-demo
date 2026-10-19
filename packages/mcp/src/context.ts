@@ -31,6 +31,7 @@ function client(repo: string, o: ContextOptions, rules: { protectedBranches: str
     ...(o.rawUrl ? { rawUrl: o.rawUrl } : {}),
     protectedBranches: rules.protectedBranches,
     branchPrefix: rules.branchPrefix,
+    tokenHint: 'set GITHUB_TOKEN (or BRIDGE_GITHUB_TOKEN) in the environment of the Bridge MCP server, read access to this repository is enough',
   });
 }
 

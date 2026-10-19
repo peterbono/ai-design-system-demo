@@ -1969,10 +1969,6 @@
     margin: calc(var(--space-4) * -1) calc(var(--space-4) * -1) 0;
   }
 
-  body:has([data-xe-bar]:not([hidden])) .xp[data-surface="app"] {
-    padding-bottom: var(--space-16);
-  }
-
   .xp-apphead {
     padding: var(--space-2) var(--space-4);
   }
@@ -2738,6 +2734,12 @@
 
 .xe-bar[hidden] {
   display: none;
+}
+
+/* While the draft bar shows, the table ends above it (its height and both its gaps): the last rows scroll clear of
+   it at every width, inside the table on a laptop and on the page on a phone. */
+body:has([data-xe-bar]:not([hidden])) .xp[data-surface="app"] .xp-scroll {
+  padding-bottom: calc(var(--size-12) + var(--space-6) * 2);
 }
 
 .xe-bar-dot {
@@ -3707,6 +3709,49 @@
 @media (max-width: 640px) {
   .xp[data-surface="app"] {
     margin: 0;
+  }
+
+  /* Phone toolbar: filter, Options and New token on the first line, the type chips on a full line under it, so
+     the chips scroll at full width instead of a sliver between the buttons. */
+  .xp[data-surface="app"] .xp-search {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .xp[data-surface="app"] .xp-chips {
+    flex: 1 1 100%;
+    order: 1;
+  }
+
+  .xp[data-surface="app"] .xp-tools .xp-grow {
+    display: none;
+  }
+
+  /* Every brand and theme (more than two value columns): one labeled line per value instead of columns too narrow
+     to read. The labels come from each cell (data-label), so the column header row steps aside. */
+  .xp[data-surface="app"] [data-many] .xp-tr {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .xp[data-surface="app"] [data-many] .xp-head {
+    display: none;
+  }
+
+  .xp[data-surface="app"] [data-many] .xp-td.is-mode,
+  .xp[data-surface="app"] [data-many] .xp-td.is-mode + .xp-td.is-mode {
+    padding: var(--space-1) var(--space-2);
+  }
+
+  .xp[data-surface="app"] [data-many] .xp-td.is-mode:last-child {
+    padding-bottom: var(--space-2);
+  }
+
+  .xp[data-surface="app"] [data-many] .xp-td.is-mode::before {
+    flex: 0 0 40%;
+    color: var(--color-text-muted);
+    font-size: var(--typography-caption-size);
+    line-height: var(--typography-caption-line-height);
+    content: attr(data-label);
   }
 }
 

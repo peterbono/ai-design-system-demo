@@ -191,6 +191,22 @@ export interface ClientOptions {
   protectedBranches?: string[];
   /** When set, branches this client creates must start with it (agents use "bridge/"). */
   branchPrefix?: string;
+  /**
+   * How a person adds a token where this client runs, for the rate-limit message without one ("set GITHUB_TOKEN in
+   * the MCP server config"). Default: "add a GitHub token".
+   */
+  tokenHint?: string;
+}
+
+/**
+ * The sentence for GitHub's exhausted hourly limit. With a token, the token's own limit is used up: wait. Without one,
+ * the shared limit for anonymous reads is (60 an hour per address): say how to get a higher one.
+ */
+export function rateLimitMessage(x: { withToken: boolean; resetsAt?: Date; tokenHint?: string }): string {
+  const when = x.resetsAt ? ` It resets at ${x.resetsAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.` : '';
+  if (x.withToken) return `GitHub's hourly request limit for this token is used up.${when} Try again after that.`;
+  const hint = x.tokenHint ?? 'add a GitHub token';
+  return `GitHub's hourly limit for requests without a token (60 an hour) is used up.${when} To keep going now, ${hint}: a token gets 5,000 requests an hour.`;
 }
 
 /** A file in a new commit: text content, or null to delete it. */
@@ -360,12 +376,8 @@ export class GitHubClient {
       const remaining = res.headers?.get('x-ratelimit-remaining');
       const reset = res.headers?.get('x-ratelimit-reset');
       if ((res.status === 403 || res.status === 429) && remaining === '0') {
-        const when = reset ? new Date(Number(reset) * 1000) : undefined;
-        throw new GitHubError(
-          429,
-          `GitHub's hourly request limit for this token is used up.${when ? ` It resets at ${when.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.` : ''} Try again after that.`,
-          detail,
-        );
+        const resetsAt = reset ? new Date(Number(reset) * 1000) : undefined;
+        throw new GitHubError(429, rateLimitMessage({ withToken: Boolean(this.token), resetsAt, tokenHint: this.options.tokenHint }), detail);
       }
       const info = classifyAuth(res.status, detail, {
         path,

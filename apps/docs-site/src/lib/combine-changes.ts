@@ -61,6 +61,14 @@ export const keepListed = (selected: number[], listed: number[]) => selected.fil
 export const tryLabel = (n: number) => `Try ${n} changes together`;
 export const VIEW_LABEL = 'View the library with them';
 
+/**
+ * Before anyone picks: the list shows no checkboxes (progressive disclosure, one action instead of one box per row).
+ * The bar says what trying together does and offers one button that turns the checkboxes on.
+ */
+export const INTRO_LINE = `Try 2 to ${MAX_TOGETHER} token changes together before they ship.`;
+export const CHOOSE_LABEL = 'Choose changes';
+export const CANCEL_LABEL = 'Cancel';
+
 /** The bar's sentence before the combination is read: what to do next. */
 export function selectionLine(count: number, refused: boolean): string {
   if (refused) return `Up to ${MAX_TOGETHER} changes at a time. Uncheck one to add another.`;

@@ -323,7 +323,7 @@ function previewHosts(previews: BranchPreview[]): string {
 export function renderExplorationDetail(r: ExplorationRow, opts: { connected: boolean }): string {
   const actions =
     r.status !== 'active'
-      ? `<a class="btn btn-primary btn-lg" href="?pr=${r.number}" data-open-pr="${r.number}">Open it in In review</a>`
+      ? `<a class="btn btn-primary btn-lg" href="?pr=${r.number}" data-open-pr="${r.number}">Open the change</a>`
       : opts.connected
         ? `<button type="button" class="btn btn-primary btn-lg" data-ex-promote="${r.number}">Promote to review</button> <button type="button" class="btn btn-secondary btn-lg" data-ex-close-ask="${r.number}">Close</button>`
         : `<button type="button" class="btn btn-primary btn-lg" data-gh-open>${ghAction('promote it', prefersSignIn())}</button>`;
@@ -506,7 +506,7 @@ function promote(btn: HTMLButtonElement) {
         document.querySelector('#rv-detail .cg-pr-meta .rv-status')?.replaceChildren('Promoted to review');
         document.querySelector('#rv-detail .cg-pr-meta .cg-tier')?.remove();
         document.querySelector('#rv-detail .cg-pr-state')?.remove();
-        $('ex-actions').outerHTML = `<p class="cg-pr-state ex-done" id="ex-actions" role="status">${esc(promotedLine(r.number))} <a href="?pr=${r.number}" data-open-pr="${r.number}">Open it in In review</a></p>${warn}`;
+        $('ex-actions').outerHTML = `<p class="cg-pr-state ex-done" id="ex-actions" role="status">${esc(promotedLine(r.number))} <a href="?pr=${r.number}" data-open-pr="${r.number}">Open the change</a></p>${warn}`;
         void loadExplorations(undefined, true);
       } catch (err) {
         throw new Error(`${(err as Error).message} You can also use "Ready for review" on GitHub.`);
