@@ -1,0 +1,88 @@
+.group {
+  display: grid;
+  gap: var(--space-3);
+}
+
+/* Equal columns that stack once a card would get narrower than the size step below. */
+.horizontal {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--size-60)), 1fr));
+}
+
+.vertical {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.card {
+  box-sizing: border-box;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-width: 0;
+  min-height: var(--control-height-lg);
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-width-default) solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background-color: var(--color-surface-default);
+  color: var(--color-text-default);
+  font-family: var(--font-family-sans);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+  cursor: pointer;
+  user-select: none;
+  transition-property: background-color, border-color;
+  transition-duration: var(--motion-duration-instant);
+  transition-timing-function: var(--motion-easing-standard);
+}
+
+@media (hover: hover) {
+  .card:hover:not(:has([data-disabled])) {
+    border-color: var(--color-border-hover);
+    background-color: var(--color-surface-hover);
+  }
+}
+
+/* Selected: the checked radio, a Deep Harbor edge and the selected surface. Never the color alone. */
+.card:has([data-checked]) {
+  border-color: var(--color-control-checked-bg);
+  background-color: var(--color-surface-selected);
+  box-shadow: inset 0 0 0 var(--border-width-default) var(--color-control-checked-bg);
+}
+
+@media (hover: hover) {
+  .card:has([data-checked]):hover:not(:has([data-disabled])) {
+    border-color: var(--color-control-checked-bg-hover);
+    background-color: var(--color-surface-selected);
+  }
+}
+
+[data-invalid] .card:not(:has([data-checked])) {
+  border-color: var(--input-border-invalid);
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.title {
+  font-weight: var(--font-weight-semibold);
+}
+
+.description {
+  min-width: 0;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.card:has([data-disabled]) {
+  border-color: var(--color-border-default);
+  background-color: var(--color-bg-subtle);
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+}
+
+.card:has([data-disabled]) .description {
+  color: var(--color-text-disabled);
+}

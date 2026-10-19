@@ -87,7 +87,8 @@ const BUILDERS = {
   async react() {
     const dir = pkgDir('react');
     rmSync(join(dir, 'dist'), { recursive: true, force: true });
-    await viteLib('react', { external: externalFor('react'), css: true });
+    // Two entry points: the components (index) and the DOM renderers for plain-script pages (./dom).
+    await viteLib('react', { external: externalFor('react'), css: true, entry: { index: 'src/index.ts', dom: 'src/dom/index.ts' } });
     tsc(['-p', 'tsconfig.build.json'], dir);
     // One stylesheet for consumers: the global base first, then every component's CSS Modules output.
     const base = readFileSync(join(dir, 'src/styles/base.css'), 'utf8');

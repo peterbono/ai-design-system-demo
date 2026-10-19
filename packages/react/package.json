@@ -32,6 +32,11 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./dom": {
+      "source": "./src/dom/index.ts",
+      "types": "./dist/dom/index.d.ts",
+      "default": "./dist/dom.js"
+    },
     "./styles.css": {
       "source": "./src/styles/base.css",
       "default": "./dist/styles.css"

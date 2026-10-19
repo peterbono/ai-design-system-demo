@@ -1,0 +1,129 @@
+/* One plate; rows share its columns (subgrid) so titles, details and actions line up. Two empty edge columns hold
+   the inline padding, since a subgrid row cannot pad its own tracks. */
+.list {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: 0 var(--size-6) max-content minmax(0, 1fr) auto 0;
+  column-gap: var(--space-3);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-container);
+  background-color: var(--color-surface-default);
+  color: var(--color-text-default);
+  font-family: var(--font-family-sans);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+  list-style: none;
+}
+
+.list > li + li {
+  border-top: var(--border-width-default) solid var(--color-border-default);
+}
+
+.row {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: center;
+  min-height: var(--control-height-md);
+  padding: var(--space-2) 0;
+}
+
+.icon {
+  box-sizing: border-box;
+  display: grid;
+  grid-column: 2;
+  place-items: center;
+  width: var(--size-6);
+  height: var(--size-6);
+  border-radius: var(--radius-pill);
+}
+
+.done {
+  background-color: var(--color-feedback-success-bg);
+  color: var(--color-feedback-success-text);
+}
+
+.failed {
+  background-color: var(--color-feedback-danger-bg);
+  color: var(--color-feedback-danger-text);
+}
+
+.warning {
+  background-color: var(--color-feedback-warning-bg);
+  color: var(--color-feedback-warning-text);
+}
+
+/* Waiting: an empty ring, nothing to celebrate or fix yet. */
+.waiting {
+  width: var(--size-5);
+  height: var(--size-5);
+  margin: var(--space-0-5);
+  border: var(--border-width-strong) solid var(--color-border-emphasis);
+}
+
+.title {
+  grid-column: 3;
+  font-weight: var(--font-weight-semibold);
+}
+
+.detail {
+  grid-column: 4;
+  min-width: 0;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.row[data-status="done"] .detail {
+  color: var(--color-text-default);
+}
+
+.action {
+  display: flex;
+  grid-column: 5;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.footer {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+}
+
+.footer > :where(p) {
+  max-width: 75ch;
+  margin: 0;
+}
+
+/* Narrow: the detail goes under the title, the action takes the full width under both. */
+@media (max-width: 760px) {
+  .list {
+    grid-template-columns: 0 var(--size-6) minmax(0, 1fr) 0;
+  }
+
+  .row {
+    row-gap: var(--space-1);
+  }
+
+  .title,
+  .detail {
+    grid-column: 3;
+  }
+
+  .action {
+    grid-column: 2 / 4;
+  }
+
+  .action > * {
+    flex: 1 1 auto;
+  }
+
+  .footer {
+    padding-inline: var(--space-3);
+  }
+}

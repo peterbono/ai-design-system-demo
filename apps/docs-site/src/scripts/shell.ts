@@ -1,6 +1,7 @@
 // App shell behaviour, shipped on every page (small, no framework):
 // theme toggle, copy buttons, the mobile navigation sheet, the Cmd+K command palette, header menus, the "On this
 // page" rail and, in the Studio, the view of a change (scripts/view-change), the nav counts and the GitHub connection.
+import { bindCodeBlocks, bindTooltips } from '@bridge-ds/react/dom';
 import { getToken, initGitHubConnect } from './github-session';
 import { loadReviewNeedsYou, rememberedMine, type QueuePullFull } from './needs-you';
 import { initMaintainer } from './maintainer';
@@ -621,6 +622,9 @@ export function initShell() {
   initStudio();
   initScope();
   initCopy();
+  // DS components rendered without React at runtime (static Astro HTML, script-built rows): tooltips and copy.
+  bindTooltips();
+  bindCodeBlocks();
   initRail();
   initNavGroups();
   initPalette();
