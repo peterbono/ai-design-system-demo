@@ -570,6 +570,22 @@ details[open] > summary .cg-sec-chev {
     font-size: var(--typography-h3-size);
     line-height: var(--typography-h3-line-height);
   }
+
+  /* Phone: the title keeps its author line, then the one primary, full width, before the rest of the header. */
+  .cg-pr-head {
+    display: contents;
+  }
+
+  .cg-pr-head .cg-pr-cta {
+    display: grid;
+    order: 1;
+  }
+
+  .cg-pr-open > .rv-try-block,
+  .cg-pr-open > .rv-ap,
+  .cg-pr-open > .cg-line {
+    order: 2;
+  }
 }
 
 /* Docs section of a pull request: one row per docs.json, Claude drafts first. */

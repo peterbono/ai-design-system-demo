@@ -2742,6 +2742,13 @@ body:has([data-xe-bar]:not([hidden])) .xp[data-surface="app"] .xp-grid {
   padding-bottom: calc(var(--size-12) + var(--space-6) * 2);
 }
 
+/* With the side nav shown, the pill centres on the content column, under the table it belongs to. */
+@media (min-width: 961px) {
+  .xe-bar {
+    left: calc(50% + var(--layout-sidebar-width) / 2);
+  }
+}
+
 /* On a phone the bar docks: full width at the bottom edge, the count on the left and Review on the right, and the
    page reserves its height so no row ever sits under it. */
 @media (max-width: 640px) {
