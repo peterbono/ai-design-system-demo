@@ -97,6 +97,22 @@ async function visualTop(n: number, sha: string): Promise<ThumbInput['visual']> 
   }
 }
 
+const fileLists = new Map<string, Promise<string[] | null>>();
+
+/** The files a branch changes (first 100), read once per head commit; null when GitHub cannot be read. */
+export function filesOf(n: number, sha: string): Promise<string[] | null> {
+  const key = `${n}@${sha}`;
+  let f = fileLists.get(key);
+  if (!f) {
+    const { owner, repo } = readRepo();
+    f = ghGet<{ filename: string }[]>(`/repos/${owner}/${repo}/pulls/${n}/files?per_page=100`)
+      .then((r) => r.data.map((x) => x.filename))
+      .catch(() => null);
+    fileLists.set(key, f);
+  }
+  return f;
+}
+
 /** The before/after of a branch, read once per head commit. */
 export function thumbOf(p: Pick<HomePull, 'number' | 'head' | 'base'>, guidance: boolean): Promise<ThumbSpec> {
   const key = `${p.number}@${p.head.sha}@${theme()}`;
@@ -104,9 +120,7 @@ export function thumbOf(p: Pick<HomePull, 'number' | 'head' | 'base'>, guidance:
   if (!t) {
     const { owner, repo } = readRepo();
     t = (async () => {
-      const files = await ghGet<{ filename: string }[]>(`/repos/${owner}/${repo}/pulls/${p.number}/files?per_page=100`)
-        .then((f) => f.data.map((x) => x.filename))
-        .catch(() => null);
+      const files = await filesOf(p.number, p.head.sha);
       if (!files) return branchThumb({ guidance });
       const tokenFiles = files.filter(isTokenFile);
       if (tokenFiles.length) {

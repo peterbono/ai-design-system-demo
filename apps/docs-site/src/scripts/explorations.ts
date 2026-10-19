@@ -72,7 +72,7 @@ let requestRowsRead: RequestRow[] = [];
 let loaded: Promise<ExplorationRow[]> | null = null;
 let openPullsSource: (() => Promise<ExplorationPullLike[] | null>) | null = null;
 
-/** The tab count: running explorations, from the open pull requests the page already read. */
+/** The count of running explorations, where a page shows one (none on Branches since explorations are list rows). */
 export function paintExplorationCount(pulls: ExplorationPullLike[]) {
   const n = runningCount(explorationRows(pulls, CFG));
   const count = $('ex-count');
@@ -110,10 +110,7 @@ function paint() {
   $('ex-table').hidden = empty;
   $('ex-list').innerHTML = rows.map(rowHtml).join('');
   markWork($('ex-list'));
-  const n = runningCount(rows);
-  const count = $('ex-count');
-  count.textContent = String(n);
-  count.hidden = n === 0;
+  paintExplorationCount([...pullsBy.values()]);
 }
 
 async function readRows(): Promise<ExplorationRow[]> {
@@ -312,7 +309,7 @@ function section(id: string, title: string, meta: string, body: string, open = f
   return `<details class="cg-sec" id="${id}"${open ? ' open' : ''}><summary class="cg-sec-head"><span class="cg-sec-title">${title}</span><span class="cg-sec-meta">${meta}</span><span class="cg-sec-chev" aria-hidden="true"></span></summary><div class="cg-sec-body">${body}</div></details>`;
 }
 
-const crumbs = (n: number) => `<nav class="cg-crumbs" aria-label="Breadcrumb"><a href="?view=explorations" data-back-explorations>Explorations</a><span aria-hidden="true">/</span><span class="mono">#${n}</span></nav>`;
+const crumbs = (n: number) => `<nav class="cg-crumbs" aria-label="Breadcrumb"><a href="/studio/changes/" data-back>Branches</a><span aria-hidden="true">/</span><span class="mono">#${n}</span></nav>`;
 
 /** The preview rows: one per app, a link with its designer name, or what is missing on the same line. */
 export function previewList(previews: BranchPreview[]): string {

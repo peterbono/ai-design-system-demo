@@ -11,6 +11,7 @@ import { useState, type MouseEvent } from 'react';
 import { CircleAlert, CircleCheck } from 'lucide-react';
 import { Avatar, AvatarGroup, Badge, Button, Card, CardBody, Icon, Link, SegmentedControl, Skeleton } from '@bridge-ds/react';
 import { BranchThumb } from './BranchThumb';
+import { BranchRow } from './BranchRow';
 import { Drawing } from './Drawing';
 import StartChange from './StartChange';
 import ButtonLink from '../ButtonLink';
@@ -36,13 +37,11 @@ import {
 } from '../../../lib/home-model';
 import { VOCAB } from '../../../lib/vocabulary';
 
-const TONE = { warning: 'warning', danger: 'danger', success: 'success', neutral: 'neutral' } as const;
-
 function Who({ p, size = 'md' }: { p: Person; size?: 'xs' | 'sm' | 'md' }) {
   return <Avatar name={p.name} src={p.avatar ?? undefined} size={size} decorative />;
 }
 
-/** One Needs you row: before/after, who, what and why, the status on the right. The title link covers the row. */
+/** One Needs you row: before/after, who, what and why, the status on the right (the shared BranchRow). */
 export function NeedRowItem({ row, selected, onSelect, action }: { row: NeedRow; selected?: boolean; onSelect?: (row: NeedRow) => void; action?: 'primary' | 'secondary' }) {
   const click = onSelect
     ? (e: MouseEvent<HTMLAnchorElement>) => {
@@ -52,35 +51,23 @@ export function NeedRowItem({ row, selected, onSelect, action }: { row: NeedRow;
       }
     : undefined;
   return (
-    <li className="sh-row-item">
-      <Card interactive padding="compact" className={selected ? 'sh-row is-selected' : 'sh-row'}>
-        <CardBody className="sh-row-body">
-          <BranchThumb spec={row.thumb} size="row" />
-          <span className="sh-row-who" aria-hidden="true">
-            {row.person ? <Who p={row.person} /> : <Icon icon={row.pill?.tone === 'danger' ? CircleAlert : CircleCheck} size="md" />}
-          </span>
-          <span className="sh-row-text">
-            <Link href={row.href} variant="subtle" className="t-body sh-row-title" data-card-primary onClick={click} aria-current={selected ? 'true' : undefined}>
-              <span className="sh-strong">{row.title}</span>
-            </Link>
-            <span className="t-ui t-muted sh-row-sep" aria-hidden="true">
-              {' · '}
-            </span>
-            <span className="t-ui t-muted sh-row-line">{row.line}</span>
-          </span>
-          {row.pill && (
-            <Badge tone={TONE[row.pill.tone]} size="md" className="sh-row-pill">
-              {row.pill.label}
-            </Badge>
-          )}
-          {action && (
-            <ButtonLink variant={action} href={row.href} className="sh-row-action" tabIndex={-1} aria-hidden="true">
-              {rowAction(row.kind)}
-            </ButtonLink>
-          )}
-        </CardBody>
-      </Card>
-    </li>
+    <BranchRow
+      thumb={row.thumb}
+      who={row.person ? <Who p={row.person} /> : <Icon icon={row.pill?.tone === 'danger' ? CircleAlert : CircleCheck} size="md" />}
+      title={row.title}
+      href={row.href}
+      onClick={click}
+      selected={selected}
+      line={row.line}
+      pill={row.pill}
+      end={
+        action && (
+          <ButtonLink variant={action} href={row.href} className="sh-row-action" tabIndex={-1} aria-hidden="true">
+            {rowAction(row.kind)}
+          </ButtonLink>
+        )
+      }
+    />
   );
 }
 
