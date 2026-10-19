@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "tool": "@bridge-ds/visual",
+  "createdAt": "2026-10-19T23:14:12.361Z",
+  "durationMs": 1259,
+  "base": {
+    "ref": "340d5f5328e6bc1f1519d635eea3e561116e3c1d",
+    "sha": "340d5f5328e6bc1f1519d635eea3e561116e3c1d"
+  },
+  "head": {
+    "ref": "092527f61d5d1b23696a12c12e74c7ab68ce77b6",
+    "sha": "092527f61d5d1b23696a12c12e74c7ab68ce77b6"
+  },
+  "options": {
+    "only": [
+      "stories",
+      "app"
+    ],
+    "threshold": 0.03,
+    "viewport": {
+      "stories": {
+        "width": 1024,
+        "height": 768
+      },
+      "app": {
+        "width": 1280,
+        "height": 800
+      }
+    }
+  },
+  "selection": {
+    "tokens": [],
+    "vars": [],
+    "files": [
+      ".changeset/docs-visually-hidden-mvfvem3x.md",
+      "packages/react/src/components/VisuallyHidden/VisuallyHidden.docs.json"
+    ],
+    "components": [],
+    "stories": [],
+    "fallback": null,
+    "app": {
+      "include": false,
+      "reason": "No token, component or app change"
+    }
+  },
+  "summary": {
+    "shots": 0,
+    "changed": 0,
+    "unchanged": 0,
+    "added": 0,
+    "removed": 0,
+    "errors": 0,
+    "maxPercent": 0
+  },
+  "shots": []
+}
