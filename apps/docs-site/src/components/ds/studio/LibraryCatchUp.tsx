@@ -9,6 +9,7 @@ import { Alert, Button, ButtonGroup, ChoiceCard, ChoiceCardGroup, Dialog, Dialog
 import type { MergeChoices, MergeSide, TokenMergeConflict } from '@bridge-ds/core';
 import { resolution, type ConflictRow, type Guardrail } from '../../../lib/library-sync';
 import type { ShownValue } from '../../../lib/token-review';
+import { VOCAB } from '../../../lib/vocabulary';
 
 export interface ResolverSource {
   conflicts: TokenMergeConflict[];
@@ -103,10 +104,10 @@ function Resolver({ source, label, primary }: { source: ResolverSource; label: s
       </Button>
       <DialogContent
         size="lg"
-        title={n ? label : 'Bring in the latest library'}
+        title={n ? label : VOCAB.updateFromMain}
         description={
           n
-            ? "These tokens changed in this change and in the latest library. Keep yours or use the library's. Everything else from both sides is combined."
+            ? "These tokens changed in this branch and on main. Keep yours or use the ones on main. Everything else from both sides is combined."
             : 'The same token files changed on both sides, but no token changed twice. Bridge combines them.'
         }
         footer={
@@ -117,7 +118,7 @@ function Resolver({ source, label, primary }: { source: ResolverSource; label: s
             <ButtonGroup align="end">
               <DialogClose render={<Button variant="secondary" disabled={busy} />}>Cancel</DialogClose>
               <Button variant="primary" loading={busy} disabled={busy || !plan.ready} onClick={() => void apply()}>
-                {busy ? 'Applying' : n ? 'Apply choices' : 'Bring in the latest library'}
+                {busy ? 'Applying' : n ? 'Apply choices' : VOCAB.updateFromMain}
               </Button>
             </ButtonGroup>
           </div>

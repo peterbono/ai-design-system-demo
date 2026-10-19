@@ -279,8 +279,8 @@ export interface PushResult {
 }
 
 export async function openPullRequest(client: GitHubClient, a: Analysis, p: PushProposal, opts: PushOptions): Promise<PushResult> {
-  if (p.unresolvedConflicts.length) throw new Error('Resolve every conflict before opening a pull request.');
-  if (p.validation.blocking.length) throw new Error('Fix the blocking problems before opening a pull request.');
+  if (p.unresolvedConflicts.length) throw new Error('Resolve every conflict before you request review.');
+  if (p.validation.blocking.length) throw new Error('Fix the blocking problems before you request review.');
   if (!Object.keys(p.files).length && !p.brandFiles.length) throw new Error('Nothing to send: the Figma variables match main.');
   const plans = p.brands.flatMap((b) => (b.plan ? [b.plan] : []));
   const title = opts.title.trim() || (p.changes.length ? defaultTitle(p.changes) : plans.map((x) => x.title).join(', '));

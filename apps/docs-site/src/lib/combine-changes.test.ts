@@ -21,6 +21,7 @@ import {
   useLabel,
   VIEW_LABEL,
 } from './combine-changes';
+import { jargonIn } from './vocabulary';
 import { reviewTokenChange } from './token-review';
 
 const ROOT = join(__dirname, '../../../..');
@@ -75,13 +76,13 @@ describe('selection', () => {
   });
 
   it('says what to do next, in designer words', () => {
-    expect(selectionLine(0, false)).toBe('Check 2 to 4 token changes to try them together.');
-    expect(selectionLine(1, false)).toBe('Check one more token change to try them together.');
-    expect(selectionLine(3, false)).toBe('Combining 3 changes.');
-    expect(selectionLine(4, true)).toBe('Up to 4 changes at a time. Uncheck one to add another.');
-    expect(INTRO_LINE).toBe('Try 2 to 4 token changes together before they ship.');
-    expect(CHOOSE_LABEL).toBe('Choose changes');
-    expect(tryLabel(3)).toBe('Try 3 changes together');
+    expect(selectionLine(0, false)).toBe('Check 2 to 4 token branches to try them together.');
+    expect(selectionLine(1, false)).toBe('Check one more token branch to try them together.');
+    expect(selectionLine(3, false)).toBe('Combining 3 branches.');
+    expect(selectionLine(4, true)).toBe('Up to 4 branches at a time. Uncheck one to add another.');
+    expect(INTRO_LINE).toBe('Try 2 to 4 token branches together before they merge.');
+    expect(CHOOSE_LABEL).toBe('Choose branches');
+    expect(tryLabel(3)).toBe('Try 3 branches together');
     expect(VIEW_LABEL).toBe('View the library with them');
   });
 });
@@ -92,11 +93,11 @@ describe('the combination', () => {
     expect(conflicts.map((c) => c.path)).toEqual(['color.bg.default']);
     const unpicked = combineChanges(latest, [A, B, C]);
     expect(combineSummary({ changes: 3, tokens: unpicked.tokens, conflicts: unpicked.conflicts.length, missing: unpicked.missing.length })).toBe(
-      'Combines 3 tokens from 3 changes. 1 token has different values in these changes: pick which one to use.',
+      'Combines 3 tokens from 3 branches. 1 token has different values in these branches: pick which one to use.',
     );
     const picked = combineChanges(latest, [A, B, C], { [conflicts[0]!.key]: 118 });
     expect(combineSummary({ changes: 3, tokens: picked.tokens, conflicts: picked.conflicts.length, missing: picked.missing.length })).toBe(
-      'Combines 3 tokens from 3 changes. You picked the value of 1 token they set differently.',
+      'Combines 3 tokens from 3 branches. You picked the value of 1 token they set differently.',
     );
     expect(picked.files[LIGHT]).toContain('{palette.neutral.100}');
     expect(picked.files[LIGHT]).toContain('{palette.primary.800}');
@@ -107,12 +108,12 @@ describe('the combination', () => {
     const picked = combineChanges(latest, [A, B, C], { [conflicts[0]!.key]: 101 });
     const g = togetherGuardrail(reviewTokenChange(latest, picked.files, pairs, options));
     expect(g.ok).toBe(true);
-    expect(g.sentence).toMatch(/^All \d+ contrast checks pass with these changes together\.$/);
+    expect(g.sentence).toMatch(/^All \d+ contrast checks pass with these branches together\.$/);
     // A link that no longer reads on the canvas fails, counted on the combination.
     const bad = edits(130, { 'color.text.link': '{palette.neutral.100}' });
     const failing = togetherGuardrail(reviewTokenChange(latest, combineChanges(latest, [A, bad]).files, pairs, options));
     expect(failing.ok).toBe(false);
-    expect(failing.sentence).toMatch(/contrast checks? fails? with these changes together/);
+    expect(failing.sentence).toMatch(/contrast checks? fails? with these branches together/);
     expect(failing.failing[0]!.pair).toMatch(/color\.text\.link on /);
   });
 
@@ -150,6 +151,7 @@ describe('where it opens', () => {
 
   it('never uses developer words or em dashes on screen', () => {
     const shown = [CODE_LINE, INTRO_LINE, CHOOSE_LABEL, selectionLine(0, false), selectionLine(4, true), combineSummary({ changes: 2, tokens: 3, conflicts: 1, missing: 1 }), tryLabel(2), VIEW_LABEL].join(' ');
-    expect(shown).not.toMatch(/\b(branch|pull request|PR|commit|merge|SHA|CI|workflow)\b|\u2014/i);
+    expect(jargonIn(shown)).toEqual([]);
+    expect(shown).not.toMatch(/\u2014/);
   });
 });

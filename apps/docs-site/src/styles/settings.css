@@ -1,4 +1,4 @@
-/* Studio Settings: one page in bands (Account, Review rules, Safety, Figma and Claude, Integrations, For developers).
+/* Studio Settings: one page in bands (Account, Review rules, Safety, Figma and Claude, Integrations).
    Four sizes on the screen: the page title (Fraunces), section titles (h3 role), ui (everything else) and the caption
    of badges and table headers. Color: one Harbor zone at most (Account while read only), Deep Harbor for the one
    primary action, status color only on badges. */
@@ -134,7 +134,7 @@
   gap: var(--space-2);
 }
 
-/* The value takes the action column too (the Claude command), or the row spans every column (save bar). */
+/* The value takes the action column too (the Jira row), or the row spans every column (save bar). */
 .set-row-span {
   grid-column: 2 / -1;
   justify-items: stretch;
@@ -202,6 +202,19 @@
   gap: var(--space-1);
 }
 
+/* Account: the library this workspace reads, and the one way to it on GitHub, on one quiet line. */
+.set-library {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-4);
+  margin: var(--space-3) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
 /* Who holds a right: the owner group. */
 .set-who {
   display: flex;
@@ -264,11 +277,6 @@
   gap: var(--space-2);
 }
 
-/* Layout only: space above the Claude command block. */
-.set-cmd {
-  margin-top: var(--space-2);
-}
-
 /* Integrations: the Jira setup fold closes the card. */
 .set-jira-setup {
   margin-top: var(--space-4);
@@ -307,90 +315,6 @@
   margin-bottom: var(--space-4);
 }
 
-.set-protect-dev {
-  display: grid;
-  gap: var(--space-1);
-  margin: 0;
-  padding-left: var(--space-5);
-  color: var(--color-text-muted);
-  font-size: var(--typography-ui-size);
-}
-
-/* For developers: one collapsed section at the bottom, its groups as flat headings inside. */
-.set-dev-block {
-  border-top: var(--border-width-default) solid var(--color-border-default);
-}
-
-.set-lead {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3) var(--space-5);
-}
-
-.set-lead p {
-  margin: 0;
-  font-size: var(--typography-ui-size);
-  line-height: var(--typography-ui-line-height);
-}
-
-.set-group {
-  margin: var(--space-6) 0 var(--space-2);
-  font-family: var(--font-family-sans);
-  font-size: var(--typography-ui-size);
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: normal;
-  line-height: var(--typography-ui-line-height);
-}
-
-.set-dl {
-  margin: 0;
-  border-top: var(--border-width-default) solid var(--color-border-default);
-}
-
-.set-dl > div {
-  display: grid;
-  grid-template-columns: minmax(var(--size-40), var(--size-60)) minmax(0, 1fr);
-  gap: var(--space-1) var(--space-6);
-  padding: var(--space-2) 0;
-  border-bottom: var(--border-width-default) solid var(--color-border-default);
-  font-size: var(--typography-ui-size);
-  line-height: var(--typography-ui-line-height);
-}
-
-.set-dl dt {
-  color: var(--color-text-muted);
-}
-
-.set-dl dd {
-  min-width: 0;
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-
-.set-dl dd.mono {
-  font-family: var(--font-family-mono);
-  font-size: var(--typography-ui-size);
-}
-
-.set-dl-after {
-  margin-top: var(--space-4);
-}
-
-.set-default {
-  color: var(--color-text-muted);
-  font-family: var(--font-family-sans);
-}
-
-.set-checklist {
-  display: grid;
-  gap: var(--space-2);
-  margin: var(--space-2) 0 var(--space-4);
-  padding-left: var(--space-5);
-  font-size: var(--typography-ui-size);
-  line-height: var(--typography-ui-line-height);
-}
-
 .set-more {
   border-bottom: var(--border-width-default) solid var(--color-border-default);
 }
@@ -421,11 +345,6 @@
   font-weight: var(--font-weight-semibold);
 }
 
-.set-more-n {
-  color: var(--color-text-muted);
-  font-weight: var(--font-weight-regular);
-}
-
 .set-chev {
   width: var(--space-2);
   height: var(--space-2);
@@ -442,29 +361,6 @@
 
 .set-more > .set-muted {
   margin-bottom: var(--space-4);
-}
-
-.set-dev > summary {
-  flex-wrap: wrap;
-  cursor: pointer;
-}
-
-.set-dev[open] {
-  padding-bottom: var(--space-6);
-}
-
-.set-dev > .set-group:first-of-type {
-  margin-top: var(--space-2);
-}
-
-/* Approvals by risk tier (For developers): header cells in the ui role; the tier is a grey label that opens Changes
-   at that tier. */
-.set-table th {
-  font-size: var(--typography-ui-size);
-}
-
-.set-table td {
-  padding-block: var(--space-2);
 }
 
 /* Phones: rows stack (label, value, action), a lone action fills its bar, the drawing steps aside. */
@@ -504,11 +400,8 @@
     display: none;
   }
 
-  .set-dl > div {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .set-dev > summary .set-more-n {
-    display: none;
+  .set-library {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }

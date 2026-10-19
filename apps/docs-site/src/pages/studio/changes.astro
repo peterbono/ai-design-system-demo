@@ -1,9 +1,12 @@
 ---
-// Studio Changes: one page, four views. "All changes": the open pull requests, most urgent first, with the local draft
-// and the branches without a pull request. "History": merged token changes by release, with undo. A pull request
+// Studio Branches: one page, its views as tabs. "All branches": the open pull requests, most urgent first, with the
+// local draft. "History": merged token changes by release, with undo. A pull request
 // opens in place (?pr=N). "Requests": component change requests (GitHub issues labeled component-change) that a pull
 // request implements, opened in place (?request=N). "Explorations": draft pull requests labeled exploration on
-// explore/<slug> branches, tried in a product staging branch and never merged as is, opened in place (?exploration=N). Replaces Drafts, Branches, Reviews, Versions and Visual impact (lib/redirects.ts).
+// explore/<slug> branches, tried in a product staging branch and never merged as is, opened in place (?exploration=N).
+// Requests show only when request triage is on in Studio (lib/studio-flags): teams triage in Jira. Designer words only
+// (lib/vocabulary, Figma branching); developer details stay on GitHub, one "Open on GitHub" link away. Replaces Drafts,
+// Branches, Reviews, Versions and Visual impact (lib/redirects.ts).
 import '../../styles/reviews.css';
 import '../../styles/history.css';
 import '../../styles/changes.css';
@@ -16,7 +19,7 @@ import ScriptDialog from '../../components/ds/ScriptDialog.astro';
 import Illustration from '../../components/Illustration.astro';
 import { siteIcon } from '../../brand/site-icons';
 import ButtonLink from '../../components/ds/ButtonLink';
-import { Alert, Button, ButtonGroup, CodeBlock, Icon, Input, Link, SegmentedControl, Switch, Textarea } from '@bridge-ds/react';
+import { Alert, Button, ButtonGroup, Icon, Input, Link, SegmentedControl, Switch, Textarea } from '@bridge-ds/react';
 import BridgedSelect from '../../components/ds/BridgedSelect';
 import { WORK_FILTERS } from '../../lib/work-nature';
 import { siteRepo } from '../../lib/config';
@@ -33,6 +36,8 @@ import StatusFilterSelect from '../../components/ds/studio/StatusFilterSelect';
 import type { BranchesConfig } from '../../lib/branches';
 import { ghAction, ghButton } from '../../lib/gh-wording';
 import { signInConfig } from '../../lib/signin-config';
+import { REQUEST_TRIAGE_IN_STUDIO } from '../../lib/studio-flags';
+import { VOCAB } from '../../lib/vocabulary';
 
 const r = siteRepo();
 const checks = readText(CONTRAST_FILE).replace(/</g, '\\u003c');
@@ -55,8 +60,8 @@ const signIn = Boolean(signInConfig());
 ---
 
 <Layout
-  title="Changes"
-  description="Changes to review, most urgent first, the local draft, and the history of shipped token changes with the next release and a safe undo."
+  title="Branches"
+  description="Branches to review, most urgent first, the local draft, and the history of merged token changes with the next release and a safe undo."
   sources={sources}
   updated={lastUpdated(sources)}
   wide
@@ -64,14 +69,18 @@ const signIn = Boolean(signInConfig());
   <div class="rv cg">
     <p class="rv-notice" id="rv-notice" role="status" hidden></p>
     <div id="cg-main">
-      <StudioHeader title="Changes" />
-      <div class="page-tabs cg-tabs" role="tablist" aria-label="Changes">
+      <StudioHeader title="Branches" />
+      <div class="page-tabs cg-tabs" role="tablist" aria-label="Branches">
         <Link variant="subtle" role="tab" id="cg-tab-review" href="/studio/changes/" aria-controls="cg-review" aria-selected="true" tabIndex={0} data-cg-view="review">
-          All<span class="cg-tab-long"> changes</span> <span class="cg-tab-n num" id="rv-count" title="Open changes" hidden></span>
+          All<span class="cg-tab-long"> branches</span> <span class="cg-tab-n num" id="rv-count" title="Open branches" hidden></span>
         </Link>
-        <Link variant="subtle" role="tab" id="cg-tab-requests" href="/studio/changes/?view=requests" aria-controls="cg-requests" aria-selected="false" tabIndex={-1} data-cg-view="requests">
-          Requests <span class="cg-tab-n num" id="rq-count" hidden></span>
-        </Link>
+        {
+          REQUEST_TRIAGE_IN_STUDIO && (
+            <Link variant="subtle" role="tab" id="cg-tab-requests" href="/studio/changes/?view=requests" aria-controls="cg-requests" aria-selected="false" tabIndex={-1} data-cg-view="requests">
+              Requests <span class="cg-tab-n num" id="rq-count" hidden></span>
+            </Link>
+          )
+        }
         <Link variant="subtle" role="tab" id="cg-tab-explore" href="/studio/changes/?view=explorations" aria-controls="cg-explore" aria-selected="false" tabIndex={-1} data-cg-view="explorations">
           Explorations <span class="cg-tab-n num" id="ex-count" hidden></span>
         </Link>
@@ -80,7 +89,7 @@ const signIn = Boolean(signInConfig());
 
       <section class="cg-panel" id="cg-review" role="tabpanel" aria-labelledby="cg-tab-review">
         <section class="zone cg-open" id="cg-opener" aria-live="polite">
-          <p class="cg-open-sentence" id="cg-open-sentence">Open pull requests load from GitHub.</p>
+          <p class="cg-open-sentence" id="cg-open-sentence">Branches load from GitHub.</p>
           <p class="cg-asof" id="cg-asof" hidden></p>
           <ButtonLink variant="primary" href="/studio/changes/" id="cg-open-cta" hidden>Review</ButtonLink>
         </section>
@@ -88,27 +97,29 @@ const signIn = Boolean(signInConfig());
         <div class="cg-draft" id="cg-draft" hidden>
           <Icon icon={siteIcon('draft')} size="md" className="icon" />
           <p><strong>Your draft:</strong> <span id="cg-draft-n">token edits</span>, only in this browser. <span id="cg-draft-dest"></span></p>
-          <ButtonLink size="sm" href="/studio/tokens/#review" data-keep-branch>Review and propose</ButtonLink>
+          <ButtonLink size="sm" href="/studio/tokens/#review" data-keep-branch>{VOCAB.requestReview}</ButtonLink>
         </div>
 
         {/* One control for the lifecycle (lib/change-status STATUS_FILTERS), the work filter on the same line when the
-            list holds developer work: the filters stay folded, the rows lead. */}
-        <div class="cg-status-bar">
+            list holds developer work: the filters stay folded, the rows lead. Every branch on GitHub is one quiet link at
+            the end (old /studio/branches links land here, #other-branches). */}
+        <div class="cg-status-bar" id="other-branches">
           <div class="cg-status-select"><StatusFilterSelect client:load /></div>
           <div class="cg-work" data-work-bar hidden>
             <span class="t-ui t-muted" aria-hidden="true">Show</span>
             <SegmentedControl label="Show" data-vanilla data-work-filter size="sm" defaultValue="all" items={workItems} />
           </div>
+          <Link className="cg-gh" href={`${repoUrl}/pulls`} external>{VOCAB.openOnGitHub}</Link>
         </div>
         <p class="cg-muted cg-filter" id="cg-tier-filter" hidden>Showing <span data-tier-label>one kind of change</span> only. <Link href="/studio/changes/">Show all</Link></p>
 
         <div class="fg-card cg-card" id="cg-table">
-          <ul class="cg-list" id="rv-list" aria-label="Changes" aria-busy="true">
+          <ul class="cg-list" id="rv-list" aria-label="Branches" aria-busy="true">
             <li class="cg-row cg-skel" aria-hidden="true"></li>
             <li class="cg-row cg-skel" aria-hidden="true"></li>
             <li class="cg-row cg-skel" aria-hidden="true"></li>
           </ul>
-          {/* Try several changes together (components/ds/studio/CombineChanges): the selection bar of this list. */}
+          {/* Try several branches together (components/ds/studio/CombineChanges): the selection bar of this list. */}
           <div class="cg-together" id="cg-together" data-admin={PRODUCTION_APPS.admin ?? ''}></div>
         </div>
 
@@ -117,16 +128,8 @@ const signIn = Boolean(signInConfig());
         <div class="cg-empty" id="cg-empty" hidden>
           <Illustration name="review" width={200} />
           <p class="cg-empty-title">Nothing to review.</p>
-          <p class="cg-muted">Changes proposed from <Link href="/studio/tokens/" data-keep-branch>Tokens</Link> land here.</p>
+          <p class="cg-muted">Branches created from <Link href="/studio/tokens/" data-keep-branch>Tokens</Link> land here.</p>
         </div>
-
-        <details class="cg-sec cg-dev cg-dev-page" id="other-branches">
-          <summary class="cg-sec-head"><span class="cg-sec-title">For developers</span><span class="cg-sec-meta">Branches and automation on GitHub</span><span class="cg-sec-chev" aria-hidden="true"></span></summary>
-          <div class="cg-sec-body">
-            <p class="cg-muted">This list holds the changes people review. Branches without a pull request, and the release pull request the changesets action opens, live on GitHub. The release shows as the next release in History.</p>
-            <p class="cg-links"><Link href={`${repoUrl}/branches`} external>Branches on GitHub</Link><Link href={`${repoUrl}/pulls`} external>All pull requests on GitHub</Link></p>
-          </div>
-        </details>
       </section>
 
       <section class="cg-panel" id="cg-requests" role="tabpanel" aria-labelledby="cg-tab-requests" hidden>
@@ -170,13 +173,13 @@ const signIn = Boolean(signInConfig());
       <section class="cg-panel" id="cg-explore" role="tabpanel" aria-labelledby="cg-tab-explore" hidden>
         <section class="zone cg-open" id="ex-opener" aria-live="polite">
           <p class="cg-open-sentence" id="ex-sentence">Explorations load from GitHub.</p>
-          <p class="cg-asof ex-rule">Try token and component ideas in a safe copy, test them in staging, then send the good ones for review.</p>
+          <p class="cg-asof ex-rule">Try token and component ideas in a safe copy, test them in staging, then request a review for the good ones.</p>
           <Button variant="primary" id="ex-start-open" aria-expanded="false" aria-controls="ex-start">Start an exploration</Button>
         </section>
 
         <form class="fg-card rq-form ex-form" id="ex-start" aria-label="Start an exploration" novalidate hidden>
           <p class="ex-for" id="ex-for" hidden></p>
-          <Input label="Name" name="name" autoComplete="off" maxLength={60} placeholder="Pill buttons" hint="Teammates see this name in Changes and in the Figma plugin." />
+          <Input label="Name" name="name" autoComplete="off" maxLength={60} placeholder="Pill buttons" hint="Teammates see this name in Branches and in the Figma plugin." />
           <Textarea label="What do you want to learn?" name="purpose" rows={2} placeholder="Do rounder buttons read as friendlier in checkout?" />
           <div class="ex-uc">
             <BridgedSelect
@@ -191,6 +194,15 @@ const signIn = Boolean(signInConfig());
             />
             <p class="rq-hint" id="ex-uc-hint"></p>
           </div>
+          <Input
+            label="Jira ticket"
+            name="jira"
+            autoComplete="off"
+            spellCheck={false}
+            maxLength={20}
+            placeholder="DS-42"
+            hint="Optional. Its key links this branch to the ticket in Jira."
+          />
           <p class="gh-error" id="ex-start-error" role="alert" hidden></p>
           <p class="rq-hint ex-no-gh" data-no-gh>{ghAction('start it here', signIn)}.</p>
           <p class="ex-actions">
@@ -198,13 +210,6 @@ const signIn = Boolean(signInConfig());
             <Button variant="secondary" data-no-gh data-gh-open>{ghButton(signIn)}</Button>
             <Button variant="ghost" data-ex-cancel>Cancel</Button>
           </p>
-          <details class="cg-sec cg-dev ex-dev">
-            <summary class="cg-sec-head"><span class="cg-sec-title">For developers</span><span class="cg-sec-meta">CLI and GitHub</span><span class="cg-sec-chev" aria-hidden="true"></span></summary>
-            <div class="cg-sec-body">
-              <p class="rq-hint" id="ex-branch"></p>
-              <CodeBlock code="" label="Start it from a terminal" codeProps={{ id: 'ex-start-cmd' }} />
-            </div>
-          </details>
         </form>
         <div class="ex-done" id="ex-done" role="status" hidden></div>
 
@@ -224,11 +229,11 @@ const signIn = Boolean(signInConfig());
         <div class="cg-empty" id="ex-empty" hidden>
           <Illustration name="guide" width={200} />
           <p class="cg-empty-title">No exploration running.</p>
-          <p class="cg-muted ex-rule">Start one when an idea needs real screens before it becomes a change:</p>
+          <p class="cg-muted ex-rule">Start one when an idea needs real screens before it goes to review:</p>
           <ul class="ex-uses">
             <li>A coded prototype for a user test, in staging.</li>
             <li>A stakeholder demo of a new look, with real components.</li>
-            <li>An A/B idea, next to what ships today.</li>
+            <li>An A/B idea, next to what is live today.</li>
             <li>Exploring with Claude Code, in a safe copy of the library.</li>
           </ul>
         </div>
@@ -290,40 +295,22 @@ const signIn = Boolean(signInConfig());
   </div>
 
   <HistoryPlanner />
-  {/* The owner override confirmation (scripts/reviews.ts wireOverride fills the change number, the skipped approvals
-      and the allowed ship methods, then opens it). The DS Dialog for plain scripts: focus trap, Escape, scrim. */}
-  <ScriptDialog id="rv-ov" title="Ship as owner override?" closeLabel="Close" disablePointerDismissal popup={{ role: 'alertdialog', 'aria-describedby': 'rv-ov-desc' }}>
+  {/* The owner override confirmation (scripts/reviews.ts wireOverride fills the branch number and the skipped
+      approvals, then opens it). The DS Dialog for plain scripts: focus trap, Escape, scrim. */}
+  <ScriptDialog id="rv-ov" title="Merge as owner override?" closeLabel="Close" disablePointerDismissal popup={{ role: 'alertdialog', 'aria-describedby': 'rv-ov-desc' }}>
     <div class="gh-dialog-body">
       <div id="rv-ov-desc" class="rv-ov-desc">
-        <p>This ships the change into the library without:</p>
+        <p>This merges the branch into main without:</p>
         <ul class="rv-ov-missing" data-rv-ov="missing"></ul>
-        <p>Your reason is posted on the change and shown in History.</p>
+        <p>Your reason is posted on the branch and shown in History.</p>
       </div>
-      <Textarea label="Reason" data-rv-ov="reason" rows={3} hint="Shown on the change." placeholder="Solo maintainer, tests pass, I reviewed the token diff and contrast." />
+      <Textarea label="Reason" data-rv-ov="reason" rows={3} hint="Shown on the branch." placeholder="Solo maintainer, tests pass, I reviewed the token diff and contrast." />
       <Alert tone="danger" className="st-hideable" data-rv-ov="error" hidden><span data-rv-ov="error-text"></span></Alert>
-      <details class="cg-sec rv-ov-dev" data-rv-ov="dev">
-        <summary class="cg-sec-head"><span class="cg-sec-title">For developers</span><span class="cg-sec-chev" aria-hidden="true"></span></summary>
-        <div class="cg-sec-body">
-          <p>Bridge comments the reason on the pull request as <strong>Bridge owner override</strong>, then merges it into <code data-rv-ov="base">main</code> with the head it was checked on, <span data-rv-ov="method-name">squash and merge</span>.</p>
-          <SegmentedControl
-            label="Merge method"
-            data-vanilla
-            data-rv-ov="method"
-            size="sm"
-            defaultValue="squash"
-            items={[
-              { value: 'squash', label: 'Squash and merge' },
-              { value: 'merge', label: 'Merge commit' },
-              { value: 'rebase', label: 'Rebase and merge' },
-            ]}
-          />
-        </div>
-      </details>
     </div>
     <Fragment slot="footer">
       <ButtonGroup align="end">
         <Button variant="secondary" data-dialog-close>Cancel</Button>
-        <Button variant="primary" data-rv-ov="go">Post reason and ship</Button>
+        <Button variant="primary" data-rv-ov="go">Post reason and merge</Button>
       </ButtonGroup>
     </Fragment>
   </ScriptDialog>

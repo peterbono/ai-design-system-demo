@@ -43,7 +43,7 @@ export function initReview(d: ExplorerData) {
   let signedIn = false;
   const paintFoot = () => {
     if (propose) {
-      setButtonLabel(propose, signedIn ? sendLabel() : ghAction('send', prefersSignIn()));
+      setButtonLabel(propose, signedIn ? sendLabel() : ghAction('request review', prefersSignIn()));
       propose.toggleAttribute('data-gh-open', !signedIn);
     }
     if (!note) return;

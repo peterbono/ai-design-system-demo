@@ -89,7 +89,7 @@ export async function loadVisualImpact(
     return { changed: null, thumb: '', asked, paintedTop: onTop };
   }
   const m = state.manifest;
-  const head = `<p class="small muted">${m.summary.shots} screenshot${m.summary.shots === 1 ? '' : 's'} compared, base <span class="mono">${esc(m.base.sha.slice(0, 7))}</span> to head <span class="mono">${esc(m.head.sha.slice(0, 7))}</span>, threshold ${m.options.threshold}.${
+  const head = `<p class="small muted">${m.summary.shots} screenshot${m.summary.shots === 1 ? '' : 's'} compared with main, threshold ${m.options.threshold}.${
     m.selection.components.length ? ` Components in scope: ${m.selection.components.map((c) => esc(c.id)).join(', ')}.` : ''
   }${m.selection.fallback ? ` ${esc(m.selection.fallback)}` : ''}</p>`;
   if (state.kind === 'no-change') {
@@ -194,7 +194,7 @@ async function notRun(slot: HTMLElement, o: { owner: string; repo: string; pr: n
     const lead = '<p class="cg-line">Your team shows the before and after on demand.</p>';
     slot.innerHTML =
       ask === 'auto'
-        ? `<p class="cg-line">Not run yet for <span class="mono">${esc(o.sha.slice(0, 7))}</span>. <a href="${esc(o.actionsUrl)}" target="_blank" rel="noopener">Run it</a></p>`
+        ? `<p class="cg-line">Not run yet for the latest edits. <a href="${esc(o.actionsUrl)}" target="_blank" rel="noopener">Run it on GitHub</a></p>`
         : ask === 'asked'
           ? `<p class="cg-line">The before and after shows here once the run on GitHub finishes. ${run}</p>`
           : ask === 'ask'

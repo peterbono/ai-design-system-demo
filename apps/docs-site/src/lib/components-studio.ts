@@ -132,14 +132,6 @@ export function usedInCell(used: { product: string }[] | undefined): string[] {
   return used.length > 2 ? [used[0]!.product, `+${used.length - 1}`] : used.map((u) => u.product);
 }
 
-/** Where a component's tokens come from, in a sentence: "1 token of its own and 39 from Button." */
-export function tokenOrigin(own: number, inherited: { from: string; paths: string[] }[]): string {
-  const via = inherited.filter((i) => i.paths.length);
-  if (!via.length) return own ? `${words(own, 'token')}, all its own.` : 'No token.';
-  const ownPart = own ? `${words(own, 'token')} of its own` : 'No token of its own';
-  return `${ownPart} and ${andList(via.map((i) => `${i.paths.length} from ${i.from}`))}.`;
-}
-
 /**
  * The facts the drawer says in one line, in words (open requests are added in the browser, see requestFact). Guidance
  * that is missing or waits for a review is not repeated here: its pill says it.

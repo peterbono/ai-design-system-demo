@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { jargonIn } from './vocabulary';
 import { previewComment } from '@bridge-ds/core';
 import { canShare, EXPLAIN, mailtoHref, shareDescription, showShare, packageDir, shareMessage, shareState, stableCommand, stateSentence, touchesPackages } from './share-change';
 
@@ -93,7 +94,8 @@ describe('stateSentence', () => {
     const all = (['building', 'failed', 'no-packages'] as const).map((kind) => stateSentence({ kind } as never));
     all.push(stateSentence({ kind: 'shipped', stillWorks: false, command: null }), stateSentence({ kind: 'closed', stillWorks: null, command: null }));
     for (const s of all) {
-      expect(s).not.toMatch(/\b(PR|pull request|branch|commit|merge|npm|workflow|CI)\b/i);
+      expect(jargonIn(s!)).toEqual([]);
+      expect(s).not.toMatch(/\bnpm\b/i);
       expect(s).not.toContain('\u2014');
     }
   });
@@ -152,7 +154,7 @@ describe('showShare', () => {
 describe('shareDescription', () => {
   it('explains the preview while it can be tried, says where it stands once finished', () => {
     expect(shareDescription({ kind: 'building' })).toBe(EXPLAIN);
-    expect(EXPLAIN).toBe('Product teams can install this change in their app before it ships, and remove it any time.');
-    expect(shareDescription({ kind: 'shipped', stillWorks: false, command: 'x' })).toMatch(/^This change has shipped, so its preview version was removed\./);
+    expect(EXPLAIN).toBe('Product teams can install this branch in their app before it is merged, and remove it any time.');
+    expect(shareDescription({ kind: 'shipped', stillWorks: false, command: 'x' })).toMatch(/^This branch was merged, so its preview version was removed\./);
   });
 });

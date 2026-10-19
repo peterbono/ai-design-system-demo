@@ -48,7 +48,7 @@ describe('navigation data', () => {
   it('finds the group and entry for breadcrumbs, nested pages included', () => {
     expect(locate('/foundations/accessibility/')).toMatchObject({ space: 'library', group: 'Foundations', item: { label: 'Accessibility' } });
     expect(locate('/tokens/')).toMatchObject({ space: 'library', group: 'Foundations', item: { label: 'All tokens' } });
-    expect(locate('/studio/changes/')).toMatchObject({ space: 'studio', item: { label: 'Changes' } });
+    expect(locate('/studio/changes/')).toMatchObject({ space: 'studio', item: { label: 'Branches' } });
     expect(locate('/components/button/').entry?.label).toBe('Components');
     expect(locate('/studio/settings/')).toMatchObject({ space: 'studio', item: { label: 'Settings' } });
     expect(locate(HOW_REVIEW_WORKS)).toMatchObject({ space: 'library', group: 'Use', item: { label: 'How review works' } });
@@ -64,17 +64,17 @@ describe('navigation shape', () => {
 
   it('shows one count in the Studio nav: reviews, on Changes', () => {
     const counted = navFor('studio').filter((e) => e.badge);
-    expect(counted.map((e) => [e.label, e.badge])).toEqual([['Changes', 'reviews']]);
+    expect(counted.map((e) => [e.label, e.badge])).toEqual([['Branches', 'reviews']]);
   });
 });
 
 describe('studio nav', () => {
-  it('lists Overview, Tokens, Components, Changes, Quality, Settings', () => {
-    expect(navFor('studio').map((e) => e.label)).toEqual(['Overview', 'Tokens', 'Components', 'Changes', 'Quality', 'Settings']);
+  it('lists Overview, Tokens, Components, Branches, Quality, Settings', () => {
+    expect(navFor('studio').map((e) => e.label)).toEqual(['Overview', 'Tokens', 'Components', 'Branches', 'Quality', 'Settings']);
   });
 
   it('makes Changes one page with the review count, and drops the pages it replaced', () => {
-    const changes = navFor('studio').find((e) => e.label === 'Changes')!;
+    const changes = navFor('studio').find((e) => e.label === 'Branches')!;
     expect(changes).toMatchObject({ href: '/studio/changes/', badge: 'reviews' });
     expect(changes.children).toBeUndefined();
     const hrefs = allPages().map((p) => p.href);
@@ -102,41 +102,40 @@ describe('settings', () => {
     for (const gone of ['/studio/settings/governance/', '/studio/settings/integrations/']) expect(hrefs).not.toContain(gone);
   });
 
-  it('has its sections in order, Repository inside the collapsed For developers section', () => {
+  it('has its sections in order, the Repository line in the Account band, no developer section', () => {
     const at = SETTINGS_SECTIONS.map((id) => page.indexOf(`id="${id}"`));
     expect(at.every((i) => i > 0)).toBe(true);
     expect([...at].sort((a, b) => a - b)).toEqual(at);
-    expect(SETTINGS_SECTIONS).toEqual(['connection', 'roles', 'approvals', 'tools', 'integrations', 'developer', 'repository']);
-    const dev = page.indexOf('data-dev-fold');
-    expect(page.indexOf('id="repository"')).toBeGreaterThan(dev);
-    expect(page.indexOf('id="tiers-and-modes"')).toBeGreaterThan(dev);
+    expect(SETTINGS_SECTIONS).toEqual(['connection', 'repository', 'roles', 'approvals', 'tools', 'integrations']);
+    expect(page).not.toContain('For developers');
+    expect(page).not.toContain('data-dev-fold');
   });
 
-  it('opens on the Account band, keeps one primary per edit mode and developer details in one collapsed section', () => {
+  it('opens on the Account band, keeps one primary per edit mode and a GitHub link instead of developer details', () => {
     // The connection states (and Connect GitHub, the one primary at rest) live in the Account island.
     expect(page).toMatch(/<SettingsAccount client:load[^>]*>\s*<Illustration name="review"/);
-    // Review rules and Safety each send for review from a save bar that shows only after Edit or Change.
+    // Review rules and Safety each request a review from a save bar that shows only after Edit or Change.
     expect(page.match(/variant="primary"/g)).toHaveLength(2);
     expect(page.match(/<div class="set-savebar[^"]*" data-edit>\s*<div class="rq-actions">\s*<Button variant="primary" type="submit" data-roles-submit/g)).toHaveLength(2);
-    expect(page.match(/For developers<\/span>/g)).toHaveLength(1);
-    expect(page).toMatch(/<details class="set-more set-dev" id="for-developers" data-dev-fold>/);
+    expect(page).toContain('{VOCAB.howOnGitHub}');
+    expect(page).toContain('{VOCAB.openOnGitHub}');
     expect(page).not.toMatch(/<details[^>]* open/);
     // No summary sentence repeating the role rows; badges only for a status.
     expect(page).not.toContain('rolesSummary');
     expect(page.match(/<Badge/g)).toHaveLength(2);
   });
 
-  it('puts every band in the 1200px page, Account first and For developers last', () => {
-    const order = ['id="connection"', 'id="roles"', 'id="safety"', 'id="tools"', 'id="integrations"', 'id="developer"'].map((x) => page.indexOf(x));
+  it('puts every band in the 1200px page, Account first and Integrations last', () => {
+    const order = ['id="connection"', 'id="roles"', 'id="safety"', 'id="tools"', 'id="integrations"'].map((x) => page.indexOf(x));
     expect(order.every((i) => i > 0)).toBe(true);
     expect([...order].sort((x, y) => x - y)).toEqual(order);
     expect(page.match(/<section class="set-band"/g)).toHaveLength(5);
     expect(page.indexOf('<div class="set-page">')).toBeLessThan(order[0]!);
   });
 
-  it('links Approvals to the Library guide and each tier to the Changes filter', () => {
+  it('links Approvals to the Library guide, without the tier table', () => {
     expect(page).toContain('href={HOW_REVIEW_WORKS}');
-    expect(page).toContain('/studio/changes/?tier=${t.tier}');
+    expect(page).not.toContain('ApprovalsTable');
   });
 });
 

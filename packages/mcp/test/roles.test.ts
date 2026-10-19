@@ -28,7 +28,7 @@ describe('review roles with teams', () => {
     const r = await reviewRoles(gh, config, ['Ana', 'zed']);
     expect(r.design).toEqual({ owners: ['@acme/design (2 people)'], approvedBy: ['Ana'] });
     expect(r.tech).toEqual({ owners: ['@acme/web (4 people)'], approvedBy: [] });
-    expect(r.ship).toBe('Only the tech owner can ship this (@acme/web (4 people)).');
+    expect(r.ship).toBe('Only the tech owner can merge this (@acme/web (4 people)).');
     expect(r).not.toHaveProperty('unreadableTeams');
   });
 

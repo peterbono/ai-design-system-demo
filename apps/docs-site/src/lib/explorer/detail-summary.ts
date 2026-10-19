@@ -1,5 +1,5 @@
 // The Library token drawer's summary, as pure functions: the description split into what a designer reads first and
-// the developer note that goes under "For developers", the one plain sentence under the value ("Primitive. 9 brand
+// the developer note left out (install notes live on the Install page), the one plain sentence under the value ("Primitive. 9 brand
 // tokens point to it, used by 36 components."), the rows of "Used by" and the files a token is defined in.
 // No DOM: unit tested in detail-summary.test.ts.
 import type { Tier } from '@bridge-ds/core';
@@ -9,8 +9,8 @@ import type { ComponentLink } from './model';
 const DEV_SENTENCE = /@[\w-]+\/[\w-]|\bimport\b|\.css\b|\.json\b|\bnpm\b|var\(--|fontsource/i;
 
 /**
- * Splits a token description into the designer lead (shown under the name) and the developer note (shown under
- * "For developers"). "Self-hosted via @fontsource-variable/ibm-plex-sans (import @bridge-ds/tokens/fonts.css)." is
+ * Splits a token description into the designer lead (shown under the name) and the developer note (left
+ * out of the drawer: install notes belong to the Install page). "Self-hosted via @fontsource-variable/ibm-plex-sans (import @bridge-ds/tokens/fonts.css)." is
  * all developer; "Display serif of the bridge brand. Self-hosted via ..." keeps its first sentence as the lead.
  */
 export function splitDescription(text: string | undefined): { lead?: string; developer?: string } {

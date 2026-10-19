@@ -75,14 +75,14 @@ test('gate with teams: a member ships, an outsider does not, an unreadable team 
   const p = shipPolicy(owners, DEFAULT_RIGHTS, teams)!;
   assert.equal(canShip('tara', p), true);
   assert.equal(canShip('ana', p), false);
-  assert.equal(whoCanShipSentence(p), 'Only the tech owner can ship this (@acme/web (4 people)).');
+  assert.equal(whoCanShipSentence(p), 'Only the tech owner can merge this (@acme/web (4 people)).');
   assert.deepEqual(approverLists(owners, DEFAULT_RIGHTS, teams), { design: ['ana', 'bo'], tech: ['theo', 'tara', 'ty', 'tom'] });
 
   const blind = shipPolicy(owners, DEFAULT_RIGHTS, { '@acme/web': cannot('acme', 'web') })!;
   assert.notEqual(blind, null, 'an unreadable team still holds the right');
   assert.equal(canShip('theo', blind), false);
   assert.equal(canShip('acme/web', blind), false, 'nobody matches the place a team holds');
-  assert.equal(whoCanShipSentence(blind), 'Only the tech owner can ship this (@acme/web).');
+  assert.equal(whoCanShipSentence(blind), 'Only the tech owner can merge this (@acme/web).');
   assert.deepEqual(unreadableShipTeams(blind).map((t) => t.key), ['@acme/web']);
   // Without team states (not read yet), the same: the team holds its place.
   assert.deepEqual(shipPolicy(owners, normalizeRights({ ship: ['design', 'tech'] }))!.logins, ['@acme/design', '@acme/web']);

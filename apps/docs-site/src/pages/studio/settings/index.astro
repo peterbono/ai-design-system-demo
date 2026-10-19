@@ -5,41 +5,37 @@
 //   Account       the GitHub connection: a compact row once connected, the page's one Harbor zone (with a Field
 //                 Guide drawing and Connect GitHub) while Studio is read only.
 //   Review rules  who the design and tech owners are (people or GitHub teams, read from GitHub), who approves design,
-//                 who approves tech and who ships (edited in place, sent for review as a change to bridge.config.json), what each kind of change needs (plain rules from docs/GOVERNANCE.md, no
-//                 tier numbers) and the owner override as a fold.
+//                 who approves tech and who merges (edited in place, a review is requested on a branch that edits
+//                 bridge.config.json), what each kind of branch needs (plain rules from docs/GOVERNANCE.md, no tier
+//                 numbers) and the owner override as a fold.
 //   Safety        protection of the library and when the visual before and after runs, each with its action.
-//   Figma and Claude, Integrations (Jira), then one collapsed "For developers" section: repository sources, tiers
-//   and modes, previews and snapshot packages, the tier table, MCP details, Jira secrets and workflow.
-// The old Repository, Governance and Integrations pages redirect to these anchors (lib/redirects.ts); an anchor inside
-// the developer section opens it.
+//   Figma and Claude, then Integrations (Jira). Settings speak designer words (lib/vocabulary): no developer section;
+//   a setting with GitHub machinery behind it carries one "How it works on GitHub" link, the library itself one
+//   "Open on GitHub" link on its Account line.
+// The old Repository, Governance and Integrations pages redirect to these anchors (lib/redirects.ts); the anchors of
+// the former developer section (#developer, #tiers-and-modes, #mcp...) land on the section that now says it.
 import '../../../styles/settings.css';
 import '../../../styles/requests.css';
 import Layout from '../../../layouts/Layout.astro';
 import StudioHeader from '../../../components/StudioHeader.astro';
-import ButtonLink from '../../../components/ds/ButtonLink';
-import ApprovalsTable from '../../../components/ds/studio/ApprovalsTable';
 import ProtectionRow from '../../../components/ds/studio/ProtectionRow';
 import ChangeRules from '../../../components/ds/studio/ChangeRules';
 import SettingsAccount from '../../../components/ds/studio/SettingsAccount';
 import { signInConfig } from '../../../lib/signin-config';
 import Illustration from '../../../components/Illustration.astro';
-import { GitHubMark } from '../../../components/ds/studio/brand-icons';
-import { Badge, Button, Card, CodeBlock, CardBody, CardHeader, Input, Link, SegmentedControl } from '@bridge-ds/react';
+import { Badge, Button, Card, CardBody, CardHeader, Input, Link, SegmentedControl } from '@bridge-ds/react';
 import { siteRepo } from '../../../lib/config';
 import { GOVERNANCE_FILE, pluginListing, tierSummaries } from '../../../lib/governance';
-import { inline } from '../../../lib/markdown';
 import { mcpTools } from '../../../lib/mcp';
 import { HOW_REVIEW_WORKS } from '../../../lib/nav';
 import { exists, GITHUB_URL, lastUpdated, readText } from '../../../lib/repo';
+import { VOCAB } from '../../../lib/vocabulary';
 import { CHOICE_LABEL, OWNER_GROUP_HELP, OWNER_GROUP_LABEL, roleRows, VISUAL_MODE_HELP, VISUAL_MODE_LABEL, type RightChoice } from '../../../lib/roles-view';
 import OwnersField from '../../../components/ds/studio/OwnersField';
-import { repoStatus } from '../../../lib/stats';
-import { approvalRules, mcpAddCommand, overrideText } from '../../../lib/settings-view';
-import { REQUEST_LABEL } from '@bridge-ds/core';
+import { approvalRules, overrideText } from '../../../lib/settings-view';
 
 const r = siteRepo();
 const repoName = `${r.owner}/${r.repo}`;
-const build = repoStatus();
 const file = 'bridge.config.json';
 const pluginReadme = 'apps/figma-plugin/README.md';
 const sources = [file, GOVERNANCE_FILE, pluginReadme];
@@ -53,31 +49,7 @@ try {
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const list = (xs: string[]) => (xs.length ? xs.join(', ') : 'none');
 
-// Repository: one mono style for every value; "(default)" is plain muted text.
-type Row = { label: string; value: string; defaultValue?: string; values?: string[] };
-const source: Row[] = [
-  { label: 'Config', value: file },
-  { label: 'Token root', value: r.tokensRoot },
-  { label: 'Contrast gate', value: config.contrast?.path ?? 'not configured' },
-  { label: 'Components', value: config.components?.dir ?? 'not configured' },
-  { label: 'Changesets', value: config.changesets?.dir ?? '.changeset' },
-];
-const tiersAndModes: Row[] = [
-  ...Object.entries((config.tokens?.tiers ?? {}) as Record<string, string[]>).map(([tier, folders]) => ({ label: cap(tier), value: folders.join(', ') })),
-  ...Object.entries((config.modes ?? {}) as Record<string, { values: string[]; default?: string }>).map(([axis, m]) => ({
-    label: `${cap(axis)} modes`,
-    value: '',
-    values: m.values,
-    defaultValue: m.default,
-  })),
-];
-const previewApps = Object.keys(config.previews?.apps ?? {});
-const owners: Row[] = [
-  { label: 'Preview deploys', value: list(previewApps) },
-  { label: 'Snapshot packages', value: list(config.previews?.packages ?? []) },
-];
-
-// Review rules: who approves design, who approves tech, who ships. Safety: when the visual before and after runs.
+// Review rules: who approves design, who approves tech, who merges. Safety: when the visual before and after runs.
 const roles = roleRows(r.owners, r.rights);
 const mode = r.visualImpact.mode;
 const choices = (['design', 'tech', 'both'] as RightChoice[]).map((c) => ({ value: c, label: CHOICE_LABEL[c] }));
@@ -91,12 +63,8 @@ const rolesData = JSON.stringify({
 const plugin = pluginListing(exists(pluginReadme) ? readText(pluginReadme) : '');
 const tools = mcpTools().length;
 
-// Approvals: plain rules first (no tier numbers), the tier table under "For developers". One source: docs/GOVERNANCE.md.
-const tierRows = tierSummaries();
-const rules = approvalRules(tierRows);
-const tiers = tierRows.map((t) => ({ ...t, approvalsHtml: inline(t.approvals), href: `/studio/changes/?tier=${t.tier}` }));
-// Connect your Claude: the one command, repository from bridge.config.json, the token left as a placeholder.
-const claudeCommand = mcpAddCommand(repoName);
+// Approvals: plain rules (no tier numbers). One source: docs/GOVERNANCE.md, the tiers themselves on How review works.
+const rules = approvalRules(tierSummaries());
 const override = overrideText(r.override);
 
 // Integrations: GitHub issues always; Jira when bridge.config.json says so (the bridge-jira workflow does the sync).
@@ -106,7 +74,8 @@ const ghRepo = `https://github.com/${r.owner}/${r.repo}`;
 const secretsUrl = `${ghRepo}/settings/secrets/actions`;
 const workflowFile = '.github/workflows/bridge-jira.yml';
 const workflowUrl = `${ghRepo}/blob/${r.defaultBranch}/${workflowFile}`;
-const issuesUrl = `${ghRepo}/issues?q=${encodeURIComponent(`is:issue label:${REQUEST_LABEL}`)}`;
+// How the Jira mirror works, for whoever adds the credentials: docs/REQUESTS.md on GitHub.
+const jiraHelpUrl = `${ghRepo}/blob/${r.defaultBranch}/docs/REQUESTS.md`;
 const intData = JSON.stringify({
   prefix: config.governance?.branchPrefix ?? '',
   protectedBranches: config.governance?.protectedBranches ?? ['main', 'master'],
@@ -129,18 +98,22 @@ const signIn = Boolean(signInConfig());
         <SettingsAccount client:load repo={repoName} signIn={signIn}>
           <Illustration name="review" width={132} />
         </SettingsAccount>
+        <p class="set-library" id="repository">
+          <span>Library <span class="mono">{repoName}</span>, branch <span class="mono">{r.defaultBranch}</span></span>
+          <Link href={GITHUB_URL} external>{VOCAB.openOnGitHub}</Link>
+        </p>
       </div>
     </section>
 
     <section class="set-band" id="roles" aria-labelledby="set-rules">
       <div class="set-band-intro">
         <h2 id="set-rules" class="set-h">Review rules</h2>
-        <p class="set-intro">Who approves a change before it ships, and what each kind of change needs. <Link href={HOW_REVIEW_WORKS}>How review works</Link></p>
+        <p class="set-intro">Who approves a branch before it is merged into main, and what each kind of branch needs. <Link href={HOW_REVIEW_WORKS}>How review works</Link></p>
       </div>
       <div class="set-band-body">
         <Card aria-labelledby="set-roles-title">
           <CardHeader>
-            <h3 id="set-roles-title" class="set-card-title">Who approves and ships</h3>
+            <h3 id="set-roles-title" class="set-card-title">Who approves and merges</h3>
             <Button variant="secondary" data-density="compact" data-roles-edit aria-controls="set-roles-form" data-gh-gate="edit the roles">Edit</Button>
           </CardHeader>
           <CardBody>
@@ -180,7 +153,7 @@ const signIn = Boolean(signInConfig());
               </div>
               <div class="set-savebar" data-edit>
                 <div class="rq-actions">
-                  <Button variant="primary" type="submit" data-roles-submit disabled>Send for review</Button>
+                  <Button variant="primary" type="submit" data-roles-submit disabled>{VOCAB.requestReview}</Button>
                   <Button variant="secondary" data-roles-cancel>Cancel</Button>
                   <span class="set-muted">Your team approves it before it applies.</span>
                 </div>
@@ -199,7 +172,7 @@ const signIn = Boolean(signInConfig());
     <section class="set-band" id="safety" aria-labelledby="set-safety">
       <div class="set-band-intro">
         <h2 id="set-safety" class="set-h">Safety</h2>
-        <p class="set-intro">What keeps unreviewed changes out of the library, and when the visual before and after runs.</p>
+        <p class="set-intro">What keeps unreviewed branches out of main, and when the visual before and after runs.</p>
       </div>
       <div class="set-band-body">
         <Card>
@@ -231,7 +204,7 @@ const signIn = Boolean(signInConfig());
                 </div>
                 <div class="set-savebar set-row-full" data-edit>
                   <div class="rq-actions">
-                    <Button variant="primary" type="submit" data-roles-submit disabled>Send for review</Button>
+                    <Button variant="primary" type="submit" data-roles-submit disabled>{VOCAB.requestReview}</Button>
                     <Button variant="secondary" data-roles-cancel>Cancel</Button>
                     <span class="set-muted">Your team approves it before it applies.</span>
                   </div>
@@ -248,7 +221,7 @@ const signIn = Boolean(signInConfig());
     <section class="set-band" id="tools" aria-labelledby="set-tools">
       <div class="set-band-intro">
         <h2 id="set-tools" class="set-h">Figma and Claude</h2>
-        <p class="set-intro">Work on the library from Figma or from your own Claude. Both send their changes for review.</p>
+        <p class="set-intro">Work on the library from Figma or from your own Claude. Both create a branch and request a review.</p>
       </div>
       <div class="set-band-body">
         <Card>
@@ -256,7 +229,7 @@ const signIn = Boolean(signInConfig());
             <div class="set-rows">
               <div class="set-row">
                 <p class="set-row-label">Figma plugin</p>
-                <p class="set-row-value">Pull tokens into Figma Variables and send variable edits back for review.</p>
+                <p class="set-row-value">Brings tokens into Figma Variables, and requests a review of your variable edits.</p>
                 <p class="set-row-action">
                   {
                     plugin.url ? (
@@ -272,13 +245,8 @@ const signIn = Boolean(signInConfig());
               </div>
               <div class="set-row" id="claude">
                 <p class="set-row-label">Your own Claude</p>
-                <div class="set-row-value set-row-span">
-                  <p>
-                    Gives your Claude {tools} tools on this design system. It sends changes for review and never ships them on its own. Run this once in a terminal, with your
-                    GitHub token in place of <span class="mono">&lt;your token&gt;</span>.
-                  </p>
-                  <CodeBlock className="set-cmd" code={claudeCommand} label="Command to run once" />
-                </div>
+                <p class="set-row-value">Gives your Claude {tools} tools on this design system. It creates branches and requests reviews, it never merges on its own.</p>
+                <p class="set-row-action"><Link href="/agents/#claude-code">Set it up</Link></p>
               </div>
             </div>
           </CardBody>
@@ -335,8 +303,8 @@ const signIn = Boolean(signInConfig());
                 </div>
                 <p class="rq-error" role="alert" data-int-error hidden></p>
                 <div class="rq-actions">
-                  <Button variant="secondary" type="submit" data-int-submit data-gh-gate="propose integrations">Send for review</Button>
-                  <span class="set-muted">Nothing changes until it ships. A developer then adds the Jira secrets once (For developers, below).</span>
+                  <Button variant="secondary" type="submit" data-int-submit data-gh-gate="propose integrations">{VOCAB.requestReview}</Button>
+                  <span class="set-muted">Nothing changes until the branch is merged. A repository admin then adds the Jira credentials once. <Link href={jiraHelpUrl} external>{VOCAB.howOnGitHub}</Link></span>
                 </div>
                 <div class="rq-done" role="status" data-int-done hidden></div>
               </form>
@@ -345,104 +313,24 @@ const signIn = Boolean(signInConfig());
         </Card>
       </div>
     </section>
-
-    <section class="set-dev-block" id="developer" aria-label="For developers">
-      <details class="set-more set-dev" id="for-developers" data-dev-fold>
-        <summary>
-          <span class="set-more-title">For developers</span>
-          <span class="set-more-n">Repository, tiers and modes, previews, MCP, Jira workflow</span>
-          <span class="set-chev" aria-hidden="true"></span>
-        </summary>
-
-        <h3 class="set-group" id="repository">Repository</h3>
-        <div class="set-lead">
-          <p>
-            Reading <span class="mono">{repoName}</span>, <span class="mono">{r.defaultBranch}</span>, built at <span class="mono">{build.sha}</span>.
-          </p>
-          <ButtonLink variant="secondary" size="sm" iconStart={GitHubMark} href={GITHUB_URL}>Open on GitHub</ButtonLink>
-        </div>
-        <dl class="set-dl set-dl-after">
-          {
-            source.map((x) => (
-              <div>
-                <dt>{x.label}</dt>
-                <dd class="mono">{x.value}</dd>
-              </div>
-            ))
-          }
-        </dl>
-
-        <h3 class="set-group" id="tiers-and-modes">Tiers and modes</h3>
-        <dl class="set-dl">
-          {
-            tiersAndModes.map((x) => (
-              <div>
-                <dt>{x.label}</dt>
-                <dd class="mono">
-                  {x.values
-                    ? x.values.map((v, i) => (
-                        <>
-                          {i > 0 && ', '}
-                          {v}
-                          {v === x.defaultValue && <span class="set-default"> (default)</span>}
-                        </>
-                      ))
-                    : x.value}
-                </dd>
-              </div>
-            ))
-          }
-        </dl>
-
-        <h3 class="set-group" id="owners-and-previews">Previews</h3>
-        <dl class="set-dl">
-          {
-            owners.map((x) => (
-              <div>
-                <dt>{x.label}</dt>
-                <dd class="mono">{x.value}</dd>
-              </div>
-            ))
-          }
-        </dl>
-        <p class="set-muted">Change these in a pull request on <span class="mono">{file}</span>: it is a guarded file, reviewed at the highest tier.</p>
-
-        <h3 class="set-group" id="approval-tiers">Approvals by risk tier</h3>
-        <ApprovalsTable rows={tiers} />
-
-        <h3 class="set-group" id="mcp">MCP server</h3>
-        <p class="set-muted">
-          {tools} tools. Claude works on a <span class="mono">{config.governance?.branchPrefix ?? ''}*</span> branch and opens a pull request, never commits to
-          <span class="mono">{r.defaultBranch}</span>. Clients, local setup and the full tool list: <Link href="/agents/#mcp">Agents page</Link>.
-        </p>
-
-        <h3 class="set-group" id="jira-workflow">Jira workflow</h3>
-        <ol class="set-checklist">
-          <li>Merge the pull request that changes <span class="mono">{file}</span>. It is a guarded file, so it gets the highest review tier.</li>
-          <li>
-            Add the repository secrets <span class="mono">JIRA_EMAIL</span> and <span class="mono">JIRA_API_TOKEN</span> in <Link href={secretsUrl}>Settings, Secrets and variables, Actions</Link>.
-          </li>
-          <li>The <Link href={workflowUrl} className="mono">{workflowFile}</Link> workflow creates the Jira issue for each new request and labels the GitHub issue with its key.</li>
-        </ol>
-        <p class="set-muted">
-          Requests are GitHub issues labeled <span class="mono">{REQUEST_LABEL}</span>, closed by the pull request that implements them. Follow them by
-          <Link href={issuesUrl}>filtering issues by that label</Link>, or link GitHub and Jira with Atlassian's <Link href="https://github.com/marketplace/jira-software-github">GitHub for Jira</Link> app.
-        </p>
-      </details>
-    </section>
   </div>
 
   <script type="application/json" id="set-int-data" set:html={intData} />
   <script type="application/json" id="set-roles-data" set:html={rolesData} />
   <script>
-    // An anchor inside "For developers" (#repository, #tiers-and-modes, #mcp...) opens it, then scrolls there.
+    // Anchors of the former developer section land on the section that now says the same thing.
+    const MOVED: Record<string, string> = {
+      developer: 'repository',
+      'for-developers': 'repository',
+      'tiers-and-modes': 'approvals',
+      'owners-and-previews': 'safety',
+      'approval-tiers': 'approvals',
+      mcp: 'claude',
+      'jira-workflow': 'integrations',
+    };
     const revealHash = () => {
-      const id = decodeURIComponent(location.hash.slice(1));
-      const el = id ? document.getElementById(id) : null;
-      const fold = el?.closest<HTMLDetailsElement>('[data-dev-fold]');
-      if (!el || !fold) return;
-      fold.open = true;
-      el.scrollIntoView();
+      const id = MOVED[decodeURIComponent(location.hash.slice(1))];
+      if (id) document.getElementById(id)?.scrollIntoView();
     };
     revealHash();
     window.addEventListener('hashchange', revealHash);

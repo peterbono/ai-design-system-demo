@@ -6,28 +6,28 @@
 // someone), then one row of actions with a single primary (the guidance while it is missing or in review, else
 // "Change this component"). The designer drives a change: the drawer asks what she wants to change, in place, and
 // leads to her component's tokens, to an exploration Claude builds from her Figma frame, or to a mismatch report
-// (scripts/request-form.ts, lib/change-intent.ts). Token origins, code, the component sandbox, props and file paths
-// sit in one "For developers" fold at the bottom.
+// (scripts/request-form.ts, lib/change-intent.ts). No developer fold: the code is one "Open on GitHub" link on the
+// summary line, next to "Open in the Library".
 import '../../../styles/studio.css';
 import '../../../styles/components-studio.css';
 import '../../../styles/requests.css';
 import '../../../styles/preview-frames.css';
 import Layout from '../../../layouts/Layout.astro';
 import StudioHeader from '../../../components/StudioHeader.astro';
-import { siteIcon } from '../../../brand/site-icons';
 import ButtonLink from '../../../components/ds/ButtonLink';
 import Example from '../../../components/Example';
 import ComponentsSearch from '../../../components/ds/studio/ComponentsSearch';
 import BridgedSelect from '../../../components/ds/BridgedSelect';
 import ComponentsList, { exceptions, type ComponentListRow } from '../../../components/ds/studio/ComponentsList';
-import { Badge, Button, Icon, IconButton, Input, Link, SegmentedControl, Textarea } from '@bridge-ds/react';
+import { Badge, Button, IconButton, Input, Link, SegmentedControl, Textarea } from '@bridge-ds/react';
 import { FileText, ImagePlus, Moon, Pencil, Sun, X } from 'lucide-react';
 import ChangeIntent from '../../../components/ds/studio/ChangeIntent';
-import { GitHubMark, StorybookMark } from '../../../components/ds/studio/brand-icons';
+import { GitHubMark } from '../../../components/ds/studio/brand-icons';
 import { docsEditHref, editTokensHref, guidanceState, loadComponents, type ComponentInfo } from '../../../lib/components';
-import { componentsLead, componentsPrimary, drawerActions, drawerFacts, productUsage, tokenOrigin } from '../../../lib/components-studio';
+import { componentsLead, componentsPrimary, drawerActions, drawerFacts, productUsage } from '../../../lib/components-studio';
 import { groupByApp, loadAudits } from '../../../lib/audits';
-import { PREVIEW_APPS, PREVIEW_PACKAGES, sourceUrl, STORYBOOK_URL } from '../../../lib/repo';
+import { PREVIEW_APPS, PREVIEW_PACKAGES, sourceUrl } from '../../../lib/repo';
+import { VOCAB } from '../../../lib/vocabulary';
 import { siteRepo } from '../../../lib/config';
 import { ghAction } from '../../../lib/gh-wording';
 import { signInConfig } from '../../../lib/signin-config';
@@ -58,7 +58,6 @@ const families = [...new Set(rows.map((r) => r.family))].map((f) => ({ name: f, 
 const lead = componentsLead(rows);
 const primary = componentsPrimary(rows, docsEditHref);
 const docsLabel = (g: string) => (g === 'missing' ? 'Add guidance' : g === 'review' ? 'Review guidance' : 'Edit docs');
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 // Add a variant or option starts an exploration: the repository and its preview settings, as Changes embeds them.
 const site = siteRepo();
 const branchesJson = JSON.stringify({ owner: site.owner, repo: site.repo, defaultBranch: site.defaultBranch, apps: PREVIEW_APPS, packages: PREVIEW_PACKAGES }).replace(/</g, '\\u003c');
@@ -105,7 +104,7 @@ const signIn = Boolean(signInConfig());
 
     <ComponentsList rows={rows} products={audits.length} />
     <p class="cm-none" data-cm-none hidden>No component matches. <Button variant="link" data-cm-reset>Show every component</Button></p>
-    {audits.length > 0 && <p class="cm-note">Used in names the audited products that render the component ({audits.map((a) => a.product).join(' and ')}), from their last <Link href="/studio/quality/">audit report</Link>. Open requests counts the change requests not shipped yet.</p>}
+    {audits.length > 0 && <p class="cm-note">Used in names the audited products that render the component ({audits.map((a) => a.product).join(' and ')}), from their last <Link href="/studio/quality/">audit report</Link>. Open requests counts the change requests not merged yet.</p>}
   </div>
 
   <div class="cm-scrim" data-cm-scrim hidden></div>
@@ -136,7 +135,8 @@ const signIn = Boolean(signInConfig());
           <section class="cm-d-panel" data-cm-panel={c.slug} data-name={c.name} data-family={c.category} data-tokens-href={tokensHref ?? ''} hidden>
             <p class="cm-d-summary">
               {c.docs?.summary ?? c.description ?? 'No summary yet.'}{' '}
-              <Link href={`/components/${c.slug}/`}>Open in the Library</Link>
+              <Link href={`/components/${c.slug}/`}>Open in the Library</Link>{' '}
+              <Link href={sourceUrl(c.files.tsx)} external>{VOCAB.openOnGitHub}</Link>
             </p>
             {c.docs?.preview ? (
               <figure class="cm-d-preview" aria-label={`${c.name}, live`}>
@@ -223,52 +223,6 @@ const signIn = Boolean(signInConfig());
       </form>
     </section>
     <div class="rq-done cm-chg-done" role="status" data-rq-done hidden></div>
-    {
-      components.map((c) => {
-        const story = c.stories[0];
-        return (
-          <details class="cm-d-dev" data-cm-dev={c.slug} hidden>
-            <summary>
-              <Icon icon={siteIcon('code')} size="md" className="icon" />
-              <span class="cm-d-dev-label">For developers</span>
-              <span class="cm-d-dev-chev"><Icon icon={siteIcon('chevron')} size="sm" className="icon" /></span>
-            </summary>
-            <div class="cm-d-dev-body">
-              <dl class="cm-d-dev-facts">
-                <div>
-                  <dt>Tokens</dt>
-                  <dd>{tokenOrigin(c.tokenPaths.length, c.inherited)}</dd>
-                </div>
-                <div>
-                  <dt>API</dt>
-                  <dd>{plural(c.props.length, 'prop')}, {plural(c.stories.length, 'Storybook story', 'Storybook stories')}.</dd>
-                </div>
-                <div>
-                  <dt>Files</dt>
-                  <dd><code>{c.files.tsx.replace(/[^/]+$/, '')}</code></dd>
-                </div>
-              </dl>
-              <ul class="cm-d-links" aria-label={`${c.name} for developers`}>
-                <li>
-                  <Link variant="standalone" href={sourceUrl(c.files.tsx)}>
-                    <Icon icon={GitHubMark} size="xs" />
-                    Code
-                  </Link>
-                </li>
-                {story && (
-                  <li>
-                    <Link variant="standalone" href={`${STORYBOOK_URL}/?path=/story/${story.id}`}>
-                      <Icon icon={StorybookMark} size="xs" />
-                      Component sandbox
-                    </Link>
-                  </li>
-                )}
-              </ul>
-            </div>
-          </details>
-        );
-      })
-    }
   </aside>
 
   <script type="application/json" id="bridge-branches" set:html={branchesJson} />

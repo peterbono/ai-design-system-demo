@@ -4,6 +4,7 @@
 // Designer words only on screen: a change, sent for review, edits. Branch, commit and pull request stay in code.
 import { changeKind, changesetBump, composeChangeset, threeWayDiff, type AcceptedChange, type ChangesetOptions, type TokenSet } from '@bridge-ds/core';
 import type { Draft } from './editor-model';
+import { withoutJiraKey } from './vocabulary';
 
 /** The fields of a GitHub pull request these rules read (REST shape). */
 export interface ChangePullLike {
@@ -77,7 +78,7 @@ export function addableChanges(pulls: ChangePullLike[], ctx: { repo: string; vie
 
 /** "tokens: Darker default background" reads "Darker default background" to a designer. */
 export function changeTitle(title: string): string {
-  const t = title.replace(/^(feat|fix|chore)?\(?tokens\)?:\s*/i, '').trim();
+  const t = withoutJiraKey(title).replace(/^(feat|fix|chore)?\(?tokens\)?:\s*/i, '').trim();
   return t ? t.charAt(0).toUpperCase() + t.slice(1) : title;
 }
 
@@ -119,9 +120,9 @@ export function targetOptions(targets: ChangeTarget[], ago: (iso: string) => str
     ...shown.map((t) => ({
       value: targetValue({ kind: 'change', number: t.number }),
       label: `Add to ${t.title}`,
-      description: [t.mine ? 'Your change' : `Opened by ${t.author}`, t.updatedAt ? `updated ${ago(t.updatedAt)}` : ''].filter(Boolean).join(', ') + '.',
+      description: [t.mine ? 'Your branch' : `Opened by ${t.author}`, t.updatedAt ? `updated ${ago(t.updatedAt)}` : ''].filter(Boolean).join(', ') + '.',
     })),
-    { value: 'new', label: 'Start a new change', description: 'It gets its own title and its own review.' },
+    { value: 'new', label: 'Create a new branch', description: 'It gets its own title and its own review.' },
   ];
 }
 
@@ -157,7 +158,7 @@ export class ChangeConflictError extends Error {
 export function conflictSentence(paths: string[], scoped = true): string {
   const n = paths.length;
   const what = n === 1 ? paths[0] : n === 2 ? `${paths[0]} and ${paths[1]}` : `${paths[0]} and ${n - 1} other tokens`;
-  const where = scoped ? `Someone also edited ${what} in this change after you opened it.` : `This change already edits ${what}, to another value than yours.`;
+  const where = scoped ? `Someone also edited ${what} in this branch after you opened it.` : `This branch already edits ${what}, to another value than yours.`;
   return `${where} Nothing was saved, so no edit is lost. Keep your value, or keep theirs and drop your edit.`;
 }
 
@@ -181,22 +182,22 @@ export const conflictHref = (n: number) => `/studio/changes/?pr=${n}`;
 
 /** The persistent banner of the token editor scoped to a change. */
 export function scopeBanner(title: string): { title: string; body: string } {
-  return { title: `Editing: ${title}`, body: 'Your edits are added to this change, on top of its values.' };
+  return { title: `Editing: ${title}`, body: 'Your edits are added to this branch, on top of its values.' };
 }
 
 /** Status line once the edits are added. */
 export function addedSentence(n: number, title: string, upstream: number): string {
   const edits = `${n} edit${n === 1 ? '' : 's'}`;
-  const moved = upstream ? ` It had moved since you opened it: ${upstream === 1 ? '1 other token stays as the change has it' : `${upstream} other tokens stay as the change has them`}.` : '';
+  const moved = upstream ? ` It had moved since you opened it: ${upstream === 1 ? '1 other token stays as the branch has it' : `${upstream} other tokens stay as the branch has them`}.` : '';
   return `Added ${edits} to ${title}.${moved}`;
 }
 
 /** The change page, back from the token editor. */
-export const addedNotice = (n: number) => `Added ${n} edit${n === 1 ? '' : 's'} to this change. Reviewers see ${n === 1 ? 'it' : 'them'} now.`;
+export const addedNotice = (n: number) => `Added ${n} edit${n === 1 ? '' : 's'} to this branch. Reviewers see ${n === 1 ? 'it' : 'them'} now.`;
 
 /** The local draft strip on Changes: where the draft goes when sent. */
 export function draftDestination(target: ChangeTarget | null, edits = 2): string {
-  return target ? `Sending adds ${edits === 1 ? 'it' : 'them'} to ${target.title}.` : 'Sending starts a new change.';
+  return target ? `${edits === 1 ? 'It goes' : 'They go'} to ${target.title}.` : 'Requesting review creates a new branch.';
 }
 
 /** The comment posted on the change, so reviewers see what was added and from where. */

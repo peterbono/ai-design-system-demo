@@ -251,7 +251,7 @@ export const USE_CASE_HINTS: Record<string, string> = {
   'stakeholder-demo': 'Show an idea on real screens before anyone decides on it.',
   'ab-idea': 'Try a variant in staging and compare it with what is live.',
   terminal: 'You work with Claude Code on this exploration, never on the official library.',
-  other: 'Anything else worth trying before it becomes a change.',
+  other: 'Anything else worth trying before it goes to review.',
 };
 export const USE_CASE_EMPTY_HINT = 'Optional. Reviewers see it, so they know why the exploration exists.';
 export const useCaseHint = (value: string) => USE_CASE_HINTS[value] ?? USE_CASE_EMPTY_HINT;
@@ -267,9 +267,9 @@ export function purposeLine(name: string, purpose: string): string | null {
 
 /** The status sentence of an exploration detail, without branch names. */
 export function explorationStateLine(status: ExplorationStatus): string {
-  if (status === 'promoted') return 'Promoted to review: it is a change ready for review now, and goes through the usual approvals.';
-  if (status === 'closed') return 'Closed without shipping. Its previews stay for reference.';
-  return 'It never ships as is: promote it to review when the idea is validated, or close it.';
+  if (status === 'promoted') return 'Promoted to review: it is in review now, and goes through the usual approvals.';
+  if (status === 'closed') return 'Closed without merging. Its previews stay for reference.';
+  return 'It never merges as is: promote it to review when the idea is validated, or close it.';
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -292,7 +292,7 @@ export interface PromoteAsk {
  */
 export function promoteAsk(tier: Tier | null, owners: { design: string[]; tech: string[] }): PromoteAsk {
   if (tier === 1) {
-    return { who: 'One teammate will be asked to approve: any reviewer can.', next: 'It becomes ready for review. One approval, then it ships.' };
+    return { who: 'One teammate will be asked to approve: any reviewer can.', next: 'It moves to In review. One approval, then it can be merged.' };
   }
   const design = handles(owners.design);
   const tech = handles(owners.tech);
@@ -300,8 +300,8 @@ export function promoteAsk(tier: Tier | null, owners: { design: string[]; tech: 
   const t = tech.length ? `${list(tech)} (tech)` : 'a tech owner';
   const same = design.length > 0 && design.length === tech.length && design.every((x) => tech.includes(x));
   const who = same ? `${list(design)} will be asked to approve, for design and for tech.` : `${d} and ${t} will be asked to approve.`;
-  return { who: `${who.charAt(0).toUpperCase()}${who.slice(1)}`, next: 'It becomes ready for review. Design and tech approve, then it ships.' };
+  return { who: `${who.charAt(0).toUpperCase()}${who.slice(1)}`, next: 'It moves to In review. Design and tech approve, then it can be merged.' };
 }
 
 /** After the promotion: one sentence, the link goes next to it. */
-export const promotedLine = (n: number) => `Promoted. #${n} is ready for review now, waiting for its approvals.`;
+export const promotedLine = (n: number) => `Promoted. #${n} is in review now, waiting for its approvals.`;

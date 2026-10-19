@@ -10,7 +10,6 @@ import {
   modeLabel,
   planRestore,
   planRevert,
-  planToJson,
   type ChangePlan,
   type HistoryEntry,
   type HistoryReport,
@@ -23,7 +22,7 @@ import { undoSentence } from '../../lib/changes';
 import { humanAuthored, laterThan, shortDate } from '../../lib/history-view';
 import { esc, getToken, hasWorkingToken, prefersSignIn, readRepo, setButtonDisabled, setButtonLabel, showGhError, studioClient, tokenRejected } from '../github-session';
 import { ghAction, ghVerb } from '../../lib/gh-wording';
-import { mdTitleHtml } from '../../lib/markdown';
+import { VOCAB } from '../../lib/vocabulary';
 import { loadHistory, type Loaded } from './state';
 
 type Request =
@@ -102,8 +101,8 @@ const valueChip = (raw: unknown, css?: string) =>
     : tokenValueHtml(val(raw), { resolved: css && css !== raw ? css : undefined, swatch: css && /^#[0-9a-f]{6,8}$/i.test(css) ? css : false });
 
 function statusLine(p: ChangePlan): string {
-  if (p.status === 'ready') return `<p class="cg-muted">Bridge opens a pull request on a new branch. Nothing reaches main until a reviewer merges it.</p>`;
-  if (p.status === 'blocked') return `<p class="rv-notice is-fail hp-state"><strong>Blocked:</strong> ${esc(p.why ?? 'the checks fail')}. Bridge never opens a pull request that breaks validation or a contrast pair.</p>`;
+  if (p.status === 'ready') return `<p class="cg-muted">Bridge creates a branch for it and requests a review. Nothing reaches main until a reviewer merges it.</p>`;
+  if (p.status === 'blocked') return `<p class="rv-notice is-fail hp-state"><strong>Blocked:</strong> ${esc(p.why ?? 'the checks fail')}. Bridge never creates a branch that breaks validation or a contrast pair.</p>`;
   return `<p class="rv-notice hp-state"><strong>Nothing to propose.</strong> ${esc(p.why ?? '')}</p>`;
 }
 
@@ -146,10 +145,6 @@ function paint() {
   const body = $('hp-body');
   if (!body || !plan || !req || !ctx || !base) return;
   const p = plan;
-  const source =
-    req.kind === 'revert'
-      ? `Undoes ${req.entry.pr ? `#${req.entry.pr.number} ` : ''}<strong>${mdTitleHtml(req.entry.title)}</strong>, merged ${esc(shortDate(req.entry.date))} by ${esc(req.entry.author)}. Bridge computes the opposite token edits against main as it is now, not a blind git revert.`
-      : `Puts <span class="mono">${esc(req.path)}</span> in ${esc(modeLabel(req.item.modes))} back to ${valueChip(req.item.after, req.item.afterCss)}, the value it had after ${req.item.pr ? `#${req.item.pr.number} ` : ''}<strong>${esc(req.item.title)}</strong> (${esc(shortDate(req.item.date))}).`;
   const conflicts = p.conflicts.length
     ? `<section class="hp-sec"><h3 class="hp-sub">Conflicts <span class="tx-d-n">${p.conflicts.length}</span></h3>
         <p class="cg-muted">These tokens changed again after the original change. Bridge keeps their current value unless you choose otherwise.</p>
@@ -177,17 +172,7 @@ function paint() {
   const skipped = p.skipped.length ? `<section class="hp-sec"><h3 class="hp-sub">Left alone</h3><ul class="hp-list">${p.skipped.map((x) => `<li><span class="mono">${esc(x.path)}</span>: ${esc(x.reason)}</li>`).join('')}</ul></section>` : '';
   const review = p.files.length ? reviewTokenChange(base.files, afterFiles(p), ctx.pairs, ctx.layout) : null;
   const lead = review ? undoSentence(review) : p.status === 'nothing-to-do' ? 'Nothing to undo: main already has these values.' : p.planned.map((x) => x.summary).join('. ');
-  const details =
-    p.status === 'nothing-to-do'
-      ? ''
-      : `<details class="cg-sec"><summary class="cg-sec-head"><span class="cg-sec-title">Details</span><span class="cg-sec-meta">Tier ${p.tier.tier}, ${esc(p.tier.bump)}</span><span class="cg-sec-chev" aria-hidden="true"></span></summary><div class="cg-sec-body hp-meta">
-    <p>${source}</p>
-    <p class="cg-muted">Planned against ${esc(base.label)}. ${esc(p.tier.reasons.slice(0, 2).join('; '))}</p>
-    <p>Files: ${p.files.map((f) => `<code>${esc(f.path)}</code>`).join(', ')}</p>
-    <p>Branch: <code>${esc(p.branch)}</code>, ${p.tier.tier >= 2 ? 'opened as a draft pull request' : 'opened as a pull request'} on ${esc(repoOf(ctx).defaultBranch)}.</p>
-    <details class="hp-pr"><summary>Pull request text</summary><pre>${esc(p.prBody)}</pre></details>
-    <p class="hp-dl"><button type="button" class="btn btn-secondary btn-sm" id="hp-download-json">Download patch</button> <button type="button" class="btn btn-secondary btn-sm" id="hp-download-md">Download PR text</button></p></div></details>`;
-  body.innerHTML = `<p class="hp-lead">${esc(lead)}</p>${statusLine(p)}${conflicts}${review ? changesList(review) : ''}${review ? pairsTable(review) : ''}${skipped}${details}`;
+  body.innerHTML = `<p class="hp-lead">${esc(lead)}</p>${statusLine(p)}${conflicts}${review ? changesList(review) : ''}${review ? pairsTable(review) : ''}${skipped}`;
   syncFoot();
 }
 
@@ -195,41 +180,30 @@ function syncFoot() {
   const go = $<HTMLButtonElement>('hp-propose');
   const connect = $('hp-connect');
   const status = $('hp-status');
-  const dl = [$<HTMLButtonElement>('hp-download-json'), $<HTMLButtonElement>('hp-download-md')];
   const ready = plan?.status === 'ready';
   const token = hasWorkingToken();
-  for (const b of dl) if (b) setButtonDisabled(b, !plan || !plan.files.length);
   if (go) {
-    setButtonLabel(go, req?.kind === 'restore' ? 'Propose restore' : 'Propose undo');
+    setButtonLabel(go, VOCAB.requestReview);
     go.hidden = !token && !req?.demo;
     setButtonDisabled(go, !ready || Boolean(req?.demo));
   }
   if (connect) {
     connect.hidden = token || Boolean(req?.demo);
-    setButtonLabel(connect, ghAction('propose', prefersSignIn(), tokenRejected()));
+    setButtonLabel(connect, ghAction('request review', prefersSignIn(), tokenRejected()));
   }
   if (status) {
     status.textContent = req?.demo
-      ? 'Demo plans cannot be proposed: the change never happened in this repository.'
+      ? 'Demo plans cannot go to review: the change never happened in this repository.'
       : !token
         ? tokenRejected()
-          ? 'Your GitHub token stopped working. Details has the patch and the PR text.'
-          : 'Read only until connected. Details has the patch and the PR text.'
+          ? 'Your GitHub token stopped working.'
+          : 'Read only until connected.'
         : base && !base.live
           ? 'Could not read main from GitHub; this plan uses the files the site was built from. Bridge re-reads main when you propose.'
           : '';
   }
 }
 
-function download(name: string, text: string, type: string) {
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([text], { type }));
-  a.download = name;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-}
-
-const fileStem = () => `bridge-${req?.demo ? 'demo-' : ''}${plan?.kind ?? 'plan'}-${(plan?.branch ?? 'plan').split('/').pop()}`;
 
 async function propose(): Promise<number> {
   if (!req || !ctx || req.demo) throw new Error('Demo plans cannot be proposed.');
@@ -261,31 +235,16 @@ function wire() {
     resolutions = { ...resolutions, [r.dataset.key!]: r.value as RevertResolution };
     compute();
   });
-  $('hp-body')?.addEventListener('click', (e) => {
-    const id = (e.target as HTMLElement).closest('button')?.id;
-    if (id === 'hp-download-json') downloadJson();
-    if (id === 'hp-download-md') downloadMd();
-  });
-  const downloadJson = () => {
-    if (!plan) return;
-    const json = { ...planToJson(plan), ...(req?.demo ? { demo: true, $comment: 'Demo data: fixture change, not this repository history. Do not apply.' } : {}) };
-    download(`${fileStem()}.json`, `${JSON.stringify(json, null, 2)}\n`, 'application/json');
-  };
-  const downloadMd = () => {
-    if (!plan) return;
-    const head = req?.demo ? '> Demo data: fixture change, not this repository history.\n\n' : '';
-    download(`${fileStem()}.md`, `${head}# ${plan.prTitle}\n\n${plan.prBody}`, 'text/markdown');
-  };
   $('hp-propose')?.addEventListener('click', async () => {
     const go = $<HTMLButtonElement>('hp-propose')!;
     const out = $('hp-status')!;
     setButtonDisabled(go, true);
-    out.textContent = 'Reading main, creating a bridge/ branch with the token files and a changeset, opening the pull request';
+    out.textContent = 'Reading main, creating the branch and requesting a review';
     try {
       const n = await propose();
       location.href = `/studio/changes/?pr=${n}`;
     } catch (err) {
-      showGhError(out, err, `Not proposed: ${(err as Error).message}`, 'open pull requests');
+      showGhError(out, err, `No branch created: ${(err as Error).message}`, 'create branches');
       setButtonDisabled(go, false);
     }
   });

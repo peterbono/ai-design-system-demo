@@ -1,4 +1,4 @@
-// Words of the "Send for review" dialog in Studio Tokens, as pure functions (tested in propose-copy.test.ts):
+// Words of the "Create branch" dialog in Studio Tokens, as pure functions (tested in propose-copy.test.ts):
 // a plain title drafted from the edit ("Darker primary action fill") and the sentence that says who approves it,
 // from the configured rights. No DOM.
 import type { OwnerGroup, Rights } from '@bridge-ds/core';
@@ -121,12 +121,12 @@ function who(groups: readonly OwnerGroup[]): string {
  * ships before both." Tier 2 (new component, variant or prop) too. Tier 1 (a description only): one approval.
  */
 export function reviewSentence(tier: 1 | 2 | 3, rights?: Rights | null): string {
-  if (tier === 1) return 'One reviewer will approve it; nothing ships before that.';
+  if (tier === 1) return 'One reviewer will approve it; nothing is merged before that.';
   const designGroups = rights?.approveDesign ?? ['design'];
   const techGroups = rights?.approveTech ?? ['tech'];
   const design = who(designGroups);
   const tech = who(techGroups);
-  if (design === tech) return `${cap(design)} will approve the design and the code; nothing ships before both approvals.`;
-  if (designGroups.length > 1 || techGroups.length > 1) return `${cap(design)} will approve the design and ${tech} the code; nothing ships before both.`;
-  return `${cap(design)} and ${tech} will approve it; nothing ships before both.`;
+  if (design === tech) return `${cap(design)} will approve the design and the code; nothing is merged before both approvals.`;
+  if (designGroups.length > 1 || techGroups.length > 1) return `${cap(design)} will approve the design and ${tech} the code; nothing is merged before both.`;
+  return `${cap(design)} and ${tech} will approve it; nothing is merged before both.`;
 }

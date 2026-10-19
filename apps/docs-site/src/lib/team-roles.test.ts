@@ -61,7 +61,7 @@ describe('approvals and who acts, with teams', () => {
 
   it('ready to ship names the team that ships', () => {
     const ready = whoActs({ kind: 'ready' }, people(teams));
-    expect(ready.sentence).toBe('Ready to ship: @acme/web (1 person) or @tara can ship it.');
+    expect(ready.sentence).toBe('Ready to merge: @acme/web (1 person) or @tara can merge it.');
   });
 });
 
@@ -71,7 +71,7 @@ describe('ship gate with teams', () => {
     const ship = shipPolicy(config, DEFAULT_RIGHTS, teams);
     expect(mergeGate({ tier: 3, ci: green, approvals, draft: false, state: 'open', viewer: 'theo', ship }).allowed).toBe(true);
     const out = mergeGate({ tier: 3, ci: green, approvals, draft: false, state: 'open', viewer: 'ana', ship });
-    expect(out.reasons).toEqual(['Only the tech owner can ship this (@acme/web (1 person), @tara).']);
+    expect(out.reasons).toEqual(['Only the tech owner can merge this (@acme/web (1 person), @tara).']);
   });
 
   it('a ship team that cannot be read blocks with the reason and the fix', () => {
@@ -80,7 +80,7 @@ describe('ship gate with teams', () => {
     const ship = shipPolicy(shipTeams, DEFAULT_RIGHTS, unread);
     const g = mergeGate({ tier: 3, ci: green, approvals, draft: false, state: 'open', viewer: 'theo', ship });
     expect(g.allowed).toBe(false);
-    expect(g.reasons[0]).toBe('Only the tech owner can ship this (@acme/web).');
+    expect(g.reasons[0]).toBe('Only the tech owner can merge this (@acme/web).');
     expect(g.reasons[1]).toMatch(/@acme\/web cannot be read: the GitHub token needs read:org/);
   });
 });
@@ -88,9 +88,9 @@ describe('ship gate with teams', () => {
 describe('overview names teams', () => {
   it('a request nobody is on waits for the owners, a team named as a team', () => {
     const request: TodoRequest = { number: 9, component: 'Select', title: 'Add a native Select', status: 'requested', requester: 'ana', assignees: [], prs: [] };
-    const t = overviewTodo({ changes: [], requests: [request], viewer: 'zoe', owners: ['ana', 'bo', 'theo'], ownerNames: ['@acme/design (2 people)', '@acme/web (1 person)'] });
+    const t = overviewTodo({ requestTriage: true, changes: [], requests: [request], viewer: 'zoe', owners: ['ana', 'bo', 'theo'], ownerNames: ['@acme/design (2 people)', '@acme/web (1 person)'] });
     expect(t.others[0]!.why).toContain('Waiting for a design system owner (@acme/design (2 people) or @acme/web (1 person)) to decide.');
-    const mine = overviewTodo({ changes: [], requests: [request], viewer: 'BO', owners: ['ana', 'bo', 'theo'], ownerNames: ['@acme/design (2 people)'] });
+    const mine = overviewTodo({ requestTriage: true, changes: [], requests: [request], viewer: 'BO', owners: ['ana', 'bo', 'theo'], ownerNames: ['@acme/design (2 people)'] });
     expect(mine.mine[0]!.task).toBe('decide');
   });
 });

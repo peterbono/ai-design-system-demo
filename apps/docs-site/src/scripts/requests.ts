@@ -5,7 +5,8 @@
 // Pure rules live in lib/requests-view.ts.
 import { workNature } from '../lib/work-nature';
 import { devTag, markWork, natureAttr } from './work-filter';
-import { badgeHtml, codeBlockHtml } from '@bridge-ds/react/dom';
+import { badgeHtml } from '@bridge-ds/react/dom';
+import { REQUEST_TRIAGE_IN_STUDIO } from '../lib/studio-flags';
 import { assignRequestOnGitHub, closingIssueNumbers, declineReasonProblems, declineRequestOnGitHub, REQUEST_LABEL, REQUEST_STATUS_LABEL, requestIssueTitle, type IntegrationsConfig } from '@bridge-ds/core';
 import {
   assigneeOptions,
@@ -14,7 +15,6 @@ import {
   requestDecision,
   requestTone,
   freshList,
-  implementCommand,
   onItLabel,
   requestImages,
   wantsToChange,
@@ -178,9 +178,12 @@ function paint() {
   $('rq-closed-list').innerHTML = closed.map(rowHtml).join('');
   fillPreviews($('rq-closed-list'));
   const waiting = rows.filter((r) => r.status === 'requested').length;
-  const count = $('rq-count');
-  count.textContent = String(waiting);
-  count.hidden = waiting === 0;
+  // The tab count, only while the Requests tab shows (lib/studio-flags).
+  const count = document.getElementById('rq-count');
+  if (count) {
+    count.textContent = String(waiting);
+    count.hidden = waiting === 0;
+  }
 }
 
 /** Loads (once per page) and paints the Requests view. */
@@ -253,7 +256,7 @@ function primaryAction(r: RequestRow, decide: boolean): string {
   const pr = open ?? r.prs.find((p) => p.merged);
   if (!pr) return '';
   if (pr.exploration) return `<a class="btn btn-primary btn-lg" href="?exploration=${pr.number}" data-open-exploration="${pr.number}">Open the exploration</a>`;
-  return `<a class="btn btn-primary btn-lg" href="?pr=${pr.number}" data-open-pr="${pr.number}">${open ? 'Review the change' : 'Open the change'}</a>`;
+  return `<a class="btn btn-primary btn-lg" href="?pr=${pr.number}" data-open-pr="${pr.number}">${open ? 'Review the branch' : 'Open the branch'}</a>`;
 }
 
 export function renderRequestDetail(r: RequestRow, ctx: DetailContext = { viewer: null, owners: [] }): string {
@@ -274,33 +277,16 @@ export function renderRequestDetail(r: RequestRow, ctx: DetailContext = { viewer
     ? `<ul class="rq-prs">${r.prs
         .map((p) =>
           p.exploration
-            ? `<li><a href="?exploration=${p.number}" data-open-exploration="${p.number}">Exploration #${p.number}</a> <span class="cg-muted">${p.state === 'open' ? 'running' : p.merged ? 'shipped' : 'closed'}${p.author ? `, by @${esc(p.author)}` : ''}</span></li>`
-            : `<li><a href="?pr=${p.number}" data-open-pr="${p.number}">Change #${p.number}</a> <span class="cg-muted">${p.merged ? 'shipped' : p.state === 'open' ? 'in review' : 'closed'}${p.author ? `, by @${esc(p.author)}` : ''}</span></li>`,
+            ? `<li><a href="?exploration=${p.number}" data-open-exploration="${p.number}">Exploration #${p.number}</a> <span class="cg-muted">${p.state === 'open' ? 'running' : p.merged ? 'merged' : 'closed'}${p.author ? `, by @${esc(p.author)}` : ''}</span></li>`
+            : `<li><a href="?pr=${p.number}" data-open-pr="${p.number}">Branch #${p.number}</a> <span class="cg-muted">${p.merged ? 'merged' : p.state === 'open' ? 'in review' : 'closed'}${p.author ? `, by @${esc(p.author)}` : ''}</span></li>`,
         )
         .join('')}</ul>`
     : '';
-  const cmd = implementCommand(r.number);
-  const active = r.status === 'requested' || r.status === 'in-progress';
-  const dev = `<details class="cg-sec cg-dev" id="rq-sec-dev"><summary class="cg-sec-head"><span class="cg-sec-title">For developers</span><span class="cg-sec-meta">${active ? 'Implement with Claude, GitHub' : 'GitHub'}</span><span class="cg-sec-chev" aria-hidden="true"></span></summary>
-    <div class="cg-sec-body">
-      <p>GitHub issue <a href="${esc(r.url)}" target="_blank" rel="noopener">#${r.number}</a>, labeled <span class="mono">component-change</span>. The pull request that implements it says "Closes #${r.number}".${
-        r.prs.length ? ` Linked: ${r.prs.map((p) => `<a href="${esc(p.url)}" target="_blank" rel="noopener">pull request #${p.number}</a>`).join(', ')}.` : ''
-      }</p>
-      ${
-        active
-          ? `<h3 class="ex-dev-h">Implement with Claude</h3>
-      <p>Claude reads the request, the component's files and the repo rules, then opens a pull request that closes #${r.number}.</p>
-      ${codeBlockHtml(cmd, { label: 'Command for Claude Code', codeAttributes: { id: 'rq-cmd' } })}
-      <p class="cg-muted">In Claude with the Bridge MCP server, ask for the <span class="mono">bridge_get_request</span> tool with request ${r.number}.</p>`
-          : ''
-      }
-    </div></details>`;
-
   return `
-  <nav class="cg-crumbs" aria-label="Breadcrumb"><a href="?view=requests" data-back-requests>Requests</a><span aria-hidden="true">/</span><span class="mono">#${r.number}</span></nav>
+  ${crumbs(r.number)}
   <header class="zone cg-pr-open">
     <h1 class="cg-pr-title">${esc(r.component)}: ${esc(r.title.charAt(0).toLowerCase() + r.title.slice(1))} <span class="cg-num">#${r.number}</span></h1>
-    <p class="cg-pr-meta">${badgeHtml(r.kindLabel)}${badgeHtml(r.statusLabel, { tone: r.tone, className: 'rv-status' })}<span>${esc(wantsToChange(r.requester, r.component))}</span><time datetime="${esc(r.createdAt)}">${esc(shortDate(r.createdAt))}</time>${jira}<a href="${esc(r.url)}" target="_blank" rel="noopener">Open on GitHub</a></p>
+    <p class="cg-pr-meta">${badgeHtml(r.kindLabel)}${badgeHtml(r.statusLabel, { tone: r.tone, className: 'rv-status' })}<span>${esc(wantsToChange(r.requester, r.component))}</span><time datetime="${esc(r.createdAt)}">${esc(shortDate(r.createdAt))}</time>${jira}<a class="cg-gh" href="${esc(r.url)}" target="_blank" rel="noopener">Open on GitHub<span class="sr-only"> (opens in a new tab)</span></a></p>
     <p class="cg-pr-state" id="rq-state" role="status" tabindex="-1">${esc(decision.sentence)}</p>
     ${primary ? `<p class="cg-pr-cta rq-decide" id="rq-actions">${primary}</p>` : ''}
     <div id="rq-assign-slot" hidden></div>
@@ -310,16 +296,19 @@ export function renderRequestDetail(r: RequestRow, ctx: DetailContext = { viewer
     ${pictures ? section('rq-sec-images', pictures.title, '', pictures.body, true) : ''}
     ${section('rq-sec-changes', 'Changes', String(changes.length), table, changes.length > 0)}
     ${r.prs.length ? section('rq-sec-build', 'Where it is built', esc(build), buildBody) : ''}
-    ${dev}
   </div>`;
 }
+
+/** The breadcrumb of a request: back to Requests, or to All branches while request triage is off in Studio. */
+const crumbs = (n: number) =>
+  `<nav class="cg-crumbs" aria-label="Breadcrumb">${REQUEST_TRIAGE_IN_STUDIO ? '<a href="?view=requests" data-back-requests>Requests</a>' : '<a href="./" data-back>Branches</a>'}<span aria-hidden="true">/</span><span class="mono">#${n}</span></nav>`;
 
 /** Opens a request in place (?request=N), from the loaded list. */
 export async function openRequest(n: number, push = true, openPulls?: Promise<PullLike[] | null>) {
   if (push) history.pushState({ request: n }, '', `?request=${n}`);
   const d = $('rv-detail');
   d.hidden = false;
-  d.innerHTML = `<nav class="cg-crumbs" aria-label="Breadcrumb"><a href="?view=requests" data-back-requests>Requests</a><span aria-hidden="true">/</span><span class="mono">#${n}</span></nav><p class="rv-loading">Loading request #${n}</p>`;
+  d.innerHTML = `${crumbs(n)}<p class="rv-loading">Loading request #${n}</p>`;
   window.scrollTo({ top: 0 });
   const list = await loadRequests(openPulls);
   const r = list.find((x) => x.number === n);
@@ -327,7 +316,7 @@ export async function openRequest(n: number, push = true, openPulls?: Promise<Pu
   current = r ?? null;
   d.innerHTML = r
     ? renderRequestDetail(r, detailContext())
-    : `<nav class="cg-crumbs" aria-label="Breadcrumb"><a href="?view=requests" data-back-requests>Requests</a><span aria-hidden="true">/</span><span class="mono">#${n}</span></nav><p class="cg-muted">#${n} is not a component change request in ${esc(REPO_KEY)}, or GitHub cannot be read right now. <a href="https://github.com/${esc(REPO_KEY)}/issues/${n}">Open it on GitHub</a>.</p>`;
+    : `${crumbs(n)}<p class="cg-muted">#${n} is not a component change request in ${esc(REPO_KEY)}, or GitHub cannot be read right now. <a href="https://github.com/${esc(REPO_KEY)}/issues/${n}">Open it on GitHub</a>.</p>`;
 }
 
 // ---------------------------------------------------------------------------------------------------------------

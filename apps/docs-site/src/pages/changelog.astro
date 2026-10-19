@@ -2,21 +2,21 @@
 // Library Changelog. One release per card, newest first: what is coming in the next release (pending entries), then
 // each published release with its date and package versions (from the CHANGELOG.md files and the release tags).
 // Each row: kind badge, the title at full width, one line on what it means, a small meta line (bump, packages).
-// The rest of a long release and the internal changes are folded; sources and file paths sit in For developers.
+// The rest of a long release and the internal changes are folded; the releases themselves are one quiet link to GitHub.
 import Layout from '../layouts/Layout.astro';
 import { siteIcon } from '../brand/site-icons';
 import { Badge, Button, EmptyState, Icon, Link, Tag } from '@bridge-ds/react';
 import { Clock, Copy } from 'lucide-react';
-import { releases, releaseDateSource, versionInfo } from '../lib/changelog';
+import { releases, versionInfo } from '../lib/changelog';
 import { shortPackage, type Entry } from '../lib/changelog-model';
 import { mdTitleHtml } from '../lib/markdown';
-import { GITHUB_URL, sourceUrl } from '../lib/repo';
+import { GITHUB_URL } from '../lib/repo';
+import { VOCAB } from '../lib/vocabulary';
 import { PAGE_SOURCES, freshness } from '../lib/sources';
 import { humanDate, repoStatus } from '../lib/stats';
 import LibraryHeader from '../components/LibraryHeader.astro';
 import VersionMenu from '../components/ds/VersionMenu';
 import ReleaseEntries, { KINDS, type EntryRow } from '../components/ds/ReleaseEntries';
-import DevDetails from '../components/ds/DevDetails';
 import '../styles/process.css';
 
 const all = releases();
@@ -36,7 +36,6 @@ const row = (e: Entry): EntryRow => {
 // The version picker lives here: section headers stay title, lead and drawing.
 const version = versionInfo();
 const repo = repoStatus();
-const pendingFiles = all.filter((r) => r.pending).flatMap((r) => r.entries.map((e) => e.ref).filter((x): x is string => Boolean(x)));
 const latest = all.find((r) => !r.pending);
 ---
 
@@ -139,53 +138,5 @@ const latest = all.find((r) => !r.pending);
     )
   }
 
-  <div class="cl-dev">
-    <DevDetails client:visible>
-      <div class="cl-dev-body">
-        <p>
-          Published releases come from each package's <code>CHANGELOG.md</code>, which the release workflow writes from the changesets merged since
-          the last release, then publishes to npm and tags (<code>@bridge-ds/react@1.1.0</code>). {releaseDateSource()}
-        </p>
-        <p>
-          <Link href={`${GITHUB_URL}/releases`} variant="standalone" external>Releases on GitHub</Link>
-        </p>
-        {
-          latest && (
-            <ul class="cl-dev-list" aria-label="Packages in the latest release">
-              {latest.packages.map((p) => (
-                <li>
-                  <code>
-                    {p.name}@{p.version}
-                  </code>{' '}
-                  {p.published ? (
-                    <Link href={`https://www.npmjs.com/package/${p.name}/v/${p.version}`} external>
-                      npm
-                    </Link>
-                  ) : (
-                    <span class="muted">private app, not on npm</span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )
-        }
-        {
-          pendingFiles.length > 0 && (
-            <>
-              <p>Coming in the next release: the pending changesets, one file per change.</p>
-              <ul class="cl-dev-list">
-                {pendingFiles.map((f) => (
-                  <li>
-                    <Link href={sourceUrl(f)}>
-                      <code>{f}</code>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )
-        }
-      </div>
-    </DevDetails>
-  </div>
+  <p class="cl-gh muted small">Every release, with its package versions, is also on GitHub. <Link href={`${GITHUB_URL}/releases`} external>{VOCAB.openOnGitHub}</Link></p>
 </Layout>

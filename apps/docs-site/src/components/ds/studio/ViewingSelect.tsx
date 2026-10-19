@@ -9,7 +9,7 @@ import { LATEST_LABEL, LATEST_VALUE, VIEW_OPTIONS_EVENT, VIEW_PICK_EVENT, VIEW_R
 
 export default function ViewingSelect() {
   // Rendered on the server as the latest library; the address decides once the script answers.
-  const [state, setState] = useState<ViewOptionsDetail>({ options: [{ value: LATEST_VALUE, label: LATEST_LABEL, description: 'What is shipped' }], value: LATEST_VALUE });
+  const [state, setState] = useState<ViewOptionsDetail>({ options: [{ value: LATEST_VALUE, label: LATEST_LABEL, description: 'The published library' }], value: LATEST_VALUE });
   useEffect(() => {
     const on = (e: Event) => setState((e as CustomEvent<ViewOptionsDetail>).detail);
     document.addEventListener(VIEW_OPTIONS_EVENT, on);

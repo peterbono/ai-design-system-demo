@@ -58,23 +58,23 @@ export function toggleChange(selected: number[], n: number, on: boolean): Toggle
 /** Only changes still in the list stay selected (one shipped or closed meanwhile goes). */
 export const keepListed = (selected: number[], listed: number[]) => selected.filter((n) => listed.includes(n));
 
-export const tryLabel = (n: number) => `Try ${n} changes together`;
+export const tryLabel = (n: number) => `Try ${n} branches together`;
 export const VIEW_LABEL = 'View the library with them';
 
 /**
  * Before anyone picks: the list shows no checkboxes (progressive disclosure, one action instead of one box per row).
  * The bar says what trying together does and offers one button that turns the checkboxes on.
  */
-export const INTRO_LINE = `Try 2 to ${MAX_TOGETHER} token changes together before they ship.`;
-export const CHOOSE_LABEL = 'Choose changes';
+export const INTRO_LINE = `Try 2 to ${MAX_TOGETHER} token branches together before they merge.`;
+export const CHOOSE_LABEL = 'Choose branches';
 export const CANCEL_LABEL = 'Cancel';
 
 /** The bar's sentence before the combination is read: what to do next. */
 export function selectionLine(count: number, refused: boolean): string {
-  if (refused) return `Up to ${MAX_TOGETHER} changes at a time. Uncheck one to add another.`;
-  if (count === 0) return `Check 2 to ${MAX_TOGETHER} token changes to try them together.`;
-  if (count === 1) return 'Check one more token change to try them together.';
-  return `Combining ${count} changes.`;
+  if (refused) return `Up to ${MAX_TOGETHER} branches at a time. Uncheck one to add another.`;
+  if (count === 0) return `Check 2 to ${MAX_TOGETHER} token branches to try them together.`;
+  if (count === 1) return 'Check one more token branch to try them together.';
+  return `Combining ${count} branches.`;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -94,9 +94,9 @@ export function namesOf(changes: TogetherChange[]): string {
 
 /** "Combines 3 tokens from 3 changes." What the combination does, from its own numbers (tokens by name). */
 export function combineSummary(x: { changes: number; tokens: number; conflicts: number; missing: number }): string {
-  const base = `Combines ${plural(x.tokens, 'token')} from ${plural(x.changes, 'change')}.`;
+  const base = `Combines ${plural(x.tokens, 'token')} from ${plural(x.changes, 'branch', 'branches')}.`;
   if (!x.conflicts) return base;
-  if (x.missing) return `${base} ${x.missing === 1 ? '1 token has' : `${x.missing} tokens have`} different values in these changes: pick which one to use.`;
+  if (x.missing) return `${base} ${x.missing === 1 ? '1 token has' : `${x.missing} tokens have`} different values in these branches: pick which one to use.`;
   return `${base} You picked the value of ${plural(x.conflicts, 'token')} they set differently.`;
 }
 
@@ -110,10 +110,10 @@ export interface TogetherGuardrail {
 export function togetherGuardrail(review: Pick<TokenReview, 'contrast' | 'checked' | 'problems'>, max = 4): TogetherGuardrail {
   const fails = review.contrast.filter((p) => p.after < p.min);
   const failing = fails.slice(0, max).map((p) => ({ pair: `${p.fg} on ${p.bg}`, where: p.where, ratio: `${p.after.toFixed(2)}:1`, min: `${p.min}:1` }));
-  if (review.problems.length) return { ok: false, sentence: `These changes do not build together: ${review.problems[0]}`, failing };
-  if (fails.length) return { ok: false, sentence: `${plural(fails.length, 'contrast check')} ${fails.length === 1 ? 'fails' : 'fail'} with these changes together. The token build would block ${fails.length === 1 ? 'it' : 'them'}: try another pick, or fix it in one of the changes.`, failing };
+  if (review.problems.length) return { ok: false, sentence: `These branches do not build together: ${review.problems[0]}`, failing };
+  if (fails.length) return { ok: false, sentence: `${plural(fails.length, 'contrast check')} ${fails.length === 1 ? 'fails' : 'fail'} with these branches together. The token build would block ${fails.length === 1 ? 'it' : 'them'}: try another pick, or fix it in one of the branches.`, failing };
   const checked = review.checked ?? 0;
-  return { ok: true, sentence: checked ? `All ${checked} contrast checks pass with these changes together.` : 'No contrast check depends on these tokens.', failing };
+  return { ok: true, sentence: checked ? `All ${checked} contrast checks pass with these branches together.` : 'No contrast check depends on these tokens.', failing };
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -164,7 +164,7 @@ export function togetherRows(conflicts: CombineConflict[], ctx: { latest: Record
       o.changes.map((change) => {
         const edit: CombineEdit = { key: c.key, file: c.file, path: c.path, change, token: o.token };
         const set: TokenSet = buildTokenSet(combineChanges(ctx.latest, [{ number: change, edits: [edit], problems: [] }]).files, ctx.options);
-        return { change, label: useLabel(ctx.titles.get(change) ?? `change #${change}`), value: sideValue(set, c.file, o.token) };
+        return { change, label: useLabel(ctx.titles.get(change) ?? `branch #${change}`), value: sideValue(set, c.file, o.token) };
       }),
     ),
   }));

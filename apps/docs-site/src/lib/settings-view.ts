@@ -1,8 +1,7 @@
 // Studio Settings: the plain words behind two rows. Pure helpers, covered by settings-view.test.ts.
 //
 // - Approvals as a rule list without tier numbers, built from the Risk tiers table of docs/GOVERNANCE.md (the same
-//   rows the tier table under "For developers" shows), so the plain list never drifts from the rules.
-// - The one terminal command that connects a designer's own Claude to this repository through the MCP server.
+//   rows How review works shows), so the plain list never drifts from the rules.
 // - The Account block for each connection state, and the owner override as one line.
 import type { TierSummary } from './governance';
 import { noReachText, readOnlyText } from './github-signin';
@@ -52,14 +51,6 @@ export function approvalRules(tiers: Pick<TierSummary, 'tier' | 'approvals' | 'e
 
 /** The rule as one sentence: "Token changes: design owner + tech owner." */
 export const ruleSentence = (r: ApprovalRule) => `${r.what}: ${r.who}.`;
-
-/** Placeholder the person replaces with their own GitHub token. Bridge never fills it in. */
-export const TOKEN_PLACEHOLDER = '<your token>';
-
-/** The one command that adds Bridge to Claude Code for this repository (user scope, token from the environment). */
-export function mcpAddCommand(repo: string): string {
-  return `claude mcp add bridge -s user -e GITHUB_TOKEN=${TOKEN_PLACEHOLDER} -- npx -y @bridge-ds/mcp --repo ${repo}`;
-}
 
 /** Settings > Account: the four states of the GitHub connection, as the page shows them. */
 export type AccountState = 'checking' | 'connected' | 'readonly' | 'rejected';
@@ -138,14 +129,14 @@ export function accountView(state: AccountState, at: AccountFacts): AccountView 
       return at.signIn
         ? {
             zone: true,
-            title: 'Sign in with GitHub to approve and send changes.',
+            title: 'Sign in with GitHub to approve and request reviews.',
             detail: `Until then Studio only reads ${at.repo}.`,
             action: 'Sign in with GitHub',
             actionKind: 'signin',
           }
         : {
             zone: true,
-            title: 'Connect GitHub to approve and send changes.',
+            title: 'Connect GitHub to approve and request reviews.',
             detail: `Until then Studio only reads ${at.repo}.`,
             action: 'Connect GitHub',
             actionKind: 'token',
@@ -155,8 +146,8 @@ export function accountView(state: AccountState, at: AccountFacts): AccountView 
 
 /** The owner override in one line, for its fold in Review rules. */
 export function overrideText(o: { allowed: string[]; requireReason?: boolean; minReasonLength?: number }): { on: boolean; text: string } {
-  if (!o.allowed.length) return { on: false, text: 'Every change waits for its approvals before it ships.' };
+  if (!o.allowed.length) return { on: false, text: 'Every branch waits for its approvals before it is merged.' };
   const who = o.allowed.map((l) => `@${l}`).join(', ');
   const reason = o.requireReason ? `, with a written reason of ${o.minReasonLength ?? 0} characters or more` : '';
-  return { on: true, text: `${who} may ship a change when only approvals are missing${reason}.` };
+  return { on: true, text: `${who} may merge a branch when only approvals are missing${reason}.` };
 }

@@ -26,5 +26,5 @@ export function loadExplorerData(): ExplorerData {
   const modes = modesOf(head);
   const tokens = buildTokens(head, usage);
   const reads = readsByComponent(readJson<Record<string, { name: string; paths: string[] }>>('xp-components', {}));
-  return { set: head, head, tokens, byPath: new Map(tokens.map((t) => [t.path, t])), usage, pairs, results, before: [], modes, tokensRoot: config.tokens.root, reads };
+  return { set: head, head, tokens, byPath: new Map(tokens.map((t) => [t.path, t])), usage, pairs, results, before: [], modes, tokensRoot: config.tokens.root, repo: config.repo ?? undefined, reads };
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { overviewProtectionLine, protectionDetails, protectionRow, type ProtectionRowState } from './protection-view';
+import { overviewProtectionLine, protectionRow, type ProtectionRowState } from './protection-view';
 
 const RULES = 'https://github.com/acme/ds/settings/rules';
 const ALL = ['review', 'checks', 'history', 'deletion'] as const;
@@ -9,7 +9,7 @@ describe('protectionRow', () => {
     const v = protectionRow({ kind: 'protected', missing: [], url: 'https://github.com/acme/ds/rules/1' }, RULES);
     expect(v.text).toBe('Protected: every change goes through review.');
     expect(v.action).toBeUndefined();
-    expect(v.link).toEqual({ label: 'View on GitHub', href: 'https://github.com/acme/ds/rules/1' });
+    expect(v.link).toEqual({ label: 'Open on GitHub', href: 'https://github.com/acme/ds/rules/1' });
     expect(protectionRow({ kind: 'protected', missing: [] }, RULES).link?.href).toBe(RULES);
   });
 
@@ -53,15 +53,5 @@ describe('overviewProtectionLine', () => {
     expect(overviewProtectionLine({ kind: 'unprotected', missing: [...ALL] }, false)).toBeNull();
     expect(overviewProtectionLine({ kind: 'partial', missing: ['checks'] }, true)).toBeNull();
     expect(overviewProtectionLine({ kind: 'unknown', missing: [...ALL] }, true)).toBeNull();
-  });
-});
-
-describe('protectionDetails', () => {
-  it('names the ruleset, the rules and the checks for developers', () => {
-    const d = protectionDetails('main', ['Guardrails', 'Docs site']).join('\n');
-    expect(d).toContain('"Protect the library (main)"');
-    expect(d).toContain('force pushes');
-    expect(d).toContain('Guardrails, Docs site');
-    expect(protectionDetails('main', []).join('\n')).toContain('Requires no status checks');
   });
 });

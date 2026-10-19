@@ -19,6 +19,16 @@ import type { WhoActs } from './changes';
 import { wantsToChange } from './requests-view';
 import type { WorkNature } from './work-nature';
 import { todoBadge, type Lifecycle, type LifecycleTone } from './change-status';
+import { VOCAB } from './vocabulary';
+
+import { REQUEST_TRIAGE_IN_STUDIO } from './studio-flags';
+
+/**
+ * Request triage (decide, assign, decline component change requests) is off in Studio: teams triage in Jira. The
+ * request rows below stay in the code and come back with the flag (lib/studio-flags), or per call with
+ * TodoInput.requestTriage.
+ */
+export { REQUEST_TRIAGE_IN_STUDIO };
 
 /**
  * What the row asks for. The first four are decisions; blocked rows wait on a developer; waiting rows on another
@@ -99,6 +109,8 @@ export interface TodoInput {
    * components with none. Each list becomes one row, for anyone: reviewing guidance is a designer decision.
    */
   guidance?: { drafted: GuidanceItem[]; missing: GuidanceItem[] };
+  /** Show the component change request rows (triage). Default REQUEST_TRIAGE_IN_STUDIO: off. */
+  requestTriage?: boolean;
 }
 
 export interface GuidanceItem {
@@ -147,7 +159,7 @@ export function blockerOf(c: TodoChange, who: WhoActs, viewer: string | null): {
       return { what: n > 1 ? `${n} tests fail` : 'tests fail', fix: 'fix them' };
     }
     case 'resolve-conflict':
-      return { what: 'it clashes with the latest library', fix: 'update it' };
+      return { what: `it clashes with ${VOCAB.main}`, fix: 'update it' };
     case 'address-changes': {
       const by = c.changesBy ?? [];
       const asker = by.some((b) => same(b, viewer)) ? 'you' : by.length ? at(by) : 'a reviewer';
@@ -156,7 +168,7 @@ export function blockerOf(c: TodoChange, who: WhoActs, viewer: string | null): {
     case 'mark-ready':
       return { what: 'it is still a draft', fix: 'finish it' };
     case 'promote':
-      return { what: 'it is still an exploration', fix: 'send it for review' };
+      return { what: 'it is still an exploration', fix: 'request a review' };
     default:
       return null;
   }
@@ -170,16 +182,16 @@ function changeRow(c: TodoChange, input: TodoInput): { group: Group; row: TodoRo
   const base = { key: `change-${c.number}`, kind: 'change' as const, title: c.title, href: changeHref(c.number) };
   // The lifecycle badge of the row, in the same words and tone as the status line (lib/change-status todoBadge). Only when the state is known.
   const state = c.lifecycle ? { state: { lifecycle: c.lifecycle, ...todoBadge(c.lifecycle) } } : {};
-  const open = (group: Group, task: TodoTask, why: string) => ({ group, row: { ...base, task, why, action: 'Open change', ...state } });
+  const open = (group: Group, task: TodoTask, why: string) => ({ group, row: { ...base, task, why, action: 'Open branch', ...state } });
   // Code only: no design decision waits on anyone in the Studio.
   if (c.nature === 'developer') return open('devWork', 'waiting', 'Developer work.');
   const who = c.who;
   if (!who) return open('others', input.loading ? 'checking' : 'waiting', input.loading ? 'Checking what it needs.' : 'Open it to see what it needs.');
   // Approved, waiting for code: the design side is done, a developer finishes it. No designer action.
-  if (c.lifecycle === 'waiting') return open('developer', 'blocked', 'Design is approved. A developer finishes the code before it ships.');
+  if (c.lifecycle === 'waiting') return open('developer', 'blocked', 'Design is approved. A developer finishes the code before it is merged.');
   // The viewer's own draft (not one an agent made with their account): marking it ready is theirs to do.
   if (who.action === 'mark-ready' && who.yourTurn && viewer && !c.agent)
-    return { group: 'mine', row: { ...base, task: 'finish', why: 'Reviewers are not asked until you mark it ready.', action: 'Open draft', ...state } };
+    return { group: 'mine', row: { ...base, task: 'finish', why: 'Reviewers are not asked until you request a review.', action: 'Open draft', ...state } };
 
   // Technical blockers: named, delegated to the author, or to "a developer" when the author is the viewer.
   const block = blockerOf(c, who, viewer);
@@ -203,16 +215,16 @@ function changeRow(c: TodoChange, input: TodoInput): { group: Group; row: TodoRo
 
 /** The exact task of a change that waits for the viewer, and what happens once it is done. */
 function yourTask(c: TodoChange, who: WhoActs, task: TodoTask): { why: string; action: string } {
-  if (task === 'ship') return { why: 'Approved and tested. Shipping puts it in the next release.', action: 'Ship' };
+  if (task === 'ship') return { why: 'Approved and tested. Merging puts it in the next release.', action: VOCAB.merge };
   const override = who.action === 'override';
   if (task === 'guidance') {
-    if (override) return { why: 'Usage guidance changed and no other owner can approve it. Read it, then ship it with the owner override.', action: 'Review guidance' };
+    if (override) return { why: 'Usage guidance changed and no other owner can approve it. Read it, then merge it with the owner override.', action: 'Review guidance' };
     return { why: 'Usage guidance changed. Read it, then approve it or edit it.', action: 'Review guidance' };
   }
   const seen = c.visual === 'ready' ? 'Before and after are ready. ' : c.visual === 'none' ? 'Nothing changes on screen. ' : '';
-  if (override) return { why: `${seen}No other owner can approve it. Check the design, then ship it with the owner override.`, action: 'Review design' };
+  if (override) return { why: `${seen}No other owner can approve it. Check the design, then merge it with the owner override.`, action: 'Review design' };
   // One approval ships it; a design approval is one of two (the tech review comes after).
-  if (who.action === 'approve') return { why: `${seen}Your approval lets it ship.`, action: 'Review design' };
+  if (who.action === 'approve') return { why: `${seen}Your approval lets it merge.`, action: 'Review design' };
   return { why: `${seen}Your design approval is the next step.`, action: 'Review design' };
 }
 
@@ -295,7 +307,7 @@ export function overviewTodo(input: TodoInput): Todo {
 
   if (input.unprotected && owner) groups.mine.push({ key: 'protect', kind: 'setup', task: 'setup', title: 'Protect your library', why: 'Anyone can change it without a review. Protecting it asks for one first.', action: 'Protect it', href: '/studio/settings/#protection' });
 
-  for (const r of input.requests) {
+  for (const r of (input.requestTriage ?? REQUEST_TRIAGE_IN_STUDIO) ? input.requests : []) {
     // In progress: its change is in the list above. Done and declined wait for nobody.
     if (r.status !== 'requested') continue;
     if (r.nature === 'developer') {
@@ -326,9 +338,9 @@ export function overviewTodo(input: TodoInput): Todo {
   return { headline: headlineFor(mine, viewer), mine, developer: groups.developer, others: groups.others, devWork: groups.devWork };
 }
 
-/** The folded developer line: "3 changes wait on a developer". */
+/** The folded developer line: "3 branches wait on a developer". */
 export function developerLine(n: number): string {
-  return n ? `${n} ${n === 1 ? 'change waits' : 'changes wait'} on a developer` : '';
+  return n ? `${n} ${n === 1 ? `${VOCAB.branch} waits` : `${VOCAB.branches} wait`} on a developer` : '';
 }
 
 /**

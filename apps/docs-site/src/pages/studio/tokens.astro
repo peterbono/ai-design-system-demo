@@ -8,6 +8,6 @@ import { PAGE_SOURCES, freshness } from '../../lib/sources';
 const updated = freshness(PAGE_SOURCES.explorer);
 ---
 
-<Layout title="Tokens" description="Edit tokens into a draft: live preview of real components, the same guardrails as CI, and a pull request when it is ready." sources={PAGE_SOURCES.explorer} updated={updated} wide>
+<Layout title="Tokens" description="Edit tokens into a draft: live preview of real components, the same guardrails as the build, and a branch to review when it is ready." sources={PAGE_SOURCES.explorer} updated={updated} wide>
   <TokenExplorerSlot mode="edit" />
 </Layout>

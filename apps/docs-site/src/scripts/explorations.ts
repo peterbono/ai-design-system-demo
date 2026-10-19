@@ -1,4 +1,4 @@
-// Studio Changes > Explorations: the list (summary first), the detail in place (?exploration=N), the "Start an
+// Studio Branches > Explorations: the list (summary first), the detail in place (?exploration=N), the "Start an
 // exploration" form, and Promote to review / Close. An exploration is a draft pull request labeled `exploration` on an
 // `explore/<slug>` branch; starting, promoting and closing go through the core helpers (explorations-github.ts) with
 // the viewer's token, the same code the MCP server and the CLI run. Reads stay inside the anonymous budget: the open
@@ -19,11 +19,8 @@ import {
   explorationRows,
   explorationStateLine,
   explorationsSummary,
-  implementOnCommand,
   openRequestNumbers,
-  promoteCommand,
   runningCount,
-  startCommand,
   startProblems,
   type ExplorationPullLike,
   type ExplorationRow,
@@ -31,8 +28,6 @@ import {
   promoteAsk,
   promotedLine,
   purposeLine,
-  tryItCopy,
-  tryItFromComments,
   useCaseHint,
 } from '../lib/explorations-view';
 import { touchesVisuals } from '../lib/visual-impact';
@@ -42,12 +37,13 @@ import { loadVisualImpact, renderTopChange } from './reviews/visual-impact';
 import { explorationFromRequest, type PullLike, type RequestRow } from '../lib/requests-view';
 import { explorationWork } from '../lib/work-nature';
 import { devTag, markWork, natureAttr } from './work-filter';
-import { badgeHtml, codeBlockHtml } from '@bridge-ds/react/dom';
+import { badgeHtml } from '@bridge-ds/react/dom';
 import { currentViewer, esc, ghGet, hasWorkingToken, initGitHubConnect, prefersSignIn, RateLimitError, readRepo, relativeTime, setButtonBusy, showGhError } from './github-session';
 import { ghAction, rateLimitedLine } from '../lib/gh-wording';
 import { explorationClient, explorationsConfig, startLinkedExploration } from './exploration-start';
 import { forgetRequests, loadRequestRows, requestRow } from './requests';
 import { setSelect } from '../lib/select-bridge';
+import { jiraKeyOf, parseJiraKey, VOCAB } from '../lib/vocabulary';
 
 // The use case menu of Start an exploration (BridgedSelect id).
 const USE_CASE = 'ex-use-case';
@@ -96,10 +92,11 @@ function rowHtml(r: ExplorationRow) {
   const preview = r.previews[0];
   const w = workOf(r);
   const nature = w.nature.nature;
+  const key = jiraKeyOf(pullsBy.get(r.number)?.title ?? '');
   const reqs = r.requests.length ? `, ${r.requests.length} ${r.requests.length === 1 ? 'request' : 'requests'}` : '';
   return `<li class="cg-row ex-row" data-exploration="${r.number}" ${natureAttr(nature)}>
     <div class="ex-row-main">
-      <p class="ex-row-title"><a class="ex-name" href="?exploration=${r.number}" data-open-exploration="${r.number}">${esc(r.name)}</a> <span class="cg-num">#${r.number}</span> ${badgeHtml(r.statusLabel, { tone: r.tone, size: 'sm', className: 'rv-status' })} ${devTag(nature)}</p>
+      <p class="ex-row-title">${key ? `<span class="mono cg-jira">${esc(key)}</span> ` : ''}<a class="ex-name" href="?exploration=${r.number}" data-open-exploration="${r.number}">${esc(r.name)}</a> <span class="cg-num">#${r.number}</span> ${badgeHtml(r.statusLabel, { tone: r.tone, size: 'sm', className: 'rv-status' })} ${devTag(nature)}</p>
       ${purposeLine(r.name, r.purpose) ? `<p class="ex-purpose">${esc(r.purpose)}</p>` : ''}
       <p class="ex-meta">@${esc(r.author)}${w.maker.kind === 'claude' ? ' with Claude' : ''}, updated <time datetime="${esc(r.updatedAt)}">${esc(shortDate(r.updatedAt))}</time>${esc(reqs)}${preview ? `, <a href="${esc(preview.url)}" target="_blank" rel="noopener">${esc(preview.label)} preview</a>` : ''}</p>
     </div>
@@ -156,7 +153,7 @@ export function loadExplorations(openPulls?: () => Promise<ExplorationPullLike[]
 
 function readStart(form: HTMLFormElement) {
   const v = (name: string) => ((form.elements.namedItem(name) as HTMLInputElement | null)?.value ?? '').toString();
-  return { name: v('name'), purpose: v('purpose'), useCase: v('useCase') };
+  return { name: v('name'), purpose: v('purpose'), useCase: v('useCase'), jira: v('jira') };
 }
 
 function paintStartAuth() {
@@ -167,10 +164,6 @@ function paintStartAuth() {
 
 function paintStartPreview(form: HTMLFormElement) {
   const f = readStart(form);
-  const branch = branchFor(f.name);
-  // Developer details live in the form's "For developers" disclosure: the branch and the CLI equivalent.
-  $('ex-branch').textContent = `Creates ${branch ?? 'explore/<name>'} from ${CFG.defaultBranch} and a draft pull request labeled exploration.`;
-  $('ex-start-cmd').textContent = startCommand(f);
   $('ex-uc-hint').textContent = useCaseHint(f.useCase);
 }
 
@@ -256,6 +249,13 @@ function wireStart() {
     e.preventDefault();
     const f = readStart(form);
     const problems = startProblems(f);
+    let jira: string | null = null;
+    try {
+      jira = parseJiraKey(f.jira);
+    } catch (err) {
+      problems.push((err as Error).message);
+      form.querySelector('[name="jira"]')?.setAttribute('aria-invalid', 'true');
+    }
     if (problems.length) {
       if (!branchFor(f.name)) form.querySelector('[name="name"]')?.setAttribute('aria-invalid', 'true');
       if (!f.purpose.trim()) form.querySelector('[name="purpose"]')?.setAttribute('aria-invalid', 'true');
@@ -265,7 +265,7 @@ function wireStart() {
       return;
     }
     if (!hasWorkingToken()) {
-      error.textContent = `${ghAction('start it here', prefersSignIn())}, or run the command below in the design system repo.`;
+      error.textContent = `${ghAction('start it here', prefersSignIn())}.`;
       error.hidden = false;
       return;
     }
@@ -276,7 +276,7 @@ function wireStart() {
       const author = currentViewer()?.login;
       const { started: s, link } = await startLinkedExploration(
         CFG,
-        { name: f.name, purpose: f.purpose, ...(f.useCase ? { useCase: f.useCase as ExplorationUseCase } : {}), ...(author ? { author } : {}) },
+        { name: f.name, purpose: f.purpose, ...(f.useCase ? { useCase: f.useCase as ExplorationUseCase } : {}), ...(author ? { author } : {}), ...(jira ? { jira } : {}) },
         req ? { number: req.number, title: requestIssueTitle(req) } : null,
       );
       let linked = '';
@@ -314,11 +314,6 @@ function section(id: string, title: string, meta: string, body: string, open = f
 
 const crumbs = (n: number) => `<nav class="cg-crumbs" aria-label="Breadcrumb"><a href="?view=explorations" data-back-explorations>Explorations</a><span aria-hidden="true">/</span><span class="mono">#${n}</span></nav>`;
 
-/** A command to copy: the DS CodeBlock markup, its copy wired once by shell.ts (bindCodeBlocks). */
-function cmdRow(id: string, cmd: string, label: string) {
-  return codeBlockHtml(cmd, { label, codeAttributes: { id } });
-}
-
 /** The preview rows: one per app, a link with its designer name, or what is missing on the same line. */
 export function previewList(previews: BranchPreview[]): string {
   return `<ul class="ex-previews">${previews
@@ -327,56 +322,30 @@ export function previewList(previews: BranchPreview[]): string {
     .join('')}</ul>`;
 }
 
-/** The preview hosts, for developers: which deploy each link opens. */
-function previewHosts(previews: BranchPreview[]): string {
-  const rows = previews.map(previewRowCopy).filter((p) => p.host);
-  return rows.length ? `<p class="cg-muted">Preview deploys: ${rows.map((p) => `${esc(p.label)} <span class="mono">${esc(p.host!)}</span>`).join(', ')}.</p>` : '';
-}
-
 export function renderExplorationDetail(r: ExplorationRow, opts: { connected: boolean }): string {
   const actions =
     r.status !== 'active'
-      ? `<a class="btn btn-primary btn-lg" href="?pr=${r.number}" data-open-pr="${r.number}">Open the change</a>`
+      ? `<a class="btn btn-primary btn-lg" href="?pr=${r.number}" data-open-pr="${r.number}">Open the branch</a>`
       : opts.connected
         ? `<button type="button" class="btn btn-primary btn-lg" data-ex-promote="${r.number}">Promote to review</button> <button type="button" class="btn btn-secondary btn-lg" data-ex-close-ask="${r.number}">Close</button>`
         : `<button type="button" class="btn btn-primary btn-lg" data-gh-open>${ghAction('promote it', prefersSignIn())}</button>`;
   // Filled again by paintTryIt with what Vercel reports: a long branch alias is shortened with a hash, never guessed.
   const resolved = explorationPreviews(r, CFG.apps);
   const previews = resolved.length ? `<div id="ex-previews" aria-live="polite">${previewList(resolved)}</div>` : '<p class="cg-muted">Previews are not set up for this library yet.</p>';
-  // Filled by paintTryIt from the pull request's preview comment: the command that works, never a guess.
-  const install = CFG.packages.length
-    ? `<div id="ex-tryit" aria-live="polite"><p class="cg-muted">Checking the test build.</p></div>`
-    : '<p class="cg-muted">No snapshot package configured: add previews.packages to bridge.config.json.</p>';
   const reqs = r.requests.length
     ? `<ul class="rq-prs">${r.requests.map((q) => `<li><a href="?request=${q.number}" data-open-request="${q.number}">${esc(q.component)}: ${esc(q.title)}</a> <span class="cg-muted">#${q.number}, ${esc(q.statusLabel)}</span></li>`).join('')}</ul>`
     : '<p class="cg-muted">No request is built on this exploration yet.</p>';
-  const first = r.requests.find((q) => q.open)?.number ?? null;
   const purpose = purposeLine(r.name, r.purpose);
-  const dev = `<details class="cg-sec cg-dev" id="ex-sec-dev"><summary class="cg-sec-head"><span class="cg-sec-title">For developers</span><span class="cg-sec-meta">Install, CLI and GitHub</span><span class="cg-sec-chev" aria-hidden="true"></span></summary>
-    <div class="cg-sec-body">
-      <p>Branch <span class="mono">${esc(r.branch)}</span>, draft pull request <a href="${esc(r.url)}" target="_blank" rel="noopener">#${r.number} on GitHub</a>. It is never merged as is: promoting it removes the exploration label and marks it ready for review.</p>
-      <div id="ex-dev-hosts">${previewHosts(resolved)}</div>
-      <h3 class="ex-dev-h">Try it in a product staging branch</h3>
-      ${install}
-      ${
-        r.status === 'active'
-          ? `<h3 class="ex-dev-h">Implement on this exploration</h3>
-      <p>Claude works on ${esc(r.branch)}, never on ${esc(CFG.defaultBranch)}, and never opens a pull request to ${esc(CFG.defaultBranch)}.</p>
-      ${cmdRow('ex-implement-cmd', implementOnCommand(first, r.branch), 'Command for Claude Code')}
-      <p class="cg-muted">In Claude Code with the Bridge MCP server, ask to work on exploration ${esc(r.slug)}: token edits take <span class="mono">branch: "${esc(r.branch)}"</span>, and <span class="mono">bridge_start_exploration</span> starts a new one.</p>
-      <p class="cg-muted">Promote from a terminal: <code class="mono">${esc(promoteCommand(r.slug))}</code>, or "Ready for review" on GitHub and remove the exploration label.</p>`
-          : ''
-      }
-    </div></details>`;
+  const key = jiraKeyOf(pullsBy.get(r.number)?.title ?? '');
   return `${crumbs(r.number)}
   <header class="zone cg-pr-open">
-    <h1 class="cg-pr-title">${esc(r.name)} <span class="cg-num">#${r.number}</span></h1>
+    <h1 class="cg-pr-title">${key ? `<span class="mono cg-jira">${esc(key)}</span> ` : ''}${esc(r.name)} <span class="cg-num">#${r.number}</span></h1>
     ${purpose ? `<p class="ex-purpose-line">${esc(purpose)}</p>` : ''}
-    <p class="cg-pr-meta">${badgeHtml(r.statusLabel, { tone: r.tone, className: 'rv-status' })}${badgeHtml('Exploration', { className: 'cg-tier' })}${r.useCaseLabel ? `<span>${esc(r.useCaseLabel)}</span>` : ''}<span>@${esc(r.author)}</span><span>Updated ${esc(relativeTime(r.updatedAt))}</span></p>
+    <p class="cg-pr-meta">${badgeHtml(r.statusLabel, { tone: r.tone, className: 'rv-status' })}${badgeHtml('Exploration', { className: 'cg-tier' })}${r.useCaseLabel ? `<span>${esc(r.useCaseLabel)}</span>` : ''}<span>@${esc(r.author)}</span><span>Updated ${esc(relativeTime(r.updatedAt))}</span><a class="cg-gh" href="${esc(r.url)}" target="_blank" rel="noopener">${VOCAB.openOnGitHub}<span class="sr-only"> (opens in a new tab)</span></a></p>
     <p class="cg-pr-state">${esc(explorationStateLine(r.status))}</p>
     <div class="cg-pr-cta ex-actions" id="ex-actions">${actions}</div>
     <div class="ex-confirm" id="ex-confirm" hidden>
-      <p>Close ${esc(r.name)} without shipping it? Its previews stay for reference.</p>
+      <p>Close ${esc(r.name)} without merging it? Its previews stay for reference.</p>
       <p class="ex-actions"><button type="button" class="btn btn-secondary rv-danger" data-ex-close="${r.number}">Close exploration</button> <button type="button" class="btn btn-secondary" data-ex-close-cancel>Keep it</button></p>
     </div>
     <p class="gh-error" id="ex-action-error" role="alert" hidden></p>
@@ -391,18 +360,16 @@ export function renderExplorationDetail(r: ExplorationRow, opts: { connected: bo
   </section>
   <div class="cg-secs">
     ${section('ex-sec-requests', 'Requests built on it', String(r.requests.length), reqs, r.requests.length > 0)}
-    ${dev}
   </div>`;
 }
 
 let current: ExplorationRow | null = null;
 
 /**
- * The install command from the pull request's sticky preview comment, or "being prepared", and the preview URLs
- * Vercel reports (its comment on the pull request, the head commit's statuses). Two reads.
+ * The preview URLs Vercel reports (its comment on the branch, the head's statuses). Two reads. A failed read keeps
+ * the previews painted from the configured templates.
  */
 async function paintTryIt(r: ExplorationRow) {
-  let html: string;
   let sources: BranchPreviewSources | null = null;
   try {
     const [comments, statuses] = await Promise.all([
@@ -410,20 +377,12 @@ async function paintTryIt(r: ExplorationRow) {
       ghGet<{ statuses: { context: string; state: string; target_url?: string | null }[] }>(`${R}/commits/${r.headSha}/status`).then((f) => f.data.statuses).catch(() => []),
     ]);
     sources = { comments, statuses };
-    const t = tryItCopy(tryItFromComments(comments, r.headSha));
-    html = `<p>${esc(t.sentence)}</p>${t.command ? cmdRow('ex-install-cmd', t.command, 'Install command') : ''}`;
-  } catch (err) {
-    html = `<p class="cg-muted">${err instanceof RateLimitError ? `GitHub limits anonymous reads. ${ghAction('see the install command here', prefersSignIn())}.` : `Could not read the pull request comments: ${esc((err as Error).message)}.`} The "Try this exploration in your product" comment on <a href="${esc(r.url)}" target="_blank" rel="noopener">#${r.number}</a> has it.</p>`;
+  } catch {
+    return;
   }
-  if (current?.number !== r.number) return;
-  const el = document.getElementById('ex-tryit');
-  if (el) el.innerHTML = html;
-  if (!sources) return;
-  const resolved = explorationPreviews(r, CFG.apps, sources);
+  if (current?.number !== r.number || !sources) return;
   const pv = document.getElementById('ex-previews');
-  if (pv) pv.innerHTML = previewList(resolved);
-  const hosts = document.getElementById('ex-dev-hosts');
-  if (hosts) hosts.innerHTML = previewHosts(resolved);
+  if (pv) pv.innerHTML = previewList(explorationPreviews(r, CFG.apps, sources));
 }
 
 /**
@@ -441,7 +400,7 @@ async function paintVisual(r: ExplorationRow) {
       slot.innerHTML = '<p class="cg-line rv-what-quiet">Nothing here changes how components look yet. The before and after appears once tokens or components change.</p>';
       return;
     }
-    // The full list is not repeated here: "See all" opens the change, where every screen is listed.
+    // The full list is not repeated here: "See all" opens the branch, where every screen is listed.
     const v = await loadVisualImpact(
       document.createElement('div'),
       { owner: CFG.owner, repo: CFG.repo, pr: r.number, sha: r.headSha, actionsUrl: `https://github.com/${CFG.owner}/${CFG.repo}/actions/workflows/visual-impact.yml` },
@@ -479,7 +438,7 @@ export async function openExploration(n: number, push = true) {
   current = r;
   d.innerHTML = r
     ? renderExplorationDetail(r, { connected: connected() })
-    : `${crumbs(n)}<p class="cg-muted">#${n} is not an exploration in ${esc(`${CFG.owner}/${CFG.repo}`)}, or GitHub cannot be read right now. <a href="https://github.com/${esc(`${CFG.owner}/${CFG.repo}`)}/pull/${n}">Open it on GitHub</a>.</p>`;
+    : `${crumbs(n)}<p class="cg-muted">#${n} is not an exploration in ${esc(`${CFG.owner}/${CFG.repo}`)}, or GitHub cannot be read right now. <a href="https://github.com/${esc(`${CFG.owner}/${CFG.repo}`)}/pull/${n}" target="_blank" rel="noopener">${VOCAB.openOnGitHub}</a>.</p>`;
   if (r) {
     void paintTryIt(r);
     void paintVisual(r);
@@ -514,15 +473,15 @@ function promote(btn: HTMLButtonElement) {
       try {
         const p = await promoteExplorationOnGitHub(client(), r.number, { requests: openRequestNumbers(r) });
         const warn = p.warnings.length ? `<p class="cg-muted ex-note">${p.warnings.map(esc).join(' ')}</p>` : '';
-        // The header now says where the change went, in one sentence with the link next to it.
+        // The header now says where the branch went, in one sentence with the link next to it.
         $('ex-confirm').hidden = true;
         document.querySelector('#rv-detail .cg-pr-meta .rv-status')?.replaceChildren('Promoted to review');
         document.querySelector('#rv-detail .cg-pr-meta .cg-tier')?.remove();
         document.querySelector('#rv-detail .cg-pr-state')?.remove();
-        $('ex-actions').outerHTML = `<p class="cg-pr-state ex-done" id="ex-actions" role="status">${esc(promotedLine(r.number))} <a href="?pr=${r.number}" data-open-pr="${r.number}">Open the change</a></p>${warn}`;
+        $('ex-actions').outerHTML = `<p class="cg-pr-state ex-done" id="ex-actions" role="status">${esc(promotedLine(r.number))} <a href="?pr=${r.number}" data-open-pr="${r.number}">Open the branch</a></p>${warn}`;
         void loadExplorations(undefined, true);
       } catch (err) {
-        throw new Error(`${(err as Error).message} You can also use "Ready for review" on GitHub.`);
+        throw new Error(`${(err as Error).message} You can also mark it ready for review on GitHub.`);
       }
     },
     closed: (promoted) => {
@@ -543,10 +502,10 @@ async function close(btn: HTMLButtonElement) {
     $('ex-confirm').hidden = true;
     document.querySelector('#rv-detail .cg-pr-meta .rv-status')?.replaceChildren('Closed');
     document.querySelector('#rv-detail .cg-pr-state')?.remove();
-    $('ex-actions').outerHTML = '<p class="cg-pr-state ex-done" id="ex-actions" role="status">Closed without shipping. Its previews stay for reference.</p>';
+    $('ex-actions').outerHTML = '<p class="cg-pr-state ex-done" id="ex-actions" role="status">Closed without merging. Its previews stay for reference.</p>';
     void loadExplorations(undefined, true);
   } catch (err) {
-    actionError((err as Error).message, err, 'close pull requests');
+    actionError((err as Error).message, err, 'close branches');
     setButtonBusy(btn, false, 'Close exploration');
   }
 }

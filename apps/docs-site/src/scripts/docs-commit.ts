@@ -5,6 +5,7 @@ import { acceptDocsText, classifyAuth, friendlyMessage, GitHubError } from '@bri
 import { docsProposal, type DocsEdit } from '../lib/docs-draft-model';
 import { getToken, prefersSignIn, readRepo, studioClient, studioFetch } from './github-session';
 import { ghVerb } from '../lib/gh-wording';
+import { branchWithJiraKey, titleWithJiraKey } from '../lib/vocabulary';
 
 const API = 'https://api.github.com';
 
@@ -34,15 +35,18 @@ const b64 = (s: string) => btoa(String.fromCharCode(...new TextEncoder().encode(
 const unb64 = (s: string) => new TextDecoder().decode(Uint8Array.from(atob(s.replace(/\n/g, '')), (c) => c.charCodeAt(0)));
 
 /** Opens one pull request with the docs edits. Returns its number. */
-export async function proposeDocs(edits: DocsEdit[], title = '', notes = ''): Promise<number> {
+export async function proposeDocs(edits: DocsEdit[], title = '', notes = '', jira: string | null = null): Promise<number> {
   const { gh, repo } = client();
   const p = docsProposal(edits, { title, notes, date: new Date() });
+  // The Jira key goes first in the title and the branch name, so Jira's GitHub integration links them.
+  const prTitle = titleWithJiraKey(p.title, jira);
+  const branch = branchWithJiraKey(p.branch, jira);
   const mainSha = await gh.getBranchSha(repo.defaultBranch);
   if (!mainSha) throw new Error(`Branch ${repo.defaultBranch} not found.`);
   const tree = await gh.createTree(await gh.getCommitTree(mainSha), p.files.map((f) => ({ path: f.path, content: f.content })));
-  const commit = await gh.createCommit(`${p.title}\n\nProposed with the Bridge docs editor.`, tree, [mainSha]);
-  await gh.createBranch(p.branch, commit);
-  const pr = await gh.createPullRequest({ title: p.title, head: p.branch, base: repo.defaultBranch, body: p.body, draft: false });
+  const commit = await gh.createCommit(`${prTitle}\n\nProposed with the Bridge docs editor.`, tree, [mainSha]);
+  await gh.createBranch(branch, commit);
+  const pr = await gh.createPullRequest({ title: prTitle, head: branch, base: repo.defaultBranch, body: p.body, draft: false });
   await gh.addLabels(pr.number, p.labels).catch(() => false);
   return pr.number;
 }

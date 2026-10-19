@@ -189,7 +189,7 @@ export function checkGuardrail(data: ConflictData, choices: MergeChoices): Guard
 export async function commitResolution(owner: string, repo: string, pull: SyncPull, data: ConflictData, choices: MergeChoices, who: string | null): Promise<string> {
   const t = data.tokens!;
   const w = data.write!;
-  if (w.headSha !== pull.head.sha) throw new Error('The change moved while you were choosing. Close this, reload the page and resolve again.');
+  if (w.headSha !== pull.head.sha) throw new Error('The branch moved while you were choosing. Close this, reload the page and resolve again.');
   const { merged } = resolvedTokenFiles(data, choices);
   const shared = new Set(data.route.files);
   type Entry = { path: string; mode: string; type: 'blob'; sha: string | null } | { path: string; mode: string; type: 'blob'; content: string };

@@ -37,6 +37,7 @@ import { REGISTRY, resolveProps } from './registry';
 import type { ExampleNode } from '../lib/components';
 import { cleanDocs, docsEdits, docsFileText, setDocsEdit, validateDocs, type DocsEdit } from '../lib/docs-draft-model';
 import type { Draft } from '../lib/editor-model';
+import { parseJiraKey, VOCAB } from '../lib/vocabulary';
 import {
   EDIT_BAR_LABEL,
   SECTIONS,
@@ -619,7 +620,7 @@ function useMedia(q: string) {
 }
 /** From 1320px the rail has its own column. */
 const useWide = () => useMedia('(min-width: 1320px)');
-/** Below 768px (breakpoint.md) the edit bar keeps the label and Send for review; the rest goes into a More menu. */
+/** Below 768px (breakpoint.md) the edit bar keeps the label and Request review; the rest goes into a More menu. */
 const useCompact = () => useMedia('(max-width: 767px)');
 
 /** A menu, popover or dialog is open: it owns Escape. */
@@ -645,6 +646,7 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
   const [sent, setSent] = useState<{ pr: number | null; title: string } | null>(null);
   const [title, setTitle] = useState(sendTitle(p.name));
   const [message, setMessage] = useState('');
+  const [jira, setJira] = useState('');
   const [busy, setBusy] = useState(false);
   const [sendError, setSendError] = useState('');
   const [copied, setCopied] = useState(false);
@@ -763,7 +765,7 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
           setBase(text);
           setBranch({ pr: Number(q.get('pr')) || null, ref });
         } catch {
-          setNotice({ tone: 'info', text: `Could not read the ${p.name} docs of that change. You are editing the published page.` });
+          setNotice({ tone: 'info', text: `Could not read the ${p.name} docs of that branch. You are editing the published page.` });
         }
       } else {
         const mine = docsEdits(readDraft()).find((e) => e.path === p.path);
@@ -987,7 +989,7 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
     }
   }, [focusRequest]);
 
-  /* Send for review */
+  /* Request review (a new branch) or save to the branch being edited */
   const toSend = useMemo(() => docsToSend(state), [state]);
   const issues = useMemo(() => validateDocs(cleanDocs(toSend)), [toSend]);
   const openSend = async () => {
@@ -1010,16 +1012,16 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
         setSent({ pr: branch.pr, title: title.trim() || sendTitle(p.name) });
       } else {
         const edit: DocsEdit = { kind: 'docs', id: Math.random().toString(36).slice(2, 10), path: p.path, component: p.name, slug: p.slug, before: p.original, after: fileText };
-        const n = await docsCommit.proposeDocs([edit], changeTitle(p.slug, title || sendTitle(p.name)), message);
+        const n = await docsCommit.proposeDocs([edit], changeTitle(p.slug, title || sendTitle(p.name)), message, parseJiraKey(jira));
         writeDraft({ ...readDraft(), edits: readDraft().edits.filter((e) => !(e.kind === 'docs' && e.path === p.path)) });
         writeJson(metaKey(p.path), null);
         setSent({ pr: n, title: title.trim() || sendTitle(p.name) });
       }
-      announce('Sent for review.');
+      announce(branch ? 'Saved to the branch.' : 'Review requested.');
     } catch (err) {
       // The session's words: sign-in or token, and the site's way in.
       const { ghAuthFailure } = await import('../scripts/github-session');
-      setSendError(ghAuthFailure(err, branch ? 'save to this change' : 'send changes for review')?.text ?? `Not sent: ${(err as Error).message}`);
+      setSendError(ghAuthFailure(err, branch ? 'save to this branch' : 'create branches')?.text ?? `${branch ? 'Not saved' : 'Not created'}: ${(err as Error).message}`);
     } finally {
       setBusy(false);
     }
@@ -1054,7 +1056,7 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
   );
   const keepAll = keepAllLabel(pending.length);
   const barState = editBarState({ dirty, sent: Boolean(sent), savesLocally: !branch });
-  const sendLabel = branch ? `Save to change${branch.pr ? ` #${branch.pr}` : ''}` : 'Send for review';
+  const sendLabel = branch ? 'Save to branch' : VOCAB.requestReview;
   const sendButton = (
     <Button variant="primary" disabled={!dirty && !pending.length} onClick={() => void openSend()}>
       {sendLabel}
@@ -1259,7 +1261,7 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
         <AlertDialog open={confirm === 'rewrite'} onOpenChange={(o) => !o && setConfirm(null)}>
           <AlertDialogContent
             title="Rewrite every section?"
-            description={`Claude drafts a new version of all ${SECTIONS.length} sections. Each one waits for your Keep or Discard, and nothing is sent until you send it.`}
+            description={`Claude drafts a new version of all ${SECTIONS.length} sections. Each one waits for your Keep or Discard, and nothing leaves this page until you request review.`}
             confirmLabel="Rewrite every section"
             cancelLabel="Cancel"
             tone="primary"
@@ -1279,7 +1281,7 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
         <Dialog open={sendOpen} onOpenChange={(o) => (o ? setSendOpen(true) : sent ? doneSent() : setSendOpen(false))}>
           <DialogContent
             size="md"
-            title={sent ? 'Sent for review' : branch ? 'Save to this change' : 'Send for review'}
+            title={sent ? (branch ? 'Saved to the branch' : 'Review requested') : branch ? 'Save to this branch' : VOCAB.createBranch}
             description={sent ? undefined : 'Your team reviews the new guidance in Studio before it reaches the Library.'}
             footer={
               sent ? (
@@ -1294,7 +1296,7 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
                     Cancel
                   </Button>
                   <Button variant="primary" loading={busy} disabled={busy || issues.length > 0} onClick={() => void send()}>
-                    {branch ? 'Save to this change' : 'Send for review'}
+                    {branch ? 'Save to this branch' : VOCAB.requestReview}
                   </Button>
                 </div>
               )
@@ -1318,6 +1320,7 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
                 )}
                 {!branch && <Input label="Title" value={title} onChange={(ev) => setTitle(ev.target.value)} />}
                 {!branch && <Textarea label="Message to the team" hint="Optional. What changed and why, in a sentence or two." rows={3} value={message} onChange={(ev) => setMessage(ev.target.value)} />}
+                {!branch && <Input label="Jira ticket" placeholder="DS-42" hint="Optional. Links this branch to the ticket in Jira." spellCheck={false} autoComplete="off" value={jira} onChange={(ev) => setJira(ev.target.value)} />}
                 {sendError && (
                   <Alert tone="danger" announce="auto">
                     {sendError}

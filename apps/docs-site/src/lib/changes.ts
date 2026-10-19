@@ -4,13 +4,14 @@
 // Color means status, never risk. Four groups, one tone each, everywhere in the Studio:
 //   blocked  red     blocked by tests, changes requested, conflict
 //   waiting  violet  waiting for an approval
-//   ready    green   ready to ship
+//   ready    green   ready to merge
 //   neutral  grey    draft, unknown, checks running or checking, shipped, closed
 // What a change needs is plain words, never colored ("Design + tech", lib/review-queue), so a token change that
 // is ready reads green, not red.
 import { CONFLICT_REASON, mergeGate, type ApprovalSummary, type CiSummary, type MergeGate, type MissingApproval, type PullState, type ReviewStatusKind, type Tier } from './review-rules';
 import type { TokenReview } from './token-review';
 import { ghAction } from './gh-wording';
+import { branchCount, VOCAB } from './vocabulary';
 import { entriesFor, type TeamStates } from '@bridge-ds/core';
 
 export type StatusGroup = 'blocked' | 'waiting' | 'ready' | 'neutral';
@@ -94,12 +95,12 @@ export interface Opener {
 
 const WHY: Partial<Record<ReviewStatusKind, string>> = {
   'ci-failing': 'is blocked by failing checks',
-  conflict: 'conflicts with the latest library',
+  conflict: `conflicts with ${VOCAB.main}`,
   'changes-requested': 'is blocked: a reviewer requested changes',
   'needs-design': 'waits for a design approval',
   'needs-tech': 'waits for a tech approval',
   'needs-approval': 'waits for an approval',
-  ready: 'is ready to ship',
+  ready: 'is ready to merge',
   'ci-running': 'is waiting for its tests',
   checking: 'is still being checked',
   draft: 'is still a draft',
@@ -114,7 +115,7 @@ export function openerFor(rows: OpenerRow[]): Opener {
   const n = rows.length;
   if (!n) return { sentence: 'Nothing to review.', action: null };
   const sorted = byUrgency(rows);
-  const count = `${n} ${n === 1 ? 'change' : 'changes'} in review.`;
+  const count = `${branchCount(n)} in review.`;
   const mine = sorted.find((r) => r.yourTurn);
   const first = mine ?? sorted[0]!;
   const action = { label: `Review #${first.number}`, pr: first.number };
@@ -148,20 +149,20 @@ export interface DetailState {
 
 /** One sentence for the pull request opener: what blocks it, then what it needs after that. */
 export function detailSentence(s: DetailState): string {
-  if (s.state === 'merged') return 'Shipped.';
-  if (s.state === 'closed') return 'Closed without shipping.';
+  if (s.state === 'merged') return 'Merged.';
+  if (s.state === 'closed') return 'Closed without merging.';
   const needs = missingApprovals(s.gate.missing);
   const after = needs ? ` After that it needs ${needs}.` : '';
-  if (s.state === 'draft') return `Draft: mark it ready for review on GitHub first.${after}`;
+  if (s.state === 'draft') return `Draft: request a review first.${after}`;
   if (s.ci.state === 'fail') {
     const many = s.ci.failed.length > 1;
     return `Blocked: the ${names(s.ci.failed)} test${many ? 's fail' : ' fails'}.${after}`;
   }
   if (s.changesRequestedBy.length) return `Blocked: @${s.changesRequestedBy.join(', @')} requested changes.${after}`;
-  if (s.gate.reasons.includes(CONFLICT_REASON)) return `Blocked: it conflicts with the latest library.${after}`;
+  if (s.gate.reasons.includes(CONFLICT_REASON)) return `Blocked: it conflicts with ${VOCAB.main}.${after}`;
   if (s.ci.state === 'pending') return `Tests are still running.${after}`;
   if (needs) return `Waiting for ${needs}. Tests pass.`;
-  if (s.gate.allowed) return 'Ready to ship: tests pass and the approvals are in.';
+  if (s.gate.allowed) return 'Ready to merge: tests pass and the approvals are in.';
   return s.ci.state === 'none' ? `No tests reported for this version yet.${after}` : 'Open the tests and the conversation to see what it needs.';
 }
 
@@ -182,14 +183,14 @@ export function primaryAction(input: {
   /** The site has Sign in with GitHub: the connect label says "Sign in". */
   signIn?: boolean;
 }): { kind: PrimaryKind; label: string; url?: string } {
-  if (input.state === 'merged' || input.state === 'closed') return { kind: 'github', label: 'Open on GitHub' };
+  if (input.state === 'merged' || input.state === 'closed') return { kind: 'github', label: VOCAB.openOnGitHub };
   const failed = input.ci.state === 'fail' ? input.ci.failed.find((f) => f.url) : undefined;
   if (failed) return { kind: 'open-run', label: 'Open failing test', url: failed.url };
   if (!input.connected) return { kind: 'connect', label: ghAction('review', input.signIn ?? false) };
-  if (input.gate.allowed && input.canWrite) return { kind: 'merge', label: 'Ship' };
+  if (input.gate.allowed && input.canWrite) return { kind: 'merge', label: VOCAB.merge };
   const green = input.ci.state === 'pass' || input.ci.state === 'none';
   if (green && input.gate.missing.length && !input.isAuthor && input.state === 'open') return { kind: 'approve', label: 'Approve' };
-  return { kind: 'github', label: 'Open on GitHub' };
+  return { kind: 'github', label: VOCAB.openOnGitHub };
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -394,15 +395,15 @@ export function whoActs(need: Need, p: People): WhoActs {
 
   switch (need.kind) {
     case 'merged':
-      return { who: 'nobody', logins: [], yourTurn: false, action: 'none', sentence: 'Shipped.', short: null };
+      return { who: 'nobody', logins: [], yourTurn: false, action: 'none', sentence: 'Merged.', short: null };
     case 'closed':
-      return { who: 'nobody', logins: [], yourTurn: false, action: 'none', sentence: 'Closed without shipping.', short: null };
+      return { who: 'nobody', logins: [], yourTurn: false, action: 'none', sentence: 'Closed without merging.', short: null };
     case 'unknown':
       return { who: 'nobody', logins: [], yourTurn: false, action: 'none', sentence: 'Open the checks and the conversation to see what it needs.', short: null };
     case 'draft':
-      return authorTurn('mark-ready', 'mark this draft ready for review', 'mark this draft ready for review', 'Author to finish the draft', 'Your turn: finish the draft');
+      return authorTurn('mark-ready', 'request a review of this draft', 'request a review of this draft', 'Author to finish the draft', 'Your turn: finish the draft');
     case 'exploration':
-      return authorTurn('promote', 'promote this exploration to review, or close it', 'promote this exploration to review', 'Author to promote it', 'Your turn: promote it');
+      return authorTurn('promote', 'request a review of this exploration, or close it', 'request a review of this exploration', 'Author to request a review', 'Your turn: request a review');
     case 'fix-checks':
       // Developer tests failing on a design change are a developer's to fix, whoever made it (the detail says the same:
       // lib/check-explain failingSentence). A failing design rule, or failures not known yet, stay with the author.
@@ -413,16 +414,16 @@ export function whoActs(need: Need, p: People): WhoActs {
       return authorTurn('address-changes', `address the changes${by}`, `address the changes${by}`, 'Author to address changes', 'Your turn: address changes');
     }
     case 'resolve-conflict':
-      return authorTurn('resolve-conflict', 'resolve a conflict with the latest library', 'resolve a conflict with the latest library', 'Author to resolve a conflict', 'Your turn: resolve a conflict');
+      return authorTurn('resolve-conflict', `resolve a conflict with ${VOCAB.main}`, `resolve a conflict with ${VOCAB.main}`, 'Author to resolve a conflict', 'Your turn: resolve a conflict');
     case 'checks-running': {
       const next = need.then[0];
-      const then = next ? ` Then ${namedRole(next, eligibleFor(next, p).logins, p)} approves.` : ' Then it is ready to publish.';
+      const then = next ? ` Then ${namedRole(next, eligibleFor(next, p).logins, p)} approves.` : ' Then it is ready to merge.';
       return { who: 'nobody', logins: [], yourTurn: false, action: 'wait', sentence: `Tests are still running.${then}`, short: 'Tests running' };
     }
     case 'checking-merge': {
       const next = need.then[0];
       const then = next ? ` Then ${namedRole(next, eligibleFor(next, p).logins, p)} approves.` : '';
-      return { who: 'nobody', logins: [], yourTurn: false, action: 'wait', sentence: `Checking that it fits the latest library.${then}`, short: 'Checking' };
+      return { who: 'nobody', logins: [], yourTurn: false, action: 'wait', sentence: `Checking that it fits ${VOCAB.main}.${then}`, short: 'Checking' };
     }
     case 'approve': {
       // The viewer first: the first role they can give.
@@ -433,8 +434,8 @@ export function whoActs(need: Need, p: People): WhoActs {
       // Every listed owner wrote the change or already approved: only the owner override can merge it.
       if (!e.open && e.logins.length === 0) {
         const by = (p.overrideBy ?? []).map((x) => x.replace(/^@/, ''));
-        if (p.overridable) return { who: 'you', logins: p.viewer ? [p.viewer] : [], yourTurn: true, action: 'override', sentence: `Your turn: no other ${ROLE_NAME[role]} can approve, so ship it with the owner override, under More.`, short: 'Your turn: owner override' };
-        const via = by.length ? ` @${by.join(' or @')} can ship it with the owner override.` : ' Add an owner in Settings.';
+        if (p.overridable) return { who: 'you', logins: p.viewer ? [p.viewer] : [], yourTurn: true, action: 'override', sentence: `Your turn: no other ${ROLE_NAME[role]} can approve, so merge it with the owner override, under More.`, short: 'Your turn: owner override' };
+        const via = by.length ? ` @${by.join(' or @')} can merge it with the owner override.` : ' Add an owner in Settings.';
         return { who: 'owner', logins: by, yourTurn: false, action: 'override', sentence: `No other ${ROLE_NAME[role]} can approve.${via}`, short: 'Owner override needed' };
       }
       const both = need.roles.length > 1 && need.roles.includes('design') && need.roles.includes('tech');
@@ -451,10 +452,10 @@ export function whoActs(need: Need, p: People): WhoActs {
     case 'ready': {
       const owners = (p.shippers?.length ? uniq(p.shippers) : uniq([...p.owners.design, ...p.owners.tech])).map((x) => x.replace(/^@/, ''));
       const mine = p.canMerge ?? owners.some((o) => same(o, p.viewer));
-      if (p.viewer && mine) return { who: 'you', logins: [p.viewer], yourTurn: true, action: 'merge', sentence: 'Your turn: ready to ship.', short: 'Your turn: ship it' };
+      if (p.viewer && mine) return { who: 'you', logins: [p.viewer], yourTurn: true, action: 'merge', sentence: 'Your turn: ready to merge.', short: 'Your turn: merge it' };
       const named = p.teams && (p.shipEntries ?? p.entries) ? entriesFor(p.shipEntries ?? [...p.entries!.design, ...p.entries!.tech], owners, p.teams) : [];
       const who = named.length ? or(named) : owners.length ? at(owners) : 'an owner';
-      return { who: 'owner', logins: owners, yourTurn: false, action: 'merge', sentence: `Ready to ship: ${who} can ship it.`, short: 'Ready to ship' };
+      return { who: 'owner', logins: owners, yourTurn: false, action: 'merge', sentence: `Ready to merge: ${who} can merge it.`, short: 'Ready to merge' };
     }
   }
 }

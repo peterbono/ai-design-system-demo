@@ -7,6 +7,8 @@
 //              The designer who made the change fixes it.
 //   developer  tests, typechecks, builds, the release note. A developer fixes it; the design is not the problem.
 
+import { VOCAB } from './vocabulary';
+
 export type CheckKind = 'design' | 'developer';
 export type CheckTopic = 'token-rules' | 'visual' | 'tests' | 'build' | 'release-note' | 'other';
 
@@ -145,8 +147,8 @@ export function checkStory(input: {
     designLine = {
       state: 'fail',
       text: visual
-        ? 'The before and after could not be captured. Run the visual check again from For developers.'
-        : `${designChecks.map((c) => c.name).join(' and ')} ${designChecks.length === 1 ? 'fails' : 'fail'} on a design rule. For developers lists what it found.`,
+        ? 'The before and after could not be captured. Run the visual check again on GitHub.'
+        : `${designChecks.map((c) => c.name).join(' and ')} ${designChecks.length === 1 ? 'fails' : 'fail'} on a design rule. Open it on GitHub to see what it found.`,
     };
   } else if (design) {
     designLine = { state: 'pass', text: design.checked ? `${plural(design.passing, 'contrast check')} still pass.` : 'No contrast check depends on these tokens.' };
@@ -164,11 +166,11 @@ export function checkStory(input: {
     const assertions = allCases.length > 0 && allCases.every((c) => /^AssertionError/.test(c.message));
     const old = design?.colorsOnly ? 'color' : 'value';
     oldValue = !notes && input.tokenOnly && designLine?.state === 'pass' && tests && assertions;
-    if (notes) devLine = { state: 'fail', text: 'The release note for this change is missing. A developer adds it.' };
+    if (notes) devLine = { state: 'fail', text: `The release note for this ${VOCAB.branch} is missing. A developer adds it.` };
     else if (oldValue)
       devLine = { state: 'fail', text: `${plural(n, 'developer test')} ${n === 1 ? 'expects' : 'expect'} the old ${old}. A developer needs to update ${n === 1 ? 'it' : 'them'}.` };
     else if (input.tokenOnly && designLine?.state === 'pass')
-      devLine = { state: 'fail', text: `${plural(n, tests ? 'developer test' : 'developer check')} ${n === 1 ? 'fails' : 'fail'} on this token change. A developer needs to look at ${n === 1 ? 'it' : 'them'}.` };
+      devLine = { state: 'fail', text: `${plural(n, tests ? 'developer test' : 'developer check')} ${n === 1 ? 'fails' : 'fail'} on this ${VOCAB.branch}. A developer needs to look at ${n === 1 ? 'it' : 'them'}.` };
     else devLine = { state: 'fail', text: `${plural(n, tests ? 'developer test' : 'developer check')} ${n === 1 ? 'fails' : 'fail'}. A developer fixes ${n === 1 ? 'it' : 'them'}.` };
   } else if (input.pending) devLine = { state: 'pending', text: `${plural(input.pending, 'check')} still running.` };
   else if (input.passed) devLine = { state: 'pass', text: 'Developer tests pass.' };
@@ -192,13 +194,13 @@ export function failingSentence(input: {
   const { story } = input;
   if (story.designFails) {
     return input.viewerIsAuthor
-      ? { sentence: 'Your turn: a design rule fails. Fix it before this can ship.', yourTurn: true }
+      ? { sentence: 'Your turn: a design rule fails. Fix it before this can merge.', yourTurn: true }
       : { sentence: `Waiting for @${input.author} to fix a design rule.`, yourTurn: false };
   }
   const tests = plural(story.developerFailing, 'test');
   const fix = story.oldValue ? 'update' : 'fix';
   const designPasses = story.design?.state === 'pass';
-  if (input.viewerApprovesDesign) return { sentence: `Your turn: approve the design. Shipping waits for a developer to ${fix} ${tests}.`, yourTurn: true };
+  if (input.viewerApprovesDesign) return { sentence: `Your turn: approve the design. Merging waits for a developer to ${fix} ${tests}.`, yourTurn: true };
   if (input.viewerIsAuthor)
     return {
       sentence: `Waiting for a developer to ${fix} ${tests}${input.approvalsMissing ? ', and for approvals' : ''}.${designPasses ? ' Your design is not the problem.' : ''}`,
@@ -243,8 +245,8 @@ export function approvalHelp(input: {
   }
   const roles = input.waiting.length > 1 ? 'owner' : ROLE[input.waiting[0]!];
   const ask = others.length ? `Ask another ${roles}` : `No one else is ${/^[aeiou]/.test(roles) ? 'an' : 'a'} ${roles} yet: add one in Settings and ask them`;
-  const override = input.viewerHoldsOverride ? (input.testsPass ? ', or ship it yourself with the owner override' : ', or ship it yourself with the owner override once tests pass') : '';
-  return { rowText, why: `You made this change, and GitHub does not let authors approve their own. ${ask}${override}.`, others };
+  const override = input.viewerHoldsOverride ? (input.testsPass ? ', or merge it yourself with the owner override' : ', or merge it yourself with the owner override once tests pass') : '';
+  return { rowText, why: `You made this ${VOCAB.branch}, and GitHub does not let authors approve their own. ${ask}${override}.`, others };
 }
 
 /** The message "Ask for review" copies: who it is for, what to look at, the link. */
@@ -254,10 +256,10 @@ export function reviewAskMessage(input: { title: string; number: number; url: st
   return `${to}Could you review "${input.title}" (#${input.number})? It needs ${need}. Bridge shows the before and after and the contrast checks: ${input.url}`;
 }
 
-/** "Ship unlocks once tests pass and the approvals are in." Plain words, no check names (they sit in For developers). */
+/** "Merge unlocks once tests pass and the approvals are in." Plain words, no check names (they are on GitHub). */
 export function shipWhen(s: { draft?: boolean; ciFail?: boolean; ciPending?: boolean; changesRequested?: boolean; missingApprovals?: number; conflict?: boolean }): string | null {
   const parts = [
-    s.draft ? 'it is marked ready' : '',
+    s.draft ? 'a review is requested' : '',
     s.ciFail ? 'tests pass' : s.ciPending ? 'tests finish' : '',
     s.changesRequested ? 'the requested changes are answered' : '',
     s.missingApprovals ? (s.missingApprovals > 1 ? 'the approvals are in' : 'the approval is in') : '',
@@ -265,5 +267,5 @@ export function shipWhen(s: { draft?: boolean; ciFail?: boolean; ciPending?: boo
   ].filter(Boolean);
   if (!parts.length) return null;
   const list = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
-  return `Ship unlocks once ${list}.`;
+  return `Merge unlocks once ${list}.`;
 }

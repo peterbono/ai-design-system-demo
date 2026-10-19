@@ -1,10 +1,11 @@
 // Studio Settings > Roles: the pure rules behind the Roles section. Who holds each right (approve design, approve
-// tech, ship), the one summary sentence, and the format-preserving edit of bridge.config.json the Settings form
+// tech, merge), the one summary sentence, and the format-preserving edit of bridge.config.json the Settings form
 // proposes as a pull request (same approach as withIntegrations in requests-view.ts). No DOM, no fetch.
 // Owners are people or GitHub teams ("@acme/design"): the picker helpers below build the options and read what
 // someone types.
-import { DEFAULT_RIGHTS, formatOwnerEntry, fromPlain, getEntry, holdersOf, parseJson, parseOwnerEntry, plainEqual, RIGHT_LABEL, RIGHTS, serializeJson, teamKeyOf, toPlain, type JsonObject, type OwnerGroup, type Owners, type Right, type Rights, type TeamUnreadableReason, type VisualImpactMode } from '@bridge-ds/core';
+import { DEFAULT_RIGHTS, formatOwnerEntry, fromPlain, getEntry, holdersOf, parseJson, parseOwnerEntry, plainEqual, RIGHTS, serializeJson, teamKeyOf, toPlain, type JsonObject, type OwnerGroup, type Owners, type Right, type Rights, type TeamUnreadableReason, type VisualImpactMode } from '@bridge-ds/core';
 import { ghAction } from './gh-wording';
+import { VOCAB } from './vocabulary';
 
 /** One choice per right in the form: design owners, tech owners, or both. */
 export type RightChoice = 'design' | 'tech' | 'both';
@@ -15,11 +16,21 @@ export const choiceOf = (groups: readonly OwnerGroup[]): RightChoice => (groups.
 
 export const groupsOf = (c: RightChoice): OwnerGroup[] => (c === 'both' ? ['design', 'tech'] : [c]);
 
-/** What each right means, in plain words. "Ship" publishes the change to the products. */
+/**
+ * The name of each right on a Studio screen, in Figma branching words (lib/vocabulary): the "ship" right of
+ * bridge.config.json is the one that merges a branch into main.
+ */
+export const RIGHT_LABEL: Record<Right, string> = {
+  approveDesign: 'Approve design',
+  approveTech: 'Approve tech',
+  ship: VOCAB.merge,
+};
+
+/** What each right means, in plain words. Merging puts the branch into main, the library the products use. */
 export const RIGHT_HELP: Record<Right, string> = {
-  approveDesign: 'Says the change looks right.',
+  approveDesign: 'Says the branch looks right.',
   approveTech: 'Says the code is sound.',
-  ship: 'Publishes the change to the products.',
+  ship: 'Merges the branch into main, the library the products use.',
 };
 
 export interface RoleRow {
@@ -41,7 +52,7 @@ export function roleRows(owners: Owners, rights: Rights | null): RoleRow[] {
   const effective = rights ?? DEFAULT_RIGHTS;
   return RIGHTS.map((right) => {
     const choice = choiceOf(effective[right]);
-    // Without rights, shipping is not limited to an owner group: anyone with write access may ship.
+    // Without rights, merging is not limited to an owner group: anyone with write access may merge.
     const unsetShip = !rights && right === 'ship';
     return {
       right,
@@ -58,15 +69,15 @@ export function roleRows(owners: Owners, rights: Rights | null): RoleRow[] {
 export function rolesSummary(owners: Owners, rights: Rights | null): string {
   const [d, t, s] = roleRows(owners, rights);
   const lower = (x: string) => x.charAt(0).toLowerCase() + x.slice(1);
-  const ship = s!.who === 'Anyone with write access' ? 'anyone with write access ships' : `${lower(s!.who)} ship`;
-  return `${d!.who} approve design, ${lower(t!.who)} approve tech, ${ship}.`;
+  const merge = s!.who === 'Anyone with write access' ? 'anyone with write access merges' : `${lower(s!.who)} merge`;
+  return `${d!.who} approve design, ${lower(t!.who)} approve tech, ${merge}.`;
 }
 
 export const VISUAL_MODE_LABEL: Record<VisualImpactMode, string> = { auto: 'Automatic', 'on-demand': 'On demand' };
 
 export const VISUAL_MODE_HELP: Record<VisualImpactMode, string> = {
-  auto: 'Runs on every change to tokens or components.',
-  'on-demand': 'Runs when someone asks from the change. Saves GitHub minutes on private repositories.',
+  auto: 'Runs on every branch that changes tokens or components.',
+  'on-demand': 'Runs when someone asks from the branch. Saves GitHub minutes on private repositories.',
 };
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -201,7 +212,7 @@ export function rolesProposal(
   opts: { date: Date; prefix?: string; tierLabel: string; owners?: Owners },
 ): RolesProposal {
   const stamp = opts.date.toISOString().slice(0, 10).replace(/-/g, '');
-  const title = 'chore(config): set who approves and ships, and when visual checks run';
+  const title = 'chore(config): set who approves and merges, and when visual checks run';
   const names = (xs: string[]) => (xs.length ? xs.map((x) => (teamKeyOf(x) ? `${x} (team)` : `@${x.replace(/^@/, '')}`)).join(', ') : 'nobody listed');
   const body = [
     '## Roles',

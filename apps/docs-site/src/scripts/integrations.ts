@@ -45,10 +45,10 @@ export function initIntegrations() {
     const problems = integrationsProblems(block);
     if (problems.length) return fail(problems.join(' '));
     const token = getToken();
-    if (!token) return fail(`${ghAction('send these settings for review', prefersSignIn())}.`);
+    if (!token) return fail(`${ghAction('request a review of these settings', prefersSignIn())}.`);
     const repo = readRepo();
     const d = data();
-    setButtonBusy(submit, true, 'Sending for review');
+    setButtonBusy(submit, true, 'Requesting review');
     done.hidden = true;
     try {
       const gh = studioClient(`${repo.owner}/${repo.repo}`, token, {
@@ -58,7 +58,7 @@ export function initIntegrations() {
       const current = await gh.getFileText(FILE, repo.defaultBranch);
       if (current === undefined) throw new Error(`${repo.defaultBranch} has no ${FILE}.`);
       const next = withIntegrations(current, block);
-      if (next === current) return fail('These are already the current settings. Nothing to send.');
+      if (next === current) return fail('These are already the current settings. Nothing to review.');
       const risk = classifyRisk({ files: [{ path: FILE, status: 'modified' }] });
       const p = integrationsProposal(block, { date: new Date(), prefix: d.prefix, tierLabel: `Tier ${risk.tier}${risk.reasons[0] ? ` (${risk.reasons[0]})` : ''}`, workflowUrl: d.workflowUrl, secretsUrl: d.secretsUrl });
       let branch = p.branch;
@@ -66,14 +66,14 @@ export function initIntegrations() {
       await gh.commitToNewBranch({ base: repo.defaultBranch, branch, message: p.message, files: [{ path: FILE, content: next }] });
       const pr = await gh.createPullRequest({ title: p.title, head: branch, base: repo.defaultBranch, body: p.body, draft: false });
       await gh.addLabels(pr.number, ['config', 'source: bridge-web', `tier-${risk.tier}`]).catch(() => false);
-      done.innerHTML = `<p><strong>Sent for review.</strong> Jira starts once the change ships and a developer adds the secrets.</p>
-        <p><a href="/studio/changes/?pr=${pr.number}">See the change</a> · <a href="${esc(pr.url)}" target="_blank" rel="noopener">Open on GitHub</a></p>`;
+      done.innerHTML = `<p><strong>Review requested.</strong> Jira starts once the branch is merged and a repository admin adds the Jira credentials.</p>
+        <p><a href="/studio/changes/?pr=${pr.number}">See the branch</a> · <a href="${esc(pr.url)}" target="_blank" rel="noopener">Open on GitHub</a></p>`;
       done.hidden = false;
     } catch (err) {
-      showGhError(error, err, `GitHub did not open the pull request: ${(err as Error).message}`, 'open pull requests');
+      showGhError(error, err, `GitHub did not create the branch: ${(err as Error).message}`, 'create branches');
       error.hidden = false;
     } finally {
-      setButtonBusy(submit, false, 'Send for review');
+      setButtonBusy(submit, false, 'Request review');
     }
   });
 }

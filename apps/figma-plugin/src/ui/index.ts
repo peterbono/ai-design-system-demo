@@ -812,7 +812,7 @@ function submitPush(): void {
   const withPr = Object.keys(r.proposal.files).length + r.proposal.brandFiles.length > 0;
   const toExploration = r.destination === 'exploration';
   void run(
-    toExploration ? (r.exploreTarget === 'new' ? 'Starting the exploration' : 'Sending to the exploration') : withPr ? (r.appendToOpen && r.openPr ? 'Adding to the pull request' : 'Opening the pull request') : 'Sending the requests',
+    toExploration ? (r.exploreTarget === 'new' ? 'Starting the exploration' : 'Sending to the exploration') : withPr ? (r.appendToOpen && r.openPr ? 'Adding to the branch' : 'Creating the branch') : 'Sending the requests',
     async () => {
       let exploration: ExplorationChoice | undefined;
       if (toExploration) {
@@ -865,7 +865,7 @@ function submitPush(): void {
       }
       const parts = exploration
         ? [`Sent to ${exploration.name}`]
-        : [result.pr ? `Pull request #${result.pr.pr.number} ${result.pr.appended ? 'updated' : 'opened'}` : '', result.requests.length ? `${plural(result.requests.length, 'request')} opened` : ''].filter(Boolean);
+        : [result.pr ? (result.pr.appended ? 'Branch updated' : 'Branch created') : '', result.requests.length ? `${plural(result.requests.length, 'request')} opened` : ''].filter(Boolean);
       void request('notify', { message: parts.join(', ') });
     },
     submitPush,
@@ -1725,7 +1725,7 @@ function newBrandCard(r: PushState, b: PushBrand): HTMLElement {
                 refreshProposals();
               },
             }),
-            'Create it in this pull request',
+            'Create it in this branch',
           ),
           b.included && plan ? h('p', { class: 'muted' }, `Adds ${plan.files.filter((f) => f.action === 'create' && f.path.endsWith('.tokens.json')).map((f) => f.path.split('/').slice(-2).join('/')).join(', ')} and lists ${c.slug} in bridge.config.json. Tier 3: a design owner and a tech owner approve.`) : null,
           b.included ? result : null,
@@ -2208,7 +2208,7 @@ function destinationControl(r: PushState): HTMLElement {
   return h(
     'section',
     { class: 'destination' },
-    h('div', { class: 'segmented', role: 'radiogroup', 'aria-label': 'Where your changes go' }, option('review', 'Send for review'), option('exploration', 'Try in an exploration')),
+    h('div', { class: 'segmented', role: 'radiogroup', 'aria-label': 'Where your changes go' }, option('review', 'Request review'), option('exploration', 'Try in an exploration')),
     h('p', { class: 'muted' }, exploring ? 'Test it in a preview and a staging build. It never reaches the product as is.' : 'Owners approve it, then it reaches the product.'),
     exploring
       ? h(
@@ -2353,7 +2353,7 @@ function refreshTryIt(r: PushState): void {
 function linkHint(l: { hint: string; url: string | null; state: string }): string {
   if (!l.url) return 'Link not ready yet';
   if (l.state === 'building') return 'Rebuilding with your edits';
-  if (l.state === 'failed') return 'This deploy failed, the pull request says why';
+  if (l.state === 'failed') return 'This deploy failed, the branch in Studio says why';
   return l.hint;
 }
 
@@ -2383,7 +2383,7 @@ function explorationResult(r: PushState, e: ExplorationChoice, res: PublishResul
             ? 'The test build is being prepared, a few minutes. Checking every 15 seconds.'
             : 'The test build is being prepared, a few minutes.'
         : t.state === 'failed'
-          ? 'The test build did not finish. The pull request on GitHub says why.'
+          ? 'The test build did not finish. The branch in Studio says why.'
           : null;
   const status = statusText === null && r.checkingTryIt && !t
     ? h('p', { class: 'row-hint', 'data-region': 'tryit-status', 'data-sig': 'checking' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), h('span', null, 'Checking the test build'))
@@ -2466,7 +2466,7 @@ function viewPush(): View {
         steps([
           ['Edit in Figma', 'Change synced variables, or change a component: a variant, a prop, a part, the token a part uses.'],
           ['Review the changes', 'Every change is listed and checked. Uncheck what is not ready; mark work in progress as exploration only.'],
-          ['Send', 'For review, owners approve before anything ships. In an exploration, you try it in previews and a staging build first.'],
+          ['Send', 'Request review: owners approve before anything is merged. In an exploration, you try it in previews and a staging build first.'],
         ]),
         requestLine(undefined),
       ],
@@ -2506,7 +2506,7 @@ function viewPush(): View {
       };
     }
     const text = [
-      pr ? `${pr.appended ? `Added to pull request #${pr.pr.number}` : `Pull request #${pr.pr.number} opened as a draft`}. CI runs the usual checks, then a design owner and a tech owner approve.` : '',
+      pr ? `${pr.appended ? 'Added to your branch' : 'Branch created as a draft'}. Checks run, then a design owner and a tech owner approve before it is merged.` : '',
       res.requests.length ? `${plural(res.requests.length, 'request')} opened for ${res.requests.map((x) => x.component).join(', ')}.` : '',
       prop.held.length ? `${plural(prop.held.length, 'unchecked variable edit')} stay${prop.held.length === 1 ? 's' : ''} in Figma.` : '',
     ].filter(Boolean);
@@ -2656,7 +2656,7 @@ function viewPush(): View {
           'div',
           { class: 'field' },
           h('div', { class: 'field-head' }, h('h2', null, h('label', { for: 'push-description' }, 'Message to the team')), assistAction(r.assist, pushAssist(r))),
-          h('p', { class: 'lede' }, exploring ? 'Goes with the exploration and every request. Your words for the team.' : 'Opens the pull request and every request. Your words for the reviewers.'),
+          h('p', { class: 'lede' }, exploring ? 'Goes with the exploration and every request. Your words for the team.' : 'Opens the branch and every request. Your words for the reviewers.'),
           h('textarea', {
             id: 'push-description',
             rows: '3',
@@ -2678,7 +2678,7 @@ function viewPush(): View {
               'label',
               { class: 'check' },
               h('input', { type: 'checkbox', checked: r.appendToOpen, onChange: (e: Event) => { r.appendToOpen = (e.target as HTMLInputElement).checked; render(); } }),
-              `Add to open pull request #${r.openPr.number}`,
+              `Add to your open branch: ${r.openPr.title.replace(/^[a-z]+(\([^)]*\))?!?:\s*/i, '')}`,
             )
           : null,
         // An exploration's title is generated (it only names the change on the exploration): nothing to fill in.
@@ -2686,10 +2686,10 @@ function viewPush(): View {
           ? h(
               'details',
               { class: 'notes', open: r.titleSource === 'claude' },
-              h('summary', null, 'Pull request title'),
+              h('summary', null, 'Branch title'),
               h('input', {
                 type: 'text',
-                'aria-label': 'Pull request title',
+                'aria-label': 'Branch title',
                 value: r.title,
                 placeholder: prop.changes.length ? defaultTitle(prop.changes) : prop.brands.find((b) => b.plan)?.plan?.title ?? '',
                 maxlength: '120',
@@ -2731,7 +2731,7 @@ function viewPush(): View {
     bar: nothing
       ? { label: 'Scan again', onClick: () => scanPush(r) }
       : {
-          label: exploring ? 'Send to exploration' : 'Send for review',
+          label: exploring ? 'Send to exploration' : 'Request review',
           onClick: submitPush,
           disabled: !!open || !!blocked || none || !!waiting,
           hint,
@@ -2893,7 +2893,7 @@ function claudeCard(): HTMLElement {
     'section',
     { class: 'card' },
     h('div', { class: 'group-head' }, h('h2', null, 'Claude', h('span', { class: 'group-n' }, 'Optional'))),
-    h('p', { class: 'lede' }, 'Writes your request and pull request text from the changes it sees. You review it before anything is sent.'),
+    h('p', { class: 'lede' }, 'Writes your request and branch text from the changes it sees. You review it before anything is sent.'),
     h(
       'ul',
       { class: 'opts' },

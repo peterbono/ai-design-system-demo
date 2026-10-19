@@ -15,6 +15,7 @@ import { loadTeams } from '../teams';
 import { openRevertPlanner } from './planner';
 import { activeReport, DEMO_EVENT, demoOn, loadHistory, setDemo, type Loaded } from './state';
 import { onSelectPick, selectValue, setSelect } from '../../lib/select-bridge';
+import { jiraKeyOf, VOCAB, withoutJiraKey } from '../../lib/vocabulary';
 
 const AUTHOR = 'hs-author';
 const TIER = 'hs-tier';
@@ -47,14 +48,17 @@ const dayMonth = (iso: string) => {
   return Number.isNaN(d.getTime()) ? iso.slice(0, 10) : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 /** A human summary (the changeset line the author wrote, else the cleaned title), never a raw commit subject. */
-const title = (e: HistoryEntry) => historySummary(e);
+const title = (e: HistoryEntry) => withoutJiraKey(historySummary(e));
+/** The Jira key the branch title started with, shown apart in mono. */
+const jiraOf = (e: HistoryEntry) => jiraKeyOf(e.title) ?? jiraKeyOf(historySummary(e));
 
 /** A row: summary and #, what approval it needed in plain words (or Demo), the date. Counts live in the detail. */
 function row(e: HistoryEntry, demo: boolean): string {
   const num = e.pr ? ` <span class="cg-num">#${e.pr.number}</span>` : '';
+  const key = jiraOf(e);
   const tag = `<span class="cg-need">${e.bulk ? 'Import' : `${demo ? 'Demo, ' : ''}${approvalNeedLabel(e.tier)}`}</span>`;
   return `<li class="cg-row"><a class="cg-row-link" href="${entryHref(e)}" data-hs-open="${esc(e.id)}">
-    <span class="cg-row-title"><span class="cg-row-name" title="${esc(title(e))}">${esc(title(e))}</span>${num}</span>
+    <span class="cg-row-title">${key ? `<span class="mono cg-jira">${esc(key)}</span> ` : ''}<span class="cg-row-name" title="${esc(title(e))}">${esc(title(e))}</span>${num}</span>
     ${tag}
     <time class="cg-date" datetime="${esc(e.date)}">${esc(dayMonth(e.date))}</time></a></li>`;
 }
@@ -82,7 +86,7 @@ function paintList() {
   $('hs-paths').innerHTML = paths.map((p) => `<option value="${esc(p)}"></option>`).join('');
 
   if (!report || !entries.length) {
-    tl.innerHTML = `<p class="cg-muted">No shipped token change yet. Changes land here once a change from Tokens ships.</p>`;
+    tl.innerHTML = `<p class="cg-muted">No merged token change yet. Token changes land here once a branch from Tokens is merged.</p>`;
     $('hs-none').hidden = true;
     return;
   }
@@ -111,19 +115,20 @@ function paintDetail(e: HistoryEntry, demo: boolean) {
     : review
       ? renderTokenReview(review)
       : '<p class="cg-muted">No designer diff for this change.</p>';
+  // The developer view of it (the merged branch, else what landed on main) is one quiet link on the author line.
   const ref = demo
-    ? 'Fixture change'
-    : [e.pr ? `<a href="${esc(e.pr.url ?? `${repoUrl()}/pull/${e.pr.number}`)}">#${e.pr.number}</a>` : '', `<a href="${esc(`${repoUrl()}/commit/${e.sha}`)}"><code>${esc(e.sha.slice(0, 7))}</code></a>`].filter(Boolean).join(' ');
+    ? '<span>Fixture change</span>'
+    : `<a class="cg-gh" href="${esc(e.pr ? (e.pr.url ?? `${repoUrl()}/pull/${e.pr.number}`) : `${repoUrl()}/commit/${e.sha}`)}" target="_blank" rel="noopener">${VOCAB.openOnGitHub}<span class="sr-only"> (opens in a new tab)</span></a>`;
   const facts = [e.bulk ? 'Import' : approvalNeedLabel(e.tier), e.breaking ? 'breaking' : '', e.version && e.version !== 'Unreleased' ? e.version : 'next release'].filter(Boolean).join(', ');
-  $('hs-detail').innerHTML = `<nav class="cg-crumbs" aria-label="Breadcrumb"><a href="${BASE}" data-hs-back>History</a><span aria-hidden="true">/</span><span>${esc(e.pr ? `#${e.pr.number}` : e.sha.slice(0, 7))}</span></nav>
+  $('hs-detail').innerHTML = `<nav class="cg-crumbs" aria-label="Breadcrumb"><a href="${BASE}" data-hs-back>History</a><span aria-hidden="true">/</span><span>${esc(e.pr ? `#${e.pr.number}` : title(e))}</span></nav>
     <header class="zone cg-pr-open">
       <h2 class="cg-pr-title" tabindex="-1">${mdTitleHtml(e.title)}</h2>
-      <p class="cg-pr-meta"><span>${esc(e.author)}, ${esc(shortDate(e.date))}</span><span>${ref}</span><span>${esc(facts)}</span></p>
+      <p class="cg-pr-meta"><span>${esc(e.author)}, ${esc(shortDate(e.date))}</span><span>${esc(facts)}</span>${ref}</p>
       <p class="cg-pr-state">${e.why !== e.title ? mdTitleHtml(e.why) : esc(countsLabel(e.counts))}</p>
       ${e.bulk ? '' : `<p class="cg-pr-cta"><button type="button" class="btn btn-primary" data-hs-undo="${esc(e.id)}">Undo this change</button></p>`}
     </header>
     <div class="cg-secs">
-      <details class="cg-sec" open><summary class="cg-sec-head"><span class="cg-sec-title">Token changes</span><span class="cg-sec-meta">${esc(countsLabel(e.counts))}</span><span class="cg-sec-chev" aria-hidden="true"></span></summary><div class="cg-sec-body">${diff}${e.changesets.length ? `<p class="cg-muted">From ${e.changesets.map((c) => `<code>${esc(c.path)}</code>`).join(', ')}.</p>` : ''}</div></details>
+      <details class="cg-sec" open><summary class="cg-sec-head"><span class="cg-sec-title">Token changes</span><span class="cg-sec-meta">${esc(countsLabel(e.counts))}</span><span class="cg-sec-chev" aria-hidden="true"></span></summary><div class="cg-sec-body">${diff}</div></details>
     </div>`;
 }
 
@@ -169,7 +174,7 @@ function paintNextRelease() {
   const lines = $('hs-next-lines');
   lines.innerHTML = [...card.lines, ...(card.tools ? [card.tools] : [])].map((l) => `<li>${esc(l)}</li>`).join('');
   lines.hidden = !lines.innerHTML;
-  // Publishing is shipping the release: whoever holds the ship right (governance.rights), else the owners.
+  // Publishing is merging the release: whoever holds the merge right (governance.rights), else the owners.
   const o = owners();
   const holders = (shippers() ?? [...new Set([...o.design, ...o.tech])]).map((x) => x.replace(/^@/, ''));
   const viewer = hasWorkingToken() ? currentViewer()?.login : null;

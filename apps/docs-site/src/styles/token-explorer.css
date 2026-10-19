@@ -3080,7 +3080,7 @@ body:has([data-xe-bar]:not([hidden])) .xp[data-surface="app"] .xp-grid {
 }
 
 /* Library details: the token name as a plain heading, one summary (specimen next to the value, where it comes from,
-   one sentence), then the collapsed rows of the Studio details, "For developers" last, one action in the footer. */
+   one sentence), then the collapsed rows of the Studio details, "Names in code and Figma" last, one action in the footer. */
 
 .xp-detail:focus {
   outline: none;
@@ -3338,16 +3338,8 @@ body:has([data-xe-bar]:not([hidden])) .xp[data-surface="app"] .xp-grid {
   margin-top: var(--space-2);
 }
 
-.xp-dd-note,
 .xp-dd-files {
   margin: var(--space-3) 0 0;
-  color: var(--color-text-muted);
-  overflow-wrap: anywhere;
-}
-
-.xp-dd-files code {
-  color: var(--color-text-default);
-  font-family: var(--font-family-mono);
 }
 
 /* One action, filling its bar. */
@@ -3727,18 +3719,6 @@ body:has([data-xe-bar]:not([hidden])) .xp[data-surface="app"] .xp-grid {
 .xp-opt-adv[open] > summary .icon {
   transform: rotate(90deg);
 }
-
-/* Review sheet and send dialog: one "For developers" fold at the bottom. */
-.xe-dev {
-  margin-top: var(--space-6);
-}
-
-.xe-dev-body {
-  display: grid;
-  justify-items: start;
-  gap: var(--space-3);
-}
-
 
 .xe-propose-status:empty {
   display: none;

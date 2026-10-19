@@ -211,22 +211,6 @@
   display: none;
 }
 
-.cm-d-links a {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1-5);
-}
-
-.cm-d-links {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-5);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
 /* Thumbnail: the component's Library preview, scaled to fit (scripts/components-studio.ts), on the light canvas. */
 .cm-name-in {
   display: flex;
@@ -304,87 +288,8 @@
   color: var(--color-text-muted);
 }
 
-/* Drawer: one "For developers" fold at the bottom (token origins, props, file paths, code, component sandbox). */
-.cm-d-dev {
-  border-top: var(--border-width-default) solid var(--color-border-default);
-  border-bottom: var(--border-width-default) solid var(--color-border-default);
-  font-size: var(--typography-ui-size);
-}
-
-.cm-d-dev[hidden] {
-  display: none;
-}
-
-.cm-d-dev > summary {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: var(--size-12);
-  list-style: none;
-  cursor: pointer;
-}
-
-.cm-d-dev > summary::-webkit-details-marker {
-  display: none;
-}
-
-.cm-d-dev > summary:focus-visible {
-  outline: var(--focus-ring-width) solid var(--focus-ring-color);
-  outline-offset: calc(var(--focus-ring-width) * -1);
-}
-
-.cm-d-dev > summary > .icon,
-.cm-d-dev-chev {
-  display: inline-flex;
-  color: var(--color-text-muted);
-}
-
-.cm-d-dev-label {
-  font-weight: var(--font-weight-semibold);
-}
-
-.cm-d-dev-chev {
-  margin-left: auto;
-}
-
-.cm-d-dev[open] .cm-d-dev-chev svg {
-  transform: rotate(90deg);
-}
-
-.cm-d-dev-body {
-  display: grid;
-  gap: var(--space-3);
-  padding: 0 0 var(--space-4);
-}
-
-.cm-d-dev-facts {
-  display: grid;
-  gap: var(--space-2);
-  margin: 0;
-}
-
-.cm-d-dev-facts > div {
-  display: grid;
-  grid-template-columns: var(--size-16) minmax(0, 1fr);
-  gap: var(--space-3);
-}
-
-.cm-d-dev-facts dt {
-  color: var(--color-text-muted);
-}
-
-.cm-d-dev-facts dd {
-  margin: 0;
-}
-
-.cm-d-dev-facts code {
-  font-family: var(--font-family-mono);
-  overflow-wrap: anywhere;
-}
-
 /* Change this component: the steps take the place of the actions row, under the component they change. */
-.cm-drawer[data-mode="change"] .cm-d-actions,
-.cm-drawer[data-mode="change"] .cm-d-dev {
+.cm-drawer[data-mode="change"] .cm-d-actions {
   display: none;
 }
 

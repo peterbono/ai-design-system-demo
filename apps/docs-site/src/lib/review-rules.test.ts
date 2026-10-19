@@ -192,8 +192,8 @@ describe('pullState', () => {
   });
 
   it('blocks merging a pull request that is already merged or closed', () => {
-    expect(gate({ state: 'closed', merged_at: '2026-10-10T09:00:00Z' }).reasons[0]).toBe('This pull request is already merged.');
-    expect(gate({ state: 'closed', merged_at: null }).reasons[0]).toBe('This pull request is closed.');
+    expect(gate({ state: 'closed', merged_at: '2026-10-10T09:00:00Z' }).reasons[0]).toBe('This branch is already merged.');
+    expect(gate({ state: 'closed', merged_at: null }).reasons[0]).toBe('This branch is closed.');
   });
 });
 
@@ -214,7 +214,7 @@ describe('reviewStatus', () => {
 
   it('reads each state from real data', () => {
     expect(st().kind).toBe('ready');
-    expect(st().label).toBe('Ready to ship');
+    expect(st().label).toBe('Ready to merge');
     expect(st().tone).toBe('success');
     expect(st({ state: 'closed', merged_at: '2026-10-10T09:00:00Z' }).kind).toBe('merged');
     expect(st({ state: 'closed' }).kind).toBe('closed');
@@ -341,7 +341,7 @@ describe('mergeGate ship right (governance.rights)', () => {
     const g = gate({ approvals: approved, viewer: 'dana', override: null, ship: techShips });
     expect(g.allowed).toBe(false);
     expect(g.canShip).toBe(false);
-    expect(g.reasons).toEqual(['Only the tech owner can ship this (@theo).']);
+    expect(g.reasons).toEqual(['Only the tech owner can merge this (@theo).']);
     expect(gate({ approvals: approved, viewer: 'Theo', override: null, ship: techShips }).allowed).toBe(true);
   });
 
@@ -352,12 +352,12 @@ describe('mergeGate ship right (governance.rights)', () => {
   it('the owner override never lets someone ship without the right', () => {
     const g = gate({ viewer: 'dana', override: { ...policy, allowed: ['dana'] }, ship: techShips });
     expect(g.overridable).toBe(false);
-    expect(g.reasons).toContain('Only the tech owner can ship this (@theo).');
+    expect(g.reasons).toContain('Only the tech owner can merge this (@theo).');
   });
 
   it('an unknown viewer or a merged pull request adds no ship reason', () => {
     expect(gate({ approvals: approved, viewer: null, override: null, ship: techShips }).allowed).toBe(true);
-    expect(gate({ approvals: approved, viewer: 'dana', ship: techShips, state: 'closed', merged_at: '2026-10-17T00:00:00Z' }).reasons).toEqual(['This pull request is already merged.']);
+    expect(gate({ approvals: approved, viewer: 'dana', ship: techShips, state: 'closed', merged_at: '2026-10-17T00:00:00Z' }).reasons).toEqual(['This branch is already merged.']);
   });
 
   it('approver lists follow the rights: tech owners may approve design when the team says so', () => {

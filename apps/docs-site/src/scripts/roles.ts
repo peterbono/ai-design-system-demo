@@ -1,7 +1,7 @@
 // Settings > Review rules and Safety: two edit-in-place forms (the design and tech owners, people or GitHub teams,
 // picked in components/ds/studio/OwnersField; who approves design, who approves tech and who ships;
 // when the visual before and after runs), each sent for review as a pull request on bridge.config.json with the
-// reader's own token. Edit (or Change) swaps the row's value for a segmented control on the same row; "Send for
+// reader's own token. Edit (or Change) swaps the row's value for a segmented control on the same row; "Request
 // review" stays off until a value differs. A form sends its own values and the current ones of the other form. The
 // file is read from the default branch as it is now and only `governance.owners`, `governance.rights` and `visualImpact` change
 // (withRoles keeps the rest byte for byte). The tier comes from the shared classifier: bridge.config.json is a
@@ -118,10 +118,10 @@ function initForm(form: HTMLFormElement) {
     // Owners: the people and teams picked in this form, only when they changed (the file keeps its own otherwise).
     const owners: Owners | undefined = ownersChanged() ? { design: ownersIn('design'), tech: ownersIn('tech') } : undefined;
     const token = getToken();
-    if (!token) return fail(`${ghAction('send this for review', prefersSignIn())}.`);
+    if (!token) return fail(`${ghAction('request a review', prefersSignIn())}.`);
     const repo = readRepo();
     const d = data();
-    setButtonBusy(submit, true, 'Sending');
+    setButtonBusy(submit, true, 'Requesting review');
     try {
       const gh = studioClient(`${repo.owner}/${repo.repo}`, token, {
         protectedBranches: [...new Set([...d.protectedBranches, 'main', 'master', repo.defaultBranch])],
@@ -130,7 +130,7 @@ function initForm(form: HTMLFormElement) {
       const current = await gh.getFileText(FILE, repo.defaultBranch);
       if (current === undefined) throw new Error('The repository has no Bridge settings file yet.');
       const next = withRoles(current, { rights, visualMode, ...(owners ? { owners } : {}) });
-      if (next === current) return fail('This is already the current setting. Nothing to send.');
+      if (next === current) return fail('This is already the current setting. Nothing to review.');
       const risk = classifyRisk({ files: [{ path: FILE, status: 'modified' }] });
       const p = rolesProposal(roleRows(owners ?? d.owners, rights), visualMode, { date: new Date(), prefix: d.prefix, tierLabel: `Tier ${risk.tier}${risk.reasons[0] ? ` (${risk.reasons[0]})` : ''}`, ...(owners ? { owners } : {}) });
       let branch = p.branch;
@@ -138,15 +138,15 @@ function initForm(form: HTMLFormElement) {
       await gh.commitToNewBranch({ base: repo.defaultBranch, branch, message: p.message, files: [{ path: FILE, content: next }] });
       const pr = await gh.createPullRequest({ title: p.title, head: branch, base: repo.defaultBranch, body: p.body, draft: false });
       await gh.addLabels(pr.number, ['config', 'source: bridge-web', `tier-${risk.tier}`]).catch(() => false);
-      done.innerHTML = `<p><strong>Sent for review as change #${pr.number}.</strong> It applies once your team approves it.</p>
-        <p><a href="/studio/changes/?pr=${pr.number}">Review #${pr.number}</a> · <a href="${esc(pr.url)}" target="_blank" rel="noopener">Open on GitHub</a></p>`;
+      done.innerHTML = `<p><strong>Review requested.</strong> It applies once your team approves and merges the branch.</p>
+        <p><a href="/studio/changes/?pr=${pr.number}">See the branch</a> · <a href="${esc(pr.url)}" target="_blank" rel="noopener">Open on GitHub</a></p>`;
       setEditing(false);
       done.hidden = false;
     } catch (err) {
-      showGhError(error, err, `GitHub did not take the proposal: ${(err as Error).message}`, 'open pull requests');
+      showGhError(error, err, `GitHub did not create the branch: ${(err as Error).message}`, 'create branches');
       error.hidden = false;
     } finally {
-      setButtonBusy(submit, false, 'Send for review');
+      setButtonBusy(submit, false, 'Request review');
       setButtonDisabled(submit, !changed());
     }
   });

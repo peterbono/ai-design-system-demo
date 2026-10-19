@@ -95,8 +95,7 @@ a.ql-act {
 }
 
 .ql-act:focus-visible,
-.ql-row:focus-visible,
-.ql-local > summary:focus-visible {
+.ql-row:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
   outline-offset: var(--focus-ring-offset);
   border-radius: var(--radius-control);
@@ -181,31 +180,6 @@ a.ql-act {
 .ql-ad-row > .ql-title,
 .ql-ad-row > .ql-act {
   align-self: center;
-}
-
-/* For developers: one quiet disclosure at the end (file paths, the commands CI runs). */
-.ql-local {
-  margin-top: var(--space-10);
-  font-size: var(--typography-ui-size);
-}
-
-.ql-local > summary {
-  display: flex;
-  align-items: center;
-  min-height: var(--size-8);
-  width: fit-content;
-  color: var(--color-text-link);
-  font-weight: var(--font-weight-semibold);
-  cursor: pointer;
-}
-
-.ql-local[open] > summary {
-  margin-bottom: var(--space-2);
-}
-
-/* Layout only: space above the CodeBlock. */
-.ql-cmd {
-  margin-top: var(--space-3);
 }
 
 @media (max-width: 760px) {
