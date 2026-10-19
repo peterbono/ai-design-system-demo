@@ -1,15 +1,15 @@
 {
   "version": 1,
   "tool": "@bridge-ds/visual",
-  "createdAt": "2026-10-19T21:17:22.665Z",
-  "durationMs": 289293,
+  "createdAt": "2026-10-19T21:34:05.293Z",
+  "durationMs": 341122,
   "base": {
-    "ref": "a32b0c12272d05ed57382d2e6fb182f8b80fc6ba",
-    "sha": "a32b0c12272d05ed57382d2e6fb182f8b80fc6ba"
+    "ref": "b39ba46f9ddc35ba9f6cc9dc5b952706d9a49f4e",
+    "sha": "b39ba46f9ddc35ba9f6cc9dc5b952706d9a49f4e"
   },
   "head": {
-    "ref": "bffe10af5d56bec646ce5d6e821ffaf9052b0cbf",
-    "sha": "bffe10af5d56bec646ce5d6e821ffaf9052b0cbf"
+    "ref": "c980fe78609e1aef5730b385fbbbc49c3081989c",
+    "sha": "c980fe78609e1aef5730b385fbbbc49c3081989c"
   },
   "options": {
     "only": [
@@ -114,12 +114,16 @@
       "apps/docs-site/src/components/LibraryEditMode.tsx",
       "apps/docs-site/src/components/ds/studio/ComponentsList.tsx",
       "apps/docs-site/src/components/ds/studio/QualityShare.tsx",
+      "apps/docs-site/src/components/ds/studio/StudioHome.tsx",
+      "apps/docs-site/src/components/ds/studio/faces.ts",
       "apps/docs-site/src/lib/changes.ts",
       "apps/docs-site/src/lib/components-studio.test.ts",
       "apps/docs-site/src/lib/library-health.test.ts",
       "apps/docs-site/src/lib/library-health.ts",
       "apps/docs-site/src/lib/people.test.ts",
       "apps/docs-site/src/lib/people.ts",
+      "apps/docs-site/src/lib/release-view.test.ts",
+      "apps/docs-site/src/lib/release-view.ts",
       "apps/docs-site/src/pages/studio/quality/index.astro",
       "apps/docs-site/src/scripts/explorations.ts",
       "apps/docs-site/src/scripts/history/page.ts",
