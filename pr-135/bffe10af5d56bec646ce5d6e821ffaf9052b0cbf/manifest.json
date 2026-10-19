@@ -1,15 +1,15 @@
 {
   "version": 1,
   "tool": "@bridge-ds/visual",
-  "createdAt": "2026-10-19T20:58:44.230Z",
-  "durationMs": 308499,
+  "createdAt": "2026-10-19T21:17:22.665Z",
+  "durationMs": 289293,
   "base": {
     "ref": "a32b0c12272d05ed57382d2e6fb182f8b80fc6ba",
     "sha": "a32b0c12272d05ed57382d2e6fb182f8b80fc6ba"
   },
   "head": {
-    "ref": "76f7c58ead3526b1227bf67cc8dd139ed807974d",
-    "sha": "76f7c58ead3526b1227bf67cc8dd139ed807974d"
+    "ref": "bffe10af5d56bec646ce5d6e821ffaf9052b0cbf",
+    "sha": "bffe10af5d56bec646ce5d6e821ffaf9052b0cbf"
   },
   "options": {
     "only": [
@@ -32,6 +32,20 @@
     "tokens": [
       {
         "path": "avatar.agent-bg",
+        "kind": "direct",
+        "modes": [
+          "brand=bridge,theme=light,density=comfortable",
+          "brand=bridge,theme=light,density=compact",
+          "brand=bridge,theme=dark,density=comfortable",
+          "brand=bridge,theme=dark,density=compact",
+          "brand=ocean,theme=light,density=comfortable",
+          "brand=ocean,theme=light,density=compact",
+          "brand=ocean,theme=dark,density=comfortable",
+          "brand=ocean,theme=dark,density=compact"
+        ]
+      },
+      {
+        "path": "avatar.agent-border",
         "kind": "direct",
         "modes": [
           "brand=bridge,theme=light,density=comfortable",
@@ -71,12 +85,28 @@
           "brand=ocean,theme=dark,density=comfortable",
           "brand=ocean,theme=dark,density=compact"
         ]
+      },
+      {
+        "path": "color.illustration.surface",
+        "kind": "direct",
+        "modes": [
+          "brand=bridge,theme=light,density=comfortable",
+          "brand=bridge,theme=light,density=compact",
+          "brand=bridge,theme=dark,density=comfortable",
+          "brand=bridge,theme=dark,density=compact",
+          "brand=ocean,theme=light,density=comfortable",
+          "brand=ocean,theme=light,density=compact",
+          "brand=ocean,theme=dark,density=comfortable",
+          "brand=ocean,theme=dark,density=compact"
+        ]
       }
     ],
     "vars": [
       "--avatar-agent-bg",
+      "--avatar-agent-border",
       "--avatar-illustrated-bg",
-      "--color-agent-surface"
+      "--color-agent-surface",
+      "--color-illustration-surface"
     ],
     "files": [
       ".changeset/avatar-illustrated.md",
@@ -85,6 +115,7 @@
       "apps/docs-site/src/components/ds/studio/ComponentsList.tsx",
       "apps/docs-site/src/components/ds/studio/QualityShare.tsx",
       "apps/docs-site/src/lib/changes.ts",
+      "apps/docs-site/src/lib/components-studio.test.ts",
       "apps/docs-site/src/lib/library-health.test.ts",
       "apps/docs-site/src/lib/library-health.ts",
       "apps/docs-site/src/lib/people.test.ts",
@@ -94,6 +125,7 @@
       "apps/docs-site/src/scripts/history/page.ts",
       "apps/docs-site/src/scripts/people.ts",
       "apps/docs-site/src/scripts/reviews.ts",
+      "apps/docs-site/src/styles/changes.css",
       "apps/docs-site/src/styles/components-studio.css",
       "apps/docs-site/src/styles/library-edit.css",
       "apps/docs-site/src/styles/quality.css",
@@ -120,6 +152,7 @@
         "id": "Avatar",
         "reasons": [
           "uses --avatar-agent-bg",
+          "uses --avatar-agent-border",
           "uses --avatar-illustrated-bg",
           "file changed: packages/react/src/components/Avatar/Avatar.module.css",
           "file changed: packages/react/src/components/Avatar/Avatar.stories.tsx",
@@ -191,17 +224,17 @@
     "fallback": "Shared library code changed (packages/react/src/avatar-illustrated/index.tsx): every AllStates story is captured.",
     "app": {
       "include": true,
-      "reason": "3 token values changed"
+      "reason": "5 token values changed"
     }
   },
   "summary": {
     "shots": 252,
-    "changed": 5,
-    "unchanged": 247,
+    "changed": 4,
+    "unchanged": 248,
     "added": 0,
     "removed": 0,
     "errors": 0,
-    "maxPercent": 2.64
+    "maxPercent": 2.17
   },
   "shots": [
     {
@@ -212,9 +245,9 @@
       "brand": "bridge",
       "theme": "light",
       "status": "changed",
-      "changedPixels": 15407,
+      "changedPixels": 15333,
       "totalPixels": 815104,
-      "percent": 1.89,
+      "percent": 1.88,
       "boxes": [
         {
           "x": 32,
@@ -1604,9 +1637,9 @@
       "brand": "bridge",
       "theme": "dark",
       "status": "changed",
-      "changedPixels": 16948,
+      "changedPixels": 16742,
       "totalPixels": 815104,
-      "percent": 2.08,
+      "percent": 2.05,
       "boxes": [
         {
           "x": 32,
@@ -2996,9 +3029,9 @@
       "brand": "ocean",
       "theme": "light",
       "status": "changed",
-      "changedPixels": 15603,
+      "changedPixels": 16093,
       "totalPixels": 815104,
-      "percent": 1.91,
+      "percent": 1.97,
       "boxes": [
         {
           "x": 32,
@@ -4382,9 +4415,9 @@
       "brand": "ocean",
       "theme": "dark",
       "status": "changed",
-      "changedPixels": 18126,
+      "changedPixels": 17713,
       "totalPixels": 815104,
-      "percent": 2.22,
+      "percent": 2.17,
       "boxes": [
         {
           "x": 32,
@@ -5047,18 +5080,11 @@
       "storyId": "feedback-emptystate--all-states",
       "brand": "ocean",
       "theme": "dark",
-      "status": "changed",
-      "changedPixels": 28124,
+      "status": "unchanged",
+      "changedPixels": 0,
       "totalPixels": 1065984,
-      "percent": 2.64,
-      "boxes": [
-        {
-          "x": 32,
-          "y": 672,
-          "width": 960,
-          "height": 369
-        }
-      ],
+      "percent": 0,
+      "boxes": [],
       "size": {
         "before": {
           "width": 1024,
@@ -5069,12 +5095,7 @@
           "height": 1041
         }
       },
-      "images": {
-        "before": "before/story__feedback-emptystate--all-states__ocean-dark.png",
-        "after": "after/story__feedback-emptystate--all-states__ocean-dark.png",
-        "diff": "diff/story__feedback-emptystate--all-states__ocean-dark.png",
-        "composite": "composite/story__feedback-emptystate--all-states__ocean-dark.png"
-      }
+      "images": {}
     },
     {
       "key": "story__feedback-progress--all-states__ocean-dark",
