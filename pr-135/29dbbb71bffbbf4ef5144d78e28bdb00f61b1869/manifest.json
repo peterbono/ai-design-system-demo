@@ -1,15 +1,15 @@
 {
   "version": 1,
   "tool": "@bridge-ds/visual",
-  "createdAt": "2026-10-19T21:34:05.293Z",
-  "durationMs": 341122,
+  "createdAt": "2026-10-19T23:17:33.933Z",
+  "durationMs": 323206,
   "base": {
-    "ref": "b39ba46f9ddc35ba9f6cc9dc5b952706d9a49f4e",
-    "sha": "b39ba46f9ddc35ba9f6cc9dc5b952706d9a49f4e"
+    "ref": "340d5f5328e6bc1f1519d635eea3e561116e3c1d",
+    "sha": "340d5f5328e6bc1f1519d635eea3e561116e3c1d"
   },
   "head": {
-    "ref": "c980fe78609e1aef5730b385fbbbc49c3081989c",
-    "sha": "c980fe78609e1aef5730b385fbbbc49c3081989c"
+    "ref": "29dbbb71bffbbf4ef5144d78e28bdb00f61b1869",
+    "sha": "29dbbb71bffbbf4ef5144d78e28bdb00f61b1869"
   },
   "options": {
     "only": [
@@ -112,12 +112,15 @@
       ".changeset/avatar-illustrated.md",
       "apps/docs-site/src/components/Example.tsx",
       "apps/docs-site/src/components/LibraryEditMode.tsx",
+      "apps/docs-site/src/components/ds/studio/BranchesList.tsx",
       "apps/docs-site/src/components/ds/studio/ComponentsList.tsx",
       "apps/docs-site/src/components/ds/studio/QualityShare.tsx",
       "apps/docs-site/src/components/ds/studio/StudioHome.tsx",
-      "apps/docs-site/src/components/ds/studio/faces.ts",
+      "apps/docs-site/src/components/ds/studio/faces.tsx",
       "apps/docs-site/src/lib/changes.ts",
       "apps/docs-site/src/lib/components-studio.test.ts",
+      "apps/docs-site/src/lib/home-model.test.ts",
+      "apps/docs-site/src/lib/home-model.ts",
       "apps/docs-site/src/lib/library-health.test.ts",
       "apps/docs-site/src/lib/library-health.ts",
       "apps/docs-site/src/lib/people.test.ts",
@@ -135,6 +138,7 @@
       "apps/docs-site/src/styles/quality.css",
       "apps/docs-site/src/styles/site.css",
       "package-lock.json",
+      "packages/react/component-specs.json",
       "packages/react/package.json",
       "packages/react/src/avatar-illustrated/index.tsx",
       "packages/react/src/components/Avatar/Avatar.docs.json",
@@ -174,6 +178,7 @@
       "foundations-tokens--color",
       "foundations-tokens--typography",
       "foundations-tokens--space-radius-elevation",
+      "internal-figma-reference--variant",
       "actions-button--all-states",
       "actions-buttongroup--all-states",
       "actions-iconbutton--all-states",
@@ -232,13 +237,13 @@
     }
   },
   "summary": {
-    "shots": 252,
-    "changed": 4,
-    "unchanged": 248,
+    "shots": 256,
+    "changed": 5,
+    "unchanged": 251,
     "added": 0,
     "removed": 0,
     "errors": 0,
-    "maxPercent": 2.17
+    "maxPercent": 2.64
   },
   "shots": [
     {
@@ -429,6 +434,30 @@
         "after": {
           "width": 1024,
           "height": 995
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "story__internal-figma-reference--variant__bridge-light",
+      "kind": "story",
+      "label": "Internal/Figma reference: Variant",
+      "storyId": "internal-figma-reference--variant",
+      "brand": "bridge",
+      "theme": "light",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 815104,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 796
+        },
+        "after": {
+          "width": 1024,
+          "height": 796
         }
       },
       "images": {}
@@ -1826,6 +1855,30 @@
       "images": {}
     },
     {
+      "key": "story__internal-figma-reference--variant__bridge-dark",
+      "kind": "story",
+      "label": "Internal/Figma reference: Variant",
+      "storyId": "internal-figma-reference--variant",
+      "brand": "bridge",
+      "theme": "dark",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 815104,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 796
+        },
+        "after": {
+          "width": 1024,
+          "height": 796
+        }
+      },
+      "images": {}
+    },
+    {
       "key": "story__actions-button--all-states__bridge-dark",
       "kind": "story",
       "label": "Actions/Button: All States",
@@ -3207,6 +3260,30 @@
         "after": {
           "width": 1024,
           "height": 995
+        }
+      },
+      "images": {}
+    },
+    {
+      "key": "story__internal-figma-reference--variant__ocean-light",
+      "kind": "story",
+      "label": "Internal/Figma reference: Variant",
+      "storyId": "internal-figma-reference--variant",
+      "brand": "ocean",
+      "theme": "light",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 815104,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 796
+        },
+        "after": {
+          "width": 1024,
+          "height": 796
         }
       },
       "images": {}
@@ -4598,6 +4675,30 @@
       "images": {}
     },
     {
+      "key": "story__internal-figma-reference--variant__ocean-dark",
+      "kind": "story",
+      "label": "Internal/Figma reference: Variant",
+      "storyId": "internal-figma-reference--variant",
+      "brand": "ocean",
+      "theme": "dark",
+      "status": "unchanged",
+      "changedPixels": 0,
+      "totalPixels": 815104,
+      "percent": 0,
+      "boxes": [],
+      "size": {
+        "before": {
+          "width": 1024,
+          "height": 796
+        },
+        "after": {
+          "width": 1024,
+          "height": 796
+        }
+      },
+      "images": {}
+    },
+    {
       "key": "story__actions-button--all-states__ocean-dark",
       "kind": "story",
       "label": "Actions/Button: All States",
@@ -5084,11 +5185,18 @@
       "storyId": "feedback-emptystate--all-states",
       "brand": "ocean",
       "theme": "dark",
-      "status": "unchanged",
-      "changedPixels": 0,
+      "status": "changed",
+      "changedPixels": 28124,
       "totalPixels": 1065984,
-      "percent": 0,
-      "boxes": [],
+      "percent": 2.64,
+      "boxes": [
+        {
+          "x": 32,
+          "y": 672,
+          "width": 960,
+          "height": 369
+        }
+      ],
       "size": {
         "before": {
           "width": 1024,
@@ -5099,7 +5207,12 @@
           "height": 1041
         }
       },
-      "images": {}
+      "images": {
+        "before": "before/story__feedback-emptystate--all-states__ocean-dark.png",
+        "after": "after/story__feedback-emptystate--all-states__ocean-dark.png",
+        "diff": "diff/story__feedback-emptystate--all-states__ocean-dark.png",
+        "composite": "composite/story__feedback-emptystate--all-states__ocean-dark.png"
+      }
     },
     {
       "key": "story__feedback-progress--all-states__ocean-dark",
