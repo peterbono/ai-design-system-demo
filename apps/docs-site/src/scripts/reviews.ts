@@ -45,6 +45,7 @@ import {
   type ApprovalRow,
   type CachedPull,
   type People,
+  type ApprovalRole,
   type WhoActs,
 } from '../lib/changes';
 import { badgeHtml, checklistHtml, checklistRowHtml, closeDialog, codeBlockHtml, openDialog, tokenValueHtml, trusted, type ChecklistRowHtmlOptions } from '@bridge-ds/react/dom';
@@ -208,7 +209,7 @@ function people(author: string, extra: Partial<People> = {}): People {
 }
 
 /** One chip per row: the status color and who acts now (pr-status whoChip, shared with the Overview). */
-const facts = (r: Row) => ({ author: r.user.login, approvers: r.approvers, changesRequested: r.changesRequested, failing: r.failing, failingChecks: r.failingChecks, skipped: r.skipped });
+const facts = (r: Row) => ({ author: r.user.login, approvers: r.approvers, changesRequested: r.changesRequested, failing: r.failing, failingChecks: r.failingChecks, pending: r.pending, skipped: r.skipped });
 const chip = (r: Row) => whoChip(r.kind, facts(r));
 /** Who acts now on a row, for the opener: the viewer's turn first, never a change only a developer can move (lib/changes openerFor). */
 function turnOf(r: Row) {
@@ -249,6 +250,8 @@ interface Row {
   /** The design approval is in, and the names of the failing checks: the waiting-for-code rule (lib/change-status). */
   design?: boolean;
   failingChecks?: string[];
+  /** Approvals still missing: an approval the viewer can give comes before a developer's fix (lib/changes whoActs). */
+  pending?: ApprovalRole[];
   /** Library updates since the change started (compare behind_by), read with a token only. */
   behindBy?: number | null;
 }
@@ -444,7 +447,7 @@ export async function loadList(): Promise<{ number: number; head: { ref: string 
     const prior = r.kind;
     r.kind = st && st.kind === 'unknown' && prior ? prior : (st?.kind ?? (skipped ? (known.get(p.number) ?? null) : null));
     r.skipped = skipped && !r.kind;
-    if (st && st.kind !== 'unknown') Object.assign(r, { approvers: st.approvers, changesRequested: st.changesRequested, failing: st.failing, design: st.design, failingChecks: st.failingChecks });
+    if (st && st.kind !== 'unknown') Object.assign(r, { approvers: st.approvers, changesRequested: st.changesRequested, failing: st.failing, design: st.design, failingChecks: st.failingChecks, pending: st.pending });
     if (st?.tier) r.tier = st.tier;
     if (st?.files) r.nature = natureOf(r.title, r.labels, st.files);
     paintRows([...rows.values()], false);

@@ -207,6 +207,13 @@ export function requiredApprovals(tier: Tier | null): ApprovalRole[] {
   return gate.missing.map((m) => (m === 'design approval' ? 'design' : m === 'tech approval' ? 'tech' : 'approval'));
 }
 
+/** The approvals still missing on a change, from its tier and the reviews read (empty when either is unknown). */
+export function pendingApprovals(tier: Tier | null | undefined, approvals: ApprovalSummary | null | undefined): ApprovalRole[] {
+  if (tier == null || !approvals) return [];
+  const gate = mergeGate({ tier, ci: EMPTY_CI, approvals, draft: false, state: 'open' });
+  return gate.missing.map((m) => (m === 'design approval' ? 'design' : m === 'tech approval' ? 'tech' : 'approval'));
+}
+
 const ROLE_OF: Record<MissingApproval, ApprovalRole> = { 'design approval': 'design', 'tech approval': 'tech', approval: 'approval' };
 
 /** What the pull request needs next, before deciding who does it. */
@@ -216,7 +223,7 @@ export type Need =
   | { kind: 'draft' }
   | { kind: 'exploration' }
   /** `developerOnly`: every failing check is a developer check, so a developer fixes them, not the author. */
-  | { kind: 'fix-checks'; failing: number; developerOnly?: boolean }
+  | { kind: 'fix-checks'; failing: number; developerOnly?: boolean; then?: ApprovalRole[] }
   | { kind: 'address-changes'; by: string[] }
   | { kind: 'resolve-conflict' }
   | { kind: 'checks-running'; then: ApprovalRole[] }
@@ -248,7 +255,7 @@ export function needFromDetail(s: { state: PullState; ci: CiSummary; gate: Merge
 }
 
 /** The need behind a list status chip (reviewStatus), when only the status is known. */
-export function needFromStatus(kind: ReviewStatusKind | null | undefined, extra: { failing?: number; changesRequestedBy?: string[]; developerOnly?: boolean } = {}): Need {
+export function needFromStatus(kind: ReviewStatusKind | null | undefined, extra: { failing?: number; changesRequestedBy?: string[]; developerOnly?: boolean; pending?: ApprovalRole[] } = {}): Need {
   switch (kind) {
     case 'merged':
     case 'closed':
@@ -256,7 +263,7 @@ export function needFromStatus(kind: ReviewStatusKind | null | undefined, extra:
     case 'ready':
       return { kind };
     case 'ci-failing':
-      return { kind: 'fix-checks', failing: extra.failing ?? 0, ...(extra.developerOnly ? { developerOnly: true } : {}) };
+      return { kind: 'fix-checks', failing: extra.failing ?? 0, ...(extra.developerOnly ? { developerOnly: true } : {}), ...(extra.pending?.length ? { then: extra.pending } : {}) };
     case 'changes-requested':
       return { kind: 'address-changes', by: extra.changesRequestedBy ?? [] };
     case 'conflict':
@@ -406,6 +413,12 @@ export function whoActs(need: Need, p: People): WhoActs {
     case 'fix-checks':
       // Developer tests failing on a design change are a developer's to fix, whoever made it (the detail says the same:
       // lib/check-explain failingSentence). A failing design rule, or failures not known yet, stay with the author.
+      // An approval the viewer can give does not wait for the developer's fix: both go on in parallel, so the viewer's
+      // turn comes first and the failing tests stay in the sentence.
+      if (need.developerOnly) {
+        const mine = need.then?.find((r) => viewerCanApprove(r, p));
+        if (mine) return { who: 'you', logins: p.viewer ? [p.viewer] : [], yourTurn: true, action: APPROVE_ACTION[mine], sentence: `Your turn: ${YOUR_APPROVAL[mine]}. A developer fixes ${checks(need.failing)} meanwhile.`, short: YOUR_SHORT[mine] };
+      }
       if (need.developerOnly) return { who: 'developer', logins: [], yourTurn: false, action: 'fix-checks', sentence: `Waiting for a developer to fix ${checks(need.failing)}.`, short: 'Blocked by tests' };
       return authorTurn('fix-checks', `fix ${checks(need.failing)}`, `fix ${checks(need.failing)}`, 'Blocked by tests', 'Your turn: fix tests');
     case 'address-changes': {
