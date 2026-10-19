@@ -222,12 +222,13 @@ function Branches({ branches, published, now, components }: { branches: BranchCa
       </header>
       <div className="sh-pick" data-pick-slot hidden />
       <ul className="sh-cards">
-        {shown.map((b) => (
-          <BranchCardItem key={b.number} b={b} now={now} />
-        ))}
+        {/* Create first, like "+ New" in Figma's file browser: the slot never moves as branches come and go. */}
         <li className="sh-card-item sh-create">
           <StartChange components={components} appearance="card" />
         </li>
+        {shown.map((b) => (
+          <BranchCardItem key={b.number} b={b} now={now} />
+        ))}
       </ul>
       {latest && (
         <p className="t-ui t-muted sh-published">
