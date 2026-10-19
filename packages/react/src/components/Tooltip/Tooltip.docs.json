@@ -4,7 +4,8 @@
   "whenToUse": [
     "Every IconButton, with the same text as its label.",
     "Truncated text, to show the full value.",
-    "Wrap the app once in TooltipProvider so neighbouring tooltips open instantly after the first one."
+    "Wrap the app once in TooltipProvider so neighbouring tooltips open instantly after the first one.",
+    "Plain-script pages without React put tooltipAttributes() from @bridge-ds/react/dom on the trigger and call bindTooltips() once: the same tooltip, delay and keyboard behavior. Never a homemade data-tip tooltip: the design system audit counts those as look-alikes."
   ],
   "whenNotToUse": [
     "Information users need to complete a task: show it inline or in a Popover. Tooltips are invisible on touch screens.",

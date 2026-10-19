@@ -26,7 +26,7 @@ import {
   type PreviewApps,
   type PullRequestSummary,
 } from '@bridge-ds/core';
-import { tierLabel } from './changes';
+import { tierLabel, type StatusTone } from './changes';
 import type { Tier } from './review-rules';
 import { requestRows, type IssueLike, type PullLike as RequestPullLike, type RequestRow } from './requests-view';
 
@@ -72,8 +72,8 @@ export interface ExplorationRow {
   useCaseLabel: string | null;
   status: ExplorationStatus;
   statusLabel: string;
-  /** Pill class: always neutral (grey). */
-  tone: string;
+  /** DS Badge tone: always neutral (grey). */
+  tone: StatusTone;
   author: string;
   /** Where it was started and the AI agent that started it, when the exploration block says so (packages/core). */
   source: ExplorationSource | null;
@@ -143,7 +143,7 @@ export function explorationRows(pulls: ExplorationPullLike[], cfg: ExplorationsC
         useCaseLabel: EXPLORATION_USE_CASES.find((u) => u.value === s.useCase)?.label ?? null,
         status: s.status,
         statusLabel: EXPLORATION_STATUS_LABEL[s.status],
-        tone: '',
+        tone: 'neutral' as const,
         author: s.author,
         source: s.source ?? null,
         agent: s.agent ?? null,

@@ -23,19 +23,9 @@
   color: var(--color-feedback-success-text);
 }
 
-.terminal + p,
-.terminal + .small {
-  margin-top: var(--space-3);
-}
-
-.terminal {
-  margin-bottom: var(--space-4);
-}
-
-.cx-pre {
-  margin: 0;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
+/* Layout only: space around a CodeBlock in the page flow. */
+.cx-block {
+  margin-block: var(--space-3) var(--space-4);
 }
 
 .cx-details {
@@ -54,12 +44,6 @@
 .cx-details p {
   margin: var(--space-3) 0;
   font-size: var(--typography-ui-size);
-}
-
-.cx-code {
-  margin: 0;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
 }
 
 .cx-cli {

@@ -2,6 +2,7 @@
 // previews paint with the change's tokens (the CSS variables whose value differs, per theme), the components that
 // look different and those whose guidance the change edits are marked (Looks different, Guidance edited), and the
 // banner says both in one sentence. The list, its guidance text and its counts stay the latest library's: it says so.
+import { badgeClassName } from '@bridge-ds/react/dom';
 import { buildTokenSet, layoutOptions, loadConfig } from '@bridge-ds/core';
 import { previewOverrides } from '../lib/editor-model';
 import { bannerBody, changedComponents, changedGuidance, GUIDANCE_LABEL, isTogether, LOOKS_LABEL, overrideCss } from '../lib/view-scope';
@@ -50,10 +51,10 @@ export async function initViewOnComponents(root: HTMLElement) {
     const mark = (slug: string, label: string) => {
       const body = root.querySelector(`[data-cm-row="${CSS.escape(slug)}"] .cm-name-body`);
       if (!body) return;
-      const pill = document.createElement('span');
-      pill.className = 'pill cm-pill cm-pill-change';
-      pill.textContent = label;
-      body.append(pill);
+      const badge = document.createElement('span');
+      badge.className = badgeClassName({ size: 'sm', className: 'cm-pill' });
+      badge.textContent = label;
+      body.append(badge);
     };
     looks.forEach((s) => mark(s, LOOKS_LABEL));
     guidance.forEach((s) => mark(s, GUIDANCE_LABEL));

@@ -24,7 +24,7 @@ import {
   type RequestKind,
   type RequestStatus,
 } from '@bridge-ds/core';
-import { GROUP_TONE, type StatusGroup } from './changes';
+import { GROUP_TONE, type StatusGroup, type StatusTone } from './changes';
 import { ghVerb } from './gh-wording';
 
 /** The fields of a GitHub issue the Requests view reads (REST list or get). */
@@ -78,8 +78,8 @@ export interface RequestRow {
   title: string;
   status: RequestStatus;
   statusLabel: string;
-  /** Pill class: requested violet, done green, the rest grey. */
-  tone: string;
+  /** DS Badge tone: requested violet, done green, the rest grey. */
+  tone: StatusTone;
   requester: string;
   /** GitHub logins assigned to the issue. */
   assignees: string[];

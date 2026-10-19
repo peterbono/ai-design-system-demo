@@ -95,65 +95,7 @@
   margin-inline-start: calc(var(--control-padding-x-sm) * -1);
 }
 
-/* Choice cards: DS radios laid out as plates. The whole card is the label. */
-.nb-cards [role='radiogroup'] {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--size-60)), 1fr));
-  gap: var(--space-3);
-}
-
-.nb-cards-row [role='radiogroup'] {
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--space-2);
-}
-
-.nb-card {
-  align-items: flex-start;
-  padding: var(--space-4);
-  border: var(--border-width-default) solid var(--color-border-default);
-  border-radius: var(--radius-container);
-  background: var(--color-surface-default);
-  cursor: pointer;
-}
-
-.nb-card:has([data-checked]) {
-  border-color: var(--color-action-primary-bg);
-  box-shadow: inset 0 0 0 var(--border-width-default) var(--color-action-primary-bg);
-}
-
-@media (hover: hover) {
-  .nb-card:hover:not(:has([data-checked])) {
-    border-color: var(--color-border-hover);
-  }
-}
-
-/* The radio's text column takes the card width, so the swatch or corner sample sits on the end side. */
-.nb-card > span:last-child {
-  flex: 1;
-  min-inline-size: 0;
-}
-
-.nb-card > span:last-child > span:first-child {
-  display: block;
-}
-
-.nb-card-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  inline-size: 100%;
-}
-
-.nb-card-name {
-  font-weight: var(--font-weight-semibold);
-}
-
-.nb-chips {
-  display: inline-flex;
-  gap: var(--space-1);
-}
-
+/* Color chip: the Input prefix of a color field. */
 .nb-chip {
   display: inline-block;
   inline-size: var(--size-4);
@@ -162,8 +104,10 @@
   border-radius: var(--radius-inset);
 }
 
-/* Corner sample: one quarter of a control with the preset's radius. */
+/* Corner sample, under the preset's hint: one quarter of a control with the preset's radius. */
 .nb-corner {
+  display: block;
+  margin-block-start: var(--space-2);
   inline-size: var(--size-8);
   block-size: var(--size-6);
   border-block-start: var(--border-width-2) solid var(--color-text-default);

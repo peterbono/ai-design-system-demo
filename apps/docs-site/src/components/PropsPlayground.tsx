@@ -2,8 +2,8 @@
 // @bridge-ds/react with controls generated from the props parsed out of its TypeScript source (see playgroundSpec).
 // Generic: any component in registry.tsx with string-literal, boolean or string props gets a playground.
 import { Component, useId, useMemo, useState, type ReactNode } from 'react';
-import { Button, Input, SegmentedControl, Select, Switch } from '@bridge-ds/react';
-import { Check, Copy, RotateCcw } from 'lucide-react';
+import { Button, CodeBlock, Input, SegmentedControl, Select, Switch } from '@bridge-ds/react';
+import { RotateCcw } from 'lucide-react';
 import { requestScope, useScope } from './ds/scope';
 import type { Control, PlaygroundSpec } from '../lib/components';
 import { REGISTRY, resolveProps } from './registry';
@@ -88,7 +88,6 @@ export default function PropsPlayground({ spec, brands = DEFAULT_BRANDS }: { spe
   const [values, setValues] = useState<Values>(spec.initial);
   const [children, setChildren] = useState(spec.children ?? '');
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
-  const [copied, setCopied] = useState(false);
   const scope = useScope();
   const Comp = REGISTRY[spec.component];
   const controls = [...spec.controls, ...spec.native];
@@ -98,13 +97,6 @@ export default function PropsPlayground({ spec, brands = DEFAULT_BRANDS }: { spe
 
   const set = (k: string) => (v: string | boolean) => setValues((prev) => ({ ...prev, [k]: v }));
   const renderProps = { ...resolveProps(spec.fixed), ...Object.fromEntries(Object.entries(values).filter(([, v]) => v !== '')) };
-
-  const copy = () => {
-    navigator.clipboard?.writeText(code).then(() => {
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1400);
-    });
-  };
 
   return (
     <div className="pg">
@@ -157,14 +149,7 @@ export default function PropsPlayground({ spec, brands = DEFAULT_BRANDS }: { spe
             </Guard>
           </div>
         </div>
-        <div className="pg-code">
-          <pre aria-label="Code for the current props">
-            <code>{code}</code>
-          </pre>
-          <Button variant="secondary" size="sm" iconStart={copied ? Check : Copy} className="pg-copy" onClick={copy} data-copied={copied || undefined} aria-label="Copy code">
-            {copied ? 'Copied' : 'Copy'}
-          </Button>
-        </div>
+        <CodeBlock className="pg-code" code={code} label="Code for these props" />
       </div>
       <form className="pg-controls" onSubmit={(e) => e.preventDefault()} aria-label={`${spec.component} props`}>
         {controls.map((c) => (
@@ -175,9 +160,6 @@ export default function PropsPlayground({ spec, brands = DEFAULT_BRANDS }: { spe
             <Input label="children" size="sm" value={children} onValueChange={setChildren} />
           </div>
         )}
-        <span className="sr-only" role="status" aria-live="polite">
-          {copied ? 'Code copied to clipboard' : ''}
-        </span>
       </form>
     </div>
   );

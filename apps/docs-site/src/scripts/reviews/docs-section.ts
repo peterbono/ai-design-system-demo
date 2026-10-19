@@ -1,6 +1,7 @@
 // The "Docs" section of a pull request in Studio Changes: each docs.json it changes, Claude drafts first with
 // "Draft by Claude, needs review", Accept (commits needsReview false to the branch) and Edit (the docs editor on the
 // branch). Accept needs a GitHub token with write access.
+import { badgeClassName, badgeHtml } from '@bridge-ds/react/dom';
 import { esc, ghGet } from '../github-session';
 import { PR_DOC_PILL, prDocRows, prDocsEditHref, prDocsMeta, type PrDocRow } from '../../lib/pr-docs';
 
@@ -19,7 +20,7 @@ function rowHtml(r: PrDocRow, ctx: Ctx): string {
   const edit = r.state === 'unreadable' ? '' : `<a class="btn btn-secondary btn-sm" href="${esc(prDocsEditHref(r.slug, ctx.pr, ctx.branch))}">Edit</a>`;
   return `<li class="cg-doc" data-docs-row="${esc(r.path)}">
     <span class="cg-doc-main"><strong>${esc(r.name)}</strong><span class="cg-muted mono">${esc(r.path)}</span></span>
-    <span class="pill ${pill.tone}" data-docs-pill>${esc(pill.label)}</span>
+    ${badgeHtml(pill.label, { tone: pill.tone, size: 'sm', attributes: { 'data-docs-pill': true } })}
     <span class="cg-doc-acts">${accept}${edit}</span>
   </li>`;
 }
@@ -54,7 +55,7 @@ export async function loadDocsSection(slot: HTMLElement, paths: string[], ctx: C
         const row = b.closest('[data-docs-row]');
         const pill = row?.querySelector<HTMLElement>('[data-docs-pill]');
         if (pill) {
-          pill.className = `pill ${PR_DOC_PILL.reviewed.tone}`;
+          pill.className = badgeClassName({ tone: PR_DOC_PILL.reviewed.tone, size: 'sm' });
           pill.textContent = PR_DOC_PILL.reviewed.label;
         }
         b.remove();

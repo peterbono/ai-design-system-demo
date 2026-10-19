@@ -1,0 +1,73 @@
+{
+  "summary": "A token name and its value in IBM Plex Mono, with a color swatch when the value is a color. For token tables, before and after values, and the values behind a conflict choice.",
+  "preview": { "c": "Row", "children": [
+    { "c": "TokenValue", "p": { "name": "color.action.primary.bg", "value": "{color.harbor.700}", "resolved": "#0B4A8B" } },
+    { "c": "TokenValue", "p": { "name": "space.4", "value": "16px" } }
+  ] },
+  "whenToUse": [
+    "Showing a token in a table, a review or a change list: the name, the value as written, and the resolved value when it is an alias.",
+    "Before and after a change: the previous value with previous (struck through), then the new value.",
+    "Inside a ChoiceCard description, so the reader sees the value each choice keeps.",
+    "size sm in dense tables and inside sentences; md everywhere else.",
+    "Plain-script pages that build rows as HTML strings use tokenValueHtml() from @bridge-ds/react/dom: the same markup and swatch rules, without React."
+  ],
+  "whenNotToUse": [
+    "A command or a snippet the reader copies: use CodeBlock.",
+    "A status such as Changed or Removed: use Badge next to the value.",
+    "Editing a value: use an Input, and show the TokenValue as the current value next to it."
+  ],
+  "dos": [
+    {
+      "title": "Show the alias and what it resolves to",
+      "text": "The alias says where the value comes from, the resolved value says what the reader will see. Together they answer both questions in one glance.",
+      "example": { "c": "TokenValue", "p": { "name": "color.action.primary.bg", "value": "{color.harbor.700}", "resolved": "#0B4A8B" } }
+    },
+    {
+      "title": "Pair a previous value with the new one",
+      "text": "The struck-through value reads as removed, the plain one as the new value. Keep them on one line, old first.",
+      "example": { "c": "Row", "children": [
+        { "c": "TokenValue", "p": { "value": "{color.harbor.600}", "resolved": "#1B5C9E", "previous": true } },
+        { "c": "TokenValue", "p": { "value": "{color.harbor.700}", "resolved": "#0B4A8B" } }
+      ] }
+    }
+  ],
+  "donts": [
+    {
+      "title": "Repeating the token name in its own row",
+      "text": "When the row or column already names the token, drop name and show the value only. The same name twice is noise.",
+      "example": { "c": "Row", "children": [
+        "color.action.primary.bg",
+        { "c": "TokenValue", "p": { "name": "color.action.primary.bg", "value": "{color.harbor.700}", "resolved": "#0B4A8B" } }
+      ] }
+    },
+    {
+      "title": "A previous value on its own",
+      "text": "A struck-through value without the new one tells the reader what is gone but not what replaces it.",
+      "example": { "c": "TokenValue", "p": { "name": "color.text.muted", "value": "{color.slate.500}", "resolved": "#5B6472", "previous": true } }
+    }
+  ],
+  "accessibility": [
+    "Static text, no interaction: screen readers read the name, the value and the resolved value in order.",
+    "The swatch is decorative (aria-hidden): the value text always says the color, so the swatch is never the only signal.",
+    "A previous value is wrapped in del, so assistive technology that reports deletions reads it as removed, and it is struck through for sighted readers.",
+    "The swatch carries a hairline border, so white and near-background colors still read as a square in both themes.",
+    "Long names and aliases break anywhere instead of overflowing a narrow cell.",
+    "Plain scripts render the same markup with tokenValueHtml() from @bridge-ds/react/dom."
+  ],
+  "contentGuidelines": [
+    "Write the name as the token path, dot separated: color.action.primary.bg, not --color-action-primary-bg.",
+    "Write the value as the token file has it: an alias in braces ({color.harbor.700}) or a literal (#0B4A8B, 16px).",
+    "Hex values in upper case, so before and after values line up character by character."
+  ],
+  "anatomy": {
+    "root": "Container",
+    "md": "Size md (ui text)",
+    "sm": "Size sm (caption text)",
+    "swatch": "Color swatch, only for color values",
+    "name": "Token name",
+    "text": "Value group (del when previous)",
+    "value": "Value as written",
+    "resolved": "Resolved value of an alias",
+    "previous": "Previous value, struck through"
+  }
+}

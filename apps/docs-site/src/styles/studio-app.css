@@ -338,29 +338,6 @@
   opacity: 0.55;
 }
 
-.has-tip {
-  position: relative;
-}
-
-.has-tip[data-tip]:is(:hover, :focus-visible)::after {
-  content: attr(data-tip);
-  position: absolute;
-  top: calc(100% + var(--space-1-5));
-  right: 0;
-  z-index: var(--layer-tooltip);
-  width: max-content;
-  max-width: var(--size-64);
-  padding: var(--space-1-5) var(--space-2);
-  border-radius: var(--radius-control);
-  background-color: var(--color-text-default);
-  color: var(--color-bg-default);
-  font-size: var(--typography-ui-size);
-  font-weight: var(--font-weight-medium);
-  line-height: var(--font-line-height-snug);
-  white-space: normal;
-  pointer-events: none;
-}
-
 @media (max-width: 960px) {
   .hd-label {
     display: none;

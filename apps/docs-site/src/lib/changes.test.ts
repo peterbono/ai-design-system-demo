@@ -30,15 +30,15 @@ const KINDS = Object.keys(REVIEW_STATUS) as ReviewStatusKind[];
 
 describe('status colors', () => {
   it('maps every status to one of four tones: red blocked, violet waiting, green ready, grey the rest', () => {
-    expect(statusTone('ci-failing')).toBe('is-fail');
-    expect(statusTone('changes-requested')).toBe('is-fail');
-    expect(statusTone('conflict')).toBe('is-fail');
-    expect(statusTone('needs-design')).toBe('is-info');
-    expect(statusTone('needs-tech')).toBe('is-info');
-    expect(statusTone('needs-approval')).toBe('is-info');
-    expect(statusTone('ready')).toBe('is-pass');
-    for (const k of ['draft', 'unknown', 'ci-running', 'merged', 'closed'] as const) expect(statusTone(k), k).toBe('');
-    expect(statusTone(null)).toBe('');
+    expect(statusTone('ci-failing')).toBe('danger');
+    expect(statusTone('changes-requested')).toBe('danger');
+    expect(statusTone('conflict')).toBe('danger');
+    expect(statusTone('needs-design')).toBe('info');
+    expect(statusTone('needs-tech')).toBe('info');
+    expect(statusTone('needs-approval')).toBe('info');
+    expect(statusTone('ready')).toBe('success');
+    for (const k of ['draft', 'unknown', 'ci-running', 'merged', 'closed'] as const) expect(statusTone(k), k).toBe('neutral');
+    expect(statusTone(null)).toBe('neutral');
   });
 
   it('keeps the chip tones of review-rules in step with the groups', () => {

@@ -330,7 +330,6 @@
 }
 
 .hp-token .mono,
-.hp-v .mono,
 .hp-pair-names .mono {
   min-width: 0;
   overflow: hidden;
@@ -354,17 +353,6 @@
 .hp-ba dd {
   min-width: 0;
   margin: 0;
-}
-
-.hp-v {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1-5);
-  min-width: 0;
-}
-
-.hp-v .mono {
-  font-weight: var(--font-weight-regular);
 }
 
 .hp-pairs th,

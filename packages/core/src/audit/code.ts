@@ -28,6 +28,41 @@ const CSS_TAGS = /^(styled(\.\w+|\(.*\)(\.attrs\(.*\))?)|css|keyframes|createGlo
 const MUI_SPACING_ATTR = /^([mp][trblxy]?|(margin|padding)(Top|Bottom|Left|Right|X|Y)?|gap|rowGap|columnGap|spacing)$/;
 const THEME_REF_RE = /\btheme\.(palette|spacing|shape|typography|shadows|zIndex|transitions|vars)\b/g;
 
+/**
+ * DS renderers for pages without React (`@bridge-ds/react/dom`): `badgeHtml()`, `codeBlockHtml()`,
+ * `tooltipAttributes()`, `badgeClassName()`. A call imported from a DS package whose name is a component name plus one
+ * of these suffixes counts as one instance of that component.
+ */
+const DOM_RENDERER_RE = /^([a-z][A-Za-z0-9]*?)(Html|HTML|HtmlAttributes|Attributes|ClassName)$/;
+
+/** The DS component a DOM renderer stands for: `checklistRowHtml` -> ChecklistRow, else the longest DS name it starts with. */
+export function domRendererComponent(fn: string, components: Set<string>): string | undefined {
+  const m = DOM_RENDERER_RE.exec(fn);
+  if (!m) return undefined;
+  const pascal = m[1]![0]!.toUpperCase() + m[1]!.slice(1);
+  if (components.has(pascal)) return pascal;
+  return [...components].filter((c) => pascal.startsWith(c)).sort((a, b) => b.length - a.length)[0];
+}
+
+/**
+ * Homemade look-alikes in markup a script builds (`class="pill"`, `data-tip="..."`): the DS component they imitate.
+ * Exact class tokens only, so app classes that merely contain the word (`cm-pill-row`) are not counted.
+ */
+export const LOOKALIKE_CLASSES: Record<string, string> = { pill: 'Badge', badge: 'Badge', chip: 'Tag', tooltip: 'Tooltip', tip: 'Tooltip', 'has-tip': 'Tooltip' };
+const LOOKALIKE_ATTRS: Record<string, string> = { 'data-tip': 'Tooltip' };
+const HTML_CLASS_RE = /\bclass(?:Name)?\s*=\s*["']([^"'$]*)/g;
+const HTML_ATTR_RE = /\s(data-tip)\s*=/g;
+
+/** Look-alikes in a class list (`pill is-pass`): one finding per imitated component. */
+export function lookalikesInClassList(list: string, components: Set<string>): { token: string; component: string }[] {
+  const out: { token: string; component: string }[] = [];
+  for (const token of list.split(/\s+/)) {
+    const component = LOOKALIKE_CLASSES[token];
+    if (component && components.has(component) && !out.some((o) => o.component === component)) out.push({ token, component });
+  }
+  return out;
+}
+
 function kindFor(path: string): ts.ScriptKind {
   return path.endsWith('.tsx') ? ts.ScriptKind.TSX : path.endsWith('.jsx') ? ts.ScriptKind.JSX : path.endsWith('.ts') || path.endsWith('.mts') || path.endsWith('.cts') ? ts.ScriptKind.TS : ts.ScriptKind.JSX;
 }
@@ -152,13 +187,19 @@ export function scanCode(path: string, text: string, ds: DesignSystemIndex): Cod
     for (const a of scan.applies) addTailwind(a.hits, start + a.start);
   };
 
+  const lookalike = (list: string, offset: number) => {
+    for (const l of lookalikesInClassList(list, ds.components)) out.components.push({ ...pos(offset), name: `.${l.token}`, kind: 'recreated', library: 'local', suggestion: l.component });
+  };
+
   const classLiteral = (node: ts.Node) => {
     if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
       handled.add(node);
+      lookalike(node.text, node.getStart(sf) + 1);
       addTailwind(scanClassString(node.text), node.getStart(sf) + 1);
     } else if (ts.isTemplateExpression(node)) {
       for (const p of [node.head, ...node.templateSpans.map((s) => s.literal)]) {
         handled.add(p);
+        lookalike(p.text, p.getStart(sf) + 1);
         addTailwind(scanClassString(p.text), p.getStart(sf) + 1);
       }
       node.templateSpans.forEach((s) => visit(s.expression, null, true));
@@ -277,6 +318,18 @@ export function scanCode(path: string, text: string, ds: DesignSystemIndex): Cod
       cssTemplate(node.template);
       return;
     }
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+      const imp = imports.get(node.expression.text);
+      if (imp && imp.imported !== '*' && classifyModule(imp.module, ds.packages, ds.foreignLibraries) === 'ds') {
+        const comp = domRendererComponent(imp.imported === 'default' ? node.expression.text : imp.imported, ds.components);
+        if (comp) out.ds[comp] = (out.ds[comp] ?? 0) + 1;
+      }
+    }
+    // el.className = 'pill is-pass': a class list set from a script.
+    if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken && ts.isPropertyAccessExpression(node.left) && node.left.name.text === 'className') {
+      visit(node.left, ctx, classCtx);
+      return classLiteral(node.right);
+    }
     if (ts.isCallExpression(node)) {
       const callee = node.expression.getText(sf);
       if (CLASS_FNS.test(callee)) {
@@ -326,6 +379,15 @@ export function scanCode(path: string, text: string, ds: DesignSystemIndex): Cod
   const literal = (node: ts.Node) => {
     if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) || ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node)) {
       const t = (node as ts.LiteralLikeNode).text;
+      // Markup built in strings (`<span class="pill">`, `data-tip="..."`): homemade look-alikes of DS components.
+      if (!handled.has(node) && (t.includes('<') || ts.isTemplateMiddle(node) || ts.isTemplateTail(node))) {
+        const base = node.getStart(sf) + 1;
+        for (const m of t.matchAll(HTML_CLASS_RE)) for (const l of lookalikesInClassList(m[1]!, ds.components)) out.components.push({ ...pos(base + m.index!), name: `.${l.token}`, kind: 'recreated', library: 'local', suggestion: l.component });
+        for (const m of t.matchAll(HTML_ATTR_RE)) {
+          const component = LOOKALIKE_ATTRS[m[1]!];
+          if (component && ds.components.has(component)) out.components.push({ ...pos(base + m.index! + 1), name: `[${m[1]}]`, kind: 'recreated', library: 'local', suggestion: component });
+        }
+      }
       for (const m of t.matchAll(/var\(\s*(--[\w-]+)/g)) {
         if (ds.isDsVar(m[1]!)) out.tokenUsages++;
         else out.themeRefs++;

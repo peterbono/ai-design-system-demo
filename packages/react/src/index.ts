@@ -23,6 +23,7 @@ export * from './components/Checkbox';
 export * from './components/CheckboxGroup';
 export * from './components/RadioGroup';
 export * from './components/SegmentedControl';
+export * from './components/ChoiceCard';
 export * from './components/Switch';
 export * from './components/Slider';
 export * from './components/NumberField';
@@ -30,6 +31,7 @@ export * from './components/Form';
 
 // Feedback
 export * from './components/Alert';
+export * from './components/Banner';
 export * from './components/Toast';
 export * from './components/Progress';
 export * from './components/Spinner';
@@ -59,6 +61,9 @@ export * from './components/Accordion';
 export * from './components/Tag';
 export * from './components/Divider';
 export * from './components/Kbd';
+export * from './components/CodeBlock';
+export * from './components/TokenValue';
+export * from './components/Checklist';
 
 // Layout
 export * from './components/Stack';

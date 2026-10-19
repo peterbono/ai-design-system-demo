@@ -15,6 +15,9 @@ import { entriesFor, type TeamStates } from '@bridge-ds/core';
 
 export type StatusGroup = 'blocked' | 'waiting' | 'ready' | 'neutral';
 
+/** The DS Badge tones a status can take: one per status group. */
+export type StatusTone = 'danger' | 'info' | 'success' | 'neutral';
+
 export const STATUS_GROUP: Record<ReviewStatusKind, StatusGroup> = {
   'ci-failing': 'blocked',
   'changes-requested': 'blocked',
@@ -31,11 +34,11 @@ export const STATUS_GROUP: Record<ReviewStatusKind, StatusGroup> = {
   closed: 'neutral',
 };
 
-/** Pill class of each group (site.css `.pill.is-*`). */
-export const GROUP_TONE: Record<StatusGroup, string> = { blocked: 'is-fail', waiting: 'is-info', ready: 'is-pass', neutral: '' };
+/** DS Badge tone of each group. */
+export const GROUP_TONE: Record<StatusGroup, StatusTone> = { blocked: 'danger', waiting: 'info', ready: 'success', neutral: 'neutral' };
 
 export const statusGroup = (kind: ReviewStatusKind | null | undefined): StatusGroup => (kind ? STATUS_GROUP[kind] : 'neutral');
-export const statusTone = (kind: ReviewStatusKind | null | undefined): string => GROUP_TONE[statusGroup(kind)];
+export const statusTone = (kind: ReviewStatusKind | null | undefined): StatusTone => GROUP_TONE[statusGroup(kind)];
 
 /** The neutral risk label. Never colored: color is for status. */
 export const tierLabel = (t: Tier | null | undefined) => (t ? `Tier ${t}` : 'Tier not set');

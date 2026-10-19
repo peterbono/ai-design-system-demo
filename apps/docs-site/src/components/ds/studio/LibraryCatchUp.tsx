@@ -2,10 +2,10 @@
 // actions, one place: when nothing conflicts, GitHub brings the library in (update-branch); when the change and the
 // library changed the same tokens, the designer resolves them here, one row per token, "Keep mine" (the default) or
 // "Use the library's", the Tokens Studio yours/theirs model in designer words. The contrast guardrail runs on the
-// choices before anything is sent. DS Button, Dialog, RadioGroup and Alert, mounted by scripts/reviews.ts.
+// choices before anything is sent. DS Button, Dialog, ChoiceCardGroup, TokenValue and Alert, mounted by scripts/reviews.ts.
 import { useMemo, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { Alert, Button, ButtonGroup, Dialog, DialogClose, DialogContent, Radio, RadioGroup } from '@bridge-ds/react';
+import { Alert, Button, ButtonGroup, ChoiceCard, ChoiceCardGroup, Dialog, DialogClose, DialogContent, TokenValue, type TokenValueSize } from '@bridge-ds/react';
 import type { MergeChoices, MergeSide, TokenMergeConflict } from '@bridge-ds/core';
 import { resolution, type ConflictRow, type Guardrail } from '../../../lib/library-sync';
 import type { ShownValue } from '../../../lib/token-review';
@@ -32,15 +32,9 @@ export interface LibraryCatchUpProps {
   resolver?: ResolverSource;
 }
 
-function Value({ v }: { v: ShownValue | null }) {
-  if (!v) return <span className="lib-val">Removes the token</span>;
-  return (
-    <span className="lib-val">
-      {v.hex && <span className="lib-sw" style={{ backgroundColor: v.hex }} aria-hidden="true" />}
-      <span className="mono">{v.alias ? `{${v.alias}}` : (v.css ?? '')}</span>
-      {v.alias && v.css && <span className="lib-css mono">{v.css}</span>}
-    </span>
-  );
+function Value({ v, size }: { v: ShownValue | null; size?: TokenValueSize }) {
+  if (!v) return <>Removes the token</>;
+  return <TokenValue size={size} value={v.alias ? `{${v.alias}}` : (v.css ?? '')} resolved={v.alias ? (v.css ?? undefined) : undefined} swatch={v.hex ?? false} />;
 }
 
 function ConflictRows({ rows, choices, pick }: { rows: ConflictRow[]; choices: MergeChoices; pick: (key: string, side: MergeSide) => void }) {
@@ -57,23 +51,21 @@ function ConflictRows({ rows, choices, pick }: { rows: ConflictRow[]; choices: M
                 {r.base && (
                   <>
                     {r.context ? ', was ' : 'Was '}
-                    <Value v={r.base} />
+                    <Value v={r.base} size="sm" />
                   </>
                 )}
               </span>
               {r.note && <span className={r.mustPick ? 'lib-note is-pick' : 'lib-note'}>{r.note}</span>}
             </div>
-            <RadioGroup
-              className="lib-choice"
+            <ChoiceCardGroup
               label={`Value of ${r.name}${r.context ? ` in ${r.context}` : ''}`}
               hideLabel
-              orientation="horizontal"
               value={choice ?? ''}
               onValueChange={(v) => pick(r.key, v as MergeSide)}
             >
-              <Radio value="mine" label="Keep mine" description={<Value v={r.mine} />} />
-              <Radio value="theirs" label="Use the library's" description={<Value v={r.library} />} />
-            </RadioGroup>
+              <ChoiceCard value="mine" title="Keep mine" description={<Value v={r.mine} />} />
+              <ChoiceCard value="theirs" title="Use the library's" description={<Value v={r.library} />} />
+            </ChoiceCardGroup>
           </li>
         );
       })}

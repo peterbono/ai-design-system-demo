@@ -1027,30 +1027,6 @@ export function initTokenExplorer() {
     }
   }
 
-  // ---- the latest library value of a changed token, on hover or when its row has focus. Rows sit in groups that
-  // contain their paint, so the tip floats on the page (fixed) instead of inside the row.
-  if (viewing) {
-    const tip = document.createElement('div');
-    tip.className = 'xp-before-tip';
-    tip.setAttribute('aria-hidden', 'true');
-    tip.hidden = true;
-    document.body.append(tip);
-    const show = (flag: HTMLElement | null) => {
-      if (!flag?.dataset.before) return void (tip.hidden = true);
-      tip.textContent = flag.dataset.before;
-      tip.hidden = false;
-      const r = flag.getBoundingClientRect();
-      const w = tip.offsetWidth;
-      tip.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - w - 8))}px`;
-      tip.style.top = `${r.bottom + 6}px`;
-    };
-    grid.addEventListener('pointerover', (e) => show((e.target as HTMLElement).closest<HTMLElement>('.xp-flag-change')));
-    grid.addEventListener('pointerleave', () => (tip.hidden = true));
-    grid.addEventListener('focusin', (e) => show((e.target as HTMLElement).closest('.xp-tr')?.querySelector<HTMLElement>('.xp-flag-change') ?? null));
-    grid.addEventListener('focusout', () => (tip.hidden = true));
-    scroller.addEventListener('scroll', () => (tip.hidden = true), { passive: true });
-  }
-
   // ---- start
   if (!historyPanelReady) {
     historyPanelReady = true;

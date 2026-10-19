@@ -18,7 +18,7 @@ import { AUDITS_DIR, groupByApp, loadAudits } from '../../../lib/audits';
 import { ADOPTION_MEANING, adoptionRows, beforeLabel, cleanupTitle, firstFindingTarget, openerSentence, qualityModel, type ComboResult } from '../../../lib/quality';
 import { PAGE_SOURCES, freshness } from '../../../lib/sources';
 import { QUALITY_IN_CHECKS, QUALITY_IN_CHECKS_BODY, QUALITY_TOGETHER, QUALITY_TOGETHER_BODY } from '../../../lib/view-scope';
-import { EmptyState } from '@bridge-ds/react';
+import { Badge, CodeBlock, EmptyState } from '@bridge-ds/react';
 import { ShieldCheck } from 'lucide-react';
 import { dashboard } from '../../../lib/stats';
 import { BRAND_LABEL, TOKEN_SOURCE_FILES, type Brand } from '../../../lib/tokens';
@@ -87,7 +87,7 @@ const tone = (g: keyof typeof GROUP_TONE) => GROUP_TONE[g];
                       <span class="ql-title">{f.title}</span>
                       <span class="ql-detail">{f.detail}</span>
                     </span>
-                    <span class={`pill ${tone(f.status.group)}`}>{f.status.label}</span>
+                    <Badge tone={tone(f.status.group)} className="ql-badge">{f.status.label}</Badge>
                     <span class="ql-chev" aria-hidden="true"><Icon name="chevron" size={16} /></span>
                   </summary>
                   <div class="ql-more-body">
@@ -96,7 +96,7 @@ const tone = (g: keyof typeof GROUP_TONE) => GROUP_TONE[g];
                         <li>
                           <span>{c.label}</span>
                           <span class="num">{c.pass} of {c.total}</span>
-                          <span class={`pill ${c.pass === c.total ? 'is-pass' : 'is-fail'}`}>{c.pass === c.total ? 'Pass' : 'Fail'}</span>
+                          <Badge tone={c.pass === c.total ? 'success' : 'danger'} size="sm">{c.pass === c.total ? 'Pass' : 'Fail'}</Badge>
                         </li>
                       ))}
                     </ul>
@@ -114,7 +114,7 @@ const tone = (g: keyof typeof GROUP_TONE) => GROUP_TONE[g];
                     <span class="ql-title">{f.title}</span>
                     {f.detail && <span class="ql-detail">{f.detail}</span>}
                   </span>
-                  <span class={`pill ${tone(f.status.group)}`}>{f.status.label}</span>
+                  <Badge tone={tone(f.status.group)} className="ql-badge">{f.status.label}</Badge>
                   {f.action ? (
                     <a class="ql-act" href={f.action.href} aria-label={`${f.action.label}: ${f.title}`}>
                       {f.action.label}
@@ -136,7 +136,7 @@ const tone = (g: keyof typeof GROUP_TONE) => GROUP_TONE[g];
                     <span class="ql-title">{cleanupTitle(unusedTotal)}</span>
                     <span class="ql-detail">Nothing breaks: candidates for cleanup, or values waiting for a job.</span>
                   </span>
-                  <span class="pill">Note</span>
+                  <Badge className="ql-badge">Note</Badge>
                   <span class="ql-chev" aria-hidden="true"><Icon name="chevron" size={16} /></span>
                 </summary>
                 <ul class="ql-more-body ql-cleanup">
@@ -181,9 +181,13 @@ const tone = (g: keyof typeof GROUP_TONE) => GROUP_TONE[g];
       <summary>For developers</summary>
       <p class="ql-muted">Contrast pairs come from <code>{CONTRAST_FILE}</code>. Adoption reports are committed under <code>{AUDITS_DIR}</code>.</p>
       <p class="ql-muted">CI runs these checks on every pull request. Run them before you push to see the same result.</p>
-      <pre class="ql-cmd"><code>npm run bridge -- check    # config, token validation, contrast gate
+      <CodeBlock
+        className="ql-cmd"
+        label="Run the checks locally"
+        code={`npm run bridge -- check    # config, token validation, contrast gate
 npm run tokens:build       # DTCG to CSS and TS, fails on contrast
-npm run audit:docs         # adoption audit of this app, fails on regression</code></pre>
+npm run audit:docs         # adoption audit of this app, fails on regression`}
+      />
     </details>
   </div>
 </Layout>

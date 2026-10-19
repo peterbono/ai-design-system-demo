@@ -35,6 +35,7 @@ import {
   type DraftEdit,
   type Guardrails,
 } from '../lib/editor-model';
+import { badgeHtml, tokenValueHtml } from '@bridge-ds/react/dom';
 import { esc, getToken, hasWorkingToken, initGitHubConnect, onAccess, paintGates, prefersSignIn, readRepo, relativeTime, setButtonDisabled, setButtonLabel, showGhError, studioClient } from './github-session';
 import { ghVerb } from '../lib/gh-wording';
 import { docsNotesForTokens } from '../lib/docs-draft-model';
@@ -208,14 +209,13 @@ function paintTray() {
   const status = $('ed-tray-status')!;
   status.textContent = !n ? 'Open a token to edit it.' : fails ? `${fails} guardrail${fails > 1 ? 's' : ''} block proposing` : 'Guardrails pass';
   status.className = `ed-tray-status ${!n ? '' : fails ? 'is-fail' : 'is-pass'}`;
-  const sw = (hex: string | null) => (hex ? `<span class="ed-sw sm" style="background-color:${hex}"></span>` : '');
   const moves = contrastMoves({ contrastBefore: S.contrastBefore, contrastAfter: S.contrastAfter });
   $('ed-tray-list')!.innerHTML = rows.length
     ? rows
         .map(
           (r) => `<li class="ed-tray-row">
-            <div class="ed-tray-main"><span class="mono">${esc(r.label)}</span>${r.context ? `<span class="pill">${esc(r.context)}</span>` : ''}</div>
-            <div class="ed-tray-vals">${r.before ? `${sw(r.before.hex)}<span class="mono small">${esc(r.before.text)}</span>` : ''}${r.before && r.after ? '<span class="muted">-></span>' : ''}${r.after ? `${sw(r.after.hex)}<span class="mono small">${esc(r.after.text)}</span>` : ''}</div>
+            <div class="ed-tray-main"><span class="mono">${esc(r.label)}</span>${r.context ? badgeHtml(r.context, { size: 'sm' }) : ''}</div>
+            <div class="ed-tray-vals">${r.before ? tokenValueHtml(r.before.text, { swatch: r.before.hex ?? false, previous: true, size: 'sm' }) : ''}${r.before && r.after ? '<span class="muted">-></span>' : ''}${r.after ? tokenValueHtml(r.after.text, { swatch: r.after.hex ?? false, size: 'sm' }) : ''}</div>
             <button type="button" class="btn btn-secondary btn-sm" data-ed-undo="${r.index}">Undo</button>
           </li>`,
         )

@@ -3,6 +3,7 @@
 // nothing merges while CI fails. Who may ship (merge, which publishes to the products) comes from
 // `governance.rights` in bridge.config.json (@bridge-ds/core rights.ts); GitHub write access is checked as well.
 
+import type { StatusTone } from './changes';
 import { approverLists, canShip, holdersOf, shipPolicy, unreadableShipTeams, whoCanShipSentence, type ShipPolicy } from '@bridge-ds/core';
 
 // Shared with Reviews, Settings and the PR status chips: who approves, who ships, and the sentence a blocked viewer reads.
@@ -329,8 +330,8 @@ export type ReviewStatusKind =
 export interface ReviewStatus {
   kind: ReviewStatusKind;
   label: string;
-  /** Pill class: '', is-pass, is-fail, is-warn, is-info, is-accent. */
-  tone: string;
+  /** DS Badge tone (lib/changes status groups). */
+  tone: StatusTone;
 }
 
 /**
@@ -338,20 +339,20 @@ export interface ReviewStatus {
  * violet while it waits for an approval, green when it is ready, grey for drafts, running checks, unknown, merged
  * and closed. Risk tiers never take a color.
  */
-export const REVIEW_STATUS: Record<ReviewStatusKind, { label: string; tone: string }> = {
-  merged: { label: 'Shipped', tone: '' },
-  closed: { label: 'Closed', tone: '' },
-  draft: { label: 'Draft', tone: '' },
-  'ci-failing': { label: 'Blocked by tests', tone: 'is-fail' },
-  'changes-requested': { label: 'Changes requested', tone: 'is-fail' },
-  'ci-running': { label: 'Tests running', tone: '' },
-  'needs-design': { label: 'Needs design approval', tone: 'is-info' },
-  'needs-tech': { label: 'Needs tech approval', tone: 'is-info' },
-  'needs-approval': { label: 'Needs approval', tone: 'is-info' },
-  conflict: { label: 'Conflict', tone: 'is-fail' },
-  checking: { label: 'Checking', tone: '' },
-  ready: { label: 'Ready to ship', tone: 'is-pass' },
-  unknown: { label: 'Status unknown', tone: '' },
+export const REVIEW_STATUS: Record<ReviewStatusKind, { label: string; tone: StatusTone }> = {
+  merged: { label: 'Shipped', tone: 'neutral' },
+  closed: { label: 'Closed', tone: 'neutral' },
+  draft: { label: 'Draft', tone: 'neutral' },
+  'ci-failing': { label: 'Blocked by tests', tone: 'danger' },
+  'changes-requested': { label: 'Changes requested', tone: 'danger' },
+  'ci-running': { label: 'Tests running', tone: 'neutral' },
+  'needs-design': { label: 'Needs design approval', tone: 'info' },
+  'needs-tech': { label: 'Needs tech approval', tone: 'info' },
+  'needs-approval': { label: 'Needs approval', tone: 'info' },
+  conflict: { label: 'Conflict', tone: 'danger' },
+  checking: { label: 'Checking', tone: 'neutral' },
+  ready: { label: 'Ready to ship', tone: 'success' },
+  unknown: { label: 'Status unknown', tone: 'neutral' },
 };
 
 /**

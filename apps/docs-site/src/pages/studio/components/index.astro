@@ -2,7 +2,7 @@
 // Studio Components: one sentence on the state of the catalog, one primary while guidance is missing, then every
 // component grouped by family (search and the family menu filter it), each row with a calm thumbnail of the real
 // component and its facts in words. A row opens a drawer, top to bottom: the family as an eyebrow on the name, one
-// sentence, ONE live preview with a Light/Dark switch, the facts in one line (a pill only when something waits for
+// sentence, ONE live preview with a Light/Dark switch, the facts in one line (a badge only when something waits for
 // someone), then one row of actions with a single primary (the guidance while it is missing or in review, else
 // "Change this component"). The designer drives a change: the drawer asks what she wants to change, in place, and
 // leads to her component's tokens, to an exploration Claude builds from her Figma frame, or to a mismatch report
@@ -19,7 +19,7 @@ import ButtonLink from '../../../components/ds/ButtonLink';
 import Example from '../../../components/Example';
 import ComponentsSearch from '../../../components/ds/studio/ComponentsSearch';
 import ComponentsList, { exceptions, type ComponentListRow } from '../../../components/ds/studio/ComponentsList';
-import { Button, Icon, IconButton, Input, Link, SegmentedControl, Textarea } from '@bridge-ds/react';
+import { Badge, Button, Icon, IconButton, Input, Link, SegmentedControl, Textarea } from '@bridge-ds/react';
 import { FileText, ImagePlus, Moon, Pencil, Sun, X } from 'lucide-react';
 import ChangeIntent from '../../../components/ds/studio/ChangeIntent';
 import { GitHubMark, StorybookMark } from '../../../components/ds/studio/brand-icons';
@@ -149,7 +149,7 @@ const signIn = Boolean(signInConfig());
             )}
             <p class="cm-d-facts">
               {exceptions(r).map((b) => (
-                <span class={`pill ${b.tone}`}>{b.label}</span>
+                <Badge tone={b.tone} size="sm" className="cm-d-badge">{b.label}</Badge>
               ))}
               <span>{drawerFacts({ guidance: r.guidance, tokens: r.tokensTotal, usedIn: r.usedIn }).join(' ')}</span>
               <span data-cm-d-req />

@@ -1,0 +1,82 @@
+.root {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1-5);
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  font-family: var(--font-family-sans);
+}
+
+.label {
+  color: var(--color-text-muted);
+  font-size: var(--typography-caption-size);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--typography-caption-line-height);
+  letter-spacing: var(--font-tracking-wide);
+}
+
+/* The code and its copy button on one line: the action sits on what it acts on. */
+.plate {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-control);
+  background-color: var(--color-bg-subtle);
+}
+
+.pre {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  padding: calc((var(--control-height-sm) - var(--typography-ui-line-height)) / 2) 0;
+  overflow-x: auto;
+  border: 0;
+  border-radius: var(--radius-inset);
+  background-color: transparent;
+  color: var(--color-text-default);
+  font-family: var(--font-family-mono);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+  white-space: pre;
+  tab-size: 2;
+}
+
+.pre:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.wrap .pre {
+  white-space: pre-wrap;
+}
+
+.code {
+  padding: 0;
+  border-radius: 0;
+  background-color: transparent;
+  color: inherit;
+  font: inherit;
+  overflow-wrap: normal;
+}
+
+.wrap .code {
+  overflow-wrap: normal;
+}
+
+/* Wrapped: lines break at spaces, never inside a package name, a flag or a path. A run longer than the whole line
+   (a long repository slug on a phone) still breaks rather than hiding. */
+.word {
+  display: inline-block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  vertical-align: top;
+}
+
+.copy {
+  flex: none;
+}

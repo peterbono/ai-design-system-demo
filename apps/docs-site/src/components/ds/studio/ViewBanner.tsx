@@ -1,10 +1,12 @@
-// The persistent banner while Studio shows the library as a change (lib/view-scope): one DS Alert that says what the
-// page shows and that nothing is saved, with the ways out on the same line: back to the latest library, open the
-// change, and on Tokens "Edit tokens in this change". Mounted by scripts/view-change.ts into the slot under the page
-// title ([data-view-banner] on Tokens, Components and Quality).
+// The persistent banner while Studio shows the library as a change (lib/view-scope): one DS Banner, the mode the page
+// is in, that says what the page shows and that nothing is saved. The way out sits on the same line (back to the
+// latest library) with at most one more action: "Edit tokens in this change" on Tokens, else "Open the change". When
+// both apply, "Open the change" moves to the detail line as a link. When the change cannot be read, a warning Alert
+// says why instead: an error is a message about the page, not a mode. Mounted by scripts/view-change.ts into the slot
+// under the page title ([data-view-banner] on Tokens, Components and Quality).
 import { createRoot, type Root } from 'react-dom/client';
 import { Eye, TriangleAlert } from 'lucide-react';
-import { Alert } from '@bridge-ds/react';
+import { Alert, Banner, Link } from '@bridge-ds/react';
 import ButtonLink from '../ButtonLink';
 
 export interface ViewBannerProps {
@@ -19,33 +21,71 @@ export interface ViewBannerProps {
 }
 
 export function ViewBanner({ title, body, latestHref, changeHref, editHref, error }: ViewBannerProps) {
+  const back = (
+    <ButtonLink variant="secondary" href={latestHref}>
+      Back to latest library
+    </ButtonLink>
+  );
+  if (error) {
+    return (
+      <Alert
+        className="view-banner-bar"
+        tone="warning"
+        icon={TriangleAlert}
+        announce="off"
+        title={title}
+        actions={
+          <>
+            {back}
+            {changeHref && (
+              <ButtonLink variant="ghost" href={changeHref}>
+                Open the change
+              </ButtonLink>
+            )}
+          </>
+        }
+      >
+        {body}
+      </Alert>
+    );
+  }
+  // One more action besides the way out: editing wins on Tokens, the change page then goes to the detail line.
+  const openInDetail = editHref && changeHref ? changeHref : null;
+  const more = editHref ? (
+    <ButtonLink variant="secondary" href={editHref}>
+      Edit tokens in this change
+    </ButtonLink>
+  ) : changeHref ? (
+    <ButtonLink variant="secondary" href={changeHref}>
+      Open the change
+    </ButtonLink>
+  ) : null;
   return (
-    <Alert
-      tone={error ? 'warning' : 'neutral'}
-      icon={error ? TriangleAlert : Eye}
-      announce="off"
+    <Banner
+      className="view-banner-bar"
       title={title}
-      actionsPlacement="inline"
+      icon={Eye}
+      appearance="strong"
+      sticky="below-header"
       actions={
         <>
-          {editHref && (
-            <ButtonLink variant="primary" href={editHref}>
-              Edit tokens in this change
-            </ButtonLink>
-          )}
-          <ButtonLink variant="secondary" href={latestHref}>
-            Back to latest library
-          </ButtonLink>
-          {changeHref && (
-            <ButtonLink variant="ghost" href={changeHref}>
-              Open the change
-            </ButtonLink>
-          )}
+          {more}
+          {back}
         </>
       }
     >
-      {body}
-    </Alert>
+      {body || openInDetail ? (
+        <>
+          {body}
+          {body && openInDetail ? ' ' : null}
+          {openInDetail && (
+            <Link variant="subtle" href={openInDetail}>
+              Open the change
+            </Link>
+          )}
+        </>
+      ) : null}
+    </Banner>
   );
 }
 

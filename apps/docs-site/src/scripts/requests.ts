@@ -5,6 +5,7 @@
 // Pure rules live in lib/requests-view.ts.
 import { workNature } from '../lib/work-nature';
 import { devTag, markWork, natureAttr } from './work-filter';
+import { badgeHtml, codeBlockHtml } from '@bridge-ds/react/dom';
 import { assignRequestOnGitHub, closingIssueNumbers, declineReasonProblems, declineRequestOnGitHub, REQUEST_LABEL, REQUEST_STATUS_LABEL, requestIssueTitle, type IntegrationsConfig } from '@bridge-ds/core';
 import {
   assigneeOptions,
@@ -119,7 +120,6 @@ export async function loadRequestRows(opts: { openPulls?: PullLike[] | null; clo
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-const pill = (text: string, tone = '') => `<span class="pill ${tone}">${esc(text)}</span>`;
 
 let rows: RequestRow[] = [];
 let loaded: Promise<RequestRow[]> | null = null;
@@ -144,7 +144,7 @@ function rowHtml(r: RequestRow) {
     <span class="rq-row-main"><span class="cg-row-title"><span class="cg-row-name" title="${esc(r.title)}"><span class="rq-comp">${esc(r.component)}</span> ${esc(r.title)}</span> <span class="cg-num">#${r.number}</span> ${devTag(nature)}</span>
     <span class="rq-meta">${esc(wantsToChange(r.requester, r.component))}, ${esc(r.kindLabel.toLowerCase())}${r.jiraKey ? `, <span class="mono">${esc(r.jiraKey)}</span>` : ''}</span></span>
     <span class="rq-onit">${esc(onItLabel(r))}</span>
-    ${pill(r.statusLabel, `rv-status ${r.tone}`)}
+    ${badgeHtml(r.statusLabel, { tone: r.tone, size: 'sm', className: 'rv-status' })}
     <time class="cg-date" datetime="${esc(r.createdAt)}">${esc(shortDate(r.createdAt))}</time></a></li>`;
 }
 
@@ -290,7 +290,7 @@ export function renderRequestDetail(r: RequestRow, ctx: DetailContext = { viewer
         active
           ? `<h3 class="ex-dev-h">Implement with Claude</h3>
       <p>Claude reads the request, the component's files and the repo rules, then opens a pull request that closes #${r.number}.</p>
-      <div class="rq-cmd-row"><code class="cg-cmd rq-cmd" id="rq-cmd">${esc(cmd)}</code><button type="button" class="btn btn-secondary btn-sm" data-copy data-copy-from="rq-cmd"><span data-copy-label>Copy command</span></button></div>
+      ${codeBlockHtml(cmd, { label: 'Command for Claude Code', codeAttributes: { id: 'rq-cmd' } })}
       <p class="cg-muted">In Claude with the Bridge MCP server, ask for the <span class="mono">bridge_get_request</span> tool with request ${r.number}.</p>`
           : ''
       }
@@ -300,7 +300,7 @@ export function renderRequestDetail(r: RequestRow, ctx: DetailContext = { viewer
   <nav class="cg-crumbs" aria-label="Breadcrumb"><a href="?view=requests" data-back-requests>Requests</a><span aria-hidden="true">/</span><span class="mono">#${r.number}</span></nav>
   <header class="zone cg-pr-open">
     <h1 class="cg-pr-title">${esc(r.component)}: ${esc(r.title.charAt(0).toLowerCase() + r.title.slice(1))} <span class="cg-num">#${r.number}</span></h1>
-    <p class="cg-pr-meta">${pill(r.kindLabel)}${pill(r.statusLabel, `rv-status ${r.tone}`)}<span>${esc(wantsToChange(r.requester, r.component))}</span><time datetime="${esc(r.createdAt)}">${esc(shortDate(r.createdAt))}</time>${jira}<a href="${esc(r.url)}" target="_blank" rel="noopener">Open on GitHub</a></p>
+    <p class="cg-pr-meta">${badgeHtml(r.kindLabel)}${badgeHtml(r.statusLabel, { tone: r.tone, className: 'rv-status' })}<span>${esc(wantsToChange(r.requester, r.component))}</span><time datetime="${esc(r.createdAt)}">${esc(shortDate(r.createdAt))}</time>${jira}<a href="${esc(r.url)}" target="_blank" rel="noopener">Open on GitHub</a></p>
     <p class="cg-pr-state" id="rq-state" role="status" tabindex="-1">${esc(decision.sentence)}</p>
     ${primary ? `<p class="cg-pr-cta rq-decide" id="rq-actions">${primary}</p>` : ''}
     <div id="rq-assign-slot" hidden></div>

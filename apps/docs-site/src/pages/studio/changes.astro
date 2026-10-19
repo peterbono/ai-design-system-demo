@@ -15,7 +15,7 @@ import HistoryPlanner from '../../components/HistoryPlanner.astro';
 import Illustration from '../../components/Illustration.astro';
 import Icon from '../../components/Icon.astro';
 import ButtonLink from '../../components/ds/ButtonLink';
-import { Alert, Button, Link, SegmentedControl } from '@bridge-ds/react';
+import { Alert, Button, CodeBlock, Link, SegmentedControl } from '@bridge-ds/react';
 import { WORK_FILTERS } from '../../lib/work-nature';
 import { siteRepo } from '../../lib/config';
 import { EXPLORATION_USE_CASES } from '@bridge-ds/core';
@@ -199,7 +199,7 @@ const signIn = Boolean(signInConfig());
             <summary class="cg-sec-head"><span class="cg-sec-title">For developers</span><span class="cg-sec-meta">CLI and GitHub</span><span class="cg-sec-chev" aria-hidden="true"></span></summary>
             <div class="cg-sec-body">
               <p class="rq-hint" id="ex-branch"></p>
-              <div class="rq-cmd-row"><code class="cg-cmd rq-cmd" id="ex-start-cmd"></code><Button variant="secondary" size="sm" data-copy data-copy-from="ex-start-cmd"><span data-copy-label>Copy command</span></Button></div>
+              <CodeBlock code="" label="Start it from a terminal" codeProps={{ id: 'ex-start-cmd' }} />
             </div>
           </details>
         </form>

@@ -1,8 +1,6 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import Icon from '../components/Icon.astro';
-import { Button, Link } from '@bridge-ds/react';
-import { Copy } from 'lucide-react';
+import { CodeBlock, Link } from '@bridge-ds/react';
 import { GITHUB_URL, PLUGIN_URL, readJson, sourceUrl } from '../lib/repo';
 import { npmUrl } from '../lib/npm';
 import { freshness } from '../lib/sources';
@@ -56,6 +54,11 @@ export function App() {
   );
 }`;
 const html = `<html data-theme="light" data-brand="bridge" data-density="comfortable">`;
+const dom = `import { badgeHtml, bindCodeBlocks, bindTooltips, codeBlockHtml } from '@bridge-ds/react/dom';
+
+row.innerHTML = badgeHtml('Ready', { tone: 'success' }) + codeBlockHtml('npx @bridge-ds/cli check', { label: 'Check tokens' });
+bindTooltips();
+bindCodeBlocks();`;
 const plugin = ['npm install', 'npm run plugin:build'].join('\n');
 import LibraryHeader from '../components/LibraryHeader.astro';
 ---
@@ -67,38 +70,32 @@ import LibraryHeader from '../components/LibraryHeader.astro';
 
   <h2 id="npm">Install from npm</h2>
   <p>Add the components and the tokens to your product. <code>{react.name}</code> needs React 18 or later.</p>
-  <div class="terminal">
-    <div class="terminal-bar">
-      <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
-      <span class="terminal-title"><Icon name="terminal" size={15} /> <span>Terminal</span></span>
-      <span class="terminal-actions">
-        <Button variant="inverse" size="sm" iconStart={Copy} data-copy={install}><span data-copy-label>Copy</span></Button>
-      </span>
-    </div>
-    <pre class="terminal-body cx-pre" tabindex="0" aria-label="Install the packages">{install}</pre>
-  </div>
+  <CodeBlock className="cx-block" code={install} label="Install the packages" />
 
   <h2 id="use">Use the components</h2>
   <p>Import the fonts, the tokens and the base styles once, then wrap the app in <code>ThemeProvider</code>:</p>
-  <div class="terminal">
-    <div class="terminal-bar">
-      <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
-      <span class="terminal-title"><Icon name="file" size={15} /> <span>App.tsx</span></span>
-      <span class="terminal-actions">
-        <Button variant="inverse" size="sm" iconStart={Copy} data-copy={app}><span data-copy-label>Copy</span></Button>
-      </span>
-    </div>
-    <pre class="terminal-body cx-pre" tabindex="0" aria-label="App setup">{app}</pre>
-  </div>
+  <CodeBlock className="cx-block" code={app} label="App.tsx" />
 
   <h2 id="theming">Theme, brand and density</h2>
   <p>
     <code>ThemeProvider</code> sets <code>data-theme</code>, <code>data-brand</code> and <code>data-density</code> together and passes them to portaled
     overlays. Without React, or for plain CSS, set the three attributes yourself and read the tokens as CSS variables:
   </p>
-  <pre class="cx-code" tabindex="0" aria-label="Scope attributes">{html}</pre>
+  <CodeBlock className="cx-block" code={html} label="Scope attributes" />
   <p class="small muted">
     Themes: light, dark. Brands: {BRANDS.join(', ')}. Densities: comfortable, compact. Every component page lets you switch brand and density in its preview toolbar.
+  </p>
+
+  <h3 id="without-react">Pages without React</h3>
+  <p>
+    Static sites and pages built in plain scripts use <code>@bridge-ds/react/dom</code>. Each renderer is named after its component,
+    <code>badgeHtml</code>, <code>codeBlockHtml</code>, <code>tokenValueHtml</code>, <code>checklistHtml</code>, and returns the exact markup of the React
+    component with the same classes. Call <code>bindTooltips()</code> and <code>bindCodeBlocks()</code> once per page so tooltips and copy buttons work.
+  </p>
+  <CodeBlock className="cx-block" code={dom} label="Render without React" />
+  <p class="small muted">
+    <code>bridge audit</code> counts this markup as DS components. Homemade look-alikes, such as pill classes or <code>data-tip</code> tooltips, count
+    against adoption.
   </p>
 
   <h2 id="cli">Check tokens from a terminal</h2>
@@ -106,16 +103,7 @@ import LibraryHeader from '../components/LibraryHeader.astro';
     In your design system repository, the <code>bridge</code> command validates tokens and runs the contrast gate, with nothing to install first. Use it in
     CI: exit 0 ok, 1 failures, 2 setup error. To connect Claude, see <a href="/agents/#mcp">Agents</a>.
   </p>
-  <div class="terminal">
-    <div class="terminal-bar">
-      <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
-      <span class="terminal-title"><Icon name="terminal" size={15} /> <span>Terminal</span></span>
-      <span class="terminal-actions">
-        <Button variant="inverse" size="sm" iconStart={Copy} data-copy={cli}><span data-copy-label>Copy</span></Button>
-      </span>
-    </div>
-    <pre class="terminal-body cx-pre" tabindex="0" aria-label="bridge CLI commands">{cli}</pre>
-  </div>
+  <CodeBlock className="cx-block" code={cli} label="bridge CLI commands" />
 
   <h2 id="packages">Packages</h2>
   <ul class="pkg-list">
@@ -138,7 +126,7 @@ import LibraryHeader from '../components/LibraryHeader.astro';
   <ol class="lib-steps">
     <li>
       <p>From the repository root, build the plugin:</p>
-      <pre class="cx-code" tabindex="0" aria-label="Build the plugin">{plugin}</pre>
+      <CodeBlock className="cx-block" code={plugin} label="Build the plugin" />
     </li>
     <li><p>In the Figma desktop app: Plugins, Development, Import plugin from manifest, and pick <code>apps/figma-plugin/manifest.json</code>.</p></li>
     <li><p>Run it from Plugins, Development, DS Bridge, and paste a fine-grained GitHub token in its Settings tab.</p></li>
@@ -151,26 +139,8 @@ import LibraryHeader from '../components/LibraryHeader.astro';
   <details class="cx-details" id="from-a-clone">
     <summary>For contributors: install from a clone</summary>
     <p>To try changes that are not released yet, build the packages and pack them as tarballs in <code>.packs/</code>:</p>
-    <div class="terminal">
-      <div class="terminal-bar">
-        <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
-        <span class="terminal-title"><Icon name="terminal" size={15} /> <span>Terminal</span></span>
-        <span class="terminal-actions">
-          <Button variant="inverse" size="sm" iconStart={Copy} data-copy={clone}><span data-copy-label>Copy</span></Button>
-        </span>
-      </div>
-      <pre class="terminal-body cx-pre" tabindex="0" aria-label="Build and pack commands">{clone}</pre>
-    </div>
+    <CodeBlock className="cx-block" code={clone} label="Build and pack commands" />
     <p>Then, in your product, install the tarballs:</p>
-    <div class="terminal">
-      <div class="terminal-bar">
-        <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
-        <span class="terminal-title"><Icon name="terminal" size={15} /> <span>Terminal</span></span>
-        <span class="terminal-actions">
-          <Button variant="inverse" size="sm" iconStart={Copy} data-copy={add}><span data-copy-label>Copy</span></Button>
-        </span>
-      </div>
-      <pre class="terminal-body cx-pre" tabindex="0" aria-label="Install the tarballs">{add}</pre>
-    </div>
+    <CodeBlock className="cx-block" code={add} label="Install the tarballs" />
   </details>
 </Layout>

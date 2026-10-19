@@ -99,7 +99,6 @@
 
 .cm-pill {
   margin-right: var(--space-1);
-  font-weight: var(--font-weight-medium);
 }
 
 /* Facts in words ("4 examples", "40 tokens"): quieter than the name, never wrapped. */
@@ -201,15 +200,14 @@
   line-height: var(--typography-body-line-height);
 }
 
-/* The facts in one line of words; a pill leads only when something waits for someone. */
+/* The facts in one line of words; a badge leads only when something waits for someone. */
 .cm-d-facts {
   color: var(--color-text-muted);
   line-height: var(--typography-ui-line-height);
 }
 
-.cm-d-facts .pill {
+.cm-d-badge {
   margin-right: var(--space-2);
-  vertical-align: baseline;
 }
 
 /* One row of actions, one primary, the same control height. */
@@ -484,11 +482,7 @@
   }
 
   .cm-pill {
-    display: inline-flex;
-    height: auto;
     margin-top: var(--space-1);
-    padding-block: var(--space-0-5);
-    white-space: normal;
   }
 
   .cm-drawer {

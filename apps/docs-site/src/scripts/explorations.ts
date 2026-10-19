@@ -42,6 +42,7 @@ import { loadVisualImpact, renderTopChange } from './reviews/visual-impact';
 import { explorationFromRequest, type PullLike, type RequestRow } from '../lib/requests-view';
 import { explorationWork } from '../lib/work-nature';
 import { devTag, markWork, natureAttr } from './work-filter';
+import { badgeHtml, codeBlockHtml } from '@bridge-ds/react/dom';
 import { currentViewer, esc, ghGet, hasWorkingToken, initGitHubConnect, prefersSignIn, RateLimitError, readRepo, relativeTime, setButtonBusy, showGhError } from './github-session';
 import { ghAction, rateLimitedLine } from '../lib/gh-wording';
 import { explorationClient, explorationsConfig, startLinkedExploration } from './exploration-start';
@@ -61,7 +62,6 @@ async function approverNames(): Promise<{ design: string[]; tech: string[] }> {
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-const pill = (text: string, tone = '') => `<span class="pill ${tone}">${esc(text)}</span>`;
 const connected = () => Boolean(hasWorkingToken() && currentViewer());
 const client = () => explorationClient(CFG);
 
@@ -95,7 +95,7 @@ function rowHtml(r: ExplorationRow) {
   const reqs = r.requests.length ? `, ${r.requests.length} ${r.requests.length === 1 ? 'request' : 'requests'}` : '';
   return `<li class="cg-row ex-row" data-exploration="${r.number}" ${natureAttr(nature)}>
     <div class="ex-row-main">
-      <p class="ex-row-title"><a class="ex-name" href="?exploration=${r.number}" data-open-exploration="${r.number}">${esc(r.name)}</a> <span class="cg-num">#${r.number}</span> ${pill(r.statusLabel, `rv-status ${r.tone}`)} ${devTag(nature)}</p>
+      <p class="ex-row-title"><a class="ex-name" href="?exploration=${r.number}" data-open-exploration="${r.number}">${esc(r.name)}</a> <span class="cg-num">#${r.number}</span> ${badgeHtml(r.statusLabel, { tone: r.tone, size: 'sm', className: 'rv-status' })} ${devTag(nature)}</p>
       ${purposeLine(r.name, r.purpose) ? `<p class="ex-purpose">${esc(r.purpose)}</p>` : ''}
       <p class="ex-meta">@${esc(r.author)}${w.maker.kind === 'claude' ? ' with Claude' : ''}, updated <time datetime="${esc(r.updatedAt)}">${esc(shortDate(r.updatedAt))}</time>${esc(reqs)}${preview ? `, <a href="${esc(preview.url)}" target="_blank" rel="noopener">${esc(preview.label)} preview</a>` : ''}</p>
     </div>
@@ -302,8 +302,9 @@ function section(id: string, title: string, meta: string, body: string, open = f
 
 const crumbs = (n: number) => `<nav class="cg-crumbs" aria-label="Breadcrumb"><a href="?view=explorations" data-back-explorations>Explorations</a><span aria-hidden="true">/</span><span class="mono">#${n}</span></nav>`;
 
+/** A command to copy: the DS CodeBlock markup, its copy wired once by shell.ts (bindCodeBlocks). */
 function cmdRow(id: string, cmd: string, label: string) {
-  return `<div class="rq-cmd-row"><code class="cg-cmd rq-cmd" id="${id}">${esc(cmd)}</code><button type="button" class="btn btn-secondary btn-sm" data-copy data-copy-from="${id}"><span data-copy-label>${esc(label)}</span></button></div>`;
+  return codeBlockHtml(cmd, { label, codeAttributes: { id } });
 }
 
 /** The preview rows: one per app, a link with its designer name, or what is missing on the same line. */
@@ -349,7 +350,7 @@ export function renderExplorationDetail(r: ExplorationRow, opts: { connected: bo
         r.status === 'active'
           ? `<h3 class="ex-dev-h">Implement on this exploration</h3>
       <p>Claude works on ${esc(r.branch)}, never on ${esc(CFG.defaultBranch)}, and never opens a pull request to ${esc(CFG.defaultBranch)}.</p>
-      ${cmdRow('ex-implement-cmd', implementOnCommand(first, r.branch), 'Copy command')}
+      ${cmdRow('ex-implement-cmd', implementOnCommand(first, r.branch), 'Command for Claude Code')}
       <p class="cg-muted">In Claude Code with the Bridge MCP server, ask to work on exploration ${esc(r.slug)}: token edits take <span class="mono">branch: "${esc(r.branch)}"</span>, and <span class="mono">bridge_start_exploration</span> starts a new one.</p>
       <p class="cg-muted">Promote from a terminal: <code class="mono">${esc(promoteCommand(r.slug))}</code>, or "Ready for review" on GitHub and remove the exploration label.</p>`
           : ''
@@ -359,7 +360,7 @@ export function renderExplorationDetail(r: ExplorationRow, opts: { connected: bo
   <header class="zone cg-pr-open">
     <h1 class="cg-pr-title">${esc(r.name)} <span class="cg-num">#${r.number}</span></h1>
     ${purpose ? `<p class="ex-purpose-line">${esc(purpose)}</p>` : ''}
-    <p class="cg-pr-meta">${pill(r.statusLabel, `rv-status ${r.tone}`)}<span class="pill cg-tier">Exploration</span>${r.useCaseLabel ? `<span>${esc(r.useCaseLabel)}</span>` : ''}<span>@${esc(r.author)}</span><span>Updated ${esc(relativeTime(r.updatedAt))}</span></p>
+    <p class="cg-pr-meta">${badgeHtml(r.statusLabel, { tone: r.tone, className: 'rv-status' })}${badgeHtml('Exploration', { className: 'cg-tier' })}${r.useCaseLabel ? `<span>${esc(r.useCaseLabel)}</span>` : ''}<span>@${esc(r.author)}</span><span>Updated ${esc(relativeTime(r.updatedAt))}</span></p>
     <p class="cg-pr-state">${esc(explorationStateLine(r.status))}</p>
     <div class="cg-pr-cta ex-actions" id="ex-actions">${actions}</div>
     <div class="ex-confirm" id="ex-confirm" hidden>
@@ -398,7 +399,7 @@ async function paintTryIt(r: ExplorationRow) {
     ]);
     sources = { comments, statuses };
     const t = tryItCopy(tryItFromComments(comments, r.headSha));
-    html = `<p>${esc(t.sentence)}</p>${t.command ? cmdRow('ex-install-cmd', t.command, 'Copy install command') : ''}`;
+    html = `<p>${esc(t.sentence)}</p>${t.command ? cmdRow('ex-install-cmd', t.command, 'Install command') : ''}`;
   } catch (err) {
     html = `<p class="cg-muted">${err instanceof RateLimitError ? `GitHub limits anonymous reads. ${ghAction('see the install command here', prefersSignIn())}.` : `Could not read the pull request comments: ${esc((err as Error).message)}.`} The "Try this exploration in your product" comment on <a href="${esc(r.url)}" target="_blank" rel="noopener">#${r.number}</a> has it.</p>`;
   }

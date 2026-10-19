@@ -10,6 +10,7 @@ import {
   AlertDialogContent,
   Badge,
   Button,
+  CodeBlock,
   Dialog,
   DialogContent,
   IconButton,
@@ -549,14 +550,6 @@ function ClaudeSetup({ repo, onSaved, ai }: { repo: string; onSaved: () => void;
   const [key, setKey] = useState('');
   const [msg, setMsg] = useState<{ tone: 'danger' | 'success'; text: string } | null>(null);
   const command = `claude mcp add bridge -s user -e GITHUB_TOKEN=your-github-token -- npx -y @bridge-ds/mcp --repo ${repo}`;
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(command);
-      setMsg({ tone: 'success', text: 'Command copied.' });
-    } catch {
-      setMsg({ tone: 'danger', text: 'Copy did not work. Select the command and copy it.' });
-    }
-  };
   const save = () => {
     try {
       ai?.saveApiKey(key.trim() || null);
@@ -586,10 +579,7 @@ function ClaudeSetup({ repo, onSaved, ai }: { repo: string; onSaved: () => void;
       {way === 'plan' ? (
         <>
           <p className="le-setup-note">Add Bridge to your Claude once, in a terminal. Put your GitHub token in place of your-github-token.</p>
-          <pre className="le-code">{command}</pre>
-          <Button variant="secondary" size="sm" iconStart={Copy} onClick={copy}>
-            Copy command
-          </Button>
+          <CodeBlock className="le-setup-code" code={command} label="Command for Claude Code" />
         </>
       ) : (
         <>

@@ -811,7 +811,10 @@ function paintAccess() {
   accessListeners.forEach((fn) => fn(access));
 }
 
-/** Marks every [data-gh-gate="verb phrase"] action as unavailable until GitHub is connected (or reconnected), with a tooltip. */
+/**
+ * Marks every [data-gh-gate="verb phrase"] action as unavailable until GitHub is connected (or reconnected), with a DS
+ * tooltip (data-tooltip, bound once by scripts/shell.ts) that says how to unlock it.
+ */
 export function paintGates(root: ParentNode = document) {
   const on = Boolean(viewer);
   const rejected = tokenRejected();
@@ -820,17 +823,16 @@ export function paintGates(root: ParentNode = document) {
   root.querySelectorAll<HTMLElement>('[data-gh-gate]').forEach((el) => {
     if (on) {
       el.removeAttribute('aria-disabled');
-      if (/^(Connect GitHub|Sign in|Your GitHub)/.test(el.dataset.tip ?? '')) delete el.dataset.tip;
+      if (/^(Connect GitHub|Sign in|Your GitHub)/.test(el.dataset.tooltip ?? '')) delete el.dataset.tooltip;
     } else {
       el.setAttribute('aria-disabled', 'true');
-      el.dataset.tip = rejected
+      el.dataset.tooltip = rejected
         ? app
           ? `Your GitHub sign-in expired. Sign in again to ${el.dataset.ghGate}.`
           : signIn
             ? `Your GitHub sign-in stopped working. Sign in again to ${el.dataset.ghGate}.`
             : `Your GitHub token stopped working. Reconnect to ${el.dataset.ghGate}.`
         : `${ghAction(el.dataset.ghGate ?? '', signIn)}.`;
-      el.classList.add('has-tip');
     }
   });
 }

@@ -264,26 +264,9 @@
   gap: var(--space-2);
 }
 
-/* Figma and Claude: the one command and its copy action on the same line. */
+/* Layout only: space above the Claude command block. */
 .set-cmd {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  min-width: 0;
   margin-top: var(--space-2);
-}
-
-.set-cmd-text {
-  flex: 1 1 auto;
-  min-width: 0;
-  padding: var(--space-2) var(--space-3);
-  overflow-x: auto;
-  border-radius: var(--radius-control);
-  background-color: var(--color-bg-subtle);
-  font-family: var(--font-family-mono);
-  font-size: var(--typography-ui-size);
-  line-height: var(--typography-ui-line-height);
-  overflow-wrap: anywhere;
 }
 
 /* Integrations: the Jira setup fold closes the card. */
@@ -484,23 +467,6 @@
   padding-block: var(--space-2);
 }
 
-.pill.set-tier {
-  color: var(--color-text-default);
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-@media (hover: hover) {
-  .pill.set-tier:hover {
-    text-decoration: underline;
-  }
-}
-
-.pill.set-tier:focus-visible {
-  outline: var(--focus-ring-width) solid var(--focus-ring-color);
-  outline-offset: var(--focus-ring-offset);
-}
-
 /* Phones: rows stack (label, value, action), a lone action fills its bar, the drawing steps aside. */
 @media (max-width: 640px) {
   .set-band {
@@ -536,18 +502,6 @@
 
   .set-account-art {
     display: none;
-  }
-
-  .set-cmd {
-    flex-wrap: wrap;
-  }
-
-  .set-cmd-text {
-    flex-basis: 100%;
-  }
-
-  .set-cmd [data-copy-from] {
-    width: 100%;
   }
 
   .set-dl > div {

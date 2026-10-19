@@ -1,0 +1,79 @@
+.root {
+  box-sizing: border-box;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-0-5) var(--space-1-5);
+  max-width: 100%;
+  min-width: 0;
+  padding: var(--space-0-5) var(--space-1-5);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-inset);
+  background-color: var(--color-surface-default);
+  color: var(--color-text-default);
+  font-family: var(--font-family-mono);
+  vertical-align: middle;
+}
+
+.md {
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.sm {
+  font-size: var(--typography-caption-size);
+  line-height: var(--typography-caption-line-height);
+}
+
+/* The swatch carries a hairline so white and near-background colors still read as a square. */
+.swatch {
+  box-sizing: border-box;
+  flex: none;
+  width: var(--icon-size-sm);
+  height: var(--icon-size-sm);
+  border: var(--border-width-default) solid var(--color-border-emphasis);
+  border-radius: var(--radius-xs);
+}
+
+.sm .swatch {
+  width: var(--icon-size-xs);
+  height: var(--icon-size-xs);
+}
+
+.name {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+.name + .text {
+  padding-inline-start: var(--space-1-5);
+  border-inline-start: var(--border-width-default) solid var(--color-border-default);
+}
+
+.text {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--space-1-5);
+  min-width: 0;
+  text-decoration: none;
+}
+
+.value {
+  overflow-wrap: break-word;
+}
+
+.resolved {
+  color: var(--color-text-muted);
+  overflow-wrap: break-word;
+}
+
+.previous {
+  background-color: var(--color-bg-subtle);
+  color: var(--color-text-muted);
+}
+
+.previous .value,
+.previous .resolved {
+  text-decoration: line-through;
+}

@@ -2,13 +2,14 @@
 // Explorations lists. Developer work (code only, lib/work-nature) stays findable here, tagged, while the Overview keeps
 // it off the designer surfaces. Rows carry data-nature; the page root carries data-work (the filter) and CSS hides what
 // it leaves out, so a list repaint keeps the filter. One filter for the three lists, in the address as ?work=.
+import { badgeHtml, tooltipAttributes } from '@bridge-ds/react/dom';
 import { workFilterParam, type WorkFilter, type WorkNature } from '../lib/work-nature';
 import { esc } from './github-session';
 import { selectSegment } from './shell';
 
 /** The quiet tag after a row title, developer work only. */
 export function devTag(nature: WorkNature): string {
-  return nature === 'developer' ? `<span class="pill cg-dev-tag" title="Code only, no design decision">Developer</span>` : '';
+  return nature === 'developer' ? badgeHtml('Developer', { size: 'sm', className: 'cg-dev-tag', attributes: tooltipAttributes('Code only, no design decision', { focusable: true }) }) : '';
 }
 
 /** `data-nature` on a row. */

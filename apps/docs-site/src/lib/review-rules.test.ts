@@ -215,7 +215,7 @@ describe('reviewStatus', () => {
   it('reads each state from real data', () => {
     expect(st().kind).toBe('ready');
     expect(st().label).toBe('Ready to ship');
-    expect(st().tone).toBe('is-pass');
+    expect(st().tone).toBe('success');
     expect(st({ state: 'closed', merged_at: '2026-10-10T09:00:00Z' }).kind).toBe('merged');
     expect(st({ state: 'closed' }).kind).toBe('closed');
     expect(st({ draft: true }).kind).toBe('draft');
@@ -229,7 +229,7 @@ describe('reviewStatus', () => {
 
   it('never says ready while CI fails, the old "Ready" bug', () => {
     expect(st({ ci: red }).label).toBe('Blocked by tests');
-    expect(st({ ci: red }).tone).toBe('is-fail');
+    expect(st({ ci: red }).tone).toBe('danger');
   });
 
   it('follows the merge gate priority', () => {

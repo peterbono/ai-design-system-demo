@@ -1,6 +1,6 @@
 /* Studio Quality (Field Guide): a Harbor opener, one list of findings most severe first, housekeeping collapsed,
    adoption in two rows, the audit reports on their own routes. Four sizes on a screen: h2 (page title), body
-   (opener sentence, section titles), ui (rows), caption (pills). Color only for status: site.css `.pill.is-*`. */
+   (opener sentence, section titles), ui (rows), caption (badges). Color only for status: DS Badge tones. */
 
 .ql {
   max-width: var(--studio-page-max);
@@ -210,15 +210,9 @@
   margin-bottom: var(--space-2);
 }
 
+/* Layout only: space above the CodeBlock. */
 .ql-cmd {
-  margin: var(--space-3) 0 0;
-  padding: var(--space-4);
-  overflow-x: auto;
-  border-radius: var(--radius-control);
-  background-color: var(--color-bg-subtle);
-  font-family: var(--font-family-mono);
-  font-size: var(--typography-ui-size);
-  line-height: var(--typography-ui-line-height);
+  margin-top: var(--space-3);
 }
 
 @media (max-width: 760px) {
@@ -232,7 +226,7 @@
     padding: var(--space-3) var(--space-4);
   }
 
-  .ql-row .pill {
+  .ql-badge {
     grid-row: 1;
     grid-column: 2;
   }
