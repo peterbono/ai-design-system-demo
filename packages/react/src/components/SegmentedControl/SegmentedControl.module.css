@@ -1,20 +1,36 @@
 /* A track on the subtle background; the selected segment is a raised plate. State reads aria-checked (not
-   data-checked) so a statically rendered control can be driven by a script. */
+   data-checked) so a statically rendered control can be driven by a script.
+   Too many segments for the width (a phone): the track scrolls sideways inside its container, never the page. Scroll
+   shadows (the local layers cover the edge shadows until there is more to see) say there is more, with no script. */
 .root {
   --_height: var(--control-height-md);
   --_px: var(--space-3);
   --_inset: var(--space-0-5);
+  --_track: var(--color-bg-subtle);
 
+  position: relative;
   box-sizing: border-box;
   display: inline-flex;
   align-items: stretch;
   max-width: 100%;
   min-height: var(--_height);
   padding: var(--_inset);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
   border: var(--border-width-default) solid var(--color-border-default);
   border-radius: var(--radius-control);
-  background-color: var(--color-bg-subtle);
+  background:
+    linear-gradient(to right, var(--_track) 40%, transparent) left / var(--space-6) 100% no-repeat local,
+    linear-gradient(to left, var(--_track) 40%, transparent) right / var(--space-6) 100% no-repeat local,
+    linear-gradient(to right, var(--color-border-strong), transparent) left / var(--space-2) 100% no-repeat scroll,
+    linear-gradient(to left, var(--color-border-strong), transparent) right / var(--space-2) 100% no-repeat scroll,
+    var(--_track);
   font-family: var(--font-family-sans);
+}
+
+.root::-webkit-scrollbar {
+  display: none;
 }
 
 .sm {
@@ -29,6 +45,7 @@
 
 .fullWidth > .segment {
   flex: 1 1 0;
+  min-width: max-content;
 }
 
 .segment {
@@ -92,6 +109,13 @@
 .segment[data-disabled] {
   color: var(--color-text-disabled);
   cursor: not-allowed;
+}
+
+/* Strong: the selected segment fills with Deep Harbor (the checked control color). */
+.strong .segment[aria-checked="true"] {
+  background-color: var(--color-control-checked-bg);
+  color: var(--color-control-checked-fg);
+  box-shadow: none;
 }
 
 .segment[aria-checked="true"]:disabled,

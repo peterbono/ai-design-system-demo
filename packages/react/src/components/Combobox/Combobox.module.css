@@ -213,8 +213,9 @@
 }
 
 /* Popup (listbox) */
+/* The popover layer, above the modal layer: a list opened from inside a Dialog or Drawer shows on top of it. */
 .positioner {
-  z-index: var(--layer-dropdown);
+  z-index: var(--layer-popover);
   outline: none;
 }
 

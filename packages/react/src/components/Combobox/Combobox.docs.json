@@ -10,7 +10,8 @@
   "whenToUse": [
     "Choosing from a long or growing list where typing is faster than scrolling: reviewers, repositories, components, tokens.",
     "Results come from a server: control inputValue, fetch, pass the results as options with filter={null} and loading while waiting.",
-    "Several values from a long list (multiple): selected values become removable chips inside the field."
+    "Several values from a long list (multiple): selected values become removable chips inside the field.",
+    "Inside a Dialog or Drawer: the list opens above the dialog and focus stays in it. Use description for a short second line under each label (12px, muted), like a component's family or a person's role."
   ],
   "whenNotToUse": [
     "Short known lists (under about ten): use Select, which needs no typing.",
@@ -61,7 +62,7 @@
     "loading renders the message in a live status region and sets aria-busy on the popup; the empty message is announced the same way.",
     "The clear and toggle buttons inside the field have accessible names (\"Clear selection\", \"Show options\"); each chip remove button says \"Remove <name>\".",
     "The Field label names the input; hint and error are linked through aria-describedby.",
-    "The popup is portaled and re-applies the theme, brand and density of its field."
+    "The popup is portaled and re-applies the theme, brand and density of its field. It sits on the popover layer, above a Dialog, and the dialog keeps focus management: picking returns focus to the input inside the dialog."
   ],
   "contentGuidelines": [
     "Placeholder hints at what to type: \"Search people\", \"Type a component name\".",

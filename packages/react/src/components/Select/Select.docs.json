@@ -1,5 +1,5 @@
 {
-  "summary": "Picks one value from a short, known list in a popup. The trigger looks like an Input so forms read as one family; the list supports groups, descriptions and disabled options.",
+  "summary": "Picks one value from a short, known list in a popup. The trigger looks like an Input so forms read as one family; the list supports groups, descriptions, badges and disabled options.",
   "preview": { "c": "Stack", "children": [
     { "c": "Select", "p": { "label": "Theme", "placeholder": "No theme", "defaultValue": "dark", "options": [
       { "value": "system", "label": "System" },
@@ -10,7 +10,8 @@
   "whenToUse": [
     "One choice from about 4 to 10 known options: a theme, a brand, a token group, a role.",
     "The options are long words or labels that would crowd a RadioGroup.",
-    "Space is tight: in a toolbar, a table filter or a dense settings row (size sm)."
+    "Space is tight: in a toolbar, a table filter or a dense settings row (size sm).",
+    "Each option carries a short fact worth seeing before the pick, like a status or a count: put a Badge in badge. It shows on the item and in the trigger once selected."
   ],
   "whenNotToUse": [
     "Two or three options that should all stay visible: use RadioGroup, or an attached ButtonGroup for a view switch.",
@@ -19,6 +20,17 @@
     "Actions (Duplicate, Delete): use Menu. A Select changes a value, it does not run commands."
   ],
   "dos": [
+    {
+      "title": "A status next to the label with badge",
+      "text": "A Badge in the option's badge slot says the status at a glance, in the list and in the trigger. The description stays for a second line of detail, like who made it.",
+      "example": { "c": "Stack", "children": [
+        { "c": "Select", "p": { "label": "View the library as", "defaultValue": "c-12", "options": [
+          { "value": "latest", "label": "Latest library", "description": "What is shipped" },
+          { "value": "c-12", "label": "Darker default background", "description": "by florian", "group": "Open changes", "badge": { "c": "Badge", "p": { "tone": "info", "size": "sm" }, "children": ["In review"] } },
+          { "value": "c-14", "label": "New radius scale", "description": "by sam", "group": "Open changes", "badge": { "c": "Badge", "p": { "tone": "success", "size": "sm" }, "children": ["Ready"] } }
+        ] } }
+      ] }
+    },
     {
       "title": "Order options by meaning, not alphabetically by default",
       "text": "Put the most common choice first, or follow the natural order (System, Light, Dark). Group long lists under short headings.",
@@ -83,6 +95,7 @@
     "list": "Scrollable list",
     "item": "Option",
     "itemText": "Option label",
+    "badge": "Badge slot after the label, on items and in the trigger",
     "itemDescription": "Option description",
     "indicator": "Check mark on the selected option",
     "groupLabel": "Group heading",

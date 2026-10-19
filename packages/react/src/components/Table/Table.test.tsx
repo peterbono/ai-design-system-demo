@@ -94,4 +94,53 @@ describe('Table', () => {
     render(<Example />);
     await expectNoAxeViolations();
   });
+  it('sets column widths from fractions, token lengths and minimums', () => {
+    render(
+      <Table aria-label="Rules" layout="fixed">
+        <TableHeader>
+          <TableRow>
+            <TableHead width={0.35}>Change</TableHead>
+            <TableHead width="var(--size-24)" minWidth="var(--size-16)">
+              Approvals
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          <TableRow>
+            <TableCell>Token value</TableCell>
+            <TableCell>1</TableCell>
+          </TableRow>
+        </TableBody>
+      </Table>,
+    );
+    const [change, approvals] = screen.getAllByRole('columnheader') as [HTMLElement, HTMLElement];
+    expect(change.style.getPropertyValue('--_col-width')).toBe('35%');
+    expect(approvals.style.getPropertyValue('--_col-width')).toBe('var(--size-24)');
+    expect(approvals.style.getPropertyValue('--_col-min-width')).toBe('var(--size-16)');
+  });
+
+  it('stacked rows keep table roles and name each value with its column', async () => {
+    render(
+      <Table caption="Tokens" narrowLayout="stack">
+        <TableHeader>
+          <TableRow>
+            <TableHead>Token</TableHead>
+            <TableHead numeric>Uses</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          <TableRow>
+            <TableCell label="">color.text.default</TableCell>
+            <TableCell numeric>212</TableCell>
+          </TableRow>
+        </TableBody>
+      </Table>,
+    );
+    const table = screen.getByRole('table', { name: 'Tokens' });
+    expect(within(table).getAllByRole('row')).toHaveLength(2);
+    const [name, uses] = within(table).getAllByRole('cell') as [HTMLElement, HTMLElement];
+    expect(name).toHaveAttribute('data-label', '');
+    expect(uses).toHaveAttribute('data-label', 'Uses');
+    await expectNoAxeViolations();
+  });
 });

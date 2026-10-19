@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { expectNoAxeViolations } from '../../test/axe';
+import { Button } from '../Button';
 import { Alert } from './Alert';
 
 describe('Alert', () => {
@@ -29,5 +30,17 @@ describe('Alert', () => {
     expect(screen.getByRole('button', { name: 'Dismiss sync message' })).toHaveFocus();
     await userEvent.keyboard('{Enter}');
     expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+  it('inline actions follow the message in reading order', async () => {
+    render(
+      <Alert tone="info" actionsPlacement="inline" actions={<Button size="sm" variant="secondary">Back to latest</Button>}>
+        You are viewing change #12.
+      </Alert>,
+    );
+    const status = screen.getByRole('status');
+    expect(status.textContent).toBe('You are viewing change #12.Back to latest');
+    await userEvent.tab();
+    expect(screen.getByRole('button', { name: 'Back to latest' })).toHaveFocus();
+    await expectNoAxeViolations();
   });
 });

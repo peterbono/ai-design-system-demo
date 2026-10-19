@@ -12,7 +12,11 @@ const meta = {
   title: 'Forms/SegmentedControl',
   component: SegmentedControl,
   args: { label: 'Density', items: density, defaultValue: 'comfortable', size: 'md' },
-  argTypes: { size: { control: 'inline-radio', options: ['sm', 'md'] }, items: { control: false } },
+  argTypes: {
+    size: { control: 'inline-radio', options: ['sm', 'md'] },
+    appearance: { control: 'inline-radio', options: ['default', 'strong'] },
+    items: { control: false },
+  },
 } satisfies Meta<typeof SegmentedControl>;
 
 export default meta;
@@ -43,6 +47,22 @@ export const ThreeOptions: Story = {
 };
 export const FullWidth: Story = { args: { fullWidth: true }, decorators: [(S) => <div style={{ maxWidth: 320 }}><S /></div>] };
 export const Disabled: Story = { args: { disabled: true } };
+
+const statuses: SegmentedControlItem[] = [
+  { value: 'open', label: 'Open' },
+  { value: 'you', label: 'Needs you' },
+  { value: 'review', label: 'In review' },
+  { value: 'ready', label: 'Ready' },
+  { value: 'blocked', label: 'Blocked' },
+  { value: 'shipped', label: 'Shipped' },
+  { value: 'closed', label: 'Closed' },
+];
+export const Strong: Story = { args: { label: 'Status', appearance: 'strong', items: statuses.slice(0, 4), defaultValue: 'open' } };
+/** Seven segments in a phone-wide container: the track scrolls sideways, the page does not. */
+export const ManyOnPhone: Story = {
+  args: { label: 'Status', appearance: 'strong', size: 'sm', items: statuses, defaultValue: 'blocked' },
+  decorators: [(S) => <div style={{ width: 358, outline: '1px dashed var(--color-border-default)' }}><S /></div>],
+};
 
 /** A visible label sits outside the track, to its left, as a caption on the track's center line. Inside the track it
  * would read as one more option. The group takes its name from it with aria-labelledby. */
@@ -99,6 +119,15 @@ export const AllStates: Story = {
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-6)', alignItems: 'center' }}>
           <ExternalLabel id="all-states-label-sm" text="Preview brand" />
           <ExternalLabel id="all-states-label-md" text="Preview brand" size="md" />
+        </div>
+      </Specimen>
+      <Specimen label="Strong (Deep Harbor selection)">
+        <SegmentedControl label="Status strong" appearance="strong" items={statuses.slice(0, 4)} defaultValue="you" />
+        <SegmentedControl label="Status strong sm" appearance="strong" size="sm" items={statuses.slice(0, 4)} defaultValue="you" />
+      </Specimen>
+      <Specimen label="Seven segments at phone width (scrolls sideways)">
+        <div style={{ width: 358 }}>
+          <SegmentedControl label="Status phone" appearance="strong" size="sm" items={statuses} defaultValue="open" />
         </div>
       </Specimen>
       <Specimen label="Full width">

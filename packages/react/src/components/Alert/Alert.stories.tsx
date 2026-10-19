@@ -48,6 +48,17 @@ export const Dismissible: Story = {
   },
 };
 
+/** One short message with its action at the end of the line; under 390px the action wraps under the text. */
+export const InlineAction: Story = {
+  args: {
+    tone: 'info',
+    title: undefined,
+    children: 'You are viewing change #12, not the latest library.',
+    actionsPlacement: 'inline',
+    actions: <Button size="sm" variant="secondary">Back to latest</Button>,
+  },
+};
+
 const COPY: Record<AlertTone, [string, string]> = {
   neutral: ['Read only', 'This branch is protected. Open a pull request to propose changes.'],
   info: ['Figma sync is running', 'New variables appear here when the sync finishes.'],
@@ -83,6 +94,18 @@ export const AllStates: Story = {
         >
           Token changes need a design owner and a tech owner before merge.
         </Alert>
+      </Specimen>
+      <Specimen label="Inline action (wraps under the text when narrow)">
+        <div style={{ display: 'grid', gap: 12, width: '100%' }}>
+          <Alert tone="info" announce="off" actionsPlacement="inline" actions={<Button size="sm" variant="secondary">Back to latest</Button>}>
+            You are viewing change #12, not the latest library.
+          </Alert>
+          <div style={{ maxWidth: 358 }}>
+            <Alert tone="info" announce="off" actionsPlacement="inline" actions={<Button size="sm" variant="secondary">Back to latest</Button>}>
+              You are viewing change #12, not the latest library.
+            </Alert>
+          </div>
+        </div>
       </Specimen>
       <Specimen label="Description only">
         <Alert tone="info" announce="off">

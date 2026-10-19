@@ -22,7 +22,7 @@ export const Default: Story = {};
 export const Secondary: Story = { args: { variant: 'secondary', icon: Copy, label: 'Copy token name' } };
 export const Loading: Story = { args: { loading: true } };
 
-const ROWS: { label: string; value: ButtonVariant }[] = [
+const ROWS: { label: string; value: Exclude<ButtonVariant, 'link'> }[] = [
   { label: 'Ghost', value: 'ghost' },
   { label: 'Secondary', value: 'secondary' },
   { label: 'Primary', value: 'primary' },

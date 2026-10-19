@@ -22,8 +22,13 @@ export interface AlertProps extends Omit<HTMLAttributes<HTMLDivElement>, 'title'
   title?: ReactNode;
   /** Replace the tone icon, or pass `false` to hide it. */
   icon?: LucideIcon | false;
-  /** Buttons or links under the text, for example "Review changes". Keep to two. */
+  /** Buttons or links, for example "Review changes". Keep to two. */
   actions?: ReactNode;
+  /**
+   * `below` (default): actions sit under the text. `inline`: on the same line as a short message, at its end, and
+   * under it when the line is too narrow (a phone). Use size sm buttons inline.
+   */
+  actionsPlacement?: 'below' | 'inline';
   /** Shows a dismiss button and calls this when it is pressed. */
   onDismiss?: () => void;
   /** Accessible name of the dismiss button. Default "Dismiss". */
@@ -38,17 +43,23 @@ export interface AlertProps extends Omit<HTMLAttributes<HTMLDivElement>, 'title'
 
 /** Inline message about the state of the page or a section: a failed sync, a pending review, a success. */
 export const Alert = forwardRef<HTMLDivElement, AlertProps>(function Alert(
-  { tone = 'info', title, icon, actions, onDismiss, dismissLabel = 'Dismiss', announce = 'auto', className, children, ...rest },
+  { tone = 'info', title, icon, actions, actionsPlacement = 'below', onDismiss, dismissLabel = 'Dismiss', announce = 'auto', className, children, ...rest },
   ref,
 ) {
   const glyph = icon === false ? null : (icon ?? TONE_ICON[tone]);
   const role = announce === 'off' ? undefined : tone === 'danger' || tone === 'warning' ? 'alert' : 'status';
+  const inline = actionsPlacement === 'inline' && actions != null;
+  const text = (
+    <>
+      {title && <p className={styles.title}>{title}</p>}
+      {children && <div className={styles.description}>{children}</div>}
+    </>
+  );
   return (
-    <div ref={ref} role={role} className={cx(styles.alert, styles[tone], className)} {...rest}>
+    <div ref={ref} role={role} className={cx(styles.alert, styles[tone], inline && styles.inline, className)} {...rest}>
       {glyph && <Icon icon={glyph} size="md" className={styles.icon} />}
       <div className={styles.content}>
-        {title && <p className={styles.title}>{title}</p>}
-        {children && <div className={styles.description}>{children}</div>}
+        {inline ? <div className={styles.text}>{text}</div> : text}
         {actions && <div className={styles.actions}>{actions}</div>}
       </div>
       {onDismiss && (

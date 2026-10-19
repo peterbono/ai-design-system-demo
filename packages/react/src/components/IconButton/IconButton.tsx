@@ -12,15 +12,17 @@ export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonEle
   icon: LucideIcon;
   /** Accessible name, required: there is no visible text. Say the action, not the icon ("Delete token", not "Trash"). */
   label: string;
-  /** Default `ghost`: icon buttons usually live in toolbars and rows. */
-  variant?: ButtonVariant;
+  /** Default `ghost`: icon buttons usually live in toolbars and rows. `inverse` on strong surfaces. */
+  variant?: Exclude<ButtonVariant, 'link'>;
   size?: ButtonSize;
   loading?: boolean;
+  /** Makes the button a toggle: sets `aria-pressed` and shows the selected look when true. Leave unset otherwise. */
+  pressed?: boolean;
 }
 
 /** Square, icon-only button. Pair with a Tooltip showing the same label for sighted mouse users. */
 export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(function IconButton(
-  { icon, label, variant = 'ghost', size = 'md', loading = false, disabled, className, type = 'button', ...rest },
+  { icon, label, variant = 'ghost', size = 'md', loading = false, pressed, disabled, className, type = 'button', ...rest },
   ref,
 ) {
   return (
@@ -28,10 +30,11 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
       ref={ref}
       type={type}
       aria-label={label}
-      className={cx(buttonStyles.button, buttonStyles[variant], buttonStyles[size], buttonStyles.iconOnly, styles.iconButton, className)}
+      className={cx(buttonStyles.button, buttonStyles[variant], buttonStyles[size], buttonStyles.iconOnly, pressed !== undefined && buttonStyles.toggle, styles.iconButton, className)}
       disabled={disabled || loading}
       focusableWhenDisabled={loading}
       aria-busy={loading || undefined}
+      aria-pressed={pressed}
       data-loading={loading || undefined}
       {...rest}
     >

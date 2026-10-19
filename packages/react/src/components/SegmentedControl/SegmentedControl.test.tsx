@@ -82,4 +82,13 @@ describe('SegmentedControl', () => {
     expect(html).toMatch(/<button[^>]*role="radio"[^>]*aria-checked="true"[^>]*data-value="dark"|<button[^>]*data-value="dark"[^>]*aria-checked="true"|aria-checked="true"[^>]*data-value="dark"/);
     expect(html.match(/data-segment=""/g)).toHaveLength(3);
   });
+  it('takes more than five segments and the strong appearance', async () => {
+    const many = ['Open', 'Needs you', 'In review', 'Ready', 'Blocked', 'Shipped', 'Closed'].map((l) => ({ value: l.toLowerCase(), label: l }));
+    render(<SegmentedControl label="Status" appearance="strong" items={many} defaultValue="shipped" />);
+    expect(screen.getAllByRole('radio')).toHaveLength(7);
+    expect(screen.getByRole('radio', { name: 'Shipped' })).toHaveAttribute('aria-checked', 'true');
+    await userEvent.click(screen.getByRole('radio', { name: 'Closed' }));
+    expect(screen.getByRole('radio', { name: 'Closed' })).toHaveAttribute('aria-checked', 'true');
+    await expectNoAxeViolations();
+  });
 });

@@ -74,4 +74,27 @@ describe('Select', () => {
     expect(await screen.findByText('Color')).toBeInTheDocument();
     expect(screen.getByRole('group', { name: 'Space' })).toBeInTheDocument();
   });
+  it('shows an option badge in the list and in the trigger once selected', async () => {
+    render(
+      <Select
+        label="View as"
+        defaultValue="c12"
+        options={[
+          { value: 'latest', label: 'Latest library' },
+          { value: 'c12', label: 'Darker background', badge: <span data-testid="badge-12">In review</span> },
+          { value: 'c14', label: 'New radius', badge: <span>Ready</span> },
+        ]}
+      />,
+    );
+    const trigger = screen.getByRole('combobox', { name: 'View as' });
+    expect(trigger).toHaveTextContent('Darker background');
+    expect(trigger).toHaveTextContent('In review');
+    await userEvent.click(trigger);
+    const ready = await screen.findByRole('option', { name: /New radius/ });
+    expect(ready).toHaveTextContent('Ready');
+    await userEvent.click(ready);
+    expect(trigger).toHaveTextContent('New radius');
+    expect(trigger).toHaveTextContent('Ready');
+    await expectNoAxeViolations();
+  });
 });

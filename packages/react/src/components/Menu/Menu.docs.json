@@ -24,7 +24,8 @@
   "whenToUse": [
     "More than two or three actions on one item: show the main one as a button and the rest in a Menu.",
     "View options: checkable items for columns, a radio group for sort order.",
-    "A submenu for one level of grouping (Move to group, then the groups)."
+    "A submenu for one level of grouping (Move to group, then the groups).",
+    "Leading icons when they help scanning (Rename, Duplicate, Delete): pass icon, a Lucide icon or an element like a brand mark. Put icons on every item of the menu or on none; labels stay aligned either way."
   ],
   "whenNotToUse": [
     "Choosing a value for a form field: use Select or Combobox, which work with Field and forms.",
@@ -102,7 +103,7 @@
     "No ellipsis on items, even when they open a dialog: the dialog title says what happens next."
   ],
   "anatomy": {
-    "positioner": "Positioning layer (layer.dropdown)",
+    "positioner": "Positioning layer (layer.popover, above a Dialog)",
     "popup": "Surface (popup.*)",
     "item": "Item (menu.item.*, height from menu.item-height density token)",
     "leading": "Icon or indicator slot",

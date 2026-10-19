@@ -1,5 +1,6 @@
+/* The popover layer, above the modal layer: a menu opened from inside a Dialog or Drawer shows on top of it. */
 .positioner {
-  z-index: var(--layer-dropdown);
+  z-index: var(--layer-popover);
   outline: none;
 }
 
@@ -82,14 +83,11 @@
   color: inherit;
 }
 
-.item:not(:has(.leading > *)) .leading {
-  display: none;
-}
-
-/* Keep labels aligned when a group mixes indicators: the slot stays when the indicator is unmounted. */
-.group .item .leading,
-.item:has(.indicator) .leading {
-  display: none;
+/* The leading slot shows when it holds an icon or an indicator. When any item of the menu has one, every item keeps
+   the slot, so labels line up. */
+.item:has(> .leading > *) > .leading,
+.popup:has(.leading > *) .item > .leading {
+  display: inline-flex;
 }
 
 .label {

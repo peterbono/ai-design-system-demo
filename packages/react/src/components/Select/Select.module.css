@@ -82,11 +82,51 @@
   white-space: nowrap;
 }
 
+/* With badges the value is a row: the label truncates, the badge keeps its size. */
+.valueWithBadge {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.valueText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.badge {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+}
+
 .value[data-placeholder] {
   color: var(--input-placeholder);
 }
 
-.trigger[data-disabled] .value[data-placeholder] {
+.trigger[data-disabled] /* With badges the value is a row: the label truncates, the badge keeps its size. */
+.valueWithBadge {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.valueText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.badge {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+}
+
+.value[data-placeholder] {
   color: var(--color-text-disabled);
 }
 
@@ -109,8 +149,9 @@
 }
 
 /* Popup (listbox) */
+/* The popover layer, above the modal layer: a list opened from inside a Dialog or Drawer shows on top of it. */
 .positioner {
-  z-index: var(--layer-dropdown);
+  z-index: var(--layer-popover);
   outline: none;
 }
 
