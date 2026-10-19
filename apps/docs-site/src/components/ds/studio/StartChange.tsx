@@ -10,13 +10,15 @@
 import { VOCAB } from '../../../lib/vocabulary';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, Component, CopyPlus, MessageSquareWarning, Palette } from 'lucide-react';
+import { ChevronDown, Component, CopyPlus, MessageSquareWarning, Palette, Plus } from 'lucide-react';
 import { Button, Combobox, Form, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '@bridge-ds/react';
 import { CHANGE_INTENTS, type ChangeIntent } from '../../../lib/change-intent';
 import { startChangeHref } from '../../../lib/overview-board';
 
 export interface StartChangeProps {
   components: { name: string; slug: string; family?: string }[];
+  /** `card`: the dashed last card of Your branches on the Studio home, always shown (the page only mounts it signed in). */
+  appearance?: 'menu' | 'card';
 }
 
 export const START_CHANGE_EVENT = 'bridge:start-change';
@@ -57,7 +59,7 @@ function pageLook(): StartChangeLook {
   return { variant: d?.startVariant === 'secondary' ? 'secondary' : 'primary', hidden: d?.startHidden === 'true' };
 }
 
-export default function StartChange({ components }: StartChangeProps) {
+export default function StartChange({ components, appearance = 'menu' }: StartChangeProps) {
   // The server render and the first client render agree; the page's choice comes in right after.
   const [look, setLook] = useState<StartChangeLook>({ variant: 'primary', hidden: false });
   const [pick, setPick] = useState<'variant' | 'wrong' | null>(null);
@@ -93,18 +95,25 @@ export default function StartChange({ components }: StartChangeProps) {
     document.querySelector<HTMLElement>('[data-start-change]')?.focus();
   };
 
-  if (look.hidden) return null;
+  const card = appearance === 'card';
+  if (look.hidden && !card) return null;
   return (
     <>
       <Menu>
         <MenuTrigger
           render={
-            <Button variant={look.variant} iconEnd={ChevronDown} fullWidth data-start-change>
-              {VOCAB.createBranch}
-            </Button>
+            card ? (
+              <Button variant="ghost" iconStart={Plus} fullWidth className="sh-create-btn" data-start-change>
+                {VOCAB.createBranch}
+              </Button>
+            ) : (
+              <Button variant={look.variant} iconEnd={ChevronDown} fullWidth data-start-change>
+                {VOCAB.createBranch}
+              </Button>
+            )
           }
         />
-        <MenuContent align="end">
+        <MenuContent align={card ? 'start' : 'end'}>
           <MenuItem icon={Palette} label={label('look')} onClick={() => go(startChangeHref('look'))}>
             <Item title={label('look')} line={LINE.look} />
           </MenuItem>

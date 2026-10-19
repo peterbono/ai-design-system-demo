@@ -511,6 +511,7 @@ function section(id: string, title: string, meta: string, body: string, open = f
 
 export async function openPr(n: number, push = true) {
   const seq = ++openSeq;
+  runCurrent = null;
   if (push) history.pushState({ pr: n }, '', `?pr=${n}`);
   document.dispatchEvent(new CustomEvent('bridge:changes-view', { detail: 'detail' }));
   const d = detailEl();
@@ -1151,6 +1152,14 @@ function unmountShare() {
 /** The owner override in one sentence: what it skips, what it never skips, and the trace it leaves. */
 const OVERRIDE_RULE = 'Owners can merge without the missing approvals once tests pass, with a reason posted on the branch.';
 
+/** The action runner of the branch review painted last (wireActions), for the review queue footer. */
+let runCurrent: ((act: string) => Promise<boolean>) | null = null;
+
+/** Approves the open branch review through the same path as its own button. False when nothing is open or sent. */
+export async function actOnOpenBranch(act: 'APPROVE'): Promise<boolean> {
+  return runCurrent ? runCurrent(act) : false;
+}
+
 function wireActions(pull: Pull, gate: ReturnType<typeof mergeGate>, access: Access | null) {
   syncAuthViews();
   const openOverride = access && gate.overridable && access.write ? wireOverride(pull, access, gate) : null;
@@ -1158,21 +1167,21 @@ function wireActions(pull: Pull, gate: ReturnType<typeof mergeGate>, access: Acc
   const body = document.getElementById('rv-body') as HTMLTextAreaElement | null;
 
   /** One action, from a button or the More menu. Returns false when nothing was sent (so a button stays enabled). */
-  async function run(act: string, b?: HTMLButtonElement) {
+  async function run(act: string, b?: HTMLButtonElement): Promise<boolean> {
     const text = body?.value.trim() ?? '';
     if (act === 'REQUEST_CHANGES' && !text) {
       status.textContent = 'Add a comment that says what to change.';
       body?.focus();
-      return;
+      return false;
     }
     if (act === 'COMMENT' && !text) {
       status.textContent = 'Write a comment first.';
       body?.focus();
-      return;
+      return false;
     }
-    if (act === 'MERGE' && !gate.allowed) return;
-    if (act === 'CLOSE' && !window.confirm(`Close branch #${pull.number} without merging it?`)) return;
-    if (act === 'MERGE' && !window.confirm(`Merge branch #${pull.number} into main? It goes out with the next release.`)) return;
+    if (act === 'MERGE' && !gate.allowed) return false;
+    if (act === 'CLOSE' && !window.confirm(`Close branch #${pull.number} without merging it?`)) return false;
+    if (act === 'MERGE' && !window.confirm(`Merge branch #${pull.number} into main? It goes out with the next release.`)) return false;
     if (b) b.disabled = true;
     status.textContent = 'Sending to GitHub';
     try {
@@ -1186,12 +1195,15 @@ function wireActions(pull: Pull, gate: ReturnType<typeof mergeGate>, access: Acc
       status.textContent = { APPROVE: 'Approved.', REQUEST_CHANGES: 'Changes requested.', COMMENT: 'Comment posted.', MERGE: 'Merged.', CLOSE: 'Closed.' }[act] ?? 'Done.';
       if (body) body.value = '';
       await openPr(pull.number, false);
+      return true;
     } catch (err) {
       const verb = act === 'MERGE' ? 'merge branches' : act === 'CLOSE' ? 'close branches' : 'review branches';
       showGhError(status, err, `GitHub refused: ${(err as Error).message}`, verb);
       if (b) b.disabled = false;
+      return false;
     }
   }
+  runCurrent = (act) => run(act);
 
   document.querySelectorAll<HTMLButtonElement>('#rv-detail [data-act]').forEach((b) => b.addEventListener('click', () => void run(b.dataset.act!, b)));
   // The owner override sits on the approvals it skips (the checklist footer), not in More.
@@ -1442,6 +1454,7 @@ export function closePr() {
   unmountLib();
   unmountShare();
   current = null;
+  runCurrent = null;
   detailEl().hidden = true;
   detailEl().innerHTML = '';
   notice().hidden = true;

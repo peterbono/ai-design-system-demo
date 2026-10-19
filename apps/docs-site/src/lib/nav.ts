@@ -120,12 +120,15 @@ export function spaceOf(path: string): Space {
 /** Every page entry of one top-level entry: itself when it is a page, else its children. */
 const pagesOf = (e: NavEntry): NavItem[] => (e.children ?? (e.href ? [{ href: e.href, label: e.label, icon: e.icon, meta: e.meta, branchAware: e.branchAware }] : []));
 
+/** Pages outside the nav that belong to an entry: the review queue opens from the Overview's "Review all". */
+const BELONGS_TO: Record<string, string> = { '/studio/review/': STUDIO_HOME };
+
 /**
  * Where a page sits: its top-level entry and page, for breadcrumbs, the expanded group and the current link.
  * `group` is the label of a group entry (Foundations, Changes); page entries have none.
  */
 export function locate(path: string): { space: Space; entry?: NavEntry; group?: string; item?: NavItem } {
-  const p = norm(path);
+  const p = BELONGS_TO[norm(path)] ?? norm(path);
   const space = spaceOf(p);
   const nav = navFor(space);
   const found = (entry: NavEntry, item: NavItem) => ({ space, entry, group: entry.children ? entry.label : undefined, item });

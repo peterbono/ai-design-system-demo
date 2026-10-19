@@ -1,458 +1,166 @@
 ---
-// Studio Overview, in the order a designer reads it (Linear home: my queue, then what moves):
-//   1. One sentence and one primary action, "Create branch". The Harbor zone opens only when something needs the
-//      viewer, and then holds the Needs you list: every designer decision in one list, one row component.
-//   2. In flight: a board in four columns, Exploring, In review, Ready to merge, Next release, blockers written on
-//      the cards (lib/overview-board.ts). Developer work (code only, lib/work-nature.ts) folds into one quiet line
-//      under the board, and never reaches Needs you or the Changes badge.
-//   3. Library health: three figures, each a door to Quality.
-import '../../styles/overview.css';
+// Studio home, direction D: what the viewer does now (components/ds/studio/StudioHome.tsx, rules in lib/home-model.ts).
+//   1. The Harbor zone: a time-of-day greeting, who waits on the viewer and since when, at most three Needs you rows
+//      (the whole row is the link), the rest grouped behind "Review all" (the review queue, /studio/review/).
+//   2. Your branches: open branches as cards, "Create branch" as the last one, what was published this week in one line.
+//   3. Nothing waits and nothing is open: three ways to start.
+// Repo facts are read here at build time (usage guidance Claude drafted, contrast on main, adoption, the changelog);
+// GitHub facts in the browser (scripts/home-data.ts).
+import '../../styles/studio-home.css';
+import '../../styles/branch-thumb.css';
 import Layout from '../../layouts/Layout.astro';
-import Illustration from '../../components/Illustration.astro';
-import ButtonLink from '../../components/ds/ButtonLink';
-import StartChange from '../../components/ds/studio/StartChange';
-import { Badge, Button, Card, CardBody, Link, Skeleton } from '@bridge-ds/react';
+import { Skeleton } from '@bridge-ds/react';
 import { releases } from '../../lib/changelog';
+import { shortPackage } from '../../lib/changelog-model';
 import { docsEditHref, guidanceState, loadComponents } from '../../lib/components';
 import { git } from '../../lib/repo';
 import { PAGE_SOURCES, freshness } from '../../lib/sources';
 import { dashboard } from '../../lib/stats';
 import { groupByApp, loadAudits } from '../../lib/audits';
-import { APP_SHORT } from '../../lib/quality';
+import { combinedAdoption, startChangeHref } from '../../lib/overview-board';
+import { adoptionDrop } from '../../lib/home-model';
 import { signInConfig } from '../../lib/signin-config';
-import { ghButton } from '../../lib/gh-wording';
-import { GitHubMark } from '../../components/ds/studio/brand-icons';
-import { healthFigures, type BoardRelease } from '../../lib/overview-board';
 
 const s = dashboard();
 const comps = loadComponents();
 
-// Usage guidance, from the repo at build time: one Needs you row for what Claude drafted, one for what is missing.
-const item = (c: (typeof comps)[number]) => ({ name: c.name, href: docsEditHref(c.slug) });
-const guidance = {
-  drafted: comps.filter((c) => guidanceState(c) === 'review').map(item),
-  missing: comps.filter((c) => guidanceState(c) === 'missing').map(item),
+/** When a file last changed on main (ISO), null when git has no answer (a shallow clone). */
+const changedAt = (path: string): string | null => git(['log', '-1', '--format=%cI', '--', path]) || null;
+/** The GitHub login of a commit, only when its email names one. */
+const loginOfCommit = (ref: string): string | null => git(['log', '-1', '--format=%ae', ref]).match(/^\d+\+([\w-]+)@users\.noreply\.github\.com$/)?.[1] ?? null;
+
+// Usage guidance Claude drafted and nobody reviewed yet: one Needs you row each, waiting since the draft landed.
+const guidance = comps.filter((c) => guidanceState(c) === 'review').map((c) => ({ name: c.name, href: docsEditHref(c.slug), since: changedAt(c.files.docs) }));
+const firstMissing = comps.find((c) => guidanceState(c) === 'missing');
+
+// Library health on main: contrast (a Needs you row when it fails), adoption since the audit before (a line when it drops).
+const adoption = combinedAdoption(
+  groupByApp(loadAudits())
+    .apps.filter((g) => g.after ?? g.before)
+    .map((g) => ({ now: (g.after ?? g.before)!.report.metrics, before: g.after ? g.before?.report.metrics : null })),
+);
+const drop = adoptionDrop(adoption?.now, adoption?.before);
+
+// Published: the released entries with their date, release and author, filtered to the viewer's week in the browser.
+const published = releases()
+  .filter((r) => !r.pending && r.date)
+  .slice(0, 6)
+  .flatMap((r) => {
+    const pkg = r.packages.find((p) => p.name === '@bridge-ds/react') ?? r.packages[0];
+    const release = pkg ? `${shortPackage(pkg.name)} ${pkg.version}` : r.name;
+    return r.entries.filter((e) => e.source === 'release').map((e) => ({ title: e.title, release, date: r.date!, author: e.ref ? loginOfCommit(e.ref) : null }));
+  });
+
+const homeStatic = {
+  contrastFail: s.contrast.fail,
+  adoptionDrop: drop,
+  published,
+  components: comps.map((c) => ({ name: c.name, slug: c.slug, family: c.category })).sort((a, b) => a.name.localeCompare(b.name)),
+  startHrefs: { tokens: startChangeHref('look'), component: startChangeHref('variant'), guidance: firstMissing ? docsEditHref(firstMissing.slug) : '/studio/components/' },
+  signIn: Boolean(signInConfig()),
 };
-
-// Next release: changes shipped since the last release (pending changesets). The board keeps the design system ones.
-// Who wrote each: the GitHub login of the commit that added it, only when its email names one.
-const loginOf = (ref: string): string | null => {
-  const email = git(['log', '--diff-filter=A', '--format=%ae', '-1', '--', ref]);
-  return email.match(/^\d+\+([\w-]+)@users\.noreply\.github\.com$/)?.[1] ?? null;
-};
-const release: BoardRelease[] = releases()
-  .filter((r) => r.pending)
-  .flatMap((r) => r.entries)
-  .filter((e) => e.source === 'changeset')
-  .map((e) => ({ ref: e.ref ?? e.title, title: e.title, packages: e.packages, bump: e.bump, author: e.ref ? loginOf(e.ref) : null }));
-
-// Library health, from the same data as Quality: the contrast gate, the adoption reports, the guidance state.
-const appGroups = groupByApp(loadAudits()).apps;
-const figures = healthFigures({
-  contrast: { total: s.contrast.total, fail: s.contrast.fail, brands: s.brands },
-  adoption: appGroups
-    .filter((g) => g.after ?? g.before)
-    .map((g) => ({ now: (g.after ?? g.before)!.report.metrics, before: g.after ? g.before?.report.metrics : null, label: APP_SHORT[g.app.id] ?? g.app.title })),
-  guidance: {
-    total: comps.length,
-    reviewed: comps.filter((c) => guidanceState(c) === 'ok').length,
-    drafted: guidance.drafted.length,
-    missing: guidance.missing.length,
-  },
-});
-
-const pickable = comps.map((c) => ({ name: c.name, slug: c.slug, family: c.category })).sort((a, b) => a.name.localeCompare(b.name));
-const COLUMNS = ['Exploring', 'In review', 'Ready to merge', 'Next release'];
-const signIn = Boolean(signInConfig());
+const json = JSON.stringify(homeStatic).replace(/</g, '\\u003c');
 ---
 
 <Layout
   title="Overview"
-  description="What needs you, what is in flight and how the library is doing: the Studio's starting point."
+  description="What needs you now, your branches, and how the library is doing: the Studio's starting point."
   sources={PAGE_SOURCES.home}
   updated={freshness(PAGE_SOURCES.home)}
   wide
 >
-  <div class="ov" data-review-count-owner>
-    <section class="ov-greet zone" data-greet data-start-variant="primary" aria-labelledby="ov-hello">
-      <div class="ov-greet-head">
-        <h1 id="ov-hello" class="ov-hello" data-greeting>Checking what needs you.</h1>
-        <div class="ov-start">
-          <StartChange client:load components={pickable} />
-          <Button variant="primary" iconStart={GitHubMark} fullWidth data-gh-open data-gh-signin={signIn ? '' : undefined} data-connect hidden>
-            {ghButton(signIn)}
-          </Button>
-        </div>
-      </div>
-      <div class="ov-pick-slot" data-pick-slot hidden></div>
-      <p class="t-body ov-note" data-todo-note hidden></p>
-      <ul class="ov-todo" data-todo-list aria-label="Needs you" aria-busy="true">
-        <li class="ov-todo-row" aria-hidden="true"><Skeleton variant="text" /></li>
-      </ul>
-      <p class="ov-todo-more" data-todo-more hidden>
-        <Button variant="ghost" size="sm" data-todo-more-btn>Show all</Button>
-      </p>
-      <Illustration name="review" width={96} class="ov-greet-art" />
-    </section>
-
-    <template data-todo-row="primary">
-      <li class="ov-todo-row">
-        <span class="ov-todo-text"><span class="ov-todo-head"><b class="t-body" data-title></b><span data-state></span></span><span class="t-ui t-muted" data-why></span></span>
-        <ButtonLink variant="primary" href="/studio/changes/" data-act>Open branch</ButtonLink>
-      </li>
-    </template>
-    <template data-todo-row="secondary">
-      <li class="ov-todo-row">
-        <span class="ov-todo-text"><span class="ov-todo-head"><b class="t-body" data-title></b><span data-state></span></span><span class="t-ui t-muted" data-why></span></span>
-        <ButtonLink variant="secondary" href="/studio/changes/" data-act>Open branch</ButtonLink>
-      </li>
-    </template>
-    <!-- The lifecycle badge of a change row (lib/change-status todoBadge), one DS Badge per tone, cloned by the script. -->
-    {(['neutral', 'info', 'success', 'danger'] as const).map((tone) => <template data-state-badge={tone}><Badge tone={tone} size="sm" /></template>)}
-
-    <section class="ov-section" aria-labelledby="ov-health-title">
-      <h2 id="ov-health-title" class="t-body ov-section-title">Library health</h2>
-      <ul class="ov-health">
-        {
-          figures.map((f) => (
-            <li>
-              <Card interactive padding="compact">
-                <CardBody className={f.tone === 'fail' ? 'ov-fig is-fail' : 'ov-fig'}>
-                  <p class="ov-fig-value">{f.value}</p>
-                  <p class="t-body ov-fig-label">
-                    <Link href={f.href} variant="subtle" data-card-primary>
-                      {f.label}
-                    </Link>
-                  </p>
-                  {f.detail && <p class="t-ui t-muted ov-fig-detail">{f.detail}</p>}
-                  {f.split && <p class="t-ui t-muted ov-fig-detail">{f.split}</p>}
-                </CardBody>
-              </Card>
-            </li>
-          ))
-        }
-      </ul>
-    </section>
-
-    <section class="ov-section" aria-labelledby="ov-flight-title">
-      <header class="ov-section-head">
-        <h2 id="ov-flight-title" class="t-body ov-section-title">In flight</h2>
-        <p class="t-ui t-muted ov-section-line" data-flight-line>Reading branches from GitHub.</p>
-      </header>
-      <div data-board>
-        <div class="ov-board" aria-busy="true">
-          {
-            COLUMNS.map((c) => (
-              <section class="ov-col" aria-label={c}>
-                <h3 class="t-ui ov-col-head">
-                  <span>{c}</span>
-                </h3>
-                <Skeleton variant="rect" className="ov-col-skel" />
-              </section>
-            ))
-          }
-        </div>
-      </div>
-      <script type="application/json" id="ov-release" set:html={JSON.stringify(release)} />
-    </section>
+  <div class="sh-root" data-studio-home>
+    <div class="sh">
+      <section class="zone sh-zone" aria-busy="true" aria-label="Loading what needs you">
+        <Skeleton variant="text" className="sh-skel-line" />
+        <Skeleton variant="rect" className="sh-skel" />
+      </section>
+    </div>
   </div>
+  <script type="application/json" id="home-static" set:html={json} />
+  <script type="application/json" id="home-guidance" set:html={JSON.stringify({ drafted: guidance }).replace(/</g, '\\u003c')} />
 
   <script>
-    import { entryLabel, loadProtection } from '@bridge-ds/core';
     import type { Root } from 'react-dom/client';
-    import { currentViewer, getToken, ghGet, hasWorkingToken, initGitHubConnect, prefersSignIn, readRepo, RateLimitError, studioClient } from '../../scripts/github-session';
-    import { loadStatuses, owners, teamPeople, type PullStatus } from '../../scripts/pr-status';
-    import { loadTeams } from '../../scripts/teams';
-    import { byUrgency } from '../../lib/changes';
-    import { reviewQueue } from '../../lib/review-queue';
-    import { overviewProtectionLine } from '../../lib/protection-view';
-    import { greetingLine, NEEDS_MAX, moreLabel, overviewTodo, reviewDecisions, signedOutLine, type GuidanceItem, type TodoRequest, type TodoRow } from '../../lib/overview-todo';
-    import { rateLimitedLine } from '../../lib/gh-wording';
-    import { boardColumns, developerWork, inFlightLine, type BoardInput, type BoardRelease } from '../../lib/overview-board';
-    import { explorationWork, workNature, type VisualSignal } from '../../lib/work-nature';
-    import { explorationRows, type ExplorationPullLike } from '../../lib/explorations-view';
-    import { impactOf } from '../../scripts/reviews/visual-impact';
-    import type { PullLike, RequestRow } from '../../lib/requests-view';
-    import { loadRequestRows } from '../../scripts/requests';
-    import { rememberMine, siteOwners, todoChange, whoFor, type QueuePullFull } from '../../scripts/needs-you';
+    import { currentViewer, getToken, initGitHubConnect, prefersSignIn } from '../../scripts/github-session';
     import { setReviewCount } from '../../scripts/shell';
-    import { paintOverviewBoard } from '../../components/ds/studio/OverviewBoard';
-    import { PICKER_EVENT, START_CHANGE_EVENT, type StartChangeLook } from '../../components/ds/studio/StartChange';
+    import { rememberMine } from '../../scripts/needs-you';
+    import { loadHome, type HomeData, type HomeStatic } from '../../scripts/home-data';
+    import { paintStudioHome, type HealthLine, type HomeComponent, type StudioHomeProps } from '../../components/ds/studio/StudioHome';
+    import { adoptionDropLine, greeting, homeState, publishedThisWeek, type Published } from '../../lib/home-model';
+    import { signedOutLine } from '../../lib/overview-todo';
+    import { ghButton } from '../../lib/gh-wording';
 
-    interface Pull extends QueuePullFull {
-      html_url: string;
+    interface Static extends HomeStatic {
+      adoptionDrop: number | null;
+      published: Published[];
+      components: HomeComponent[];
+      startHrefs: StudioHomeProps['startHrefs'];
+      signIn: boolean;
     }
-
-    const $ = <T extends HTMLElement = HTMLElement>(sel: string) => document.querySelector<T>(sel);
-    const greet = $('[data-greet]');
-    const greeting = $('[data-greeting]');
-    const connectBtn = $<HTMLButtonElement>('[data-connect]');
-    const note = $('[data-todo-note]');
-    const todoList = $('[data-todo-list]');
-    const more = $('[data-todo-more]');
-    const moreBtn = $<HTMLButtonElement>('[data-todo-more-btn]');
-    const boardEl = $('[data-board]');
-    const flightLine = $('[data-flight-line]');
-
-    const readJson = <T,>(id: string, fallback: T): T => {
+    const read = <T,>(id: string): T | null => {
       try {
-        return JSON.parse(document.getElementById(id)?.textContent || '') as T;
+        return JSON.parse(document.getElementById(id)?.textContent || 'null') as T;
       } catch {
-        return fallback;
+        return null;
       }
     };
-    const release = readJson<BoardRelease[]>('ov-release', []);
-    const guidance = readJson<{ drafted: GuidanceItem[]; missing: GuidanceItem[] }>('ov-guidance', { drafted: [], missing: [] });
+    const stat = read<Static>('home-static')!;
+    // The guidance drafts in their own element, so a fixture or a test can swap them without touching the rest.
+    stat.guidance = read<{ drafted: Static['guidance'] }>('home-guidance')?.drafted ?? [];
+    const el = document.querySelector<HTMLElement>('[data-studio-home]')!;
+    let root: Root | null = null;
+    let data: HomeData | null = null;
+    let known = false;
+    let run = 0;
 
-    // Everything the page is made of. Each source fills its part and repaints.
-    const state = {
-      all: [] as Pull[],
-      open: [] as Pull[],
-      statuses: new Map<number, PullStatus | null>(),
-      loaded: false,
-      done: false,
-      failed: false,
-      requests: [] as TodoRequest[],
-      /** The same requests in full: an exploration reads the kind and origin of the ones it implements. */
-      requestRows: [] as RequestRow[],
-      /** Commit messages of running explorations (connected only): a Claude trailer says who builds it. */
-      commits: new Map<number, string[]>(),
-      /** What the visual impact run says for each change (connected only): design or developer work. */
-      impact: new Map<number, VisualSignal>(),
-      unprotected: false,
-      /** Before and after published for the head commit of a change that waits for the viewer's design review. */
-      visual: new Map<number, 'ready' | null>(),
-      expanded: false,
-      /** The GitHub check answered (connected or not). */
-      connectKnown: false,
-      /** The component picker of Create branch is open: its Continue is the one primary meanwhile. */
-      picking: false,
-    };
-    let boardRoot: Root | null = null;
-
-    // The owners as the config names them: a GitHub team reads "@acme/design (4 people)".
-    const ownerNames = () => {
-      const { entries, teams } = teamPeople();
-      return [...new Set([...entries.design, ...entries.tech].map((e) => entryLabel(e, teams)))];
-    };
-
-    const urgent = () => {
-      const byNum = new Map(state.open.map((p) => [p.number, p]));
-      return byUrgency(state.open.map((p) => ({ number: p.number, kind: state.statuses.get(p.number)?.kind ?? null, updated_at: p.updated_at }))).map((o) => byNum.get(o.number)!);
-    };
-
-    /** One Needs you row: what, why, and the task on a DS button, on the same line. The first row's is the primary. */
-    function rowEl(r: TodoRow, look: 'primary' | 'secondary'): HTMLElement {
-      const tpl = document.querySelector<HTMLTemplateElement>(`template[data-todo-row="${look}"]`)!;
-      const li = (tpl.content.firstElementChild as HTMLElement).cloneNode(true) as HTMLElement;
-      li.dataset.key = r.key;
-      li.querySelector('[data-title]')!.textContent = r.title;
-      li.querySelector('[data-why]')!.textContent = r.why;
-      const slot = li.querySelector('[data-state]');
-      const badge = r.state && document.querySelector<HTMLTemplateElement>(`template[data-state-badge="${r.state.tone}"]`)?.content.firstElementChild;
-      if (slot && badge && r.state) {
-        const b = badge.cloneNode(true) as HTMLElement;
-        b.textContent = r.state.label;
-        slot.replaceWith(b);
-      } else slot?.remove();
-      const a = li.querySelector<HTMLAnchorElement>('[data-act]')!;
-      a.href = r.href;
-      a.textContent = r.action;
-      a.setAttribute('aria-label', `${r.action}: ${r.title}`);
-      return li;
-    }
-
-    /** The queue as the to-do and the board read it (scripts/needs-you, the same as the Changes badge). */
-    const changesNow = () => urgent().map((p) => todoChange(p, state.statuses.get(p.number), state.visual.get(p.number) ?? null, state.impact.get(p.number) ?? null));
-
-    /** Create branch: its weight next to the first need, hidden signed out (Connect GitHub takes its place). */
-    function setStart(variant: 'primary' | 'secondary', hidden: boolean) {
-      if (!greet) return;
-      greet.dataset.startVariant = variant;
-      greet.dataset.startHidden = String(hidden);
-      const detail: StartChangeLook = { variant, hidden };
-      document.dispatchEvent(new CustomEvent(START_CHANGE_EVENT, { detail }));
-      if (connectBtn) connectBtn.hidden = !hidden;
+    function health(): HealthLine | null {
+      if (stat.adoptionDrop) return { text: adoptionDropLine(stat.adoptionDrop), tone: 'drop', href: '/studio/quality/#ql-adoption', link: 'Open Quality' };
+      // A failing contrast check is a Needs you row; otherwise one quiet line.
+      return stat.contrastFail ? null : { text: 'Library healthy.', tone: 'ok', href: '/studio/quality/', link: 'Open Quality' };
     }
 
     function paint() {
-      if (!greeting || !todoList) return;
-      const viewer = currentViewer()?.login ?? null;
-      // Signed out: no token at all, or the check answered nobody.
-      const signedOut = !viewer && (!getToken() || state.connectKnown);
-      const changes = changesNow();
-      const t = overviewTodo({ changes, requests: state.requests, viewer, owners: siteOwners(), ownerNames: ownerNames(), unprotected: state.unprotected, loading: !state.done, guidance });
-      paintBoard(changes, viewer);
-      if (signedOut) {
-        // One thing to do: sign in (the side nav button; the greeting repeats it only on phones, where the side nav
-        // sits in the menu sheet). The needs stay out of a read-only page.
-        greeting.textContent = signedOutLine(prefersSignIn());
-        greet?.classList.add('zone');
-        greet?.classList.remove('is-quiet');
-        todoList.hidden = true;
-        if (more) more.hidden = true;
-        setStart('primary', true);
-        setReviewCount(null);
-        return;
-      }
-      // Statuses still loading: the sentence waits for them rather than promising "all caught up".
-      const checking = !state.failed && (!state.connectKnown || !state.loaded || (!state.done && state.open.length > 0));
-      const mine = t.mine;
-      greeting.textContent = checking && !mine.length ? 'Checking what needs you.' : greetingLine(currentViewer()?.name, t.headline, viewer);
-      // The Harbor zone opens only when something needs the viewer; otherwise one quiet line with the drawing.
-      greet?.classList.toggle('zone', Boolean(mine.length) || Boolean(checking));
-      greet?.classList.toggle('is-quiet', !mine.length && !checking);
-      todoList.removeAttribute('aria-busy');
-      const shown = state.expanded ? mine : mine.slice(0, NEEDS_MAX);
-      // One primary at a time: while the picker is open its Continue leads, the first need steps back.
-      todoList.replaceChildren(...shown.map((r, i) => rowEl(r, i === 0 && !state.picking ? 'primary' : 'secondary')));
-      todoList.hidden = mine.length === 0;
-      // The first need is the primary action; Create branch steps back to secondary, and leads again when caught up.
-      setStart(mine.length ? 'secondary' : 'primary', false);
-      if (more && moreBtn) {
-        const label = state.expanded ? '' : moreLabel(mine.length);
-        more.hidden = !label;
-        moreBtn.textContent = label;
-      }
-      // The Changes badge: the review decisions of this list (lib/overview-todo reviewDecisions), once every status is read.
-      if (state.done && !state.failed && viewer) {
-        const n = reviewDecisions(mine);
-        setReviewCount(n);
-        rememberMine(n);
-      }
-    }
-
-    document.addEventListener(PICKER_EVENT, (e) => {
-      state.picking = (e as CustomEvent<{ open: boolean }>).detail.open;
-      paint();
-    });
-
-    function paintBoard(changes: ReturnType<typeof changesNow>, viewer: string | null) {
-      if (!boardEl || state.failed) return;
-      const { owner, repo, defaultBranch } = readRepo();
-      const byNumber = new Map(state.all.map((p) => [p.number, p]));
-      const explorations = state.loaded
-        ? explorationRows(state.all as unknown as ExplorationPullLike[], { owner, repo, defaultBranch, apps: {}, packages: [] })
-            .filter((r) => r.status === 'active')
-            .map((r) => {
-              const pull = byNumber.get(r.number);
-              const requests = state.requestRows.filter((q) => q.request?.exploration === r.branch).map((q) => ({ kind: q.kind, source: q.request?.source ?? null }));
-              const w = explorationWork({ name: r.name, author: r.author, body: pull?.body, labels: pull?.labels, source: r.source, agent: r.agent, commits: state.commits.get(r.number) ?? null, requests }, viewer);
-              return { number: r.number, name: r.name, author: r.author, maker: w.maker, nature: w.nature.nature };
-            })
-        : [];
-      const input: BoardInput = { explorations, changes: state.loaded ? changes : [], release, viewer, loading: !state.done };
-      const cols = boardColumns(input);
-      if (!state.loaded) return;
-      boardRoot = paintOverviewBoard(boardEl, cols, boardRoot, developerWork(input));
-      if (flightLine) flightLine.textContent = inFlightLine(cols);
-    }
-
-    moreBtn?.addEventListener('click', (e) => {
-      e.preventDefault();
-      state.expanded = true;
-      paint();
-    });
-
-    /**
-     * What the visual impact run says for each change that touches what it captures (connected only, a few reads per
-     * change): a difference keeps it with designers, none makes component code developer work (lib/work-nature),
-     * and a published run lets a design review row say the before and after are ready.
-     */
-    async function loadVisuals() {
-      const viewer = currentViewer()?.login ?? null;
-      if (!viewer || !hasWorkingToken()) return;
-      const { owner, repo } = readRepo();
-      const touched = state.open.filter((p) => {
-        const st = state.statuses.get(p.number);
-        return st && st.touchesVisuals !== false;
-      });
-      await Promise.all(
-        touched.map(async (p) => {
-          const impact = await impactOf(owner, repo, p.number, p.head.sha);
-          state.impact.set(p.number, impact);
-          state.visual.set(p.number, impact ? 'ready' : null);
-        }),
+      const now = Date.now();
+      const v = currentViewer();
+      const signedIn = Boolean(v) || (!known && Boolean(getToken()));
+      const d = data;
+      const state = homeState({ signedIn, loading: !d || d.loading, needs: d?.needs.length ?? 0, branches: d?.branches.length ?? 0 });
+      root = paintStudioHome(
+        el,
+        {
+          state,
+          greeting: greeting(new Date(now).getHours(), v?.name ?? null),
+          needs: d?.needs ?? [],
+          branches: d?.branches ?? [],
+          published: publishedThisWeek(stat.published, v?.login ?? null, now),
+          health: health(),
+          now,
+          components: stat.components,
+          signedOut: { line: signedOutLine(prefersSignIn()), button: ghButton(stat.signIn), signIn: stat.signIn },
+          failed: d?.failed ?? null,
+          startHrefs: stat.startHrefs,
+        },
+        root,
       );
-      if (touched.length) paint();
     }
 
-    /** Commit messages of the running explorations (connected only): a "Co-Authored-By: Claude" trailer says Claude builds it. */
-    async function loadExplorationCommits() {
-      if (!currentViewer() || !hasWorkingToken()) return;
-      const { owner, repo } = readRepo();
-      const running = state.all.filter((p) => p.state === 'open' && (p.labels ?? []).some((l) => l.name === 'exploration'));
-      await Promise.all(
-        running.map(async (p) => {
-          const f = await ghGet<{ commit: { message: string } }[]>(`/repos/${owner}/${repo}/pulls/${p.number}/commits?per_page=100`).catch(() => null);
-          if (f) state.commits.set(p.number, f.data.map((c) => c.commit.message));
-        }),
-      );
-      if (running.length) paint();
-    }
-
-    // "Hello, Florian." from the GitHub profile name once the check answers (greetingLine), else "Hello.".
-    initGitHubConnect(async (v) => {
-      state.connectKnown = true;
+    paint();
+    initGitHubConnect(() => {
+      known = true;
+      data = null;
+      const mine = ++run;
       paint();
-      // Owners only: a setup row when nothing protects the library.
-      // GitHub teams in the owner lists count as their members (no request without teams).
-      await loadTeams();
-      const o = owners();
-      const isOwner = Boolean(v && [...o.design, ...o.tech].includes(v.login));
-      if (!isOwner || !hasWorkingToken()) {
-        state.unprotected = false;
-      } else {
-        const r = readRepo();
-        state.unprotected = Boolean(overviewProtectionLine(await loadProtection(studioClient(`${r.owner}/${r.repo}`), r.defaultBranch), isOwner));
-      }
-      paint();
-    });
-
-    const r = readRepo();
-    ghGet<Pull[]>(`/repos/${r.owner}/${r.repo}/pulls?state=open&per_page=100`)
-      .then((f) => {
-        state.all = f.data;
-        // The review queue: the same list, and so the same count, as the nav badge and the In review tab.
-        state.open = reviewQueue(f.data).sort((a, b) => b.updated_at.localeCompare(a.updated_at));
-        state.statuses = new Map(state.open.map((p) => [p.number, null]));
-        state.loaded = true;
+      void loadHome(stat, (d) => {
+        if (mine !== run) return;
+        data = d;
         paint();
-        // Component change requests: from the open pull requests read above plus one cached issues list.
-        void loadRequestRows({ openPulls: f.data as unknown as PullLike[], closed: false })
-          .then((rows) => {
-            state.requestRows = rows;
-            // A code-only request (lib/work-nature) never asks a designer to decide.
-            state.requests = rows.map((r) => ({ ...r, nature: workNature({ title: r.title, requestKind: r.kind }).nature }));
-            paint();
-          })
-          .catch(() => undefined);
-        void loadExplorationCommits();
-        void loadStatuses(state.open, (p, st) => {
-          state.statuses.set(p.number, st);
-          paint();
-        }).then(async () => {
-          state.done = true;
-          paint();
-          await loadVisuals();
-        });
-      })
-      .catch((err) => {
-        state.failed = true;
-        // What the repo knows still shows (guidance); what GitHub holds says how to get it back.
-        state.done = true;
-        state.loaded = false;
-        paint();
-        if (note) {
-          note.hidden = false;
-          note.textContent =
-            err instanceof RateLimitError
-              ? rateLimitedLine(prefersSignIn())
-              : 'GitHub could not be reached. Open Branches to retry.';
+        if (!d.loading && !d.failed && d.viewer) {
+          setReviewCount(d.decisions);
+          rememberMine(d.decisions);
         }
-        if (flightLine) flightLine.textContent = 'Branches are out of reach for now.';
-        boardEl?.replaceChildren();
+        if (!d.viewer) setReviewCount(null);
       });
+    });
   </script>
-  <script type="application/json" id="ov-guidance" set:html={JSON.stringify(guidance)} />
 </Layout>
