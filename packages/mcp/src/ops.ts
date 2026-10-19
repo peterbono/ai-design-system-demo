@@ -7,7 +7,7 @@ import { auditSnippet } from './audit.js';
 import { cssVarsUsed, getComponent, listComponentNames, listComponents, scaffoldComponent, type ScaffoldInput } from './components.js';
 import type { BridgeContext } from './context.js';
 import { approverEntries, baseBranchOf, cssModuleClasses, docsPrompt, entryLabel, expandOwners, prefillDocs, protectedBranchesOf, shipPolicy, TeamDirectory, unreadableTeams, whoCanShipSentence, type BridgeConfig, type DocsContrastInput, type GitHubClient } from '@bridge-ds/core';
-import { branchExists, collectAuditFiles, commitToNewLocalBranch, currentBranch, git } from '@bridge-ds/core/node';
+import { branchExists, collectAuditFiles, commitToNewLocalBranch, currentBranch, git, loadAllowlist } from '@bridge-ds/core/node';
 import { core, type Combo, type Issue, type PairInput, type TokenEdit, type TokenSet } from './core-adapter.js';
 import { bullets, findSection, toc } from './markdown.js';
 import { GitHubSource, GitRefSource, type RepoSource } from './source.js';
@@ -709,14 +709,15 @@ async function designSystemIndex(ctx: BridgeContext): Promise<DesignSystemIndex>
 }
 
 /** Audit a product folder or file (local only): adoption metrics, top files, top fixes, and findings for one file. */
-export async function auditOp(ctx: BridgeContext, a: { path: string; baseline?: string; label?: string; limit?: number; findings?: boolean }) {
+export async function auditOp(ctx: BridgeContext, a: { path: string; baseline?: string; label?: string; limit?: number; findings?: boolean; allowlist?: string }) {
   if (ctx.mode !== 'local' || !ctx.root) throw new Error('bridge_audit reads product code from disk: start the server on a local design system repo (--root).');
   const { config } = await ctx.config();
   const target = isAbsolute(a.path) ? a.path : resolve(ctx.root, a.path);
   if (!existsSync(target)) throw new Error(`No such file or folder: ${target}`);
   const ds = await designSystemIndex(ctx);
   const { files, skipped } = collectAuditFiles(target, config.audit?.exclude ?? []);
-  let report = buildAuditReport({ files, skipped, target: a.path, ...(a.label ? { label: a.label } : {}) }, ds);
+  const allowlist = a.allowlist ? loadAllowlist(isAbsolute(a.allowlist) ? a.allowlist : resolve(ctx.root, a.allowlist)) : undefined;
+  let report = buildAuditReport({ files, skipped, target: a.path, ...(a.label ? { label: a.label } : {}), ...(allowlist ? { allowlist } : {}) }, ds);
   if (a.baseline) report = compareWithBaseline(report, JSON.parse(readFileSync(isAbsolute(a.baseline) ? a.baseline : resolve(ctx.root, a.baseline), 'utf8')) as AuditReport);
   const limit = a.limit ?? 10;
   const single = files.length === 1;
@@ -733,6 +734,8 @@ export async function auditOp(ctx: BridgeContext, a: { path: string; baseline?: 
       native: report.components.native,
       recreated: report.components.recreated,
     },
+    ...(report.ignored ? { ignored: { total: report.ignored.total, comment: report.ignored.comment, allowlist: report.ignored.allowlist, items: report.ignored.items.slice(0, limit * 5), staleAllowlist: report.ignored.staleAllowlist } } : {}),
+    ...(report.files.some((f) => f.ignoreErrors?.length) ? { ignoreErrors: report.files.flatMap((f) => (f.ignoreErrors ?? []).map((e) => ({ file: f.path, ...e }))) } : {}),
     topFiles: report.topFiles.slice(0, limit),
     topFixes: report.topFixes.slice(0, limit).map((f) => ({ value: f.value, category: f.category, count: f.count, ...(f.suggestion ? { use: `var(${f.suggestion.cssVar})`, token: f.suggestion.token, tokenValue: f.suggestion.value, ...(f.suggestion.mode ? { mode: f.suggestion.mode } : {}), confidence: f.suggestion.level } : { use: null }) })),
     ...(withFindings

@@ -358,6 +358,43 @@
     "baseline": {
       "$ref": "#/$defs/baseline"
     },
+    "ignored": {
+      "type": "object",
+      "description": "What was left out of the counts on purpose, and allowlist entries that match nothing any more.",
+      "required": [
+        "total",
+        "comment",
+        "allowlist",
+        "items",
+        "staleAllowlist"
+      ],
+      "properties": {
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "comment": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "allowlist": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ignored"
+          }
+        },
+        "staleAllowlist": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/allowlistEntry"
+          }
+        }
+      }
+    },
     "history": {
       "type": "array",
       "items": {
@@ -438,7 +475,10 @@
             "tsx",
             "jsx",
             "ts",
-            "js"
+            "js",
+            "astro",
+            "vue",
+            "svelte"
           ]
         },
         "tokenUsages": {
@@ -559,6 +599,32 @@
                 "type": "string"
               },
               "suggestion": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "ignored": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ignored"
+          }
+        },
+        "ignoreErrors": {
+          "type": "array",
+          "description": "bridge-audit-ignore-next-line comments that ignored nothing (no reason, or nothing on the next line).",
+          "items": {
+            "type": "object",
+            "required": [
+              "line",
+              "message"
+            ],
+            "properties": {
+              "line": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "message": {
                 "type": "string"
               }
             }
@@ -725,6 +791,74 @@
         "after": {
           "type": "integer",
           "minimum": 0
+        }
+      }
+    },
+    "ignored": {
+      "type": "object",
+      "description": "A finding or component left out of the counts on purpose, kept in the report so it stays visible.",
+      "required": [
+        "line",
+        "column",
+        "kind",
+        "what",
+        "reason",
+        "via"
+      ],
+      "properties": {
+        "line": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "column": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "kind": {
+          "enum": [
+            "value",
+            "component"
+          ]
+        },
+        "what": {
+          "type": "string",
+          "description": "The value as written or the element or component name."
+        },
+        "reason": {
+          "type": "string"
+        },
+        "via": {
+          "enum": [
+            "comment",
+            "allowlist"
+          ],
+          "description": "A bridge-audit-ignore-next-line comment, or an allowlist entry."
+        },
+        "file": {
+          "type": "string"
+        }
+      }
+    },
+    "allowlistEntry": {
+      "type": "object",
+      "required": [
+        "file",
+        "line",
+        "reason"
+      ],
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "what": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
         }
       }
     }

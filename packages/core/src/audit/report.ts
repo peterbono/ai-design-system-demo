@@ -3,8 +3,10 @@
 import { scanCode } from './code';
 import { lineCol, scanCssText } from './css';
 import type { DesignSystemIndex } from './ds-index';
+import { applyAllowlist, applyIgnoreComments } from './ignore';
+import { MARKUP_EXTENSIONS, scanMarkup } from './markup';
 import type { ValueHit } from './scan-value';
-import { parseCssColor } from './color';
+import { auditCssText, isSafeFix } from './style';
 import {
   AUDIT_SCHEMA_VERSION,
   FINDING_CATEGORIES,
@@ -12,14 +14,14 @@ import {
   type BaselineDiff,
   type CategoryCount,
   type FileReport,
+  type AllowlistEntry,
   type FindingCategory,
   type HistoryPoint,
-  type StyleFinding,
-  type TokenSuggestion,
+  type IgnoredItem,
   type TopFix,
 } from './types';
 
-export const AUDIT_EXTENSIONS = ['.css', '.scss', '.sass', '.less', '.tsx', '.jsx', '.ts', '.js', '.mjs', '.cjs', '.mts', '.cts'];
+export const AUDIT_EXTENSIONS = ['.css', '.scss', '.sass', '.less', '.tsx', '.jsx', '.ts', '.js', '.mjs', '.cjs', '.mts', '.cts', ...MARKUP_EXTENSIONS];
 export const AUDIT_IGNORE_DIRS = ['node_modules', 'dist', 'build', 'out', 'coverage', '.git', '.next', '.nuxt', '.astro', '.turbo', '.cache', '.vercel', 'storybook-static', 'vendor', 'public'];
 const IGNORE_FILE = /\.d\.[cm]?ts$|\.(test|spec|stories|story)\.[cm]?[jt]sx?$|\.min\.(css|js)$|(^|\/)(vite|vitest|jest|webpack|rollup|eslint|postcss|tailwind|babel|next|astro|prettier|stylelint|tsup)\.config\.[cm]?[jt]s$/;
 
@@ -38,77 +40,35 @@ const langOf = (path: string): FileReport['lang'] => {
   if (ext === 'tsx') return 'tsx';
   if (ext === 'jsx') return 'jsx';
   if (/^[cm]?ts$/.test(ext)) return 'ts';
+  if (ext === 'astro' || ext === 'vue' || ext === 'svelte') return ext;
   return 'js';
 };
 
-/** A literal the CSS autofix may replace: exact token value, same spelling for lengths and durations. */
-export function isSafeFix(h: { category: FindingCategory; text: string }, s: TokenSuggestion | undefined): boolean {
-  if (!s || s.level !== 'exact') return false;
-  switch (h.category) {
-    case 'color': {
-      const a = parseCssColor(h.text);
-      const b = parseCssColor(s.value);
-      return Boolean(a && b && s.distance <= 0.5 && Math.abs(a.a - b.a) < 0.01);
-    }
-    case 'spacing':
-    case 'size':
-    case 'radius':
-    case 'border-width':
-    case 'font-size':
-    case 'duration':
-    case 'z-index':
-    case 'font-weight':
-    case 'line-height':
-      return h.text.trim() === s.value.trim();
-    case 'shadow':
-      return s.distance === 0;
-    default:
-      return false;
-  }
-}
-
 export type AuditedFile = FileReport & { definitions: { name: string; line: number }[]; dsByName: Record<string, number> };
 
-/** Audit one file. */
+/** Audit one file. `bridge-audit-ignore-next-line: reason` comments leave the next line's findings out of the counts. */
 export function auditFile(path: string, text: string, ds: DesignSystemIndex): AuditedFile {
   const lang = langOf(path);
   if (lang === 'css' || lang === 'scss' || lang === 'less') {
-    const at = lineCol(text);
-    const scan = scanCssText(text, lang);
-    const findings: StyleFinding[] = [];
-    let tokenUsages = 0;
-    let themeRefs = 0;
-    for (const d of scan.decls) {
-      for (const v of d.scan.vars) ds.isDsVar(v) ? tokenUsages++ : themeRefs++;
-      if (d.scan.themeRef) themeRefs++;
-      else if (lang !== 'css' && !d.property.startsWith('$')) themeRefs += (d.value.match(/\$[\w-]+/g) ?? []).length;
-      const property = d.property.toLowerCase();
-      for (const h of d.scan.hits) {
-        const suggestion = ds.suggest(h.category, h.text, property);
-        const p = at(d.valueStart + h.index);
-        findings.push({ ...p, category: h.category, property, value: h.text, source: 'css', ...(suggestion ? { suggestion } : {}), ...(isSafeFix(h, suggestion) ? { autofix: true } : {}) });
-      }
-    }
-    for (const a of scan.applies) {
-      for (const h of a.hits) {
-        if (h.kind === 'scale') themeRefs++;
-        else if (h.kind !== 'token' && h.value) {
-          const cat: FindingCategory = parseCssColor(h.value) ? 'color' : h.category === 'color-or-size' ? 'font-size' : h.category === 'color-or-width' ? 'border-width' : h.category === 'color-or-shadow' ? 'shadow' : h.category === 'font' ? 'font-family' : (h.category as FindingCategory);
-          const suggestion = ds.suggest(cat, h.value);
-          findings.push({ ...at(a.start + h.index), category: cat, value: h.cls, source: 'tailwind', ...(suggestion ? { suggestion } : {}) });
-        } else if (h.kind === 'token' && h.value) {
-          const v = /var\(\s*(--[\w-]+)/.exec(h.value)?.[1];
-          if (v && ds.isDsVar(v)) tokenUsages++;
-          else themeRefs++;
-        }
-      }
-    }
-    findings.sort((x, y) => x.line - y.line || x.column - y.column);
-    return { path, lang, tokenUsages, themeRefs, hardcoded: findings.length, dsComponents: 0, otherComponents: 0, findings, components: [], definitions: [], dsByName: {} };
+    const r = auditCssText(text, lang, ds, { pos: lineCol(text) });
+    return withIgnores(text, { path, lang, tokenUsages: r.tokenUsages, themeRefs: r.themeRefs, hardcoded: 0, dsComponents: 0, otherComponents: 0, findings: r.findings, components: [], definitions: [], dsByName: {} });
   }
-  const c = scanCode(path, text, ds);
+  const c = lang === 'astro' || lang === 'vue' || lang === 'svelte' ? scanMarkup(path, text, lang, ds) : scanCode(path, text, ds);
   const dsCount = Object.values(c.ds).reduce((a, b) => a + b, 0);
-  return { path, lang, tokenUsages: c.tokenUsages, themeRefs: c.themeRefs, hardcoded: c.findings.length, dsComponents: dsCount, otherComponents: c.components.length, findings: c.findings, components: c.components, definitions: c.definitions, dsByName: c.ds };
+  return withIgnores(text, { path, lang, tokenUsages: c.tokenUsages, themeRefs: c.themeRefs, hardcoded: 0, dsComponents: dsCount, otherComponents: 0, findings: c.findings, components: c.components, definitions: c.definitions, dsByName: c.ds });
+}
+
+function withIgnores(text: string, f: AuditedFile): AuditedFile {
+  const r = applyIgnoreComments(text, f.findings, f.components);
+  return {
+    ...f,
+    findings: r.findings,
+    components: r.components,
+    hardcoded: r.findings.length,
+    otherComponents: r.components.length,
+    ...(r.ignored.length ? { ignored: r.ignored } : {}),
+    ...(r.errors.length ? { ignoreErrors: r.errors } : {}),
+  };
 }
 
 const pct = (num: number, den: number) => (den > 0 ? Math.round((num / den) * 1000) / 10 : null);
@@ -120,11 +80,26 @@ export interface AuditInput {
   label?: string;
   version?: string;
   generatedAt?: string;
+  /** Known violations left out of the counts, each with a reason (an allowlist file, see parseAllowlist). */
+  allowlist?: AllowlistEntry[];
 }
 
 /** Build the report for a set of files. */
 export function buildAuditReport(input: AuditInput, ds: DesignSystemIndex): AuditReport {
-  const reports = input.files.map((f) => auditFile(f.path, f.text, ds));
+  const allow = input.allowlist ?? [];
+  const usedAllow = new Set<number>();
+  const reports = input.files.map((f) => {
+    const r = auditFile(f.path, f.text, ds);
+    const idx = allow.flatMap((e, i) => (e.file === f.path ? [i] : []));
+    if (!idx.length) return r;
+    const a = applyAllowlist(idx.map((i) => allow[i]!), r.findings, r.components);
+    a.used.forEach((k) => usedAllow.add(idx[k]!));
+    if (!a.ignored.length) return r;
+    const ignored = [...(r.ignored ?? []), ...a.ignored].sort((x, y) => x.line - y.line || x.column - y.column);
+    return { ...r, findings: a.findings, components: a.components, hardcoded: a.findings.length, otherComponents: a.components.length, ignored };
+  });
+  const ignoredItems = reports.flatMap((r) => (r.ignored ?? []).map((x): IgnoredItem & { file: string } => ({ file: r.path, ...x })));
+  const staleAllowlist = allow.filter((_e, i) => !usedAllow.has(i));
   const files: FileReport[] = reports.map(({ definitions: _d, dsByName: _n, ...r }) => r);
   const byCategory: Partial<Record<FindingCategory, CategoryCount>> = {};
   const fixes = new Map<string, TopFix & { fileSet: Set<string> }>();
@@ -193,6 +168,17 @@ export function buildAuditReport(input: AuditInput, ds: DesignSystemIndex): Audi
     topFiles,
     topFixes,
     files: files.sort((a, b) => a.path.localeCompare(b.path)),
+    ...(ignoredItems.length || staleAllowlist.length
+      ? {
+          ignored: {
+            total: ignoredItems.length,
+            comment: ignoredItems.filter((x) => x.via === 'comment').length,
+            allowlist: ignoredItems.filter((x) => x.via === 'allowlist').length,
+            items: ignoredItems,
+            staleAllowlist,
+          },
+        }
+      : {}),
     history: [],
   };
 }
@@ -250,7 +236,7 @@ const fmtDelta = (n: number | null) => (n === null ? '' : ` (${n > 0 ? '+' : ''}
 const esc = (s: string) => s.replace(/\|/g, '\\|').replace(/`/g, "'");
 
 /** Short Markdown summary for a PR comment or a CI job summary. */
-export function auditMarkdown(r: AuditReport, opts: { topFiles?: number; topFixes?: number } = {}): string {
+export function auditMarkdown(r: AuditReport, opts: { topFiles?: number; topFixes?: number; ignored?: number } = {}): string {
   const m = r.metrics;
   const b = r.baseline;
   const lines = [
@@ -302,6 +288,20 @@ export function auditMarkdown(r: AuditReport, opts: { topFiles?: number; topFixe
     lines.push('### Top fixes', '', '| Value | Use | Confidence | Count |', '| --- | --- | --- | ---: |');
     for (const f of fixes) lines.push(`| \`${esc(f.value)}\` (${f.category}) | \`var(${f.suggestion!.cssVar})\` ${esc(f.suggestion!.value)}${f.suggestion!.mode ? ` [${f.suggestion!.mode}]` : ''} | ${f.suggestion!.level} | ${f.count} |`);
     lines.push('');
+  }
+  const ig = r.ignored;
+  if (ig && (ig.total || ig.staleAllowlist.length)) {
+    lines.push('### Ignored on purpose', '', `${ig.total} item(s) left out of the counts: ${ig.comment} by \`bridge-audit-ignore-next-line\` comments, ${ig.allowlist} by the allowlist.`, '');
+    const shown = ig.items.slice(0, opts.ignored ?? 50);
+    if (shown.length) {
+      lines.push('| Where | What | Reason |', '| --- | --- | --- |');
+      for (const x of shown) lines.push(`| \`${esc(x.file)}:${x.line}\` | \`${esc(x.what)}\` | ${esc(x.reason)} (${x.via}) |`);
+      if (ig.items.length > shown.length) lines.push(`| ... | ${ig.items.length - shown.length} more | |`);
+      lines.push('');
+    }
+    if (ig.staleAllowlist.length) {
+      lines.push(`Allowlist entries that match nothing any more (remove them): ${ig.staleAllowlist.map((e) => `\`${esc(e.file)}:${e.line}${e.what ? ` ${esc(e.what)}` : ''}\``).join(', ')}.`, '');
+    }
   }
   if (b) {
     lines.push(`### Progress since ${b.label ?? b.generatedAt}`, '');

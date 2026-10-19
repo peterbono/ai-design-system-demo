@@ -25,8 +25,9 @@ to it as pull requests that people review.
   planner that shows conflicts with later changes instead of a blind `git revert`.
 - **Visual impact**: `bridge impact` screenshots the stories and app screens a change touches at both refs and
   pixel-diffs them. On PRs, a sticky comment and a before/after slider in Reviews.
-- **Adoption audit**: `bridge audit <path>` measures token and component adoption in product code, lists
-  hardcoded values with the closest token and foreign components with the DS one to use. Stylelint and ESLint
+- **Adoption audit**: `bridge audit <path>` measures token and component adoption in product code (CSS, TSX,
+  Astro, Vue, Svelte), lists hardcoded values with the closest token and foreign or native components with the
+  DS one to use. Stylelint and ESLint
   plugins give the same feedback in the editor.
 - **Branch previews**: every PR publishes snapshot packages and per-branch deploys of the docs, Storybook and the
   admin demo, listed on the Branches page. A product staging can preview a branch's tokens without reinstalling.

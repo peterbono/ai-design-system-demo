@@ -119,7 +119,7 @@ audits, 3 for component change requests, 2 for explorations, 2 for change texts 
 | `bridge_get_token_history` | Every change of one token: value before and after per mode, the PR and why, renames followed |
 | `bridge_plan_revert` | Dry run of undoing a change (or restoring one token) against today's base branch, conflicts shown |
 | `bridge_propose_revert` | Turn that plan into a branch (local) or a draft PR labelled `revert` (GitHub), never `main` |
-| `bridge_audit` | Measure how a product codebase adopts the design system: token and component adoption, hardcoded values with the closest token, foreign UI components with the DS component to use, top files and fixes |
+| `bridge_audit` | Measure how a product codebase adopts the design system (CSS, SCSS, Less, TS/JS, TSX/JSX, Astro, Vue, Svelte): token and component adoption, hardcoded values with the closest token, foreign UI components and native elements with the DS component to use, top files and fixes, and what was ignored on purpose with its reason |
 | `bridge_list_requests` | List component change requests (GitHub issues labeled `component-change`) with status: requested, in progress (an open pull request says "Closes #n"), done, declined |
 | `bridge_get_request` | Read one request with the component's files, the agent rules and a brief to implement it in a pull request that closes it |
 | `bridge_create_request` | File a request as an issue labeled `component-change` (`source: mcp`); needs `GITHUB_TOKEN`; `dryRun` previews it; `exploration` implements it on an exploration branch |
@@ -372,18 +372,36 @@ bridge audit ../my-app/src --json audit.json --md audit.md --label "my-app"
 bridge audit ../my-app/src --baseline audit.json --no-regress --fail-under 60   # CI: exit 1 when it drops
 bridge audit ../my-app/src --fix                   # dry run: CSS values equal to a token
 bridge audit ../my-app/src --fix --write           # replace them with var(--token)
+bridge audit ../my-app/src --allowlist known.json  # leave known file:line violations out, each with a reason
 ```
 
 - **Token adoption** = token references / (token references + hardcoded values). Hardcoded colors, spacing,
   sizes, radii, borders, shadows, durations, easings, z-index and fonts are found in CSS, SCSS, CSS modules,
   `style`, MUI `sx`, `styled()`, theme objects, CSS-in-JS templates and Tailwind classes (`p-[13px]`,
-  `bg-blue-500`). Each gets the closest token: colors by perceptual distance (deltaE in OKLab) across every
+  `bg-blue-500`), and in Astro, Vue and Svelte files: `<style>` blocks, `style` attributes (`style="..."`,
+  `style={{ ... }}`, Vue `:style`, Svelte `style:prop`), the frontmatter and `<script>` blocks. Each gets the closest token: colors by perceptual distance (deltaE in OKLab) across every
   brand, theme and density, lengths by the nearest scale step, with a confidence.
 - **Component adoption** = DS component instances / all UI component instances: DS, foreign libraries (MUI,
   react-admin, antd, Chakra, Radix, Headless UI, Mantine, shadcn/ui local components), native elements that
   should be DS components (`button`, `input`, `select`, `textarea`, `dialog`, `table`, `a` with `href`, `img`), router links
   outside a DS component's `render` prop, chart libraries (recharts...: no DS equivalent) and local components
-  named like a DS component.
+  named like a DS component. JSX and the template markup of `.astro`, `.vue` and `.svelte` files count the same
+  way: a tag is a DS component when the frontmatter or `<script>` imports it from the DS package, and a local
+  `Button.astro` (or `.vue`, `.svelte`) is a re-created DS component. `<input type="hidden">`, anchors without
+  `href` and elements inside `<noscript>` do not count.
+- **Exceptions stay visible.** When a native element is the right call, say why on the line above:
+
+  ```html
+  <!-- bridge-audit-ignore-next-line: third-party embed reads this native select -->
+  <select name="region">...</select>
+  ```
+
+  The same works in `{/* */}`, `/* */` and `//` comments. The reason after the colon is required; a comment
+  without one, or above a line with nothing to ignore, ignores nothing and is printed as an error. For a batch of
+  known violations, `--allowlist known.json` takes `{ "entries": [{ "file": "pages/a.astro", "line": 12, "what":
+  "select", "reason": "..." }] }` (paths relative to the audited folder). Ignored items leave the counts but stay
+  in the report with their reason (`--md` lists them under "Ignored on purpose"), and allowlist entries that
+  match nothing any more are printed so the list only shrinks.
 - The JSON report is versioned (`packages/core/audit-report.schema.json`). Commit it under
   `apps/docs-site/src/data/audits/` and the docs site shows it in Studio Quality (each report on its own page), with the trend across
   baselines. Exit codes: 0 ok, 1 under `--fail-under` or regressed with `--no-regress`, 2 setup error.
