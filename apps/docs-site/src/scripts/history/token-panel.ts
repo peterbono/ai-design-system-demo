@@ -2,15 +2,14 @@
 // with "Restore this value". Real history by default; demo only with the toggle, under the same banner.
 import { tokenHistory, type TokenHistoryItem } from '@bridge-ds/core';
 import { shortDate } from '../../lib/history-view';
+import { badgeHtml, tokenValueHtml } from '@bridge-ds/react/dom';
 import { esc } from '../github-session';
 import { openRestorePlanner } from './planner';
 import { activeReport, DEMO_AVAILABLE, DEMO_BANNER, DEMO_EVENT, demoOn, loadHistory, setDemo } from './state';
 
 const val = (v: unknown) => (v === undefined ? '' : typeof v === 'string' ? v : JSON.stringify(v));
-const chip = (raw: unknown, css?: string) =>
-  raw === undefined
-    ? '<span class="muted">none</span>'
-    : `<span class="rv-val">${css && /^#[0-9a-f]{6,8}$/i.test(css) ? `<span class="rv-sw" style="background-color:${esc(css)}"></span>` : ''}<span class="mono">${esc(val(raw))}</span></span>`;
+const chip = (raw: unknown, css?: string, previous = false) =>
+  raw === undefined ? '<span class="muted">none</span>' : tokenValueHtml(val(raw), { swatch: css && /^#[0-9a-f]{6,8}$/i.test(css) ? css : false, previous });
 
 let items: TokenHistoryItem[] = [];
 let shownPath = '';
@@ -25,14 +24,14 @@ function itemHtml(it: TokenHistoryItem, i: number, demo: boolean): string {
         : it.kind === 'removed'
           ? `Removed (was ${chip(it.before, it.beforeCss)})`
           : it.fields.includes('value')
-            ? `${chip(it.before, it.beforeCss)} <span class="rv-arrow" aria-label="became">-></span> ${chip(it.after, it.afterCss)}`
+            ? `${chip(it.before, it.beforeCss, true)} <span class="rv-arrow" aria-label="became">-></span> ${chip(it.after, it.afterCss)}`
             : 'Description changed';
   const title = demo ? esc(it.title) : `<a href="/studio/changes/?view=history&entry=${encodeURIComponent(it.entryId)}">${esc(it.title)}</a>`;
   // Restoring a value starts a change: Studio only. The Library drawer reads.
   const editable = document.querySelector('[data-explorer-mode="edit"]') !== null;
   const canRestore = editable && it.after !== undefined && it.kind !== 'removed' && (it.kind !== 'changed' || it.fields.includes('value'));
   return `<li class="hs-ti">
-    <p class="hs-ti-head"><span class="pill">${esc(it.modeLabel)}</span> <span class="small muted">${esc(shortDate(it.date))}, ${esc(it.author)}${it.pr ? `, #${it.pr.number}` : ''}</span></p>
+    <p class="hs-ti-head">${badgeHtml(it.modeLabel, { size: 'sm' })} <span class="small muted">${esc(shortDate(it.date))}, ${esc(it.author)}${it.pr ? `, #${it.pr.number}` : ''}</span></p>
     <p class="hs-ti-what">${what}</p>
     <p class="small">${title}</p>
     ${canRestore ? `<button type="button" class="btn btn-secondary btn-sm" data-hs-restore="${i}">Restore this value</button>` : ''}

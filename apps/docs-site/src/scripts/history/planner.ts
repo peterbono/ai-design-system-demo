@@ -17,6 +17,7 @@ import {
   type RevertResolution,
   type TokenHistoryItem,
 } from '@bridge-ds/core';
+import { badgeHtml, tokenValueHtml } from '@bridge-ds/react/dom';
 import { reviewTokenChange, type TokenReview } from '../../lib/token-review';
 import { undoSentence } from '../../lib/changes';
 import { humanAuthored, laterThan, shortDate } from '../../lib/history-view';
@@ -95,8 +96,10 @@ function afterFiles(p: ChangePlan): Record<string, string> {
 }
 
 const val = (v: unknown) => (v === undefined ? 'none' : typeof v === 'string' ? v : JSON.stringify(v));
-const swatchCss = (css?: string) => (css && /^#[0-9a-f]{6,8}$/i.test(css) ? `<span class="rv-sw" style="background-color:${esc(css)}"></span>` : '');
-const valueChip = (raw: unknown, css?: string) => `<span class="rv-val">${swatchCss(css)}<span class="mono">${esc(val(raw))}</span>${css && css !== raw ? `<span class="muted mono small">${esc(css)}</span>` : ''}</span>`;
+const valueChip = (raw: unknown, css?: string) =>
+  raw === undefined
+    ? '<span class="cg-muted">none</span>'
+    : tokenValueHtml(val(raw), { resolved: css && css !== raw ? css : undefined, swatch: css && /^#[0-9a-f]{6,8}$/i.test(css) ? css : false });
 
 function statusLine(p: ChangePlan): string {
   if (p.status === 'ready') return `<p class="cg-muted">Bridge opens a pull request on a new branch. Nothing reaches main until a reviewer merges it.</p>`;
@@ -110,16 +113,15 @@ function paintError(message: string) {
   syncFoot();
 }
 
-const swatchHex = (hex?: string | null) => (hex ? `<span class="rv-sw" style="background-color:${esc(hex)}" aria-hidden="true"></span>` : '');
-const shown = (v: { alias?: string | null; css?: string | null; hex?: string | null } | null) =>
-  v ? `<span class="hp-v">${swatchHex(v.hex)}<span class="mono" title="${esc(v.alias ? `{${v.alias}}` : (v.css ?? ''))}">${esc(v.alias ? `{${v.alias}}` : (v.css ?? ''))}</span></span>` : '<span class="cg-muted">none</span>';
+const shown = (v: { alias?: string | null; css?: string | null; hex?: string | null } | null, previous = false) =>
+  v ? tokenValueHtml(v.alias ? `{${v.alias}}` : (v.css ?? ''), { swatch: v.hex ?? false, previous }) : '<span class="cg-muted">none</span>';
 
 function changesList(review: TokenReview): string {
   if (!review.changes.length) return '';
   return `<ul class="hp-changes">${review.changes
     .map(
       (c) => `<li class="hp-change"><p class="hp-token"><span class="mono" title="${esc(c.path)}">${esc(c.path)}</span>${c.context ? `<span class="cg-muted">${esc(modeWord(c.context))}</span>` : ''}</p>
-        <dl class="hp-ba"><dt>Now</dt><dd>${shown(c.before)}</dd><dt>After undo</dt><dd>${shown(c.after)}</dd></dl></li>`,
+        <dl class="hp-ba"><dt>Now</dt><dd>${shown(c.before, true)}</dd><dt>After undo</dt><dd>${shown(c.after)}</dd></dl></li>`,
     )
     .join('')}</ul>`;
 }
@@ -130,7 +132,7 @@ function pairsTable(review: TokenReview): string {
   const rows = review.contrast
     .map(
       (p) => `<tr class="${p.after < p.min ? 'is-fail' : ''}"><th scope="row"><span class="hp-pair"><span class="rv-aa" style="background-color:${esc(p.bgHexAfter)};color:${esc(p.fgHexAfter)}" aria-hidden="true">Aa</span><span class="hp-pair-names"><span class="mono" title="${esc(p.fg)}">${esc(p.fg)}</span><span class="mono" title="${esc(p.bg)}"><span class="cg-muted">on</span> ${esc(p.bg)}</span></span></span></th>
-        <td>${esc(p.where)}</td><td class="num">${p.before.toFixed(2)} -> <strong>${p.after.toFixed(2)}</strong>${p.after < p.min ? ' <span class="pill is-fail">Fails</span>' : ''}</td></tr>`,
+        <td>${esc(p.where)}</td><td class="num">${p.before.toFixed(2)} -> <strong>${p.after.toFixed(2)}</strong>${p.after < p.min ? ` ${badgeHtml('Fails', { tone: 'danger', size: 'sm' })}` : ''}</td></tr>`,
     )
     .join('');
   return `<details class="cg-sec"><summary class="cg-sec-head"><span class="cg-sec-title">Contrast pairs</span><span class="cg-sec-meta">${n}</span><span class="cg-sec-chev" aria-hidden="true"></span></summary>

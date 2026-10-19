@@ -21,6 +21,12 @@
   line-height: var(--typography-ui-line-height);
 }
 
+/* On Deep Harbor the standard ring (Deep Harbor too) would vanish: focus inside a strong banner uses its text color,
+   8.87:1 in light. */
+.strong {
+  --focus-ring-color: var(--color-action-primary-text);
+}
+
 .neutral {
   --_bg: var(--color-bg-subtle);
   --_border: var(--color-border-default);

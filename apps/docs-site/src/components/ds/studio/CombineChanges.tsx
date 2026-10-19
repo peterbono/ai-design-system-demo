@@ -10,7 +10,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { createRoot } from 'react-dom/client';
-import { Alert, Button, Checkbox, Link, Radio, RadioGroup, VisuallyHidden } from '@bridge-ds/react';
+import { Alert, Button, Checkbox, ChoiceCard, ChoiceCardGroup, Link, TokenValue, VisuallyHidden } from '@bridge-ds/react';
 import { combineChanges, encodePicks, type CombinePicks } from '@bridge-ds/core';
 import {
   ALONE_LABEL,
@@ -157,16 +157,9 @@ export function CombineChanges({ admin, failure }: CombineChangesProps) {
   const use = encodePicks(active);
   const n = selected.length;
 
-  /** One choice: the change in the label; under it a colour chip (wide, so it never reads as a checkbox) and the value. */
+  /** One choice: the change as the card title, the value it keeps under it. */
   const optionValue = (v: { alias: string | null; css: string | null; hex: string | null } | null) =>
-    v ? (
-      <span className="cg-opt-val">
-        {v.hex ? <span className="cg-opt-sw" style={{ backgroundColor: v.hex }} aria-hidden="true" /> : null}
-        <span className="mono">{[v.alias ? `{${v.alias}}` : null, v.css].filter(Boolean).join(' ')}</span>
-      </span>
-    ) : (
-      <span className="cg-opt-val">Removes the token</span>
-    );
+    v ? <TokenValue value={v.alias ? `{${v.alias}}` : (v.css ?? '')} resolved={v.alias ? (v.css ?? undefined) : undefined} swatch={v.hex ?? false} /> : 'Removes the token';
 
   return (
     <>
@@ -250,18 +243,16 @@ export function CombineChanges({ admin, failure }: CombineChangesProps) {
                   <span className="lib-name mono">{r.name}</span>
                   {r.context ? <span className="lib-meta">{r.context} only</span> : null}
                 </div>
-                <RadioGroup
-                  className="lib-choice"
+                <ChoiceCardGroup
                   label={`Value of ${r.name}${r.context ? ` in ${r.context}` : ''}`}
                   hideLabel
-                  orientation="horizontal"
                   value={picks[r.key] ? String(picks[r.key]) : ''}
                   onValueChange={(v) => setPicks((p) => ({ ...p, [r.key]: Number(v) }))}
                 >
                   {r.options.map((o) => (
-                    <Radio key={o.change} value={String(o.change)} label={o.label} description={optionValue(o.value)} />
+                    <ChoiceCard key={o.change} value={String(o.change)} title={o.label} description={optionValue(o.value)} />
                   ))}
-                </RadioGroup>
+                </ChoiceCardGroup>
               </li>
             ))}
           </ul>

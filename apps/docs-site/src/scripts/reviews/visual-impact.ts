@@ -1,6 +1,7 @@
 // Changes > pull request > Visual impact: reads the manifest the visual impact workflow published for the head
 // commit, then shows each changed story or screen with a before/after slider and a diff toggle. Returns what the
 // collapsed section header shows: the number of changed screens and a small before/after thumbnail.
+import { badgeHtml } from '@bridge-ds/react/dom';
 import { VISUAL_CHECK_LABEL } from '@bridge-ds/core';
 import { changeLabel, facet, filterShots, modeLabel, VISUAL_BRANCH, visualAsk, visualBase, visualState, type VisualFilter, type VisualManifest, type VisualShot } from '../../lib/visual-impact';
 import { esc, GitHubError, ghGet, ghWrite, hasWorkingToken, onAccess, showGhError } from '../github-session';
@@ -239,7 +240,7 @@ function shotCard(s: VisualShot, base: string, meta: string = modeLabel(s)): str
   const boxes = s.boxes
     .map((b) => `<i style="left:${(b.x / size.width) * 100}%;top:${(b.y / size.height) * 100}%;width:${(b.width / size.width) * 100}%;height:${(b.height / size.height) * 100}%"></i>`)
     .join('');
-  const tone = s.status === 'error' ? 'is-fail' : '';
+  const tone = s.status === 'error' ? 'danger' : 'neutral';
   const compare =
     s.images.before && s.images.after
       ? `<div class="vi-compare" style="--pos:${START}%;aspect-ratio:${size.width} / ${size.height}">
@@ -258,7 +259,7 @@ function shotCard(s: VisualShot, base: string, meta: string = modeLabel(s)): str
       : s.images.after || s.images.before
         ? `<img class="vi-single" src="${esc(url(s.images.after ?? s.images.before))}" alt="${esc(alt)}" loading="lazy" />`
         : `<p class="small muted">${esc(s.error ?? 'No image')}</p>`;
-  return `<article class="vi-shot"><header class="vi-shot-head"><h3>${esc(s.label)}</h3><span class="small muted">${esc(meta)}</span><span class="pill ${tone}">${esc(changeLabel(s))}</span></header>${compare}</article>`;
+  return `<article class="vi-shot"><header class="vi-shot-head"><h3>${esc(s.label)}</h3><span class="small muted">${esc(meta)}</span>${badgeHtml(changeLabel(s), { tone, size: 'sm', className: 'vi-shot-badge' })}</header>${compare}</article>`;
 }
 
 function wire(root: HTMLElement) {

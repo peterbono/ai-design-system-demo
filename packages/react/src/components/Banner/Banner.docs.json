@@ -1,0 +1,65 @@
+{
+  "summary": "A page-level mode banner: the page shows something other than usual, such as a past change of the library or an edit mode, and the way back sits on the same line. One per page, at the top of the content.",
+  "preview": { "c": "Banner", "p": { "icon": "Eye", "title": "Viewing the library as change #118. Nothing is saved." } },
+  "whenToUse": [
+    "The whole page is in a mode the reader must not forget: previewing a past change, editing guidelines, viewing as another brand.",
+    "Give the way out as an action on the same line (\"Back to latest library\"), a Button with size sm and variant secondary, and at most one more action. On narrow screens the actions go under the text and fill the row.",
+    "strong (default, Deep Harbor) for a mode the whole page is in; neutral for a quieter, scoped mode such as an editor.",
+    "sticky=\"top\" or sticky=\"below-header\" when the page scrolls long, so the way back stays in view."
+  ],
+  "whenNotToUse": [
+    "A message about the page's content (a failed build, a contrast warning): use Alert.",
+    "Confirming an action the user just took: use a Toast.",
+    "Marketing or announcements: Banner is for a state the page is in, not for news.",
+    "More than one per page: merge the modes into one sentence, or pick the one that matters."
+  ],
+  "dos": [
+    {
+      "title": "Say the mode and its consequence in one sentence",
+      "text": "What the reader sees and what it means for their work: \"Viewing the library as change #118. Nothing is saved.\"",
+      "example": { "c": "Banner", "p": { "icon": "Eye", "title": "Viewing the library as change #118. Nothing is saved." } }
+    },
+    {
+      "title": "Neutral for a scoped mode",
+      "text": "An edit mode on one part of the page does not need the strong color. Keep Deep Harbor for modes the whole page is in.",
+      "example": { "c": "Banner", "p": { "appearance": "neutral", "icon": "PencilRuler", "title": "Editing the Button guidelines" }, "children": ["Changes stay in a draft until you open a pull request."] }
+    }
+  ],
+  "donts": [
+    {
+      "title": "A banner for news",
+      "text": "\"New components are available\" is not a mode. It belongs in a changelog or an Alert, not in the strong band at the top of the page.",
+      "example": { "c": "Banner", "p": { "icon": "Sparkles", "title": "New components are available!" } }
+    },
+    {
+      "title": "A vague mode",
+      "text": "\"Preview mode\" does not say what is previewed or whether work is saved. Name the object and the consequence.",
+      "example": { "c": "Banner", "p": { "appearance": "neutral", "icon": "Eye", "title": "Preview mode" } }
+    }
+  ],
+  "accessibility": [
+    "A landmark region named by its title (role region, aria-labelledby), so screen reader users find the mode in the landmarks list.",
+    "Not a live region: the banner is part of the page when it loads. If a mode starts without a page load, move focus to the banner title or announce the mode once.",
+    "The actions are real Buttons on the same line as the title, reached with Tab right after the title.",
+    "The strong appearance uses color.action.primary.bg with color.action.primary.text, checked in both themes. The icon and the words carry the mode, never color alone.",
+    "Sticky banners stay under the app header (layout.header.height) and above the content (layer.sticky), so they never hide the header's controls."
+  ],
+  "contentGuidelines": [
+    "Title: one sentence, the mode and what it means: \"Viewing the library as change #118. Nothing is saved.\"",
+    "Detail: one more line only when it adds something: what is different, what is kept.",
+    "Action: the way back as a verb phrase naming where it goes: \"Back to latest library\", \"Stop editing\".",
+    "No exclamation marks, no apology."
+  ],
+  "anatomy": {
+    "banner": "Container, a landmark region named by the title",
+    "strong": "Strong appearance: Deep Harbor (default)",
+    "neutral": "Neutral appearance: subtle ground",
+    "stickyTop": "Sticky at the top of the scroll area",
+    "stickyHeader": "Sticky under the app header",
+    "icon": "Mode icon",
+    "content": "Text column",
+    "title": "Title: the mode in one sentence",
+    "description": "Detail",
+    "actions": "The way back, and at most one more action"
+  }
+}

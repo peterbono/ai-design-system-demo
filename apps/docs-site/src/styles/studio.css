@@ -410,11 +410,6 @@
   gap: var(--space-1-5);
 }
 
-.ov-pr-pills .pill {
-  height: var(--size-5);
-  font-size: var(--typography-ui-size);
-}
-
 .ov-skel {
   height: var(--size-12);
   background-image: linear-gradient(90deg, var(--color-surface-default) 0%, var(--color-bg-default) 50%, var(--color-surface-default) 100%);

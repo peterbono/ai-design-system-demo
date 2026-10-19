@@ -25,6 +25,27 @@ export function App() {
 `@bridge-ds/react/styles.css` holds the global base and every component's styles. Import it once, after the
 token CSS. Peer dependencies: `react` and `react-dom` 18 or later.
 
+## Pages without React
+
+Static sites, server templates and pages that build rows in plain scripts use `@bridge-ds/react/dom`. Each
+renderer returns the exact markup of its React component, with the same CSS Module classes (from the same
+stylesheet), so it looks and behaves the same. Parity tests compare every renderer with its component.
+
+```ts
+import { badgeHtml, bindCodeBlocks, bindTooltips, codeBlockHtml, tooltipAttributes } from '@bridge-ds/react/dom';
+
+row.innerHTML = badgeHtml('Approved', { tone: 'success', attributes: tooltipAttributes('Approved by the design owner', { focusable: true }) });
+panel.innerHTML = codeBlockHtml('npm i @bridge-ds/react', { label: 'Install' });
+bindTooltips(); // once per page: every [data-tooltip] element, now or later
+bindCodeBlocks(); // once per page: copy buttons of CodeBlocks rendered without hydration
+```
+
+Renderers: `badgeHtml`, `badgeClassName`, `codeBlockHtml`, `tokenValueHtml`, `checklistHtml`, `checklistRowHtml`.
+Text is escaped; pass `trusted(html)` for markup you built and escaped yourself. `bridge audit` counts these calls as
+design system components, and counts homemade look-alikes in script-built markup (`class="pill"`, `data-tip`
+tooltips) against adoption. Your bundler must handle CSS Modules imported from the package (Vite, Astro and Next
+do), or import `@bridge-ds/react/styles.css` and use the published build.
+
 ## Try a design system branch on staging
 
 Install a branch snapshot (see the PR comment "Try this DS branch in your product"), or preview a branch's tokens

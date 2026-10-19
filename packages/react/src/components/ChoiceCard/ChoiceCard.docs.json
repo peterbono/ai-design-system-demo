@@ -1,0 +1,79 @@
+{
+  "summary": "One choice among two to four options that each need a title and a short description, shown as cards: Keep mine or Use the library's, a starting brand, a corner style. The whole card is the click target.",
+  "preview": { "c": "ChoiceCardGroup", "p": { "label": "Which value should this change keep?", "defaultValue": "library" }, "children": [
+    { "c": "ChoiceCard", "p": { "value": "mine", "title": "Keep mine", "description": "{color.harbor.600}, the value on your branch." } },
+    { "c": "ChoiceCard", "p": { "value": "library", "title": "Use the library's", "description": "{color.harbor.700}, the value published in the library." } }
+  ] },
+  "whenToUse": [
+    "A decision where each option needs a line of explanation or a value to compare: resolving a conflict, picking a starting brand.",
+    "Two to four options. Side by side (horizontal, the default) when the reader compares them; they stack on their own when they no longer fit.",
+    "vertical when the descriptions are long or the options are a ranked list.",
+    "Put a TokenValue in description when the choice is between token values, so the reader sees what each card keeps.",
+    "hideLabel when the row around the group already asks the question; the legend stays the accessible name."
+  ],
+  "whenNotToUse": [
+    "Options a short label explains on its own: use RadioGroup.",
+    "Switching a view or a mode that applies at once: use SegmentedControl.",
+    "Several options the reader can pick together: use Checkbox.",
+    "More than four options: use RadioGroup or Select."
+  ],
+  "dos": [
+    {
+      "title": "Titles are the choice, descriptions are the consequence",
+      "text": "The title says what the reader picks in a few words, the description says what happens or what it keeps.",
+      "example": { "c": "ChoiceCardGroup", "p": { "label": "Starting brand", "defaultValue": "bridge" }, "children": [
+        { "c": "ChoiceCard", "p": { "value": "bridge", "title": "Bridge", "description": "Deep Harbor actions, Fraunces headings." } },
+        { "c": "ChoiceCard", "p": { "value": "ocean", "title": "Ocean", "description": "Brighter blue actions, rounder corners." } }
+      ] }
+    },
+    {
+      "title": "Ask the question in the legend",
+      "text": "The legend names the decision, as a question or a noun, so the cards read as answers.",
+      "example": { "c": "ChoiceCardGroup", "p": { "label": "Corner style", "orientation": "vertical", "defaultValue": "soft" }, "children": [
+        { "c": "ChoiceCard", "p": { "value": "sharp", "title": "Sharp", "description": "2px on controls, 4px on containers." } },
+        { "c": "ChoiceCard", "p": { "value": "soft", "title": "Soft", "description": "6px on controls, 12px on containers." } }
+      ] }
+    }
+  ],
+  "donts": [
+    {
+      "title": "Cards for one-word options",
+      "text": "When the titles say it all and nothing needs comparing, cards take room for nothing. Use RadioGroup.",
+      "example": { "c": "ChoiceCardGroup", "p": { "label": "Theme", "defaultValue": "light" }, "children": [
+        { "c": "ChoiceCard", "p": { "value": "light", "title": "Light" } },
+        { "c": "ChoiceCard", "p": { "value": "dark", "title": "Dark" } }
+      ] }
+    },
+    {
+      "title": "Descriptions that repeat the title",
+      "text": "\"Keep mine: keeps your value\" says it twice. Show the value instead, or what changes.",
+      "example": { "c": "ChoiceCardGroup", "p": { "label": "Which value should this change keep?" }, "children": [
+        { "c": "ChoiceCard", "p": { "value": "mine", "title": "Keep mine", "description": "Keeps your value." } },
+        { "c": "ChoiceCard", "p": { "value": "library", "title": "Use the library's", "description": "Uses the library's value." } }
+      ] }
+    }
+  ],
+  "accessibility": [
+    "A fieldset with a legend around a Base UI RadioGroup: the legend names the group, each card is a radio named by its title.",
+    "Each card's description is linked to its radio with aria-describedby, so screen readers read it after the title. The group description and error are linked to the group.",
+    "Tab enters the group on the selected card and leaves it; arrow keys move the selection.",
+    "The selected card shows the checked radio, a Deep Harbor edge and the selected surface: never color alone.",
+    "A disabled card is skipped by the arrow keys and cannot be picked; say why in its description.",
+    "The focus ring (focus.ring.color) shows on the radio on keyboard focus only."
+  ],
+  "contentGuidelines": [
+    "Legend: the decision, as a question or a noun, sentence case: \"Which value should this change keep?\", \"Starting brand\".",
+    "Title: a verb or a short name, a few words: \"Keep mine\", \"Use the library's\", \"Ocean\".",
+    "Description: one or two lines, the consequence or the value. No period after a lone value.",
+    "Error: what to do, not what went wrong: \"Pick a value before you merge.\""
+  ],
+  "anatomy": {
+    "group": "Grid of cards (Base UI RadioGroup)",
+    "horizontal": "Side by side, stacks when it no longer fits (default)",
+    "vertical": "Always stacked",
+    "card": "One option: the whole card is the click target",
+    "text": "Title and description column",
+    "title": "Title, names the radio",
+    "description": "Description, linked with aria-describedby"
+  }
+}

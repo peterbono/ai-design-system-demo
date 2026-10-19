@@ -47,7 +47,7 @@ import {
   type People,
   type WhoActs,
 } from '../lib/changes';
-import { iconSvg } from '../brand/icons';
+import { badgeHtml, checklistHtml, checklistRowHtml, codeBlockHtml, tokenValueHtml, trusted, type ChecklistRowHtmlOptions } from '@bridge-ds/react/dom';
 import { pullEntry, type BranchesConfig } from '../lib/branches';
 import type { Root } from 'react-dom/client';
 import { currentViewer, esc, ghGet, ghWrite, GitHubError, hasWorkingToken, initGitHubConnect, prefersSignIn, RateLimitError, readRepo, relativeTime, showGhError } from './github-session';
@@ -742,18 +742,14 @@ interface DetailInput {
   fresh: Freshness;
 }
 
-/** Row icon: a check when approved, a cross when changes were requested, an empty circle while it waits. */
-const ROW_ICON: Record<ApprovalRow['state'], string> = {
-  approved: `<span class="rv-ap-icon is-approved">${iconSvg('check', 16)}</span>`,
-  changes: `<span class="rv-ap-icon is-changes">${iconSvg('x', 16)}</span>`,
-  waiting: '<span class="rv-ap-icon is-waiting"></span>',
-};
+type ChecklistStatus = ChecklistRowHtmlOptions['status'];
 
-const LINE_ICON: Record<CheckLine['state'], string> = { pass: ROW_ICON.approved, fail: ROW_ICON.changes, pending: ROW_ICON.waiting };
+/** Row status in the DS Checklist: a check when approved or passing, a cross when changes were requested or it fails. */
+const ROW_STATUS: Record<ApprovalRow['state'], ChecklistStatus> = { approved: 'done', changes: 'failed', waiting: 'waiting' };
+const LINE_STATUS: Record<CheckLine['state'], ChecklistStatus> = { pass: 'done', fail: 'failed', pending: 'waiting' };
 const LINE_STATE: Record<CheckLine['state'], string> = { pass: 'Passes', fail: 'Fails', pending: 'Running' };
 
-const lineRow = (label: string, l: CheckLine) =>
-  `<li class="rv-ap-row" data-state="${l.state === 'pass' ? 'approved' : l.state === 'fail' ? 'changes' : 'waiting'}">${LINE_ICON[l.state]}<span class="rv-ap-role">${esc(label)}</span><span class="rv-ap-text"><span class="sr-only">${LINE_STATE[l.state]}: </span>${esc(l.text)}</span></li>`;
+const lineRow = (label: string, l: CheckLine) => checklistRowHtml({ status: LINE_STATUS[l.state], title: label, detail: l.text, statusLabel: LINE_STATE[l.state] });
 
 /** The primary action of the header, when it sits in the checklist. */
 type ListPrimary = 'approve-design' | 'approve-tech' | 'approve' | 'ask' | 'override' | null;
@@ -782,7 +778,7 @@ function needsHtml(x: {
       const state = r.state === 'approved' ? 'Approved' : r.state === 'changes' ? 'Changes requested' : 'Waiting';
       const label = r.role === 'approval' ? 'Approval' : `${r.label} approval`;
       const text = (r.state === 'waiting' && x.rowText[r.role]) || r.text;
-      return `<li class="rv-ap-row" data-state="${r.state}">${ROW_ICON[r.state]}<span class="rv-ap-role">${esc(label)}</span><span class="rv-ap-text"><span class="sr-only">${state}: </span>${esc(text)}</span>${act}</li>`;
+      return checklistRowHtml({ status: ROW_STATUS[r.state], title: label, detail: text, statusLabel: state, action: act ? trusted(act) : undefined });
     })
     .join('');
   const acts = [
@@ -790,9 +786,10 @@ function needsHtml(x: {
     x.override ? `<button type="button" class="btn ${x.primary === 'override' ? 'btn-primary' : 'btn-secondary'} btn-lg" data-open-override>Ship with owner override</button>` : '',
   ].join('');
   const why = x.why ? esc(x.why).replace('in Settings', 'in <a href="/studio/settings/#roles">Settings</a>') : '';
-  const foot = why || acts ? `<li class="rv-ap-foot">${why ? `<p class="rv-ap-why">${why}</p>` : ''}${acts ? `<p class="rv-ap-acts">${acts}</p>` : ''}<p class="rv-ap-said" id="rv-ap-said" role="status" aria-live="polite"></p></li>` : '';
+  const foot = why || acts ? `${why ? `<p class="rv-ap-why">${why}</p>` : ''}${acts ? `<p class="rv-ap-acts">${acts}</p>` : ''}<p class="rv-ap-said" id="rv-ap-said" role="status" aria-live="polite"></p>` : '';
   if (!checks && !approvals && !foot) return '<p class="cg-line">No approval needed.</p>';
-  return `<ul class="rv-ap" aria-label="What it needs to ship">${checks}${approvals || (x.rows.length ? '' : '<li class="rv-ap-row" data-state="approved">' + ROW_ICON.approved + '<span class="rv-ap-role">Approval</span><span class="rv-ap-text">No approval needed.</span></li>')}${foot}</ul>`;
+  const none = approvals || x.rows.length ? '' : checklistRowHtml({ status: 'done', title: 'Approval', detail: 'No approval needed.' });
+  return checklistHtml([checks, approvals, none], { label: 'What it needs to ship', className: 'rv-needs', footer: foot ? trusted(foot) : undefined });
 }
 
 /** A draft asks nobody yet: its approval rows say so instead of "Waiting". */
@@ -967,8 +964,7 @@ function renderDetail(x: DetailInput) {
   const pending = entry.pendingPreviews.length ? `<p class="cg-muted">${esc(entry.pendingPreviews.join(' and '))}: link not reported by Vercel yet. Its comment on <a href="${esc(pull.html_url)}" target="_blank" rel="noopener">the pull request</a> has it once the deploy starts.</p>` : '';
   const install =
     entry.installState === 'ready' && entry.install
-      ? `<div class="cg-install"><button type="button" class="btn btn-secondary btn-sm" data-copy-from="cg-install-cmd" data-copy><span data-copy-label>Copy install command</span></button>
-        <details class="cg-more"><summary>Show the command</summary><code class="cg-cmd" id="cg-install-cmd">${esc(entry.install)}</code></details></div>`
+      ? codeBlockHtml(entry.install, { label: 'Install this test build', codeAttributes: { id: 'cg-install-cmd' } })
       : entry.installState === 'failed'
         ? '<p class="cg-muted">The test build did not finish for the latest commit. The Preview packages run on the pull request says why.</p>'
         : entry.installState === 'building'
@@ -1320,12 +1316,19 @@ let justIn: { pr: number; said: string } | null = null;
  */
 function libraryRowHtml(f: Freshness, primary: boolean, pr: number): string {
   // Right after bringing the library in, the row stays, checked, where the designer pressed the button.
-  if (f.state === 'current' && justIn?.pr === pr) return `<li class="rv-ap-row rv-lib" id="rv-lib" data-state="approved">${ROW_ICON.approved}<span class="rv-ap-role">Latest library</span><span class="rv-ap-text"><span class="sr-only">Up to date: </span>${esc(justIn.said)}</span></li>`;
+  if (f.state === 'current' && justIn?.pr === pr) return checklistRowHtml({ status: 'done', title: 'Latest library', detail: justIn.said, statusLabel: 'Up to date', attributes: { id: 'rv-lib' } });
   if (f.state !== 'behind' && f.state !== 'conflict') return '';
   const conflict = f.state === 'conflict';
   const text = conflict ? conflictLine({ kind: 'tokens', files: [] }, null) : (libraryLine(f) ?? '');
   const hint = conflict ? (libraryLine(f) ?? '') : '';
-  return `<li class="rv-ap-row rv-lib" id="rv-lib" data-state="${conflict ? 'changes' : 'waiting'}"${primary ? ' data-primary' : ''}>${conflict ? ROW_ICON.changes : ROW_ICON.waiting}<span class="rv-ap-role">Latest library</span><span class="rv-ap-text"><span class="sr-only">${conflict ? 'Conflict' : 'Behind'}: </span><span id="rv-lib-text">${esc(text)}</span><span class="rv-lib-hint" id="rv-lib-hint" aria-live="polite">${esc(hint)}</span></span><span class="rv-ap-act rv-lib-act" id="rv-lib-act"></span></li>`;
+  return checklistRowHtml({
+    status: conflict ? 'failed' : 'waiting',
+    title: 'Latest library',
+    detail: trusted(`<span id="rv-lib-text">${esc(text)}</span><span class="rv-lib-hint" id="rv-lib-hint" aria-live="polite">${esc(hint)}</span>`),
+    statusLabel: conflict ? 'Conflict' : 'Behind',
+    attributes: { id: 'rv-lib', 'data-primary': primary },
+    actionAttributes: { id: 'rv-lib-act' },
+  });
 }
 
 /** After a write: wait for GitHub's new head, then repaint the change (checks, approvals and the before and after). */
@@ -1439,11 +1442,10 @@ function wireLibrary(x: { pull: Pull; fresh: Freshness; compare: CompareLike | n
 // ---------------------------------------------------------------------------------------------------------------
 // Token diff rendering
 
-const swatch = (hex?: string | null) => (hex ? `<span class="rv-sw" style="background-color:${esc(hex)}"></span>` : '');
-
-function valueCell(v: { css?: string | null; hex?: string | null; alias?: string | null } | null) {
+/** One side of a token change: the alias or literal, the resolved value muted after an alias, the before struck through. */
+function valueCell(v: { css?: string | null; hex?: string | null; alias?: string | null } | null, previous = false) {
   if (!v) return '<span class="muted">none</span>';
-  return `<span class="rv-val">${swatch(v.hex)}<span class="mono">${esc(v.alias ? `{${v.alias}}` : (v.css ?? ''))}</span>${v.alias && v.css ? `<span class="muted mono small">${esc(v.css)}</span>` : ''}</span>`;
+  return tokenValueHtml(v.alias ? `{${v.alias}}` : (v.css ?? ''), { resolved: v.alias ? (v.css ?? undefined) : undefined, swatch: v.hex ?? false, previous });
 }
 
 export function renderTokenReview(review: TokenReview): string {
@@ -1452,7 +1454,7 @@ export function renderTokenReview(review: TokenReview): string {
     .map(
       (c) => `<tr>
         <th scope="row"><span class="mono">${esc(c.path)}</span><span class="rv-kind-tag is-${c.kind}">${c.kind}</span>${c.context ? `<span class="muted small">${esc(c.context)}</span>` : ''}</th>
-        <td>${valueCell(c.before)}</td>
+        <td>${valueCell(c.before, true)}</td>
         <td><span class="rv-arrow" aria-label="becomes">-></span></td>
         <td>${valueCell(c.after)}</td>
       </tr>`,
@@ -1467,7 +1469,7 @@ export function renderTokenReview(review: TokenReview): string {
           <th scope="row"><span class="rv-pair"><span class="rv-aa" style="background-color:${esc(p.bgHexAfter)};color:${esc(p.fgHexAfter)}">Aa</span><span class="mono small">${esc(p.fg)}<br><span class="muted">on</span> ${esc(p.bg)}</span></span></th>
           <td class="small">${esc(p.where)}</td>
           <td class="num">${p.before.toFixed(2)}:1</td>
-          <td class="num"><strong>${p.after.toFixed(2)}:1</strong> ${p.after < p.min ? '<span class="pill is-fail">Fails</span>' : p.after >= p.before ? '' : '<span class="pill is-warn">Lower</span>'}</td>
+          <td class="num"><strong>${p.after.toFixed(2)}:1</strong> ${p.after < p.min ? badgeHtml('Fails', { tone: 'danger', size: 'sm' }) : p.after >= p.before ? '' : badgeHtml('Lower', { tone: 'warning', size: 'sm' })}</td>
           <td class="num">${p.min}:1</td></tr>`,
          )
          .join('')}</tbody></table></div>`;

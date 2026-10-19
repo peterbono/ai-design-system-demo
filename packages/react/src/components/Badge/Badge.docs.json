@@ -10,7 +10,8 @@
   "whenToUse": [
     "The status of one item in a table row, a list or a card header.",
     "subtle (default) in lists and tables where many badges sit together; solid for the single status that must win a glance (Breaking, Build failed).",
-    "Tone by meaning: success done or healthy, warning needs attention, danger failed or blocked, info new or changed, neutral no judgement."
+    "Tone by meaning: success done or healthy, warning needs attention, danger failed or blocked, info new or changed, neutral no judgement.",
+    "Plain-script pages that build rows as HTML strings use badgeHtml() from @bridge-ds/react/dom: the same markup, tones and sizes, without React. Never a homemade pill: the design system audit counts those as look-alikes."
   ],
   "whenNotToUse": [
     "Anything clickable or removable: use Tag.",

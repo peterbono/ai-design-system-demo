@@ -5,7 +5,7 @@
 import type { ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PenLine } from 'lucide-react';
-import { Alert, Button, Link, Radio, RadioGroup } from '@bridge-ds/react';
+import { Alert, Banner, Button, Link, Radio, RadioGroup } from '@bridge-ds/react';
 import ButtonLink from '../ButtonLink';
 import type { TargetOption } from '../../../lib/continue-change';
 
@@ -35,28 +35,30 @@ export interface ScopeBannerProps {
   viewHref?: string;
 }
 
-/** Persistent while the token editor is scoped to a change: what is edited, where edits go, the ways out. */
+/** Persistent while the token editor is scoped to a change: a neutral DS Banner, the mode (what is edited, where edits
+ * go) and the ways out on the same line. */
 export function ScopeBanner({ title, body, backHref, viewHref }: ScopeBannerProps) {
   return (
-    <Alert
-      tone="neutral"
+    <Banner
+      appearance="neutral"
       icon={PenLine}
-      announce="off"
       title={title}
       actionsPlacement="inline"
       actions={
         <>
-          <ButtonLink href={backHref}>Back to the change</ButtonLink>
           {viewHref && (
-            <Link href={viewHref} variant="standalone">
+            <ButtonLink variant="secondary" href={viewHref}>
               Stop editing
-            </Link>
+            </ButtonLink>
           )}
+          <ButtonLink variant="secondary" href={backHref}>
+            Back to the change
+          </ButtonLink>
         </>
       }
     >
       {body}
-    </Alert>
+    </Banner>
   );
 }
 

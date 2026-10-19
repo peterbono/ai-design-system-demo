@@ -1,6 +1,8 @@
 // Studio Changes, a pull request's "Docs" section: the docs.json files it changes, which of them hold prose Claude
 // drafted and nobody reviewed yet ("Draft by Claude, needs review", with Accept and Edit). Pure, tested in
 // pr-docs.test.ts; scripts/reviews/docs-section.ts reads the files and wires the buttons.
+import type { StatusTone } from './changes';
+
 export const isDocsFile = (path: string) => /(^|\/)[A-Z]\w*\.docs\.json$/.test(path);
 
 const kebab = (s: string) =>
@@ -43,12 +45,12 @@ export function prDocRows(entries: { path: string; text: string | null }[]): PrD
     .sort((a, b) => rank[a.state] - rank[b.state] || a.name.localeCompare(b.name));
 }
 
-/** Pill of a row: violet while a draft waits for review (status colors of the Studio), green once reviewed. */
-export const PR_DOC_PILL: Record<PrDocState, { label: string; tone: string }> = {
-  review: { label: 'Draft by Claude, needs review', tone: 'is-info' },
-  reviewed: { label: 'Reviewed', tone: 'is-pass' },
-  written: { label: 'Written by a person', tone: '' },
-  unreadable: { label: 'Could not read', tone: '' },
+/** Badge of a row: violet while a draft waits for review (status colors of the Studio), green once reviewed. */
+export const PR_DOC_PILL: Record<PrDocState, { label: string; tone: StatusTone }> = {
+  review: { label: 'Draft by Claude, needs review', tone: 'info' },
+  reviewed: { label: 'Reviewed', tone: 'success' },
+  written: { label: 'Written by a person', tone: 'neutral' },
+  unreadable: { label: 'Could not read', tone: 'neutral' },
 };
 
 /** Section meta: what waits, else how many files. */

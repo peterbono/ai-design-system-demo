@@ -1,9 +1,8 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import Icon from '../components/Icon.astro';
-import { Button } from '@bridge-ds/react';
+import { CodeBlock, Link } from '@bridge-ds/react';
 import AgentToolsTable from '../components/ds/AgentToolsTable';
-import { Copy } from 'lucide-react';
 import { GITHUB_URL, readJson, sourceUrl } from '../lib/repo';
 import { PAGE_SOURCES, freshness } from '../lib/sources';
 import { AI_DOC, mcpPrompts, mcpTools, safetyModel } from '../lib/mcp';
@@ -111,19 +110,8 @@ import LibraryHeader from '../components/LibraryHeader.astro';
   </ul>
   <details class="llms-preview">
     <summary>Preview llms.txt ({lines.length} lines)</summary>
-    <div class="terminal">
-      <div class="terminal-bar">
-        <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
-        <span class="terminal-title"><Icon name="terminal" size={15} /> <span>GET /llms.txt</span></span>
-        <span class="terminal-actions">
-          <a class="terminal-link" href="/llms.txt">Open raw</a>
-          <Button variant="inverse" size="sm" iconStart={Copy} data-copy="" data-copy-from="llms">
-            <span data-copy-label>Copy llms.txt</span>
-          </Button>
-        </span>
-      </div>
-      <pre id="llms" class="terminal-body" tabindex="0" aria-label="Contents of llms.txt">{text}</pre>
-    </div>
+    <CodeBlock className="cx-block" code={text} label="llms.txt" />
+    <p class="small"><Link href="/llms.txt">Open raw llms.txt</Link></p>
   </details>
 
   <h2 id="mcp">MCP server</h2>
@@ -134,16 +122,7 @@ import LibraryHeader from '../components/LibraryHeader.astro';
 
   <h3 id="claude-code">1. Claude Code</h3>
   <p>Connect Claude to your design system repository on GitHub. No clone, nothing to build, and read-only until you add a token:</p>
-  <div class="terminal">
-    <div class="terminal-bar">
-      <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
-      <span class="terminal-title"><Icon name="terminal" size={15} /> <span>Terminal</span></span>
-      <span class="terminal-actions">
-        <Button variant="inverse" size="sm" iconStart={Copy} data-copy={claudeCode}><span data-copy-label>Copy</span></Button>
-      </span>
-    </div>
-    <pre class="terminal-body cx-pre" tabindex="0" aria-label="Claude Code command">{claudeCode}</pre>
-  </div>
+  <CodeBlock className="cx-block" code={claudeCode} label="Claude Code command" />
   <p>
     To let Claude open changes for review, add <code>-e GITHUB_TOKEN=github_pat_...</code> before <code>--</code>: a fine-grained token limited to that
     one repository, with contents and pull requests read and write. Without a token, GitHub allows 60 requests an hour.
@@ -151,28 +130,19 @@ import LibraryHeader from '../components/LibraryHeader.astro';
 
   <h3 id="claude-desktop">2. Claude Desktop</h3>
   <p>In Settings, Developer, Edit config, add this to <code>claude_desktop_config.json</code>, then restart Claude Desktop:</p>
-  <div class="terminal">
-    <div class="terminal-bar">
-      <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
-      <span class="terminal-title"><Icon name="file" size={15} /> <span>claude_desktop_config.json</span></span>
-      <span class="terminal-actions">
-        <Button variant="inverse" size="sm" iconStart={Copy} data-copy={desktopRemote}><span data-copy-label>Copy</span></Button>
-      </span>
-    </div>
-    <pre class="terminal-body cx-pre" tabindex="0" aria-label="Claude Desktop configuration">{desktopRemote}</pre>
-  </div>
+  <CodeBlock className="cx-block" code={desktopRemote} label="claude_desktop_config.json" />
   <p class="small muted">For the token, add <code>"env": {"{"} "GITHUB_TOKEN": "github_pat_..." {"}"}</code> next to <code>args</code>.</p>
 
   <details class="cx-details">
     <summary>Work on a local folder instead of a GitHub repository</summary>
     <p>Pass <code>--root</code> with the path to your design system checkout. Claude Code:</p>
-    <pre class="cx-code" tabindex="0" aria-label="Claude Code command for a local folder">{claudeCodeLocal}</pre>
+    <CodeBlock className="cx-block" code={claudeCodeLocal} label="Claude Code command for a local folder" />
     <p>
       Or share it with your team through git: a project <code>.mcp.json</code> at the repository root. Claude Code asks you to approve project servers the first time.
     </p>
-    <pre class="cx-code" tabindex="0" aria-label="Project .mcp.json">{projectJson}</pre>
+    <CodeBlock className="cx-block" code={projectJson} label="Project .mcp.json" />
     <p>Claude Desktop:</p>
-    <pre class="cx-code" tabindex="0" aria-label="Claude Desktop configuration for a local folder">{desktopLocal}</pre>
+    <CodeBlock className="cx-block" code={desktopLocal} label="Claude Desktop configuration for a local folder" />
   </details>
   <p class="small muted">
     Other MCP clients work the same way over stdio: <code>npx -y {MCP_PACKAGE} --repo owner/name</code> (add <code>--ref</code> for another
@@ -202,16 +172,7 @@ import LibraryHeader from '../components/LibraryHeader.astro';
 
   <h2 id="cli">bridge CLI</h2>
   <p>The same checks and proposals from a terminal or CI, from npm with nothing to install first. Run it in your design system repository: every command below is <code>npx {CLI_PACKAGE} &lt;command&gt;</code>, starting with <code>check</code>.</p>
-  <div class="terminal">
-    <div class="terminal-bar">
-      <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
-      <span class="terminal-title"><Icon name="terminal" size={15} /> <span>Terminal</span></span>
-      <span class="terminal-actions">
-        <Button variant="inverse" size="sm" iconStart={Copy} data-copy={cliRun}><span data-copy-label>Copy</span></Button>
-      </span>
-    </div>
-    <pre class="terminal-body cx-pre" tabindex="0" aria-label="Run bridge init">{cliRun}</pre>
-  </div>
+  <CodeBlock className="cx-block" code={cliRun} label="Run bridge init" />
   <dl class="cx-cli">
     {
       cli.map((c) => (

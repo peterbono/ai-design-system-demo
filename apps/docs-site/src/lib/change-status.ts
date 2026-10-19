@@ -15,14 +15,14 @@
 import type { Draft, DraftEdit } from './editor-model';
 import { classifyCheck, type CheckKind } from './check-explain';
 import { pullState, type PullState, type ReviewStatusKind, type Tier } from './review-rules';
-import { openerFor, statusGroup, type Opener, type OpenerRow, type StatusGroup } from './changes';
+import { GROUP_TONE, openerFor, statusGroup, type Opener, type OpenerRow, type StatusTone } from './changes';
 import type { WorkNature } from './work-nature';
 import type { TokenSet } from '@bridge-ds/core';
 
 export type Lifecycle = 'draft' | 'ready' | 'waiting' | 'shipped' | 'closed';
 
 /** The DS Badge tones a lifecycle can take (status colour only, one tone per status group, lib/changes). */
-export type LifecycleTone = 'neutral' | 'info' | 'success' | 'danger';
+export type LifecycleTone = StatusTone;
 
 export const LIFECYCLE: Record<Lifecycle, { label: string; short: string }> = {
   draft: { label: 'Draft', short: 'Draft' },
@@ -32,20 +32,14 @@ export const LIFECYCLE: Record<Lifecycle, { label: string; short: string }> = {
   closed: { label: 'Closed', short: 'Closed' },
 };
 
-/** Badge tone per status group (lib/changes): blocked red, waiting violet, ready green, the rest grey. */
-const GROUP_BADGE: Record<StatusGroup, LifecycleTone> = { blocked: 'danger', waiting: 'info', ready: 'success', neutral: 'neutral' };
-
 /**
  * The tone of the status badge. Ready for review takes the tone of what the review flow says (blocked, waiting for
  * an approval, ready to ship). Waiting for code is grey: nobody in Studio acts on it (a quiet wait, never a call to act).
  */
 export function lifecycleTone(l: Lifecycle, review?: ReviewStatusKind | null): LifecycleTone {
-  if (l === 'ready') return GROUP_BADGE[statusGroup(review)];
+  if (l === 'ready') return GROUP_TONE[statusGroup(review)];
   return 'neutral';
 }
-
-/** The list chip class of a lifecycle chip (site.css `.pill.is-*`), the same mapping as the badge tone. */
-export const PILL_OF: Record<LifecycleTone, string> = { neutral: '', info: 'is-info', success: 'is-pass', danger: 'is-fail' };
 
 // ---------------------------------------------------------------------------------------------------------------
 // Waiting for code

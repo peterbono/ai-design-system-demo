@@ -459,22 +459,9 @@ a.tchip:hover {
   max-width: 100%;
 }
 
+/* Layout only: space above the CodeBlock. */
 .pg-code {
-  position: relative;
   margin-top: var(--space-2);
-}
-
-.pg-code pre {
-  min-height: var(--size-14);
-  padding-right: calc(var(--size-20) + var(--size-6));
-  border-radius: var(--radius-overlay);
-  white-space: pre;
-}
-
-.pg-copy {
-  position: absolute;
-  top: var(--space-2);
-  right: var(--space-2);
 }
 
 .pg-controls {

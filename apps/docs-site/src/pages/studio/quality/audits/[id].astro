@@ -11,6 +11,7 @@ import Layout from '../../../../layouts/Layout.astro';
 import StudioHeader from '../../../../components/StudioHeader.astro';
 import AdoptionMetric from '../../../../components/AdoptionMetric.astro';
 import Icon from '../../../../components/Icon.astro';
+import { CodeBlock } from '@bridge-ds/react';
 import { TopFilesTable, TopFixesTable, TrendTable } from '../../../../components/ds/studio/AdoptionTables';
 import { categoryRows, componentBreakdown, formatDelta, formatPct, groupByApp, loadAudits, trendPoints, type AuditEntry } from '../../../../lib/audits';
 import {
@@ -342,7 +343,7 @@ const exactTotal = cats.reduce((a, c) => a + c.exact, 0);
         <h3 class="ql-h">Top fixes</h3>
         <p class="ql-muted">The most repeated literals and the token that replaces them. Exact matches in CSS files can be fixed with <code>bridge audit --fix</code>.</p>
         {r.topFixes.length === 0 ? <p class="ql-muted">No repeated literal.</p> : <div class="ad-scroll"><TopFixesTable rows={r.topFixes.slice(0, 15)} /></div>}
-        <pre class="ql-cmd"><code>bridge audit &lt;path&gt; --baseline previous.json --json next.json   # then commit it under src/data/audits/</code></pre>
+        <CodeBlock className="ql-cmd" label="Make the next report" code="bridge audit <path> --baseline previous.json --json next.json   # then commit it under src/data/audits/" />
       </div>
     </details>
   </div>

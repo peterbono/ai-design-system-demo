@@ -270,3 +270,33 @@ describe('what counts as a UI component instance', () => {
     ]);
   });
 });
+
+describe('pages that build markup in plain scripts', () => {
+  const script = [
+    "import { badgeHtml, checklistRowHtml, escapeHtml, tooltipAttributes } from '@bridge-ds/react/dom';",
+    "import { lookalike } from './local';",
+    "const tone = 'success';",
+    "export const ok = (t: string) => badgeHtml(escapeHtml(t), { tone: 'success', attributes: tooltipAttributes('Approved by @ana') });",
+    "export const row = () => checklistRowHtml({ status: 'done', title: 'Design rules' });",
+    'export const pill = (t: string) => `<span class="pill is-${tone}" title="x">${t}</span>`;',
+    'export const tip = (t: string) => `<button type="button" class="btn has-tip" data-tip="${t}">Ship</button>`;',
+    "export const app = '<span class=\"cm-pill-row\">ok</span>';",
+    'export const fine = `<span data-tooltip="Approved">ok</span>`;',
+    "export const set = (el: HTMLElement) => { el.className = 'pill'; return lookalike(); };",
+  ].join('\n');
+
+  test('DS renderers count as DS components; homemade pills and data-tip tooltips count as look-alikes', () => {
+    const f = auditFile('scripts/rows.ts', script, ds());
+    assert.equal(f.dsComponents, 3);
+    const other = f.components.map((c) => `${c.kind}:${c.name}>${c.suggestion}`);
+    assert.deepEqual(other, ['recreated:.pill>Badge', 'recreated:.has-tip>Tooltip', 'recreated:[data-tip]>Tooltip', 'recreated:.pill>Badge']);
+  });
+
+  test('a homemade pill class in JSX is a look-alike, an app class that contains the word is not', () => {
+    const f = auditFile('Row.tsx', 'export const R = () => <><span className="pill is-pass">Pass</span><span className="cm-pill">x</span></>;', ds());
+    assert.deepEqual(
+      f.components.map((c) => `${c.kind}:${c.name}>${c.suggestion}`),
+      ['recreated:.pill>Badge'],
+    );
+  });
+});

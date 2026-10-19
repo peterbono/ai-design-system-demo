@@ -15,3 +15,7 @@ export { codeBlockHtml, bindCodeBlocks, type CodeBlockHtmlOptions } from './code
 export { tokenValueHtml, type TokenValueHtmlOptions } from './token-value';
 export { checklistHtml, checklistRowHtml, type ChecklistHtmlOptions, type ChecklistRowHtmlOptions } from './checklist';
 export { copyText } from '../utils/copy';
+export type { BadgeTone, BadgeAppearance, BadgeSize } from '../components/Badge';
+export type { ChecklistStatus } from '../components/Checklist';
+export type { TokenValueSize } from '../components/TokenValue';
+export type { TooltipSide } from '../components/Tooltip';

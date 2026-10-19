@@ -24,8 +24,7 @@ import SettingsAccount from '../../../components/ds/studio/SettingsAccount';
 import { signInConfig } from '../../../lib/signin-config';
 import Illustration from '../../../components/Illustration.astro';
 import { GitHubMark } from '../../../components/ds/studio/brand-icons';
-import { Copy } from 'lucide-react';
-import { Badge, Button, Card, CardBody, CardHeader, Link, SegmentedControl } from '@bridge-ds/react';
+import { Badge, Button, Card, CodeBlock, CardBody, CardHeader, Link, SegmentedControl } from '@bridge-ds/react';
 import { siteRepo } from '../../../lib/config';
 import { GOVERNANCE_FILE, pluginListing, tierSummaries } from '../../../lib/governance';
 import { inline } from '../../../lib/markdown';
@@ -278,12 +277,7 @@ const signIn = Boolean(signInConfig());
                     Gives your Claude {tools} tools on this design system. It sends changes for review and never ships them on its own. Run this once in a terminal, with your
                     GitHub token in place of <span class="mono">&lt;your token&gt;</span>.
                   </p>
-                  <div class="set-cmd">
-                    <code class="set-cmd-text" id="set-claude-cmd">{claudeCommand}</code>
-                    <Button variant="secondary" data-density="compact" iconStart={Copy} data-copy-from="set-claude-cmd" aria-label="Copy the command">
-                      <span data-copy-label>Copy</span>
-                    </Button>
-                  </div>
+                  <CodeBlock className="set-cmd" code={claudeCommand} label="Command to run once" />
                 </div>
               </div>
             </div>

@@ -1,11 +1,11 @@
 // Changes > All changes: the status filter (All open, Draft, Ready for review, Approved waiting for code, Shipped,
 // Closed) and the row chip of each lifecycle state (lib/change-status), in one DS Select (StatusFilterSelect). The filter lives
 // in the address as ?status=. Shipped and Closed read the recently closed pull requests once, only when picked.
-import { LIFECYCLE, lifecycleTone, PILL_OF, rowLifecycle, STATUS_FILTER_EVENT, STATUS_SYNC_EVENT, statusFilterParam, waitingSentence, type Lifecycle, type StatusFilter } from '../lib/change-status';
+import { badgeHtml, tooltipAttributes } from '@bridge-ds/react/dom';
+import { LIFECYCLE, lifecycleTone, rowLifecycle, STATUS_FILTER_EVENT, STATUS_SYNC_EVENT, statusFilterParam, waitingSentence, type Lifecycle, type StatusFilter } from '../lib/change-status';
 import { namesFor } from '../lib/changes';
 import type { ReviewStatusKind, Tier } from '../lib/review-rules';
 import type { WorkNature } from '../lib/work-nature';
-import { esc } from './github-session';
 import { teamPeople } from './pr-status';
 import { siteApprovers } from './teams';
 
@@ -27,8 +27,8 @@ export interface LifecycleRow {
 export const lifecycleOfRow = (r: LifecycleRow): Lifecycle => rowLifecycle({ state: r.state ?? 'open', draft: r.draft, merged_at: r.merged_at }, r);
 
 /**
- * The row chip of a state the review flow does not explain: Draft, Waiting for code, Shipped, Closed (same pill as the
- * other rows, the same words as the status line). Null for Ready for review: the who-acts chip says more.
+ * The row chip of a state the review flow does not explain: Draft, Waiting for code, Shipped, Closed (the same DS Badge
+ * as the other rows, the same words as the status line). Null for Ready for review: the who-acts chip says more.
  */
 export function lifecycleChip(r: LifecycleRow): string | null {
   const l = lifecycleOfRow(r);
@@ -38,7 +38,12 @@ export function lifecycleChip(r: LifecycleRow): string | null {
     const tech = siteApprovers().tech.map((x) => x.replace(/^@/, ''));
     tip = waitingSentence({ failing: r.failing ?? r.failingChecks?.length ?? 0, techOwners: tech.length ? namesFor('tech', tech, teamPeople()) : null });
   }
-  return `<span class="pill rv-status ${PILL_OF[lifecycleTone(l)]}" data-lifecycle="${l}"${tip ? ` title="${esc(tip)}"` : ''}>${esc(LIFECYCLE[l].label)}</span>`;
+  return badgeHtml(LIFECYCLE[l].label, {
+    tone: lifecycleTone(l),
+    size: 'sm',
+    className: 'rv-status',
+    attributes: { 'data-lifecycle': l, ...(tip ? tooltipAttributes(tip, { focusable: true }) : {}) },
+  });
 }
 
 const root = () => document.querySelector<HTMLElement>('.cg');

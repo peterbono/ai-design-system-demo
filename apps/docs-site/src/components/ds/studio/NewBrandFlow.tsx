@@ -11,13 +11,14 @@ import {
   Badge,
   Button,
   Checkbox,
+  ChoiceCard,
+  ChoiceCardGroup,
   Input,
   Link,
-  Radio,
-  RadioGroup,
   Select,
   Slider,
   Switch,
+  TokenValue,
 } from '@bridge-ds/react';
 import { ArrowLeft, ArrowRight, CircleAlert, CircleCheck, GitPullRequest } from 'lucide-react';
 import { BRAND_FONTS, RADIUS_PRESETS, type BrandSource, brandPreviewVariables, checkBrandSlug, listBrands, loadConfig } from '@bridge-ds/core';
@@ -234,7 +235,7 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
               />
             )}
           </div>
-          <RadioGroup
+          <ChoiceCardGroup
             label="Start from"
             description="The new brand copies its status colors, type roles and theme overrides. You change colors, corners and fonts next."
             value={draft.from}
@@ -242,25 +243,25 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
               const f = facts[from];
               set({ from, ...(f ? { radius: f.radius, heading: f.heading, text: f.text, radiusRoles: {}, ...(draft.primary === facts[draft.from]?.primary ? { primary: f.primary } : {}), ...(draft.neutral === facts[draft.from]?.neutral ? { neutral: f.neutral } : {}) } : {}) });
             }}
-            className="nb-cards"
           >
             {brands.map((b) => (
-              <Radio
+              <ChoiceCard
                 key={b.slug}
                 value={b.slug}
-                className="nb-card"
-                label={
-                  <span className="nb-card-head">
-                    <span className="nb-card-name">{b.name}</span>
-                    <span className="nb-chips" aria-hidden="true">
-                      <span className="nb-chip" style={{ background: b.primary }} />
-                    </span>
-                  </span>
+                title={b.name}
+                description={
+                  <>
+                    {b.primary && (
+                      <>
+                        Primary <TokenValue value={b.primary} size="sm" />.{' '}
+                      </>
+                    )}
+                    {facts[b.slug]?.fonts}, corners {facts[b.slug]?.radiusPx.control} px{b.overrides.length ? ', with light and dark overrides' : ''}.
+                  </>
                 }
-                description={`${facts[b.slug]?.fonts}, corners ${facts[b.slug]?.radiusPx.control} px${b.overrides.length ? ', with light and dark overrides' : ''}.`}
               />
             ))}
-          </RadioGroup>
+          </ChoiceCardGroup>
         </div>
       )}
 
@@ -296,22 +297,21 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
       {draft.step === 2 && (
         <div className="nb-body nb-split">
           <div className="nb-controls">
-            <RadioGroup label="Corners" value={draft.radius} onValueChange={(radius) => set({ radius, radiusRoles: {} })} className="nb-cards nb-cards-row">
+            <ChoiceCardGroup label="Corners" orientation="vertical" value={draft.radius} onValueChange={(radius) => set({ radius, radiusRoles: {} })}>
               {RADIUS_PRESETS.map((p) => (
-                <Radio
+                <ChoiceCard
                   key={p.id}
                   value={p.id}
-                  className="nb-card"
-                  label={
-                    <span className="nb-card-head">
-                      <span className="nb-card-name">{p.label}</span>
+                  title={p.label}
+                  description={
+                    <>
+                      {p.hint}
                       <span className="nb-corner" aria-hidden="true" style={{ '--nb-corner': `var(--radius-${RADIUS_STEP[p.radius.control]})` } as CSSProperties} />
-                    </span>
+                    </>
                   }
-                  description={p.hint}
                 />
               ))}
-            </RadioGroup>
+            </ChoiceCardGroup>
             <Select label="Heading font" value={draft.heading} onValueChange={(v) => v && set({ heading: v })} options={BRAND_FONTS.map((f) => ({ value: f.id, label: f.label }))} hint="Display, page titles and section headings." />
             <Select
               label="Text font"

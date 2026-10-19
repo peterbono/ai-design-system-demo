@@ -163,13 +163,6 @@
   text-align: right;
 }
 
-.cg-list .pill {
-  height: auto;
-  padding: var(--space-0-5) var(--space-2);
-  font-weight: var(--font-weight-medium);
-  line-height: var(--typography-ui-line-height);
-}
-
 .cg-skel {
   min-height: calc(var(--size-12) + var(--space-1));
   background-color: var(--color-bg-subtle);
@@ -316,27 +309,11 @@ details[open] > summary .cg-sec-chev {
   gap: var(--space-2);
 }
 
-.cg-install {
-  display: grid;
-  justify-items: start;
-  gap: var(--space-2);
-}
-
 .cg-more > summary {
   color: var(--color-text-link);
   font-size: var(--typography-ui-size);
   cursor: pointer;
   list-style: none;
-}
-
-.cg-cmd {
-  display: block;
-  margin-top: var(--space-2);
-  padding: var(--space-3);
-  border-radius: var(--radius-control);
-  background-color: var(--color-bg-subtle);
-  font-size: var(--typography-ui-size);
-  overflow-wrap: anywhere;
 }
 
 .cg-cs-bumps {
@@ -582,7 +559,7 @@ details[open] > summary .cg-sec-chev {
   }
 
   .cg-pr-open > .rv-try-block,
-  .cg-pr-open > .rv-ap,
+  .cg-pr-open > .rv-needs,
   .cg-pr-open > .cg-line {
     order: 2;
   }
@@ -633,59 +610,9 @@ details[open] > summary .cg-sec-chev {
   line-height: var(--typography-body-line-height);
 }
 
-/* What it needs to ship: design rules, developer tests, then one row per approval the tier needs, like the merge box
-   of a pull request. A plate on the zone, never dense UI straight on Harbor. State is an icon plus words, never color
-   alone. Rows share the plate's columns (subgrid), so labels and sentences line up. */
-.rv-ap {
-  display: grid;
-  /* Two empty edge columns hold the inline padding: a subgrid row cannot pad its own tracks. */
-  grid-template-columns: 0 var(--size-6) max-content minmax(0, 1fr) auto 0;
-  column-gap: var(--space-3);
-  margin: var(--space-1) 0 0;
-  padding: 0;
-  overflow: hidden;
-  border: var(--border-width-default) solid var(--color-border-default);
-  border-radius: var(--radius-container);
-  background-color: var(--color-surface-default);
-  list-style: none;
-}
-
-.rv-ap-row {
-  display: grid;
-  grid-column: 1 / -1;
-  grid-template-columns: subgrid;
-  align-items: center;
-  min-height: var(--control-height-md);
-  padding: var(--space-2) 0;
-  font-size: var(--typography-ui-size);
-  line-height: var(--typography-ui-line-height);
-}
-
-.rv-ap-row > .rv-ap-icon {
-  grid-column: 2;
-}
-
-.rv-ap > li + li {
-  border-top: var(--border-width-default) solid var(--color-border-default);
-}
-
-.rv-ap-act {
-  grid-column: 5;
-}
-
-/* Why an approval waits, and what the author can do about it. */
-.rv-ap-foot {
-  display: grid;
-  grid-column: 1 / -1;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  font-size: var(--typography-ui-size);
-  line-height: var(--typography-ui-line-height);
-}
-
-.rv-ap-foot > p {
-  max-width: 75ch;
-  margin: 0;
+/* What it needs to ship: the DS Checklist, with app content in its footer (why an approval waits, the acts). */
+ul.rv-needs {
+  margin-top: var(--space-1);
 }
 
 .rv-ap-acts {
@@ -694,57 +621,13 @@ details[open] > summary .cg-sec-chev {
   gap: var(--space-2) var(--space-3);
 }
 
-.rv-ap-acts .btn-lg {
-  min-height: var(--control-height-md);
-}
-
 .rv-ap-said:empty {
   display: none;
 }
 
-.rv-ap-icon {
-  display: grid;
-  place-items: center;
-  width: var(--size-6);
-  height: var(--size-6);
-  border-radius: var(--radius-pill);
-}
-
-.rv-ap-icon.is-approved {
-  background-color: var(--color-feedback-success-bg);
-  color: var(--color-feedback-success-text);
-}
-
-.rv-ap-icon.is-changes {
-  background-color: var(--color-feedback-danger-bg);
-  color: var(--color-feedback-danger-text);
-}
-
-.rv-ap-icon.is-waiting {
-  width: var(--size-5);
-  height: var(--size-5);
-  margin: var(--space-0-5);
-  border: var(--border-width-strong) solid var(--color-border-emphasis);
-}
-
-.rv-ap-role {
-  grid-column: 3;
-  font-weight: var(--font-weight-semibold);
-}
-
-.rv-ap-text {
-  grid-column: 4;
-  min-width: 0;
-  color: var(--color-text-muted);
-  overflow-wrap: anywhere;
-}
-
-.rv-ap-row[data-state="approved"] .rv-ap-text {
-  color: var(--color-text-default);
-}
-
 /* Main actions at the DS control height (44px comfortable): the Studio shrinks plain .btn to 32px. */
-.rv-ap .rv-ap-act,
+.rv-ap-act,
+.rv-ap-acts .btn-lg,
 .cg-pr-cta .btn-lg {
   min-height: var(--control-height-md);
 }
@@ -876,28 +759,6 @@ details[open] > summary .cg-sec-chev {
 }
 
 @media (max-width: 760px) {
-  .rv-ap {
-    grid-template-columns: 0 var(--size-6) minmax(0, 1fr) 0;
-  }
-
-  .rv-ap-row {
-    row-gap: var(--space-1);
-  }
-
-  .rv-ap-role,
-  .rv-ap-text {
-    grid-column: 3;
-  }
-
-  .rv-ap-act {
-    grid-column: 2 / 4;
-    width: 100%;
-  }
-
-  .rv-ap-foot {
-    padding-inline: var(--space-3);
-  }
-
   .rv-ap-acts .btn-lg {
     flex: 1 1 100%;
   }
@@ -1082,7 +943,7 @@ details[open] > summary .cg-sec-chev {
   display: none;
 }
 
-.rv-lib-act:empty {
+#rv-lib-act:empty {
   display: none;
 }
 
@@ -1127,30 +988,6 @@ details[open] > summary .cg-sec-chev {
   color: var(--color-text-muted);
   font-size: var(--typography-caption-size);
   line-height: var(--typography-caption-line-height);
-}
-
-.lib-val {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1) var(--space-1-5);
-  vertical-align: middle;
-}
-
-.lib-sw {
-  flex: none;
-  width: var(--size-4);
-  height: var(--size-4);
-  border-radius: var(--radius-inset);
-  box-shadow: inset 0 0 0 var(--border-width-default) var(--color-border-emphasis);
-}
-
-.lib-css {
-  color: var(--color-text-muted);
-}
-
-.lib-choice {
-  min-width: 0;
 }
 
 .lib-guard {
@@ -1394,22 +1231,6 @@ details[open] > summary .cg-sec-chev {
 /* A conflict row: the token, then its choices right after it (no empty middle). */
 .cg-together-rows .lib-row {
   grid-template-columns: minmax(var(--size-40), auto) minmax(0, 1fr);
-}
-
-.cg-opt-val {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1) var(--space-1-5);
-  color: var(--color-text-muted);
-}
-
-.cg-opt-sw {
-  flex: none;
-  width: var(--size-6);
-  height: var(--size-4);
-  border-radius: var(--radius-inset);
-  box-shadow: inset 0 0 0 var(--border-width-default) var(--color-border-strong);
 }
 
 /* One primary per view: while changes are checked, trying them is it, so the opener's action steps aside. */

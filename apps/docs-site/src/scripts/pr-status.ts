@@ -7,7 +7,8 @@ import { effectiveTier } from '../lib/review-queue';
 import { isGuidanceOnly } from '../lib/overview-todo';
 import { touchesVisuals } from '../lib/visual-impact';
 import { fileSignals, type FileSignals } from '../lib/work-nature';
-import { currentViewer, esc, ghGet, hasWorkingToken, prefersSignIn, readRepo } from './github-session';
+import { badgeHtml, tooltipAttributes } from '@bridge-ds/react/dom';
+import { currentViewer, ghGet, hasWorkingToken, prefersSignIn, readRepo } from './github-session';
 import { ghAction } from '../lib/gh-wording';
 import { needFromStatus, statusTone, whoActs } from '../lib/changes';
 import { planStatusReads, statusCacheKey, type CachedStatus } from '../lib/status-budget';
@@ -160,16 +161,16 @@ export async function pullStatus(p: PullForStatus, opts: { lean?: boolean } = {}
 export const skippedHint = () => ghAction('see live status', prefersSignIn());
 
 /**
- * Pill markup of a status. `null` shows a neutral placeholder while the reads run. `skipped` marks a row the
+ * DS Badge markup of a status. `null` shows a neutral placeholder while the reads run. `skipped` marks a row the
  * anonymous budget did not read: "Status unknown", with a tooltip that says how to get the live status.
  */
 export function statusChip(s: ReviewStatus | null, opts: { skipped?: boolean } = {}): string {
   if (opts.skipped) {
     const hint = skippedHint();
-    return `<span class="pill rv-status has-tip" data-status="unknown" data-tip="${hint}." aria-label="Status unknown. ${hint}.">Status unknown</span>`;
+    return badgeHtml('Status unknown', { size: 'sm', className: 'rv-status', attributes: { 'data-status': 'unknown', ...tooltipAttributes(`${hint}.`, { focusable: true }) } });
   }
-  if (!s) return '<span class="pill rv-status is-loading" aria-label="Checking status">Checking</span>';
-  return `<span class="pill rv-status ${s.tone}" data-status="${esc(s.kind)}">${esc(s.label)}</span>`;
+  if (!s) return badgeHtml('Checking', { size: 'sm', className: 'rv-status', attributes: { 'aria-label': 'Checking status' } });
+  return badgeHtml(s.label, { tone: s.tone, size: 'sm', className: 'rv-status', attributes: { 'data-status': s.kind } });
 }
 
 /**
@@ -191,7 +192,12 @@ export function whoChip(
     approvers: o.approvers,
   });
   const label = who.short ?? REVIEW_STATUS[kind].label;
-  return `<span class="pill rv-status ${statusTone(kind)}" data-status="${esc(kind)}"${who.yourTurn ? ' data-yours' : ''}${who.short ? ` title="${esc(who.sentence)}"` : ''}>${esc(label)}</span>`;
+  return badgeHtml(label, {
+    tone: statusTone(kind),
+    size: 'sm',
+    className: 'rv-status',
+    attributes: { 'data-status': kind, 'data-yours': who.yourTurn, ...(who.short ? tooltipAttributes(who.sentence, { focusable: true }) : {}) },
+  });
 }
 
 /** The status kept for this version of a change in this tab, or null (no read). */

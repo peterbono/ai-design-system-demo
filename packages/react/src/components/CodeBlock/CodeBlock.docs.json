@@ -1,0 +1,74 @@
+{
+  "summary": "A command or a short piece of code in IBM Plex Mono, with a copy button on the same line. The button says Copied for two seconds, so the reader knows the paste will work.",
+  "preview": { "c": "Box", "children": [
+    { "c": "CodeBlock", "p": { "label": "Install", "code": "npm install @bridge-ds/react" } }
+  ] },
+  "whenToUse": [
+    "A command the reader runs or pastes: an install line, an MCP server setup, a CLI call.",
+    "A short snippet the reader copies as is: a CSS variable in use, an import line.",
+    "Keep commands on one line (the default): a long command scrolls inside the block, so it stays one command. Turn on wrap for prose-like code the reader reads more than pastes.",
+    "hideCopy for code the reader should read, not paste: a file path, an example output.",
+    "Plain-script pages that build rows as HTML strings use codeBlockHtml() and bindCodeBlocks() from @bridge-ds/react/dom: the same markup and the same copy behavior, without React."
+  ],
+  "whenNotToUse": [
+    "A token name or value inside a sentence or a table cell: use TokenValue.",
+    "A whole file or a long diff: link to it, or show it in a dedicated viewer.",
+    "Inline code in running text: use the code element of the page's prose styles."
+  ],
+  "dos": [
+    {
+      "title": "Name what the code does",
+      "text": "A short label above the block (Install, Add the MCP server) tells the reader which block to copy, and names the copy button for screen readers: Copy install.",
+      "example": { "c": "Box", "children": [
+        { "c": "CodeBlock", "p": { "label": "Add the MCP server", "code": "claude mcp add bridge -- npx -y @bridge-ds/mcp" } }
+      ] }
+    },
+    {
+      "title": "One command per block",
+      "text": "Two steps are two blocks, each with its own label and copy button. The reader pastes one thing at a time and sees which one worked.",
+      "example": { "c": "Box", "children": [
+        { "c": "Stack", "children": [
+          { "c": "CodeBlock", "p": { "label": "Install", "code": "npm install @bridge-ds/react" } },
+          { "c": "CodeBlock", "p": { "label": "Import the styles", "code": "import '@bridge-ds/react/styles.css';" } }
+        ] }
+      ] }
+    }
+  ],
+  "donts": [
+    {
+      "title": "A prompt sign in the code",
+      "text": "The block copies exactly what it shows. A leading $ ends up in the terminal and the command fails.",
+      "example": { "c": "Box", "children": [
+        { "c": "CodeBlock", "p": { "label": "Install", "code": "$ npm install @bridge-ds/react" } }
+      ] }
+    },
+    {
+      "title": "Several commands chained in one block",
+      "text": "A row of commands joined with && is hard to read and fails as a whole. Split it into one block per step.",
+      "example": { "c": "Box", "children": [
+        { "c": "CodeBlock", "p": { "label": "Set up", "code": "npm install @bridge-ds/react && npx @bridge-ds/cli init && npx @bridge-ds/cli publish" } }
+      ] }
+    }
+  ],
+  "accessibility": [
+    "The copy button is a real Button. With a string label it is named Copy plus the label (Copy install); after a copy it reads Copied.",
+    "A polite live region announces Copied to the clipboard. If the clipboard is blocked, the code is selected and the region says to press Ctrl+C or Cmd+C.",
+    "A block that does not wrap is keyboard focusable (tabindex 0), so a long line can be scrolled with the arrow keys. A wrapped block needs no focus stop.",
+    "Copy works without hydration: statically rendered blocks carry data-code-block hooks and bindCodeBlocks() from @bridge-ds/react/dom wires them. Plain scripts render the same markup with codeBlockHtml().",
+    "Code text uses color.text.default on color.bg.subtle, checked in both themes."
+  ],
+  "contentGuidelines": [
+    "Label: what the code does, sentence case, no period: \"Install\", \"Add the MCP server\".",
+    "Code: exactly what the reader pastes. No prompt sign, no placeholder the reader has to spot and replace without being told.",
+    "When a value must be replaced, say so in the text above the block and name the value: \"Replace acme/design-tokens with your repository\"."
+  ],
+  "anatomy": {
+    "root": "Container: label and plate",
+    "wrap": "Wrapped lines instead of a sideways scroll",
+    "label": "What the code does",
+    "plate": "Subtle plate holding the code and the copy button",
+    "pre": "Scroll area, focusable when lines do not wrap",
+    "code": "The code, in IBM Plex Mono",
+    "copy": "Copy button (ghost, size sm)"
+  }
+}

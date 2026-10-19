@@ -107,7 +107,7 @@ const panelData = Object.fromEntries(rows.map((r) => [r.path, { cssVar: r.cssVar
                   </span>
                   </span>
                 </button>
-                <IconButton icon={ClipboardCopy} label={`Copy variable var(${r.cssVar})`} size="sm" variant="secondary" className="at-copy has-tip" data-tip="Copy variable" data-copy={`var(${r.cssVar})`} />
+                <IconButton icon={ClipboardCopy} label={`Copy variable var(${r.cssVar})`} size="sm" variant="secondary" className="at-copy" data-tooltip="Copy variable" data-copy={`var(${r.cssVar})`} />
               </li>
             ))
           }

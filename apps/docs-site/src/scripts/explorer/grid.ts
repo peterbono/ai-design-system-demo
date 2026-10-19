@@ -1,6 +1,7 @@
 // The center table: an ARIA grid (div based, so section groups can use content-visibility and stay cheap with 535
 // rows). Groups are collapsible section rows, the header is sticky, there is one column per relevant mode, plus code
 // syntax and description columns. Rows render in chunks: the first screenful synchronously, the rest on idle.
+import { tooltipHtmlAttributes } from '@bridge-ds/react/dom';
 import { codeSyntax, modeName, SYNTAX_LABEL } from '../../lib/explorer/format';
 import { beforeText, markLabel, type TokenMark } from '../../lib/view-scope';
 import { sectionsFor, type Column, type Section, type XToken } from '../../lib/explorer/model';
@@ -88,12 +89,15 @@ function rowHtml(d: ExplorerData, t: XToken, view: View, s: ExplorerState, secti
   return `<div role="row" class="xp-tr" data-path="${esc(t.path)}" aria-rowindex="${index}" aria-selected="${selected}">${name}${cells}${code}${desc}</div>`;
 }
 
-/** "Changed in this change" (or "Changed in dark theme only") on a token the viewed change defines differently; its latest library value on hover and for screen readers. */
+/**
+ * "Changed in this change" (or "Changed in dark theme only") on a token the viewed change defines differently; its
+ * latest library value in a DS tooltip on hover (bound once by scripts/shell.ts) and in the row text for screen readers.
+ */
 function markHtml(mark: TokenMark, d: ExplorerData): string {
   const before = beforeText(mark, d.formatBefore ?? ((_t, v) => JSON.stringify(v)), modeName);
   // Changes shown together: the mark names the change the value comes from; a token moved in one theme names it.
   const label = markLabel(mark);
-  return `<span class="xp-flag xp-flag-change" data-before="${esc(before)}">${esc(label)}<span class="sr-only">. ${esc(before)}</span></span>`;
+  return `<span class="xp-flag xp-flag-change"${tooltipHtmlAttributes(before)}>${esc(label)}<span class="sr-only">. ${esc(before)}</span></span>`;
 }
 
 function sectionHead(sec: Section, view: View, s: ExplorerState, index: number): string {

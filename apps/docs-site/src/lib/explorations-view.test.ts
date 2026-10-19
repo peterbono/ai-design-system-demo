@@ -61,7 +61,7 @@ describe('explorations view', () => {
       [3, 'promoted', 'Promoted to review'],
     ]);
     const pill = rows.find((r) => r.number === 1)!;
-    expect(pill).toMatchObject({ name: 'Pill buttons', slug: 'pill-buttons', branch: 'explore/pill-buttons', purpose: 'Learn 1.', useCaseLabel: 'Prototype for a user test', author: 'designer', tone: '' });
+    expect(pill).toMatchObject({ name: 'Pill buttons', slug: 'pill-buttons', branch: 'explore/pill-buttons', purpose: 'Learn 1.', useCaseLabel: 'Prototype for a user test', author: 'designer', tone: 'neutral' });
     // No guessed install command on the row: the detail reads it from the preview comment (tryItFromComments).
     expect('install' in pill).toBe(false);
     expect(pill.headSha.startsWith('1111111')).toBe(true);
@@ -69,7 +69,7 @@ describe('explorations view', () => {
     expect(pill.requests.map((q) => q.number)).toEqual([40]);
     expect(openRequestNumbers(pill)).toEqual([40]);
     // Every status is grey: color only says blocked, waiting or ready.
-    expect(rows.every((r) => r.tone === '')).toBe(true);
+    expect(rows.every((r) => r.tone === 'neutral')).toBe(true);
   });
 
   it('summary first, never invented', () => {

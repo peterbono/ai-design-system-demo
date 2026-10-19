@@ -79,6 +79,21 @@ Astro HTML driven by small vanilla scripts, with a few React islands. That setup
 - **PageHeader**: new component (Layout). Title, lead, meta and actions, which wrap under the text on narrow
   screens. Used by every Library page. Breadcrumb and media slots from the admin proposal are not in it yet.
 
+- **Badge and Tooltip outside React**: `@bridge-ds/react/dom` renders Badge (`badgeHtml`), CodeBlock, TokenValue and
+  Checklist as HTML strings with the exact markup and classes of the React components, plus `tooltipAttributes()` and
+  `bindTooltips()`. Replaces the `.pill` badges and the `.has-tip` / `data-tip` tooltips the Studio scripts built.
+  `bridge audit` counts the renderers as DS components and the old look-alikes against adoption.
+- **CodeBlock**: new component (Data display). Commands and code in Plex Mono with a copy button that says "Copied".
+  Replaces the terminal blocks, command rows and `pre` blocks on Install, Agents, Settings, Quality and the change
+  pages.
+- **TokenValue**: new component (Data display). Token name and value with a swatch, `previous` for before values.
+- **Checklist**: new component (Data display). Status icon, title, one line of detail and the action on the row;
+  the change detail's "What it needs to ship" list.
+- **ChoiceCard** (`ChoiceCardGroup`, `ChoiceCard`): radio cards with a title and a description, on Base UI
+  RadioGroup, for the radio cards the theme playground and the new brand flow built by hand.
+- **Banner**: new component (Feedback). A page-level mode banner ("Viewing the library as change #118"), Deep Harbor
+  or neutral, sticky at the top or under the app header.
+
 ### Still open
 
 | Need | Used instead | Proposal |
@@ -88,13 +103,12 @@ Astro HTML driven by small vanilla scripts, with a few React islands. That setup
 | **Stat / KPI tile** | App markup (`.stat-strip` on Agents, `.ov-kpi` in the Studio overview) | Same proposal as the admin: label, value, delta with an arrow and text. Only two surfaces in the docs app so far, so not built yet. |
 | **Menu item as a link** | `Popover` with a list and a `Link` (version menu) | `MenuItem` with `href` or `render`, for navigation menus. |
 | **Tag as a link** | App token chips (`.tchip`) | `Tag` with `href` for clickable labels. |
-| **Copyable value** (token name or hex, click to copy, with feedback) | App buttons with `data-copy` | A `CopyButton` or `Copyable` with the copied state and live announcement built in. |
+| **Copyable value** (token name or hex, click to copy, with feedback) | App buttons with `data-copy` | A `CopyButton` or `Copyable` with the copied state and live announcement built in. Commands and code now use `CodeBlock`; single values (a token name in a table cell) still need it. |
 | **Search trigger** (field look, opens a command palette, shows a shortcut) | `Button` secondary with `Kbd` inside | A `SearchTrigger`, or a `Kbd` slot on `Button`. |
 | **Command palette** | Native `dialog` with a vanilla listbox | A `CommandPalette` on Base UI Dialog and Combobox. |
 | **Inverse-surface button** (terminal bars) | `Button` secondary | An inverse appearance for actions on `color.surface.inverse`. |
 | **Brand tone on Badge** | `Badge` neutral plus icon | A `brand` (accent) tone. |
 | **Stacked Table on phones** | `Table` scrolls sideways | A stacked layout option on `Table`. |
-| **Radio cards** (visual option picks) | App radio cards in the theme playground | A `RadioCard` option for `RadioGroup`. |
 | **Field label in mono** (prop names in the props playground) | Sans labels | A `mono` option on Field labels, for code names. |
 | **Charts** (donut, stacked bars, waffle) | App SVG with the new chart tokens | Chart primitives once the token set includes `color.chart.area`. |
 

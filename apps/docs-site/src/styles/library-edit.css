@@ -538,23 +538,12 @@ html:has(.cp-page[data-editing]) {
   margin: 0;
 }
 
-.le-setup > :is(.le-code, [data-segmented-control]) {
+.le-setup > :is(.le-setup-code, [data-segmented-control]) {
   justify-self: stretch;
 }
 
 .le-setup-note {
   color: var(--color-text-muted);
-}
-
-.le-code {
-  margin: 0;
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-inset);
-  background-color: var(--color-bg-subtle);
-  font-family: var(--font-family-mono);
-  font-size: var(--typography-ui-size);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
 }
 
 .le-setup-msg {

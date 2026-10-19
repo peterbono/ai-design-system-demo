@@ -1,0 +1,81 @@
+{
+  "summary": "The steps or conditions something needs, one row each: a status icon, a title, one line of detail and, when there is one, the action on the same row. Like the merge box of a pull request.",
+  "preview": { "c": "Checklist", "p": { "label": "What it needs to ship" }, "children": [
+    { "c": "ChecklistRow", "p": { "status": "done", "title": "Design rules", "detail": "All 14 rules pass." } },
+    { "c": "ChecklistRow", "p": { "status": "done", "title": "Developer tests", "detail": "212 tests pass on the preview build." } },
+    { "c": "ChecklistRow", "p": { "status": "waiting", "title": "Design approval", "detail": "Waiting on a design owner." } }
+  ] },
+  "whenToUse": [
+    "What a change needs before it ships: design rules, developer tests, design approval.",
+    "A short setup the reader goes through once, where each step has a clear done state.",
+    "Put the action for a row on that row (an Approve button next to Design approval), as a Button with size sm and variant secondary. On narrow screens it takes the full width under the row.",
+    "Use footer for what the rows add up to: why it waits, and the one way to unblock it.",
+    "Plain-script pages that build rows as HTML strings use checklistHtml() and checklistRowHtml() from @bridge-ds/react/dom: the same markup, status icons and screen reader words, without React."
+  ],
+  "whenNotToUse": [
+    "Something the reader ticks off: use Checkbox. A Checklist row shows a status the system knows, it is not a control.",
+    "A single message about the page: use Alert.",
+    "A long log of events in time: use a list or a table with dates.",
+    "Steps the reader moves through one screen at a time: use a stepper or Tabs."
+  ],
+  "dos": [
+    {
+      "title": "Say who or what each row waits on",
+      "text": "The detail turns a status into a next step: \"Waiting on a design owner\" tells the reader whom to ask.",
+      "example": { "c": "Checklist", "p": { "label": "What it needs to ship" }, "children": [
+        { "c": "ChecklistRow", "p": { "status": "waiting", "title": "Design approval", "detail": "Waiting on a design owner." } }
+      ] }
+    },
+    {
+      "title": "Name what failed, with numbers",
+      "text": "\"2 of 212 tests fail\" says how bad it is and where to look. \"Tests failed\" does not.",
+      "example": { "c": "Checklist", "p": { "label": "What it needs to ship" }, "children": [
+        { "c": "ChecklistRow", "p": { "status": "done", "title": "Design rules", "detail": "All 14 rules pass." } },
+        { "c": "ChecklistRow", "p": { "status": "failed", "title": "Developer tests", "detail": "2 of 212 tests fail: Button focus ring, Select keyboard." } }
+      ] }
+    }
+  ],
+  "donts": [
+    {
+      "title": "A title without a detail",
+      "text": "An icon and a title alone leave the reader guessing what to do. Every row that is not done says why in one line.",
+      "example": { "c": "Checklist", "p": { "label": "What it needs to ship" }, "children": [
+        { "c": "ChecklistRow", "p": { "status": "failed", "title": "Developer tests" } },
+        { "c": "ChecklistRow", "p": { "status": "waiting", "title": "Design approval" } }
+      ] }
+    },
+    {
+      "title": "Warning for something that simply waits",
+      "text": "Waiting is normal: use the empty ring. Keep warning for a row that needs attention, such as an approval given before the last change.",
+      "example": { "c": "Checklist", "p": { "label": "What it needs to ship" }, "children": [
+        { "c": "ChecklistRow", "p": { "status": "warning", "title": "Design approval", "detail": "Waiting on a design owner." } }
+      ] }
+    }
+  ],
+  "accessibility": [
+    "A list (ul) named by label: \"What it needs to ship, list, 3 items\".",
+    "Each row says its status in words before the detail (Done, Failed, Waiting, Needs attention), in visually hidden text. The icon is decorative, so color and shape are never the only signal. Override the words per row with statusLabel.",
+    "A row's action is a real Button on the row, reached with Tab in reading order, after the row it acts on.",
+    "Feedback icon colors are checked against their tinted backgrounds in both themes.",
+    "Static markup: no hydration needed. Plain scripts render the same markup with checklistHtml() and checklistRowHtml() from @bridge-ds/react/dom."
+  ],
+  "contentGuidelines": [
+    "Label: what the rows add up to, sentence case: \"What it needs to ship\".",
+    "Title: the condition as a noun, a few words: \"Design approval\", \"Developer tests\".",
+    "Detail: one line, the state in plain words, with who or what it waits on and numbers when there are some.",
+    "Action: a verb for the next step on that row: \"Approve\", \"View tests\", \"Ask again\"."
+  ],
+  "anatomy": {
+    "list": "The plate: one row per condition, on shared columns",
+    "row": "One condition",
+    "icon": "Status icon (decorative)",
+    "done": "Done: check on success background",
+    "failed": "Failed: cross on danger background",
+    "warning": "Needs attention: triangle on warning background",
+    "waiting": "Waiting: empty ring",
+    "title": "Title",
+    "detail": "Detail, after the status words for screen readers",
+    "action": "Action for the row",
+    "footer": "Footer: why it waits and how to unblock it"
+  }
+}
