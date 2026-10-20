@@ -45,6 +45,7 @@ import { explorationClient, explorationsConfig, startLinkedExploration } from '.
 import { forgetRequests, loadRequestRows, requestRow } from './requests';
 import { setSelect } from '../lib/select-bridge';
 import { jiraKeyOf, parseJiraKey, VOCAB } from '../lib/vocabulary';
+import { isProductBranch } from '../lib/product-branch';
 
 // The use case menu of Start an exploration (BridgedSelect id).
 const USE_CASE = 'ex-use-case';
@@ -435,6 +436,14 @@ export async function openExploration(n: number, push = true) {
   const r = await rowFor(n);
   if (Number(new URLSearchParams(location.search).get('exploration')) !== n) return;
   current = r;
+  // A branch started for a product: the product branch page (its missing pieces and their library branches).
+  const pull = r ? pullsBy.get(r.number) : undefined;
+  if (r && pull) {
+    const pb = await import('./product-branch');
+    const products = pb.siteProducts();
+    const product = isProductBranch(pull.labels, products);
+    if (product) return pb.openProductBranch(d, r, pull, product, products, () => void openExploration(n, false));
+  }
   d.innerHTML = r
     ? renderExplorationDetail(r, { connected: connected() })
     : `${crumbs(n)}<p class="cg-muted">#${n} is not an exploration in ${esc(`${CFG.owner}/${CFG.repo}`)}, or GitHub cannot be read right now. <a href="https://github.com/${esc(`${CFG.owner}/${CFG.repo}`)}/pull/${n}" target="_blank" rel="noopener">${VOCAB.openOnGitHub}</a>.</p>`;

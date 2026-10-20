@@ -15,6 +15,7 @@ import { Who } from './faces';
 import { SelectionBar, type ListedBranch } from './CombineChanges';
 import { boxDisabled, emptyWhoLine, finishedParam, FULL_TIP, groupByProduct, mergedLine, mergedThisMonth, onlyLine, productOf, selectable, showsForWho, WHO_FILTERS, whoFilterParam, type WhoFilter } from '../../../lib/branches-page';
 import { onlyTokens, toggleChange } from '../../../lib/combine-changes';
+import { childLine, nestLinked } from '../../../lib/product-branch';
 import { CLAUDE, person, type Person, type PillTone } from '../../../lib/home-model';
 import type { ThumbSpec } from '../../../lib/branch-thumb';
 import type { FileSignals } from '../../../lib/work-nature';
@@ -44,6 +45,8 @@ export interface ListRow {
   merged_at?: string | null;
   /** Pull request labels: a `product: <key>` label puts the branch in that product's group. */
   labels?: { name: string }[] | null;
+  /** The product branch this library branch is needed by (its "Needed by" block): listed under it. */
+  neededBy?: number | null;
 }
 
 export interface BranchesListProps {
@@ -126,7 +129,8 @@ export function BranchesList(p: BranchesListProps) {
     const e = extras.get(r.number);
     return { r, e, product: productOf(e?.files ?? null, p.products, r.labels), tokenOnly: tokenOnly(r, e, p.tokensRoot) };
   });
-  const groups = groupByProduct(rows, p.products);
+  // Library branches a listed product branch needs follow it, one step in (lib/product-branch nestLinked).
+  const groups = nestLinked(groupByProduct(rows, p.products));
 
   // Checked branches stay only while they are listed and still checkable.
   const checkable = rows.filter((x) => selectable(x));
@@ -209,10 +213,10 @@ export function BranchesList(p: BranchesListProps) {
         groups.map((g) => (
           <section className="bl-group" key={g.key} aria-labelledby={`bl-${g.key}`}>
             <h2 className="bl-h2" id={`bl-${g.key}`}>
-              {g.label} <span className="bl-count">{g.rows.length}</span>
+              {g.label} <span className="bl-count">{g.count}</span>
             </h2>
             <ul className="sh-rows" aria-labelledby={`bl-${g.key}`}>
-              {g.rows.map(({ r, e, tokenOnly: tok }) => {
+              {g.rows.map(({ r, e, tokenOnly: tok, child }) => {
                 const href = r.opens === 'pr' ? `?pr=${r.number}` : `?exploration=${r.number}`;
                 const checked = selected.includes(r.number);
                 const full = boxDisabled(selected, r.number);
@@ -229,14 +233,14 @@ export function BranchesList(p: BranchesListProps) {
                 return (
                   <BranchRow
                     key={r.number}
-                    className={tok ? 'bl-row is-pickable' : 'bl-row'}
+                    className={`bl-row${tok ? ' is-pickable' : ''}${child ? ' is-linked' : ''}`}
                     selected={checked}
                     lead={tok ? (full ? <Tooltip content={FULL_TIP}>{box}</Tooltip> : box) : undefined}
                     thumb={e?.thumb ?? { kind: 'icon', icon: r.guidance ? 'guidance' : 'branch' }}
                     who={whoNode(r, e)}
                     title={r.title}
                     jira={r.jira}
-                    line={nameOf(r, e)}
+                    line={child ? childLine(nameOf(r, e)) : nameOf(r, e)}
                     href={href}
                     linkAttributes={r.opens === 'pr' ? { 'data-open-pr': r.number } : { 'data-open-exploration': r.number }}
                     pill={r.pill}

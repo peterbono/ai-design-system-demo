@@ -1,0 +1,5 @@
+---
+'@bridge-ds/docs-site': minor
+---
+
+Studio shows product branches with the library pieces they need. A branch started for a product opens its product branch page: "Try it in the product", one sentence ("Built with the library. 1 piece was missing, and Claude AI opened a library branch for it."), the screen (the before and after, when the visual impact ran) next to the Harbor zone "Missing from the library", one row per piece with its library branch, status and reviewer, and the row's one action (Open a library branch, Use its preview in my branch, Get the latest preview, Switch to the published version). "Why it already shows in your screen" and "For developers" are folded. The review of a library branch a product branch needs starts with "Why it exists" (who needs it, for which product branch, the product preview) and, when the library has a close value, "Suggest danger". Branches lists the library branch under the product branch that needs it. Titles named after a component ("Badge: overdue tone") keep it.
