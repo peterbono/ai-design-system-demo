@@ -654,7 +654,7 @@ test('coverage sets: every generated set binds variables in every variant; state
   assert.equal(track('false').primaryAxisAlignItems, 'MIN');
   assert.equal(track('true').primaryAxisAlignItems, 'MAX');
   // Avatar: the initials cover the circle (and the photo, when shown).
-  assert.equal(partOf(variantOf(set('Avatar'), 'Size=md'), 'fallback').layoutPositioning, 'ABSOLUTE');
+  assert.equal(partOf(variantOf(set('Avatar'), 'Size=md, Fallback=initials'), 'fallback').layoutPositioning, 'ABSOLUTE');
   // Link: underlined text. RadioGroup: the preview's option is the checked one.
   assert.equal(partOf(variantOf(set('Link'), 'Variant=inline, State=Default'), 'text').textDecoration, 'UNDERLINE');
   const group = variantOf(set('RadioGroup'), 'Orientation=vertical, State=Default');

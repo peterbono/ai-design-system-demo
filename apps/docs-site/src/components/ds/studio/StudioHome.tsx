@@ -8,8 +8,9 @@
 // NeedList is shared with the review queue (pages/studio/review.astro), so a row reads the same in both places.
 import { createRoot, type Root } from 'react-dom/client';
 import { useState, type MouseEvent } from 'react';
-import { CircleAlert, CircleCheck } from 'lucide-react';
-import { Avatar, AvatarGroup, Badge, Button, Card, CardBody, Icon, Link, SegmentedControl, Skeleton } from '@bridge-ds/react';
+import { Check, CircleAlert, CircleCheck, TriangleAlert } from 'lucide-react';
+import { Who } from './faces';
+import { AvatarGroup, Badge, Button, Card, CardBody, Icon, Link, SegmentedControl, Skeleton } from '@bridge-ds/react';
 import { BranchThumb } from './BranchThumb';
 import { BranchRow } from './BranchRow';
 import { Drawing } from './Drawing';
@@ -37,10 +38,6 @@ import {
 } from '../../../lib/home-model';
 import { VOCAB } from '../../../lib/vocabulary';
 
-function Who({ p, size = 'md' }: { p: Person; size?: 'xs' | 'sm' | 'md' }) {
-  return <Avatar name={p.name} src={p.avatar ?? undefined} size={size} decorative />;
-}
-
 /** One Needs you row: before/after, who, what and why, the status on the right (the shared BranchRow). */
 export function NeedRowItem({ row, selected, onSelect, action }: { row: NeedRow; selected?: boolean; onSelect?: (row: NeedRow) => void; action?: 'primary' | 'secondary' }) {
   const click = onSelect
@@ -53,7 +50,7 @@ export function NeedRowItem({ row, selected, onSelect, action }: { row: NeedRow;
   return (
     <BranchRow
       thumb={row.thumb}
-      who={row.person ? <Who p={row.person} /> : <Icon icon={row.pill?.tone === 'danger' ? CircleAlert : CircleCheck} size="md" />}
+      who={row.person ? <Who p={row.person} /> : <span className="sh-row-icon"><Icon icon={row.pill?.tone === 'danger' ? TriangleAlert : Check} size="md" /></span>}
       title={row.title}
       href={row.href}
       onClick={click}
@@ -91,7 +88,7 @@ function Waiting({ needs, now }: { needs: NeedRow[]; now: number }) {
     <p className="t-body sh-waiting">
       <AvatarGroup aria-label="Waiting on you" max={AVATARS_SHOWN} size="md" className="sh-stack">
         {people.map((p) => (
-          <Avatar key={p.agent ? '#agent' : p.login} name={p.name} src={p.avatar ?? undefined} />
+          <Who key={p.agent ? '#agent' : p.login} p={p} name={p.name} decorative={false} />
         ))}
       </AvatarGroup>
       <span>

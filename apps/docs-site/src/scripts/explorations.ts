@@ -38,6 +38,7 @@ import { explorationFromRequest, type PullLike, type RequestRow } from '../lib/r
 import { explorationWork } from '../lib/work-nature';
 import { devTag, markWork, natureAttr } from './work-filter';
 import { badgeHtml } from '@bridge-ds/react/dom';
+import { paintPeople, personHtml } from './people';
 import { currentViewer, esc, ghGet, hasWorkingToken, initGitHubConnect, prefersSignIn, RateLimitError, readRepo, relativeTime, setButtonBusy, showGhError } from './github-session';
 import { ghAction, rateLimitedLine } from '../lib/gh-wording';
 import { explorationClient, explorationsConfig, startLinkedExploration } from './exploration-start';
@@ -98,7 +99,7 @@ function rowHtml(r: ExplorationRow) {
     <div class="ex-row-main">
       <p class="ex-row-title">${key ? `<span class="mono cg-jira">${esc(key)}</span> ` : ''}<a class="ex-name" href="?exploration=${r.number}" data-open-exploration="${r.number}">${esc(r.name)}</a> <span class="cg-num">#${r.number}</span> ${badgeHtml(r.statusLabel, { tone: r.tone, size: 'sm', className: 'rv-status' })} ${devTag(nature)}</p>
       ${purposeLine(r.name, r.purpose) ? `<p class="ex-purpose">${esc(r.purpose)}</p>` : ''}
-      <p class="ex-meta">@${esc(r.author)}${w.maker.kind === 'claude' ? ' with Claude' : ''}, updated <time datetime="${esc(r.updatedAt)}">${esc(shortDate(r.updatedAt))}</time>${esc(reqs)}${preview ? `, <a href="${esc(preview.url)}" target="_blank" rel="noopener">${esc(preview.label)} preview</a>` : ''}</p>
+      <p class="ex-meta">${personHtml(r.author, { agent: w.maker.kind === 'claude' })}, updated <time datetime="${esc(r.updatedAt)}">${esc(shortDate(r.updatedAt))}</time>${esc(reqs)}${preview ? `, <a href="${esc(preview.url)}" target="_blank" rel="noopener">${esc(preview.label)} preview</a>` : ''}</p>
     </div>
   </li>`;
 }
@@ -109,6 +110,7 @@ function paint() {
   $('ex-empty').hidden = !empty;
   $('ex-table').hidden = empty;
   $('ex-list').innerHTML = rows.map(rowHtml).join('');
+  void paintPeople($('ex-list'));
   markWork($('ex-list'));
   paintExplorationCount([...pullsBy.values()]);
 }

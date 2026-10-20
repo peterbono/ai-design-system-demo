@@ -75,6 +75,12 @@
   vertical-align: middle;
 }
 
+/* Who waits, between the progress mark and the title (the same face as on the home and Branches rows). */
+.rq-face {
+  margin-inline-end: var(--space-2);
+  vertical-align: middle;
+}
+
 .rq-item-row.is-approved .rq-mark {
   color: var(--color-feedback-success-icon);
 }

@@ -2252,13 +2252,7 @@
     },
     {
       "name": "Avatar",
-      "example": {
-        "c": "Avatar",
-        "p": {
-          "name": "Florian Gouloubi"
-        }
-      },
-      "hash": "6effa957",
+      "hash": "50a60757",
       "source": [
         "packages/react/src/components/Avatar/Avatar.tsx",
         "packages/react/src/components/Avatar/Avatar.module.css"
@@ -2274,6 +2268,15 @@
             "lg"
           ],
           "default": "md"
+        },
+        {
+          "name": "Fallback",
+          "prop": "fallback",
+          "values": [
+            "initials",
+            "illustrated"
+          ],
+          "default": "initials"
         }
       ],
       "properties": [
@@ -2332,17 +2335,34 @@
           "cover": true
         },
         {
+          "id": "illustration",
+          "name": "illustration",
+          "kind": "frame",
+          "parent": "fallback",
+          "source": "Avatar.module.css .illustration",
+          "layout": {
+            "direction": "VERTICAL",
+            "primary": "MIN",
+            "counter": "STRETCH"
+          },
+          "stretch": {
+            "width": true,
+            "height": true
+          }
+        },
+        {
           "id": "text",
           "name": "Text",
           "kind": "text",
           "parent": "fallback",
-          "characters": "FG"
+          "characters": "?"
         }
       ],
       "variants": [
         {
           "props": {
-            "Size": "xs"
+            "Size": "xs",
+            "Fallback": "initials"
           },
           "values": {
             "root": {
@@ -2360,13 +2380,40 @@
               "lineHeight": "font.line-height.none"
             }
           },
+          "hidden": [
+            "illustration"
+          ],
           "slots": {
             "src": "Slot/Media"
           }
         },
         {
           "props": {
-            "Size": "sm"
+            "Size": "xs",
+            "Fallback": "illustrated"
+          },
+          "values": {
+            "root": {
+              "fill": "avatar.illustrated-bg",
+              "cornerRadius": "radius.pill",
+              "width": "size.5",
+              "height": "size.5"
+            },
+            "src": {},
+            "fallback": {},
+            "illustration": {}
+          },
+          "hidden": [
+            "text"
+          ],
+          "slots": {
+            "src": "Slot/Media"
+          }
+        },
+        {
+          "props": {
+            "Size": "sm",
+            "Fallback": "initials"
           },
           "values": {
             "root": {
@@ -2385,13 +2432,40 @@
               "lineHeight": "font.line-height.none"
             }
           },
+          "hidden": [
+            "illustration"
+          ],
           "slots": {
             "src": "Slot/Media"
           }
         },
         {
           "props": {
-            "Size": "md"
+            "Size": "sm",
+            "Fallback": "illustrated"
+          },
+          "values": {
+            "root": {
+              "fill": "avatar.illustrated-bg",
+              "cornerRadius": "radius.pill",
+              "width": "size.6",
+              "height": "size.6"
+            },
+            "src": {},
+            "fallback": {},
+            "illustration": {}
+          },
+          "hidden": [
+            "text"
+          ],
+          "slots": {
+            "src": "Slot/Media"
+          }
+        },
+        {
+          "props": {
+            "Size": "md",
+            "Fallback": "initials"
           },
           "values": {
             "root": {
@@ -2410,13 +2484,40 @@
               "lineHeight": "font.line-height.none"
             }
           },
+          "hidden": [
+            "illustration"
+          ],
           "slots": {
             "src": "Slot/Media"
           }
         },
         {
           "props": {
-            "Size": "lg"
+            "Size": "md",
+            "Fallback": "illustrated"
+          },
+          "values": {
+            "root": {
+              "fill": "avatar.illustrated-bg",
+              "cornerRadius": "radius.pill",
+              "width": "size.8",
+              "height": "size.8"
+            },
+            "src": {},
+            "fallback": {},
+            "illustration": {}
+          },
+          "hidden": [
+            "text"
+          ],
+          "slots": {
+            "src": "Slot/Media"
+          }
+        },
+        {
+          "props": {
+            "Size": "lg",
+            "Fallback": "initials"
           },
           "values": {
             "root": {
@@ -2435,12 +2536,44 @@
               "lineHeight": "font.line-height.none"
             }
           },
+          "hidden": [
+            "illustration"
+          ],
+          "slots": {
+            "src": "Slot/Media"
+          }
+        },
+        {
+          "props": {
+            "Size": "lg",
+            "Fallback": "illustrated"
+          },
+          "values": {
+            "root": {
+              "fill": "avatar.illustrated-bg",
+              "cornerRadius": "radius.pill",
+              "width": "size.10",
+              "height": "size.10"
+            },
+            "src": {},
+            "fallback": {},
+            "illustration": {}
+          },
+          "hidden": [
+            "text"
+          ],
           "slots": {
             "src": "Slot/Media"
           }
         }
       ],
       "unmapped": [
+        {
+          "part": "root",
+          "property": "prop kind",
+          "value": "person | agent",
+          "reason": "does not change the styles"
+        },
         {
           "part": "root",
           "property": "prop decorative",

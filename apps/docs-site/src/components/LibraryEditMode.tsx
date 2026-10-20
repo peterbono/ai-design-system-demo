@@ -4,33 +4,7 @@
 // docs save path (lib/docs-draft-model.ts, scripts/docs-commit.ts); drafting goes through scripts/docs-ai.ts.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import {
-  Alert,
-  AlertDialog,
-  AlertDialogContent,
-  Badge,
-  Button,
-  CodeBlock,
-  Dialog,
-  DialogContent,
-  IconButton,
-  Input,
-  Link,
-  Menu,
-  MenuContent,
-  MenuGroup,
-  MenuItem,
-  MenuRadioGroup,
-  MenuRadioItem,
-  MenuSeparator,
-  MenuTrigger,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-  SegmentedControl,
-  Spinner,
-  Textarea,
-} from '@bridge-ds/react';
+import { Avatar, Alert, AlertDialog, AlertDialogContent, Badge, Button, CodeBlock, Dialog, DialogContent, IconButton, Input, Link, Menu, MenuContent, MenuGroup, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuTrigger, Popover, PopoverContent, PopoverTrigger, SegmentedControl, Spinner, Textarea } from '@bridge-ds/react';
 import { Check, ChevronDown, Circle, CircleX, Copy, Ellipsis, PenLine, Plus, Sparkles, X } from 'lucide-react';
 import { DRAFT_PHRASE, type ComponentDocsJson, type DocsGuidance, type ProseKey } from '@bridge-ds/core';
 import { REGISTRY, resolveProps } from './registry';
@@ -255,7 +229,13 @@ function SectionControls({ id }: { id: SectionId }) {
 function SectionFlag({ id }: { id: SectionId }) {
   const e = useEdit();
   const st = sectionState(e.state, id);
-  if (st === 'drafted') return <Badge tone="info" icon={Sparkles}>{e.state.updated.includes(id) ? 'Updated' : 'Drafted'} by Claude · review it</Badge>;
+  if (st === 'drafted')
+    return (
+      <span className="le-flag">
+        <Avatar kind="agent" brand="claude" size="xs" decorative />
+        <Badge tone="info">{e.state.updated.includes(id) ? 'Updated' : 'Drafted'} by Claude · review it</Badge>
+      </span>
+    );
   if (st === 'outdated') return <Badge tone="warning">Outdated: the code changed since</Badge>;
   if (e.state.accurate.includes(id))
     return (
@@ -323,7 +303,11 @@ function ProposalBox({ keys }: { keys: readonly ProseKey[] }) {
   return (
     <div className="le-proposal" role="group" aria-label="Claude's proposal for the selected text">
       <p className="le-proposal-text">
-        <Badge tone="info" icon={Sparkles}>Claude proposes</Badge> {p.replacement}
+        <span className="le-flag">
+          <Avatar kind="agent" brand="claude" size="xs" decorative />
+          <Badge tone="info">Claude proposes</Badge>
+        </span>{' '}
+        {p.replacement}
       </p>
       <div className="le-actions">
         <Button size="sm" variant="secondary" iconStart={Check} onClick={e.keepProposal}>

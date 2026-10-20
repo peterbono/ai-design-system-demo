@@ -339,6 +339,11 @@ details[open] > summary .cg-sec-chev {
   font-size: var(--typography-ui-size);
 }
 
+.cg-who {
+  display: inline-flex;
+  align-items: center;
+}
+
 .cg-pr-meta .rv-avatar {
   margin-right: calc(var(--space-2) * -1);
 }
@@ -967,7 +972,6 @@ body:has(.cg-bar) {
     flex-basis: calc(100% - var(--size-16) - var(--size-6) - var(--space-3) * 2);
   }
 
-  .sh-row-body:has(> .bl-pick) > .sh-row-pill,
   .sh-row-body:has(> .bl-pick) > .bl-behind {
     margin-inline-start: calc(var(--size-16) + var(--size-6) + var(--space-3) * 2);
   }

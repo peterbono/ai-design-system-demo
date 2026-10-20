@@ -1,6 +1,7 @@
-/* Studio Quality (Field Guide): a Harbor opener, one list of findings most severe first, housekeeping collapsed,
-   adoption in two rows, the audit reports on their own routes. Four sizes on a screen: h2 (page title), body
-   (opener sentence, section titles), ui (rows), caption (badges). Color only for status: DS Badge tones. */
+/* Studio Quality (Field Guide): a Harbor opener with the verdict and the three library health figures, then one
+   section per figure (contrast and tokens, adoption, guidance), the audit reports on their own routes. Four sizes on
+   a screen: h2 (page title and figures), body (verdict, section titles, figure labels), ui (rows, details), caption
+   (badges). Color only for status: DS Badge tones, danger text on a failing figure. */
 
 .ql {
   max-width: var(--studio-page-max);
@@ -13,14 +14,80 @@
   line-height: var(--typography-ui-line-height);
 }
 
-/* Harbor opener: one status sentence and one action. */
+/* Share, on the title line: the confirmation sits before the button, polite and quiet. */
+.ql-share {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2) var(--space-3);
+}
+
+.ql-said {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.ql-said:empty {
+  display: none;
+}
+
+/* Harbor opener: the verdict and one action on a line, then the three figures, each a door to its section. */
 .ql-open {
+  display: grid;
+  gap: var(--space-5);
+  margin-bottom: var(--space-10);
+  padding: var(--space-6) var(--space-7);
+}
+
+.ql-open-head {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3) var(--space-6);
-  margin-bottom: var(--space-10);
-  padding: var(--space-6) var(--space-7);
+}
+
+.ql-figs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(var(--size-60), 1fr));
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ql-figs > li {
+  display: grid;
+  margin: 0;
+}
+
+.ql-fig {
+  display: grid;
+  align-content: start;
+  gap: var(--space-0-5);
+}
+
+.ql-fig-value {
+  margin: 0;
+  font-family: var(--typography-h2-family);
+  font-size: var(--typography-h2-size);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--typography-h2-line-height);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--typography-h2-tracking);
+}
+
+.ql-fig.is-fail .ql-fig-value {
+  color: var(--color-feedback-danger-text);
+}
+
+.ql-fig-label {
+  margin: 0;
+  font-size: var(--typography-body-size);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--typography-body-line-height);
 }
 
 .ql-open-sentence {
@@ -214,5 +281,17 @@ a.ql-act {
   .ql-ad-row .ql-act {
     grid-column: 1 / -1;
     justify-self: start;
+  }
+}
+
+/* Phones: Share stays on the title line, and the lone primary fills its bar. */
+@media (max-width: 640px) {
+  .ql .st-head {
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+
+  .ql-cta {
+    width: 100%;
   }
 }

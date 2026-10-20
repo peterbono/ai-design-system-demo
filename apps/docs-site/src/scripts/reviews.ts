@@ -266,6 +266,8 @@ interface Row {
   pending?: ApprovalRole[];
   /** Library updates since the change started (compare behind_by), read with a token only. */
   behindBy?: number | null;
+  /** Claude made it (lib/work-nature agentMade): the row shows Claude's identity. */
+  agent?: boolean;
 }
 
 /** How many recently closed branches are read for "N merged this month" (one request). */
@@ -294,7 +296,7 @@ function listRow(r: Row): ListRow {
     title: humanTitle(mdTitleText(withoutJiraKey(r.title))),
     jira: jiraKeyOf(r.title),
     author: r.user.login,
-    agent: agentMade({ body: r.body ?? null, labels: r.labels ?? null }),
+    agent: Boolean(r.agent) || agentMade({ body: r.body ?? null, labels: r.labels ?? null }),
     opens: r.exploration ? 'exploration' : 'pr',
     pill: pillOf(r, lifecycle),
     lifecycle,
@@ -370,6 +372,7 @@ const toRow = (p: Pull | CachedPull, kind: ReviewStatusKind | null): Row => ({
   ...('state' in p ? { state: p.state, merged_at: p.merged_at } : {}),
   ...('labels' in p ? { labels: p.labels } : {}),
   nature: natureOf(p.title, 'labels' in p ? p.labels : undefined),
+  agent: 'body' in p ? agentMade({ body: p.body, labels: p.labels }) : Boolean(p.agent),
 });
 
 /** The most recently closed branches, read once: the "N merged this month" line and Show merged. */
@@ -476,7 +479,7 @@ export async function loadList(): Promise<{ number: number; head: { ref: string 
     writeSnapshot(
       storage(),
       REPO_KEY,
-      pulls.map((p) => ({ number: p.number, title: p.title, html_url: p.html_url, updated_at: p.updated_at, tier: rows.get(p.number)!.tier, kind: rows.get(p.number)!.kind, head: { ref: p.head.ref, sha: p.head.sha }, user: { login: p.user.login }, draft: p.draft })),
+      pulls.map((p) => ({ number: p.number, title: p.title, html_url: p.html_url, updated_at: p.updated_at, tier: rows.get(p.number)!.tier, kind: rows.get(p.number)!.kind, head: { ref: p.head.ref, sha: p.head.sha }, user: { login: p.user.login }, draft: p.draft, agent: rows.get(p.number)!.agent })),
       new Date(),
     );
   }

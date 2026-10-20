@@ -479,6 +479,18 @@ a.team-avatar {
   object-fit: cover;
 }
 
+/* A person (or Claude) in plain-script rows: the DS Avatar, then the display name (scripts/people.ts). */
+.person {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  min-width: 0;
+}
+
+.person-avatar {
+  flex: none;
+}
+
 /* Team tools (Edit in Studio, View source) exist for maintainers only: a GitHub token with write access. */
 :root:not([data-maintainer]) [data-maintainer-only] {
   display: none;

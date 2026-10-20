@@ -118,6 +118,12 @@ describe('history summary', () => {
     expect(historySummary(base)).toBe('Skip Changeset present on the Version packages PR');
   });
 
+  it('keeps the whole summary for the detail heading when asked', () => {
+    const long = { ...base, pr: { title: `feat: ${'word '.repeat(30).trim()}` } };
+    expect(historySummary(long).endsWith('...')).toBe(true);
+    expect(historySummary(long, { full: true })).toBe(`Word ${'word '.repeat(29).trim()}`);
+  });
+
   it('reads an import as one line', () => {
     expect(historySummary({ ...base, bulk: true, counts: { total: 895 } })).toBe('Large token update, 895 token edits');
   });

@@ -144,10 +144,10 @@ const firstSentence = (text: string) => {
  * The row title of a history entry: the changeset summary the author wrote for people, else the pull request
  * title, else the commit subject, each without its conventional prefix or "(#12)". An import reads as one line.
  */
-export function historySummary(e: SummaryEntry): string {
+export function historySummary(e: SummaryEntry, opts: { full?: boolean } = {}): string {
   if (e.bulk) return `Large token update, ${e.counts.total.toLocaleString('en-US')} token edits`;
   const fromChangeset = e.changesets?.map((c) => c.summary).find((s) => s && s.trim());
   const raw = fromChangeset ? firstSentence(fromChangeset) : (e.pr?.title ?? e.title);
   const clean = humanTitle(mdTitleText(raw).replace(/\s*\(#\d+\)\s*$/, '').trim());
-  return clean.length > 90 ? `${clean.slice(0, 87).replace(/\s+\S*$/, '')}...` : clean;
+  return !opts.full && clean.length > 90 ? `${clean.slice(0, 87).replace(/\s+\S*$/, '')}...` : clean;
 }

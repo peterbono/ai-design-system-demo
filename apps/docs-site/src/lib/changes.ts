@@ -526,6 +526,8 @@ export interface CachedPull {
   head: { ref: string; sha: string };
   user: { login: string };
   draft?: boolean;
+  /** Claude made it (lib/work-nature agentMade), kept so a cached list still shows Claude's identity. */
+  agent?: boolean;
 }
 
 export interface ListSnapshot {

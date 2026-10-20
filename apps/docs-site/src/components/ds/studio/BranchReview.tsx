@@ -6,11 +6,11 @@
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
+import { Who } from './faces';
 import { ArrowRight, Check, ChevronLeft, Circle, Ellipsis, Pencil } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogContent,
-  Avatar,
   Badge,
   Breadcrumb,
   Button,
@@ -155,10 +155,11 @@ export interface BranchReviewProps {
 
 // ---------------------------------------------------------------------------------------------------------------
 
+/** Who asks, who wrote: their photo, else their drawn face (seeded by login), and Claude as Claude (faces.tsx). */
 function Face({ person, size = 'sm' }: { person: PersonRef | null; size?: 'xs' | 'sm' | 'md' }) {
   if (!person) return null;
-  if (person.agent) return <Avatar name="Claude AI" size={size} decorative className="br-face is-agent" />;
-  return <Avatar name={person.name} src={person.avatarUrl ? `${person.avatarUrl}${person.avatarUrl.includes('?') ? '&' : '?'}s=64` : undefined} size={size} decorative className="br-face" />;
+  const avatarUrl = person.avatarUrl ? `${person.avatarUrl}${person.avatarUrl.includes('?') ? '&' : '?'}s=64` : null;
+  return <Who p={person.agent ? { login: 'claude', name: 'Claude AI', agent: true } : { ...person, avatarUrl }} size={size} className="br-face" />;
 }
 
 function Segs({ segs }: { segs: Seg[] }) {

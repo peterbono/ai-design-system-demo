@@ -9,8 +9,9 @@
 // GitHub reads an hour, kept for the statuses).
 import { createRoot, type Root } from 'react-dom/client';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Avatar, Button, Checkbox, Link, SegmentedControl, Skeleton, Tooltip, VisuallyHidden } from '@bridge-ds/react';
+import { Button, Checkbox, Link, SegmentedControl, Skeleton, Tooltip, VisuallyHidden } from '@bridge-ds/react';
 import { BranchRow } from './BranchRow';
+import { Who } from './faces';
 import { SelectionBar, type ListedBranch } from './CombineChanges';
 import { boxDisabled, emptyWhoLine, finishedParam, FULL_TIP, groupByProduct, mergedLine, mergedThisMonth, onlyLine, productOf, selectable, showsForWho, WHO_FILTERS, whoFilterParam, type WhoFilter } from '../../../lib/branches-page';
 import { onlyTokens, toggleChange } from '../../../lib/combine-changes';
@@ -169,7 +170,7 @@ export function BranchesList(p: BranchesListProps) {
 
   const whoNode = (r: ListRow, e: Extra | undefined) => {
     const pp = r.agent ? CLAUDE : (e?.person ?? person(r.author, null, avatarOf(r.author)));
-    return <Avatar name={pp.name} src={pp.avatar ?? undefined} size="md" decorative />;
+    return <Who p={pp} size="md" />;
   };
   const nameOf = (r: ListRow, e: Extra | undefined) => (r.agent ? CLAUDE.name : (e?.person ?? person(r.author)).name);
 

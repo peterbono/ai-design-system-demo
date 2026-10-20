@@ -40,10 +40,25 @@ export interface Person {
 
 export const CLAUDE: Person = { login: 'claude', name: 'Claude AI', avatar: null, agent: true };
 
-/** The display name of a GitHub account: the first word of its profile name, else the login without "@". */
+/** Articles a profile name may start with ("The Octocat", "La Poste"): never a first name on their own. */
+const ARTICLES = new Set(['the', 'a', 'an', 'le', 'la', 'les']);
+
+/**
+ * What to call someone from their profile name: the first word when it reads as a first name ("Florian Gouloubi" gives
+ * "Florian"), else the whole name when the first word is an article or shorter than 2 letters ("The Octocat",
+ * "J. Doe"), else null (no profile name).
+ */
+export function shortName(profileName?: string | null): string | null {
+  const full = profileName?.trim().replace(/\s+/g, ' ');
+  if (!full) return null;
+  const first = full.split(' ')[0]!;
+  const letters = first.replace(/[^\p{L}]/gu, '');
+  return letters.length < 2 || ARTICLES.has(first.toLowerCase()) ? full : first;
+}
+
+/** The display name of a GitHub account: its short name (shortName), else the login without "@". */
 export function displayName(login: string, profileName?: string | null): string {
-  const first = profileName?.trim().split(/\s+/)[0];
-  return first || login.replace(/^@/, '');
+  return shortName(profileName) ?? login.replace(/^@/, '');
 }
 
 export function person(login: string, profileName?: string | null, avatar?: string | null): Person {
@@ -88,9 +103,9 @@ export function partOfDay(hour: number): 'morning' | 'afternoon' | 'evening' {
   return 'evening';
 }
 
-/** "Good morning, Florian." from the first word of the profile name; "Good morning." without one. */
+/** "Good morning, Florian." from the short name (shortName); "Good morning." without a profile name. */
 export function greeting(hour: number, profileName?: string | null): string {
-  const first = profileName?.trim().split(/\s+/)[0];
+  const first = shortName(profileName);
   return `Good ${partOfDay(hour)}${first ? `, ${first}` : ''}.`;
 }
 
