@@ -1,8 +1,8 @@
 {
   "version": 1,
   "tool": "@bridge-ds/visual",
-  "createdAt": "2026-10-19T21:48:13.140Z",
-  "sha": "5a8000847f99e9a132f3fefc359a1695af429588",
+  "createdAt": "2026-10-19T23:40:50.084Z",
+  "sha": "b33145c9068b16fbbf5e54fa16d17d725f5bdc9d",
   "scale": 2,
   "mode": {
     "brand": "bridge",
@@ -11,673 +11,97 @@
   },
   "storyId": "internal-figma-reference--variant",
   "components": {
-    "Button": {
-      "specHash": "3999ade2",
+    "Accordion": {
+      "specHash": "2a10c0b3",
       "variants": {
-        "Size=sm, State=Default, Variant=primary": {
-          "file": "button/size-sm__state-default__variant-primary.png",
-          "width": 71,
-          "height": 32
-        },
-        "Size=sm, State=Hover, Variant=primary": {
-          "file": "button/size-sm__state-hover__variant-primary.png",
-          "width": 71,
-          "height": 32
-        },
-        "Size=sm, State=Pressed, Variant=primary": {
-          "file": "button/size-sm__state-pressed__variant-primary.png",
-          "width": 71,
-          "height": 32
-        },
-        "Size=sm, State=Disabled, Variant=primary": {
-          "file": "button/size-sm__state-disabled__variant-primary.png",
-          "width": 71,
-          "height": 32
-        },
-        "Size=md, State=Default, Variant=primary": {
-          "file": "button/size-md__state-default__variant-primary.png",
-          "width": 79,
-          "height": 44
-        },
-        "Size=md, State=Hover, Variant=primary": {
-          "file": "button/size-md__state-hover__variant-primary.png",
-          "width": 79,
-          "height": 44
-        },
-        "Size=md, State=Pressed, Variant=primary": {
-          "file": "button/size-md__state-pressed__variant-primary.png",
-          "width": 79,
-          "height": 44
-        },
-        "Size=md, State=Disabled, Variant=primary": {
-          "file": "button/size-md__state-disabled__variant-primary.png",
-          "width": 79,
-          "height": 44
-        },
-        "Size=lg, State=Default, Variant=primary": {
-          "file": "button/size-lg__state-default__variant-primary.png",
-          "width": 93,
-          "height": 48
-        },
-        "Size=lg, State=Hover, Variant=primary": {
-          "file": "button/size-lg__state-hover__variant-primary.png",
-          "width": 93,
-          "height": 48
-        },
-        "Size=lg, State=Pressed, Variant=primary": {
-          "file": "button/size-lg__state-pressed__variant-primary.png",
-          "width": 93,
-          "height": 48
-        },
-        "Size=lg, State=Disabled, Variant=primary": {
-          "file": "button/size-lg__state-disabled__variant-primary.png",
-          "width": 93,
-          "height": 48
-        },
-        "Size=sm, State=Default, Variant=secondary": {
-          "file": "button/size-sm__state-default__variant-secondary.png",
-          "width": 71,
-          "height": 32
-        },
-        "Size=sm, State=Hover, Variant=secondary": {
-          "file": "button/size-sm__state-hover__variant-secondary.png",
-          "width": 71,
-          "height": 32
-        },
-        "Size=sm, State=Pressed, Variant=secondary": {
-          "file": "button/size-sm__state-pressed__variant-secondary.png",
-          "width": 71,
-          "height": 32
-        },
-        "Size=sm, State=Disabled, Variant=secondary": {
-          "file": "button/size-sm__state-disabled__variant-secondary.png",
-          "width": 71,
-          "height": 32
-        },
-        "Size=md, State=Default, Variant=secondary": {
-          "file": "button/size-md__state-default__variant-secondary.png",
-          "width": 79,
-          "height": 44
-        },
-        "Size=md, State=Hover, Variant=secondary": {
-          "file": "button/size-md__state-hover__variant-secondary.png",
-          "width": 79,
-          "height": 44
-        },
-        "Size=md, State=Pressed, Variant=secondary": {
-          "file": "button/size-md__state-pressed__variant-secondary.png",
-          "width": 79,
-          "height": 44
-        },
-        "Size=md, State=Disabled, Variant=secondary": {
-          "file": "button/size-md__state-disabled__variant-secondary.png",
-          "width": 79,
-          "height": 44
-        },
-        "Size=lg, State=Default, Variant=secondary": {
-          "file": "button/size-lg__state-default__variant-secondary.png",
-          "width": 93,
-          "height": 48
-        },
-        "Size=lg, State=Hover, Variant=secondary": {
-          "file": "button/size-lg__state-hover__variant-secondary.png",
-          "width": 93,
-          "height": 48
-        },
-        "Size=lg, State=Pressed, Variant=secondary": {
-          "file": "button/size-lg__state-pressed__variant-secondary.png",
-          "width": 93,
-          "height": 48
-        },
-        "Size=lg, State=Disabled, Variant=secondary": {
-          "file": "button/size-lg__state-disabled__variant-secondary.png",
-          "width": 93,
-          "height": 48
-        },
-        "Size=sm, State=Default, Variant=ghost": {
-          "file": "button/size-sm__state-default__variant-ghost.png",
-          "width": 71,
-          "height": 32
-        },
-        "Size=sm, State=Hover, Variant=ghost": {
-          "file": "button/size-sm__state-hover__variant-ghost.png",
-          "width": 71,
-          "height": 32
-        },
-        "Size=sm, State=Pressed, Variant=ghost": {
-          "file": "button/size-sm__state-pressed__variant-ghost.png",
-          "width": 71,
-          "height": 32
-        },
-        "Size=sm, State=Disabled, Variant=ghost": {
-          "file": "button/size-sm__state-disabled__variant-ghost.png",
-          "width": 71,
-          "height": 32
-        },
-        "Size=md, State=Default, Variant=ghost": {
-          "file": "button/size-md__state-default__variant-ghost.png",
-          "width": 79,
-          "height": 44
-        },
-        "Size=md, State=Hover, Variant=ghost": {
-          "file": "button/size-md__state-hover__variant-ghost.png",
-          "width": 79,
-          "height": 44
-        },
-        "Size=md, State=Pressed, Variant=ghost": {
-          "file": "button/size-md__state-pressed__variant-ghost.png",
-          "width": 79,
-          "height": 44
-        },
-        "Size=md, State=Disabled, Variant=ghost": {
-          "file": "button/size-md__state-disabled__variant-ghost.png",
-          "width": 79,
-          "height": 44
-        },
-        "Size=lg, State=Default, Variant=ghost": {
-          "file": "button/size-lg__state-default__variant-ghost.png",
-          "width": 93,
-          "height": 48
-        },
-        "Size=lg, State=Hover, Variant=ghost": {
-          "file": "button/size-lg__state-hover__variant-ghost.png",
-          "width": 93,
-          "height": 48
-        },
-        "Size=lg, State=Pressed, Variant=ghost": {
-          "file": "button/size-lg__state-pressed__variant-ghost.png",
-          "width": 93,
-          "height": 48
-        },
-        "Size=lg, State=Disabled, Variant=ghost": {
-          "file": "button/size-lg__state-disabled__variant-ghost.png",
-          "width": 93,
-          "height": 48
-        },
-        "Size=sm, State=Default, Variant=danger": {
-          "file": "button/size-sm__state-default__variant-danger.png",
-          "width": 71,
-          "height": 32
-        },
-        "Size=sm, State=Hover, Variant=danger": {
-          "file": "button/size-sm__state-hover__variant-danger.png",
-          "width": 71,
-          "height": 32
-        },
-        "Size=sm, State=Pressed, Variant=danger": {
-          "file": "button/size-sm__state-pressed__variant-danger.png",
-          "width": 71,
-          "height": 32
-        },
-        "Size=sm, State=Disabled, Variant=danger": {
-          "file": "button/size-sm__state-disabled__variant-danger.png",
-          "width": 71,
-          "height": 32
-        },
-        "Size=md, State=Default, Variant=danger": {
-          "file": "button/size-md__state-default__variant-danger.png",
-          "width": 79,
-          "height": 44
-        },
-        "Size=md, State=Hover, Variant=danger": {
-          "file": "button/size-md__state-hover__variant-danger.png",
-          "width": 79,
-          "height": 44
-        },
-        "Size=md, State=Pressed, Variant=danger": {
-          "file": "button/size-md__state-pressed__variant-danger.png",
-          "width": 79,
-          "height": 44
-        },
-        "Size=md, State=Disabled, Variant=danger": {
-          "file": "button/size-md__state-disabled__variant-danger.png",
-          "width": 79,
-          "height": 44
-        },
-        "Size=lg, State=Default, Variant=danger": {
-          "file": "button/size-lg__state-default__variant-danger.png",
-          "width": 93,
-          "height": 48
-        },
-        "Size=lg, State=Hover, Variant=danger": {
-          "file": "button/size-lg__state-hover__variant-danger.png",
-          "width": 93,
-          "height": 48
-        },
-        "Size=lg, State=Pressed, Variant=danger": {
-          "file": "button/size-lg__state-pressed__variant-danger.png",
-          "width": 93,
-          "height": 48
-        },
-        "Size=lg, State=Disabled, Variant=danger": {
-          "file": "button/size-lg__state-disabled__variant-danger.png",
-          "width": 93,
-          "height": 48
-        },
-        "Size=sm, State=Default, Variant=link": {
-          "file": "button/size-sm__state-default__variant-link.png",
-          "width": 44,
-          "height": 25
-        },
-        "Size=sm, State=Hover, Variant=link": {
-          "file": "button/size-sm__state-hover__variant-link.png",
-          "width": 44,
-          "height": 25
-        },
-        "Size=sm, State=Pressed, Variant=link": {
-          "file": "button/size-sm__state-pressed__variant-link.png",
-          "width": 44,
-          "height": 25
-        },
-        "Size=sm, State=Disabled, Variant=link": {
-          "file": "button/size-sm__state-disabled__variant-link.png",
-          "width": 44,
-          "height": 25
-        },
-        "Size=md, State=Default, Variant=link": {
-          "file": "button/size-md__state-default__variant-link.png",
-          "width": 44,
-          "height": 25
-        },
-        "Size=md, State=Hover, Variant=link": {
-          "file": "button/size-md__state-hover__variant-link.png",
-          "width": 44,
-          "height": 25
-        },
-        "Size=md, State=Pressed, Variant=link": {
-          "file": "button/size-md__state-pressed__variant-link.png",
-          "width": 44,
-          "height": 25
-        },
-        "Size=md, State=Disabled, Variant=link": {
-          "file": "button/size-md__state-disabled__variant-link.png",
-          "width": 44,
-          "height": 25
-        },
-        "Size=lg, State=Default, Variant=link": {
-          "file": "button/size-lg__state-default__variant-link.png",
-          "width": 44,
-          "height": 25
-        },
-        "Size=lg, State=Hover, Variant=link": {
-          "file": "button/size-lg__state-hover__variant-link.png",
-          "width": 44,
-          "height": 25
-        },
-        "Size=lg, State=Pressed, Variant=link": {
-          "file": "button/size-lg__state-pressed__variant-link.png",
-          "width": 44,
-          "height": 25
-        },
-        "Size=lg, State=Disabled, Variant=link": {
-          "file": "button/size-lg__state-disabled__variant-link.png",
-          "width": 44,
-          "height": 25
-        },
-        "Size=sm, State=Default, Variant=inverse": {
-          "file": "button/size-sm__state-default__variant-inverse.png",
-          "width": 71,
-          "height": 32
-        },
-        "Size=sm, State=Hover, Variant=inverse": {
-          "file": "button/size-sm__state-hover__variant-inverse.png",
-          "width": 71,
-          "height": 32
-        },
-        "Size=sm, State=Pressed, Variant=inverse": {
-          "file": "button/size-sm__state-pressed__variant-inverse.png",
-          "width": 71,
-          "height": 32
-        },
-        "Size=sm, State=Disabled, Variant=inverse": {
-          "file": "button/size-sm__state-disabled__variant-inverse.png",
-          "width": 71,
-          "height": 32
-        },
-        "Size=md, State=Default, Variant=inverse": {
-          "file": "button/size-md__state-default__variant-inverse.png",
-          "width": 79,
-          "height": 44
-        },
-        "Size=md, State=Hover, Variant=inverse": {
-          "file": "button/size-md__state-hover__variant-inverse.png",
-          "width": 79,
-          "height": 44
-        },
-        "Size=md, State=Pressed, Variant=inverse": {
-          "file": "button/size-md__state-pressed__variant-inverse.png",
-          "width": 79,
-          "height": 44
-        },
-        "Size=md, State=Disabled, Variant=inverse": {
-          "file": "button/size-md__state-disabled__variant-inverse.png",
-          "width": 79,
-          "height": 44
-        },
-        "Size=lg, State=Default, Variant=inverse": {
-          "file": "button/size-lg__state-default__variant-inverse.png",
-          "width": 93,
-          "height": 48
-        },
-        "Size=lg, State=Hover, Variant=inverse": {
-          "file": "button/size-lg__state-hover__variant-inverse.png",
-          "width": 93,
-          "height": 48
-        },
-        "Size=lg, State=Pressed, Variant=inverse": {
-          "file": "button/size-lg__state-pressed__variant-inverse.png",
-          "width": 93,
-          "height": 48
-        },
-        "Size=lg, State=Disabled, Variant=inverse": {
-          "file": "button/size-lg__state-disabled__variant-inverse.png",
-          "width": 93,
-          "height": 48
+        "Appearance=contained, State=Default": {
+          "file": "accordion/appearance-contained__state-default.png",
+          "width": 320,
+          "height": 161
+        },
+        "Appearance=contained, State=Hover": {
+          "file": "accordion/appearance-contained__state-hover.png",
+          "width": 320,
+          "height": 161
+        },
+        "Appearance=contained, State=Disabled": {
+          "file": "accordion/appearance-contained__state-disabled.png",
+          "width": 320,
+          "height": 161
+        },
+        "Appearance=flush, State=Default": {
+          "file": "accordion/appearance-flush__state-default.png",
+          "width": 320,
+          "height": 159
+        },
+        "Appearance=flush, State=Hover": {
+          "file": "accordion/appearance-flush__state-hover.png",
+          "width": 320,
+          "height": 159
+        },
+        "Appearance=flush, State=Disabled": {
+          "file": "accordion/appearance-flush__state-disabled.png",
+          "width": 320,
+          "height": 159
         }
       }
     },
-    "IconButton": {
-      "specHash": "79e2a2db",
+    "AccordionItem": {
+      "specHash": "c9dc85d5",
       "variants": {
-        "Size=sm, State=Default, Variant=primary": {
-          "file": "iconbutton/size-sm__state-default__variant-primary.png",
-          "width": 32,
-          "height": 32
+        "State=Default": {
+          "skipped": "the code example did not render"
         },
-        "Size=sm, State=Hover, Variant=primary": {
-          "file": "iconbutton/size-sm__state-hover__variant-primary.png",
-          "width": 32,
-          "height": 32
+        "State=Disabled": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "Alert": {
+      "specHash": "76dd23ef",
+      "variants": {
+        "Tone=neutral": {
+          "skipped": "the code example did not render"
         },
-        "Size=sm, State=Pressed, Variant=primary": {
-          "file": "iconbutton/size-sm__state-pressed__variant-primary.png",
-          "width": 32,
-          "height": 32
+        "Tone=info": {
+          "skipped": "the code example did not render"
         },
-        "Size=sm, State=Disabled, Variant=primary": {
-          "file": "iconbutton/size-sm__state-disabled__variant-primary.png",
-          "width": 32,
-          "height": 32
+        "Tone=success": {
+          "skipped": "the code example did not render"
         },
-        "Size=md, State=Default, Variant=primary": {
-          "file": "iconbutton/size-md__state-default__variant-primary.png",
-          "width": 44,
-          "height": 44
+        "Tone=warning": {
+          "skipped": "the code example did not render"
         },
-        "Size=md, State=Hover, Variant=primary": {
-          "file": "iconbutton/size-md__state-hover__variant-primary.png",
-          "width": 44,
-          "height": 44
+        "Tone=danger": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "AlertDialog/Popup": {
+      "specHash": "40229f95",
+      "variants": {
+        "Tone=danger": {
+          "skipped": "drawn open in Figma; the code image shows it closed"
         },
-        "Size=md, State=Pressed, Variant=primary": {
-          "file": "iconbutton/size-md__state-pressed__variant-primary.png",
-          "width": 44,
-          "height": 44
+        "Tone=primary": {
+          "skipped": "drawn open in Figma; the code image shows it closed"
+        }
+      }
+    },
+    "Avatar": {
+      "specHash": "6effa957",
+      "variants": {
+        "Size=xs": {
+          "skipped": "the code example did not render"
         },
-        "Size=md, State=Disabled, Variant=primary": {
-          "file": "iconbutton/size-md__state-disabled__variant-primary.png",
-          "width": 44,
-          "height": 44
+        "Size=sm": {
+          "skipped": "the code example did not render"
         },
-        "Size=lg, State=Default, Variant=primary": {
-          "file": "iconbutton/size-lg__state-default__variant-primary.png",
-          "width": 48,
-          "height": 48
+        "Size=md": {
+          "skipped": "the code example did not render"
         },
-        "Size=lg, State=Hover, Variant=primary": {
-          "file": "iconbutton/size-lg__state-hover__variant-primary.png",
-          "width": 48,
-          "height": 48
-        },
-        "Size=lg, State=Pressed, Variant=primary": {
-          "file": "iconbutton/size-lg__state-pressed__variant-primary.png",
-          "width": 48,
-          "height": 48
-        },
-        "Size=lg, State=Disabled, Variant=primary": {
-          "file": "iconbutton/size-lg__state-disabled__variant-primary.png",
-          "width": 48,
-          "height": 48
-        },
-        "Size=sm, State=Default, Variant=secondary": {
-          "file": "iconbutton/size-sm__state-default__variant-secondary.png",
-          "width": 32,
-          "height": 32
-        },
-        "Size=sm, State=Hover, Variant=secondary": {
-          "file": "iconbutton/size-sm__state-hover__variant-secondary.png",
-          "width": 32,
-          "height": 32
-        },
-        "Size=sm, State=Pressed, Variant=secondary": {
-          "file": "iconbutton/size-sm__state-pressed__variant-secondary.png",
-          "width": 32,
-          "height": 32
-        },
-        "Size=sm, State=Disabled, Variant=secondary": {
-          "file": "iconbutton/size-sm__state-disabled__variant-secondary.png",
-          "width": 32,
-          "height": 32
-        },
-        "Size=md, State=Default, Variant=secondary": {
-          "file": "iconbutton/size-md__state-default__variant-secondary.png",
-          "width": 44,
-          "height": 44
-        },
-        "Size=md, State=Hover, Variant=secondary": {
-          "file": "iconbutton/size-md__state-hover__variant-secondary.png",
-          "width": 44,
-          "height": 44
-        },
-        "Size=md, State=Pressed, Variant=secondary": {
-          "file": "iconbutton/size-md__state-pressed__variant-secondary.png",
-          "width": 44,
-          "height": 44
-        },
-        "Size=md, State=Disabled, Variant=secondary": {
-          "file": "iconbutton/size-md__state-disabled__variant-secondary.png",
-          "width": 44,
-          "height": 44
-        },
-        "Size=lg, State=Default, Variant=secondary": {
-          "file": "iconbutton/size-lg__state-default__variant-secondary.png",
-          "width": 48,
-          "height": 48
-        },
-        "Size=lg, State=Hover, Variant=secondary": {
-          "file": "iconbutton/size-lg__state-hover__variant-secondary.png",
-          "width": 48,
-          "height": 48
-        },
-        "Size=lg, State=Pressed, Variant=secondary": {
-          "file": "iconbutton/size-lg__state-pressed__variant-secondary.png",
-          "width": 48,
-          "height": 48
-        },
-        "Size=lg, State=Disabled, Variant=secondary": {
-          "file": "iconbutton/size-lg__state-disabled__variant-secondary.png",
-          "width": 48,
-          "height": 48
-        },
-        "Size=sm, State=Default, Variant=ghost": {
-          "file": "iconbutton/size-sm__state-default__variant-ghost.png",
-          "width": 32,
-          "height": 32
-        },
-        "Size=sm, State=Hover, Variant=ghost": {
-          "file": "iconbutton/size-sm__state-hover__variant-ghost.png",
-          "width": 32,
-          "height": 32
-        },
-        "Size=sm, State=Pressed, Variant=ghost": {
-          "file": "iconbutton/size-sm__state-pressed__variant-ghost.png",
-          "width": 32,
-          "height": 32
-        },
-        "Size=sm, State=Disabled, Variant=ghost": {
-          "file": "iconbutton/size-sm__state-disabled__variant-ghost.png",
-          "width": 32,
-          "height": 32
-        },
-        "Size=md, State=Default, Variant=ghost": {
-          "file": "iconbutton/size-md__state-default__variant-ghost.png",
-          "width": 44,
-          "height": 44
-        },
-        "Size=md, State=Hover, Variant=ghost": {
-          "file": "iconbutton/size-md__state-hover__variant-ghost.png",
-          "width": 44,
-          "height": 44
-        },
-        "Size=md, State=Pressed, Variant=ghost": {
-          "file": "iconbutton/size-md__state-pressed__variant-ghost.png",
-          "width": 44,
-          "height": 44
-        },
-        "Size=md, State=Disabled, Variant=ghost": {
-          "file": "iconbutton/size-md__state-disabled__variant-ghost.png",
-          "width": 44,
-          "height": 44
-        },
-        "Size=lg, State=Default, Variant=ghost": {
-          "file": "iconbutton/size-lg__state-default__variant-ghost.png",
-          "width": 48,
-          "height": 48
-        },
-        "Size=lg, State=Hover, Variant=ghost": {
-          "file": "iconbutton/size-lg__state-hover__variant-ghost.png",
-          "width": 48,
-          "height": 48
-        },
-        "Size=lg, State=Pressed, Variant=ghost": {
-          "file": "iconbutton/size-lg__state-pressed__variant-ghost.png",
-          "width": 48,
-          "height": 48
-        },
-        "Size=lg, State=Disabled, Variant=ghost": {
-          "file": "iconbutton/size-lg__state-disabled__variant-ghost.png",
-          "width": 48,
-          "height": 48
-        },
-        "Size=sm, State=Default, Variant=danger": {
-          "file": "iconbutton/size-sm__state-default__variant-danger.png",
-          "width": 32,
-          "height": 32
-        },
-        "Size=sm, State=Hover, Variant=danger": {
-          "file": "iconbutton/size-sm__state-hover__variant-danger.png",
-          "width": 32,
-          "height": 32
-        },
-        "Size=sm, State=Pressed, Variant=danger": {
-          "file": "iconbutton/size-sm__state-pressed__variant-danger.png",
-          "width": 32,
-          "height": 32
-        },
-        "Size=sm, State=Disabled, Variant=danger": {
-          "file": "iconbutton/size-sm__state-disabled__variant-danger.png",
-          "width": 32,
-          "height": 32
-        },
-        "Size=md, State=Default, Variant=danger": {
-          "file": "iconbutton/size-md__state-default__variant-danger.png",
-          "width": 44,
-          "height": 44
-        },
-        "Size=md, State=Hover, Variant=danger": {
-          "file": "iconbutton/size-md__state-hover__variant-danger.png",
-          "width": 44,
-          "height": 44
-        },
-        "Size=md, State=Pressed, Variant=danger": {
-          "file": "iconbutton/size-md__state-pressed__variant-danger.png",
-          "width": 44,
-          "height": 44
-        },
-        "Size=md, State=Disabled, Variant=danger": {
-          "file": "iconbutton/size-md__state-disabled__variant-danger.png",
-          "width": 44,
-          "height": 44
-        },
-        "Size=lg, State=Default, Variant=danger": {
-          "file": "iconbutton/size-lg__state-default__variant-danger.png",
-          "width": 48,
-          "height": 48
-        },
-        "Size=lg, State=Hover, Variant=danger": {
-          "file": "iconbutton/size-lg__state-hover__variant-danger.png",
-          "width": 48,
-          "height": 48
-        },
-        "Size=lg, State=Pressed, Variant=danger": {
-          "file": "iconbutton/size-lg__state-pressed__variant-danger.png",
-          "width": 48,
-          "height": 48
-        },
-        "Size=lg, State=Disabled, Variant=danger": {
-          "file": "iconbutton/size-lg__state-disabled__variant-danger.png",
-          "width": 48,
-          "height": 48
-        },
-        "Size=sm, State=Default, Variant=inverse": {
-          "file": "iconbutton/size-sm__state-default__variant-inverse.png",
-          "width": 32,
-          "height": 32
-        },
-        "Size=sm, State=Hover, Variant=inverse": {
-          "file": "iconbutton/size-sm__state-hover__variant-inverse.png",
-          "width": 32,
-          "height": 32
-        },
-        "Size=sm, State=Pressed, Variant=inverse": {
-          "file": "iconbutton/size-sm__state-pressed__variant-inverse.png",
-          "width": 32,
-          "height": 32
-        },
-        "Size=sm, State=Disabled, Variant=inverse": {
-          "file": "iconbutton/size-sm__state-disabled__variant-inverse.png",
-          "width": 32,
-          "height": 32
-        },
-        "Size=md, State=Default, Variant=inverse": {
-          "file": "iconbutton/size-md__state-default__variant-inverse.png",
-          "width": 44,
-          "height": 44
-        },
-        "Size=md, State=Hover, Variant=inverse": {
-          "file": "iconbutton/size-md__state-hover__variant-inverse.png",
-          "width": 44,
-          "height": 44
-        },
-        "Size=md, State=Pressed, Variant=inverse": {
-          "file": "iconbutton/size-md__state-pressed__variant-inverse.png",
-          "width": 44,
-          "height": 44
-        },
-        "Size=md, State=Disabled, Variant=inverse": {
-          "file": "iconbutton/size-md__state-disabled__variant-inverse.png",
-          "width": 44,
-          "height": 44
-        },
-        "Size=lg, State=Default, Variant=inverse": {
-          "file": "iconbutton/size-lg__state-default__variant-inverse.png",
-          "width": 48,
-          "height": 48
-        },
-        "Size=lg, State=Hover, Variant=inverse": {
-          "file": "iconbutton/size-lg__state-hover__variant-inverse.png",
-          "width": 48,
-          "height": 48
-        },
-        "Size=lg, State=Pressed, Variant=inverse": {
-          "file": "iconbutton/size-lg__state-pressed__variant-inverse.png",
-          "width": 48,
-          "height": 48
-        },
-        "Size=lg, State=Disabled, Variant=inverse": {
-          "file": "iconbutton/size-lg__state-disabled__variant-inverse.png",
-          "width": 48,
-          "height": 48
+        "Size=lg": {
+          "skipped": "the code example did not render"
         }
       }
     },
@@ -685,104 +109,1468 @@
       "specHash": "ba2734bf",
       "variants": {
         "Appearance=subtle, Size=sm, Tone=neutral": {
-          "file": "badge/appearance-subtle__size-sm__tone-neutral.png",
-          "width": 50,
-          "height": 20
+          "skipped": "the code example did not render"
         },
         "Appearance=subtle, Size=md, Tone=neutral": {
-          "file": "badge/appearance-subtle__size-md__tone-neutral.png",
-          "width": 64,
-          "height": 26
+          "skipped": "the code example did not render"
         },
         "Appearance=solid, Size=sm, Tone=neutral": {
-          "file": "badge/appearance-solid__size-sm__tone-neutral.png",
-          "width": 50,
-          "height": 20
+          "skipped": "the code example did not render"
         },
         "Appearance=solid, Size=md, Tone=neutral": {
-          "file": "badge/appearance-solid__size-md__tone-neutral.png",
-          "width": 64,
-          "height": 26
+          "skipped": "the code example did not render"
         },
         "Appearance=subtle, Size=sm, Tone=success": {
-          "file": "badge/appearance-subtle__size-sm__tone-success.png",
-          "width": 50,
-          "height": 20
+          "skipped": "the code example did not render"
         },
         "Appearance=subtle, Size=md, Tone=success": {
-          "file": "badge/appearance-subtle__size-md__tone-success.png",
-          "width": 64,
-          "height": 26
+          "skipped": "the code example did not render"
         },
         "Appearance=solid, Size=sm, Tone=success": {
-          "file": "badge/appearance-solid__size-sm__tone-success.png",
-          "width": 50,
-          "height": 20
+          "skipped": "the code example did not render"
         },
         "Appearance=solid, Size=md, Tone=success": {
-          "file": "badge/appearance-solid__size-md__tone-success.png",
-          "width": 64,
-          "height": 26
+          "skipped": "the code example did not render"
         },
         "Appearance=subtle, Size=sm, Tone=warning": {
-          "file": "badge/appearance-subtle__size-sm__tone-warning.png",
-          "width": 50,
-          "height": 20
+          "skipped": "the code example did not render"
         },
         "Appearance=subtle, Size=md, Tone=warning": {
-          "file": "badge/appearance-subtle__size-md__tone-warning.png",
-          "width": 64,
-          "height": 26
+          "skipped": "the code example did not render"
         },
         "Appearance=solid, Size=sm, Tone=warning": {
-          "file": "badge/appearance-solid__size-sm__tone-warning.png",
-          "width": 50,
-          "height": 20
+          "skipped": "the code example did not render"
         },
         "Appearance=solid, Size=md, Tone=warning": {
-          "file": "badge/appearance-solid__size-md__tone-warning.png",
-          "width": 64,
-          "height": 26
+          "skipped": "the code example did not render"
         },
         "Appearance=subtle, Size=sm, Tone=danger": {
-          "file": "badge/appearance-subtle__size-sm__tone-danger.png",
-          "width": 50,
-          "height": 20
+          "skipped": "the code example did not render"
         },
         "Appearance=subtle, Size=md, Tone=danger": {
-          "file": "badge/appearance-subtle__size-md__tone-danger.png",
-          "width": 64,
-          "height": 26
+          "skipped": "the code example did not render"
         },
         "Appearance=solid, Size=sm, Tone=danger": {
-          "file": "badge/appearance-solid__size-sm__tone-danger.png",
-          "width": 50,
-          "height": 20
+          "skipped": "the code example did not render"
         },
         "Appearance=solid, Size=md, Tone=danger": {
-          "file": "badge/appearance-solid__size-md__tone-danger.png",
-          "width": 64,
-          "height": 26
+          "skipped": "the code example did not render"
         },
         "Appearance=subtle, Size=sm, Tone=info": {
-          "file": "badge/appearance-subtle__size-sm__tone-info.png",
-          "width": 50,
-          "height": 20
+          "skipped": "the code example did not render"
         },
         "Appearance=subtle, Size=md, Tone=info": {
-          "file": "badge/appearance-subtle__size-md__tone-info.png",
-          "width": 64,
-          "height": 26
+          "skipped": "the code example did not render"
         },
         "Appearance=solid, Size=sm, Tone=info": {
-          "file": "badge/appearance-solid__size-sm__tone-info.png",
-          "width": 50,
-          "height": 20
+          "skipped": "the code example did not render"
         },
         "Appearance=solid, Size=md, Tone=info": {
-          "file": "badge/appearance-solid__size-md__tone-info.png",
-          "width": 64,
-          "height": 26
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "Banner": {
+      "specHash": "684032b6",
+      "variants": {
+        "Appearance=strong": {
+          "skipped": "the code example did not render"
+        },
+        "Appearance=neutral": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "Breadcrumb": {
+      "specHash": "13e53e0c",
+      "variants": {
+        "State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "State=Hover": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "Button": {
+      "specHash": "8878a44e",
+      "variants": {
+        "Size=sm, State=Default, Variant=primary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Hover, Variant=primary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Pressed, Variant=primary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Disabled, Variant=primary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Default, Variant=primary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Hover, Variant=primary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Pressed, Variant=primary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Disabled, Variant=primary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Default, Variant=primary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Hover, Variant=primary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Pressed, Variant=primary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Disabled, Variant=primary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Default, Variant=secondary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Hover, Variant=secondary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Pressed, Variant=secondary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Disabled, Variant=secondary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Default, Variant=secondary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Hover, Variant=secondary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Pressed, Variant=secondary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Disabled, Variant=secondary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Default, Variant=secondary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Hover, Variant=secondary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Pressed, Variant=secondary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Disabled, Variant=secondary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Default, Variant=ghost": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Hover, Variant=ghost": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Pressed, Variant=ghost": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Disabled, Variant=ghost": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Default, Variant=ghost": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Hover, Variant=ghost": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Pressed, Variant=ghost": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Disabled, Variant=ghost": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Default, Variant=ghost": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Hover, Variant=ghost": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Pressed, Variant=ghost": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Disabled, Variant=ghost": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Default, Variant=danger": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Hover, Variant=danger": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Pressed, Variant=danger": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Disabled, Variant=danger": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Default, Variant=danger": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Hover, Variant=danger": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Pressed, Variant=danger": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Disabled, Variant=danger": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Default, Variant=danger": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Hover, Variant=danger": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Pressed, Variant=danger": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Disabled, Variant=danger": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Default, Variant=link": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Hover, Variant=link": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Pressed, Variant=link": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Disabled, Variant=link": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Default, Variant=link": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Hover, Variant=link": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Pressed, Variant=link": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Disabled, Variant=link": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Default, Variant=link": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Hover, Variant=link": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Pressed, Variant=link": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Disabled, Variant=link": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Default, Variant=inverse": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Hover, Variant=inverse": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Pressed, Variant=inverse": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Disabled, Variant=inverse": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Default, Variant=inverse": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Hover, Variant=inverse": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Pressed, Variant=inverse": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Disabled, Variant=inverse": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Default, Variant=inverse": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Hover, Variant=inverse": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Pressed, Variant=inverse": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Disabled, Variant=inverse": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "Card": {
+      "specHash": "bbaaef62",
+      "variants": {
+        "Padding=none": {
+          "skipped": "Figma shows a placeholder (Slot/Media) that code has no example of"
+        },
+        "Padding=compact": {
+          "skipped": "the code example did not render"
+        },
+        "Padding=default": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "Checkbox": {
+      "specHash": "4bdd838d",
+      "variants": {
+        "Checked=false, State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=false, State=Hover": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=false, State=Disabled": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=true, State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=true, State=Hover": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=true, State=Disabled": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=mixed, State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=mixed, State=Hover": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=mixed, State=Disabled": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "CheckboxGroup": {
+      "specHash": "c6d108c3",
+      "variants": {
+        "Orientation=vertical, State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "Orientation=vertical, State=Hover": {
+          "skipped": "the code example did not render"
+        },
+        "Orientation=vertical, State=Disabled": {
+          "skipped": "the code example did not render"
+        },
+        "Orientation=horizontal, State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "Orientation=horizontal, State=Hover": {
+          "skipped": "the code example did not render"
+        },
+        "Orientation=horizontal, State=Disabled": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "Checklist": {
+      "specHash": "7fcd6c73",
+      "variants": {
+        "Default": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "ChoiceCard": {
+      "specHash": "52244e1d",
+      "variants": {
+        "Checked=false, State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=false, State=Hover": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=false, State=Disabled": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=true, State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=true, State=Hover": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=true, State=Disabled": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "CodeBlock": {
+      "specHash": "e8663508",
+      "variants": {
+        "State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "State=Hover": {
+          "skipped": "the code example did not render"
+        },
+        "State=Pressed": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "Combobox": {
+      "specHash": "6b5905c8",
+      "variants": {
+        "Size=sm, State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Hover": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Disabled": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Hover": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Disabled": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Hover": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Disabled": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "Combobox/Popup": {
+      "specHash": "c85e8dc6",
+      "variants": {
+        "Default": {
+          "skipped": "drawn open in Figma; the code image shows it closed"
+        }
+      }
+    },
+    "Dialog/Popup": {
+      "specHash": "4740d11e",
+      "variants": {
+        "Size=sm": {
+          "skipped": "drawn open in Figma; the code image shows it closed"
+        },
+        "Size=md": {
+          "skipped": "drawn open in Figma; the code image shows it closed"
+        },
+        "Size=lg": {
+          "skipped": "drawn open in Figma; the code image shows it closed"
+        }
+      }
+    },
+    "Divider": {
+      "specHash": "b8b082fd",
+      "variants": {
+        "Orientation=horizontal": {
+          "skipped": "the code example did not render"
+        },
+        "Orientation=vertical": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "Drawer/Popup": {
+      "specHash": "14982956",
+      "variants": {
+        "Size=sm": {
+          "skipped": "drawn open in Figma; the code image shows it closed"
+        },
+        "Size=md": {
+          "skipped": "drawn open in Figma; the code image shows it closed"
+        },
+        "Size=lg": {
+          "skipped": "drawn open in Figma; the code image shows it closed"
+        }
+      }
+    },
+    "EmptyState": {
+      "specHash": "da31e4d9",
+      "variants": {
+        "Align=center, Size=sm": {
+          "skipped": "the code example did not render"
+        },
+        "Align=start, Size=sm": {
+          "skipped": "the code example did not render"
+        },
+        "Align=center, Size=md": {
+          "skipped": "the code example did not render"
+        },
+        "Align=start, Size=md": {
+          "skipped": "the code example did not render"
+        },
+        "Align=center, Size=lg": {
+          "skipped": "the code example did not render"
+        },
+        "Align=start, Size=lg": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "Field": {
+      "specHash": "30c4078f",
+      "variants": {
+        "State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "State=Hover": {
+          "skipped": "the code example did not render"
+        },
+        "State=Disabled": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "Form": {
+      "specHash": "8a8e7404",
+      "variants": {
+        "State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "State=Hover": {
+          "skipped": "the code example did not render"
+        },
+        "State=Pressed": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "IconButton": {
+      "specHash": "79e2a2db",
+      "variants": {
+        "Size=sm, State=Default, Variant=primary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Hover, Variant=primary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Pressed, Variant=primary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Disabled, Variant=primary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Default, Variant=primary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Hover, Variant=primary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Pressed, Variant=primary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Disabled, Variant=primary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Default, Variant=primary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Hover, Variant=primary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Pressed, Variant=primary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Disabled, Variant=primary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Default, Variant=secondary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Hover, Variant=secondary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Pressed, Variant=secondary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Disabled, Variant=secondary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Default, Variant=secondary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Hover, Variant=secondary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Pressed, Variant=secondary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Disabled, Variant=secondary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Default, Variant=secondary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Hover, Variant=secondary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Pressed, Variant=secondary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Disabled, Variant=secondary": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Default, Variant=ghost": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Hover, Variant=ghost": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Pressed, Variant=ghost": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Disabled, Variant=ghost": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Default, Variant=ghost": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Hover, Variant=ghost": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Pressed, Variant=ghost": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Disabled, Variant=ghost": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Default, Variant=ghost": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Hover, Variant=ghost": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Pressed, Variant=ghost": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Disabled, Variant=ghost": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Default, Variant=danger": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Hover, Variant=danger": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Pressed, Variant=danger": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Disabled, Variant=danger": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Default, Variant=danger": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Hover, Variant=danger": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Pressed, Variant=danger": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Disabled, Variant=danger": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Default, Variant=danger": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Hover, Variant=danger": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Pressed, Variant=danger": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Disabled, Variant=danger": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Default, Variant=inverse": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Hover, Variant=inverse": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Pressed, Variant=inverse": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Disabled, Variant=inverse": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Default, Variant=inverse": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Hover, Variant=inverse": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Pressed, Variant=inverse": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Disabled, Variant=inverse": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Default, Variant=inverse": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Hover, Variant=inverse": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Pressed, Variant=inverse": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Disabled, Variant=inverse": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "Input": {
+      "specHash": "1d78b9c0",
+      "variants": {
+        "Size=sm, State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Hover": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Disabled": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Hover": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Disabled": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Hover": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Disabled": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "Kbd": {
+      "specHash": "93cfb064",
+      "variants": {
+        "Size=sm": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "Link": {
+      "specHash": "6b6906ad",
+      "variants": {
+        "State=Default, Variant=inline": {
+          "skipped": "the code example did not render"
+        },
+        "State=Hover, Variant=inline": {
+          "skipped": "the code example did not render"
+        },
+        "State=Default, Variant=standalone": {
+          "skipped": "the code example did not render"
+        },
+        "State=Hover, Variant=standalone": {
+          "skipped": "the code example did not render"
+        },
+        "State=Default, Variant=subtle": {
+          "skipped": "the code example did not render"
+        },
+        "State=Hover, Variant=subtle": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "Menu/Popup": {
+      "specHash": "7df508df",
+      "variants": {
+        "Default": {
+          "skipped": "drawn open in Figma; the code image shows it closed"
+        }
+      }
+    },
+    "MenuItem": {
+      "specHash": "6b014434",
+      "variants": {
+        "State=Default, Tone=default": {
+          "skipped": "the code example did not render"
+        },
+        "State=Disabled, Tone=default": {
+          "skipped": "the code example did not render"
+        },
+        "State=Default, Tone=danger": {
+          "skipped": "the code example did not render"
+        },
+        "State=Disabled, Tone=danger": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "MenuCheckboxItem": {
+      "specHash": "7c0ee1e2",
+      "variants": {
+        "Checked=false, State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=false, State=Disabled": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=true, State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=true, State=Disabled": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "MenuRadioGroup": {
+      "specHash": "7cad14d0",
+      "variants": {
+        "State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "State=Disabled": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "MenuRadioItem": {
+      "specHash": "5ef45b7b",
+      "variants": {
+        "Checked=false, State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=false, State=Disabled": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=true, State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=true, State=Disabled": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "MenuGroup": {
+      "specHash": "ee26164d",
+      "variants": {
+        "Default": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "MenuSeparator": {
+      "specHash": "e733115b",
+      "variants": {
+        "Default": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "MenuSubmenu": {
+      "specHash": "c3f91a7a",
+      "variants": {
+        "State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "State=Disabled": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "NumberField": {
+      "specHash": "0fbc3a2c",
+      "variants": {
+        "Size=sm, State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Hover": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Pressed": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Disabled": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Hover": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Pressed": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Disabled": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Hover": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Pressed": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Disabled": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "PageHeader": {
+      "specHash": "75a8084f",
+      "variants": {
+        "Default": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "Pagination/Full": {
+      "specHash": "2a7c1a6a",
+      "variants": {
+        "Size=sm, State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Hover": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Pressed": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Hover": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Pressed": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "Pagination/Compact": {
+      "specHash": "1a45a0da",
+      "variants": {
+        "Size=sm, State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Hover": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Pressed": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Hover": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Pressed": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "Popover/Popup": {
+      "specHash": "1c8b0936",
+      "variants": {
+        "Default": {
+          "skipped": "drawn open in Figma; the code image shows it closed"
+        }
+      }
+    },
+    "Progress/Linear": {
+      "specHash": "b955465b",
+      "variants": {
+        "Size=sm, Tone=signal": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, Tone=success": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, Tone=warning": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, Tone=danger": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, Tone=signal": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, Tone=success": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, Tone=warning": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, Tone=danger": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, Tone=signal": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, Tone=success": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, Tone=warning": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, Tone=danger": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "Progress/Circular": {
+      "specHash": "b547ec10",
+      "variants": {
+        "Size=sm, Tone=signal": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, Tone=success": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, Tone=warning": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, Tone=danger": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, Tone=signal": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, Tone=success": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, Tone=warning": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, Tone=danger": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, Tone=signal": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, Tone=success": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, Tone=warning": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, Tone=danger": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "RadioGroup": {
+      "specHash": "fe7069f6",
+      "variants": {
+        "Orientation=vertical, State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "Orientation=vertical, State=Hover": {
+          "skipped": "the code example did not render"
+        },
+        "Orientation=vertical, State=Disabled": {
+          "skipped": "the code example did not render"
+        },
+        "Orientation=horizontal, State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "Orientation=horizontal, State=Hover": {
+          "skipped": "the code example did not render"
+        },
+        "Orientation=horizontal, State=Disabled": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "Radio": {
+      "specHash": "928652e2",
+      "variants": {
+        "Checked=false, State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=false, State=Hover": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=false, State=Disabled": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=true, State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=true, State=Hover": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=true, State=Disabled": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "SegmentedControl": {
+      "specHash": "ea39378a",
+      "variants": {
+        "Appearance=default, Size=sm, State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "Appearance=default, Size=sm, State=Hover": {
+          "skipped": "the code example did not render"
+        },
+        "Appearance=default, Size=sm, State=Pressed": {
+          "skipped": "the code example did not render"
+        },
+        "Appearance=default, Size=sm, State=Disabled": {
+          "skipped": "the code example did not render"
+        },
+        "Appearance=strong, Size=sm, State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "Appearance=strong, Size=sm, State=Hover": {
+          "skipped": "the code example did not render"
+        },
+        "Appearance=strong, Size=sm, State=Pressed": {
+          "skipped": "the code example did not render"
+        },
+        "Appearance=strong, Size=sm, State=Disabled": {
+          "skipped": "the code example did not render"
+        },
+        "Appearance=default, Size=md, State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "Appearance=default, Size=md, State=Hover": {
+          "skipped": "the code example did not render"
+        },
+        "Appearance=default, Size=md, State=Pressed": {
+          "skipped": "the code example did not render"
+        },
+        "Appearance=default, Size=md, State=Disabled": {
+          "skipped": "the code example did not render"
+        },
+        "Appearance=strong, Size=md, State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "Appearance=strong, Size=md, State=Hover": {
+          "skipped": "the code example did not render"
+        },
+        "Appearance=strong, Size=md, State=Pressed": {
+          "skipped": "the code example did not render"
+        },
+        "Appearance=strong, Size=md, State=Disabled": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "Select": {
+      "specHash": "54cbf09d",
+      "variants": {
+        "Size=sm, State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Hover": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, State=Disabled": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Hover": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, State=Disabled": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Hover": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, State=Disabled": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "Select/Popup": {
+      "specHash": "4c332412",
+      "variants": {
+        "Default": {
+          "skipped": "drawn open in Figma; the code image shows it closed"
+        }
+      }
+    },
+    "SidebarNav": {
+      "specHash": "8e25ebac",
+      "variants": {
+        "State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "State=Hover": {
+          "skipped": "the code example did not render"
+        },
+        "State=Pressed": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "SidebarNavSection": {
+      "specHash": "bc21865a",
+      "variants": {
+        "State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "State=Hover": {
+          "skipped": "the code example did not render"
+        },
+        "State=Pressed": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "SidebarNavItem": {
+      "specHash": "56aafdfb",
+      "variants": {
+        "State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "State=Hover": {
+          "skipped": "the code example did not render"
+        },
+        "State=Pressed": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "Skeleton": {
+      "specHash": "57cc1f88",
+      "variants": {
+        "Variant=text": {
+          "skipped": "the code example did not render"
+        },
+        "Variant=circle": {
+          "skipped": "the code example did not render"
+        },
+        "Variant=rect": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "Slider": {
+      "specHash": "b72e6962",
+      "variants": {
+        "State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "State=Disabled": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "Spinner": {
+      "specHash": "7df67b01",
+      "variants": {
+        "Size=xs, Tone=current": {
+          "skipped": "the code example did not render"
+        },
+        "Size=xs, Tone=signal": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, Tone=current": {
+          "skipped": "the code example did not render"
+        },
+        "Size=sm, Tone=signal": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, Tone=current": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md, Tone=signal": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, Tone=current": {
+          "skipped": "the code example did not render"
+        },
+        "Size=lg, Tone=signal": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "Switch": {
+      "specHash": "963fe797",
+      "variants": {
+        "Checked=false, Label placement=end, Size=sm, State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=false, Label placement=end, Size=sm, State=Hover": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=false, Label placement=end, Size=sm, State=Disabled": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=true, Label placement=end, Size=sm, State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=true, Label placement=end, Size=sm, State=Hover": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=true, Label placement=end, Size=sm, State=Disabled": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=false, Label placement=end, Size=md, State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=false, Label placement=end, Size=md, State=Hover": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=false, Label placement=end, Size=md, State=Disabled": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=true, Label placement=end, Size=md, State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=true, Label placement=end, Size=md, State=Hover": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=true, Label placement=end, Size=md, State=Disabled": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=false, Label placement=start, Size=sm, State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=false, Label placement=start, Size=sm, State=Hover": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=false, Label placement=start, Size=sm, State=Disabled": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=true, Label placement=start, Size=sm, State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=true, Label placement=start, Size=sm, State=Hover": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=true, Label placement=start, Size=sm, State=Disabled": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=false, Label placement=start, Size=md, State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=false, Label placement=start, Size=md, State=Hover": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=false, Label placement=start, Size=md, State=Disabled": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=true, Label placement=start, Size=md, State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=true, Label placement=start, Size=md, State=Hover": {
+          "skipped": "the code example did not render"
+        },
+        "Checked=true, Label placement=start, Size=md, State=Disabled": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "Table": {
+      "specHash": "848f137d",
+      "variants": {
+        "State=Default": {
+          "skipped": "the code example did not render"
+        },
+        "State=Hover": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "TableEmpty": {
+      "specHash": "9ff6565b",
+      "variants": {
+        "Default": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "Tabs": {
+      "specHash": "b04c8836",
+      "variants": {
+        "Orientation=horizontal, Size=sm, State=Default, Variant=underline": {
+          "skipped": "the code example did not render"
+        },
+        "Orientation=horizontal, Size=sm, State=Hover, Variant=underline": {
+          "skipped": "the code example did not render"
+        },
+        "Orientation=vertical, Size=sm, State=Default, Variant=underline": {
+          "skipped": "the code example did not render"
+        },
+        "Orientation=vertical, Size=sm, State=Hover, Variant=underline": {
+          "skipped": "the code example did not render"
+        },
+        "Orientation=horizontal, Size=md, State=Default, Variant=underline": {
+          "skipped": "the code example did not render"
+        },
+        "Orientation=horizontal, Size=md, State=Hover, Variant=underline": {
+          "skipped": "the code example did not render"
+        },
+        "Orientation=vertical, Size=md, State=Default, Variant=underline": {
+          "skipped": "the code example did not render"
+        },
+        "Orientation=vertical, Size=md, State=Hover, Variant=underline": {
+          "skipped": "the code example did not render"
+        },
+        "Orientation=horizontal, Size=sm, State=Default, Variant=contained": {
+          "skipped": "the code example did not render"
+        },
+        "Orientation=horizontal, Size=sm, State=Hover, Variant=contained": {
+          "skipped": "the code example did not render"
+        },
+        "Orientation=vertical, Size=sm, State=Default, Variant=contained": {
+          "skipped": "the code example did not render"
+        },
+        "Orientation=vertical, Size=sm, State=Hover, Variant=contained": {
+          "skipped": "the code example did not render"
+        },
+        "Orientation=horizontal, Size=md, State=Default, Variant=contained": {
+          "skipped": "the code example did not render"
+        },
+        "Orientation=horizontal, Size=md, State=Hover, Variant=contained": {
+          "skipped": "the code example did not render"
+        },
+        "Orientation=vertical, Size=md, State=Default, Variant=contained": {
+          "skipped": "the code example did not render"
+        },
+        "Orientation=vertical, Size=md, State=Hover, Variant=contained": {
+          "skipped": "the code example did not render"
         }
       }
     },
@@ -790,112 +1578,93 @@
       "specHash": "fb00e3b3",
       "variants": {
         "Size=sm, State=Default, Tone=neutral": {
-          "file": "tag/size-sm__state-default__tone-neutral.png",
-          "width": 39,
-          "height": 20
+          "skipped": "the code example did not render"
         },
         "Size=sm, State=Disabled, Tone=neutral": {
-          "file": "tag/size-sm__state-disabled__tone-neutral.png",
-          "width": 39,
-          "height": 20
+          "skipped": "the code example did not render"
         },
         "Size=md, State=Default, Tone=neutral": {
-          "file": "tag/size-md__state-default__tone-neutral.png",
-          "width": 39,
-          "height": 24
+          "skipped": "the code example did not render"
         },
         "Size=md, State=Disabled, Tone=neutral": {
-          "file": "tag/size-md__state-disabled__tone-neutral.png",
-          "width": 39,
-          "height": 24
+          "skipped": "the code example did not render"
         },
         "Size=sm, State=Default, Tone=signal": {
-          "file": "tag/size-sm__state-default__tone-signal.png",
-          "width": 39,
-          "height": 20
+          "skipped": "the code example did not render"
         },
         "Size=sm, State=Disabled, Tone=signal": {
-          "file": "tag/size-sm__state-disabled__tone-signal.png",
-          "width": 39,
-          "height": 20
+          "skipped": "the code example did not render"
         },
         "Size=md, State=Default, Tone=signal": {
-          "file": "tag/size-md__state-default__tone-signal.png",
-          "width": 39,
-          "height": 24
+          "skipped": "the code example did not render"
         },
         "Size=md, State=Disabled, Tone=signal": {
-          "file": "tag/size-md__state-disabled__tone-signal.png",
-          "width": 39,
-          "height": 24
+          "skipped": "the code example did not render"
         }
       }
     },
-    "Input": {
-      "specHash": "258d9d34",
+    "Textarea": {
+      "specHash": "197f158f",
       "variants": {
-        "Size=sm, State=Default": {
-          "file": "input/size-sm__state-default.png",
-          "width": 320,
-          "height": 32
+        "Appearance=field, State=Default": {
+          "skipped": "the code example did not render"
         },
-        "Size=sm, State=Hover": {
-          "file": "input/size-sm__state-hover.png",
-          "width": 320,
-          "height": 32
+        "Appearance=field, State=Hover": {
+          "skipped": "the code example did not render"
         },
-        "Size=sm, State=Disabled": {
-          "file": "input/size-sm__state-disabled.png",
-          "width": 320,
-          "height": 32
+        "Appearance=field, State=Disabled": {
+          "skipped": "the code example did not render"
         },
-        "Size=md, State=Default": {
-          "file": "input/size-md__state-default.png",
-          "width": 320,
-          "height": 44
+        "Appearance=inline, State=Default": {
+          "skipped": "the code example did not render"
         },
-        "Size=md, State=Hover": {
-          "file": "input/size-md__state-hover.png",
-          "width": 320,
-          "height": 44
+        "Appearance=inline, State=Hover": {
+          "skipped": "the code example did not render"
         },
-        "Size=md, State=Disabled": {
-          "file": "input/size-md__state-disabled.png",
-          "width": 320,
-          "height": 44
-        },
-        "Size=lg, State=Default": {
-          "file": "input/size-lg__state-default.png",
-          "width": 320,
-          "height": 48
-        },
-        "Size=lg, State=Hover": {
-          "file": "input/size-lg__state-hover.png",
-          "width": 320,
-          "height": 48
-        },
-        "Size=lg, State=Disabled": {
-          "file": "input/size-lg__state-disabled.png",
-          "width": 320,
-          "height": 48
+        "Appearance=inline, State=Disabled": {
+          "skipped": "the code example did not render"
         }
       }
     },
-    "Card": {
-      "specHash": "ea25bf4d",
+    "Toast": {
+      "specHash": "224542db",
       "variants": {
-        "Padding=none": {
-          "skipped": "Figma shows a placeholder (Slot/Media) that code has no example of"
+        "Tone=neutral": {
+          "skipped": "the code example did not render"
         },
-        "Padding=compact": {
-          "file": "card/padding-compact.png",
-          "width": 320,
-          "height": 129
+        "Tone=info": {
+          "skipped": "the code example did not render"
         },
-        "Padding=default": {
-          "file": "card/padding-default.png",
-          "width": 320,
-          "height": 145
+        "Tone=success": {
+          "skipped": "the code example did not render"
+        },
+        "Tone=warning": {
+          "skipped": "the code example did not render"
+        },
+        "Tone=danger": {
+          "skipped": "the code example did not render"
+        },
+        "Tone=loading": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "TokenValue": {
+      "specHash": "cfab2ab4",
+      "variants": {
+        "Size=sm": {
+          "skipped": "the code example did not render"
+        },
+        "Size=md": {
+          "skipped": "the code example did not render"
+        }
+      }
+    },
+    "Tooltip/Popup": {
+      "specHash": "b47d0fc5",
+      "variants": {
+        "Default": {
+          "skipped": "drawn open in Figma; the code image shows it closed"
         }
       }
     }
