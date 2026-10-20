@@ -1235,256 +1235,155 @@ a.hp-demo {
   height: calc(var(--_u) * 13);
 }
 
-/* Start 2: the tracked branch (a concept, not UI). */
-.hp-trc {
-  position: relative;
-  width: min(calc(var(--size-120) + var(--space-10)), 100%);
-}
-
-.hp-tline {
+/* Start 2 and 3: the sieve (Field Guide). Known pieces fall through Bridge, the new one stays; then Dana and Leo
+   tick it off. Same 5.2 s loop for every moving part, delays in units of the slow duration. */
+.hp-k4fg {
   display: block;
-  width: 100%;
+  width: min(calc(var(--size-96) + var(--size-14)), 100%);
   height: auto;
 }
 
-.hp-tmain {
-  stroke: var(--_line-strong);
+.hp-k4fg text {
+  font-family: var(--font-family-sans);
 }
 
-.hp-tbr {
-  stroke: var(--_deep);
-  stroke-dasharray: 1;
+.hp-k4fg .hp-k4-disp {
+  font-family: var(--typography-display-family);
 }
 
-.hp-td {
-  fill: var(--_paper);
-  stroke: var(--_deep);
-}
-
-.hp-tlab {
+.hp-draw [data-f="muted"] {
   fill: var(--color-text-muted);
-  font-size: var(--font-size-100);
-  font-weight: var(--font-weight-medium);
 }
 
-.hp-tlab2 {
-  fill: var(--color-text-link);
+.hp-draw [data-s="ondeep"] {
+  stroke: var(--_on-deep);
 }
 
-.hp-ui.hp-on .hp-tbr {
-  animation: hp-draw-line calc(var(--motion-duration-slow) * 3) var(--motion-easing-standard) both;
+.hp-k4who {
+  box-sizing: border-box;
+  display: flex;
+  justify-content: space-between;
+  width: min(calc(var(--size-96) + var(--size-14)), 100%);
+  margin: calc(var(--space-1-5) * -1) 0 0;
+  padding: 0 var(--size-14);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-200);
 }
 
-.hp-ui.hp-on .hp-td {
+.hp-k4who strong {
+  color: var(--color-text-default);
+  font-weight: var(--font-weight-semibold);
+}
+
+.hp-ui.hp-on .hp-k4fa {
+  animation: hp-k4fall calc(var(--motion-duration-moderate) * 26) var(--motion-easing-standard) infinite backwards;
+}
+
+.hp-ui.hp-on .hp-k4ca {
+  animation: hp-k4catch calc(var(--motion-duration-moderate) * 26) var(--motion-easing-standard) infinite backwards;
+}
+
+.hp-ui.hp-on .hp-k4tn {
+  animation: hp-k4tint calc(var(--motion-duration-moderate) * 26) var(--motion-easing-standard) infinite backwards;
+}
+
+.hp-ui.hp-on .hp-k4ri {
+  animation: hp-k4rise calc(var(--motion-duration-moderate) * 26) var(--motion-easing-standard) infinite backwards;
+}
+
+.hp-ui.hp-on .hp-k4ti {
   transform-box: fill-box;
   transform-origin: center;
-  animation: hp-tpop var(--motion-duration-slow) var(--motion-easing-enter) calc(var(--motion-duration-slow) * 3 + var(--d) * var(--motion-duration-slow) * 1.1667) both;
+  animation: hp-k4tick calc(var(--motion-duration-moderate) * 26) var(--motion-easing-standard) infinite backwards;
 }
 
-@keyframes hp-tpop {
-  from {
+.hp-ui.hp-on .hp-k4d1 {
+  animation-delay: var(--motion-duration-slow);
+}
+
+.hp-ui.hp-on .hp-k4d2 {
+  animation-delay: calc(var(--motion-duration-slow) * 2.3333);
+}
+
+@keyframes hp-k4fall {
+  0% {
     opacity: 0;
-    transform: scale(0);
+    transform: translateY(calc(var(--_u) * -320));
   }
 
-  to {
+  12% {
+    opacity: 1;
+  }
+
+  46%,
+  100% {
     opacity: 1;
     transform: none;
   }
 }
 
-.hp-tms {
-  position: absolute;
-  inset: 0;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.hp-tm {
-  position: absolute;
-  bottom: calc(33.3% + var(--space-12) + var(--space-2) + var(--space-0-5));
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-1-5);
-  width: calc(var(--size-20) + var(--space-4));
-  margin: 0;
-  text-align: center;
-  transform: translateX(-50%);
-}
-
-.hp-tm::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  bottom: calc(var(--space-8) * -1 + var(--space-0-5));
-  height: var(--size-6);
-  border-left: calc(var(--_u) * 1.5) dashed var(--_line-strong);
-}
-
-.hp-tlx {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-0-5);
-  font-size: var(--font-size-100);
-  line-height: var(--font-leading-16);
-}
-
-.hp-tlx strong {
-  font-weight: var(--font-weight-semibold);
-}
-
-.hp-tm code,
-.hp-jst code {
-  color: var(--color-text-link);
-  font-family: var(--font-family-mono);
-  font-size: var(--font-size-100);
-}
-
-.hp-tg {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  width: calc(var(--size-5) + var(--space-0-5));
-  height: calc(var(--size-5) + var(--space-0-5));
-  border-radius: var(--radius-pill);
-  background-color: var(--color-bg-zone);
-  color: var(--color-text-link);
-  font-family: var(--font-family-mono);
-  font-size: var(--font-size-200);
-  font-weight: var(--font-weight-semibold);
-}
-
-.hp-ui.hp-on .hp-tm .hp-tlx,
-.hp-ui.hp-on .hp-tm .hp-tg {
-  animation: hp-asm var(--motion-duration-slow) var(--motion-easing-enter) calc(var(--motion-duration-slow) * 3.3333 + var(--d) * var(--motion-duration-slow) * 1.1667) both;
-}
-
-.hp-tby {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
-  margin: var(--space-2) 0 0;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-200);
-  font-weight: var(--font-weight-semibold);
-}
-
-@media (min-width: 900px) {
-  .hp-tm {
-    width: calc(var(--size-120) / 4 + var(--space-2) + var(--space-0-5));
+@keyframes hp-k4catch {
+  0% {
+    opacity: 0;
+    transform: translateY(calc(var(--_u) * -150));
   }
 
-  .hp-tlx {
-    font-size: var(--font-size-200);
-    line-height: var(--font-leading-20);
+  30% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  35% {
+    transform: translateY(calc(var(--space-2) * -1));
+  }
+
+  40%,
+  100% {
+    opacity: 1;
+    transform: none;
   }
 }
 
-/* Start 3: just that (a concept, not UI). */
-.hp-klab {
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-100);
-  font-weight: var(--font-weight-semibold);
+@keyframes hp-k4tint {
+  0%,
+  40% {
+    fill: var(--_page);
+    stroke: var(--color-text-default);
+  }
+
+  50%,
+  100% {
+    fill: var(--color-bg-zone);
+    stroke: var(--_deep);
+  }
 }
 
-.hp-jst {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: calc(var(--space-2) + var(--space-0-5));
+@keyframes hp-k4tick {
+  0%,
+  30% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+
+  40%,
+  100% {
+    opacity: 1;
+    transform: none;
+  }
 }
 
-.hp-jcol {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
+@keyframes hp-k4rise {
+  0%,
+  12% {
+    opacity: 0;
+    transform: translateY(var(--space-2));
+  }
 
-.hp-jall,
-.hp-jrev {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1-5);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.hp-jall li {
-  margin: 0;
-  padding: var(--space-1) calc(var(--space-2) + var(--space-0-5));
-  border-radius: var(--radius-md);
-  font-size: var(--font-size-200);
-}
-
-.hp-jn {
-  color: var(--color-text-disabled);
-}
-
-.hp-jall .hp-jd {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  border: var(--border-width-default) solid var(--_line);
-  background-color: var(--_paper);
-  color: var(--color-text-default);
-}
-
-.hp-jd .hp-tg {
-  width: calc(var(--size-4) + var(--space-0-5));
-  height: calc(var(--size-4) + var(--space-0-5));
-  font-size: var(--font-size-100);
-}
-
-.hp-jrev li {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin: 0;
-  padding: var(--space-2) var(--space-3);
-  border: var(--border-width-default) solid var(--_line);
-  border-radius: var(--radius-lg);
-  background-color: var(--_paper);
-  font-size: var(--font-size-200);
-}
-
-.hp-jrev strong {
-  font-weight: var(--font-weight-semibold);
-}
-
-.hp-jt {
-  display: inline-flex;
-  color: var(--color-text-link);
-}
-
-.hp-jt svg {
-  width: var(--size-4);
-  height: var(--size-4);
-}
-
-.hp-ui.hp-on .hp-jrev li {
-  animation: hp-asm var(--motion-duration-slow) var(--motion-easing-enter) calc(var(--motion-duration-slow) + var(--d) * var(--motion-duration-slow) * 0.8333) both;
-}
-
-.hp-jwho {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1-5);
-  margin: var(--space-1) 0 0;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-200);
-}
-
-.hp-jarr {
-  width: var(--size-10);
-  height: var(--size-4);
-  color: var(--_deep);
-  transform: rotate(90deg);
+  26%,
+  100% {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 /* The pressed action (Merge, Pull). */
@@ -2767,11 +2666,7 @@ a.hp-connect {
   .hp-ui.hp-on .hp-pick,
   .hp-ui.hp-on .hp-ring,
   .hp-ui.hp-on .hp-qbar i,
-  .hp-ui.hp-on .hp-tbr,
-  .hp-ui.hp-on .hp-td,
-  .hp-ui.hp-on .hp-tm .hp-tlx,
-  .hp-ui.hp-on .hp-tm .hp-tg,
-  .hp-ui.hp-on .hp-jrev li {
+  .hp-ui.hp-on .hp-k4an {
     animation: none;
   }
 
