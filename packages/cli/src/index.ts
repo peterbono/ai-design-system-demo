@@ -11,6 +11,7 @@ import { execFileSync } from 'node:child_process';
 import { runRequest } from './request.js';
 import { runExplore } from './explore.js';
 import { runBranch, runDocsSave, runStudioRead } from './branch.js';
+import { runPieces } from './pieces.js';
 import { defaultIO } from './request.js';
 import { protectionReport, type ProtectionReport } from './protection.js';
 import { rolesReport, type RolesReport } from './roles.js';
@@ -99,6 +100,10 @@ Usage:
                                       (\`bridge branch help\`): what needs me, send for review, review,
                                       merge through the same gate (owner override with a reason), update
                                       from main with token conflicts, try it in a product, try together
+  bridge pieces <n> [--record] | status <n> | open <n> <piece> | preview <n> <piece> | switch <n>
+                                      a product branch and the library (\`bridge pieces help\`): what it adds
+                                      that the library lacks, the library branch each piece opens (linked
+                                      both ways), its preview in the product branch, the published version
   bridge products | bridge settings | bridge coverage [Component]
                                       products (and this folder's), Studio settings safe to read, which
                                       components are in Figma
@@ -625,6 +630,7 @@ async function main(): Promise<number> {
   if (cmd === 'request') return runRequest(a, root);
   if (cmd === 'explore') return runExplore(a, root);
   if (cmd === 'branch') return runBranch(a, root);
+  if (cmd === 'pieces') return runPieces(a, root);
   if (cmd === 'products' || cmd === 'settings' || cmd === 'coverage') return runStudioRead(cmd, a, root);
   if (cmd === 'docs' && a._[1] === 'save') return runDocsSave(a, root);
   if (!cmd || has(a, 'help') || cmd === 'help') {

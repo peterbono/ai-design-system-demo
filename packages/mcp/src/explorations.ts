@@ -41,7 +41,7 @@ import { productMarks, resolveProduct } from './branches.js';
 
 const USE_CASES = new Set<string>(EXPLORATION_USE_CASES.map((u) => u.value));
 
-const settingsOf = (config: BridgeConfig) => ({ base: baseBranchOf(config), packages: config.previews?.packages ?? [], apps: config.previews?.apps ?? {} });
+export const settingsOf = (config: BridgeConfig) => ({ base: baseBranchOf(config), packages: config.previews?.packages ?? [], apps: config.previews?.apps ?? {} });
 
 async function requireGitHub(ctx: BridgeContext): Promise<GitHubClient> {
   const gh = await ctx.github();

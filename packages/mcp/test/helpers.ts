@@ -278,6 +278,32 @@ export function fakeGitHub(owner: string, repo: string, initial: Record<string, 
       refs.set(pr.head.ref, c);
       return json(202, { message: 'Updating pull request branch.' });
     }
+    if (method === 'POST' && path === '/merges') {
+      // GitHub's merges API: head into the branch base, 204 when base already has it, 409 on a conflict.
+      const base = refs.get(body.base);
+      const head = resolveRef(body.head);
+      if (!base || !head) return json(404, { message: 'Base or head does not exist' });
+      if (ancestors(base).includes(head)) return new Response(null, { status: 204 });
+      const mb = mergeBaseOf(base, head);
+      const mine = changed(mb, base);
+      const theirs = changed(mb, head);
+      if (theirs.some((p) => mine.includes(p) && commits.get(base)!.files.get(p) !== commits.get(head)!.files.get(p))) return json(409, { message: 'Merge conflict' });
+      const files = new Map(commits.get(base)!.files);
+      for (const p of theirs) {
+        const v = commits.get(head)!.files.get(p);
+        if (v === undefined) files.delete(p);
+        else files.set(p, v);
+      }
+      const c = id();
+      commits.set(c, { files, parents: [base, head] });
+      refs.set(body.base, c);
+      return json(201, { sha: c });
+    }
+    if (method === 'PATCH' && (m = /^\/issues\/(\d+)$/.exec(path)) && issueAt(Number(m[1]))) {
+      const issue = issueAt(Number(m[1]))!;
+      Object.assign(issue, body);
+      return json(200, issue);
+    }
     if (method === 'GET' && (m = /^\/compare\/(.+)\.\.\.(.+)$/.exec(path))) {
       const base = resolveRef(decodeURIComponent(m[1]!));
       const head = resolveRef(decodeURIComponent(m[2]!));

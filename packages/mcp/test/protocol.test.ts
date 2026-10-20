@@ -39,9 +39,12 @@ const TOOLS = [
   'bridge_list_reviews',
   'bridge_list_tokens',
   'bridge_merge_branch',
+  'bridge_missing_pieces',
+  'bridge_open_library_branch',
   'bridge_pending_drafts',
   'bridge_plan_brand',
   'bridge_plan_revert',
+  'bridge_product_branch',
   'bridge_promote_exploration',
   'bridge_propose_brand',
   'bridge_propose_revert',
@@ -54,8 +57,10 @@ const TOOLS = [
   'bridge_search_tokens',
   'bridge_send_for_review',
   'bridge_start_exploration',
+  'bridge_switch_to_published',
   'bridge_try_branch',
   'bridge_update_from_main',
+  'bridge_use_library_preview',
   'bridge_validate_tokens',
   'bridge_visual_impact',
   'bridge_what_needs_me',
@@ -81,7 +86,7 @@ describe('MCP over stdio', () => {
     expect(client.getInstructions()).toMatch(/Every write goes through a branch and a pull request, never straight to the default branch/);
   });
 
-  it('lists the 52 tools with JSON schemas and read-only hints', async () => {
+  it('lists the 57 tools with JSON schemas and read-only hints', async () => {
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual(TOOLS);
     const getToken = tools.find((t) => t.name === 'bridge_get_token')!;
@@ -98,8 +103,8 @@ describe('MCP over stdio', () => {
     expect(Object.keys((tools.find((t) => t.name === 'bridge_propose_token_change')!.inputSchema.properties ?? {}) as object)).toContain('branch');
     for (const t of tools) expect(t.description, t.name).not.toMatch(/\u2014/);
     // Studio parity: reads are read-only, every write is an explicit tool (never a side effect of a read).
-    const reads = ['bridge_list_products', 'bridge_what_needs_me', 'bridge_branch_status', 'bridge_list_comments', 'bridge_try_branch', 'bridge_combine_branches', 'bridge_get_settings', 'bridge_figma_coverage'];
-    const writes = ['bridge_ask_someone_else', 'bridge_send_for_review', 'bridge_back_to_draft', 'bridge_review_branch', 'bridge_comment', 'bridge_merge_branch', 'bridge_close_branch', 'bridge_reopen_branch', 'bridge_update_from_main', 'bridge_save_docs', 'bridge_promote_exploration', 'bridge_close_exploration'];
+    const reads = ['bridge_product_branch', 'bridge_list_products', 'bridge_what_needs_me', 'bridge_branch_status', 'bridge_list_comments', 'bridge_try_branch', 'bridge_combine_branches', 'bridge_get_settings', 'bridge_figma_coverage'];
+    const writes = ['bridge_ask_someone_else', 'bridge_send_for_review', 'bridge_back_to_draft', 'bridge_review_branch', 'bridge_comment', 'bridge_merge_branch', 'bridge_close_branch', 'bridge_reopen_branch', 'bridge_update_from_main', 'bridge_save_docs', 'bridge_promote_exploration', 'bridge_close_exploration', 'bridge_missing_pieces', 'bridge_open_library_branch', 'bridge_use_library_preview', 'bridge_switch_to_published'];
     for (const n of reads) expect(tools.find((t) => t.name === n)!.annotations?.readOnlyHint, n).toBe(true);
     for (const n of writes) expect(tools.find((t) => t.name === n)!.annotations?.readOnlyHint, n).toBe(false);
     for (const n of ['bridge_propose_token_change', 'bridge_start_exploration', 'bridge_create_request', 'bridge_save_docs']) expect(Object.keys((tools.find((t) => t.name === n)!.inputSchema.properties ?? {}) as object), n).toContain('product');

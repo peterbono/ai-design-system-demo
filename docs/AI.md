@@ -89,11 +89,12 @@ the code you are changing.
 
 ## What Claude can do
 
-52 tools: 6 for tokens (config, browse, read, search, contrast, validation), 7 for components and guidance
+57 tools: 6 for tokens (config, browse, read, search, contrast, validation), 7 for components and guidance
 (docs saved for review included), 5 for proposals and reviews (visual impact included), 3 for brands, 4 for
 history and revert, 1 for adoption audits, 3 for component change requests, 4 for explorations, 2 for change
-texts from Figma, 14 for branches in review (the Studio actions, see [Studio parity](#studio-parity)) and 3 for
-products, settings and Figma coverage.
+texts from Figma, 14 for branches in review (the Studio actions, see [Studio parity](#studio-parity)), 3 for
+products, settings and Figma coverage, and 5 for product branches and the library (see
+[Product branches and the library](#product-branches-and-the-library)).
 
 | Tool | Use it to |
 | --- | --- |
@@ -129,6 +130,11 @@ products, settings and Figma coverage.
 | `bridge_list_explorations` | List explorations: purpose, status (running, promoted, closed), previews, the snapshot install command and the requests implemented on each |
 | `bridge_promote_exploration` | Promote an exploration to review (ready for review, tier labels, its requests linked); never merges |
 | `bridge_close_exploration` | Close an exploration without merging it |
+| `bridge_missing_pieces` | What a product branch adds that the library lacks (the audit on its diff against main): variants of library components, new components, token values; `record` saves them where Studio shows them |
+| `bridge_open_library_branch` | Open the library side of one piece, linked both ways: a token change (and the product branch takes its preview), a library exploration for a variant, or a component request |
+| `bridge_product_branch` | A product branch as Studio shows it: the summary, each linked library branch with its status, reviewers, preview and next action |
+| `bridge_use_library_preview` | The product branch takes the latest library branch of a piece (merged in), so its preview shows the real library change |
+| `bridge_switch_to_published` | Once the library shipped, bring main into the product branch so it uses the published version |
 | `bridge_list_products` | See the products (`products` in `bridge.config.json`) and the one the current folder or repo belongs to |
 | `bridge_what_needs_me` | The review queue as Studio counts it, with the branches where you act now first |
 | `bridge_branch_status` | One branch: product, status, approvals, tests, how it stands against main, whether you may merge it, next step |
@@ -216,6 +222,11 @@ read without the "needs me" part) and 13 not at all. Now all 32 do.
 | Start an exploration | `bridge_start_exploration` with `product` | `bridge explore start ... --product admin` | Contents, Pull requests: write |
 | Promote an exploration | `bridge_promote_exploration` | `bridge explore promote <name>` | Contents, Pull requests: write |
 | Close an exploration | `bridge_close_exploration` | `bridge explore close <name>` | Pull requests: write |
+| See what a product branch adds outside the library | `bridge_missing_pieces` (`record` to show it in Studio) | `bridge pieces 12 [--record]` | None to read; Pull requests: write to record |
+| Open a library branch for a missing piece | `bridge_open_library_branch` | `bridge pieces open 12 <piece>` | Contents, Pull requests, Issues: write |
+| A product branch and its library branches | `bridge_product_branch` | `bridge pieces status 12` | None |
+| Use the library preview in the product branch | `bridge_use_library_preview` | `bridge pieces preview 12 <piece>` | Contents: write |
+| Switch to the published version | `bridge_switch_to_published` | `bridge pieces switch 12` | Contents, Pull requests: write |
 | Component change requests (list, read, file) | `bridge_list_requests`, `bridge_get_request`, `bridge_create_request` with `product` | `bridge request list / show / create --product admin` | Issues: write to file one |
 | History, undo a change, restore one token | `bridge_get_history`, `bridge_plan_revert`, `bridge_propose_revert` | `bridge history`, `bridge revert` | Contents, Pull requests: write to propose |
 | Review a token change (diff, contrast, impact) | `bridge_get_review` | `bridge diff main` | None |
@@ -444,6 +455,55 @@ Claude Desktop (Settings, Developer, Edit config, then restart):
 
 The plugin's Settings, **Claude (optional)**, shows both with the repository filled in. Nothing reaches `main`: the
 session files live on `bridge-requests`, next to the request images.
+
+## Product branches and the library
+
+Designers explore a product feature with Claude on a product branch (Studio: Create branch, A feature in a
+product), built with the real components. What the branch invents outside the library comes back to the library as
+library branches, linked to the product branch, instead of a ticket and a redo in the Figma kit.
+
+1. **Find the missing pieces.** `bridge_missing_pieces` (or `bridge pieces 12`) runs the adoption audit on each
+   product file the branch changes, at the branch start (its merge base with main) and at its head, and keeps what
+   the branch added. A value written on a library component (an inline style, or a CSS module class used on it)
+   becomes a variant of that component, "Badge: overdue tone", with the closest library value ("danger"). A component
+   from another UI library with no library equivalent becomes a new component. Any other hardcoded value becomes a
+   token beside the closest token. Values equal to a token and components the library already has are fixes: use
+   them in the product code. With `record` the pieces go into the branch description, where Studio's product branch
+   page shows them. Studio cannot run the audit in the browser: it shows what Claude or the CLI recorded.
+2. **Open a library branch per piece.** `bridge_open_library_branch` opens the library side, honestly labelled by
+   what Bridge can write: a token piece opens a token change (the same gate, body, tier and changeset as
+   `bridge_propose_token_change`, a draft for design and tech review); a variant opens a library exploration
+   (`explore/<name>`) with the brief to build it; a new component opens a component request. Both sides link: the
+   library side starts with "Needed by" the product branch and carries the `needed-by-product` label, the product
+   branch records the link. Studio's Branches page lists the library branch under its product branch.
+3. **Preview before it ships.** The product branch takes the library branch: Bridge merges it into the product
+   branch, so the product preview deploy shows the real library change. A token change is merged in as soon as it
+   opens; a variant once it has code (`bridge_use_library_preview`); a request has nothing to preview until it is
+   built. New commits on the library branch show as "Get the latest preview".
+4. **Ship.** The library branch goes through its own review, with the product context on its review page ("Why it
+   exists", the product preview, "Suggest danger" when the closest value may do). Once it ships, "Switch to the
+   published version" (`bridge_switch_to_published`) brings main into the product branch: it stops carrying the
+   library change and uses the shipped one. In Figma, the next Pull in the DS Bridge plugin brings the new token
+   into the variables and the new variant into the kit's component set.
+
+What is automatic and what is one action:
+
+| Step | Automatic | One action (Studio, Claude or the CLI) |
+| --- | --- | --- |
+| Find the pieces | When Claude finishes an exploration (the server instructions ask it to check) | `bridge pieces 12 --record`; not on every push (no CI job yet) |
+| Open the library side | Never on its own: a person decides | Studio "Open a library branch", `bridge_open_library_branch`, `bridge pieces open` |
+| Link both ways | Yes, when the library side opens | |
+| Product branch uses the token change preview | Yes, when the token change opens | "Get the latest preview" after new library commits |
+| Product branch uses a variant preview | | "Use its preview in my branch", once the library exploration has code |
+| Library branch status and reviewers on the product branch | Yes, read live from GitHub | |
+| Switch to the published version | No: Bridge never writes on its own when a page opens | "Switch to the published version" |
+| Use the new token or variant in the product code | No: Bridge does not rewrite product code | Ask Claude once the library ships |
+| Update the Figma kit | No | Pull in the DS Bridge Figma plugin (tokens and component variants from code) |
+
+Bridge does not block the product branch from shipping before its library branches: ship the library first, or
+the library change reaches main inside the product branch without its own review. Products in another repository
+install the library branch's preview package instead (the install command on the library branch, see
+[Explorations](#explorations)); the product branch page covers products in this repository.
 
 ## Explorations
 

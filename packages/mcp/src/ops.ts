@@ -5,7 +5,7 @@ import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { buildAuditReport, compareWithBaseline, DesignSystemIndex, type AuditReport } from '@bridge-ds/core/audit';
 import { auditSnippet } from './audit.js';
 import { cssVarsUsed, getComponent, listComponentNames, listComponents, scaffoldComponent, type ScaffoldInput } from './components.js';
-import { approverEntries, reviewOnGitHub, baseBranchOf, branchWithJiraKey, parseJiraKey, productsOf, titleWithJiraKey, cssModuleClasses, docsPrompt, entryLabel, expandOwners, prefillDocs, protectedBranchesOf, shipPolicy, TeamDirectory, unreadableTeams, whoCanShipSentence, type BridgeConfig, type DocsContrastInput, type GitHubClient } from '@bridge-ds/core';
+import { approverEntries, reviewOnGitHub, baseBranchOf, planTokenProposal, writeTokenProposalOnGitHub, branchWithJiraKey, parseJiraKey, productsOf, cssModuleClasses, docsPrompt, entryLabel, expandOwners, prefillDocs, protectedBranchesOf, shipPolicy, TeamDirectory, unreadableTeams, whoCanShipSentence, type BridgeConfig, type DocsContrastInput, type GitHubClient } from '@bridge-ds/core';
 import { branchExists, collectAuditFiles, commitToNewLocalBranch, currentBranch, git, loadAllowlist } from '@bridge-ds/core/node';
 import { core, type Combo, type Issue, type PairInput, type TokenEdit, type TokenSet } from './core-adapter.js';
 import { bullets, findSection, toc } from './markdown.js';
@@ -394,26 +394,14 @@ export async function proposeTokenChange(
   const target = a.branch ? await explorationContext(ctx, a.branch, { requireCheckout: !a.dryRun }) : null;
   if (target) ctx = target.ctx;
   const { config } = await ctx.config();
-  const { before, after, touched, notes } = await withEdits(ctx, a.edits);
-  const changes = core.diff(before, after);
-  if (!changes.length) return { status: 'no-change', message: 'The edits leave every token as it was.' };
-
-  const prevErrors = new Set(core.validate(before).map(issueKey));
-  const newErrors = core.validate(after).filter((i) => i.level === 'error' && !prevErrors.has(issueKey(i)));
+  const before = await ctx.tokens();
   const pairs = await core.readContrastPairs(ctx.source, config).catch(() => []);
-  const delta = pairs.length ? core.contrastDelta(core.runContrast(before, pairs, config.contrast?.modes), core.runContrast(after, pairs, config.contrast?.modes)) : [];
-  const newFailures = delta.filter((d) => d.passBefore && !d.passAfter);
-  const imp = core.impact(before, after, changes);
-  const tier = core.classify(changes, [], config);
-  const summary = a.summary?.trim() || a.title;
   const marks = productMarks(productsOf(config), product);
-  const body = [core.prBody({ summary, changes, contrast: delta, impact: imp, tier, validationErrors: newErrors.length, tool: 'Bridge MCP' }), marks.line].filter(Boolean).join('\n\n');
-  const slugTitle = core.slugify(a.title);
-  const changesetPath = `${config.changesets?.dir ?? '.changeset'}/bridge-${slugTitle}.md`;
-  const files = [
-    ...touched.map((f) => ({ path: prefixPath(after, f), content: after.files.get(f)! as string | null })),
-    ...(config.changesets ? [{ path: changesetPath, content: core.changeset(config.changesets.package, tier.bump, summary) }] : []),
-  ];
+  // The same plan Studio and the CLI write: token diff, validation, contrast gate, tier, body and changeset.
+  const plan = planTokenProposal({ before, pairs, edits: a.edits, title: a.title, summary: a.summary, config, tool: 'Bridge MCP', bodyExtra: [marks.line] });
+  if (!plan) return { status: 'no-change', message: 'The edits leave every token as it was.' };
+  const { after, changes, tier, contrast: delta, newFailures, newErrors, impact: imp, notes, files, body, slug: slugTitle } = plan;
+  const summary = plan.summary;
   const report = {
     title: a.title,
     tier: tier.tier,
@@ -454,15 +442,12 @@ export async function proposeTokenChange(
   }
   const gh = (await ctx.github())!;
   if (!ctx.canWriteRemote) return { status: 'preview', message: 'Read-only: set GITHUB_TOKEN to open this as a pull request.', ...preview, fileContents: files };
-  const commitMsg = `feat(tokens): ${a.title}\n\nProposed through Bridge MCP (source: mcp). Tier ${tier.tier}.`;
   const base = ctx.ref ?? baseBranchOf(config);
-  for (let i = 2; await gh.getBranchSha(branch).then(Boolean, () => false); i++) branch = branchWithJiraKey(`${config.governance.branchPrefix}${slugTitle}-${i}`, jira);
-  const commit = await gh.commitToNewBranch({ base, branch, message: commitMsg, files });
-  const labels = [...config.governance.labels, `tier: ${tier.tier}`, ...(tier.tier === 3 ? ['tokens'] : []), ...(tier.bump === 'major' ? ['breaking'] : []), ...marks.labels];
-  // Tier 2 and 3 open as drafts until design review (docs/GOVERNANCE.md).
-  // The Jira key goes first in the title and the branch name, so Jira's GitHub integration links them (as in Studio).
-  const pr = await gh.createPullRequest({ base, head: branch, title: titleWithJiraKey(`feat(tokens): ${a.title}`, jira), body, draft: tier.tier >= 2 });
-  await gh.addLabels(pr.number, labels);
+  const opened = await writeTokenProposalOnGitHub(gh, plan, { base, branchPrefix: config.governance.branchPrefix, jira, labels: config.governance.labels, labelsAfter: marks.labels, tool: 'Bridge MCP (source: mcp)' });
+  branch = opened.branch;
+  const commit = { sha: opened.commit };
+  const pr = { number: opened.pr, url: opened.url };
+  const labels = opened.labels;
   return { status: 'pr-opened', ...preview, branch, commit: commit.sha, pr: pr.number, url: pr.url, labels, draft: tier.tier >= 2, product: product.name };
 }
 
@@ -733,7 +718,7 @@ export async function visualImpact(
 // --- adoption audit -------------------------------------------------------------------------------------
 
 /** The design system the audit measures against: tokens of this repo, its components and package names. */
-async function designSystemIndex(ctx: BridgeContext): Promise<DesignSystemIndex> {
+export async function designSystemIndex(ctx: BridgeContext): Promise<DesignSystemIndex> {
   const { config } = await ctx.config();
   const set = await ctx.tokens();
   const components = (await listComponentNames(ctx.source, config)).map((c) => c.name).filter((n) => /^[A-Z]/.test(n));
