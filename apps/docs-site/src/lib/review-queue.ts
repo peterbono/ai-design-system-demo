@@ -6,52 +6,18 @@
 //   - running explorations (Changes > Explorations: tried, never merged as is);
 //   - GitHub automation: the changesets release pull request (branch changeset-release/*, opened by
 //     github-actions[bot]). It is the release step, shown as the "Next release" card in History.
-import { classifyRisk } from '@bridge-ds/core';
-import { isRunningExploration } from './explorations-view';
-import { openPulls, parseTier, type LabelLike, type PullStateLike, type ReviewStatusKind, type Tier } from './review-rules';
+import { effectiveTier as coreEffectiveTier, isAutomationPull, isReleasePull, releasePull, reviewQueue, type QueuePull } from '@bridge-ds/core';
+import { type LabelLike, type ReviewStatusKind, type Tier } from './review-rules';
 import { branchCount } from './vocabulary';
 
-export interface QueuePull extends PullStateLike {
-  state: string;
-  labels?: ({ name?: string } | string)[];
-  head: { ref: string };
-  user?: { login: string; type?: string } | null;
-}
-
-const BOTS = new Set(['github-actions[bot]', 'app/github-actions', 'changeset-bot[bot]']);
-
-/** The changesets release pull request ("Version packages"), on a changeset-release/* branch. */
-export const isReleasePull = (p: Pick<QueuePull, 'head'>) => p.head.ref.startsWith('changeset-release/');
-
-/** Opened by GitHub automation, not by a person: the release pull request or anything github-actions[bot] opened. */
-export function isAutomationPull(p: Pick<QueuePull, 'head' | 'user'>): boolean {
-  return isReleasePull(p) || BOTS.has((p.user?.login ?? '').toLowerCase());
-}
-
-/** The open pull requests that wait for a review, in the order given. Every count in the Studio comes from here. */
-export function reviewQueue<P extends QueuePull>(pulls: P[]): P[] {
-  return openPulls(pulls).filter((p) => !isAutomationPull(p) && !isRunningExploration({ state: p.state, labels: (p.labels ?? []) as never }));
-}
-
-/** The open release pull request, if the changesets action opened one. */
-export function releasePull<P extends QueuePull>(pulls: P[]): P | null {
-  return openPulls(pulls).find((p) => isReleasePull(p)) ?? null;
-}
+// The queue rules live in @bridge-ds/core (review-gate.ts), shared with the MCP server and the CLI.
+export { isAutomationPull, isReleasePull, releasePull, reviewQueue, type QueuePull };
 
 // ---------------------------------------------------------------------------------------------------------------
 // What approval a change needs, in words (no tier numbers on designer surfaces)
 
-/**
- * The approval a change needs, the same rule everywhere (list and detail): the tier the author set (label, PR
- * template checkbox or "Risk tier" line) or the one the shared classifier computes from the changed files, highest
- * wins. Without files (not read yet) only a label counts, and a missing label stays unknown.
- */
-export function effectiveTier(labels: LabelLike[], body: string | null | undefined, files: { filename: string; status?: string }[] | null): Tier | null {
-  const labelled = parseTier(labels, body);
-  if (!files) return labelled;
-  const computed = classifyRisk({ files: files.map((f) => ({ path: f.filename, status: f.status })) }).tier;
-  return Math.max(labelled ?? 0, computed) as Tier;
-}
+/** The approval a change needs (core effectiveTier): the tier the author set or the one the shared classifier computes, highest wins. */
+export const effectiveTier = (labels: LabelLike[], body: string | null | undefined, files: { filename: string; status?: string }[] | null): Tier | null => coreEffectiveTier(labels, body, files);
 
 /** Plain words for the approval a tier needs. Never colored: color is for status. Empty while unknown. */
 export function approvalNeedLabel(tier: Tier | null | undefined): string {

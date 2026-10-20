@@ -6,7 +6,7 @@
 // "Copy link", "Link for a developer"; the page itself never links to GitHub.
 // Without a token the bar's primary connects GitHub. When GitHub cannot be read, the last list this browser saw
 // stays on screen, labelled with its time (lib/changes.ts).
-import { findPreviewComment, isActiveExploration, type Rights, type ShipPolicy } from '@bridge-ds/core';
+import { askOthersToReviewOnGitHub, closeOnGitHub, commentOnGitHub, findPreviewComment, reviewersToAsk, isActiveExploration, mergeOnGitHub, OverrideMergeError, overrideMergeOnGitHub, reviewOnGitHub, type ProductConfig, type Rights, type ShipPolicy } from '@bridge-ds/core';
 import { loadTeams, siteApprovers, siteShipPolicy, teamDirectory } from './teams';
 import { approvalNeedLong, effectiveTier, isAutomationPull, reviewQueue } from '../lib/review-queue';
 import {
@@ -16,9 +16,7 @@ import {
   NO_OVERRIDE,
   openPulls,
   OVERRIDE_HEADING,
-  overrideComment,
   overrideReasonProblem,
-  overrideRefusedComment,
   parseOverrideComment,
   pullState,
   REVIEW_STATUS,
@@ -34,11 +32,9 @@ import {
   asOf,
   byUrgency,
   approvalRows,
-  eligibleFor,
   filterByTier,
   listSource,
   needFromDetail,
-  pendingApprovals,
   readSnapshot,
   tierParam,
   whoActs,
@@ -51,7 +47,7 @@ import {
 import { badgeHtml, closeDialog, openDialog, tokenValueHtml } from '@bridge-ds/react/dom';
 import { pullEntry, type BranchesConfig } from '../lib/branches';
 import type { Root } from 'react-dom/client';
-import { currentViewer, esc, ghGet, ghWrite, GitHubError, hasWorkingToken, initGitHubConnect, prefersSignIn, RateLimitError, readRepo, showGhError } from './github-session';
+import { currentViewer, esc, ghGet, GitHubError, studioClient, hasWorkingToken, initGitHubConnect, prefersSignIn, RateLimitError, readRepo, showGhError } from './github-session';
 import { ghAction, ghVerb } from '../lib/gh-wording';
 import { analyzeTokenFiles, isTokenFile, type TokenReview } from './reviews/token-review';
 import { loadVisualImpact } from './reviews/visual-impact';
@@ -156,7 +152,7 @@ const REPO_KEY = `${repo.owner}/${repo.repo}`;
 const R = `/repos/${repo.owner}/${repo.repo}`;
 const SITE = (() => {
   try {
-    return JSON.parse(document.getElementById('bridge-repo')?.textContent || '{}') as { owners?: { design: string[]; tech: string[] }; override?: OverridePolicy; rights?: Rights | null };
+    return JSON.parse(document.getElementById('bridge-repo')?.textContent || '{}') as { owners?: { design: string[]; tech: string[] }; override?: OverridePolicy; rights?: Rights | null; products?: ProductConfig[] };
   } catch {
     return {};
   }
@@ -309,6 +305,7 @@ function listRow(r: Row): ListRow {
     head: r.head,
     base: r.base ?? null,
     merged_at: r.merged_at ?? null,
+    labels: r.labels ?? null,
   };
 }
 
@@ -332,6 +329,7 @@ function paintRows(rows: Row[], loading: boolean) {
     connected: hasWorkingToken(),
     admin: el.dataset.admin || null,
     tokensRoot: el.dataset.tokensRoot || 'packages/tokens/src',
+    ...(SITE.products?.length ? { products: SITE.products } : {}),
     tierLabel: tier ? approvalNeedLong(tier).toLowerCase() : null,
     failure: (err) =>
       err instanceof RateLimitError ? `GitHub limits anonymous reads to 60 an hour. ${ghVerb(prefersSignIn())} to preview ${VOCAB.branches} together.` : `Could not read a checked ${VOCAB.branch}: ${(err as Error).message}`,
@@ -929,7 +927,8 @@ async function acceptDrafts(branch: string, docs: { path: string; head: Guidance
 /** Approves a branch: its guidance drafts are accepted first (with write access), then the approval is posted. */
 async function approve(pull: { number: number; head: { ref: string; sha: string } }, docs: { path: string; head: GuidanceDocs | null }[], write: boolean, body: string): Promise<string> {
   const moved = write ? await acceptDrafts(pull.head.ref, docs) : null;
-  await ghWrite('POST', `${R}/pulls/${pull.number}/reviews`, { event: 'APPROVE', body: body || undefined, commit_id: moved ?? pull.head.sha });
+  // The same write as the MCP server and the CLI (core reviewOnGitHub), on the head the approval covers.
+  await reviewOnGitHub(studioClient(REPO_KEY), { number: pull.number, event: 'APPROVE', body, headSha: moved ?? pull.head.sha });
   return moved ?? pull.head.sha;
 }
 
@@ -940,19 +939,21 @@ async function act(kind: ActKind | 'close', text: string, x: { pull: Pull; gate:
   try {
     if (kind === 'connect') return;
     if (kind === 'request-review' || kind === 'reopen' || kind === 'restart') return (await x.statusRun.run?.()) ?? undefined;
-    if (kind === 'suggest') await ghWrite('POST', `${R}/pulls/${pull.number}/reviews`, { event: 'REQUEST_CHANGES', body: text, commit_id: pull.head.sha });
-    else if (kind === 'comment') await ghWrite('POST', `${R}/issues/${pull.number}/comments`, { body: text });
+    // Every write goes through @bridge-ds/core branch-actions, the same calls as the MCP server and the CLI.
+    const gh = studioClient(REPO_KEY);
+    if (kind === 'suggest') await reviewOnGitHub(gh, { number: pull.number, event: 'REQUEST_CHANGES', body: text, headSha: pull.head.sha });
+    else if (kind === 'comment') await commentOnGitHub(gh, pull.number, text);
     else if (kind === 'approve') await approve(pull, x.docs, x.write, text);
-    else if (kind === 'merge') await ghWrite('PUT', `${R}/pulls/${pull.number}/merge`, { merge_method: 'squash', sha: pull.head.sha });
+    else if (kind === 'merge') await mergeOnGitHub(gh, { number: pull.number, headSha: pull.head.sha, method: 'squash' });
     else if (kind === 'approve-merge') {
       const sha = await approve(pull, x.docs, x.write, text);
       try {
-        await ghWrite('PUT', `${R}/pulls/${pull.number}/merge`, { merge_method: 'squash', sha });
+        await mergeOnGitHub(gh, { number: pull.number, headSha: sha, method: 'squash' });
       } catch (err) {
         await openPr(pull.number, false);
         return `Approved. Not merged yet: ${(err as Error).message.replace(/[.\s]+$/, '')}. Merge it once the checks finish.`;
       }
-    } else if (kind === 'close') await ghWrite('PATCH', `${R}/pulls/${pull.number}`, { state: 'closed' });
+    } else if (kind === 'close') await closeOnGitHub(gh, pull.number);
   } catch (err) {
     const el = document.createElement('p');
     showGhError(el, err, `GitHub refused it: ${(err as Error).message}`, verb);
@@ -981,7 +982,7 @@ export async function approveBranch(n: number, body = ''): Promise<void> {
 
 export async function suggestChanges(n: number, body: string): Promise<void> {
   const pull = (await ghGet<Pull>(`${R}/pulls/${n}`)).data;
-  await ghWrite('POST', `${R}/pulls/${n}/reviews`, { event: 'REQUEST_CHANGES', body, commit_id: pull.head.sha });
+  await reviewOnGitHub(studioClient(REPO_KEY), { number: n, event: 'REQUEST_CHANGES', body, headSha: pull.head.sha });
 }
 
 /**
@@ -995,11 +996,10 @@ export async function askSomeoneElse(n: number): Promise<string[]> {
   const approvals = summarizeApprovals(reviews, OWNERS(), pull.user.login);
   const viewer = currentViewer()?.login ?? null;
   const p = people(pull.user.login, { viewer, approvers: approvals.approvers });
-  const roles = pendingApprovals(tier, approvals);
-  const others = [...new Set(roles.flatMap((r) => eligibleFor(r, p).logins))].filter((l) => l.toLowerCase() !== (viewer ?? '').toLowerCase() && l.toLowerCase() !== pull.user.login.toLowerCase());
-  if (!others.length) throw new Error('Nobody else can give the missing approval. Review it, or ask an owner in Settings to add a reviewer.');
-  await ghWrite('POST', `${R}/pulls/${n}/requested_reviewers`, { reviewers: others });
-  if (viewer && pull.requested_reviewers?.some((r) => r.login.toLowerCase() === viewer.toLowerCase())) await ghWrite('DELETE', `${R}/pulls/${n}/requested_reviewers`, { reviewers: [viewer] }).catch(() => undefined);
+  // Who else can give the missing approvals, and the request itself: core reviewersToAsk and askOthersToReviewOnGitHub,
+  // the same rule and calls as the MCP server and the CLI (bridge_ask_someone_else, bridge branch ask).
+  const others = reviewersToAsk({ tier, approvals, owners: p.owners, author: pull.user.login, viewer });
+  await askOthersToReviewOnGitHub(studioClient(REPO_KEY), { number: n, others, viewer, viewerRequested: Boolean(viewer && pull.requested_reviewers?.some((r) => r.login.toLowerCase() === viewer.toLowerCase())) });
   return others.map(nameOf);
 }
 
@@ -1085,29 +1085,14 @@ function wireOverride(pull: Pull, access: Access, gate: ReturnType<typeof mergeG
       }
       error.hidden = true;
       go.disabled = true;
-      go.textContent = 'Posting reason';
-      const body = overrideComment(access.login, reason.value, gate.missing);
-      let comment: { id: number } | null = null;
+      go.textContent = 'Posting reason and merging';
+      // One implementation with the MCP server and the CLI (core branch-actions): the reason first, then the merge.
       try {
-        comment = await ghWrite<{ id: number }>('POST', `${R}/issues/${pull.number}/comments`, { body });
+        await overrideMergeOnGitHub(studioClient(REPO_KEY), { number: pull.number, headSha: pull.head.sha, login: access.login, reason: reason.value, missing: gate.missing, method: method() });
       } catch (err) {
-        showGhError(errorText, err, `GitHub did not take the comment, so nothing merged: ${(err as Error).message}`, 'comment on branches');
-        error.hidden = false;
-        ready();
-        return;
-      }
-      go.textContent = 'Merging';
-      const m = method();
-      try {
-        await ghWrite('PUT', `${R}/pulls/${pull.number}/merge`, {
-          merge_method: m,
-          sha: pull.head.sha,
-          ...(m === 'rebase' ? {} : { commit_message: body.replace(OVERRIDE_HEADING, '').trim() }),
-        });
-      } catch (err) {
-        const msg = (err as Error).message.trim().replace(/[.\s]+$/, '');
-        await ghWrite('PATCH', `${R}/issues/comments/${comment.id}`, { body: overrideRefusedComment(body, msg) }).catch(() => undefined);
-        showGhError(errorText, err, `GitHub refused to merge it: ${msg}. Your reason stays on the branch, marked not merged. The protection of main may need an approving review or an admin bypass.`, 'merge branches');
+        const stage = err instanceof OverrideMergeError ? err.stage : 'merge';
+        const cause = err instanceof OverrideMergeError ? (err.cause ?? err) : err;
+        showGhError(errorText, cause, (err as Error).message, stage === 'comment' ? 'comment on branches' : 'merge branches');
         error.hidden = false;
         ready();
         return;

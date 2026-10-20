@@ -3,10 +3,25 @@
 // designer words). Pure rules from GitHub API shapes (compare, pull request, rulesets) and token sets: no fetch, no
 // DOM. scripts/reviews/library-sync.ts reads and writes; components/ds/studio/LibraryCatchUp.tsx paints the flow.
 import { VOCAB } from './vocabulary';
+import {
+  type Freshness,
+  COMPARE_FILE_LIMIT,
+  conflictRoute,
+  dismissStaleFrom,
+  overlap,
+  resolutionMessage,
+  type BranchRuleLike,
+  type CompareFile,
+  type ConflictRoute,
+} from '@bridge-ds/core';
 import { choiceFor, formatValue, isAlias, aliasTarget, modeDisplayName, parseColor, rgbaToHex, type FlatToken, type MergeChoices, type MergeSide, type TokenMergeConflict, type TokenSet } from '@bridge-ds/core';
 import { shown, type ShownValue, type TokenReview } from './token-review';
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+// The compare, conflict-route and resolution-message rules live in @bridge-ds/core (library-update.ts), shared with
+// the MCP server and the CLI.
+export { COMPARE_FILE_LIMIT, conflictRoute, dismissStaleFrom, overlap, resolutionMessage, type BranchRuleLike, type CompareFile, type ConflictRoute };
 
 // ---------------------------------------------------------------------------------------------------------------
 // Behind and conflict, from the compare API and the pull request
@@ -21,36 +36,8 @@ export interface CompareLike {
   files?: CompareFile[];
 }
 
-export interface CompareFile {
-  filename: string;
-  status: string;
-  previous_filename?: string;
-  sha?: string | null;
-}
-
-export type LibraryState = 'current' | 'behind' | 'conflict' | 'unknown';
-
-export interface Freshness {
-  state: LibraryState;
-  /** Library updates (commits on the library branch) since the change started; null when not read. */
-  behindBy: number | null;
-  /** The commit the change and the library share. */
-  mergeBase: string | null;
-}
-
-/**
- * How the change stands against the latest library. A conflict (mergeable false) wins: GitHub cannot combine them.
- * Otherwise it is behind when the library has commits the change has not. A shipped or closed change has nothing to
- * bring in. A compare that could not be read says unknown, never "up to date".
- */
-export function freshness(input: { compare: CompareLike | null | undefined; mergeable: boolean | null | undefined; open: boolean }): Freshness {
-  const behindBy = typeof input.compare?.behind_by === 'number' ? input.compare.behind_by : null;
-  const mergeBase = input.compare?.merge_base_commit?.sha ?? null;
-  if (!input.open) return { state: 'current', behindBy, mergeBase };
-  if (input.mergeable === false) return { state: 'conflict', behindBy, mergeBase };
-  if (behindBy === null) return { state: 'unknown', behindBy, mergeBase };
-  return { state: behindBy > 0 ? 'behind' : 'current', behindBy, mergeBase };
-}
+// How a change stands against main: one rule with the MCP server and the CLI (@bridge-ds/core library-update).
+export { freshness, type Freshness, type LibraryState } from '@bridge-ds/core';
 
 /** "main has moved on: 3 updates since this branch started." Null when there is nothing to say. */
 export function libraryLine(f: Freshness): string | null {
@@ -61,31 +48,6 @@ export function libraryLine(f: Freshness): string | null {
 /** The row tag of the Changes list, in the words of the detail line: "main moved on: 12 updates". Null when up to date or unknown. */
 export function behindTag(behindBy: number | null | undefined): string | null {
   return behindBy && behindBy > 0 ? `${VOCAB.main} moved on: ${plural(behindBy, 'update')}` : null;
-}
-
-/** Every path a compare file names: a renamed file counts under its old name too. */
-const names = (files: CompareFile[]) => files.flatMap((f) => (f.previous_filename ? [f.filename, f.previous_filename] : [f.filename]));
-
-/** Files both the change and the library changed since they parted, split into token files and the rest (code). */
-export function overlap(changeFiles: CompareFile[], libraryFiles: CompareFile[], isTokenFile: (path: string) => boolean): { tokenFiles: string[]; codeFiles: string[] } {
-  const lib = new Set(names(libraryFiles));
-  const both = [...new Set(names(changeFiles).filter((f) => lib.has(f)))].sort();
-  return { tokenFiles: both.filter(isTokenFile), codeFiles: both.filter((f) => !isTokenFile(f)) };
-}
-
-/** GitHub lists at most 300 files per compare: past that, Bridge cannot know what both sides touched. */
-export const COMPARE_FILE_LIMIT = 300;
-
-export type ConflictRoute = { kind: 'tokens'; files: string[] } | { kind: 'code'; alsoTokens: boolean; files: string[] };
-
-/**
- * Who resolves the conflict. Only token files on both sides: the designer, in Bridge. Any code file on both sides, a
- * file list GitHub cut short, or no shared file at all (GitHub saw a conflict Bridge cannot explain): a developer.
- */
-export function conflictRoute(o: { tokenFiles: string[]; codeFiles: string[] }, opts: { truncated?: boolean } = {}): ConflictRoute {
-  if (opts.truncated || (!o.tokenFiles.length && !o.codeFiles.length)) return { kind: 'code', alsoTokens: false, files: [] };
-  if (o.codeFiles.length) return { kind: 'code', alsoTokens: o.tokenFiles.length > 0, files: o.codeFiles };
-  return { kind: 'tokens', files: o.tokenFiles };
 }
 
 /** The conflict row sentence, in designer words. `conflicts` is null while the tokens are being read. */
@@ -101,23 +63,6 @@ export const resolveLabel = (conflicts: number) => (conflicts > 0 ? `Resolve ${p
 
 // ---------------------------------------------------------------------------------------------------------------
 // What happens next: checks run again, approvals may need renewing
-
-/** A rule from GET /repos/{o}/{r}/rules/branches/{branch}. */
-export interface BranchRuleLike {
-  type: string;
-  parameters?: { dismiss_stale_reviews_on_push?: boolean } | null;
-}
-
-/**
- * Whether GitHub dismisses approvals when new commits arrive, from the rules that apply to the library branch. True
- * or false when a pull request rule says so; null when no rule says (classic branch protection is not readable
- * without admin rights).
- */
-export function dismissStaleFrom(rules: BranchRuleLike[] | null | undefined): boolean | null {
-  const pr = (rules ?? []).filter((r) => r.type === 'pull_request');
-  if (!pr.length) return null;
-  return pr.some((r) => r.parameters?.dismiss_stale_reviews_on_push === true);
-}
 
 /**
  * What bringing in the library does to this change, from real data: the checks that run on it, the visual comparison
@@ -242,14 +187,6 @@ export function resolution(conflicts: TokenMergeConflict[], choices: MergeChoice
   if (!conflicts.length) return { missing, mine, theirs, ready: true, sentence: 'Combines both sides: no token changed on both.' };
   const parts = [mine ? `yours for ${plural(mine, 'token')}` : '', theirs ? `${VOCAB.main}'s for ${plural(theirs, 'token')}` : ''].filter(Boolean);
   return { missing, mine, theirs, ready: true, sentence: `Keeps ${parts.join(' and ')}.` };
-}
-
-/** The commit message of the resolution, so History and the change say what the designer chose. */
-export function resolutionMessage(input: { library: string; conflicts: TokenMergeConflict[]; choices: MergeChoices; who?: string | null }): string {
-  const lines = input.conflicts.map((c) => `- ${c.path} (${c.file}): ${choiceFor(c, input.choices) === 'theirs' ? `used the ${input.library} value` : 'kept this change'}`);
-  const title = input.conflicts.length ? `Bring in the latest ${input.library} and resolve ${plural(input.conflicts.length, 'token conflict')}` : `Bring in the latest ${input.library}`;
-  const by = input.who ? `\n\nResolved in Bridge by @${input.who.replace(/^@/, '')}.` : '\n\nResolved in Bridge.';
-  return `${title}${lines.length ? `\n\n${lines.join('\n')}` : ''}${by}`;
 }
 
 // ---------------------------------------------------------------------------------------------------------------

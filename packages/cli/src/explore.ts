@@ -9,7 +9,7 @@ staging branch without touching main (an explore/<name> branch with a draft pull
 
 Usage:
   bridge explore start <name> --purpose "..." [--use-case ${EXPLORATION_USE_CASES.map((u) => u.value).join('|')}]
-                       [--experimental "..." ...] [--dry-run] [--json]
+                       [--experimental "..." ...] [--product <key>] [--dry-run] [--json]
                      GitHub token: the branch and the draft pull request on GitHub. Without one, in a git repo:
                      a local branch only, nothing pushed
   bridge explore list [--all] [--json]
@@ -53,7 +53,7 @@ export async function runExplore(a: RequestArgs, root: string, io: RequestIO = d
       if (!name || !purpose) throw new RequestUsageError('Usage: bridge explore start <name> --purpose "What you want to learn"');
       const useCase = flag(a, 'use-case');
       const ctx = await context(root, io);
-      const r = (await explorations.startExploration(ctx, { name, purpose, ...exploreSource(io.env), ...(useCase ? { useCase } : {}), ...(a.flags.experimental ? { experimental: a.flags.experimental } : {}), dryRun: has(a, 'dry-run') })) as Record<string, any>;
+      const r = (await explorations.startExploration(ctx, { name, purpose, ...exploreSource(io.env), ...(useCase ? { useCase } : {}), ...(a.flags.experimental ? { experimental: a.flags.experimental } : {}), ...(flag(a, 'product') ? { product: flag(a, 'product') } : {}), dryRun: has(a, 'dry-run') })) as Record<string, any>;
       if (json) return io.print(JSON.stringify(r, null, 2)), 0;
       if (r.status === 'dry-run') {
         io.print(`Dry run, nothing written.\n\nBranch: ${r.branch} (from ${r.base})\nPull request: ${r.title} (draft, label ${r.label})\nNote: ${r.note.path}\n\n${r.prBody}`);

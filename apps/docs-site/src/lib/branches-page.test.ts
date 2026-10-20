@@ -14,6 +14,7 @@ import {
   whoFilterParam,
 } from './branches-page';
 import { jargonIn } from './vocabulary';
+import type { ProductConfig } from '@bridge-ds/core';
 
 describe('whose work', () => {
   it('opens on All unless the address says otherwise', () => {
@@ -61,6 +62,29 @@ describe('product groups', () => {
     ]);
     expect(groupByProduct(rows.filter((r) => r.product === 'library')).map((g) => g.key)).toEqual(['library']);
     expect(groupByProduct([])).toEqual([]);
+  });
+
+  it('a product: label puts the branch in that product', () => {
+    expect(productOf(['packages/react/src/Badge.tsx'], undefined, [{ name: 'product: admin' }])).toBe('admin');
+    expect(productOf(['apps/admin/src/App.tsx'], undefined, ['product: library'])).toBe('library');
+    expect(productOf(['apps/admin/src/App.tsx'], undefined, [{ name: 'product: unknown' }])).toBe('admin');
+  });
+
+  it('a configured product list decides the groups and their order', () => {
+    const products: ProductConfig[] = [
+      { key: 'library', name: 'Library', path: 'packages', default: true },
+      { key: 'shop', name: 'Shop', path: 'apps/shop' },
+    ];
+    expect(productOf(['apps/shop/src/Cart.tsx'], products)).toBe('shop');
+    expect(productOf(['apps/admin/src/App.tsx'], products)).toBe('library');
+    const rows = [
+      { n: 1, product: 'shop' },
+      { n: 2, product: 'library' },
+    ];
+    expect(groupByProduct(rows, products).map((g) => [g.label, g.rows.map((r) => r.n)])).toEqual([
+      ['Library', [2]],
+      ['Shop', [1]],
+    ]);
   });
 });
 

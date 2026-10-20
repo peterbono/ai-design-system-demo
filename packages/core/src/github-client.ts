@@ -883,9 +883,9 @@ export class GitHubClient {
     );
   }
 
-  async getPullRequest(n: number): Promise<PullRequest & PullRequestSummary & { body: string; mergeable: boolean | null }> {
+  async getPullRequest(n: number): Promise<PullRequest & PullRequestSummary & { body: string; mergeable: boolean | null; requestedReviewers: string[] }> {
     const r = await this.request<Record<string, any>>('GET', `${this.repoPath}/pulls/${n}`);
-    return { ...toSummary(r), body: r.body ?? '', mergeable: r.mergeable ?? null };
+    return { ...toSummary(r), body: r.body ?? '', mergeable: r.mergeable ?? null, requestedReviewers: ((r.requested_reviewers ?? []) as { login: string }[]).map((x) => x.login) };
   }
 
   async listPullRequestFiles(n: number): Promise<PullRequestFile[]> {
@@ -979,6 +979,127 @@ export class GitHubClient {
 
   async removeLabel(issueNumber: number, label: string): Promise<void> {
     await this.request('DELETE', `${this.repoPath}/issues/${issueNumber}/labels/${encodeURIComponent(label)}`);
+  }
+
+  // --- branch actions shared by Studio, the MCP server and the CLI (branch-actions.ts) ---
+
+  /** The account the token belongs to (GET /user). Needs a token. */
+  async getViewer(): Promise<{ login: string }> {
+    this.assertToken('Reading who you are on GitHub');
+    const r = await this.request<{ login: string }>('GET', '/user');
+    return { login: r.login };
+  }
+
+  /** The repository's merge settings and the viewer's permissions (unknown settings count as allowed). */
+  async getMergeSettings(): Promise<{ allow_squash_merge?: boolean; allow_merge_commit?: boolean; allow_rebase_merge?: boolean; permissions?: { admin?: boolean; maintain?: boolean; push?: boolean } }> {
+    return this.request('GET', this.repoPath);
+  }
+
+  /**
+   * Merges a pull request, only at `sha` (GitHub refuses when the branch moved meanwhile). The repository's branch
+   * rules still apply: GitHub refuses a merge they block, whatever Bridge says.
+   */
+  async mergePullRequest(n: number, input: { method: 'squash' | 'merge' | 'rebase'; sha: string; commitMessage?: string | undefined }): Promise<{ sha: string; merged: boolean }> {
+    this.assertToken('Merging a branch');
+    const r = await this.request<{ sha: string; merged: boolean }>('PUT', `${this.repoPath}/pulls/${n}/merge`, {
+      merge_method: input.method,
+      sha: input.sha,
+      ...(input.commitMessage !== undefined && input.method !== 'rebase' ? { commit_message: input.commitMessage } : {}),
+    });
+    return { sha: r?.sha ?? '', merged: r?.merged ?? true };
+  }
+
+  /** GitHub's "Update branch": merges the base into the pull request, only when its head is still `expectedHeadSha`. */
+  async updatePullRequestBranch(n: number, expectedHeadSha: string): Promise<void> {
+    this.assertToken('Updating a branch from main');
+    await this.request('PUT', `${this.repoPath}/pulls/${n}/update-branch`, { expected_head_sha: expectedHeadSha });
+  }
+
+  /** Posts a comment on an issue or pull request and returns its id and link. */
+  async createIssueComment(n: number, body: string): Promise<{ id: number; url: string }> {
+    this.assertToken('Commenting');
+    const r = await this.request<{ id: number; html_url: string }>('POST', `${this.repoPath}/issues/${n}/comments`, { body });
+    return { id: r.id, url: r.html_url };
+  }
+
+  /** Replaces the text of a comment. */
+  async updateIssueComment(id: number, body: string): Promise<void> {
+    this.assertToken('Editing a comment');
+    await this.request('PATCH', `${this.repoPath}/issues/comments/${id}`, { body });
+  }
+
+  /** Submits a review on a given commit (the head the reviewer saw); the body may be empty for an approval. */
+  async submitReview(n: number, input: { event: 'COMMENT' | 'APPROVE' | 'REQUEST_CHANGES'; body?: string | undefined; commitId?: string | undefined }): Promise<Review> {
+    this.assertToken('Reviewing a branch');
+    const r = await this.request<{ id: number; user?: { login: string }; state: string; body: string | null }>('POST', `${this.repoPath}/pulls/${n}/reviews`, {
+      event: input.event,
+      ...(input.body ? { body: input.body } : {}),
+      ...(input.commitId ? { commit_id: input.commitId } : {}),
+    });
+    return { id: r.id, user: r.user?.login, state: r.state, body: r.body ?? '' };
+  }
+
+  /** Line comments of a pull request (review threads), oldest first. */
+  async listReviewComments(n: number): Promise<{ id: number; body: string; author: string; path: string; line: number | null; inReplyTo: number | null; url: string; createdAt: string }[]> {
+    const r = await this.request<{ id: number; body?: string | null; user?: { login: string } | null; path: string; line?: number | null; in_reply_to_id?: number; html_url: string; created_at: string }[]>(
+      'GET',
+      `${this.repoPath}/pulls/${n}/comments?per_page=100`,
+    );
+    return r.map((c) => ({ id: c.id, body: c.body ?? '', author: c.user?.login ?? 'unknown', path: c.path, line: c.line ?? null, inReplyTo: c.in_reply_to_id ?? null, url: c.html_url, createdAt: c.created_at }));
+  }
+
+  /** Asks these people to review a pull request. */
+  async requestReviewers(n: number, logins: string[]): Promise<void> {
+    this.assertToken('Asking for a review');
+    await this.request('POST', `${this.repoPath}/pulls/${n}/requested_reviewers`, { reviewers: logins });
+  }
+
+  /** Takes these people off the requested reviewers. */
+  async removeRequestedReviewers(n: number, logins: string[]): Promise<void> {
+    this.assertToken('Changing the requested reviewers');
+    await this.request('DELETE', `${this.repoPath}/pulls/${n}/requested_reviewers`, { reviewers: logins });
+  }
+
+  /** Replies in the thread of a line comment. */
+  async replyToReviewComment(n: number, commentId: number, body: string): Promise<{ id: number; url: string }> {
+    this.assertToken('Replying to a comment');
+    const r = await this.request<{ id: number; html_url: string }>('POST', `${this.repoPath}/pulls/${n}/comments/${commentId}/replies`, { body });
+    return { id: r.id, url: r.html_url };
+  }
+
+  /**
+   * What `head` adds on top of `base`, with what library sync needs: the shared start (merge base), the base
+   * commit and its tree, how far behind, and the files with their previous names.
+   */
+  async compareDetailed(base: string, head: string): Promise<{
+    behindBy: number;
+    aheadBy: number;
+    mergeBase: string | null;
+    baseSha: string | null;
+    baseTree: string | null;
+    files: { filename: string; status: string; previous_filename?: string | undefined }[];
+  }> {
+    const r = await this.request<{
+      ahead_by: number;
+      behind_by: number;
+      merge_base_commit?: { sha?: string };
+      base_commit?: { sha?: string; commit?: { tree?: { sha?: string } } };
+      files?: { filename: string; status: string; previous_filename?: string }[];
+    }>('GET', `${this.repoPath}/compare/${encodeRef(base)}...${encodeRef(head)}`);
+    return {
+      behindBy: r.behind_by,
+      aheadBy: r.ahead_by,
+      mergeBase: r.merge_base_commit?.sha ?? null,
+      baseSha: r.base_commit?.sha ?? null,
+      baseTree: r.base_commit?.commit?.tree?.sha ?? null,
+      files: (r.files ?? []).map((f) => ({ filename: f.filename, status: f.status, ...(f.previous_filename ? { previous_filename: f.previous_filename } : {}) })),
+    };
+  }
+
+  /** A tree on top of `baseTree` from entries with their own file mode (blob sha, inline content, or sha null to delete). */
+  async createTreeEntries(baseTree: string, entries: ({ path: string; mode: string; sha: string | null } | { path: string; mode: string; content: string })[]): Promise<string> {
+    const r = await this.request<{ sha: string }>('POST', `${this.repoPath}/git/trees`, { base_tree: baseTree, tree: entries.map((e) => ({ ...e, type: 'blob' })) }, true);
+    return r.sha;
   }
 }
 

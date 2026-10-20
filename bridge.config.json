@@ -76,5 +76,9 @@
       "storybook": "https://bridge-storybook.floriangouloubi.com",
       "admin": "https://bridge-demo.floriangouloubi.com"
     }
-  }
+  },
+  "products": [
+    { "key": "admin", "name": "Admin demo", "path": "apps/admin", "preview": "https://bridge-admin-git-{branch}-peterbonos-projects.vercel.app", "framework": "react" },
+    { "key": "library", "name": "Library", "path": "packages", "framework": "react", "default": true }
+  ]
 }

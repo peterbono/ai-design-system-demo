@@ -17,7 +17,7 @@ import { classifyCheck, type CheckKind } from './check-explain';
 import { pullState, type PullState, type ReviewStatusKind, type Tier } from './review-rules';
 import { GROUP_TONE, openerFor, type Opener, type OpenerRow, type StatusTone } from './changes';
 import type { WorkNature } from './work-nature';
-import type { TokenSet } from '@bridge-ds/core';
+import { reopenEligibility, type ReopenEligibility, type TokenSet } from '@bridge-ds/core';
 import { branchCount, STATUS_WORDS, VOCAB } from './vocabulary';
 
 export type Lifecycle = 'draft' | 'ready' | 'waiting' | 'shipped' | 'closed';
@@ -129,38 +129,8 @@ export function waitingSentence(x: { failing: number; oldValue?: boolean; techOw
 
 export type StatusAction = 'mark-ready' | 'reopen' | 'restart' | null;
 
-export type ReopenEligibility =
-  /** The branch is still there: the change can be reopened as it was. */
-  | { kind: 'reopen' }
-  /** The branch is gone: nothing to reopen, but its token edits can start a new change. */
-  | { kind: 'gone' }
-  /** Not closed, or not the viewer's to reopen, or not known yet. */
-  | { kind: 'none' };
-
-const norm = (x: string) => x.trim().toLowerCase().replace(/^@/, '');
-
-/**
- * Whether the viewer can reopen a closed change: only a change closed without shipping, only its author or an owner
- * (governance.owners, both roles), and only someone GitHub lets write (write access, or the author). `branch` is what
- * GitHub said about the head branch: there, removed, or not read.
- */
-export function reopenEligibility(x: {
-  state: PullState;
-  viewer: string | null;
-  author: string;
-  owners: string[];
-  canWrite: boolean;
-  branch: 'exists' | 'gone' | 'unknown';
-}): ReopenEligibility {
-  if (x.state !== 'closed' || !x.viewer) return { kind: 'none' };
-  const isAuthor = norm(x.viewer) === norm(x.author);
-  const isOwner = x.owners.some((o) => norm(o) === norm(x.viewer!));
-  if (!isAuthor && !isOwner) return { kind: 'none' };
-  if (!x.canWrite && !isAuthor) return { kind: 'none' };
-  if (x.branch === 'exists') return { kind: 'reopen' };
-  if (x.branch === 'gone') return { kind: 'gone' };
-  return { kind: 'none' };
-}
+// Who may reopen a closed branch: one rule with the MCP server and the CLI (@bridge-ds/core review-gate).
+export { reopenEligibility, type ReopenEligibility };
 
 /** The sentence a closed change shows when its branch is gone. */
 export const GONE_SENTENCE = `This ${VOCAB.branch} can't be reopened: its work was removed.`;

@@ -10,6 +10,8 @@ import * as brand from './brand.js';
 import * as requests from './requests.js';
 import * as explorations from './explorations.js';
 import * as drafts from './drafts.js';
+import * as branches from './branches.js';
+import * as studio from './studio.js';
 import { DRAFT_LINE_MAX, DRAFT_PHRASE, DRAFT_TITLE_MAX, EXPLORATION_USE_CASES, REQUEST_KINDS } from '@bridge-ds/core';
 
 declare const __BRIDGE_MCP_VERSION__: string | undefined;
@@ -60,6 +62,8 @@ export function createServer(ctx: BridgeContext): McpServer {
         'To undo a merged token change use bridge_plan_revert first (it shows conflicts with later changes), then bridge_propose_revert; never revert by hand-editing files.',
         'Component changes (new component, variant, prop, structure, visual, token binding) are requests: GitHub issues labeled component-change. bridge_list_requests finds them, bridge_get_request returns a brief to implement one in a pull request that says "Closes #n", bridge_create_request files a new one.',
         `Change texts from Figma and docs from Bridge Studio: when the user says "${DRAFT_PHRASE}" (or asks you to draft their Bridge changes or docs), call bridge_pending_drafts. For change items, look at the before and after images and write each title, summary and change line in the Bridge voice. For docs items (scope "docs"), follow the brief: write only the sections it asks for, grounded in the props, CSS module classes and source it quotes, never an invented prop or behavior, never anatomy. Then call bridge_write_drafts. The designer reviews them in the DS Bridge Figma plugin or on the Library page.`,
+        'Studio parity: a designer can do in Claude what they do in Bridge Studio. Branches in review: bridge_what_needs_me (the queue), bridge_branch_status, bridge_send_for_review, bridge_back_to_draft, bridge_review_branch, bridge_ask_someone_else, bridge_comment, bridge_update_from_main (token conflicts too), bridge_try_branch (try it in a product, share it), bridge_combine_branches, bridge_close_branch, bridge_reopen_branch, bridge_merge_branch (same gate as Studio, owner override with a reason). Docs: bridge_save_docs. Writes act under the person\'s GitHub token: only do them when the person asked, and merge only when they explicitly asked to merge.',
+        'Products: work starts for a product (bridge_list_products). Tools that start work take "product"; without it Bridge uses the product of the current folder or repo. Ask the person when it is not obvious.',
         'Explorations try experimental variables and components in a product staging branch without touching main: an explore/<slug> branch with a draft pull request labeled exploration, previews and a snapshot package. bridge_start_exploration starts one, bridge_list_explorations lists them. To work on one, pass "branch": "explore/<slug>" to bridge_propose_token_change, bridge_draft_docs and bridge_get_request, and never open a pull request to main from it: a person promotes it to review or closes it.',
       ].join(' '),
     },
@@ -213,6 +217,9 @@ export function createServer(ctx: BridgeContext): McpServer {
         edits: z.array(EditArg).min(1),
         dryRun: z.boolean().optional().describe('Return the diff, tier, files and PR body without writing.'),
         branch: z.string().optional().describe('Exploration branch (explore/<slug>) to commit the edits to instead of opening a new pull request. GitHub: one commit on that branch. Local: written to the working tree, which must have that branch checked out. Never main.'),
+        pr: z.union([z.number().int().positive(), z.string().min(1)]).optional().describe('A branch already in review (12 or "#12") to add the edits to, as "Edit tokens in this branch" in Studio: one commit there and a comment for the reviewers. Its author or someone with write access; needs GITHUB_TOKEN.'),
+        jira: z.string().optional().describe('Jira key like DS-42, as in Studio\'s Create branch: first in the branch name and title so Jira links them.'),
+        product: z.string().optional().describe('Product key or name (bridge_list_products) the change is for. Default: the product of the current folder or repo. Ask the person when it is not obvious.'),
       },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     },
@@ -292,7 +299,7 @@ export function createServer(ctx: BridgeContext): McpServer {
     'bridge_review_pr',
     {
       title: 'Review pull request',
-      description: 'Post a review on a PR as the token owner: comment, approve or request changes. Needs GITHUB_TOKEN. Only do this when the user asked for it; never merge (Bridge cannot).',
+      description: 'Post a review on a PR as the token owner: comment, approve or request changes, with a body. Kept for older prompts: bridge_review_branch does the same in designer words (an approval may have no text). Needs GITHUB_TOKEN. Only do this when the user asked for it; merging is a separate step (bridge_merge_branch), only when the person asks.',
       inputSchema: { pr: z.number().int().positive(), event: z.enum(['comment', 'approve', 'request_changes']), body: z.string().min(1).describe('What to fix or why it is fine. Plain sentences.') },
       annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
     },
@@ -488,6 +495,7 @@ export function createServer(ctx: BridgeContext): McpServer {
           .describe('What changes, from what to what.'),
         figmaUrl: z.string().url().optional().describe('Link to the design in Figma, when there is one.'),
         exploration: z.string().optional().describe('Exploration branch (explore/<slug>) to implement it on instead of a pull request to main. Adds the exploration label.'),
+        product: z.string().optional().describe('Product key or name (bridge_list_products) it is for. Default: the product of the current folder or repo.'),
         dryRun: z.boolean().optional().describe('Return the issue title, body and labels without creating it.'),
       },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
@@ -586,6 +594,7 @@ export function createServer(ctx: BridgeContext): McpServer {
         purpose: z.string().min(1).describe('What the team wants to learn, one or two plain sentences. No em dash.'),
         useCase: z.enum(EXPLORATION_USE_CASES.map((u) => u.value) as [string, ...string[]]).optional().describe(EXPLORATION_USE_CASES.map((u) => `${u.value}: ${u.hint}`).join(' ')),
         experimental: z.array(z.string()).optional().describe('What is experimental, one line each: "color.action.primary.bg", "Button: pill radius".'),
+        product: z.string().optional().describe('Product key or name (bridge_list_products) it is tried in. Default: the product of the current folder or repo.'),
         dryRun: z.boolean().optional().describe('Return the branch, note and pull request body without writing.'),
       },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
@@ -603,6 +612,259 @@ export function createServer(ctx: BridgeContext): McpServer {
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
     run((a) => explorations.listExplorations(ctx, a)),
+  );
+
+  server.registerTool(
+    'bridge_promote_exploration',
+    {
+      title: 'Promote an exploration to review',
+      description:
+        'Promote an exploration (explore/<name>) to review, as in Studio: the draft becomes ready for review with its tier labels, the exploration label and note go, and the component requests it implements are linked so they close when it merges. Never merges. Needs GITHUB_TOKEN (contents and pull requests: write). Only when the person asked; dryRun shows what changes.',
+      inputSchema: { exploration: z.string().min(1).describe('Its name, explore/<name> branch or number (#42).'), dryRun: z.boolean().optional() },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    },
+    run((a) => explorations.promoteExploration(ctx, { ref: a.exploration, dryRun: a.dryRun })),
+  );
+
+  server.registerTool(
+    'bridge_close_exploration',
+    {
+      title: 'Close an exploration',
+      description: 'Close an exploration without merging it, as in Studio. Its branch and previews stay on GitHub. Needs GITHUB_TOKEN (pull requests: write). Only when the person asked.',
+      inputSchema: { exploration: z.string().min(1).describe('Its name, explore/<name> branch or number (#42).') },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
+    },
+    run((a) => explorations.closeExploration(ctx, { ref: a.exploration })),
+  );
+
+  // --- branches in review: the Studio actions (packages/mcp/src/branches.ts over @bridge-ds/core) ---
+  const Pr = z.union([z.number().int().positive(), z.string().min(1)]).describe('The branch number Studio shows (12 or "#12"), or its GitHub link.');
+  const WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true } as const;
+  const READ = { readOnlyHint: true, openWorldHint: true } as const;
+
+  server.registerTool(
+    'bridge_list_products',
+    {
+      title: 'List products',
+      description: 'The products of this design system (bridge.config.json "products": name, repo or folder, preview link pattern, framework) and the one the current folder or repo belongs to, which tools that start work use when no product is given. Ask the person which product when it is not obvious.',
+      inputSchema: {},
+      annotations: RO,
+    },
+    run(async () => branches.listProducts(ctx)),
+  );
+
+  server.registerTool(
+    'bridge_what_needs_me',
+    {
+      title: 'What needs me',
+      description: 'The review queue, as Studio counts it (open branches, without running explorations and the release automation), each with its status in designer words, and first the ones where the person acts now: an approval they can give, their own branch blocked, ready for them to merge. Needs GITHUB_TOKEN to know who "me" is; without it, the queue only.',
+      inputSchema: { limit: z.number().int().min(1).max(50).optional().describe('Branches read (default 20, each costs a few GitHub reads).') },
+      annotations: READ,
+    },
+    run((a) => branches.whatNeedsMe(ctx, a)),
+  );
+
+  server.registerTool(
+    'bridge_branch_status',
+    {
+      title: 'Branch status',
+      description: 'One branch in review as Studio shows it: its product, status (draft, in review, needs design or tech approval, blocked by tests, conflict, ready to merge, merged, closed), approvals, tests, how it stands against main, whether the person may merge it (same gate as the Merge button), and the next step. For the token diff and contrast, use bridge_get_review.',
+      inputSchema: { pr: Pr },
+      annotations: READ,
+    },
+    run((a) => branches.branchStatus(ctx, a)),
+  );
+
+  server.registerTool(
+    'bridge_list_comments',
+    {
+      title: 'List comments',
+      description: 'The conversation on a branch and its line comment threads, with the ids to reply to (bridge_comment with replyTo).',
+      inputSchema: { pr: Pr },
+      annotations: READ,
+    },
+    run((a) => branches.listComments(ctx, a)),
+  );
+
+  server.registerTool(
+    'bridge_try_branch',
+    {
+      title: 'Try it in a product, share it',
+      description: 'Try a branch before it merges: the preview link of each product Vercel reported for it (the admin demo opens with the Bridge toolbar on, as "Try it in the product" in Studio), the other previews, and "Share with a product team": the install command a product team runs in a staging branch, or why there is none yet, with a ready-to-paste message. Never a guessed link. Writes nothing.',
+      inputSchema: { pr: Pr },
+      annotations: READ,
+    },
+    run((a) => branches.tryBranch(ctx, a)),
+  );
+
+  server.registerTool(
+    'bridge_combine_branches',
+    {
+      title: 'Try 2 to 4 branches together',
+      description: 'Combined preview of 2 to 4 token branches, as "Try together" in Studio: each branch\'s own token edits on the latest main, the tokens two branches set differently (pick one per key with picks), and the links that open the combination (the admin demo with the Bridge toolbar, the library views). Branches that change code are refused. Writes nothing.',
+      inputSchema: {
+        prs: z.array(Pr).min(2).max(4).describe('2 to 4 branch numbers.'),
+        picks: z.record(z.string(), z.number().int().positive()).optional().describe('For each conflict key, the branch whose value to use: {"semantic/light.tokens.json#color.text.muted": 118}.'),
+      },
+      annotations: READ,
+    },
+    run((a) => branches.combineBranches(ctx, a)),
+  );
+
+  server.registerTool(
+    'bridge_get_settings',
+    {
+      title: 'Get settings',
+      description: 'What Studio Settings shows that is safe to read: who approves design and tech (GitHub teams named with their size), who may merge, the owner override (who, what reason), whether main is protected, the products, the preview apps and the visual impact mode. Never tokens or secrets.',
+      inputSchema: {},
+      annotations: READ,
+    },
+    run(async () => studio.getSettings(ctx)),
+  );
+
+  server.registerTool(
+    'bridge_figma_coverage',
+    {
+      title: 'Figma coverage',
+      description: 'Which components are in Figma, in Studio\'s words (Yes, Drafted, Auto layout, Not yet with the reason), and whether code images exist for the fidelity check the DS Bridge Figma plugin runs (its scores live in Figma).',
+      inputSchema: { component: z.string().optional().describe('One component, e.g. Button.') },
+      annotations: READ,
+    },
+    run((a) => studio.figmaCoverage(ctx, a)),
+  );
+
+  server.registerTool(
+    'bridge_send_for_review',
+    {
+      title: 'Send for review',
+      description: 'Ask for review: a draft branch becomes ready for review, as "Mark as ready" in Studio. Its author only. Needs GITHUB_TOKEN (pull requests: write).',
+      inputSchema: { pr: Pr },
+      annotations: { ...WRITE, idempotentHint: true },
+    },
+    run((a) => branches.sendForReview(ctx, a)),
+  );
+
+  server.registerTool(
+    'bridge_back_to_draft',
+    {
+      title: 'Back to draft',
+      description: 'Take a branch out of review back to draft, as in Studio\'s More menu. Its author only. Needs GITHUB_TOKEN (pull requests: write).',
+      inputSchema: { pr: Pr },
+      annotations: { ...WRITE, idempotentHint: true },
+    },
+    run((a) => branches.backToDraft(ctx, a)),
+  );
+
+  server.registerTool(
+    'bridge_review_branch',
+    {
+      title: 'Review a branch',
+      description: 'Approve, request changes or comment on a branch, as the review box in Studio, on the version the person saw, under their GitHub account. Request changes and comment need a text that says what to change; an approval may have none. Only when the person asked. Needs GITHUB_TOKEN (pull requests: write).',
+      inputSchema: {
+        pr: Pr,
+        decision: z.enum(['approve', 'request_changes', 'comment']),
+        body: z.string().optional().describe('What to change, or why it is fine. Plain sentences, no em dash.'),
+      },
+      annotations: WRITE,
+    },
+    run((a) => branches.reviewBranch(ctx, a)),
+  );
+
+  server.registerTool(
+    'bridge_ask_someone_else',
+    {
+      title: 'Ask someone else to review',
+      description: 'Ask the other people who can give the missing approvals to review a branch, as "Ask someone else to review" in the Studio review queue, and take the person off its requested reviewers. Never the person or the author. Only when the person asked; dryRun says who would be asked. Needs GITHUB_TOKEN (pull requests: write).',
+      inputSchema: { pr: Pr, dryRun: z.boolean().optional() },
+      annotations: { ...WRITE, idempotentHint: true },
+    },
+    run((a) => branches.askSomeoneElse(ctx, a)),
+  );
+
+  server.registerTool(
+    'bridge_comment',
+    {
+      title: 'Comment on a branch',
+      description: 'Post a comment on a branch, or reply in the thread of a line comment (replyTo: its id from bridge_list_comments). Needs GITHUB_TOKEN (pull requests: write).',
+      inputSchema: { pr: Pr, body: z.string().min(1).describe('Plain sentences, no em dash.'), replyTo: z.number().int().positive().optional().describe('Line comment thread to reply in.') },
+      annotations: WRITE,
+    },
+    run((a) => branches.commentOnBranch(ctx, a)),
+  );
+
+  server.registerTool(
+    'bridge_merge_branch',
+    {
+      title: 'Merge a branch',
+      description:
+        'Merge a branch into main through the same gate as Studio\'s Merge button: tests pass, the approvals its tier needs, no changes requested, no conflict, not a draft or an exploration, and the person holds the right to ship (governance.rights). When it is blocked, the error says by what. Owner override: pass overrideReason when only approvals are missing and the person is in governance.override.allowed; the reason is posted on the branch first. Only when the person explicitly asked to merge; dryRun checks without merging. Needs GITHUB_TOKEN (contents and pull requests: write); GitHub\'s own branch rules still apply.',
+      inputSchema: {
+        pr: Pr,
+        overrideReason: z.string().optional().describe('Owner override only: why it merges without the missing approvals (at least the configured length). Posted on the branch.'),
+        dryRun: z.boolean().optional().describe('Check the gate without merging.'),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
+    },
+    run((a) => branches.mergeBranch(ctx, a)),
+  );
+
+  server.registerTool(
+    'bridge_close_branch',
+    {
+      title: 'Close a branch',
+      description: 'Close a branch without merging it, as in Studio\'s More menu. Its work stays on GitHub and it can be reopened. Explorations close with bridge_close_exploration. Only when the person asked. Needs GITHUB_TOKEN (pull requests: write).',
+      inputSchema: { pr: Pr },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
+    },
+    run((a) => branches.closeBranch(ctx, a)),
+  );
+
+  server.registerTool(
+    'bridge_reopen_branch',
+    {
+      title: 'Reopen a branch',
+      description: 'Reopen a closed branch, with Studio\'s rule: its author or an owner with write access, and only while its work is still on GitHub. Needs GITHUB_TOKEN (pull requests: write).',
+      inputSchema: { pr: Pr },
+      annotations: { ...WRITE, idempotentHint: true },
+    },
+    run((a) => branches.reopenBranch(ctx, a)),
+  );
+
+  server.registerTool(
+    'bridge_update_from_main',
+    {
+      title: 'Update from main',
+      description:
+        'Bring the latest main into a branch, as "Update from main" in Studio. Nothing conflicts: GitHub updates it. Only token files conflict: the tokens changed on both sides come back with keys; pass choices ("mine" keeps the branch value, "theirs" uses main\'s; tokens with a default keep the branch value) and Bridge commits the resolution. Code conflicts stay with a developer on GitHub. dryRun shows what would happen. Needs GITHUB_TOKEN (contents and pull requests: write).',
+      inputSchema: {
+        pr: Pr,
+        choices: z.record(z.string(), z.enum(['mine', 'theirs'])).optional().describe('Per conflict key from a dry run: "mine" or "theirs".'),
+        dryRun: z.boolean().optional(),
+      },
+      annotations: WRITE,
+    },
+    run((a) => branches.updateFromMain(ctx, a)),
+  );
+
+  server.registerTool(
+    'bridge_save_docs',
+    {
+      title: 'Save component docs',
+      description:
+        "Save a component's usage guidance (docs.json sections: summary, whenToUse, whenNotToUse, dos, donts, accessibility, contentGuidelines, anatomy, preview) the way the Library edit mode does: merged into the docs on the branch, cleaned and checked (a summary, no empty items, no em dash). Without pr: a new branch sent for review (docs only: one approval, patch release note), with an optional Jira key and product. With pr: one commit on that open branch. dryRun returns the file. Needs GITHUB_TOKEN (contents and pull requests: write). Prose you drafted carries \"draftedBy\": \"claude\" and \"needsReview\": true so a reviewer accepts it in Studio.",
+      inputSchema: {
+        component: z.string().min(1).describe('Component name, e.g. Button.'),
+        docs: z.record(z.string(), z.unknown()).describe('The sections to set, in docs.json shapes: summary a string; whenToUse, whenNotToUse, accessibility, contentGuidelines lists of strings; dos and donts lists of {"title","text"}.'),
+        pr: Pr.optional().describe('An open branch to save the docs on, instead of a new one.'),
+        title: z.string().optional().describe('Title of the new branch. Default: "docs(<component>): usage guidance for <Component>".'),
+        notes: z.string().optional().describe('Why, for the reviewers.'),
+        jira: z.string().optional().describe('Jira key like DS-42: first in the branch name and title so Jira links them.'),
+        product: z.string().optional().describe('Product key or name (bridge_list_products). Default: the product of the current folder or repo.'),
+        dryRun: z.boolean().optional(),
+      },
+      annotations: WRITE,
+    },
+    run((a) => studio.saveDocs(ctx, a)),
   );
 
   // --- resources ---

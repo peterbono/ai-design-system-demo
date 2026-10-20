@@ -10,6 +10,8 @@ import { captureFigmaReferences, runImpact, type Only } from '@bridge-ds/visual'
 import { execFileSync } from 'node:child_process';
 import { runRequest } from './request.js';
 import { runExplore } from './explore.js';
+import { runBranch, runDocsSave, runStudioRead } from './branch.js';
+import { defaultIO } from './request.js';
 import { protectionReport, type ProtectionReport } from './protection.js';
 import { rolesReport, type RolesReport } from './roles.js';
 import { brand, BridgeContext, CONFIG_FILE, core, detectConfig, GitRefSource, history as hist, LocalSource, ops, optionsFromArgv, serveStdio, toConfigJson, VERSION, type BridgeConfig } from '@bridge-ds/mcp';
@@ -30,9 +32,13 @@ Usage:
   bridge tokens <query> [--json]      search tokens by name, description or value
   bridge diff <base> [--json|--md]    designer-readable token diff: working tree vs <base> (git ref)
   bridge propose --title "..." --set path=value [--set ...] [--file f | --mode theme=dark]
-                 [--edits edits.json] [--summary "..."] [--branch explore/<name>] [--dry-run]
+                 [--edits edits.json] [--summary "..."] [--branch explore/<name>] [--pr <n>]
+                 [--product <key>] [--jira DS-42] [--dry-run]
                                       validate + contrast + new local bridge/* branch (never pushes).
-                                      --branch: write the edits to the checked-out exploration instead
+                                      --branch: write the edits to the checked-out exploration instead.
+                                      --pr: add them to that branch in review (GitHub token).
+                                      --product: the product it is for (bridge products); --jira: the
+                                      ticket key, first in the branch name and title
   bridge brand list [--json]          brands: slug, name, default, primary action color, theme overrides
   bridge brand create <slug> --from bridge --primary <hex|hue> --neutral <hex|hue>
                  [--name "Acme"] [--accent x] [--link x] [--radius soft|balanced|crisp|i,c,co,o]
@@ -88,6 +94,16 @@ Usage:
                                       explorations: an explore/<name> branch with a draft pull request
                                       labeled exploration, previews and a snapshot package for a product
                                       staging branch. Never merged as is: promote it to review or close it
+  bridge branch list|status|comments|ready|draft|review|ask|comment|merge|close|reopen|update|try|combine
+                                      branches in review, the same actions as Bridge Studio
+                                      (\`bridge branch help\`): what needs me, send for review, review,
+                                      merge through the same gate (owner override with a reason), update
+                                      from main with token conflicts, try it in a product, try together
+  bridge products | bridge settings | bridge coverage [Component]
+                                      products (and this folder's), Studio settings safe to read, which
+                                      components are in Figma
+  bridge docs save <Component> --file docs.json [--pr n] [--jira DS-42] [--product key] [--dry-run]
+                                      save usage guidance as in the Library edit mode (GitHub token)
   bridge mcp [--root dir | --repo owner/name]   start the MCP server on stdio
 
 Options:
@@ -110,7 +126,7 @@ function parse(argv: string[]): Args {
       const next = argv[i + 1];
       // --json and --md print to stdout, or write a file when followed by one (bridge audit).
       const fileArg = (k === 'json' && /\.json$/i.test(next ?? '')) || (k === 'md' && /\.(md|markdown)$/i.test(next ?? ''));
-      const takesValue = inline === undefined && next !== undefined && !next.startsWith('--') && (fileArg || !['force', 'json', 'md', 'strict', 'dry-run', 'help', 'fix', 'write', 'no-regress', 'plan', 'keep-unchanged', 'restore-conflicts', 'breaking', 'claude', 'all', 'offline'].includes(k));
+      const takesValue = inline === undefined && next !== undefined && !next.startsWith('--') && (fileArg || !['force', 'json', 'md', 'strict', 'dry-run', 'help', 'fix', 'write', 'no-regress', 'plan', 'keep-unchanged', 'restore-conflicts', 'breaking', 'claude', 'all', 'offline', 'approve'].includes(k));
       (out.flags[k] ??= []).push(inline ?? (takesValue ? argv[++i]! : 'true'));
     } else out._.push(a);
   }
@@ -274,10 +290,24 @@ async function propose(a: Args, root: string): Promise<number> {
   const editsFile = flag(a, 'edits');
   if (editsFile) edits.push(...(JSON.parse(await readFile(resolve(editsFile), 'utf8')) as Record<string, unknown>[]));
   if (!edits.length) throw new UsageError('Give at least one --set path=value or --edits file.json');
-  const ctx = await BridgeContext.create({ root });
+  const pr = flag(a, 'pr');
+  // Adding to a branch in review writes on GitHub: the token the other GitHub commands use.
+  const token = pr ? process.env.BRIDGE_GITHUB_TOKEN || process.env.GITHUB_TOKEN || defaultIO().ghToken() : undefined;
+  const ctx = await BridgeContext.create({ root, ...(token ? { token } : {}) });
   const summary = flag(a, 'summary');
   const branch = flag(a, 'branch');
-  const r = (await ops.proposeTokenChange(ctx, { title, edits: edits as never, ...(summary ? { summary } : {}), ...(branch ? { branch } : {}), dryRun: has(a, 'dry-run') })) as Record<string, unknown>;
+  const jira = flag(a, 'jira');
+  const product = flag(a, 'product');
+  const r = (await ops.proposeTokenChange(ctx, {
+    title,
+    edits: edits as never,
+    ...(summary ? { summary } : {}),
+    ...(branch ? { branch } : {}),
+    ...(pr ? { pr } : {}),
+    ...(jira ? { jira } : {}),
+    ...(product ? { product } : {}),
+    dryRun: has(a, 'dry-run'),
+  })) as Record<string, unknown>;
   if (has(a, 'json')) print(JSON.stringify(r, null, 2));
   else {
     print(`status: ${r.status}${r.why ? ` (${r.why})` : ''}`);
@@ -594,6 +624,9 @@ async function main(): Promise<number> {
   const root = resolve(flag(a, 'root') ?? process.cwd());
   if (cmd === 'request') return runRequest(a, root);
   if (cmd === 'explore') return runExplore(a, root);
+  if (cmd === 'branch') return runBranch(a, root);
+  if (cmd === 'products' || cmd === 'settings' || cmd === 'coverage') return runStudioRead(cmd, a, root);
+  if (cmd === 'docs' && a._[1] === 'save') return runDocsSave(a, root);
   if (!cmd || has(a, 'help') || cmd === 'help') {
     print(HELP);
     // Asked for (`help`, `--help`): exit 0. No command at all is a usage error: exit 2.

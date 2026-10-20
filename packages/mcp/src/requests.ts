@@ -3,6 +3,7 @@
 // this file only reads and writes them through the context's GitHub client, for the MCP tools and the CLI.
 import {
   closingIssueNumbers,
+  productsOf,
   composeRequestIssue,
   parseRequestIssue,
   REQUEST_KINDS,
@@ -21,6 +22,7 @@ import {
 import { listComponentNames } from './components.js';
 import { toExplorationBranch } from './explorations.js';
 import type { BridgeContext } from './context.js';
+import { productMarks, resolveProduct } from './branches.js';
 
 export type RequestStatusFilter = RequestStatus | 'all';
 
@@ -164,6 +166,8 @@ export interface CreateRequestInput {
   source?: RequestSource | undefined;
   /** Exploration branch to implement it on (`explore/<slug>`), instead of a pull request to main. */
   exploration?: string | undefined;
+  /** The product it is for (key or name, bridge.config.json "products"). Default: the product of the current folder or repo. */
+  product?: string | undefined;
   dryRun?: boolean | undefined;
 }
 
@@ -187,7 +191,10 @@ export async function createRequest(ctx: BridgeContext, a: CreateRequestInput) {
     ...(a.exploration ? { exploration: toExplorationBranch(a.exploration) } : {}),
   };
   const settings = config.integrations?.requests;
-  const issue = composeRequestIssue(req, { labels: settings?.labels ?? [], assignees: settings?.assignees ?? [] });
+  const product = await resolveProduct(ctx, a.product);
+  const marks = productMarks(productsOf(config), product);
+  const composed = composeRequestIssue(req, { labels: settings?.labels ?? [], assignees: settings?.assignees ?? [] });
+  const issue = marks.labels.length ? { ...composed, body: `${composed.body}\n\n${marks.line}`, labels: [...composed.labels, ...marks.labels] } : composed;
   if (a.dryRun) return { status: 'dry-run' as const, issue };
   const gh = await requireGitHub(ctx);
   if (!ctx.canWriteRemote) throw new Error('Creating a request needs GITHUB_TOKEN (issues: write on this repository). Without it Bridge is read-only.');

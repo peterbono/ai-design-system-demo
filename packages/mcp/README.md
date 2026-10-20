@@ -62,7 +62,7 @@ Working on the server itself: `npm run mcp:build` in a clone of this repo builds
 | `bridge_propose_brand` | The new brand as a local `bridge/brand-<slug>` branch or a draft PR; blocked when a pair fails |
 | `bridge_list_reviews` | Open PRs (Bridge ones flagged) and local `bridge/*` branches |
 | `bridge_get_review` | Diff table, contrast before/after, impact, tier check, CI status, approvals |
-| `bridge_review_pr` | Comment, approve or request changes (token required) |
+| `bridge_review_pr` | Comment, approve or request changes (token required; `bridge_review_branch` is the designer version) |
 | `bridge_scaffold_component` | New component folder per the repo checklist |
 | `bridge_visual_impact` | Before/after screenshots of the impacted stories and admin screens, pixel diff, manifest (local, needs Chrome; `plan` for the selection only) |
 | `bridge_get_history` | Token history: versions, merged PRs and commits, who, when, why, tier |
@@ -75,6 +75,22 @@ Working on the server itself: `npm run mcp:build` in a clone of this repo builds
 | `bridge_create_request` | File a request as an issue labeled `component-change` (token required; `dryRun` previews; `exploration` targets an exploration branch) |
 | `bridge_start_exploration` | Start an exploration: `explore/<name>` branch and a draft pull request labeled `exploration`, previews and a snapshot package, never merged as is |
 | `bridge_list_explorations` | Explorations with status, previews, the snapshot install command and linked requests |
+| `bridge_promote_exploration`, `bridge_close_exploration` | Promote an exploration to review, or close it |
+| `bridge_list_products` | Products (`products` in bridge.config.json) and the one the current folder belongs to |
+| `bridge_what_needs_me` | The review queue, the branches where you act now first |
+| `bridge_branch_status` | One branch: status, approvals, tests, main, whether you may merge, next step |
+| `bridge_list_comments`, `bridge_comment` | Read the conversation and line threads; comment or reply |
+| `bridge_send_for_review`, `bridge_back_to_draft` | Ready for review, or back to draft (the author) |
+| `bridge_review_branch` | Approve, request changes or comment on the version seen |
+| `bridge_ask_someone_else` | Ask the other people who can give the missing approvals to review |
+| `bridge_merge_branch` | Merge through Studio's gate; owner override with a reason posted first (token required) |
+| `bridge_close_branch`, `bridge_reopen_branch` | Close without merging; reopen with Studio's rule |
+| `bridge_update_from_main` | Update from main; token conflicts to pick, code conflicts left to a developer |
+| `bridge_try_branch` | Product previews Vercel reported, the install command and a message for a product team |
+| `bridge_combine_branches` | Try 2 to 4 token branches together (writes nothing) |
+| `bridge_save_docs` | Save usage guidance on a new branch for review, or on an open branch |
+| `bridge_get_settings` | Roles, who ships, owner override, protection, products |
+| `bridge_figma_coverage` | Which components are in Figma, code images for the fidelity check |
 
 Resources: `bridge://tokens/resolved`, `bridge://design-language`, `bridge://guidelines`,
 `bridge://components/{name}`. Prompts: `review-token-pr`, `add-component`, `audit-ui-for-tokens`,

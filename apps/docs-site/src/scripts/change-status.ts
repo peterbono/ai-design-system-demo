@@ -3,6 +3,7 @@
 // Start again from this change (its token edits into the draft, then Tokens proposes them as a new change). Back to
 // draft (GraphQL convertPullRequestToDraft) sits in the More menu. scripts/reviews.ts paints the header and calls in.
 import type { Root } from 'react-dom/client';
+import { reopenOnGitHub } from '@bridge-ds/core';
 import type { TokenReview } from '../lib/token-review';
 import {
   changeLifecycle,
@@ -27,7 +28,7 @@ import { pullState, type ApprovalSummary, type Tier } from '../lib/review-rules'
 import { workNature } from '../lib/work-nature';
 import { humanTitle } from '../lib/pr-title';
 import { mdTitleText } from '../lib/markdown';
-import { currentViewer, esc, GitHubError, ghGet, ghWrite, readRepo, studioClient } from './github-session';
+import { currentViewer, esc, GitHubError, ghGet, readRepo, studioClient } from './github-session';
 import { siteApprovers } from './teams';
 import { teamPeople } from './pr-status';
 import { tokenSetsOf } from './reviews/token-review';
@@ -178,7 +179,7 @@ export async function statusActionFor(
       await x.reload();
     },
     reopen: async () => {
-      await ghWrite('PATCH', `/repos/${owner}/${repo}/pulls/${pull.number}`, { state: 'open' });
+      await reopenOnGitHub(studioClient(`${owner}/${repo}`), pull.number);
       pending = 'Reopened. It is back in review with its earlier approvals and checks.';
       await x.reload();
     },
