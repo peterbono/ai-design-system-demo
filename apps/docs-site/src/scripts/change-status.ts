@@ -146,15 +146,21 @@ async function restart(pull: StatusPull): Promise<string> {
   return line.text;
 }
 
+/** The one lifecycle action of a change (Request review, Reopen, Start again), ready to run, and its sentence. */
+export interface StatusActionRun {
+  kind: Exclude<ReturnType<typeof statusAction>, null> | null;
+  sentence: string;
+  run: (() => Promise<string | void>) | null;
+}
+
 /**
- * Mounts the status line into `slot` and wires its one action. `reload` repaints the change after a write.
- * `review` is the token review of the change (Start again needs token edits to carry over).
+ * What the status line used to mount, without mounting: the action of this state and how to run it. `reload`
+ * repaints the change after a write. `review` is the token review of the change (Start again needs token edits).
  */
-export async function mountStatus(
-  slot: HTMLElement,
+export async function statusActionFor(
   s: DetailStatus,
-  x: { pull: StatusPull; isAuthor: boolean; canWrite: boolean; viewer: string | null; exploration: boolean; review: TokenReview | null; reload: () => Promise<void>; isCurrent: () => boolean },
-) {
+  x: { pull: StatusPull; isAuthor: boolean; canWrite: boolean; viewer: string | null; exploration: boolean; review: TokenReview | null; reload: () => Promise<void> },
+): Promise<StatusActionRun> {
   const { pull } = x;
   let reopen: ReopenEligibility = { kind: 'none' };
   let sentence = s.sentence;
@@ -178,6 +184,26 @@ export async function mountStatus(
     },
     restart: () => restart(pull),
   };
+  return { kind, sentence, run: kind ? runs[kind] : null };
+}
+
+/** The line an action left to say after the repaint, said once. */
+export function takeSaid(): string {
+  const s = pending;
+  pending = '';
+  return s;
+}
+
+/**
+ * Mounts the status line into `slot` and wires its one action. `reload` repaints the change after a write.
+ * `review` is the token review of the change (Start again needs token edits to carry over).
+ */
+export async function mountStatus(
+  slot: HTMLElement,
+  s: DetailStatus,
+  x: { pull: StatusPull; isAuthor: boolean; canWrite: boolean; viewer: string | null; exploration: boolean; review: TokenReview | null; reload: () => Promise<void>; isCurrent: () => boolean },
+) {
+  const a = await statusActionFor(s, x);
   if (!x.isCurrent() || !slot.isConnected) return;
   const { mountChangeStatus } = await import('../components/ds/studio/ChangeStatus');
   if (!x.isCurrent() || !slot.isConnected) return;
@@ -186,9 +212,9 @@ export async function mountStatus(
     lifecycle: s.lifecycle,
     label: s.label,
     tone: s.tone,
-    sentence,
+    sentence: a.sentence,
     yourTurn: s.yourTurn,
-    action: kind ? { label: ACTION_LABEL[kind], run: runs[kind] } : null,
+    action: a.kind && a.run ? { label: ACTION_LABEL[a.kind], run: a.run } : null,
     said: pending,
   });
   pending = '';

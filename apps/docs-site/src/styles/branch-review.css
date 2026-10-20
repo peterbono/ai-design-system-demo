@@ -1,0 +1,619 @@
+/* The branch review (components/ds/studio/BranchReview.tsx): Branches > a branch and the review queue. One reading
+   column of about 1000px, centred; a busy branch adds an outline on the start side. Four type sizes: the h1, body
+   (the guidance and the who line), ui, caption. One sticky decision bar spanning the column. */
+
+.br {
+  --br-column: calc(var(--size-240) + var(--size-10));
+
+  display: grid;
+  gap: var(--space-6);
+  max-width: var(--br-column);
+  margin-inline: auto;
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.br.is-multi {
+  max-width: var(--studio-page-max);
+}
+
+.br p,
+.br h1,
+.br h2,
+.br h3 {
+  margin: 0;
+}
+
+.br-muted {
+  color: var(--color-text-muted);
+}
+
+.br-error {
+  color: var(--color-feedback-danger-text);
+}
+
+.br-mono {
+  font-family: var(--font-family-mono);
+}
+
+/* Head: breadcrumb, title with its status, who and why. */
+.br-head {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.br-crumbs-phone {
+  display: none;
+}
+
+.br-title {
+  min-width: 0;
+  font-family: var(--typography-h1-family);
+  font-size: var(--typography-h1-size);
+  font-weight: var(--typography-h1-weight);
+  letter-spacing: var(--typography-h1-tracking);
+  line-height: var(--typography-h1-line-height);
+  overflow-wrap: anywhere;
+}
+
+.br-status {
+  margin-inline-start: var(--space-2);
+  vertical-align: middle;
+}
+
+.br-title:focus {
+  outline: none;
+}
+
+.br-title:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.br-who {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--typography-body-size);
+  line-height: var(--typography-body-line-height);
+}
+
+.br-who strong,
+.br-comment-body strong,
+.br-change-line strong {
+  font-weight: var(--font-weight-semibold);
+}
+
+.br-face {
+  flex: none;
+}
+
+/* Sections */
+.br-main {
+  display: grid;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+.br-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+}
+
+.br-line.is-tight {
+  justify-content: flex-start;
+}
+
+.br-h2 {
+  font-size: var(--typography-ui-size);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--typography-ui-line-height);
+}
+
+.br-h2-meta {
+  font-weight: var(--font-weight-regular);
+}
+
+.br-card {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-6) var(--space-7);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-container);
+  background-color: var(--color-surface-default);
+}
+
+/* Guidance, as it will read in the Library: body text, new words highlighted. */
+.br-guidance {
+  gap: var(--space-5);
+  font-size: var(--typography-body-size);
+  line-height: var(--typography-body-line-height);
+}
+
+.br-g-sec {
+  display: grid;
+  gap: var(--space-1-5);
+}
+
+.br-g-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--size-8);
+}
+
+.br-g-title {
+  font-size: var(--typography-body-size);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--typography-body-line-height);
+}
+
+.br-g-verdicts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.br-g-sec.is-do,
+.br-g-sec.is-dont {
+  align-content: start;
+  padding: var(--space-4);
+  border-radius: var(--radius-control);
+}
+
+.br-g-sec.is-do {
+  background-color: var(--color-feedback-success-bg);
+}
+
+.br-g-sec.is-do .br-g-title {
+  color: var(--color-feedback-success-text);
+}
+
+.br-g-sec.is-dont {
+  background-color: var(--color-feedback-danger-bg);
+}
+
+.br-g-sec.is-dont .br-g-title {
+  color: var(--color-feedback-danger-text);
+}
+
+.br-g-item {
+  display: grid;
+  gap: var(--space-1);
+  border-radius: var(--radius-inset);
+}
+
+.br-g-item[data-editable] {
+  cursor: text;
+}
+
+@media (hover: hover) {
+  .br-g-item[data-editable]:hover {
+    background-color: var(--color-surface-hover);
+  }
+
+  .br-g-sec.is-do .br-g-item[data-editable]:hover,
+  .br-g-sec.is-dont .br-g-item[data-editable]:hover {
+    background-color: transparent;
+    text-decoration: underline dotted var(--color-border-strong);
+  }
+}
+
+.br-g-entry {
+  font-weight: var(--font-weight-semibold);
+}
+
+.br-g-example {
+  padding: var(--space-3);
+  border-radius: var(--radius-inset);
+  background-color: var(--color-surface-default);
+}
+
+.br-g-edit {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.br-g-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.br-g-removed {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+}
+
+/* New text: a pale success tint and an underline, never color alone. */
+.br-add {
+  padding-inline: var(--space-0-5);
+  border-radius: var(--radius-inset);
+  background-color: var(--color-feedback-success-bg);
+  text-decoration: underline;
+  text-decoration-color: var(--color-feedback-success-border);
+  text-decoration-thickness: var(--border-width-strong);
+  text-underline-offset: var(--space-1);
+  color: inherit;
+}
+
+.br-said {
+  min-height: 0;
+  color: var(--color-text-muted);
+}
+
+.br-said:empty {
+  display: none;
+}
+
+/* Tokens: name, before, after, where. */
+.br-tokens {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* One row per token: name, before, arrow, after; the themes it changes in under the name. */
+.br-token {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--size-40) auto var(--size-40);
+  align-items: center;
+  gap: var(--space-1) var(--space-4);
+}
+
+.br-token-name {
+  min-width: 0;
+  font-family: var(--font-family-mono);
+  overflow-wrap: anywhere;
+}
+
+.br-token-where {
+  grid-column: 1;
+}
+
+.br-token-side {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.br-sample {
+  flex: none;
+  width: var(--size-14);
+  height: var(--size-10);
+  border: var(--border-width-default) solid var(--color-border-strong);
+  border-radius: var(--radius-inset);
+}
+
+.br-sample.is-none {
+  border-style: dashed;
+}
+
+.br-sample.is-size {
+  display: inline-flex;
+  align-items: center;
+  padding-inline: var(--space-1);
+  background-color: var(--color-bg-subtle);
+}
+
+.br-sample.is-size > span {
+  height: var(--size-3);
+  border-radius: var(--radius-inset);
+  background-color: var(--color-text-muted);
+}
+
+.br-arrow {
+  color: var(--color-text-muted);
+}
+
+/* Where it shows: before and after pairs. */
+.br-where {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.br-shots {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--size-72)), 1fr));
+  gap: var(--space-4);
+}
+
+.br-shot {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.br-shot-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  height: var(--size-40);
+  overflow: hidden;
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-control);
+}
+
+.br-shot-pair > * {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  object-fit: cover;
+  object-position: top left;
+}
+
+.br-shot-pair > :last-child {
+  border-inline-start: var(--border-width-default) dashed var(--color-border-strong);
+}
+
+.br-shot-none {
+  display: grid;
+  place-items: center;
+  color: var(--color-text-muted);
+}
+
+.br-visual-slot[hidden] {
+  display: none;
+}
+
+/* Conversation and checks */
+.br-conv {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-3);
+}
+
+.br-comment {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+.br-comment-body {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.br-checks {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.br-checks-line.is-pass {
+  color: var(--color-feedback-success-text);
+  font-weight: var(--font-weight-medium);
+}
+
+.br-checks-line.is-fail {
+  color: var(--color-feedback-danger-text);
+  font-weight: var(--font-weight-medium);
+}
+
+/* Update from main: one line above the bar, only when behind or in conflict. */
+.br-update {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-control);
+  background-color: var(--color-bg-subtle);
+}
+
+.br-update[data-state="conflict"] {
+  background-color: var(--color-feedback-danger-bg);
+}
+
+.br-update-text {
+  flex: 1 1 var(--size-80);
+}
+
+/* The decision bar: sticky, spans the reading column. */
+.br-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: var(--layer-sticky);
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4) 0;
+  border-top: var(--border-width-default) solid var(--color-border-default);
+  background-color: var(--color-bg-default);
+}
+
+.br-bar-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.br-bar-left {
+  flex: none;
+  color: var(--color-text-muted);
+}
+
+.br-bar-field {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* A busy branch: the outline on the start side, sticky. */
+.br-multi {
+  display: grid;
+  grid-template-columns: var(--size-72) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-8);
+}
+
+.br-outline {
+  position: sticky;
+  top: calc(var(--layout-header-height) + var(--space-4));
+  display: grid;
+  gap: var(--space-3);
+}
+
+.br-outline-bar {
+  margin-bottom: var(--space-1);
+}
+
+/* The outline is a DS SidebarNav; the looked-at mark is our own Icon inside each item's label. */
+.br-toc-mark {
+  flex: none;
+  margin-inline-end: var(--space-2);
+  color: var(--color-text-muted);
+  vertical-align: middle;
+}
+
+.br-toc-mark.is-done {
+  color: var(--color-feedback-success-icon);
+}
+
+.br-outline-where {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: var(--border-width-default) solid var(--color-border-default);
+}
+
+.br-changes {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.br-change.is-done,
+.br-next-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--size-12);
+  padding: var(--space-2) var(--space-4);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-control);
+}
+
+.br-change-line {
+  flex: 1;
+  min-width: 0;
+}
+
+.br-change.is-open {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-6);
+  border: var(--border-width-default) solid var(--color-border-emphasis);
+  border-radius: var(--radius-container);
+}
+
+.br-change.is-open:focus {
+  outline: none;
+}
+
+.br-change.is-open:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.br-change.is-open .br-card {
+  padding: 0;
+  border: 0;
+  background-color: transparent;
+}
+
+.br-next {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.br-left {
+  justify-self: start;
+}
+
+/* The review queue: the queue's bar replaces this one, no breadcrumb. */
+.br.is-queue {
+  max-width: none;
+}
+
+@media (max-width: 960px) {
+  .br-multi {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .br-outline {
+    position: static;
+  }
+
+  /* Phones and narrow windows: the count and progress stay, the jump list folds away (each change has its row). */
+  .br-outline .br-toc,
+  .br-outline-where {
+    display: none;
+  }
+}
+
+/* Phones: the breadcrumb collapses to its parent, the bar wraps with the field on its own line. */
+@media (max-width: 640px) {
+  .br-crumbs {
+    display: none;
+  }
+
+  .br-crumbs-phone {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    min-height: var(--size-6);
+  }
+
+  .br-title {
+    font-size: var(--typography-h2-size);
+    line-height: var(--typography-h2-line-height);
+  }
+
+  .br-card {
+    padding: var(--space-4);
+  }
+
+  .br-g-verdicts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Before above after, the arrow pointing down. */
+  .br-token {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .br-arrow {
+    rotate: 90deg;
+  }
+
+  /* The field and "More actions" on the first line, the decisions on the second, each half the width. */
+  .br-bar-row {
+    flex-wrap: wrap;
+  }
+
+  .br-bar-left {
+    flex: 1 1 100%;
+  }
+
+  .br-bar-field {
+    flex: 1 1 calc(100% - var(--size-11) - var(--space-4));
+  }
+
+  .br-bar-row > button[aria-label] {
+    order: 1;
+  }
+
+  .br-bar-row > button:not([aria-label]) {
+    flex: 1 0 auto;
+    order: 2;
+  }
+}

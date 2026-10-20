@@ -1,22 +1,27 @@
 // The review queue page (pages/studio/review.astro). Reads the same rows as the Studio home (scripts/home-data.ts
-// loadHome), lists them with the home row component (NeedList), and opens the selected one in the main area:
-//   - a branch row opens the branch review of Branches in place (scripts/reviews.ts openPr into #rv-detail);
+// loadHome), lists them on the start side with what the viewer did to each (components/ds/studio/ReviewQueue
+// QueueList), and opens the selected one in the main area:
+//   - a branch row opens the branch review of Branches in place (scripts/reviews.ts openPr into #rv-detail), without
+//     its own bar: the queue's bar replaces it;
 //   - usage guidance drafts, library health and setup rows show a short card with the link that handles them.
-// The footer moves through the queue: "Approve and next" (only when the open review offers the viewer an approval,
-// through the review's own approval path, actOnOpenBranch), "Skip", and where the viewer is ("3 of 20").
-// J or ArrowDown, K or ArrowUp move to the next or previous row. The URL keeps the selection (?pr=N or ?item=key)
-// with replaceState only. Moves are pure in lib/queue-nav.ts.
+// The bar is about the item on screen only: comment, Suggest changes, Approve, More actions (Ask someone else to
+// review, Copy link, Open the full review). After a decision the queue moves on: the list mark changes, the next item
+// opens, focus goes to its title, and a toast says what was done. Approve waits UNDO_MS before anything is sent, so
+// Undo only cancels: nothing reached GitHub, nobody was notified (dismissing a sent approval would leave a trace on
+// the branch and notify its author). Leaving the page sends what waits. A approves, S suggests changes, J and K move.
+// The URL keeps the selection (?pr=N or ?item=key) with replaceState only. Rules: lib/queue-nav.ts.
 import { createElement as h, Fragment, type ComponentProps } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { Button, Card, CardBody, EmptyState, Kbd, Select, Skeleton } from '@bridge-ds/react';
+import { Button, Card, CardBody, EmptyState, Select, Skeleton, type UseToastReturn } from '@bridge-ds/react';
 import { Inbox } from 'lucide-react';
 import ButtonLink from '../components/ds/ButtonLink';
-import { NeedList } from '../components/ds/studio/StudioHome';
+import { QueueBar, QueueList, QueueToasts } from '../components/ds/studio/ReviewQueue';
 import { currentViewer, initGitHubConnect, prefersSignIn } from './github-session';
 import { setReviewCount } from './shell';
 import { loadHome, type HomeStatic } from './home-data';
-import { actOnOpenBranch, closePr, openPr } from './reviews';
-import { afterApprove, branchOf, keyFromSearch, keyMove, moveIndex, positionLabel, searchFor, skipIndex } from '../lib/queue-nav';
+import { approveBranch, askSomeoneElse, closePr, openPr, suggestChanges } from './reviews';
+import { branchOf, keyDecision, keyFromSearch, keyMove, moveIndex, nextOpen, outcomeLine, searchFor, UNDO_MS, type QueueOutcome } from '../lib/queue-nav';
+import { reviewLink } from '../lib/review-page';
 import { ghAction, ghButton } from '../lib/gh-wording';
 import type { NeedKind, NeedRow } from '../lib/home-model';
 
@@ -44,7 +49,7 @@ const branchNumber = (row: NeedRow | null, key: string | null): number | null =>
   return m ? Number(m[1]) : null;
 };
 
-/** Typing, picking in a menu or a list box, or a dialog: J and K belong to that control. */
+/** Typing, picking in a menu or a list box, or a dialog: the queue's keys belong to that control. */
 function ownsKeys(t: EventTarget | null): boolean {
   if (!(t instanceof HTMLElement)) return false;
   if (t.isContentEditable || t.closest('input, textarea, select, [contenteditable="true"]')) return true;
@@ -64,6 +69,7 @@ export function initReviewQueue() {
   const cardEl = el('[data-rq-card]');
   const footEl = el('[data-rq-foot]');
   const emptyEl = el('[data-rq-empty]');
+  const toastEl = el('[data-rq-toasts]');
   const detail = document.getElementById('rv-detail')!;
   const roots = new Map<HTMLElement, Root>();
   const render = (host: HTMLElement, node: Parameters<Root['render']>[0]) => {
@@ -83,11 +89,22 @@ export function initReviewQueue() {
   let selected: string | null = keyFromSearch(location.search);
   /** The branch open in #rv-detail. */
   let opened: number | null = null;
-  /** Approved here: never listed again, even when a later read still has them. */
-  const done = new Set<string>();
+  /** What the viewer did here: decided rows stay listed and marked, even when a later read drops them. */
+  const outcomes = new Map<string, QueueOutcome>();
+  const decided = new Map<string, NeedRow>();
+  /** Approvals waiting for Undo: sent when their time is up, or when the viewer leaves. */
+  const waiting = new Map<string, { n: number; text: string; timer: ReturnType<typeof setTimeout> }>();
   let canApprove = false;
-  let busy = false;
+  let canSuggest = false;
+  let busy: 'approve' | 'suggest' | 'ask' | null = null;
+  let said = '';
+  let focusComment = 0;
+  /** After a move, focus goes to the title of the item that opens. */
+  let focusTitle = false;
+  let toasts: UseToastReturn | null = null;
   let run = 0;
+
+  render(toastEl, h(QueueToasts, { onReady: (api: UseToastReturn) => (toasts = api) }));
 
   const index = () => rows.findIndex((r) => r.key === selected);
   const rowOf = (key: string | null) => rows.find((r) => r.key === key) ?? null;
@@ -101,15 +118,20 @@ export function initReviewQueue() {
       if (opened !== n) {
         opened = n;
         canApprove = false;
+        canSuggest = false;
         void openPr(n, false);
       }
     } else if (opened !== null) {
       opened = null;
       canApprove = false;
+      canSuggest = false;
       closePr();
     }
     paint();
-    sideEl.querySelector('[aria-current="true"]')?.closest('li')?.scrollIntoView({ block: 'nearest' });
+    if (focusTitle && !n) {
+      focusTitle = false;
+      requestAnimationFrame(() => cardEl.querySelector<HTMLElement>('.rq-item-title')?.focus());
+    }
   }
 
   function go(to: number | null) {
@@ -117,30 +139,96 @@ export function initReviewQueue() {
     show(rows[to].key);
   }
 
-  async function approveAndNext() {
-    if (busy || !canApprove) return;
-    busy = true;
-    paint();
-    const ok = await actOnOpenBranch('APPROVE');
-    busy = false;
-    if (!ok) {
-      paint();
-      return;
-    }
-    const i = index();
-    if (selected) done.add(selected);
-    const next = afterApprove(rows, i);
-    rows = next.items;
-    setReviewCount(rows.filter((r) => r.kind === 'review').length);
-    if (next.index < 0) {
+  /** After a decision on the row at `i`: the next row without an outcome opens, else the queue is done. */
+  function advance(i: number) {
+    const to = nextOpen(
+      rows.map((r) => r.key),
+      i,
+      outcomes,
+    );
+    focusTitle = true;
+    if (to === null) {
       if (opened !== null) closePr();
       opened = null;
       selected = null;
       history.replaceState(history.state, '', location.pathname);
+      said = 'Nothing else waits on you.';
       paint();
       return;
     }
-    show(rows[next.index].key);
+    go(to);
+  }
+
+  function send(key: string) {
+    const w = waiting.get(key);
+    if (!w) return;
+    waiting.delete(key);
+    clearTimeout(w.timer);
+    approveBranch(w.n, w.text).catch((err: Error) => {
+      outcomes.delete(key);
+      toasts?.error(`Not approved: ${rowOf(key)?.title ?? 'the branch'}`, { description: `${err.message}. Open it and approve again.` });
+      paint();
+    });
+  }
+
+  function decide(outcome: QueueOutcome) {
+    const i = index();
+    const row = i >= 0 ? rows[i]! : null;
+    if (!row) return;
+    outcomes.set(row.key, outcome);
+    decided.set(row.key, row);
+    setReviewCount(rows.filter((r) => r.kind === 'review' && !outcomes.has(r.key)).length);
+    return { i, row };
+  }
+
+  function approve(text: string) {
+    if (busy || !canApprove || !opened) return;
+    const n = opened;
+    const d = decide('approved');
+    if (!d) return;
+    const key = d.row.key;
+    // Nothing is sent before the toast closes: Undo only cancels.
+    waiting.set(key, { n, text, timer: setTimeout(() => send(key), UNDO_MS) });
+    const toastId = toasts?.add({
+      title: outcomeLine('approved', d.row.title),
+      tone: 'success',
+      timeout: UNDO_MS,
+      action: {
+        label: 'Undo',
+        onClick: () => {
+          const w = waiting.get(key);
+          if (!w) return;
+          clearTimeout(w.timer);
+          waiting.delete(key);
+          outcomes.delete(key);
+          if (toastId) toasts?.close(toastId);
+          toasts?.info(`Not approved: ${d.row.title}`, { description: 'Nothing was sent.', timeout: 3000 });
+          focusTitle = true;
+          show(key);
+        },
+      },
+    });
+    advance(d.i);
+  }
+
+  async function act(kind: 'suggest' | 'ask', text = '') {
+    if (busy || !opened) return;
+    const n = opened;
+    busy = kind;
+    said = '';
+    paint();
+    try {
+      const names = kind === 'suggest' ? (await suggestChanges(n, text), null) : await askSomeoneElse(n);
+      busy = null;
+      const d = decide(kind === 'suggest' ? 'suggested' : 'asked');
+      if (!d) return;
+      toasts?.add({ title: outcomeLine(kind === 'suggest' ? 'suggested' : 'asked', d.row.title), description: names ? `Asked ${names.join(', ')}.` : undefined, tone: 'success' });
+      advance(d.i);
+    } catch (err) {
+      busy = null;
+      said = (err as Error).message;
+      paint();
+    }
   }
 
   function emptyState() {
@@ -175,12 +263,9 @@ export function initReviewQueue() {
     const row = i >= 0 ? rows[i] : null;
     const branch = branchNumber(row, selected);
 
-    // The list: the home rows, the selected one marked. Skeletons while nothing is listed yet.
     render(
       sideEl,
-      rows.length
-        ? h(NeedList, { rows, selectedKey: selected, onSelect: (r: NeedRow) => show(r.key), label: 'Waiting on you' })
-        : h(Skeleton, { variant: 'rect', className: 'sh-skel' }),
+      rows.length ? h(QueueList, { rows, selected, outcomes, onSelect: (k: string) => show(k) }) : h(Skeleton, { variant: 'rect', className: 'sh-skel' }),
     );
 
     // Phones: the list folds into one Select.
@@ -193,7 +278,7 @@ export function initReviewQueue() {
             size: 'md',
             value: row ? row.key : null,
             placeholder: 'Pick what to review',
-            options: rows.map((r) => ({ value: r.key, label: r.title, description: r.line })),
+            options: rows.map((r) => ({ value: r.key, label: r.title, description: outcomes.has(r.key) ? outcomeLine(outcomes.get(r.key)!, '').trim() : r.line })),
             onValueChange: (v: string | null) => v && show(v),
           })
         : null,
@@ -210,7 +295,7 @@ export function initReviewQueue() {
             h(
               CardBody,
               { className: 'rq-item-body' },
-              h('h2', { className: 'rq-item-title' }, row.title),
+              h('h2', { className: 'rq-item-title', tabIndex: -1 }, row.title),
               h('p', { className: 't-body t-muted rq-item-line' }, row.line),
               h(ButtonLink, { variant: 'primary', href: row.href }, OPEN_LABEL[row.kind]),
             ),
@@ -218,50 +303,68 @@ export function initReviewQueue() {
         : null,
     );
 
-    // The footer: where the viewer is, Skip, and Approve and next when the open review offers an approval.
-    footEl.hidden = !rows.length && !branch;
-    // Nothing listed is selected (a branch opened from its link): Skip starts the queue.
-    const skip = i < 0 ? (rows.length ? 0 : null) : skipIndex(rows.length, i);
+    footEl.hidden = !branch;
     render(
       footEl,
-      h(
-        'div',
-        { className: 'rq-foot-bar', role: 'group', 'aria-label': 'Move through the queue' },
-        h(
-          'p',
-          { className: 't-ui t-muted rq-pos', 'aria-live': 'polite' },
-          h('span', null, positionLabel(rows.length, i)),
-          h('span', { className: 'rq-keys' }, h(Kbd, { keys: 'J', size: 'sm' }), ' ', h(Kbd, { keys: 'K', size: 'sm' }), ' to move'),
-        ),
-        h(
-          'span',
-          { className: 'rq-foot-actions' },
-          h(Button, { variant: 'secondary', disabled: skip === null || busy, onClick: () => go(skip) }, 'Skip'),
-          branch ? h(Button, { variant: 'primary', disabled: !canApprove || busy, loading: busy, onClick: () => void approveAndNext() }, 'Approve and next') : null,
-        ),
-      ),
+      h(QueueBar, {
+        canApprove: Boolean(branch) && canApprove && !outcomes.has(selected ?? ''),
+        canSuggest: Boolean(branch) && canSuggest && !outcomes.has(selected ?? ''),
+        branch: Boolean(branch),
+        busy,
+        said,
+        onApprove: approve,
+        onSuggest: (text: string) => void act('suggest', text),
+        onAsk: () => void act('ask'),
+        links: branch && detail.dataset.developer ? { review: reviewLink(location.origin, branch), developer: detail.dataset.developer } : null,
+        focusComment,
+      }),
     );
   }
 
-  // Approve and next follows the open review: enabled only while it shows an approval the viewer can give.
+  // What the open review offers (scripts/reviews.ts marks #rv-detail), and focus on its title after a move.
+  let lastDev = '';
   new MutationObserver(() => {
-    const can = !detail.hidden && Boolean(detail.querySelector('[data-act="APPROVE"]'));
-    if (can !== canApprove) {
-      canApprove = can;
+    const a = !detail.hidden && detail.hasAttribute('data-can-approve');
+    const s = !detail.hidden && detail.hasAttribute('data-can-suggest');
+    const dev = detail.dataset.developer ?? '';
+    if (a !== canApprove || s !== canSuggest || dev !== lastDev) {
+      canApprove = a;
+      canSuggest = s;
+      lastDev = dev;
       paint();
     }
-  }).observe(detail, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden'] });
+    const title = detail.querySelector<HTMLElement>('.br-title');
+    if (focusTitle && title) {
+      focusTitle = false;
+      title.tabIndex = -1;
+      title.focus();
+    }
+  }).observe(detail, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'data-can-approve', 'data-can-suggest', 'data-developer'] });
 
   document.addEventListener('keydown', (e) => {
     if (e.defaultPrevented || layout.hidden || ownsKeys(e.target)) return;
     const move = keyMove(e);
-    if (!move) return;
-    const i = index();
-    const to = i < 0 && move === 'next' ? (rows.length ? 0 : null) : moveIndex(rows.length, i, move);
-    if (to === null) return;
+    if (move) {
+      const i = index();
+      const to = i < 0 && move === 'next' ? (rows.length ? 0 : null) : moveIndex(rows.length, i, move);
+      if (to === null) return;
+      e.preventDefault();
+      go(to);
+      return;
+    }
+    const decision = keyDecision(e);
+    if (!decision || !opened) return;
     e.preventDefault();
-    go(to);
+    if (decision === 'approve') approve('');
+    else {
+      // S: the comment says what to change, so it opens the field first.
+      focusComment++;
+      paint();
+    }
   });
+
+  // Leaving the page sends what waits for Undo: an approval is never lost silently.
+  window.addEventListener('pagehide', () => [...waiting.keys()].forEach(send));
 
   // A deep link to a branch opens at once, before the list is read.
   if (selected && branchNumber(null, selected)) show(selected);
@@ -280,26 +383,27 @@ export function initReviewQueue() {
     loading = true;
     rows = [];
     failed = null;
-    signedIn = Boolean(login);
+    signedIn = Boolean(login ?? currentViewer());
     paint();
     void loadHome(stat, (d) => {
       if (mine !== run) return;
       signedIn = Boolean(d.viewer);
       failed = d.failed;
       loading = d.loading;
-      rows = d.needs.filter((r) => !done.has(r.key));
+      // Rows decided here stay listed, marked, even once GitHub no longer lists them as waiting.
+      const listed = new Set(d.needs.map((r) => r.key));
+      rows = [...[...decided.values()].filter((r) => !listed.has(r.key)), ...d.needs];
       if (!d.loading && d.viewer && !d.failed) setReviewCount(d.decisions);
       if (!loading && !rows.length) {
-        // Nothing waits: the empty state, nothing open behind it.
         if (opened !== null) closePr();
         opened = null;
         selected = null;
       } else if (d.settled && !rowOf(selected) && !(selected && branchNumber(null, selected))) {
         // The first row once the list is read and its order settled, unless the URL names a listed row or a branch.
-        show(rows[0].key);
+        const first = rows.findIndex((r) => !outcomes.has(r.key));
+        show(rows[first < 0 ? 0 : first]!.key);
         return;
       } else if (opened && rowOf(selected)) {
-        // A branch opened from its link: the URL follows the row once it is listed.
         history.replaceState(history.state, '', `${location.pathname}${searchFor(rowOf(selected))}`);
       }
       paint();
