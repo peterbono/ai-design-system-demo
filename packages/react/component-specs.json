@@ -2252,7 +2252,7 @@
     },
     {
       "name": "Avatar",
-      "hash": "50a60757",
+      "hash": "91a32982",
       "source": [
         "packages/react/src/components/Avatar/Avatar.tsx",
         "packages/react/src/components/Avatar/Avatar.module.css"
@@ -2277,6 +2277,15 @@
             "illustrated"
           ],
           "default": "initials"
+        },
+        {
+          "name": "Kind",
+          "prop": "kind",
+          "values": [
+            "person",
+            "agent"
+          ],
+          "default": "person"
         }
       ],
       "properties": [
@@ -2299,6 +2308,18 @@
             "counter": "CENTER"
           },
           "clip": true
+        },
+        {
+          "id": "mark",
+          "name": "mark",
+          "kind": "vector",
+          "parent": "root",
+          "source": "Avatar.module.css .mark",
+          "layout": {
+            "direction": "VERTICAL",
+            "primary": "MIN",
+            "counter": "STRETCH"
+          }
         },
         {
           "id": "src",
@@ -2362,7 +2383,8 @@
         {
           "props": {
             "Size": "xs",
-            "Fallback": "initials"
+            "Fallback": "initials",
+            "Kind": "person"
           },
           "values": {
             "root": {
@@ -2381,6 +2403,7 @@
             }
           },
           "hidden": [
+            "mark",
             "illustration"
           ],
           "slots": {
@@ -2390,7 +2413,46 @@
         {
           "props": {
             "Size": "xs",
-            "Fallback": "illustrated"
+            "Fallback": "initials",
+            "Kind": "agent"
+          },
+          "values": {
+            "root": {
+              "fill": "avatar.agent-bg",
+              "cornerRadius": "radius.inset",
+              "width": "size.5",
+              "height": "size.5",
+              "strokeWeight": "border-width.default",
+              "stroke": "avatar.agent-border"
+            },
+            "mark": {
+              "width": "size.4",
+              "height": "size.4"
+            }
+          },
+          "hidden": [
+            "src",
+            "fallback",
+            "illustration",
+            "text"
+          ],
+          "vectors": {
+            "mark": {
+              "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\"><path d=\"M4.4 6.2Q7.6 9.1 10.8 12Q7.7 15 4.6 17.8M13.3 17.8Q16.7 17.5 19.8 17.8\" fill=\"none\" stroke=\"#000000\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>",
+              "strokes": [
+                "color.action.primary.bg"
+              ]
+            }
+          },
+          "slots": {
+            "src": "Slot/Media"
+          }
+        },
+        {
+          "props": {
+            "Size": "xs",
+            "Fallback": "illustrated",
+            "Kind": "person"
           },
           "values": {
             "root": {
@@ -2404,6 +2466,7 @@
             "illustration": {}
           },
           "hidden": [
+            "mark",
             "text"
           ],
           "slots": {
@@ -2412,8 +2475,47 @@
         },
         {
           "props": {
+            "Size": "xs",
+            "Fallback": "illustrated",
+            "Kind": "agent"
+          },
+          "values": {
+            "root": {
+              "fill": "avatar.agent-bg",
+              "cornerRadius": "radius.inset",
+              "width": "size.5",
+              "height": "size.5",
+              "strokeWeight": "border-width.default",
+              "stroke": "avatar.agent-border"
+            },
+            "mark": {
+              "width": "size.4",
+              "height": "size.4"
+            }
+          },
+          "hidden": [
+            "src",
+            "fallback",
+            "illustration",
+            "text"
+          ],
+          "vectors": {
+            "mark": {
+              "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\"><path d=\"M4.4 6.2Q7.6 9.1 10.8 12Q7.7 15 4.6 17.8M13.3 17.8Q16.7 17.5 19.8 17.8\" fill=\"none\" stroke=\"#000000\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>",
+              "strokes": [
+                "color.action.primary.bg"
+              ]
+            }
+          },
+          "slots": {
+            "src": "Slot/Media"
+          }
+        },
+        {
+          "props": {
             "Size": "sm",
-            "Fallback": "initials"
+            "Fallback": "initials",
+            "Kind": "person"
           },
           "values": {
             "root": {
@@ -2433,6 +2535,7 @@
             }
           },
           "hidden": [
+            "mark",
             "illustration"
           ],
           "slots": {
@@ -2442,7 +2545,46 @@
         {
           "props": {
             "Size": "sm",
-            "Fallback": "illustrated"
+            "Fallback": "initials",
+            "Kind": "agent"
+          },
+          "values": {
+            "root": {
+              "fill": "avatar.agent-bg",
+              "cornerRadius": "radius.inset",
+              "width": "size.6",
+              "height": "size.6",
+              "strokeWeight": "border-width.default",
+              "stroke": "avatar.agent-border"
+            },
+            "mark": {
+              "width": "size.5",
+              "height": "size.5"
+            }
+          },
+          "hidden": [
+            "src",
+            "fallback",
+            "illustration",
+            "text"
+          ],
+          "vectors": {
+            "mark": {
+              "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\"><path d=\"M4.4 6.2Q7.6 9.1 10.8 12Q7.7 15 4.6 17.8M13.3 17.8Q16.7 17.5 19.8 17.8\" fill=\"none\" stroke=\"#000000\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>",
+              "strokes": [
+                "color.action.primary.bg"
+              ]
+            }
+          },
+          "slots": {
+            "src": "Slot/Media"
+          }
+        },
+        {
+          "props": {
+            "Size": "sm",
+            "Fallback": "illustrated",
+            "Kind": "person"
           },
           "values": {
             "root": {
@@ -2456,6 +2598,7 @@
             "illustration": {}
           },
           "hidden": [
+            "mark",
             "text"
           ],
           "slots": {
@@ -2464,8 +2607,47 @@
         },
         {
           "props": {
+            "Size": "sm",
+            "Fallback": "illustrated",
+            "Kind": "agent"
+          },
+          "values": {
+            "root": {
+              "fill": "avatar.agent-bg",
+              "cornerRadius": "radius.inset",
+              "width": "size.6",
+              "height": "size.6",
+              "strokeWeight": "border-width.default",
+              "stroke": "avatar.agent-border"
+            },
+            "mark": {
+              "width": "size.5",
+              "height": "size.5"
+            }
+          },
+          "hidden": [
+            "src",
+            "fallback",
+            "illustration",
+            "text"
+          ],
+          "vectors": {
+            "mark": {
+              "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\"><path d=\"M4.4 6.2Q7.6 9.1 10.8 12Q7.7 15 4.6 17.8M13.3 17.8Q16.7 17.5 19.8 17.8\" fill=\"none\" stroke=\"#000000\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>",
+              "strokes": [
+                "color.action.primary.bg"
+              ]
+            }
+          },
+          "slots": {
+            "src": "Slot/Media"
+          }
+        },
+        {
+          "props": {
             "Size": "md",
-            "Fallback": "initials"
+            "Fallback": "initials",
+            "Kind": "person"
           },
           "values": {
             "root": {
@@ -2485,6 +2667,7 @@
             }
           },
           "hidden": [
+            "mark",
             "illustration"
           ],
           "slots": {
@@ -2494,7 +2677,46 @@
         {
           "props": {
             "Size": "md",
-            "Fallback": "illustrated"
+            "Fallback": "initials",
+            "Kind": "agent"
+          },
+          "values": {
+            "root": {
+              "fill": "avatar.agent-bg",
+              "cornerRadius": "radius.inset",
+              "width": "size.8",
+              "height": "size.8",
+              "strokeWeight": "border-width.default",
+              "stroke": "avatar.agent-border"
+            },
+            "mark": {
+              "width": "size.6",
+              "height": "size.6"
+            }
+          },
+          "hidden": [
+            "src",
+            "fallback",
+            "illustration",
+            "text"
+          ],
+          "vectors": {
+            "mark": {
+              "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\"><path d=\"M4.4 6.2Q7.6 9.1 10.8 12Q7.7 15 4.6 17.8M13.3 17.8Q16.7 17.5 19.8 17.8\" fill=\"none\" stroke=\"#000000\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>",
+              "strokes": [
+                "color.action.primary.bg"
+              ]
+            }
+          },
+          "slots": {
+            "src": "Slot/Media"
+          }
+        },
+        {
+          "props": {
+            "Size": "md",
+            "Fallback": "illustrated",
+            "Kind": "person"
           },
           "values": {
             "root": {
@@ -2508,8 +2730,47 @@
             "illustration": {}
           },
           "hidden": [
+            "mark",
             "text"
           ],
+          "slots": {
+            "src": "Slot/Media"
+          }
+        },
+        {
+          "props": {
+            "Size": "md",
+            "Fallback": "illustrated",
+            "Kind": "agent"
+          },
+          "values": {
+            "root": {
+              "fill": "avatar.agent-bg",
+              "cornerRadius": "radius.inset",
+              "width": "size.8",
+              "height": "size.8",
+              "strokeWeight": "border-width.default",
+              "stroke": "avatar.agent-border"
+            },
+            "mark": {
+              "width": "size.6",
+              "height": "size.6"
+            }
+          },
+          "hidden": [
+            "src",
+            "fallback",
+            "illustration",
+            "text"
+          ],
+          "vectors": {
+            "mark": {
+              "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\"><path d=\"M4.4 6.2Q7.6 9.1 10.8 12Q7.7 15 4.6 17.8M13.3 17.8Q16.7 17.5 19.8 17.8\" fill=\"none\" stroke=\"#000000\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>",
+              "strokes": [
+                "color.action.primary.bg"
+              ]
+            }
+          },
           "slots": {
             "src": "Slot/Media"
           }
@@ -2517,7 +2778,8 @@
         {
           "props": {
             "Size": "lg",
-            "Fallback": "initials"
+            "Fallback": "initials",
+            "Kind": "person"
           },
           "values": {
             "root": {
@@ -2537,6 +2799,7 @@
             }
           },
           "hidden": [
+            "mark",
             "illustration"
           ],
           "slots": {
@@ -2546,7 +2809,46 @@
         {
           "props": {
             "Size": "lg",
-            "Fallback": "illustrated"
+            "Fallback": "initials",
+            "Kind": "agent"
+          },
+          "values": {
+            "root": {
+              "fill": "avatar.agent-bg",
+              "cornerRadius": "radius.inset",
+              "width": "size.10",
+              "height": "size.10",
+              "strokeWeight": "border-width.default",
+              "stroke": "avatar.agent-border"
+            },
+            "mark": {
+              "width": "size.7",
+              "height": "size.7"
+            }
+          },
+          "hidden": [
+            "src",
+            "fallback",
+            "illustration",
+            "text"
+          ],
+          "vectors": {
+            "mark": {
+              "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\"><path d=\"M4.4 6.2Q7.6 9.1 10.8 12Q7.7 15 4.6 17.8M13.3 17.8Q16.7 17.5 19.8 17.8\" fill=\"none\" stroke=\"#000000\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>",
+              "strokes": [
+                "color.action.primary.bg"
+              ]
+            }
+          },
+          "slots": {
+            "src": "Slot/Media"
+          }
+        },
+        {
+          "props": {
+            "Size": "lg",
+            "Fallback": "illustrated",
+            "Kind": "person"
           },
           "values": {
             "root": {
@@ -2560,8 +2862,47 @@
             "illustration": {}
           },
           "hidden": [
+            "mark",
             "text"
           ],
+          "slots": {
+            "src": "Slot/Media"
+          }
+        },
+        {
+          "props": {
+            "Size": "lg",
+            "Fallback": "illustrated",
+            "Kind": "agent"
+          },
+          "values": {
+            "root": {
+              "fill": "avatar.agent-bg",
+              "cornerRadius": "radius.inset",
+              "width": "size.10",
+              "height": "size.10",
+              "strokeWeight": "border-width.default",
+              "stroke": "avatar.agent-border"
+            },
+            "mark": {
+              "width": "size.7",
+              "height": "size.7"
+            }
+          },
+          "hidden": [
+            "src",
+            "fallback",
+            "illustration",
+            "text"
+          ],
+          "vectors": {
+            "mark": {
+              "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\"><path d=\"M4.4 6.2Q7.6 9.1 10.8 12Q7.7 15 4.6 17.8M13.3 17.8Q16.7 17.5 19.8 17.8\" fill=\"none\" stroke=\"#000000\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>",
+              "strokes": [
+                "color.action.primary.bg"
+              ]
+            }
+          },
           "slots": {
             "src": "Slot/Media"
           }
@@ -2570,15 +2911,15 @@
       "unmapped": [
         {
           "part": "root",
-          "property": "prop kind",
-          "value": "person | agent",
-          "reason": "does not change the styles"
-        },
-        {
-          "part": "root",
           "property": "prop decorative",
           "value": "boolean",
           "reason": "not drawn in this version"
+        },
+        {
+          "part": "root",
+          "property": "prop mark",
+          "value": "node",
+          "reason": "slot content is not drawn"
         },
         {
           "part": "text",

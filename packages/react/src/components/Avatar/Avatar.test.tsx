@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { expectNoAxeViolations } from '../../test/axe';
-import { Avatar as PlainAvatar, AvatarGroup, initials } from './index';
+import { AGENT_MARK, Avatar as PlainAvatar, AvatarGroup, CLAUDE_MARK, initials } from './index';
 import { Avatar, illustratedAvatarSvg, illustratedAvatarUri } from '../../avatar-illustrated';
 
 describe('Avatar', () => {
@@ -52,6 +52,22 @@ describe('Avatar', () => {
     expect(root.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
     expect(root).not.toHaveTextContent(/./);
     await expectNoAxeViolations(container);
+  });
+
+  it('draws the Bridge agent mark, not a vendor logo', () => {
+    const { container } = render(<PlainAvatar kind="agent" brand="claude" />);
+    const path = container.querySelector('svg path');
+    // The rendered path is AGENT_MARK.path, written out in the TSX for the Figma specs.
+    expect(path).toHaveAttribute('d', AGENT_MARK.path);
+    expect(path).not.toHaveAttribute('fill');
+    expect(CLAUDE_MARK).toBe(AGENT_MARK);
+  });
+
+  it('takes a custom mark, keeping the agent name', () => {
+    render(<PlainAvatar kind="agent" brand="claude" mark={<svg data-testid="logo" />} />);
+    const root = screen.getByRole('img', { name: 'Claude AI' });
+    expect(root.querySelector('[data-testid="logo"]')).not.toBeNull();
+    expect(root.querySelectorAll('svg')).toHaveLength(1);
   });
 
   it('lets the agent preset be decorative next to its written name', () => {

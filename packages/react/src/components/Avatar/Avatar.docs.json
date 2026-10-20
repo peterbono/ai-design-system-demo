@@ -8,12 +8,13 @@
   "whenToUse": [
     "Owners, reviewers and authors next to tokens, components and changes.",
     "fallback=\"illustrated\" when most people have no photo: a drawn face from their login tells rows apart faster than two letters. Import Avatar from @bridge-ds/react/avatar-illustrated (the drawings are a separate entry, about 120 kB gzipped).",
-    "kind=\"agent\" brand=\"claude\" for work Claude did (a drafted text, a change it opened), so people see at a glance it is not a person.",
+    "kind=\"agent\" brand=\"claude\" for work Claude did (a drafted text, a change it opened): the Bridge agent mark on a rounded square tile, named \"Claude AI\", so people see at a glance it is not a person.",
+    "mark only to show a vendor logo you have the brand owner's approval to use: Bridge ships its own agent mark because company logos are trademarks that need their owner's approval.",
     "AvatarGroup for the reviewers of a change; set max so the row never wraps."
   ],
   "whenNotToUse": [
     "As the only way to identify someone in a table: write the name too.",
-    "For product or brand logos: use an image with its own alt text. The Claude preset only attributes Claude's actions.",
+    "For product or brand logos: use an image with its own alt text. The agent preset only attributes an agent's actions.",
     "To make up a face for someone who has a photo: the illustration is a fallback, the photo wins."
   ],
   "dos": [
@@ -42,7 +43,7 @@
   ],
   "accessibility": [
     "role img with the full name as its label; initials and drawings are hidden from screen readers so they do not spell letters or describe a face.",
-    "The Claude preset is named \"Claude AI\"; its mark is decorative inside it.",
+    "The Claude preset is named \"Claude AI\"; its mark (the Bridge one or a custom mark) is decorative inside it.",
     "decorative removes it from the accessibility tree when the name is already written next to it.",
     "The image has an empty alt: the name is on the container. Broken images fall back to initials or the drawing (Base UI Avatar).",
     "AvatarGroup is a named group; the +N counter is announced as \"3 more: names\"."
@@ -58,8 +59,10 @@
     "fallback": "Initials or drawing",
     "illustrated": "Illustrated fallback (light Harbor background in both themes)",
     "illustration": "Drawn face",
-    "agent": "Agent tile (cream, hairline edge)",
-    "mark": "Agent mark",
+    "agent": "Agent tile (Harbor, rounded square, hairline edge)",
+    "mark": "Agent mark (Bridge line drawing, Deep Harbor)",
+    "line": "Mark line",
+    "custom": "Custom mark (approved logo)",
     "group": "Group (overlapping)",
     "overflow": "+N counter",
     "xs": "Size xs (20px)",

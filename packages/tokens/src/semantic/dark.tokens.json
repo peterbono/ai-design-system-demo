@@ -415,8 +415,8 @@
     "agent": {
       "surface": {
         "$type": "color",
-        "$value": "{palette.warning.50}",
-        "$description": "Cream tile behind an AI agent mark (Avatar kind agent, the Claude preset). The same cream in both themes: it belongs to the mark, like a logo tile."
+        "$value": "{palette.primary.900}",
+        "$description": "Tile behind the AI agent mark (Avatar kind agent): the dark Harbor zone color, with the mark in action.primary.bg, the zone pair the build already checks. Unlike the illustrated faces (light in both themes), so an agent never reads as a person."
       }
     },
     "illustration": {
