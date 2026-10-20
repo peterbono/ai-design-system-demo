@@ -69,7 +69,7 @@ const signIn = Boolean(signInConfig());
 
 <Layout
   title="Components"
-  description="Every component by family, with a live thumbnail, the products that use it, open requests, examples and tokens, and the doors to edit its docs and tokens."
+  description="Every component by family, with a live thumbnail, the products that use it, examples and tokens, and the doors to edit its docs and tokens."
   sources={PAGE_SOURCES.components}
   updated={updated}
   wide
@@ -107,7 +107,6 @@ const signIn = Boolean(signInConfig());
 
     <ComponentsList rows={rows} products={audits.length} />
     <p class="cm-none" data-cm-none hidden>No component matches. <Button variant="link" data-cm-reset>Show every component</Button></p>
-    {audits.length > 0 && <p class="cm-note">Used in names the audited products that render the component ({audits.map((a) => a.product).join(' and ')}), from their last <Link href="/studio/quality/">audit report</Link>. Open requests counts the asks for a component change that are not done yet.</p>}
   </div>
 
   <div class="cm-scrim" data-cm-scrim hidden></div>

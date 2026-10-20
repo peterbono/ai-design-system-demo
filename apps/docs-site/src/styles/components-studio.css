@@ -101,7 +101,6 @@
 
 /* Facts in words ("4 examples", "40 tokens"): quieter than the name, never wrapped. */
 .cm-table .cm-col-used,
-.cm-table .cm-col-req,
 .cm-table .cm-col-dev {
   white-space: nowrap;
 }
@@ -257,19 +256,6 @@
 
 .cm-zero {
   color: var(--color-text-muted);
-}
-
-/* Requests could not be read: the column leaves rather than show blanks. */
-.cm-table.cm-no-req .cm-col-req {
-  display: none;
-}
-
-.cm-note {
-  max-width: 65ch;
-  margin: var(--space-4) 0 0;
-  color: var(--color-text-muted);
-  font-size: var(--typography-ui-size);
-  line-height: var(--typography-ui-line-height);
 }
 
 /* Drawer: the component live in one frame, the Light/Dark switch under it on the right. */
