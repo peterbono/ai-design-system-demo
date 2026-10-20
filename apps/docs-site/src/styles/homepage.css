@@ -936,17 +936,6 @@ a.hp-demo {
   height: var(--size-6);
 }
 
-.hp-ai-lg {
-  width: var(--size-7);
-  height: var(--size-7);
-  border-radius: var(--radius-lg);
-}
-
-.hp-ai-lg svg {
-  width: calc(var(--size-5) + var(--space-0-5));
-  height: calc(var(--size-5) + var(--space-0-5));
-}
-
 .hp-btn {
   display: inline-flex;
   align-items: center;
@@ -1053,7 +1042,7 @@ a.hp-demo {
   box-shadow: var(--elevation-raised);
 }
 
-/* The member profile screen. */
+/* A panel's drawing, centred in its column. */
 .hp-sc {
   position: relative;
   display: flex;
@@ -1067,94 +1056,7 @@ a.hp-demo {
   align-items: center;
 }
 
-.hp-pscr {
-  position: relative;
-  box-sizing: border-box;
-  width: calc(var(--_u) * 296);
-  max-width: 100%;
-  padding: var(--space-2) var(--space-2) calc(var(--space-2) + var(--space-0-5));
-  border: var(--border-width-default) solid var(--_line);
-  border-radius: var(--radius-2xl);
-  background-color: var(--_paper);
-  box-shadow: var(--elevation-raised);
-}
-
-.hp-pscr.hp-plain {
-  box-shadow: none;
-}
-
-.hp-prest {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  padding: var(--space-1) calc(var(--space-3) + var(--space-0-5)) 0;
-}
-
-.hp-ptabs {
-  display: flex;
-  gap: var(--space-5);
-  border-bottom: var(--border-width-default) solid var(--_line);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-200);
-  line-height: var(--font-leading-20);
-}
-
-.hp-ptabs span {
-  padding: var(--space-1-5) 0 var(--space-2);
-}
-
-.hp-ptabs .hp-on {
-  border-bottom: var(--border-width-2) solid var(--color-text-default);
-  color: var(--color-text-default);
-  font-weight: var(--font-weight-semibold);
-}
-
-.hp-plist {
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.hp-plist li {
-  display: flex;
-  align-items: center;
-  gap: calc(var(--space-2) + var(--space-0-5));
-  margin: 0;
-  padding: var(--space-2) 0;
-  border-top: var(--border-width-default) solid var(--_soft);
-  font-size: var(--font-size-200);
-  line-height: var(--font-leading-20);
-}
-
-.hp-plist li:first-child {
-  border-top: 0;
-}
-
-.hp-plist i {
-  flex: none;
-  width: var(--size-7);
-  height: var(--size-7);
-  border: var(--border-width-default) solid var(--_line);
-  border-radius: var(--radius-md);
-  background-color: var(--_soft);
-}
-
-.hp-plist span {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.hp-plist small {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-100);
-}
-
-/* Explore 1: the create branch dialog. */
+/* Start 1: the create branch dialog. */
 .hp-dlg {
   display: flex;
   flex-direction: column;
@@ -1283,39 +1185,7 @@ a.hp-demo {
   }
 }
 
-/* Explore 2: Avatar + Text + Button = the header. */
-.hp-say {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin: 0 0 calc(var(--space-3) + var(--space-0-5));
-}
-
-.hp-say p {
-  margin: 0;
-  padding: var(--space-1-5) calc(var(--space-2) + var(--space-0-5));
-  border: var(--border-width-default) solid var(--_line);
-  border-radius: var(--radius-sm) var(--radius-lg) var(--radius-lg) var(--radius-lg);
-  background-color: var(--_paper);
-  font-size: var(--font-size-200);
-  line-height: var(--font-leading-20);
-}
-
-.hp-eq {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: calc(var(--space-2) + var(--space-0-5));
-  max-width: 100%;
-}
-
-.hp-pcs {
-  display: flex;
-  align-items: center;
-  gap: calc(var(--space-2) + var(--space-0-5));
-}
-
+/* Library pieces (Avatar, Text, Button) as tiles, and the entrance of the drawings. */
 .hp-pc {
   display: flex;
   flex-direction: column;
@@ -1367,11 +1237,6 @@ a.hp-demo {
   background-color: var(--_line-strong);
 }
 
-.hp-op {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-400);
-}
-
 .hp-ui.hp-on .hp-asm {
   animation: hp-asm var(--motion-duration-slow) var(--motion-easing-enter) calc(var(--d, 0) * var(--motion-duration-slow) * 0.8667 + var(--motion-duration-slow)) both;
 }
@@ -1388,36 +1253,7 @@ a.hp-demo {
   }
 }
 
-@media (min-width: 900px) {
-  .hp-eq {
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: var(--space-4);
-  }
-
-  .hp-eq > .hp-op {
-    padding-bottom: var(--space-4);
-  }
-}
-
-/* Explore 3: the preview window. */
-.hp-win {
-  max-width: var(--size-120);
-  margin: 0 auto;
-  overflow: hidden;
-  border-radius: var(--radius-2xl);
-}
-
-.hp-winbar {
-  display: flex;
-  align-items: center;
-  gap: calc(var(--space-2) + var(--space-0-5));
-  height: calc(var(--size-11) + var(--space-0-5));
-  padding: 0 var(--space-3);
-  border-bottom: var(--border-width-default) solid var(--_line);
-  background-color: var(--_paper);
-}
-
+/* Window dots and the small flag (Published, Public). */
 .hp-dots {
   display: flex;
   gap: var(--space-1-5);
@@ -1430,29 +1266,6 @@ a.hp-demo {
   background-color: var(--_line);
 }
 
-.hp-url {
-  display: flex;
-  flex: 1;
-  align-items: center;
-  gap: var(--space-1-5);
-  min-width: 0;
-  height: var(--size-7);
-  padding: 0 calc(var(--space-2) + var(--space-0-5));
-  overflow: hidden;
-  border-radius: var(--radius-md);
-  background-color: var(--_soft);
-  font-size: var(--font-size-200);
-  white-space: nowrap;
-}
-
-.hp-url svg {
-  flex: none;
-  width: var(--size-3);
-  height: var(--size-3);
-  color: var(--color-text-muted);
-}
-
-.hp-pv,
 .hp-flag {
   flex: none;
   height: calc(var(--size-5) + var(--space-0-5));
@@ -1462,26 +1275,11 @@ a.hp-demo {
   font-weight: var(--font-weight-semibold);
   display: inline-flex;
   align-items: center;
-}
-
-.hp-pv {
-  background-color: var(--_deep);
-  color: var(--_on-deep);
-}
-
-.hp-flag {
   background-color: var(--color-bg-zone);
   color: var(--color-text-link);
 }
 
-.hp-pvbody {
-  display: flex;
-  justify-content: center;
-  padding: calc(var(--space-5) + var(--space-0-5)) var(--space-5) var(--space-6);
-  background-color: var(--_soft);
-}
-
-/* Keep what works: exploration -> library slot. */
+/* Start 2 and 3: exploration -> library slot (components/home/HpKeep.astro). */
 .hp-kw {
   display: flex;
   flex-direction: column;
@@ -1770,22 +1568,6 @@ a.hp-demo {
 
   to {
     opacity: 1;
-  }
-}
-
-.hp-ui.hp-on .hp-tin {
-  animation: hp-tin var(--motion-duration-slow) var(--motion-easing-enter) calc(var(--motion-duration-fast) * 11) both;
-}
-
-@keyframes hp-tin {
-  from {
-    opacity: 0;
-    transform: translateY(var(--space-2));
-  }
-
-  to {
-    opacity: 1;
-    transform: none;
   }
 }
 
@@ -2837,13 +2619,17 @@ button.hp-qrow {
   top: calc(var(--_u) * 42.4);
   width: calc(var(--_u) * 111.6);
   height: calc(var(--_u) * 55.8);
-  animation: hp-walk calc(var(--motion-duration-moderate) * 130) var(--motion-easing-linear) infinite;
+  animation: hp-walk calc(var(--motion-duration-moderate) * 180) var(--motion-easing-linear) infinite;
 }
 
 .hp-walk:hover,
 .hp-walk:focus-within,
 .hp-walk:hover .hp-bob,
-.hp-walk:focus-within .hp-bob {
+.hp-walk:focus-within .hp-bob,
+.hp-walk:hover .hp-leg-a,
+.hp-walk:hover .hp-leg-b,
+.hp-walk:focus-within .hp-leg-a,
+.hp-walk:focus-within .hp-leg-b {
   animation-play-state: paused;
 }
 
@@ -2871,7 +2657,7 @@ button.hp-qrow {
   position: relative;
   width: 100%;
   height: 100%;
-  animation: hp-bob var(--motion-duration-slow) var(--motion-easing-standard) infinite alternate;
+  animation: hp-bob calc(var(--motion-duration-moderate) * 1.2) var(--motion-easing-standard) infinite alternate;
 }
 
 @keyframes hp-bob {
@@ -2881,6 +2667,31 @@ button.hp-qrow {
 
   to {
     transform: translateY(calc(var(--_u) * -1.5));
+  }
+}
+
+/* A real walk: the legs swing from the hip in opposite phase, the body dips on each step. */
+.hp-leg-a,
+.hp-leg-b {
+  transform-box: fill-box;
+  transform-origin: 50% 0%;
+}
+
+.hp-leg-a {
+  animation: hp-stride calc(var(--motion-duration-moderate) * 2.4) var(--motion-easing-standard) infinite alternate;
+}
+
+.hp-leg-b {
+  animation: hp-stride calc(var(--motion-duration-moderate) * 2.4) var(--motion-easing-standard) infinite alternate-reverse;
+}
+
+@keyframes hp-stride {
+  from {
+    transform: rotate(-22deg);
+  }
+
+  to {
+    transform: rotate(22deg);
   }
 }
 
@@ -2928,9 +2739,10 @@ a.hp-connect {
   .hp-birds,
   .hp-flap,
   .hp-bob,
+  .hp-leg-a,
+  .hp-leg-b,
   .hp-ui.hp-on .hp-asm,
   .hp-ui.hp-on .hp-press,
-  .hp-ui.hp-on .hp-tin,
   .hp-ui.hp-on .hp-match,
   .hp-ui.hp-on .hp-drafted,
   .hp-ui.hp-on .hp-pick,

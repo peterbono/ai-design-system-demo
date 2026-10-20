@@ -1,4 +1,7 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { ROOT } from './repo';
 import { QUEUE, STEP_MS, approveInQueue, fitScale, heroKeyTarget, heroSnap, heroValueText, panoramaFit, stepForKey, stepTick, undoInQueue } from './homepage';
 
 describe('hero bridge', () => {
@@ -74,5 +77,32 @@ describe('review queue', () => {
 
   it('has no em dash in its words', () => {
     expect(JSON.stringify(QUEUE)).not.toMatch(/—/);
+  });
+});
+
+describe('homepage sections', () => {
+  const page = readFileSync(join(ROOT, 'apps/docs-site/src/pages/index.astro'), 'utf8');
+  const footer = readFileSync(join(ROOT, 'apps/docs-site/src/components/site/SiteFooter.astro'), 'utf8');
+
+  it('starts in Bridge, then ships, then the system everyone can trust', () => {
+    const titles = [...page.matchAll(/<HpStepSection[\s\S]*?title="([^"]+)"/g)].map((m) => m[1]);
+    expect(titles).toEqual(['Start it in Bridge. Every change is tracked.', 'Ship it everywhere at once.', 'One system everyone can trust.']);
+    expect(page).not.toContain('title="Keep what works."');
+    // Text left, then panel left, then text left again.
+    const flips = [...page.matchAll(/<HpStepSection\s+id="[^"]+"\s+(flip\s+)?title=/g)].map((m) => Boolean(m[1]));
+    expect(flips).toEqual([false, true, false]);
+    expect(page).toContain('lede="Explore with Claude AI as usual. Bridge tracks what it changes in your system."');
+    expect(page).not.toMatch(/—/);
+  });
+
+  it('shows the dialog, then what Bridge found, then the review', () => {
+    expect(page).toMatch(/slot="p0" class="hp-card hp-dlg"/);
+    expect(page).toContain('<HpKeep step={0} />');
+    expect(page).toContain('<HpKeep step={2} />');
+  });
+
+  it('keeps the footer About column to About Bridge and GitHub', () => {
+    expect(footer).not.toContain('npmjs.com');
+    expect(footer).toContain("label: 'About Bridge'");
   });
 });

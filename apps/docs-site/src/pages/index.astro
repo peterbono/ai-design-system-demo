@@ -1,7 +1,7 @@
 ---
 // The homepage, ported from the owner's validated test page (2026-10-21): one promise you can drag ("Keep what works":
-// move the bridge to keep the profile header your exploration added), three step-tab sections and "One system
-// everyone can trust", the design system lead's queue, and the Horizon closing (Florian carries the kept card across
+// move the bridge to keep the profile header your exploration added), two step-tab sections (start in Bridge, ship) and
+// "One system everyone can trust", the design system lead's queue, and the Horizon closing (Florian carries the kept card across
 // the bridge). Every drawing is decorative markup with a spoken label; the controls are DS components, except the
 // hero range input and the step tabs (see their audit comments). Behaviour: scripts/homepage.ts, pure parts in
 // lib/homepage.ts. The Library home is at /library/ (lib/nav LIBRARY_HOME).
@@ -14,7 +14,6 @@ import HpSprite from '../components/home/HpSprite.astro';
 import HpPencil from '../components/home/HpPencil.astro';
 import HpGhost from '../components/home/HpGhost.astro';
 import HpProfile from '../components/home/HpProfile.astro';
-import HpScreen from '../components/home/HpScreen.astro';
 import HpStepSection from '../components/home/HpStepSection.astro';
 import HpKeep from '../components/home/HpKeep.astro';
 import HpQueue from '../components/home/HpQueue.astro';
@@ -81,17 +80,17 @@ const code = '<s>import</s> { <em>ProfileHeader</em> }\n  <s>from</s> "@bridge-d
     <div id="steps">
       <HpStepSection
         id="hp-b1"
-        title="Explore on your real components."
-        lede="Claude AI builds your prototype with your own library through MCP, on an isolated branch with its own preview."
+        title="Start it in Bridge. Every change is tracked."
+        lede="Explore with Claude AI as usual. Bridge tracks what it changes in your system."
         steps={[
-          { title: 'Start from your feature', text: 'Pick A feature in a product, link its Jira ticket, start with Claude AI.' },
-          { title: 'Claude AI builds it with your library', text: 'It assembles the screen from your real components through MCP.' },
-          { title: 'Try it on its own preview', text: 'Your branch gets its own preview. The shared library stays untouched.' },
+          { title: 'Start your exploration from Bridge', text: 'Pick the product, link the Jira ticket, start with Claude AI. It works on its own branch, with its own preview.' },
+          { title: 'Bridge traces what changed', text: 'New pieces, changed tokens, values written by hand: everything the exploration did to your design system is listed.' },
+          { title: 'Your DS lead reviews just that', text: 'No screenshots to compare. The DS lead and a developer review exactly those changes, in the product, with contrast checked.' },
         ]}
         labels={[
           'Create branch dialog: A feature in a product is selected, with a field to link a Jira ticket and a Start with Claude AI button',
-          "Claude AI assembles Ann Leroy's profile header from library components: Avatar, Text and Button",
-          'The member profile screen open in a browser window on its own preview address, marked Preview',
+          'Your exploration next to your library: the profile header is new, not in the library yet, found by Bridge, with an Open library branch button',
+          'The new profile header in the library: design approved by Dana, DS lead; code approved by Leo, developer; contrast passes in light and dark',
         ]}
       >
         <div slot="p0" class="hp-card hp-dlg">
@@ -102,49 +101,13 @@ const code = '<s>import</s> { <em>ProfileHeader</em> }\n  <s>from</s> "@bridge-d
           <div class="hp-jira"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Link a Jira ticket</div>
           <div class="hp-row hp-dlg-foot"><span class="hp-sp"></span><span class="hp-btn hp-btn-line">Cancel</span><span class="hp-btn hp-btn-deep hp-ring"><span class="hp-ai"><svg aria-hidden="true"><use href="#hp-robot" /></svg></span>Start with Claude AI</span></div>
         </div>
-        <div slot="p1" class="hp-sc hp-sc-center">
-          <div class="hp-say"><span class="hp-ai hp-ai-lg"><svg aria-hidden="true"><use href="#hp-robot" /></svg></span><p>Building it with your library.</p></div>
-          <div class="hp-eq">
-            <span class="hp-pcs">
-              <span class="hp-pc hp-asm" style="--d: 0"><span class="hp-lp"><span class="hp-av hp-av-sm">AL</span></span><small>Avatar</small></span>
-              <span class="hp-op hp-asm" style="--d: 0">+</span>
-              <span class="hp-pc hp-asm" style="--d: 1"><span class="hp-lp"><span class="hp-tx"><i></i><i></i></span></span><small>Text</small></span>
-              <span class="hp-op hp-asm" style="--d: 1">+</span>
-              <span class="hp-pc hp-asm" style="--d: 2"><span class="hp-lp"><span class="hp-fol">Follow</span></span><small>Button</small></span>
-            </span>
-            <span class="hp-op hp-asm" style="--d: 3">=</span>
-            <span class="hp-asm" style="--d: 4"><HpProfile card /></span>
-          </div>
-        </div>
-        <div slot="p2" class="hp-card hp-win">
-          <div class="hp-winbar"><span class="hp-dots"><i></i><i></i><i></i></span><span class="hp-url"><svg aria-hidden="true"><use href="#hp-lock" /></svg><span>ds-87<span class="hp-muted">.preview.app</span></span></span><span class="hp-pv">Preview</span></div>
-          <div class="hp-pvbody"><HpScreen plain /></div>
-        </div>
-      </HpStepSection>
-
-      <HpStepSection
-        id="hp-b2"
-        flip
-        title="Keep what works."
-        lede="Whatever your exploration added that the library lacks, Bridge lists it. You decide what comes back."
-        steps={[
-          { title: 'Bridge spots what is new', text: 'A new tone, a variant or a component: each piece the library lacks is listed.' },
-          { title: 'You open its library branch', text: 'One click opens it as its own library branch, linked to your exploration. Nothing opens on its own.' },
-          { title: 'Review it in the product', text: 'Design approval by the DS lead, code approval by a developer. Both before it merges.' },
-        ]}
-        labels={[
-          'Your exploration has a profile header marked New; your library has Avatar, Text and Button and an empty slot, not in it yet. Found by Bridge: 1 new piece, with an Open library branch button',
-          'The profile header fills the slot in your library; a message confirms the library branch opened, linked to your exploration',
-          'The profile header is in your library. Design approved by Dana, DS lead; code approved by Leo, developer; contrast passes in light and dark',
-        ]}
-      >
-        <div slot="p0" class="hp-sc hp-sc-center"><HpKeep step={0} /></div>
-        <div slot="p1" class="hp-sc hp-sc-center"><HpKeep step={1} /></div>
+        <div slot="p1" class="hp-sc hp-sc-center"><HpKeep step={0} /></div>
         <div slot="p2" class="hp-sc hp-sc-center"><HpKeep step={2} /></div>
       </HpStepSection>
 
       <HpStepSection
         id="hp-b3"
+        flip
         title="Ship it everywhere at once."
         lede="Merge once. The code is published and your Figma kit follows."
         steps={[
@@ -186,7 +149,6 @@ const code = '<s>import</s> { <em>ProfileHeader</em> }\n  <s>from</s> "@bridge-d
 
       <HpStepSection
         id="hp-b4"
-        flip
         title="One system everyone can trust."
         lede="The library documents itself, stays the same in Figma and in code, and shows how much of it your products really use."
         steps={[

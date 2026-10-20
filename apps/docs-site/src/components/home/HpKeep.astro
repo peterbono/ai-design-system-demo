@@ -1,10 +1,10 @@
 ---
 // "Keep what works": your exploration on the left (the profile header it added), your library on the right (Avatar,
-// Text, Button and one slot it lacks), then what happens at each step: 0 found, 1 library branch opened, 2 approved.
+// Text, Button and one slot it lacks), then what happens: 0 found by Bridge, 2 reviewed and approved.
 import HpProfile from './HpProfile.astro';
 
 interface Props {
-  step: 0 | 1 | 2;
+  step: 0 | 2;
 }
 const { step } = Astro.props;
 ---
@@ -45,7 +45,6 @@ const { step } = Astro.props;
         </>
       )
     }
-    {step === 1 && <p class="hp-kby"><svg class="hp-lg" aria-hidden="true"><use href="#hp-logo" /></svg>Profile header · library branch opened</p>}
     {
       step === 2 && (
         <ul class="hp-kapv">
@@ -56,5 +55,4 @@ const { step } = Astro.props;
       )
     }
   </div>
-  {step === 1 && <div class="hp-note hp-tin"><svg aria-hidden="true"><use href="#hp-check" /></svg>Library branch opened, linked to your exploration</div>}
 </div>
