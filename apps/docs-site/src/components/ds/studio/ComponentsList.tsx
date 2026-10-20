@@ -2,8 +2,7 @@
 // starts with a calm thumbnail of the real component (one sample of its Library preview, never a destructive one:
 // lib/components-studio thumbnailNode; rendered at build time and scaled to fit by scripts/components-studio.ts; a
 // component without a preview shows an empty frame, never a stand-in image), then what a designer reads, in words:
-// the products that use it as tags (from the committed `bridge audit` reports), open requests (filled in the browser from
-// the requests Studio already reads), examples and tokens. Badges only for exceptions (missing guidance, a Claude
+// the products that use it as tags (from the committed `bridge audit` reports), examples and tokens. Badges only for exceptions (missing guidance, a Claude
 // draft to review, beta, deprecated). The whole row opens the detail drawer: rows are one tab stop with arrow keys
 // between them, Enter opens.
 import { Avatar, Badge, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Tag, type BadgeTone } from '@bridge-ds/react';
@@ -48,14 +47,13 @@ export default function ComponentsList({ rows, products }: { rows: ComponentList
   const families = [...new Set(rows.map((r) => r.family))];
   const withUsage = products > 0;
   const withFigma = rows.some((r) => r.figma);
-  const cols = 4 + (withUsage ? 1 : 0) + (withFigma ? 1 : 0);
+  const cols = 3 + (withUsage ? 1 : 0) + (withFigma ? 1 : 0);
   return (
     <Table aria-label="Components by family. Arrow keys move between rows, Enter opens one." className="cm-table" data-cm-table="">
       <TableHeader>
         <TableRow>
           <TableHead>Component</TableHead>
           {withUsage && <TableHead className="cm-col-used">Used in</TableHead>}
-          <TableHead className="cm-col-req">Open requests</TableHead>
           <TableHead className="cm-col-dev">Examples</TableHead>
           <TableHead className="cm-col-dev">Tokens</TableHead>
           {withFigma && <TableHead className="cm-col-dev">In Figma</TableHead>}
@@ -120,8 +118,6 @@ export default function ComponentsList({ rows, products }: { rows: ComponentList
                     </span>
                   </TableCell>
                 )}
-                {/* Filled in the browser: "1 request", empty when there is none. */}
-                <TableCell className="cm-col-req" data-cm-req-n={r.name.toLowerCase()} />
                 <TableCell className="cm-col-dev cm-muted">{words(r.examples, 'example')}</TableCell>
                 <TableCell className="cm-col-dev cm-muted">{words(r.tokensTotal, 'token')}</TableCell>
                 {withFigma && (
