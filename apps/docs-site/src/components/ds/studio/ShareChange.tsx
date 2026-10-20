@@ -11,10 +11,20 @@ import { mailtoHref, shareDescription, shareMessage, stateSentence, type ShareMe
 export interface ShareChangeProps extends Omit<ShareMessageInput, 'tryUrl'> {
   /** Read when the dialog opens: "Try it in the product" points at the screen that changes most once it is known. */
   tryUrl: () => string | null;
+  /** Controlled open state, when another control opens it (a menu item). */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** No button of its own: the dialog opens from `open`. */
+  hideTrigger?: boolean;
 }
 
-export function ShareChange({ tryUrl, ...rest }: ShareChangeProps) {
-  const [open, setOpen] = useState(false);
+export function ShareChange({ tryUrl, open: openProp, onOpenChange, hideTrigger = false, ...rest }: ShareChangeProps) {
+  const [openState, setOpenState] = useState(false);
+  const open = openProp ?? openState;
+  const setOpen = (o: boolean) => {
+    setOpenState(o);
+    onOpenChange?.(o);
+  };
   const [text, setText] = useState('');
   const [said, setSaid] = useState('');
   const message = open ? shareMessage({ ...rest, tryUrl: tryUrl() }) : null;
@@ -43,9 +53,11 @@ export function ShareChange({ tryUrl, ...rest }: ShareChangeProps) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <Button variant="secondary" iconStart={Share2} onClick={() => setOpen(true)}>
-        Share with a product team
-      </Button>
+      {!hideTrigger && (
+        <Button variant="secondary" iconStart={Share2} onClick={() => setOpen(true)}>
+          Share with a product team
+        </Button>
+      )}
       <DialogContent
         title="Share with a product team"
         description={shareDescription(rest.state)}

@@ -1,5 +1,34 @@
 import { describe, expect, it } from 'vitest';
-import { afterApprove, branchOf, keyFromSearch, keyMove, moveIndex, nextIndex, positionLabel, previousIndex, searchFor, skipIndex } from './queue-nav';
+import { afterApprove, branchOf, keyDecision, keyFromSearch, keyMove, moveIndex, nextIndex, nextOpen, outcomeLine, positionLabel, previousIndex, queueWindow, searchFor, skipIndex, type QueueOutcome } from './queue-nav';
+
+describe('the list with outcomes', () => {
+  it('shows the rows up to the current one and the next three, the rest counted', () => {
+    expect(queueWindow(20, 2)).toEqual({ end: 6, more: 14 });
+    expect(queueWindow(20, -1)).toEqual({ end: 5, more: 15 });
+    expect(queueWindow(3, 0)).toEqual({ end: 3, more: 0 });
+    expect(queueWindow(20, 18)).toEqual({ end: 20, more: 0 });
+  });
+  it('moves to the next row without an outcome, wrapping to the ones left before', () => {
+    const o = new Map<string, QueueOutcome>([
+      ['b', 'approved'],
+      ['d', 'suggested'],
+    ]);
+    expect(nextOpen(['a', 'b', 'c', 'd'], 0, o)).toBe(2);
+    expect(nextOpen(['a', 'b', 'c', 'd'], 2, o)).toBe(0);
+    expect(nextOpen(['b', 'd'], 0, o)).toBeNull();
+  });
+  it('says what happened', () => {
+    expect(outcomeLine('approved', 'Darker background')).toBe('Approved Darker background');
+    expect(outcomeLine('suggested', 'X')).toBe('Suggested changes on X');
+    expect(outcomeLine('asked', 'X')).toBe('Asked someone else to review X');
+  });
+  it('reads A and S, never with a modifier', () => {
+    expect(keyDecision({ key: 'a' })).toBe('approve');
+    expect(keyDecision({ key: 'S' })).toBe('suggest');
+    expect(keyDecision({ key: 'a', metaKey: true })).toBeNull();
+    expect(keyDecision({ key: 'j' })).toBeNull();
+  });
+});
 
 describe('next and previous', () => {
   it('moves one step and stops at the ends', () => {

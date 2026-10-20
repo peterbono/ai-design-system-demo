@@ -1,19 +1,20 @@
 ---
-// The review queue, reached from "Review all" on the Studio home. Everything that waits on the viewer on the left (the
-// same rows as the home, NeedList from components/ds/studio/StudioHome.tsx, read by scripts/home-data.ts), the selected
-// item in the main area, and a footer that moves through them: "Approve and next", "Skip", "3 of 20". A branch opens
+// The review queue, reached from "Review all" on the Studio home. Everything that waits on the viewer on the left, each
+// row marked with what the viewer did to it (components/ds/studio/ReviewQueue, rows read by scripts/home-data.ts), the
+// selected item in the main area, and one bar about that item: comment, Suggest changes, Approve, More actions. A branch opens
 // in place with the branch review of Branches (scripts/reviews.ts openPr into #rv-detail), so this page carries what
 // that review needs: the notice, the owner override dialog, the promote dialog and the contrast and branches data.
 // Usage guidance drafts, library health and setup rows show a short card with the link that handles them.
 // Script: scripts/review-queue-page.ts. Moves: lib/queue-nav.ts.
 import '../../styles/reviews.css';
+import '../../styles/branch-review.css';
+import '../../styles/motion-changes.css';
 import '../../styles/history.css';
 import '../../styles/changes.css';
 import '../../styles/studio-home.css';
 import '../../styles/branch-thumb.css';
 import '../../styles/review-queue.css';
 import Layout from '../../layouts/Layout.astro';
-import StudioHeader from '../../components/StudioHeader.astro';
 import ScriptDialog from '../../components/ds/ScriptDialog.astro';
 import PromoteToReview from '../../components/ds/studio/PromoteToReview';
 import { Alert, Button, ButtonGroup, Skeleton, Textarea } from '@bridge-ds/react';
@@ -47,7 +48,7 @@ const cfg: BranchesConfig = { owner: r.owner, repo: r.repo, defaultBranch: r.def
   wide
 >
   <div class="rv rq" data-review-queue>
-    <StudioHeader title="Review queue" />
+    <h1 class="sr-only">Review queue</h1>
     <p class="rv-notice" id="rv-notice" role="status" hidden></p>
     <div class="rq-layout" data-rq-layout>
       <div class="rq-side" data-rq-side>
@@ -61,6 +62,7 @@ const cfg: BranchesConfig = { owner: r.owner, repo: r.repo, defaultBranch: r.def
       </section>
     </div>
     <div class="rq-empty" data-rq-empty hidden></div>
+    <div data-rq-toasts></div>
   </div>
 
   {/* The owner override confirmation, as on Branches (scripts/reviews.ts wireOverride fills and opens it). */}

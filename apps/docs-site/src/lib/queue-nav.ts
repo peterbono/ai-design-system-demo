@@ -51,6 +51,46 @@ export function afterApprove<T>(items: readonly T[], index: number): { items: T[
   return { items: rest, index: rest.length ? Math.min(index, rest.length - 1) : -1 };
 }
 
+// The list with outcomes: what the viewer did to each row here, and which rows show.
+
+/** What the viewer did to a row in this visit. Approved and suggested rows stay listed, marked. */
+export type QueueOutcome = 'approved' | 'suggested' | 'asked';
+
+/** How many rows to do show after the current one before "and N more". */
+export const QUEUE_AHEAD = 3;
+
+/**
+ * The rows the list shows: every row up to the current one, then the next QUEUE_AHEAD, at least `min` rows; the rest
+ * is counted as "and N more" (the phone picker, J and K reach them).
+ */
+export function queueWindow(length: number, index: number, min = 5): { end: number; more: number } {
+  const end = Math.min(length, Math.max(min, (index < 0 ? 0 : index + 1) + QUEUE_AHEAD));
+  return { end, more: length - end };
+}
+
+/** "Approved Darker default background", the toast after a decision. */
+export function outcomeLine(outcome: QueueOutcome, title: string): string {
+  return `${outcome === 'approved' ? 'Approved' : outcome === 'suggested' ? 'Suggested changes on' : 'Asked someone else to review'} ${title}`;
+}
+
+/** Where the queue goes after a decision: the next row without an outcome after `index`, else before it; null when done. */
+export function nextOpen(keys: readonly string[], index: number, outcomes: ReadonlyMap<string, QueueOutcome>): number | null {
+  for (let i = index + 1; i < keys.length; i++) if (!outcomes.has(keys[i]!)) return i;
+  for (let i = 0; i < index; i++) if (!outcomes.has(keys[i]!)) return i;
+  return null;
+}
+
+/** The queue's decision keys: A approves, S suggests changes. Null for any other key or with a modifier. */
+export function keyDecision(e: { key: string; altKey?: boolean; ctrlKey?: boolean; metaKey?: boolean; shiftKey?: boolean }): 'approve' | 'suggest' | null {
+  if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return null;
+  if (e.key === 'a' || e.key === 'A') return 'approve';
+  if (e.key === 's' || e.key === 'S') return 'suggest';
+  return null;
+}
+
+/** How long an approval waits for Undo before it is sent (nothing reaches GitHub before). */
+export const UNDO_MS = 6000;
+
 /** The row key a queue URL names: ?pr=N is the branch row "change-N", else ?item=<key>. */
 export function keyFromSearch(search: string): string | null {
   const p = new URLSearchParams(search);
