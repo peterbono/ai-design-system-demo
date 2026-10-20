@@ -16,6 +16,12 @@ import { openRevertPlanner } from './planner';
 import { activeReport, DEMO_EVENT, demoOn, loadHistory, setDemo, type Loaded } from './state';
 import { onSelectPick, selectValue, setSelect } from '../../lib/select-bridge';
 import { jiraKeyOf, VOCAB, withoutJiraKey } from '../../lib/vocabulary';
+import { agentMade } from '../../lib/work-nature';
+import { knownNames, paintPeople, personHtml } from '../people';
+import { markLogins, personName } from '../../lib/people';
+
+/** Claude made the change when its description carries an AI agent marker (lib/work-nature). */
+const agentOf = (e: HistoryEntry) => agentMade({ body: e.pr?.body ?? null });
 
 const AUTHOR = 'hs-author';
 const TIER = 'hs-tier';
@@ -60,7 +66,7 @@ function row(e: HistoryEntry, demo: boolean): string {
   const key = jiraOf(e);
   const tag = `<span class="cg-need">${e.bulk ? 'Import' : `${demo ? 'Demo, ' : ''}${approvalNeedLabel(e.tier)}`}</span>`;
   return `<li class="cg-row"><a class="cg-row-link" href="${entryHref(e)}" data-hs-open="${esc(e.id)}">
-    <span class="cg-row-title">${key ? `<span class="mono cg-jira">${esc(key)}</span> ` : ''}<span class="cg-row-name" title="${esc(title(e))}">${esc(title(e))}</span>${num}</span>
+    <span class="cg-row-title">${personHtml(e.author, { agent: agentOf(e), withName: false })}${key ? `<span class="mono cg-jira">${esc(key)}</span> ` : ''}<span class="cg-row-name" title="${esc(title(e))}">${esc(title(e))}</span>${num}</span>
     ${tag}
     <time class="cg-date" datetime="${esc(e.date)}">${esc(dayMonth(e.date))}</time></a></li>`;
 }
@@ -83,7 +89,7 @@ function paintList() {
   // Filters follow the report on screen.
   const authors = authorsOf(entries);
   const keep = selectValue(AUTHOR);
-  setSelect(AUTHOR, { options: [{ value: '', label: 'Anyone' }, ...authors.map((a) => ({ value: a, label: a }))], value: authors.includes(keep) ? keep : '' });
+  setSelect(AUTHOR, { options: [{ value: '', label: 'Anyone' }, ...authors.map((a) => ({ value: a, label: personName(a, knownNames()) }))], value: authors.includes(keep) ? keep : '' });
   const paths = [...new Set(entries.filter((e) => !e.bulk).flatMap((e) => e.changes.map((c) => c.path)))].sort();
   $('hs-paths').innerHTML = paths.map((p) => `<option value="${esc(p)}"></option>`).join('');
 
@@ -105,6 +111,7 @@ function paintList() {
         <ul class="fg-card cg-list">${reviewable.map((e) => row(e, demo)).join('')}${importsRow(imports, demo)}</ul></section>`;
     })
     .join('');
+  void paintPeople(tl);
 }
 
 function paintDetail(e: HistoryEntry, demo: boolean) {
@@ -124,14 +131,15 @@ function paintDetail(e: HistoryEntry, demo: boolean) {
   const facts = [e.bulk ? 'Import' : approvalNeedLabel(e.tier), e.breaking ? 'breaking' : '', e.version && e.version !== 'Unreleased' ? e.version : 'next release'].filter(Boolean).join(', ');
   $('hs-detail').innerHTML = `<nav class="cg-crumbs" aria-label="Breadcrumb"><a href="${BASE}" data-hs-back>History</a><span aria-hidden="true">/</span><span>${esc(e.pr ? `#${e.pr.number}` : title(e))}</span></nav>
     <header class="zone cg-pr-open">
-      <h2 class="cg-pr-title" tabindex="-1">${mdTitleHtml(e.title)}</h2>
-      <p class="cg-pr-meta"><span>${esc(e.author)}, ${esc(shortDate(e.date))}</span><span>${esc(facts)}</span>${ref}</p>
-      <p class="cg-pr-state">${e.why !== e.title ? mdTitleHtml(e.why) : esc(countsLabel(e.counts))}</p>
+      <h2 class="cg-pr-title" tabindex="-1">${esc(withoutJiraKey(historySummary(e, { full: true })))}</h2>
+      <p class="cg-pr-meta"><span class="cg-who">${personHtml(e.author, { agent: agentOf(e), size: 'sm' })}<span>, ${esc(shortDate(e.date))}</span></span><span>${esc(facts)}</span>${ref}</p>
+      <p class="cg-pr-state">${e.why !== e.title && e.why.replace(/\.$/, '') !== withoutJiraKey(historySummary(e, { full: true })).replace(/\.$/, '') ? mdTitleHtml(e.why) : esc(countsLabel(e.counts))}</p>
       ${e.bulk ? '' : `<p class="cg-pr-cta"><button type="button" class="btn btn-primary" data-hs-undo="${esc(e.id)}">Undo this change</button></p>`}
     </header>
     <div class="cg-secs">
       <details class="cg-sec" open><summary class="cg-sec-head"><span class="cg-sec-title">Token changes</span><span class="cg-sec-meta">${esc(countsLabel(e.counts))}</span><span class="cg-sec-chev" aria-hidden="true"></span></summary><div class="cg-sec-body">${diff}</div></details>
     </div>`;
+  void paintPeople($('hs-detail'));
 }
 
 /** Paints the History view from the URL (?view=history, &entry=). */
@@ -146,10 +154,13 @@ export function routeHistory() {
     if (head) head.hidden = true;
     $('hs-filters').hidden = true;
     $('hs-detail').hidden = false;
+    // One Harbor zone per screen: the detail header is the zone, the next release card waits on the list.
+    $('hs-next').hidden = true;
     ($('hs-detail').querySelector('h2') as HTMLElement | null)?.focus();
   } else {
     $('hs-detail').hidden = true;
     $('hs-list-view').hidden = false;
+    $('hs-next').hidden = false;
     if (head) head.hidden = false;
     $('hs-filters').hidden = $('hs-filter-toggle').getAttribute('aria-expanded') !== 'true';
     paintList();
@@ -187,7 +198,8 @@ function paintNextRelease() {
   cta.hidden = !mine;
   const who = $('hs-next-who');
   who.hidden = mine;
-  who.innerHTML = `${holders.length ? `${esc(at(holders))} can publish it.` : 'An owner can publish it.'} <a href="/studio/changes/?pr=${release.number}" data-open-pr="${release.number}">See what it holds</a>`;
+  who.innerHTML = markLogins(`${holders.length ? `${esc(at(holders))} can publish it.` : 'An owner can publish it.'} <a href="/studio/changes/?pr=${release.number}" data-open-pr="${release.number}">See what it holds</a>`);
+  void paintPeople(who);
 }
 
 function loadNextRelease() {

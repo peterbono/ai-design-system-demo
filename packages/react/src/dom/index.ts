@@ -10,6 +10,7 @@
 // Renderers are named `<component>Html` so `bridge audit` counts them as design system components.
 export { escapeHtml, trusted, attrs as htmlAttributes, type HtmlAttributes, type TrustedHtml } from './html';
 export { badgeHtml, badgeClassName, type BadgeHtmlOptions } from './badge';
+export { avatarHtml, type AvatarHtmlOptions } from './avatar';
 export { tooltipAttributes, tooltipHtmlAttributes, bindTooltips, type TooltipAttributeOptions, type BindTooltipsOptions } from './tooltip';
 export { codeBlockHtml, bindCodeBlocks, type CodeBlockHtmlOptions } from './code-block';
 export { tokenValueHtml, type TokenValueHtmlOptions } from './token-value';
@@ -17,6 +18,7 @@ export { checklistHtml, checklistRowHtml, type ChecklistHtmlOptions, type Checkl
 export { dialogHtml, bindDialogs, openDialog, closeDialog, isDialogOpen, dialogReturnValue, type DialogHtmlOptions, type OpenDialogOptions } from './dialog';
 export { copyText } from '../utils/copy';
 export type { BadgeTone, BadgeAppearance, BadgeSize } from '../components/Badge';
+export type { AvatarSize, AvatarFallback, AvatarKind, AvatarAgentBrand } from '../components/Avatar';
 export type { ChecklistStatus } from '../components/Checklist';
 export type { TokenValueSize } from '../components/TokenValue';
 export type { TooltipSide } from '../components/Tooltip';

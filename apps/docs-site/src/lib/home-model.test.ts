@@ -58,6 +58,13 @@ describe('people', () => {
   it('shows display names, never @handles', () => {
     expect(displayName('ann-lee', 'Ann Lee')).toBe('Ann');
     expect(displayName('@dana-k', null)).toBe('dana-k');
+    // An article or a one-letter first word is not a first name: the whole name reads better.
+    expect(displayName('octocat', 'The Octocat')).toBe('The Octocat');
+    expect(displayName('laposte', '  La   Poste ')).toBe('La Poste');
+    expect(displayName('an-team', 'An Team')).toBe('An Team');
+    expect(displayName('jdoe', 'J. Doe')).toBe('J. Doe');
+    expect(displayName('lea', 'Léa Martin')).toBe('Léa');
+    expect(greeting(9, 'The Octocat')).toBe('Good morning, The Octocat.');
     expect(CLAUDE.name).toBe('Claude AI');
   });
   it('keeps each person once, Claude once', () => {

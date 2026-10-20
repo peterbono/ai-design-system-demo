@@ -411,6 +411,20 @@
         "$value": "{palette.accent.100}",
         "$description": "Text selection highlight (::selection)."
       }
+    },
+    "agent": {
+      "surface": {
+        "$type": "color",
+        "$value": "{palette.warning.50}",
+        "$description": "Cream tile behind an AI agent mark (Avatar kind agent, the Claude preset). The same cream in both themes: it belongs to the mark, like a logo tile."
+      }
+    },
+    "illustration": {
+      "surface": {
+        "$type": "color",
+        "$value": "{palette.primary.200}",
+        "$description": "Behind line drawings (the Avatar illustrated faces): the Harbor zone color, kept light in dark so the black lines stay readable."
+      }
     }
   },
   "focus": {

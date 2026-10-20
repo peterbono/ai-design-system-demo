@@ -106,11 +106,49 @@
   color: var(--color-text-muted);
 }
 
+/* A row without a person (health, setup): its icon sits in the avatar's box and tile (the initials avatar colors),
+   so the column aligns. */
+.sh-row-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-8);
+  height: var(--size-8);
+  border-radius: var(--radius-pill);
+  background-color: var(--avatar-bg);
+  color: var(--avatar-text);
+}
+
+/* Two fixed lines on every row: the title alone (one line, ellipsis), then the sentence with the status after it. */
 .sh-row-text {
-  flex: 0 1 auto;
+  display: grid;
+  flex: 1 1 auto;
+  gap: var(--space-0-5);
   min-width: 0;
 }
 
+.sh-row-text > .sh-row-title {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sh-row-sub {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.sh-row-line {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sh-row-jira,
 .sh-row-pill,
 .sh-row-action {
   flex: none;
@@ -307,12 +345,10 @@
     flex-basis: calc(100% - var(--size-16) - var(--space-3));
   }
 
-  .sh-row-pill {
-    margin-inline-start: calc(var(--size-16) + var(--space-3));
-  }
-
-  .sh-row-sep {
-    display: none;
+  /* Phones: the sentence may wrap and the pill may go under it, still inside the text block (never the button). */
+  .sh-row-sub {
+    flex-wrap: wrap;
+    row-gap: var(--space-1);
   }
 
   .sh-more .sh-more-btn,
@@ -321,7 +357,7 @@
   }
 
   .sh-row-line {
-    display: block;
+    white-space: normal;
   }
 
   .sh-choice-body {

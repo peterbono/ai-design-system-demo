@@ -91,6 +91,14 @@
   margin-right: var(--space-1);
 }
 
+/* A pill and, for Claude's drafts, its mark: kept together on one line at every width. */
+.cm-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: 100%;
+}
+
 /* Facts in words ("4 examples", "40 tokens"): quieter than the name, never wrapped. */
 .cm-table .cm-col-used,
 .cm-table .cm-col-req,

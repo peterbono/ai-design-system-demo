@@ -8,7 +8,9 @@ import { Badge } from '../components/Badge';
 import { CodeBlock } from '../components/CodeBlock';
 import { TokenValue } from '../components/TokenValue';
 import { Checklist, ChecklistRow } from '../components/Checklist';
-import { badgeClassName, badgeHtml, bindCodeBlocks, bindTooltips, checklistHtml, checklistRowHtml, codeBlockHtml, tokenValueHtml, tooltipAttributes, tooltipHtmlAttributes, trusted } from './index';
+import { Avatar, type AvatarPersonProps } from '../components/Avatar';
+import { illustratedAvatarUri } from '../avatar-illustrated';
+import { avatarHtml, badgeClassName, badgeHtml, bindCodeBlocks, bindTooltips, checklistHtml, checklistRowHtml, codeBlockHtml, tokenValueHtml, tooltipAttributes, tooltipHtmlAttributes, trusted } from './index';
 
 describe('badgeHtml', () => {
   it.each([
@@ -27,6 +29,26 @@ describe('badgeHtml', () => {
 
   it('passes trusted markup through', () => {
     expect(badgeHtml(trusted('<b>2</b> left'))).toContain('<b>2</b> left');
+  });
+});
+
+describe('avatarHtml', () => {
+  it.each([
+    [{ name: 'Ana Lima' }],
+    [{ name: 'Kenji Sato', size: 'xs' as const, decorative: true, className: 'row-avatar', attributes: { 'data-login': 'kenji' } }],
+    [{ name: 'Maya "M" Okafor', size: 'lg' as const, fallback: 'illustrated' as const }],
+    [{ name: 'Peter Bono', fallback: 'illustrated' as const, illustration: illustratedAvatarUri('peterbono') }],
+    [{ kind: 'agent' as const, brand: 'claude' as const }],
+    [{ kind: 'agent' as const, brand: 'claude' as const, name: 'Claude, drafting', size: 'sm' as const, decorative: true }],
+  ])('matches <Avatar %j>', (opts) => {
+    const { attributes, ...props } = opts as typeof opts & { attributes?: Record<string, string> };
+    expect(avatarHtml(opts)).toBe(renderToStaticMarkup(<Avatar {...(props as AvatarPersonProps)} {...attributes} />));
+  });
+
+  it('names the Claude preset "Claude AI" and passes axe', async () => {
+    document.body.innerHTML = `<p>${avatarHtml({ kind: 'agent', brand: 'claude' })} drafted this.</p>`;
+    expect(document.querySelector('[role="img"]')).toHaveAccessibleName('Claude AI');
+    await expectNoAxeViolations();
   });
 });
 

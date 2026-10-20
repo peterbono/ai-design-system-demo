@@ -6,10 +6,13 @@ import { useEffect, useRef, useState } from 'react';
 import { Check, ChevronLeft, Circle, CircleAlert, CircleDot, Ellipsis, UserRoundPlus } from 'lucide-react';
 import { Button, Icon, IconButton, Input, Kbd, Link, Menu, MenuContent, MenuItem, MenuSubmenu, MenuTrigger, Progress, SidebarNav, SidebarNavItem, SidebarNavSection, ToastProvider, Tooltip, useToast, type UseToastReturn } from '@bridge-ds/react';
 import { positionLabel, queueWindow, type QueueOutcome } from '../../../lib/queue-nav';
+import { Who, type Face } from './faces';
 
 export interface QueueRow {
   key: string;
   title: string;
+  /** Who waits on the viewer (a person or Claude); no face for rows without one. */
+  person?: Face | null;
 }
 
 export interface QueueListProps {
@@ -59,6 +62,7 @@ export function QueueList({ rows, selected, outcomes, onSelect }: QueueListProps
               }}
             >
               <Icon icon={m.icon} size="sm" className="rq-mark" label={m.label} />
+              {r.person && <Who p={r.person} size="xs" className="rq-face" />}
               <span className="rq-item-text">{r.title}</span>
             </SidebarNavItem>
           );

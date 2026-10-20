@@ -6,7 +6,7 @@
 // the requests Studio already reads), examples and tokens. Badges only for exceptions (missing guidance, a Claude
 // draft to review, beta, deprecated). The whole row opens the detail drawer: rows are one tab stop with arrow keys
 // between them, Enter opens.
-import { Badge, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Tag, type BadgeTone } from '@bridge-ds/react';
+import { Avatar, Badge, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Tag, type BadgeTone } from '@bridge-ds/react';
 import type { ExampleNode, GuidanceState } from '../../../lib/components';
 import { thumbnailNode, usedInCell } from '../../../lib/components-studio';
 import Example from '../../Example';
@@ -30,10 +30,10 @@ export interface ComponentListRow {
 }
 
 /** The exception badges of a row, in the Studio status colors: violet waits for someone, grey for the rest. */
-export function exceptions(r: Pick<ComponentListRow, 'guidance' | 'status'>): { label: string; tone: BadgeTone; short?: string }[] {
-  const out: { label: string; tone: BadgeTone; short?: string }[] = [];
+export function exceptions(r: Pick<ComponentListRow, 'guidance' | 'status'>): { label: string; tone: BadgeTone; short?: string; agent?: boolean }[] {
+  const out: { label: string; tone: BadgeTone; short?: string; agent?: boolean }[] = [];
   if (r.guidance === 'missing') out.push({ label: 'Missing guidance', tone: 'neutral', short: 'No guidance' });
-  if (r.guidance === 'review') out.push({ label: 'Draft by Claude, needs review', tone: 'info', short: 'Needs review' });
+  if (r.guidance === 'review') out.push({ label: 'Draft by Claude, needs review', tone: 'info', short: 'Needs review', agent: true });
   if (r.status === 'beta') out.push({ label: 'Beta', tone: 'neutral' });
   if (r.status === 'deprecated') out.push({ label: 'Deprecated', tone: 'neutral' });
   return out;
@@ -94,7 +94,9 @@ export default function ComponentsList({ rows, products }: { rows: ComponentList
                     <span className="cm-name-body">
                       <span className="cm-name-text">{r.name}</span>
                       {exceptions(r).map((b) => (
-                        <Badge key={b.label} tone={b.tone} size="sm" className="cm-pill">
+                        <span key={b.label} className="cm-flag">
+                        {b.agent && <Avatar kind="agent" brand="claude" size="xs" decorative />}
+                        <Badge tone={b.tone} size="sm" className="cm-pill">
                           {b.short ? (
                             <>
                               <span className="cm-pill-full">{b.label}</span>
@@ -104,6 +106,7 @@ export default function ComponentsList({ rows, products }: { rows: ComponentList
                             b.label
                           )}
                         </Badge>
+                        </span>
                       ))}
                     </span>
                   </span>

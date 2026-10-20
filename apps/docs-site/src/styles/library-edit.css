@@ -379,6 +379,13 @@ html:has(.cp-page[data-editing]) {
   font-size: var(--typography-ui-size);
 }
 
+.le-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  vertical-align: middle;
+}
+
 .le-quiet > svg {
   color: var(--color-feedback-success-text);
 }
