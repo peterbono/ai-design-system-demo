@@ -112,8 +112,7 @@ export async function startExploration(ctx: BridgeContext, a: StartExplorationIn
   if (a.dryRun) return { status: 'dry-run' as const, ...preview };
   const work = `Work on it: \`git fetch origin && git switch ${branch}\`. Token edits: bridge_propose_token_change with "branch": "${branch}". Requests: bridge_create_request with "exploration": "${branch}", then bridge_get_request with "branch": "${branch}". It is never merged as is: promote it (\`bridge explore promote ${slug}\`) or close it.`;
   if (gh && ctx.canWriteRemote) {
-    const r = await startExplorationOnGitHub(gh, e, s);
-    if (marks.labels.length) await gh.addLabels(r.pr, marks.labels);
+    const r = await startExplorationOnGitHub(gh, e, { ...s, labels: marks.labels });
     return {
       status: 'started' as const,
       ...preview,

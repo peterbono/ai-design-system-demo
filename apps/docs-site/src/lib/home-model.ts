@@ -6,7 +6,7 @@
 //      branches that need them (changes requested, merge blocked, approved and ready to merge), then usage guidance
 //      Claude drafted. A tertiary hint when the viewer is the only reviewer for many of them.
 //   2. Your branches: open branches only, as cards (Draft, In review, Approved waiting for code), filtered by status.
-//      Finished work is one muted line: what was published this week.
+//      What shipped lives in the Library changelog, not here.
 //   3. Nothing waits and no branch is open: three ways to start.
 //
 // Every value comes from GitHub (pull requests, their timeline and reviews) or from the repo at build time (usage
@@ -402,26 +402,6 @@ export function branchStatus(b: Pick<BranchCard, 'stage' | 'updated' | 'reviewer
   if (b.stage === 'draft') return { stage: 'Draft', detail: `edited ${ago(b.updated, now)}` };
   if (b.stage === 'waiting') return { stage: 'Approved', detail: 'waiting for code' };
   return { stage: 'In review', detail: b.reviewer ? `${b.reviewer.name} reviews` : 'waiting for a reviewer' };
-}
-
-// ---------------------------------------------------------------------------------------------------------------
-// Published this week
-
-export interface Published {
-  title: string;
-  /** "react 1.4.0". */
-  release: string;
-  date: string;
-  author: string | null;
-}
-
-/** What the viewer published in the last 7 days, newest first. Empty without a viewer. */
-export function publishedThisWeek(entries: Published[], viewer: string | null, now: number): Published[] {
-  if (!viewer) return [];
-  const v = viewer.toLowerCase();
-  return entries
-    .filter((e) => e.author?.toLowerCase() === v && now - new Date(e.date).getTime() <= 7 * DAY && new Date(e.date).getTime() <= now + DAY)
-    .sort((a, b) => b.date.localeCompare(a.date));
 }
 
 // ---------------------------------------------------------------------------------------------------------------

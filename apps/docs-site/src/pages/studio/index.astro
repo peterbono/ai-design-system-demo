@@ -2,7 +2,7 @@
 // Studio home, direction D: what the viewer does now (components/ds/studio/StudioHome.tsx, rules in lib/home-model.ts).
 //   1. The Harbor zone: a time-of-day greeting, who waits on the viewer and since when, at most three Needs you rows
 //      (the whole row is the link), the rest grouped behind "Review all" (the review queue, /studio/review/).
-//   2. Your branches: open branches as cards, "Create branch" as the last one, what was published this week in one line.
+//   2. Your branches: open branches as cards, "Create branch" as the first one.
 //   3. Nothing waits and nothing is open: three ways to start.
 // Repo facts are read here at build time (usage guidance Claude drafted, contrast on main, adoption, the changelog);
 // GitHub facts in the browser (scripts/home-data.ts).
@@ -10,8 +10,6 @@ import '../../styles/studio-home.css';
 import '../../styles/branch-thumb.css';
 import Layout from '../../layouts/Layout.astro';
 import { Skeleton } from '@bridge-ds/react';
-import { releases } from '../../lib/changelog';
-import { shortPackage } from '../../lib/changelog-model';
 import { docsEditHref, guidanceState, loadComponents } from '../../lib/components';
 import { git } from '../../lib/repo';
 import { PAGE_SOURCES, freshness } from '../../lib/sources';
@@ -20,14 +18,15 @@ import { groupByApp, loadAudits } from '../../lib/audits';
 import { combinedAdoption, startChangeHref } from '../../lib/overview-board';
 import { adoptionDrop } from '../../lib/home-model';
 import { signInConfig } from '../../lib/signin-config';
+import { siteRepo } from '../../lib/config';
+import { PREVIEW_APPS, PREVIEW_PACKAGES } from '../../lib/repo';
+import type { BranchesConfig } from '../../lib/branches';
 
 const s = dashboard();
 const comps = loadComponents();
 
 /** When a file last changed on main (ISO), null when git has no answer (a shallow clone). */
 const changedAt = (path: string): string | null => git(['log', '-1', '--format=%cI', '--', path]) || null;
-/** The GitHub login of a commit, only when its email names one. */
-const loginOfCommit = (ref: string): string | null => git(['log', '-1', '--format=%ae', ref]).match(/^\d+\+([\w-]+)@users\.noreply\.github\.com$/)?.[1] ?? null;
 
 // Usage guidance Claude drafted and nobody reviewed yet: one Needs you row each, waiting since the draft landed.
 const guidance = comps.filter((c) => guidanceState(c) === 'review').map((c) => ({ name: c.name, href: docsEditHref(c.slug), since: changedAt(c.files.docs) }));
@@ -41,24 +40,16 @@ const adoption = combinedAdoption(
 );
 const drop = adoptionDrop(adoption?.now, adoption?.before);
 
-// Published: the released entries with their date, release and author, filtered to the viewer's week in the browser.
-const published = releases()
-  .filter((r) => !r.pending && r.date)
-  .slice(0, 6)
-  .flatMap((r) => {
-    const pkg = r.packages.find((p) => p.name === '@bridge-ds/react') ?? r.packages[0];
-    const release = pkg ? `${shortPackage(pkg.name)} ${pkg.version}` : r.name;
-    return r.entries.filter((e) => e.source === 'release').map((e) => ({ title: e.title, release, date: r.date!, author: e.ref ? loginOfCommit(e.ref) : null }));
-  });
-
 const homeStatic = {
   contrastFail: s.contrast.fail,
   adoptionDrop: drop,
-  published,
   components: comps.map((c) => ({ name: c.name, slug: c.slug, family: c.category })).sort((a, b) => a.name.localeCompare(b.name)),
   startHrefs: { tokens: startChangeHref('look'), component: startChangeHref('variant'), guidance: firstMissing ? docsEditHref(firstMissing.slug) : '/studio/components/' },
   signIn: Boolean(signInConfig()),
 };
+// Create branch > A feature in a product starts an exploration: its preview settings, as the Branches page embeds them.
+const repo = siteRepo();
+const branchesCfg: BranchesConfig = { owner: repo.owner, repo: repo.repo, defaultBranch: repo.defaultBranch, apps: PREVIEW_APPS, packages: PREVIEW_PACKAGES };
 const json = JSON.stringify(homeStatic).replace(/</g, '\\u003c');
 ---
 
@@ -78,6 +69,7 @@ const json = JSON.stringify(homeStatic).replace(/</g, '\\u003c');
     </div>
   </div>
   <script type="application/json" id="home-static" set:html={json} />
+  <script type="application/json" id="bridge-branches" set:html={JSON.stringify(branchesCfg).replace(/</g, '\\u003c')} />
   <script type="application/json" id="home-guidance" set:html={JSON.stringify({ drafted: guidance }).replace(/</g, '\\u003c')} />
 
   <script>
@@ -87,13 +79,12 @@ const json = JSON.stringify(homeStatic).replace(/</g, '\\u003c');
     import { rememberMine } from '../../scripts/needs-you';
     import { loadHome, type HomeData, type HomeStatic } from '../../scripts/home-data';
     import { paintStudioHome, type HealthLine, type HomeComponent, type StudioHomeProps } from '../../components/ds/studio/StudioHome';
-    import { adoptionDropLine, greeting, homeState, publishedThisWeek, type Published } from '../../lib/home-model';
+    import { adoptionDropLine, greeting, homeState } from '../../lib/home-model';
     import { signedOutLine } from '../../lib/overview-todo';
     import { ghButton } from '../../lib/gh-wording';
 
     interface Static extends HomeStatic {
       adoptionDrop: number | null;
-      published: Published[];
       components: HomeComponent[];
       startHrefs: StudioHomeProps['startHrefs'];
       signIn: boolean;
@@ -133,7 +124,6 @@ const json = JSON.stringify(homeStatic).replace(/</g, '\\u003c');
           greeting: greeting(new Date(now).getHours(), v?.name ?? null),
           needs: d?.needs ?? [],
           branches: d?.branches ?? [],
-          published: publishedThisWeek(stat.published, v?.login ?? null, now),
           health: health(),
           now,
           components: stat.components,

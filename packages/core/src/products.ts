@@ -31,6 +31,16 @@ export const PRODUCT_LABEL_PREFIX = 'product: ';
 
 export const productLabel = (key: string): string => `${PRODUCT_LABEL_PREFIX}${key}`;
 
+/**
+ * Labels and a body line for new work started for a product (a branch, an exploration, a request): the
+ * `product: <key>` label and "**Product:** <name>". The default product adds nothing, since productOfBranch lands
+ * an unlabeled branch there. Studio, the CLI and the MCP server all write these.
+ */
+export function productMarks(products: readonly ProductConfig[], p: ProductConfig): { labels: string[]; line: string } {
+  if (p.key === defaultProduct(products).key) return { labels: [], line: '' };
+  return { labels: [productLabel(p.key)], line: `**Product:** ${p.name}` };
+}
+
 /** The configured products, or DEFAULT_PRODUCTS when the config lists none. */
 export function productsOf(config: { products?: ProductConfig[] | undefined } | null | undefined): ProductConfig[] {
   const list = config?.products;
