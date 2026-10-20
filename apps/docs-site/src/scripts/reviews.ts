@@ -97,6 +97,8 @@ import {
   type GuidanceDocs,
 } from '../lib/review-page';
 import type { ActKind, BranchReviewProps, GuidanceView, PersonRef, TokenRowView, VisualView } from '../components/ds/studio/BranchReview';
+/** The Motion change id (components/ds/studio/BranchReview MOTION_CHANGE), kept here so the island loads lazily. */
+const MOTION_CHANGE = 'tokens:motion';
 import { lifecycleOfRow } from './status-filter';
 import { byLifecycle, LIFECYCLE, lifecycleTone, type Lifecycle } from '../lib/change-status';
 import { isRunningExploration } from '../lib/explorations-view';
@@ -593,6 +595,22 @@ export async function openPr(n: number, push = true) {
     d.dataset.developer = pull.html_url;
     runCurrent = (kind, text) => props.onAct(kind, text);
     wireLibrary({ pull, fresh, compare, access, checks: ci.total, visual, approvals: approvals.approvers.length, seq });
+
+    // Motion changes (scripts/reviews/motion-changes, #153): below "What changes" on a single change, its own change
+    // under Tokens on a busy branch. Only when the branch touches token files or components; nothing when no motion
+    // changed or the read fails.
+    if (files.some((f) => isTokenFile(f.filename) || f.filename.startsWith('packages/react/')))
+      void import('./reviews/motion-changes')
+        .then((m) => m.readMotionChanges({ owner: repo.owner, repo: repo.repo, baseSha: pull.base.sha, headSha: pull.head.sha }))
+        .then((motion) => {
+          if (seq !== openSeq || !view || !motion.changes.length) return;
+          const multi = view.changes.length > 1;
+          const n = motion.changes.length;
+          const change = { id: MOTION_CHANGE, kind: 'tokens' as const, title: 'Motion', meta: `${n} ${n === 1 ? 'change' : 'changes'}`, paths: [] };
+          const at = view.changes.filter((c) => c.kind === 'tokens').length;
+          repaint({ motion, ...(multi ? { changes: [...view.changes.slice(0, at), change, ...view.changes.slice(at)] } : {}) });
+        })
+        .catch(() => undefined);
 
     if (visual) {
       const slot = document.getElementById('rv-visual');

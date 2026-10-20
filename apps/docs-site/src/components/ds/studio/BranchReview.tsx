@@ -41,6 +41,10 @@ import { REGISTRY, resolveProps } from '../../registry';
 import ButtonLink from '../ButtonLink';
 import { AddedNotice, EditInChange } from './ContinueChange';
 import { ShareChange, type ShareChangeProps } from './ShareChange';
+import MotionChanges, { type MotionChangesProps } from './MotionChanges';
+
+/** The id of the Motion change in the outline of a busy branch. */
+export const MOTION_CHANGE = 'tokens:motion';
 import {
   changeGroups,
   currentChange,
@@ -143,6 +147,8 @@ export interface BranchReviewProps {
   said?: string;
   /** Why the viewer cannot act (read-only account). */
   note?: string | null;
+  /** Motion changes (#153), read after the first paint; on a busy branch it is its own change, MOTION_CHANGE. */
+  motion?: MotionChangesProps | null;
   /** Inside the review queue: its bar replaces this one. */
   inQueue?: boolean;
 }
@@ -476,6 +482,7 @@ function ChangeBody(p: BranchReviewProps & { change: ReviewChange; multi: boolea
     const view = p.guidance[change.paths[0]!];
     return view ? <GuidanceBody view={view} canEdit={p.canEditGuidance} onSave={p.onSaveGuidance} /> : <p className="br-muted">Reading the guidance</p>;
   }
+  if (change.id === MOTION_CHANGE) return p.motion ? <MotionChanges {...p.motion} /> : null;
   if (change.kind === 'tokens') return p.tokens ? <TokensBody tokens={p.tokens} only={change.tokens} /> : <p className="br-muted">Reading the token changes</p>;
   return (
     <>
@@ -586,7 +593,7 @@ function MultiBody(p: BranchReviewProps & { current: string | null; seen: Set<st
             <section className="br-change is-open" key={c.id} id={anchor(c.id)} aria-labelledby={`${anchor(c.id)}-h`} tabIndex={-1}>
               <div className="br-line">
                 <h2 className="br-h2" id={`${anchor(c.id)}-h`}>
-                  {c.kind === 'tokens' ? <span className="br-mono">{c.title}</span> : c.title} <span className="br-muted br-h2-meta">· {meta(c)}</span>
+                  {c.kind === 'tokens' && c.id !== MOTION_CHANGE ? <span className="br-mono">{c.title}</span> : c.title} <span className="br-muted br-h2-meta">· {meta(c)}</span>
                 </h2>
                 <Button variant="secondary" iconStart={Check} onClick={() => p.mark(c.id)} disabled={p.seen.has(c.id)}>
                   {p.seen.has(c.id) ? 'Looked at' : 'Looks good'}
@@ -604,7 +611,7 @@ function MultiBody(p: BranchReviewProps & { current: string | null; seen: Set<st
             <section className="br-change is-done" key={c.id} id={anchor(c.id)} aria-label={`${c.title}, looked at`}>
               <Icon icon={Check} size="sm" className="br-toc-mark is-done" />
               <span className="br-change-line">
-                <strong className={c.kind === 'tokens' ? 'br-mono' : undefined}>{c.title}</strong>
+                <strong className={c.kind === 'tokens' && c.id !== MOTION_CHANGE ? 'br-mono' : undefined}>{c.title}</strong>
                 <span className="br-muted"> · {meta(c)}</span>
               </span>
               <Button variant="ghost" size="sm" onClick={() => p.pick(c.id)}>
@@ -627,7 +634,7 @@ function NextRows({ rows, meta, pick }: { rows: ReviewChange[]; meta: (c: Review
       {rows.map((c) => (
         <div className="br-next-row" key={c.id} id={anchor(c.id)}>
           <span className="br-change-line">
-            <strong className={c.kind === 'tokens' ? 'br-mono' : undefined}>{c.title}</strong>
+            <strong className={c.kind === 'tokens' && c.id !== MOTION_CHANGE ? 'br-mono' : undefined}>{c.title}</strong>
             <span className="br-muted"> · {meta(c)}</span>
           </span>
           <Button variant="ghost" size="sm" onClick={() => pick(c.id)}>
@@ -918,6 +925,7 @@ export function BranchReview(p: BranchReviewProps) {
       ) : (
         <div className="br-main">
           {single && single.kind !== 'component' && <ChangeBody {...p} change={single} multi={false} />}
+          {p.motion && <MotionChanges {...p.motion} />}
           {visualOnTop && <WhereItShows visual={p.visual!} product={p.product} tryUrl={p.tryUrl} components={[]} />}
           {!single && <p className="br-muted">Nothing here for design review: the changes are code, a developer reviews them on GitHub.</p>}
           {single?.kind === 'component' && <p className="br-muted">The code is a developer's to review, on GitHub.</p>}
