@@ -407,6 +407,44 @@ export class SimNode {
     }
   }
 
+  // Prototype reactions. With documentAccess dynamic-page, `reactions` is read only: setReactionsAsync writes them.
+  private _reactions: Dict[] = [];
+  get reactions(): Dict[] {
+    return structuredClone(this._reactions);
+  }
+  set reactions(_v: unknown) {
+    throw new Error('reactions is read only with documentAccess dynamic-page: use setReactionsAsync');
+  }
+  async setReactionsAsync(reactions: Dict[]): Promise<void> {
+    const out: Dict[] = [];
+    for (const r of reactions) {
+      const trigger = r.trigger as Dict | null;
+      const type = trigger?.type as string;
+      if (!['ON_CLICK', 'ON_HOVER', 'ON_PRESS', 'ON_DRAG', 'MOUSE_ENTER', 'MOUSE_LEAVE', 'MOUSE_UP', 'MOUSE_DOWN', 'AFTER_TIMEOUT'].includes(type)) throw new Error(`Invalid trigger ${String(type)}`);
+      if ((type === 'MOUSE_ENTER' || type === 'MOUSE_LEAVE') && (typeof trigger!.delay !== 'number' || typeof trigger!.deprecatedVersion !== 'boolean')) throw new Error(`${type} needs delay and deprecatedVersion`);
+      const actions = (r.actions ?? (r.action ? [r.action] : [])) as Dict[];
+      for (const a of actions) {
+        if (a.type !== 'NODE') continue;
+        const dest = this.api.nodes.get(a.destinationId as string);
+        if (!dest) throw new Error(`No node ${String(a.destinationId)}`);
+        if (a.navigation === 'CHANGE_TO' && (this.type !== 'COMPONENT' || dest.type !== 'COMPONENT' || dest.parent !== this.parent || this.parent?.type !== 'COMPONENT_SET')) throw new Error('CHANGE_TO goes to another variant of the same component set');
+        const t = a.transition as Dict | null;
+        if (t) {
+          if (t.type !== 'SMART_ANIMATE' && t.type !== 'DISSOLVE') throw new Error(`Unexpected transition ${String(t.type)}`);
+          if (!(typeof t.duration === 'number' && t.duration > 0)) throw new Error('A transition needs a duration in seconds');
+          const easing = t.easing as Dict;
+          if (easing.type === 'CUSTOM_CUBIC_BEZIER' && !easing.easingFunctionCubicBezier) throw new Error('CUSTOM_CUBIC_BEZIER needs easingFunctionCubicBezier');
+          // Figma stores durations as float32.
+          t.duration = Math.fround(t.duration as number);
+        }
+      }
+      // Figma returns the first action as `action` too.
+      out.push({ trigger: structuredClone(trigger), action: structuredClone(actions[0] ?? null), actions: structuredClone(actions) });
+    }
+    this._reactions = out;
+    this.api.reactionWrites++;
+  }
+
   // Export: a description of what Figma would draw, bound values resolved.
   async exportAsync(): Promise<Uint8Array> {
     return new TextEncoder().encode(JSON.stringify(this.api.render(this)));
@@ -425,6 +463,8 @@ export class SimFigma {
   currentPage: SimNode;
   fileKey: string | undefined = undefined;
   notices: string[] = [];
+  /** setReactionsAsync calls, to check a second pull writes nothing. */
+  reactionWrites = 0;
 
   constructor(opts: { fonts?: { family: string; style: string }[] } = {}) {
     this.fonts = opts.fonts ?? ['Regular', 'Medium', 'Semi Bold', 'Bold'].flatMap((style) => [{ family: 'Inter', style }, { family: 'Instrument Sans', style }, { family: 'Fraunces', style }, { family: 'IBM Plex Mono', style }]);

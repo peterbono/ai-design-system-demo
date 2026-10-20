@@ -1626,6 +1626,7 @@ function reviewGroup(p: PullState, reviews: ComponentReview[], title = 'Componen
         { class: 'row-head' },
         h('span', { class: 'comp-name' }, r.name),
         variants ? h('span', { class: 'muted' }, variants) : null,
+        interactionsLabel(p.components?.components.find((c) => c.componentId === r.componentId)),
         p.components?.components.find((c) => c.componentId === r.componentId)?.drafted ? h('span', { class: 'muted' }, 'Drafted, check it') : null,
         done
           ? h('span', { class: 'kind added row-end' }, 'Updated')
@@ -1679,6 +1680,7 @@ function componentsGroup(p: PullState): Child {
           : `${cov.headline}. The ones in this file match the code.`,
       [
         coverageDetails(cov),
+        motionDetails(plan),
         fresh.length
           ? rowList(
               'pull-components',
@@ -1692,6 +1694,7 @@ function componentsGroup(p: PullState): Child {
                     h('span', { class: 'kind added' }, 'New'),
                     h('span', { class: 'comp-name' }, c.name),
                     h('span', { class: 'muted' }, plural(c.variants.length, 'variant')),
+                    c.interactions?.length ? h('span', { class: 'muted' }, `Interactions: ${c.interactions.length}`) : null,
                     c.drafted ? h('span', { class: 'kind row-end', title: 'Drafted with Claude: DS Bridge cannot read this component on its own. Check fidelity compares it with the code.' }, draftedSetNote(c.drafted)) : null,
                   ),
                 ),
@@ -1791,6 +1794,29 @@ function fidelityGroup(p: PullState): Child {
 }
 
 /** The components not in Figma, each with its reason, and the layout helpers, folded under the count. */
+/** "Interactions: N" for a set that has prototype interactions. */
+function interactionsLabel(c: PlannedComponent | undefined): Child {
+  return c?.interactions?.length ? h('span', { class: 'muted' }, `Interactions: ${c.interactions.length}`) : null;
+}
+
+/** The motion Figma plays differently or cannot play, per set, folded: hover, press and click are wired, the rest is listed. */
+function motionDetails(plan: ComponentPullPlan): Child {
+  const sets = plan.components.filter((c) => c.motionNotes?.length);
+  if (!sets.length) return null;
+  const wired = plan.components.filter((c) => c.interactions?.length).length;
+  return h(
+    'details',
+    { class: 'notes candidates' },
+    h('summary', { 'data-focus-id': 'motion-notes' }, `Motion: ${plural(wired, 'set')} with prototype interactions, ${plural(sets.length, 'set')} with motion Figma cannot play`),
+    h(
+      'ul',
+      { class: 'rows' },
+      sets.map((c) => h('li', { class: 'row' }, h('div', { class: 'row-head' }, h('span', { class: 'comp-name' }, c.name), interactionsLabel(c)), h('p', { class: 'muted' }, c.motionNotes!.join('. ')))),
+    ),
+    h('p', { class: 'muted' }, 'In code, reduced motion turns these animations off. Figma has no equivalent, so each set says it in its description.'),
+  );
+}
+
 function coverageDetails(cov: CoverageView): Child {
   if (!cov.missing.length && !cov.layout.length && !cov.drafted.length) return null;
   const summary = cov.missing.length ? `${plural(cov.missing.length, 'component')} not in Figma yet` : cov.drafted.length ? `${plural(cov.drafted.length, 'component')} drafted with Claude, check ${cov.drafted.length === 1 ? 'it' : 'them'}` : 'Layout helpers';

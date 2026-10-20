@@ -238,6 +238,66 @@ export interface SpecVector {
   strokes: SpecValue[];
 }
 
+/**
+ * A prototype trigger, Figma's names. ON_HOVER "While hovering" and ON_PRESS "While pressing" go back when the pointer
+ * leaves or lets go; ON_CLICK "On click" stays. A set with a Checked axis uses MOUSE_ENTER / MOUSE_LEAVE for hover, so a
+ * click that changes Checked is not undone when the pointer leaves.
+ */
+export type SpecTrigger = 'ON_HOVER' | 'ON_PRESS' | 'ON_CLICK' | 'MOUSE_ENTER' | 'MOUSE_LEAVE';
+
+/** Designer names of the triggers, as Figma's prototype panel shows them. */
+export const TRIGGER_LABELS: Record<SpecTrigger, string> = {
+  ON_HOVER: 'While hovering',
+  ON_PRESS: 'While pressing',
+  ON_CLICK: 'On click',
+  MOUSE_ENTER: 'Mouse enter',
+  MOUSE_LEAVE: 'Mouse leave',
+};
+
+/** An easing Figma can play: linear, or a cubic bezier with the exact points of the code's curve. */
+export interface SpecEasing {
+  type: 'LINEAR' | 'CUSTOM_CUBIC_BEZIER';
+  /** CUSTOM_CUBIC_BEZIER: x1, y1, x2, y2. */
+  bezier?: [number, number, number, number] | undefined;
+}
+
+/** The code's CSS transition for one change, resolved from the motion tokens. Played with Smart animate. */
+export interface SpecTransition {
+  /** Milliseconds. */
+  duration: number;
+  /** Token behind the duration ("motion.duration.instant"), when it is one. */
+  durationToken?: string | undefined;
+  easing: SpecEasing;
+  /** Token behind the easing ("motion.easing.standard"), when it is one. */
+  easingToken?: string | undefined;
+  /** CSS properties the code animates in this change ("background-color"). */
+  properties: string[];
+  /** Why Figma plays it slightly differently from the code (one speed for parts that move at several), when it does. */
+  approximated?: string | undefined;
+}
+
+/**
+ * A prototype interaction between variants of the set, read from the CSS: on `trigger`, every variant whose `axis` is
+ * `from` changes to the variant with `to` instead (other axes kept). `variants` narrows it to those variant keys
+ * (variantKeyOf) when it does not apply to all of them. `transition` null: the code changes it instantly.
+ */
+export interface SpecInteraction {
+  trigger: SpecTrigger;
+  axis: string;
+  from: string;
+  to: string;
+  variants?: string[] | undefined;
+  transition: SpecTransition | null;
+}
+
+/** Motion the code has that a Figma prototype cannot play (a looping spinner, keyboard focus, a popup opening). */
+export interface SpecMotionNote {
+  /** What moves, in plain words ("Looping animation spin, 700 ms"). */
+  what: string;
+  /** Why Figma does not play it. */
+  reason: string;
+}
+
 /** A declaration, prop or part that has no Figma equivalent in this version, with the reason. */
 export interface SpecUnmapped {
   part: string;
@@ -274,6 +334,10 @@ export interface ComponentSpec {
   parts: SpecPart[];
   variants: SpecVariant[];
   unmapped: SpecUnmapped[];
+  /** Prototype interactions between the variants (hover, press, click to check), with the code's motion. */
+  interactions?: SpecInteraction[] | undefined;
+  /** Motion of the code a Figma prototype cannot play. */
+  motion?: SpecMotionNote[] | undefined;
 }
 
 /** An element of a code example: component export name, literal props, children (texts or elements). */
@@ -409,6 +473,16 @@ export function validateComponentSpec(spec: Omit<ComponentSpec, 'hash'> & { hash
     for (const [id, vec] of Object.entries(v.vectors ?? {})) if (parts.get(id)?.kind !== 'vector' || !/^<svg[\s>]/.test(vec.svg)) at(where, `vector "${id}" is not a vector part with an SVG`);
     for (const id of Object.keys(v.slots ?? {})) if (!parts.has(id)) at(where, `shows a component in "${id}", which is not a part`);
   }
+  for (const [i, x] of (spec.interactions ?? []).entries()) {
+    const where = `interaction ${i + 1}`;
+    const axis = spec.axes.find((a) => a.name === x.axis);
+    if (!(x.trigger in TRIGGER_LABELS)) at(where, `trigger ${String(x.trigger)} is not one Figma has`);
+    if (!axis) at(where, `${x.axis} is not an axis`);
+    else if (!axis.values.includes(x.from) || !axis.values.includes(x.to) || x.from === x.to) at(where, `${x.from} to ${x.to} are not two values of ${x.axis}`);
+    for (const k of x.variants ?? []) if (!seen.has(k)) at(where, `variant ${k} does not exist`);
+    const t = x.transition;
+    if (t && (!(t.duration > 0) || (t.easing.type === 'CUSTOM_CUBIC_BEZIER' && (t.easing.bezier?.length !== 4 || t.easing.bezier.some((n) => typeof n !== 'number'))))) at(where, 'the transition needs a duration and a valid easing');
+  }
   return out;
 }
 
@@ -452,6 +526,89 @@ export const variantKeyOf = (props: Record<string, string>) =>
     .sort()
     .map((k) => `${k}=${props[k]}`)
     .join(', ') || 'Default';
+
+/** What a set's description says about reduced motion: tokens set every duration to 0 under prefers-reduced-motion. */
+export const REDUCED_MOTION_NOTE = 'In code, reduced motion turns this off.';
+
+/** One prototype reaction: on `trigger`, the variant `fromKey` changes to `toKey`, with the code's transition. */
+export interface MotionReaction {
+  trigger: SpecTrigger;
+  /** Figma's name for the trigger ("While hovering"). */
+  label: string;
+  from: Record<string, string>;
+  to: Record<string, string>;
+  /** variantKeyOf(from) and variantKeyOf(to). */
+  fromKey: string;
+  toKey: string;
+  transition: SpecTransition | null;
+}
+
+/** A component set's motion and interactions, read from its spec: for Figma prototypes, docs and reviews. */
+export interface ComponentMotion {
+  name: string;
+  /** Every reaction between variants, one per variant it starts from. */
+  reactions: MotionReaction[];
+  /** The interactions as the spec lists them (one per trigger and change), with the number of variants each covers. */
+  triggers: (SpecInteraction & { label: string; count: number })[];
+  /** Motion tokens the transitions use ("motion.duration.instant", "motion.easing.standard"), sorted. */
+  tokens: string[];
+  /** CSS properties that animate ("background-color"), sorted. */
+  properties: string[];
+  /** Where Figma plays the motion differently from the code. */
+  approximations: string[];
+  /** Motion of the code a Figma prototype cannot play. */
+  cannotPlay: SpecMotionNote[];
+  /** REDUCED_MOTION_NOTE when the component animates in code, else undefined. */
+  reducedMotion: string | undefined;
+}
+
+/**
+ * The motion of a component set from its spec: every reaction between its variants (trigger, from and to variants, the
+ * transition with duration and easing resolved from the motion tokens), the tokens and properties involved, what Figma
+ * approximates or cannot play, and the reduced motion note. Pure: works in the plugin, the browser and Node.
+ */
+export function componentMotion(spec: Pick<ComponentSpec, 'name' | 'variants' | 'interactions' | 'motion'>): ComponentMotion {
+  const keys = new Set(spec.variants.map((v) => variantKeyOf(v.props)));
+  const reactions: MotionReaction[] = [];
+  const triggers: ComponentMotion['triggers'] = [];
+  for (const x of spec.interactions ?? []) {
+    const only = x.variants ? new Set(x.variants) : undefined;
+    let count = 0;
+    for (const v of spec.variants) {
+      if (v.props[x.axis] !== x.from) continue;
+      const fromKey = variantKeyOf(v.props);
+      if (only && !only.has(fromKey)) continue;
+      const to = { ...v.props, [x.axis]: x.to };
+      const toKey = variantKeyOf(to);
+      if (!keys.has(toKey)) continue;
+      reactions.push({ trigger: x.trigger, label: TRIGGER_LABELS[x.trigger], from: { ...v.props }, to, fromKey, toKey, transition: x.transition });
+      count++;
+    }
+    triggers.push({ ...x, label: TRIGGER_LABELS[x.trigger], count });
+  }
+  const transitions = (spec.interactions ?? []).map((x) => x.transition).filter((t): t is SpecTransition => !!t);
+  const tokens = [...new Set(transitions.flatMap((t) => [t.durationToken, t.easingToken]).filter((t): t is string => !!t))].sort();
+  const properties = [...new Set(transitions.flatMap((t) => t.properties))].sort();
+  const approximations = [...new Set(transitions.map((t) => t.approximated).filter((t): t is string => !!t))];
+  const cannotPlay = [...(spec.motion ?? [])];
+  const animates = transitions.length > 0 || cannotPlay.some((n) => /animation/i.test(n.what));
+  return { name: spec.name, reactions, triggers, tokens, properties, approximations, cannotPlay, reducedMotion: animates ? REDUCED_MOTION_NOTE : undefined };
+}
+
+/**
+ * Sets whose interactions use a motion token, directly or through an alias: `chainOf(path)` gives the tokens a path
+ * resolves through (resolve(...).chain), so a change to a primitive ("duration.75") finds the sets using
+ * "motion.duration.instant". Without it, only direct uses count. Sorted set names.
+ */
+export function componentsUsingMotionToken(specs: Pick<ComponentSpecsFile, 'components'>, tokenPath: string, chainOf?: (path: string) => string[]): string[] {
+  const out = new Set<string>();
+  for (const c of specs.components) {
+    for (const t of componentMotion(c).tokens) {
+      if (t === tokenPath || (chainOf?.(t) ?? []).includes(tokenPath)) out.add(c.name);
+    }
+  }
+  return [...out].sort();
+}
 
 /** Parses component-specs.json; throws with a readable message when it is not a specs file of a known version. */
 export function parseComponentSpecs(text: string): ComponentSpecsFile {

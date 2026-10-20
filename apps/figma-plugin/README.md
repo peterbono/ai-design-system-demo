@@ -266,6 +266,19 @@ flags variants removed in code with an `[orphan] ` description, like variables. 
 touched, and new sets go on a **Components** page. After building, each set's signature is stored as its baseline
 (`signature`, the one Push compares), so a Push right after a pull sends no component request.
 
+Interactions: the variants are wired for prototype mode with the code's motion. The generator reads each set's
+State and Checked axes and the CSS `transition` of the parts that change (component-specs.json `interactions`):
+hover is **While hovering** (Default to Hover), press is **While pressing** (Hover to Pressed), a Checked axis
+toggles **On click** (a radio only checks), and a set with a Checked axis uses **Mouse enter** / **Mouse leave** for
+hover so the click is not undone when the pointer leaves. Each reaction is **Change to** the other variant with
+**Smart animate**, the duration and easing of the motion tokens (`motion.duration.*`, `motion.easing.*` played as
+Figma's custom cubic bezier). When parts move at several speeds, Figma plays the longest and the preview says it was
+approximated. The reactions DS Bridge set are remembered per variant (`reactions`), replaced on the next pull and
+never written twice; reactions a designer added stay, and on the same trigger the designer's one wins (the pull
+says so). The Pull preview shows **Interactions: N** per set and lists, folded, the motion Figma cannot play
+(looping keyframes, keyboard focus, a popup opening from its trigger). Reduced motion has no Figma equivalent: the
+set description says "In code, reduced motion turns this off."
+
 ### Check fidelity (does each component look like the code?)
 
 The generator can build a set that has the right variants and bindings but still looks wrong (a compound part

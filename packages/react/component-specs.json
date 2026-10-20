@@ -36,7 +36,7 @@
           }
         ]
       },
-      "hash": "2a10c0b3",
+      "hash": "1575c910",
       "source": [
         "packages/react/src/components/Accordion/Accordion.tsx",
         "packages/react/src/components/Accordion/Accordion.module.css",
@@ -947,6 +947,54 @@
           "value": "var(--accordion-panel-height)",
           "reason": "--accordion-panel-height is not a token"
         }
+      ],
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "axis": "State",
+          "from": "Default",
+          "to": "Hover",
+          "variants": [
+            "Appearance=contained, State=Default"
+          ],
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "background-color"
+            ]
+          }
+        },
+        {
+          "trigger": "ON_HOVER",
+          "axis": "State",
+          "from": "Default",
+          "to": "Hover",
+          "variants": [
+            "Appearance=flush, State=Default"
+          ],
+          "transition": null
+        }
+      ],
+      "motion": [
+        {
+          "what": "Keyboard focus",
+          "reason": "the focus ring shows when a keyboard moves to the component; Figma prototypes have no focus state"
+        },
+        {
+          "what": "Opening and closing",
+          "reason": "the open state is not drawn as a variant"
+        }
       ]
     },
     {
@@ -958,7 +1006,7 @@
           "value": "color"
         }
       },
-      "hash": "c9dc85d5",
+      "hash": "1295f2c1",
       "source": [
         "packages/react/src/components/Accordion/Accordion.tsx",
         "packages/react/src/components/Accordion/Accordion.module.css",
@@ -1215,6 +1263,16 @@
           "property": "height",
           "value": "var(--accordion-panel-height)",
           "reason": "--accordion-panel-height is not a token"
+        }
+      ],
+      "motion": [
+        {
+          "what": "Keyboard focus",
+          "reason": "the focus ring shows when a keyboard moves to the component; Figma prototypes have no focus state"
+        },
+        {
+          "what": "Opening and closing",
+          "reason": "the open state is not drawn as a variant"
         }
       ]
     },
@@ -1697,7 +1755,7 @@
           }
         ]
       },
-      "hash": "40229f95",
+      "hash": "f2d1829f",
       "source": [
         "packages/react/src/components/AlertDialog/AlertDialog.tsx",
         "packages/react/src/components/AlertDialog/AlertDialog.module.css",
@@ -2071,6 +2129,16 @@
           "property": "box-shadow",
           "value": "var(--dialog-shadow)",
           "reason": "shadows are code-only tokens (no Figma variable)"
+        }
+      ],
+      "motion": [
+        {
+          "what": "Opening and closing the popup",
+          "reason": "the popup is its own set; a Figma component cannot open another one from its trigger"
+        },
+        {
+          "what": "Keyboard focus",
+          "reason": "the focus ring shows when a keyboard moves to the component; Figma prototypes have no focus state"
         }
       ]
     },
@@ -3442,7 +3510,7 @@
           ]
         }
       },
-      "hash": "13e53e0c",
+      "hash": "304b25e2",
       "source": [
         "packages/react/src/components/Breadcrumb/Breadcrumb.tsx",
         "packages/react/src/components/Breadcrumb/Breadcrumb.module.css",
@@ -3708,11 +3776,43 @@
           }
         }
       ],
-      "unmapped": []
+      "unmapped": [],
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "axis": "State",
+          "from": "Default",
+          "to": "Hover",
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "color",
+              "text-decoration-color"
+            ]
+          }
+        }
+      ],
+      "motion": [
+        {
+          "what": "Keyboard focus",
+          "reason": "the focus ring shows when a keyboard moves to the component; Figma prototypes have no focus state"
+        }
+      ]
     },
     {
       "name": "Button",
-      "hash": "8878a44e",
+      "hash": "3d435c8e",
       "source": [
         "packages/react/src/components/Button/Button.tsx",
         "packages/react/src/components/Button/Button.module.css",
@@ -7034,6 +7134,122 @@
           "value": "boolean",
           "reason": "not drawn in this version"
         }
+      ],
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "axis": "State",
+          "from": "Default",
+          "to": "Hover",
+          "variants": [
+            "Size=sm, State=Default, Variant=primary",
+            "Size=md, State=Default, Variant=primary",
+            "Size=lg, State=Default, Variant=primary",
+            "Size=sm, State=Default, Variant=secondary",
+            "Size=md, State=Default, Variant=secondary",
+            "Size=lg, State=Default, Variant=secondary",
+            "Size=sm, State=Default, Variant=ghost",
+            "Size=md, State=Default, Variant=ghost",
+            "Size=lg, State=Default, Variant=ghost",
+            "Size=sm, State=Default, Variant=danger",
+            "Size=md, State=Default, Variant=danger",
+            "Size=lg, State=Default, Variant=danger",
+            "Size=sm, State=Default, Variant=inverse",
+            "Size=md, State=Default, Variant=inverse",
+            "Size=lg, State=Default, Variant=inverse"
+          ],
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "background-color"
+            ]
+          }
+        },
+        {
+          "trigger": "ON_HOVER",
+          "axis": "State",
+          "from": "Default",
+          "to": "Hover",
+          "variants": [
+            "Size=sm, State=Default, Variant=link",
+            "Size=md, State=Default, Variant=link",
+            "Size=lg, State=Default, Variant=link"
+          ],
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "color"
+            ]
+          }
+        },
+        {
+          "trigger": "ON_PRESS",
+          "axis": "State",
+          "from": "Hover",
+          "to": "Pressed",
+          "variants": [
+            "Size=sm, State=Hover, Variant=primary",
+            "Size=md, State=Hover, Variant=primary",
+            "Size=lg, State=Hover, Variant=primary",
+            "Size=sm, State=Hover, Variant=secondary",
+            "Size=md, State=Hover, Variant=secondary",
+            "Size=lg, State=Hover, Variant=secondary",
+            "Size=sm, State=Hover, Variant=ghost",
+            "Size=md, State=Hover, Variant=ghost",
+            "Size=lg, State=Hover, Variant=ghost",
+            "Size=sm, State=Hover, Variant=danger",
+            "Size=md, State=Hover, Variant=danger",
+            "Size=lg, State=Hover, Variant=danger",
+            "Size=sm, State=Hover, Variant=inverse",
+            "Size=md, State=Hover, Variant=inverse",
+            "Size=lg, State=Hover, Variant=inverse"
+          ],
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "background-color"
+            ]
+          }
+        }
+      ],
+      "motion": [
+        {
+          "what": "Keyboard focus",
+          "reason": "the focus ring shows when a keyboard moves to the component; Figma prototypes have no focus state"
+        }
       ]
     },
     {
@@ -7352,7 +7568,7 @@
     },
     {
       "name": "Checkbox",
-      "hash": "4bdd838d",
+      "hash": "a1603323",
       "source": [
         "packages/react/src/components/Checkbox/Checkbox.tsx",
         "packages/react/src/components/Checkbox/Checkbox.module.css",
@@ -8080,6 +8296,195 @@
           "value": "boolean",
           "reason": "not drawn in this version"
         }
+      ],
+      "interactions": [
+        {
+          "trigger": "MOUSE_ENTER",
+          "axis": "State",
+          "from": "Default",
+          "to": "Hover",
+          "variants": [
+            "Checked=false, State=Default"
+          ],
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "border-color"
+            ]
+          }
+        },
+        {
+          "trigger": "MOUSE_ENTER",
+          "axis": "State",
+          "from": "Default",
+          "to": "Hover",
+          "variants": [
+            "Checked=true, State=Default",
+            "Checked=mixed, State=Default"
+          ],
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "background-color",
+              "border-color"
+            ]
+          }
+        },
+        {
+          "trigger": "MOUSE_LEAVE",
+          "axis": "State",
+          "from": "Hover",
+          "to": "Default",
+          "variants": [
+            "Checked=false, State=Hover"
+          ],
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "border-color"
+            ]
+          }
+        },
+        {
+          "trigger": "MOUSE_LEAVE",
+          "axis": "State",
+          "from": "Hover",
+          "to": "Default",
+          "variants": [
+            "Checked=true, State=Hover",
+            "Checked=mixed, State=Hover"
+          ],
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "background-color",
+              "border-color"
+            ]
+          }
+        },
+        {
+          "trigger": "ON_CLICK",
+          "axis": "Checked",
+          "from": "false",
+          "to": "true",
+          "variants": [
+            "Checked=false, State=Default",
+            "Checked=false, State=Hover"
+          ],
+          "transition": {
+            "duration": 150,
+            "durationToken": "motion.duration.fast",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.16,
+                1,
+                0.3,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.enter",
+            "properties": [
+              "background-color",
+              "border-color",
+              "opacity",
+              "transform"
+            ],
+            "approximated": "parts move at 150 ms and 75 ms in code, Figma plays one speed: 150 ms"
+          }
+        },
+        {
+          "trigger": "ON_CLICK",
+          "axis": "Checked",
+          "from": "true",
+          "to": "false",
+          "variants": [
+            "Checked=true, State=Default",
+            "Checked=true, State=Hover"
+          ],
+          "transition": {
+            "duration": 150,
+            "durationToken": "motion.duration.fast",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.16,
+                1,
+                0.3,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.enter",
+            "properties": [
+              "background-color",
+              "border-color",
+              "opacity",
+              "transform"
+            ],
+            "approximated": "parts move at 150 ms and 75 ms in code, Figma plays one speed: 150 ms"
+          }
+        },
+        {
+          "trigger": "ON_CLICK",
+          "axis": "Checked",
+          "from": "mixed",
+          "to": "true",
+          "variants": [
+            "Checked=mixed, State=Default",
+            "Checked=mixed, State=Hover"
+          ],
+          "transition": null
+        }
+      ],
+      "motion": [
+        {
+          "what": "Keyboard focus",
+          "reason": "the focus ring shows when a keyboard moves to the component; Figma prototypes have no focus state"
+        }
       ]
     },
     {
@@ -8115,7 +8520,7 @@
           }
         ]
       },
-      "hash": "c6d108c3",
+      "hash": "0ee8313e",
       "source": [
         "packages/react/src/components/CheckboxGroup/CheckboxGroup.tsx",
         "packages/react/src/components/Checkbox/Checkbox.module.css",
@@ -9299,6 +9704,37 @@
           "value": "boolean",
           "reason": "not drawn in this version"
         }
+      ],
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "axis": "State",
+          "from": "Default",
+          "to": "Hover",
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "border-color"
+            ]
+          }
+        }
+      ],
+      "motion": [
+        {
+          "what": "Keyboard focus",
+          "reason": "the focus ring shows when a keyboard moves to the component; Figma prototypes have no focus state"
+        }
       ]
     },
     {
@@ -9701,7 +10137,7 @@
           "value": "mine"
         }
       },
-      "hash": "52244e1d",
+      "hash": "69c3793d",
       "source": [
         "packages/react/src/components/ChoiceCard/ChoiceCard.tsx",
         "packages/react/src/components/ChoiceCard/ChoiceCard.module.css",
@@ -10157,6 +10593,180 @@
           "value": "inset 0 0 0 var(--border-width-default) var(--color-control-checked-bg)",
           "reason": "shadows are code-only tokens (no Figma variable)"
         }
+      ],
+      "interactions": [
+        {
+          "trigger": "MOUSE_ENTER",
+          "axis": "State",
+          "from": "Default",
+          "to": "Hover",
+          "variants": [
+            "Checked=false, State=Default"
+          ],
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "background-color",
+              "border-color"
+            ]
+          }
+        },
+        {
+          "trigger": "MOUSE_ENTER",
+          "axis": "State",
+          "from": "Default",
+          "to": "Hover",
+          "variants": [
+            "Checked=true, State=Default"
+          ],
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "border-color"
+            ]
+          }
+        },
+        {
+          "trigger": "MOUSE_LEAVE",
+          "axis": "State",
+          "from": "Hover",
+          "to": "Default",
+          "variants": [
+            "Checked=false, State=Hover"
+          ],
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "background-color",
+              "border-color"
+            ]
+          }
+        },
+        {
+          "trigger": "MOUSE_LEAVE",
+          "axis": "State",
+          "from": "Hover",
+          "to": "Default",
+          "variants": [
+            "Checked=true, State=Hover"
+          ],
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "border-color"
+            ]
+          }
+        },
+        {
+          "trigger": "ON_CLICK",
+          "axis": "Checked",
+          "from": "false",
+          "to": "true",
+          "variants": [
+            "Checked=false, State=Default",
+            "Checked=false, State=Hover"
+          ],
+          "transition": {
+            "duration": 150,
+            "durationToken": "motion.duration.fast",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.16,
+                1,
+                0.3,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.enter",
+            "properties": [
+              "background-color",
+              "border-color",
+              "transform"
+            ],
+            "approximated": "parts move at 150 ms and 75 ms in code, Figma plays one speed: 150 ms"
+          }
+        },
+        {
+          "trigger": "ON_CLICK",
+          "axis": "Checked",
+          "from": "true",
+          "to": "false",
+          "variants": [
+            "Checked=true, State=Default",
+            "Checked=true, State=Hover"
+          ],
+          "transition": {
+            "duration": 150,
+            "durationToken": "motion.duration.fast",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.16,
+                1,
+                0.3,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.enter",
+            "properties": [
+              "background-color",
+              "border-color",
+              "transform"
+            ],
+            "approximated": "parts move at 150 ms and 75 ms in code, Figma plays one speed: 150 ms"
+          }
+        }
+      ],
+      "motion": [
+        {
+          "what": "Keyboard focus",
+          "reason": "the focus ring shows when a keyboard moves to the component; Figma prototypes have no focus state"
+        }
       ]
     },
     {
@@ -10167,7 +10777,7 @@
           "code": "npm install @bridge-ds/react"
         }
       },
-      "hash": "e8663508",
+      "hash": "a9bf4b12",
       "source": [
         "packages/react/src/components/CodeBlock/CodeBlock.tsx",
         "packages/react/src/components/Button/Button.module.css",
@@ -10571,6 +11181,60 @@
           "value": "100%",
           "reason": "fills its container: Figma draws it at a fixed width"
         }
+      ],
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "axis": "State",
+          "from": "Default",
+          "to": "Hover",
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "background-color"
+            ]
+          }
+        },
+        {
+          "trigger": "ON_PRESS",
+          "axis": "State",
+          "from": "Hover",
+          "to": "Pressed",
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "background-color"
+            ]
+          }
+        }
+      ],
+      "motion": [
+        {
+          "what": "Keyboard focus",
+          "reason": "the focus ring shows when a keyboard moves to the component; Figma prototypes have no focus state"
+        }
       ]
     },
     {
@@ -10597,7 +11261,7 @@
           ]
         }
       },
-      "hash": "6b5905c8",
+      "hash": "82f36849",
       "source": [
         "packages/react/src/components/Combobox/Combobox.tsx",
         "packages/react/src/components/Combobox/Combobox.module.css",
@@ -11305,6 +11969,38 @@
           "value": "100%",
           "reason": "fills its container: Figma draws it at a fixed width"
         }
+      ],
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "axis": "State",
+          "from": "Default",
+          "to": "Hover",
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "background-color",
+              "border-color"
+            ]
+          }
+        }
+      ],
+      "motion": [
+        {
+          "what": "Keyboard focus",
+          "reason": "the focus ring shows when a keyboard moves to the component; Figma prototypes have no focus state"
+        }
       ]
     },
     {
@@ -11332,7 +12028,7 @@
           ]
         }
       },
-      "hash": "c85e8dc6",
+      "hash": "87b65055",
       "source": [
         "packages/react/src/components/Combobox/Combobox.tsx",
         "packages/react/src/components/Combobox/Combobox.module.css",
@@ -11599,6 +12295,12 @@
           "value": "var(--popup-shadow)",
           "reason": "shadows are code-only tokens (no Figma variable)"
         }
+      ],
+      "motion": [
+        {
+          "what": "Opening and closing the popup",
+          "reason": "the popup is its own set; a Figma component cannot open another one from its trigger"
+        }
       ]
     },
     {
@@ -11618,7 +12320,7 @@
           }
         ]
       },
-      "hash": "4740d11e",
+      "hash": "67ba7556",
       "source": [
         "packages/react/src/components/Dialog/Dialog.tsx",
         "packages/react/src/components/Button/Button.module.css",
@@ -12310,6 +13012,16 @@
           "value": "calc(var(--space-1) * -1) 0 0",
           "reason": "margins have no auto layout equivalent"
         }
+      ],
+      "motion": [
+        {
+          "what": "Keyboard focus",
+          "reason": "the focus ring shows when a keyboard moves to the component; Figma prototypes have no focus state"
+        },
+        {
+          "what": "Opening and closing the popup",
+          "reason": "the popup is its own set; a Figma component cannot open another one from its trigger"
+        }
       ]
     },
     {
@@ -12426,7 +13138,7 @@
           }
         ]
       },
-      "hash": "14982956",
+      "hash": "2c2773ce",
       "source": [
         "packages/react/src/components/Drawer/Drawer.tsx",
         "packages/react/src/components/Button/Button.module.css",
@@ -12905,6 +13617,16 @@
           "property": "transform",
           "value": "translateX(var(--drawer-swipe-movement-x, 0))",
           "reason": "transforms are not drawn"
+        }
+      ],
+      "motion": [
+        {
+          "what": "Keyboard focus",
+          "reason": "the focus ring shows when a keyboard moves to the component; Figma prototypes have no focus state"
+        },
+        {
+          "what": "Opening and closing the popup",
+          "reason": "the popup is its own set; a Figma component cannot open another one from its trigger"
         }
       ]
     },
@@ -13485,7 +14207,7 @@
           }
         ]
       },
-      "hash": "30c4078f",
+      "hash": "d48d054a",
       "source": [
         "packages/react/src/components/Field/Field.tsx",
         "packages/react/src/components/Field/Field.module.css",
@@ -13805,6 +14527,37 @@
           "value": "calc(var(--space-1) * -1) 0 0",
           "reason": "margins have no auto layout equivalent"
         }
+      ],
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "axis": "State",
+          "from": "Default",
+          "to": "Hover",
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "border-color"
+            ]
+          }
+        }
+      ],
+      "motion": [
+        {
+          "what": "Keyboard focus",
+          "reason": "the focus ring shows when a keyboard moves to the component; Figma prototypes have no focus state"
+        }
       ]
     },
     {
@@ -13848,7 +14601,7 @@
           }
         ]
       },
-      "hash": "8a8e7404",
+      "hash": "ebb2ae14",
       "source": [
         "packages/react/src/components/Form/Form.tsx",
         "packages/react/src/components/Button/Button.module.css",
@@ -14527,6 +15280,61 @@
           "value": "boolean",
           "reason": "not drawn in this version"
         }
+      ],
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "axis": "State",
+          "from": "Default",
+          "to": "Hover",
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "background-color",
+              "border-color"
+            ]
+          }
+        },
+        {
+          "trigger": "ON_PRESS",
+          "axis": "State",
+          "from": "Hover",
+          "to": "Pressed",
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "background-color"
+            ]
+          }
+        }
+      ],
+      "motion": [
+        {
+          "what": "Keyboard focus",
+          "reason": "the focus ring shows when a keyboard moves to the component; Figma prototypes have no focus state"
+        }
       ]
     },
     {
@@ -14537,7 +15345,7 @@
           "label": "Edit token"
         }
       },
-      "hash": "79e2a2db",
+      "hash": "9ed44d1f",
       "source": [
         "packages/react/src/components/IconButton/IconButton.tsx",
         "packages/react/src/components/Button/Button.module.css",
@@ -16540,11 +17348,65 @@
           "value": "boolean",
           "reason": "not drawn in this version"
         }
+      ],
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "axis": "State",
+          "from": "Default",
+          "to": "Hover",
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "background-color"
+            ]
+          }
+        },
+        {
+          "trigger": "ON_PRESS",
+          "axis": "State",
+          "from": "Hover",
+          "to": "Pressed",
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "background-color"
+            ]
+          }
+        }
+      ],
+      "motion": [
+        {
+          "what": "Keyboard focus",
+          "reason": "the focus ring shows when a keyboard moves to the component; Figma prototypes have no focus state"
+        }
       ]
     },
     {
       "name": "Input",
-      "hash": "1d78b9c0",
+      "hash": "33fef7cd",
       "source": [
         "packages/react/src/components/Input/Input.tsx",
         "packages/react/src/components/Field/Field.module.css",
@@ -17096,6 +17958,37 @@
           "value": "100%",
           "reason": "fills its container: Figma draws it at a fixed width"
         }
+      ],
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "axis": "State",
+          "from": "Default",
+          "to": "Hover",
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "border-color"
+            ]
+          }
+        }
+      ],
+      "motion": [
+        {
+          "what": "Keyboard focus",
+          "reason": "the focus ring shows when a keyboard moves to the component; Figma prototypes have no focus state"
+        }
       ]
     },
     {
@@ -17322,7 +18215,7 @@
     },
     {
       "name": "Link",
-      "hash": "6b6906ad",
+      "hash": "6ee62ed9",
       "source": [
         "packages/react/src/components/Link/Link.tsx",
         "packages/react/src/components/Icon/Icon.module.css",
@@ -17501,13 +18394,74 @@
           "value": "boolean",
           "reason": "not drawn in this version"
         }
+      ],
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "axis": "State",
+          "from": "Default",
+          "to": "Hover",
+          "variants": [
+            "State=Default, Variant=inline"
+          ],
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "color"
+            ]
+          }
+        },
+        {
+          "trigger": "ON_HOVER",
+          "axis": "State",
+          "from": "Default",
+          "to": "Hover",
+          "variants": [
+            "State=Default, Variant=standalone"
+          ],
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "color",
+              "text-decoration-color"
+            ]
+          }
+        }
+      ],
+      "motion": [
+        {
+          "what": "Keyboard focus",
+          "reason": "the focus ring shows when a keyboard moves to the component; Figma prototypes have no focus state"
+        }
       ]
     },
     {
       "name": "Menu/Popup",
       "component": "Menu",
       "view": "popup",
-      "hash": "7df508df",
+      "hash": "ade1d3cc",
       "source": [
         "packages/react/src/components/Menu/Menu.tsx",
         "packages/react/src/components/Icon/Icon.module.css",
@@ -17579,13 +18533,19 @@
           "value": "var(--popup-shadow)",
           "reason": "shadows are code-only tokens (no Figma variable)"
         }
+      ],
+      "motion": [
+        {
+          "what": "Opening and closing the popup",
+          "reason": "the popup is its own set; a Figma component cannot open another one from its trigger"
+        }
       ]
     },
     {
       "name": "MenuItem",
       "component": "Menu",
       "view": "without-popup",
-      "hash": "6b014434",
+      "hash": "309c39bd",
       "source": [
         "packages/react/src/components/Menu/Menu.tsx",
         "packages/react/src/components/Icon/Icon.module.css",
@@ -17755,13 +18715,19 @@
           "value": "boolean",
           "reason": "not drawn in this version"
         }
+      ],
+      "motion": [
+        {
+          "what": "Keyboard focus",
+          "reason": "the focus ring shows when a keyboard moves to the component; Figma prototypes have no focus state"
+        }
       ]
     },
     {
       "name": "MenuCheckboxItem",
       "component": "Menu",
       "view": "without-popup",
-      "hash": "7c0ee1e2",
+      "hash": "eed6a1f7",
       "source": [
         "packages/react/src/components/Menu/Menu.tsx",
         "packages/react/src/components/Icon/Icon.module.css",
@@ -18073,6 +19039,34 @@
           "value": "var(--space-4)",
           "reason": "margins have no auto layout equivalent"
         }
+      ],
+      "interactions": [
+        {
+          "trigger": "ON_CLICK",
+          "axis": "Checked",
+          "from": "false",
+          "to": "true",
+          "variants": [
+            "Checked=false, State=Default"
+          ],
+          "transition": null
+        },
+        {
+          "trigger": "ON_CLICK",
+          "axis": "Checked",
+          "from": "true",
+          "to": "false",
+          "variants": [
+            "Checked=true, State=Default"
+          ],
+          "transition": null
+        }
+      ],
+      "motion": [
+        {
+          "what": "Keyboard focus",
+          "reason": "the focus ring shows when a keyboard moves to the component; Figma prototypes have no focus state"
+        }
       ]
     },
     {
@@ -18114,7 +19108,7 @@
           }
         ]
       },
-      "hash": "7cad14d0",
+      "hash": "cd7f0279",
       "source": [
         "packages/react/src/components/Menu/Menu.tsx",
         "packages/react/src/components/Icon/Icon.module.css",
@@ -18455,13 +19449,19 @@
           }
         }
       ],
-      "unmapped": []
+      "unmapped": [],
+      "motion": [
+        {
+          "what": "Keyboard focus",
+          "reason": "the focus ring shows when a keyboard moves to the component; Figma prototypes have no focus state"
+        }
+      ]
     },
     {
       "name": "MenuRadioItem",
       "component": "Menu",
       "view": "without-popup",
-      "hash": "5ef45b7b",
+      "hash": "8d055931",
       "source": [
         "packages/react/src/components/Menu/Menu.tsx",
         "packages/react/src/components/Icon/Icon.module.css",
@@ -18683,6 +19683,24 @@
           "value": "boolean",
           "reason": "not drawn in this version"
         }
+      ],
+      "interactions": [
+        {
+          "trigger": "ON_CLICK",
+          "axis": "Checked",
+          "from": "false",
+          "to": "true",
+          "variants": [
+            "Checked=false, State=Default"
+          ],
+          "transition": null
+        }
+      ],
+      "motion": [
+        {
+          "what": "Keyboard focus",
+          "reason": "the focus ring shows when a keyboard moves to the component; Figma prototypes have no focus state"
+        }
       ]
     },
     {
@@ -18718,7 +19736,7 @@
           }
         ]
       },
-      "hash": "ee26164d",
+      "hash": "cb840d54",
       "source": [
         "packages/react/src/components/Menu/Menu.tsx",
         "packages/react/src/components/Icon/Icon.module.css",
@@ -19006,7 +20024,13 @@
           }
         }
       ],
-      "unmapped": []
+      "unmapped": [],
+      "motion": [
+        {
+          "what": "Keyboard focus",
+          "reason": "the focus ring shows when a keyboard moves to the component; Figma prototypes have no focus state"
+        }
+      ]
     },
     {
       "name": "MenuSeparator",
@@ -19081,7 +20105,7 @@
           }
         ]
       },
-      "hash": "c3f91a7a",
+      "hash": "ea762ce4",
       "source": [
         "packages/react/src/components/Menu/Menu.tsx",
         "packages/react/src/components/Icon/Icon.module.css",
@@ -19185,7 +20209,17 @@
           }
         }
       ],
-      "unmapped": []
+      "unmapped": [],
+      "motion": [
+        {
+          "what": "Opening and closing",
+          "reason": "the open state is not drawn as a variant"
+        },
+        {
+          "what": "Keyboard focus",
+          "reason": "the focus ring shows when a keyboard moves to the component; Figma prototypes have no focus state"
+        }
+      ]
     },
     {
       "name": "NumberField",
@@ -19197,7 +20231,7 @@
           "max": 5
         }
       },
-      "hash": "0fbc3a2c",
+      "hash": "8461ea61",
       "source": [
         "packages/react/src/components/NumberField/NumberField.tsx",
         "packages/react/src/components/Field/Field.module.css",
@@ -20313,6 +21347,62 @@
           "value": "100%",
           "reason": "fills its container: Figma draws it at a fixed width"
         }
+      ],
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "axis": "State",
+          "from": "Default",
+          "to": "Hover",
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "background-color",
+              "border-color",
+              "color"
+            ]
+          }
+        },
+        {
+          "trigger": "ON_PRESS",
+          "axis": "State",
+          "from": "Hover",
+          "to": "Pressed",
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "background-color"
+            ]
+          }
+        }
+      ],
+      "motion": [
+        {
+          "what": "Keyboard focus",
+          "reason": "the focus ring shows when a keyboard moves to the component; Figma prototypes have no focus state"
+        }
       ]
     },
     {
@@ -20544,7 +21634,7 @@
           "defaultPage": 6
         }
       },
-      "hash": "2a7c1a6a",
+      "hash": "e4d5f858",
       "source": [
         "packages/react/src/components/Pagination/Pagination.tsx",
         "packages/react/src/components/Button/Button.module.css",
@@ -22017,7 +23107,61 @@
           }
         }
       ],
-      "unmapped": []
+      "unmapped": [],
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "axis": "State",
+          "from": "Default",
+          "to": "Hover",
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "background-color"
+            ]
+          }
+        },
+        {
+          "trigger": "ON_PRESS",
+          "axis": "State",
+          "from": "Hover",
+          "to": "Pressed",
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "background-color"
+            ]
+          }
+        }
+      ],
+      "motion": [
+        {
+          "what": "Keyboard focus",
+          "reason": "the focus ring shows when a keyboard moves to the component; Figma prototypes have no focus state"
+        }
+      ]
     },
     {
       "name": "Pagination/Compact",
@@ -22032,7 +23176,7 @@
           "defaultPage": 6
         }
       },
-      "hash": "1a45a0da",
+      "hash": "5c70bb08",
       "source": [
         "packages/react/src/components/Pagination/Pagination.tsx",
         "packages/react/src/components/Button/Button.module.css",
@@ -22564,7 +23708,61 @@
           }
         }
       ],
-      "unmapped": []
+      "unmapped": [],
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "axis": "State",
+          "from": "Default",
+          "to": "Hover",
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "background-color"
+            ]
+          }
+        },
+        {
+          "trigger": "ON_PRESS",
+          "axis": "State",
+          "from": "Hover",
+          "to": "Pressed",
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "background-color"
+            ]
+          }
+        }
+      ],
+      "motion": [
+        {
+          "what": "Keyboard focus",
+          "reason": "the focus ring shows when a keyboard moves to the component; Figma prototypes have no focus state"
+        }
+      ]
     },
     {
       "name": "Popover/Popup",
@@ -22587,7 +23785,7 @@
           }
         ]
       },
-      "hash": "1c8b0936",
+      "hash": "27a68da5",
       "source": [
         "packages/react/src/components/Popover/Popover.tsx",
         "packages/react/src/components/Button/Button.module.css",
@@ -22762,6 +23960,12 @@
           "value": "var(--popup-shadow)",
           "reason": "shadows are code-only tokens (no Figma variable)"
         }
+      ],
+      "motion": [
+        {
+          "what": "Opening and closing the popup",
+          "reason": "the popup is its own set; a Figma component cannot open another one from its trigger"
+        }
       ]
     },
     {
@@ -22776,7 +23980,7 @@
           "value": 64
         }
       },
-      "hash": "b955465b",
+      "hash": "ff2ab7c2",
       "source": [
         "packages/react/src/components/Progress/Progress.tsx",
         "packages/react/src/components/Progress/Progress.module.css"
@@ -23382,6 +24586,12 @@
           "value": "boolean",
           "reason": "not drawn in this version"
         }
+      ],
+      "motion": [
+        {
+          "what": "Looping animation slide, 1400 ms",
+          "reason": "a Figma component cannot loop an animation on its own"
+        }
       ]
     },
     {
@@ -23396,7 +24606,7 @@
           "value": 64
         }
       },
-      "hash": "b547ec10",
+      "hash": "14d92400",
       "source": [
         "packages/react/src/components/Progress/Progress.tsx",
         "packages/react/src/components/Progress/Progress.module.css"
@@ -23992,6 +25202,12 @@
           "value": "rotate(-90deg)",
           "reason": "transforms are not drawn"
         }
+      ],
+      "motion": [
+        {
+          "what": "Looping animation spin, 700 ms",
+          "reason": "a Figma component cannot loop an animation on its own"
+        }
       ]
     },
     {
@@ -24026,7 +25242,7 @@
           }
         ]
       },
-      "hash": "fe7069f6",
+      "hash": "40b429db",
       "source": [
         "packages/react/src/components/RadioGroup/RadioGroup.tsx",
         "packages/react/src/components/Icon/Icon.module.css",
@@ -25155,6 +26371,38 @@
           "value": "boolean",
           "reason": "not drawn in this version"
         }
+      ],
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "axis": "State",
+          "from": "Default",
+          "to": "Hover",
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "background-color",
+              "border-color"
+            ]
+          }
+        }
+      ],
+      "motion": [
+        {
+          "what": "Keyboard focus",
+          "reason": "the focus ring shows when a keyboard moves to the component; Figma prototypes have no focus state"
+        }
       ]
     },
     {
@@ -25166,7 +26414,7 @@
           "value": "merge"
         }
       },
-      "hash": "928652e2",
+      "hash": "fbd7d9a4",
       "source": [
         "packages/react/src/components/RadioGroup/RadioGroup.tsx",
         "packages/react/src/components/Icon/Icon.module.css",
@@ -25575,7 +26823,151 @@
           }
         }
       ],
-      "unmapped": []
+      "unmapped": [],
+      "interactions": [
+        {
+          "trigger": "MOUSE_ENTER",
+          "axis": "State",
+          "from": "Default",
+          "to": "Hover",
+          "variants": [
+            "Checked=false, State=Default"
+          ],
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "border-color"
+            ]
+          }
+        },
+        {
+          "trigger": "MOUSE_ENTER",
+          "axis": "State",
+          "from": "Default",
+          "to": "Hover",
+          "variants": [
+            "Checked=true, State=Default"
+          ],
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "background-color",
+              "border-color"
+            ]
+          }
+        },
+        {
+          "trigger": "MOUSE_LEAVE",
+          "axis": "State",
+          "from": "Hover",
+          "to": "Default",
+          "variants": [
+            "Checked=false, State=Hover"
+          ],
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "border-color"
+            ]
+          }
+        },
+        {
+          "trigger": "MOUSE_LEAVE",
+          "axis": "State",
+          "from": "Hover",
+          "to": "Default",
+          "variants": [
+            "Checked=true, State=Hover"
+          ],
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "background-color",
+              "border-color"
+            ]
+          }
+        },
+        {
+          "trigger": "ON_CLICK",
+          "axis": "Checked",
+          "from": "false",
+          "to": "true",
+          "variants": [
+            "Checked=false, State=Default",
+            "Checked=false, State=Hover"
+          ],
+          "transition": {
+            "duration": 150,
+            "durationToken": "motion.duration.fast",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.16,
+                1,
+                0.3,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.enter",
+            "properties": [
+              "background-color",
+              "border-color",
+              "transform"
+            ],
+            "approximated": "parts move at 150 ms and 75 ms in code, Figma plays one speed: 150 ms"
+          }
+        }
+      ],
+      "motion": [
+        {
+          "what": "Keyboard focus",
+          "reason": "the focus ring shows when a keyboard moves to the component; Figma prototypes have no focus state"
+        }
+      ]
     },
     {
       "name": "SegmentedControl",
@@ -25595,7 +26987,7 @@
           "defaultValue": "comfortable"
         }
       },
-      "hash": "ea39378a",
+      "hash": "ba711ef1",
       "source": [
         "packages/react/src/components/SegmentedControl/SegmentedControl.tsx",
         "packages/react/src/components/Icon/Icon.module.css",
@@ -26673,6 +28065,60 @@
           "value": "var(--elevation-raised)",
           "reason": "shadows are code-only tokens (no Figma variable)"
         }
+      ],
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "axis": "State",
+          "from": "Default",
+          "to": "Hover",
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "color"
+            ]
+          }
+        },
+        {
+          "trigger": "ON_PRESS",
+          "axis": "State",
+          "from": "Hover",
+          "to": "Pressed",
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "background-color"
+            ]
+          }
+        }
+      ],
+      "motion": [
+        {
+          "what": "Keyboard focus",
+          "reason": "the focus ring shows when a keyboard moves to the component; Figma prototypes have no focus state"
+        }
       ]
     },
     {
@@ -26698,7 +28144,7 @@
           "defaultValue": "dark"
         }
       },
-      "hash": "54cbf09d",
+      "hash": "01e871a1",
       "source": [
         "packages/react/src/components/Select/Select.tsx",
         "packages/react/src/components/Field/Field.module.css",
@@ -27241,6 +28687,41 @@
           "value": "100%",
           "reason": "fills its container: Figma draws it at a fixed width"
         }
+      ],
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "axis": "State",
+          "from": "Default",
+          "to": "Hover",
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "border-color"
+            ]
+          }
+        }
+      ],
+      "motion": [
+        {
+          "what": "Keyboard focus",
+          "reason": "the focus ring shows when a keyboard moves to the component; Figma prototypes have no focus state"
+        },
+        {
+          "what": "Opening and closing",
+          "reason": "the open state is not drawn as a variant"
+        }
       ]
     },
     {
@@ -27267,7 +28748,7 @@
           "defaultValue": "dark"
         }
       },
-      "hash": "4c332412",
+      "hash": "1da4d809",
       "source": [
         "packages/react/src/components/Select/Select.tsx",
         "packages/react/src/components/Field/Field.module.css",
@@ -27598,6 +29079,12 @@
           "value": "var(--popup-shadow)",
           "reason": "shadows are code-only tokens (no Figma variable)"
         }
+      ],
+      "motion": [
+        {
+          "what": "Opening and closing the popup",
+          "reason": "the popup is its own set; a Figma component cannot open another one from its trigger"
+        }
       ]
     },
     {
@@ -27644,7 +29131,7 @@
           }
         ]
       },
-      "hash": "8e25ebac",
+      "hash": "10007e9b",
       "source": [
         "packages/react/src/components/SidebarNav/SidebarNav.tsx",
         "packages/react/src/components/Icon/Icon.module.css",
@@ -28194,6 +29681,61 @@
           "value": "100%",
           "reason": "fills its container: Figma draws it at a fixed width"
         }
+      ],
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "axis": "State",
+          "from": "Default",
+          "to": "Hover",
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "background-color",
+              "color"
+            ]
+          }
+        },
+        {
+          "trigger": "ON_PRESS",
+          "axis": "State",
+          "from": "Hover",
+          "to": "Pressed",
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "background-color"
+            ]
+          }
+        }
+      ],
+      "motion": [
+        {
+          "what": "Keyboard focus",
+          "reason": "the focus ring shows when a keyboard moves to the component; Figma prototypes have no focus state"
+        }
       ]
     },
     {
@@ -28233,7 +29775,7 @@
           }
         ]
       },
-      "hash": "bc21865a",
+      "hash": "0307ae2d",
       "source": [
         "packages/react/src/components/SidebarNav/SidebarNav.tsx",
         "packages/react/src/components/Icon/Icon.module.css",
@@ -28788,12 +30330,67 @@
           "value": "boolean",
           "reason": "not drawn in this version"
         }
+      ],
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "axis": "State",
+          "from": "Default",
+          "to": "Hover",
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "background-color",
+              "color"
+            ]
+          }
+        },
+        {
+          "trigger": "ON_PRESS",
+          "axis": "State",
+          "from": "Hover",
+          "to": "Pressed",
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "background-color"
+            ]
+          }
+        }
+      ],
+      "motion": [
+        {
+          "what": "Keyboard focus",
+          "reason": "the focus ring shows when a keyboard moves to the component; Figma prototypes have no focus state"
+        }
       ]
     },
     {
       "name": "SidebarNavItem",
       "component": "SidebarNav",
-      "hash": "56aafdfb",
+      "hash": "7e90c90a",
       "source": [
         "packages/react/src/components/SidebarNav/SidebarNav.tsx",
         "packages/react/src/components/Icon/Icon.module.css",
@@ -28983,11 +30580,66 @@
           "value": "boolean",
           "reason": "not drawn in this version"
         }
+      ],
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "axis": "State",
+          "from": "Default",
+          "to": "Hover",
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "background-color",
+              "color"
+            ]
+          }
+        },
+        {
+          "trigger": "ON_PRESS",
+          "axis": "State",
+          "from": "Hover",
+          "to": "Pressed",
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "background-color"
+            ]
+          }
+        }
+      ],
+      "motion": [
+        {
+          "what": "Keyboard focus",
+          "reason": "the focus ring shows when a keyboard moves to the component; Figma prototypes have no focus state"
+        }
       ]
     },
     {
       "name": "Skeleton",
-      "hash": "57cc1f88",
+      "hash": "4744dc8f",
       "source": [
         "packages/react/src/components/Skeleton/Skeleton.tsx",
         "packages/react/src/components/Skeleton/Skeleton.module.css"
@@ -29071,6 +30723,12 @@
           "value": "100%",
           "reason": "fills its container: Figma draws it at a fixed width"
         }
+      ],
+      "motion": [
+        {
+          "what": "Looping animation shimmer, 1400 ms",
+          "reason": "a Figma component cannot loop an animation on its own"
+        }
       ]
     },
     {
@@ -29084,7 +30742,7 @@
           "step": 0.5
         }
       },
-      "hash": "b72e6962",
+      "hash": "9fcabaf3",
       "source": [
         "packages/react/src/components/Slider/Slider.tsx",
         "packages/react/src/components/Field/Field.module.css",
@@ -29313,11 +30971,17 @@
           "value": "4ch",
           "reason": "literal value, not a token"
         }
+      ],
+      "motion": [
+        {
+          "what": "Keyboard focus",
+          "reason": "the focus ring shows when a keyboard moves to the component; Figma prototypes have no focus state"
+        }
       ]
     },
     {
       "name": "Spinner",
-      "hash": "7df67b01",
+      "hash": "10627d79",
       "source": [
         "packages/react/src/components/Spinner/Spinner.tsx",
         "packages/react/src/components/Spinner/Spinner.module.css"
@@ -29549,11 +31213,17 @@
           }
         }
       ],
-      "unmapped": []
+      "unmapped": [],
+      "motion": [
+        {
+          "what": "Looping animation spin, 700 ms",
+          "reason": "a Figma component cannot loop an animation on its own"
+        }
+      ]
     },
     {
       "name": "Switch",
-      "hash": "963fe797",
+      "hash": "7482fc06",
       "source": [
         "packages/react/src/components/Switch/Switch.tsx",
         "packages/react/src/components/Switch/Switch.module.css"
@@ -31028,6 +32698,128 @@
           "value": "translateX(var(--_inset))",
           "reason": "transforms are not drawn"
         }
+      ],
+      "interactions": [
+        {
+          "trigger": "MOUSE_ENTER",
+          "axis": "State",
+          "from": "Default",
+          "to": "Hover",
+          "transition": {
+            "duration": 150,
+            "durationToken": "motion.duration.fast",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "background-color"
+            ]
+          }
+        },
+        {
+          "trigger": "MOUSE_LEAVE",
+          "axis": "State",
+          "from": "Hover",
+          "to": "Default",
+          "transition": {
+            "duration": 150,
+            "durationToken": "motion.duration.fast",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "background-color"
+            ]
+          }
+        },
+        {
+          "trigger": "ON_CLICK",
+          "axis": "Checked",
+          "from": "false",
+          "to": "true",
+          "variants": [
+            "Checked=false, Label placement=end, Size=sm, State=Default",
+            "Checked=false, Label placement=end, Size=sm, State=Hover",
+            "Checked=false, Label placement=end, Size=md, State=Default",
+            "Checked=false, Label placement=end, Size=md, State=Hover",
+            "Checked=false, Label placement=start, Size=sm, State=Default",
+            "Checked=false, Label placement=start, Size=sm, State=Hover",
+            "Checked=false, Label placement=start, Size=md, State=Default",
+            "Checked=false, Label placement=start, Size=md, State=Hover"
+          ],
+          "transition": {
+            "duration": 150,
+            "durationToken": "motion.duration.fast",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "background-color",
+              "transform"
+            ]
+          }
+        },
+        {
+          "trigger": "ON_CLICK",
+          "axis": "Checked",
+          "from": "true",
+          "to": "false",
+          "variants": [
+            "Checked=true, Label placement=end, Size=sm, State=Default",
+            "Checked=true, Label placement=end, Size=sm, State=Hover",
+            "Checked=true, Label placement=end, Size=md, State=Default",
+            "Checked=true, Label placement=end, Size=md, State=Hover",
+            "Checked=true, Label placement=start, Size=sm, State=Default",
+            "Checked=true, Label placement=start, Size=sm, State=Hover",
+            "Checked=true, Label placement=start, Size=md, State=Default",
+            "Checked=true, Label placement=start, Size=md, State=Hover"
+          ],
+          "transition": {
+            "duration": 150,
+            "durationToken": "motion.duration.fast",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "background-color",
+              "transform"
+            ]
+          }
+        }
+      ],
+      "motion": [
+        {
+          "what": "Keyboard focus",
+          "reason": "the focus ring shows when a keyboard moves to the component; Figma prototypes have no focus state"
+        }
       ]
     },
     {
@@ -31107,7 +32899,7 @@
           }
         ]
       },
-      "hash": "848f137d",
+      "hash": "3a866f7e",
       "source": [
         "packages/react/src/components/Table/Table.tsx",
         "packages/react/src/components/Icon/Icon.module.css",
@@ -31662,6 +33454,37 @@
           "value": "boolean",
           "reason": "not drawn in this version"
         }
+      ],
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "axis": "State",
+          "from": "Default",
+          "to": "Hover",
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "background-color"
+            ]
+          }
+        }
+      ],
+      "motion": [
+        {
+          "what": "Keyboard focus",
+          "reason": "the focus ring shows when a keyboard moves to the component; Figma prototypes have no focus state"
+        }
       ]
     },
     {
@@ -31796,7 +33619,7 @@
           }
         ]
       },
-      "hash": "b04c8836",
+      "hash": "cd35c146",
       "source": [
         "packages/react/src/components/Tabs/Tabs.tsx",
         "packages/react/src/components/Icon/Icon.module.css",
@@ -33977,6 +35800,37 @@
           "value": "var(--elevation-raised)",
           "reason": "shadows are code-only tokens (no Figma variable)"
         }
+      ],
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "axis": "State",
+          "from": "Default",
+          "to": "Hover",
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "color"
+            ]
+          }
+        }
+      ],
+      "motion": [
+        {
+          "what": "Keyboard focus",
+          "reason": "the focus ring shows when a keyboard moves to the component; Figma prototypes have no focus state"
+        }
       ]
     },
     {
@@ -34392,7 +36246,7 @@
           "rows": 3
         }
       },
-      "hash": "197f158f",
+      "hash": "ccd3283e",
       "source": [
         "packages/react/src/components/Textarea/Textarea.tsx",
         "packages/react/src/components/Field/Field.module.css",
@@ -34680,6 +36534,68 @@
           "property": "box-shadow",
           "value": "inset 0 0 0 var(--border-width-default) var(--input-border)",
           "reason": "shadows are code-only tokens (no Figma variable)"
+        }
+      ],
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "axis": "State",
+          "from": "Default",
+          "to": "Hover",
+          "variants": [
+            "Appearance=field, State=Default"
+          ],
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "border-color"
+            ]
+          }
+        },
+        {
+          "trigger": "ON_HOVER",
+          "axis": "State",
+          "from": "Default",
+          "to": "Hover",
+          "variants": [
+            "Appearance=inline, State=Default"
+          ],
+          "transition": {
+            "duration": 75,
+            "durationToken": "motion.duration.instant",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "background-color",
+              "border-color",
+              "box-shadow"
+            ]
+          }
+        }
+      ],
+      "motion": [
+        {
+          "what": "Keyboard focus",
+          "reason": "the focus ring shows when a keyboard moves to the component; Figma prototypes have no focus state"
         }
       ]
     },
@@ -35844,7 +37760,7 @@
           }
         ]
       },
-      "hash": "b47d0fc5",
+      "hash": "8d7ef76a",
       "source": [
         "packages/react/src/components/Tooltip/Tooltip.tsx",
         "packages/react/src/components/Button/Button.module.css",
@@ -35936,6 +37852,12 @@
           "property": "box-shadow",
           "value": "var(--elevation-overlay)",
           "reason": "shadows are code-only tokens (no Figma variable)"
+        }
+      ],
+      "motion": [
+        {
+          "what": "Opening and closing the popup",
+          "reason": "the popup is its own set; a Figma component cannot open another one from its trigger"
         }
       ]
     }
