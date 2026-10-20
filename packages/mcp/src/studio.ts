@@ -11,6 +11,8 @@ import {
   DEFAULT_COMPONENT_SPECS_FILE,
   DOCS_MCP_ORIGIN,
   docsFileText,
+  docsSlug,
+  findOpenDocsProposalOnGitHub,
   entryLabel,
   FIGMA_REFERENCES_BRANCH,
   FIGMA_REFERENCES_MANIFEST,
@@ -71,8 +73,11 @@ export async function saveDocs(
   };
 
   const gh = await ctx.github();
-  if (a.pr !== undefined) {
-    const n = branchNumber(a.pr);
+  // One open docs proposal per component (same rule as the Library editor): without `pr`, an open one is continued.
+  const open = a.pr === undefined && gh ? await findOpenDocsProposalOnGitHub(gh, { name, slug: docsSlug(name) }, ctx.ref ?? baseBranchOf(config)).catch(() => null) : null;
+  const target = a.pr ?? open?.number;
+  if (target !== undefined) {
+    const n = branchNumber(target);
     if (!gh) throw new Error('No GitHub repo known: set "repo" in bridge.config.json or add an origin remote.');
     const pr = await gh.getPullRequest(n);
     if (pr.state !== 'open') throw new Error(`#${n} is ${pr.state}: save the docs on a new branch instead (leave pr out).`);
@@ -80,15 +85,24 @@ export async function saveDocs(
     if (current === null) throw new Error(`${path} is not on #${n}. Save the docs on a new branch instead (leave pr out), or check the component name.`);
     const text = next(current);
     if (a.dryRun) return { status: 'dry-run' as const, pr: n, path, content: text };
+    if (!ctx.canWriteRemote && open) return { status: 'preview' as const, pr: n, path, content: text, said: `Nothing sent: the ${name} docs have an open proposal (#${n}) and adding to it needs a GitHub token with ${RIGHTS.docs}. Set GITHUB_TOKEN.` };
     if (!ctx.canWriteRemote) throw new Error(`Saving docs on #${n} needs a GitHub token with ${RIGHTS.docs}. Set GITHUB_TOKEN where the Bridge MCP server runs, or save it in the Library edit mode.`);
     const sha = await commitFileOnGitHub(gh.withBranchPrefix(undefined), { path, branch: pr.headRef, message: `docs(${name.toLowerCase()}): edit usage guidance with Claude (Bridge MCP)`, next });
-    return { status: sha ? ('committed' as const) : ('unchanged' as const), pr: n, path, commit: sha || null, said: sha ? `Saved the ${name} docs on #${n}. Reviewers see them now.` : 'The docs on that branch already say this.' };
+    const joined = open ? ` It continues the open ${name} docs proposal by @${open.author} (one open proposal per component).` : '';
+    return {
+      status: sha ? ('committed' as const) : ('unchanged' as const),
+      pr: n,
+      path,
+      commit: sha || null,
+      ...(open ? { continued: true } : {}),
+      said: (sha ? `Saved the ${name} docs on #${n}. Reviewers see them now.` : 'The docs on that branch already say this.') + joined,
+    };
   }
 
   const original = await ctx.source.read(path);
   const text = next(original);
   if (original === text) return { status: 'unchanged' as const, path, said: `The ${name} docs on main already say this.` };
-  const edit = { path, component: name, slug: name.toLowerCase(), before: original, after: text };
+  const edit = { path, component: name, slug: docsSlug(name), before: original, after: text };
   const marks = productMarks(productsOf(config), product);
   const notes = [a.notes?.trim(), marks.line].filter(Boolean).join('\n\n');
   if (a.dryRun || !gh || !ctx.canWriteRemote) {
