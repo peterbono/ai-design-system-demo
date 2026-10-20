@@ -2,8 +2,8 @@
 // the arrow keys (the list is one tab stop), and open a row's detail drawer. Deep links: ?c=<slug> opens that
 // component's drawer (the Library "Edit in Studio" door), ?guidance=needed shows only what needs guidance.
 // Thumbnails and the drawer preview are scaled to fit their frame; the drawer's one Light/Dark switch moves under the
-// open preview, and "Change this component" opens its steps in place (scripts/request-form.ts). The Open requests
-// column fills from the requests Studio already reads (GitHub issues labeled component-change), and leaves the page when they cannot be read.
+// open preview, and "Change this component" opens its steps in place (scripts/request-form.ts). The drawer's facts
+// line counts open requests (GitHub issues labeled component-change) when they can be read.
 // Teams triage requests where they plan (Jira, GitHub): the drawer links to them on GitHub, not to a Studio list.
 import { REQUEST_LABEL } from '@bridge-ds/core';
 import { openRequestCounts, requestFact } from '../lib/components-studio';
@@ -142,15 +142,9 @@ export function initComponentsStudio() {
   async function loadRequestCounts() {
     try {
       requestCounts = openRequestCounts(await loadRequestRows({ closed: false }));
-      table?.querySelectorAll<HTMLElement>('[data-cm-req-n]').forEach((cell) => {
-        const n = requestCounts?.get(cell.dataset.cmReqN ?? '') ?? 0;
-        // Only a real count shows: an empty cell reads "none" without adding 47 zeros to the list.
-        cell.textContent = n ? `${n} ${n === 1 ? 'request' : 'requests'}` : '';
-      });
     } catch {
-      // Without the requests (rate limit, offline) the column would only show blanks: it leaves instead.
+      // Without the requests (rate limit, offline) the drawer says they could not be read.
       requestCounts = undefined;
-      table?.classList.add('cm-no-req');
     }
     const open = panels.find((p) => !p.hidden);
     if (open && !drawer.hidden) paintDrawerRequests(open);
