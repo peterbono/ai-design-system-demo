@@ -80,7 +80,7 @@ export const RIGHTS = {
 
 const NO_REPO = 'No GitHub repo known: set "repo" in bridge.config.json or add an origin remote.';
 
-async function reader(ctx: BridgeContext): Promise<GitHubClient> {
+export async function reader(ctx: BridgeContext): Promise<GitHubClient> {
   const gh = await ctx.github();
   if (!gh) throw new Error(NO_REPO);
   return gh;
@@ -90,7 +90,7 @@ async function reader(ctx: BridgeContext): Promise<GitHubClient> {
  * A client for writes on a branch someone already opened (any name, never a protected branch): the token is required,
  * with the rights `need` names, so the error says exactly what to add.
  */
-async function writer(ctx: BridgeContext, what: string, need: string): Promise<GitHubClient> {
+export async function writer(ctx: BridgeContext, what: string, need: string): Promise<GitHubClient> {
   const gh = await reader(ctx);
   if (!ctx.canWriteRemote) throw new Error(`${what} needs a GitHub token with ${need} on ${gh.fullName}. Set GITHUB_TOKEN (or BRIDGE_GITHUB_TOKEN) where the Bridge MCP server or the CLI runs, or do it in Bridge Studio.`);
   return gh.withBranchPrefix(undefined);
@@ -115,7 +115,7 @@ async function people(gh: GitHubClient, config: BridgeConfig) {
 }
 
 /** The viewer of the token, or null without one (or when GitHub does not say). */
-async function viewerOf(ctx: BridgeContext, gh: GitHubClient): Promise<string | null> {
+export async function viewerOf(ctx: BridgeContext, gh: GitHubClient): Promise<string | null> {
   if (!ctx.canWriteRemote) return null;
   return gh.getViewer().then((v) => v.login, () => null);
 }

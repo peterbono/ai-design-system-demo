@@ -12,6 +12,7 @@ import * as explorations from './explorations.js';
 import * as drafts from './drafts.js';
 import * as branches from './branches.js';
 import * as studio from './studio.js';
+import * as pieces from './pieces.js';
 import { DRAFT_LINE_MAX, DRAFT_PHRASE, DRAFT_TITLE_MAX, EXPLORATION_USE_CASES, REQUEST_KINDS } from '@bridge-ds/core';
 
 declare const __BRIDGE_MCP_VERSION__: string | undefined;
@@ -64,6 +65,7 @@ export function createServer(ctx: BridgeContext): McpServer {
         `Change texts from Figma and docs from Bridge Studio: when the user says "${DRAFT_PHRASE}" (or asks you to draft their Bridge changes or docs), call bridge_pending_drafts. For change items, look at the before and after images and write each title, summary and change line in the Bridge voice. For docs items (scope "docs"), follow the brief: write only the sections it asks for, grounded in the props, CSS module classes and source it quotes, never an invented prop or behavior, never anatomy. Then call bridge_write_drafts. The designer reviews them in the DS Bridge Figma plugin or on the Library page.`,
         'Studio parity: a designer can do in Claude what they do in Bridge Studio. Branches in review: bridge_what_needs_me (the queue), bridge_branch_status, bridge_send_for_review, bridge_back_to_draft, bridge_review_branch, bridge_ask_someone_else, bridge_comment, bridge_update_from_main (token conflicts too), bridge_try_branch (try it in a product, share it), bridge_combine_branches, bridge_close_branch, bridge_reopen_branch, bridge_merge_branch (same gate as Studio, owner override with a reason). Docs: bridge_save_docs. Writes act under the person\'s GitHub token: only do them when the person asked, and merge only when they explicitly asked to merge.',
         'Products: work starts for a product (bridge_list_products). Tools that start work take "product"; without it Bridge uses the product of the current folder or repo. Ask the person when it is not obvious.',
+        'Product branches and the library: when a designer explores a product feature with you (an exploration for a product), check it with bridge_missing_pieces (record: true) before they share it; for each piece the library lacks, offer bridge_open_library_branch, which opens the library side linked to their branch. bridge_product_branch says where each library branch stands; bridge_switch_to_published moves the product branch to the real version once the library ships.',
         'Explorations try experimental variables and components in a product staging branch without touching main: an explore/<slug> branch with a draft pull request labeled exploration, previews and a snapshot package. bridge_start_exploration starts one, bridge_list_explorations lists them. To work on one, pass "branch": "explore/<slug>" to bridge_propose_token_change, bridge_draft_docs and bridge_get_request, and never open a pull request to main from it: a person promotes it to review or closes it.',
       ].join(' '),
     },
@@ -641,6 +643,65 @@ export function createServer(ctx: BridgeContext): McpServer {
   const Pr = z.union([z.number().int().positive(), z.string().min(1)]).describe('The branch number Studio shows (12 or "#12"), or its GitHub link.');
   const WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true } as const;
   const READ = { readOnlyHint: true, openWorldHint: true } as const;
+
+  // --- product branches and the library: missing pieces (packages/mcp/src/pieces.ts over @bridge-ds/core) ---
+  const Piece = z.string().min(1).describe('The piece id bridge_missing_pieces returned ("badge-overdue-tone").');
+  server.registerTool(
+    'bridge_missing_pieces',
+    {
+      title: 'Find what a product branch adds outside the library',
+      description:
+        'Check a product branch (an exploration started for a product) against the library: the adoption audit on each product file it changes, at its start and at its head, keeps what the branch added. New hardcoded values become token pieces beside the closest token, values written on a library component become a variant of it ("Badge: overdue tone"), components from another UI library with no library equivalent become new components. Values equal to a token and components the library has are fixes, not pieces. With record: true, saves the result in the branch description, where Bridge Studio shows it (needs GITHUB_TOKEN, pull requests: write). Run it when a designer finishes exploring with you, then offer to open a library branch for each piece.',
+      inputSchema: { pr: Pr, record: z.boolean().optional().describe('Save the pieces in the product branch description (Studio reads them there). Keeps the library branches already opened.') },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    },
+    run((a) => pieces.missingPiecesOp(ctx, a)),
+  );
+
+  server.registerTool(
+    'bridge_open_library_branch',
+    {
+      title: 'Open a library branch for a missing piece',
+      description:
+        'Turn one recorded missing piece into a library branch linked to the product branch, as Bridge Studio does: a token piece opens a token change (same gate and body as bridge_propose_token_change, a draft for design and tech review) and the product branch takes its preview; a variant opens a library exploration with the brief to build it (build it there, then bridge_use_library_preview); a new component opens a component request. Both sides link: the library side says "Needed by" the product branch (label needed-by-product), the product branch records it. Needs GITHUB_TOKEN (contents, pull requests and issues: write). dryRun shows what it would open. Only when the person asked.',
+      inputSchema: { pr: Pr, piece: Piece, usePreview: z.boolean().optional().describe('Merge the new library branch into the product branch when it already changes something (default true).'), dryRun: z.boolean().optional() },
+      annotations: WRITE,
+    },
+    run((a) => pieces.openLibraryBranchOp(ctx, { ...a, source: 'mcp' })),
+  );
+
+  server.registerTool(
+    'bridge_product_branch',
+    {
+      title: 'Product branch and its library branches',
+      description: 'A product branch as Studio shows it: the summary sentence, each linked library branch with its status and reviewers, what its preview means for the product branch and the next action, and the pieces with no library branch yet.',
+      inputSchema: { pr: Pr },
+      annotations: READ,
+    },
+    run((a) => pieces.productBranchOp(ctx, a)),
+  );
+
+  server.registerTool(
+    'bridge_use_library_preview',
+    {
+      title: 'Use a library branch preview in a product branch',
+      description: 'The product branch takes the latest commits of the library branch of a piece (Bridge merges it in), so the product preview shows the real library change before it ships. A conflict is left to a developer. Needs GITHUB_TOKEN (contents: write). Only when the person asked.',
+      inputSchema: { pr: Pr, piece: Piece },
+      annotations: WRITE,
+    },
+    run((a) => pieces.useLibraryPreviewOp(ctx, a)),
+  );
+
+  server.registerTool(
+    'bridge_switch_to_published',
+    {
+      title: 'Switch a product branch to the published version',
+      description: 'Once its library branches shipped, bring main into the product branch (GitHub update branch): it stops carrying the library change and uses the shipped one. Token conflicts go through bridge_update_from_main. Needs GITHUB_TOKEN (contents and pull requests: write). Only when the person asked.',
+      inputSchema: { pr: Pr },
+      annotations: WRITE,
+    },
+    run((a) => pieces.switchToPublishedOp(ctx, a)),
+  );
 
   server.registerTool(
     'bridge_list_products',

@@ -1015,6 +1015,18 @@ export class GitHubClient {
     await this.request('PUT', `${this.repoPath}/pulls/${n}/update-branch`, { expected_head_sha: expectedHeadSha });
   }
 
+  /**
+   * Merges the branch `head` into the branch `base` (GitHub's merges API): a merge commit on `base`, or nothing when
+   * `base` already has every commit of `head`. A conflict throws a GitHubError with status 409. Refuses protected
+   * branches and, with a branch prefix, a `base` without it.
+   */
+  async mergeIntoBranch(base: string, head: string, message: string): Promise<{ status: 'merged' | 'up-to-date'; sha: string | null }> {
+    this.assertToken('Merging a branch into another');
+    this.assertWritableBranch(base);
+    const r = await this.request<{ sha?: string } | undefined>('POST', `${this.repoPath}/merges`, { base, head, commit_message: message });
+    return r?.sha ? { status: 'merged', sha: r.sha } : { status: 'up-to-date', sha: null };
+  }
+
   /** Posts a comment on an issue or pull request and returns its id and link. */
   async createIssueComment(n: number, body: string): Promise<{ id: number; url: string }> {
     this.assertToken('Commenting');
