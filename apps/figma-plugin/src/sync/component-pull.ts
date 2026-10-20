@@ -284,11 +284,31 @@ export function evaluateCalc(expr: string, head: TokenSet): number | { problem: 
   }
 }
 
-/** How one spec value is written in Figma, or the reason it cannot be. */
-export function planValue(field: SpecField, value: SpecValue, head: TokenSet): PlannedValue | { problem: string } {
+/** A spec value of an unexpected shape, short enough for a problem row. */
+function unknownShape(value: unknown): string {
+  if (value === undefined) return 'An empty value';
+  let text: string;
+  try {
+    text = JSON.stringify(value) ?? String(value);
+  } catch {
+    text = String(value);
+  }
+  return text.length > 40 ? `${text.slice(0, 39)}…` : text;
+}
+
+/**
+ * How one spec value is written in Figma, or the reason it cannot be. `value` comes from component-specs.json on the
+ * branch, parsed but not validated, and written by a generator that may be newer than this plugin: any shape other than
+ * a token path, a calc(), a number or null is a problem for that field, never a throw that hides every component.
+ */
+export function planValue(field: SpecField, value: unknown, head: TokenSet): PlannedValue | { problem: string } {
   if (value === null) return COLOR_FIELDS.has(field) ? { kind: 'none' } : { problem: 'no value' };
   if (field === 'textDecoration') return typeof value === 'string' && /^(UNDERLINE|STRIKETHROUGH|NONE)$/.test(value) ? { kind: 'keyword', value } : { problem: `${String(value)} is not a text decoration` };
-  if (typeof value === 'number') return COLOR_FIELDS.has(field) ? { problem: `${value}: a color cannot be a number` } : { kind: 'number', value };
+  if (typeof value === 'number') {
+    if (COLOR_FIELDS.has(field)) return { problem: `${value}: a color cannot be a number` };
+    return Number.isFinite(value) ? { kind: 'number', value } : { problem: `${value} is not a finite number` };
+  }
+  if (typeof value !== 'string') return { problem: `${unknownShape(value)} is not a value this version of DS Bridge reads: update DS Bridge` };
   if (value.startsWith('calc(')) {
     if (COLOR_FIELDS.has(field)) return { problem: `${value}: a color cannot be a calc()` };
     const n = evaluateCalc(value, head);
