@@ -12,7 +12,7 @@ import { CONFLICT_REASON, mergeGate, type ApprovalSummary, type CiSummary, type 
 import type { TokenReview } from './token-review';
 import { ghAction } from './gh-wording';
 import { branchCount, VOCAB } from './vocabulary';
-import { entriesFor, type TeamStates } from '@bridge-ds/core';
+import { eligibleReviewers, entriesFor, pendingApprovals, requiredApprovals, type ApprovalRole, type TeamStates } from '@bridge-ds/core';
 
 export type StatusGroup = 'blocked' | 'waiting' | 'ready' | 'neutral';
 
@@ -198,22 +198,9 @@ export function primaryAction(input: {
 // Overview "Waiting for you" block. Built from GitHub data already read (CI, reviews, lifecycle) and the owners in
 // bridge.config.json (governance.owners). Never guesses a login: when nobody is named in the config, it names a role.
 
-export type ApprovalRole = 'design' | 'tech' | 'approval';
-
-const EMPTY_CI: CiSummary = { state: 'pass', total: 0, passed: 0, failed: [], pending: [] };
-
-/** The approvals a tier needs, as mergeGate counts them (Tier 2 and 3: design and tech; Tier 1: one approval). */
-export function requiredApprovals(tier: Tier | null): ApprovalRole[] {
-  const gate = mergeGate({ tier, ci: EMPTY_CI, approvals: { approvers: [], changesRequested: [], design: false, tech: false }, draft: false, state: 'open' });
-  return gate.missing.map((m) => (m === 'design approval' ? 'design' : m === 'tech approval' ? 'tech' : 'approval'));
-}
-
-/** The approvals still missing on a change, from its tier and the reviews read (empty when either is unknown). */
-export function pendingApprovals(tier: Tier | null | undefined, approvals: ApprovalSummary | null | undefined): ApprovalRole[] {
-  if (tier == null || !approvals) return [];
-  const gate = mergeGate({ tier, ci: EMPTY_CI, approvals, draft: false, state: 'open' });
-  return gate.missing.map((m) => (m === 'design approval' ? 'design' : m === 'tech approval' ? 'tech' : 'approval'));
-}
+// Which approvals a branch still needs, and who can give them: one rule with the MCP server and the CLI
+// (@bridge-ds/core review-gate).
+export { pendingApprovals, requiredApprovals, type ApprovalRole };
 
 const ROLE_OF: Record<MissingApproval, ApprovalRole> = { 'design approval': 'design', 'tech approval': 'tech', approval: 'approval' };
 
@@ -345,18 +332,15 @@ const checks = (n: number) => (n === 1 ? 'the failing check' : n > 1 ? `${n} fai
 
 /** Owners listed for a role in the config (both lists for a plain approval), before removing anyone. */
 function listedFor(role: ApprovalRole, owners: People['owners']): string[] {
-  return role === 'design' ? owners.design : role === 'tech' ? owners.tech : uniq([...owners.design, ...owners.tech]);
+  return eligibleReviewers(role, { owners, author: '' }).listed;
 }
 
 /**
- * Who can still give this approval: the listed owners minus the author and anyone who already approved. `open`
- * means the config lists nobody for the role, so any reviewer other than the author counts (summarizeApprovals).
+ * Who can still give this approval (core eligibleReviewers): the listed owners minus the author and anyone who
+ * already approved. `open` means the config lists nobody for the role, so any reviewer other than the author counts.
  */
 export function eligibleFor(role: ApprovalRole, p: People): { open: boolean; logins: string[]; listed: string[] } {
-  const listed = listedFor(role, p.owners).map((x) => x.replace(/^@/, ''));
-  const approvers = p.approvers ?? [];
-  const logins = listed.filter((l) => !same(l, p.author) && !approvers.some((a) => same(a, l)));
-  return { open: listed.length === 0, logins, listed };
+  return eligibleReviewers(role, { owners: p.owners, author: p.author, approvers: p.approvers });
 }
 
 /** Whether the viewer can give this approval now. */

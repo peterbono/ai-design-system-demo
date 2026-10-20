@@ -19,6 +19,7 @@ import type { IntegrationsConfig } from './requests';
 import { PREVIEW_APP_LABELS, type PreviewApps, type PreviewsConfig } from './previews';
 import { normalizeRights, rightsProblems, visualImpactProblems, type Rights, type VisualImpactConfig } from './rights';
 import { ownerEntryProblems } from './teams';
+import { DEFAULT_PRODUCTS, productProblems, sameProducts, type ProductConfig } from './products';
 
 /** File name Bridge looks for at the repository root. */
 export const CONFIG_FILE = 'bridge.config.json';
@@ -164,6 +165,8 @@ export interface BridgeConfig {
   integrations?: IntegrationsConfig | undefined;
   /** Visual before and after on pull requests: automatic (default) or on demand (label `visual-check`). */
   visualImpact?: VisualImpactConfig | undefined;
+  /** Apps that consume the design system, the default one being the library (see products.ts). Default DEFAULT_PRODUCTS. */
+  products: ProductConfig[];
 }
 
 type Partialish<T> = { [K in keyof T]?: T[K] | undefined };
@@ -195,6 +198,7 @@ export interface BridgeConfigInput {
   previews?: { packages?: string[]; apps?: PreviewApps; production?: PreviewApps };
   integrations?: IntegrationsConfig;
   visualImpact?: Partial<VisualImpactConfig>;
+  products?: ProductConfig[];
 }
 
 export const DEFAULT_TOKEN_PATHS: TokenPaths = {
@@ -351,6 +355,7 @@ export function defineConfig(input: BridgeConfigInput): BridgeConfig {
         : {}),
       ...(g.rights ? { rights: normalizeRights(g.rights) } : {}),
     },
+    products: input.products?.length ? input.products.map((p) => ({ ...p })) : DEFAULT_PRODUCTS.map((p) => ({ ...p })),
     ...(input.audit ? { audit: { ...input.audit } } : {}),
     ...(input.visualImpact ? { visualImpact: { mode: input.visualImpact.mode === 'on-demand' ? 'on-demand' : 'auto' } } : {}),
     ...(input.integrations ? { integrations: { ...input.integrations } } : {}),
@@ -482,6 +487,7 @@ export function loadConfig(source: string | unknown): BridgeConfig {
     }
   }
   problems.push(...visualImpactProblems(d.visualImpact));
+  problems.push(...productProblems(d.products));
   const audit = d.audit;
   if (audit !== undefined) {
     if (!isObj(audit)) problems.push('"audit" must be an object');
@@ -537,5 +543,6 @@ export function toConfigJson(config: BridgeConfig, schema = './packages/core/bri
     ...(config.audit ? { audit: config.audit } : {}),
     ...(config.previews ? { previews: config.previews } : {}),
     ...(config.visualImpact ? { visualImpact: config.visualImpact } : {}),
+    ...(config.products && !sameProducts(config.products, DEFAULT_PRODUCTS) ? { products: config.products } : {}),
   };
 }

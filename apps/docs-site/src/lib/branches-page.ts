@@ -3,6 +3,7 @@
 // to, merged and closed branches stay behind one muted line, and token branches can be checked to preview them
 // together (lib/combine-changes holds the combination itself). Pure: no DOM, no fetch. Unit tested in
 // branches-page.test.ts; the page is components/ds/studio/BranchesList.tsx, fed by scripts/reviews.ts.
+import { DEFAULT_PRODUCTS, productOfBranch, type ProductConfig } from '@bridge-ds/core';
 import { MAX_TOGETHER } from './combine-changes';
 import type { Lifecycle } from './change-status';
 import { VOCAB } from './vocabulary';
@@ -54,21 +55,28 @@ export function emptyWhoLine(filter: WhoFilter, signedIn: boolean): string {
 // ---------------------------------------------------------------------------------------------------------------
 // Groups: the product a branch belongs to
 
-export type ProductKey = 'admin' | 'library';
+/** A product key from bridge.config.json `products` ("admin", "library", or any configured key). */
+export type ProductKey = string;
 
-/** Group headings, in page order: a product first, the library after. */
-export const PRODUCTS: { key: ProductKey; label: string }[] = [
-  { key: 'admin', label: 'Admin demo' },
-  { key: 'library', label: 'Library' },
-];
+/** Group headings of the default products, in page order: a product first, the library after. */
+export const PRODUCTS: { key: ProductKey; label: string }[] = headingsOf(DEFAULT_PRODUCTS);
+
+/** Group headings of a product list, in its order. */
+export function headingsOf(products: readonly ProductConfig[]): { key: ProductKey; label: string }[] {
+  return products.map((p) => ({ key: p.key, label: p.name }));
+}
 
 /**
- * The product a branch belongs to, from the files it changes. Today one product exists in the repo: a branch that
- * touches apps/admin belongs to the Admin demo; everything else changes the library (files not read yet included,
- * since every branch of this repository starts from the library). Product-first linking replaces this rule later.
+ * The product a branch belongs to (core productOfBranch): a `product: <key>` label wins, else the first product whose
+ * folder holds a changed file (apps/admin for the Admin demo), else the default product, the library (files not read
+ * yet included, since every branch of this repository starts from the library).
  */
-export function productOf(files: readonly string[] | null | undefined): ProductKey {
-  return (files ?? []).some((f) => f.startsWith('apps/admin/')) ? 'admin' : 'library';
+export function productOf(
+  files: readonly string[] | null | undefined,
+  products: readonly ProductConfig[] = DEFAULT_PRODUCTS,
+  labels?: readonly (string | { name: string })[] | null,
+): ProductKey {
+  return productOfBranch(products, { files: files ?? null, labels: labels ?? null }).key;
 }
 
 export interface Group<R> {
@@ -77,9 +85,11 @@ export interface Group<R> {
   rows: R[];
 }
 
-/** Rows into product groups, keeping their order inside each group; empty groups are left out. */
-export function groupByProduct<R extends { product: ProductKey }>(rows: R[]): Group<R>[] {
-  return PRODUCTS.map((p) => ({ key: p.key, label: p.label, rows: rows.filter((r) => r.product === p.key) })).filter((g) => g.rows.length > 0);
+/** Rows into product groups, in the products' order, keeping row order inside each group; empty groups are left out. */
+export function groupByProduct<R extends { product: ProductKey }>(rows: R[], products: readonly ProductConfig[] = DEFAULT_PRODUCTS): Group<R>[] {
+  return headingsOf(products)
+    .map((p) => ({ key: p.key, label: p.label, rows: rows.filter((r) => r.product === p.key) }))
+    .filter((g) => g.rows.length > 0);
 }
 
 // ---------------------------------------------------------------------------------------------------------------

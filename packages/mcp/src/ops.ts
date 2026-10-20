@@ -5,13 +5,14 @@ import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { buildAuditReport, compareWithBaseline, DesignSystemIndex, type AuditReport } from '@bridge-ds/core/audit';
 import { auditSnippet } from './audit.js';
 import { cssVarsUsed, getComponent, listComponentNames, listComponents, scaffoldComponent, type ScaffoldInput } from './components.js';
-import type { BridgeContext } from './context.js';
-import { approverEntries, baseBranchOf, cssModuleClasses, docsPrompt, entryLabel, expandOwners, prefillDocs, protectedBranchesOf, shipPolicy, TeamDirectory, unreadableTeams, whoCanShipSentence, type BridgeConfig, type DocsContrastInput, type GitHubClient } from '@bridge-ds/core';
+import { approverEntries, reviewOnGitHub, baseBranchOf, branchWithJiraKey, parseJiraKey, productsOf, titleWithJiraKey, cssModuleClasses, docsPrompt, entryLabel, expandOwners, prefillDocs, protectedBranchesOf, shipPolicy, TeamDirectory, unreadableTeams, whoCanShipSentence, type BridgeConfig, type DocsContrastInput, type GitHubClient } from '@bridge-ds/core';
 import { branchExists, collectAuditFiles, commitToNewLocalBranch, currentBranch, git, loadAllowlist } from '@bridge-ds/core/node';
 import { core, type Combo, type Issue, type PairInput, type TokenEdit, type TokenSet } from './core-adapter.js';
 import { bullets, findSection, toc } from './markdown.js';
 import { GitHubSource, GitRefSource, type RepoSource } from './source.js';
 import { explorationContext, explorationRules, writeToExploration } from './explorations.js';
+import { addableBranch, branchNumber, productMarks, resolveProduct } from './branches.js';
+import { BridgeContext } from './context.js';
 
 const prefixPath = (set: TokenSet, f: string) => set.repoPath(f);
 
@@ -379,8 +380,16 @@ export async function getGuidelines(ctx: BridgeContext, a: { section?: string })
 
 // --- proposals ------------------------------------------------------------------------------------------
 
-export async function proposeTokenChange(ctx: BridgeContext, a: { edits: TokenEdit[]; title: string; summary?: string; dryRun?: boolean; branch?: string | undefined }) {
+export async function proposeTokenChange(
+  ctx: BridgeContext,
+  a: { edits: TokenEdit[]; title: string; summary?: string; dryRun?: boolean; branch?: string | undefined; pr?: number | string | undefined; jira?: string | undefined; product?: string | undefined },
+) {
   if (!a.edits?.length) throw new Error('Pass at least one edit.');
+  if (a.pr !== undefined && a.branch) throw new Error('Pass pr (a branch in review) or branch (an exploration), not both.');
+  // Add to a branch already in review (Studio "Edit tokens in this branch"): read there, one commit there.
+  if (a.pr !== undefined) return addToBranch(ctx, { ...a, pr: a.pr });
+  const jira = parseJiraKey(a.jira);
+  const product = await resolveProduct(ctx, a.product);
   // Target an exploration branch instead of a new pull request: edits read from and land on explore/<slug>.
   const target = a.branch ? await explorationContext(ctx, a.branch, { requireCheckout: !a.dryRun }) : null;
   if (target) ctx = target.ctx;
@@ -397,7 +406,8 @@ export async function proposeTokenChange(ctx: BridgeContext, a: { edits: TokenEd
   const imp = core.impact(before, after, changes);
   const tier = core.classify(changes, [], config);
   const summary = a.summary?.trim() || a.title;
-  const body = core.prBody({ summary, changes, contrast: delta, impact: imp, tier, validationErrors: newErrors.length, tool: 'Bridge MCP' });
+  const marks = productMarks(productsOf(config), product);
+  const body = [core.prBody({ summary, changes, contrast: delta, impact: imp, tier, validationErrors: newErrors.length, tool: 'Bridge MCP' }), marks.line].filter(Boolean).join('\n\n');
   const slugTitle = core.slugify(a.title);
   const changesetPath = `${config.changesets?.dir ?? '.changeset'}/bridge-${slugTitle}.md`;
   const files = [
@@ -417,7 +427,7 @@ export async function proposeTokenChange(ctx: BridgeContext, a: { edits: TokenEd
   if (newErrors.length || newFailures.length) {
     return { status: 'blocked', why: [newErrors.length ? `${newErrors.length} new validation error(s)` : '', newFailures.length ? `${newFailures.length} contrast pair(s) would fail` : ''].filter(Boolean).join(' and '), newErrors, ...report, hint: 'Fix the edits (or add edits for the aliases they break). Bridge never opens a PR that breaks the gate.' };
   }
-  let branch = target ? target.branch : `${config.governance.branchPrefix}${slugTitle}`;
+  let branch = target ? target.branch : branchWithJiraKey(`${config.governance.branchPrefix}${slugTitle}`, jira);
   const preview = { ...report, branch, files: files.map((f) => f.path), prBody: body };
   if (a.dryRun) return { status: 'dry-run', ...preview, fileContents: files };
   if (target) {
@@ -428,7 +438,7 @@ export async function proposeTokenChange(ctx: BridgeContext, a: { edits: TokenEd
   if (ctx.mode === 'local') {
     if (!ctx.isGit) return { status: 'preview', message: 'Not a git repo: nothing written. Apply fileContents yourself.', ...preview, fileContents: files };
     const protectedBranches = [...new Set([...protectedBranchesOf(config), baseBranchOf(config)])];
-    for (let i = 2; await branchExists(ctx.root!, branch); i++) branch = `${config.governance.branchPrefix}${slugTitle}-${i}`;
+    for (let i = 2; await branchExists(ctx.root!, branch); i++) branch = branchWithJiraKey(`${config.governance.branchPrefix}${slugTitle}-${i}`, jira);
     const base = await currentBranch(ctx.root!);
     const message = `${tier.bump === 'major' ? 'feat(tokens)!' : 'feat(tokens)'}: ${a.title}\n\n${summary}\n\nTier ${tier.tier}. Proposed through Bridge MCP (source: mcp).`;
     const res = await commitToNewLocalBranch(ctx.root!, { base: 'HEAD', branch, message, files, protectedBranches, branchPrefix: config.governance.branchPrefix });
@@ -446,13 +456,50 @@ export async function proposeTokenChange(ctx: BridgeContext, a: { edits: TokenEd
   if (!ctx.canWriteRemote) return { status: 'preview', message: 'Read-only: set GITHUB_TOKEN to open this as a pull request.', ...preview, fileContents: files };
   const commitMsg = `feat(tokens): ${a.title}\n\nProposed through Bridge MCP (source: mcp). Tier ${tier.tier}.`;
   const base = ctx.ref ?? baseBranchOf(config);
-  for (let i = 2; await gh.getBranchSha(branch).then(Boolean, () => false); i++) branch = `${config.governance.branchPrefix}${slugTitle}-${i}`;
+  for (let i = 2; await gh.getBranchSha(branch).then(Boolean, () => false); i++) branch = branchWithJiraKey(`${config.governance.branchPrefix}${slugTitle}-${i}`, jira);
   const commit = await gh.commitToNewBranch({ base, branch, message: commitMsg, files });
-  const labels = [...config.governance.labels, `tier: ${tier.tier}`, ...(tier.tier === 3 ? ['tokens'] : []), ...(tier.bump === 'major' ? ['breaking'] : [])];
+  const labels = [...config.governance.labels, `tier: ${tier.tier}`, ...(tier.tier === 3 ? ['tokens'] : []), ...(tier.bump === 'major' ? ['breaking'] : []), ...marks.labels];
   // Tier 2 and 3 open as drafts until design review (docs/GOVERNANCE.md).
-  const pr = await gh.createPullRequest({ base, head: branch, title: `feat(tokens): ${a.title}`, body, draft: tier.tier >= 2 });
+  // The Jira key goes first in the title and the branch name, so Jira's GitHub integration links them (as in Studio).
+  const pr = await gh.createPullRequest({ base, head: branch, title: titleWithJiraKey(`feat(tokens): ${a.title}`, jira), body, draft: tier.tier >= 2 });
   await gh.addLabels(pr.number, labels);
-  return { status: 'pr-opened', ...preview, branch, commit: commit.sha, pr: pr.number, url: pr.url, labels, draft: tier.tier >= 2 };
+  return { status: 'pr-opened', ...preview, branch, commit: commit.sha, pr: pr.number, url: pr.url, labels, draft: tier.tier >= 2, product: product.name };
+}
+
+/**
+ * More token edits on a branch already in review, like Studio's "Edit tokens in this branch": read and validated on
+ * that branch, the same contrast gate, one commit on it with a release note, and a comment so reviewers see what was
+ * added. Its author or someone with write access only.
+ */
+async function addToBranch(ctx: BridgeContext, a: { edits: TokenEdit[]; title: string; summary?: string; dryRun?: boolean; pr: number | string }) {
+  const n = branchNumber(a.pr);
+  const target = await addableBranch(ctx, n);
+  const at = await BridgeContext.create({ ...ctx.opts, repo: target.gh.fullName, ref: target.pr.headRef });
+  const { config } = await at.config();
+  const { before, after, touched, notes } = await withEdits(at, a.edits);
+  const changes = core.diff(before, after);
+  if (!changes.length) return { status: 'no-change', pr: n, message: `#${n} already has these values.` };
+  const prevErrors = new Set(core.validate(before).map(issueKey));
+  const newErrors = core.validate(after).filter((i) => i.level === 'error' && !prevErrors.has(issueKey(i)));
+  const pairs = await core.readContrastPairs(at.source, config).catch(() => []);
+  const delta = pairs.length ? core.contrastDelta(core.runContrast(before, pairs, config.contrast?.modes), core.runContrast(after, pairs, config.contrast?.modes)) : [];
+  const newFailures = delta.filter((d) => d.passBefore && !d.passAfter);
+  const tier = core.classify(changes, [], config);
+  const summary = a.summary?.trim() || a.title;
+  const report = { pr: n, branch: target.pr.headRef, tier: tier.tier, changes: changes.map((c) => ({ kind: c.kind, path: c.path, file: prefixPath(after, c.file), before: c.beforeCss, after: c.afterCss })), contrast: { moved: delta.length, newFailures }, notes };
+  if (newErrors.length || newFailures.length) {
+    return { status: 'blocked', why: [newErrors.length ? `${newErrors.length} new validation error(s)` : '', newFailures.length ? `${newFailures.length} contrast pair(s) would fail` : ''].filter(Boolean).join(' and '), newErrors, ...report, hint: 'Fix the edits. Bridge never adds edits that break the gate.' };
+  }
+  const paths = changes.map((c) => c.path);
+  const files = [
+    ...touched.map((f) => ({ path: prefixPath(after, f), content: after.files.get(f)! as string | null })),
+    ...(config.changesets ? [{ path: `${config.changesets.dir ?? '.changeset'}/bridge-${core.slugify(a.title)}-${n}-${Date.now().toString(36)}.md`, content: core.changeset(config.changesets.package, tier.bump, summary) }] : []),
+  ];
+  if (a.dryRun) return { status: 'dry-run', ...report, files: files.map((f) => f.path) };
+  const message = `tokens: ${a.title}\n\n${paths.map((p) => `- ${p}`).join('\n')}\n\nAdded with Claude through the Bridge MCP server.`;
+  const res = await target.gh.commitToBranch({ branch: target.pr.headRef, message, files });
+  await target.gh.createIssueComment(n, target.comment(paths)).catch(() => undefined);
+  return { status: 'added', ...report, commit: res.sha, url: target.pr.url, said: `Added ${paths.length} edit${paths.length === 1 ? '' : 's'} to #${n}. Reviewers see ${paths.length === 1 ? 'it' : 'them'} now; GitHub may ask for approvals again.` };
 }
 
 // --- reviews --------------------------------------------------------------------------------------------
@@ -589,8 +636,10 @@ export async function reviewPr(ctx: BridgeContext, a: { pr: number; event: 'comm
   if (!ctx.canWriteRemote) throw new Error('Reviewing needs GITHUB_TOKEN. Without it Bridge is read-only.');
   if (!a.body.trim()) throw new Error('A review needs a body that says what to fix or why it is fine.');
   const event = ({ comment: 'COMMENT', approve: 'APPROVE', request_changes: 'REQUEST_CHANGES' } as const)[a.event];
-  const r = await gh.createReview(a.pr, { event, body: `${a.body.trim()}\n\n_Review drafted with Bridge MCP by an AI agent on behalf of the token owner._` });
-  return { pr: a.pr, event, id: r.id, state: r.state, note: event === 'APPROVE' ? 'Approval recorded under your GitHub account. A human still merges.' : undefined };
+  // The same write as Studio's review box (core reviewOnGitHub), on the head the reviewer saw.
+  const head = (await gh.getPullRequest(a.pr)).headSha;
+  const r = await reviewOnGitHub(gh, { number: a.pr, event, body: `${a.body.trim()}\n\n_Review drafted with Bridge MCP by an AI agent on behalf of the token owner._`, headSha: head });
+  return { pr: a.pr, event, id: r.id, state: r.state, note: event === 'APPROVE' ? 'Approval recorded under your GitHub account. Merging is a separate step (bridge_merge_branch), only when the person asks.' : undefined };
 }
 
 // --- scaffold -------------------------------------------------------------------------------------------

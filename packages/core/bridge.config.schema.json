@@ -664,6 +664,75 @@
           "description": "auto or on-demand."
         }
       }
+    },
+    "products": {
+      "type": "array",
+      "minItems": 1,
+      "description": "The apps that consume the design system. Bridge Studio groups branches by product, and the CLI and MCP server tell which product a folder or a repository is. A branch belongs to the product its pull request label names (product: <key>), else to the first product whose folder holds one of its changed files, else to the default product. Leave it out to keep the Admin demo and the Library.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "key",
+          "name"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]*$",
+            "description": "Stable id made of lowercase letters, digits and dashes. The pull request label product: <key> names it."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The name people read, such as Admin demo."
+          },
+          "repo": {
+            "type": "string",
+            "pattern": "^[\\w.-]+/[\\w.-]+$",
+            "description": "owner/name when the product lives in another GitHub repository."
+          },
+          "path": {
+            "type": "string",
+            "pattern": "^(?!/)(?!(.*/)?\\.\\.(/|$)).+$",
+            "description": "Folder of this repository that holds the product, relative to the root, such as apps/admin. No leading slash and no '..'."
+          },
+          "preview": {
+            "type": "string",
+            "pattern": "^https?://",
+            "description": "Preview URL pattern, with the same placeholders as previews.apps: {branch}, {rawBranch}, {pr}, {sha} and {sha7}."
+          },
+          "framework": {
+            "type": "string",
+            "description": "The framework the product is built with: react, vue, angular, svelte, astro or other.",
+            "examples": [
+              "react",
+              "vue",
+              "angular",
+              "svelte",
+              "astro",
+              "other"
+            ]
+          },
+          "default": {
+            "type": "boolean",
+            "description": "The product a branch belongs to when nothing else matches: the library. At most one. Without one, the last product is the default."
+          }
+        }
+      },
+      "default": [
+        {
+          "key": "admin",
+          "name": "Admin demo",
+          "path": "apps/admin",
+          "framework": "react"
+        },
+        {
+          "key": "library",
+          "name": "Library",
+          "default": true
+        }
+      ]
     }
   }
 }

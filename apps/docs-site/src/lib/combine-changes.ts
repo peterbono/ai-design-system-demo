@@ -3,34 +3,19 @@
 // <change>'s"), the contrast guardrail of the combination, and the two ways to open it: the admin demo with the
 // Bridge toolbar (`?bridge=101,118,120`) and the library views (`?change=101,118`, lib/view-scope). Pure, tested in
 // combine-changes.test.ts; the reads live in scripts/combine-read.ts and the UI in components/ds/studio/CombineChanges.
-import { buildTokenSet, combineChanges, encodePicks, type CombineConflict, type CombinePicks, type LayoutOptions, type CombineEdit, type TokenSet } from '@bridge-ds/core';
+import { buildTokenSet, combineChanges, MAX_TOGETHER, type CombineConflict, type CombinePicks, type LayoutOptions, type CombineEdit, type TokenSet } from '@bridge-ds/core';
 import { fileContext, sideValue } from './library-sync';
 import type { ShownValue, TokenReview } from './token-review';
 import { viewTitle } from './view-scope';
 
-export const MIN_TOGETHER = 2;
-
-export const MAX_TOGETHER = 4;
+// The limits, the token-only rule and the address live in @bridge-ds/core (combine-branches.ts), shared with the MCP
+// server and the CLI.
+export { changeList, MAX_TOGETHER, MIN_TOGETHER, onlyTokens, tokenFilesOf, tryTogetherUrl } from '@bridge-ds/core';
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 /** Said on the row of a change that edits more than tokens. */
 export const CODE_LINE = "This one changes code, so it can't be combined here.";
-
-/**
- * Whether a change only edits tokens: token files under the tokens root, the contrast gate and release notes
- * (changesets). Anything else is code. No file read yet (or none) is not a token change.
- */
-export function onlyTokens(files: string[], tokensRoot: string): boolean {
-  const root = `${tokensRoot.replace(/^\/+|\/+$/g, '')}/`;
-  return files.length > 0 && files.every((f) => (f.startsWith(root) && f.endsWith('.tokens.json')) || /contrast\.checks\.json$/.test(f) || f.startsWith('.changeset/'));
-}
-
-/** Token files a change edits, relative to the tokens root. */
-export function tokenFilesOf(files: string[], tokensRoot: string): string[] {
-  const root = `${tokensRoot.replace(/^\/+|\/+$/g, '')}/`;
-  return files.filter((f) => f.startsWith(root) && f.endsWith('.tokens.json')).map((f) => f.slice(root.length));
-}
 
 // ---------------------------------------------------------------------------------------------------------------
 // Selection on Branches (the floating bar: components/ds/studio/CombineChanges)
@@ -146,18 +131,3 @@ export function togetherRows(conflicts: CombineConflict[], ctx: { latest: Record
 // ---------------------------------------------------------------------------------------------------------------
 // Where the combination opens
 
-/** A list of changes in an address: "101,118,120" (commas stay readable). */
-export const changeList = (numbers: number[]) => numbers.join(',');
-
-/**
- * The admin demo with the Bridge toolbar on the combination: production (no preview holds all of them), the tokens
- * applied live. `bridge-use` carries the picks.
- */
-export function tryTogetherUrl(admin: string, numbers: number[], picks: CombinePicks): string {
-  const url = new URL(admin);
-  url.pathname = '/';
-  url.hash = '';
-  const use = encodePicks(picks);
-  url.search = `?bridge=${changeList(numbers)}${use ? `&bridge-use=${encodeURIComponent(use)}` : ''}`;
-  return url.href;
-}

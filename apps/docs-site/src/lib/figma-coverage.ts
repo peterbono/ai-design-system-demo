@@ -24,11 +24,5 @@ export function loadFigmaCoverage(): Map<string, SpecCoverage> {
   return new Map((file.coverage ?? []).map((c) => [c.name, c]));
 }
 
-/** The cell for a component: a short word and, for the ones not in Figma, the reason as a tooltip. Undefined: no data. */
-export function figmaCell(entry: SpecCoverage | undefined): { label: string; title?: string } | undefined {
-  if (!entry) return undefined;
-  if (entry.status === 'generated') return { label: 'Yes' };
-  if (entry.status === 'drafted') return { label: 'Drafted', title: 'Drafted with Claude where the code cannot be read on its own: in Figma, check it against the code.' };
-  if (entry.status === 'layout') return { label: 'Auto layout', title: 'A layout helper: nothing to draw, use auto layout in Figma.' };
-  return { label: 'Not yet', ...(entry.reason ? { title: `Not supported yet: ${entry.reason}` } : {}) };
-}
+// The words of each state live in @bridge-ds/core (component-spec.ts), shared with the MCP server and the CLI.
+export { figmaCell } from '@bridge-ds/core';

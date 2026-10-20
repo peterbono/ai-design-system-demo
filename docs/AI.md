@@ -89,9 +89,11 @@ the code you are changing.
 
 ## What Claude can do
 
-32 tools: 6 for tokens (config, browse, read, search, contrast, validation), 6 for components and guidance,
-5 for proposals and reviews (visual impact included), 3 for brands, 4 for history and revert, 1 for adoption
-audits, 3 for component change requests, 2 for explorations, 2 for change texts from Figma.
+52 tools: 6 for tokens (config, browse, read, search, contrast, validation), 7 for components and guidance
+(docs saved for review included), 5 for proposals and reviews (visual impact included), 3 for brands, 4 for
+history and revert, 1 for adoption audits, 3 for component change requests, 4 for explorations, 2 for change
+texts from Figma, 14 for branches in review (the Studio actions, see [Studio parity](#studio-parity)) and 3 for
+products, settings and Figma coverage.
 
 | Tool | Use it to |
 | --- | --- |
@@ -107,13 +109,13 @@ audits, 3 for component change requests, 2 for explorations, 2 for change texts 
 | `bridge_draft_docs` | Start or refresh a component's docs.json: what the code tells (props, tokens, anatomy, contrast, changelog line) plus a prompt for you to write the prose (see [Docs drafts](#docs-drafts)) |
 | `bridge_get_design_language` | Read the relevant section of the design language |
 | `bridge_get_guidelines` | Read the agent rules (always, ask before, never) and the risk tiers |
-| `bridge_propose_token_change` | Turn token edits into a branch (local) or a draft PR (GitHub), with a designer-friendly body; with `branch`, commit them to an exploration instead |
+| `bridge_propose_token_change` | Turn token edits into a branch (local) or a draft PR (GitHub), with a designer-friendly body, for a `product` and with a `jira` key; with `branch`, commit them to an exploration; with `pr`, add them to a branch already in review |
 | `bridge_list_brands` | See the brands: slug, name, default, primary action color, theme overrides |
 | `bridge_plan_brand` | Dry run of a new brand: generated ramps, every contrast pair in light and dark, files, tier, PR body |
 | `bridge_propose_brand` | Turn that plan into a `bridge/brand-<slug>` branch (local) or a draft PR (GitHub), never `main` |
 | `bridge_list_reviews` | List open PRs and local proposal branches |
 | `bridge_get_review` | Review a token PR: diff table, contrast before and after, downstream impact, tier, CI, approvals |
-| `bridge_review_pr` | Comment, approve or request changes on a PR, as you |
+| `bridge_review_pr` | Comment, approve or request changes on a PR, as you (kept for older prompts; `bridge_review_branch` is the designer version) |
 | `bridge_visual_impact` | See what a change does on screen: before/after/diff of the impacted stories and app screens |
 | `bridge_get_history` | See what changed in the tokens: versions, merged PRs and commits, who, when, why, tier, breaking |
 | `bridge_get_token_history` | Every change of one token: value before and after per mode, the PR and why, renames followed |
@@ -125,6 +127,26 @@ audits, 3 for component change requests, 2 for explorations, 2 for change texts 
 | `bridge_create_request` | File a request as an issue labeled `component-change` (`source: mcp`); needs `GITHUB_TOKEN`; `dryRun` previews it; `exploration` implements it on an exploration branch |
 | `bridge_start_exploration` | Start an exploration: an `explore/<name>` branch and a draft pull request labeled `exploration`, with previews and a snapshot package for a product staging branch, never merged as is (see [Explorations](#explorations)) |
 | `bridge_list_explorations` | List explorations: purpose, status (running, promoted, closed), previews, the snapshot install command and the requests implemented on each |
+| `bridge_promote_exploration` | Promote an exploration to review (ready for review, tier labels, its requests linked); never merges |
+| `bridge_close_exploration` | Close an exploration without merging it |
+| `bridge_list_products` | See the products (`products` in `bridge.config.json`) and the one the current folder or repo belongs to |
+| `bridge_what_needs_me` | The review queue as Studio counts it, with the branches where you act now first |
+| `bridge_branch_status` | One branch: product, status, approvals, tests, how it stands against main, whether you may merge it, next step |
+| `bridge_list_comments` | The conversation on a branch and its line threads, with the ids to reply to |
+| `bridge_send_for_review` | Send a draft branch for review (its author) |
+| `bridge_back_to_draft` | Take a branch back to draft (its author) |
+| `bridge_review_branch` | Approve, request changes or comment, on the version you saw |
+| `bridge_ask_someone_else` | Ask the other people who can give the missing approvals to review (the review queue action) |
+| `bridge_comment` | Comment on a branch, or reply in a line thread |
+| `bridge_merge_branch` | Merge through the same gate as Studio's Merge button; owner override with a reason posted first |
+| `bridge_close_branch` | Close a branch without merging it |
+| `bridge_reopen_branch` | Reopen a closed branch (its author or an owner, while its work is still there) |
+| `bridge_update_from_main` | Bring the latest main into a branch; token conflicts come back to pick ("mine" or "theirs") |
+| `bridge_try_branch` | Try it in a product (the preview Vercel reported) and share it with a product team (install command, message) |
+| `bridge_combine_branches` | Try 2 to 4 token branches together: conflicts to pick, links to open the combination |
+| `bridge_save_docs` | Save a component's usage guidance on a new branch sent for review, or on an open branch |
+| `bridge_get_settings` | Studio settings that are safe to read: roles, who ships, owner override, protection, products |
+| `bridge_figma_coverage` | Which components are in Figma, and whether code images exist for the fidelity check |
 | `bridge_pending_drafts` | Read the change texts a designer asked you to write from the Figma plugin ("Draft with my Claude"): the changes, the starting draft, their notes, the voice rules, the output contract, and the before and after images as image content (see [Change texts from Figma](#change-texts-from-figma)) |
 | `bridge_write_drafts` | Write the titles, summaries and change lines back; the plugin fills them in within seconds for the designer to review |
 
@@ -152,6 +174,85 @@ Things to ask:
 - "Draft the docs of VisuallyHidden from its code, then show me what you could not tell."
 - "Undo PR 12, but show me what changed since first."
 - "Plan a brand called Acme from Ocean with #1F5F3A as primary, and tell me which contrast pairs fail."
+- "What needs me today?"
+- "Bring main into #118 and keep my values for the tokens we both changed."
+- "Try #101 and #118 together and give me the link."
+- "Merge #42." (Claude checks the gate first and tells you what blocks it.)
+
+## Studio parity
+
+Everything a designer does in Bridge Studio can be done with Claude (MCP) and, where a terminal makes sense, with
+the `bridge` command. Both call the same `@bridge-ds/core` functions as Studio (`review-gate`, `branch-actions`,
+`library-update`, `share-branch`, `try-in-product`, `combine-branches`, `docs-proposal`, `products`), so a merge
+from Claude passes the same gate and sends GitHub the same requests as the Merge button. Reads need no token on a
+public repo. Writes need a fine-grained GitHub token for the one repository with the rights below, the same as
+Studio asks for, and GitHub's own branch rules still apply. Writes are their own tools, never a side effect of a
+read, and Claude runs them only when you ask.
+
+Before this matrix, 10 of these 32 actions worked from Claude, 9 in part (the CLI only, explorations only, or
+read without the "needs me" part) and 13 not at all. Now all 32 do.
+
+| In Studio | With Claude (MCP tool) | In the terminal | GitHub token rights |
+| --- | --- | --- | --- |
+| Create a branch, pick its product, add a Jira key | `bridge_propose_token_change` with `product`, `jira` | `bridge propose --product admin --jira DS-42 ...` | Contents, Pull requests: write |
+| Edit tokens on a new branch | `bridge_propose_token_change` | `bridge propose --set path=value` | Contents, Pull requests: write (locally: none) |
+| Edit tokens in a branch already in review | `bridge_propose_token_change` with `pr` | `bridge propose --pr 12 ...` | Contents: write; its author or write access |
+| Write or edit usage guidance (docs) | `bridge_draft_docs`, then `bridge_save_docs` | `bridge docs draft Button`, `bridge docs save Button --file docs.json` | Contents, Pull requests: write |
+| Request review (mark as ready) | `bridge_send_for_review` | `bridge branch ready 12` | Pull requests: write; its author |
+| Approve | `bridge_review_branch` (`approve`) | `bridge branch review 12 --approve` | Pull requests: write |
+| Request changes | `bridge_review_branch` (`request_changes`) | `bridge branch review 12 --request-changes "..."` | Pull requests: write |
+| Ask someone else to review | `bridge_ask_someone_else` | `bridge branch ask 12` | Pull requests: write |
+| Comment, reply in a thread | `bridge_comment`, `bridge_list_comments` | `bridge branch comment 12 "..." [--reply-to id]` | Pull requests: write |
+| Merge | `bridge_merge_branch` | `bridge branch merge 12` | Contents, Pull requests: write, and the right to ship (`governance.rights`) |
+| Merge as owner override | `bridge_merge_branch` with `overrideReason` | `bridge branch merge 12 --override "reason"` | As merge, and your login in `governance.override.allowed` |
+| Back to draft | `bridge_back_to_draft` | `bridge branch draft 12` | Pull requests: write; its author |
+| Close | `bridge_close_branch` | `bridge branch close 12` | Pull requests: write |
+| Reopen | `bridge_reopen_branch` | `bridge branch reopen 12` | Pull requests: write; its author or an owner |
+| Update from main | `bridge_update_from_main` | `bridge branch update 12` | Contents, Pull requests: write |
+| Resolve token conflicts (keep mine, use main's) | `bridge_update_from_main` with `choices` | `bridge branch update 12 --choice <key>=theirs` | Contents: write |
+| Try it in the product (preview link) | `bridge_try_branch` | `bridge branch try 12` | None |
+| Share with a product team | `bridge_try_branch` (install command and message) | `bridge branch try 12` | None |
+| Try 2 to 4 branches together | `bridge_combine_branches` | `bridge branch combine 101 118 [--pick <key>=118]` | None |
+| Start an exploration | `bridge_start_exploration` with `product` | `bridge explore start ... --product admin` | Contents, Pull requests: write |
+| Promote an exploration | `bridge_promote_exploration` | `bridge explore promote <name>` | Contents, Pull requests: write |
+| Close an exploration | `bridge_close_exploration` | `bridge explore close <name>` | Pull requests: write |
+| Component change requests (list, read, file) | `bridge_list_requests`, `bridge_get_request`, `bridge_create_request` with `product` | `bridge request list / show / create --product admin` | Issues: write to file one |
+| History, undo a change, restore one token | `bridge_get_history`, `bridge_plan_revert`, `bridge_propose_revert` | `bridge history`, `bridge revert` | Contents, Pull requests: write to propose |
+| Review a token change (diff, contrast, impact) | `bridge_get_review` | `bridge diff main` | None |
+| Visual impact (before and after) | `bridge_visual_impact` | `bridge impact` | None (local, needs Chrome) |
+| New brand | `bridge_plan_brand`, `bridge_propose_brand` | `bridge brand create` | Contents, Pull requests: write |
+| What needs me (review queue) | `bridge_what_needs_me` | `bridge branch list` | Any token, so Bridge knows who you are |
+| Branch status, who acts, may I merge | `bridge_branch_status` | `bridge branch status 12` | None (who you are needs a token) |
+| Settings (safe to read) | `bridge_get_settings` | `bridge settings` | None |
+| Quality and adoption | `bridge_validate_tokens`, `bridge_check_contrast`, `bridge_audit` | `bridge check`, `bridge audit <path>` | None |
+| Figma coverage and fidelity | `bridge_figma_coverage` | `bridge coverage [Component]` | None |
+
+What stays in Studio, and why:
+
+- **Changing settings** (roles, the owner override, protecting `main`, integrations). They change who may do
+  what, so they go through a reviewed branch of `bridge.config.json` or GitHub's own settings, which need admin
+  rights. Claude and the CLI read them (`bridge_get_settings`, `bridge check`) and can propose the
+  `bridge.config.json` change like any other file.
+- **Signing in with GitHub.** In a terminal the token comes from `GITHUB_TOKEN` or `gh auth token`.
+- **Seeing the work.** The visual editors (color pickers, the Library edit mode with its live preview), the
+  before and after images CI built for a branch, the quality trend charts of past audits and the fidelity scores
+  (computed in the DS Bridge Figma plugin, they live in Figma). Claude edits by value, reads the same facts as
+  text and gives you the links to look at them.
+
+### Pick the product
+
+Products are listed in `bridge.config.json` under `products` (name, the folder or GitHub repo they live in, a
+preview link pattern, the framework). Without the key, Bridge uses this repository's two: Admin demo
+(`apps/admin`) and Library, the default. A branch belongs to the product named by its `product: <key>` label,
+else to the product whose folder it changes, else to the default product: Studio's Branches page groups by the
+same rule.
+
+- **In Studio:** step 2 of Create branch asks which product the change is for.
+- **In the terminal:** `--product <key>` on `bridge propose`, `bridge explore start`, `bridge request create` and
+  `bridge docs save`. Without it, the product of the folder you run it in (a product folder of this repository,
+  or a product repository named in `products`), else the default. `bridge products` lists them and marks yours.
+- **With Claude:** the tools that start work take `product`. Claude infers it from the repository or folder it
+  works in (`bridge_list_products` says which one and how), and asks you when it is not obvious.
 
 ## New brands
 
@@ -431,8 +532,11 @@ bridge audit ../my-app/src --allowlist known.json  # leave known file:line viola
   `docs/GOVERNANCE.md`. Renames and removals are `major`; a description-only edit is Tier 1, `patch`. The
   Figma plugin, the docs site and the MCP server use the same classifier. Bridge computes the tier from the diff, writes the
   changeset, and warns in reviews when a PR is labelled lower than its real tier.
-- **Humans merge.** Bridge has no merge tool. `bridge_review_pr` posts a review under your account only
-  when you ask.
+- **Merges pass the Studio gate, and only when you ask.** `bridge_merge_branch` merges only what Studio's
+  Merge button would (tests pass, the approvals the tier needs, no changes requested, no conflict, the right
+  to ship), under your GitHub account; the owner override skips missing approvals only, with your reason
+  posted on the branch first. Reviews, comments and closes are explicit tools too, never side effects of a
+  read.
 - **Tokens.** Use a fine-grained GitHub token limited to the one repo, with contents and pull requests
   read and write. Bridge sends it only to `api.github.com`.
 

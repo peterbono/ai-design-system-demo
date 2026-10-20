@@ -7,6 +7,7 @@ import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import {
   baseBranchOf,
+  productsOf,
   closeExplorationOnGitHub,
   EXPLORATION_LABEL,
   EXPLORATION_PREFIX,
@@ -36,6 +37,7 @@ import {
 } from '@bridge-ds/core';
 import { branchExists, commitToNewLocalBranch, currentBranch, git } from '@bridge-ds/core/node';
 import { BridgeContext } from './context.js';
+import { productMarks, resolveProduct } from './branches.js';
 
 const USE_CASES = new Set<string>(EXPLORATION_USE_CASES.map((u) => u.value));
 
@@ -65,6 +67,8 @@ export interface StartExplorationInput {
   /** Where it is started from (the MCP tool says mcp, the CLI says cli), and the AI agent behind it when known. */
   source?: ExplorationSource | undefined;
   agent?: string | undefined;
+  /** The product it is tried in (key or name, bridge.config.json "products"). Default: the product of the current folder or repo. */
+  product?: string | undefined;
   dryRun?: boolean | undefined;
 }
 
@@ -93,8 +97,11 @@ export async function startExploration(ctx: BridgeContext, a: StartExplorationIn
     startedAt: new Date().toISOString(),
   };
   const gh = await ctx.github().catch(() => null);
+  const product = await resolveProduct(ctx, a.product);
+  const marks = productMarks(productsOf(config), product);
   const preview = {
     branch,
+    product: product.name,
     slug,
     base: s.base,
     title: explorationPrTitle(e),
@@ -106,6 +113,7 @@ export async function startExploration(ctx: BridgeContext, a: StartExplorationIn
   const work = `Work on it: \`git fetch origin && git switch ${branch}\`. Token edits: bridge_propose_token_change with "branch": "${branch}". Requests: bridge_create_request with "exploration": "${branch}", then bridge_get_request with "branch": "${branch}". It is never merged as is: promote it (\`bridge explore promote ${slug}\`) or close it.`;
   if (gh && ctx.canWriteRemote) {
     const r = await startExplorationOnGitHub(gh, e, s);
+    if (marks.labels.length) await gh.addLabels(r.pr, marks.labels);
     return {
       status: 'started' as const,
       ...preview,

@@ -34,7 +34,7 @@ Usage:
                      --branch: implement it on that exploration, never in a pull request to main
   bridge request create --component Button --kind new-variant --title "Add a danger ghost variant"
                      --summary "..." [--change field=before:after ...] [--figma url]
-                     [--exploration explore/<name>] [--dry-run] [--json]
+                     [--exploration explore/<name>] [--product <key>] [--dry-run] [--json]
   bridge request jira-sync
                      GitHub Action step: mirror a request issue to Jira (see docs/REQUESTS.md)
 
@@ -191,6 +191,7 @@ export async function runRequest(a: RequestArgs, root: string, io: RequestIO = d
         changes: (a.flags.change ?? []).map(parseChange),
         ...(figma ? { figmaUrl: figma } : {}),
         ...(exploration ? { exploration } : {}),
+        ...(flag(a, 'product') ? { product: flag(a, 'product') } : {}),
         source: 'cli',
         dryRun,
       });

@@ -2,7 +2,7 @@
 // the Figma plugin's "Add to open pull request" does. Pure rules and words, tested in continue-change.test.ts; the
 // browser side (reading changes, the 3-way check, the commit on top of the change) lives in scripts/token-editor.ts.
 // Designer words only on screen: a change, sent for review, edits. Branch, commit and pull request stay in code.
-import { changeKind, changesetBump, composeChangeset, threeWayDiff, type AcceptedChange, type ChangesetOptions, type TokenSet } from '@bridge-ds/core';
+import { addedComment as coreAddedComment, canAddTo, changeKind, changesetBump, composeChangeset, threeWayDiff, type AcceptedChange, type ChangesetOptions, type TokenSet } from '@bridge-ds/core';
 import type { Draft } from './editor-model';
 import { withoutJiraKey } from './vocabulary';
 
@@ -52,13 +52,10 @@ export function isTokenChange(p: ChangePullLike, repoFullName: string): boolean 
   return !from || from.toLowerCase() === repoFullName.toLowerCase();
 }
 
-const same = (a: string | null | undefined, b: string | null | undefined) => Boolean(a && b && a.toLowerCase() === b.toLowerCase());
+// Who may add edits to a branch: one rule with the MCP server and the CLI (@bridge-ds/core branch-actions).
+export { canAddTo };
 
-/** Only the author or someone with write access to the repository adds to a change. */
-export function canAddTo(p: ChangePullLike, viewer: string | null | undefined, write: boolean): boolean {
-  if (!viewer) return false;
-  return write || same(p.user?.login, viewer);
-}
+const same = (a: string | null | undefined, b: string | null | undefined) => Boolean(a && b && a.toLowerCase() === b.toLowerCase());
 
 /** The changes the viewer can add token edits to: theirs first, then the most recently updated. */
 export function addableChanges(pulls: ChangePullLike[], ctx: { repo: string; viewer: string | null | undefined; write: boolean }): ChangeTarget[] {
@@ -200,12 +197,8 @@ export function draftDestination(target: ChangeTarget | null, edits = 2): string
   return target ? `${edits === 1 ? 'It goes' : 'They go'} to ${target.title}.` : 'Requesting review creates a new branch.';
 }
 
-/** The comment posted on the change, so reviewers see what was added and from where. */
-export function addedComment(paths: string[], viewer: string | null | undefined): string {
-  const lines = paths.slice(0, 20).map((p) => `- \`${p}\``);
-  if (paths.length > 20) lines.push(`- and ${paths.length - 20} more`);
-  return `${viewer ? `@${viewer} added` : 'Added'} token edits from the Bridge token editor:\n\n${lines.join('\n')}`;
-}
+/** The comment posted on the change, so reviewers see what was added and from where (core addedComment). */
+export const addedComment = (paths: string[], viewer: string | null | undefined): string => coreAddedComment(paths, viewer);
 
 /** The commit message on the change. */
 export function addedCommitMessage(title: string, paths: string[]): string {

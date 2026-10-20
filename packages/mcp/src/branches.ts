@@ -1,0 +1,579 @@
+// Branches in review, from Claude or the terminal: the same actions as Bridge Studio (send for review, back to draft,
+// review, comment and reply, merge, owner override, close, reopen, update from main with token conflicts, try it in a
+// product, share with a product team, combine 2 to 4 token branches, what needs me) over the same @bridge-ds/core
+// functions Studio calls: review-gate (who may merge, what blocks), branch-actions (the writes), library-update,
+// share-branch, try-in-product, combine-branches and products. Reads work without a token on a public repo; every
+// write needs a GitHub token with the rights it needs in Studio, and GitHub's own branch rules still apply.
+import { relative } from 'node:path';
+import {
+  addedComment,
+  askOthersToReviewOnGitHub,
+  commentOnGitHub,
+  reviewersToAsk,
+  approverEntries,
+  baseBranchOf,
+  DEFAULT_OVERRIDE,
+  canAddTo,
+  canOverride,
+  closeOnGitHub,
+  combineChanges,
+  commitLibraryResolution,
+  defaultProduct,
+  effectiveTier,
+  expandOwners,
+  findProduct,
+  freshness,
+  hasWriteAccess,
+  isActiveExploration,
+  MAX_TOGETHER,
+  mergeGate,
+  mergeOnGitHub,
+  MIN_TOGETHER,
+  missingChoices,
+  OverrideMergeError,
+  overrideMergeOnGitHub,
+  overrideReasonProblem,
+  previewUrl,
+  productForPlace,
+  productLabel,
+  productOfBranch,
+  productsOf,
+  pullState,
+  readCombineBranch,
+  readLibraryConflicts,
+  reopenEligibility,
+  reopenOnGitHub,
+  REVIEW_STATUS_ORDER,
+  reviewOnGitHub,
+  reviewQueue,
+  reviewStatusKind,
+  shareMessage,
+  shareState,
+  shipPolicy,
+  stateSentence,
+  summarizeApprovals,
+  summarizeCi,
+  TeamDirectory,
+  tryInProductUrl,
+  tryTogetherUrl,
+  branchPreviewUrls,
+  allowedMergeMethods,
+  type BridgeConfig,
+  type ChangeLifecycle,
+  type GitHubClient,
+  type MergeChoices,
+  type ProductConfig,
+  type ReviewEvent,
+  type ReviewStatusKind,
+} from '@bridge-ds/core';
+import { originRepo } from '@bridge-ds/core/node';
+import type { BridgeContext } from './context.js';
+
+/** What a write needs from the token, per action, in the words GitHub's token settings use. */
+export const RIGHTS = {
+  review: 'Pull requests: read and write',
+  comment: 'Pull requests (or Issues): read and write',
+  merge: 'Contents and Pull requests: read and write, and the right to ship in bridge.config.json (governance.rights)',
+  update: 'Contents and Pull requests: read and write',
+  draft: 'Pull requests: read and write (you must be the author, as in Studio)',
+  docs: 'Contents and Pull requests: read and write',
+} as const;
+
+const NO_REPO = 'No GitHub repo known: set "repo" in bridge.config.json or add an origin remote.';
+
+async function reader(ctx: BridgeContext): Promise<GitHubClient> {
+  const gh = await ctx.github();
+  if (!gh) throw new Error(NO_REPO);
+  return gh;
+}
+
+/**
+ * A client for writes on a branch someone already opened (any name, never a protected branch): the token is required,
+ * with the rights `need` names, so the error says exactly what to add.
+ */
+async function writer(ctx: BridgeContext, what: string, need: string): Promise<GitHubClient> {
+  const gh = await reader(ctx);
+  if (!ctx.canWriteRemote) throw new Error(`${what} needs a GitHub token with ${need} on ${gh.fullName}. Set GITHUB_TOKEN (or BRIDGE_GITHUB_TOKEN) where the Bridge MCP server or the CLI runs, or do it in Bridge Studio.`);
+  return gh.withBranchPrefix(undefined);
+}
+
+/** 12, "#12" or a pull request link: the branch number. Throws how to fix it otherwise. */
+export function branchNumber(input: number | string): number {
+  if (typeof input === 'number' && Number.isInteger(input) && input > 0) return input;
+  const m = /^#?(\d+)$/.exec(String(input).trim()) ?? /\/pull\/(\d+)/.exec(String(input));
+  if (!m) throw new Error(`"${input}" is not a branch number. Pass the number Studio shows (#12) or the link of the branch on GitHub.`);
+  return Number(m[1]);
+}
+
+const lifecycleOf = (state: string, draft: boolean): ChangeLifecycle => (state === 'merged' ? 'merged' : state === 'closed' ? 'closed' : draft ? 'draft' : 'open');
+
+/** Owners as people: GitHub teams expanded, plus who may ship, the same lists Studio reads. */
+async function people(gh: GitHubClient, config: BridgeConfig) {
+  const { owners, rights } = config.governance;
+  const teams = await new TeamDirectory(gh).resolve(owners).catch(() => undefined);
+  const lists = expandOwners(approverEntries(owners, rights), teams);
+  return { lists, ship: shipPolicy(owners, rights, teams) };
+}
+
+/** The viewer of the token, or null without one (or when GitHub does not say). */
+async function viewerOf(ctx: BridgeContext, gh: GitHubClient): Promise<string | null> {
+  if (!ctx.canWriteRemote) return null;
+  return gh.getViewer().then((v) => v.login, () => null);
+}
+
+/** Everything Studio reads about one branch to paint its header and decide its actions. */
+export async function branchFacts(ctx: BridgeContext, gh: GitHubClient, n: number, viewer: string | null) {
+  const { config } = await ctx.config();
+  const pr = await gh.getPullRequest(n);
+  const [files, reviews, runs, statuses, who, compare, repo] = await Promise.all([
+    gh.listPullRequestFiles(n),
+    gh.listReviews(n).catch(() => []),
+    gh.listCheckRuns(pr.headSha).catch(() => []),
+    gh.listCommitStatuses(pr.headSha).catch(() => []),
+    people(gh, config),
+    pr.state === 'open' ? gh.compareDetailed(pr.baseRef, pr.headSha).catch(() => null) : Promise.resolve(null),
+    viewer ? gh.getMergeSettings().catch(() => null) : Promise.resolve(null),
+  ]);
+  const labels = pr.labels.map((name) => ({ name }));
+  const ci = summarizeCi(
+    runs.map((r) => ({ name: r.name, status: r.status, conclusion: r.conclusion, ...(r.url ? { html_url: r.url } : {}) })),
+    statuses.map((s) => ({ context: s.context, state: s.state, target_url: s.target_url })),
+  );
+  const approvals = summarizeApprovals(
+    reviews.map((r) => ({ user: r.user ? { login: r.user } : null, state: r.state, submitted_at: r.submittedAt ?? null })),
+    who.lists,
+    pr.author,
+  );
+  const tier = effectiveTier(labels, pr.body, files);
+  const merged = pr.state === 'merged';
+  const pullLike = { state: merged ? 'closed' : pr.state, draft: pr.draft, merged_at: merged ? 'merged' : null };
+  const exploration = isActiveExploration(pr.labels);
+  const gate = mergeGate({ tier, ci, approvals, draft: pr.draft, mergeable: pr.mergeable, state: pullLike.state, merged_at: pullLike.merged_at, viewer, override: config.governance.override, exploration, ship: who.ship });
+  const status: ReviewStatusKind = reviewStatusKind({ ...pullLike, ci, approvals, tier, mergeable: pr.mergeable });
+  const fresh = freshness({ compare: compare ? { behind_by: compare.behindBy, merge_base_commit: compare.mergeBase ? { sha: compare.mergeBase } : null } : null, mergeable: pr.mergeable, open: pr.state === 'open' });
+  const product = productOfBranch(productsOf(config), { files: files.map((f) => f.filename), labels: pr.labels });
+  return { config, pr, files, ci, approvals, tier, gate, status, fresh, compare, exploration, product, lifecycle: pullState(pullLike), write: repo ? hasWriteAccess(repo.permissions) : null, repo };
+}
+
+const STATUS_WORDS: Record<ReviewStatusKind, string> = {
+  merged: 'Merged',
+  closed: 'Closed',
+  draft: 'Draft',
+  'ci-failing': 'Blocked by tests',
+  'changes-requested': 'Changes requested',
+  'ci-running': 'Tests running',
+  'needs-design': 'Needs design approval',
+  'needs-tech': 'Needs tech approval',
+  'needs-approval': 'Needs approval',
+  conflict: 'Conflict with main',
+  checking: 'Checking',
+  ready: 'Ready to merge',
+  unknown: 'Status unknown',
+};
+
+// --- reads -------------------------------------------------------------------------------------------------
+
+/** One branch, the way Studio shows it: status, what blocks the merge and who acts, how it stands against main. */
+export async function branchStatus(ctx: BridgeContext, a: { pr: number | string }) {
+  const n = branchNumber(a.pr);
+  const gh = await reader(ctx);
+  const viewer = await viewerOf(ctx, gh);
+  const f = await branchFacts(ctx, gh, n, viewer);
+  return {
+    pr: n,
+    title: f.pr.title,
+    url: f.pr.url,
+    author: f.pr.author,
+    product: { key: f.product.key, name: f.product.name },
+    lifecycle: f.lifecycle,
+    status: { kind: f.status, label: STATUS_WORDS[f.status] },
+    approvalNeeded: f.tier === 1 ? 'One approval' : 'Design and tech approval',
+    approvals: { approvedBy: f.approvals.approvers, changesRequestedBy: f.approvals.changesRequested, design: f.approvals.design, tech: f.approvals.tech },
+    tests: { state: f.ci.state, failing: f.ci.failed.map((x) => x.name), running: f.ci.pending.map((x) => x.name) },
+    main: { state: f.fresh.state, behindBy: f.fresh.behindBy },
+    merge: {
+      allowed: f.gate.allowed,
+      blockedBy: f.gate.reasons,
+      ...(viewer ? { you: viewer, youCanShip: f.gate.canShip, ownerOverride: f.gate.overridable } : { you: null, note: 'Without a GitHub token Bridge cannot tell whether you may merge.' }),
+    },
+    next: nextStep(f, viewer),
+  };
+}
+
+function nextStep(f: Awaited<ReturnType<typeof branchFacts>>, viewer: string | null): string {
+  if (f.lifecycle === 'merged') return 'Merged. It goes out with the next library release.';
+  if (f.lifecycle === 'closed') return 'Closed without merging. bridge_reopen_branch reopens it when its work is still there.';
+  if (f.exploration) return 'It is an exploration: promote it with bridge_promote_exploration when the idea is validated, or close it.';
+  if (f.lifecycle === 'draft') return 'Draft: bridge_send_for_review asks for review when it is ready.';
+  if (f.fresh.state === 'conflict') return 'It conflicts with main: bridge_update_from_main shows the token conflicts to pick (code conflicts stay with a developer).';
+  if (f.gate.allowed) return viewer ? 'Ready: bridge_merge_branch merges it when the person asks.' : 'Ready to merge by someone who may ship.';
+  if (f.gate.overridable) return `Only approvals are missing and you may use the owner override: bridge_merge_branch with a reason of at least ${(f.config.governance.override ?? DEFAULT_OVERRIDE).minReasonLength} characters.`;
+  return f.gate.reasons[0] ?? 'Waiting.';
+}
+
+/**
+ * What needs me: the review queue (open branches minus running explorations and release automation), each with its
+ * status, and the ones where the viewer acts now first: approvals they can give, their own branches blocked or ready.
+ */
+export async function whatNeedsMe(ctx: BridgeContext, a: { limit?: number | undefined } = {}) {
+  const gh = await reader(ctx);
+  const { config } = await ctx.config();
+  const viewer = await viewerOf(ctx, gh);
+  const pulls = await gh.listPullRequests('open');
+  const queue = reviewQueue(pulls.map((p) => ({ ...p, state: p.state, head: { ref: p.headRef }, user: { login: p.author }, labels: p.labels.map((name) => ({ name })) }))).slice(0, a.limit ?? 20);
+  const who = await people(gh, config);
+  const same = (x: string, y: string | null) => Boolean(y && x.toLowerCase() === y.toLowerCase());
+  const rows = await Promise.all(
+    queue.map(async (p) => {
+      const f = await branchFacts(ctx, gh, p.number, viewer).catch(() => null);
+      if (!f) return { pr: p.number, title: p.title, url: p.url, author: p.author, status: 'unknown' as ReviewStatusKind, statusLabel: STATUS_WORDS.unknown, yours: same(p.author, viewer), needsYou: null as string | null };
+      const mine = same(p.author, viewer);
+      const inDesign = viewer ? who.lists.design.some((x) => same(x, viewer)) : false;
+      const inTech = viewer ? who.lists.tech.some((x) => same(x, viewer)) : false;
+      let needsYou: string | null = null;
+      if (viewer && !mine) {
+        if (f.status === 'needs-design' && inDesign) needsYou = 'Your design approval';
+        else if (f.status === 'needs-tech' && inTech) needsYou = 'Your tech approval';
+        else if (f.status === 'needs-approval' && !f.approvals.approvers.some((x) => same(x, viewer))) needsYou = 'Your approval';
+        else if (f.status === 'ready' && f.gate.canShip) needsYou = 'Ready for you to merge';
+      }
+      if (viewer && mine) {
+        if (f.status === 'changes-requested') needsYou = 'Changes requested on your branch';
+        else if (f.status === 'ci-failing') needsYou = 'Tests fail on your branch';
+        else if (f.status === 'conflict') needsYou = 'Your branch conflicts with main';
+        else if (f.status === 'ready' && f.gate.canShip) needsYou = 'Your branch is ready to merge';
+      }
+      return { pr: p.number, title: p.title, url: p.url, author: p.author, product: f.product.name, status: f.status, statusLabel: STATUS_WORDS[f.status], yours: mine, needsYou };
+    }),
+  );
+  rows.sort((x, y) => Number(Boolean(y.needsYou)) - Number(Boolean(x.needsYou)) || REVIEW_STATUS_ORDER[x.status] - REVIEW_STATUS_ORDER[y.status]);
+  const mineCount = rows.filter((r) => r.needsYou).length;
+  return {
+    viewer,
+    summary: viewer
+    ? `${mineCount ? `${mineCount} ${mineCount === 1 ? 'branch needs' : 'branches need'} you` : 'Nothing needs you right now'}; ${rows.length} in review.`
+      : `${rows.length} in review. Set a GitHub token so Bridge knows which ones need you.`,
+    branches: rows,
+  };
+}
+
+/** The configured products, and the one the current folder or repo belongs to (the default for new work). */
+export async function listProducts(ctx: BridgeContext) {
+  const { config } = await ctx.config();
+  const products = productsOf(config);
+  const here = await productHere(ctx, config);
+  return {
+    products: products.map((p) => ({ key: p.key, name: p.name, ...(p.repo ? { repo: p.repo } : {}), ...(p.path ? { path: p.path } : {}), ...(p.preview ? { preview: p.preview } : {}), ...(p.framework ? { framework: p.framework } : {}), default: p === defaultProduct(products) })),
+    current: { key: here.product.key, name: here.product.name, how: here.how },
+    howToPick: 'Pass "product" (key or name) to the tools that start work. Without it Bridge uses the product of the current folder or repo, else the default product. Ask the person when it is not obvious.',
+  };
+}
+
+/** The product of the folder the server or the CLI runs in: a product repo, a product folder, else the default. */
+async function productHere(ctx: BridgeContext, config: BridgeConfig) {
+  const products = productsOf(config);
+  if (ctx.mode !== 'local' || !ctx.root) return productForPlace(products, {});
+  const cwd = process.cwd();
+  const rel = relative(ctx.root, cwd);
+  const repo = await originRepo(cwd).catch(() => undefined);
+  const ds = config.repo ? `${config.repo.owner}/${config.repo.name}` : await originRepo(ctx.root).catch(() => undefined);
+  return productForPlace(products, { relPath: rel.startsWith('..') ? null : rel, repo: repo ?? null, designSystemRepo: ds ?? null });
+}
+
+/**
+ * The product new work belongs to: the one named (key or name), else the product of the current folder or repo.
+ * Throws with the list when the name is unknown.
+ */
+export async function resolveProduct(ctx: BridgeContext, name?: string | undefined): Promise<ProductConfig> {
+  const { config } = await ctx.config();
+  const products = productsOf(config);
+  if (name?.trim()) {
+    const p = findProduct(products, name);
+    if (!p) throw new Error(`Unknown product "${name}". Pick one of: ${products.map((x) => `${x.key} (${x.name})`).join(', ')}. Products are listed in bridge.config.json "products".`);
+    return p;
+  }
+  return (await productHere(ctx, config)).product;
+}
+
+/** Labels and a body line for a branch that starts work for a product (the default product adds nothing). */
+export function productMarks(products: ProductConfig[], p: ProductConfig): { labels: string[]; line: string } {
+  if (p.key === defaultProduct(products).key) return { labels: [], line: '' };
+  return { labels: [productLabel(p.key)], line: `**Product:** ${p.name}` };
+}
+
+/**
+ * Try it in a product and share it with a product team: the preview of each product Vercel reported for this branch
+ * (opened with the Bridge toolbar on it), and the install command product teams use in a staging branch, with a
+ * ready-to-paste message. Nothing is written.
+ */
+export async function tryBranch(ctx: BridgeContext, a: { pr: number | string }) {
+  const n = branchNumber(a.pr);
+  const gh = await reader(ctx);
+  const { config } = await ctx.config();
+  const pr = await gh.getPullRequest(n);
+  const [files, comments] = await Promise.all([gh.listPullRequestFiles(n), gh.listIssueComments(n).catch(() => [])]);
+  const previews = await branchPreviewUrls(gh, n, config, { branch: pr.headRef, sha: pr.headSha, comments }).catch(() => []);
+  const apps = config.previews?.apps ?? {};
+  const products = productsOf(config).map((p) => {
+    // A product whose preview pattern is a configured app takes the URL Vercel reported for that app (never the
+    // template: Vercel shortens long branch aliases), the admin demo with the Bridge toolbar on, as in Studio.
+    const app = (Object.entries(apps) as [string, string | undefined][]).find(([, t]) => t && t === p.preview)?.[0];
+    const hit = app ? previews.find((x) => x.app === app && x.url && x.source !== 'template' && x.state !== 'failed') : undefined;
+    const reported = hit?.url ?? null;
+    const pattern = !app && p.preview ? previewUrl(p.preview, { branch: pr.headRef, pr: n, sha: pr.headSha }) : null;
+    const url = reported ? (app === 'admin' ? tryInProductUrl(reported, n, null) : reported) : pattern;
+    return { key: p.key, name: p.name, url, how: reported ? 'reported by Vercel' : pattern ? 'from the preview pattern in bridge.config.json (it may not exist yet)' : 'no preview reported yet' };
+  });
+  const lifecycle = lifecycleOf(pr.state, pr.draft);
+  const packages = config.previews?.packages ?? [];
+  const share = shareState({ lifecycle, files: files.map((f) => f.filename), packages, comment: comments.find((c) => c.body.includes('<!-- bridge-branch-preview -->'))?.body, headSha: pr.headSha });
+  const tryUrl = products.find((p) => p.url && p.how === 'reported by Vercel')?.url ?? null;
+  const message = shareMessage({ title: pr.title, state: share, packages, tryUrl, url: pr.url });
+  return {
+    pr: n,
+    title: pr.title,
+    tryInProduct: products,
+    previews: previews.map((p) => ({ app: p.app, label: p.label, url: p.url, state: p.state })),
+    share: {
+      state: share.kind,
+      install: share.kind === 'ready' ? share.command : null,
+      sentence: stateSentence(share) ?? 'Product teams can install this branch in their app before it is merged, and remove it any time.',
+      ...(message ? { message } : {}),
+    },
+  };
+}
+
+/**
+ * Combined preview of 2 to 4 token branches: the conflicts to pick ("use #118's"), how many tokens change, and the
+ * links that open the combination (the product with the Bridge toolbar, the library views). Nothing is written.
+ */
+export async function combineBranches(ctx: BridgeContext, a: { prs: (number | string)[]; picks?: Record<string, number> | undefined }) {
+  const numbers = [...new Set(a.prs.map(branchNumber))];
+  if (numbers.length < MIN_TOGETHER || numbers.length > MAX_TOGETHER) throw new Error(`Pick ${MIN_TOGETHER} to ${MAX_TOGETHER} branches to try together (you gave ${numbers.length}).`);
+  const gh = await reader(ctx);
+  const { config } = await ctx.config();
+  const base = baseBranchOf(config);
+  const root = config.tokens.root;
+  const pulls = await Promise.all(numbers.map((n) => gh.getPullRequest(n)));
+  const branches = await Promise.all(pulls.map((p) => readCombineBranch(gh, { number: p.number, title: p.title, headSha: p.headSha }, { base, tokensRoot: root })));
+  const code = branches.filter((b) => !b.tokens);
+  if (code.length) throw new Error(`#${code.map((b) => b.number).join(', #')} ${code.length === 1 ? 'changes' : 'change'} code, so ${code.length === 1 ? 'it' : 'they'} can't be combined here. Pick branches that only change tokens.`);
+  const latest: Record<string, string> = {};
+  const files = (await gh.listFiles(base)).filter((f) => f.startsWith(`${root}/`) && f.endsWith('.tokens.json'));
+  await Promise.all(files.map(async (f) => (latest[f.slice(root.length + 1)] = (await gh.readFile(f, base)) ?? '')));
+  const picks = a.picks ?? {};
+  const combo = combineChanges(latest, branches.map((b) => b.edits!), picks);
+  const titles = new Map(pulls.map((p) => [p.number, p.title]));
+  const admin = config.previews?.production?.admin;
+  const docs = config.previews?.production?.docs;
+  return {
+    branches: pulls.map((p) => ({ pr: p.number, title: p.title })),
+    tokens: combo.tokens,
+    conflicts: combo.conflicts.map((c) => ({ key: c.key, token: c.path, file: c.file, options: c.options.map((o) => ({ use: o.changes[0], titles: o.changes.map((x) => titles.get(x) ?? `#${x}`) })), picked: picks[c.key] ?? null })),
+    missingPicks: combo.missing.length,
+    problems: combo.problems,
+    open: {
+      ...(admin ? { product: tryTogetherUrl(admin, numbers, picks) } : {}),
+      ...(docs ? { library: `${docs.replace(/\/$/, '')}/?change=${numbers.join(',')}` } : {}),
+    },
+    next: combo.missing.length ? `Pick a value for ${combo.missing.length} token${combo.missing.length === 1 ? '' : 's'}: pass picks {"<key>": <branch number>}.` : 'Open the links to see them together. Nothing was written.',
+  };
+}
+
+// --- writes ------------------------------------------------------------------------------------------------
+
+/** Ask for review: a draft branch becomes ready for review (Studio "Mark as ready"). Its author only, as in Studio. */
+export async function sendForReview(ctx: BridgeContext, a: { pr: number | string }) {
+  const n = branchNumber(a.pr);
+  const gh = await writer(ctx, 'Sending a branch for review', RIGHTS.draft);
+  const [pr, viewer] = await Promise.all([gh.getPullRequest(n), gh.getViewer()]);
+  if (pr.author.toLowerCase() !== viewer.login.toLowerCase()) throw new Error(`Only its author (@${pr.author}) sends #${n} for review, as in Studio. Ask them, or comment with bridge_comment.`);
+  if (isActiveExploration(pr.labels)) throw new Error(`#${n} is an exploration: promote it with bridge_promote_exploration instead.`);
+  if (pr.state !== 'open') throw new Error(`#${n} is ${pr.state}: reopen it first with bridge_reopen_branch.`);
+  if (!pr.draft) return { pr: n, status: 'already-in-review' as const, said: 'It is already in review. Reviewers can see it.' };
+  await gh.markReadyForReview(n);
+  return { pr: n, status: 'in-review' as const, said: 'Review requested. Reviewers can see it now.', url: pr.url };
+}
+
+/** Back to draft: the author takes a branch out of review (Studio More menu). */
+export async function backToDraft(ctx: BridgeContext, a: { pr: number | string }) {
+  const n = branchNumber(a.pr);
+  const gh = await writer(ctx, 'Taking a branch back to draft', RIGHTS.draft);
+  const [pr, viewer] = await Promise.all([gh.getPullRequest(n), gh.getViewer()]);
+  if (pr.author.toLowerCase() !== viewer.login.toLowerCase()) throw new Error(`Only its author (@${pr.author}) takes #${n} back to draft, as in Studio.`);
+  if (isActiveExploration(pr.labels)) throw new Error(`#${n} is an exploration: it is a draft until promoted.`);
+  await gh.convertToDraft(n);
+  return { pr: n, status: 'draft' as const, said: 'Back to draft. Reviewers are not asked until you send it for review again.' };
+}
+
+/** Approve, request changes or comment as a review, on the head the reviewer saw (Studio review box). */
+export async function reviewBranch(ctx: BridgeContext, a: { pr: number | string; decision: 'approve' | 'request_changes' | 'comment'; body?: string | undefined }) {
+  const n = branchNumber(a.pr);
+  const gh = await writer(ctx, 'Reviewing a branch', RIGHTS.review);
+  const pr = await gh.getPullRequest(n);
+  const event = ({ approve: 'APPROVE', request_changes: 'REQUEST_CHANGES', comment: 'COMMENT' } as const)[a.decision] as ReviewEvent;
+  const r = await reviewOnGitHub(gh, { number: n, event, body: a.body, headSha: pr.headSha });
+  const said = { APPROVE: 'Approved.', REQUEST_CHANGES: 'Changes requested.', COMMENT: 'Comment posted.' }[event];
+  return { pr: n, decision: a.decision, id: r.id, said, note: event === 'APPROVE' ? 'Recorded under your GitHub account, on the version you saw.' : undefined };
+}
+
+/**
+ * "Ask someone else to review" (the review queue): asks the other people who can give the missing approvals, and
+ * takes the viewer off the requested reviewers. Studio's rule (core reviewersToAsk): never the viewer or the author.
+ */
+export async function askSomeoneElse(ctx: BridgeContext, a: { pr: number | string; dryRun?: boolean | undefined }) {
+  const n = branchNumber(a.pr);
+  const gh = a.dryRun ? await reader(ctx) : await writer(ctx, 'Asking someone else to review', RIGHTS.review);
+  const viewer = await viewerOf(ctx, gh);
+  const f = await branchFacts(ctx, gh, n, viewer);
+  if (f.lifecycle !== 'open') throw new Error(`#${n} is ${f.lifecycle === 'draft' ? 'a draft: send it for review first' : f.lifecycle}, so there is no review to ask for.`);
+  const { lists } = await people(gh, f.config);
+  const others = reviewersToAsk({ tier: f.tier, approvals: f.approvals, owners: lists, author: f.pr.author, viewer });
+  if (!others.length) throw new Error('Nobody else can give the missing approval. Review it, or ask an owner in Settings to add a reviewer.');
+  if (a.dryRun) return { pr: n, status: 'would-ask' as const, asks: others.map((l) => `@${l}`), said: `Would ask ${others.map((l) => `@${l}`).join(', ')} to review.` };
+  await askOthersToReviewOnGitHub(gh, { number: n, others, viewer, viewerRequested: Boolean(viewer && f.pr.requestedReviewers.some((r) => r.toLowerCase() === viewer.toLowerCase())) });
+  return { pr: n, status: 'asked' as const, asked: others.map((l) => `@${l}`), said: `Asked ${others.map((l) => `@${l}`).join(', ')} to review.` };
+}
+
+/** A comment on the branch, or a reply in the thread of a line comment. */
+export async function commentOnBranch(ctx: BridgeContext, a: { pr: number | string; body: string; replyTo?: number | undefined }) {
+  const n = branchNumber(a.pr);
+  const text = a.body.trim();
+  if (!text) throw new Error('Write the comment first.');
+  const gh = await writer(ctx, 'Commenting on a branch', RIGHTS.comment);
+  if (a.replyTo) {
+    const r = await gh.replyToReviewComment(n, a.replyTo, text);
+    return { pr: n, replied: a.replyTo, url: r.url, said: 'Reply posted in the thread.' };
+  }
+  const r = await commentOnGitHub(gh, n, text);
+  return { pr: n, url: r.url, said: 'Comment posted.' };
+}
+
+/** The comments of a branch: the conversation and the line threads (ids to reply to). */
+export async function listComments(ctx: BridgeContext, a: { pr: number | string }) {
+  const n = branchNumber(a.pr);
+  const gh = await reader(ctx);
+  const [conversation, lines] = await Promise.all([gh.listIssueComments(n), gh.listReviewComments(n).catch(() => [])]);
+  return {
+    pr: n,
+    conversation: conversation.filter((c) => !c.body.includes('<!-- bridge-branch-preview -->')).map((c) => ({ id: c.id, author: c.author, body: c.body, at: c.updatedAt })),
+    threads: lines.filter((c) => !c.inReplyTo).map((c) => ({ id: c.id, author: c.author, file: c.path, line: c.line, body: c.body, url: c.url, replies: lines.filter((r) => r.inReplyTo === c.id).map((r) => ({ id: r.id, author: r.author, body: r.body })) })),
+    howToReply: 'bridge_comment with replyTo: the thread id.',
+  };
+}
+
+/**
+ * Merge, through the same gate as Studio's Merge button (tests, approvals for the tier, who may ship, conflicts,
+ * drafts and explorations). With `overrideReason`, the owner override: only missing approvals are skipped, the reason is
+ * posted on the branch first, and only people in governance.override.allowed may use it.
+ */
+export async function mergeBranch(ctx: BridgeContext, a: { pr: number | string; overrideReason?: string | undefined; dryRun?: boolean | undefined }) {
+  const n = branchNumber(a.pr);
+  const gh = await writer(ctx, 'Merging a branch', RIGHTS.merge);
+  const viewer = (await gh.getViewer()).login;
+  const f = await branchFacts(ctx, gh, n, viewer);
+  const policy = f.config.governance.override ?? DEFAULT_OVERRIDE;
+  const reason = a.overrideReason?.trim();
+  if (f.write === false) throw new Error(`@${viewer} cannot write to ${gh.fullName}, so GitHub refuses the merge. Ask someone with write access.`);
+  if (f.gate.allowed) {
+    if (a.dryRun) return { pr: n, status: 'would-merge' as const, said: 'Every rule passes: it can be merged.' };
+    const r = await mergeOnGitHub(gh, { number: n, headSha: f.pr.headSha, method: 'squash' });
+    return { pr: n, status: 'merged' as const, sha: r.sha, said: 'Merged. It goes out with the next library release.' };
+  }
+  if (!reason) {
+    const hint = f.gate.overridable ? ` Only approvals are missing and @${viewer} may use the owner override: pass overrideReason (at least ${policy.minReasonLength} characters), it is posted on the branch.` : '';
+    throw new Error(`#${n} cannot be merged yet: ${f.gate.reasons.join(' ')}${hint}`);
+  }
+  if (!canOverride(viewer, policy)) throw new Error(`@${viewer} is not allowed to use the owner override (governance.override.allowed in bridge.config.json). It still needs: ${f.gate.missing.join(', ') || f.gate.reasons.join(' ')}`);
+  if (!f.gate.overridable) throw new Error(`The owner override only skips missing approvals. #${n} is blocked by: ${f.gate.reasons.join(' ')}`);
+  const problem = overrideReasonProblem(reason, policy);
+  if (problem) throw new Error(problem);
+  if (a.dryRun) return { pr: n, status: 'would-override' as const, skips: f.gate.missing, said: 'The override would post your reason on the branch, then merge.' };
+  const method = allowedMergeMethods(f.repo)[0] ?? 'squash';
+  try {
+    const r = await overrideMergeOnGitHub(gh, { number: n, headSha: f.pr.headSha, login: viewer, reason, missing: f.gate.missing, method });
+    return { pr: n, status: 'merged' as const, override: true, sha: r.sha, reasonUrl: r.commentUrl, said: `Merged as owner override. The reason is on #${n}.` };
+  } catch (err) {
+    if (err instanceof OverrideMergeError) throw new Error(err.message);
+    throw err;
+  }
+}
+
+/** Close without merging (Studio More menu). The work stays on GitHub and the branch can be reopened. */
+export async function closeBranch(ctx: BridgeContext, a: { pr: number | string }) {
+  const n = branchNumber(a.pr);
+  const gh = await writer(ctx, 'Closing a branch', RIGHTS.review);
+  const pr = await gh.getPullRequest(n);
+  if (isActiveExploration(pr.labels)) throw new Error(`#${n} is an exploration: close it with bridge_close_exploration.`);
+  if (pr.state !== 'open') return { pr: n, status: pr.state, said: `It is already ${pr.state}.` };
+  await closeOnGitHub(gh, n);
+  return { pr: n, status: 'closed' as const, said: 'Closed. It can be reopened while its work is still there.' };
+}
+
+/** Reopen a closed branch: its author or an owner, with write access, while its work is still there (Studio rule). */
+export async function reopenBranch(ctx: BridgeContext, a: { pr: number | string }) {
+  const n = branchNumber(a.pr);
+  const gh = await writer(ctx, 'Reopening a branch', RIGHTS.review);
+  const { config } = await ctx.config();
+  const [pr, viewer, repo] = await Promise.all([gh.getPullRequest(n), gh.getViewer(), gh.getMergeSettings().catch(() => null)]);
+  if (pr.state === 'merged') throw new Error(`#${n} is merged: it cannot be reopened. Undo it with bridge_plan_revert and bridge_propose_revert.`);
+  const exists = await gh.getBranchSha(pr.headRef).then((s) => (s ? 'exists' : 'gone'), () => 'unknown' as const);
+  const owners = [...config.governance.owners.design, ...config.governance.owners.tech];
+  const ok = reopenEligibility({ state: pr.state === 'closed' ? 'closed' : 'open', viewer: viewer.login, author: pr.author, owners, canWrite: hasWriteAccess(repo?.permissions), branch: exists as 'exists' | 'gone' | 'unknown' });
+  if (pr.state === 'open') return { pr: n, status: 'open' as const, said: 'It is already open.' };
+  if (ok.kind === 'gone') throw new Error(`#${n} can't be reopened: its work was removed. Start a new branch with its token edits (bridge_propose_token_change).`);
+  if (ok.kind !== 'reopen') throw new Error(`Only its author (@${pr.author}) or an owner with write access reopens #${n}, as in Studio.`);
+  await reopenOnGitHub(gh, n);
+  return { pr: n, status: 'open' as const, said: 'Reopened. It is back in review with its earlier approvals and checks.' };
+}
+
+/**
+ * Update from main: when nothing conflicts, GitHub's update-branch. When only token files conflict, the conflicts to
+ * pick ("mine": keep the branch's value, "theirs": use main's) and, once every one is picked, a merge commit with those
+ * choices. Code conflicts stay with a developer on GitHub, as in Studio.
+ */
+export async function updateFromMain(ctx: BridgeContext, a: { pr: number | string; choices?: MergeChoices | undefined; dryRun?: boolean | undefined }) {
+  const n = branchNumber(a.pr);
+  const gh = a.dryRun ? await reader(ctx) : await writer(ctx, 'Updating a branch from main', RIGHTS.update);
+  const { config } = await ctx.config();
+  const pr = await gh.getPullRequest(n);
+  if (pr.state !== 'open') throw new Error(`#${n} is ${pr.state}: only an open branch is updated from main.`);
+  const compare = await gh.compareDetailed(pr.baseRef, pr.headSha);
+  const fresh = freshness({ compare: { behind_by: compare.behindBy, merge_base_commit: compare.mergeBase ? { sha: compare.mergeBase } : null }, mergeable: pr.mergeable, open: true });
+  if (fresh.state === 'current') return { pr: n, status: 'up-to-date' as const, said: `It already has the latest ${pr.baseRef}.` };
+  if (fresh.state === 'behind') {
+    if (a.dryRun) return { pr: n, status: 'would-update' as const, behindBy: fresh.behindBy, said: `${pr.baseRef} has ${fresh.behindBy} new update${fresh.behindBy === 1 ? '' : 's'}; nothing conflicts.` };
+    await gh.updatePullRequestBranch(n, pr.headSha);
+    return { pr: n, status: 'updated' as const, said: `Updated from ${pr.baseRef}. Checks run again; approvals may need renewing.` };
+  }
+  if (fresh.state === 'unknown') throw new Error(`GitHub has not said yet whether #${n} merges cleanly. Try again in a minute.`);
+  const data = await readLibraryConflicts(gh, compare, pr.headSha, { tokensRoot: config.tokens.root });
+  if (data.route.kind === 'code' || !data.tokens) {
+    throw new Error(`#${n} conflicts with ${pr.baseRef} in code${data.route.files.length ? ` (${data.route.files.slice(0, 5).join(', ')})` : ''}. A developer resolves that on GitHub: ${pr.url}`);
+  }
+  const conflicts = data.tokens.plan.conflicts.map((c) => ({ key: c.key, token: c.path, file: c.file, mine: c.mine ?? null, theirs: c.theirs ?? null, default: c.defaultChoice }));
+  const choices = a.choices ?? {};
+  const missing = missingChoices(data.tokens.plan, choices);
+  if (a.dryRun || missing.length) {
+    return {
+      pr: n,
+      status: 'token-conflicts' as const,
+      conflicts,
+      missing: missing.map((c) => c.key),
+      said: missing.length ? `${missing.length} token${missing.length === 1 ? '' : 's'} changed here and on ${pr.baseRef} without a default: pick "mine" or "theirs" for each key in choices.` : `${conflicts.length} token conflict${conflicts.length === 1 ? '' : 's'}; pass choices ("mine" keeps this branch, "theirs" uses ${pr.baseRef}) or run without dryRun to keep the defaults.`,
+    };
+  }
+  const viewer = await gh.getViewer().then((v) => v.login, () => null);
+  const sha = await commitLibraryResolution(gh, { head: { ref: pr.headRef, sha: pr.headSha }, base: { ref: pr.baseRef } }, data, choices, viewer);
+  return { pr: n, status: 'resolved' as const, commit: sha, said: `Brought in the latest ${pr.baseRef} with your token choices. Checks run again.` };
+}
+
+/** Who may add edits to a branch, and its head, for bridge_propose_token_change with `pr` (Studio "Edit tokens in this branch"). */
+export async function addableBranch(ctx: BridgeContext, n: number) {
+  const gh = await writer(ctx, 'Adding edits to a branch', RIGHTS.update);
+  const [pr, viewer, repo] = await Promise.all([gh.getPullRequest(n), gh.getViewer(), gh.getMergeSettings().catch(() => null)]);
+  if (pr.state !== 'open') throw new Error(`#${n} is ${pr.state}: only an open branch takes more edits. Start a new one instead.`);
+  if (isActiveExploration(pr.labels)) throw new Error(`#${n} is an exploration: pass branch "${pr.headRef}" instead of pr.`);
+  if (!canAddTo({ user: { login: pr.author } }, viewer.login, hasWriteAccess(repo?.permissions))) throw new Error(`Only its author (@${pr.author}) or someone with write access adds edits to #${n}.`);
+  return { gh, pr, viewer: viewer.login, comment: (paths: string[]) => addedComment(paths, viewer.login, 'Claude through the Bridge MCP server') };
+}

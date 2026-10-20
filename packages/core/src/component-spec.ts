@@ -639,3 +639,12 @@ export function parseComponentSpecs(text: string): ComponentSpecsFile {
 
 /** CSS custom property of a token path, with the repo convention (`cssVar` in bridge.config.json): "--" + path joined by "-". */
 export const tokenCssVar = (path: string, prefix = '--', separator = '-') => `${prefix}${path.split('.').join(separator)}`;
+
+/** How a component stands in Figma, in Studio's words (the "In Figma" column): a short word and, for the ones not in Figma, the reason as a tooltip. Undefined: no data. */
+export function figmaCell(entry: SpecCoverage | undefined): { label: string; title?: string } | undefined {
+  if (!entry) return undefined;
+  if (entry.status === 'generated') return { label: 'Yes' };
+  if (entry.status === 'drafted') return { label: 'Drafted', title: 'Drafted with Claude where the code cannot be read on its own: in Figma, check it against the code.' };
+  if (entry.status === 'layout') return { label: 'Auto layout', title: 'A layout helper: nothing to draw, use auto layout in Figma.' };
+  return { label: 'Not yet', ...(entry.reason ? { title: `Not supported yet: ${entry.reason}` } : {}) };
+}

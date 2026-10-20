@@ -1,7 +1,7 @@
 // Branches (/studio/changes/): all the work, not a second triage page (triage lives on Home and the review queue).
 //   - One DS SegmentedControl: Mine, Waiting on me, All (All by default, lib/branches-page whoFilterParam; ?who=).
 //   - The open branches, explorations included (status pill "Exploration"), grouped by the product they belong to
-//     (lib/branches-page productOf), each group a heading with its count. Rows are the home row (BranchRow).
+//     (lib/branches-page productOf, bridge.config.json products), each group a heading with its count. Rows are the home row (BranchRow).
 //   - Token branches carry a checkbox to preview them together; the floating bar (CombineChanges SelectionBar) acts.
 //   - Merged and closed branches stay behind one muted line at the end: "12 merged this month. Show merged" (?status=).
 // Mounted and repainted by scripts/reviews.ts (loadList), which reads GitHub; this file only enriches what is shown
@@ -19,6 +19,7 @@ import type { ThumbSpec } from '../../../lib/branch-thumb';
 import type { FileSignals } from '../../../lib/work-nature';
 import type { Lifecycle } from '../../../lib/change-status';
 import { VOCAB } from '../../../lib/vocabulary';
+import type { ProductConfig } from '@bridge-ds/core';
 
 export interface ListRow {
   number: number;
@@ -40,6 +41,8 @@ export interface ListRow {
   head: { ref: string; sha: string };
   base: { ref: string; sha: string } | null;
   merged_at?: string | null;
+  /** Pull request labels: a `product: <key>` label puts the branch in that product's group. */
+  labels?: { name: string }[] | null;
 }
 
 export interface BranchesListProps {
@@ -54,6 +57,8 @@ export interface BranchesListProps {
   connected: boolean;
   admin: string | null;
   tokensRoot: string;
+  /** bridge.config.json products, in group order (lib/config). Absent: the default products. */
+  products?: ProductConfig[];
   /** ?tier= keeps working: the one kind of change shown, in words, or null. */
   tierLabel: string | null;
   failure: (err: unknown) => string;
@@ -118,9 +123,9 @@ export function BranchesList(p: BranchesListProps) {
   const shown = all.filter((r) => showsForWho(who, { author: r.author, yourTurn: r.yourTurn }, p.viewer) && (!finished.only || r.lifecycle === finished.only));
   const rows = shown.map((r) => {
     const e = extras.get(r.number);
-    return { r, e, product: productOf(e?.files ?? null), tokenOnly: tokenOnly(r, e, p.tokensRoot) };
+    return { r, e, product: productOf(e?.files ?? null, p.products, r.labels), tokenOnly: tokenOnly(r, e, p.tokensRoot) };
   });
-  const groups = groupByProduct(rows);
+  const groups = groupByProduct(rows, p.products);
 
   // Checked branches stay only while they are listed and still checkable.
   const checkable = rows.filter((x) => selectable(x));

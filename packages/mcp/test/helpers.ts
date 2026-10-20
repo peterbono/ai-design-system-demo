@@ -98,6 +98,41 @@ export function fakeGitHub(owner: string, repo: string, initial: Record<string, 
   const statuses = new Map<string, { context: string; state: string; target_url?: string }[]>();
   const issueAt = (k: number) => issues.find((i) => i.number === k);
   const log: { method: string; path: string; body?: any }[] = [];
+  // Who the token belongs to (GET /user); reviews are posted as them.
+  const viewer = { login: 'owner' };
+  // Comment ids, so a comment can be edited (PATCH /issues/comments/:id); line comments of pull requests.
+  const commentIds = new Map<number, { issue: number; index: number }>();
+  let commentSeq = 0;
+  const lineComments = new Map<number, { id: number; body: string; user: { login: string }; path: string; line: number; in_reply_to_id?: number; html_url: string; created_at: string }[]>();
+  /** Every commit reachable from `sha`, nearest first. */
+  const ancestors = (sha: string): string[] => {
+    const out: string[] = [];
+    const queue = [sha];
+    while (queue.length) {
+      const c = queue.shift()!;
+      if (out.includes(c)) continue;
+      out.push(c);
+      queue.push(...(commits.get(c)?.parents ?? []));
+    }
+    return out;
+  };
+  const mergeBaseOf = (a: string, b: string) => {
+    const of = new Set(ancestors(a));
+    return ancestors(b).find((c) => of.has(c)) ?? root;
+  };
+  const changed = (from: string, to: string) => {
+    const x = commits.get(from)!.files;
+    const y = commits.get(to)!.files;
+    return [...new Set([...x.keys(), ...y.keys()])].filter((p) => x.get(p) !== y.get(p)).sort();
+  };
+  /** Whether a pull request merges cleanly: no file changed on both sides since they parted. */
+  const mergeableOf = (pr: Record<string, any>) => {
+    const head = refs.get(pr.head.ref) ?? pr.head.sha;
+    const base = refs.get(pr.base.ref)!;
+    const mb = mergeBaseOf(base, head);
+    const mine = new Set(changed(mb, head));
+    return !changed(mb, base).some((p) => mine.has(p) && commits.get(head)!.files.get(p) !== commits.get(base)!.files.get(p));
+  };
 
   const resolveRef = (ref: string) => refs.get(ref) ?? (commits.has(ref) ? ref : undefined);
   const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
@@ -126,6 +161,10 @@ export function fakeGitHub(owner: string, repo: string, initial: Record<string, 
       pr.draft = false;
       return json(200, { data: { markPullRequestReadyForReview: { pullRequest: { number: pr.number, isDraft: false } } } });
     }
+    if (url === 'https://api.github.com/user') {
+      log.push({ method, path: 'user' });
+      return headers.authorization ? json(200, { login: viewer.login }) : json(401, { message: 'Requires authentication' });
+    }
     if (!url.startsWith(api)) return json(404, { message: `unexpected ${url}` });
     const u = new URL(url);
     const path = u.pathname.slice(`/repos/${owner}/${repo}`.length);
@@ -133,17 +172,27 @@ export function fakeGitHub(owner: string, repo: string, initial: Record<string, 
     const authed = Boolean(headers.authorization);
     if (method !== 'GET' && !authed) return json(401, { message: 'Requires authentication' });
     let m: RegExpExecArray | null;
-    if (method === 'GET' && path === '') return json(200, { default_branch: 'main' });
+    if (method === 'GET' && path === '') return json(200, { default_branch: 'main', allow_squash_merge: true, allow_merge_commit: true, allow_rebase_merge: true, permissions: authed ? { admin: true, push: true } : undefined });
     if (method === 'GET' && (m = /^\/git\/trees\/(.+)$/.exec(path))) {
       const sha = resolveRef(decodeURIComponent(m[1]!));
       if (!sha) return json(404, {});
-      return json(200, { tree: [...commits.get(sha)!.files.keys()].map((p) => ({ path: p, type: 'blob' })), truncated: false });
+      return json(200, { tree: [...commits.get(sha)!.files.keys()].map((p) => ({ path: p, type: 'blob', mode: '100644', sha: `blob:${sha}:${p}` })), truncated: false });
     }
     if (method === 'GET' && (m = /^\/contents\/(.+)$/.exec(path))) {
       const sha = resolveRef(u.searchParams.get('ref') ?? 'main');
       const c = sha ? commits.get(sha)!.files.get(decodeURIComponent(m[1]!)) : undefined;
       if (c === undefined) return json(404, {});
       return headers.accept?.includes('raw') ? new Response(c, { status: 200 }) : json(200, { type: 'file', encoding: 'base64', content: Buffer.from(c).toString('base64') });
+    }
+    if (method === 'PUT' && (m = /^\/contents\/(.+)$/.exec(path))) {
+      const head = refs.get(body.branch);
+      if (!head) return json(404, { message: 'Branch not found' });
+      const files = new Map(commits.get(head)!.files);
+      files.set(decodeURIComponent(m[1]!), Buffer.from(body.content, 'base64').toString('utf8'));
+      const c = id();
+      commits.set(c, { files, parents: [head] });
+      refs.set(body.branch, c);
+      return json(200, { commit: { sha: c } });
     }
     if (method === 'GET' && (m = /^\/git\/ref\/heads\/(.+)$/.exec(path))) {
       const sha = refs.get(decodeURIComponent(m[1]!));
@@ -154,7 +203,10 @@ export function fakeGitHub(owner: string, repo: string, initial: Record<string, 
       const base = new Map(commits.get(body.base_tree)?.files ?? trees.get(body.base_tree) ?? []);
       for (const e of body.tree) {
         if (e.sha === null) base.delete(e.path);
-        else base.set(e.path, e.content);
+        else if (typeof e.sha === 'string' && e.sha.startsWith('blob:')) {
+          const [, c, ...rest] = e.sha.split(':');
+          base.set(e.path, commits.get(c!)!.files.get(rest.join(':'))!);
+        } else base.set(e.path, e.content);
       }
       const t = id();
       trees.set(t, base);
@@ -192,7 +244,77 @@ export function fakeGitHub(owner: string, repo: string, initial: Record<string, 
     if ((m = /^\/pulls\/(\d+)$/.exec(path)) && (method === 'GET' || method === 'PATCH')) {
       const pr = pulls[Number(m[1]) - 1];
       if (pr && method === 'PATCH') Object.assign(pr, body);
+      if (pr && pr.state === 'open' && refs.has(pr.head.ref)) {
+        pr.head.sha = refs.get(pr.head.ref);
+        pr.mergeable = mergeableOf(pr);
+      }
       return pr ? json(200, pr) : json(404, {});
+    }
+    if (method === 'PUT' && (m = /^\/pulls\/(\d+)\/merge$/.exec(path))) {
+      const pr = pulls[Number(m[1]) - 1];
+      if (!pr || pr.state !== 'open') return json(405, { message: 'Pull Request is not mergeable' });
+      if (body.sha && body.sha !== refs.get(pr.head.ref)) return json(409, { message: 'Head branch was modified. Review and try the merge again.' });
+      const c = id();
+      commits.set(c, { files: new Map(commits.get(refs.get(pr.head.ref)!)!.files), parents: [refs.get(pr.base.ref)!] });
+      refs.set(pr.base.ref, c);
+      Object.assign(pr, { state: 'closed', merged: true, merged_at: '2026-10-20T00:00:00Z', merge_method: body.merge_method, commit_message: body.commit_message });
+      return json(200, { sha: c, merged: true, message: 'Pull Request successfully merged' });
+    }
+    if (method === 'PUT' && (m = /^\/pulls\/(\d+)\/update-branch$/.exec(path))) {
+      const pr = pulls[Number(m[1]) - 1]!;
+      const head = refs.get(pr.head.ref)!;
+      if (body.expected_head_sha && body.expected_head_sha !== head) return json(422, { message: 'expected_head_sha does not match' });
+      if (!mergeableOf(pr)) return json(422, { message: 'merge conflict between base and head' });
+      const base = refs.get(pr.base.ref)!;
+      const mb = mergeBaseOf(base, head);
+      const files = new Map(commits.get(base)!.files);
+      for (const p of changed(mb, head)) {
+        const v = commits.get(head)!.files.get(p);
+        if (v === undefined) files.delete(p);
+        else files.set(p, v);
+      }
+      const c = id();
+      commits.set(c, { files, parents: [head, base] });
+      refs.set(pr.head.ref, c);
+      return json(202, { message: 'Updating pull request branch.' });
+    }
+    if (method === 'GET' && (m = /^\/compare\/(.+)\.\.\.(.+)$/.exec(path))) {
+      const base = resolveRef(decodeURIComponent(m[1]!));
+      const head = resolveRef(decodeURIComponent(m[2]!));
+      if (!base || !head) return json(404, { message: 'Not Found' });
+      const mb = mergeBaseOf(base, head);
+      const fromHead = new Set(ancestors(head));
+      const fromBase = new Set(ancestors(base));
+      const files = changed(mb, head).map((filename) => ({ filename, status: commits.get(mb)!.files.has(filename) ? (commits.get(head)!.files.has(filename) ? 'modified' : 'removed') : 'added' }));
+      return json(200, {
+        ahead_by: [...fromHead].filter((c) => !fromBase.has(c)).length,
+        behind_by: [...fromBase].filter((c) => !fromHead.has(c)).length,
+        merge_base_commit: { sha: mb },
+        base_commit: { sha: base, commit: { tree: { sha: base } } },
+        files,
+      });
+    }
+    if ((method === 'POST' || method === 'DELETE') && (m = /^\/pulls\/(\d+)\/requested_reviewers$/.exec(path))) {
+      const pr = pulls[Number(m[1]) - 1]!;
+      const now: { login: string }[] = pr.requested_reviewers ?? [];
+      pr.requested_reviewers = method === 'POST' ? [...now, ...body.reviewers.filter((l: string) => !now.some((x) => x.login === l)).map((login: string) => ({ login }))] : now.filter((x) => !body.reviewers.includes(x.login));
+      return json(method === 'POST' ? 201 : 200, pr);
+    }
+    if (method === 'GET' && (m = /^\/pulls\/(\d+)\/comments$/.exec(path))) return json(200, lineComments.get(Number(m[1])) ?? []);
+    if (method === 'POST' && (m = /^\/pulls\/(\d+)\/comments\/(\d+)\/replies$/.exec(path))) {
+      const k = Number(m[1]);
+      const list = lineComments.get(k) ?? [];
+      const parent = list.find((c) => c.id === Number(m![2]));
+      if (!parent) return json(404, { message: 'Not Found' });
+      const c = { id: 5000 + ++commentSeq, body: body.body, user: { login: viewer.login }, path: parent.path, line: parent.line, in_reply_to_id: parent.id, html_url: `https://github.com/${owner}/${repo}/pull/${k}#discussion_r${commentSeq}`, created_at: '2026-10-20T00:00:00Z' };
+      lineComments.set(k, [...list, c]);
+      return json(201, c);
+    }
+    if (method === 'PATCH' && (m = /^\/issues\/comments\/(\d+)$/.exec(path))) {
+      const at = commentIds.get(Number(m[1]));
+      if (!at) return json(404, { message: 'Not Found' });
+      comments.get(at.issue)![at.index] = body.body;
+      return json(200, { id: Number(m[1]), body: body.body });
     }
     if ((m = /^\/pulls\/(\d+)\/files$/.exec(path))) {
       const pr = pulls[Number(m[1]) - 1]!;
@@ -206,7 +328,7 @@ export function fakeGitHub(owner: string, repo: string, initial: Record<string, 
     if ((m = /^\/pulls\/(\d+)\/reviews$/.exec(path))) {
       const k = Number(m[1]);
       if (method === 'GET') return json(200, reviews.get(k) ?? []);
-      const r = { id: 900 + (reviews.get(k)?.length ?? 0), user: { login: 'owner' }, state: body.event === 'APPROVE' ? 'APPROVED' : body.event === 'REQUEST_CHANGES' ? 'CHANGES_REQUESTED' : 'COMMENTED', body: body.body, submitted_at: '2026-10-16T00:00:00Z' };
+      const r = { id: 900 + (reviews.get(k)?.length ?? 0), user: { login: viewer.login }, commit_id: body.commit_id, state: body.event === 'APPROVE' ? 'APPROVED' : body.event === 'REQUEST_CHANGES' ? 'CHANGES_REQUESTED' : 'COMMENTED', body: body.body, submitted_at: '2026-10-16T00:00:00Z' };
       reviews.set(k, [...(reviews.get(k) ?? []), r]);
       return json(200, r);
     }
@@ -234,7 +356,9 @@ export function fakeGitHub(owner: string, repo: string, initial: Record<string, 
     if (method === 'POST' && (m = /^\/issues\/(\d+)\/comments$/.exec(path))) {
       const k = Number(m[1]);
       comments.set(k, [...(comments.get(k) ?? []), body.body]);
-      return json(201, { id: 1, body: body.body });
+      const cid = 7000 + ++commentSeq;
+      commentIds.set(cid, { issue: k, index: comments.get(k)!.length - 1 });
+      return json(201, { id: cid, body: body.body, html_url: `https://github.com/${owner}/${repo}/pull/${k}#issuecomment-${cid}` });
     }
     if ((m = /^\/issues\/(\d+)\/labels$/.exec(path)) && method === 'POST' && issueAt(Number(m[1]))) {
       const issue = issueAt(Number(m[1]))!;
@@ -256,5 +380,5 @@ export function fakeGitHub(owner: string, repo: string, initial: Record<string, 
     }
     return json(404, { message: `fake GitHub: no route ${method} ${path}` });
   };
-  return { fetch: f as typeof fetch, refs, commits, pulls, reviews, issues, comments, statuses, log, fileAt: (ref: string, p: string) => commits.get(resolveRef(ref)!)?.files.get(p) };
+  return { fetch: f as typeof fetch, refs, commits, pulls, reviews, issues, comments, statuses, log, viewer, lineComments, id, fileAt: (ref: string, p: string) => commits.get(resolveRef(ref)!)?.files.get(p) };
 }
