@@ -104,7 +104,7 @@ describe('needed by', () => {
     assert.equal(nearestQuestion(n, { names: { ann: 'Ann' } }), 'It looks a lot like "danger". Is a new one worth it, or should Ann use danger?');
     assert.equal(nearestQuestion({ ...n, nearest: undefined }), null);
     assert.match(suggestNearestComment(n)!, /^Let's not add it to the library: danger \(`color.feedback.danger.bg`\) covers it\. Use it on Billing screen with overdue invoices \(#12\) instead/);
-    assert.ok(!/—/.test(suggestNearestComment(n)!));
+    assert.ok(!/\u2014/.test(suggestNearestComment(n)!));
   });
 });
 
@@ -194,7 +194,7 @@ describe('libraryPreviewState', () => {
 
   test('no em dash in any sentence', () => {
     const all = [libraryPreviewState(base), libraryPreviewState({ ...base, missing: 1 }), libraryPreviewState({ ...base, lifecycle: 'merged', behindMain: 2 }), libraryPreviewState({ ...base, kind: 'request' })];
-    assert.ok(all.every((s) => !s.sentence.includes('—')));
+    assert.ok(all.every((s) => !s.sentence.includes('\u2014')));
   });
 });
 
