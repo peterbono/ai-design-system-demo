@@ -2,8 +2,7 @@
 //   - The Harbor zone: the greeting, who waits on the viewer and for how long, the Needs you rows (one row component,
 //     the whole row is the link), the grouped row with the one primary action "Review all", and a tertiary hint.
 //   - One muted health line under the zone.
-//   - Your branches: open branches as cards, a status filter, "Create branch" as the last card, and one muted line
-//     for what was published this week.
+//   - Your branches: open branches as cards, a status filter, "Create branch" as the first card.
 //   - Nothing at all: three ways to start, each with its drawing.
 // NeedList is shared with the review queue (pages/studio/review.astro), so a row reads the same in both places.
 import { createRoot, type Root } from 'react-dom/client';
@@ -34,7 +33,6 @@ import {
   type HomeState,
   type NeedRow,
   type Person,
-  type Published,
 } from '../../../lib/home-model';
 import { VOCAB } from '../../../lib/vocabulary';
 
@@ -192,19 +190,20 @@ export interface HomeComponent {
   family?: string;
 }
 
-function Branches({ branches, published, now, components }: { branches: BranchCard[]; published: Published[]; now: number; components: HomeComponent[] }) {
+function Branches({ branches, now, components }: { branches: BranchCard[]; now: number; components: HomeComponent[] }) {
   const [filter, setFilter] = useState<BranchFilter>('all');
   const shown = sortBranches(branches).filter((b) => showsBranch(filter, b.stage));
-  const latest = published[0];
   return (
     <section className="sh-section" aria-labelledby="sh-branches">
       <header className="sh-section-head">
-        <h2 id="sh-branches" className="sh-h2">
-          Your {VOCAB.branches}
-        </h2>
+        <div className="sh-section-title">
+          <h2 id="sh-branches" className="sh-h2">
+            Your {VOCAB.branches}
+          </h2>
+          <p className="t-body t-muted sh-section-sub">Your changes, kept apart from the library until they're merged.</p>
+        </div>
         {branches.length >= 4 && <SegmentedControl label={`Show ${VOCAB.branches}`} size="sm" value={filter} onValueChange={(v) => setFilter(v as BranchFilter)} items={BRANCH_FILTERS} />}
       </header>
-      <div className="sh-pick" data-pick-slot hidden />
       <ul className="sh-cards">
         {/* Create first, like "+ New" in Figma's file browser: the slot never moves as branches come and go. */}
         <li className="sh-card-item sh-create">
@@ -214,12 +213,6 @@ function Branches({ branches, published, now, components }: { branches: BranchCa
           <BranchCardItem key={b.number} b={b} now={now} />
         ))}
       </ul>
-      {latest && (
-        <p className="t-ui t-muted sh-published">
-          Published this week: <b className="sh-strong">{latest.title}</b> in <code className="sh-mono">{latest.release}</code>.{' '}
-          <Link href="/changelog/">See what shipped</Link>
-        </p>
-      )}
     </section>
   );
 }
@@ -273,7 +266,6 @@ export interface StudioHomeProps {
   greeting: string;
   needs: NeedRow[];
   branches: BranchCard[];
-  published: Published[];
   health: HealthLine | null;
   now: number;
   components: HomeComponent[];
@@ -355,7 +347,7 @@ export function StudioHome(p: StudioHomeProps) {
       </section>
       {p.failed && <p className="t-ui t-muted sh-health">{p.failed}</p>}
       {p.health && <Health h={p.health} />}
-      {(p.branches.length > 0 || !loading) && <Branches branches={p.branches} published={p.published} now={p.now} components={p.components} />}
+      {(p.branches.length > 0 || !loading) && <Branches branches={p.branches} now={p.now} components={p.components} />}
     </div>
   );
 }

@@ -247,7 +247,10 @@ preview link pattern, the framework). Without the key, Bridge uses this reposito
 else to the product whose folder it changes, else to the default product: Studio's Branches page groups by the
 same rule.
 
-- **In Studio:** step 2 of Create branch asks which product the change is for.
+- **In Studio:** Create branch asks first what you work on. "A feature in a product" asks in which product
+  (step 2; preselected when there is only one, or from the page's `?product=`), starts an exploration with its
+  `product: <key>` label, and gives you the sentence to say to Claude. "A change to the library" keeps the default
+  product.
 - **In the terminal:** `--product <key>` on `bridge propose`, `bridge explore start`, `bridge request create` and
   `bridge docs save`. Without it, the product of the folder you run it in (a product folder of this repository,
   or a product repository named in `products`), else the default. `bridge products` lists them and marks yours.

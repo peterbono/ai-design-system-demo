@@ -36,6 +36,8 @@ export interface ExplorationSettings {
   apps: PreviewApps;
   /** Requests the exploration answers, listed in its draft pull request body. */
   requests?: { number: number; title: string }[] | undefined;
+  /** More labels for the draft pull request, such as the product ones (productMarks). */
+  labels?: string[] | undefined;
 }
 
 export interface ExplorationSummary {
@@ -125,7 +127,7 @@ export async function startExplorationOnGitHub(gh: GitHubClient, e: Exploration,
   const ctx = { owner: gh.owner, repo: gh.name, packages: s.packages, apps: s.apps, ...(s.requests?.length ? { requests: s.requests } : {}) };
   const title = full.jira ? `${full.jira.trim().toUpperCase()} ${explorationPrTitle(full)}` : explorationPrTitle(full);
   const pr = await x.createPullRequest({ title, head: branch, base: s.base, body: explorationPrBody(full, ctx), draft: true });
-  await x.addLabels(pr.number, [EXPLORATION_LABEL]);
+  await x.addLabels(pr.number, [EXPLORATION_LABEL, ...(s.labels ?? [])]);
   // The number exists now: the body gets the install command.
   await x.updatePullRequest(pr.number, { body: explorationPrBody(full, { ...ctx, pr: pr.number }) }).catch(() => undefined);
   return {

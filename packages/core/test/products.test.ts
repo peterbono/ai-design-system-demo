@@ -8,6 +8,7 @@ import {
   PRODUCT_LABEL_PREFIX,
   productForPlace,
   productLabel,
+  productMarks,
   productOfBranch,
   productProblems,
   productsOf,
@@ -141,4 +142,12 @@ test('config: products default, custom list, errors and toConfigJson', () => {
 
   // The repo config lists both products explicitly (with a preview and a library path), so it is written out.
   assert.equal((toConfigJson(realConfig()).products as ProductConfig[]).length, 2);
+});
+
+test('productMarks: a label and a body line for a non-default product, nothing for the default', () => {
+  const shop = findProduct(CUSTOM, 'shop')!;
+  assert.deepEqual(productMarks(CUSTOM, shop), { labels: ['product: shop'], line: '**Product:** Shop' });
+  assert.deepEqual(productMarks(CUSTOM, defaultProduct(CUSTOM)), { labels: [], line: '' });
+  // What it writes, productOfBranch reads back.
+  assert.equal(productOfBranch(CUSTOM, { files: [], labels: productMarks(CUSTOM, shop).labels }).key, 'shop');
 });
