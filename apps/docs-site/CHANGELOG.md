@@ -1,5 +1,50 @@
 # @bridge-ds/docs-site
 
+## 0.7.0
+
+### Minor Changes
+
+- b4edf85: Avatar: illustrated faces and Claude's identity.
+
+  - `Avatar fallback="illustrated"`: without a photo (or when it fails), a drawn face that is always the same for the same `seed` (a login), on the Harbor zone color. The drawings are the DiceBear "Notionists" style (design CC0 1.0 by Zoish, code MIT), generated locally with no network. They weigh about 120 kB gzipped, so they live in a separate entry: import `Avatar` from `@bridge-ds/react/avatar-illustrated`. The main entry keeps initials as the default and stays light; `illustration` takes a ready image if you draw faces yourself.
+  - `Avatar kind="agent" brand="claude"`: the Claude mark on a cream tile, same round shape as people, named "Claude AI", to attribute work Claude did. The Claude mark is an Anthropic trademark: check the Anthropic brand guidelines before shipping it in a product.
+  - `avatarHtml()` in `@bridge-ds/react/dom`, the same markup for rows built in plain scripts.
+  - Tokens: `color.illustration.surface` (the Harbor zone color, a lighter step in dark so line drawings stay readable) and `avatar.illustrated-bg`; `color.agent.surface` (cream, the same in both themes), `avatar.agent-bg` and `avatar.agent-border`.
+  - Studio: change rows, the change and history details and explorations show a face and the person's display name instead of "@login"; work Claude made, and Claude's guidance drafts, show Claude's identity.
+  - Studio Quality: the library health cards (contrast checks, adoption, guidance) open the page, with their detail below, and Share copies a short summary for Slack or a slide or downloads the header as an image.
+
+- 7b53159: Motion is documented and reviewed from the code. The spec generator now records how a part opens and closes: the "Opening and closing" motion note carries the code's `enter` and `exit` transitions (duration, easing and their motion tokens, read per element so a drawer's side class and its popup class count together), and looping animations carry their `durationToken`. `componentMotion` returns them as `opening` and lists their tokens, so `componentsUsingMotionToken(specs, "motion.duration.moderate")` finds Dialog and AlertDialog. component-specs.json is regenerated (popup sets gain their open and close motion).
+
+  Every Library component page has a generated "Motion and interaction" section in its Tokens tab: when it moves (hover, press, check, open, close, loops), what changes, the duration token with its value and the easing token in words, and what reduced motion does, in one sentence. Components without motion say so in one line; motion the specs cannot place is said, never denied.
+
+  For branch reviews, `MotionChanges` (components/ds/studio/MotionChanges.tsx) shows a plain sentence per motion change, two looping previews of the same component at the old and new motion with Replay, and the other components it touches; still frames under reduced motion. `motionChanges` (lib/motion-changes.ts) computes the changes from the token sets and specs at both commits; `mountMotionChanges` (scripts/reviews/motion-changes.ts) mounts the block from a review page.
+
+- eb66bd7: Studio branch review, redesigned: a breadcrumb (Branches, its product group, the title), the title with its status, and one line saying who asks and why. The change itself comes first, by type: guidance reads as it will in the Library with new text highlighted and click-to-edit (Save goes to the branch), tokens show before and after with the themes they change in, components show before and after screens with "Try it in the product". Below: the conversation (people only, latest comment inline, earlier ones on demand) and one line about checks with its details. One sticky decision bar: comment, "Suggest changes", "Approve" or "Approve and merge", and "More actions" (owner override only when it is the only way, share with a product team, copy a link to the review or for a developer, back to draft, close branch). Approving accepts a Claude guidance draft. A branch with several changes gets an outline with a "looked at" reading aid. The review queue uses the same view with its own bar (comment, Suggest changes, Approve, More actions with "Ask someone else to review"), outcome marks in its list, a toast with Undo after Approve, and A, S, J, K keys. "Open on GitHub" links leave this view.
+
+### Patch Changes
+
+- 51e743c: Studio parity: every action a designer takes in Bridge Studio now works with Claude (MCP) and in the terminal.
+
+  - MCP: 20 new tools for branches in review (what needs me, status, send for review, back to draft, review, ask someone else to review,
+    comment and reply, merge through Studio's gate with the owner override, close, reopen, update from main with
+    token conflicts, try it in a product and share it, try 2 to 4 branches together), docs saved for review,
+    explorations promoted or closed, products, settings and Figma coverage. `bridge_propose_token_change` takes
+    `pr` (add edits to a branch in review), `jira` and `product`; explorations and requests take `product`.
+  - CLI: `bridge branch ...`, `bridge products`, `bridge settings`, `bridge coverage`, `bridge docs save`, and
+    `--product`, `--jira`, `--pr` where work starts.
+  - Core: the review and merge rules, the branch writes, update from main, sharing, try in product, try together,
+    docs proposals and Jira keys moved from the docs site into `@bridge-ds/core`, so Studio, the MCP server and
+    the CLI run one implementation. New `products` list in `bridge.config.json` (schema included), defaulting to
+    Admin demo and Library; Studio's Branches page groups by it with the same result.
+
+- Updated dependencies [b4edf85]
+- Updated dependencies [22d186e]
+- Updated dependencies [51e743c]
+- Updated dependencies [7b53159]
+  - @bridge-ds/react@1.5.0
+  - @bridge-ds/tokens@1.5.0
+  - @bridge-ds/core@0.7.0
+
 ## 0.6.0
 
 ### Minor Changes
