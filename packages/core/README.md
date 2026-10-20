@@ -36,7 +36,8 @@ also exported as `@bridge-ds/core/bridge.config.schema.json`) for the plugin, th
 server. Canonical form: `repo`, `tokens` (`root`, `include`, `exclude`, `tiers`, ordered `layers` with `{mode}`
 placeholders and `optional`), `modes` (name -> `{ values, default, parity }`), `contrast` (`path`, `modes`),
 `components`, `docs`, `changesets`, `cssVar`, `governance` (`protectedBranches`, `branchPrefix`, `labels`,
-`guardrails`, `owners: { design, tech }`). The older flat form (`tokens.primitives`, `modes.brands`...) still loads.
+`guardrails`, `owners: { design, tech }`), `changes` (`"suggest"`, the default, or `"direct"`) and `storybook`
+(`{ url }`, https). The older flat form (`tokens.primitives`, `modes.brands`...) still loads.
 
 ```ts
 const CONFIG_FILE = 'bridge.config.json';
@@ -50,10 +51,13 @@ interface BridgeConfig {
   docs; changesets: { dir; package } | undefined; changeset?: { package };
   cssVar: { prefix; separator };
   governance: { protectedBranches; branchPrefix; labels; guardrails; owners: { design: string[]; tech: string[] } };
+  changes: 'suggest' | 'direct';                          // how changes reach the code (default 'suggest')
+  storybook?: { url: string };
 }
 function defineConfig(input): BridgeConfig;   function loadConfig(source): BridgeConfig;   // ConfigError { problems }
 function toConfigJson(config): object;        // canonical JSON (what `bridge init` writes)
 function protectedBranchesOf(config); function baseBranchOf(config); function tokensPath(config, rel?);
+function changesMode(config): 'suggest' | 'direct';   function storybookUrl(config): string | undefined; // storybook.url, else previews.production.storybook
 ```
 
 ## governance
@@ -256,6 +260,28 @@ loadRepoFiles(client, commitSha, fallbackTokensPath): Promise<{ files; contrastC
 
 Reads and content-addressed writes retry on network errors, 5xx and secondary rate limits; errors
 become `GitHubError { status, message, detail }` with plain-language messages.
+
+## suggestions (suggestions.ts, suggestion-review.ts, suggestions-github.ts)
+
+A change filed as a GitHub issue instead of a branch, so an owner needs only Issues write. Readable Markdown, then a
+collapsed JSON payload (`bridge.suggestion/1`) with the sha256 of its canonical form in a marker; token changes are
+edits (paths and values), other files whole contents with git blob shas before and after. Contents that do not fit
+the body (65,536 characters) go to continuation comments, 8 at most. Reviews are comments bound to the payload sha
+and counted only from the configured owners.
+
+```ts
+composeSuggestionIssue(payload, { labels?, assignees?, state?, details? }): { title; body; labels; assignees; parts: string[]; sha };
+parseSuggestionIssue(body, { comments?, author? }): { ok: true; payload; sha; markedSha; edited; parts } | { ok: false; reason; message };
+suggestionPayloadSha(payload); canonicalJson(value); sha256Hex(text); gitBlobSha(text);
+suggestionLabels(payload, { state?, labels? }); suggestionIssueTitle(payload); suggestionStatus({ state, stateReason?, linkedPrs?, review?, applied?, outdated? });
+suggestionPathProblems(payload, config): string[];    unsafePathProblem(path): string | null;
+summarizeSuggestionApprovals(comments, { owners, rights?, teams? }, { payloadSha, author? }); suggestionReviewState(tier, approvals);
+composeSuggestionReviewComment(record); parseSuggestionReviewComment(body); composeSuggestionAppliedComment(record); parseSuggestionAppliedComment(body);
+// GitHub (Issues read and write only)
+createSuggestionOnGitHub(gh, payload, opts); listSuggestionsOnGitHub(gh, { state? }); getSuggestionOnGitHub(gh, n, gov, { outdated? });
+reviewSuggestionOnGitHub(gh, n, { event, role?, message?, payloadSha? }, gov); linkSuggestionPrOnGitHub(gh, n, { pr?, branch?, commit?, payloadSha });
+declineSuggestionOnGitHub(gh, n, reason, by?); syncSuggestionStateLabel(gh, n, labels, status);
+```
 
 ## history (history.ts, history-github.ts, history-demo.ts)
 

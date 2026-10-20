@@ -650,6 +650,29 @@
         }
       }
     },
+    "changes": {
+      "enum": [
+        "suggest",
+        "direct"
+      ],
+      "default": "suggest",
+      "description": "How Bridge sends a change to the code. suggest (default): Bridge files a GitHub issue that holds the exact change (a suggestion); owners approve it and a developer applies it with their own access. direct: Bridge opens branches and pull requests itself, which needs Contents and Pull requests write. This file is a guardrail, so switching modes is a Tier 3 change."
+    },
+    "storybook": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "url"
+      ],
+      "description": "The deployed Storybook Bridge reads the component list and previews from. Absent: previews.production.storybook when it is set.",
+      "properties": {
+        "url": {
+          "type": "string",
+          "pattern": "^https://",
+          "description": "Root URL of the deployed Storybook (where index.json and iframe.html are served), https only."
+        }
+      }
+    },
     "visualImpact": {
       "type": "object",
       "additionalProperties": false,

@@ -611,10 +611,16 @@ export class GitHubClient {
     await this.request('POST', `${this.repoPath}/issues/${issueNumber}/comments`, { body });
   }
 
-  /** Comments on an issue or pull request, oldest first (first 100: the sticky preview comment is posted early). */
-  async listIssueComments(issueNumber: number): Promise<{ id: number; body: string; author: string; updatedAt: string }[]> {
-    const r = await this.request<{ id: number; body?: string | null; user?: { login: string } | null; updated_at: string }[]>('GET', `${this.repoPath}/issues/${issueNumber}/comments?per_page=100`);
-    return r.map((c) => ({ id: c.id, body: c.body ?? '', author: c.user?.login ?? 'unknown', updatedAt: c.updated_at }));
+  /**
+   * Comments on an issue or pull request, oldest first (first 100: the sticky preview comment is posted early).
+   * `authorAssociation` is GitHub's OWNER, MEMBER, COLLABORATOR, CONTRIBUTOR, NONE... (suggestion approvals read it).
+   */
+  async listIssueComments(issueNumber: number): Promise<{ id: number; body: string; author: string; updatedAt: string; createdAt: string; authorAssociation: string }[]> {
+    const r = await this.request<{ id: number; body?: string | null; user?: { login: string } | null; updated_at: string; created_at?: string; author_association?: string }[]>(
+      'GET',
+      `${this.repoPath}/issues/${issueNumber}/comments?per_page=100`,
+    );
+    return r.map((c) => ({ id: c.id, body: c.body ?? '', author: c.user?.login ?? 'unknown', updatedAt: c.updated_at, createdAt: c.created_at ?? c.updated_at, authorAssociation: c.author_association ?? 'NONE' }));
   }
 
   // --- Issues (component change requests) ---------------------------------------------------
