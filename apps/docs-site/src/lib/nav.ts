@@ -43,7 +43,10 @@ export interface NavEntry {
   branchAware?: boolean;
 }
 
-export const LIBRARY_HOME = '/';
+/** The Library home. "/" is the product landing (pages/index.astro), with its own header and footer. */
+export const LIBRARY_HOME = '/library/';
+export const LANDING = '/';
+export const COMPARE = '/compare/';
 export const STUDIO_HOME = '/studio/';
 export const SETTINGS_HOME = '/studio/settings/';
 

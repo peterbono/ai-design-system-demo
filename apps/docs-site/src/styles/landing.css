@@ -1,0 +1,1059 @@
+/* The product landing and the comparison (layouts/Landing.astro, pages/index.astro, pages/compare.astro), direction H3:
+   one promise, then the trip of one change down a line. White paper, ink text, Deep Harbor the one strong color, Harbor
+   only as blocks (the hero plates, the library card, the closing zone). Tokens only. Wide: the 1440 board (a 1200
+   column, stations on three columns with the line in the middle). Phone: one column, the line becomes a left rail. */
+
+.lp-body {
+  overflow-x: clip;
+}
+
+/* The landing manages its own width (lp-wrap): none of the reading column of the app pages. */
+.lp-body .lp-main {
+  max-width: none;
+  padding: 0;
+}
+
+.lp-copy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.lp-wrap {
+  width: 100%;
+  max-width: calc(var(--size-300) + 2 * var(--space-6));
+  margin-inline: auto;
+  padding-inline: max(var(--space-4), env(safe-area-inset-left, 0)) max(var(--space-4), env(safe-area-inset-right, 0));
+}
+
+@media (min-width: 600px) {
+  .lp-wrap {
+    padding-inline: var(--space-6);
+  }
+}
+
+.lp-muted {
+  color: var(--color-text-muted);
+}
+
+.lp-deep {
+  color: var(--color-text-link);
+}
+
+.lp-caption {
+  margin: 0;
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+/* Type: Fraunces for the promise and the section heads, Instrument Sans for the rest. */
+.lp-display {
+  margin: 0;
+  font-family: var(--typography-display-family);
+  font-size: var(--font-size-700);
+  font-weight: var(--typography-display-weight);
+  letter-spacing: var(--typography-display-tracking);
+  line-height: var(--font-leading-38);
+  font-variation-settings: "SOFT" 100;
+  text-wrap: balance;
+}
+
+.lp-h {
+  margin: 0;
+  font-family: var(--typography-h1-family);
+  font-size: var(--typography-h2-size);
+  font-weight: var(--typography-h1-weight);
+  letter-spacing: var(--typography-h1-tracking);
+  line-height: var(--typography-h2-line-height);
+  font-variation-settings: "SOFT" 100;
+  text-wrap: balance;
+}
+
+@media (min-width: 900px) {
+  .lp-display {
+    font-size: var(--typography-display-size);
+    line-height: var(--typography-display-line-height);
+  }
+
+  .lp-h {
+    font-size: var(--typography-h1-size);
+    line-height: var(--typography-h1-line-height);
+  }
+}
+
+.lp-p {
+  max-width: 52ch;
+  margin: 0;
+  font-size: var(--typography-body-size);
+  line-height: var(--typography-body-line-height);
+}
+
+.lp-lede {
+  max-width: 56ch;
+  margin: 0;
+  font-size: var(--typography-h3-size);
+  line-height: var(--font-leading-32);
+}
+
+.lp-cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-6);
+}
+
+.lp-cta-link {
+  font-weight: var(--typography-h3-weight);
+}
+
+/* Header and footer: light, no side nav. */
+.lp-header {
+  position: relative;
+  z-index: var(--layer-sticky);
+  border-bottom: var(--border-width-default) solid var(--color-border-default);
+  background-color: var(--color-bg-default);
+}
+
+.lp-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  min-height: var(--size-16);
+}
+
+.lp-brand {
+  display: inline-flex;
+  color: var(--color-text-default);
+  text-decoration: none;
+}
+
+.lp-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+}
+
+.lp-nav-wide {
+  display: none;
+}
+
+@media (min-width: 600px) {
+  .lp-nav {
+    gap: var(--space-7);
+  }
+
+  .lp-nav-wide {
+    display: inline;
+  }
+}
+
+.lp-footer {
+  border-top: var(--border-width-default) solid var(--color-border-default);
+}
+
+.lp-footer-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4) var(--space-6);
+  padding-block: var(--space-10);
+}
+
+.lp-footer-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.lp-footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-6);
+}
+
+@media (min-width: 900px) {
+  .lp-footer-links {
+    margin-left: auto;
+  }
+}
+
+/* The journey: everything the line runs through. The line sits under the content; opaque plates hide it. */
+.lp-journey {
+  position: relative;
+}
+
+.lp-hero,
+.lp-works,
+.lp-trip,
+.lp-end {
+  position: relative;
+  z-index: 1;
+}
+
+.lp-line {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.lp-journey:not([data-drawn]) .lp-line {
+  display: none;
+}
+
+.lp-line path {
+  fill: transparent;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: var(--border-width-3);
+}
+
+.lp-line-done {
+  stroke: var(--color-action-primary-bg);
+}
+
+.lp-line-ahead {
+  stroke: var(--color-border-emphasis);
+  stroke-dasharray: 2 10;
+}
+
+.lp-marker {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-0-5) var(--space-2) var(--space-0-5) var(--space-0-5);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-action-primary-bg);
+  color: var(--color-action-primary-text);
+  box-shadow: 0 0 0 var(--space-1) var(--color-bg-default);
+  font-size: var(--typography-ui-size);
+  font-weight: var(--typography-ui-weight);
+  line-height: var(--typography-ui-line-height);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.lp-marker[hidden] {
+  display: none;
+}
+
+/* Hero: the promise, then the exploration and the library branch it becomes. */
+.lp-hero {
+  display: grid;
+  gap: var(--space-12);
+  padding-block: var(--space-16) var(--space-10);
+}
+
+.lp-hero-copy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+@media (min-width: 1100px) {
+  .lp-hero {
+    grid-template-columns: minmax(0, 1fr) minmax(0, calc(var(--size-120) + var(--space-10)));
+    gap: var(--space-16);
+    align-items: start;
+    padding-block: var(--space-24) var(--space-12);
+  }
+}
+
+.lp-hero-visual {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: stretch;
+  gap: var(--space-3);
+  padding-top: var(--space-6);
+}
+
+.lp-join {
+  display: flex;
+  grid-column: 1 / -1;
+  justify-content: center;
+  margin-top: var(--space-12);
+}
+
+.lp-join > * {
+  box-shadow: 0 0 0 var(--space-1) var(--color-bg-default);
+}
+
+@media (max-width: 599px) {
+  .lp-hero-visual {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: stretch;
+  }
+
+  .lp-arrow {
+    justify-self: center;
+    transform: rotate(90deg);
+  }
+
+  .lp-join {
+    margin-top: var(--space-4);
+  }
+}
+
+/* A plate: the card sits on an offset Harbor block (the hero), or floats with an overlay shadow (stations). */
+.lp-plate {
+  position: relative;
+  isolation: isolate;
+}
+
+.lp-hero-visual .lp-plate {
+  display: flex;
+}
+
+.lp-hero-visual .lp-plate > * {
+  flex: 1;
+}
+
+.lp-hero-visual .lp-arrow {
+  align-self: center;
+}
+
+.lp-plate::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: var(--radius-container);
+  background-color: var(--color-bg-zone);
+  content: "";
+  transform: translate(var(--space-2), var(--space-3));
+}
+
+.lp-plate-float::before {
+  display: none;
+}
+
+.lp-plate-float {
+  border-radius: var(--radius-container);
+  box-shadow: var(--elevation-overlay);
+}
+
+.lp-mini {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: var(--space-3);
+  min-height: var(--size-64);
+}
+
+.lp-mini-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.lp-mini-head strong {
+  font-weight: var(--typography-h3-weight);
+}
+
+.lp-mini-zone {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--size-20);
+  border-radius: var(--radius-control);
+  background-color: var(--color-bg-zone);
+}
+
+.lp-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-10);
+  height: var(--size-10);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-bg-zone);
+  color: var(--color-text-link);
+}
+
+/* A product screen drawn with placeholder bars: only the status cell is real. */
+.lp-screen {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-control);
+  background-color: var(--color-bg-subtle);
+}
+
+.lp-screen-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-block: var(--space-1-5);
+  border-bottom: var(--border-width-default) solid var(--color-border-default);
+}
+
+.lp-screen-row:last-child {
+  border-bottom: 0;
+}
+
+.lp-screen-head {
+  width: 40%;
+  height: var(--space-2);
+  margin-block: var(--space-1) var(--space-2);
+  border-radius: var(--radius-inset);
+  background-color: var(--color-text-default);
+}
+
+.lp-bar {
+  display: block;
+  flex: 1;
+  height: var(--space-1-5);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-border-emphasis);
+}
+
+/* The piece the exploration added: a dashed Deep Harbor outline around the real Badge. */
+.lp-new {
+  display: inline-flex;
+  border-radius: var(--radius-inset);
+  outline: var(--border-width-strong) dashed var(--color-action-primary-bg);
+  outline-offset: var(--space-0-5);
+}
+
+/* Works with: one quiet line, text only. */
+.lp-works {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-5);
+  padding-block: var(--space-5);
+  background-color: var(--color-bg-default);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.lp-works-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  padding: 0;
+  font-weight: var(--typography-h3-weight);
+  list-style: none;
+}
+
+.lp-works-list li + li::before {
+  margin-right: var(--space-3);
+  color: var(--color-text-muted);
+  content: "\00B7";
+}
+
+@media (min-width: 1100px) {
+  .lp-works-end {
+    margin-left: auto;
+  }
+}
+
+/* The mini-map: three steps, pinned while the trip is on screen. Wide screens only; phones have the rail. */
+.lp-map {
+  display: none;
+}
+
+@media (min-width: 900px) {
+  .lp-map {
+    position: sticky;
+    top: 0;
+    z-index: var(--layer-sticky);
+    display: block;
+    border-block: var(--border-width-default) solid var(--color-border-default);
+    background-color: var(--color-bg-default);
+  }
+}
+
+.lp-map-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  min-height: var(--size-20);
+}
+
+.lp-map-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: min(100%, var(--size-160));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lp-map-steps li {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1-5);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.lp-map-steps li:not(:last-child)::after {
+  position: absolute;
+  top: calc(var(--size-4) / 2 - var(--border-width-strong) / 2);
+  left: 50%;
+  width: 100%;
+  height: var(--border-width-strong);
+  background-color: var(--color-border-default);
+  content: "";
+}
+
+.lp-map-steps li[data-state="done"]::after {
+  background-color: var(--color-action-primary-bg);
+}
+
+.lp-map-dot {
+  position: relative;
+  z-index: 1;
+  width: var(--size-4);
+  height: var(--size-4);
+  border: var(--border-width-strong) solid var(--color-border-emphasis);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-bg-default);
+}
+
+.lp-map-steps li[data-state="done"] .lp-map-dot {
+  border-color: var(--color-action-primary-bg);
+  background-color: var(--color-action-primary-bg);
+}
+
+.lp-map-steps li[data-state="current"] .lp-map-dot {
+  border-width: var(--space-1);
+  border-color: var(--color-action-primary-bg);
+  box-shadow: 0 0 0 var(--space-1) var(--color-bg-zone);
+}
+
+.lp-map-steps li[data-state="current"] a {
+  color: var(--color-text-link);
+  font-weight: var(--typography-h3-weight);
+}
+
+/* Stations: copy first on phones (one sentence, then the UI), the node on a left rail; wide: three columns. */
+.lp-station {
+  display: grid;
+  grid-template-columns: var(--size-11) minmax(0, 1fr);
+  column-gap: var(--space-4);
+  row-gap: var(--space-6);
+  padding-block: var(--space-12);
+}
+
+.lp-node {
+  display: inline-flex;
+  grid-row: 1 / span 2;
+  grid-column: 1;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-11);
+  height: var(--size-11);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-action-primary-bg);
+  color: var(--color-action-primary-text);
+  font-family: var(--typography-h1-family);
+  font-size: var(--typography-h3-size);
+  font-weight: var(--typography-h2-weight);
+  line-height: var(--typography-h3-line-height);
+}
+
+.lp-station:last-of-type .lp-node {
+  border: var(--border-width-3) solid var(--color-action-primary-bg);
+  background-color: var(--color-bg-default);
+  color: var(--color-text-link);
+  box-shadow: 0 0 0 var(--space-1-5) var(--color-bg-zone);
+}
+
+.lp-station-copy {
+  display: flex;
+  grid-row: 1;
+  grid-column: 2;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.lp-station-media {
+  grid-row: 2;
+  grid-column: 2;
+  min-width: 0;
+}
+
+@media (min-width: 900px) {
+  .lp-station {
+    grid-template-columns: minmax(0, 1fr) calc(var(--size-20) + var(--space-10)) minmax(0, 1fr);
+    column-gap: 0;
+    align-items: start;
+    padding-block: var(--space-24);
+  }
+
+  .lp-node {
+    grid-row: 1;
+    grid-column: 2;
+    justify-self: center;
+    margin-top: var(--space-6);
+  }
+
+  .lp-station-copy,
+  .lp-station-media {
+    grid-row: 1;
+    padding-top: var(--space-6);
+  }
+
+  .lp-station-media {
+    grid-column: 1;
+    padding-top: 0;
+  }
+
+  .lp-station-copy {
+    grid-column: 3;
+  }
+
+  .lp-station-flip .lp-station-copy {
+    grid-column: 1;
+  }
+
+  .lp-station-flip .lp-station-media {
+    grid-column: 3;
+  }
+}
+
+/* Station media: real components, shown as they are (not interactive outside station 3). */
+.lp-dialog,
+.lp-found {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.lp-dialog-title {
+  margin: 0;
+  font-family: var(--typography-h1-family);
+  font-size: var(--font-size-500);
+  font-weight: var(--typography-h1-weight);
+  line-height: var(--font-leading-32);
+  font-variation-settings: "SOFT" 100;
+}
+
+.lp-dialog-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.lp-found-grid {
+  display: grid;
+  gap: var(--space-3);
+}
+
+@media (min-width: 600px) {
+  .lp-found-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, calc(var(--size-40) + var(--space-12)));
+  }
+}
+
+.lp-screen-tall {
+  justify-content: flex-start;
+  padding: var(--space-3);
+}
+
+.lp-found-zone {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-control);
+  background-color: var(--color-bg-zone);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.lp-found-zone strong {
+  font-weight: var(--typography-h3-weight);
+}
+
+.lp-piece {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.lp-say {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.lp-say-text {
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-inset) var(--radius-control) var(--radius-control) var(--radius-control);
+  background-color: var(--color-bg-subtle);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.lp-say-text strong {
+  font-weight: var(--typography-h3-weight);
+}
+
+/* Station 3: the review, flipped by the visitor (components/landing/LandingReview.tsx). */
+.lp-review {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.lp-review-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.lp-review-screen {
+  padding: var(--space-4) var(--space-5);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-control);
+  background-color: var(--color-bg-default);
+  color: var(--color-text-default);
+  transition: background-color var(--motion-duration-slow) var(--motion-easing-standard);
+}
+
+.lp-review-title {
+  display: flex;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-2);
+  font-size: var(--typography-ui-size);
+  font-weight: var(--typography-h3-weight);
+  line-height: var(--typography-ui-line-height);
+}
+
+.lp-review-title .lp-muted {
+  font-weight: var(--typography-ui-weight);
+}
+
+.lp-review-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lp-review-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-height: var(--size-11);
+  border-bottom: var(--border-width-default) solid var(--color-border-default);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.lp-review-row:last-child {
+  border-bottom: 0;
+}
+
+.lp-review-state {
+  display: inline-flex;
+  justify-content: flex-end;
+  min-width: var(--size-20);
+}
+
+.lp-review-foot {
+  display: flex;
+  align-items: center;
+  min-height: var(--size-8);
+  margin: 0;
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.lp-proof {
+  display: inline-flex;
+  align-self: flex-start;
+  max-width: 100%;
+}
+
+/* The end of the line: the design system. It fills when the line reaches it. */
+.lp-end {
+  display: flex;
+  justify-content: center;
+  margin: 0;
+  padding-block: var(--space-6) var(--space-24);
+}
+
+.lp-end-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1-5) var(--space-4);
+  border: var(--border-width-strong) dashed var(--color-border-emphasis);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-bg-default);
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+  font-weight: var(--typography-h3-weight);
+  line-height: var(--typography-ui-line-height);
+  transition:
+    background-color var(--motion-duration-slow) var(--motion-easing-standard),
+    border-color var(--motion-duration-slow) var(--motion-easing-standard),
+    color var(--motion-duration-slow) var(--motion-easing-standard);
+}
+
+.lp-end-chip[data-reached] {
+  border-style: solid;
+  border-color: var(--color-action-primary-bg);
+  background-color: var(--color-bg-zone);
+  color: var(--color-text-default);
+}
+
+/* Bands below the trip: the design system lead, the questions, the closing. Same two-column split. */
+.lp-band {
+  padding-block: var(--space-16);
+  background-color: var(--color-bg-subtle);
+}
+
+.lp-split {
+  display: grid;
+  gap: var(--space-10);
+}
+
+@media (min-width: 900px) {
+  .lp-band {
+    padding-block: var(--space-24);
+  }
+
+  .lp-split {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: calc(var(--size-20) + var(--space-10));
+    align-items: start;
+  }
+}
+
+.lp-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--typography-ui-size);
+  font-weight: var(--typography-h3-weight);
+  line-height: var(--typography-ui-line-height);
+}
+
+.lp-queue-card {
+  overflow: hidden;
+}
+
+.lp-queue {
+  display: grid;
+}
+
+@media (min-width: 600px) {
+  .lp-queue {
+    grid-template-columns: minmax(0, calc(var(--size-40) + var(--space-5))) minmax(0, 1fr);
+  }
+}
+
+.lp-queue-list {
+  display: none;
+  flex-direction: column;
+  gap: var(--space-1-5);
+  padding: var(--space-4) var(--space-3);
+  border-right: var(--border-width-default) solid var(--color-border-default);
+  background-color: var(--color-bg-subtle);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+@media (min-width: 600px) {
+  .lp-queue-list {
+    display: flex;
+  }
+}
+
+.lp-queue-list > * {
+  padding: var(--space-1-5);
+}
+
+.lp-queue-list strong,
+.lp-queue-current {
+  font-weight: var(--typography-h3-weight);
+}
+
+.lp-queue-current {
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-inset);
+  background-color: var(--color-surface-default);
+}
+
+.lp-queue-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.lp-queue-change {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-control);
+}
+
+.lp-ok {
+  margin: 0;
+  color: var(--color-feedback-success-text);
+  font-weight: var(--typography-h3-weight);
+}
+
+.lp-queue-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.lp-faq-section {
+  padding-block: var(--space-16);
+}
+
+@media (min-width: 900px) {
+  .lp-faq-section {
+    padding-block: var(--space-24);
+  }
+}
+
+.lp-faq-answer {
+  max-width: 60ch;
+  margin: 0;
+}
+
+/* Closing: the Harbor zone with the two actions and the install line, then the terminal fold. */
+.lp-close {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding-block: 0 var(--space-16);
+}
+
+.lp-close-zone {
+  display: grid;
+  align-items: center;
+  gap: var(--space-8);
+  padding: var(--space-8) var(--space-6);
+}
+
+.lp-close-copy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+.lp-install {
+  max-width: var(--size-96);
+}
+
+.lp-close-art {
+  display: none;
+}
+
+@media (min-width: 900px) {
+  .lp-close {
+    padding-bottom: var(--space-24);
+  }
+
+  .lp-close-zone {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-10);
+    padding: var(--space-10) var(--space-12);
+  }
+
+  .lp-close-art {
+    display: block;
+  }
+}
+
+.lp-terminal-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.lp-terminal-body > :first-child {
+  align-self: stretch;
+}
+
+/* Compare: the honest table. */
+.lp-compare {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+  padding-block: var(--space-16) var(--space-24);
+}
+
+.lp-compare-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  max-width: 60ch;
+}
+
+.lp-cell {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: var(--space-1-5);
+}
+
+.lp-cell[data-state="yes"] .lp-cell-icon {
+  color: var(--color-feedback-success-icon);
+}
+
+.lp-cell[data-state="no"],
+.lp-cell[data-state="unknown"] {
+  color: var(--color-text-muted);
+}
+
+.lp-compare-notes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: 72ch;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-review-screen,
+  .lp-end-chip {
+    transition: none;
+  }
+}
+
+/* The landing's lists are rows and steps, not reading lists: none of the prose spacing between items. */
+.lp-works-list li,
+.lp-map-steps li,
+.lp-review-rows li {
+  margin: 0;
+}
+
+.lp-header .lp-brand {
+  text-decoration: none;
+}

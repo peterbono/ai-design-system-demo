@@ -1,6 +1,6 @@
 // Command palette index: pages, components and every token. Served as /search-index.json and fetched on first open.
 import { loadComponents } from './components';
-import { SPACE_LABEL, allPages } from './nav';
+import { COMPARE, LANDING, SPACE_LABEL, allPages } from './nav';
 import { loadTokens } from './tokens';
 
 export interface SearchItem {
@@ -38,6 +38,8 @@ export function searchIndex(): SearchItem[] {
         meta: p.meta,
         keys: `${SPACE_LABEL[p.space]} ${formerly[p.href] ?? ''}`.trim(),
       })),
+    { kind: 'page', title: 'Bridge overview', href: LANDING, meta: 'What Bridge does, from an exploration to the design system', keys: 'landing home product' },
+    { kind: 'page', title: 'Compare', href: COMPARE, meta: 'Bridge next to Figma, Supernova, zeroheight, Tokens Studio, Chromatic and story.to.design', keys: 'comparison alternatives competitors code connect' },
     { kind: 'page', title: 'llms.txt', href: '/llms.txt', meta: 'The docs as plain text for agents' },
   ];
   const components: SearchItem[] = loadComponents().map((c) => ({

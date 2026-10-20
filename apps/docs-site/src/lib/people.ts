@@ -19,13 +19,19 @@ export const loginKey = (login: string) => login.trim().replace(/^@/, '').toLowe
 /** GitHub bots and apps ("renovate[bot]", "github-actions[bot]"): never looked up, named without the suffix. */
 export const isBotLogin = (login: string) => /\[bot\]$/i.test(login.trim());
 
-/** True when the login is Claude's own account or app ("claude", "claude[bot]"). */
-export const isClaudeLogin = (login: string) => /^@?claude(?:\[bot\])?$/i.test(login.trim());
+/** How the agent is named everywhere in Bridge, whatever account opened the work. */
+export const AGENT_NAME = 'Claude AI';
+
+/**
+ * True when the login is the agent's own account or app: Claude ("claude", "claude[bot]") or the Bridge agent that
+ * opens library branches for an exploration ("bridge-agent", "bridge-agent[bot]"). Both show as Claude AI.
+ */
+export const isClaudeLogin = (login: string) => /^@?(?:claude|bridge-agent)(?:\[bot\])?$/i.test(login.trim());
 
 /** What a designer reads for a login: the profile name when known, else the login without the @ (bots without [bot]). */
 export function personName(login: string, cache: NameCache = {}): string {
   const bare = login.trim().replace(/^@/, '');
-  if (isClaudeLogin(bare)) return 'Claude';
+  if (isClaudeLogin(bare)) return AGENT_NAME;
   const hit = cache[loginKey(bare)]?.name?.trim();
   if (hit) return hit;
   return bare.replace(/\[bot\]$/i, '') || 'Someone';
@@ -80,9 +86,9 @@ export function markLogins(html: string): string {
   );
 }
 
-/** "Claude, with Ana Lima" when Claude made it from someone's account; "Ana Lima" otherwise. */
+/** "Claude AI, with Ana Lima" when Claude made it from someone's account; "Ana Lima" otherwise. */
 export function authorLine(login: string, agent: boolean, cache: NameCache = {}): string {
   const name = personName(login, cache);
   if (!agent) return name;
-  return isClaudeLogin(login) ? 'Claude' : `Claude, with ${name}`;
+  return isClaudeLogin(login) ? AGENT_NAME : `${AGENT_NAME}, with ${name}`;
 }
