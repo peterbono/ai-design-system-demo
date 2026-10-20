@@ -14,7 +14,7 @@ import ScriptDialog from '../components/ds/ScriptDialog.astro';
 import PaletteField from '../components/ds/PaletteField';
 import Logo from '../components/Logo.astro';
 import ViewAsChange from '../components/ViewAsChange.astro';
-import { LIBRARY_HOME, SPACE_LABEL, STUDIO_HOME, locate, navFor, type Space } from '../lib/nav';
+import { COMPARE, LANDING, LIBRARY_HOME, SPACE_LABEL, STUDIO_HOME, locate, navFor, type Space } from '../lib/nav';
 import { siteRepoJson } from '../lib/config';
 import { GITHUB_URL, STORYBOOK_URL, sourceUrl } from '../lib/repo';
 import { humanDate } from '../lib/stats';
@@ -67,7 +67,7 @@ const crumbItems = trail.map((c, i) => (c.href && i < trail.length - 1 ? { label
 const files = sources.filter((s) => s !== 'git log');
 const logged = sources.includes('git log');
 const searchLabel = isStudio ? 'Search tokens, components, branches' : 'Search tokens, components, pages';
-const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of truth' : `${title} | ${SPACE_LABEL[space] === 'Library' ? 'Bridge' : `Bridge ${SPACE_LABEL[space]}`}`;
+const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Bridge') : `${title} | ${SPACE_LABEL[space] === 'Library' ? 'Bridge' : `Bridge ${SPACE_LABEL[space]}`}`;
 ---
 
 <!doctype html>
@@ -111,7 +111,7 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
   <body>
     <Link variant="subtle" className="skip" href="#main">Skip to content</Link>
     <header class="topbar">
-      <Link variant="subtle" className="topbar-brand" href={isStudio ? STUDIO_HOME : LIBRARY_HOME} aria-label={isStudio ? 'Bridge Studio, overview' : 'Bridge, home'}>
+      <Link variant="subtle" className="topbar-brand" href={isStudio ? STUDIO_HOME : LIBRARY_HOME} aria-label={isStudio ? 'Bridge Studio, overview' : 'Bridge Library, home'}>
         <Logo />
         {isStudio && <span class="topbar-space" aria-hidden="true">Studio</span>}
       </Link>
@@ -286,6 +286,8 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
               <Link variant="subtle" href={GITHUB_URL}>GitHub<span>Source and issues</span></Link>
               <Link variant="subtle" href="/llms.txt">For AI agents<span class="mono">llms.txt</span></Link>
               <Link variant="subtle" href={STORYBOOK_URL}>Contribute<span>Storybook workbench</span></Link>
+              <Link variant="subtle" href={LANDING}>About Bridge<span>What it does</span></Link>
+              <Link variant="subtle" href={COMPARE}>Compare<span>Bridge and other tools</span></Link>
             </nav>
           </footer>
         </div>

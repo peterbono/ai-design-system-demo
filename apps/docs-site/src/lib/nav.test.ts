@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { allPages, HOW_REVIEW_WORKS, locate, navFor, SETTINGS_HOME, SETTINGS_SECTIONS, spaceOf } from './nav';
+import { allPages, COMPARE, HOW_REVIEW_WORKS, LANDING, LIBRARY_HOME, locate, navFor, SETTINGS_HOME, SETTINGS_SECTIONS, spaceOf } from './nav';
 import { REDIRECTS, redirectScript, redirectTarget } from './redirects';
 import { ROOT } from './repo';
 
@@ -53,6 +53,29 @@ describe('navigation data', () => {
     expect(locate('/components/button/').entry?.label).toBe('Components');
     expect(locate('/studio/settings/')).toMatchObject({ space: 'studio', item: { label: 'Settings' } });
     expect(locate(HOW_REVIEW_WORKS)).toMatchObject({ space: 'library', group: 'Use', item: { label: 'How review works' } });
+  });
+});
+
+describe('routing: the landing at /, the Library home at /library/', () => {
+  it('serves the landing and the comparison outside the side nav', () => {
+    expect(LANDING).toBe('/');
+    expect(COMPARE).toBe('/compare/');
+    expect(pageFile(LANDING)).toMatch(/pages\/index\.astro$/);
+    expect(pageFile(COMPARE)).toMatch(/pages\/compare\.astro$/);
+    expect(allPages().map((p) => p.href)).not.toContain(LANDING);
+  });
+
+  it('moves only the Library home: its entry, breadcrumbs and deep links stay', () => {
+    expect(LIBRARY_HOME).toBe('/library/');
+    expect(pageFile(LIBRARY_HOME)).toMatch(/pages\/library\/index\.astro$/);
+    expect(navFor('library')[0]).toMatchObject({ href: '/library/', label: 'Home' });
+    expect(locate('/library/')).toMatchObject({ space: 'library', item: { label: 'Home' } });
+    expect(locate('/components/button/').entry?.label).toBe('Components');
+    expect(pageFile('/foundations/color/')).not.toBeNull();
+  });
+
+  it('sends the old playground to the Library home', () => {
+    expect(REDIRECTS['/playground']).toBe(LIBRARY_HOME);
   });
 });
 

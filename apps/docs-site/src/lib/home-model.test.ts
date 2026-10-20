@@ -66,6 +66,11 @@ describe('people', () => {
     expect(greeting(9, 'The Octocat')).toBe('Good morning, The Octocat.');
     expect(CLAUDE.name).toBe('Claude AI');
   });
+  it('names the Bridge agent account Claude AI, with its own face', () => {
+    expect(person('bridge-agent', 'bridge-agent')).toMatchObject({ name: 'Claude AI', agent: true, avatar: null });
+    expect(person('bridge-agent[bot]').name).toBe('Claude AI');
+    expect(person('claude').agent).toBe(true);
+  });
   it('keeps each person once, Claude once', () => {
     expect(uniquePeople([ann, null, person('ANN-LEE', 'Ann'), CLAUDE, { ...CLAUDE }, dana]).map((p) => p.name)).toEqual(['Ann', 'Claude AI', 'Dana']);
   });

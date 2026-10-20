@@ -13,6 +13,7 @@
 // guidance, contrast, adoption, the changelog). Nothing here is guessed.
 import type { ThumbSpec } from './branch-thumb';
 import { VOCAB } from './vocabulary';
+import { isClaudeLogin } from './people';
 
 /** Rows of the Needs you list before the grouped row. */
 export const NEEDS_SHOWN = 3;
@@ -62,6 +63,7 @@ export function displayName(login: string, profileName?: string | null): string 
 }
 
 export function person(login: string, profileName?: string | null, avatar?: string | null): Person {
+  if (isClaudeLogin(login)) return { ...CLAUDE, login };
   return { login, name: displayName(login, profileName), avatar: avatar ?? null };
 }
 
