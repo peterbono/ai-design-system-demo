@@ -296,6 +296,11 @@ export interface SpecMotionNote {
   what: string;
   /** Why Figma does not play it. */
   reason: string;
+  /** A keyframe animation: the token behind its duration ("motion.duration.spin"), when it is one. */
+  durationToken?: string | undefined;
+  /** Opening and closing: the code's transition when it opens (enter) and when it closes (exit), when it has one. */
+  enter?: SpecTransition | undefined;
+  exit?: SpecTransition | undefined;
 }
 
 /** A declaration, prop or part that has no Figma equivalent in this version, with the reason. */
@@ -558,6 +563,8 @@ export interface ComponentMotion {
   approximations: string[];
   /** Motion of the code a Figma prototype cannot play. */
   cannotPlay: SpecMotionNote[];
+  /** Opening and closing (a popup, a panel): the code's enter and exit transitions, when it has them. */
+  opening: { enter: SpecTransition | null; exit: SpecTransition | null } | undefined;
   /** REDUCED_MOTION_NOTE when the component animates in code, else undefined. */
   reducedMotion: string | undefined;
 }
@@ -587,12 +594,18 @@ export function componentMotion(spec: Pick<ComponentSpec, 'name' | 'variants' | 
     triggers.push({ ...x, label: TRIGGER_LABELS[x.trigger], count });
   }
   const transitions = (spec.interactions ?? []).map((x) => x.transition).filter((t): t is SpecTransition => !!t);
-  const tokens = [...new Set(transitions.flatMap((t) => [t.durationToken, t.easingToken]).filter((t): t is string => !!t))].sort();
+  const cannotPlay = [...(spec.motion ?? [])];
+  // Opening and closing is not a prototype interaction, but its transitions use motion tokens too (a dialog's enter).
+  const openNote = cannotPlay.find((n) => n.enter || n.exit);
+  const opening = openNote ? { enter: openNote.enter ?? null, exit: openNote.exit ?? null } : undefined;
+  const openTransitions = opening ? [opening.enter, opening.exit].filter((t): t is SpecTransition => !!t) : [];
+  const tokens = [
+    ...new Set([...transitions, ...openTransitions].flatMap((t) => [t.durationToken, t.easingToken]).concat(cannotPlay.map((n) => n.durationToken)).filter((t): t is string => !!t)),
+  ].sort();
   const properties = [...new Set(transitions.flatMap((t) => t.properties))].sort();
   const approximations = [...new Set(transitions.map((t) => t.approximated).filter((t): t is string => !!t))];
-  const cannotPlay = [...(spec.motion ?? [])];
-  const animates = transitions.length > 0 || cannotPlay.some((n) => /animation/i.test(n.what));
-  return { name: spec.name, reactions, triggers, tokens, properties, approximations, cannotPlay, reducedMotion: animates ? REDUCED_MOTION_NOTE : undefined };
+  const animates = transitions.length > 0 || openTransitions.length > 0 || cannotPlay.some((n) => /animation/i.test(n.what));
+  return { name: spec.name, reactions, triggers, tokens, properties, approximations, cannotPlay, opening, reducedMotion: animates ? REDUCED_MOTION_NOTE : undefined };
 }
 
 /**

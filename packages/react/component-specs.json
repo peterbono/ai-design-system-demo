@@ -36,7 +36,7 @@
           }
         ]
       },
-      "hash": "1575c910",
+      "hash": "39210776",
       "source": [
         "packages/react/src/components/Accordion/Accordion.tsx",
         "packages/react/src/components/Accordion/Accordion.module.css",
@@ -993,7 +993,43 @@
         },
         {
           "what": "Opening and closing",
-          "reason": "the open state is not drawn as a variant"
+          "reason": "the open state is not drawn as a variant",
+          "enter": {
+            "duration": 200,
+            "durationToken": "motion.duration.moderate",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "height",
+              "transform"
+            ]
+          },
+          "exit": {
+            "duration": 200,
+            "durationToken": "motion.duration.moderate",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "height",
+              "transform"
+            ]
+          }
         }
       ]
     },
@@ -1006,7 +1042,7 @@
           "value": "color"
         }
       },
-      "hash": "1295f2c1",
+      "hash": "03444621",
       "source": [
         "packages/react/src/components/Accordion/Accordion.tsx",
         "packages/react/src/components/Accordion/Accordion.module.css",
@@ -1272,7 +1308,43 @@
         },
         {
           "what": "Opening and closing",
-          "reason": "the open state is not drawn as a variant"
+          "reason": "the open state is not drawn as a variant",
+          "enter": {
+            "duration": 200,
+            "durationToken": "motion.duration.moderate",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "height",
+              "transform"
+            ]
+          },
+          "exit": {
+            "duration": 200,
+            "durationToken": "motion.duration.moderate",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "height",
+              "transform"
+            ]
+          }
         }
       ]
     },
@@ -1755,7 +1827,7 @@
           }
         ]
       },
-      "hash": "f2d1829f",
+      "hash": "91904bda",
       "source": [
         "packages/react/src/components/AlertDialog/AlertDialog.tsx",
         "packages/react/src/components/AlertDialog/AlertDialog.module.css",
@@ -2134,7 +2206,43 @@
       "motion": [
         {
           "what": "Opening and closing the popup",
-          "reason": "the popup is its own set; a Figma component cannot open another one from its trigger"
+          "reason": "the popup is its own set; a Figma component cannot open another one from its trigger",
+          "enter": {
+            "duration": 200,
+            "durationToken": "motion.duration.moderate",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.16,
+                1,
+                0.3,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.enter",
+            "properties": [
+              "opacity",
+              "transform"
+            ]
+          },
+          "exit": {
+            "duration": 150,
+            "durationToken": "motion.duration.fast",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.4,
+                0,
+                1,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.exit",
+            "properties": [
+              "opacity",
+              "transform"
+            ]
+          }
         },
         {
           "what": "Keyboard focus",
@@ -12028,7 +12136,7 @@
           ]
         }
       },
-      "hash": "87b65055",
+      "hash": "8ed62203",
       "source": [
         "packages/react/src/components/Combobox/Combobox.tsx",
         "packages/react/src/components/Combobox/Combobox.module.css",
@@ -12299,7 +12407,43 @@
       "motion": [
         {
           "what": "Opening and closing the popup",
-          "reason": "the popup is its own set; a Figma component cannot open another one from its trigger"
+          "reason": "the popup is its own set; a Figma component cannot open another one from its trigger",
+          "enter": {
+            "duration": 150,
+            "durationToken": "motion.duration.fast",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.16,
+                1,
+                0.3,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.enter",
+            "properties": [
+              "opacity",
+              "transform"
+            ]
+          },
+          "exit": {
+            "duration": 150,
+            "durationToken": "motion.duration.fast",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.4,
+                0,
+                1,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.exit",
+            "properties": [
+              "opacity",
+              "transform"
+            ]
+          }
         }
       ]
     },
@@ -12320,7 +12464,7 @@
           }
         ]
       },
-      "hash": "67ba7556",
+      "hash": "df468a0d",
       "source": [
         "packages/react/src/components/Dialog/Dialog.tsx",
         "packages/react/src/components/Button/Button.module.css",
@@ -13020,7 +13164,43 @@
         },
         {
           "what": "Opening and closing the popup",
-          "reason": "the popup is its own set; a Figma component cannot open another one from its trigger"
+          "reason": "the popup is its own set; a Figma component cannot open another one from its trigger",
+          "enter": {
+            "duration": 200,
+            "durationToken": "motion.duration.moderate",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.16,
+                1,
+                0.3,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.enter",
+            "properties": [
+              "opacity",
+              "transform"
+            ]
+          },
+          "exit": {
+            "duration": 150,
+            "durationToken": "motion.duration.fast",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.4,
+                0,
+                1,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.exit",
+            "properties": [
+              "opacity",
+              "transform"
+            ]
+          }
         }
       ]
     },
@@ -13138,7 +13318,7 @@
           }
         ]
       },
-      "hash": "2c2773ce",
+      "hash": "6c415fb5",
       "source": [
         "packages/react/src/components/Drawer/Drawer.tsx",
         "packages/react/src/components/Button/Button.module.css",
@@ -13626,7 +13806,41 @@
         },
         {
           "what": "Opening and closing the popup",
-          "reason": "the popup is its own set; a Figma component cannot open another one from its trigger"
+          "reason": "the popup is its own set; a Figma component cannot open another one from its trigger",
+          "enter": {
+            "duration": 300,
+            "durationToken": "motion.duration.slow",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.16,
+                1,
+                0.3,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.enter",
+            "properties": [
+              "transform"
+            ]
+          },
+          "exit": {
+            "duration": 200,
+            "durationToken": "motion.duration.moderate",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.4,
+                0,
+                1,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.exit",
+            "properties": [
+              "transform"
+            ]
+          }
         }
       ]
     },
@@ -18461,7 +18675,7 @@
       "name": "Menu/Popup",
       "component": "Menu",
       "view": "popup",
-      "hash": "ade1d3cc",
+      "hash": "47df6448",
       "source": [
         "packages/react/src/components/Menu/Menu.tsx",
         "packages/react/src/components/Icon/Icon.module.css",
@@ -18537,7 +18751,43 @@
       "motion": [
         {
           "what": "Opening and closing the popup",
-          "reason": "the popup is its own set; a Figma component cannot open another one from its trigger"
+          "reason": "the popup is its own set; a Figma component cannot open another one from its trigger",
+          "enter": {
+            "duration": 150,
+            "durationToken": "motion.duration.fast",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.16,
+                1,
+                0.3,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.enter",
+            "properties": [
+              "opacity",
+              "transform"
+            ]
+          },
+          "exit": {
+            "duration": 150,
+            "durationToken": "motion.duration.fast",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.4,
+                0,
+                1,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.exit",
+            "properties": [
+              "opacity",
+              "transform"
+            ]
+          }
         }
       ]
     },
@@ -23785,7 +24035,7 @@
           }
         ]
       },
-      "hash": "27a68da5",
+      "hash": "b31cc533",
       "source": [
         "packages/react/src/components/Popover/Popover.tsx",
         "packages/react/src/components/Button/Button.module.css",
@@ -23964,7 +24214,43 @@
       "motion": [
         {
           "what": "Opening and closing the popup",
-          "reason": "the popup is its own set; a Figma component cannot open another one from its trigger"
+          "reason": "the popup is its own set; a Figma component cannot open another one from its trigger",
+          "enter": {
+            "duration": 150,
+            "durationToken": "motion.duration.fast",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.16,
+                1,
+                0.3,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.enter",
+            "properties": [
+              "opacity",
+              "transform"
+            ]
+          },
+          "exit": {
+            "duration": 150,
+            "durationToken": "motion.duration.fast",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.4,
+                0,
+                1,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.exit",
+            "properties": [
+              "opacity",
+              "transform"
+            ]
+          }
         }
       ]
     },
@@ -23980,7 +24266,7 @@
           "value": 64
         }
       },
-      "hash": "ff2ab7c2",
+      "hash": "7c757078",
       "source": [
         "packages/react/src/components/Progress/Progress.tsx",
         "packages/react/src/components/Progress/Progress.module.css"
@@ -24590,7 +24876,8 @@
       "motion": [
         {
           "what": "Looping animation slide, 1400 ms",
-          "reason": "a Figma component cannot loop an animation on its own"
+          "reason": "a Figma component cannot loop an animation on its own",
+          "durationToken": "motion.duration.shimmer"
         }
       ]
     },
@@ -24606,7 +24893,7 @@
           "value": 64
         }
       },
-      "hash": "14d92400",
+      "hash": "ff86b331",
       "source": [
         "packages/react/src/components/Progress/Progress.tsx",
         "packages/react/src/components/Progress/Progress.module.css"
@@ -25206,7 +25493,8 @@
       "motion": [
         {
           "what": "Looping animation spin, 700 ms",
-          "reason": "a Figma component cannot loop an animation on its own"
+          "reason": "a Figma component cannot loop an animation on its own",
+          "durationToken": "motion.duration.spin"
         }
       ]
     },
@@ -28144,7 +28432,7 @@
           "defaultValue": "dark"
         }
       },
-      "hash": "01e871a1",
+      "hash": "4b1b2b4f",
       "source": [
         "packages/react/src/components/Select/Select.tsx",
         "packages/react/src/components/Field/Field.module.css",
@@ -28720,7 +29008,45 @@
         },
         {
           "what": "Opening and closing",
-          "reason": "the open state is not drawn as a variant"
+          "reason": "the open state is not drawn as a variant",
+          "enter": {
+            "duration": 150,
+            "durationToken": "motion.duration.fast",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "border-color",
+              "box-shadow",
+              "transform"
+            ]
+          },
+          "exit": {
+            "duration": 150,
+            "durationToken": "motion.duration.fast",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.2,
+                0,
+                0,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.standard",
+            "properties": [
+              "border-color",
+              "box-shadow",
+              "transform"
+            ]
+          }
         }
       ]
     },
@@ -28748,7 +29074,7 @@
           "defaultValue": "dark"
         }
       },
-      "hash": "1da4d809",
+      "hash": "ec9e0627",
       "source": [
         "packages/react/src/components/Select/Select.tsx",
         "packages/react/src/components/Field/Field.module.css",
@@ -29083,7 +29409,43 @@
       "motion": [
         {
           "what": "Opening and closing the popup",
-          "reason": "the popup is its own set; a Figma component cannot open another one from its trigger"
+          "reason": "the popup is its own set; a Figma component cannot open another one from its trigger",
+          "enter": {
+            "duration": 150,
+            "durationToken": "motion.duration.fast",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.16,
+                1,
+                0.3,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.enter",
+            "properties": [
+              "opacity",
+              "transform"
+            ]
+          },
+          "exit": {
+            "duration": 150,
+            "durationToken": "motion.duration.fast",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.4,
+                0,
+                1,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.exit",
+            "properties": [
+              "opacity",
+              "transform"
+            ]
+          }
         }
       ]
     },
@@ -30639,7 +31001,7 @@
     },
     {
       "name": "Skeleton",
-      "hash": "4744dc8f",
+      "hash": "9d3bb53d",
       "source": [
         "packages/react/src/components/Skeleton/Skeleton.tsx",
         "packages/react/src/components/Skeleton/Skeleton.module.css"
@@ -30727,7 +31089,8 @@
       "motion": [
         {
           "what": "Looping animation shimmer, 1400 ms",
-          "reason": "a Figma component cannot loop an animation on its own"
+          "reason": "a Figma component cannot loop an animation on its own",
+          "durationToken": "motion.duration.shimmer"
         }
       ]
     },
@@ -30981,7 +31344,7 @@
     },
     {
       "name": "Spinner",
-      "hash": "10627d79",
+      "hash": "02a851be",
       "source": [
         "packages/react/src/components/Spinner/Spinner.tsx",
         "packages/react/src/components/Spinner/Spinner.module.css"
@@ -31217,7 +31580,8 @@
       "motion": [
         {
           "what": "Looping animation spin, 700 ms",
-          "reason": "a Figma component cannot loop an animation on its own"
+          "reason": "a Figma component cannot loop an animation on its own",
+          "durationToken": "motion.duration.spin"
         }
       ]
     },
@@ -37760,7 +38124,7 @@
           }
         ]
       },
-      "hash": "8d7ef76a",
+      "hash": "b8f5f366",
       "source": [
         "packages/react/src/components/Tooltip/Tooltip.tsx",
         "packages/react/src/components/Button/Button.module.css",
@@ -37857,7 +38221,43 @@
       "motion": [
         {
           "what": "Opening and closing the popup",
-          "reason": "the popup is its own set; a Figma component cannot open another one from its trigger"
+          "reason": "the popup is its own set; a Figma component cannot open another one from its trigger",
+          "enter": {
+            "duration": 150,
+            "durationToken": "motion.duration.fast",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.16,
+                1,
+                0.3,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.enter",
+            "properties": [
+              "opacity",
+              "transform"
+            ]
+          },
+          "exit": {
+            "duration": 150,
+            "durationToken": "motion.duration.fast",
+            "easing": {
+              "type": "CUSTOM_CUBIC_BEZIER",
+              "bezier": [
+                0.4,
+                0,
+                1,
+                1
+              ]
+            },
+            "easingToken": "motion.easing.exit",
+            "properties": [
+              "opacity",
+              "transform"
+            ]
+          }
         }
       ]
     }

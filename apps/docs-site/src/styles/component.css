@@ -418,6 +418,28 @@ a.tchip:hover {
   color: var(--color-text-signal);
 }
 
+/* Motion and interaction table */
+
+.motion-table th[scope="row"] {
+  white-space: nowrap;
+}
+
+.motion-value {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-0-5);
+}
+
+/* Token names stay on one line: on a phone the table scrolls sideways instead of breaking a name. */
+.motion-value code {
+  white-space: nowrap;
+}
+
+.motion-note {
+  margin-block-start: var(--space-3);
+}
+
 /* Props playground island */
 
 .pg {

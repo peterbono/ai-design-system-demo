@@ -224,12 +224,19 @@ const OPEN_ATTR = /\[data-(starting-style|ending-style|open|closed|popup-open|pa
  * keyframe animations (a spinner, a shimmer), the keyboard focus ring, and opening or closing (a popup's enter motion,
  * an accordion panel). `view` is the set's view: a popup drawn open, or a trigger without its popup.
  */
-export function motionNotes(rules: CssRule[], classes: Set<string>, tokens: Map<string, MotionToken>, view?: 'popup' | 'without-popup'): SpecMotionNote[] {
+export function motionNotes(
+  rules: CssRule[],
+  classes: Set<string>,
+  tokens: Map<string, MotionToken>,
+  view?: 'popup' | 'without-popup',
+  elements: string[][] = [...classes].map((c) => [c]),
+): SpecMotionNote[] {
   const out: SpecMotionNote[] = [];
   const add = (n: SpecMotionNote) => {
     if (!out.some((x) => x.what === n.what)) out.push(n);
   };
   const styled = (r: CssRule) => targetClasses(r).some((c) => classes.has(c));
+  const opened = new Set<string>();
   for (const r of rules) {
     if (!styled(r)) continue;
     const values = new Map(r.decls.map((d) => [d.prop, d.value]));
@@ -242,15 +249,77 @@ export function motionNotes(rules: CssRule[], classes: Set<string>, tokens: Map<
       add({
         what: `${loops ? 'Looping animation' : 'Keyframe animation'} ${name ?? ''}${dur ? `, ${fmtMs(dur.ms)}` : ''}`.replace(/\s+,/, ',').trim(),
         reason: loops ? 'a Figma component cannot loop an animation on its own' : 'keyframes have no Figma equivalent between variants',
+        ...(dur?.token ? { durationToken: dur.token } : {}),
       });
     }
     if (/:focus(-visible|-within)?\b/.test(r.text)) add({ what: 'Keyboard focus', reason: 'the focus ring shows when a keyboard moves to the component; Figma prototypes have no focus state' });
     if (OPEN_ATTR.test(r.text)) {
+      for (const c of targetClasses(r)) if (classes.has(c)) opened.add(c);
       add({
         what: view === 'popup' ? 'Opening and closing the popup' : 'Opening and closing',
         reason: view === 'popup' ? 'the popup is its own set; a Figma component cannot open another one from its trigger' : 'the open state is not drawn as a variant',
       });
     }
   }
+  const note = out.find((n) => n.what.startsWith('Opening and closing'));
+  if (note) {
+    const { enter, exit } = openingTransitions(rules, elements.filter((el) => el.some((c) => opened.has(c))), tokens);
+    if (enter) note.enter = enter;
+    if (exit) note.exit = exit;
+  }
   return out;
+}
+
+const ENDING_ATTR = /\[data-(ending-style|closed)\]/;
+const STATE_PSEUDO = /:(hover|active|focus|focus-visible|focus-within|disabled|checked)\b/;
+
+/**
+ * The code's transitions when a part opens and when it closes, for the elements with open-state rules (`elements`, each
+ * the "<module>|<class>" names one element carries): the
+ * destination state's `transition` animates, as in CSS. Opening ends in the base rules plus the open rules
+ * ([data-open], [data-panel-open]...); closing ends in the base rules plus [data-ending-style] / [data-closed]. The
+ * properties are the ones those rules change. One transition per direction: the longest, as for interactions.
+ */
+export function openingTransitions(rules: CssRule[], elements: string[][], tokens: Map<string, MotionToken>): { enter: SpecTransition | null; exit: SpecTransition | null } {
+  type Found = { ms: number; durationToken?: string; easing: SpecEasing; easingToken?: string; props: Set<string> };
+  const best: { enter?: Found; exit?: Found } = {};
+  for (const el of elements) {
+    const mine = rules.filter((r) => targetClasses(r).some((c) => el.includes(c))).sort((a, b) => a.order - b.order);
+    // Base: the element at rest, without any state (open, swiping, hover...).
+    const base = mine.filter((r) => !/\[data-/.test(r.text) && !STATE_PSEUDO.test(r.text));
+    const states = mine.filter((r) => OPEN_ATTR.test(r.text));
+    const opens = states.filter((r) => !/\[data-(starting-style|ending-style|closed)\]/.test(r.text));
+    const endings = states.filter((r) => ENDING_ATTR.test(r.text));
+    const changed = new Set(states.flatMap((r) => r.decls.map((d) => d.prop)).filter((p) => !p.startsWith('--') && !SILENT.test(p)));
+    if (!changed.size) continue;
+    const settle = (list: CssRule[]) => {
+      const computed = new Map<string, string>();
+      for (const r of [...list].sort((a, b) => a.order - b.order)) for (const d of r.decls) computed.set(d.prop, d.value);
+      return computed;
+    };
+    const find = (computed: Map<string, string>): Found | undefined => {
+      const entries = parseTransitions(computed, tokens);
+      let main: Found | undefined;
+      const props = new Set<string>();
+      for (const prop of changed) {
+        const e = entryFor(prop, entries);
+        if (!e) continue;
+        const d = resolveDuration(e.duration, tokens);
+        const ease = resolveEasing(e.easing, tokens);
+        if (!d || d.ms <= 0 || !ease) continue;
+        props.add(shorthandOf(prop));
+        if (!main || d.ms > main.ms) main = { ms: d.ms, ...(d.token ? { durationToken: d.token } : {}), easing: ease.easing, ...(ease.token ? { easingToken: ease.token } : {}), props };
+      }
+      return main;
+    };
+    for (const [dir, found] of [['enter', find(settle([...base, ...opens]))], ['exit', find(settle([...base, ...endings]))]] as const) {
+      if (!found) continue;
+      const cur = best[dir];
+      if (!cur || found.ms > cur.ms) best[dir] = { ...found, props: new Set([...(cur?.props ?? []), ...found.props]) };
+      else for (const p of found.props) cur.props.add(p);
+    }
+  }
+  const out = (f: Found | undefined): SpecTransition | null =>
+    f ? { duration: f.ms, ...(f.durationToken ? { durationToken: f.durationToken } : {}), easing: f.easing, ...(f.easingToken ? { easingToken: f.easingToken } : {}), properties: [...f.props].sort() } : null;
+  return { enter: out(best.enter), exit: out(best.exit) };
 }
