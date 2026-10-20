@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ROOT } from './repo';
-import { QUEUE, STEP_MS, approveInQueue, fitScale, heroKeyTarget, heroSnap, heroValueText, panoramaFit, stepForKey, stepTick, undoInQueue } from './homepage';
+import { CHANGES, QUEUE, STEP_MS, approveInQueue, fitScale, heroKeyTarget, heroSnap, heroValueText, panoramaFit, stepForKey, stepTick, undoInQueue } from './homepage';
 
 describe('hero bridge', () => {
   it('says where the bridge is', () => {
@@ -95,10 +95,18 @@ describe('homepage sections', () => {
     expect(page).not.toMatch(/—/);
   });
 
-  it('shows the dialog, then what Bridge found, then the review', () => {
+  it('shows the dialog, then the concept of steps 2 and 3, never interface with buttons', () => {
     expect(page).toMatch(/slot="p0" class="hp-card hp-dlg"/);
-    expect(page).toContain('<HpKeep step={0} />');
-    expect(page).toContain('<HpKeep step={2} />');
+    expect(page).toContain('<HpTrace />');
+    expect(page).toContain('<HpJustThat />');
+    for (const f of ['HpTrace', 'HpJustThat']) {
+      const src = readFileSync(join(ROOT, `apps/docs-site/src/components/home/${f}.astro`), 'utf8');
+      expect(src).not.toMatch(/hp-obtn|<Button|<button/);
+    }
+  });
+
+  it('tracks three kinds of change', () => {
+    expect(CHANGES.map((c) => c.label)).toEqual(['New piece', 'Token changed', 'Written by hand']);
   });
 
   it('keeps the footer About column to About Bridge and GitHub', () => {

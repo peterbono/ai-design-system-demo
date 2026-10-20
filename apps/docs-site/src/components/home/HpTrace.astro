@@ -1,0 +1,31 @@
+---
+// "Bridge traces what changed", as a concept (not UI): a branch leaves main and Bridge marks each change the
+// exploration makes to the design system. The branch draws in, then the marks pop (styles/homepage.css).
+import { CHANGES } from '../../lib/homepage';
+
+const at = ['37%', '63%', '89%'];
+---
+
+<div class="hp-trc">
+  <svg class="hp-tline" viewBox="0 0 460 300" aria-hidden="true" focusable="false">
+    <path class="hp-tmain" d="M10 270H450" stroke-width="3" stroke-linecap="round" fill="none"></path>
+    <text x="12" y="292" class="hp-tlab">main</text>
+    <path class="hp-tbr" pathLength="1" d="M60 270C110 270 110 200 160 200H440" stroke-width="3" stroke-linecap="round" fill="none"></path>
+    {[170, 290, 410].map((cx, i) => <circle cx={cx} cy="200" r="7" stroke-width="3" class="hp-td" style={`--d: ${i}`} />)}
+    <text x="200" y="226" class="hp-tlab hp-tlab2">your exploration</text>
+  </svg>
+  <ul class="hp-tms">
+    {
+      CHANGES.map((c, i) => (
+        <li class="hp-tm" style={`--d: ${i}; left: ${at[i]}`}>
+          <span class="hp-tg">{c.mark}</span>
+          <span class="hp-tlx">
+            <strong>{c.label}</strong>
+            <code>{c.code}</code>
+          </span>
+        </li>
+      ))
+    }
+  </ul>
+  <p class="hp-tby"><svg class="hp-lg" aria-hidden="true"><use href="#hp-logo"></use></svg>Tracked by Bridge</p>
+</div>

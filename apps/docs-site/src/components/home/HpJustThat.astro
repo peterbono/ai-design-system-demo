@@ -1,0 +1,40 @@
+---
+// "Your DS lead reviews just that", as a concept (not UI): everything the exploration touched, with the three design
+// system changes standing out, then only those three in front of the DS lead and a developer.
+import { CHANGES } from '../../lib/homepage';
+
+const noise = ['Billing screen layout', 'Copy on the profile page', 'Route /members/:id', 'Empty state illustration', 'Loading skeleton'];
+---
+
+<div class="hp-jst">
+  <div class="hp-jcol">
+    <p class="hp-klab">Everything the exploration touched</p>
+    <ul class="hp-jall">
+      {noise.slice(0, 2).map((n) => <li class="hp-jn">{n}</li>)}
+      {
+        CHANGES.map((c) => (
+          <li class="hp-jd">
+            <span class="hp-tg">{c.mark}</span>
+            {c.label} · <code>{c.code}</code>
+          </li>
+        ))
+      }
+      {noise.slice(2).map((n) => <li class="hp-jn">{n}</li>)}
+    </ul>
+  </div>
+  <svg class="hp-jarr" viewBox="0 0 40 16" aria-hidden="true" focusable="false"><path d="M2 8h34M30 2l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+  <div class="hp-jcol">
+    <p class="hp-klab">What your DS lead reviews</p>
+    <ul class="hp-jrev">
+      {
+        CHANGES.map((c, i) => (
+          <li style={`--d: ${i}`}>
+            <span class="hp-jt"><svg aria-hidden="true"><use href="#hp-check" /></svg></span>
+            <span><strong>{c.label}</strong> <code>{c.code}</code></span>
+          </li>
+        ))
+      }
+    </ul>
+    <p class="hp-jwho"><span class="hp-av hp-av-sm hp-grey">D</span><span class="hp-av hp-av-sm hp-grey">L</span>Design and code, contrast checked</p>
+  </div>
+</div>

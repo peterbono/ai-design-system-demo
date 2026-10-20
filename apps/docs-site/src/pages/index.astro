@@ -15,7 +15,8 @@ import HpPencil from '../components/home/HpPencil.astro';
 import HpGhost from '../components/home/HpGhost.astro';
 import HpProfile from '../components/home/HpProfile.astro';
 import HpStepSection from '../components/home/HpStepSection.astro';
-import HpKeep from '../components/home/HpKeep.astro';
+import HpTrace from '../components/home/HpTrace.astro';
+import HpJustThat from '../components/home/HpJustThat.astro';
 import HpQueue from '../components/home/HpQueue.astro';
 import HpPanorama from '../components/home/HpPanorama.astro';
 import HpWalkers from '../components/home/HpWalkers.astro';
@@ -89,8 +90,8 @@ const code = '<s>import</s> { <em>ProfileHeader</em> }\n  <s>from</s> "@bridge-d
         ]}
         labels={[
           'Create branch dialog: A feature in a product is selected, with a field to link a Jira ticket and a Start with Claude AI button',
-          'Your exploration next to your library: the profile header is new, not in the library yet, found by Bridge, with an Open library branch button',
-          'The new profile header in the library: design approved by Dana, DS lead; code approved by Leo, developer; contrast passes in light and dark',
+          'A branch, your exploration, leaves main. Bridge marks three changes on it: a new piece, Profile header; a token changed, color.bg.default; a value written by hand, padding 14px. Tracked by Bridge',
+          'Everything the exploration touched, with its three design system changes highlighted; only those three go to your DS lead: design and code reviewed, contrast checked',
         ]}
       >
         <div slot="p0" class="hp-card hp-dlg">
@@ -101,8 +102,8 @@ const code = '<s>import</s> { <em>ProfileHeader</em> }\n  <s>from</s> "@bridge-d
           <div class="hp-jira"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Link a Jira ticket</div>
           <div class="hp-row hp-dlg-foot"><span class="hp-sp"></span><span class="hp-btn hp-btn-line">Cancel</span><span class="hp-btn hp-btn-deep hp-ring"><span class="hp-ai"><svg aria-hidden="true"><use href="#hp-robot" /></svg></span>Start with Claude AI</span></div>
         </div>
-        <div slot="p1" class="hp-sc hp-sc-center"><HpKeep step={0} /></div>
-        <div slot="p2" class="hp-sc hp-sc-center"><HpKeep step={2} /></div>
+        <div slot="p1" class="hp-sc hp-sc-center"><HpTrace /></div>
+        <div slot="p2" class="hp-sc hp-sc-center"><HpJustThat /></div>
       </HpStepSection>
 
       <HpStepSection

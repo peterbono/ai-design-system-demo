@@ -1185,58 +1185,7 @@ a.hp-demo {
   }
 }
 
-/* Library pieces (Avatar, Text, Button) as tiles, and the entrance of the drawings. */
-.hp-pc {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-1-5);
-}
-
-.hp-lp {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--size-16);
-  height: var(--size-10);
-  border: var(--border-width-default) solid var(--_line);
-  border-radius: var(--radius-lg);
-  background-color: var(--_paper);
-}
-
-.hp-pc small {
-  color: var(--color-text-link);
-  font-size: var(--font-size-100);
-  font-weight: var(--font-weight-semibold);
-}
-
-.hp-pc .hp-fol {
-  height: auto;
-  margin: 0;
-  padding: var(--space-0-5) var(--space-2);
-  font-size: var(--font-size-100);
-  line-height: var(--font-leading-16);
-}
-
-.hp-tx {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-.hp-tx i {
-  display: block;
-  width: calc(var(--space-8) - var(--space-0-5));
-  height: var(--space-1);
-  border-radius: var(--radius-xs);
-  background-color: var(--color-text-default);
-}
-
-.hp-tx i + i {
-  width: calc(var(--space-5) + var(--space-0-5));
-  background-color: var(--_line-strong);
-}
-
+/* The entrance of the drawings. */
 .hp-ui.hp-on .hp-asm {
   animation: hp-asm var(--motion-duration-slow) var(--motion-easing-enter) calc(var(--d, 0) * var(--motion-duration-slow) * 0.8667 + var(--motion-duration-slow)) both;
 }
@@ -1279,30 +1228,163 @@ a.hp-demo {
   color: var(--color-text-link);
 }
 
-/* Start 2 and 3: exploration -> library slot (components/home/HpKeep.astro). */
-.hp-kw {
+/* The Bridge mark next to a label. */
+.hp-lg {
+  flex: none;
+  width: var(--size-4);
+  height: calc(var(--_u) * 13);
+}
+
+/* Start 2: the tracked branch (a concept, not UI). */
+.hp-trc {
+  position: relative;
+  width: min(calc(var(--size-120) + var(--space-10)), 100%);
+}
+
+.hp-tline {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.hp-tmain {
+  stroke: var(--_line-strong);
+}
+
+.hp-tbr {
+  stroke: var(--_deep);
+  stroke-dasharray: 1;
+}
+
+.hp-td {
+  fill: var(--_paper);
+  stroke: var(--_deep);
+}
+
+.hp-tlab {
+  fill: var(--color-text-muted);
+  font-size: var(--font-size-100);
+  font-weight: var(--font-weight-medium);
+}
+
+.hp-tlab2 {
+  fill: var(--color-text-link);
+}
+
+.hp-ui.hp-on .hp-tbr {
+  animation: hp-draw-line calc(var(--motion-duration-slow) * 3) var(--motion-easing-standard) both;
+}
+
+.hp-ui.hp-on .hp-td {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: hp-tpop var(--motion-duration-slow) var(--motion-easing-enter) calc(var(--motion-duration-slow) * 3 + var(--d) * var(--motion-duration-slow) * 1.1667) both;
+}
+
+@keyframes hp-tpop {
+  from {
+    opacity: 0;
+    transform: scale(0);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.hp-tms {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hp-tm {
+  position: absolute;
+  bottom: calc(33.3% + var(--space-12) + var(--space-2) + var(--space-0-5));
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: calc(var(--space-5) + var(--space-0-5));
-  width: 100%;
+  gap: var(--space-1-5);
+  width: calc(var(--size-20) + var(--space-4));
+  margin: 0;
+  text-align: center;
+  transform: translateX(-50%);
 }
 
-.hp-krow {
+.hp-tm::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--space-8) * -1 + var(--space-0-5));
+  height: var(--size-6);
+  border-left: calc(var(--_u) * 1.5) dashed var(--_line-strong);
+}
+
+.hp-tlx {
   display: flex;
   flex-direction: column;
-  flex-wrap: wrap;
+  gap: var(--space-0-5);
+  font-size: var(--font-size-100);
+  line-height: var(--font-leading-16);
+}
+
+.hp-tlx strong {
+  font-weight: var(--font-weight-semibold);
+}
+
+.hp-tm code,
+.hp-jst code {
+  color: var(--color-text-link);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-100);
+}
+
+.hp-tg {
+  display: inline-flex;
+  flex: none;
   align-items: center;
   justify-content: center;
-  gap: calc(var(--space-4) + var(--space-0-5));
+  width: calc(var(--size-5) + var(--space-0-5));
+  height: calc(var(--size-5) + var(--space-0-5));
+  border-radius: var(--radius-pill);
+  background-color: var(--color-bg-zone);
+  color: var(--color-text-link);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-200);
+  font-weight: var(--font-weight-semibold);
 }
 
-.hp-kcol {
+.hp-ui.hp-on .hp-tm .hp-tlx,
+.hp-ui.hp-on .hp-tm .hp-tg {
+  animation: hp-asm var(--motion-duration-slow) var(--motion-easing-enter) calc(var(--motion-duration-slow) * 3.3333 + var(--d) * var(--motion-duration-slow) * 1.1667) both;
+}
+
+.hp-tby {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   gap: var(--space-2);
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-200);
+  font-weight: var(--font-weight-semibold);
 }
 
+@media (min-width: 900px) {
+  .hp-tm {
+    width: calc(var(--size-120) / 4 + var(--space-2) + var(--space-0-5));
+  }
+
+  .hp-tlx {
+    font-size: var(--font-size-200);
+    line-height: var(--font-leading-20);
+  }
+}
+
+/* Start 3: just that (a concept, not UI). */
 .hp-klab {
   margin: 0;
   color: var(--color-text-muted);
@@ -1310,165 +1392,102 @@ a.hp-demo {
   font-weight: var(--font-weight-semibold);
 }
 
-.hp-kexp {
-  position: relative;
-  border-radius: var(--radius-2xl);
-}
-
-.hp-kexp.hp-knew .hp-ph-card {
-  outline: var(--border-width-2) dashed var(--_deep);
-  outline-offset: var(--space-1-5);
-}
-
-.hp-ktag {
-  position: absolute;
-  right: calc(var(--space-2) * -1 - var(--space-0-5));
-  top: calc(var(--space-4) * -1);
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  height: var(--size-5);
-  padding: 0 var(--space-1-5);
-  border-radius: var(--radius-sm);
-  background-color: var(--_deep);
-  color: var(--_on-deep);
-  font-size: var(--font-size-100);
-  font-weight: var(--font-weight-semibold);
-  box-shadow: 0 0 0 var(--border-width-3) var(--_soft);
-}
-
-.hp-ktag svg {
-  width: calc(var(--_u) * 9);
-  height: calc(var(--_u) * 9);
-}
-
-.hp-karr {
+.hp-jst {
   display: flex;
-  color: var(--_deep);
-  transform: rotate(90deg);
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--space-2) + var(--space-0-5));
 }
 
-.hp-karr svg {
-  width: var(--size-10);
-  height: var(--size-4);
-}
-
-.hp-kgrid {
-  display: grid;
-  grid-template-columns: repeat(2, auto);
-  gap: calc(var(--space-2) + var(--space-0-5)) var(--space-3);
-  padding: var(--space-3);
-  border: var(--border-width-default) solid var(--_line);
-  border-radius: var(--radius-2xl);
-  background-color: var(--_paper);
-}
-
-.hp-lp.hp-kslot {
-  overflow: hidden;
-  border: calc(var(--_u) * 1.5) dashed var(--_line-strong);
-  background-color: var(--_soft);
-}
-
-.hp-lp.hp-kslot.hp-kin {
-  border: var(--border-width-2) solid var(--_deep);
-  background-color: var(--_paper);
-}
-
-.hp-kq {
-  color: var(--color-text-disabled);
-  font-size: var(--font-size-300);
-  font-weight: var(--font-weight-semibold);
-}
-
-.hp-kmini {
-  display: block;
-  transform: scale(0.3);
-  transform-origin: center;
-  pointer-events: none;
-}
-
-.hp-kmini .hp-ph-card {
-  box-shadow: none;
-}
-
-.hp-ui.hp-on .hp-kin .hp-kmini {
-  animation: hp-kdrop var(--motion-duration-slow) var(--motion-easing-enter) var(--motion-duration-moderate) both;
-}
-
-@keyframes hp-kdrop {
-  from {
-    opacity: 0;
-    transform: scale(0.3) translateY(calc(var(--space-2) * -1 - var(--space-0-5)));
-  }
-
-  to {
-    opacity: 1;
-    transform: scale(0.3);
-  }
-}
-
-.hp-kfoot {
+.hp-jcol {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-4);
-}
-
-.hp-kby {
-  display: inline-flex;
-  align-items: center;
+  flex-direction: column;
   gap: var(--space-2);
-  margin: 0;
-  font-size: var(--font-size-200);
-  font-weight: var(--font-weight-semibold);
 }
 
-.hp-lg {
-  width: var(--size-4);
-  height: calc(var(--_u) * 13);
-}
-
-.hp-kapv {
+.hp-jall,
+.hp-jrev {
   display: flex;
   flex-direction: column;
   gap: var(--space-1-5);
   margin: 0;
   padding: 0;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-200);
   list-style: none;
 }
 
-.hp-kapv li {
+.hp-jall li {
+  margin: 0;
+  padding: var(--space-1) calc(var(--space-2) + var(--space-0-5));
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-200);
+}
+
+.hp-jn {
+  color: var(--color-text-disabled);
+}
+
+.hp-jall .hp-jd {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  border: var(--border-width-default) solid var(--_line);
+  background-color: var(--_paper);
+  color: var(--color-text-default);
+}
+
+.hp-jd .hp-tg {
+  width: calc(var(--size-4) + var(--space-0-5));
+  height: calc(var(--size-4) + var(--space-0-5));
+  font-size: var(--font-size-100);
+}
+
+.hp-jrev li {
   display: flex;
   align-items: center;
   gap: var(--space-2);
   margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width-default) solid var(--_line);
+  border-radius: var(--radius-lg);
+  background-color: var(--_paper);
+  font-size: var(--font-size-200);
 }
 
-.hp-kapv strong {
-  color: var(--color-text-default);
+.hp-jrev strong {
   font-weight: var(--font-weight-semibold);
 }
 
-.hp-kapv svg {
-  width: var(--size-4);
-  height: var(--size-4);
+.hp-jt {
+  display: inline-flex;
   color: var(--color-text-link);
 }
 
-@media (min-width: 900px) {
-  .hp-krow {
-    flex-direction: row;
-  }
-
-  .hp-karr {
-    transform: none;
-  }
+.hp-jt svg {
+  width: var(--size-4);
+  height: var(--size-4);
 }
 
-/* The pressed action (Open library branch, Merge, Pull). */
+.hp-ui.hp-on .hp-jrev li {
+  animation: hp-asm var(--motion-duration-slow) var(--motion-easing-enter) calc(var(--motion-duration-slow) + var(--d) * var(--motion-duration-slow) * 0.8333) both;
+}
+
+.hp-jwho {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-200);
+}
+
+.hp-jarr {
+  width: var(--size-10);
+  height: var(--size-4);
+  color: var(--_deep);
+  transform: rotate(90deg);
+}
+
+/* The pressed action (Merge, Pull). */
 .hp-obtn {
   position: relative;
   display: grid;
@@ -2748,7 +2767,11 @@ a.hp-connect {
   .hp-ui.hp-on .hp-pick,
   .hp-ui.hp-on .hp-ring,
   .hp-ui.hp-on .hp-qbar i,
-  .hp-ui.hp-on .hp-kin .hp-kmini {
+  .hp-ui.hp-on .hp-tbr,
+  .hp-ui.hp-on .hp-td,
+  .hp-ui.hp-on .hp-tm .hp-tlx,
+  .hp-ui.hp-on .hp-tm .hp-tg,
+  .hp-ui.hp-on .hp-jrev li {
     animation: none;
   }
 

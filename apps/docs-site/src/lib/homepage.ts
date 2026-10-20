@@ -56,6 +56,13 @@ export function panoramaFit(width: number): { x: number; scale: number; height: 
   return { x: (width - 1440 * scale) / 2, scale, height: 292 * scale + 40 };
 }
 
+/** What Bridge tracks on an exploration's branch, in "Start it in Bridge" (steps 2 and 3). */
+export const CHANGES: { mark: string; label: string; code: string }[] = [
+  { mark: '+', label: 'New piece', code: 'Profile header' },
+  { mark: '~', label: 'Token changed', code: 'color.bg.default' },
+  { mark: '!', label: 'Written by hand', code: 'padding 14px' },
+];
+
 export interface QueueItem {
   id: string;
   title: string;
