@@ -200,6 +200,7 @@ function GuidanceSectionBlock({
   const [focus, setFocus] = useState(0);
   const [busy, setBusy] = useState(false);
   const [said, setSaid] = useState('');
+  const [failed, setFailed] = useState(false);
   const verdict = section.key === 'dos' ? 'is-do' : section.key === 'donts' ? 'is-dont' : '';
   const plain = (segs: Seg[] | undefined) => (segs ?? []).map((s) => s.text).join('');
   const start = (index: number) => {
@@ -212,12 +213,14 @@ function GuidanceSectionBlock({
     if (!draft) return;
     setBusy(true);
     setSaid('');
+    setFailed(false);
     try {
       await onSave(section.key, draft);
       setDraft(null);
       setSaid('Saved to this branch.');
     } catch (err) {
       setSaid((err as Error).message);
+      setFailed(true);
     } finally {
       setBusy(false);
     }
@@ -280,12 +283,21 @@ function GuidanceSectionBlock({
           <Button size="sm" variant="secondary" loading={busy} onClick={() => void save()}>
             Save
           </Button>
-          <Button size="sm" variant="ghost" disabled={busy} onClick={() => setDraft(null)}>
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={busy}
+            onClick={() => {
+              setDraft(null);
+              setSaid('');
+              setFailed(false);
+            }}
+          >
             Cancel
           </Button>
         </div>
       )}
-      <p className="br-said" role="status" aria-live="polite">
+      <p className={failed ? 'br-said br-error' : 'br-said'} role={failed ? 'alert' : 'status'} aria-live={failed ? 'assertive' : 'polite'}>
         {said}
       </p>
     </section>
@@ -803,6 +815,7 @@ function DecisionBar({ p, leftLine, inputRef }: { p: BranchReviewProps; leftLine
           title={primary?.kind === 'approve-merge' ? 'Approve and merge into main?' : 'Merge into main?'}
           description="It goes out with the next release of the library."
           confirmLabel={primary?.kind === 'approve-merge' ? 'Approve and merge' : 'Merge'}
+          tone="primary"
           onConfirm={() => {
             setConfirm(null);
             if (primary) void run(primary.kind);

@@ -38,7 +38,7 @@ export function QueueList({ rows, selected, outcomes, onSelect }: QueueListProps
       </Link>
       <p className="rq-count">
         <strong>Review all</strong>
-        {index >= 0 && <span className="rq-muted"> · {positionLabel(rows.length, index)}</span>}
+        <span className="rq-muted"> · {index >= 0 ? positionLabel(rows.length, index) : `${rows.length} waiting`}</span>
       </p>
       <Progress value={done} max={Math.max(rows.length, 1)} size="sm" aria-label={`${done} of ${rows.length} done`} getAriaValueText={() => `${done} of ${rows.length} done`} />
       <SidebarNav aria-label="Waiting on you" className="rq-items">

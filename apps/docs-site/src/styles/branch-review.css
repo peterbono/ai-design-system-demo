@@ -254,18 +254,21 @@
 /* Tokens: name, before, after, where. */
 .br-tokens {
   display: grid;
-  gap: var(--space-3);
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  gap: var(--space-3) var(--space-4);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-/* One row per token: name, before, arrow, after; the themes it changes in under the name. */
+/* One row per token: name, before, arrow, after; the themes it changes in under the name. The rows share the
+   list's columns (subgrid), so before, arrow and after line up from row to row at their own width. */
 .br-token {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--size-40) auto var(--size-40);
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
   align-items: center;
-  gap: var(--space-1) var(--space-4);
+  row-gap: var(--space-1);
 }
 
 .br-token-name {
@@ -544,6 +547,20 @@
   max-width: none;
 }
 
+/* Inside the queue its own list is the outline: a busy branch keeps its count and progress, one column. */
+.br.is-queue .br-multi {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.br.is-queue .br-outline {
+  position: static;
+}
+
+.br.is-queue .br-outline .br-toc,
+.br.is-queue .br-outline-where {
+  display: none;
+}
+
 @media (max-width: 960px) {
   .br-multi {
     grid-template-columns: minmax(0, 1fr);
@@ -587,6 +604,7 @@
   }
 
   /* Before above after, the arrow pointing down. */
+  .br-tokens,
   .br-token {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -616,4 +634,8 @@
     flex: 1 0 auto;
     order: 2;
   }
+}
+
+.br-said.br-error {
+  color: var(--color-feedback-danger-text);
 }
