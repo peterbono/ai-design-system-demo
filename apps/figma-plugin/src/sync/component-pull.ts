@@ -25,6 +25,7 @@ import {
   type SpecSlot,
   type SpecValue,
   type TokenSet,
+  type FigmaPushStatus,
   componentMotion,
   defaultContext,
   parseColor,
@@ -48,6 +49,27 @@ export interface GeneratedSet {
   specHash: string;
   /** Variant keys (variantKeyOf) of the generated variants, orphans excluded. */
   variants: string[];
+  /** The library branch this set was pushed to from Figma (shared plugin data dsbridge / pushed), until a pull rebuilds it. */
+  pushed?: PushedMark | undefined;
+}
+
+/** Where a set's change from Figma went: its library branch (a token change or a branch Claude AI drafts). */
+export interface PushedMark {
+  number: number;
+  url: string;
+  route: 'token-change' | 'claude-draft';
+  at?: string | undefined;
+}
+
+/** Reads the pushed mark stored on a set; undefined when it is not one. */
+export function parsePushedMark(text: string | null | undefined): PushedMark | undefined {
+  if (!text) return undefined;
+  try {
+    const m = JSON.parse(text) as PushedMark;
+    return typeof m.number === 'number' && typeof m.url === 'string' ? m : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** What a Figma field gets: a variable binding, a literal, a percent (unitless line height, em tracking), no paint, or a font. */
@@ -146,6 +168,11 @@ export interface PlannedComponent {
   interactions?: MotionReaction[] | undefined;
   /** What Figma plays differently from the code, or cannot play, in plain words ("Keyboard focus: ..."). */
   motionNotes?: string[] | undefined;
+  /**
+   * The set was changed in Figma and pushed to a library branch that has now shipped (or closed): the update rebuilds it
+   * from the reviewed code, so Figma never diverges from it.
+   */
+  fromFigma?: { number: number; url: string; status: FigmaPushStatus } | undefined;
 }
 
 export interface ComponentProblem {
@@ -367,7 +394,13 @@ export function motionNotesOf(spec: ComponentSpec): string[] {
 export const draftedSetNote = (d: NonNullable<PlannedComponent['drafted']>) => (d.stale ? 'Drafted, the code changed since: check it' : 'Drafted, check it');
 
 /** The pull plan for components: status per spec, every field resolved to a variable (or a reason it is not). */
-export function buildComponentPlan(specs: ComponentSpecsFile, source: string, generated: GeneratedSet[], head: TokenSet): ComponentPullPlan {
+export function buildComponentPlan(
+  specs: ComponentSpecsFile,
+  source: string,
+  generated: GeneratedSet[],
+  head: TokenSet,
+  opts: { pushed?: ReadonlyMap<number, FigmaPushStatus> | undefined } = {},
+): ComponentPullPlan {
   const problems: ComponentProblem[] = [];
   const seen = new Set<string>();
   const problem = (p: ComponentProblem) => {
@@ -497,7 +530,10 @@ export function buildComponentPlan(specs: ComponentSpecsFile, source: string, ge
     const have = new Set(existing?.variants ?? []);
     const addedVariants = existing ? variants.map((v) => v.key).filter((k) => !have.has(k)) : [];
     const removedVariants = existing ? existing.variants.filter((k) => !keys.has(k)) : [];
-    const status: ComponentStatus = !existing ? 'new' : existing.specHash === spec.hash && !addedVariants.length && !removedVariants.length ? 'unchanged' : 'updated';
+    // Pushed from Figma and shipped (or closed): rebuilt from the reviewed code even when the spec did not change.
+    const shipped = existing?.pushed ? opts.pushed?.get(existing.pushed.number) : undefined;
+    const fromFigma = existing?.pushed && shipped?.rebuild ? { number: existing.pushed.number, url: existing.pushed.url, status: shipped } : undefined;
+    const status: ComponentStatus = !existing ? 'new' : existing.specHash === spec.hash && !addedVariants.length && !removedVariants.length && !fromFigma ? 'unchanged' : 'updated';
     const pins: NonNullable<PlannedComponent['pins']> = {};
     for (const part of spec.parts) if (part.pin) pins[part.id] = pinPixels(part.id, part.pin);
     components.push({
@@ -506,6 +542,7 @@ export function buildComponentPlan(specs: ComponentSpecsFile, source: string, ge
       name: spec.name,
       ...(spec.component ? { component: spec.component } : {}),
       ...(spec.drafted ? { drafted: spec.drafted } : {}),
+      ...(fromFigma ? { fromFigma } : {}),
       hash: spec.hash,
       status,
       ...(existing ? { nodeId: existing.nodeId } : {}),
@@ -571,4 +608,15 @@ export const pendingComponents = (plan: ComponentPullPlan | undefined) => plan?.
 /** The plan with only the components to write: unchanged ones are not sent to the main thread. */
 export function writablePlan(plan: ComponentPullPlan): ComponentPullPlan {
   return { ...plan, components: pendingComponents(plan) };
+}
+
+/** Library branch numbers of the generated sets pushed from Figma, to read where each stands before planning a pull. */
+export const pushedNumbers = (generated: readonly GeneratedSet[]) => [...new Set(generated.flatMap((g) => (g.pushed ? [g.pushed.number] : [])))];
+
+/** Sets pushed from Figma whose library branch is still open: "Button (Waiting for Claude AI)". */
+export function pushedInReview(generated: readonly GeneratedSet[], statuses: ReadonlyMap<number, FigmaPushStatus>): { name: string; number: number; url: string; status: FigmaPushStatus }[] {
+  return generated.flatMap((g) => {
+    const st = g.pushed ? statuses.get(g.pushed.number) : undefined;
+    return g.pushed && st && !st.rebuild ? [{ name: g.name, number: g.pushed.number, url: g.pushed.url, status: st }] : [];
+  });
 }

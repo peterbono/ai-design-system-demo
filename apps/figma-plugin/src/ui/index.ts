@@ -20,10 +20,12 @@ import { type ComponentChangeItem, type ComponentScan, type RequestDraft, classi
 import { CLAUDE_MODELS, type ClaudeDraft, type ClaudeDraftInput, ClaudeDraftError, DRAFTED_NOTE, draftWithClaude } from '../sync/claude';
 import { loadCodedComponents, sendComponentRequest } from '../sync/requests';
 import { DRAFT_PHRASE, type DraftField, DraftPoller, type MyClaudeTarget, finishMyClaudeDrafts, mcpSnippets, planFill, startMyClaudeDrafts } from '../sync/my-claude';
-import { type ComponentApplyReport, type ComponentPullPlan, type CoverageView, type PlannedComponent, buildComponentPlan, coverageView, draftedSetNote, loadComponentSpecs } from '../sync/component-pull';
+import { type ComponentApplyReport, type ComponentPullPlan, type CoverageView, type PlannedComponent, buildComponentPlan, coverageView, draftedSetNote, loadComponentSpecs, pushedInReview, pushedNumbers } from '../sync/component-pull';
+import { type FigmaPushStatus, figmaPushStatusesOnGitHub } from '@bridge-ds/core';
 import { type ComponentReview, onlyComponent, reviewUpdates } from '../sync/component-review';
 import type { ComponentSignature } from '../sync/components';
-import { type Destination, type PublishItem, type PublishResult, applyDestination, componentKey, defaultUnchecked, experimentalTokenIds, groupState, heldTokenIds, isChecked, publish, publishItems, setGroup, variableIdsOf, variableKey } from '../sync/publish';
+import { type ComponentPush, ROUTE_TAG, componentPushes } from '../sync/component-push';
+import { type Destination, type PublishItem, type PublishResult, sendComponentPush, applyDestination, componentKey, defaultUnchecked, experimentalTokenIds, groupState, heldTokenIds, isChecked, publish, publishItems, setGroup, variableIdsOf, variableKey } from '../sync/publish';
 import { type ComponentsReadProblem, NEW_TOKEN_REFUSED, TOKEN_REJECTED_CALLOUT, TOKEN_REJECTED_DETAIL, TOKEN_SETTINGS_URL, type TokenProblem, checkToken, componentsReadProblem, errorText, tokenProblem } from '../sync/token-health';
 import { type ExplorationChoice, explorationTestBuild, newExplorationProblems, runningExplorations, shareMessage, startExploration, targetOf, TestBuildPoller, tryItLinks } from '../sync/explorations';
 import type { BranchPreview, ExplorationTryIt } from '@bridge-ds/core';
@@ -64,6 +66,8 @@ interface PullState {
   after: Record<string, string>;
   /** Component ids updated one by one (or by "Update all"), with their review, kept across re-checks. */
   done: Map<string, ComponentReview>;
+  /** Sets pushed from Figma whose library branch is still open: said under the components, never overwritten silently. */
+  inReview: { name: string; number: number; url: string; status: FigmaPushStatus }[];
   /** "Check fidelity": running (with its progress line), its outcome, or why it failed. Nothing is written. */
   fidelity?: { running?: string | undefined; outcome?: FidelityOutcome | undefined; error?: string | undefined } | undefined;
 }
@@ -95,8 +99,11 @@ interface PushState {
   components?: ComponentScan | undefined;
   componentsError?: ComponentsReadProblem | undefined;
   fileKey?: string | undefined;
+  /** Where each component change goes (review): an exact token change, a branch Claude AI drafts, or fix in Figma. */
+  pushes: ComponentPush[];
   form?: RequestForm | undefined;
-  sent: { component: string; number: number; url: string }[];
+  /** Sent from this screen: requests (issues) and library branches, one status line each. */
+  sent: { component: string; number: number; url: string; what?: string | undefined }[];
   /** Who wrote the Description: the plugin's draft (kept in sync with the checked changes), Claude, or the designer. */
   descriptionSource: TextSource;
   /** Who wrote the pull request title (Claude fills it only when the designer has not typed one). */
@@ -585,10 +592,18 @@ async function loadPull(prev?: PullState): Promise<PullState> {
   let components: ComponentPullPlan | undefined;
   let componentsError: ComponentsReadProblem | undefined;
   let reviews: ComponentReview[] = [];
+  let inReview: PullState['inReview'] = [];
   const before: Record<string, string> = { ...(prev?.before ?? {}) };
   try {
     const loaded = await loadComponentSpecs(getClient(), analysis.headFiles.treeSha, analysis.headFiles.config);
-    if (loaded) components = buildComponentPlan(loaded.specs, loaded.path, await request('scan-generated', {}), analysis.head);
+    if (loaded) {
+      const generated = await request('scan-generated', {});
+      // Sets pushed from Figma: where their library branch stands decides whether the pull rebuilds them from code.
+      const numbers = pushedNumbers(generated);
+      const statuses = numbers.length ? await figmaPushStatusesOnGitHub(getClient(), numbers) : new Map<number, FigmaPushStatus>();
+      inReview = pushedInReview(generated, statuses);
+      components = buildComponentPlan(loaded.specs, loaded.path, generated, analysis.head, { pushed: statuses });
+    }
     const updated = components?.components.filter((c) => c.status === 'updated' && c.nodeId) ?? [];
     if (components && updated.length) {
       // Review updates: the sets as they are now, compared with what the update builds, and their thumbnails.
@@ -609,6 +624,7 @@ async function loadPull(prev?: PullState): Promise<PullState> {
     componentsError,
     includeComponents: prev?.includeComponents ?? false,
     reviews,
+    inReview,
     before,
     after: prev?.after ?? {},
     done: prev?.done ?? new Map(),
@@ -736,16 +752,28 @@ function scanPush(keep?: PushState, then?: () => void): void {
       let components: ComponentScan | undefined;
       let componentsError: ComponentsReadProblem | undefined;
       let fileKey: string | undefined;
+      let pushes: ComponentPush[] = [];
       try {
         const scanned = await request('scan-components', {});
         fileKey = scanned.fileKey;
         components = classifyComponents(scanned.components, await loadCodedComponents(c, analysis.headFiles.treeSha, analysis.headFiles.config));
+        const coded = components.coded;
+        // Where each change goes: the same signatures Pull compares, read the other way (component-push.ts).
+        pushes = componentPushes([...components.changed, ...components.candidates], {
+          head: analysis.head,
+          files: analysis.headFiles,
+          pairs: analysis.pairs,
+          scanned: scanned.components,
+          coded,
+          fileKey,
+          text: (item) => ({ title: titleOf(keep, item), summary: suggestSummary(item), line: lineOf(keep, item) }),
+        });
         // Coded components seen for the first time: take their baseline silently (nothing to send).
         if (components.adopt.length) await request('save-signatures', { items: components.adopt.map((x) => ({ nodeId: x.nodeId, signature: JSON.stringify(x.signature) })) });
       } catch (err) {
         componentsError = componentsErrorOf(err, 'push');
       }
-      const items = publishItems(analysis, experimental, components?.changed ?? []);
+      const items = publishItems(analysis, experimental, (components?.changed ?? []).filter((x) => sendable(pushes, x)));
       // A new scan starts like Figma's publish dialog: everything checked but experimental items. A re-scan from this
       // screen (a confirmed rename, a new mark) keeps what the designer unchecked.
       const destination = keep?.destination ?? 'review';
@@ -779,6 +807,7 @@ function scanPush(keep?: PushState, then?: () => void): void {
         components,
         componentsError,
         fileKey,
+        pushes,
         sent: keep?.sent ?? [],
       };
       if (state.push.descriptionSource === 'draft') state.push.description = pushDraft(state.push);
@@ -851,7 +880,8 @@ function submitPush(): void {
       const result = await publish(getClient(), {
         analysis: r.analysis,
         proposal: r.proposal,
-        components: r.components?.changed ?? [],
+        components: sendableChanged(r),
+        pushes: r.pushes,
         unchecked: r.unchecked,
         description: r.description,
         descriptionIsDraft: r.descriptionSource === 'draft',
@@ -880,13 +910,15 @@ function submitPush(): void {
         // A request is the new reference for its component: the next scan compares against what was asked for.
         for (const x of result.requests) await request('rebaseline', { nodeId: x.nodeId }).catch(() => undefined);
         for (const x of result.requests) r.sent.unshift({ component: x.component, number: x.number, url: x.url });
+        // A library branch from Figma: the set remembers it, so a pull rebuilds it from the reviewed code once it ships.
+        for (const x of result.branches) await afterBranch(r, x);
         await loadInit();
       } catch (err) {
         state.error = { message: `Sent, but saving the links in this file failed: ${err instanceof Error ? err.message : String(err)}` };
       }
       const parts = exploration
         ? [`Sent to ${exploration.name}`]
-        : [result.pr ? (result.pr.appended ? 'Branch updated' : 'Branch created') : '', result.requests.length ? `${plural(result.requests.length, 'request')} opened` : ''].filter(Boolean);
+        : [result.pr ? (result.pr.appended ? 'Branch updated' : 'Branch created') : '', result.requests.length ? `${plural(result.requests.length, 'request')} opened` : '', result.branches.length ? `${plural(result.branches.length, 'component')} sent` : ''].filter(Boolean);
       void request('notify', { message: parts.join(', ') });
     },
     submitPush,
@@ -994,8 +1026,19 @@ function checkedEntries(r: PushState): DiffEntry[] {
 }
 
 function checkedComponents(r: PushState): ComponentChangeItem[] {
-  return (r.components?.changed ?? []).filter((c) => isChecked(r.unchecked, { key: componentKey(c.nodeId) }));
+  return sendableChanged(r).filter((c) => isChecked(r.unchecked, { key: componentKey(c.nodeId) }));
 }
+
+/** The route of a component change (undefined: not routed, it goes as a request). */
+const pushOf = (r: Pick<PushState, 'pushes'>, nodeId: string) => r.pushes.find((p) => p.nodeId === nodeId);
+
+/** A change Push can send: not one to fix in Figma first, not a token change the contrast gate holds back. */
+const sendable = (pushes: ComponentPush[], item: Pick<ComponentChangeItem, 'nodeId'>) => {
+  const p = pushes.find((x) => x.nodeId === item.nodeId);
+  return !p || (p.plan.route !== 'manual' && !p.blocked);
+};
+
+const sendableChanged = (r: PushState) => (r.components?.changed ?? []).filter((c) => sendable(r.pushes, c));
 
 /** The deterministic Description: what the checked edits do, which components get a request. */
 function pushDraft(r: PushState): string {
@@ -1671,6 +1714,15 @@ function componentsGroup(p: PullState): Child {
   const upToDate = plan.components.filter((c) => c.status === 'unchanged' && !p.done.has(c.componentId));
   const out: Child[] = [];
   if (reviews.length) out.push(reviewGroup(p, reviews));
+  if (p.inReview.length) {
+    out.push(
+      h(
+        'p',
+        { class: 'muted' },
+        `Sent from Figma, still in review: ${p.inReview.map((x) => `${x.name} (#${x.number}, ${x.status.label.charAt(0).toLowerCase()}${x.status.label.slice(1)})`).join(', ')}. Once it ships, Update rebuilds it from the reviewed code.`,
+      ),
+    );
+  }
   // Honest coverage: how many coded components are in Figma, and why the others are not (folded under the count).
   const cov = coverageView(plan);
   // Sets and components: a component can bring more than one set (RadioGroup and Radio), counts are per component.
@@ -2184,11 +2236,64 @@ function componentRow(r: PushState, item: ComponentChangeItem, action: string, e
       edge?.lead,
       h('span', { class: 'comp-name' }, item.component),
       item.figmaName !== item.component ? h('span', { class: 'muted' }, item.figmaName) : null,
-      h('span', { class: `kind ${item.kind === 'new-component' ? 'added' : ''}` }, kindName(item.kind)),
-      edge ? edge.tail : open ? null : h('button', { class: 'btn ghost row-action', 'data-focus-id': `req-${item.nodeId}`, onClick: () => openForm(r, item) }, action),
+      // Routed as an exact token change, the route tag says it all: no second "Token change" tag.
+      routed(r) && item.kind === 'token-binding' && pushOf(r, item.nodeId)?.plan.route === 'token-change' && !pushOf(r, item.nodeId)?.blocked ? null : h('span', { class: `kind ${item.kind === 'new-component' ? 'added' : ''}` }, kindName(item.kind)),
+      routeTag(r, item),
+      edge ? edge.tail : open ? null : h('button', { class: 'btn ghost row-action', 'data-focus-id': `req-${item.nodeId}`, onClick: () => (sendsToBranch(r, item) ? sendCandidate(r, item) : openForm(r, item)) }, sendsToBranch(r, item) ? 'Send to Claude AI' : action),
     ),
     changeSummary(lineOf(r, item), item.changes, equivalentHint(r, item)),
+    routeNote(r, item),
     open ? requestFormView(r, r.form!) : null,
+  );
+}
+
+/** For review, component changes go to a library branch (component-push.ts); to an exploration, they stay requests. */
+const routed = (r: PushState) => r.destination === 'review';
+
+/** A new component drawn in Figma, sent for review: Claude AI drafts it on a library branch instead of a request. */
+const sendsToBranch = (r: PushState, item: ComponentChangeItem) => routed(r) && item.kind === 'new-component' && pushOf(r, item.nodeId)?.plan.route === 'claude-draft';
+
+/** "Exact token change", "Claude AI drafts" or "Fix in Figma": where the change goes, in a neutral tag. */
+function routeTag(r: PushState, item: ComponentChangeItem): Child {
+  const p = pushOf(r, item.nodeId);
+  // Under "Fix in Figma first" the group title says where it stands.
+  // A new component's action ("Send to Claude AI") already says where it goes.
+  if (!p || !routed(r) || (p.plan.route === 'manual' && !p.blocked) || sendsToBranch(r, item)) return null;
+  return h('span', { class: 'tag', title: p.plan.said }, p.blocked ? 'Held back' : ROUTE_TAG[p.plan.route]);
+}
+
+/** Under a component row: the one sentence of what sending does, and what Bridge cannot read, each with what to do. */
+function routeNote(r: PushState, item: ComponentChangeItem): Child {
+  const p = pushOf(r, item.nodeId);
+  if (!p || !routed(r)) return null;
+  const issues = p.plan.issues;
+  return [
+    p.plan.route === 'manual' && !p.blocked ? null : h('p', { class: 'muted route-note' }, p.blocked ?? p.plan.said),
+    issues.length ? h('ul', { class: 'route-issues' }, issues.map((i) => h('li', null, h('span', null, i.what), ' ', h('span', { class: 'muted' }, i.todo)))) : null,
+  ];
+}
+
+/** After a library branch opens: the set remembers it (pull rebuilds it once it ships), its new baseline, a status line. */
+async function afterBranch(r: PushState, x: PublishResult['branches'][number]): Promise<void> {
+  await request('mark-pushed', { nodeId: x.nodeId, mark: JSON.stringify({ number: x.number, url: x.url, route: x.route, at: new Date().toISOString() }) }).catch(() => undefined);
+  await request('rebaseline', { nodeId: x.nodeId }).catch(() => undefined);
+  r.sent.unshift({ component: x.component, number: x.number, url: x.url, what: x.route === 'token-change' ? 'Exact token change' : 'Library branch for Claude AI' });
+}
+
+/** "Send to Claude AI" on a new component: its library branch with the spec and a screenshot, for Claude AI to draft. */
+function sendCandidate(r: PushState, item: ComponentChangeItem): void {
+  const push = pushOf(r, item.nodeId);
+  if (!push) return;
+  void run(
+    `Sending ${item.component} to Claude AI`,
+    async () => {
+      const draft: RequestDraft = { component: item.component, kind: item.kind, title: titleOf(r, item), summary: r.descriptionSource === 'user' && r.description.trim() ? r.description : suggestSummary(item), line: lineOf(r, item), changes: item.changes, nodeId: item.nodeId, nodeName: item.figmaName };
+      const x = await sendComponentPush(getClient(), { analysis: r.analysis, fileKey: r.fileKey, image: async (nodeId) => (await request('export-image', { nodeId }).catch(() => null))?.base64 }, push, draft);
+      await afterBranch(r, x);
+      if (r.components) r.components.candidates = r.components.candidates.filter((c) => c.nodeId !== item.nodeId);
+      void request('notify', { message: `${item.component} sent: library branch #${x.number}, waiting for Claude AI` });
+    },
+    () => sendCandidate(r, item),
   );
 }
 
@@ -2288,16 +2393,36 @@ function variablesGroup(r: PushState): Child {
 }
 
 function componentChangesGroup(r: PushState): Child {
-  const changed = r.components?.changed ?? [];
+  const changed = sendableChanged(r);
   if (!changed.length) return null;
   const rows = changed.map((item) => {
     const pi = itemOf(r, componentKey(item.nodeId));
     return componentRow(r, item, '', {
       lead: selectBox(r, pi, item.component),
-      tail: r.form?.key === item.nodeId ? null : rowTail(r, pi, item.component, [{ label: 'Edit the request', onClick: () => openForm(r, item) }]),
+      tail: r.form?.key === item.nodeId ? null : rowTail(r, pi, item.component, [{ label: routed(r) ? 'Send as a request instead' : 'Edit the request', onClick: () => openForm(r, item) }]),
     });
   });
-  return changeGroup(r, 'component', 'Components', r.destination === 'exploration' ? 'Each becomes a request to build in the exploration.' : 'Each becomes a request for the team.', rows, 'push-components');
+  const lede = !routed(r)
+    ? 'Each becomes a request to build in the exploration.'
+    : 'Token swaps go as exact token changes. New variants, properties and layers go to Claude AI, who drafts the code for a person to review.';
+  return changeGroup(r, 'component', 'Components', lede, rows, 'push-components');
+}
+
+/** Changes Bridge cannot send as they are: each says what to do in Figma. Never sent, never dropped. */
+function fixInFigmaGroup(r: PushState): Child {
+  const held = (r.components?.changed ?? []).filter((c) => !sendable(r.pushes, c));
+  if (!held.length) return null;
+  return h(
+    'section',
+    { class: 'group' },
+    h('div', { class: 'group-head' }, h('h2', null, 'Fix in Figma first', h('span', { class: 'group-n' }, String(held.length)))),
+    h('p', { class: 'lede' }, 'Bridge cannot send these as they are. Each one says what to do, then scan again.'),
+    h(
+      'ul',
+      { class: 'rows' },
+      held.map((item) => componentRow(r, item, 'Send as a request instead', { tail: r.form?.key === item.nodeId ? null : h('button', { class: 'btn ghost row-action', 'data-focus-id': `req-${item.nodeId}`, onClick: () => openForm(r, item) }, 'Send as a request instead') })),
+    ),
+  );
 }
 
 /** What the component scan says besides the changes: read errors, Figma-only changes, components not in code yet. */
@@ -2314,7 +2439,7 @@ function componentNotes(r: PushState): Child[] {
         'details',
         { class: 'notes candidates', open: candidates.some((c) => r.form?.key === c.nodeId) },
         h('summary', null, `Not in the design system yet (${candidates.length})`),
-        h('p', { class: 'muted' }, `Components in this file with no folder in ${scan?.coded.length ? 'the code' : 'code'}. Nothing is sent unless you ask for it.`),
+        h('p', { class: 'muted' }, `Components in this file with no folder in ${scan?.coded.length ? 'the code' : 'code'}. Nothing is sent unless you ask for it.${routed(r) ? ' Sent to Claude AI, each gets a library branch with its spec; Claude AI drafts the code and a person reviews it.' : ''}`),
         h('ul', { class: 'rows' }, candidates.map((item) => componentRow(r, item, 'Request as new component'))),
       ),
     );
@@ -2328,7 +2453,7 @@ function sentNotes(r: PushState): Child[] {
     h(
       'div',
       { class: 'callout ok', role: 'status' },
-      h('div', { class: 'callout-title' }, icon('check'), `Request #${s.number} opened for ${s.component}`, h('button', { class: 'btn ghost callout-action', onClick: () => void request('open-url', { url: s.url }) }, 'Open on GitHub')),
+      h('div', { class: 'callout-title' }, icon('check'), s.what ? `${s.what} #${s.number} opened for ${s.component}` : `Request #${s.number} opened for ${s.component}`, h('button', { class: 'btn ghost callout-action', onClick: () => void request('open-url', { url: s.url }) }, 'Open on GitHub')),
     ),
   );
 }
@@ -2674,9 +2799,11 @@ function viewPush(): View {
     const text = [
       pr ? `${pr.appended ? 'Added to your branch' : 'Branch created as a draft'}. Checks run, then a design owner and a tech owner approve before it is merged.` : '',
       res.requests.length ? `${plural(res.requests.length, 'request')} opened for ${res.requests.map((x) => x.component).join(', ')}.` : '',
+      ...res.branches.map((x) => (x.route === 'token-change' ? `${x.component}: exact token change #${x.number}, checked for contrast.` : `${x.component}: library branch #${x.number}, waiting for Claude AI to draft the code.`)),
+      res.held.length ? `Not sent, fix in Figma first: ${res.held.map((x) => x.component).join(', ')}.` : '',
       prop.held.length ? `${plural(prop.held.length, 'unchecked variable edit')} stay${prop.held.length === 1 ? 's' : ''} in Figma.` : '',
     ].filter(Boolean);
-    const first = pr?.pr.url ?? res.requests[0]?.url;
+    const first = pr?.pr.url ?? res.branches[0]?.url ?? res.requests[0]?.url;
     return {
       body: [intro({ title: 'Sent for review', text: text.join(' '), meta: pr ? h('span', { class: 'url' }, pr.pr.url) : undefined, art: 'review' }), failed, requestLine(r)],
       bar: r.form ? undefined : first
@@ -2773,6 +2900,7 @@ function viewPush(): View {
     }),
   );
   body.push(componentChangesGroup(r));
+  body.push(fixInFigmaGroup(r));
   body.push(...componentNotes(r));
   if (a.diff.remote.length) {
     body.push(h('p', { class: 'muted' }, `${plural(a.diff.remote.length, 'token')} changed in the design system since your last pull. Your edits leave them as they are; pull to see them here.`));
@@ -2822,7 +2950,7 @@ function viewPush(): View {
           'div',
           { class: 'field' },
           h('div', { class: 'field-head' }, h('h2', null, h('label', { for: 'push-description' }, 'Message to the team')), assistAction(r.assist, pushAssist(r))),
-          h('p', { class: 'lede' }, exploring ? 'Goes with the exploration and every request. Your words for the team.' : 'Opens the branch and every request. Your words for the reviewers.'),
+          h('p', { class: 'lede' }, exploring ? 'Goes with the exploration and every request. Your words for the team.' : 'Goes with everything you send. Your words for the reviewers.'),
           h('textarea', {
             id: 'push-description',
             rows: '3',
@@ -2891,7 +3019,7 @@ function viewPush(): View {
         ? 'Nothing checked'
         : waiting
           ? waiting
-          : [checkedVars ? plural(checkedVars, 'variable') : '', newBrands ? plural(newBrands, 'new brand') : '', checkedComps ? plural(checkedComps, 'request') : ''].filter(Boolean).join(', ');
+          : [checkedVars ? plural(checkedVars, 'variable') : '', newBrands ? plural(newBrands, 'new brand') : '', checkedComps ? plural(checkedComps, exploring ? 'request' : 'component') : ''].filter(Boolean).join(', ');
   return {
     body,
     bar: nothing

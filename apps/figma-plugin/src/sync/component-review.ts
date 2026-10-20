@@ -65,6 +65,8 @@ export function reviewUpdates(plan: ComponentPullPlan, current: Map<string, Comp
     if (c.status !== 'updated' || !c.nodeId) continue;
     const now = current.get(c.nodeId);
     const changes = now ? diffSignatures(withoutVariantProps(now), withoutVariantProps(plannedSignature(c))).changes : [];
+    // Pushed from Figma: the update replaces the Figma version with the reviewed code, said first.
+    if (c.fromFigma) changes.unshift({ field: 'Your change from Figma', before: `In Figma, sent as #${c.fromFigma.number}`, after: c.fromFigma.status.key === 'shipped' ? 'Shipped: rebuilt from the reviewed code' : 'Closed: back to the code' });
     if (!changes.length) {
       changes.push({ field: 'Values set from code', before: 'As in Figma', after: 'Rebuilt from the code (sizes, layout, set values)' });
     }

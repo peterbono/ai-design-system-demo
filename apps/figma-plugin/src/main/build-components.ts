@@ -11,6 +11,8 @@
 
 import { variantKeyOf } from '@bridge-ds/core';
 import type { SpecField, SpecLayout, SpecPart } from '@bridge-ds/core';
+import { parsePushedMark } from '../sync/component-pull';
+import { PUSHED_KEY } from '../shared/messages';
 import type { ComponentApplyReport, ComponentPullPlan, GeneratedSet, PlannedComponent, PlannedField, PlannedIcon, PlannedSlot, PlannedValue, PlannedVariant } from '../sync/component-pull';
 import { buildSignature } from '../sync/components';
 import { readComponent } from './components';
@@ -55,6 +57,10 @@ export async function scanGenerated(): Promise<GeneratedSet[]> {
     variants: s.children
       .filter((c): c is ComponentNode => c.type === 'COMPONENT' && c.getSharedPluginData(NS, 'orphan') !== 'true')
       .map((c) => c.getSharedPluginData(NS, 'variant') || variantKeyOf(c.variantProperties ?? {})),
+    ...(() => {
+      const pushed = parsePushedMark(s.getSharedPluginData(NS, PUSHED_KEY));
+      return pushed ? { pushed } : {};
+    })(),
   }));
 }
 
@@ -1097,6 +1103,8 @@ export async function applyComponentPlan(plan: ComponentPullPlan, progress: Prog
     // Always: an update can change variant sizes (a padding, a fixed width), not only add variants.
     layoutVariants(set, comp);
     set.setSharedPluginData(NS, 'specHash', comp.hash);
+    // Rebuilt from the code: a change pushed from Figma is now the reviewed code (or gone), so its mark goes.
+    if (set.getSharedPluginData(NS, PUSHED_KEY)) set.setSharedPluginData(NS, PUSHED_KEY, '');
     // The generated set is the baseline: a Push right after a pull sends nothing.
     set.setSharedPluginData(NS, 'signature', JSON.stringify(buildSignature(await readComponent(set))));
     report.nodeIds.push(set.id);

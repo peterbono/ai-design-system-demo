@@ -10,6 +10,8 @@ import rootConfig from '../../../../bridge.config.json';
 
 /** Shared plugin data key (namespace dsbridge) of the "Experimental" mark, on a variable or a component set. */
 export const EXPERIMENTAL_KEY = 'experimental';
+/** Shared plugin data key on a component set pushed from Figma: its library branch (JSON PushedMark), until a pull rebuilds it. */
+export const PUSHED_KEY = 'pushed';
 
 export type FigmaResolvedType = 'COLOR' | 'FLOAT' | 'STRING' | 'BOOLEAN';
 
@@ -181,6 +183,8 @@ export interface RequestMap {
   'scan-components': { request: Record<string, never>; response: ScannedComponentsPayload };
   /** Store signatures (JSON) as baselines on component nodes. */
   'save-signatures': { request: { items: { nodeId: string; signature: string }[] }; response: { saved: number } };
+  /** Store where a component's change from Figma went (its library branch), as shared plugin data on the set. */
+  'mark-pushed': { request: { nodeId: string; mark: string }; response: { saved: boolean } };
   /** Re-read one component and store it as the baseline (after its request is sent). */
   rebaseline: { request: { nodeId: string }; response: { saved: boolean } };
   /** PNG 2x as base64: the selected variant of `nodeId`, the component itself, or the selection without `nodeId`. */

@@ -13,6 +13,7 @@ import * as drafts from './drafts.js';
 import * as branches from './branches.js';
 import * as studio from './studio.js';
 import * as pieces from './pieces.js';
+import * as figma from './figma.js';
 import { DRAFT_LINE_MAX, DRAFT_PHRASE, DRAFT_TITLE_MAX, EXPLORATION_USE_CASES, REQUEST_KINDS } from '@bridge-ds/core';
 
 declare const __BRIDGE_MCP_VERSION__: string | undefined;
@@ -66,6 +67,7 @@ export function createServer(ctx: BridgeContext): McpServer {
         'Studio parity: a designer can do in Claude what they do in Bridge Studio. Branches in review: bridge_what_needs_me (the queue), bridge_branch_status, bridge_send_for_review, bridge_back_to_draft, bridge_review_branch, bridge_ask_someone_else, bridge_comment, bridge_update_from_main (token conflicts too), bridge_try_branch (try it in a product, share it), bridge_combine_branches, bridge_close_branch, bridge_reopen_branch, bridge_merge_branch (same gate as Studio, owner override with a reason). Docs: bridge_save_docs. Writes act under the person\'s GitHub token: only do them when the person asked, and merge only when they explicitly asked to merge.',
         'Products: work starts for a product (bridge_list_products). Tools that start work take "product"; without it Bridge uses the product of the current folder or repo. Ask the person when it is not obvious.',
         'Product branches and the library: when a designer explores a product feature with you (an exploration for a product), check it with bridge_missing_pieces (record: true) before they share it; for each piece the library lacks, offer bridge_open_library_branch, which opens the library side linked to their branch. bridge_product_branch says where each library branch stands; bridge_switch_to_published moves the product branch to the real version once the library ships.',
+        'Components from Figma: the DS Bridge plugin sends a component changed in Figma to a library branch. Token swaps go as exact token changes; new variants, properties and components go to a branch carrying the spec, waiting for Claude AI. When the person asks you to draft one, bridge_figma_changes lists them and bridge_get_figma_change gives the spec and the steps; write the code on that branch, push it, then bridge_mark_figma_change_drafted. Never claim a branch is drafted before its code is pushed.',
         'Explorations try experimental variables and components in a product staging branch without touching main: an explore/<slug> branch with a draft pull request labeled exploration, previews and a snapshot package. bridge_start_exploration starts one, bridge_list_explorations lists them. To work on one, pass "branch": "explore/<slug>" to bridge_propose_token_change, bridge_draft_docs and bridge_get_request, and never open a pull request to main from it: a person promotes it to review or closes it.',
       ].join(' '),
     },
@@ -701,6 +703,52 @@ export function createServer(ctx: BridgeContext): McpServer {
       annotations: WRITE,
     },
     run((a) => pieces.switchToPublishedOp(ctx, a)),
+  );
+
+  // --- components pushed from Figma (the DS Bridge plugin's Push tab) ---
+  server.registerTool(
+    'bridge_figma_changes',
+    {
+      title: 'Component changes sent from Figma',
+      description: 'The library branches the DS Bridge Figma plugin opened for components changed in Figma (label from-figma), with where each stands: an exact token change (no AI, contrast gated), or a branch carrying the spec, waiting for Claude AI to draft the code, then drafted by Claude AI and reviewed by a person.',
+      inputSchema: { state: z.enum(['open', 'closed', 'all']).optional().describe('Default open.') },
+      annotations: READ,
+    },
+    run((a) => figma.figmaChangesOp(ctx, a)),
+  );
+
+  server.registerTool(
+    'bridge_get_figma_change',
+    {
+      title: 'Get a component change from Figma, to draft it',
+      description: 'One library branch sent from Figma: its spec (variant matrix, properties, bound variables per variant, layers, what code gave Figma before, the exact token swaps) and the brief to draft the code on that branch. Check out the branch, write the TSX, CSS module, examples, docs and changeset, run npm run specs and the tests, push, then call bridge_mark_figma_change_drafted.',
+      inputSchema: { pr: Pr },
+      annotations: READ,
+    },
+    run((a) => figma.getFigmaChangeOp(ctx, a)),
+  );
+
+  server.registerTool(
+    'bridge_mark_figma_change_drafted',
+    {
+      title: 'Mark a Figma change drafted by Claude AI',
+      description: 'After you pushed the code for a component change from Figma to its branch: label it drafted-by-claude (no longer waiting-for-claude) and say so in its description, for a person to review. Refused while the branch only carries the spec. Needs GITHUB_TOKEN (pull requests: write).',
+      inputSchema: { pr: Pr },
+      annotations: WRITE,
+    },
+    run((a) => figma.markFigmaDraftedOp(ctx, a)),
+  );
+
+  server.registerTool(
+    'bridge_push_figma_component',
+    {
+      title: 'Send a component change from Figma',
+      description:
+        'What the DS Bridge plugin Push tab does, from a structured diff of a Figma component (the v 1 spec shape: component, figmaName, coded, kind, title, summary, changes, rebinds, needsCode, unknown, variantAxes, properties, bindings, anatomy). An exact token swap on a component token used nowhere else opens a token change (contrast gated, reviewed like any token change); anything that needs code opens a draft branch with the spec, waiting for Claude AI; detached layers, raw values and variables the library lacks are listed with what to do and never sent. dryRun shows the route. Needs GITHUB_TOKEN (contents and pull requests: write). Only when the person asked.',
+      inputSchema: { diff: z.record(z.string(), z.unknown()).describe('The structured component diff (v 1).'), dryRun: z.boolean().optional() },
+      annotations: WRITE,
+    },
+    run((a) => figma.pushFigmaComponentOp(ctx, { diff: a.diff as never, dryRun: a.dryRun, source: 'mcp' })),
   );
 
   server.registerTool(
