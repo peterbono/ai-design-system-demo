@@ -1,6 +1,6 @@
 {
   "name": "@bridge-ds/tokens",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "type": "module",
   "description": "Bridge design tokens in W3C DTCG 2025.10 format (primitives, brands, semantic light/dark, density, component tier), built to CSS variables and TypeScript with Style Dictionary.",
   "license": "MIT",
