@@ -10,6 +10,10 @@ describe('humanTitle', () => {
   it('keeps titles without a prefix', () => {
     expect(humanTitle('Badge subtle')).toBe('Badge subtle');
     expect(humanTitle('Release v1.2: notes')).toBe('Release v1.2: notes');
+    // A library branch named after its component (a product branch's missing piece) keeps the component.
+    expect(humanTitle('Badge: overdue tone')).toBe('Badge: overdue tone');
+    expect(humanTitle('DS-87 Exploration: billing screen with overdue invoices')).toBe('Billing screen with overdue invoices');
+    expect(humanTitle('Fix: keep focus')).toBe('Keep focus');
   });
 });
 

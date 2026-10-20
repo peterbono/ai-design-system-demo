@@ -1,0 +1,277 @@
+/* The product branch page (components/ds/studio/ProductBranch.tsx), the validated ProdBranch mockup: title and
+   "Try it in the product" on one line, one sentence, then the screen and the Harbor zone "Missing from the library"
+   side by side (3 to 2), "For developers" folded at the bottom. Four type sizes: h1, body (the sentence), ui, caption. */
+
+.pb {
+  display: grid;
+  gap: var(--space-6);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.pb p,
+.pb h1,
+.pb h2 {
+  margin: 0;
+}
+
+.pb-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.pb-title {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--typography-h1-family);
+  font-size: var(--typography-h1-size);
+  font-weight: var(--typography-h1-weight);
+  letter-spacing: var(--typography-h1-tracking);
+  line-height: var(--typography-h1-line-height);
+  overflow-wrap: anywhere;
+}
+
+.pb-title:focus {
+  outline: none;
+}
+
+.pb-head-acts {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.pb-lead {
+  margin-block-start: calc(-1 * var(--space-3));
+  font-size: var(--typography-body-size);
+  line-height: var(--typography-body-line-height);
+}
+
+.pb-lead strong {
+  font-weight: var(--font-weight-semibold);
+}
+
+.pb-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  align-items: start;
+  gap: var(--space-6);
+}
+
+.pb-grid.is-one {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.pb-screen {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.pb-skel {
+  height: var(--size-64);
+}
+
+.pb-skel-row {
+  height: var(--size-16);
+}
+
+.pb-missing {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-6);
+}
+
+.pb-h2 {
+  font-size: var(--typography-body-size);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--typography-body-line-height);
+}
+
+.pb-rows {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pb-row-body {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.pb-row-text {
+  display: grid;
+  flex: 1;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.pb-strong {
+  font-weight: var(--font-weight-semibold);
+}
+
+.pb-crumbs-phone {
+  display: none;
+}
+
+.pb-row-line {
+  display: flex;
+}
+
+.pb-row-value {
+  flex: none;
+}
+
+.pb-row-act {
+  flex: none;
+}
+
+.pb-muted {
+  color: var(--color-text-muted);
+}
+
+.pb-said:empty {
+  display: none;
+}
+
+.pb-dev-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+}
+
+.pb-dev-row {
+  display: grid;
+  grid-template-columns: var(--size-40) minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+.pb-dev-row dt {
+  color: var(--color-text-muted);
+}
+
+.pb-dev-row dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.pb-mono {
+  font-family: var(--font-family-mono);
+}
+
+/* Narrow windows: the zone under the screen. Phones: the action under the title, full width; rows wrap their action. */
+@media (max-width: 960px) {
+  .pb-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .pb-crumbs {
+    display: none;
+  }
+
+  .pb-crumbs-phone {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    min-height: var(--size-6);
+  }
+
+  .pb-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .pb-title {
+    font-size: var(--typography-h2-size);
+    line-height: var(--typography-h2-line-height);
+  }
+
+  .pb-head-acts > :first-child {
+    flex: 1;
+  }
+
+  .pb-lead {
+    margin-block-start: 0;
+  }
+
+  .pb-missing {
+    padding: var(--space-4);
+  }
+
+  .pb-row-body {
+    flex-wrap: wrap;
+  }
+
+  .pb-row-act {
+    flex: 1 1 100%;
+  }
+
+  .pb-dev-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+}
+
+/* Branches: a library branch a listed product branch needs sits under it, one step in. */
+.bl-row.is-linked {
+  margin-inline-start: var(--space-8);
+}
+
+/* The library review of a branch a product branch needs (components/ds/studio/ProductContext.tsx): "Why it exists",
+   the review's one Harbor zone. */
+.br-why {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+  padding: var(--space-6);
+}
+
+.br-why-h {
+  font-size: var(--typography-body-size);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--typography-body-line-height);
+}
+
+.br-why-line {
+  font-size: var(--typography-body-size);
+  line-height: var(--typography-body-line-height);
+}
+
+.br-why-line strong {
+  font-weight: var(--font-weight-semibold);
+}
+
+/* The question and "Suggest <nearest>" on one line (the action next to what it answers). */
+.br-why-ask {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-self: stretch;
+  gap: var(--space-2) var(--space-4);
+  padding-block-start: var(--space-2);
+}
+
+.br-why-ask > p {
+  flex: 1 1 var(--size-64);
+}
+
+@media (max-width: 640px) {
+  .bl-row.is-linked {
+    margin-inline-start: var(--space-4);
+  }
+
+  .br-why {
+    padding: var(--space-4);
+  }
+
+  .br-why-ask > :last-child {
+    flex: 1 1 100%;
+  }
+}

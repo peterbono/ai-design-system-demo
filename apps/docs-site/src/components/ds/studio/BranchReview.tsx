@@ -42,6 +42,7 @@ import ButtonLink from '../ButtonLink';
 import { AddedNotice, EditInChange } from './ContinueChange';
 import { ShareChange, type ShareChangeProps } from './ShareChange';
 import MotionChanges, { type MotionChangesProps } from './MotionChanges';
+import { ProductContext, type ProductContextProps } from './ProductContext';
 
 /** The id of the Motion change in the outline of a busy branch. */
 export const MOTION_CHANGE = 'tokens:motion';
@@ -151,6 +152,8 @@ export interface BranchReviewProps {
   motion?: MotionChangesProps | null;
   /** Inside the review queue: its bar replaces this one. */
   inQueue?: boolean;
+  /** A library branch a product branch needs: "Why it exists" (ProductContext). */
+  productContext?: ProductContextProps['context'] | null;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -909,6 +912,7 @@ export function BranchReview(p: BranchReviewProps) {
           </span>
         </p>
       </header>
+      {p.productContext && <ProductContext context={p.productContext} canSuggest={p.actions.suggest} onSuggest={(comment) => p.onAct('suggest', comment)} />}
       {added && <AddedNotice text={added} onDismiss={() => setAdded(null)} />}
 
       {multi ? (

@@ -6,7 +6,7 @@
 // "Copy link", "Link for a developer"; the page itself never links to GitHub.
 // Without a token the bar's primary connects GitHub. When GitHub cannot be read, the last list this browser saw
 // stays on screen, labelled with its time (lib/changes.ts).
-import { askOthersToReviewOnGitHub, closeOnGitHub, commentOnGitHub, findPreviewComment, reviewersToAsk, isActiveExploration, mergeOnGitHub, OverrideMergeError, overrideMergeOnGitHub, reviewOnGitHub, type ProductConfig, type Rights, type ShipPolicy } from '@bridge-ds/core';
+import { askOthersToReviewOnGitHub, closeOnGitHub, commentOnGitHub, findPreviewComment, reviewersToAsk, isActiveExploration, mergeOnGitHub, OverrideMergeError, overrideMergeOnGitHub, parseNeededBy, reviewOnGitHub, type ProductConfig, type Rights, type ShipPolicy } from '@bridge-ds/core';
 import { loadTeams, siteApprovers, siteShipPolicy, teamDirectory } from './teams';
 import { approvalNeedLong, effectiveTier, isAutomationPull, reviewQueue } from '../lib/review-queue';
 import {
@@ -69,6 +69,7 @@ import {
   type DesignFacts,
 } from '../lib/check-explain';
 import { productPreview, topScreen, tryInProductUrl } from '../lib/try-in-product';
+import { productContextOf } from '../lib/product-branch';
 import { canShare, shareState, showShare, type ShareState } from '../lib/share-change';
 import { addedNotice, canAddTo, dismissedApprovals, dismissedSentence, editInChangeHref, isTokenChange } from '../lib/continue-change';
 import { backToDraft, detailStatus, statusActionFor, takeSaid, type StatusActionRun } from './change-status';
@@ -308,6 +309,8 @@ function listRow(r: Row): ListRow {
     base: r.base ?? null,
     merged_at: r.merged_at ?? null,
     labels: r.labels ?? null,
+    // A library branch a product branch needs: listed under that product branch.
+    neededBy: parseNeededBy(r.body)?.pr ?? null,
   };
 }
 
@@ -595,6 +598,15 @@ export async function openPr(n: number, push = true) {
     d.dataset.title = props.title;
     d.dataset.developer = pull.html_url;
     runCurrent = (kind, text) => props.onAct(kind, text);
+    // "Why it exists": the product preview and the name of who needs it, read after the first paint.
+    if (props.productContext) {
+      const nb = props.productContext.neededBy;
+      void Promise.all([productPreviewFor(nb.pr), nb.author && hasWorkingToken() ? import('./home-data').then((h) => h.personOf(nb.author!)).catch(() => null) : Promise.resolve(null)]).then(([url, who]) => {
+        if (seq !== openSeq || !view?.productContext) return;
+        const ctx = productContextOf(pull.body, who && nb.author ? { [nb.author]: who.name } : {});
+        if (ctx) repaint({ productContext: { ...ctx, previewUrl: url } });
+      });
+    }
     wireLibrary({ pull, fresh, compare, access, checks: ci.total, visual, approvals: approvals.approvers.length, seq });
 
     // Motion changes (scripts/reviews/motion-changes, #153): below "What changes" on a single change, its own change
@@ -631,6 +643,18 @@ export async function openPr(n: number, push = true) {
     d.innerHTML = `<p class="rv-loading"><a href="./" data-back>Branches</a></p>`;
     if (err instanceof RateLimitError) showNotice('warn', `GitHub limits anonymous reads to 60 an hour. ${ghVerb(prefersSignIn())}, or try again later.`);
     else showNotice('fail', `Could not load this ${VOCAB.branch}: ${(err as Error).message}`);
+  }
+}
+
+/** The product preview of the product branch a library branch is needed by (its Vercel preview), or null. Two reads. */
+async function productPreviewFor(n: number): Promise<string | null> {
+  try {
+    const p = (await ghGet<Pull>(`${R}/pulls/${n}`)).data;
+    const statuses = await ghGet<{ statuses: { context: string; state: string; target_url?: string | null }[] }>(`${R}/commits/${p.head.sha}/status`).then((f) => f.data.statuses).catch(() => []);
+    const base = productPreviewOf(p, [], statuses);
+    return base ? tryInProductUrl(base, p.number, null) : null;
+  } catch {
+    return null;
   }
 }
 
@@ -833,8 +857,14 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
   const update = x.fresh.state === 'current' && justIn?.pr === pull.number ? 'done' : x.fresh.state === 'behind' || x.fresh.state === 'conflict' ? x.fresh.state : null;
   const note = access && !write && (lifecycle === 'open' || lifecycle === 'draft') ? `${nameOf(access.login)} cannot write to this library, so merging and closing are off.` : null;
 
+  // A library branch a product branch needs: "Why it exists" (the product preview link is read after the first paint).
+  const neededBy = parseNeededBy(pull.body);
+  const context = neededBy ? productContextOf(pull.body, neededBy.author ? { [neededBy.author]: nameOf(neededBy.author) } : {}) : null;
+  const productContext = context ? { ...context, previewUrl: null } : null;
+
   return {
     pr: pull.number,
+    productContext,
     crumbs: reviewCrumbs(files.map((f) => f.filename), title),
     title,
     jira: jiraKeyOf(pull.title),
