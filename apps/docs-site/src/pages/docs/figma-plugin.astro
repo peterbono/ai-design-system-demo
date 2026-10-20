@@ -1,0 +1,45 @@
+---
+// /docs/figma-plugin/: the DS Bridge Figma plugin. First version: facts only from apps/figma-plugin/README.md.
+import Docs from '../../layouts/Docs.astro';
+
+const sections = [
+  { id: 'what', label: 'What it does' },
+  { id: 'install', label: 'Install it' },
+  { id: 'need', label: 'What you need' },
+];
+---
+
+<Docs title="DS Bridge Figma plugin" description="What the DS Bridge Figma plugin does (Pull, Push, fidelity check) and how to install it in Figma desktop." sections={sections}>
+  <section aria-labelledby="what">
+    <h2 id="what">What it does</h2>
+    <p>DS Bridge lets you edit design tokens as Figma Variables and send those edits back to the repository for review. The repository stays the source of truth. It works on the free Figma plan, and nothing is written to main directly.</p>
+
+    <h3>Pull the kit generated from code</h3>
+    <p>Pull brings the latest tokens from main into Figma Variables, showing the plan before anything is written. Tokens changed on both sides show as conflicts for you to decide.</p>
+    <p>When the repository has component specs, Pull can also build the coded components as component sets bound to those variables, once you tick <strong>Also pull components</strong>.</p>
+
+    <h3>Push variables and components</h3>
+    <p>Push sends your edits either to <strong>Send for review</strong> or to <strong>Try in an exploration</strong>.</p>
+    <p>Variable edits become one draft pull request with a change table, contrast before and after, and the risk tier. Blocking guardrail problems disable <strong>Send for review</strong>.</p>
+    <p>Each component change goes to its own library branch: an exact token change, a draft for Claude AI to write the code that a person reviews, or <strong>Fix in Figma first</strong> when the scan cannot read it with confidence.</p>
+
+    <h3>Fidelity check</h3>
+    <p><strong>Check fidelity</strong>, in the Pull preview, compares every generated variant with an image of it rendered from code, and says <strong>Matches the code</strong> or <strong>Differs from the code</strong>. Nothing in the file changes.</p>
+  </section>
+
+  <section aria-labelledby="install">
+    <h2 id="install">Install it</h2>
+    <p>The Figma Community listing is not live yet: it has been in review since 2026-10-16. Until then, install it from the repository in the Figma desktop app:</p>
+    <ol>
+      <li>From the repo root, run <code>npm install</code>, then <code>npm run plugin:build</code>.</li>
+      <li>In Figma, open <strong>Plugins &gt; Development &gt; Import plugin from manifest...</strong> and pick <code>apps/figma-plugin/manifest.json</code>.</li>
+      <li>Run it from <strong>Plugins &gt; Development &gt; DS Bridge</strong>.</li>
+    </ol>
+  </section>
+
+  <section aria-labelledby="need">
+    <h2 id="need">What you need</h2>
+    <p>A fine-grained GitHub personal access token limited to your design system repository, with <strong>Contents</strong>, <strong>Pull requests</strong> and <strong>Issues</strong> set to Read and write. Paste it in the plugin's Settings tab and save.</p>
+    <p>The token stays on this computer, never in the Figma file. Settings are prefilled from <code>bridge.config.json</code>. GitHub only, no GitLab or Bitbucket.</p>
+  </section>
+</Docs>

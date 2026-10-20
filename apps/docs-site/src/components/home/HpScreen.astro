@@ -1,0 +1,36 @@
+---
+// The member profile screen drawn in the step panels: the profile header on top (with what is pinned to it), then
+// tabs and three rows. `calm` dims everything but the header; `tall` keeps room for a callout under it on phones.
+// Slot "head" replaces the header (the review's before and after); the default slot is pinned inside the header.
+import HpProfile from './HpProfile.astro';
+
+interface Props {
+  calm?: boolean;
+  tall?: boolean;
+  plain?: boolean;
+}
+const { calm = false, tall = false, plain = false } = Astro.props;
+const rows = [
+  ['Onboarding flow, v3', '2d'],
+  ['Checkout redesign notes', '5d'],
+  ['Pricing page review', '1w'],
+];
+---
+
+<div class:list={['hp-pscr', calm && 'hp-calm', tall && 'hp-tall', plain && 'hp-plain']}>
+  {Astro.slots.has('head') ? <slot name="head" /> : <HpProfile><slot /></HpProfile>}
+  <div class="hp-prest">
+    <div class="hp-ptabs"><span class="hp-on">Activity</span><span>Projects</span></div>
+    <ul class="hp-plist">
+      {
+        rows.map(([t, d]) => (
+          <li>
+            <i />
+            <span>{t}</span>
+            <small>{d}</small>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</div>

@@ -1,17 +1,17 @@
 ---
-// The product pages outside the Library and the Studio: the landing ("/") and the comparison ("/compare/").
-// Their own light header (logo, Studio, Docs, GitHub, theme) and footer; no side nav, no search. Same tokens, fonts and
-// theme memory as the app (localStorage ds-theme), so a visitor keeps their theme when they move on to the docs.
+// The product pages outside the Library and the Studio: the homepage ("/"), About, the docs ("/docs/*", through
+// layouts/Docs.astro) and the comparison ("/compare/"). One light header (components/site/SiteHeader.astro: Product,
+// Resources, About, Sign in) and footer; no side nav, no search. Same tokens, fonts and theme memory as the app
+// (localStorage ds-theme, else the system setting), so a visitor keeps their theme when they move on to the app.
 import '@bridge-ds/tokens/fonts.css';
 import '@bridge-ds/tokens/tokens.css';
 import '../styles/site.css';
 import '../styles/brand.css';
+import '../styles/site-nav.css';
 import '../styles/landing.css';
-import Logo from '../components/Logo.astro';
-import { IconButton, Link } from '@bridge-ds/react';
-import { Moon } from 'lucide-react';
-import { COMPARE, LANDING, LIBRARY_HOME, STUDIO_HOME } from '../lib/nav';
-import { GITHUB_URL } from '../lib/repo';
+import { Link } from '@bridge-ds/react';
+import SiteHeader from '../components/site/SiteHeader.astro';
+import SiteFooter from '../components/site/SiteFooter.astro';
 
 interface Props {
   /** The full document title. */
@@ -22,7 +22,6 @@ interface Props {
 const { title, description } = Astro.props;
 const canonical = Astro.site ? new URL(Astro.url.pathname, Astro.site).href : undefined;
 const path = Astro.url.pathname.replace(/\/?$/, '/');
-const here = (href: string) => (path === href ? 'page' : undefined);
 ---
 
 <!doctype html>
@@ -57,44 +56,16 @@ const here = (href: string) => (path === href ? 'page' : undefined);
   </head>
   <body class="lp-body">
     <Link variant="subtle" className="skip" href="#main">Skip to content</Link>
-    <header class="lp-header">
-      <div class="lp-wrap lp-header-row">
-        <Link variant="subtle" className="lp-brand" href={LANDING} aria-label="Bridge, overview" aria-current={here(LANDING)}>
-          <Logo />
-        </Link>
-        <nav class="lp-nav" aria-label="Main">
-          <Link variant="subtle" href={STUDIO_HOME}>Studio</Link>
-          <Link variant="subtle" href={LIBRARY_HOME}>Docs</Link>
-          <Link variant="subtle" href={GITHUB_URL} className="lp-nav-wide">GitHub</Link>
-          <IconButton icon={Moon} size="sm" label="Dark theme" data-theme-toggle aria-pressed="false" title="Dark theme" />
-        </nav>
-      </div>
-    </header>
+    <SiteHeader path={path} />
 
     <main id="main" tabindex="-1" class="lp-main">
       <slot />
     </main>
 
-    <footer class="lp-footer">
-      <div class="lp-wrap lp-footer-row">
-        <span class="lp-footer-brand">
-          <Logo />
-          <span class="lp-muted">Open source, MIT</span>
-        </span>
-        <nav class="lp-footer-links" aria-label="Footer">
-          <Link variant="subtle" href={STUDIO_HOME}>Studio</Link>
-          <Link variant="subtle" href={LIBRARY_HOME}>Docs</Link>
-          <Link variant="subtle" href={COMPARE} aria-current={here(COMPARE)}>Compare</Link>
-          <Link variant="subtle" href={GITHUB_URL}>GitHub</Link>
-          <Link variant="subtle" href="https://www.npmjs.com/org/bridge-ds">npm</Link>
-          <Link variant="subtle" href="/changelog/">Changelog</Link>
-        </nav>
-      </div>
-    </footer>
-    <p class="sr-only" role="status" aria-live="polite" id="live"></p>
+    <SiteFooter path={path} />
     <script>
-      import { initLanding } from '../scripts/landing';
-      initLanding();
+      import { initSiteNav } from '../scripts/site-nav';
+      initSiteNav();
     </script>
   </body>
 </html>

@@ -1,0 +1,70 @@
+---
+// /about/: why Bridge exists, that it is open source, and who made it. Ported from the owner's validated test page.
+import '../styles/homepage.css';
+import '../styles/about.css';
+import Landing from '../layouts/Landing.astro';
+import ButtonLink from '../components/ds/ButtonLink';
+import AboutDrawing from '../components/home/AboutDrawing.astro';
+import { Link } from '@bridge-ds/react';
+import { ArrowRight } from 'lucide-react';
+import { GITHUB_URL } from '../lib/repo';
+
+const projects = [
+  { href: 'https://compass.floriangouloubi.com/', title: 'Workshop Compass', text: 'A free AI-assisted tool to pick the right product workshops, in the right order.' },
+  { href: 'https://www.figma.com/community/plugin/1647451533966704216/frame-to-tokens', title: 'Frame to Tokens', text: 'A Figma plugin that turns a captured frame into reusable design tokens.' },
+];
+---
+
+<Landing title="About Bridge" description="Bridge is the missing step between an AI exploration and your design system. Open source, MIT, made by Florian Gouloubi.">
+  <div class="hp ab">
+    <div class="ab-col">
+      <div class="ab-draw"><AboutDrawing /></div>
+      <p class="ab-eb">About</p>
+      <h1 class="ab-h1">Explore with AI. Keep what works.</h1>
+      <p class="ab-lede">Bridge is the missing step between an AI exploration and your design system.</p>
+
+      <section class="ab-sec" aria-labelledby="why">
+        <!-- Draft for the owner to edit -->
+        <h2 id="why" class="ab-h2">Why Bridge exists</h2>
+        <p>Designers now explore with AI. A conversation with Claude, a quick prototype, a variation in Figma: exploring has never been this fast.</p>
+        <p>Bringing what works back into the design system and the Figma kit is still manual, and often chaotic. Someone redoes it by hand, a ticket gets written, a developer reimplements it. Good ideas drift or get lost on the way.</p>
+        <p>Bridge closes that loop. It finds what an exploration added and turns it into a reviewed change: the design system lead approves the design, a developer approves the code, and accessibility is checked. Once the change is merged, the code and the Figma kit follow.</p>
+      </section>
+
+      <section class="ab-sec" aria-labelledby="oss">
+        <h2 id="oss" class="ab-h2">Open source and free</h2>
+        <p>Bridge is MIT licensed and free to use. It is built in the open on GitHub and meant to grow with the design systems community. Issues, ideas and contributions are welcome.</p>
+        <p><Link variant="standalone" className="ab-link" href={GITHUB_URL}>Bridge on GitHub<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></Link></p>
+      </section>
+
+      <section class="ab-sec" aria-labelledby="who">
+        <h2 id="who" class="ab-h2">Who made it</h2>
+        <div class="ab-person">
+          <span class="ab-av" aria-hidden="true">FG</span>
+          <div>
+            <p class="ab-name">Florian Gouloubi</p>
+            <p class="ab-role">Senior Product Designer</p>
+          </div>
+        </div>
+        <p>Florian has spent 7+ years designing complex digital products and structuring design systems, for Pernod Ricard, IDEMIA, Air France, and for tech companies and startups.</p>
+        <div class="ab-ctas">
+          <ButtonLink variant="primary" size="lg" iconEnd={ArrowRight} href="https://www.linkedin.com/in/floriangouloubi/">Connect on LinkedIn</ButtonLink>
+          <Link variant="standalone" className="ab-link" href="https://www.floriangouloubi.com/">See my work</Link>
+        </div>
+        <h3 class="ab-other">Other projects</h3>
+        <ul class="ab-proj">
+          {
+            projects.map((p) => (
+              <li>
+                <Link variant="subtle" className="ab-card" href={p.href}>
+                  <strong>{p.title}</strong>
+                  <span>{p.text}</span>
+                </Link>
+              </li>
+            ))
+          }
+        </ul>
+      </section>
+    </div>
+  </div>
+</Landing>

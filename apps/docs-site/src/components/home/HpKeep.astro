@@ -1,0 +1,60 @@
+---
+// "Keep what works": your exploration on the left (the profile header it added), your library on the right (Avatar,
+// Text, Button and one slot it lacks), then what happens at each step: 0 found, 1 library branch opened, 2 approved.
+import HpProfile from './HpProfile.astro';
+
+interface Props {
+  step: 0 | 1 | 2;
+}
+const { step } = Astro.props;
+---
+
+<div class="hp-kw">
+  <div class="hp-krow">
+    <div class="hp-kcol">
+      <p class="hp-klab">Your exploration</p>
+      <div class:list={['hp-kexp', step === 0 && 'hp-knew']}>
+        <HpProfile card />
+        {step === 0 && <span class="hp-ktag"><svg aria-hidden="true"><use href="#hp-comp" /></svg>New</span>}
+      </div>
+    </div>
+    <span class="hp-karr" aria-hidden="true">
+      <svg viewBox="0 0 40 16"><path d="M2 8h34M30 2l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+    </span>
+    <div class="hp-kcol">
+      <p class="hp-klab">Your library</p>
+      <div class="hp-kgrid">
+        <span class="hp-pc"><span class="hp-lp"><span class="hp-av hp-av-sm">AL</span></span><small>Avatar</small></span>
+        <span class="hp-pc"><span class="hp-lp"><span class="hp-tx"><i></i><i></i></span></span><small>Text</small></span>
+        <span class="hp-pc"><span class="hp-lp"><span class="hp-fol">Follow</span></span><small>Button</small></span>
+        <span class="hp-pc">
+          <span class:list={['hp-lp', 'hp-kslot', step > 0 && 'hp-kin']}>
+            {step > 0 ? <span class="hp-kmini"><HpProfile card /></span> : <span class="hp-kq">?</span>}
+          </span>
+          <small>{step > 0 ? 'Profile header' : 'Not in it yet'}</small>
+        </span>
+      </div>
+    </div>
+  </div>
+  <div class="hp-kfoot">
+    {
+      step === 0 && (
+        <>
+          <p class="hp-kby"><svg class="hp-lg" aria-hidden="true"><use href="#hp-logo" /></svg>Found by Bridge: 1 new piece</p>
+          <span class="hp-obtn"><span class="hp-a">Open library branch</span></span>
+        </>
+      )
+    }
+    {step === 1 && <p class="hp-kby"><svg class="hp-lg" aria-hidden="true"><use href="#hp-logo" /></svg>Profile header · library branch opened</p>}
+    {
+      step === 2 && (
+        <ul class="hp-kapv">
+          <li><svg aria-hidden="true"><use href="#hp-check" /></svg><strong>Design</strong> approved by Dana (DS lead)</li>
+          <li><svg aria-hidden="true"><use href="#hp-check" /></svg><strong>Code</strong> approved by Leo (developer)</li>
+          <li><svg aria-hidden="true"><use href="#hp-check" /></svg><strong>Contrast</strong> passes in light and dark</li>
+        </ul>
+      )
+    }
+  </div>
+  {step === 1 && <div class="hp-note hp-tin"><svg aria-hidden="true"><use href="#hp-check" /></svg>Library branch opened, linked to your exploration</div>}
+</div>

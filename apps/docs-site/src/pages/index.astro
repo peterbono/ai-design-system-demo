@@ -1,241 +1,278 @@
 ---
-// The product landing (direction H3, "one change, one line", validated 2026-10-20). One promise, then the trip of one
-// change: an exploration Claude AI built adds an Overdue tone to Badge; Claude checks what it added and lines up a
-// library branch you open in one click; you review it in the product; the design system (code and Figma kit) gets it.
-// A line runs that trip down the page (scripts/landing.ts, progressive enhancement: the page is complete without it).
-// Every media slot is real UI built with @bridge-ds/react, never an image. Only what ships is promised (lib/landing.ts).
-// The Library home moved to /library/ (lib/nav LIBRARY_HOME).
+// The homepage, ported from the owner's validated test page (2026-10-21): one promise you can drag ("Keep what works":
+// move the bridge to keep the profile header your exploration added), three step-tab sections and "One system
+// everyone can trust", the design system lead's queue, and the Horizon closing (Florian carries the kept card across
+// the bridge). Every drawing is decorative markup with a spoken label; the controls are DS components, except the
+// hero range input and the step tabs (see their audit comments). Behaviour: scripts/homepage.ts, pure parts in
+// lib/homepage.ts. The Library home is at /library/ (lib/nav LIBRARY_HOME).
+import '../styles/homepage.css';
 import Landing from '../layouts/Landing.astro';
-import Illustration from '../components/Illustration.astro';
 import ButtonLink from '../components/ds/ButtonLink';
-import LandingReview from '../components/landing/LandingReview';
-import LandingFaq from '../components/landing/LandingFaq';
-import { Avatar, Badge, Button, Card, CardBody, CodeBlock, Icon, Input, Link, Select, Tag } from '@bridge-ds/react';
-import { ArrowRight, Check, LayoutGrid, Link2 } from 'lucide-react';
-import { INSTALL_COMMAND } from '../lib/landing';
-import { LIBRARY_HOME, STUDIO_HOME } from '../lib/nav';
+import { Link } from '@bridge-ds/react';
+import { ArrowRight } from 'lucide-react';
+import HpSprite from '../components/home/HpSprite.astro';
+import HpPencil from '../components/home/HpPencil.astro';
+import HpGhost from '../components/home/HpGhost.astro';
+import HpProfile from '../components/home/HpProfile.astro';
+import HpScreen from '../components/home/HpScreen.astro';
+import HpStepSection from '../components/home/HpStepSection.astro';
+import HpKeep from '../components/home/HpKeep.astro';
+import HpQueue from '../components/home/HpQueue.astro';
+import HpPanorama from '../components/home/HpPanorama.astro';
+import HpWalkers from '../components/home/HpWalkers.astro';
+import { DEMO, STUDIO_HOME } from '../lib/nav';
 
-const stations = [
-  { id: 'st1', label: 'Explore' },
-  { id: 'st2', label: 'Spot what is new' },
-  { id: 'st3', label: 'Review and merge' },
+const handles = [
+  [157, 33],
+  [376, 33],
+  [157, 132],
+  [376, 132],
 ];
+const code = '<s>import</s> { <em>ProfileHeader</em> }\n  <s>from</s> "@bridge-ds/react";\n\n&lt;<em>ProfileHeader</em>\n  name="Ann Leroy"\n  role="Product designer"\n/&gt;';
 ---
 
 <Landing
   title="Bridge: explore with AI, keep what works in your design system"
-  description="Claude AI explores on your real components. Bridge lines up what the exploration added as library changes you open in one click, review in the product, and ship to code and your Figma kit."
+  description="Bridge finds what your exploration added. You review it, then the code and Figma kit follow."
 >
-  <div class="lp-journey" data-journey>
-    <svg class="lp-line" data-line aria-hidden="true" focusable="false">
-      <path class="lp-line-ahead" data-line-ahead d=""></path>
-      <path class="lp-line-done" data-line-done d=""></path>
-    </svg>
-    <span class="lp-marker" data-marker aria-hidden="true" hidden>
-      <Avatar kind="agent" brand="claude" size="xs" decorative />
-      <span>Overdue tone</span>
-    </span>
+  <div class="hp">
+    <HpSprite />
 
-    <!-- Hero: the promise, then the exploration and the library branch it becomes, joined by the line. -->
-    <section class="lp-hero lp-wrap" aria-labelledby="lp-title">
-      <div class="lp-hero-copy">
-        <h1 id="lp-title" class="lp-display">Explore with AI. Keep what works in your design system.</h1>
-        <p class="lp-lede">
-          Bringing what you explored back into the code and the UI kit is manual today. Claude AI checks what your exploration added and lines up the library changes; you open them in one click, review them in the product, and once they are merged the code ships and your Figma kit follows.
-        </p>
-        <div class="lp-cta">
-          <ButtonLink variant="primary" size="lg" href={STUDIO_HOME}>Get started</ButtonLink>
-          <Link href={LIBRARY_HOME} className="lp-cta-link">Read the docs</Link>
+    <!-- Hero: the promise, then the bridge you drag to keep the piece. -->
+    <section class="hp-hero hp-wrap" aria-labelledby="hp-title" data-hero>
+      <div class="hp-hero-text">
+        <h1 id="hp-title" class="hp-h1">
+          <span class="hp-hl">Explore with AI. </span><span class="hp-hl hp-hk"><span class="hp-keep">Keep<svg class="hp-ul" viewBox="0 0 150 18" preserveAspectRatio="none" aria-hidden="true"><path d="M3 12C28 6 66 3.5 104 6.5S140 11 147 7" pathLength="1"></path></svg></span> what works </span><span class="hp-hl">in your design system.</span>
+        </h1>
+        <p class="hp-lede"><span class="hp-hs">Bridge finds what your exploration added. </span><span class="hp-hs">You review it, then the code and Figma kit follow.</span></p>
+        <div class="hp-go">
+          <ButtonLink variant="primary" size="lg" iconEnd={ArrowRight} href={STUDIO_HOME}>Get started</ButtonLink>
+          {/* TODO: point to /demo/ once the read-only demo has its own route (lib/nav DEMO). */}
+          <Link variant="standalone" className="hp-demo" href={DEMO}><span class="hp-dl">Explore the demo</span><span class="hp-dc">No account needed</span></Link>
         </div>
       </div>
-
-      <div class="lp-hero-visual" role="img" aria-label="A billing screen prototype Claude AI built, and the library branch for the Overdue badge tone it added, linked to each other">
-        <div class="lp-plate" data-anchor="a">
-          <Card><CardBody className="lp-mini">
-            <p class="lp-mini-head"><Avatar kind="agent" brand="claude" size="xs" decorative /><strong>Your exploration</strong></p>
-            <p class="lp-caption lp-muted">Billing screen, built with Claude AI</p>
-            <div class="lp-screen">
-              <span class="lp-screen-row"><span class="lp-bar"></span><Badge tone="success">Paid</Badge></span>
-              <span class="lp-screen-row"><span class="lp-bar"></span><span class="lp-new"><Badge tone="danger">Overdue</Badge></span></span>
-              <span class="lp-screen-row"><span class="lp-bar"></span><Badge>Draft</Badge></span>
+      <div class="hp-hero-vis">
+        <div class="hp-fit" data-fit="540">
+          <div class="hp-stage" data-stage>
+            <HpPencil />
+            <div class="hp-crr">
+              <HpGhost />
+              <HpProfile card class="hp-stage-card" />
+              <span class="hp-hsel" aria-hidden="true"></span>
+              {handles.map(([l, t]) => <span class="hp-hh" style={`--l: ${l}; --t: ${t}`} aria-hidden="true" />)}
+              <span class="hp-tag hp-htag" aria-hidden="true"><svg><use href="#hp-comp" /></svg>Profile header</span>
+              <span class="hp-hlib" aria-hidden="true"><svg><use href="#hp-lib" /></svg>Library</span>
+              <span class="hp-stamp" aria-hidden="true"><svg><use href="#hp-check" /></svg>Kept</span>
             </div>
-            <p class="lp-caption lp-muted">Product branch, own preview</p>
-          </CardBody></Card>
+            <div class="hp-handle" aria-hidden="true">
+              <span class="hp-ln"></span>
+              <span class="hp-kn"><svg viewBox="0 0 24 24"><path d="M9 7l-5 5 5 5M15 7l5 5-5 5"></path></svg></span>
+              <span class="hp-ln"></span>
+            </div>
+            <!-- bridge-audit-ignore-next-line: the whole drawing is the slider: an invisible native range input over the before and after stage, with the bridge handle as its visible thumb; the DS Slider is a track with its own thumb and would need its internals restyled (Slider "compare" appearance requested in the PR) -->
+            <input class="hp-rng" type="range" min="0" max="100" step="1" value="50" aria-label="Keep the profile header: move the bridge left to keep it in your design system" aria-valuetext="Half exploration, half design system" data-range />
+          </div>
         </div>
-        <span class="lp-arrow" aria-hidden="true"><Icon icon={ArrowRight} size="md" /></span>
-        <div class="lp-plate" data-anchor="b">
-          <Card><CardBody className="lp-mini">
-            <p class="lp-mini-head"><Icon icon={LayoutGrid} size="sm" className="lp-deep" /><strong>Library branch</strong></p>
-            <p class="lp-caption lp-muted">Badge: overdue tone</p>
-            <div class="lp-mini-zone"><Badge tone="danger">Overdue</Badge></div>
-            <p class="lp-caption lp-muted">New, not in the library yet</p>
-          </CardBody></Card>
+        <p class="hp-hcap" aria-live="polite"><span class="hp-d">Drag: your explorations / your design system</span><span class="hp-k">Kept in your design system.</span></p>
+      </div>
+      <span class="hp-kline" aria-hidden="true" data-kline></span>
+    </section>
+
+    <div id="steps">
+      <HpStepSection
+        id="hp-b1"
+        title="Explore on your real components."
+        lede="Claude AI builds your prototype with your own library through MCP, on an isolated branch with its own preview."
+        steps={[
+          { title: 'Start from your feature', text: 'Pick A feature in a product, link its Jira ticket, start with Claude AI.' },
+          { title: 'Claude AI builds it with your library', text: 'It assembles the screen from your real components through MCP.' },
+          { title: 'Try it on its own preview', text: 'Your branch gets its own preview. The shared library stays untouched.' },
+        ]}
+        labels={[
+          'Create branch dialog: A feature in a product is selected, with a field to link a Jira ticket and a Start with Claude AI button',
+          "Claude AI assembles Ann Leroy's profile header from library components: Avatar, Text and Button",
+          'The member profile screen open in a browser window on its own preview address, marked Preview',
+        ]}
+      >
+        <div slot="p0" class="hp-card hp-dlg">
+          <span class="hp-xs hp-muted">Create branch</span>
+          <strong class="hp-dt">What are you working on?</strong>
+          <div class="hp-opt hp-pick"><span class="hp-radio"></span><span><strong>A feature in a product</strong><small>A new screen or flow, built with your library.</small></span></div>
+          <div class="hp-opt"><span class="hp-radio"></span><span><strong>A change to the library</strong><small>A token, a variant or a component.</small></span></div>
+          <div class="hp-jira"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Link a Jira ticket</div>
+          <div class="hp-row hp-dlg-foot"><span class="hp-sp"></span><span class="hp-btn hp-btn-line">Cancel</span><span class="hp-btn hp-btn-deep hp-ring"><span class="hp-ai"><svg aria-hidden="true"><use href="#hp-robot" /></svg></span>Start with Claude AI</span></div>
         </div>
-        <span class="lp-join" data-anchor="join"><Badge icon={Link2}>1 new piece, linked</Badge></span>
+        <div slot="p1" class="hp-sc hp-sc-center">
+          <div class="hp-say"><span class="hp-ai hp-ai-lg"><svg aria-hidden="true"><use href="#hp-robot" /></svg></span><p>Building it with your library.</p></div>
+          <div class="hp-eq">
+            <span class="hp-pcs">
+              <span class="hp-pc hp-asm" style="--d: 0"><span class="hp-lp"><span class="hp-av hp-av-sm">AL</span></span><small>Avatar</small></span>
+              <span class="hp-op hp-asm" style="--d: 0">+</span>
+              <span class="hp-pc hp-asm" style="--d: 1"><span class="hp-lp"><span class="hp-tx"><i></i><i></i></span></span><small>Text</small></span>
+              <span class="hp-op hp-asm" style="--d: 1">+</span>
+              <span class="hp-pc hp-asm" style="--d: 2"><span class="hp-lp"><span class="hp-fol">Follow</span></span><small>Button</small></span>
+            </span>
+            <span class="hp-op hp-asm" style="--d: 3">=</span>
+            <span class="hp-asm" style="--d: 4"><HpProfile card /></span>
+          </div>
+        </div>
+        <div slot="p2" class="hp-card hp-win">
+          <div class="hp-winbar"><span class="hp-dots"><i></i><i></i><i></i></span><span class="hp-url"><svg aria-hidden="true"><use href="#hp-lock" /></svg><span>ds-87<span class="hp-muted">.preview.app</span></span></span><span class="hp-pv">Preview</span></div>
+          <div class="hp-pvbody"><HpScreen plain /></div>
+        </div>
+      </HpStepSection>
+
+      <HpStepSection
+        id="hp-b2"
+        flip
+        title="Keep what works."
+        lede="Whatever your exploration added that the library lacks, Bridge lists it. You decide what comes back."
+        steps={[
+          { title: 'Bridge spots what is new', text: 'A new tone, a variant or a component: each piece the library lacks is listed.' },
+          { title: 'You open its library branch', text: 'One click opens it as its own library branch, linked to your exploration. Nothing opens on its own.' },
+          { title: 'Review it in the product', text: 'Design approval by the DS lead, code approval by a developer. Both before it merges.' },
+        ]}
+        labels={[
+          'Your exploration has a profile header marked New; your library has Avatar, Text and Button and an empty slot, not in it yet. Found by Bridge: 1 new piece, with an Open library branch button',
+          'The profile header fills the slot in your library; a message confirms the library branch opened, linked to your exploration',
+          'The profile header is in your library. Design approved by Dana, DS lead; code approved by Leo, developer; contrast passes in light and dark',
+        ]}
+      >
+        <div slot="p0" class="hp-sc hp-sc-center"><HpKeep step={0} /></div>
+        <div slot="p1" class="hp-sc hp-sc-center"><HpKeep step={1} /></div>
+        <div slot="p2" class="hp-sc hp-sc-center"><HpKeep step={2} /></div>
+      </HpStepSection>
+
+      <HpStepSection
+        id="hp-b3"
+        title="Ship it everywhere at once."
+        lede="Merge once. The code is published and your Figma kit follows."
+        steps={[
+          { title: 'Merge', text: 'Design and code approved, contrast checked, other products unchanged. One merge.' },
+          { title: 'The code is published', text: 'The Profile header ships in @bridge-ds/react, ready to import.' },
+          { title: 'Your Figma kit follows', text: 'One Pull in the DS Bridge plugin brings it into the Figma kit.' },
+        ]}
+        labels={[
+          'Library branch Profile header, contrast checked and approved by Dana and Leo; Merge is pressed and the branch shows Merged',
+          'The Profile header component page: its preview, the import from @bridge-ds/react and the code ProfileHeader name Ann Leroy role Product designer',
+          'DS Bridge plugin in Figma, Pull tab: Profile header, new component, is pulled and marked Added; the fidelity check confirms the Figma kit matches the code',
+        ]}
+      >
+        <div slot="p0" class="hp-card hp-mcard">
+          <div class="hp-mtop"><span class="hp-xs hp-muted">Library branch</span><span class="hp-state"><span class="hp-s-open">Open</span><span class="hp-s-mrg"><svg aria-hidden="true"><use href="#hp-check" /></svg>Merged</span></span></div>
+          <strong class="hp-mt">Profile header</strong>
+          <div class="hp-thumb"><HpProfile card /></div>
+          <ul class="hp-checks">
+            <li><svg aria-hidden="true"><use href="#hp-check" /></svg>Contrast passes in light and dark</li>
+            <li><span class="hp-avs"><span class="hp-av hp-av-xs hp-grey">D</span><span class="hp-av hp-av-xs hp-grey">L</span></span>Design and code approved</li>
+          </ul>
+          <span class="hp-obtn hp-press"><span class="hp-a">Merge</span><span class="hp-b"><svg aria-hidden="true"><use href="#hp-check" /></svg>Merged</span></span>
+        </div>
+        <div slot="p1" class="hp-card hp-cpage">
+          <div class="hp-row hp-wrap-row"><strong class="hp-mt">Profile header</strong><span class="hp-flag">Published</span><span class="hp-sp"></span><span class="hp-mono hp-pkg">@bridge-ds/react</span></div>
+          <div class="hp-thumb"><HpProfile card /></div>
+          <pre class="hp-code hp-mono" set:html={code} />
+        </div>
+        <div slot="p2" class="hp-card hp-plug">
+          <div class="hp-plugbar"><svg class="hp-lg" aria-hidden="true"><use href="#hp-logo" /></svg>DS Bridge<span class="hp-x" aria-hidden="true">×</span></div>
+          <div class="hp-ptabs2"><span class="hp-on">Pull</span><span>Push</span></div>
+          <div class="hp-plugbody">
+            <div class="hp-plugrow"><span class="hp-mini"><HpProfile card /></span><span class="hp-t"><strong>Profile header</strong><small>New component</small></span><span class="hp-added"><svg aria-hidden="true"><use href="#hp-check" /></svg>Added</span></div>
+            <span class="hp-obtn hp-press"><span class="hp-a">Pull</span><span class="hp-b"><svg aria-hidden="true"><use href="#hp-check" /></svg>Pulled</span></span>
+            <span class="hp-kitn"><span class="hp-k1">1 new component from the code</span><span class="hp-k2"><svg aria-hidden="true"><use href="#hp-check" /></svg>Fidelity check: Figma kit matches the code</span></span>
+          </div>
+        </div>
+      </HpStepSection>
+
+      <HpStepSection
+        id="hp-b4"
+        flip
+        title="One system everyone can trust."
+        lede="The library documents itself, stays the same in Figma and in code, and shows how much of it your products really use."
+        steps={[
+          { title: 'A library everyone can read', text: 'Public docs for every component. Claude AI drafts the guidance from the code, a person reviews it before it ships.' },
+          { title: 'Same components in Figma and Storybook', text: 'Both come from the same coded components. A fidelity check confirms they match.' },
+          { title: 'Know how much your products use it', text: 'An audit per product measures how much of it runs on your components and tokens.' },
+        ]}
+        labels={[
+          'The public Library page of the Profile header: its preview and usage guidance, tagged Drafted by Claude AI, reviewed by Dana',
+          'The same Profile header in two windows, Figma kit and Storybook, joined by a Matches check',
+          'Quality view, adoption by product: Docs site at 100 percent, was 81.7 percent before the audit; Admin demo audited',
+        ]}
+      >
+        <div slot="p0" class="hp-card hp-lib">
+          <div class="hp-row"><span class="hp-xs hp-muted">Library</span><span class="hp-xs hp-muted" aria-hidden="true">/</span><span class="hp-xs hp-muted">Components</span><span class="hp-sp"></span><span class="hp-flag">Public</span></div>
+          <strong class="hp-mt">Profile header</strong>
+          <div class="hp-thumb"><HpProfile card /></div>
+          <div class="hp-guide hp-asm" style="--d: 1"><strong>Usage</strong><p>Open a member profile with it.</p><p>Keep one Follow button per header.</p></div>
+          <span class="hp-drafted"><span class="hp-ai hp-ai-sm"><svg aria-hidden="true"><use href="#hp-robot" /></svg></span>Drafted by Claude AI <i aria-hidden="true">·</i> reviewed by Dana</span>
+        </div>
+        <div slot="p1" class="hp-twin">
+          <div class="hp-pair">
+            <div class="hp-mwin hp-fg hp-asm" style="--d: 0"><div class="hp-mbar"><span class="hp-dots"><i></i><i></i><i></i></span><strong>Figma kit</strong></div><div class="hp-mcv"><HpProfile card /></div></div>
+            <div class="hp-mwin hp-asm" style="--d: 1"><div class="hp-mbar"><span class="hp-dots"><i></i><i></i><i></i></span><strong>Storybook</strong></div><div class="hp-mcv"><HpProfile card /></div></div>
+            <span class="hp-match"><svg aria-hidden="true"><use href="#hp-check" /></svg>Matches</span>
+          </div>
+          <p class="hp-tnote"><svg aria-hidden="true"><use href="#hp-check" /></svg>Fidelity check on every component</p>
+        </div>
+        <div slot="p2" class="hp-card hp-qual">
+          <div class="hp-row"><span class="hp-xs hp-muted">Quality</span></div>
+          <strong class="hp-mt">Design system adoption</strong>
+          <p class="hp-qsub">Components and tokens in use, per product</p>
+          <div class="hp-adrow">
+            <div class="hp-adhd"><strong>Docs site</strong><span class="hp-qnum"><span class="hp-n1">81.7%</span><span class="hp-n2">100%</span></span></div>
+            <span class="hp-qbar"><i></i></span>
+            <small class="hp-was">Was 81.7% before the audit</small>
+          </div>
+          <div class="hp-adrow hp-q2">
+            <div class="hp-adhd"><strong>Admin demo</strong><span class="hp-aud"><svg aria-hidden="true"><use href="#hp-check" /></svg>Audited</span></div>
+          </div>
+        </div>
+      </HpStepSection>
+    </div>
+
+    <!-- The design system lead: the queue, played for real. -->
+    <section class="hp-lead" aria-labelledby="hp-lead-t">
+      <div class="hp-wrap hp-leadg">
+        <div class="hp-leadt">
+          <p class="hp-who"><span class="hp-av hp-av-sm hp-grey" aria-hidden="true">D</span>For the design system lead</p>
+          <h2 id="hp-lead-t" class="hp-st-h">Stop reviewing screenshots in Slack.</h2>
+          <p class="hp-st-p">Every change from designers and Claude AI waits in one queue, shown as the real change with its checks already run. 304&nbsp;contrast checks and accessibility tests run on every change.</p>
+        </div>
+        <HpQueue />
       </div>
     </section>
 
-    <!-- Works with: text only, no third-party logos. -->
-    <div class="lp-works lp-wrap" role="note" aria-label="Works with">
-      <span class="lp-muted">Works with what you already use</span>
-      <ul class="lp-works-list">
-        <li>Figma</li>
-        <li>Claude</li>
-        <li>GitHub</li>
-        <li>Storybook</li>
-        <li>Jira</li>
-      </ul>
-      <span class="lp-muted lp-works-end">They connect your tools. Bridge brings your explorations back.</span>
-    </div>
-
-    <div class="lp-trip">
-      <!-- Mini-map: pinned under the top while the trip is on screen (sticky in .lp-trip), then leaves with it. -->
-      <nav class="lp-map" aria-label="Journey" data-map>
-        <div class="lp-wrap lp-map-row">
-          <Badge>Overdue tone</Badge>
-          <ol class="lp-map-steps">
-            {
-              stations.map((s, i) => (
-                <li data-map-step={i}>
-                  <span class="lp-map-dot" aria-hidden="true" />
-                  <Link variant="subtle" href={`#${s.id}`}>{s.label}</Link>
-                </li>
-              ))
-            }
-          </ol>
-        </div>
-      </nav>
-
-      <!-- 1 Explore: on your real components, in its own branch. -->
-      <section class="lp-station lp-wrap" aria-labelledby="st1" data-station="0">
-        <div class="lp-station-media">
-          <div class="lp-plate lp-plate-float" inert>
-            <Card aria-hidden="true"><CardBody className="lp-dialog">
-              <p class="lp-dialog-title">What are you building?</p>
-              <Select label="In which product" options={[{ value: 'admin', label: 'Admin demo' }]} defaultValue="admin" />
-              <Input label="Describe it in a sentence" defaultValue="Billing screen with overdue invoices" readOnly />
-              <div class="lp-dialog-foot">
-                <Tag size="sm">DS-87 linked</Tag>
-                <Button variant="primary">Start with Claude AI</Button>
-              </div>
-            </CardBody></Card>
-          </div>
-        </div>
-        <div class="lp-node" data-anchor="node" aria-hidden="true">1</div>
-        <div class="lp-station-copy">
-          <h2 id="st1" class="lp-h">Explore on your real components.</h2>
-          <p class="lp-p">Claude AI builds your prototype with your own library through MCP, in a branch with its own preview, so the system stays untouched while you try things.</p>
-        </div>
-      </section>
-
-      <!-- 2 Spot what is new: Claude checks what the exploration added; a person opens each library branch. -->
-      <section class="lp-station lp-station-flip lp-wrap" aria-labelledby="st2" data-station="1">
-        <div class="lp-station-copy">
-          <h2 id="st2" class="lp-h">Claude spots what is new.</h2>
-          <p class="lp-p">When you finish exploring, Claude AI checks what your screen added that the library lacks, a new tone, a variant or a component, and lines up a library branch for each. You open it in one click, and it stays linked to your exploration both ways.</p>
-        </div>
-        <div class="lp-node" data-anchor="node" aria-hidden="true">2</div>
-        <div class="lp-station-media">
-          <div class="lp-plate lp-plate-float" inert>
-            <Card aria-hidden="true"><CardBody className="lp-found">
-              <p class="lp-dialog-title">Billing screen with overdue invoices</p>
-              <div class="lp-found-grid">
-                <div class="lp-screen lp-screen-tall">
-                  <span class="lp-screen-head"></span>
-                  <span class="lp-screen-row"><span class="lp-bar"></span><Badge tone="success" size="sm">Paid</Badge></span>
-                  <span class="lp-screen-row"><span class="lp-bar"></span><span class="lp-new"><Badge tone="danger" size="sm">Overdue</Badge></span></span>
-                  <span class="lp-screen-row"><span class="lp-bar"></span><Badge size="sm">Draft</Badge></span>
-                </div>
-                <div class="lp-found-zone">
-                  <strong>New, not in the library yet</strong>
-                  <Card padding="compact"><CardBody className="lp-piece">
-                    <strong>Badge: overdue tone</strong>
-                    <span class="lp-muted">Linked to this screen</span>
-                    <Button variant="secondary" size="sm">Open library branch</Button>
-                  </CardBody></Card>
-                </div>
-              </div>
-              <div class="lp-say">
-                <Avatar kind="agent" brand="claude" size="sm" decorative />
-                <p class="lp-say-text">Built with the library. <strong>1 piece was missing.</strong> Open a library branch for it?</p>
-              </div>
-            </CardBody></Card>
-          </div>
-        </div>
-      </section>
-
-      <!-- 3 Review and merge: the real change in the product, light and dark. -->
-      <section class="lp-station lp-wrap" aria-labelledby="st3" data-station="2">
-        <div class="lp-station-media">
-          <div class="lp-plate lp-plate-float">
-            <Card><CardBody>
-              <LandingReview client:visible />
-            </CardBody></Card>
-          </div>
-        </div>
-        <div class="lp-node" data-anchor="node" aria-hidden="true">3</div>
-        <div class="lp-station-copy">
-          <h2 id="st3" class="lp-h">Review it in the product, merge once.</h2>
-          <p class="lp-p">Before and after on the real screen, with contrast checked in light and dark. Your exploration uses the library preview right away; once the change is merged, switch it to the published version in one click and pull it into your Figma kit.</p>
-          <span class="lp-proof"><Badge tone="success" icon={Check}>47 of 47 components in the Figma kit</Badge></span>
-        </div>
-      </section>
-    </div>
-
-    <p class="lp-end lp-wrap"><span class="lp-end-chip" data-anchor="end" data-end><Icon icon={LayoutGrid} size="sm" />Your design system: code and Figma kit</span></p>
-  </div>
-
-  <!-- The design system lead, served once, lower. -->
-  <section class="lp-band" aria-labelledby="lp-lead">
-    <div class="lp-wrap lp-split">
-      <div class="lp-copy">
-        <p class="lp-eyebrow lp-muted"><Avatar name="Dana" fallback="illustrated" size="sm" decorative />For the design system lead</p>
-        <h2 id="lp-lead" class="lp-h">Stop reviewing screenshots in Slack.</h2>
-        <p class="lp-p">Every change from designers and Claude AI waits in one queue, shown as the real change with its checks already run.</p>
+    <!-- Closing: Horizon. Florian carries the kept card across the bridge; hover or focus pauses the walk. -->
+    <section class="hp-closing" aria-labelledby="hp-close-t">
+      <div class="hp-wrap hp-hz-text">
+        <p class="hp-eyebrow">Open source · MIT</p>
+        <h2 id="hp-close-t" class="hp-hz-h">Explore freely. <span class="hp-keep">Keep<svg class="hp-ul hp-ul-late" viewBox="0 0 150 18" preserveAspectRatio="none" aria-hidden="true"><path d="M3 12C28 6 66 3.5 104 6.5S140 11 147 7" pathLength="1"></path></svg></span> what works.</h2>
+        <p class="hp-hz-p">Your next exploration is one branch away.</p>
+        <div class="hp-hz-cta"><ButtonLink variant="primary" size="lg" iconEnd={ArrowRight} href={STUDIO_HOME}>Get started</ButtonLink></div>
       </div>
-      <div class="lp-plate lp-plate-float" inert>
-        <Card padding="none" className="lp-queue-card" aria-hidden="true">
-          <div class="lp-queue">
-          <div class="lp-queue-list">
-            <strong>Waiting on you</strong>
-            <span class="lp-muted">Darker default background</span>
-            <span class="lp-queue-current">Badge: overdue tone</span>
-            <span class="lp-muted">Focus ring offset</span>
-          </div>
-          <div class="lp-queue-detail">
-            <p class="lp-mini-head"><Avatar name="Ann" fallback="illustrated" size="sm" decorative />Ann asks for your review</p>
-            <div class="lp-queue-change"><Badge tone="danger" size="sm">Overdue</Badge><span>New tone on Badge</span></div>
-            <p class="lp-ok">All contrast checks pass</p>
-            <div class="lp-queue-actions">
-              <Button variant="secondary" size="sm">Suggest changes</Button>
-              <Button variant="primary" size="sm">Approve</Button>
+      <div class="hp-pano" data-pano>
+        <div class="hp-hz-stage" data-pano-stage>
+          <HpPanorama />
+          <div class="hp-walk">
+            <div class="hp-bob">
+              <HpWalkers />
+              <div class="hp-fgcard">
+                <span class="hp-av hp-av-lg">FG</span>
+                <span class="hp-pt">
+                  <strong>Florian Gouloubi</strong>
+                  <small>Senior Product Designer</small>
+                  <ButtonLink variant="primary" size="sm" href="https://www.linkedin.com/in/floriangouloubi/" target="_blank" rel="noopener" aria-label="Connect with Florian Gouloubi on LinkedIn (opens in a new tab)" className="hp-connect">Connect</ButtonLink>
+                </span>
+              </div>
             </div>
           </div>
-          </div>
-        </Card>
-      </div>
-    </div>
-  </section>
-
-  <!-- Questions, collapsed: one open at a time. -->
-  <section class="lp-wrap lp-split lp-faq-section" aria-labelledby="lp-faq">
-    <h2 id="lp-faq" class="lp-h">Questions teams ask.</h2>
-    <LandingFaq part="faq" client:visible />
-  </section>
-
-  <!-- Closing: the one Harbor zone of its screen, the install line, the terminal fold. -->
-  <section class="lp-wrap lp-close" aria-labelledby="lp-cta">
-    <div class="zone lp-close-zone">
-      <div class="lp-close-copy">
-        <h2 id="lp-cta" class="lp-h">Explore freely. Keep what works.</h2>
-        <div class="lp-cta">
-          <ButtonLink variant="primary" size="lg" href={STUDIO_HOME}>Get started</ButtonLink>
-          <Link href={LIBRARY_HOME} className="lp-cta-link">Read the docs</Link>
         </div>
-        <CodeBlock code={INSTALL_COMMAND} label="Install in your repository" className="lp-install" />
       </div>
-      <Illustration name="components" width={200} class="lp-close-art" />
-    </div>
-    <LandingFaq part="terminal" client:visible />
-  </section>
+    </section>
+  </div>
+  <script>
+    import { initHomepage } from '../scripts/homepage';
+    initHomepage();
+  </script>
 </Landing>

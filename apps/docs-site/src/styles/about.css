@@ -1,0 +1,222 @@
+/* /about/ (pages/about.astro): one reading column under a Field Guide drawing. The drawing colors come from
+   homepage.css (.hp-draw). Tokens only. */
+
+.ab {
+  padding: var(--space-8) 0 calc(var(--space-20) + var(--space-2));
+}
+
+.ab-col {
+  max-width: var(--size-180);
+  margin: 0 auto;
+  padding: 0 var(--site-gutter);
+}
+
+.ab-draw {
+  display: flex;
+  justify-content: center;
+  margin-bottom: var(--space-8);
+}
+
+.ab-draw svg {
+  width: min(calc(var(--size-96) - var(--space-1)), 100%);
+  height: auto;
+}
+
+.ab-eb {
+  margin: 0 0 var(--space-3);
+  color: var(--color-text-link);
+  font-size: var(--font-size-200);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--font-tracking-wide);
+  line-height: var(--font-leading-20);
+}
+
+.ab-h1 {
+  --_size: clamp(var(--font-size-700), 5vw, calc(var(--font-size-900) + var(--space-0-5)));
+
+  margin: 0;
+  font-family: var(--typography-display-family);
+  font-size: var(--_size);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: var(--font-tracking-tight);
+  line-height: var(--font-line-height-tight);
+  font-variation-settings: "SOFT" 100;
+  text-wrap: wrap;
+}
+
+.ab-lede {
+  margin: var(--space-5) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-400);
+  line-height: var(--font-line-height-normal);
+}
+
+.ab-sec {
+  margin-top: var(--space-12);
+}
+
+.ab-h2 {
+  --_size: clamp(calc(var(--font-size-500) + var(--space-0-5)), 3vw, calc(var(--font-size-600) + var(--space-0-5)));
+
+  margin: 0 0 var(--space-5);
+  font-family: var(--typography-display-family);
+  font-size: var(--_size);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--font-line-height-tight);
+  font-variation-settings: "SOFT" 100;
+}
+
+.ab-sec p {
+  margin: 0 0 var(--space-4);
+  font-size: var(--_t18);
+  line-height: var(--font-leading-32);
+}
+
+a.ab-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  text-decoration-line: underline;
+  text-decoration-color: currentcolor;
+}
+
+.ab-link svg {
+  width: var(--size-4);
+  height: var(--size-4);
+  fill: transparent;
+  stroke: currentcolor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+@media (hover: hover) {
+  a.ab-link:hover svg {
+    transform: translateX(var(--space-1));
+  }
+}
+
+.ab-person {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.ab-av {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-16);
+  height: var(--size-16);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-bg-zone);
+  color: var(--color-text-link);
+  font-family: var(--typography-display-family);
+  font-size: var(--font-size-500);
+  font-weight: var(--font-weight-semibold);
+  font-variation-settings: "SOFT" 100;
+}
+
+.ab-sec .ab-name {
+  margin: 0;
+  font-size: var(--_t18);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--font-leading-26);
+}
+
+.ab-sec .ab-role {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-300);
+  line-height: var(--font-leading-26);
+}
+
+.ab-ctas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-7);
+  margin-top: var(--space-8);
+}
+
+.ab-other {
+  margin: var(--space-12) 0 var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-200);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--font-tracking-wide);
+  line-height: var(--font-leading-20);
+}
+
+.ab-proj {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ab-proj li {
+  margin: 0;
+}
+
+a.ab-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1-5);
+  height: 100%;
+  padding: var(--space-5);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-xl);
+  color: var(--color-text-default);
+  text-decoration-line: none;
+  transition:
+    border-color var(--motion-duration-instant) var(--motion-easing-standard),
+    background-color var(--motion-duration-instant) var(--motion-easing-standard);
+}
+
+@media (hover: hover) {
+  a.ab-card:hover {
+    border-color: var(--color-border-emphasis);
+    background-color: var(--color-surface-selected);
+    color: var(--color-text-default);
+  }
+}
+
+.ab-card strong {
+  font-size: var(--font-size-300);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--font-leading-20);
+}
+
+.ab-card span {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-200);
+  line-height: var(--font-leading-20);
+}
+
+@media (min-width: 900px) {
+  .ab {
+    padding: var(--space-16) 0 calc(var(--space-24) + var(--space-6));
+  }
+
+  .ab-draw {
+    margin-bottom: var(--space-12);
+  }
+
+  .ab-sec {
+    margin-top: calc(var(--space-16) + var(--space-2));
+  }
+
+  .ab-other {
+    margin-top: var(--space-16);
+  }
+
+  .ab-proj {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
