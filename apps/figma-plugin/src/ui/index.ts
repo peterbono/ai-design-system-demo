@@ -24,7 +24,7 @@ import { type ComponentApplyReport, type ComponentPullPlan, type CoverageView, t
 import { type ComponentReview, onlyComponent, reviewUpdates } from '../sync/component-review';
 import type { ComponentSignature } from '../sync/components';
 import { type Destination, type PublishItem, type PublishResult, applyDestination, componentKey, defaultUnchecked, experimentalTokenIds, groupState, heldTokenIds, isChecked, publish, publishItems, setGroup, variableIdsOf, variableKey } from '../sync/publish';
-import { NEW_TOKEN_REFUSED, TOKEN_REJECTED_CALLOUT, TOKEN_REJECTED_DETAIL, TOKEN_SETTINGS_URL, type TokenProblem, checkToken, errorText, tokenProblem } from '../sync/token-health';
+import { type ComponentsReadProblem, NEW_TOKEN_REFUSED, TOKEN_REJECTED_CALLOUT, TOKEN_REJECTED_DETAIL, TOKEN_SETTINGS_URL, type TokenProblem, checkToken, componentsReadProblem, errorText, tokenProblem } from '../sync/token-health';
 import { type ExplorationChoice, explorationTestBuild, newExplorationProblems, runningExplorations, shareMessage, startExploration, targetOf, TestBuildPoller, tryItLinks } from '../sync/explorations';
 import type { BranchPreview, ExplorationTryIt } from '@bridge-ds/core';
 import { type Selection, onProgress, onSelection, request } from './bridge';
@@ -53,7 +53,7 @@ interface PullState {
   report?: ApplyReport | undefined;
   /** Component sets from component-specs.json on the branch; undefined when the repo has none. */
   components?: ComponentPullPlan | undefined;
-  componentsError?: string | undefined;
+  componentsError?: ComponentsReadProblem | undefined;
   /** Opt-in: also build the component sets code added ("Also pull new components"). Updates are always offered. */
   includeComponents: boolean;
   componentsReport?: ComponentApplyReport | undefined;
@@ -93,7 +93,7 @@ interface PushState {
   result?: PublishResult | undefined;
   /** Component changes: requests (GitHub issues), separate from the variables pull request. */
   components?: ComponentScan | undefined;
-  componentsError?: string | undefined;
+  componentsError?: ComponentsReadProblem | undefined;
   fileKey?: string | undefined;
   form?: RequestForm | undefined;
   sent: { component: string; number: number; url: string }[];
@@ -268,6 +268,22 @@ const tokenRejected = () => state.init?.tokenState === 'rejected';
 /** An error shown inside a screen (components, explorations, previews): none when the token callout already says it. */
 function inlineError(err: unknown): string | undefined {
   return noteTokenProblem(err)?.kind === 'rejected' ? undefined : errorText(err);
+}
+
+/** A failed component read: none when the token callout already says it, else what happened and what to do. */
+function componentsErrorOf(err: unknown, flow: 'pull' | 'push'): ComponentsReadProblem | undefined {
+  return noteTokenProblem(err)?.kind === 'rejected' ? undefined : componentsReadProblem(err, flow);
+}
+
+/** The callout for a failed component read: the sentence, then the technical error folded under "Details". */
+function componentsErrorCallout(p: ComponentsReadProblem): HTMLElement {
+  return h(
+    'div',
+    { class: 'callout warn' },
+    h('div', { class: 'callout-title' }, icon('alert'), p.title),
+    h('p', null, p.text),
+    p.detail ? h('details', { class: 'notes command' }, h('summary', null, 'Details'), h('pre', { class: 'mono-area', tabindex: '0', 'aria-label': 'Error details' }, p.detail)) : null,
+  );
 }
 
 /** Settings, with the token field open and focused: "Replace token". */
@@ -567,7 +583,7 @@ async function loadPull(prev?: PullState): Promise<PullState> {
   const choices = new Map<string, ConflictChoice>();
   // Components are a separate step: a problem reading them never blocks the variables.
   let components: ComponentPullPlan | undefined;
-  let componentsError: string | undefined;
+  let componentsError: ComponentsReadProblem | undefined;
   let reviews: ComponentReview[] = [];
   const before: Record<string, string> = { ...(prev?.before ?? {}) };
   try {
@@ -582,7 +598,7 @@ async function loadPull(prev?: PullState): Promise<PullState> {
       if (missing.length) Object.assign(before, await request('thumbnails', { nodeIds: missing, width: THUMB_W }).catch(() => ({})));
     }
   } catch (err) {
-    componentsError = inlineError(err);
+    componentsError = componentsErrorOf(err, 'pull');
   }
   return {
     analysis,
@@ -718,7 +734,7 @@ function scanPush(keep?: PushState, then?: () => void): void {
       const includeBrands = keep?.includeBrands ?? new Set<string>();
       const experimental = experimentalTokenIds(analysis, snapshot);
       let components: ComponentScan | undefined;
-      let componentsError: string | undefined;
+      let componentsError: ComponentsReadProblem | undefined;
       let fileKey: string | undefined;
       try {
         const scanned = await request('scan-components', {});
@@ -727,7 +743,7 @@ function scanPush(keep?: PushState, then?: () => void): void {
         // Coded components seen for the first time: take their baseline silently (nothing to send).
         if (components.adopt.length) await request('save-signatures', { items: components.adopt.map((x) => ({ nodeId: x.nodeId, signature: JSON.stringify(x.signature) })) });
       } catch (err) {
-        componentsError = inlineError(err);
+        componentsError = componentsErrorOf(err, 'push');
       }
       const items = publishItems(analysis, experimental, components?.changed ?? []);
       // A new scan starts like Figma's publish dialog: everything checked but experimental items. A re-scan from this
@@ -1647,9 +1663,7 @@ function reviewGroup(p: PullState, reviews: ComponentReview[], title = 'Componen
 
 /** Pull preview: updates to review for the generated sets, new sets opt-in, and what cannot be bound. */
 function componentsGroup(p: PullState): Child {
-  if (p.componentsError) {
-    return h('div', { class: 'callout warn' }, h('div', { class: 'callout-title' }, icon('alert'), 'Components could not be read'), h('p', null, `${p.componentsError} Variables still pull as usual.`));
-  }
+  if (p.componentsError) return componentsErrorCallout(p.componentsError);
   const plan = p.components;
   if (!plan) return null;
   const reviews = [...p.reviews.filter((r) => !p.done.has(r.componentId)), ...p.done.values()];
@@ -2291,7 +2305,7 @@ function componentNotes(r: PushState): Child[] {
   const scan = r.components;
   const candidates = scan?.candidates ?? [];
   const out: Child[] = [];
-  if (r.componentsError) out.push(h('div', { class: 'callout warn' }, h('div', { class: 'callout-title' }, icon('alert'), 'Components could not be read'), h('p', null, r.componentsError)));
+  if (r.componentsError) out.push(componentsErrorCallout(r.componentsError));
   if (scan?.figmaOnly.length) out.push(h('p', { class: 'muted' }, `Layers or auto layout changed in ${scan.figmaOnly.join(', ')}, with the same props, variants, tokens and look. That stays in Figma.`));
   if (scan?.explained.length) out.push(h('p', { class: 'muted' }, `${scan.explained.join(', ')} look${scan.explained.length === 1 ? 's' : ''} different because of variable edits. Those go with the variables, not in a request.`));
   if (candidates.length) {

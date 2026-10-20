@@ -999,7 +999,9 @@ async function wireReactions(set: ComponentSetNode, comp: PlannedComponent, ctx:
   for (const [key, node] of byKey) {
     let previous: string[] = [];
     try {
-      previous = JSON.parse(node.getSharedPluginData(NS, 'reactions') || '[]') as string[];
+      // Written by an earlier DS Bridge: anything but a list of keys means none of the reactions are known as ours.
+      const stored: unknown = JSON.parse(node.getSharedPluginData(NS, 'reactions') || '[]');
+      previous = Array.isArray(stored) ? stored.filter((k): k is string => typeof k === 'string') : [];
     } catch {
       previous = [];
     }

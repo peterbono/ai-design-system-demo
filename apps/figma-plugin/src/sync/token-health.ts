@@ -43,6 +43,30 @@ export function errorText(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+/** A component read that failed, for a callout: what happened and what to do, the technical error folded away. */
+export interface ComponentsReadProblem {
+  title: string;
+  text: string;
+  /** The error itself, for a report: shown in a closed disclosure, never as the message. */
+  detail?: string | undefined;
+}
+
+/**
+ * Pull compares the Figma components with main, Push reads them for requests. A token or permission problem keeps its
+ * own sentence; anything else says what still works and what to do, with the raw error as a detail to report.
+ */
+export function componentsReadProblem(err: unknown, flow: 'pull' | 'push'): ComponentsReadProblem {
+  const title = 'Components could not be read';
+  const token = tokenProblem(err);
+  if (token) return { title, text: token.text };
+  const raw = err instanceof Error ? err.message : String(err);
+  const text =
+    flow === 'pull'
+      ? 'Bridge could not compare your Figma components with main. Variables still pull as usual. Check again, and if it keeps failing, update DS Bridge and report it with the details below.'
+      : 'Bridge could not read your Figma components. Variables still send as usual. Scan again, and if it keeps failing, update DS Bridge and report it with the details below.';
+  return { title, text, ...(raw ? { detail: raw } : {}) };
+}
+
 /**
  * Checks the saved token once (one call: the repository). "rejected" on a 401, "ok" when GitHub answers, undefined
  * when the answer says nothing about the token (offline, rate limit, repository not found).
