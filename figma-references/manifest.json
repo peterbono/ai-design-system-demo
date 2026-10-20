@@ -1,8 +1,8 @@
 {
   "version": 1,
   "tool": "@bridge-ds/visual",
-  "createdAt": "2026-10-20T01:17:52.003Z",
-  "sha": "ed6bc895778117711722cca0a5d1d4a6488494dd",
+  "createdAt": "2026-10-20T12:06:58.788Z",
+  "sha": "8634167a4d89b7f3f377828d500e244f8b77075b",
   "scale": 2,
   "mode": {
     "brand": "bridge",
@@ -89,30 +89,54 @@
       }
     },
     "Avatar": {
-      "specHash": "50a60757",
+      "specHash": "91a32982",
       "variants": {
-        "Fallback=initials, Size=xs": {
+        "Fallback=initials, Kind=person, Size=xs": {
           "skipped": "the code example did not render"
         },
-        "Fallback=illustrated, Size=xs": {
+        "Fallback=initials, Kind=agent, Size=xs": {
           "skipped": "the code example did not render"
         },
-        "Fallback=initials, Size=sm": {
+        "Fallback=illustrated, Kind=person, Size=xs": {
           "skipped": "the code example did not render"
         },
-        "Fallback=illustrated, Size=sm": {
+        "Fallback=illustrated, Kind=agent, Size=xs": {
           "skipped": "the code example did not render"
         },
-        "Fallback=initials, Size=md": {
+        "Fallback=initials, Kind=person, Size=sm": {
           "skipped": "the code example did not render"
         },
-        "Fallback=illustrated, Size=md": {
+        "Fallback=initials, Kind=agent, Size=sm": {
           "skipped": "the code example did not render"
         },
-        "Fallback=initials, Size=lg": {
+        "Fallback=illustrated, Kind=person, Size=sm": {
           "skipped": "the code example did not render"
         },
-        "Fallback=illustrated, Size=lg": {
+        "Fallback=illustrated, Kind=agent, Size=sm": {
+          "skipped": "the code example did not render"
+        },
+        "Fallback=initials, Kind=person, Size=md": {
+          "skipped": "the code example did not render"
+        },
+        "Fallback=initials, Kind=agent, Size=md": {
+          "skipped": "the code example did not render"
+        },
+        "Fallback=illustrated, Kind=person, Size=md": {
+          "skipped": "the code example did not render"
+        },
+        "Fallback=illustrated, Kind=agent, Size=md": {
+          "skipped": "the code example did not render"
+        },
+        "Fallback=initials, Kind=person, Size=lg": {
+          "skipped": "the code example did not render"
+        },
+        "Fallback=initials, Kind=agent, Size=lg": {
+          "skipped": "the code example did not render"
+        },
+        "Fallback=illustrated, Kind=person, Size=lg": {
+          "skipped": "the code example did not render"
+        },
+        "Fallback=illustrated, Kind=agent, Size=lg": {
           "skipped": "the code example did not render"
         }
       }
