@@ -285,6 +285,12 @@ describe('docs, settings, Figma coverage', () => {
     const again = (await studio.saveDocs(await rw(), { component: 'Button', docs: { summary: 'Starts one action.' }, pr: 1 })) as any;
     expect(again).toMatchObject({ status: 'committed', pr: 1 });
     expect(JSON.parse(gh.fileAt(pr.head.ref, path)!).summary).toBe('Starts one action.');
+    // One open docs proposal per component: without pr, the open one is continued, not a second pull request.
+    const joined = (await studio.saveDocs(await rw(), { component: 'Button', docs: { summary: 'Starts one action, now.' } })) as any;
+    expect(joined).toMatchObject({ status: 'committed', pr: 1, continued: true });
+    expect(joined.said).toMatch(/continues the open Button docs proposal/);
+    expect(gh.pulls).toHaveLength(1);
+    expect(JSON.parse(gh.fileAt(pr.head.ref, path)!).summary).toBe('Starts one action, now.');
   });
 
   it('reads settings safely and the Figma coverage in Studio words', async () => {

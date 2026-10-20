@@ -1,8 +1,9 @@
 // Component docs (docs.json) proposed as a reviewable change, shared by the Library edit mode in Bridge Studio, the MCP
 // server and the CLI: what blocks a docs.json (validateDocs), the editor's cleaning, and one pull request per set of
-// docs edits (Tier 1 under the shared classifier, a patch changeset). The GitHub writes use the core client.
+// docs edits (Tier 1 under the shared classifier, a patch changeset), at most one open per component (a new send
+// continues the open one), and an author line that says who wrote the text. The GitHub writes use the core client.
 import { formatDocsJson, missingProse, patchDocsJson, type ComponentDocsJson } from './docs-draft';
-import type { GitHubClient } from './github-client';
+import type { GitHubClient, PullRequestSummary } from './github-client';
 import { classifyRisk, type RiskResult } from './risk';
 import { branchWithJiraKey, titleWithJiraKey } from './jira';
 
@@ -25,7 +26,7 @@ export interface DocsOrigin {
 
 export const DOCS_EDITOR_ORIGIN: DocsOrigin = {
   where: 'in the Bridge docs editor',
-  footer: 'Proposed with the Bridge docs editor by a person (no AI involved in this text unless the docs say "draftedBy").',
+  footer: 'Written by a person in the Bridge docs editor. No AI involved in this text.',
   label: 'source: bridge-web',
 };
 
@@ -89,17 +90,150 @@ export interface DocsProposal {
 
 const slugDate = (d: Date) => d.toISOString().slice(0, 10).replace(/-/g, '');
 
+/** The branch slug of a component's docs: "visually-hidden" for VisuallyHidden or visually-hidden, at most 40 characters. */
+export const docsSlug = (nameOrSlug: string) =>
+  nameOrSlug
+    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, '-')
+    .slice(0, 40);
+
+/* ------------------------------------------------------------------------------------------------------------------ */
+/* Who wrote the text                                                                                                  */
+
+/** Section names (as the editor shows them) by who wrote their text in this send. */
+export interface DocsAuthorship {
+  /** Drafted by Claude, kept as Claude wrote it after review. */
+  claude: string[];
+  /** Drafted by Claude, then edited by the person. */
+  edited: string[];
+  /** Written by the person, no Claude draft involved. */
+  written: string[];
+  /** Drafted by Claude, not reviewed yet (they go out marked for review). */
+  pending: string[];
+}
+
+const listOf = (xs: string[]) => (xs.length < 2 ? (xs[0] ?? '') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
+
+/**
+ * The author line of a docs proposal: "by a person, no AI" only when no Claude draft is in the text; "drafted by
+ * Claude AI, reviewed and sent by @ana" when the person kept Claude's text as is; "drafted by Claude AI, edited by
+ * @ana" with the edited sections when they changed parts of it.
+ */
+export function docsAuthorLine(a: DocsAuthorship, who: string | null | undefined, where = 'the Bridge docs editor'): string {
+  const w = who?.trim() ? `@${who.trim().replace(/^@/, '')}` : 'a person';
+  if (!a.claude.length && !a.edited.length && !a.pending.length) return `Written by ${w} in ${where}. No AI involved in this text.`;
+  const head = a.edited.length
+    ? `Drafted by Claude AI, edited by ${w} in ${where}.`
+    : a.claude.length
+      ? `Drafted by Claude AI, reviewed and sent by ${w} in ${where}.`
+      : `Drafted by Claude AI, sent by ${w} in ${where} before review.`;
+  const mixed = [a.edited, a.written, a.pending].some((x) => x.length);
+  return [
+    head,
+    a.edited.length ? `Edited by ${w}: ${listOf(a.edited)}.` : '',
+    a.claude.length && mixed ? `As Claude drafted them: ${listOf(a.claude)}.` : '',
+    a.written.length ? `Written by ${w}: ${listOf(a.written)}.` : '',
+    a.pending.length && (a.claude.length || a.edited.length || a.written.length) ? `Not reviewed yet: ${listOf(a.pending)}.` : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
+/** Without an author line from the editor: the docs' own record ("draftedBy": "claude") decides, never "no AI" over it. */
+export function defaultDocsFooter(edits: Pick<DocsFileEdit, 'after'>[], origin: DocsOrigin): string {
+  if (origin.label !== DOCS_EDITOR_ORIGIN.label) return origin.footer;
+  const claude = edits.some((e) => {
+    try {
+      return (JSON.parse(e.after) as ComponentDocsJson).draftedBy === 'claude';
+    } catch {
+      return false;
+    }
+  });
+  return claude ? `Drafted by Claude AI (the docs say "draftedBy": "claude"), sent by a person ${origin.where}.` : origin.footer;
+}
+
+/** The body with its author line (the text after the last "---" line) replaced, or added when it has none. */
+export function withAuthorLine(body: string, line: string): string {
+  const i = body.lastIndexOf('\n---\n');
+  return i < 0 ? `${body.trimEnd()}\n\n---\n${line}` : `${body.slice(0, i + 5)}${line}`;
+}
+
+/* ------------------------------------------------------------------------------------------------------------------ */
+/* One open proposal per component                                                                                     */
+
+/** The open docs proposal of a component: the one a new send continues instead of opening a second one. */
+export interface OpenDocsProposal {
+  number: number;
+  url: string;
+  branch: string;
+  author: string;
+  title: string;
+  updatedAt: string;
+}
+
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * True when `branch` is a docs proposal branch of this component: docs/<slug>-<yyyymmdd>-<id>, with an optional Jira
+ * key before the slug (docs/DS-42-button-...). "button" does not match docs/button-group-... branches. Older MCP
+ * branches used the lowercased name (docs/visuallyhidden-...): they match too.
+ */
+export function isDocsProposalBranch(branch: string, component: { name: string; slug?: string | undefined }): boolean {
+  const slugs = new Set([docsSlug(component.slug ?? component.name), docsSlug(component.name), docsSlug(component.name.toLowerCase())]);
+  return [...slugs].some((s) => new RegExp(`^docs/(?:[A-Z][A-Z0-9]*-\\d+-)?${escapeRe(s)}-\\d{8}-[a-z0-9]+$`).test(branch));
+}
+
+type PullLike = Pick<PullRequestSummary, 'number' | 'state' | 'headRef' | 'author' | 'title' | 'url' | 'updatedAt'> & { baseRef?: string | undefined };
+
+/** The most recently updated open docs proposal of the component (into `base` when given), or null. */
+export function findOpenDocsProposal(pulls: PullLike[], component: { name: string; slug?: string | undefined }, base?: string): OpenDocsProposal | null {
+  const hit = pulls
+    .filter((p) => p.state === 'open' && isDocsProposalBranch(p.headRef, component) && (!base || !p.baseRef || p.baseRef === base))
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+  return hit ? { number: hit.number, url: hit.url, branch: hit.headRef, author: hit.author, title: hit.title, updatedAt: hit.updatedAt } : null;
+}
+
+/** Reads the open pull requests and returns the component's open docs proposal, or null. */
+export async function findOpenDocsProposalOnGitHub(gh: GitHubClient, component: { name: string; slug?: string | undefined }, base?: string): Promise<OpenDocsProposal | null> {
+  return findOpenDocsProposal(await gh.listPullRequests('open'), component, base);
+}
+
+/**
+ * Adds a send to the open proposal: one commit with the docs.json on its branch (nothing when the text is the same),
+ * and the author line of its description brought up to date. Returns the commit sha, or '' when nothing changed.
+ */
+export async function continueDocsProposalOnGitHub(
+  gh: GitHubClient,
+  open: Pick<OpenDocsProposal, 'number' | 'branch'>,
+  edit: Pick<DocsFileEdit, 'path' | 'component' | 'after'>,
+  opts: { authorLine?: string | undefined; message?: string | undefined } = {},
+): Promise<string> {
+  const message = opts.message ?? `docs(${docsSlug(edit.component)}): edit usage guidance in the Bridge docs editor`;
+  const cur = await gh.getFile(edit.path, open.branch);
+  if (cur?.text === edit.after) return '';
+  const sha = await gh.putFile({ path: edit.path, content: edit.after, branch: open.branch, message, sha: cur?.sha });
+  if (opts.authorLine) {
+    const line = opts.authorLine;
+    await gh
+      .getPullRequest(open.number)
+      .then((pr) => gh.updatePullRequest(open.number, { body: withAuthorLine(pr.body, line) }))
+      .catch(() => undefined);
+  }
+  return sha;
+}
+
 /** One pull request for the docs edits of a draft: branch, title, body, files with a patch changeset, the tier. */
 export function docsProposal(
   edits: DocsFileEdit[],
-  opts: { title?: string | undefined; notes?: string | undefined; date: Date; packageName?: string | undefined; changesetDir?: string | undefined; origin?: DocsOrigin | undefined },
+  opts: { title?: string | undefined; notes?: string | undefined; date: Date; packageName?: string | undefined; changesetDir?: string | undefined; origin?: DocsOrigin | undefined; authorLine?: string | undefined },
 ): DocsProposal {
   const origin = opts.origin ?? DOCS_EDITOR_ORIGIN;
   if (!edits.length) throw new Error('No docs edits in the draft.');
   const names = edits.map((e) => e.component);
   const list = names.length === 1 ? names[0]! : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
   const title = opts.title?.trim() || `docs(${names.length === 1 ? edits[0]!.slug : 'components'}): usage guidance for ${list}`;
-  const slug = `${names.length === 1 ? edits[0]!.slug : `${edits[0]!.slug}-and-${names.length - 1}-more`}`.toLowerCase().replace(/[^a-z0-9-]+/g, '-').slice(0, 40);
+  const slug = docsSlug(names.length === 1 ? edits[0]!.slug : `${edits[0]!.slug}-and-${names.length - 1}-more`);
   const branch = `docs/${slug}-${slugDate(opts.date)}-${opts.date.getTime().toString(36).slice(-4)}`;
   const csPath = `${opts.changesetDir ?? '.changeset'}/docs-${slug}-${opts.date.getTime().toString(36)}.md`;
   const pkg = opts.packageName ?? '@bridge-ds/react';
@@ -128,7 +262,7 @@ export function docsProposal(
     '',
     opts.notes?.trim() ? `## Notes\n\n${opts.notes.trim()}\n` : '',
     '---',
-    origin.footer,
+    opts.authorLine?.trim() || defaultDocsFooter(edits, origin),
   ]
     .filter((x, i, a) => !(x === '' && a[i - 1] === ''))
     .join('\n');
@@ -139,13 +273,37 @@ export function docsProposal(
 /**
  * Opens one pull request with the docs edits from the default branch, the Jira key first in the title and the branch
  * name (Jira's GitHub integration links them). Returns its number, link and branch. Labels are best effort.
+ * One open proposal per component: when the component already has one, the edit goes there as a new commit
+ * (`continued`; `unchanged` when it already says this) instead of a second pull request.
  */
 export async function proposeDocsOnGitHub(
   gh: GitHubClient,
   edits: DocsFileEdit[],
-  opts: { base: string; title?: string | undefined; notes?: string | undefined; jira?: string | null | undefined; date?: Date | undefined; origin?: DocsOrigin | undefined; extraLabels?: string[] | undefined; commitNote?: string | undefined },
-): Promise<{ number: number; url: string; branch: string; title: string }> {
-  const p = docsProposal(edits, { title: opts.title, notes: opts.notes, date: opts.date ?? new Date(), origin: opts.origin });
+  opts: {
+    base: string;
+    title?: string | undefined;
+    notes?: string | undefined;
+    jira?: string | null | undefined;
+    date?: Date | undefined;
+    origin?: DocsOrigin | undefined;
+    extraLabels?: string[] | undefined;
+    commitNote?: string | undefined;
+    /** Who wrote the text (docsAuthorLine). Without it, the origin's footer, never "no AI" over a Claude draft. */
+    authorLine?: string | undefined;
+    /** Default true: continue the component's open proposal. False always opens a new one. */
+    continueOpen?: boolean | undefined;
+  },
+): Promise<{ number: number; url: string; branch: string; title: string; continued: boolean; unchanged: boolean }> {
+  if (opts.continueOpen !== false && edits.length === 1) {
+    const e = edits[0]!;
+    // A failed read does not block the send: it opens a new proposal, as before.
+    const open = await findOpenDocsProposalOnGitHub(gh, { name: e.component, slug: e.slug }, opts.base).catch(() => null);
+    if (open) {
+      const sha = await continueDocsProposalOnGitHub(gh, open, e, { authorLine: opts.authorLine?.trim() || defaultDocsFooter(edits, opts.origin ?? DOCS_EDITOR_ORIGIN) });
+      return { number: open.number, url: open.url, branch: open.branch, title: open.title, continued: true, unchanged: !sha };
+    }
+  }
+  const p = docsProposal(edits, { title: opts.title, notes: opts.notes, date: opts.date ?? new Date(), origin: opts.origin, authorLine: opts.authorLine });
   const prTitle = titleWithJiraKey(p.title, opts.jira ?? null);
   const branch = branchWithJiraKey(p.branch, opts.jira ?? null);
   const mainSha = await gh.getBranchSha(opts.base);
@@ -155,7 +313,7 @@ export async function proposeDocsOnGitHub(
   await gh.createBranch(branch, commit);
   const pr = await gh.createPullRequest({ title: prTitle, head: branch, base: opts.base, body: p.body, draft: false });
   await gh.addLabels(pr.number, [...p.labels, ...(opts.extraLabels ?? [])]).catch(() => false);
-  return { number: pr.number, url: pr.url, branch, title: prTitle };
+  return { number: pr.number, url: pr.url, branch, title: prTitle, continued: false, unchanged: false };
 }
 
 /**
