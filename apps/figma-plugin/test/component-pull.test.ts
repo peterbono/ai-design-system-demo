@@ -726,3 +726,96 @@ test('coverage: the count of components in Figma, drafted ones named, the others
   assert.equal(old.complete, false);
   assert.equal(coverageView({ components: plan.components, coverage: [{ name: 'Button', status: 'generated' }, { name: 'Box', status: 'unsupported' }] }).missing[0]!.reason, 'Not added yet');
 });
+
+type SimReaction = { trigger: { type: string }; actions: { destinationId: string; navigation: string; transition: { type: string; duration: number; easing: { type: string; easingFunctionCubicBezier?: Record<string, number> } } | null }[] };
+const reactionsOf = (n: SimNode) => n.reactions as SimReaction[];
+const ms = (r: SimReaction | undefined) => Math.round((r?.actions[0]?.transition?.duration ?? 0) * 1000);
+
+test('interactions: variants change on hover, press and click with Smart animate and the code motion; reduced motion said in the description', async () => {
+  const { sim, plan } = await pulledFile();
+  const report = await applyComponentPlan(writablePlan(plan));
+  const button = sim.sets().find((s) => s.name === 'Button')!;
+  const def = variantOf(button, 'Variant=primary, Size=md, State=Default');
+  const hover = variantOf(button, 'Variant=primary, Size=md, State=Hover');
+  const pressed = variantOf(button, 'Variant=primary, Size=md, State=Pressed');
+  // While hovering: Default to Hover, Smart animate, motion.duration.instant (75 ms), motion.easing.standard.
+  assert.equal(reactionsOf(def).length, 1);
+  const h = reactionsOf(def)[0]!;
+  assert.equal(h.trigger.type, 'ON_HOVER');
+  assert.equal(h.actions[0]!.destinationId, hover.id);
+  assert.equal(h.actions[0]!.navigation, 'CHANGE_TO');
+  assert.equal(h.actions[0]!.transition!.type, 'SMART_ANIMATE');
+  assert.equal(ms(h), 75);
+  assert.deepEqual(h.actions[0]!.transition!.easing, { type: 'CUSTOM_CUBIC_BEZIER', easingFunctionCubicBezier: { x1: 0.2, y1: 0, x2: 0, y2: 1 } });
+  // While pressing: Hover to Pressed. Pressed and Disabled variants start nothing.
+  assert.deepEqual(reactionsOf(hover).map((r) => [r.trigger.type, r.actions[0]!.destinationId]), [['ON_PRESS', pressed.id]]);
+  assert.equal(reactionsOf(pressed).length, 0);
+  assert.equal(reactionsOf(variantOf(button, 'Variant=primary, Size=md, State=Disabled')).length, 0);
+  // Switch: Mouse enter and leave for hover, On click toggles Checked and keeps the state.
+  const sw = sim.sets().find((s) => s.name === 'Switch')!;
+  const off = variantOf(sw, 'Label placement=end, Size=md, Checked=false, State=Hover');
+  const on = variantOf(sw, 'Label placement=end, Size=md, Checked=true, State=Hover');
+  const click = reactionsOf(off).find((r) => r.trigger.type === 'ON_CLICK')!;
+  assert.equal(click.actions[0]!.destinationId, on.id);
+  assert.equal(ms(click), 150);
+  assert.deepEqual(reactionsOf(off).map((r) => r.trigger.type).sort(), ['MOUSE_LEAVE', 'ON_CLICK']);
+  // The plan counts them and says what Figma approximates or cannot play.
+  const planned = plan.components.find((c) => c.name === 'Button')!;
+  assert.equal(planned.interactions!.length, 15 + 3 + 15);
+  assert.ok(planned.motionNotes!.some((n) => n.startsWith('Keyboard focus')));
+  assert.ok(plan.components.find((c) => c.name === 'Spinner')!.motionNotes!.some((n) => /^Looping animation spin, 700 ms/.test(n)));
+  assert.ok(plan.components.find((c) => c.name === 'Checkbox')!.motionNotes!.some((n) => /^Approximated: parts move at 150 ms and 75 ms/.test(n)));
+  // prefers-reduced-motion has no Figma equivalent: said in the set description.
+  assert.match(button.description, /In code, reduced motion turns this off\./);
+  assert.match(sim.sets().find((s) => s.name === 'Spinner')!.description, /It animates in code\. In code, reduced motion turns this off\./);
+  assert.doesNotMatch(sim.sets().find((s) => s.name === 'Badge')!.description, /reduced motion/);
+  assert.equal(report.problems.filter((p) => /interaction/.test(p)).length, 0);
+});
+
+test('interactions: idempotent, reactions designers add are kept, a motion change in code replaces only DS Bridge ones', async () => {
+  const first = await pulledFile();
+  await applyComponentPlan(writablePlan(first.plan));
+  const button = () => first.sim.sets().find((s) => s.name === 'Button')!;
+  const def = () => variantOf(button(), 'Variant=primary, Size=md, State=Default');
+  const hover = () => variantOf(button(), 'Variant=primary, Size=md, State=Hover');
+  // A designer adds their own On click on a generated variant, and a hover on a frame outside the sets.
+  const figmaApi = first.sim.api() as { createFrame: () => SimNode };
+  const own = figmaApi.createFrame();
+  const target = figmaApi.createFrame();
+  await own.setReactionsAsync([{ trigger: { type: 'ON_HOVER' }, actions: [{ type: 'NODE', destinationId: target.id, navigation: 'NAVIGATE', transition: null }] }]);
+  await def().setReactionsAsync([...(def().reactions as never[]), { trigger: { type: 'ON_CLICK' }, actions: [{ type: 'NODE', destinationId: hover().id, navigation: 'CHANGE_TO', transition: null }] }]);
+  const writes = first.sim.reactionWrites;
+  // A second pull, forced to rebuild every set: no reaction is written again, the designer's ones stay.
+  const again = await pulledFile({ sim: first.sim, gh: first.gh });
+  const forced = { ...again.plan, components: again.plan.components.map((c) => ({ ...c, status: 'updated' as const })) };
+  const report = await applyComponentPlan(forced);
+  assert.equal(first.sim.reactionWrites, writes);
+  assert.deepEqual(reactionsOf(def()).map((r) => r.trigger.type), ['ON_HOVER', 'ON_CLICK']);
+  assert.deepEqual(reactionsOf(own).map((r) => r.trigger.type), ['ON_HOVER']);
+  assert.equal(report.problems.filter((p) => /interaction/.test(p)).length, 0);
+  // Code changes the motion (a slower hover): DS Bridge replaces its own reaction and keeps the designer's.
+  const specs = parseComponentSpecs(specsText());
+  const b = specs.components.find((c) => c.name === 'Button')!;
+  for (const x of b.interactions!) if (x.transition) x.transition = { ...x.transition, duration: 150 };
+  b.hash = hashSpec(b);
+  const slower = await pulledFile({ sim: first.sim, specs: JSON.stringify(specs) });
+  await applyComponentPlan(writablePlan(slower.plan));
+  assert.deepEqual(reactionsOf(def()).map((r) => r.trigger.type), ['ON_CLICK', 'ON_HOVER']);
+  assert.equal(ms(reactionsOf(def())[1]), 150);
+  assert.deepEqual(reactionsOf(own).map((r) => r.trigger.type), ['ON_HOVER']);
+});
+
+test('interactions: a designer reaction on the same trigger wins, and the pull says so', async () => {
+  const { sim, plan } = await pulledFile();
+  await applyComponentPlan(writablePlan(plan));
+  const button = sim.sets().find((s) => s.name === 'Button')!;
+  const def = variantOf(button, 'Variant=primary, Size=md, State=Default');
+  const pressed = variantOf(button, 'Variant=primary, Size=md, State=Pressed');
+  // The designer replaces DS Bridge's hover with their own (straight to Pressed).
+  await def.setReactionsAsync([{ trigger: { type: 'ON_HOVER' }, actions: [{ type: 'NODE', destinationId: pressed.id, navigation: 'CHANGE_TO', transition: null }] }]);
+  const again = await pulledFile({ sim });
+  const forced = { ...again.plan, components: again.plan.components.filter((c) => c.name === 'Button').map((c) => ({ ...c, status: 'updated' as const })) };
+  const report = await applyComponentPlan(forced);
+  assert.deepEqual(reactionsOf(def).map((r) => r.actions[0]!.destinationId), [pressed.id]);
+  assert.deepEqual(report.problems.filter((p) => /interaction/.test(p)), ['Button Variant=primary, Size=md, State=Default: kept your own "While hovering" interaction, so DS Bridge did not add its own']);
+});

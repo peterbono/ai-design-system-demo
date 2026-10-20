@@ -22,6 +22,8 @@ import {
   type SpecPart,
   type SpecIcon,
   type SpecIconStyle,
+  type SpecInteraction,
+  type SpecTrigger,
   type SpecProperty,
   type SpecSlot,
   type SpecUnmapped,
@@ -36,12 +38,16 @@ import {
   variantKeyOf,
 } from '../component-spec';
 import { CONFIG_FILE, loadConfig } from '../config';
-import { buildTokenSet, layoutOptions } from '../token-set';
+import { resolve } from '../resolver';
+import { buildTokenSet, defaultContext, layoutOptions } from '../token-set';
 import { type CssElement, type CssRule, type CssState, DEFAULT_STATE, computeValues, declaredFor, parseCssModule, splitTop } from './spec-css';
+import { motionNotes, transitionBetween } from './spec-motion';
 
 export interface TokenInfo {
   path: string;
   type: string;
+  /** Durations and easings: the value in the default modes (`{ value: 150, unit: 'ms' }`, `[0.2, 0, 0, 1]`), for motion. */
+  value?: unknown;
 }
 
 export interface SpecGeneratorOptions {
@@ -2722,6 +2728,13 @@ export function generateComponentSpec(name: string, opts: SpecGeneratorOptions, 
     }
   }
 
+  // Prototype interactions between the variants (hover, press, click to check) with the code's motion, and the motion
+  // a Figma prototype cannot play (keyframes, keyboard focus, opening).
+  const interactions = deriveInteractions(axes, evaluated, opts.tokens, /radio/i.test(setName));
+  const drawnClasses = new Set<string>();
+  for (const { ev } of evaluated) for (const n of ev.built.parts.values()) for (const c of n.classes) drawnClasses.add(c);
+  const motion = motionNotes(rules, drawnClasses, opts.tokens, view);
+
   const variants: SpecVariant[] = [];
   const unmapped: SpecUnmapped[] = [];
   // Parts no variant shows (a visually hidden legend, a glyph for a state the set does not draw): left out.
@@ -2843,8 +2856,58 @@ export function generateComponentSpec(name: string, opts: SpecGeneratorOptions, 
     ...(view ? { view } : {}),
     ...(example ? { example } : {}),
   };
-  const spec: Omit<ComponentSpec, 'hash'> = { name: setName, ...component, source, axes, properties, parts, variants, unmapped: dedup };
-  return { name: setName, ...component, hash: hashSpec(spec), source, axes, properties, parts, variants, unmapped: dedup };
+  const motionFields = { ...(interactions.length ? { interactions } : {}), ...(motion.length ? { motion } : {}) };
+  const spec: Omit<ComponentSpec, 'hash'> = { name: setName, ...component, source, axes, properties, parts, variants, unmapped: dedup, ...motionFields };
+  return { name: setName, ...component, hash: hashSpec(spec), source, axes, properties, parts, variants, unmapped: dedup, ...motionFields };
+}
+
+/**
+ * Interactions between the variants of a set, from its State and Checked axes: hover (While hovering, Default to Hover),
+ * press (While pressing, Hover or Default to Pressed) and click (On click, Checked toggles; a radio only checks). With a
+ * Checked axis, hover uses Mouse enter and Mouse leave, so a click is not undone when the pointer leaves. Only between
+ * variants that look different; the transition is the code's for that change, grouped when variants differ.
+ */
+function deriveInteractions(axes: SpecAxis[], evaluated: { props: Record<string, string>; ev: Evaluated }[], tokens: Map<string, TokenInfo>, radio: boolean): SpecInteraction[] {
+  const byKey = new Map(evaluated.map((e) => [variantKeyOf(e.props), e]));
+  const state = axes.find((a) => a.name === 'State');
+  const checked = axes.find((a) => a.name === 'Checked');
+  const rules: { trigger: SpecTrigger; axis: string; from: string; to: string; only?: (p: Record<string, string>) => boolean }[] = [];
+  if (state) {
+    const has = (v: string) => state.values.includes(v);
+    if (has('Hover')) {
+      if (checked) rules.push({ trigger: 'MOUSE_ENTER', axis: 'State', from: 'Default', to: 'Hover' }, { trigger: 'MOUSE_LEAVE', axis: 'State', from: 'Hover', to: 'Default' });
+      else rules.push({ trigger: 'ON_HOVER', axis: 'State', from: 'Default', to: 'Hover' });
+    }
+    if (has('Pressed')) rules.push({ trigger: 'ON_PRESS', axis: 'State', from: has('Hover') ? 'Hover' : 'Default', to: 'Pressed' });
+  }
+  if (checked) {
+    const pairs: [string, string][] = [['false', 'true']];
+    if (!radio) pairs.push(['true', 'false']);
+    if (checked.values.includes('mixed')) pairs.push(['mixed', 'true']);
+    // Clicked where the pointer is: at rest or hovered, never while disabled.
+    const only = (p: Record<string, string>) => p.State === undefined || p.State === 'Default' || p.State === 'Hover';
+    for (const [from, to] of pairs) rules.push({ trigger: 'ON_CLICK', axis: 'Checked', from, to, only });
+  }
+  const out: SpecInteraction[] = [];
+  for (const r of rules) {
+    const groups = new Map<string, { transition: SpecInteraction['transition']; keys: string[] }>();
+    let candidates = 0;
+    for (const e of evaluated) {
+      if (e.props[r.axis] !== r.from) continue;
+      candidates++;
+      if (r.only && !r.only(e.props)) continue;
+      const target = byKey.get(variantKeyOf({ ...e.props, [r.axis]: r.to }));
+      if (!target || drawn(target.ev) === drawn(e.ev)) continue;
+      const transition = transitionBetween(e.ev.computed, target.ev.computed, tokens);
+      const k = JSON.stringify(transition);
+      const g = groups.get(k) ?? { transition, keys: [] };
+      g.keys.push(variantKeyOf(e.props));
+      groups.set(k, g);
+    }
+    const total = [...groups.values()].reduce((n, g) => n + g.keys.length, 0);
+    for (const g of groups.values()) out.push({ trigger: r.trigger, axis: r.axis, from: r.from, to: r.to, ...(groups.size > 1 || total < candidates ? { variants: g.keys } : {}), transition: g.transition });
+  }
+  return out;
 }
 
 /** Whether a spec draws anything: a fill, a border, an icon or a text of its own. Layout helpers draw nothing. */
@@ -3321,9 +3384,13 @@ export function draftedSpec(folder: string, opts: SpecGeneratorOptions): Compone
 export function tokenCssIndex(files: Record<string, string>, opts: { prefix?: string; separator?: string; layout?: Parameters<typeof buildTokenSet>[1] } = {}): Map<string, TokenInfo> {
   const set = buildTokenSet(files, opts.layout ?? {});
   const out = new Map<string, TokenInfo>();
+  const ctx = defaultContext(set);
   for (const t of set.tokens.values()) {
     const v = tokenCssVar(t.path, opts.prefix, opts.separator);
-    if (!out.has(v)) out.set(v, { path: t.path, type: t.type });
+    if (out.has(v)) continue;
+    // Motion tokens carry their value: interactions play the code's duration and easing.
+    const value = t.type === 'duration' || t.type === 'cubicBezier' ? resolve(set.byPath, t.path, ctx).value : undefined;
+    out.set(v, { path: t.path, type: t.type, ...(value !== undefined ? { value } : {}) });
   }
   return out;
 }

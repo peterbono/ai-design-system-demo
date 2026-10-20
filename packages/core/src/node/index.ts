@@ -5,3 +5,4 @@ export * from './git-history';
 export * from './audit';
 export * from './component-specs';
 export * from './spec-css';
+export * from './spec-motion';

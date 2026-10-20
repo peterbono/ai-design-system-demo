@@ -958,6 +958,75 @@ export function layoutVariants(set: ComponentSetNode, comp: PlannedComponent): v
 
 const componentsPage = () => pageFor(PAGE_NAME, 'components');
 
+/** A reaction as a comparable string: trigger, destination, navigation, transition (duration in ms, easing rounded). */
+export function reactionKey(r: Reaction): string {
+  const a = (r.actions?.[0] ?? r.action) as Action | undefined;
+  const t = r.trigger as (Trigger & { delay?: number }) | null;
+  if (!t || !a || a.type !== 'NODE') return JSON.stringify([t?.type ?? null, a?.type ?? null]);
+  const tr = a.transition;
+  const easing = tr ? [tr.easing.type, ...Object.values(tr.easing.easingFunctionCubicBezier ?? {}).map((n) => Math.round(n * 1000) / 1000)] : null;
+  return JSON.stringify([t.type, t.delay ?? 0, a.destinationId, a.navigation, tr ? [tr.type, Math.round(tr.duration * 1000), easing] : null]);
+}
+
+/** A Figma reaction for a planned one: Change to the destination variant, Smart animate with the code's motion. */
+function reactionFor(r: NonNullable<PlannedComponent['interactions']>[number], destinationId: string): Reaction {
+  const trigger: Trigger =
+    r.trigger === 'MOUSE_ENTER' || r.trigger === 'MOUSE_LEAVE' ? { type: r.trigger, delay: 0, deprecatedVersion: false } : { type: r.trigger };
+  const t = r.transition;
+  const transition: Transition | null = t
+    ? {
+        type: 'SMART_ANIMATE',
+        duration: t.duration / 1000,
+        easing:
+          t.easing.type === 'CUSTOM_CUBIC_BEZIER' && t.easing.bezier
+            ? { type: 'CUSTOM_CUBIC_BEZIER', easingFunctionCubicBezier: { x1: t.easing.bezier[0], y1: t.easing.bezier[1], x2: t.easing.bezier[2], y2: t.easing.bezier[3] } }
+            : { type: 'LINEAR' },
+      }
+    : null;
+  return { trigger, actions: [{ type: 'NODE', destinationId, navigation: 'CHANGE_TO', transition }] };
+}
+
+/**
+ * Prototype reactions on the variants of a generated set: hover, press and click change to another variant with the
+ * code's motion. The reactions DS Bridge set last time are kept in shared plugin data (dsbridge / reactions) and
+ * replaced; reactions designers added are kept, and when one uses the same trigger, DS Bridge leaves that trigger to
+ * it. Nothing is written when the variant already has exactly these reactions (a second pull changes nothing).
+ */
+async function wireReactions(set: ComponentSetNode, comp: PlannedComponent, ctx: Ctx): Promise<void> {
+  const byKey = new Map(
+    set.children.filter((c): c is ComponentNode => c.type === 'COMPONENT' && c.getSharedPluginData(NS, 'orphan') !== 'true').map((c) => [c.getSharedPluginData(NS, 'variant'), c]),
+  );
+  for (const [key, node] of byKey) {
+    let previous: string[] = [];
+    try {
+      previous = JSON.parse(node.getSharedPluginData(NS, 'reactions') || '[]') as string[];
+    } catch {
+      previous = [];
+    }
+    const ours = new Set(previous);
+    const kept = node.reactions.filter((r) => !ours.has(reactionKey(r)));
+    const taken = new Set(kept.map((r) => r.trigger?.type));
+    const wanted: Reaction[] = [];
+    for (const r of comp.interactions ?? []) {
+      if (r.fromKey !== key) continue;
+      const dest = byKey.get(r.toKey);
+      if (!dest) continue;
+      if (taken.has(r.trigger)) {
+        ctx.problems.push(`${comp.name} ${node.name}: kept your own "${r.label}" interaction, so DS Bridge did not add its own`);
+        continue;
+      }
+      wanted.push(reactionFor(r, dest.id));
+    }
+    const next = [...kept, ...wanted];
+    // Same reactions in any order: nothing to write.
+    const sorted = (list: readonly Reaction[]) => JSON.stringify(list.map(reactionKey).sort());
+    const same = sorted(next) === sorted(node.reactions);
+    if (!same) await node.setReactionsAsync(next);
+    const keys = wanted.length ? JSON.stringify(wanted.map(reactionKey)) : '';
+    if (node.getSharedPluginData(NS, 'reactions') !== keys) node.setSharedPluginData(NS, 'reactions', keys);
+  }
+}
+
 function bottomOf(page: PageNode): number {
   return page.children.reduce((m, n) => Math.max(m, n.y + n.height), 0);
 }
@@ -1022,6 +1091,7 @@ export async function applyComponentPlan(plan: ComponentPullPlan, progress: Prog
         report.orphaned++;
       }
     }
+    await wireReactions(set, comp, ctx);
     // Always: an update can change variant sizes (a padding, a fixed width), not only add variants.
     layoutVariants(set, comp);
     set.setSharedPluginData(NS, 'specHash', comp.hash);
