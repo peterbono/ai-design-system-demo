@@ -1,6 +1,6 @@
 {
   "name": "@bridge-ds/figma-plugin",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "private": true,
   "type": "module",
   "description": "DS Bridge: Figma plugin that pulls DTCG tokens from GitHub into Figma Variables and opens reviewed pull requests for variable edits.",
