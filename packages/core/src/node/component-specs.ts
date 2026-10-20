@@ -2212,6 +2212,8 @@ function svgVector(node: Node, id: string, els: Map<string, CssElement>, rules: 
     if (opacity !== undefined && opacity !== 1) out.opacity = String(opacity);
     const cap = own.get('stroke-linecap');
     if (cap) out['stroke-linecap'] = cap;
+    const join = own.get('stroke-linejoin');
+    if (join) out['stroke-linejoin'] = join;
     // Dashes against pathLength (a progress ring, a spinner arc): lengths on the real circumference.
     const pathLength = num(attrs.pathLength, c);
     const r = num(attrs.r, c);

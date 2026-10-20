@@ -654,7 +654,14 @@ test('coverage sets: every generated set binds variables in every variant; state
   assert.equal(track('false').primaryAxisAlignItems, 'MIN');
   assert.equal(track('true').primaryAxisAlignItems, 'MAX');
   // Avatar: the initials cover the circle (and the photo, when shown).
-  assert.equal(partOf(variantOf(set('Avatar'), 'Size=md, Fallback=initials'), 'fallback').layoutPositioning, 'ABSOLUTE');
+  assert.equal(partOf(variantOf(set('Avatar'), 'Size=md, Fallback=initials, Kind=person'), 'fallback').layoutPositioning, 'ABSOLUTE');
+  // Avatar agent: the Bridge agent mark (a drawn line, no vendor logo) in Deep Harbor on the agent tile.
+  const agent = variantOf(set('Avatar'), 'Size=xs, Fallback=initials, Kind=agent');
+  assert.equal(boundName(sim, agent, 'fills'), 'Component:avatar/agent-bg');
+  const mark = partOf(agent, 'mark');
+  assert.equal(mark.visible, true);
+  assert.equal(boundName(sim, mark, 'width'), 'Primitives:size/4');
+  assert.equal(boundName(sim, mark.type === 'VECTOR' ? mark : mark.children[0]!, 'strokes'), 'Semantic:color/action/primary/bg');
   // Link: underlined text. RadioGroup: the preview's option is the checked one.
   assert.equal(partOf(variantOf(set('Link'), 'Variant=inline, State=Default'), 'text').textDecoration, 'UNDERLINE');
   const group = variantOf(set('RadioGroup'), 'Orientation=vertical, State=Default');

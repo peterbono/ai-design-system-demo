@@ -1,5 +1,5 @@
 import styles from '../components/Avatar/Avatar.module.css';
-import { CLAUDE_MARK, avatarName, initials, type AvatarAgentBrand, type AvatarFallback, type AvatarKind, type AvatarSize } from '../components/Avatar/Avatar';
+import { AGENT_MARK, avatarName, initials, type AvatarAgentBrand, type AvatarFallback, type AvatarKind, type AvatarSize } from '../components/Avatar/Avatar';
 import { attrs, classNames, escapeHtml, type HtmlAttributes } from './html';
 
 export interface AvatarHtmlOptions {
@@ -18,7 +18,7 @@ export interface AvatarHtmlOptions {
   illustration?: string;
   /** Same as `<Avatar kind>`. */
   kind?: AvatarKind;
-  /** Same as `<Avatar brand>`, with `kind: 'agent'`. */
+  /** Same as `<Avatar brand>`, with `kind: 'agent'`: names the agent ("Claude AI"). The mark is always Bridge's. */
   brand?: AvatarAgentBrand;
   /** Extra classes for layout, never to restyle the avatar. */
   className?: string;
@@ -31,14 +31,14 @@ export interface AvatarHtmlOptions {
  * on the client in React only: here the avatar shows its fallback (initials, the illustrated face, or the agent mark).
  */
 export function avatarHtml(options: AvatarHtmlOptions): string {
-  const { size = 'md', decorative = false, fallback = 'initials', illustration, kind, brand, className, attributes } = options;
+  const { size = 'md', decorative = false, fallback = 'initials', illustration, kind, className, attributes } = options;
   const name = avatarName(options);
-  const agent = kind === 'agent' && brand === 'claude';
+  const agent = kind === 'agent';
   const drawn = !agent && fallback === 'illustrated' && Boolean(illustration);
   const root = attrs({ role: decorative ? undefined : 'img', 'aria-label': decorative ? undefined : name, 'aria-hidden': decorative ? 'true' : undefined, ...attributes });
   const cls = classNames(styles.avatar, styles[size], agent && styles.agent, drawn && styles.illustrated, className);
   const inner = agent
-    ? `<svg class="${styles.mark}" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="${CLAUDE_MARK.color}" d="${CLAUDE_MARK.path}"></path></svg>`
+    ? `<svg class="${styles.mark}" viewBox="${AGENT_MARK.viewBox}" fill="none" aria-hidden="true" focusable="false"><path class="${styles.line}" d="${AGENT_MARK.path}"></path></svg>`
     : `<span aria-hidden="true" class="${styles.fallback}">${drawn ? `<img class="${styles.illustration}" src="${escapeHtml(illustration).replace(/'/g, "&#x27;")}" alt=""/>` : escapeHtml(initials(name))}</span>`;
   return `<span${root} class="${cls}">${inner}</span>`;
 }
