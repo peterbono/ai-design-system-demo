@@ -61,3 +61,5 @@ export * from './products';
 export * from './prod-branch';
 export * from './prod-branch-github';
 export * from './token-proposal';
+export * from './figma-push';
+export * from './figma-push-github';

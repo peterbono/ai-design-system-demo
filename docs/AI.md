@@ -89,12 +89,13 @@ the code you are changing.
 
 ## What Claude can do
 
-57 tools: 6 for tokens (config, browse, read, search, contrast, validation), 7 for components and guidance
+61 tools: 6 for tokens (config, browse, read, search, contrast, validation), 7 for components and guidance
 (docs saved for review included), 5 for proposals and reviews (visual impact included), 3 for brands, 4 for
 history and revert, 1 for adoption audits, 3 for component change requests, 4 for explorations, 2 for change
 texts from Figma, 14 for branches in review (the Studio actions, see [Studio parity](#studio-parity)), 3 for
-products, settings and Figma coverage, and 5 for product branches and the library (see
-[Product branches and the library](#product-branches-and-the-library)).
+products, settings and Figma coverage, 5 for product branches and the library (see
+[Product branches and the library](#product-branches-and-the-library)), and 4 for components from Figma (see
+[Components from Figma](#components-from-figma)).
 
 | Tool | Use it to |
 | --- | --- |
@@ -135,6 +136,10 @@ products, settings and Figma coverage, and 5 for product branches and the librar
 | `bridge_product_branch` | A product branch as Studio shows it: the summary, each linked library branch with its status, reviewers, preview and next action |
 | `bridge_use_library_preview` | The product branch takes the latest library branch of a piece (merged in), so its preview shows the real library change |
 | `bridge_switch_to_published` | Once the library shipped, bring main into the product branch so it uses the published version |
+| `bridge_figma_changes` | The library branches the DS Bridge plugin opened for components changed in Figma (label `from-figma`): exact token changes, and branches waiting for Claude AI or drafted by Claude AI |
+| `bridge_get_figma_change` | One of them: its spec (variant matrix, properties, bound variables and layers per variant, exact token swaps) and the brief to draft the code on its branch |
+| `bridge_mark_figma_change_drafted` | Once the code is pushed to that branch: label it `drafted-by-claude` for a person to review (refused while the branch only carries the spec) |
+| `bridge_push_figma_component` | The plugin's push from a structured component diff: an exact token change (contrast gated), a draft branch with the spec for Claude AI, or what to fix in Figma; `dryRun` shows the route |
 | `bridge_list_products` | See the products (`products` in `bridge.config.json`) and the one the current folder or repo belongs to |
 | `bridge_what_needs_me` | The review queue as Studio counts it, with the branches where you act now first |
 | `bridge_branch_status` | One branch: product, status, approvals, tests, how it stands against main, whether you may merge it, next step |
@@ -227,6 +232,8 @@ read without the "needs me" part) and 13 not at all. Now all 32 do.
 | A product branch and its library branches | `bridge_product_branch` | `bridge pieces status 12` | None |
 | Use the library preview in the product branch | `bridge_use_library_preview` | `bridge pieces preview 12 <piece>` | Contents: write |
 | Switch to the published version | `bridge_switch_to_published` | `bridge pieces switch 12` | Contents, Pull requests: write |
+| Components sent from Figma (list, read the spec, mark drafted) | `bridge_figma_changes`, `bridge_get_figma_change`, `bridge_mark_figma_change_drafted` | `bridge figma`, `bridge figma show 12 [--draft]`, `bridge figma drafted 12` | Pull requests: write to mark |
+| Send a component change like the Figma plugin | `bridge_push_figma_component` | `bridge figma push diff.json [--dry-run]` | Contents, Pull requests: write |
 | Component change requests (list, read, file) | `bridge_list_requests`, `bridge_get_request`, `bridge_create_request` with `product` | `bridge request list / show / create --product admin` | Issues: write to file one |
 | History, undo a change, restore one token | `bridge_get_history`, `bridge_plan_revert`, `bridge_propose_revert` | `bridge history`, `bridge revert` | Contents, Pull requests: write to propose |
 | Review a token change (diff, contrast, impact) | `bridge_get_review` | `bridge diff main` | None |
@@ -504,6 +511,24 @@ Bridge does not block the product branch from shipping before its library branch
 the library change reaches main inside the product branch without its own review. Products in another repository
 install the library branch's preview package instead (the install command on the library branch, see
 [Explorations](#explorations)); the product branch page covers products in this repository.
+
+## Components from Figma
+
+Designers also change components in Figma (with Claude through the Figma MCP server, or by hand). The DS Bridge
+plugin's Push tab sends each changed component back to the library as a library branch, routed by what Bridge can
+write with certainty. It reads the same signatures Pull compares in "Review updates", the other way round.
+
+| What changed in Figma | Where it goes | Who writes the code |
+| --- | --- | --- |
+| A property now bound to another variable (fill, radius, padding...), on a component token that paints only those variants | An exact token change: that component token points to the new variable. Contrast gated (the semantic pairs, checked on the component tokens that alias them), tier and changeset like any token change. Other components that share the token are named | Nobody: exact, no AI |
+| A new variant, property, layer or swapped instance; a new component; a token swap a token alone cannot say (code paints with a semantic token directly, or other variants still use the token) | A draft branch carrying the spec (`.bridge/figma/<name>.json`: variant matrix, properties, bound variables and layers per variant, what code gave Figma before, a screenshot), labelled `from-figma`, `waiting-for-claude` | Claude AI, through `bridge_get_figma_change`; then `bridge_mark_figma_change_drafted` labels it `drafted-by-claude`. Until then the branch is honestly a request |
+| A detached layer, a value set by hand, a shared style, a variable the library lacks | Nowhere: listed under "Fix in Figma first" with what to do | The designer, in Figma |
+
+Every library branch from Figma starts with "From Figma" (a link to the component) and keeps a hidden block tools
+read (`parseFigmaOrigin`). The set remembers its branch; once the branch ships (or closes), the next Pull rebuilds
+the set from the reviewed code, so Figma never diverges from code. While it is in review, Pull says so and keeps the
+Figma version. `@bridge-ds/core`: `planComponentPush`, `openComponentPushOnGitHub`, `figmaChangeOnGitHub`,
+`markFigmaChangeDraftedOnGitHub`, `figmaPushStatusesOnGitHub`.
 
 ## Explorations
 

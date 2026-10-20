@@ -284,7 +284,9 @@ input.select, .group-check input { flex: none; width: 14px; height: 14px; margin
 .row-head .tag { margin-left: auto; }
 .tag { flex: none; font-size: 10px; line-height: 16px; font-weight: 600; padding: 0 6px; border-radius: var(--r-sm); border: 1px solid var(--border-strong); color: var(--text-2); }
 .row-menu { position: relative; flex: none; margin-left: auto; margin-right: calc(-1 * var(--s2)); }
-.row-head .tag + .row-menu { margin-left: 0; }
+.row-head .tag + .row-menu, .row-head .tag + .tag { margin-left: 0; }
+/* Push components: where a change goes (one sentence), and what Bridge cannot read, each with what to do. */
+.route-issues { margin: 0; padding-left: var(--s4); display: flex; flex-direction: column; gap: var(--s1); }
 .row-menu > summary { list-style: none; }
 .row-menu > summary::-webkit-details-marker { display: none; }
 .btn.icon-only { width: 28px; padding: 0; color: var(--text-2); }

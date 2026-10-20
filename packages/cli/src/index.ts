@@ -12,6 +12,7 @@ import { runRequest } from './request.js';
 import { runExplore } from './explore.js';
 import { runBranch, runDocsSave, runStudioRead } from './branch.js';
 import { runPieces } from './pieces.js';
+import { runFigma } from './figma.js';
 import { defaultIO } from './request.js';
 import { protectionReport, type ProtectionReport } from './protection.js';
 import { rolesReport, type RolesReport } from './roles.js';
@@ -104,6 +105,9 @@ Usage:
                                       a product branch and the library (\`bridge pieces help\`): what it adds
                                       that the library lacks, the library branch each piece opens (linked
                                       both ways), its preview in the product branch, the published version
+  bridge figma [show <n> | drafted <n> | push <diff.json>]
+                                      component changes sent from Figma (\`bridge figma help\`): exact token
+                                      changes and branches Claude AI drafts from the spec
   bridge products | bridge settings | bridge coverage [Component]
                                       products (and this folder's), Studio settings safe to read, which
                                       components are in Figma
@@ -631,6 +635,7 @@ async function main(): Promise<number> {
   if (cmd === 'explore') return runExplore(a, root);
   if (cmd === 'branch') return runBranch(a, root);
   if (cmd === 'pieces') return runPieces(a, root);
+  if (cmd === 'figma') return runFigma(a, root);
   if (cmd === 'products' || cmd === 'settings' || cmd === 'coverage') return runStudioRead(cmd, a, root);
   if (cmd === 'docs' && a._[1] === 'save') return runDocsSave(a, root);
   if (!cmd || has(a, 'help') || cmd === 'help') {

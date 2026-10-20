@@ -2,7 +2,7 @@
 // shared plugin data, and exports PNGs to attach to requests. No network. The diff logic is in src/sync/components.ts.
 
 import { type RawBinding, type RawComponent, type RawLayer, type RawVariant, buildSignature, fnv1a, bindingKind, parseSignature, propName } from '../sync/components';
-import { EXPERIMENTAL_KEY, type ScannedComponentsPayload } from '../shared/messages';
+import { EXPERIMENTAL_KEY, PUSHED_KEY, type ScannedComponentsPayload } from '../shared/messages';
 
 const NS = 'dsbridge';
 const SIGNATURE_KEY = 'signature';
@@ -248,6 +248,18 @@ export async function saveSignatures(items: { nodeId: string; signature: string 
     saved++;
   }
   return saved;
+}
+
+/**
+ * Where a component's change from Figma went (its library branch, JSON), on the set (a variant marks its set), so a
+ * pull can rebuild it from the reviewed code once the branch ships. Shared plugin data: the whole team sees it.
+ */
+export async function markPushed(nodeId: string, mark: string): Promise<boolean> {
+  let node = await figma.getNodeByIdAsync(nodeId);
+  if (node?.type === 'COMPONENT' && node.parent?.type === 'COMPONENT_SET') node = node.parent;
+  if (!node || (node.type !== 'COMPONENT_SET' && node.type !== 'COMPONENT')) return false;
+  node.setSharedPluginData(NS, PUSHED_KEY, mark);
+  return true;
 }
 
 /** Re-reads one component and stores its signature as the new baseline (after a request is sent). */

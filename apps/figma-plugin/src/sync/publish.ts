@@ -15,11 +15,12 @@
 //   exists) shows a hint and starts unchecked. The plugin never changes the designer's file for them.
 // - The description is the pull request's "What changed and why" and the summary of every request sent with it.
 
-import type { DiffEntry, GitHubClient, PullRequest } from '@bridge-ds/core';
+import { type DiffEntry, type GitHubClient, type PullRequest, openComponentPushOnGitHub, planTokenProposal, writeTokenProposalOnGitHub } from '@bridge-ds/core';
+import { type ComponentPush, libraryTokens, pushPairs } from './component-push';
 import type { FigmaSnapshot } from '../shared/messages';
 import { type ComponentChangeItem, type RequestDraft, suggestLine, suggestSummary, suggestTitle, toRequest } from './components';
 import { type Analysis, type ExplorationTarget, type PushProposal, type PushResult, commitToExploration, openPullRequest } from './flows';
-import { sendComponentRequest } from './requests';
+import { sendComponentRequest, uploadImages } from './requests';
 import { type TokenProblem, errorText, tokenProblem } from './token-health';
 
 export { EXPERIMENTAL_KEY } from '../shared/messages';
@@ -183,6 +184,14 @@ export interface PublishInput {
   coded: string[];
   /** PNG (base64) of a component to attach to its request; undefined to attach nothing. */
   image?: ((nodeId: string) => Promise<string | undefined>) | undefined;
+  /**
+   * The route of each component change (componentPushes). For review, a checked change goes to its library branch: an
+   * exact token change or a branch Claude AI drafts; a change to fix in Figma, or a blocked token change, is held.
+   * Without it (or to an exploration), each change is a request as before.
+   */
+  pushes?: ComponentPush[] | undefined;
+  /** GitHub login of the designer, for the "From Figma" line. */
+  requestedBy?: string | undefined;
   now?: Date | undefined;
 }
 
@@ -191,6 +200,10 @@ export interface PublishResult {
   /** Sent to an exploration: its branch, and whether its files already held the variable edits. */
   exploration?: { branch: string; pr: PullRequest; unchanged: boolean } | undefined;
   requests: { component: string; nodeId: string; number: number; url: string }[];
+  /** Library branches opened from Figma components: exact token changes and branches Claude AI drafts. */
+  branches: { component: string; nodeId: string; route: 'token-change' | 'claude-draft'; number: number; url: string; branch: string }[];
+  /** Checked component changes not sent, with why: fix them in Figma first, or a token change that breaks the gate. */
+  held: { component: string; nodeId: string; why: string }[];
   /** Requests that failed: the rest was still sent. */
   failed: { component: string; error: string; problem?: TokenProblem['kind'] | undefined }[];
 }
@@ -206,7 +219,7 @@ export function publishPlan(input: Pick<PublishInput, 'proposal' | 'components' 
 export async function publish(client: GitHubClient, input: PublishInput): Promise<PublishResult> {
   const { prFiles, drafts } = publishPlan(input);
   if (!prFiles && !drafts.length) throw new Error('Nothing is checked. Check a variable or a component to push.');
-  const out: PublishResult = { requests: [], failed: [], ...(input.exploration ? { exploration: { branch: input.exploration.branch, pr: input.exploration.pr, unchanged: !prFiles } } : {}) };
+  const out: PublishResult = { requests: [], branches: [], held: [], failed: [], ...(input.exploration ? { exploration: { branch: input.exploration.branch, pr: input.exploration.pr, unchanged: !prFiles } } : {}) };
   if (prFiles && input.exploration) {
     const res = await commitToExploration(client, input.analysis, input.proposal, { target: input.exploration, title: input.title, notes: input.description, ...(input.now ? { now: input.now } : {}) });
     out.pr = res;
@@ -221,6 +234,19 @@ export async function publish(client: GitHubClient, input: PublishInput): Promis
     });
   }
   for (const d of drafts) {
+    const push = !input.exploration ? input.pushes?.find((p) => p.nodeId === d.nodeId) : undefined;
+    if (push) {
+      if (push.blocked || push.plan.route === 'manual') {
+        out.held.push({ component: d.component, nodeId: d.nodeId!, why: push.blocked ?? (push.plan.issues.map((i) => `${i.what} ${i.todo}`).join(' ') || push.plan.said) });
+        continue;
+      }
+      try {
+        out.branches.push(await sendComponentPush(client, input, push, d));
+      } catch (err) {
+        out.failed.push({ component: d.component, error: errorText(err), problem: tokenProblem(err)?.kind });
+      }
+      continue;
+    }
     try {
       const img = input.image && d.nodeId ? await input.image(d.nodeId) : undefined;
       const res = await sendComponentRequest(client, {
@@ -237,4 +263,39 @@ export async function publish(client: GitHubClient, input: PublishInput): Promis
     }
   }
   return out;
+}
+
+/**
+ * One component change to its library branch, linked to the Figma component: an exact token swap through the shared
+ * token proposal write (contrast gate, tier, changeset, label from-figma), or a draft branch carrying the spec with a
+ * screenshot, for Claude AI to write the code (label waiting-for-claude until it has).
+ */
+export async function sendComponentPush(client: GitHubClient, input: Pick<PublishInput, 'analysis' | 'image' | 'requestedBy' | 'now' | 'fileKey'>, push: ComponentPush, d: RequestDraft): Promise<PublishResult['branches'][number]> {
+  const a = input.analysis;
+  const lib = libraryTokens(a.headFiles);
+  const config = a.headFiles.config;
+  let diff = { ...push.diff, title: d.title, summary: d.summary, ...(d.line ? { line: d.line } : {}), ...(input.requestedBy ? { requestedBy: input.requestedBy } : {}) };
+  if (push.plan.route === 'claude-draft' && input.image && d.nodeId) {
+    const img = await input.image(d.nodeId);
+    const images = img ? await uploadImages(client, { component: d.component, images: [img], baseBranch: a.settings.branch, now: input.now }) : [];
+    if (images.length) diff = { ...diff, images };
+  }
+  // The route was planned at scan time with every component of the file (where else each token paints); sending keeps it.
+  const r = await openComponentPushOnGitHub(client, {
+    diff,
+    plan: push.plan,
+    base: a.settings.branch,
+    branchPrefix: config?.governance.branchPrefix ?? 'bridge/',
+    labels: ['source: figma'],
+    tool: 'the DS Bridge Figma plugin',
+    writeTokens: async ({ title, summary, bodyExtra }) => {
+      if (!lib) throw new Error('This repo has no bridge.config.json, so DS Bridge cannot write the token change.');
+      const p = planTokenProposal({ before: lib.before, pairs: pushPairs(a.head, a.pairs, push.plan.edits), edits: push.plan.edits, title, summary, config: lib.config, tool: 'the DS Bridge Figma plugin', bodyExtra });
+      if (!p) throw new Error('The library already paints it this way: nothing to send.');
+      const opened = await writeTokenProposalOnGitHub(client, p, { base: a.settings.branch, branchPrefix: lib.config.governance.branchPrefix, labels: [], labelsAfter: ['source: figma'], tool: 'the DS Bridge Figma plugin' });
+      return { number: opened.pr, url: opened.url, branch: opened.branch };
+    },
+  });
+  if (!r.link) throw new Error(r.plan.said);
+  return { component: d.component, nodeId: d.nodeId!, route: r.link.route, number: r.link.number, url: r.link.url, branch: r.link.branch };
 }

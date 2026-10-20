@@ -549,6 +549,8 @@ export interface ComponentChangeItem {
   kind: RequestKind;
   changes: RequestChange[];
   signature: ComponentSignature;
+  /** What code gave Figma at the last pull (or the last push): the "before" of a push from Figma. */
+  baseline?: ComponentSignature | undefined;
   experimental?: boolean | undefined;
   /** An optional part already draws what was added: shown on the row as a hint (never applied to the file). */
   equivalent?: string | undefined;
@@ -614,6 +616,7 @@ export function classifyComponents(found: ScannedComponent[], coded: string[]): 
         kind: d.kind,
         changes: d.changes,
         signature: f.signature,
+        baseline: f.baseline,
         ...(f.experimental ? { experimental: true } : {}),
         ...(d.equivalents.length ? { equivalent: d.equivalents.join('. ') } : {}),
         ...(d.onlyEquivalents ? { suggestSkip: true } : {}),

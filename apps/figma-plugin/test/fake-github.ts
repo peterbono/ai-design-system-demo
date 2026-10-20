@@ -7,7 +7,7 @@ export class FakeGitHub {
   branches = new Map<string, string>();
   blobs = new Map<string, string>();
   trees = new Map<string, Record<string, string>>();
-  prs: (PullRequest & { body: string; base: string; labels: string[] })[] = [];
+  prs: (PullRequest & { body: string; base: string; labels: string[]; state?: 'open' | 'closed' | 'merged' })[] = [];
   issues: (IssueSummary & { assignees: string[] })[] = [];
   /** Binary files written through the contents API (putBase64File): branch -> path -> base64. */
   binaries = new Map<string, Map<string, string>>();
@@ -188,16 +188,30 @@ export class FakeGitHub {
         return this;
       },
       async listPullRequests() {
-        return self.prs.map((p) => ({ number: p.number, title: p.title, state: 'open', draft: p.draft, author: 'designer', headRef: p.headRef, headSha: self.branches.get(p.headRef) ?? '', baseRef: p.base, labels: p.labels, url: p.url, updatedAt: '', body: p.body }));
+        return self.prs.map((p) => ({ number: p.number, title: p.title, state: p.state ?? 'open', draft: p.draft, author: 'designer', headRef: p.headRef, headSha: self.branches.get(p.headRef) ?? '', baseRef: p.base, labels: p.labels, url: p.url, updatedAt: '', body: p.body }));
       },
       async getPullRequest(n: number) {
         const p = self.prs[n - 1]!;
-        return { ...p, state: 'open', author: 'designer', headSha: self.branches.get(p.headRef) ?? '', baseRef: p.base, updatedAt: '', mergeable: null };
+        return { ...p, state: p.state ?? 'open', author: 'designer', headSha: self.branches.get(p.headRef) ?? '', baseRef: p.base, updatedAt: '', mergeable: null };
       },
       async updatePullRequest(n: number, patch: { title?: string; body?: string }) {
         const p = self.prs[n - 1]!;
         if (patch.title) p.title = patch.title;
         if (patch.body) p.body = patch.body;
+      },
+      async removeLabel(n: number, label: string) {
+        const p = self.prs[n - 1]!;
+        p.labels = p.labels.filter((l) => l !== label);
+      },
+      async listPullRequestFiles(n: number) {
+        const p = self.prs[n - 1]!;
+        const head = self.filesAt(p.headRef);
+        const base = self.filesAt(p.base);
+        return [...new Set([...Object.keys(head), ...Object.keys(base)])].filter((f) => head[f] !== base[f]).map((filename) => ({ filename, status: base[filename] === undefined ? 'added' : head[filename] === undefined ? 'removed' : 'modified', additions: 1, deletions: 0 }));
+      },
+      async getFileText(path: string, ref = 'main') {
+        const c = self.commits.get(ref) ?? self.commits.get(self.branches.get(ref) ?? '');
+        return c?.files[path];
       },
       async commitToNewBranch(input: { base: string; branch: string; message: string; files: { path: string; content: string | null }[] }) {
         const files = { ...self.filesAt(input.base) };

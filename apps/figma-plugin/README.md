@@ -377,15 +377,48 @@ screen). It opens the request form in its own region; while any request form is 
 only primary action (the bar steps aside). "Not in the design system yet" sits under the Components group. A detected
 change can also be edited and sent on its own from its row menu (**Edit the request**).
 
-### Two flows: variables become pull requests, components become requests
+### Push components: back to the library as a library branch
+
+For review, each checked component change goes to its own library branch, routed by what DS Bridge can write with
+certainty (`src/sync/component-push.ts`, rules in `planComponentPush` from `@bridge-ds/core`). It reads the diff Pull
+reads in "Review updates" (the set's baseline against Figma now), the other way round. The row says where it goes, in
+a neutral tag and one sentence:
+
+- **Exact token change** (no AI). The only change is a token swap: a property now bound to another variable, on a
+  component token (`button.primary.bg`) that paints only the variants the designer changed. That token then points
+  to the new variable: the shared token proposal write (`planTokenProposal`, `writeTokenProposalOnGitHub`), with
+  the contrast gate (the semantic pairs of `contrast.checks.json`, checked again on the component tokens that alias
+  them, so a pale fill under white text is held back before anything is sent), tier, changeset and labels, plus
+  `from-figma`. Other components that share the token (IconButton uses button tokens) are named in the sentence.
+- **Claude AI drafts** (a person reviews). A new variant, property, layer or swapped instance, a new component (from
+  "Not in the design system yet", "Send to Claude AI"), or a token swap a token alone cannot say: code paints the
+  property with a semantic token directly, or other variants still use the token. A draft branch
+  (`bridge/figma-<name>`) carries the spec, `.bridge/figma/<name>.json`: variant matrix, properties, bound
+  variables and layers of every variant, what code gave Figma before, the exact token swaps to make too, and a
+  screenshot on the `bridge-requests` branch. Labels `from-figma`, `component-change`, `waiting-for-claude`: until
+  Claude writes the code there (`bridge_get_figma_change`, then `bridge_mark_figma_change_drafted`, which swaps the
+  label to `drafted-by-claude`), the branch is honestly a request.
+- **Fix in Figma first**. What the scan cannot read with confidence is listed in its own group with what to do,
+  never sent and never dropped: a layer detached from its component, a look that changed with the same variables (a
+  value set by hand), a shared style, a property bound to nothing, a variable the library does not have yet (push
+  the variable first). "Send as a request instead" is one click away on each row.
+
+Each library branch starts with "From Figma" (a link to the component) and a hidden block tools read. The set
+remembers its branch (shared plugin data `dsbridge` / `pushed`) and takes a new baseline, so the next scan does not
+send it twice. **Never diverge:** once the branch ships (or closes), the next Pull lists the set under Component
+updates ("Your change from Figma: shipped, rebuilt from the reviewed code") even when its spec did not change, and
+Update rebuilds it from code, which clears the mark. While the branch is in review, Pull says so under Components
+and keeps the Figma version. To an exploration, component changes stay requests built on the exploration branch.
+
+### Two flows: variables become pull requests, components go to library branches
 
 The Push tab has two groups, one under the other.
 
 - **Variables**: every variable edit (value, alias, name, description), including component-tier tokens
   such as `button.radius`, goes through the pull request above. Tokens are data: people approve the PR.
   Variables never create a request.
-- **Components**: components need code, so the plugin never opens a code pull request for them. A change
-  becomes a **request**: a GitHub issue (`composeRequestIssue` in `@bridge-ds/core`, labels
+- **Components**: for review, see "Push components" above. "Send as a request instead", the manual "Request a
+  component change" and pushes to an exploration still make a **request**: a GitHub issue (`composeRequestIssue` in `@bridge-ds/core`, labels
   `component-change`, `request: <kind>`, `source: figma`, plus `integrations.requests.labels` and
   `assignees` from `bridge.config.json`) that people or Claude implement in their own pull request.
 

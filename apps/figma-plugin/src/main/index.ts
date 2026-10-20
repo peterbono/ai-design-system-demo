@@ -14,7 +14,7 @@ import { applyPullPlan } from './apply';
 import { applyComponentPlan, scanGenerated } from './build-components';
 import { exportVariants } from './fidelity';
 import { clearClaudeKey, readClaudeSettings, saveClaudeSettings } from './claude-settings';
-import { baselineImage, exportImage, exportThumbnails, rebaseline, saveSignatures, scanComponents, selectionInfo, setExperimental } from './components';
+import { baselineImage, exportImage, exportThumbnails, markPushed, rebaseline, saveSignatures, scanComponents, selectionInfo, setExperimental } from './components';
 import { clearGitHubToken, readGitHubToken, saveGitHubToken, setGitHubTokenState } from './github-token';
 import { takeSnapshot, writePluginData } from './snapshot';
 
@@ -117,6 +117,9 @@ const handlers: Handlers = {
   },
   async 'save-signatures'({ items }) {
     return { saved: await saveSignatures(items) };
+  },
+  async 'mark-pushed'({ nodeId, mark }) {
+    return { saved: await markPushed(nodeId, mark) };
   },
   async rebaseline({ nodeId }) {
     return { saved: await rebaseline(nodeId) };

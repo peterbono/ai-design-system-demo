@@ -44,17 +44,7 @@ export async function sendComponentRequest(client: GitHubClient, input: SendRequ
   if (!r.component.trim()) throw new Error('Pick the component this request is about.');
   if (!r.title.trim()) throw new Error('Add a title.');
   if (!r.summary.trim()) throw new Error('Add a summary: say what should change and why.');
-  const now = input.now ?? new Date();
-  const urls: string[] = [];
-  if (input.images?.length) {
-    await ensureRequestsBranch(client, input.baseBranch);
-    for (let i = 0; i < input.images.length; i++) {
-      // One second apart so several images of one request never share a path.
-      const path = requestImagePath(r.component, new Date(now.getTime() + i * 1000));
-      await client.putBase64File({ path, base64: input.images[i]!, branch: REQUESTS_BRANCH, message: `Image for the ${r.component} request from Figma` });
-      urls.push(requestImageUrl(client, path));
-    }
-  }
+  const urls = await uploadImages(client, { component: r.component, images: input.images, baseBranch: input.baseBranch, now: input.now });
   const request: ComponentChangeRequest = { ...r, ...(urls.length ? { images: [...(r.images ?? []), ...urls] } : {}) };
   const opts = input.config?.integrations?.requests;
   const dir = input.config?.components?.dir ?? DEFAULT_COMPONENTS_DIR;
@@ -62,6 +52,24 @@ export async function sendComponentRequest(client: GitHubClient, input: SendRequ
   const issue = composeRequestIssue(request, { labels: opts?.labels ?? [], assignees: opts?.assignees ?? [], ...(componentUrl ? { componentUrl } : {}) });
   const created = await client.createIssue(issue);
   return { issue: created, images: urls };
+}
+
+/**
+ * Commits PNG exports (base64) to the requests branch (created from the head of `baseBranch` when missing, never moved)
+ * and returns their public URLs, for a request issue or the spec of a library branch from Figma.
+ */
+export async function uploadImages(client: GitHubClient, input: { component: string; images?: string[] | undefined; baseBranch: string; now?: Date | undefined }): Promise<string[]> {
+  const urls: string[] = [];
+  if (!input.images?.length) return urls;
+  const now = input.now ?? new Date();
+  await ensureRequestsBranch(client, input.baseBranch);
+  for (let i = 0; i < input.images.length; i++) {
+    // One second apart so several images of one component never share a path.
+    const path = requestImagePath(input.component, new Date(now.getTime() + i * 1000));
+    await client.putBase64File({ path, base64: input.images[i]!, branch: REQUESTS_BRANCH, message: `Image for the ${input.component} change from Figma` });
+    urls.push(requestImageUrl(client, path));
+  }
+  return urls;
 }
 
 /** Components that exist in code: folders under components.dir (bridge.config.json) at a tree. */
