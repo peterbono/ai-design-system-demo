@@ -1,8 +1,8 @@
 {
   "version": 1,
   "tool": "@bridge-ds/visual",
-  "createdAt": "2026-10-19T23:40:50.084Z",
-  "sha": "b33145c9068b16fbbf5e54fa16d17d725f5bdc9d",
+  "createdAt": "2026-10-20T00:46:36.462Z",
+  "sha": "5ed88663422c087212434b48eae6f865b230f304",
   "scale": 2,
   "mode": {
     "brand": "bridge",
@@ -12,7 +12,7 @@
   "storyId": "internal-figma-reference--variant",
   "components": {
     "Accordion": {
-      "specHash": "2a10c0b3",
+      "specHash": "39210776",
       "variants": {
         "Appearance=contained, State=Default": {
           "file": "accordion/appearance-contained__state-default.png",
@@ -47,7 +47,7 @@
       }
     },
     "AccordionItem": {
-      "specHash": "c9dc85d5",
+      "specHash": "03444621",
       "variants": {
         "State=Default": {
           "skipped": "the code example did not render"
@@ -78,7 +78,7 @@
       }
     },
     "AlertDialog/Popup": {
-      "specHash": "40229f95",
+      "specHash": "91904bda",
       "variants": {
         "Tone=danger": {
           "skipped": "drawn open in Figma; the code image shows it closed"
@@ -182,7 +182,7 @@
       }
     },
     "Breadcrumb": {
-      "specHash": "13e53e0c",
+      "specHash": "304b25e2",
       "variants": {
         "State=Default": {
           "skipped": "the code example did not render"
@@ -193,7 +193,7 @@
       }
     },
     "Button": {
-      "specHash": "8878a44e",
+      "specHash": "3d435c8e",
       "variants": {
         "Size=sm, State=Default, Variant=primary": {
           "skipped": "the code example did not render"
@@ -428,7 +428,7 @@
       }
     },
     "Checkbox": {
-      "specHash": "4bdd838d",
+      "specHash": "a1603323",
       "variants": {
         "Checked=false, State=Default": {
           "skipped": "the code example did not render"
@@ -460,7 +460,7 @@
       }
     },
     "CheckboxGroup": {
-      "specHash": "c6d108c3",
+      "specHash": "0ee8313e",
       "variants": {
         "Orientation=vertical, State=Default": {
           "skipped": "the code example did not render"
@@ -491,7 +491,7 @@
       }
     },
     "ChoiceCard": {
-      "specHash": "52244e1d",
+      "specHash": "69c3793d",
       "variants": {
         "Checked=false, State=Default": {
           "skipped": "the code example did not render"
@@ -514,7 +514,7 @@
       }
     },
     "CodeBlock": {
-      "specHash": "e8663508",
+      "specHash": "a9bf4b12",
       "variants": {
         "State=Default": {
           "skipped": "the code example did not render"
@@ -528,7 +528,7 @@
       }
     },
     "Combobox": {
-      "specHash": "6b5905c8",
+      "specHash": "82f36849",
       "variants": {
         "Size=sm, State=Default": {
           "skipped": "the code example did not render"
@@ -560,7 +560,7 @@
       }
     },
     "Combobox/Popup": {
-      "specHash": "c85e8dc6",
+      "specHash": "8ed62203",
       "variants": {
         "Default": {
           "skipped": "drawn open in Figma; the code image shows it closed"
@@ -568,7 +568,7 @@
       }
     },
     "Dialog/Popup": {
-      "specHash": "4740d11e",
+      "specHash": "df468a0d",
       "variants": {
         "Size=sm": {
           "skipped": "drawn open in Figma; the code image shows it closed"
@@ -593,7 +593,7 @@
       }
     },
     "Drawer/Popup": {
-      "specHash": "14982956",
+      "specHash": "6c415fb5",
       "variants": {
         "Size=sm": {
           "skipped": "drawn open in Figma; the code image shows it closed"
@@ -630,7 +630,7 @@
       }
     },
     "Field": {
-      "specHash": "30c4078f",
+      "specHash": "d48d054a",
       "variants": {
         "State=Default": {
           "skipped": "the code example did not render"
@@ -644,7 +644,7 @@
       }
     },
     "Form": {
-      "specHash": "8a8e7404",
+      "specHash": "ebb2ae14",
       "variants": {
         "State=Default": {
           "skipped": "the code example did not render"
@@ -658,7 +658,7 @@
       }
     },
     "IconButton": {
-      "specHash": "79e2a2db",
+      "specHash": "9ed44d1f",
       "variants": {
         "Size=sm, State=Default, Variant=primary": {
           "skipped": "the code example did not render"
@@ -843,7 +843,7 @@
       }
     },
     "Input": {
-      "specHash": "1d78b9c0",
+      "specHash": "33fef7cd",
       "variants": {
         "Size=sm, State=Default": {
           "skipped": "the code example did not render"
@@ -886,7 +886,7 @@
       }
     },
     "Link": {
-      "specHash": "6b6906ad",
+      "specHash": "6ee62ed9",
       "variants": {
         "State=Default, Variant=inline": {
           "skipped": "the code example did not render"
@@ -909,7 +909,7 @@
       }
     },
     "Menu/Popup": {
-      "specHash": "7df508df",
+      "specHash": "47df6448",
       "variants": {
         "Default": {
           "skipped": "drawn open in Figma; the code image shows it closed"
@@ -917,7 +917,7 @@
       }
     },
     "MenuItem": {
-      "specHash": "6b014434",
+      "specHash": "309c39bd",
       "variants": {
         "State=Default, Tone=default": {
           "skipped": "the code example did not render"
@@ -934,7 +934,7 @@
       }
     },
     "MenuCheckboxItem": {
-      "specHash": "7c0ee1e2",
+      "specHash": "eed6a1f7",
       "variants": {
         "Checked=false, State=Default": {
           "skipped": "the code example did not render"
@@ -951,7 +951,7 @@
       }
     },
     "MenuRadioGroup": {
-      "specHash": "7cad14d0",
+      "specHash": "cd7f0279",
       "variants": {
         "State=Default": {
           "skipped": "the code example did not render"
@@ -962,7 +962,7 @@
       }
     },
     "MenuRadioItem": {
-      "specHash": "5ef45b7b",
+      "specHash": "8d055931",
       "variants": {
         "Checked=false, State=Default": {
           "skipped": "the code example did not render"
@@ -979,7 +979,7 @@
       }
     },
     "MenuGroup": {
-      "specHash": "ee26164d",
+      "specHash": "cb840d54",
       "variants": {
         "Default": {
           "skipped": "the code example did not render"
@@ -995,7 +995,7 @@
       }
     },
     "MenuSubmenu": {
-      "specHash": "c3f91a7a",
+      "specHash": "ea762ce4",
       "variants": {
         "State=Default": {
           "skipped": "the code example did not render"
@@ -1006,7 +1006,7 @@
       }
     },
     "NumberField": {
-      "specHash": "0fbc3a2c",
+      "specHash": "8461ea61",
       "variants": {
         "Size=sm, State=Default": {
           "skipped": "the code example did not render"
@@ -1055,7 +1055,7 @@
       }
     },
     "Pagination/Full": {
-      "specHash": "2a7c1a6a",
+      "specHash": "e4d5f858",
       "variants": {
         "Size=sm, State=Default": {
           "skipped": "the code example did not render"
@@ -1078,7 +1078,7 @@
       }
     },
     "Pagination/Compact": {
-      "specHash": "1a45a0da",
+      "specHash": "5c70bb08",
       "variants": {
         "Size=sm, State=Default": {
           "skipped": "the code example did not render"
@@ -1101,7 +1101,7 @@
       }
     },
     "Popover/Popup": {
-      "specHash": "1c8b0936",
+      "specHash": "b31cc533",
       "variants": {
         "Default": {
           "skipped": "drawn open in Figma; the code image shows it closed"
@@ -1109,7 +1109,7 @@
       }
     },
     "Progress/Linear": {
-      "specHash": "b955465b",
+      "specHash": "7c757078",
       "variants": {
         "Size=sm, Tone=signal": {
           "skipped": "the code example did not render"
@@ -1150,7 +1150,7 @@
       }
     },
     "Progress/Circular": {
-      "specHash": "b547ec10",
+      "specHash": "ff86b331",
       "variants": {
         "Size=sm, Tone=signal": {
           "skipped": "the code example did not render"
@@ -1191,7 +1191,7 @@
       }
     },
     "RadioGroup": {
-      "specHash": "fe7069f6",
+      "specHash": "40b429db",
       "variants": {
         "Orientation=vertical, State=Default": {
           "skipped": "the code example did not render"
@@ -1214,7 +1214,7 @@
       }
     },
     "Radio": {
-      "specHash": "928652e2",
+      "specHash": "fbd7d9a4",
       "variants": {
         "Checked=false, State=Default": {
           "skipped": "the code example did not render"
@@ -1237,7 +1237,7 @@
       }
     },
     "SegmentedControl": {
-      "specHash": "ea39378a",
+      "specHash": "ba711ef1",
       "variants": {
         "Appearance=default, Size=sm, State=Default": {
           "skipped": "the code example did not render"
@@ -1290,7 +1290,7 @@
       }
     },
     "Select": {
-      "specHash": "54cbf09d",
+      "specHash": "4b1b2b4f",
       "variants": {
         "Size=sm, State=Default": {
           "skipped": "the code example did not render"
@@ -1322,7 +1322,7 @@
       }
     },
     "Select/Popup": {
-      "specHash": "4c332412",
+      "specHash": "ec9e0627",
       "variants": {
         "Default": {
           "skipped": "drawn open in Figma; the code image shows it closed"
@@ -1330,7 +1330,7 @@
       }
     },
     "SidebarNav": {
-      "specHash": "8e25ebac",
+      "specHash": "10007e9b",
       "variants": {
         "State=Default": {
           "skipped": "the code example did not render"
@@ -1344,7 +1344,7 @@
       }
     },
     "SidebarNavSection": {
-      "specHash": "bc21865a",
+      "specHash": "0307ae2d",
       "variants": {
         "State=Default": {
           "skipped": "the code example did not render"
@@ -1358,7 +1358,7 @@
       }
     },
     "SidebarNavItem": {
-      "specHash": "56aafdfb",
+      "specHash": "7e90c90a",
       "variants": {
         "State=Default": {
           "skipped": "the code example did not render"
@@ -1372,7 +1372,7 @@
       }
     },
     "Skeleton": {
-      "specHash": "57cc1f88",
+      "specHash": "9d3bb53d",
       "variants": {
         "Variant=text": {
           "skipped": "the code example did not render"
@@ -1386,7 +1386,7 @@
       }
     },
     "Slider": {
-      "specHash": "b72e6962",
+      "specHash": "9fcabaf3",
       "variants": {
         "State=Default": {
           "skipped": "the code example did not render"
@@ -1397,7 +1397,7 @@
       }
     },
     "Spinner": {
-      "specHash": "7df67b01",
+      "specHash": "02a851be",
       "variants": {
         "Size=xs, Tone=current": {
           "skipped": "the code example did not render"
@@ -1426,7 +1426,7 @@
       }
     },
     "Switch": {
-      "specHash": "963fe797",
+      "specHash": "7482fc06",
       "variants": {
         "Checked=false, Label placement=end, Size=sm, State=Default": {
           "skipped": "the code example did not render"
@@ -1503,7 +1503,7 @@
       }
     },
     "Table": {
-      "specHash": "848f137d",
+      "specHash": "3a866f7e",
       "variants": {
         "State=Default": {
           "skipped": "the code example did not render"
@@ -1522,7 +1522,7 @@
       }
     },
     "Tabs": {
-      "specHash": "b04c8836",
+      "specHash": "cd35c146",
       "variants": {
         "Orientation=horizontal, Size=sm, State=Default, Variant=underline": {
           "skipped": "the code example did not render"
@@ -1604,7 +1604,7 @@
       }
     },
     "Textarea": {
-      "specHash": "197f158f",
+      "specHash": "ccd3283e",
       "variants": {
         "Appearance=field, State=Default": {
           "skipped": "the code example did not render"
@@ -1661,7 +1661,7 @@
       }
     },
     "Tooltip/Popup": {
-      "specHash": "b47d0fc5",
+      "specHash": "b8f5f366",
       "variants": {
         "Default": {
           "skipped": "drawn open in Figma; the code image shows it closed"
