@@ -8,6 +8,7 @@ import UsagePanelStatic from '../../components/UsagePanelStatic';
 import PropsPlayground from '../../components/PropsPlayground.tsx';
 import ButtonLink from '../../components/ds/ButtonLink';
 import PropsTable from '../../components/ds/PropsTable';
+import MotionTable from '../../components/ds/MotionTable';
 import { Alert, Badge, Link, SegmentedControl, PageHeader } from '@bridge-ds/react';
 import { BookOpen, Columns2, FileCode, Lock, Moon, Pencil, Sun } from 'lucide-react';
 import { loadComponents, playgroundSpec, type ComponentInfo } from '../../lib/components';
@@ -21,6 +22,8 @@ import { siteRepo } from '../../lib/config';
 import { exists, readText } from '../../lib/repo';
 import LibraryEditMode from '../../components/LibraryEditMode';
 import GitHubDialog from '../../components/GitHubDialog.astro';
+import { motionDocs } from '../../lib/motion-docs';
+import { loadComponentSpecs } from '../../lib/figma-coverage';
 
 export function getStaticPaths() {
   return loadComponents().map((c) => ({ params: { slug: c.slug }, props: { c } }));
@@ -55,6 +58,9 @@ const notes = releases().flatMap((r) =>
 const originalDocs = exists(c.files.docs) ? readText(c.files.docs) : null;
 const editInitial = originalDocs ? JSON.parse(originalDocs) : componentPrefill(c).draft;
 const repo = siteRepo();
+// Motion and interaction: generated from the component specs (the same reading the Figma prototypes play).
+const specsFile = loadComponentSpecs();
+const motion = motionDocs(c.name, specsFile?.components ?? [], specsFile?.coverage?.find((x) => x.name === c.name), c.tokenPaths);
 const tabs = [
   { id: 'usage', label: 'Usage' },
   { id: 'tokens', label: 'Tokens' },
@@ -226,6 +232,20 @@ import PreviewScope from '../../components/PreviewScope.astro';
         }
       </section>
 
+      <section aria-labelledby="motion">
+        <h2 id="motion">Motion and interaction</h2>
+        <p>{motion.summary}{motion.rows.length > 0 && d?.preview && ' Try it in the preview at the top.'}</p>
+        {motion.rows.length > 0 && <MotionTable component={c.name} rows={motion.rows} showPart={motion.showPart} />}
+        {motion.reduced && <p class="motion-note">{motion.reduced}</p>}
+        {
+          motion.rows.length > 0 && motion.unlisted.length > 0 && (
+            <p class="small muted">
+              It also uses {motion.unlisted.map((t, i) => <>{i > 0 && ', '}<Link variant="subtle" href={`/tokens/?t=${encodeURIComponent(t)}`}><code>{t}</code></Link></>)} for motion this table does not list yet.
+            </p>
+          )
+        }
+      </section>
+
       </div>
 
       <div class="cp-panel" role="tabpanel" id="tab-code" aria-labelledby="tab-code-btn" data-panel="code">
@@ -376,7 +396,7 @@ import PreviewScope from '../../components/PreviewScope.astro';
     const tabs = [...document.querySelectorAll<HTMLAnchorElement>('[data-cp-tabs] [role="tab"]')];
     const panels = [...document.querySelectorAll<HTMLElement>('[data-panel]')];
     const tocList = document.querySelector<HTMLUListElement>('[data-cp-toc]');
-    const LEGACY: Record<string, string> = { anatomy: 'tokens', props: 'code', playground: 'code', live: 'code', 'do-dont': 'usage', accessibility: 'usage', changes: 'changelog' };
+    const LEGACY: Record<string, string> = { anatomy: 'tokens', motion: 'tokens', props: 'code', playground: 'code', live: 'code', 'do-dont': 'usage', accessibility: 'usage', changes: 'changelog' };
     let io: IntersectionObserver | null = null;
     const paintToc = (panel: HTMLElement) => {
       if (!tocList) return;

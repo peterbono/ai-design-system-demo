@@ -302,6 +302,12 @@ orchestrated page loads. `prefers-reduced-motion: reduce` sets every duration to
 and any transform-based movement is replaced by opacity. Spinners keep rotating, slower, because a frozen
 spinner looks like a crash.
 
+Each component page in the Library has a generated "Motion and interaction" section, read from the component's CSS
+like the props table: what makes it move (hover, press, check, open), what changes, the duration and easing tokens
+with their values, and what reduced motion does. When a change touches motion tokens or transitions, its review
+shows a "Motion changes" block with the old and the new motion playing side by side. Both apply the rules above;
+they do not add any.
+
 ## 9. Iconography
 
 **Lucide** (`lucide-react`, ISC license, a permissive MIT-equivalent license, forked from Feather which is MIT).

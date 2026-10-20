@@ -11,6 +11,7 @@ import {
   changedProperties,
   entryFor,
   motionNotes,
+  openingTransitions,
   parseTransitions,
   resolveDuration,
   resolveEasing,
@@ -106,6 +107,34 @@ describe('CSS transitions', () => {
   });
 });
 
+describe('opening and closing', () => {
+  const css = `.popup { opacity: 1; transition-property: opacity, transform; transition-duration: var(--motion-duration-fast); transition-timing-function: var(--motion-easing-standard); }
+.popup[data-swiping] { transition-duration: 1ms; }
+.side[data-starting-style], .side[data-ending-style] { opacity: 0; transform: scale(0.96); }
+.popup[data-ending-style] { transition-duration: var(--motion-duration-instant); transition-timing-function: var(--motion-easing-linear); }
+.chevron { transition: transform var(--motion-duration-slow) var(--motion-easing-standard); }
+.other { transition: opacity 1s; }`;
+  const { rules } = parseCssModule('P.module.css', css);
+
+  it('enter and exit transitions of the element that opens, its classes taken together; other state rules ignored', () => {
+    const { enter, exit } = openingTransitions(rules, [['P.module.css|popup', 'P.module.css|side']], tokens);
+    expect(enter).toEqual({ duration: 150, durationToken: 'motion.duration.fast', easing: { type: 'CUSTOM_CUBIC_BEZIER', bezier: [0.2, 0, 0, 1] }, easingToken: 'motion.easing.standard', properties: ['opacity', 'transform'] });
+    expect(exit).toMatchObject({ duration: 75, durationToken: 'motion.duration.instant', easing: { type: 'LINEAR' }, easingToken: 'motion.easing.linear' });
+    // An element without open-state rules does not open.
+    expect(openingTransitions(rules, [['P.module.css|chevron']], tokens)).toEqual({ enter: null, exit: null });
+  });
+
+  it('the opening note carries them, and componentMotion lists their tokens', () => {
+    const notes = motionNotes(rules, new Set(['P.module.css|popup', 'P.module.css|side']), tokens, 'popup', [['P.module.css|popup', 'P.module.css|side']]);
+    expect(notes).toEqual([expect.objectContaining({ what: 'Opening and closing the popup', enter: expect.objectContaining({ duration: 150 }), exit: expect.objectContaining({ duration: 75 }) })]);
+    const motion = componentMotion({ name: 'P/Popup', variants: [], motion: notes });
+    expect(motion.opening?.enter?.durationToken).toBe('motion.duration.fast');
+    expect(motion.tokens).toEqual(['motion.duration.fast', 'motion.duration.instant', 'motion.easing.linear', 'motion.easing.standard']);
+    expect(motion.reducedMotion).toBe(REDUCED_MOTION_NOTE);
+    expect(componentsUsingMotionToken({ components: [{ name: 'P/Popup', variants: [], motion: notes } as unknown as ComponentSpec] }, 'motion.duration.fast')).toEqual(['P/Popup']);
+  });
+});
+
 describe('generator', () => {
   const files: Record<string, string> = {
     'c/Chip/Chip.tsx': `import styles from './Chip.module.css';
@@ -169,6 +198,14 @@ describe('the repo', () => {
   const specs = parseComponentSpecs(readFileSync(join(ROOT, 'packages/react/component-specs.json'), 'utf8'));
   const byName = new Map(specs.components.map((c) => [c.name, c]));
 
+  it('Dialog opens in motion.duration.moderate with the enter easing and closes faster; popups use their open motion tokens', () => {
+    const dialog = componentMotion(byName.get('Dialog/Popup')!);
+    expect(dialog.opening?.enter).toMatchObject({ duration: 200, durationToken: 'motion.duration.moderate', easingToken: 'motion.easing.enter', properties: ['opacity', 'transform'] });
+    expect(dialog.opening?.exit).toMatchObject({ duration: 150, durationToken: 'motion.duration.fast', easingToken: 'motion.easing.exit' });
+    expect(componentsUsingMotionToken(specs, 'motion.duration.moderate')).toEqual(expect.arrayContaining(['AlertDialog/Popup', 'Dialog/Popup']));
+    expect(componentMotion(byName.get('Drawer/Popup')!).opening?.enter).toMatchObject({ duration: 300, durationToken: 'motion.duration.slow' });
+  });
+
   it('Button: hover and press at motion.duration.instant with the standard easing; Switch toggles on click', () => {
     const button = componentMotion(byName.get('Button')!);
     expect(button.triggers.map((t) => t.label)).toEqual(expect.arrayContaining(['While hovering', 'While pressing']));
@@ -182,6 +219,7 @@ describe('the repo', () => {
 
   it('looping animations are listed as motion Figma cannot play', () => {
     expect(componentMotion(byName.get('Spinner')!).cannotPlay.map((n) => n.what)).toEqual(['Looping animation spin, 700 ms']);
+    expect(componentMotion(byName.get('Spinner')!).tokens).toEqual(['motion.duration.spin']);
     expect(componentsUsingMotionToken(specs, 'motion.duration.fast')).toEqual(expect.arrayContaining(['Checkbox', 'Switch']));
   });
 });

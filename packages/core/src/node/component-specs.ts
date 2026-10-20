@@ -2732,8 +2732,13 @@ export function generateComponentSpec(name: string, opts: SpecGeneratorOptions, 
   // a Figma prototype cannot play (keyframes, keyboard focus, opening).
   const interactions = deriveInteractions(axes, evaluated, opts.tokens, /radio/i.test(setName));
   const drawnClasses = new Set<string>();
-  for (const { ev } of evaluated) for (const n of ev.built.parts.values()) for (const c of n.classes) drawnClasses.add(c);
-  const motion = motionNotes(rules, drawnClasses, opts.tokens, view);
+  const drawnElements = new Map<string, string[]>();
+  for (const { ev } of evaluated)
+    for (const n of ev.built.parts.values()) {
+      for (const c of n.classes) drawnClasses.add(c);
+      if (n.classes.length) drawnElements.set([...n.classes].sort().join(' '), [...n.classes]);
+    }
+  const motion = motionNotes(rules, drawnClasses, opts.tokens, view, [...drawnElements.values()]);
 
   const variants: SpecVariant[] = [];
   const unmapped: SpecUnmapped[] = [];
