@@ -1,8 +1,8 @@
 {
   "version": 1,
   "tool": "@bridge-ds/visual",
-  "createdAt": "2026-10-20T00:46:36.462Z",
-  "sha": "5ed88663422c087212434b48eae6f865b230f304",
+  "createdAt": "2026-10-20T01:17:52.003Z",
+  "sha": "ed6bc895778117711722cca0a5d1d4a6488494dd",
   "scale": 2,
   "mode": {
     "brand": "bridge",
@@ -89,18 +89,30 @@
       }
     },
     "Avatar": {
-      "specHash": "6effa957",
+      "specHash": "50a60757",
       "variants": {
-        "Size=xs": {
+        "Fallback=initials, Size=xs": {
           "skipped": "the code example did not render"
         },
-        "Size=sm": {
+        "Fallback=illustrated, Size=xs": {
           "skipped": "the code example did not render"
         },
-        "Size=md": {
+        "Fallback=initials, Size=sm": {
           "skipped": "the code example did not render"
         },
-        "Size=lg": {
+        "Fallback=illustrated, Size=sm": {
+          "skipped": "the code example did not render"
+        },
+        "Fallback=initials, Size=md": {
+          "skipped": "the code example did not render"
+        },
+        "Fallback=illustrated, Size=md": {
+          "skipped": "the code example did not render"
+        },
+        "Fallback=initials, Size=lg": {
+          "skipped": "the code example did not render"
+        },
+        "Fallback=illustrated, Size=lg": {
           "skipped": "the code example did not render"
         }
       }
