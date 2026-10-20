@@ -264,14 +264,6 @@
   display: none;
 }
 
-.cm-note {
-  max-width: 65ch;
-  margin: var(--space-4) 0 0;
-  color: var(--color-text-muted);
-  font-size: var(--typography-ui-size);
-  line-height: var(--typography-ui-line-height);
-}
-
 /* Drawer: the component live in one frame, the Light/Dark switch under it on the right. */
 .cm-d-preview {
   display: grid;
