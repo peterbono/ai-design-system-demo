@@ -1,5 +1,16 @@
 # @bridge-ds/figma-plugin
 
+## 0.5.1
+
+### Patch Changes
+
+- 8cdcb9a: Avatar agent: Bridge now draws its own agent mark (a prompt chevron and cursor line, Deep Harbor on a Harbor rounded square tile) instead of shipping the Claude logo, which is an Anthropic trademark. `brand="claude"` still works and keeps the name "Claude AI". New `AGENT_MARK` export; `CLAUDE_MARK` stays as a deprecated alias of it. New optional `mark` prop for a vendor logo you have the brand owner's approval to use. The agent tile token `color.agent.surface` now follows the Harbor zone in every theme and brand. The Figma UI kit gets a Kind axis (person, agent) drawing the new mark, and the spec generator keeps an SVG line join.
+- 5302e57: Pull no longer hides every component when one value in component-specs.json has a shape the plugin does not read: that field is listed with the others that cannot be bound ("update DS Bridge") and the rest pull as usual. Reactions stored by an older DS Bridge in an unexpected shape are read as none. When components cannot be read, the callout now says what happened and what to do ("Check again, and if it keeps failing, update DS Bridge and report it with the details below"), with the technical error folded under Details instead of shown as the message.
+- Updated dependencies [8cdcb9a]
+- Updated dependencies [77ba45a]
+- Updated dependencies [7e9f2df]
+  - @bridge-ds/core@0.8.0
+
 ## 0.5.0
 
 ### Minor Changes
