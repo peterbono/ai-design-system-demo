@@ -14,7 +14,10 @@ describe('personName', () => {
 
   it('names bots without the [bot] suffix and Claude as Claude', () => {
     expect(personName('github-actions[bot]')).toBe('github-actions');
-    expect(personName('claude[bot]')).toBe('Claude');
+    expect(personName('claude[bot]')).toBe('Claude AI');
+    expect(personName('bridge-agent')).toBe('Claude AI');
+    expect(personName('bridge-agent[bot]')).toBe('Claude AI');
+    expect(isClaudeLogin('bridge-agent')).toBe(true);
     expect(isBotLogin('renovate[bot]')).toBe(true);
     expect(isClaudeLogin('@Claude')).toBe(true);
     expect(isClaudeLogin('claudette')).toBe(false);
@@ -60,7 +63,8 @@ describe('authorLine', () => {
   it('credits Claude when an agent made the work', () => {
     const cache = { peterbono: { name: 'Florian Gouloubi', at: NOW } };
     expect(authorLine('peterbono', false, cache)).toBe('Florian Gouloubi');
-    expect(authorLine('peterbono', true, cache)).toBe('Claude, with Florian Gouloubi');
-    expect(authorLine('claude[bot]', true)).toBe('Claude');
+    expect(authorLine('peterbono', true, cache)).toBe('Claude AI, with Florian Gouloubi');
+    expect(authorLine('claude[bot]', true)).toBe('Claude AI');
+    expect(authorLine('bridge-agent', false)).toBe('Claude AI');
   });
 });

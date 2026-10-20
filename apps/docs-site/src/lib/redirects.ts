@@ -27,7 +27,7 @@ export const REDIRECTS: Record<string, string> = {
   '/studio/settings/governance': '/studio/settings/#approvals',
   '/studio/settings/integrations': '/studio/settings/#integrations',
   // The theme playground left with the Field Guide redesign: brand and density now switch inside each preview.
-  '/playground': '/',
+  '/playground': '/library/',
 };
 
 /**

@@ -1,94 +1,241 @@
 ---
-import '../styles/home.css';
-import Layout from '../layouts/Layout.astro';
+// The product landing (direction H3, "one change, one line", validated 2026-10-20). One promise, then the trip of one
+// change: an exploration Claude AI built adds an Overdue tone to Badge; Claude checks what it added and lines up a
+// library branch you open in one click; you review it in the product; the design system (code and Figma kit) gets it.
+// A line runs that trip down the page (scripts/landing.ts, progressive enhancement: the page is complete without it).
+// Every media slot is real UI built with @bridge-ds/react, never an image. Only what ships is promised (lib/landing.ts).
+// The Library home moved to /library/ (lib/nav LIBRARY_HOME).
+import Landing from '../layouts/Landing.astro';
 import Illustration from '../components/Illustration.astro';
 import ButtonLink from '../components/ds/ButtonLink';
-import { Badge, Link } from '@bridge-ds/react';
-import { releases, versionInfo } from '../lib/changelog';
-import { changeHeadline, mdTitleText } from '../lib/markdown';
-import { loadComponents } from '../lib/components';
-import { explorerTokens } from '../lib/explorer';
-import { PAGE_SOURCES, freshness } from '../lib/sources';
-import { repoStatus } from '../lib/stats';
-import type { IllustrationName } from '../brand/illustrations';
+import LandingReview from '../components/landing/LandingReview';
+import LandingFaq from '../components/landing/LandingFaq';
+import { Avatar, Badge, Button, Card, CardBody, CodeBlock, Icon, Input, Link, Select, Tag } from '@bridge-ds/react';
+import { ArrowRight, Check, LayoutGrid, Link2 } from 'lucide-react';
+import { INSTALL_COMMAND } from '../lib/landing';
+import { LIBRARY_HOME, STUDIO_HOME } from '../lib/nav';
 
-const version = versionInfo();
-const repo = repoStatus();
-
-// What changed: the latest entries people notice (internal tooling left out), newest first.
-const recent = releases()
-  .flatMap((r) => r.entries.map((e) => ({ ...e, date: e.date ?? r.date })))
-  .filter((e) => e.kind !== 'Internal')
-  .slice(0, 3);
-// "This week" only when every entry shown is less than 7 days older than the build's last commit.
-const DAY = 86_400_000;
-const ref = repo.lastChange ? Date.parse(`${repo.lastChange}T00:00:00Z`) : Date.now();
-const thisWeek = recent.length > 0 && recent.every((e) => e.date && ref - Date.parse(`${e.date}T00:00:00Z`) < 7 * DAY);
-const shortDate = (iso?: string) =>
-  iso ? new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(new Date(`${iso.slice(0, 10)}T00:00:00Z`)) : 'Next release';
-
-// Counts on the topic cards come from the same data as the pages they open.
-const semantic = explorerTokens().filter((t) => t.layer === 'semantic').length;
-const componentCount = loadComponents().length;
-
-const topics: { art: IllustrationName; title: string; text: string; href: string }[] = [
-  { art: 'foundations', title: 'Foundations', text: 'Color, type, spacing and the accessibility rules underneath.', href: '/foundations/color/' },
-  { art: 'tokens', title: 'All tokens', text: `All ${semantic} semantic tokens with their light and dark values, ready to copy.`, href: '/tokens/' },
-  { art: 'components', title: 'Components', text: `${componentCount} React components with examples, props and guidance.`, href: '/components/' },
+const stations = [
+  { id: 'st1', label: 'Explore' },
+  { id: 'st2', label: 'Spot what is new' },
+  { id: 'st3', label: 'Review and merge' },
 ];
 ---
 
-<Layout
-  title="Home"
-  description="Bridge Library: the latest release of the design system. Foundations, tokens, components and how to use them, for people and agents."
-  sources={PAGE_SOURCES.home}
-  updated={freshness(PAGE_SOURCES.home)}
-  wide
+<Landing
+  title="Bridge: explore with AI, keep what works in your design system"
+  description="Claude AI explores on your real components. Bridge lines up what the exploration added as library changes you open in one click, review in the product, and ship to code and your Figma kit."
 >
-  <section class="zone hm-hero" aria-labelledby="hero-title">
-    <div class="hm-hero-copy">
-      <h1 id="hero-title" class="t-display">Your design system, one source of truth.</h1>
-      <p class="t-body">
-        Bridge keeps your tokens, components and docs in one repository. This Library always shows the latest release, <span class="mono">{version.current}</span>.
-      </p>
-      <ButtonLink variant="primary" href="/components/">Browse components</ButtonLink>
+  <div class="lp-journey" data-journey>
+    <svg class="lp-line" data-line aria-hidden="true" focusable="false">
+      <path class="lp-line-ahead" data-line-ahead d=""></path>
+      <path class="lp-line-done" data-line-done d=""></path>
+    </svg>
+    <span class="lp-marker" data-marker aria-hidden="true" hidden>
+      <Avatar kind="agent" brand="claude" size="xs" decorative />
+      <span>Overdue tone</span>
+    </span>
+
+    <!-- Hero: the promise, then the exploration and the library branch it becomes, joined by the line. -->
+    <section class="lp-hero lp-wrap" aria-labelledby="lp-title">
+      <div class="lp-hero-copy">
+        <h1 id="lp-title" class="lp-display">Explore with AI. Keep what works in your design system.</h1>
+        <p class="lp-lede">
+          Bringing what you explored back into the code and the UI kit is manual today. Claude AI checks what your exploration added and lines up the library changes; you open them in one click, review them in the product, and once they are merged the code ships and your Figma kit follows.
+        </p>
+        <div class="lp-cta">
+          <ButtonLink variant="primary" size="lg" href={STUDIO_HOME}>Get started</ButtonLink>
+          <Link href={LIBRARY_HOME} className="lp-cta-link">Read the docs</Link>
+        </div>
+      </div>
+
+      <div class="lp-hero-visual" role="img" aria-label="A billing screen prototype Claude AI built, and the library branch for the Overdue badge tone it added, linked to each other">
+        <div class="lp-plate" data-anchor="a">
+          <Card><CardBody className="lp-mini">
+            <p class="lp-mini-head"><Avatar kind="agent" brand="claude" size="xs" decorative /><strong>Your exploration</strong></p>
+            <p class="lp-caption lp-muted">Billing screen, built with Claude AI</p>
+            <div class="lp-screen">
+              <span class="lp-screen-row"><span class="lp-bar"></span><Badge tone="success">Paid</Badge></span>
+              <span class="lp-screen-row"><span class="lp-bar"></span><span class="lp-new"><Badge tone="danger">Overdue</Badge></span></span>
+              <span class="lp-screen-row"><span class="lp-bar"></span><Badge>Draft</Badge></span>
+            </div>
+            <p class="lp-caption lp-muted">Product branch, own preview</p>
+          </CardBody></Card>
+        </div>
+        <span class="lp-arrow" aria-hidden="true"><Icon icon={ArrowRight} size="md" /></span>
+        <div class="lp-plate" data-anchor="b">
+          <Card><CardBody className="lp-mini">
+            <p class="lp-mini-head"><Icon icon={LayoutGrid} size="sm" className="lp-deep" /><strong>Library branch</strong></p>
+            <p class="lp-caption lp-muted">Badge: overdue tone</p>
+            <div class="lp-mini-zone"><Badge tone="danger">Overdue</Badge></div>
+            <p class="lp-caption lp-muted">New, not in the library yet</p>
+          </CardBody></Card>
+        </div>
+        <span class="lp-join" data-anchor="join"><Badge icon={Link2}>1 new piece, linked</Badge></span>
+      </div>
+    </section>
+
+    <!-- Works with: text only, no third-party logos. -->
+    <div class="lp-works lp-wrap" role="note" aria-label="Works with">
+      <span class="lp-muted">Works with what you already use</span>
+      <ul class="lp-works-list">
+        <li>Figma</li>
+        <li>Claude</li>
+        <li>GitHub</li>
+        <li>Storybook</li>
+        <li>Jira</li>
+      </ul>
+      <span class="lp-muted lp-works-end">They connect your tools. Bridge brings your explorations back.</span>
     </div>
-    <div class="hm-hero-art">
-      <Illustration name="hero" width={400} label="Two people finishing a plank bridge" />
+
+    <div class="lp-trip">
+      <!-- Mini-map: pinned under the top while the trip is on screen (sticky in .lp-trip), then leaves with it. -->
+      <nav class="lp-map" aria-label="Journey" data-map>
+        <div class="lp-wrap lp-map-row">
+          <Badge>Overdue tone</Badge>
+          <ol class="lp-map-steps">
+            {
+              stations.map((s, i) => (
+                <li data-map-step={i}>
+                  <span class="lp-map-dot" aria-hidden="true" />
+                  <Link variant="subtle" href={`#${s.id}`}>{s.label}</Link>
+                </li>
+              ))
+            }
+          </ol>
+        </div>
+      </nav>
+
+      <!-- 1 Explore: on your real components, in its own branch. -->
+      <section class="lp-station lp-wrap" aria-labelledby="st1" data-station="0">
+        <div class="lp-station-media">
+          <div class="lp-plate lp-plate-float" inert>
+            <Card aria-hidden="true"><CardBody className="lp-dialog">
+              <p class="lp-dialog-title">What are you building?</p>
+              <Select label="In which product" options={[{ value: 'admin', label: 'Admin demo' }]} defaultValue="admin" />
+              <Input label="Describe it in a sentence" defaultValue="Billing screen with overdue invoices" readOnly />
+              <div class="lp-dialog-foot">
+                <Tag size="sm">DS-87 linked</Tag>
+                <Button variant="primary">Start with Claude AI</Button>
+              </div>
+            </CardBody></Card>
+          </div>
+        </div>
+        <div class="lp-node" data-anchor="node" aria-hidden="true">1</div>
+        <div class="lp-station-copy">
+          <h2 id="st1" class="lp-h">Explore on your real components.</h2>
+          <p class="lp-p">Claude AI builds your prototype with your own library through MCP, in a branch with its own preview, so the system stays untouched while you try things.</p>
+        </div>
+      </section>
+
+      <!-- 2 Spot what is new: Claude checks what the exploration added; a person opens each library branch. -->
+      <section class="lp-station lp-station-flip lp-wrap" aria-labelledby="st2" data-station="1">
+        <div class="lp-station-copy">
+          <h2 id="st2" class="lp-h">Claude spots what is new.</h2>
+          <p class="lp-p">When you finish exploring, Claude AI checks what your screen added that the library lacks, a new tone, a variant or a component, and lines up a library branch for each. You open it in one click, and it stays linked to your exploration both ways.</p>
+        </div>
+        <div class="lp-node" data-anchor="node" aria-hidden="true">2</div>
+        <div class="lp-station-media">
+          <div class="lp-plate lp-plate-float" inert>
+            <Card aria-hidden="true"><CardBody className="lp-found">
+              <p class="lp-dialog-title">Billing screen with overdue invoices</p>
+              <div class="lp-found-grid">
+                <div class="lp-screen lp-screen-tall">
+                  <span class="lp-screen-head"></span>
+                  <span class="lp-screen-row"><span class="lp-bar"></span><Badge tone="success" size="sm">Paid</Badge></span>
+                  <span class="lp-screen-row"><span class="lp-bar"></span><span class="lp-new"><Badge tone="danger" size="sm">Overdue</Badge></span></span>
+                  <span class="lp-screen-row"><span class="lp-bar"></span><Badge size="sm">Draft</Badge></span>
+                </div>
+                <div class="lp-found-zone">
+                  <strong>New, not in the library yet</strong>
+                  <Card padding="compact"><CardBody className="lp-piece">
+                    <strong>Badge: overdue tone</strong>
+                    <span class="lp-muted">Linked to this screen</span>
+                    <Button variant="secondary" size="sm">Open library branch</Button>
+                  </CardBody></Card>
+                </div>
+              </div>
+              <div class="lp-say">
+                <Avatar kind="agent" brand="claude" size="sm" decorative />
+                <p class="lp-say-text">Built with the library. <strong>1 piece was missing.</strong> Open a library branch for it?</p>
+              </div>
+            </CardBody></Card>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3 Review and merge: the real change in the product, light and dark. -->
+      <section class="lp-station lp-wrap" aria-labelledby="st3" data-station="2">
+        <div class="lp-station-media">
+          <div class="lp-plate lp-plate-float">
+            <Card><CardBody>
+              <LandingReview client:visible />
+            </CardBody></Card>
+          </div>
+        </div>
+        <div class="lp-node" data-anchor="node" aria-hidden="true">3</div>
+        <div class="lp-station-copy">
+          <h2 id="st3" class="lp-h">Review it in the product, merge once.</h2>
+          <p class="lp-p">Before and after on the real screen, with contrast checked in light and dark. Your exploration uses the library preview right away; once the change is merged, switch it to the published version in one click and pull it into your Figma kit.</p>
+          <span class="lp-proof"><Badge tone="success" icon={Check}>47 of 47 components in the Figma kit</Badge></span>
+        </div>
+      </section>
+    </div>
+
+    <p class="lp-end lp-wrap"><span class="lp-end-chip" data-anchor="end" data-end><Icon icon={LayoutGrid} size="sm" />Your design system: code and Figma kit</span></p>
+  </div>
+
+  <!-- The design system lead, served once, lower. -->
+  <section class="lp-band" aria-labelledby="lp-lead">
+    <div class="lp-wrap lp-split">
+      <div class="lp-copy">
+        <p class="lp-eyebrow lp-muted"><Avatar name="Dana" fallback="illustrated" size="sm" decorative />For the design system lead</p>
+        <h2 id="lp-lead" class="lp-h">Stop reviewing screenshots in Slack.</h2>
+        <p class="lp-p">Every change from designers and Claude AI waits in one queue, shown as the real change with its checks already run.</p>
+      </div>
+      <div class="lp-plate lp-plate-float" inert>
+        <Card padding="none" className="lp-queue-card" aria-hidden="true">
+          <div class="lp-queue">
+          <div class="lp-queue-list">
+            <strong>Waiting on you</strong>
+            <span class="lp-muted">Darker default background</span>
+            <span class="lp-queue-current">Badge: overdue tone</span>
+            <span class="lp-muted">Focus ring offset</span>
+          </div>
+          <div class="lp-queue-detail">
+            <p class="lp-mini-head"><Avatar name="Ann" fallback="illustrated" size="sm" decorative />Ann asks for your review</p>
+            <div class="lp-queue-change"><Badge tone="danger" size="sm">Overdue</Badge><span>New tone on Badge</span></div>
+            <p class="lp-ok">All contrast checks pass</p>
+            <div class="lp-queue-actions">
+              <Button variant="secondary" size="sm">Suggest changes</Button>
+              <Button variant="primary" size="sm">Approve</Button>
+            </div>
+          </div>
+          </div>
+        </Card>
+      </div>
     </div>
   </section>
 
-  <section class="hm-topics" aria-label="In the Library">
-    {
-      topics.map((t) => (
-        <Link variant="subtle" className="fg-card hm-topic" href={t.href}>
-          <h2 class="t-h3">{t.title}</h2>
-          <p class="t-body t-muted">{t.text}</p>
-          <Illustration name={t.art} width={104} class="hm-topic-art" />
-        </Link>
-      ))
-    }
+  <!-- Questions, collapsed: one open at a time. -->
+  <section class="lp-wrap lp-split lp-faq-section" aria-labelledby="lp-faq">
+    <h2 id="lp-faq" class="lp-h">Questions teams ask.</h2>
+    <LandingFaq part="faq" client:visible />
   </section>
 
-  <section class="hm-week" aria-labelledby="week-title">
-    <header class="hm-week-head">
-      <h2 id="week-title" class="t-h3">{thisWeek ? 'What changed this week' : 'What changed lately'}</h2>
-      <Link href="/changelog/" className="fg-link">All release notes</Link>
-    </header>
-    {
-      recent.length === 0 ? (
-        <p class="t-body t-muted">No changes recorded yet.</p>
-      ) : (
-        <ul class="hm-changes">
-          {recent.map((e) => (
-            <li>
-              <Badge size="sm" className="hm-kind">{e.kind}</Badge>
-              <span class="t-body hm-change" title={mdTitleText(e.title)}>{changeHeadline(e.title)}</span>
-              <span class="t-ui t-muted hm-date">{shortDate(e.date)}</span>
-            </li>
-          ))}
-        </ul>
-      )
-    }
+  <!-- Closing: the one Harbor zone of its screen, the install line, the terminal fold. -->
+  <section class="lp-wrap lp-close" aria-labelledby="lp-cta">
+    <div class="zone lp-close-zone">
+      <div class="lp-close-copy">
+        <h2 id="lp-cta" class="lp-h">Explore freely. Keep what works.</h2>
+        <div class="lp-cta">
+          <ButtonLink variant="primary" size="lg" href={STUDIO_HOME}>Get started</ButtonLink>
+          <Link href={LIBRARY_HOME} className="lp-cta-link">Read the docs</Link>
+        </div>
+        <CodeBlock code={INSTALL_COMMAND} label="Install in your repository" className="lp-install" />
+      </div>
+      <Illustration name="components" width={200} class="lp-close-art" />
+    </div>
+    <LandingFaq part="terminal" client:visible />
   </section>
-</Layout>
+</Landing>

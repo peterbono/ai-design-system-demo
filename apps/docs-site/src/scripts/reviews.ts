@@ -102,6 +102,7 @@ import { isRunningExploration } from '../lib/explorations-view';
 import type { BranchesListProps, ListRow } from '../components/ds/studio/BranchesList';
 import { conflictLine, conflictRows, freshness, libraryLine, nextSteps, resolveLabel, type CompareLike, type Freshness } from '../lib/library-sync';
 import { bringInLatest, checkGuardrail, commitResolution, readCompare, readConflicts, readDismissStale, waitForNewHead } from './reviews/library-sync';
+import { AGENT_NAME, isClaudeLogin } from '../lib/people';
 
 interface User {
   login: string;
@@ -506,7 +507,8 @@ function repaint(patch: Partial<BranchReviewProps>) {
 }
 
 /** What a designer reads for a login, until profile names are known: the login, without @ and [bot]. */
-const nameOf = (login: string) => login.replace(/^@/, '').replace(/\[bot\]$/i, '');
+/** A login as people read it; the agent's accounts (claude, bridge-agent) read Claude AI (lib/people). */
+const nameOf = (login: string) => (isClaudeLogin(login) ? AGENT_NAME : login.replace(/^@/, '').replace(/\[bot\]$/i, ''));
 const named = (text: string) => namesIn(text, nameOf);
 
 /** The docs.json at a commit, parsed, or null (missing or unreadable). */
@@ -802,7 +804,7 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
     guidanceMeta: Object.fromEntries(Object.values(guidance).map((g) => [g.path, guidanceMeta(g.sections)])),
   });
   const guidanceOnly = changes.length > 0 && changes.every((c) => c.kind === 'guidance');
-  const agent = agentMade({ body: pull.body, labels: pull.labels }) || (guidanceOnly && x.docs.some((g) => isClaudeDraft(g.head)));
+  const agent = agentMade({ body: pull.body, labels: pull.labels }) || isClaudeLogin(pull.user.login) || (guidanceOnly && x.docs.some((g) => isClaudeDraft(g.head)));
   const sameRepo = !pull.head.repo?.full_name || pull.head.repo.full_name === `${repo.owner}/${repo.repo}`;
   const canEditGuidance = write && sameRepo && (lifecycle === 'open' || lifecycle === 'draft');
 
@@ -845,7 +847,7 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
   const conv = conversation(entries, { author: pull.user.login, reviewers });
   const peopleMap: Record<string, PersonRef> = {};
   for (const u of [pull.user, ...reviews.map((r) => r.user), ...comments.map((c) => c.user), ...x.lineComments.map((c) => c.user)]) {
-    if (u) peopleMap[u.login.toLowerCase()] = { login: u.login, name: nameOf(u.login), avatarUrl: u.avatar_url };
+    if (u) peopleMap[u.login.toLowerCase()] = { login: u.login, name: nameOf(u.login), avatarUrl: u.avatar_url, agent: isClaudeLogin(u.login) || undefined };
   }
 
   const title = humanTitle(mdTitleText(withoutJiraKey(pull.title)));

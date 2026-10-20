@@ -1,0 +1,84 @@
+---
+// /compare/: Bridge next to the tools teams already use, as of October 2026, from their public pages. Partials and
+// unknowns stay as they are; each tool links its source. Data and words: lib/compare.ts. Linked from the landing
+// footer and the Library footer.
+import Landing from '../layouts/Landing.astro';
+import { Icon, Link, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@bridge-ds/react';
+import { Check, CircleDashed, HelpCircle, Minus } from 'lucide-react';
+import { AS_OF, FIGMA_NOTE, ROWS, TOOLS, cellText, type CellState } from '../lib/compare';
+import { GITHUB_URL } from '../lib/repo';
+import { LIBRARY_HOME, STUDIO_HOME } from '../lib/nav';
+import ButtonLink from '../components/ds/ButtonLink';
+
+const ICON: Record<CellState, typeof Check> = { yes: Check, partial: CircleDashed, no: Minus, unknown: HelpCircle };
+---
+
+<Landing
+  title="Compare | Bridge"
+  description={`Bridge next to Supernova, zeroheight, Tokens Studio, Figma, Chromatic and story.to.design, as of ${AS_OF}, from public pages.`}
+>
+  <section class="lp-wrap lp-compare" aria-labelledby="cmp-title">
+    <header class="lp-compare-head">
+      <h1 id="cmp-title" class="lp-h">Works with Figma and Storybook. Adds what they don't do.</h1>
+      <p class="lp-p">
+        Bridge sits next to the tools you already use. What it adds is the way back: from an exploration to the design system, reviewed in the product, with the code and the Figma kit in step.
+      </p>
+    </header>
+
+    <Table caption={`Bridge and other design system tools, as of ${AS_OF}`} narrowLayout="scroll" className="lp-compare-table">
+      <TableHeader>
+        <TableRow>
+          <TableHead scope="col" minWidth="13rem">Feature</TableHead>
+          <TableHead scope="col">Bridge</TableHead>
+          {TOOLS.map((t) => <TableHead scope="col">{t.name}</TableHead>)}
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {
+          ROWS.map((r) => (
+            <TableRow>
+              <TableCell>
+                <strong>{r.feature}</strong>
+              </TableCell>
+              <TableCell>
+                <span class="lp-cell" data-state="yes">
+                  <Icon icon={Check} size="sm" className="lp-cell-icon" />
+                  Yes
+                </span>
+              </TableCell>
+              {r.cells.map((c) => (
+                <TableCell>
+                  <span class="lp-cell" data-state={c.state}>
+                    <Icon icon={ICON[c.state]} size="sm" className="lp-cell-icon" />
+                    {cellText(c)}
+                  </span>
+                </TableCell>
+              ))}
+            </TableRow>
+          ))
+        }
+      </TableBody>
+    </Table>
+
+    <div class="lp-compare-notes">
+      <p class="lp-p"><strong>Figma Code Connect.</strong> {FIGMA_NOTE}</p>
+      <p class="lp-caption lp-muted">
+        As of {AS_OF}, from public pages. Sources:
+        {
+          TOOLS.flatMap((t) => [t.source, ...(t.more ?? [])]).map((s, i, all) => (
+            <>
+              <Link href={s.href}>{s.label}</Link>
+              {i < all.length - 1 ? ', ' : '.'}
+            </>
+          ))
+        }
+        {' '}Something out of date? <Link href={`${GITHUB_URL}/issues`}>Tell us on GitHub</Link>.
+      </p>
+    </div>
+
+    <div class="lp-cta">
+      <ButtonLink variant="primary" size="lg" href={STUDIO_HOME}>Get started</ButtonLink>
+      <Link href={LIBRARY_HOME} className="lp-cta-link">Read the docs</Link>
+    </div>
+  </section>
+</Landing>
