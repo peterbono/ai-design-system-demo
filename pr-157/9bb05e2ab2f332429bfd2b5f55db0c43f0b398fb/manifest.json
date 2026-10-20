@@ -1,15 +1,15 @@
 {
   "version": 1,
   "tool": "@bridge-ds/visual",
-  "createdAt": "2026-10-20T09:12:45.878Z",
-  "durationMs": 332579,
+  "createdAt": "2026-10-20T12:05:49.796Z",
+  "durationMs": 333074,
   "base": {
-    "ref": "1f52da7600d2b01c700ec2c8a4f2222f055bb705",
-    "sha": "6c69351dcf15d7fe6d6e79327778b28a03e26a32"
+    "ref": "36ca12b9877b7315a0257de2bdd9c121c1b9bcd5",
+    "sha": "36ca12b9877b7315a0257de2bdd9c121c1b9bcd5"
   },
   "head": {
-    "ref": "8cdcb9ad61b2c9a7a5224122942af3e25e266326",
-    "sha": "8cdcb9ad61b2c9a7a5224122942af3e25e266326"
+    "ref": "9bb05e2ab2f332429bfd2b5f55db0c43f0b398fb",
+    "sha": "9bb05e2ab2f332429bfd2b5f55db0c43f0b398fb"
   },
   "options": {
     "only": [
@@ -160,8 +160,8 @@
   },
   "summary": {
     "shots": 256,
-    "changed": 5,
-    "unchanged": 251,
+    "changed": 4,
+    "unchanged": 252,
     "added": 0,
     "removed": 0,
     "errors": 0,
@@ -5125,18 +5125,11 @@
       "storyId": "feedback-progress--all-states",
       "brand": "ocean",
       "theme": "dark",
-      "status": "changed",
-      "changedPixels": 1757,
+      "status": "unchanged",
+      "changedPixels": 0,
       "totalPixels": 815104,
-      "percent": 0.22,
-      "boxes": [
-        {
-          "x": 32,
-          "y": 720,
-          "width": 368,
-          "height": 64
-        }
-      ],
+      "percent": 0,
+      "boxes": [],
       "size": {
         "before": {
           "width": 1024,
@@ -5147,12 +5140,7 @@
           "height": 796
         }
       },
-      "images": {
-        "before": "before/story__feedback-progress--all-states__ocean-dark.png",
-        "after": "after/story__feedback-progress--all-states__ocean-dark.png",
-        "diff": "diff/story__feedback-progress--all-states__ocean-dark.png",
-        "composite": "composite/story__feedback-progress--all-states__ocean-dark.png"
-      }
+      "images": {}
     },
     {
       "key": "story__feedback-skeleton--all-states__ocean-dark",
