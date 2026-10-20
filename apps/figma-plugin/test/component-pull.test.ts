@@ -13,7 +13,7 @@ import { exportThumbnails, scanComponents } from '../src/main/components';
 import { onlyComponent, plannedSignature, reviewUpdates, withoutComponents } from '../src/sync/component-review';
 import { takeSnapshot } from '../src/main/snapshot';
 import { DEFAULT_SETTINGS } from '../src/shared/messages';
-import { buildComponentPlan, coverageView, draftedSetNote, evaluateCalc, loadComponentSpecs, pendingComponents, writablePlan } from '../src/sync/component-pull';
+import { buildComponentPlan, coverageView, draftedSetNote, evaluateCalc, loadComponentSpecs, pendingComponents, planValue, writablePlan } from '../src/sync/component-pull';
 import { classifyComponents, pullBaselines, suggestLine, suggestTitle } from '../src/sync/components';
 import { analyze, buildPull } from '../src/sync/flows';
 import { FakeGitHub } from './fake-github';
@@ -825,4 +825,61 @@ test('interactions: a designer reaction on the same trigger wins, and the pull s
   const report = await applyComponentPlan(forced);
   assert.deepEqual(reactionsOf(def).map((r) => r.actions[0]!.destinationId), [pressed.id]);
   assert.deepEqual(report.problems.filter((p) => /interaction/.test(p)), ['Button Variant=primary, Size=md, State=Default: kept your own "While hovering" interaction, so DS Bridge did not add its own']);
+});
+
+// ---------------------------------------------------------------------------------------------
+// A file that already holds a kit from an older DS Bridge, pulled with main's specs (the owner's file, 2026-10-20)
+
+test('spec values: numbers, tokens and calc() plan; any other shape is a problem for that field, never a throw', async () => {
+  const { a, specs } = await pulledFile();
+  const head = a.head;
+  // Checkbox draws its check with strokeWeight 3: a DS Bridge build that only read 0 as a number threw
+  // "t.startsWith is not a function" here and hid every component.
+  const check = specs.components.find((c) => c.name === 'Checkbox')!;
+  assert.ok(check.variants.some((v) => Object.values(v.values).some((f) => f.strokeWeight === 3)), 'the real specs hold a non-zero number');
+  assert.deepEqual(planValue('strokeWeight', 3, head), { kind: 'number', value: 3 });
+  assert.deepEqual(planValue('fill', 3, head), { problem: '3: a color cannot be a number' });
+  for (const odd of [true, { value: 4, unit: 'px' }, ['size.4'], undefined, Number.NaN]) {
+    const pv = planValue('paddingTop', odd, head);
+    assert.ok('problem' in pv, `${String(odd)} is a problem`);
+  }
+  assert.deepEqual(planValue('paddingTop', { value: 4, unit: 'px' }, head), { problem: '{"value":4,"unit":"px"} is not a value this version of DS Bridge reads: update DS Bridge' });
+  // In a plan: the field is listed with the others that cannot be bound, the rest of the components still plan.
+  const odd: ComponentSpecsFile = structuredClone(specs);
+  const button = odd.components.find((c) => c.name === 'Button')!;
+  (button.variants[0]!.values.root as Record<string, unknown>).paddingTop = { value: 4, unit: 'px' };
+  const plan = buildComponentPlan(odd, SPECS_PATH, [], head);
+  assert.equal(plan.components.length, SPEC_COMPONENTS.length);
+  assert.ok(plan.problems.some((p) => p.component === 'Button' && p.property === 'paddingTop' && /update DS Bridge$/.test(p.reason)));
+});
+
+test('older kit: a file generated before swaps and interactions reviews main like Pull does, with thumbnails', async () => {
+  // The kit an older DS Bridge generated: icon placeholders, no slots, no prototype interactions.
+  const old = specsBeforeSwaps(parseComponentSpecs(specsText()));
+  for (const c of old.components) {
+    delete c.interactions;
+    delete c.motion;
+    c.hash = hashSpec(c);
+  }
+  const first = await pulledFile({ specs: JSON.stringify(old) });
+  await applyComponentPlan(writablePlan(first.plan));
+  // What older builds left in shared plugin data: an unreadable baseline and reactions that are not a list of keys.
+  const button = first.sim.sets().find((s) => s.name === 'Button')!;
+  button.setSharedPluginData('dsbridge', 'signature', '{"v":0}');
+  for (const v of button.children) v.setSharedPluginData('dsbridge', 'reactions', '{"hover":true}');
+  // loadPull, step by step: plan, scan, review, planned signatures, thumbnails.
+  const next = await pulledFile({ sim: first.sim });
+  const updated = next.plan.components.filter((c) => c.status === 'updated' && c.nodeId);
+  assert.ok(updated.some((c) => c.name === 'Button') && updated.some((c) => c.name === 'Card'), 'sets changed by swaps and interactions are updates');
+  const scanned = await scanComponents(() => {});
+  const reviews = reviewUpdates(next.plan, new Map(scanned.components.map((c) => [c.nodeId, c.signature])));
+  assert.deepEqual(reviews.map((r) => r.name), updated.map((c) => c.name));
+  for (const c of updated) assert.equal(plannedSignature(c).name, c.name);
+  const thumbs = await exportThumbnails(updated.map((c) => c.nodeId!), 196);
+  assert.equal(Object.keys(thumbs).length, updated.length);
+  // Update all on that file: the old plugin data is read as "none of ours", the interactions are added.
+  const report = await applyComponentPlan(writablePlan(next.plan));
+  assert.equal(report.updated, updated.length);
+  const def = variantOf(button, 'Variant=primary, Size=md, State=Default');
+  assert.ok((def.reactions as { trigger: { type: string } }[]).some((r) => r.trigger.type === 'ON_HOVER'));
 });

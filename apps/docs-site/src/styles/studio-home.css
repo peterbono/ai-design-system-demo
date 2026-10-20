@@ -218,6 +218,15 @@
   gap: var(--space-3) var(--space-4);
 }
 
+.sh-section-title {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.sh-section-sub {
+  margin: 0;
+}
+
 .sh-h2 {
   margin: 0;
   font-family: var(--typography-h2-family);
@@ -225,10 +234,6 @@
   font-weight: var(--typography-h2-weight);
   line-height: var(--typography-h2-line-height);
   letter-spacing: var(--typography-h2-tracking);
-}
-
-.sh-pick[hidden] {
-  display: none;
 }
 
 .sh-cards {
@@ -273,14 +278,6 @@
   min-height: var(--size-40);
   border: var(--border-width-default) dashed var(--color-border-emphasis);
   border-radius: var(--radius-container);
-}
-
-.sh-published {
-  margin: var(--space-2) 0 0;
-}
-
-.sh-mono {
-  font-family: var(--font-family-mono);
 }
 
 /* --- Nothing at all: three ways to start ---------------------------------------------------------------------- */
@@ -373,54 +370,51 @@
   }
 }
 
-/* --- Create branch (components/ds/studio/StartChange.tsx): the menu items, and the component picker in place. --- */
+/* --- Create branch (components/ds/studio/StartChange.tsx): a DS Dialog, product first. The step line sits above
+   the question, the fields stack, the footer puts the quiet way out on the left and the one primary on the right. */
 
-.ov-mi {
+.sc-step {
+  display: block;
+  margin-block-end: var(--space-2);
+  color: var(--color-text-muted);
+  font-family: var(--typography-ui-family);
+  font-size: var(--typography-ui-size);
+  font-weight: var(--typography-ui-weight);
+  line-height: var(--typography-ui-line-height);
+}
+
+.sc-form {
   display: grid;
-  gap: var(--space-0-5);
-  padding-block: var(--space-1);
+  gap: var(--space-4);
 }
 
-.ov-mi-title {
-  font-weight: var(--font-weight-medium);
-}
-
-/* The component picker, in place under the greeting: one plate, the question, the field and its two buttons
-   (8px apart) on one line. */
-.ov-pick-slot[hidden] {
-  display: none;
-}
-
-.ov-pick {
-  display: grid;
-  gap: var(--space-3);
-  padding: var(--space-4) var(--space-5);
-  border: var(--border-width-default) solid var(--color-border-default);
-  border-radius: var(--radius-container);
-  background-color: var(--color-surface-default);
-}
-
-.ov-pick-line {
+.sc-line {
   margin: 0;
 }
 
-.ov-pick-row {
+.sc-foot {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
-  gap: var(--space-3);
+  align-items: center;
+  gap: var(--space-4);
+  width: 100%;
 }
 
-.ov-pick-field {
-  flex: 1 1 var(--size-72);
-  max-width: var(--size-120);
+.sc-foot-left {
+  flex: 1 1 auto;
 }
 
-.ov-pick-actions {
-  display: inline-flex;
-  gap: var(--space-2);
-}
+/* Narrow screens: the one primary fills the bar, the quiet way out goes under it. */
+@media (max-width: 640px) {
+  .sc-foot {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
 
+  .sc-foot-main {
+    display: grid;
+  }
+}
 
 /* The site's list rhythm (li + li) does not apply to these grids: the gap spaces them. */
 .sh-rows > li,

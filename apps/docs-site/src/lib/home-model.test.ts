@@ -18,7 +18,6 @@ import {
   onlyReviewerLine,
   partOfDay,
   person,
-  publishedThisWeek,
   showsBranch,
   sortBranches,
   sortNeeds,
@@ -214,16 +213,6 @@ describe('your branches', () => {
       { stage: 'waiting' as const, updated: daysAgo(0), n: 4 },
     ];
     expect(sortBranches(xs).map((x) => x.n)).toEqual([3, 2, 1, 4]);
-  });
-  it('published this week: the viewer only, last seven days', () => {
-    const e = [
-      { title: 'Old', release: 'react 1.2.0', date: daysAgo(10), author: 'peterbono' },
-      { title: 'Theirs', release: 'react 1.4.0', date: daysAgo(1), author: 'ann' },
-      { title: 'Button matches Figma', release: 'react 1.4.0', date: daysAgo(2), author: 'PeterBono' },
-      { title: 'Newest', release: 'react 1.4.1', date: daysAgo(0, 3), author: 'peterbono' },
-    ];
-    expect(publishedThisWeek(e, 'peterbono', NOW).map((x) => x.title)).toEqual(['Newest', 'Button matches Figma']);
-    expect(publishedThisWeek(e, null, NOW)).toEqual([]);
   });
 });
 

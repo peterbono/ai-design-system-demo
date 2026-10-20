@@ -35,7 +35,6 @@ import {
   overrideReasonProblem,
   previewUrl,
   productForPlace,
-  productLabel,
   productOfBranch,
   productsOf,
   pullState,
@@ -295,11 +294,8 @@ export async function resolveProduct(ctx: BridgeContext, name?: string | undefin
   return (await productHere(ctx, config)).product;
 }
 
-/** Labels and a body line for a branch that starts work for a product (the default product adds nothing). */
-export function productMarks(products: ProductConfig[], p: ProductConfig): { labels: string[]; line: string } {
-  if (p.key === defaultProduct(products).key) return { labels: [], line: '' };
-  return { labels: [productLabel(p.key)], line: `**Product:** ${p.name}` };
-}
+/** Labels and a body line for a branch that starts work for a product: the core rule Studio writes too. */
+export { productMarks } from '@bridge-ds/core';
 
 /**
  * Try it in a product and share it with a product team: the preview of each product Vercel reported for this branch
