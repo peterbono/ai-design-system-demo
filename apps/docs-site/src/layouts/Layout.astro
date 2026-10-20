@@ -246,13 +246,16 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
             <slot />
           )
         }
+        {
+          // Library pages end with when they changed, their sources and the footer; Studio screens show live data.
+          !isStudio && (
         <div class="page-end">
           <div class="page-meta">
             <Icon icon={siteIcon('clock')} size="sm" className="icon" />
             <span title="From the git history of this page's source files">Updated {humanDate(updated ?? null)}</span>
             {
               files.length > 0 && (
-                <details class="menu page-source" data-menu data-maintainer-only={!isStudio || undefined}>
+                <details class="menu page-source" data-menu data-maintainer-only>
                   <summary class="page-source-trigger">
                     <Icon icon={siteIcon('code')} size="sm" className="icon" />
                     <span>View source</span>
@@ -274,22 +277,20 @@ const pageTitle = title === 'Home' ? 'Bridge: your design system, one source of 
               )
             }
           </div>
-          {
-            !isStudio && (
-              <footer class="site-footer">
-                <div class="site-footer-brand">
-                  <Logo />
-                  <p>Free and open source design system, MIT</p>
-                </div>
-                <nav class="site-footer-links" aria-label="Footer">
-                  <Link variant="subtle" href={GITHUB_URL}>GitHub<span>Source and issues</span></Link>
-                  <Link variant="subtle" href="/llms.txt">For AI agents<span class="mono">llms.txt</span></Link>
-                  <Link variant="subtle" href={STORYBOOK_URL}>Contribute<span>Storybook workbench</span></Link>
-                </nav>
-              </footer>
-            )
-          }
+          <footer class="site-footer">
+            <div class="site-footer-brand">
+              <Logo />
+              <p>Free and open source design system, MIT</p>
+            </div>
+            <nav class="site-footer-links" aria-label="Footer">
+              <Link variant="subtle" href={GITHUB_URL}>GitHub<span>Source and issues</span></Link>
+              <Link variant="subtle" href="/llms.txt">For AI agents<span class="mono">llms.txt</span></Link>
+              <Link variant="subtle" href={STORYBOOK_URL}>Contribute<span>Storybook workbench</span></Link>
+            </nav>
+          </footer>
         </div>
+          )
+        }
       </main>
     </div>
 
