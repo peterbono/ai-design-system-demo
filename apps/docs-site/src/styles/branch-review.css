@@ -603,14 +603,15 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  /* Before above after, the arrow pointing down. */
+  /* The name on its own line, then before, arrow, after; long value names wrap. */
   .br-tokens,
   .br-token {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   }
 
-  .br-arrow {
-    rotate: 90deg;
+  .br-token-name,
+  .br-token-where {
+    grid-column: 1 / -1;
   }
 
   /* The field and "More actions" on the first line, the decisions on the second, each half the width. */

@@ -12,7 +12,7 @@
 // The URL keeps the selection (?pr=N or ?item=key) with replaceState only. Rules: lib/queue-nav.ts.
 import { createElement as h, Fragment, type ComponentProps } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { Button, Card, CardBody, EmptyState, Select, Skeleton, type UseToastReturn } from '@bridge-ds/react';
+import { Button, Card, CardBody, EmptyState, Progress, Select, Skeleton, type UseToastReturn } from '@bridge-ds/react';
 import { Inbox } from 'lucide-react';
 import ButtonLink from '../components/ds/ButtonLink';
 import { QueueBar, QueueList, QueueToasts } from '../components/ds/studio/ReviewQueue';
@@ -20,7 +20,7 @@ import { currentViewer, initGitHubConnect, prefersSignIn } from './github-sessio
 import { setReviewCount } from './shell';
 import { loadHome, type HomeStatic } from './home-data';
 import { approveBranch, askSomeoneElse, closePr, openPr, suggestChanges } from './reviews';
-import { branchOf, keyDecision, keyFromSearch, keyMove, moveIndex, nextOpen, outcomeLine, searchFor, UNDO_MS, type QueueOutcome } from '../lib/queue-nav';
+import { branchOf, keyDecision, keyFromSearch, keyMove, moveIndex, nextOpen, outcomeLine, positionLabel, searchFor, UNDO_MS, type QueueOutcome } from '../lib/queue-nav';
 import { reviewLink } from '../lib/review-page';
 import { ghAction, ghButton } from '../lib/gh-wording';
 import type { NeedKind, NeedRow } from '../lib/home-model';
@@ -272,15 +272,22 @@ export function initReviewQueue() {
     render(
       pickEl,
       rows.length
-        ? h(Select, {
-            label: 'Waiting on you',
-            hideLabel: true,
-            size: 'md',
-            value: row ? row.key : null,
-            placeholder: 'Pick what to review',
-            options: rows.map((r) => ({ value: r.key, label: r.title, description: outcomes.has(r.key) ? outcomeLine(outcomes.get(r.key)!, '').trim() : r.line })),
-            onValueChange: (v: string | null) => v && show(v),
-          })
+        ? h(
+            Fragment,
+            null,
+            // Where the viewer is, as on the wide list: the count and the progress above the picker.
+            h('p', { className: 'rq-count' }, h('strong', null, 'Review all'), h('span', { className: 'rq-muted' }, ` · ${i >= 0 ? positionLabel(rows.length, i) : `${rows.length} waiting`}`)),
+            h(Progress, { value: outcomes.size, max: rows.length, size: 'sm', 'aria-label': `${outcomes.size} of ${rows.length} done` }),
+            h(Select, {
+              label: 'Waiting on you',
+              hideLabel: true,
+              size: 'md',
+              value: row ? row.key : null,
+              placeholder: 'Pick what to review',
+              options: rows.map((r) => ({ value: r.key, label: r.title, description: outcomes.has(r.key) ? outcomeLine(outcomes.get(r.key)!, '').trim() : r.line })),
+              onValueChange: (v: string | null) => v && show(v),
+            }),
+          )
         : null,
     );
 

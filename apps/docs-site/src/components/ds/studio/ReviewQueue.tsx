@@ -51,6 +51,7 @@ export function QueueList({ rows, selected, outcomes, onSelect }: QueueListProps
               key={r.key}
               href={`?item=${encodeURIComponent(r.key)}`}
               className={`rq-item-row is-${state}`}
+              title={r.title}
               active={r.key === selected}
               onClick={(e) => {
                 e.preventDefault();

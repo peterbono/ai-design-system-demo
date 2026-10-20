@@ -62,7 +62,7 @@
 
 .rq-item-text {
   display: inline-block;
-  max-width: calc(100% - var(--size-6));
+  max-width: var(--size-60);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -184,7 +184,8 @@
   }
 
   .rq-pick {
-    display: block;
+    display: grid;
+    gap: var(--space-2);
   }
 
   .rq-bar-keys {
