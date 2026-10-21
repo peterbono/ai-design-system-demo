@@ -130,9 +130,36 @@
   color: var(--color-feedback-success-icon);
 }
 
-.lp-cell[data-state="no"],
-.lp-cell[data-state="unknown"] {
+.lp-cell[data-state="no"] {
   color: var(--color-text-muted);
+}
+
+/* The half mark: a circle with its right half filled. */
+.lp-cell[data-state="partial"] .lp-cell-icon path {
+  fill: currentcolor;
+}
+
+.lp-cell-note,
+.lp-cell-detail {
+  display: block;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-200);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--font-leading-20);
+}
+
+.lp-compare-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  margin: 0;
+  padding: 0;
+  color: var(--color-text-muted);
+  list-style: none;
+}
+
+.lp-compare-key .lp-cell {
+  align-items: center;
 }
 
 .lp-compare-notes {

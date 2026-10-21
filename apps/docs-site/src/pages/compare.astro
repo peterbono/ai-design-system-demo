@@ -1,74 +1,89 @@
 ---
-// /compare/: Bridge next to the tools teams already use, as of October 2026, from their public pages. Partials and
-// unknowns stay as they are; each tool links its source. Data and words: lib/compare.ts. Linked from the landing
-// footer and the Library footer.
+// /compare/: Bridge next to the tools teams already use, as of October 2026, from their public pages. Same rows and
+// cells as the homepage table (lib/compare.ts), with every note written out and the sources listed per tool.
+// Linked from the homepage table, the landing footer and the Library footer.
 import Landing from '../layouts/Landing.astro';
 import { Icon, Link, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@bridge-ds/react';
-import { Check, CircleDashed, HelpCircle, Minus } from 'lucide-react';
-import { AS_OF, FIGMA_NOTE, ROWS, TOOLS, cellText, type CellState } from '../lib/compare';
+import { Check, Contrast, Minus } from 'lucide-react';
+import { AS_OF, GROUPS, KEY, SHORT, SOURCES, STATE_LABEL, TOOLS, type CellState, type CompareRow } from '../lib/compare';
 import { GITHUB_URL } from '../lib/repo';
 import { LIBRARY_HOME, STUDIO_HOME } from '../lib/nav';
 import ButtonLink from '../components/ds/ButtonLink';
 
-const ICON: Record<CellState, typeof Check> = { yes: Check, partial: CircleDashed, no: Minus, unknown: HelpCircle };
+const ICON: Record<CellState, typeof Check> = { yes: Check, partial: Contrast, no: Minus };
+const SECTIONS: { name: string; rows: CompareRow[] }[] = [{ name: 'The differences that matter most', rows: SHORT }, ...GROUPS];
+const STATES: CellState[] = ['yes', 'partial', 'no'];
 ---
 
 <Landing
   title="Compare | Bridge"
-  description={`Bridge next to Supernova, zeroheight, Tokens Studio, Figma, Chromatic and story.to.design, as of ${AS_OF}, from public pages.`}
+  description={`Bridge next to Tokens Studio, Supernova, Storybook, zeroheight and Figma, as of ${AS_OF}, from public pages.`}
 >
   <section class="lp-wrap lp-compare" aria-labelledby="cmp-title">
     <header class="lp-compare-head">
-      <h1 id="cmp-title" class="lp-h">Works with Figma and Storybook. Adds what they don't do.</h1>
+      <h1 id="cmp-title" class="lp-h">Works with Figma and Storybook. Adds the way back to the library.</h1>
       <p class="lp-p">
         Bridge sits next to the tools you already use. What it adds is the way back: from an exploration to the design system, reviewed in the product, with the code and the Figma kit in step.
       </p>
-    </header>
-
-    <Table caption={`Bridge and other design system tools, as of ${AS_OF}`} narrowLayout="scroll" className="lp-compare-table">
-      <TableHeader>
-        <TableRow>
-          <TableHead scope="col" minWidth="13rem">Feature</TableHead>
-          <TableHead scope="col">Bridge</TableHead>
-          {TOOLS.map((t) => <TableHead scope="col">{t.name}</TableHead>)}
-        </TableRow>
-      </TableHeader>
-      <TableBody>
+      <ul class="lp-compare-key">
         {
-          ROWS.map((r) => (
-            <TableRow>
-              <TableCell>
-                <strong>{r.feature}</strong>
-              </TableCell>
-              <TableCell>
-                <span class="lp-cell" data-state="yes">
-                  <Icon icon={Check} size="sm" className="lp-cell-icon" />
-                  Yes
-                </span>
-              </TableCell>
-              {r.cells.map((c) => (
-                <TableCell>
-                  <span class="lp-cell" data-state={c.state}>
-                    <Icon icon={ICON[c.state]} size="sm" className="lp-cell-icon" />
-                    {cellText(c)}
-                  </span>
-                </TableCell>
-              ))}
-            </TableRow>
+          STATES.map((s) => (
+            <li class="lp-cell" data-state={s}>
+              <Icon icon={ICON[s]} size="sm" className="lp-cell-icon" />
+              {KEY[s]}
+            </li>
           ))
         }
-      </TableBody>
-    </Table>
+      </ul>
+    </header>
+
+    {
+      SECTIONS.map((sec) => (
+        <Table caption={sec.name} narrowLayout="scroll" className="lp-compare-table">
+          <TableHeader>
+            <TableRow>
+              <TableHead scope="col" minWidth="13rem">Feature</TableHead>
+              {TOOLS.map((t) => <TableHead scope="col" minWidth="10rem">{t}</TableHead>)}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {sec.rows.map((r) => (
+              <TableRow>
+                <TableCell>
+                  <strong>{r.feature}</strong>
+                  {r.detail && <span class="lp-cell-detail">{r.detail}</span>}
+                </TableCell>
+                {r.cells.map((c) => (
+                  <TableCell>
+                    <span class="lp-cell" data-state={c.state}>
+                      <Icon icon={ICON[c.state]} size="sm" className="lp-cell-icon" />
+                      <span>
+                        {STATE_LABEL[c.state]}
+                        {c.note && <span class="lp-cell-note">{c.note}</span>}
+                      </span>
+                    </span>
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      ))
+    }
 
     <div class="lp-compare-notes">
-      <p class="lp-p"><strong>Figma Code Connect.</strong> {FIGMA_NOTE}</p>
       <p class="lp-caption lp-muted">
         As of {AS_OF}, from public pages. Sources:
         {
-          TOOLS.flatMap((t) => [t.source, ...(t.more ?? [])]).map((s, i, all) => (
+          TOOLS.map((t, ti) => (
             <>
-              <Link href={s.href}>{s.label}</Link>
-              {i < all.length - 1 ? ', ' : '.'}
+              {' '}{t}:{' '}
+              {SOURCES[t].map((s, i, all) => (
+                <>
+                  <Link href={s.href}>{s.label}</Link>
+                  {i < all.length - 1 ? ', ' : ti < TOOLS.length - 1 ? ';' : '.'}
+                </>
+              ))}
             </>
           ))
         }

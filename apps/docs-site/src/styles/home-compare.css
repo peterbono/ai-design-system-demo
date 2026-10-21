@@ -173,6 +173,37 @@
   color: var(--color-text-disabled);
 }
 
+/* The half mark: a circle with its right half filled, lighter than a check, darker than a dash. */
+.hp-cmp-mark[data-state="partial"] {
+  color: var(--color-text-muted);
+}
+
+.hp-cmp-mark[data-state="partial"] svg path {
+  fill: currentcolor;
+}
+
+/* A mark with a note is a ghost DS IconButton (the Tooltip trigger): it keeps the mark's colour and glyph size, and
+   takes no more height than a plain mark. */
+.hp-cmp .hp-cmp-tip {
+  min-height: 0;
+  height: var(--size-6);
+  width: var(--size-6);
+  vertical-align: middle;
+}
+
+.hp-cmp .hp-cmp-tip[data-state="yes"] {
+  color: var(--color-text-link);
+}
+
+.hp-cmp .hp-cmp-tip[data-state="partial"] {
+  color: var(--color-text-muted);
+}
+
+.hp-cmp .hp-cmp-tip svg {
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
+}
+
 /* ---------- legend and date: a row of the card ---------- */
 .hp-cmp-foot {
   display: flex;

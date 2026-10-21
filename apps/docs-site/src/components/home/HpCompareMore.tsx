@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Accordion, AccordionItem } from '@bridge-ds/react';
 import HpCompareTable from './HpCompareTable';
-import { FULL_CAPTION, FULL_FIRST_HEAD, GROUPS, MORE_CLOSED, MORE_OPEN } from '../../lib/compare-home';
+import { FULL_CAPTION, FULL_FIRST_HEAD, GROUPS, MORE_CLOSED, MORE_OPEN } from '../../lib/compare';
 
 const ITEM = 'every-feature';
 
