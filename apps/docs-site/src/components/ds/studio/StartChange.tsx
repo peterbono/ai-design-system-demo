@@ -175,7 +175,9 @@ export default function StartChange({ components, appearance = 'menu' }: StartCh
       setStep('done');
     } catch (err) {
       const msg = (err as Error).message || 'GitHub did not answer.';
-      setError(`${msg.replace(/\.?$/, '.')} Try again, or rename it if one with this name already exists.`);
+      // Suggest mode, or waiting for Bridge Direct's OK: the sentence already says what to do.
+      const plain = (err as Error).name === 'SuggestOnlyError' || session.isDirectWait(err);
+      setError(plain ? msg : `${msg.replace(/\.?$/, '.')} Try again, or rename it if one with this name already exists.`);
     } finally {
       setBusy(false);
     }

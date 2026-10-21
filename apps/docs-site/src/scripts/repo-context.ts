@@ -14,6 +14,7 @@ import {
   gitHubSource,
   GitHubError,
   loadRepoModel,
+  readStylesheets,
   snapshotIsFresh,
   snapshotSource,
   type GitHubClient,
@@ -157,7 +158,13 @@ export async function loadTeamModel(
   const snap = readSnapshot ? await readSnapshot(client, { private: info.private }).catch(() => null) : null;
   if (snap && snapshotIsFresh(snap, sha)) {
     onProgress?.({ step: 'snapshot' });
-    const model = await loadRepoModel(snapshotSource(snap), modelOptions);
+    let model = await loadRepoModel(snapshotSource(snap), modelOptions);
+    // A snapshot written before Bridge read global stylesheets has none of them: read those few files live, so a
+    // token only base styles read is not shown as unused.
+    if (!snap.styles) {
+      const styles = await readStylesheets(gitHubSource(client, sha, { blobCache: cache.blobs(repo, { private: info.private }) }), model.config).catch(() => null);
+      if (styles) model = { ...model, styles: { globs: styles.globs, vars: styles.vars }, problems: [...model.problems, ...styles.problems] };
+    }
     await cache.put(repo, sha, model, { private: info.private });
     remember(model);
     return { model, sha, defaultBranch: info.defaultBranch, private: info.private, cached: false, source: 'snapshot', snapshot: snap };

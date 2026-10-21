@@ -40,7 +40,8 @@ import { devTag, markWork, natureAttr } from './work-filter';
 import { badgeHtml } from '@bridge-ds/react/dom';
 import { paintPeople, personHtml } from './people';
 import { currentViewer, esc, ghGet, hasWorkingToken, initGitHubConnect, prefersSignIn, RateLimitError, readRepo, relativeTime, setButtonBusy, showGhError } from './github-session';
-import { ghAction, rateLimitedLine } from '../lib/gh-wording';
+import { EXPLORATION_SUGGEST_LINE, ghAction, rateLimitedLine } from '../lib/gh-wording';
+import { changesModeOnPage } from './changes-mode';
 import { explorationClient, explorationsConfig, startLinkedExploration } from './exploration-start';
 import { forgetRequests, loadRequestRows, requestRow } from './requests';
 import { setSelect } from '../lib/select-bridge';
@@ -158,10 +159,31 @@ function readStart(form: HTMLFormElement) {
   return { name: v('name'), purpose: v('purpose'), useCase: v('useCase'), jira: v('jira') };
 }
 
+/** Signed in: Start exploration; signed out: the sign-in button. */
 function paintStartAuth() {
   const on = connected();
   document.querySelectorAll<HTMLElement>('#ex-start [data-gh-only]').forEach((el) => (el.hidden = !on));
   document.querySelectorAll<HTMLElement>('#ex-start [data-no-gh]').forEach((el) => (el.hidden = on));
+}
+
+/**
+ * Suggest mode: an exploration is a branch, so the opener says why Bridge does not start one, in place of the
+ * "Start an exploration" button, and the form never opens. True when it did.
+ */
+function paintSuggestMode(): boolean {
+  const suggest = changesModeOnPage() === 'suggest';
+  const opener = document.getElementById('ex-start-open');
+  const note = document.getElementById('ex-suggest');
+  if (opener) opener.hidden = suggest;
+  if (note) {
+    note.textContent = suggest ? EXPLORATION_SUGGEST_LINE : '';
+    note.hidden = !suggest;
+  }
+  if (suggest) {
+    const form = document.getElementById('ex-start');
+    if (form) form.hidden = true;
+  }
+  return suggest;
 }
 
 function paintStartPreview(form: HTMLFormElement) {
@@ -186,6 +208,7 @@ export async function startForRequest(n: number) {
   const form = $<HTMLFormElement>('ex-start');
   const opener = $<HTMLButtonElement>('ex-start-open');
   if (!form || !opener) return;
+  if (paintSuggestMode()) return;
   const r = await requestRow(n);
   if (Number(new URLSearchParams(location.search).get('for')) !== n) return;
   forRequest = r;
@@ -224,7 +247,9 @@ function wireStart() {
   const error = $('ex-start-error');
   const submit = $<HTMLButtonElement>('ex-start-submit');
   if (!form || !opener) return;
+  paintSuggestMode();
   opener.addEventListener('click', () => {
+    if (paintSuggestMode()) return;
     const open = form.hidden;
     if (!open) return closeStart();
     form.hidden = false;

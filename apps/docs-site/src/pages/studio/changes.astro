@@ -28,26 +28,24 @@ import '../../styles/suggestion-review.css';
 import Layout from '../../layouts/Layout.astro';
 import StudioHeader from '../../components/StudioHeader.astro';
 import HistoryPlanner from '../../components/HistoryPlanner.astro';
+import ChangesRequests from '../../components/ChangesRequests.astro';
+import ChangesExplorations from '../../components/ChangesExplorations.astro';
+import ChangesHistory from '../../components/ChangesHistory.astro';
 import ScriptDialog from '../../components/ds/ScriptDialog.astro';
 import Illustration from '../../components/Illustration.astro';
 import { siteIcon } from '../../brand/site-icons';
 import ButtonLink from '../../components/ds/ButtonLink';
-import { Alert, Button, ButtonGroup, Icon, Input, Link, SegmentedControl, Switch, Textarea } from '@bridge-ds/react';
+import { Alert, Button, ButtonGroup, Icon, Link, Textarea } from '@bridge-ds/react';
 import StartChange from '../../components/ds/studio/StartChange';
-import BridgedSelect from '../../components/ds/BridgedSelect';
-import { WORK_FILTERS } from '../../lib/work-nature';
 import { siteRepo } from '../../lib/config';
-import { EXPLORATION_USE_CASES } from '@bridge-ds/core';
 import { lastUpdated, PREVIEW_APPS, PREVIEW_PACKAGES, PRODUCTION_APPS, readText } from '../../lib/repo';
 import { CONTRAST_FILE } from '../../lib/contrast';
 import { pendingChangesets, versionInfo } from '../../lib/changelog';
 import { waitingLine } from '../../lib/release-view';
 import { loadComponents } from '../../lib/components';
-import Example from '../../components/Example';
 import PromoteToReview from '../../components/ds/studio/PromoteToReview';
 import RequestDecide from '../../components/ds/studio/RequestDecide';
 import type { BranchesConfig } from '../../lib/branches';
-import { ghAction, ghButton } from '../../lib/gh-wording';
 import { signInConfig } from '../../lib/signin-config';
 import { REQUEST_TRIAGE_IN_STUDIO } from '../../lib/studio-flags';
 import { VOCAB } from '../../lib/vocabulary';
@@ -61,7 +59,7 @@ const version = versionInfo();
 // The preview of each component (its docs.json preview, rendered with the real components): a request row without
 // an image of its own shows it as its thumbnail.
 const comps = loadComponents();
-const previews = comps.filter((c) => c.docs?.preview);
+const previews = comps.flatMap((c) => (c.docs?.preview ? [{ name: c.name, preview: c.docs.preview }] : []));
 // Create branch: the same menu as Home, its component picker over every component.
 const startComponents = comps.map((c) => ({ name: c.name, slug: c.slug, family: c.category })).sort((a, b) => a.name.localeCompare(b.name));
 // Changes that wait for the next release = changesets on main, the unit the release pull request counts too, so the
@@ -69,8 +67,6 @@ const startComponents = comps.map((c) => ({ name: c.name, slug: c.slug, family: 
 const historyLine = waitingLine(version.current, pendingChangesets().length);
 // Fixture history is a development aid: production builds never show the switch.
 const demoHistory = import.meta.env.DEV;
-// Developer work (code only, lib/work-nature) is tagged in each list; this filter shows when a list holds some.
-const workItems = WORK_FILTERS.map((f) => ({ value: f.value, label: f.label }));
 const sources = ['docs/GOVERNANCE.md', '.github/CODEOWNERS', 'docs/PREVIEWS.md', 'docs/EXPLORATIONS.md', '.changeset'];
 const signIn = Boolean(signInConfig());
 ---
@@ -114,165 +110,9 @@ const signIn = Boolean(signInConfig());
         </div>
       </section>
 
-      <section class="cg-panel" id="cg-requests" aria-label="Component change requests" hidden>
-        <section class="zone cg-open" id="rq-opener" aria-live="polite">
-          <p class="cg-open-sentence" id="rq-sentence">Component change requests load from GitHub.</p>
-          <p class="cg-asof rq-rule">Each request is someone who wants to change a component. Start an exploration and Claude builds it, or assign someone.</p>
-        </section>
-
-<div class="cg-work" data-work-bar hidden>
-          <span class="t-ui t-muted" aria-hidden="true">Show</span>
-          <SegmentedControl label="Show" data-vanilla data-work-filter size="md" defaultValue="all" items={workItems} />
-        </div>
-        <div class="fg-card cg-card" id="rq-table">
-          <ul class="cg-list" id="rq-list" aria-label="Component change requests" aria-busy="true">
-            <li class="cg-row cg-skel" aria-hidden="true"></li>
-            <li class="cg-row cg-skel" aria-hidden="true"></li>
-          </ul>
-        </div>
-
-        <p class="cg-muted cg-work-none" data-work-none hidden></p>
-
-        <details class="cg-other" id="rq-closed" hidden>
-          <summary class="cg-sec-head"><span class="cg-sec-title">Done and declined</span><span class="cg-sec-meta" id="rq-closed-n"></span><span class="cg-sec-chev" aria-hidden="true"></span></summary>
-          <ul class="fg-card cg-list" id="rq-closed-list" aria-label="Closed component change requests"></ul>
-        </details>
-
-        <div hidden id="rq-previews">
-          {previews.map((c) => <template data-component={c.name}><Example node={c.docs!.preview!} /></template>)}
-        </div>
-
-        <div class="cg-empty" id="rq-empty" hidden>
-          <Illustration name="guide" width={200} />
-          <p class="cg-empty-title">No component change request yet.</p>
-          <p class="cg-muted rq-empty-text">
-            Designers ask for a new component or a change from the Push tab of the DS Bridge Figma plugin, or from a component in <Link href={studioHref('components/')}>Components</Link>.
-            Developers see each request where they work, on GitHub.
-          </p>
-        </div>
-      </section>
-
-      <section class="cg-panel" id="cg-explore" aria-label="Explorations" hidden>
-        <section class="zone cg-open" id="ex-opener" aria-live="polite">
-          <p class="cg-open-sentence" id="ex-sentence">Explorations load from GitHub.</p>
-          <p class="cg-asof ex-rule">Try token and component ideas in a safe copy, test them in staging, then request a review for the good ones.</p>
-          <Button variant="primary" id="ex-start-open" aria-expanded="false" aria-controls="ex-start">Start an exploration</Button>
-        </section>
-
-        <form class="fg-card rq-form ex-form" id="ex-start" aria-label="Start an exploration" novalidate hidden>
-          <p class="ex-for" id="ex-for" hidden></p>
-          <Input label="Name" name="name" autoComplete="off" maxLength={60} placeholder="Pill buttons" hint="Teammates see this name in Branches and in the Figma plugin." />
-          <Textarea label="What do you want to learn?" name="purpose" rows={2} placeholder="Do rounder buttons read as friendlier in checkout?" />
-          <div class="ex-uc">
-            <BridgedSelect
-              client:load
-              id="ex-use-case"
-              label="Use case"
-              name="useCase"
-              size="md"
-              value=""
-              aria-describedby="ex-uc-hint"
-              options={[{ value: '', label: 'Not set' }, ...EXPLORATION_USE_CASES.map((u) => ({ value: u.value, label: u.label }))]}
-            />
-            <p class="rq-hint" id="ex-uc-hint"></p>
-          </div>
-          <Input
-            label="Jira ticket"
-            name="jira"
-            autoComplete="off"
-            spellCheck={false}
-            maxLength={20}
-            placeholder="DS-42"
-            hint="Optional. Links this branch to the ticket in Jira."
-          />
-          <p class="gh-error" id="ex-start-error" role="alert" hidden></p>
-          <p class="rq-hint ex-no-gh" data-no-gh>{ghAction('start it here', signIn)}.</p>
-          <p class="ex-actions">
-            <Button type="submit" variant="primary" id="ex-start-submit" data-gh-only hidden>Start exploration</Button>
-            <Button variant="secondary" data-no-gh data-gh-open>{ghButton(signIn)}</Button>
-            <Button variant="ghost" data-ex-cancel>Cancel</Button>
-          </p>
-        </form>
-        <div class="ex-done" id="ex-done" role="status" hidden></div>
-
-<div class="cg-work" data-work-bar hidden>
-          <span class="t-ui t-muted" aria-hidden="true">Show</span>
-          <SegmentedControl label="Show" data-vanilla data-work-filter size="md" defaultValue="all" items={workItems} />
-        </div>
-        <div class="fg-card cg-card" id="ex-table">
-          <ul class="cg-list" id="ex-list" aria-label="Explorations" aria-busy="true">
-            <li class="cg-row cg-skel" aria-hidden="true"></li>
-            <li class="cg-row cg-skel" aria-hidden="true"></li>
-          </ul>
-        </div>
-
-        <p class="cg-muted cg-work-none" data-work-none hidden></p>
-
-        <div class="cg-empty" id="ex-empty" hidden>
-          <Illustration name="guide" width={200} />
-          <p class="cg-empty-title">No exploration running.</p>
-          <p class="cg-muted ex-rule">Start one when an idea needs real screens before it goes to review:</p>
-          <ul class="ex-uses">
-            <li>A coded prototype for a user test, in staging.</li>
-            <li>A stakeholder demo of a new look, with real components.</li>
-            <li>An A/B idea, next to what is live today.</li>
-            <li>Exploring with Claude Code, in a safe copy of the library.</li>
-          </ul>
-        </div>
-      </section>
-
-      <section class="cg-panel" id="cg-history" aria-label="History" hidden>
-        <section class="zone cg-open hs-next" id="hs-next" aria-live="polite" aria-labelledby="hs-next-title">
-          <p class="cg-open-sentence" id="hs-next-title">{historyLine}</p>
-          <ul class="hs-next-lines" id="hs-next-lines" hidden></ul>
-          <p class="cg-asof" id="hs-next-who" hidden></p>
-          <ButtonLink variant="primary" href={studioHref('changes/')} id="hs-next-cta" hidden>Review and publish</ButtonLink>
-        </section>
-        <div class="cg-hs-head">
-          <p class="cg-hs-line">Token changes, by release</p>
-          <Button variant="secondary" size="sm" id="hs-filter-toggle" aria-expanded="false" aria-controls="hs-filters">Filter</Button>
-        </div>
-        <form class="hs-filters" id="hs-filters" role="search" aria-label="Filter history" hidden>
-          <Input label="Token" size="md" data-hs-token list="hs-paths" placeholder="color.text.muted or color.text" autoComplete="off" spellCheck={false} />
-          <datalist id="hs-paths"></datalist>
-          <BridgedSelect client:load id="hs-author" label="Author" size="md" value="" options={[{ value: '', label: 'Anyone' }]} />
-          <BridgedSelect
-            client:load
-            id="hs-tier"
-            label="Kind of change"
-            size="md"
-            value=""
-            options={[
-              { value: '', label: 'Any change' },
-              { value: '3', label: 'Token changes', description: 'Design and tech approval' },
-              { value: '2', label: 'Component changes', description: 'Design and tech approval' },
-              { value: '1', label: 'Docs fixes', description: 'One approval' },
-            ]}
-          />
-          <Button type="reset" variant="secondary" size="md" id="hs-clear">Clear filters</Button>
-        </form>
-        <Alert tone="warning" announce="off" title="Demo data: fixture changes, not this repository's history." className="st-hideable st-hs-banner" id="hs-banner" hidden>Nothing here can be proposed.</Alert>
-
-        <div id="hs-list-view">
-          <div class="cg-timeline" id="hs-timeline" aria-busy="true">
-            <div class="fg-card cg-card"><ul class="cg-list"><li class="cg-row cg-skel" aria-hidden="true"></li></ul></div>
-          </div>
-          <p class="hs-none" id="hs-none" hidden>No change matches these filters. <Button variant="ghost" size="sm" data-hs-clear>Clear filters</Button></p>
-        </div>
-        <div id="hs-detail" class="hs-detail" hidden></div>
-
-        <div class="hs-bar cg-hs-foot">
-          {
-            demoHistory && (
-              <>
-                <Switch label="Show demo history" size="sm" id="hs-demo" data-vanilla="" />
-                <span class="cg-muted">Development only: fixture changes, to try the timeline and undo.</span>
-              </>
-            )
-          }
-          <Link className="cg-hs-log" href="/changelog/">Library changelog</Link>
-        </div>
-      </section>
+      <ChangesRequests previews={previews} />
+      <ChangesExplorations signIn={signIn} />
+      <ChangesHistory historyLine={historyLine} demoHistory={demoHistory} changelog="/changelog/" />
     </div>
     <div id="rv-detail" class="rv-detail" hidden></div>
     <div id="sg-detail" class="rv-detail" hidden></div>

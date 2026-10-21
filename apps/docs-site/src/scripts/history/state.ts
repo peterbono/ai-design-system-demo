@@ -2,7 +2,8 @@
 // reports stay separate; the toggle only picks which one a view shows, and every demo view carries a banner.
 // On a team shell (multi-team PR 3b) there is no build-time history: it is read from GitHub with core
 // loadGitHubHistory, lazily (only when a view asks), signed in only (it costs a few reads per change).
-import { buildReport, layoutOptions, loadConfig, loadGitHubHistory, parseContrastChecks, type BridgeConfig, type ContrastPair, type HistoryReport } from '@bridge-ds/core';
+import { buildReport, gitHubHistoryBackend, layoutOptions, loadConfig, loadGitHubHistory, parseContrastChecks, type BridgeConfig, type ContrastPair, type HistoryEntry, type HistoryReport } from '@bridge-ds/core';
+import { reviewTokenChange, type TokenReview } from '../../lib/token-review';
 import type { HistoryData } from '../../lib/history';
 import { isHosted, studioHref } from '../../lib/team-path';
 import { loadTeamData } from '../team-data';
@@ -11,6 +12,8 @@ import { explorerConfig } from '../explorer/data';
 /** Changes read from a team's repository: each costs a few GitHub reads (its pull request, its token files). */
 export const TEAM_HISTORY_LIMIT = 20;
 export const TEAM_HISTORY_SIGN_IN = "Sign in with GitHub to see this repository's token history. Reading it takes more GitHub requests than a visit without signing in allows.";
+/** Under a capped team history: where the older changes are. */
+export const teamHistoryCapNote = (limit: number) => `The ${limit} latest token changes. Older ones are on GitHub.`;
 
 let data: Promise<HistoryData> | null = null;
 
@@ -40,7 +43,29 @@ async function teamHistoryData(): Promise<HistoryData> {
   };
   if (!d.client.canWrite) return { ...base, real: null, realNote: TEAM_HISTORY_SIGN_IN };
   const real = await loadGitHubHistory(d.client, loadConfig(config), { ref: d.defaultBranch, limit: TEAM_HISTORY_LIMIT });
-  return { ...base, real, realNote: real.truncated ? `The ${TEAM_HISTORY_LIMIT} latest token changes.` : null };
+  return { ...base, real, realNote: real.truncated ? teamHistoryCapNote(TEAM_HISTORY_LIMIT) : null };
+}
+
+const teamReviews = new Map<string, Promise<TokenReview | null>>();
+
+/**
+ * The designer diff of one entry of a team's history, read on demand: the token files on each side of the change
+ * (two trees, the changed bodies). The self-hosted build computes them all at build time; a team reads only the one
+ * opened. Null for an import or a change without a parent.
+ */
+export function teamEntryReview(e: HistoryEntry, L: Loaded): Promise<TokenReview | null> {
+  if (e.bulk || !e.baseSha) return Promise.resolve(null);
+  let p = teamReviews.get(e.id);
+  if (!p) {
+    p = loadTeamData().then(async (d) => {
+      const backend = gitHubHistoryBackend(d.client, L.config);
+      const [before, after] = await Promise.all([backend.tokenFiles(e.baseSha!), backend.tokenFiles(e.sha)]);
+      return reviewTokenChange(Object.fromEntries(before), Object.fromEntries(after), L.pairs, L.layout);
+    });
+    p.catch(() => teamReviews.delete(e.id));
+    teamReviews.set(e.id, p);
+  }
+  return p;
 }
 
 export interface Loaded {

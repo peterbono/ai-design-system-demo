@@ -105,6 +105,38 @@ export function globBase(glob: string): string {
   return fixed.join('/');
 }
 
+/**
+ * The global stylesheets of a repository (styleGlobs): one listing per glob folder, files under the components folder
+ * left to the component scan, at most REPO_MODEL_DEFAULTS.maxStylesheets (a problem says when more match).
+ */
+export async function listStylesheets(source: RepoSource, config: BridgeConfig): Promise<{ globs: string[]; paths: string[]; problems: string[] }> {
+  const globs = styleGlobs(config);
+  const matchers = globs.map(globToRegExp);
+  const compDir = config.components?.dir ?? REPO_MODEL_DEFAULTS.componentsDir;
+  const bases = [...new Set(globs.map(globBase))].filter((b, _, all) => !all.some((o) => o !== b && (o === '' || b.startsWith(`${o}/`))));
+  const listed = (await Promise.all(bases.map((b) => source.list(b)))).flat();
+  const paths = [...new Set(listed)].filter((p) => matchers.some((re) => re.test(p)) && !p.startsWith(`${compDir}/`)).sort();
+  const max = REPO_MODEL_DEFAULTS.maxStylesheets;
+  if (paths.length <= max) return { globs, paths, problems: [] };
+  return { globs, paths: paths.slice(0, max), problems: [`components.styles matches ${paths.length} files: Bridge reads the first ${max}. Narrow the globs to the stylesheets the library ships.`] };
+}
+
+/**
+ * The global stylesheets of a repository with the CSS custom properties each reads: what RepoModel.styles holds.
+ * loadRepoModel reads them with everything else; a model computed without them (an older snapshot) can be completed
+ * with this alone.
+ */
+export async function readStylesheets(source: RepoSource, config: BridgeConfig, concurrency = 8): Promise<RepoModel['styles'] & { problems: string[] }> {
+  const { globs, paths, problems } = await listStylesheets(source, config);
+  const bodies = await readRepoTexts(source, paths, concurrency);
+  const vars: Record<string, string[]> = {};
+  for (const p of paths) {
+    const text = bodies.get(p);
+    if (typeof text === 'string') vars[p] = cssVarsIn(text);
+  }
+  return { globs, vars, problems };
+}
+
 /** Fills the paths a config leaves out with REPO_MODEL_DEFAULTS (tokens.root, components.dir). */
 function withModelDefaults(raw: Record<string, unknown>): Record<string, unknown> {
   const tokens = (raw.tokens && typeof raw.tokens === 'object' ? raw.tokens : {}) as Record<string, unknown>;
@@ -261,17 +293,10 @@ export async function loadRepoModel(source: RepoSource, options: RepoModelOption
     }
     codeRead.push(indexPath);
   }
-  // Global stylesheets (components.styles): one listing per glob folder, files under the components folder left to
-  // the component scan.
-  const globs = styleGlobs(config);
-  const matchers = globs.map(globToRegExp);
-  const bases = [...new Set(globs.map(globBase))].filter((b, _, all) => !all.some((o) => o !== b && (o === '' || b.startsWith(`${o}/`))));
-  const listed = (await Promise.all(bases.map((b) => source.list(b)))).flat();
-  let stylePaths = [...new Set(listed)].filter((p) => matchers.some((re) => re.test(p)) && !p.startsWith(`${comps.dir}/`)).sort();
-  if (stylePaths.length > REPO_MODEL_DEFAULTS.maxStylesheets) {
-    problems.push(`components.styles matches ${stylePaths.length} files: Bridge reads the first ${REPO_MODEL_DEFAULTS.maxStylesheets}. Narrow the globs to the stylesheets the library ships.`);
-    stylePaths = stylePaths.slice(0, REPO_MODEL_DEFAULTS.maxStylesheets);
-  }
+  // Global stylesheets (components.styles): their paths are known from listings, before any body.
+  const listedStyles = await listStylesheets(source, config);
+  problems.push(...listedStyles.problems);
+  const stylePaths = listedStyles.paths;
   codeRead.push(...stylePaths);
   // A path is read once, in the first phase that asks for it.
   const seen = new Set<string>();
@@ -379,7 +404,7 @@ export async function loadRepoModel(source: RepoSource, options: RepoModelOption
     tokens: { root, files, rows, usage },
     contrast: { path: contrastPath, specs, pairs },
     components,
-    styles: { globs, vars: styleVars },
+    styles: { globs: listedStyles.globs, vars: styleVars },
     specs: { path: specsPath, file: specsFile, coverage },
   };
 }

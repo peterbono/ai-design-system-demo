@@ -1,0 +1,89 @@
+---
+// Branches > Explorations: the "Start an exploration" form (?view=explorations&start=new, or &for=<request>) and the
+// list, painted by scripts/explorations.ts. Shared by the self-hosted Branches page and its team shell. In suggest
+// mode the opener says why Bridge does not start one instead of offering the form (#ex-suggest, from the repository's
+// mode).
+import { Button, Input, SegmentedControl, Textarea } from '@bridge-ds/react';
+import { EXPLORATION_USE_CASES } from '@bridge-ds/core';
+import Illustration from './Illustration.astro';
+import BridgedSelect from './ds/BridgedSelect';
+import { WORK_FILTERS } from '../lib/work-nature';
+import { ghAction, ghButton } from '../lib/gh-wording';
+
+interface Props {
+  /** Sign in with GitHub is set up (signInConfig): the wording of the connect button. */
+  signIn: boolean;
+}
+const { signIn } = Astro.props;
+const workItems = WORK_FILTERS.map((f) => ({ value: f.value, label: f.label }));
+---
+
+<section class="cg-panel" id="cg-explore" aria-label="Explorations" hidden>
+  <section class="zone cg-open" id="ex-opener" aria-live="polite">
+    <p class="cg-open-sentence" id="ex-sentence">Explorations load from GitHub.</p>
+    <p class="cg-asof ex-rule">Try token and component ideas in a safe copy, test them in staging, then request a review for the good ones.</p>
+    <Button variant="primary" className="st-hideable" id="ex-start-open" aria-expanded="false" aria-controls="ex-start">Start an exploration</Button>
+    <p class="cg-asof ex-suggest" id="ex-suggest" hidden></p>
+  </section>
+
+  <form class="fg-card rq-form ex-form" id="ex-start" aria-label="Start an exploration" novalidate hidden>
+    <p class="ex-for" id="ex-for" hidden></p>
+    <Input label="Name" name="name" autoComplete="off" maxLength={60} placeholder="Pill buttons" hint="Teammates see this name in Branches and in the Figma plugin." />
+    <Textarea label="What do you want to learn?" name="purpose" rows={2} placeholder="Do rounder buttons read as friendlier in checkout?" />
+    <div class="ex-uc">
+      <BridgedSelect
+        client:load
+        id="ex-use-case"
+        label="Use case"
+        name="useCase"
+        size="md"
+        value=""
+        aria-describedby="ex-uc-hint"
+        options={[{ value: '', label: 'Not set' }, ...EXPLORATION_USE_CASES.map((u) => ({ value: u.value, label: u.label }))]}
+      />
+      <p class="rq-hint" id="ex-uc-hint"></p>
+    </div>
+    <Input
+      label="Jira ticket"
+      name="jira"
+      autoComplete="off"
+      spellCheck={false}
+      maxLength={20}
+      placeholder="DS-42"
+      hint="Optional. Links this branch to the ticket in Jira."
+    />
+    <p class="gh-error" id="ex-start-error" role="alert" hidden></p>
+    <p class="rq-hint ex-no-gh" data-no-gh>{ghAction('start it here', signIn)}.</p>
+    <p class="ex-actions">
+      <Button type="submit" variant="primary" id="ex-start-submit" data-gh-only hidden>Start exploration</Button>
+      <Button variant="secondary" data-no-gh data-gh-open>{ghButton(signIn)}</Button>
+      <Button variant="ghost" data-ex-cancel>Cancel</Button>
+    </p>
+  </form>
+  <div class="ex-done" id="ex-done" role="status" hidden></div>
+
+  <div class="cg-work" data-work-bar hidden>
+    <span class="t-ui t-muted" aria-hidden="true">Show</span>
+    <SegmentedControl label="Show" data-vanilla data-work-filter size="md" defaultValue="all" items={workItems} />
+  </div>
+  <div class="fg-card cg-card" id="ex-table">
+    <ul class="cg-list" id="ex-list" aria-label="Explorations" aria-busy="true">
+      <li class="cg-row cg-skel" aria-hidden="true"></li>
+      <li class="cg-row cg-skel" aria-hidden="true"></li>
+    </ul>
+  </div>
+
+  <p class="cg-muted cg-work-none" data-work-none hidden></p>
+
+  <div class="cg-empty" id="ex-empty" hidden>
+    <Illustration name="guide" width={200} />
+    <p class="cg-empty-title">No exploration running.</p>
+    <p class="cg-muted ex-rule">Start one when an idea needs real screens before it goes to review:</p>
+    <ul class="ex-uses">
+      <li>A coded prototype for a user test, in staging.</li>
+      <li>A stakeholder demo of a new look, with real components.</li>
+      <li>An A/B idea, next to what is live today.</li>
+      <li>Exploring with Claude Code, in a safe copy of the library.</li>
+    </ul>
+  </div>
+</section>

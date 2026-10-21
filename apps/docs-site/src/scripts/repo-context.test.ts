@@ -170,6 +170,20 @@ describe('loadTeamModel with a snapshot', () => {
     expect(calls).toEqual(['https://api.github.com/repos/acme/ds', 'https://api.github.com/repos/acme/ds/git/ref/heads/trunk']);
   });
 
+  it('completes a snapshot written before global stylesheets were read, with those files only', async () => {
+    const styled = { ...files, 'src/styles/base.css': 'body { color: var(--color-ink); }' };
+    const rec = recordingSource({ ref: { owner: 'acme', repo: 'ds', sha: SHA }, list: async (prefix) => Object.keys(files).filter((p) => !prefix || p.startsWith(`${prefix}/`)), text: async (p) => files[p as keyof typeof files] ?? null });
+    const { styles: _globs, ...older } = buildSnapshot({ model: await loadRepoModel(rec.source, { components: false }), paths: rec.paths, files: rec.files, version: '0.11.0', branch: 'trunk' });
+    const { client, calls } = fakeRepo(styled);
+    const read = await loadTeamModel(client, { cache: memoryCache(), components: false, snapshot: async () => older });
+    expect(read.source).toBe('snapshot');
+    expect(read.model.styles.vars).toEqual({ 'src/styles/base.css': ['--color-ink'] });
+    expect(calls.filter((u) => u.includes('/git/trees/'))).toHaveLength(1);
+    // A current snapshot says which globs it read: nothing more to read, even with no stylesheet.
+    const current = await snapshotAt(SHA);
+    expect(current.styles).toEqual(['src/styles/**/*.css', 'src/theme/**/*.css']);
+  });
+
   it('reads the repository live when the snapshot is older than the head, missing or broken', async () => {
     const old = await snapshotAt('c'.repeat(40));
     for (const reader of [async () => old, async () => null, async () => Promise.reject(new Error('boom'))]) {

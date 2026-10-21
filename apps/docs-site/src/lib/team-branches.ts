@@ -3,11 +3,24 @@
 import type { SuggestionKind, SuggestionListItem } from '@bridge-ds/core';
 import type { ThumbSpec } from './branch-thumb';
 import { shortTitle, statusBadge, type SuggestionTone } from './suggestions-view';
+import { REQUEST_TRIAGE_IN_STUDIO } from './studio-flags';
 
-/** What opens in place on the page, from its address. A running exploration is a branch: it opens as one. */
-export type TeamBranchesRoute = { view: 'list' } | { view: 'pr'; n: number } | { view: 'suggestion'; n: number };
+/**
+ * What the page shows, from its address, with the same rules as the self-hosted Branches page (scripts/changes.ts):
+ * a branch, a suggestion or a component change request in place; History (?view=history); the exploration start form
+ * (?view=explorations with &start=new or &for=<request>); Requests (?view=requests) only when request triage is on in
+ * Studio. Anything else is the list. A running exploration is a branch: it opens as one.
+ */
+export type TeamBranchesRoute =
+  | { view: 'list' }
+  | { view: 'pr'; n: number }
+  | { view: 'suggestion'; n: number }
+  | { view: 'request'; n: number }
+  | { view: 'history' }
+  | { view: 'requests' }
+  | { view: 'explorations'; forRequest: number | null };
 
-export function teamBranchesRoute(search: string): TeamBranchesRoute {
+export function teamBranchesRoute(search: string, requestTriage: boolean = REQUEST_TRIAGE_IN_STUDIO): TeamBranchesRoute {
   const p = new URLSearchParams(search);
   const num = (k: string) => {
     const n = Number(p.get(k));
@@ -15,8 +28,20 @@ export function teamBranchesRoute(search: string): TeamBranchesRoute {
   };
   if (num('suggestion')) return { view: 'suggestion', n: num('suggestion') };
   const pr = num('pr') || num('exploration');
-  return pr ? { view: 'pr', n: pr } : { view: 'list' };
+  if (pr) return { view: 'pr', n: pr };
+  if (num('request')) return { view: 'request', n: num('request') };
+  const v = p.get('view');
+  if (v === 'history') return { view: 'history' };
+  if (v === 'requests' && requestTriage) return { view: 'requests' };
+  if (v === 'explorations' && (num('for') || p.get('start') === 'new')) return { view: 'explorations', forRequest: num('for') || null };
+  return { view: 'list' };
 }
+
+/** The History card's sentence until the team's release branch is read (it replaces it when there is one). */
+export const TEAM_HISTORY_LINE = 'Every token change merged into the main branch, by release.';
+
+/** The page title per view, as on the self-hosted page. */
+export const TEAM_VIEW_TITLE = { list: 'Branches', history: 'History', requests: 'Requests', explorations: 'Explorations' } as const;
 
 export interface SuggestionRow {
   number: number;

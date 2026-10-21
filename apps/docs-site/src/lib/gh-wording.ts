@@ -91,6 +91,10 @@ export function suggestOnlyLine(action: string, instead?: string): string {
   return `This design system takes suggestions, so Bridge does not ${action} here.${instead ? ` ${instead}` : ''}`;
 }
 
+/** Why an exploration does not start in suggest mode: it is a branch. Shown on the start form and when it is asked for. */
+export const EXPLORATION_SUGGEST_INSTEAD = 'An exploration is a branch: a developer of the team can start one from Claude Code.';
+export const EXPLORATION_SUGGEST_LINE = suggestOnlyLine('start explorations', EXPLORATION_SUGGEST_INSTEAD);
+
 // ---------------------------------------------------------------------------------------------------------------
 // Saving to branches on a team page (multi-team plan 3.2, PR 3d). Everyone signs in with Bridge, which reads and sends
 // suggestions. A team in direct mode saves changes on branches: the first time someone does that, Bridge asks GitHub
