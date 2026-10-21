@@ -38,7 +38,7 @@ import {
   saveDraft,
   withHue,
 } from '../../../lib/new-brand';
-import { ghAuthFailure, hasWorkingToken, tokenRejected } from '../../../scripts/github-session';
+import { ghAuthFailure, hasWorkingToken, isDirectWait, tokenRejected } from '../../../scripts/github-session';
 import { type ProposedBrand, proposeBrand } from '../../../scripts/new-brand';
 import { ghAction, SEE_SUGGESTION, sendButton, sendGoal, SUGGEST_NEXT, SUGGESTION_SENT, suggestionSentLine } from '../../../lib/gh-wording';
 import { parseJiraKey, VOCAB } from '../../../lib/vocabulary';
@@ -50,13 +50,20 @@ export interface NewBrandFlowProps {
   contrastText: string;
   /** The site has Sign in with GitHub (a GitHub App): the connect action says "Sign in". */
   signIn?: boolean;
+  /**
+   * The repository the brand goes to. A team page passes the team in its address; the self-hosted Studio leaves it
+   * out and uses bridge.config.json "repo" (else the demo).
+   */
+  repo?: { owner: string; name: string; defaultBranch: string };
+  /** Keeps the draft per team ("owner/repo") on team pages, so a draft never follows you to another team. */
+  draftScope?: string;
 }
 
 const RADIUS_SCALE = [0, 2, 4, 6, 10, 12, 16, 20];
 const RADIUS_STEP: Record<number, string> = { 0: 'none', 2: 'xs', 4: 'sm', 6: 'md', 10: 'lg', 12: 'xl', 16: '2xl', 20: '3xl' };
 const ROLE_LABEL = { inset: 'Inset (checkboxes, tags)', control: 'Controls (buttons, inputs)', container: 'Containers (cards, menus)', overlay: 'Overlays (dialogs, toasts)' } as const;
 
-export default function NewBrandFlow({ files, configText, contrastText, signIn = false }: NewBrandFlowProps) {
+export default function NewBrandFlow({ files, configText, contrastText, signIn = false, repo: target, draftScope }: NewBrandFlowProps) {
   const source = useMemo<BrandSource>(() => ({ config: loadConfig(configText), configText, files, contrastText }), [files, configText, contrastText]);
   const brands = useMemo(() => listBrands(source), [source]);
   // How changes reach the code (bridge.config.json "changes"): a suggestion, or a draft branch in review.
@@ -78,7 +85,10 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
   const headingId = useId();
 
   useEffect(() => {
-    const d = loadDraft(brands.map((b) => b.slug));
+    const d = loadDraft(
+      brands.map((b) => b.slug),
+      draftScope,
+    );
     if (d) {
       setDraft(d);
       if (d.slug !== undefined) setSlugOpen(true);
@@ -91,10 +101,10 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
     sync();
     document.addEventListener('bridge:auth', sync);
     return () => document.removeEventListener('bridge:auth', sync);
-  }, [brands]);
+  }, [brands, draftScope]);
   useEffect(() => {
-    if (restored && !done) saveDraft(draft);
-  }, [draft, restored, done]);
+    if (restored && !done) saveDraft(draft, draftScope);
+  }, [draft, restored, done, draftScope]);
 
   const deferred = useDeferredValue(draft);
   const plan = useMemo(() => planDraft(source, deferred), [source, deferred]);
@@ -120,11 +130,17 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
     setBusy(true);
     setError(null);
     try {
-      const repo = source.config.repo ?? { owner: 'peterbono', name: 'ai-design-system-demo', defaultBranch: 'main' };
+      const repo = target ?? source.config.repo ?? { owner: 'peterbono', name: 'ai-design-system-demo', defaultBranch: 'main' };
       const pr = await proposeBrand(draft, repo, source.config.tokens.root, parseJiraKey(jira), mode);
       setDone(pr);
-      saveDraft(null);
+      saveDraft(null, draftScope);
     } catch (e) {
+      // Waiting for Bridge Direct's OK (a team in direct mode): its dialog is open, nothing was sent.
+      if (isDirectWait(e)) {
+        setError((e as Error).message);
+        setErrorHref(null);
+        return;
+      }
       const auth = ghAuthFailure(e, suggest ? 'send suggestions' : 'create branches');
       setError(auth?.text ?? (e as Error).message);
       setErrorHref(auth?.href ?? null);
