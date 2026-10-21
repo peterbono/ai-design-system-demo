@@ -1,5 +1,19 @@
 # @bridge-ds/docs-site
 
+## 0.10.0
+
+### Minor Changes
+
+- e89cf36: A product landing at "/": explore with AI, keep what works in your design system. The trip of one change down a line, from an exploration to the library branch you open in one click, the review in the product, and the design system, all built with real Bridge components. A comparison page at /compare/ (as of October 2026, from public pages, with what Figma Code Connect does and does not do). The Library home moves to /library/; every other link keeps working. The Bridge agent account (bridge-agent) is named Claude AI on reviews, like everywhere else.
+
+### Patch Changes
+
+- Updated dependencies [22e53c7]
+- Updated dependencies [e1f8f0c]
+- Updated dependencies [e59366e]
+- Updated dependencies [a99fbb9]
+  - @bridge-ds/core@0.10.0
+
 ## 0.9.0
 
 ### Minor Changes
