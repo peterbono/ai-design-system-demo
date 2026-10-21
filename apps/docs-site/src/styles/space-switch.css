@@ -1,0 +1,386 @@
+/* The Library <-> Studio switch (components/SpaceSwitch.tsx): a white pill names the space you are in, on a Deep Harbor
+   track; the other space waits at the end as one drawn icon. Click: the pill slides with a slight stretch in flight,
+   the word flips, the icons swap with a spin and a small overshoot, then the other space loads (scripts/space-switch.ts).
+   Hover: the pill leans toward the icon, a soft halo opens and the icon acts out its space (the pen scribbles, the book
+   turns a page). Press: the control squishes to 96%. Reduced motion: no movement, the pieces change in place. */
+
+a.space-switch {
+  --_h: var(--size-10);
+  --_inset: var(--space-0-5);
+  --_pw: var(--space-24);
+  --_iw: var(--size-10);
+  --_lean: var(--space-1);
+  --_slide: calc(var(--motion-duration-moderate) * 2);
+  --_ink: var(--color-text-default);
+
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: calc(var(--_pw) + var(--_iw) + var(--_inset) * 2);
+  height: var(--_h);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface-strong);
+  color: var(--color-text-on-solid);
+  text-decoration-line: none;
+  margin-inline-start: var(--space-2);
+  -webkit-tap-highlight-color: transparent;
+  transition: scale var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+/* The pill keeps dark ink on its light face in both themes. */
+:root[data-theme="dark"] a.space-switch {
+  --_ink: var(--color-text-inverse);
+}
+
+@media (hover: hover) {
+  a.space-switch:hover {
+    color: var(--color-text-on-solid);
+  }
+}
+
+a.space-switch:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.ss-pill {
+  position: absolute;
+  z-index: 1;
+  top: var(--_inset);
+  left: var(--_inset);
+  display: grid;
+  place-items: center;
+  width: var(--_pw);
+  height: calc(var(--_h) - var(--_inset) * 2);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-control-thumb);
+  box-shadow: var(--elevation-raised);
+  color: var(--_ink);
+  perspective: 10em;
+  transition:
+    transform var(--_slide) var(--motion-easing-enter),
+    scale var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+a.space-switch[data-mode="studio"] .ss-pill {
+  transform: translateX(var(--_iw));
+}
+
+/* The word: the old one tips up and away, the new one rises in. The new word starts before the old one has gone, so
+   the pill is never blank mid-switch. */
+.ss-word {
+  display: grid;
+  font-family: var(--typography-ui-family);
+  font-size: var(--font-size-300);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--typography-ui-line-height);
+  letter-spacing: var(--font-tracking-snug);
+}
+
+.ss-word > span {
+  grid-area: 1 / 1;
+  text-align: center;
+  backface-visibility: hidden;
+  transition:
+    transform var(--_slide) var(--motion-easing-enter),
+    opacity var(--motion-duration-fast) var(--motion-easing-standard) calc(var(--motion-duration-instant) / 2);
+}
+
+a.space-switch[data-mode="library"] .ss-word > [data-when="studio"],
+a.space-switch[data-mode="studio"] .ss-word > [data-when="library"] {
+  opacity: 0;
+  transition:
+    transform var(--motion-duration-moderate) var(--motion-easing-exit),
+    opacity var(--motion-duration-instant) var(--motion-easing-exit);
+}
+
+a.space-switch[data-mode="library"] .ss-word > [data-when="studio"] {
+  transform: translateY(0.6em) rotateX(-80deg);
+}
+
+a.space-switch[data-mode="studio"] .ss-word > [data-when="library"] {
+  transform: translateY(-0.6em) rotateX(80deg);
+}
+
+/* The icon of the other space, at the far end of the track. */
+.ss-icon {
+  position: absolute;
+  top: var(--_inset);
+  display: grid;
+  place-items: center;
+  width: var(--_iw);
+  height: calc(var(--_h) - var(--_inset) * 2);
+}
+
+.ss-to-library {
+  left: var(--_inset);
+}
+
+.ss-to-studio {
+  left: calc(var(--_inset) + var(--_pw));
+}
+
+/* The halo behind the icon on hover and focus: the track's own white, faint. */
+.ss-icon::before {
+  content: "";
+  position: absolute;
+  width: var(--size-7);
+  height: var(--size-7);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-text-on-solid);
+  opacity: 0;
+  scale: 0.4;
+  transition:
+    opacity var(--motion-duration-fast) var(--motion-easing-standard),
+    scale var(--motion-duration-moderate) var(--motion-easing-enter);
+}
+
+.ss-glyph {
+  position: relative;
+  width: var(--size-5);
+  height: var(--size-5);
+  overflow: visible;
+  stroke: currentcolor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition:
+    opacity var(--motion-duration-fast) var(--motion-easing-standard),
+    scale var(--motion-duration-fast) var(--motion-easing-exit),
+    rotate var(--motion-duration-fast) var(--motion-easing-exit);
+}
+
+/* The icon of the space you are in hides under the pill, shrunk and turned away. */
+a.space-switch[data-mode="library"] .ss-to-library .ss-glyph,
+a.space-switch[data-mode="studio"] .ss-to-studio .ss-glyph {
+  opacity: 0;
+  scale: 0.3;
+  rotate: -110deg;
+}
+
+.ss-nib {
+  transform-box: view-box;
+  transform-origin: 30% 75%;
+}
+
+.ss-scrib {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  transition: stroke-dashoffset var(--motion-duration-fast) var(--motion-easing-exit);
+}
+
+.ss-leaf {
+  fill: var(--color-surface-strong);
+  transform-box: view-box;
+  transform-origin: 50% 50%;
+  transition: transform var(--_slide) var(--motion-easing-enter);
+}
+
+/* A signed-in maintainer: their face in place of the pen. */
+.ss-avatar {
+  position: absolute;
+  display: inline-flex;
+}
+
+.ss-avatar[hidden],
+:root:not([data-maintainer]) .ss-avatar {
+  display: none;
+}
+
+:root[data-maintainer] .ss-to-studio:has(.ss-avatar:not([hidden])) .ss-glyph {
+  visibility: hidden;
+}
+
+/* The first-visit hint: a small dot leaves the pill and crosses once toward the icon (scripts/space-switch.ts). */
+.ss-hint {
+  --_from: calc(var(--_inset) + var(--_pw) - var(--space-3));
+  --_to: calc(var(--_iw) / 2 + var(--space-3));
+
+  position: absolute;
+  z-index: 0;
+  top: calc(50% - var(--space-1) / 2);
+  left: var(--_from);
+  width: var(--space-1);
+  height: var(--space-1);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-text-on-solid);
+  opacity: 0;
+  pointer-events: none;
+}
+
+a.space-switch[data-mode="studio"] .ss-hint {
+  --_from: calc(var(--_inset) + var(--_iw) + var(--space-3));
+  --_to: calc((var(--_iw) / 2 + var(--space-3)) * -1);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Hover: the pill leans toward the icon, and the icon acts out its space. */
+  @media (hover: hover) {
+    a.space-switch[data-mode="library"]:hover .ss-pill {
+      transform: translateX(var(--_lean));
+    }
+
+    a.space-switch[data-mode="studio"]:hover .ss-pill {
+      transform: translateX(calc(var(--_iw) - var(--_lean)));
+    }
+
+    a.space-switch[data-mode="library"]:hover .ss-to-studio .ss-nib {
+      animation: ss-scribble calc(var(--motion-duration-slow) * 2) var(--motion-easing-standard) both;
+    }
+
+    a.space-switch[data-mode="library"]:hover .ss-to-studio .ss-scrib {
+      stroke-dashoffset: 0;
+      transition: stroke-dashoffset calc(var(--motion-duration-slow) * 2) var(--motion-easing-enter);
+    }
+
+    a.space-switch[data-mode="studio"]:hover .ss-to-library .ss-leaf {
+      transform: scaleX(-1);
+    }
+  }
+
+  /* Press: the whole control squishes, the pill flattens. */
+  a.space-switch:active {
+    scale: 0.96;
+  }
+
+  a.space-switch:active .ss-pill {
+    scale: 1.04 0.92;
+  }
+
+  /* The switch: the pill stretches in flight and settles; the new icon springs in with a small overshoot. */
+  a.space-switch[data-anim] .ss-pill {
+    animation: ss-stretch var(--_slide) var(--motion-easing-standard) both;
+  }
+
+  a.space-switch[data-anim][data-mode="library"] .ss-to-studio .ss-glyph,
+  a.space-switch[data-anim][data-mode="studio"] .ss-to-library .ss-glyph {
+    animation: ss-icon-in calc(var(--motion-duration-slow) * 1.5) var(--motion-easing-enter) calc(var(--motion-duration-fast) * 0.8) both;
+  }
+
+  a.space-switch[data-hint] .ss-hint {
+    animation: ss-hint calc(var(--motion-duration-slow) * 3) var(--motion-easing-standard) calc(var(--motion-duration-slow) * 2) both;
+  }
+}
+
+@media (hover: hover) {
+  a.space-switch[data-mode="library"]:hover .ss-to-studio::before,
+  a.space-switch[data-mode="studio"]:hover .ss-to-library::before {
+    opacity: 0.16;
+    scale: 1;
+  }
+}
+
+a.space-switch[data-mode="library"]:focus-visible .ss-to-studio::before,
+a.space-switch[data-mode="studio"]:focus-visible .ss-to-library::before {
+  opacity: 0.16;
+  scale: 1;
+}
+
+@keyframes ss-scribble {
+  0% {
+    transform: rotate(0deg) translate(0, 0);
+  }
+
+  20% {
+    transform: rotate(-9deg) translate(-5%, 0);
+  }
+
+  40% {
+    transform: rotate(6deg) translate(5%, -2.5%);
+  }
+
+  60% {
+    transform: rotate(-7deg) translate(-2.5%, 0);
+  }
+
+  80% {
+    transform: rotate(3deg);
+  }
+
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+@keyframes ss-stretch {
+  0% {
+    scale: 1 1;
+  }
+
+  35% {
+    scale: 1.12 0.9;
+  }
+
+  70% {
+    scale: 0.98 1.03;
+  }
+
+  100% {
+    scale: 1 1;
+  }
+}
+
+@keyframes ss-icon-in {
+  0% {
+    opacity: 0;
+    scale: 0.3;
+    rotate: -110deg;
+  }
+
+  60% {
+    opacity: 1;
+    scale: 1.14;
+    rotate: 10deg;
+  }
+
+  100% {
+    opacity: 1;
+    scale: 1;
+    rotate: 0deg;
+  }
+}
+
+@keyframes ss-hint {
+  0% {
+    opacity: 0;
+    translate: 0 0;
+  }
+
+  15% {
+    opacity: 1;
+  }
+
+  80% {
+    opacity: 1;
+    translate: var(--_to) 0;
+  }
+
+  100% {
+    opacity: 0;
+    translate: var(--_to) 0;
+    scale: 1.8;
+  }
+}
+
+/* Phones: the compact switch, still with its word. It says which space you are in, so the "Studio" next to the logo
+   steps aside rather than clip. */
+@media (max-width: 640px) {
+  .topbar-space {
+    display: none;
+  }
+
+  a.space-switch {
+    --_h: var(--size-9);
+    --_pw: var(--size-20);
+    --_iw: var(--size-9);
+  }
+
+  .ss-word {
+    font-size: var(--font-size-200);
+  }
+
+  .ss-icon::before {
+    width: var(--size-6);
+    height: var(--size-6);
+  }
+}
