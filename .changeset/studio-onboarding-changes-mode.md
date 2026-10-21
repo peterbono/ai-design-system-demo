@@ -1,0 +1,7 @@
+---
+'@bridge-ds/docs-site': minor
+---
+
+Studio: how changes reach your code, and the setup steps. Settings has a new band, How changes reach your code: the mode in force (suggestions your developers apply, or pull requests Bridge opens, from `changes` in `bridge.config.json`, suggestions when the key is absent), what Bridge's GitHub App may do on the repo when you signed in with it, and Change, which sends the switch for review as a pull request on `bridge.config.json` like the other settings. In suggest mode it says plainly that Bridge's GitHub App can still write code on the repo: suggest mode is a Bridge rule until the read-only app ships. "See what your developers get" shows how a developer applies a suggestion: `bridge apply <issue number>`, or "Apply Bridge suggestion" in Claude Code with the Bridge MCP, with the one-time install command for this repo.
+
+The Studio home has the setup steps: sign in, your design system, products, how changes reach your code, the Figma plugin and Claude AI. While `bridge.config.json` does not say how changes reach the code, a signed-in viewer lands on that step first, with every other step a click away and "Do this later" back to the home. After that, "4 of 6 connected" by the greeting opens what is left (Finish connecting), until the viewer hides it. The Storybook quick start shows as coming soon: this Studio reads the repository it is built for.
