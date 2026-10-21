@@ -23,7 +23,7 @@ export interface HomeGroup {
 export const TOOLS = ['Bridge', 'Tokens Studio', 'Supernova', 'Storybook', 'zeroheight', 'Figma'] as const;
 
 export const HEADING = 'How Bridge compares.';
-export const HEAD_LINE = 'Bridge works next to the tools you already use. Here is what each one covers, from their public pages.';
+export const HEAD_LINE = 'What each tool covers, from their public pages.';
 export const AS_OF_LINE = 'From public pages, October 2026';
 /** Words a screen reader hears for a check and a dash. */
 export const YES = 'Yes';
