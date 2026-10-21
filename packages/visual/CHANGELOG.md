@@ -1,5 +1,12 @@
 # @bridge-ds/visual
 
+## 0.3.7
+
+### Patch Changes
+
+- Updated dependencies [b6f1e68]
+  - @bridge-ds/core@0.13.0
+
 ## 0.3.6
 
 ### Patch Changes
