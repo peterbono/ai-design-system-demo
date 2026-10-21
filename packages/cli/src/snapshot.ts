@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { basename, join, relative, resolve } from 'node:path';
 import type { AuditReport } from '@bridge-ds/core/audit';
-import { auditId, buildSnapshot, loadRepoModel, recordingSource, snapshotAudit, snapshotLlmsTxt, SNAPSHOT_AUDITS_DIR, SNAPSHOT_FILE, SNAPSHOT_LLMS_FILE, SNAPSHOT_MAX_BYTES, type RepoSnapshot, type SnapshotAudit } from '@bridge-ds/core';
+import { ACTIVITY_FILE, activityBytes, auditId, buildSnapshot, collectActivity, GitHubClient, loadRepoModel, parseActivity, recordingSource, snapshotAudit, snapshotLlmsTxt, SNAPSHOT_AUDITS_DIR, SNAPSHOT_BRANCH, SNAPSHOT_FILE, SNAPSHOT_LLMS_FILE, SNAPSHOT_MAX_BYTES, type FetchLike, type RepoActivity, type RepoSnapshot, type SnapshotAudit } from '@bridge-ds/core';
 import { fsSource, runAudit } from '@bridge-ds/core/node';
 
 export interface SnapshotOptions {
@@ -19,10 +19,23 @@ export interface SnapshotOptions {
   branch?: string;
   /** Fixed timestamp (tests). */
   generatedAt?: string;
+  /**
+   * Also write activity.json: the team's open branches, suggestions, requests, recent merges and token history, read
+   * from GitHub with this token, so a signed-out visitor of the hosted Studio spends no API request.
+   */
+  activity?: {
+    token: string;
+    /** "owner/name"; else the snapshot's repository. */
+    repo?: string;
+    /** fetch for api.github.com (tests). */
+    fetch?: FetchLike;
+  };
 }
 
 export interface SnapshotResult {
   snapshot: RepoSnapshot;
+  /** The activity written next to it (--activity), with its size. */
+  activity?: { activity: RepoActivity; bytes: number; reused: boolean };
   /** Files written, relative to out. */
   written: string[];
   bytes: number;
@@ -105,7 +118,22 @@ export async function writeSnapshot(opts: SnapshotOptions): Promise<SnapshotResu
     writeFileSync(join(opts.out, summary.path), `${JSON.stringify(report)}\n`);
     written.push(summary.path);
   }
-  return { snapshot, written, bytes };
+  let activity: SnapshotResult['activity'];
+  if (opts.activity) {
+    const [owner, name] = (opts.activity.repo ?? `${snapshot.repo.owner}/${snapshot.repo.name}`).split('/') as [string, string];
+    if (!owner || !name) throw new Error('bridge snapshot --activity needs the repository: --repo owner/name, GITHUB_REPOSITORY, or "repo" in bridge.config.json.');
+    const fetchImpl: FetchLike = opts.activity.fetch ?? ((url, init) => fetch(url, init));
+    // The last published activity: its token history is kept while the default branch head has not moved.
+    const previous = await new GitHubClient(`${owner}/${name}`, opts.activity.token, fetchImpl, { attempts: 1, baseDelayMs: 0, sleep: async () => {} }, { etags: false })
+      .getRawText(ACTIVITY_FILE, SNAPSHOT_BRANCH)
+      .then((t) => (t ? parseActivity(t) : null))
+      .catch(() => null);
+    const a = await collectActivity({ fetch: fetchImpl, token: opts.activity.token, owner, repo: name, config: model.config, version: opts.version, ...(opts.generatedAt ? { generatedAt: opts.generatedAt } : {}), previous });
+    writeFileSync(join(opts.out, ACTIVITY_FILE), `${JSON.stringify(a)}\n`);
+    written.push(ACTIVITY_FILE);
+    activity = { activity: a, bytes: activityBytes(a), reused: Boolean(previous && a.history && previous.history === a.history) };
+  }
+  return { snapshot, written, bytes, ...(activity ? { activity } : {}) };
 }
 
 /** What `bridge snapshot` prints: one line per fact, for the terminal and the workflow summary. */
@@ -121,5 +149,24 @@ export function snapshotLines(r: SnapshotResult, out: string): string[] {
     `  figma         ${s.summary.figma ? `${s.summary.figma.inFigma} of ${s.summary.figma.visual} visual components` : 'no component-specs.json'}`,
     `  audits        ${s.audits.length ? s.audits.map((a) => a.path).join(', ') : 'none (--audit <path> or --audit-report <file|dir>)'}`,
     ...s.problems.map((p) => `  problem       ${p}`),
+    ...activityLines(r, out),
+  ];
+}
+
+/** The activity lines of `bridge snapshot --activity`. */
+function activityLines(r: SnapshotResult, out: string): string[] {
+  if (!r.activity) return [];
+  const a = r.activity.activity;
+  const kb = Math.max(1, Math.round(r.activity.bytes / 1024));
+  const reads = Object.keys(a.responses).length;
+  return [
+    `Wrote ${join(out, ACTIVITY_FILE)} (${kb} KB): ${reads} GitHub reads recorded for signed-out visitors.`,
+    `  branches      ${a.branches.length} open`,
+    `  suggestions   ${a.suggestions.length} open`,
+    `  requests      ${a.requests.length}`,
+    `  merged        ${a.merged.length} recent`,
+    `  history       ${a.history ? `${a.history.entries.length} token changes${r.activity.reused ? ' (kept: the default branch did not move)' : ''}` : 'not read'}`,
+    ...a.truncated.map((t) => `  left out      ${t}`),
+    ...a.problems.map((p) => `  problem       ${p}`),
   ];
 }

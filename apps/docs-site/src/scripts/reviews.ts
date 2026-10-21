@@ -343,8 +343,12 @@ function paintRows(rows: Row[], loading: boolean) {
       err instanceof RateLimitError ? `GitHub limits anonymous reads to 60 an hour. ${ghVerb(prefersSignIn())} to preview ${VOCAB.branches} together.` : `Could not read a checked ${VOCAB.branch}: ${(err as Error).message}`,
     readClosed: () => void loadClosed(),
   };
-  void import('../components/ds/studio/BranchesList').then(({ paintBranchesList }) => paintBranchesList(el, props));
+  // Each call's module promise may settle in any order (Vite preloads its styles per call): paint the latest props,
+  // never the ones a call captured, so a fast read never ends on an older list.
+  latestList = props;
+  void import('../components/ds/studio/BranchesList').then(({ paintBranchesList }) => latestList && paintBranchesList(el, latestList));
 }
+let latestList: BranchesListProps | null = null;
 
 function showEmpty(empty: boolean) {
   $('cg-list').hidden = empty;
