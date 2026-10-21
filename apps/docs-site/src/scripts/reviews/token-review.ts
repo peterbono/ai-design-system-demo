@@ -4,10 +4,11 @@
 import { buildTokenSet, DEFAULT_TOKEN_PATHS, layoutOptions, loadConfig, parseContrastChecks, type BridgeConfig, type TokenSet } from '@bridge-ds/core';
 import { reviewTokenChange, type TokenReview } from '../../lib/token-review';
 import { ghGet } from '../github-session';
+import { siteConfig } from '../repo-context';
 
 const siteRoot = (): string | undefined => {
   try {
-    return (JSON.parse(document.getElementById('bridge-repo')?.textContent || '{}') as { tokensRoot?: string }).tokensRoot;
+    return (siteConfig() as { tokensRoot?: string }).tokensRoot;
   } catch {
     return undefined;
   }

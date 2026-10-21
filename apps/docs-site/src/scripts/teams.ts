@@ -4,6 +4,7 @@
 // (the demo repo), nothing is read and every answer is immediate.
 import { approverEntries, approverLists, shipPolicy, soloOwnerOf, TeamDirectory, teamsIn, type ApprovalRules, type Owners, type Rights, type ShipPolicy, type TeamStates } from '@bridge-ds/core';
 import { readRepo, studioClient } from './github-session';
+import { siteConfig } from './repo-context';
 
 interface SiteRoles {
   owners: Owners;
@@ -11,10 +12,10 @@ interface SiteRoles {
   soloOwnerCanApproveBoth: boolean;
 }
 
-/** governance.owners and governance.rights as the layout embeds them (#bridge-repo). */
+/** governance.owners and governance.rights from the repository settings (repo-context siteConfig). */
 export function siteRoles(): SiteRoles {
   try {
-    const site = JSON.parse(document.getElementById('bridge-repo')?.textContent || '{}') as { owners?: Owners; rights?: Rights | null; soloOwnerCanApproveBoth?: boolean };
+    const site = siteConfig() as { owners?: Owners; rights?: Rights | null; soloOwnerCanApproveBoth?: boolean };
     return { owners: site.owners ?? { design: [], tech: [] }, rights: site.rights ?? null, soloOwnerCanApproveBoth: site.soloOwnerCanApproveBoth === true };
   } catch {
     return { owners: { design: [], tech: [] }, rights: null, soloOwnerCanApproveBoth: false };
