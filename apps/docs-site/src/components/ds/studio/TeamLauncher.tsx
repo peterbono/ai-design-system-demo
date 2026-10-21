@@ -1,30 +1,13 @@
 // The team launcher on Studio home (multi-team plan 4.3), on the hosted deployment only (BRIDGE_HOSTED=1): one field
 // that takes "owner/repo" or a GitHub address and opens that team's Studio, /studio/<owner>/<repo>/ (the escape form
-// when a Studio page takes the pair, lib/team-path.ts teamHref). Nothing is read from GitHub here: the team page
-// says what the visitor can do once it opens.
+// when a Studio page takes the pair, lib/team-path.ts teamHref). The parsing, the error words and the address come from
+// lib/team-open.ts, shared with the team chip's "Create a new team" dialog (NewTeamDialog.tsx). Nothing is read from
+// GitHub here: the team page says what the visitor can do once it opens.
 import { useRef, useState, type FormEvent } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { Button, Card, CardBody, Icon, Input } from '@bridge-ds/react';
 import { GitHubMark } from './brand-icons';
-import { parseTeamInput, RESERVED_PATHS_URL, teamHref, type ReservedPaths, type TeamInputError } from '../../../lib/team-path';
-
-/** What to fix, per error (Bridge voice: says how to fix it). */
-export const TEAM_INPUT_ERRORS: Record<TeamInputError, string> = {
-  empty: 'Enter a repository, like acme/design-system.',
-  'no-repo': 'Add the repository after the owner, like acme/design-system.',
-  'not-github': 'Bridge opens repositories on GitHub. Paste a github.com address or owner/repo.',
-  invalid: 'That is not a GitHub repository name. Use owner/repo, like acme/design-system.',
-};
-
-/** The reserved pairs of this build, read once; null when they cannot be read (teamHref then uses the escape form). */
-let reserved: Promise<ReservedPaths | null> | null = null;
-function loadReserved(): Promise<ReservedPaths | null> {
-  reserved ??= fetch(RESERVED_PATHS_URL)
-    .then((r) => (r.ok ? (r.json() as Promise<ReservedPaths>) : null))
-    .then((v) => (v && Array.isArray(v.pairs) ? v : null))
-    .catch(() => null);
-  return reserved;
-}
+import { loadReserved, openTeamHref, readTeamField } from '../../../lib/team-open';
 
 export interface TeamLauncherProps {
   /** Where to go, swapped in tests. */
@@ -39,14 +22,14 @@ export default function TeamLauncher({ go = (href) => location.assign(href) }: T
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    const parsed = parseTeamInput(value);
+    const parsed = readTeamField(value);
     if (!parsed.ok) {
-      setError(TEAM_INPUT_ERRORS[parsed.error]);
+      setError(parsed.message);
       input.current?.focus();
       return;
     }
     setBusy(true);
-    go(teamHref(parsed.owner, parsed.repo, await loadReserved()));
+    go(await openTeamHref(parsed.owner, parsed.repo));
   };
 
   return (
@@ -62,7 +45,7 @@ export default function TeamLauncher({ go = (href) => location.assign(href) }: T
           <Input
             ref={input}
             id="tl-repo"
-              label="GitHub repository"
+            label="GitHub repository"
             hideLabel
             prefix={<Icon icon={GitHubMark} size="sm" />}
             placeholder="owner/repo"

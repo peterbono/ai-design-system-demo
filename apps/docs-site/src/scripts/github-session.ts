@@ -1135,9 +1135,10 @@ export function onAccess(fn: (a: RepoAccess | null) => void) {
 /**
  * What the visitor may do on `repo` (multi-team plan 3.3, core resolveRepoAccess): one of eight states, with the
  * write and reach flags the Studio acts on. Signed out it is null, unless `anonymous` asks for the public read state
- * (team shells). Reused for ACCESS_MAX_AGE_MS; a rejected token or an unreachable GitHub gives null.
+ * (team shells). Reused for ACCESS_MAX_AGE_MS; a rejected token or an unreachable GitHub gives null. `probe`: a look at
+ * another repository (the "Create a new team" dialog): it leaves this page's remembered check and caches alone.
  */
-export async function resolveAccess(repo: { owner: string; repo: string } = readRepo(), opts: { anonymous?: boolean } = {}): Promise<RepoAccess | null> {
+export async function resolveAccess(repo: { owner: string; repo: string } = readRepo(), opts: { anonymous?: boolean; probe?: boolean } = {}): Promise<RepoAccess | null> {
   const token = getToken();
   const signedIn = Boolean(viewer && token && !tokenRejected());
   if (!signedIn && !opts.anonymous) return null;
@@ -1161,14 +1162,14 @@ export async function resolveAccess(repo: { owner: string; repo: string } = read
     // The token may have been refused while reading (studioFetch marks it): nothing to keep then.
     if (signedIn && tokenRejected()) return null;
     // A repository this visitor can no longer see: drop what this browser kept of it.
-    if (read.state === 'no-access' || read.state === 'anonymous-unknown') void clearRepoCache(name);
+    if (!opts.probe && (read.state === 'no-access' || read.state === 'anonymous-unknown')) void clearRepoCache(name);
     accessByRepo.set(name, read);
     try {
       sessionStorage.setItem(storageKey, JSON.stringify({ at: Date.now(), access: read }));
     } catch {
       /* storage blocked: memory only */
     }
-    const last = signedIn ? currentCheck() : null;
+    const last = signedIn && !opts.probe ? currentCheck() : null;
     if (last?.ok) {
       writeCheck({ ...last, write: read.write, reach: typeof read.reach === 'boolean' ? read.reach : null, access: { repo: name, state: read.state } });
     }

@@ -1,0 +1,42 @@
+/* The "Create a new team" dialog (components/ds/studio/NewTeamDialog.tsx), opened from the team chip menu. The field
+   and its live line share one region: the line sits right under the field it describes (proximity), quiet text with
+   the badge carrying the state in words, never color alone. */
+
+.nt-form {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.nt-status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.nt-status:empty {
+  display: none;
+}
+
+.nt-badge {
+  flex: none;
+}
+
+.nt-status-text {
+  min-width: 0;
+}
+
+/* On a phone the two actions share the bar, each half of it: large targets at the thumb. */
+@media (max-width: 480px) {
+  .nt-actions {
+    width: 100%;
+  }
+
+  .nt-actions > * {
+    flex: 1;
+  }
+}
