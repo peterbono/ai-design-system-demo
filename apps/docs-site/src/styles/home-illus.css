@@ -2066,169 +2066,400 @@
   transform-origin: calc(var(--_u) * 220) calc(var(--_u) * 156);
 }
 
-@keyframes hp-tqllq {
-  0.00% {
-    transform: translateY(calc(var(--_u) * 42.5));
-  }
-
-  19.17% {
-    transform: translateY(calc(var(--_u) * 42.5));
-  }
-
-  24.17% {
-    transform: translateY(calc(var(--_u) * 28.3));
-  }
-
-  29.17% {
-    transform: translateY(calc(var(--_u) * 14.2));
-  }
-
-  34.17% {
-    transform: translateY(calc(var(--_u) * -2));
-  }
-
-  37.50%,
-  93.33% {
-    transform: none;
-  }
-
-  100.00% {
-    transform: translateY(calc(var(--_u) * 42.5));
-  }
-}
-
-@keyframes hp-tqlptr {
-  0.00%,
-  19.17% {
-    transform: translateY(calc(var(--_u) * 42.5));
-  }
-
-  24.17% {
-    transform: translateY(calc(var(--_u) * 28.3));
-  }
-
-  29.17% {
-    transform: translateY(calc(var(--_u) * 14.2));
-  }
-
-  34.17%,
-  93.33% {
-    transform: none;
-  }
-
-  100.00% {
-    transform: translateY(calc(var(--_u) * 42.5));
-  }
-}
-
-@keyframes hp-tqld1 {
-  0.00%,
-  15.00% {
-    opacity: 0;
-    transform: translateY(calc(var(--_u) * -196));
-  }
-
-  16.00% {
-    opacity: 1;
-    animation-timing-function: var(--motion-easing-exit);
-  }
-
-  22.00% {
-    transform: translateY(calc(var(--_u) * 4));
-  }
-
-  24.33%,
-  95.00% {
-    opacity: 1;
-    transform: none;
-  }
-
-  100.00% {
-    opacity: 0;
-    transform: none;
-  }
-}
-
-@keyframes hp-tqld2 {
-  0.00%,
-  20.00% {
-    opacity: 0;
-    transform: translateY(calc(var(--_u) * -180));
-  }
-
-  21.00% {
-    opacity: 1;
-    animation-timing-function: var(--motion-easing-exit);
-  }
-
-  27.00% {
-    transform: translateY(calc(var(--_u) * 4));
-  }
-
-  29.33%,
-  95.00% {
-    opacity: 1;
-    transform: none;
-  }
-
-  100.00% {
-    opacity: 0;
-    transform: none;
-  }
-}
-
-@keyframes hp-tqld3 {
-  0.00%,
-  25.00% {
-    opacity: 0;
-    transform: translateY(calc(var(--_u) * -154));
-  }
-
-  26.00% {
-    opacity: 1;
-    animation-timing-function: var(--motion-easing-exit);
-  }
-
-  32.00% {
-    transform: translateY(calc(var(--_u) * 4));
-  }
-
-  34.33%,
-  95.00% {
-    opacity: 1;
-    transform: none;
-  }
-
-  100.00% {
-    opacity: 0;
-    transform: none;
-  }
-}
-
 @keyframes hp-tqlmag {
   0.00%,
-  5.00% {
-    transform: translate(calc(var(--_u) * -14),calc(var(--_u) * 6)) rotate(-8deg);
+  4.17% {
+    opacity: 0;
+    transform: translate(calc(var(--_u) * 14),calc(var(--_u) * 230));
+  }
+
+  6.67% {
+    opacity: 1;
+    transform: translate(calc(var(--_u) * 14),calc(var(--_u) * 230));
   }
 
   15.00% {
-    transform: translate(calc(var(--_u) * 10),calc(var(--_u) * -4)) rotate(6deg);
+    opacity: 1;
+    transform: translate(calc(var(--_u) * 124),calc(var(--_u) * 192));
   }
 
-  21.67%,
+  28.33% {
+    opacity: 1;
+    transform: translate(calc(var(--_u) * 124),calc(var(--_u) * 192));
+  }
+
+  36.67% {
+    opacity: 1;
+    transform: translate(calc(var(--_u) * 330),calc(var(--_u) * 112));
+  }
+
+  50.00% {
+    opacity: 1;
+    transform: translate(calc(var(--_u) * 330),calc(var(--_u) * 112));
+  }
+
+  58.33% {
+    opacity: 1;
+    transform: translate(calc(var(--_u) * 316),calc(var(--_u) * 306));
+  }
+
+  71.67% {
+    opacity: 1;
+    transform: translate(calc(var(--_u) * 316),calc(var(--_u) * 306));
+  }
+
+  80.00% {
+    opacity: 1;
+    transform: translate(calc(var(--_u) * 388),calc(var(--_u) * 326));
+  }
+
+  80.00%,
+  95.00% {
+    opacity: 1;
+    transform: translate(calc(var(--_u) * 388),calc(var(--_u) * 326));
+  }
+
   100.00% {
+    opacity: 0;
+    transform: translate(calc(var(--_u) * 388),calc(var(--_u) * 326));
+  }
+}
+
+@keyframes hp-tqlf1 {
+  0.00%,
+  15.00% {
+    opacity: 0;
+    transform: scale(1.2);
+  }
+
+  18.33% {
+    opacity: 1;
     transform: none;
+  }
+
+  22.50% {
+    opacity: 1;
+    transform: none;
+  }
+
+  25.83%,
+  100.00% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+@keyframes hp-tqlo1 {
+  0.00% {
+    opacity: 1;
+    transform: none;
+  }
+
+  22.50% {
+    opacity: 1;
+    transform: none;
+  }
+
+  25.00%,
+  95.83% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+
+  100.00% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes hp-tqln1 {
+  0.00%,
+  22.50% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+
+  25.00% {
+    opacity: 1;
+    transform: scale(1.08);
+    animation-timing-function: var(--motion-easing-standard);
+  }
+
+  28.00%,
+  95.00% {
+    opacity: 1;
+    transform: none;
+  }
+
+  100.00% {
+    opacity: 0;
+    transform: none;
+  }
+}
+
+@keyframes hp-tqlk1 {
+  0.00%,
+  26.67% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+
+  29.17% {
+    opacity: 1;
+    transform: scale(1.18);
+    animation-timing-function: var(--motion-easing-standard);
+  }
+
+  31.67%,
+  95.00% {
+    opacity: 1;
+    transform: none;
+  }
+
+  100.00% {
+    opacity: 0;
+    transform: none;
+  }
+}
+
+@keyframes hp-tqlf2 {
+  0.00%,
+  36.67% {
+    opacity: 0;
+    transform: scale(1.2);
+  }
+
+  40.00% {
+    opacity: 1;
+    transform: none;
+  }
+
+  44.17% {
+    opacity: 1;
+    transform: none;
+  }
+
+  47.50%,
+  100.00% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+@keyframes hp-tqlo2 {
+  0.00% {
+    opacity: 1;
+    transform: none;
+  }
+
+  44.17% {
+    opacity: 1;
+    transform: none;
+  }
+
+  46.67%,
+  95.83% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+
+  100.00% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes hp-tqln2 {
+  0.00%,
+  44.17% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+
+  46.67% {
+    opacity: 1;
+    transform: scale(1.08);
+    animation-timing-function: var(--motion-easing-standard);
+  }
+
+  49.67%,
+  95.00% {
+    opacity: 1;
+    transform: none;
+  }
+
+  100.00% {
+    opacity: 0;
+    transform: none;
+  }
+}
+
+@keyframes hp-tqlk2 {
+  0.00%,
+  48.33% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+
+  50.83% {
+    opacity: 1;
+    transform: scale(1.18);
+    animation-timing-function: var(--motion-easing-standard);
+  }
+
+  53.33%,
+  95.00% {
+    opacity: 1;
+    transform: none;
+  }
+
+  100.00% {
+    opacity: 0;
+    transform: none;
+  }
+}
+
+@keyframes hp-tqlf3 {
+  0.00%,
+  58.33% {
+    opacity: 0;
+    transform: scale(1.2);
+  }
+
+  61.67% {
+    opacity: 1;
+    transform: none;
+  }
+
+  65.83% {
+    opacity: 1;
+    transform: none;
+  }
+
+  69.17%,
+  100.00% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+@keyframes hp-tqlo3 {
+  0.00% {
+    opacity: 1;
+    transform: none;
+  }
+
+  65.83% {
+    opacity: 1;
+    transform: none;
+  }
+
+  68.33%,
+  95.83% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+
+  100.00% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes hp-tqln3 {
+  0.00%,
+  65.83% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+
+  68.33% {
+    opacity: 1;
+    transform: scale(1.08);
+    animation-timing-function: var(--motion-easing-standard);
+  }
+
+  71.33%,
+  95.00% {
+    opacity: 1;
+    transform: none;
+  }
+
+  100.00% {
+    opacity: 0;
+    transform: none;
+  }
+}
+
+@keyframes hp-tqlk3 {
+  0.00%,
+  70.00% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+
+  72.50% {
+    opacity: 1;
+    transform: scale(1.18);
+    animation-timing-function: var(--motion-easing-standard);
+  }
+
+  75.00%,
+  95.00% {
+    opacity: 1;
+    transform: none;
+  }
+
+  100.00% {
+    opacity: 0;
+    transform: none;
+  }
+}
+
+@keyframes hp-tqlbar {
+  0.00%,
+  25.83% {
+    transform: scaleX(0.817);
+  }
+
+  31.67% {
+    transform: scaleX(0.8780);
+  }
+
+  47.50% {
+    transform: scaleX(0.8780);
+  }
+
+  53.33% {
+    transform: scaleX(0.9390);
+  }
+
+  69.17% {
+    transform: scaleX(0.9390);
+  }
+
+  75.00% {
+    transform: scaleX(1.0000);
+  }
+
+  75.02%,
+  95.00% {
+    transform: none;
+  }
+
+  100.00% {
+    transform: scaleX(0.817);
   }
 }
 
 @keyframes hp-tqlpc {
   0.00%,
-  35.00% {
+  70.00% {
     opacity: 0;
     transform: translate(calc(var(--_u) * -6),0);
   }
 
-  40.00%,
+  75.00%,
   95.00% {
     opacity: 1;
     transform: none;
@@ -2242,18 +2473,18 @@
 
 @keyframes hp-tqlok {
   0.00%,
-  40.00% {
+  74.17% {
     opacity: 0;
     transform: scale(0.3);
   }
 
-  42.50% {
+  76.67% {
     opacity: 1;
     transform: scale(1.18);
     animation-timing-function: var(--motion-easing-standard);
   }
 
-  45.00%,
+  79.17%,
   95.00% {
     opacity: 1;
     transform: none;
@@ -2265,28 +2496,60 @@
   }
 }
 
-.hp-ui.hp-on .hp-tql .hp-tqllq {
-  animation: hp-tqllq calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite none;
-}
-
-.hp-ui.hp-on .hp-tql .hp-tqlptr {
-  animation: hp-tqlptr calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite none;
-}
-
-.hp-ui.hp-on .hp-tql .hp-tqld1 {
-  animation: hp-tqld1 calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite none;
-}
-
-.hp-ui.hp-on .hp-tql .hp-tqld2 {
-  animation: hp-tqld2 calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite none;
-}
-
-.hp-ui.hp-on .hp-tql .hp-tqld3 {
-  animation: hp-tqld3 calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite none;
-}
-
 .hp-ui.hp-on .hp-tql .hp-tqlmag {
   animation: hp-tqlmag calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite none;
+}
+
+.hp-ui.hp-on .hp-tql .hp-tqlf1 {
+  animation: hp-tqlf1 calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite none;
+}
+
+.hp-ui.hp-on .hp-tql .hp-tqlf2 {
+  animation: hp-tqlf2 calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite none;
+}
+
+.hp-ui.hp-on .hp-tql .hp-tqlf3 {
+  animation: hp-tqlf3 calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite none;
+}
+
+.hp-ui.hp-on .hp-tql .hp-tqlo1 {
+  animation: hp-tqlo1 calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite none;
+}
+
+.hp-ui.hp-on .hp-tql .hp-tqlo2 {
+  animation: hp-tqlo2 calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite none;
+}
+
+.hp-ui.hp-on .hp-tql .hp-tqlo3 {
+  animation: hp-tqlo3 calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite none;
+}
+
+.hp-ui.hp-on .hp-tql .hp-tqln1 {
+  animation: hp-tqln1 calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite none;
+}
+
+.hp-ui.hp-on .hp-tql .hp-tqln2 {
+  animation: hp-tqln2 calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite none;
+}
+
+.hp-ui.hp-on .hp-tql .hp-tqln3 {
+  animation: hp-tqln3 calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite none;
+}
+
+.hp-ui.hp-on .hp-tql .hp-tqlk1 {
+  animation: hp-tqlk1 calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite none;
+}
+
+.hp-ui.hp-on .hp-tql .hp-tqlk2 {
+  animation: hp-tqlk2 calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite none;
+}
+
+.hp-ui.hp-on .hp-tql .hp-tqlk3 {
+  animation: hp-tqlk3 calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite none;
+}
+
+.hp-ui.hp-on .hp-tql .hp-tqlbar {
+  animation: hp-tqlbar calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite none;
 }
 
 .hp-ui.hp-on .hp-tql .hp-tqlpc {
@@ -2295,6 +2558,17 @@
 
 .hp-ui.hp-on .hp-tql .hp-tqlok {
   animation: hp-tqlok calc(var(--motion-duration-moderate) * 30) var(--motion-easing-standard) infinite none;
+}
+
+.hp-tql .hp-tqlmag {
+  transform: translate(calc(var(--_u) * 388),calc(var(--_u) * 326));
+  transform-box: view-box;
+  transform-origin: 0 0;
+}
+
+.hp-tql .hp-tqlbar {
+  transform-box: view-box;
+  transform-origin: calc(var(--_u) * 44) calc(var(--_u) * 418);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2316,12 +2590,20 @@
   .hp .hp-ui.hp-on .hp-ttw .hp-ttwcr,
   .hp .hp-ui.hp-on .hp-ttw .hp-ttwok,
   .hp .hp-ui.hp-on .hp-ttw .hp-ttwlbl,
-  .hp .hp-ui.hp-on .hp-tql .hp-tqllq,
-  .hp .hp-ui.hp-on .hp-tql .hp-tqlptr,
-  .hp .hp-ui.hp-on .hp-tql .hp-tqld1,
-  .hp .hp-ui.hp-on .hp-tql .hp-tqld2,
-  .hp .hp-ui.hp-on .hp-tql .hp-tqld3,
   .hp .hp-ui.hp-on .hp-tql .hp-tqlmag,
+  .hp .hp-ui.hp-on .hp-tql .hp-tqlf1,
+  .hp .hp-ui.hp-on .hp-tql .hp-tqlf2,
+  .hp .hp-ui.hp-on .hp-tql .hp-tqlf3,
+  .hp .hp-ui.hp-on .hp-tql .hp-tqlo1,
+  .hp .hp-ui.hp-on .hp-tql .hp-tqlo2,
+  .hp .hp-ui.hp-on .hp-tql .hp-tqlo3,
+  .hp .hp-ui.hp-on .hp-tql .hp-tqln1,
+  .hp .hp-ui.hp-on .hp-tql .hp-tqln2,
+  .hp .hp-ui.hp-on .hp-tql .hp-tqln3,
+  .hp .hp-ui.hp-on .hp-tql .hp-tqlk1,
+  .hp .hp-ui.hp-on .hp-tql .hp-tqlk2,
+  .hp .hp-ui.hp-on .hp-tql .hp-tqlk3,
+  .hp .hp-ui.hp-on .hp-tql .hp-tqlbar,
   .hp .hp-ui.hp-on .hp-tql .hp-tqlpc,
   .hp .hp-ui.hp-on .hp-tql .hp-tqlok {
     animation: none;
