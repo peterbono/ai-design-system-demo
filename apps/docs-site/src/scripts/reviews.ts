@@ -7,7 +7,7 @@
 // Without a token the bar's primary connects GitHub. When GitHub cannot be read, the last list this browser saw
 // stays on screen, labelled with its time (lib/changes.ts).
 import { askOthersToReviewOnGitHub, closeOnGitHub, commentOnGitHub, findPreviewComment, reviewersToAsk, isActiveExploration, mergeOnGitHub, OverrideMergeError, overrideMergeOnGitHub, parseNeededBy, reviewOnGitHub, type ProductConfig, type Rights, type ShipPolicy } from '@bridge-ds/core';
-import { loadTeams, siteApprovers, siteShipPolicy, teamDirectory } from './teams';
+import { loadTeams, siteApprovalRules, siteApprovers, siteShipPolicy, siteSoloOwner, teamDirectory } from './teams';
 import { approvalNeedLong, effectiveTier, isAutomationPull, reviewQueue } from '../lib/review-queue';
 import {
   allowedMergeMethods,
@@ -217,7 +217,7 @@ function showNotice(tone: 'warn' | 'fail' | 'info', text: string) {
 
 /** People around a pull request, for the who-acts line (lib/changes whoActs). */
 function people(author: string, extra: Partial<People> = {}): People {
-  return { owners: OWNERS(), ...teamPeople(), author, viewer: currentViewer()?.login ?? null, overrideBy: OVERRIDE.allowed, shippers: SHIP()?.logins, ...extra };
+  return { owners: OWNERS(), ...teamPeople(), author, viewer: currentViewer()?.login ?? null, overrideBy: OVERRIDE.allowed, shippers: SHIP()?.logins, soloOwner: siteSoloOwner(), ...extra };
 }
 
 /** The facts of a row the who-acts rules read (pr-status rowWho, shared with the Home). */
@@ -569,7 +569,7 @@ export async function openPr(n: number, push = true) {
     if (seq !== openSeq) return;
     const tier = effectiveTier(pull.labels, pull.body, files);
     current = { pull, tier };
-    const approvals = summarizeApprovals(reviews, OWNERS(), pull.user.login);
+    const approvals = summarizeApprovals(reviews, OWNERS(), pull.user.login, siteApprovalRules());
     const ship = await viewerShipPolicy(SHIP(), access?.login);
     if (seq !== openSeq) return;
     const gateOf = (a: typeof approvals) =>
@@ -810,7 +810,7 @@ async function detailProps(x: DetailInput): Promise<BranchReviewProps | null> {
 
   // The decision bar (lib/review-page reviewActions).
   const canApprove = rows.some((r) => r.canAct);
-  const withMine = login ? summarizeApprovals([...reviews, { user: { login }, state: 'APPROVED', submitted_at: new Date().toISOString() }], OWNERS(), pull.user.login) : approvals;
+  const withMine = login ? summarizeApprovals([...reviews, { user: { login }, state: 'APPROVED', submitted_at: new Date().toISOString() }], OWNERS(), pull.user.login, siteApprovalRules()) : approvals;
   const entry = pullEntry(pull as never, BRANCHES, { comments, statuses: x.statuses });
   const shareState = shareFor(pull, files, comments);
   const shareable = canShare({ fromFork: entry.fromFork, packages: BRANCHES.packages }) && showShare(lifecycle, shareState);
@@ -1028,7 +1028,7 @@ export async function askSomeoneElse(n: number): Promise<string[]> {
   const pull = (await ghGet<Pull & { requested_reviewers?: { login: string }[] }>(`${R}/pulls/${n}`)).data;
   const reviews = (await ghGet<Review[]>(`${R}/pulls/${n}/reviews?per_page=100`)).data;
   const tier = effectiveTier(pull.labels, pull.body, null);
-  const approvals = summarizeApprovals(reviews, OWNERS(), pull.user.login);
+  const approvals = summarizeApprovals(reviews, OWNERS(), pull.user.login, siteApprovalRules());
   const viewer = currentViewer()?.login ?? null;
   const p = people(pull.user.login, { viewer, approvers: approvals.approvers });
   // Who else can give the missing approvals, and the request itself: core reviewersToAsk and askOthersToReviewOnGitHub,

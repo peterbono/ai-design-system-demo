@@ -13,6 +13,8 @@ export interface SiteRepo {
   override: { allowed: string[]; requireReason: boolean; minReasonLength: number };
   /** Which owner group approves design, approves tech and ships. null: not set, approvals follow owners, anyone with write access ships. */
   rights: Rights | null;
+  /** governance.soloOwnerCanApproveBoth: the only owner's approval covers design and tech. Default false. */
+  soloOwnerCanApproveBoth: boolean;
   /** Visual before and after: on every pull request (auto) or when someone asks (on-demand, label visual-check). */
   visualImpact: { mode: VisualImpactMode };
   /** Token root in the repo, for commits that predate bridge.config.json. */
@@ -29,7 +31,7 @@ export interface SiteRepo {
   changes: ChangesMode;
 }
 
-const DEFAULT: SiteRepo = { owner: 'peterbono', repo: 'ai-design-system-demo', defaultBranch: 'main', owners: { design: [], tech: [] }, override: { allowed: [], requireReason: true, minReasonLength: 20 }, rights: null, visualImpact: { mode: 'auto' }, tokensRoot: 'packages/tokens/src', integrations: {}, products: DEFAULT_PRODUCTS, changes: DEFAULT_CHANGES_MODE };
+const DEFAULT: SiteRepo = { owner: 'peterbono', repo: 'ai-design-system-demo', defaultBranch: 'main', owners: { design: [], tech: [] }, override: { allowed: [], requireReason: true, minReasonLength: 20 }, rights: null, soloOwnerCanApproveBoth: false, visualImpact: { mode: 'auto' }, tokensRoot: 'packages/tokens/src', integrations: {}, products: DEFAULT_PRODUCTS, changes: DEFAULT_CHANGES_MODE };
 
 interface RawConfig {
   repo?: string | { owner?: string; name?: string; repo?: string; defaultBranch?: string; branch?: string };
@@ -39,6 +41,7 @@ interface RawConfig {
     owners?: { design?: string[]; tech?: string[] };
     override?: { allowed?: string[]; requireReason?: boolean; minReasonLength?: number };
     rights?: Partial<Record<keyof Rights, string[]>>;
+    soloOwnerCanApproveBoth?: boolean;
   };
   visualImpact?: { mode?: string };
   tokens?: { root?: string };
@@ -80,6 +83,7 @@ export function siteRepo(): SiteRepo {
         minReasonLength: ov.minReasonLength ?? 20,
       };
     if (c.governance?.rights) out.rights = normalizeRights(c.governance.rights);
+    out.soloOwnerCanApproveBoth = c.governance?.soloOwnerCanApproveBoth === true;
     if (c.visualImpact?.mode === 'on-demand') out.visualImpact = { mode: 'on-demand' };
     out.changes = c.changes === 'direct' ? 'direct' : DEFAULT_CHANGES_MODE;
     if (Array.isArray(c.products) && c.products.length && !productProblems(c.products).length) out.products = c.products as ProductConfig[];

@@ -6,6 +6,8 @@
 // the files to write.
 import {
   approverLists,
+  soloOwnerOf,
+  soloOwnerSentence,
   baseBranchOf,
   changesMode,
   closingIssueNumbers,
@@ -180,7 +182,7 @@ export async function suggestionGovernance(ctx: BridgeContext, gh: GitHubClient)
   const { owners, rights } = config.governance;
   const hasTeams = [...owners.design, ...owners.tech].some((o) => o.includes('/'));
   const teams = hasTeams ? await new TeamDirectory(gh).resolve(owners).catch(() => undefined) : undefined;
-  return { config, gov: { owners, rights: rights ?? null, ...(teams ? { teams } : {}) } };
+  return { config, gov: { owners, rights: rights ?? null, ...(teams ? { teams } : {}), ...(config.governance.soloOwnerCanApproveBoth ? { soloOwnerCanApproveBoth: true } : {}) } };
 }
 
 export type SuggestionStatusFilter = SuggestionStatus | 'all';
@@ -238,6 +240,7 @@ export async function getSuggestionOp(ctx: BridgeContext, a: { number: number | 
   const p = d.parsed.payload;
   const approvals = d.approvals!;
   const missing = pendingApprovals(p.tier.tier, approvals);
+  const solo = soloOwnerOf(gov, gov.teams);
   return {
     ...base,
     kind: p.kind,
@@ -266,6 +269,7 @@ export async function getSuggestionOp(ctx: BridgeContext, a: { number: number | 
       changesRequestedBy: approvals.changesRequested,
       ...(approvals.stale.length ? { staleReviews: approvals.stale } : {}),
       ...(approvals.ignored.length ? { notCounted: approvals.ignored } : {}),
+      ...(solo && p.tier.tier > 1 ? { soloOwner: soloOwnerSentence(solo) } : {}),
     },
     applied: d.applied,
     ...(p.componentSpec ? { brief: p.componentSpec.brief } : {}),

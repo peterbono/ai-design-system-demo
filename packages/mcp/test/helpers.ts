@@ -57,6 +57,18 @@ export function pinStart(files: Record<string, string>): Record<string, string> 
   return out;
 }
 
+/**
+ * The repo's config without governance.soloOwnerCanApproveBoth: one owner then covers the design approval only, the
+ * default rule, so the owner override path stays covered.
+ */
+export function withoutSoloOwner(files: Record<string, string>): Record<string, string> {
+  const cfg = files['bridge.config.json'];
+  if (cfg === undefined) return files;
+  const json = JSON.parse(cfg) as { governance?: Record<string, unknown> };
+  if (json.governance) delete json.governance.soloOwnerCanApproveBoth;
+  return { ...files, 'bridge.config.json': `${JSON.stringify(json, null, 2)}\n` };
+}
+
 /** Paths of the real repo a token-only copy needs. */
 export const REAL_PATHS = ['bridge.config.json', 'packages/tokens/src', 'AGENTS.md', 'docs/DESIGN-LANGUAGE.md', 'docs/GOVERNANCE.md', '.changeset/config.json', 'packages/react/src/components/Button', 'packages/react/src/components/Switch'];
 

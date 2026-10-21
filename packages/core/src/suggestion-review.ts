@@ -115,6 +115,8 @@ export interface SuggestionGovernance {
   rights?: Rights | null | undefined;
   /** Team members once read (teams.ts). Undefined: owner entries are used as listed. */
   teams?: TeamStates | null | undefined;
+  /** `governance.soloOwnerCanApproveBoth`: the only owner's approval covers design and tech (review-gate summarizeApprovals). */
+  soloOwnerCanApproveBoth?: boolean | undefined;
 }
 
 export interface SuggestionApprovals extends ApprovalSummary {
@@ -131,7 +133,8 @@ const COLLABORATOR = ['OWNER', 'MEMBER', 'COLLABORATOR'];
  * Approvals on a suggestion, as summarizeApprovals counts them on a pull request, from the review comments: only
  * comments by people in the approver lists (governance owners and rights) count; with no owner configured at all, only
  * repository owners, members and collaborators (GitHub's author association). Only reviews of the current payload
- * sha count; the suggestion's author never approves their own suggestion.
+ * sha count; the suggestion's author never approves their own suggestion. With `soloOwnerCanApproveBoth` and one
+ * owner holding both roles, that owner's approval covers design and tech.
  */
 export function summarizeSuggestionApprovals(comments: readonly SuggestionCommentLike[], gov: SuggestionGovernance, opts: { payloadSha: string; author?: string | null | undefined }): SuggestionApprovals {
   const lists = approverLists(gov.owners, gov.rights ?? null, gov.teams);
@@ -161,7 +164,7 @@ export function summarizeSuggestionApprovals(comments: readonly SuggestionCommen
     latestOld.delete(c.author);
     reviews.push({ user: { login: c.author }, state: r.event === 'approve' ? 'APPROVED' : 'CHANGES_REQUESTED', submitted_at: at });
   });
-  const summary = summarizeApprovals(reviews, lists, opts.author ?? undefined);
+  const summary = summarizeApprovals(reviews, lists, opts.author ?? undefined, { soloOwnerCanApproveBoth: gov.soloOwnerCanApproveBoth });
   const stale = [...latestOld.keys()].filter((l) => !summary.approvers.includes(l) && !summary.changesRequested.includes(l));
   return { ...summary, stale, ignored: [...ignored].filter((l) => !summary.approvers.includes(l)) };
 }

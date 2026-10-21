@@ -5,6 +5,7 @@
 // answers into Studio words, with no developer jargon (lib/vocabulary DEV_WORDS). Tested in suggestions-view.test.ts.
 import {
   pendingApprovals,
+  soloOwnerSentence,
   SUGGESTION_STATUS_LABEL,
   type ApprovalRole,
   type Owners,
@@ -323,7 +324,7 @@ export interface SuggestionGate {
   role: ApprovalRole | null;
   /**
    * The missing roles the viewer's approval fills: one role, since one person who holds design and tech never covers
-   * both alone (core summarizeApprovals).
+   * both alone (core summarizeApprovals), except the only owner when governance.soloOwnerCanApproveBoth is on.
    */
   covers: ApprovalRole[];
   /** Why the viewer cannot approve, in one sentence; null when they can. */
@@ -350,6 +351,8 @@ export function suggestionGate(x: {
   names?: Record<string, string>;
   /** "Sign in to review" or "Connect GitHub to review" (lib/gh-wording ghAction). */
   signInLine: string;
+  /** The only owner whose approval covers design and tech (core soloOwnerOf), null when the rule is off. */
+  soloOwner?: string | null;
 }): SuggestionGate {
   const none: SuggestionGate = { canApprove: false, canRequestChanges: false, canDecline: false, role: null, covers: [], why: null };
   if (!x.viewer) return { ...none, why: `${x.signInLine}.` };
@@ -380,6 +383,9 @@ export function suggestionGate(x: {
     const who = other === 'design' ? x.owners.design : other === 'tech' ? x.owners.tech : listed;
     return { ...base, why: other ? `Your part is done. It waits for ${other === 'approval' ? 'an approval' : `a ${other} approval`}${who.length ? ` from ${people(who, x.names)}` : ''}.` : 'It has every approval it needs.' };
   }
+  // The only owner, when the team opted in: one approval covers both parts (core summarizeApprovals).
+  const parts = missing.filter((m) => m !== 'approval');
+  if (x.soloOwner && same(x.viewer, x.soloOwner) && parts.length > 1) return { ...base, canApprove: true, role, covers: parts, why: soloOwnerSentence(x.soloOwner, true) };
   return { ...base, canApprove: true, role, covers: [role] };
 }
 

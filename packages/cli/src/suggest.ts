@@ -105,6 +105,7 @@ export async function runSuggestions(a: SuggestArgs, root: string, io: RequestIO
       io.print(`\nVersion ${r.version}${r.edited ? ` (${r.edited})` : ''}`);
       io.print(`Approved by: ${r.approvals.approvedBy.map((l: string) => `@${l}`).join(', ') || 'nobody yet'}`);
       if (r.approvals.missing.length) io.print(`Missing: ${r.approvals.missing.join(' and ')}`);
+      if (r.approvals.soloOwner) io.print(r.approvals.soloOwner);
       if (r.approvals.changesRequestedBy.length) io.print(`Changes requested by: ${r.approvals.changesRequestedBy.map((l: string) => `@${l}`).join(', ')}`);
       for (const p of r.linkedPrs ?? []) io.print(`Pull request: #${p.number} ${p.merged ? 'merged' : p.state}  ${p.url}`);
       io.print(`\nNext: ${r.next}`);

@@ -295,7 +295,7 @@ export async function planSuggestionApply(input: PlanSuggestionApplyInput): Prom
   }
 
   // 2. Gate: approvals by owners on the current payload sha.
-  const governance = input.governance ?? { owners: config.governance.owners, rights: config.governance.rights ?? null };
+  const governance = input.governance ?? { owners: config.governance.owners, rights: config.governance.rights ?? null, soloOwnerCanApproveBoth: config.governance.soloOwnerCanApproveBoth };
   const approvals = summarizeSuggestionApprovals(input.comments, governance, { payloadSha: parsed.sha, author: input.author });
   const review = suggestionReviewState(payload.tier.tier, approvals);
   const missing = pendingApprovals(payload.tier.tier, approvals);

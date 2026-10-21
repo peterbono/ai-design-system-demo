@@ -90,6 +90,35 @@ on `bridge.config.json` (a guardrail file, so it is reviewed at Tier 3).
 - The same rules live in `@bridge-ds/core` (`rights.ts`: `approverLists`, `shipPolicy`, `canShip`) for Studio, the
   CLI and the MCP server.
 
+### One person holding both roles
+
+By default one person never covers both approvals alone: an owner listed as design and tech owner counts for the
+design approval only, so Tier 2 and Tier 3 changes still need a second owner. A design system run by one person
+turns this off explicitly:
+
+```json
+"governance": {
+  "owners": { "design": ["peterbono"], "tech": ["peterbono"] },
+  "soloOwnerCanApproveBoth": true
+}
+```
+
+- **When it applies.** `soloOwnerCanApproveBoth` is `true` (default `false`) **and** the approver lists, after
+  `rights` and with GitHub teams expanded, name exactly one person, in both places. A team never counts as one
+  person, even with one member not yet read. Add a second owner and the rule stops applying on its own.
+- **What it does.** That person's approval counts as the design approval and the tech approval, on pull requests
+  (`summarizeApprovals`) and on suggestions (`summarizeSuggestionApprovals`), so a Tier 2 or Tier 3 change can reach
+  approved with one review.
+- **What it does not do.** The author of a change still never approves it: GitHub refuses self-approval on a pull
+  request, and Bridge ignores a suggestion author's own review. CI, changes requested, drafts and the ship right
+  gate the merge as before. For the owner's own pull requests, the [owner override](#owner-override-solo-maintainers-and-small-teams)
+  stays the audited way through.
+- **Where it shows.** Studio Settings, Review rules, shows "Only owner: As the only owner, @login approves design and
+  code in one review." The owner reads "As the only owner, your approval covers design and code." on a suggestion
+  and "Your turn: approve." on a pull request, where one Approve covers both rows. `bridge settings`,
+  `bridge branch status`, `bridge suggestions show` and the matching MCP tools say the same.
+- `bridge.config.json` is a guardrail file: turning the rule on is itself a Tier 3 change.
+
 ### Roles by team
 
 An owner entry is a person or a GitHub team. A company assigns roles by team and manages who is in each team in

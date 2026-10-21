@@ -87,6 +87,7 @@ export async function runBranch(a: RequestArgs, root: string, io: RequestIO = de
       return out(r, () => {
         io.print(`#${r.pr} ${r.title} (${r.product.name})`);
         io.print(`${r.status.label}. ${r.approvalNeeded} needed; approved by ${r.approvals.approvedBy.map((x: string) => `@${x}`).join(', ') || 'nobody yet'}.`);
+        if (r.approvals.soloOwner) io.print(r.approvals.soloOwner);
         if (r.merge.blockedBy?.length) for (const x of r.merge.blockedBy) io.print(`  ${x}`);
         io.print(`Next: ${r.next}`);
         io.print(r.url);
@@ -190,6 +191,7 @@ export async function runStudioRead(cmd: 'products' | 'settings' | 'coverage', a
     if (json) return io.print(JSON.stringify(r, null, 2)), 0;
     io.print(`Design approval: ${r.roles.designApproval.join(', ') || 'any reviewer'}`);
     io.print(`Tech approval: ${r.roles.techApproval.join(', ') || 'any reviewer'}`);
+    if (r.roles.soloOwner) io.print(r.roles.soloOwner);
     io.print(`Merge: ${r.roles.ship}`);
     io.print(`Owner override: ${r.ownerOverride.on ? `${r.ownerOverride.who.join(', ')}. ${r.ownerOverride.reason}` : r.ownerOverride.reason}`);
     io.print(`Protection: ${r.protection}`);

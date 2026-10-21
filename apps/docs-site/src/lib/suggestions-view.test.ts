@@ -218,6 +218,13 @@ describe('the gate', () => {
     expect(solo.why).toBe('You approved this version. It waits for a tech approval from someone else.');
   });
 
+  it('lets the only owner sign both parts when governance.soloOwnerCanApproveBoth is on', () => {
+    const g = suggestionGate({ ...base, owners: { design: ['dana'], tech: ['dana'] }, soloOwner: 'dana' });
+    expect(g).toMatchObject({ canApprove: true, covers: ['design', 'tech'], why: 'As the only owner, your approval covers design and code.' });
+    expect(approveLabel(g, 3)).toBe('Approve');
+    expect(suggestionGate({ ...base, owners: { design: ['dana'], tech: ['dana'] }, soloOwner: 'dana', viewer: 'ann' }).canApprove).toBe(false);
+  });
+
   it('tells everyone else why', () => {
     expect(suggestionGate({ ...base, viewer: null }).why).toBe('Sign in to review.');
     expect(suggestionGate({ ...base, viewer: 'zoe' })).toMatchObject({ canApprove: false, canRequestChanges: false, canDecline: false, why: 'Only the design system owners approve suggestions: @dana or Theo.' });

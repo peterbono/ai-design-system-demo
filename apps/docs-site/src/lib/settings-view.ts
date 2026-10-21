@@ -5,7 +5,7 @@
 // - The Account block for each connection state, and the owner override as one line.
 // - How changes reach your code: the two modes in words (shared with the onboarding checklist), what the GitHub App
 //   may do on the repository, and the format-preserving edit of `changes` in bridge.config.json.
-import { fromPlain, getEntry, parseJson, serializeJson, toPlain, type ChangesMode, type JsonObject } from '@bridge-ds/core';
+import { fromPlain, getEntry, parseJson, serializeJson, soloOwnerOf, soloOwnerSentence, toPlain, type ChangesMode, type JsonObject, type Owners, type Rights } from '@bridge-ds/core';
 import type { TierSummary } from './governance';
 import { noReachText, readOnlyText, type SignInApp } from './github-signin';
 
@@ -153,6 +153,16 @@ export function overrideText(o: { allowed: string[]; requireReason?: boolean; mi
   const who = o.allowed.map((l) => `@${l}`).join(', ');
   const reason = o.requireReason ? `, with a written reason of ${o.minReasonLength ?? 0} characters or more` : '';
   return { on: true, text: `${who} may merge a branch when only approvals are missing${reason}.` };
+}
+
+/**
+ * Settings > Review rules: the only-owner line, shown when governance.soloOwnerCanApproveBoth is on and the owners
+ * are one person holding both roles (core soloOwnerOf). Null otherwise: the line is not shown.
+ */
+export function soloOwnerRow(gov: { owners: Owners; rights: Rights | null; soloOwnerCanApproveBoth: boolean }): { label: string; help: string; value: string } | null {
+  const login = soloOwnerOf(gov);
+  if (!login) return null;
+  return { label: 'Only owner', help: 'A design system run by one person.', value: soloOwnerSentence(login) };
 }
 
 // ---------------------------------------------------------------------------------------------------------------
