@@ -10,7 +10,7 @@
   "whenToUse": [
     "One choice from about 4 to 10 known options: a theme, a brand, a token group, a role.",
     "The options are long words or labels that would crowd a RadioGroup.",
-    "Space is tight: in a toolbar, a table filter or a dense settings row (size sm).",
+    "Space is tight: in a dense toolbar, a menu or a settings row (size sm). In a page's filter bar, size md, like the search field beside it.",
     "Each option carries a short fact worth seeing before the pick, like a status or a count: put a Badge in badge. It shows on the item and in the trigger once selected."
   ],
   "whenNotToUse": [

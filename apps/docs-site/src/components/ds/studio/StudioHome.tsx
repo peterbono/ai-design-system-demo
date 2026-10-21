@@ -202,7 +202,7 @@ function Branches({ branches, now, components }: { branches: BranchCard[]; now: 
           </h2>
           <p className="t-body t-muted sh-section-sub">Your changes, kept apart from the library until they're merged.</p>
         </div>
-        {branches.length >= 4 && <SegmentedControl label={`Show ${VOCAB.branches}`} size="sm" value={filter} onValueChange={(v) => setFilter(v as BranchFilter)} items={BRANCH_FILTERS} />}
+        {branches.length >= 4 && <SegmentedControl label={`Show ${VOCAB.branches}`} size="md" value={filter} onValueChange={(v) => setFilter(v as BranchFilter)} items={BRANCH_FILTERS} />}
       </header>
       <ul className="sh-cards">
         {/* Create first, like "+ New" in Figma's file browser: the slot never moves as branches come and go. */}

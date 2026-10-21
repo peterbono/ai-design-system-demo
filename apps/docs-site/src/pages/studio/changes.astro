@@ -120,7 +120,7 @@ const signIn = Boolean(signInConfig());
 
 <div class="cg-work" data-work-bar hidden>
           <span class="t-ui t-muted" aria-hidden="true">Show</span>
-          <SegmentedControl label="Show" data-vanilla data-work-filter size="sm" defaultValue="all" items={workItems} />
+          <SegmentedControl label="Show" data-vanilla data-work-filter size="md" defaultValue="all" items={workItems} />
         </div>
         <div class="fg-card cg-card" id="rq-table">
           <ul class="cg-list" id="rq-list" aria-label="Component change requests" aria-busy="true">
@@ -195,7 +195,7 @@ const signIn = Boolean(signInConfig());
 
 <div class="cg-work" data-work-bar hidden>
           <span class="t-ui t-muted" aria-hidden="true">Show</span>
-          <SegmentedControl label="Show" data-vanilla data-work-filter size="sm" defaultValue="all" items={workItems} />
+          <SegmentedControl label="Show" data-vanilla data-work-filter size="md" defaultValue="all" items={workItems} />
         </div>
         <div class="fg-card cg-card" id="ex-table">
           <ul class="cg-list" id="ex-list" aria-label="Explorations" aria-busy="true">
@@ -231,13 +231,14 @@ const signIn = Boolean(signInConfig());
           <Button variant="secondary" size="sm" id="hs-filter-toggle" aria-expanded="false" aria-controls="hs-filters">Filter</Button>
         </div>
         <form class="hs-filters" id="hs-filters" role="search" aria-label="Filter history" hidden>
-          <Input label="Token" size="sm" data-hs-token list="hs-paths" placeholder="color.text.muted or color.text" autoComplete="off" spellCheck={false} />
+          <Input label="Token" size="md" data-hs-token list="hs-paths" placeholder="color.text.muted or color.text" autoComplete="off" spellCheck={false} />
           <datalist id="hs-paths"></datalist>
-          <BridgedSelect client:load id="hs-author" label="Author" value="" options={[{ value: '', label: 'Anyone' }]} />
+          <BridgedSelect client:load id="hs-author" label="Author" size="md" value="" options={[{ value: '', label: 'Anyone' }]} />
           <BridgedSelect
             client:load
             id="hs-tier"
             label="Kind of change"
+            size="md"
             value=""
             options={[
               { value: '', label: 'Any change' },
@@ -246,7 +247,7 @@ const signIn = Boolean(signInConfig());
               { value: '1', label: 'Docs fixes', description: 'One approval' },
             ]}
           />
-          <Button type="reset" variant="secondary" size="sm" id="hs-clear">Clear filters</Button>
+          <Button type="reset" variant="secondary" size="md" id="hs-clear">Clear filters</Button>
         </form>
         <Alert tone="warning" announce="off" title="Demo data: fixture changes, not this repository's history." className="st-hideable st-hs-banner" id="hs-banner" hidden>Nothing here can be proposed.</Alert>
 

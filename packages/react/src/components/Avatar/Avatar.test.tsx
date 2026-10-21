@@ -54,12 +54,13 @@ describe('Avatar', () => {
     await expectNoAxeViolations(container);
   });
 
-  it('draws the Bridge agent mark, not a vendor logo', () => {
+  it('draws the Bridge agent mark (the Field Guide robot), not a vendor logo', () => {
     const { container } = render(<PlainAvatar kind="agent" brand="claude" />);
     const path = container.querySelector('svg path');
     // The rendered path is AGENT_MARK.path, written out in the TSX for the Figma specs.
     expect(path).toHaveAttribute('d', AGENT_MARK.path);
     expect(path).not.toHaveAttribute('fill');
+    expect(container.querySelector('svg')).toHaveAttribute('viewBox', AGENT_MARK.viewBox);
     expect(CLAUDE_MARK).toBe(AGENT_MARK);
   });
 

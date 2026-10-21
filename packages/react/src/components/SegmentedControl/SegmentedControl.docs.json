@@ -16,7 +16,7 @@
     "Short options where seeing every option at once helps the choice: two to five usually, more for filters people switch between often (status filters). On a phone the track scrolls sideways and never widens the page.",
     "Appearance strong when the control is what the view is about (the status filter of a list): the selected segment fills with Deep Harbor. At most one strong control per view.",
     "The change applies immediately, with no Save button.",
-    "Size sm in toolbars, menus and dense panels; md everywhere else. Heights follow the density setting.",
+    "Size sm in dense toolbars, menus and panels; md everywhere else, including a page's filter bar, where it matches the md search field and Select beside it. Heights follow the density setting.",
     "fullWidth inside a narrow panel or menu, so the segments share the width equally."
   ],
   "whenNotToUse": [
