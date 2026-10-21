@@ -71,7 +71,7 @@ export const FAQ: { id: string; question: string; answer: string }[] = [
   {
     id: 'existing',
     question: 'Does it work with our existing design system?',
-    answer: 'Bridge reads a design system that lives in code on GitHub, with DTCG tokens. Run npx @bridge-ds/cli init in your repo to set it up.',
+    answer: 'Bridge reads a design system that lives in code on GitHub, with tokens in the W3C standard format. A developer sets it up with one command: npx @bridge-ds/cli init.',
   },
   { id: 'open-source', question: 'Is Bridge open source?', answer: 'Yes. MIT licensed and free. The code is on GitHub and contributions are welcome.' },
 ];

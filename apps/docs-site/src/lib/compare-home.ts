@@ -23,7 +23,7 @@ export interface HomeGroup {
 export const TOOLS = ['Bridge', 'Tokens Studio', 'Supernova', 'Storybook', 'zeroheight', 'Figma'] as const;
 
 export const HEADING = 'How Bridge compares.';
-export const HEAD_LINE = 'Bridge works next to the tools you already use. Here is what each one covers, from their public pages.';
+export const HEAD_LINE = 'What each tool covers, from their public pages.';
 export const AS_OF_LINE = 'From public pages, October 2026';
 /** Words a screen reader hears for a check and a dash. */
 export const YES = 'Yes';
@@ -49,11 +49,11 @@ const n = false;
 export const SHORT: HomeRow[] = [
   { feature: 'Start an AI exploration on your real components', detail: 'In its own branch, with its own preview', cells: [y, n, n, n, n, n] },
   { feature: 'See what it adds that the library lacks', detail: 'New tokens, variants and components, listed', cells: [y, n, n, n, n, n] },
-  { feature: 'Approve just the change, as a Git pull request', detail: 'Tokens, components and docs', cells: [y, n, n, n, n, n] },
+  { feature: 'Your DS lead approves just the change', detail: 'Tokens, components and docs, before they reach the library', cells: [y, n, n, n, n, n] },
   { feature: 'Figma kit built from code, with a fidelity check', detail: 'Pixel match between Figma and code', cells: [y, n, n, n, n, n] },
   {
     feature: 'Contrast and accessibility checked on every change',
-    detail: 'CI fails a change that drops contrast below WCAG',
+    detail: 'A change that breaks contrast cannot go in',
     cells: [y, n, n, n, n, n],
   },
   { feature: 'Open source', detail: '', cells: [y, n, n, y, n, n] },
@@ -64,8 +64,8 @@ export const GROUPS: HomeGroup[] = [
   {
     name: 'Tokens and Figma',
     rows: [
-      { feature: 'Tokens in the W3C DTCG format', detail: '', cells: [y, y, n, n, y, y] },
-      { feature: 'Two-way sync of Figma variables and Git', detail: '', cells: [y, y, n, n, n, n] },
+      { feature: 'Tokens in the W3C standard format', detail: '', cells: [y, y, n, n, y, y] },
+      { feature: 'Two-way sync between Figma variables and code', detail: '', cells: [y, y, n, n, n, n] },
       { feature: 'Figma components linked to code in Dev Mode', detail: '', cells: [n, n, n, n, n, y] },
     ],
   },
@@ -87,6 +87,6 @@ export const GROUPS: HomeGroup[] = [
   },
   {
     name: 'AI',
-    rows: [{ feature: 'MCP server for AI agents', detail: '', cells: [y, n, y, n, y, y] }],
+    rows: [{ feature: 'Works with AI agents, through MCP', detail: '', cells: [y, n, y, n, y, y] }],
   },
 ];

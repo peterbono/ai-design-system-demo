@@ -2679,12 +2679,16 @@
   width: calc(var(--_u) * 40);
   height: calc(var(--_u) * 40);
   border-radius: 50%;
-  background: var(--_paper);
+  background: var(--color-illustration-surface);
   box-shadow: var(--elevation-raised);
-  display: inline-flex;
-  align-items: flex-end;
-  justify-content: center;
   overflow: hidden;
+}
+
+.hp-ldec-dana img,
+.hp-ldec-ann img {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .hp-ldec-wl {
@@ -2766,7 +2770,10 @@
 
 .hp-ldec-mini {
   flex: none;
+  width: calc(var(--_u) * 14);
+  height: calc(var(--_u) * 14);
   border-radius: 50%;
+  background: var(--color-illustration-surface);
   display: block;
 }
 
@@ -2824,12 +2831,8 @@
   width: calc(var(--_u) * 36);
   height: calc(var(--_u) * 36);
   border-radius: 50%;
-  background: var(--color-bg-zone);
+  background: var(--color-illustration-surface);
   overflow: hidden;
-  display: block;
-}
-
-.hp-ldec-ann svg {
   display: block;
 }
 
@@ -3081,18 +3084,6 @@
   }
 }
 
-@keyframes hp-ldecWipe {
-  0%,
-  26% {
-    clip-path: inset(0 100% 0 0);
-  }
-
-  40%,
-  100% {
-    clip-path: inset(0 0 0 0);
-  }
-}
-
 @keyframes hp-ldecRing {
   0%,
   62%,
@@ -3104,10 +3095,6 @@
   70% {
     box-shadow: var(--elevation-raised);
   }
-}
-
-.hp-ldec-wipe {
-  animation: hp-ldecWipe calc(var(--motion-duration-moderate) * 45) var(--motion-easing-standard) infinite;
 }
 
 .hp-ldec-ring {
@@ -3245,7 +3232,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .hp .hp-ldec-join,
-  .hp .hp-ldec-wipe,
   .hp .hp-ldec-ring {
     animation: none;
   }
