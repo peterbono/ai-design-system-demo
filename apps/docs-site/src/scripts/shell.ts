@@ -5,6 +5,7 @@ import { bindCodeBlocks, bindDialogs, bindTooltips, closeDialog, isDialogOpen, o
 import { getToken, initGitHubConnect } from './github-session';
 import { loadReviewNeedsYou, rememberedMine, type QueuePullFull } from './needs-you';
 import { initMaintainer } from './maintainer';
+import { pointLinksAtTeam } from './team-links';
 import { initVanillaControls } from './vanilla-controls';
 import { initViewChange, readOpenPulls } from './view-change';
 
@@ -613,6 +614,8 @@ function initStudio() {
 }
 
 export function initShell() {
+  // First, so every handler below sees the team's addresses on a team shell.
+  pointLinksAtTeam();
   initTheme();
   initMaintainer();
   initSegmented();

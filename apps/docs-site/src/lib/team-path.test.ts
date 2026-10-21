@@ -2,7 +2,7 @@
 // studioHref (multi-team plan, section 4.1): self-hosted and build-time addresses stay byte for byte what they were;
 // a team shell keeps its team. The literal scan lives in no-studio-literals.test.ts.
 import { afterEach, describe, expect, it } from 'vitest';
-import { studioBase, studioHref, studioHrefAt } from './team-path';
+import { isReservedTeam, parseTeamInput, reservedFromFiles, studioBase, studioHref, studioHrefAt, teamHref } from './team-path';
 
 describe('studioHref', () => {
   it('returns the self-hosted path unchanged outside a team shell (build time, no data-hosted)', () => {
@@ -59,5 +59,60 @@ describe('studioHref in the browser', () => {
     expect(studioHref('changes/')).toBe('/studio/changes/');
     at('/studio/changes/', true);
     expect(studioHref('changes/')).toBe('/studio/changes/');
+  });
+});
+
+describe('parseTeamInput (the launcher field)', () => {
+  const ok = (owner: string, repo: string) => ({ ok: true, owner, repo });
+  it('reads owner/repo and GitHub addresses in their usual spellings', () => {
+    expect(parseTeamInput('acme/ds')).toEqual(ok('acme', 'ds'));
+    expect(parseTeamInput('  acme/ds/  ')).toEqual(ok('acme', 'ds'));
+    expect(parseTeamInput('https://github.com/acme/design-system')).toEqual(ok('acme', 'design-system'));
+    expect(parseTeamInput('github.com/acme/ds.v2')).toEqual(ok('acme', 'ds.v2'));
+    expect(parseTeamInput('www.github.com/acme/ds')).toEqual(ok('acme', 'ds'));
+    expect(parseTeamInput('https://github.com/acme/ds.git')).toEqual(ok('acme', 'ds'));
+    expect(parseTeamInput('https://github.com/acme/ds/tree/main/packages/tokens?x=1#y')).toEqual(ok('acme', 'ds'));
+    expect(parseTeamInput('git@github.com:acme/ds.git')).toEqual(ok('acme', 'ds'));
+    expect(parseTeamInput('ssh://git@github.com/acme/ds.git')).toEqual(ok('acme', 'ds'));
+  });
+
+  it('reads a team address of this site, in both forms', () => {
+    expect(parseTeamInput('https://bridge.example.com/studio/acme/ds/tokens/')).toEqual(ok('acme', 'ds'));
+    expect(parseTeamInput('/studio/~/brands/new/')).toEqual(ok('brands', 'new'));
+    // On GitHub, /studio/ is an owner named "studio".
+    expect(parseTeamInput('https://github.com/studio/kit')).toEqual(ok('studio', 'kit'));
+  });
+
+  it('says what is wrong otherwise', () => {
+    expect(parseTeamInput('   ')).toEqual({ ok: false, error: 'empty' });
+    expect(parseTeamInput('acme')).toEqual({ ok: false, error: 'no-repo' });
+    expect(parseTeamInput('https://github.com/acme')).toEqual({ ok: false, error: 'no-repo' });
+    expect(parseTeamInput('https://gitlab.com/acme/ds')).toEqual({ ok: false, error: 'not-github' });
+    expect(parseTeamInput('git@gitlab.com:acme/ds.git')).toEqual({ ok: false, error: 'not-github' });
+    expect(parseTeamInput('-acme/ds')).toEqual({ ok: false, error: 'invalid' });
+    expect(parseTeamInput('acme/d s')).toEqual({ ok: false, error: 'invalid' });
+    expect(parseTeamInput('acme/..')).toEqual({ ok: false, error: 'invalid' });
+    expect(parseTeamInput('acme--x/<script>')).toEqual({ ok: false, error: 'invalid' });
+  });
+});
+
+describe('teamHref and the reserved paths', () => {
+  const reserved = reservedFromFiles(['index.html', 'changes/index.html', 'brands/new/index.html', 'components/docs/button/index.html', 'versions/data.json', 'library-files.json']);
+
+  it('derives first segments and pairs from the built files', () => {
+    expect(reserved.firsts).toEqual(['brands', 'changes', 'components', 'library-files.json', 'versions']);
+    expect(reserved.pairs).toEqual(['brands/new', 'changes/index.html', 'components/docs', 'versions/data.json']);
+  });
+
+  it('opens a team on its own address, and on the escape form when a Studio file takes the pair', () => {
+    expect(teamHref('acme', 'ds', reserved)).toBe('/studio/acme/ds/');
+    expect(teamHref('brands', 'kit', reserved)).toBe('/studio/brands/kit/');
+    expect(teamHref('brands', 'new', reserved)).toBe('/studio/~/brands/new/');
+    expect(teamHref('Components', 'Docs', reserved)).toBe('/studio/~/Components/Docs/');
+    expect(isReservedTeam('versions', 'data.json', reserved)).toBe(true);
+  });
+
+  it('falls back to the escape form without the list', () => {
+    expect(teamHref('acme', 'ds', null)).toBe('/studio/~/acme/ds/');
   });
 });

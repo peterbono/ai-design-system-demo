@@ -1,13 +1,15 @@
 // Static docs site. React is used at build time only, to render the real components to HTML;
 // no component ships client JavaScript (no client:* directives anywhere).
-import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { join } from 'node:path';
+import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import react from '@astrojs/react';
 import { defineConfig } from 'astro/config';
 import { REDIRECTS, redirectScript } from './src/lib/redirects.ts';
 import { INLINE_SCRIPT_HASHES, inlineScripts } from './src/lib/csp.ts';
+import { RESERVED_PATHS_URL, reservedFromFiles } from './src/lib/team-path.ts';
+import { checkTeamShells } from './src/lib/team-shells.ts';
 
 /**
  * Astro writes a meta refresh page for each redirect, which drops the query string and the hash. Old deep links
@@ -60,6 +62,33 @@ const cspHashes = {
   },
 };
 
+/**
+ * Team shells (src/lib/team-shells.ts). After the build: the paths a team address can never take are read from the
+ * built Studio folder (not a hand-kept list) and written to /team-shell/reserved.json for the launcher, then the
+ * build fails when a shell is missing or malformed, or when a page links to a Studio path that no file serves (the
+ * rewrite would open it as a team instead of a 404).
+ */
+const teamShells = {
+  name: 'bridge-team-shells',
+  hooks: {
+    'astro:build:done': ({ dir, logger }) => {
+      const root = fileURLToPath(dir);
+      const walk = (d) => readdirSync(d).flatMap((f) => {
+        const p = join(d, f);
+        return statSync(p).isDirectory() ? walk(p) : [relative(root, p).split(sep).join('/')];
+      });
+      const files = walk(root);
+      const reserved = reservedFromFiles(files.filter((f) => f.startsWith('studio/')).map((f) => f.slice('studio/'.length)));
+      const out = join(root, RESERVED_PATHS_URL);
+      mkdirSync(dirname(out), { recursive: true });
+      writeFileSync(out, `${JSON.stringify(reserved)}\n`);
+      const problems = checkTeamShells(files, (f) => readFileSync(join(root, f), 'utf8'));
+      if (problems.length) throw new Error(`Team shells:\n${problems.map((p) => `  - ${p}`).join('\n')}`);
+      logger.info(`Team shells: checked; ${reserved.pairs.length} reserved owner/repo pairs written to ${RESERVED_PATHS_URL}.`);
+    },
+  },
+};
+
 // Absolute URLs (canonical, sitemap): SITE_URL, else the branch URL of a preview host. The site is always served
 // from the domain root: page links are root-relative.
 const previewHost = process.env.VERCEL_ENV === 'preview' && process.env.VERCEL_BRANCH_URL ? `https://${process.env.VERCEL_BRANCH_URL}` : undefined;
@@ -69,7 +98,7 @@ export default defineConfig({
   output: 'static',
   site,
   trailingSlash: 'ignore',
-  integrations: [react(), keepQuery, cspHashes],
+  integrations: [react(), keepQuery, cspHashes, teamShells],
   redirects: REDIRECTS,
   build: { format: 'directory' },
   devToolbar: { enabled: false },

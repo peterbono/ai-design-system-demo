@@ -1,0 +1,67 @@
+/* The team launcher on Studio home (components/ds/studio/TeamLauncher.tsx), hosted deployment only. A flat plate
+   above the home: what it does on the start side, the field and its action on one line on the end side (the action
+   sits with what it acts on). It stacks on narrow screens. Not a Harbor block: the greeting below is the one zone. */
+
+.tl {
+  margin-block-end: var(--space-8);
+}
+
+/* Two selectors deep: wins over the Card body's own padding and display whatever the stylesheet order. */
+.tl .tl-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  align-items: center;
+  gap: var(--space-4) var(--space-8);
+  padding: var(--space-6) var(--space-7);
+}
+
+.tl-text {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.tl-title {
+  margin: 0;
+  font-family: var(--typography-h3-family);
+  font-size: var(--typography-h3-size);
+  font-weight: var(--typography-h3-weight);
+  line-height: var(--typography-h3-line-height);
+}
+
+.tl-lead {
+  margin: 0;
+  max-width: 65ch;
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.tl-form {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/* The field (the Input's Field wrapper) takes the line; the action keeps its size beside it. */
+.tl-form > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.tl-open {
+  flex: none;
+}
+
+@media (max-width: 1100px) {
+  .tl .tl-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .tl .tl-body {
+    padding: var(--space-5);
+  }
+}

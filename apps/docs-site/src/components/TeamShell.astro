@@ -1,0 +1,37 @@
+---
+// A team shell page (src/pages/team-shell/, lib/team-shells.ts): the Studio page `route` for the team in the address,
+// /studio/<owner>/<repo>/<route>. Built once, without any team data; the team name and its GitHub link are filled in
+// the browser. Until the pages render from the team's repository (multi-team PR 3b), it says so and offers the same
+// page on the demo, so a team link never lands on a blank screen.
+import '../styles/team-shell.css';
+import Layout from '../layouts/Layout.astro';
+import StudioHeader from './StudioHeader.astro';
+import TeamShellEmpty from './ds/studio/TeamShellEmpty';
+import { studioHref } from '../lib/team-path';
+import type { TeamShellRoute } from '../lib/team-shells';
+
+interface Props {
+  /** The Studio route this shell stands for ('' is Home). */
+  route: TeamShellRoute;
+  /** The Studio page title, as on the self-hosted page. */
+  title: string;
+  /** What the page holds, said as "your <what>": "tokens", "changes in review". */
+  what: string;
+  description: string;
+  wide?: boolean;
+}
+const { route, title, what, description, wide = true } = Astro.props;
+---
+
+<Layout title={title} description={description} hosted wide={wide}>
+  <div class="ts" data-team-shell={route || 'home'}>
+    <StudioHeader title={title}>
+      <p class="ts-repo"><span class="mono" data-team-name>owner/repo</span></p>
+    </StudioHeader>
+    <TeamShellEmpty what={what} demoHref={studioHref(route)} />
+  </div>
+  <script>
+    import { fillTeamShell } from '../scripts/team-links';
+    fillTeamShell();
+  </script>
+</Layout>

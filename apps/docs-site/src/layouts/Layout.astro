@@ -14,6 +14,7 @@ import ScriptDialog from '../components/ds/ScriptDialog.astro';
 import PaletteField from '../components/ds/PaletteField';
 import Logo from '../components/Logo.astro';
 import ViewAsChange from '../components/ViewAsChange.astro';
+import { shellMarker, studioPathOfShell } from '../lib/team-shells';
 import { COMPARE, LANDING, LIBRARY_HOME, SPACE_LABEL, STUDIO_HOME, locate, navFor, type Space } from '../lib/nav';
 import { siteRepoJson } from '../lib/config';
 import { signInConfig } from '../lib/signin-config';
@@ -43,17 +44,25 @@ interface Props {
   crumbs?: Crumb[] | false;
   /** Right "On this page" rail, built from the page's h2 headings. Default: on for Library reading pages. */
   toc?: boolean;
+  /**
+   * A team shell (src/pages/team-shell/, lib/team-shells.ts): the Studio page it stands for, without build-time team
+   * data. Sets <html data-hosted data-shell>, noindex, and points the page's Studio links at the team in the browser.
+   */
+  hosted?: boolean;
 }
 
-const { title, description, sources = [], updated, wide = false, crumbs, toc } = Astro.props;
-const path = Astro.url.pathname.replace(/\/?$/, '/');
+const { title, description, sources = [], updated, wide = false, crumbs, toc, hosted = false } = Astro.props;
+// A shell at /team-shell/tokens/ is the Tokens page of Studio: same nav, same current entry.
+const path = studioPathOfShell(Astro.url.pathname.replace(/\/?$/, '/'));
+const shell = hosted ? shellMarker(Astro.url.pathname.replace(/^\/team-shell\/?/, '').replace(/\/?$/, '/').replace(/^\/$/, '')) : undefined;
 const here = locate(path);
 const space: Space = here.space;
 const nav = navFor(space);
 const isStudio = space === 'studio';
 const isHome = path === LIBRARY_HOME || path === STUDIO_HOME;
 // Tokens, Components and Quality can show the library as an open change (lib/view-scope): the selector and the banner.
-const viewAware = isStudio && Boolean(here.item?.branchAware) && here.item?.href === path;
+// Not on a team shell yet: the open changes it lists are the demo's (multi-team PR 3b reads the team's).
+const viewAware = !hosted && isStudio && Boolean(here.item?.branchAware) && here.item?.href === path;
 // Library reading pages get the right "On this page" rail: it only shows from 1320px, where the column beside the
 // 960px reading width is otherwise empty, and only with two sections or more. Studio and wide pages opt in.
 const showToc = toc ?? (!isStudio && !wide && !isHome);
@@ -72,12 +81,13 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
 ---
 
 <!doctype html>
-<html lang="en" data-theme="light" data-brand="bridge" data-density="comfortable" data-space={space} data-gh-app={signInConfig()?.app ?? ''} data-brands={[DEFAULT_BRAND, ...BRANDS.filter((b) => b !== DEFAULT_BRAND)].join(' ')}>
+<html lang="en" data-hosted={hosted ? '' : undefined} data-shell={shell} data-theme="light" data-brand="bridge" data-density="comfortable" data-space={space} data-gh-app={signInConfig()?.app ?? ''} data-brands={[DEFAULT_BRAND, ...BRANDS.filter((b) => b !== DEFAULT_BRAND)].join(' ')}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{pageTitle}</title>
     {description && <meta name="description" content={description} />}
+    {hosted && <meta name="robots" content="noindex" />}
     <meta name="author" content="Florian Gouloubi" />
     <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#0b1825" media="(prefers-color-scheme: dark)" />
@@ -319,7 +329,8 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
 
     {isStudio && <GitHubDialog />}
     <p class="sr-only" role="status" aria-live="polite" id="live"></p>
-    <script type="application/json" id="bridge-repo" set:html={siteRepoJson()} />
+    {/* A team shell carries no repository of its own: scripts/repo-context.ts reads the team from the address. */}
+    <script type="application/json" id="bridge-repo" set:html={hosted ? '{}' : siteRepoJson()} />
     <script>
       import { initShell } from '../scripts/shell';
       initShell();
