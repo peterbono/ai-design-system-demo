@@ -2,6 +2,7 @@
 // All tokens: the Library's read-only reference. Every semantic token of the latest release with its light and dark
 // value (bridge brand), a filter, type chips and one side panel. Editing lives in Studio Tokens.
 // Deep links: ?t=<token path> (and ?focus=) select a token; a primitive path pre-fills the filter instead.
+import { jsonForScript } from '../../lib/html';
 import '../../styles/all-tokens.css';
 import Layout from '../../layouts/Layout.astro';
 import { Button, Icon, IconButton, Input, Link, SegmentedControl } from '@bridge-ds/react';
@@ -149,7 +150,7 @@ const panelData = Object.fromEntries(rows.map((r) => [r.path, { cssVar: r.cssVar
     </div>
     <div class="at-scrim" data-at-scrim hidden></div>
   </div>
-  <script type="application/json" id="at-data" set:html={JSON.stringify(panelData)} />
+  <script type="application/json" id="at-data" set:html={jsonForScript(panelData)} />
   <script>
     import { initAllTokens } from '../../scripts/all-tokens';
     initAllTokens();

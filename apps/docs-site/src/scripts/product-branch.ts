@@ -38,6 +38,7 @@ import { touchesVisuals } from '../lib/visual-impact';
 import { ghAction, sendButton, suggestionSentLine } from '../lib/gh-wording';
 import { assertBranchWrites, changesModeOnPage } from './changes-mode';
 import { jiraKeyOf } from '../lib/vocabulary';
+import { safeUrl } from '../lib/html';
 import type { Tier } from '../lib/review-rules';
 import type { PromoteAskDetail } from '../components/ds/studio/PromoteToReview';
 import type { ProductBranchProps } from '../components/ds/studio/ProductBranch';
@@ -100,11 +101,12 @@ async function previewSources(r: ExplorationRow): Promise<BranchPreviewSources |
 }
 
 /** The admin preview GitHub reported for the branch, opened with the Bridge toolbar. Only a reported URL, never a template. */
-function tryUrlOf(r: ExplorationRow, sources: BranchPreviewSources | null): string | null {
+export function tryUrlOf(r: ExplorationRow, sources: BranchPreviewSources | null): string | null {
   if (!sources) return null;
   const admin = explorationPreviews(r, CFG.apps, sources).find((p) => p.app === 'admin');
   if (!admin?.url || admin.source === 'template' || admin.state === 'failed') return null;
-  return tryInProductUrl(admin.url, r.number, null);
+  // The URL comes from a comment or a status on the branch: React 18 renders a javascript: href as is.
+  return safeUrl(tryInProductUrl(admin.url, r.number, null)) || null;
 }
 
 function repaint(d: HTMLElement, patch: Partial<ProductBranchProps>) {
@@ -245,7 +247,7 @@ export async function openProductBranch(d: HTMLElement, r: ExplorationRow, pull:
           }
         : null,
       developer: developerLines({ number: r.number, branch: r.branch, links: record?.links ?? [] }),
-      githubUrl: r.url,
+      githubUrl: safeUrl(r.url, '#'),
       ask: ASK_CLAUDE,
     },
   };

@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { ABOUT, allPages, COMPARE, DEMO, DOCS_FIGMA_PLUGIN, DOCS_HOME, HOW_REVIEW_WORKS, LANDING, LIBRARY_HOME, locate, navFor, SETTINGS_HOME, SETTINGS_SECTIONS, spaceOf } from './nav';
-import { REDIRECTS, redirectScript, redirectTarget } from './redirects';
+import { REDIRECT_SCRIPT_BODY, REDIRECTS, redirectScript, redirectTarget } from './redirects';
 import { ROOT } from './repo';
 
 const PAGES = join(ROOT, 'apps/docs-site/src/pages');
@@ -214,10 +214,13 @@ describe('redirects', () => {
 
   it('inlines the same rules in the redirect page script', () => {
     const script = redirectScript('/studio/changes/?view=history');
-    const body = script.replace(/^<script>|<\/script>$/g, '');
+    const m = script.match(/^<script data-to="([^"]*)">(.*)<\/script>$/)!;
+    expect(m[2]).toBe(REDIRECT_SCRIPT_BODY);
+    const to = m[1]!.replace(/&amp;/g, '&');
     let landed = '';
     const fakeLocation = { search: '?entry=abc', hash: '', replace: (u: string) => (landed = u) };
-    new Function('location', body)(fakeLocation);
+    const fakeDocument = { currentScript: { getAttribute: () => to } };
+    new Function('location', 'document', m[2]!)(fakeLocation, fakeDocument);
     expect(landed).toBe(redirectTarget('/studio/changes/?view=history', '?entry=abc', ''));
   });
 

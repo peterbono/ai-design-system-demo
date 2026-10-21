@@ -13,6 +13,7 @@
 // (lib/branches-page finishedParam). Designer words only (lib/vocabulary, Figma branching); developer details stay on
 // GitHub, one "Open on GitHub" link away on each branch. Replaces Drafts, Branches, Reviews, Versions and Visual
 // impact (lib/redirects.ts).
+import { jsonForScript } from '../../lib/html';
 import '../../styles/reviews.css';
 import '../../styles/branch-review.css';
 import '../../styles/motion-changes.css';
@@ -52,9 +53,9 @@ import { REQUEST_TRIAGE_IN_STUDIO } from '../../lib/studio-flags';
 import { VOCAB } from '../../lib/vocabulary';
 
 const r = siteRepo();
-const checks = readText(CONTRAST_FILE).replace(/</g, '\\u003c');
+const checks = jsonForScript(readText(CONTRAST_FILE), { parse: true });
 const cfg: BranchesConfig = { owner: r.owner, repo: r.repo, defaultBranch: r.defaultBranch, apps: PREVIEW_APPS, packages: PREVIEW_PACKAGES };
-const cfgJson = JSON.stringify(cfg).replace(/</g, '\\u003c');
+const cfgJson = jsonForScript(cfg);
 const version = versionInfo();
 // The preview of each component (its docs.json preview, rendered with the real components): a request row without
 // an image of its own shows it as its thumbnail.

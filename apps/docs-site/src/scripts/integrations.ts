@@ -4,7 +4,7 @@
 // classifier: bridge.config.json is a guardrail file. Secrets never go in the file.
 import { classifyRisk } from '@bridge-ds/core';
 import { integrationsFromForm, integrationsProblems, integrationsProposal, withIntegrations, type IntegrationsForm } from '../lib/requests-view';
-import { esc, getToken, prefersSignIn, readRepo, setButtonBusy, showGhError, studioClient } from './github-session';
+import { getToken, prefersSignIn, readRepo, setButtonBusy, prLinksHtml, showGhError, studioClient } from './github-session';
 import { ghAction } from '../lib/gh-wording';
 
 const FILE = 'bridge.config.json';
@@ -67,7 +67,7 @@ export function initIntegrations() {
       const pr = await gh.createPullRequest({ title: p.title, head: branch, base: repo.defaultBranch, body: p.body, draft: false });
       await gh.addLabels(pr.number, ['config', 'source: bridge-web', `tier-${risk.tier}`]).catch(() => false);
       done.innerHTML = `<p><strong>Review requested.</strong> Jira starts once the branch is merged and a repository admin adds the Jira credentials.</p>
-        <p><a href="/studio/changes/?pr=${pr.number}">See the branch</a> · <a href="${esc(pr.url)}" target="_blank" rel="noopener">Open on GitHub</a></p>`;
+        <p>${prLinksHtml(pr)}</p>`;
       done.hidden = false;
     } catch (err) {
       showGhError(error, err, `GitHub did not create the branch: ${(err as Error).message}`, 'create branches');

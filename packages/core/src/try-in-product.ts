@@ -19,9 +19,13 @@ export function productPreview(apps: PreviewApps, ctx: { branch: string; pr: num
   return admin.url;
 }
 
-/** The preview with the toolbar on, at that screen (shop and theme in the query, the hash route ra-core reads), else home. */
+/**
+ * The preview with the toolbar on, at that screen (shop and theme in the query, the hash route ra-core reads), else home.
+ * Only http(s) previews: anything else (a javascript: or data: URL in a hostile comment) gives ''.
+ */
 export function tryInProductUrl(preview: string, pr: number, screen: ProductScreen | null): string {
   const url = new URL(preview);
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return '';
   url.pathname = '/';
   url.search = '';
   url.searchParams.set('bridge', String(pr));

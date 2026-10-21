@@ -1,14 +1,28 @@
 // Tiny Markdown helpers: enough to lift tables, bullet lists and inline code out of the repo's .md files.
 // Deliberately small: the docs read structure from Markdown, they do not render whole documents.
 
-const escape = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+import { escapeHtml, safeUrl } from './html';
 
-/** Inline Markdown to HTML: `code`, **bold**, [links](url). Input is escaped first. */
+const escape = escapeHtml;
+const unescape = (s: string) => s.replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/&amp;/g, '&');
+
+/**
+ * A link from repo Markdown. The target must be http, https, mailto or relative (javascript:, data: and the rest
+ * render as plain text). Absolute links are marked as user content.
+ */
+function link(text: string, escapedUrl: string): string {
+  const url = safeUrl(unescape(escapedUrl));
+  if (!url) return text;
+  const external = /^([a-z][a-z0-9+.-]*:|\/\/)/i.test(url);
+  return `<a href="${escape(url)}"${external ? ' rel="noopener noreferrer nofollow ugc"' : ''}>${text}</a>`;
+}
+
+/** Inline Markdown to HTML: `code`, **bold**, [links](url). Input is escaped first; link targets are allow-listed. */
 export function inline(md: string): string {
   return escape(md)
     .replace(/`([^`]+)`/g, '<code>$1</code>')
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+    .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_m, text: string, url: string) => link(text, url));
 }
 
 /** Lines of the section that starts at a heading with this exact text (any level), until the next heading of the same or higher level. */
@@ -101,7 +115,7 @@ export function mdTitleText(md: string | null | undefined): string {
 /** Escaped HTML of a Markdown title: inline code as <code>, everything else as plain text. Safe for set:html. */
 export function mdTitleHtml(md: string | null | undefined): string {
   if (!md) return '';
-  const esc = (s: string) => escape(s).replace(/"/g, '&quot;');
+  const esc = escape;
   return codeSplit(md)
     .map((part, i) => (i % 2 ? `<code>${esc(part)}</code>` : esc(plainOutsideCode(part))))
     .join('')

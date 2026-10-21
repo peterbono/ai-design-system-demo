@@ -15,7 +15,8 @@ import { changesModeOnPage } from '../changes-mode';
 import { currentScope } from '../shell';
 import { destinationNote, discardDraft, draftOverrides, editorSnapshot, sendLabel, undoEdit } from '../token-editor';
 import type { ExplorerData } from './types';
-import { esc, icon } from './util';
+import { attrUrl } from '../../lib/html';
+import { cssValue, esc, icon } from './util';
 import { isStageToken, previewSamples } from '../../lib/preview-fit';
 import { fitFrames, sampleFrame, sampleNames } from './preview-frames';
 
@@ -72,7 +73,7 @@ export function initReview(d: ExplorerData) {
     if (label) label.textContent = `${n} edit${n === 1 ? '' : 's'}`;
   };
 
-  const swatch = (hex?: string) => (hex ? `<span class="xe-ms" style="background-color:${esc(hex)}" aria-hidden="true"></span>` : '');
+  const swatch = (hex?: string) => (hex ? `<span class="xe-ms" style="background-color:${cssValue(hex)}" aria-hidden="true"></span>` : '');
 
   function changeCards(edits: DraftEdit[]): string {
     const snap = editorSnapshot()!;
@@ -144,14 +145,14 @@ export function initReview(d: ExplorerData) {
         const was = before.get(`${r.brand}/${r.theme}:${r.pair.foreground}|${r.pair.background}`);
         return `<li class="${fail ? 'is-fail' : ''}"><span class="mono">${esc(shortName(r.pair.foreground))} on ${esc(shortName(r.pair.background))}</span><span class="xe-ctx">${esc(modeLabel(r.theme))}</span><span class="num">${
           was !== undefined && was !== r.ratio ? `${was.toFixed(2)} ${icon('arrowRight', 12)} ` : ''
-        }${r.ratio === undefined ? 'n/a' : `${r.ratio.toFixed(2)}:1`}</span><span class="xe-badge ${fail ? 'is-fail' : 'is-pass'}">${icon(fail ? 'x' : 'check', 12)}${fail ? `Needs ${r.pair.min}` : 'Pass'}</span></li>`;
+        }${r.ratio === undefined ? 'n/a' : `${r.ratio.toFixed(2)}:1`}</span><span class="xe-badge ${fail ? 'is-fail' : 'is-pass'}">${icon(fail ? 'x' : 'check', 12)}${fail ? `Needs ${esc(String(r.pair.min))}` : 'Pass'}</span></li>`;
       })
       .join('');
 
     const comps = [...new Map(paths.flatMap((p) => componentsUsing(p, transitiveDependents(snap.proposed, p), d.usage)).map((c) => [c.name, c])).values()];
     const styles = [...new Set(paths.flatMap((p) => stylesUsing(p, transitiveDependents(snap.proposed, p), d.usage)))].sort();
     const usedMeta = usedByLine(comps.length, styles);
-    const compBody = comps.length ? `<ul class="xe-comps">${comps.map((c) => `<li><a href="${esc(c.href)}">${esc(c.name)}</a></li>`).join('')}</ul>` : '';
+    const compBody = comps.length ? `<ul class="xe-comps">${comps.map((c) => `<li><a href="${attrUrl(c.href)}">${esc(c.name)}</a></li>`).join('')}</ul>` : '';
     const styleBody = styles.length ? `<p class="xe-sublab">Global styles</p><ul class="xe-comps">${styles.map((f) => `<li><span class="mono">${esc(f)}</span></li>`).join('')}</ul>` : '';
     const usedBody =
       compBody || styleBody

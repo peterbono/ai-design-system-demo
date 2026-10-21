@@ -46,6 +46,7 @@ import { forgetRequests, loadRequestRows, requestRow } from './requests';
 import { setSelect } from '../lib/select-bridge';
 import { jiraKeyOf, parseJiraKey, VOCAB } from '../lib/vocabulary';
 import { isProductBranch } from '../lib/product-branch';
+import { attrUrl } from '../lib/html';
 
 // The use case menu of Start an exploration (BridgedSelect id).
 const USE_CASE = 'ex-use-case';
@@ -90,7 +91,7 @@ function workOf(r: ExplorationRow) {
   return explorationWork({ name: r.name, author: r.author, body: pull?.body ?? null, labels: pull?.labels ?? null, source: r.source, agent: r.agent, requests }, currentViewer()?.login ?? null);
 }
 
-function rowHtml(r: ExplorationRow) {
+export function rowHtml(r: ExplorationRow) {
   const preview = r.previews[0];
   const w = workOf(r);
   const nature = w.nature.nature;
@@ -100,7 +101,7 @@ function rowHtml(r: ExplorationRow) {
     <div class="ex-row-main">
       <p class="ex-row-title">${key ? `<span class="mono cg-jira">${esc(key)}</span> ` : ''}<a class="ex-name" href="?exploration=${r.number}" data-open-exploration="${r.number}">${esc(r.name)}</a> <span class="cg-num">#${r.number}</span> ${badgeHtml(r.statusLabel, { tone: r.tone, size: 'sm', className: 'rv-status' })} ${devTag(nature)}</p>
       ${purposeLine(r.name, r.purpose) ? `<p class="ex-purpose">${esc(r.purpose)}</p>` : ''}
-      <p class="ex-meta">${personHtml(r.author, { agent: w.maker.kind === 'claude' })}, updated <time datetime="${esc(r.updatedAt)}">${esc(shortDate(r.updatedAt))}</time>${esc(reqs)}${preview ? `, <a href="${esc(preview.url)}" target="_blank" rel="noopener">${esc(preview.label)} preview</a>` : ''}</p>
+      <p class="ex-meta">${personHtml(r.author, { agent: w.maker.kind === 'claude' })}, updated <time datetime="${esc(r.updatedAt)}">${esc(shortDate(r.updatedAt))}</time>${esc(reqs)}${preview ? `, <a href="${attrUrl(preview.url)}" target="_blank" rel="noopener">${esc(preview.label)} preview</a>` : ''}</p>
     </div>
   </li>`;
 }
@@ -318,7 +319,7 @@ const crumbs = (n: number) => `<nav class="cg-crumbs" aria-label="Breadcrumb"><a
 export function previewList(previews: BranchPreview[]): string {
   return `<ul class="ex-previews">${previews
     .map(previewRowCopy)
-    .map((p) => `<li>${p.url ? `<a class="btn btn-secondary btn-lg" href="${esc(p.url)}" target="_blank" rel="noopener">Open ${esc(p.label)}</a>` : `<span class="ex-preview-name">${esc(p.label)}</span>`}${p.note ? ` <span class="cg-muted">${esc(p.note)}</span>` : ''}</li>`)
+    .map((p) => `<li>${p.url ? `<a class="btn btn-secondary btn-lg" href="${attrUrl(p.url)}" target="_blank" rel="noopener">Open ${esc(p.label)}</a>` : `<span class="ex-preview-name">${esc(p.label)}</span>`}${p.note ? ` <span class="cg-muted">${esc(p.note)}</span>` : ''}</li>`)
     .join('')}</ul>`;
 }
 
@@ -341,7 +342,7 @@ export function renderExplorationDetail(r: ExplorationRow, opts: { connected: bo
   <header class="zone cg-pr-open">
     <h1 class="cg-pr-title">${key ? `<span class="mono cg-jira">${esc(key)}</span> ` : ''}${esc(r.name)} <span class="cg-num">#${r.number}</span></h1>
     ${purpose ? `<p class="ex-purpose-line">${esc(purpose)}</p>` : ''}
-    <p class="cg-pr-meta">${badgeHtml(r.statusLabel, { tone: r.tone, className: 'rv-status' })}${badgeHtml('Exploration', { className: 'cg-tier' })}${r.useCaseLabel ? `<span>${esc(r.useCaseLabel)}</span>` : ''}<span>@${esc(r.author)}</span><span>Updated ${esc(relativeTime(r.updatedAt))}</span><a class="cg-gh" href="${esc(r.url)}" target="_blank" rel="noopener">${VOCAB.openOnGitHub}<span class="sr-only"> (opens in a new tab)</span></a></p>
+    <p class="cg-pr-meta">${badgeHtml(r.statusLabel, { tone: r.tone, className: 'rv-status' })}${badgeHtml('Exploration', { className: 'cg-tier' })}${r.useCaseLabel ? `<span>${esc(r.useCaseLabel)}</span>` : ''}<span>@${esc(r.author)}</span><span>Updated ${esc(relativeTime(r.updatedAt))}</span><a class="cg-gh" href="${attrUrl(r.url)}" target="_blank" rel="noopener">${VOCAB.openOnGitHub}<span class="sr-only"> (opens in a new tab)</span></a></p>
     <p class="cg-pr-state">${esc(explorationStateLine(r.status))}</p>
     <div class="cg-pr-cta ex-actions" id="ex-actions">${actions}</div>
     <div class="ex-confirm" id="ex-confirm" hidden>

@@ -11,7 +11,8 @@ import { cellValue, pairedBackground, studioHref, type CellValue, type Column } 
 import { activeReport, loadHistory } from '../history/state';
 import type { ExplorerData, ExplorerState, View } from './types';
 import { swatchLabel } from '../../lib/explorer/swatch-ramp';
-import { copyButton, esc, icon } from './util';
+import { attrUrl } from '../../lib/html';
+import { copyButton, cssValue, esc, icon } from './util';
 
 const SYNTAXES: Syntax[] = ['css', 'js', 'dtcg'];
 const MAX_DOWNSTREAM = 12;
@@ -24,7 +25,7 @@ function names(path: string, tier: Parameters<typeof codeSyntax>[1]): string {
 }
 
 function swatch(hex?: string) {
-  return hex ? `<span class="xp-mini" style="background-color:${hex}" aria-hidden="true"></span>` : '';
+  return hex ? `<span class="xp-mini" style="background-color:${cssValue(hex)}" aria-hidden="true"></span>` : '';
 }
 
 /** Studio words the flow uses: collection names for designers, and plain headings. */
@@ -71,7 +72,7 @@ function flowParts(d: ExplorerData, path: string, columns: Column[], words: Flow
         .join('')}</ul>${deps.length > MAX_DOWNSTREAM ? `<p class="small muted">and ${deps.length - MAX_DOWNSTREAM} more</p>` : ''}`
     : '<p class="xp-empty-line">No token aliases this one.</p>';
   const compList = comps.length
-    ? `<ul class="xp-comps">${comps.map((c) => `<li><a href="${esc(c.href)}">${esc(c.name)}</a></li>`).join('')}</ul>`
+    ? `<ul class="xp-comps">${comps.map((c) => `<li><a href="${attrUrl(c.href)}">${esc(c.name)}</a></li>`).join('')}</ul>`
     : '<p class="xp-empty-line">No component reads it, directly or through an alias.</p>';
   const styleList = styles.length
     ? `<h4 class="xp-d-sub">Global styles <span class="xp-d-n">${styles.length}</span></h4><ul class="xp-comps">${styles.map((f) => `<li><span class="mono">${esc(f)}</span></li>`).join('')}</ul>`
@@ -92,7 +93,7 @@ function renderStudioDetail(host: HTMLElement, d: ExplorerData, view: View, path
   const f = flowParts(d, path, columns, STUDIO_WORDS);
   const val = (c: Column) => {
     const v = cellValue(d.set, path, c.ctx);
-    const sw = v.hex ? `<span class="xp-d-ms" style="background-color:${esc(v.css)}" aria-hidden="true"></span>` : '';
+    const sw = v.hex ? `<span class="xp-d-ms" style="background-color:${cssValue(v.css)}" aria-hidden="true"></span>` : '';
     return `<div class="xp-d-val">${sw}<span><span class="xp-d-val-label">${esc(c.label)}</span><span class="xp-d-val-main mono">${esc(v.alias ? swatchLabel(v.alias) : v.line)}</span>${
       v.alias ? `<span class="xp-d-val-sub mono">${esc(v.hex ?? v.line)}</span>` : ''
     }</span></div>`;
@@ -121,7 +122,7 @@ function pairRow(d: ExplorerData, r: PairRow, edit: boolean, through = false): s
       const ctx = { brand: c.brand, theme: c.theme, density: d.modes.densities[0] };
       const fg = cellValue(d.set, r.fg, ctx).css;
       const bg = cellValue(d.set, r.bg, ctx).css;
-      const sample = r.kind === 'ui' ? `<span class="xp-ratio-aa" style="background-color:${esc(bg)}" aria-hidden="true"><i class="xp-ratio-ui" style="border-color:${esc(fg)}"></i></span>` : `<span class="xp-ratio-aa" style="background-color:${esc(bg)};color:${esc(fg)}" aria-hidden="true">Aa</span>`;
+      const sample = r.kind === 'ui' ? `<span class="xp-ratio-aa" style="background-color:${cssValue(bg)}" aria-hidden="true"><i class="xp-ratio-ui" style="border-color:${cssValue(fg)}"></i></span>` : `<span class="xp-ratio-aa" style="background-color:${cssValue(bg)};color:${cssValue(fg)}" aria-hidden="true">Aa</span>`;
       const ratio = c.ratio === undefined ? 'n/a' : `${c.ratio.toFixed(2)}:1`;
       const moved = edit && c.before !== undefined && c.ratio !== undefined && c.before !== c.ratio;
       const tone = !c.passes ? 'is-fail' : c.badge === 'AA large' ? 'is-warn' : 'is-pass';
@@ -184,13 +185,13 @@ const ROWS_SHOWN = 5;
 function specimen(d: ExplorerData, type: string, path: string, v: CellValue, col: Column): string {
   const cls = 'xp-dd-spec';
   if (v.resolved === undefined) return `<span class="${cls} is-broken" aria-hidden="true"></span>`;
-  const css = esc(v.css);
-  const canvas = d.set.byPath.has('color.bg.default') ? esc(cellValue(d.set, 'color.bg.default', col.ctx).css) : 'transparent';
+  const css = cssValue(v.css);
+  const canvas = d.set.byPath.has('color.bg.default') ? cssValue(cellValue(d.set, 'color.bg.default', col.ctx).css) : 'transparent';
   switch (type) {
     case 'color': {
       if (isForeground(path)) {
         const bg = pairedBackground(path, (p) => d.set.byPath.has(p), d.pairs);
-        return `<span class="${cls} is-type" style="background-color:${esc(cellValue(d.set, bg, col.ctx).css)};color:${css}" aria-hidden="true">Aa</span>`;
+        return `<span class="${cls} is-type" style="background-color:${cssValue(cellValue(d.set, bg, col.ctx).css)};color:${css}" aria-hidden="true">Aa</span>`;
       }
       return `<span class="${cls} is-color${colorAlpha(v.resolved) < 0.9995 ? ' has-alpha' : ''}" style="background-color:${canvas}" aria-hidden="true"><i style="background-color:${css}"></i></span>`;
     }
@@ -273,7 +274,7 @@ const tokenRow = (p: string, kind: string) =>
   `<li class="xp-dd-row"><button type="button" class="xp-dd-row-name xp-link mono" data-goto="${esc(p)}">${esc(p)}</button><span class="xp-dd-row-meta">${esc(kind)}</span></li>`;
 
 const usedRow = (r: UsedByRow) =>
-  `<li class="xp-dd-row">${r.href ? `<a class="xp-dd-row-name" href="${esc(r.href)}">${esc(r.name)}</a>` : `<span class="xp-dd-row-name mono">${esc(r.name)}</span>`}<span class="xp-dd-row-meta${
+  `<li class="xp-dd-row">${r.href ? `<a class="xp-dd-row-name" href="${attrUrl(r.href)}">${esc(r.name)}</a>` : `<span class="xp-dd-row-name mono">${esc(r.name)}</span>`}<span class="xp-dd-row-meta${
     r.via.includes('.') ? ' mono' : ''
   }">${esc(r.via)}</span></li>`;
 
@@ -304,7 +305,7 @@ function renderLibraryDetail(host: HTMLElement, d: ExplorerData, view: View, pat
     'code',
     'Names in code and Figma',
     'CSS, JS, DTCG and Figma',
-    `${names(path, t.tier)}${source ? `<p class="xp-dd-files"><a href="${esc(source)}" target="_blank" rel="noopener">Open on GitHub</a></p>` : ''}`,
+    `${names(path, t.tier)}${source ? `<p class="xp-dd-files"><a href="${attrUrl(source)}" target="_blank" rel="noopener">Open on GitHub</a></p>` : ''}`,
   );
 
   host.innerHTML = `

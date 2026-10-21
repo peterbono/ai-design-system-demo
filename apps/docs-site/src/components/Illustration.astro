@@ -11,6 +11,7 @@ interface Props {
   class?: string;
 }
 const { name, width, label, class: className } = Astro.props;
+// Constant SVG from brand/illustrations.ts only (set:html below): never inline SVG read from a repository.
 const art = ILLUSTRATIONS[name];
 const w = width ?? art.width;
 const h = Math.round((w * art.height) / art.width);
