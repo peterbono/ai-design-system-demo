@@ -52,7 +52,7 @@ export interface CreatedSuggestion {
  * issue number, so the caller can say so.
  */
 export async function createSuggestionOnGitHub(gh: GitHubClient, payload: SuggestionPayloadV1, opts: ComposeSuggestionOptions = {}): Promise<CreatedSuggestion> {
-  const issue = composeSuggestionIssue(payload, opts);
+  const issue = composeSuggestionIssue(payload, { repo: gh.fullName, ...opts });
   const created = await gh.createIssue({ title: issue.title, body: issue.body, labels: issue.labels, assignees: issue.assignees });
   for (const [i, part] of issue.parts.entries()) {
     try {
