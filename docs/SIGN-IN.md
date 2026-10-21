@@ -109,7 +109,7 @@ In the Vercel project that deploys Bridge (`bridge-docs`): **Settings**, **Envir
 | `GITHUB_APP_SUGGEST_CLIENT_SECRET` | Bridge's client secret                  | Mark it **Sensitive**. Server only   |
 | `GITHUB_APP_CLIENT_ID`             | Bridge Direct's Client ID (step 1.6)    | Public: it is written into the pages |
 | `GITHUB_APP_CLIENT_SECRET`         | Bridge Direct's client secret           | Mark it **Sensitive**. Server only   |
-| `GITHUB_APP_DIRECT_SLUG`           | Bridge Direct's slug (optional)         | The end of `github.com/apps/<slug>`. Default `bridge-direct`. Team pages link admins to `github.com/apps/<slug>/installations/new` |
+| `GITHUB_APP_DIRECT_SLUG`           | Bridge Direct's slug (optional)         | The end of `github.com/apps/<slug>`. Default `bridge-design-studio`. Team pages link admins to `github.com/apps/<slug>/installations/new` |
 
 The Client IDs are read at build time by the pages (no `PUBLIC_` prefix needed) and both pairs by the token function,
 which accepts only those two Client IDs and adds the matching secret.
