@@ -3,12 +3,13 @@
 // any file that would take a team's Library address.
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { checkLibraryShells, LIBRARY_SHELL_ROUTES, LIBRARY_TEAM_NAV, libraryFromPath, libraryHref, libraryNoindexSources, libraryRewrites, libraryShellMarker, routeOfShell } from './library-shells';
+import { checkLibraryHeaders, checkLibraryShells, LIBRARY_SHELL_ROUTES, LIBRARY_TEAM_NAV, libraryFromPath, libraryHref, libraryNoindexSources, libraryRewrites, libraryShellMarker, publicLibraryProblems, routeOfShell } from './library-shells';
 
 const vercel = JSON.parse(readFileSync(new URL('../../vercel.json', import.meta.url), 'utf8')) as {
   rewrites: { source: string; destination: string }[];
   headers: { source: string; headers: { key: string; value: string }[] }[];
 };
+const publicLibraries = (JSON.parse(readFileSync(new URL('../../hosted/public-libraries.json', import.meta.url), 'utf8')) as { libraries: string[] }).libraries;
 
 describe('vercel.json', () => {
   it('rewrites team Library addresses to the shells, the trailing slash rule first', () => {
@@ -18,17 +19,64 @@ describe('vercel.json', () => {
     expect(vercel.rewrites.findIndex((r) => r.source === rules[0]!.source)).toBeLessThan(vercel.rewrites.findIndex((r) => r.source === rules[1]!.source));
   });
 
-  it('never indexes the shells; team addresses decide in the page (library.public)', () => {
-    for (const source of libraryNoindexSources()) {
+  it('never indexes the shells, nor a team Library outside the allow-list (hosted/public-libraries.json)', () => {
+    expect(publicLibraryProblems(publicLibraries)).toEqual([]);
+    for (const source of libraryNoindexSources(publicLibraries)) {
       expect(vercel.headers.find((h) => h.source === source)?.headers).toContainEqual({ key: 'X-Robots-Tag', value: 'noindex' });
     }
-    expect(vercel.headers.some((h) => h.source.startsWith('/library/:owner'))).toBe(false);
+    expect(checkLibraryHeaders(vercel.headers, publicLibraries)).toEqual([]);
   });
 
   it('leaves Bridge\'s own Library home alone: one segment is not a team', () => {
     const owner = new RegExp(`^${/:owner\(([^)]+)\)/.exec(libraryRewrites()[1]!.source)![1]}$`);
     expect(owner.test('acme')).toBe(true);
     expect(owner.test('-acme')).toBe(false);
+  });
+});
+
+// What Vercel does with a header source (path-to-regexp 6, as @vercel/routing-utils), for the cases below.
+function sourceRegex(source: string): RegExp {
+  const body = source
+    .replace(/\/:path\*/, '(?:/[^/]+?(?:/[^/]+?)*)?')
+    .replace(/\/:(?:owner|repo)\(((?:[^()]|\((?:[^()]|\([^()]*\))*\))*)\)/g, '/(?:$1)')
+    .replace('(.*)', '.*');
+  return new RegExp(`^${body}$`, 'i');
+}
+const noindexed = (path: string, list: string[]) => libraryNoindexSources(list).some((s) => sourceRegex(s).test(path));
+
+describe('public Library allow-list', () => {
+  it('noindexes every team Library and the shells when the list is empty', () => {
+    for (const p of ['/library/acme/ds/', '/library/acme/ds', '/library/acme/ds/tokens/', '/library/acme/ds.v2/components', '/library-shell/', '/library-shell/tokens/']) expect(noindexed(p, []), p).toBe(true);
+    expect(noindexed('/library/', [])).toBe(false);
+  });
+
+  it('leaves out exactly the listed pairs, on every route and slash form', () => {
+    const list = ['acme/ds', 'peterbono/ai-design-system-demo'];
+    for (const p of ['/library/acme/ds/', '/library/acme/ds', '/library/acme/ds/tokens/', '/library/acme/ds/components?c=x', '/library/peterbono/ai-design-system-demo/foundations/']) expect(noindexed(p.replace(/\?.*$/, ''), list), p).toBe(false);
+    for (const p of ['/library/acme/ds2/', '/library/acme/dsx/tokens', '/library/acme/d/', '/library/acme-x/ds/', '/library/other/ds/', '/library-shell/']) expect(noindexed(p, list), p).toBe(true);
+  });
+
+  it('escapes the dot of a repository name', () => {
+    expect(noindexed('/library/acme/ds.v2/', ['acme/ds.v2'])).toBe(false);
+    expect(noindexed('/library/acme/dsxv2/', ['acme/ds.v2'])).toBe(true);
+  });
+
+  it('refuses entries that are not owner/repo pairs, and duplicates', () => {
+    expect(publicLibraryProblems(['acme/ds', 'ACME/ds', '-bad/ds', 'acme', 'a/b/c', 3])).toEqual([
+      'ACME/ds is listed twice.',
+      '"-bad/ds" is not an "owner/repo" pair GitHub accepts.',
+      '"acme" is not an "owner/repo" pair GitHub accepts.',
+      '"a/b/c" is not an "owner/repo" pair GitHub accepts.',
+      '3 is not an "owner/repo" pair GitHub accepts.',
+    ]);
+    expect(publicLibraryProblems({})).toHaveLength(1);
+  });
+
+  it('names the rules to paste when vercel.json falls behind the list', () => {
+    const [problem] = checkLibraryHeaders(vercel.headers, ['acme/ds']);
+    expect(problem).toContain('(?!(?:acme/ds)(?:/|$))');
+    expect(problem).toContain('remove /library/:owner(');
+    expect(checkLibraryHeaders(vercel.headers, ['nope'])[0]).toContain('hosted/public-libraries.json');
   });
 });
 
