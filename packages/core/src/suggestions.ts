@@ -15,6 +15,7 @@ import type { LayeredChange } from './layered-review';
 import { NEEDED_BY_LABEL, type NeededBy } from './prod-branch';
 import type { RequestSource } from './requests';
 import type { TokenEdit } from './token-edits';
+import { subjectTitle } from './titles';
 
 export const SUGGESTION_SCHEMA = 'bridge.suggestion/1';
 /** Every suggestion issue carries this label; tools list suggestions by it. */
@@ -33,6 +34,15 @@ export const SUGGESTION_STATE_LABELS: Record<SuggestionState, string> = {
   'changes-requested': 'suggestion: changes requested',
   approved: 'suggestion: approved',
   applying: 'suggestion: applying',
+};
+
+/**
+ * The label a finished suggestion keeps once closed, in place of the open state labels (applied through a merged
+ * pull request or closed as completed; declined).
+ */
+export const SUGGESTION_FINAL_LABELS: Record<'applied' | 'declined', string> = {
+  applied: 'suggestion: applied',
+  declined: 'suggestion: declined',
 };
 
 export const SUGGESTION_STATUS_LABEL: Record<SuggestionStatus, string> = {
@@ -316,8 +326,8 @@ export function suggestionSubject(p: Pick<SuggestionPayloadV1, 'kind' | 'docs' |
 
 /** Issue title, like requests: "Tokens: raise color.action.primary.bg contrast", "Button: docs for the danger tone". */
 export function suggestionIssueTitle(p: Pick<SuggestionPayloadV1, 'kind' | 'title' | 'docs' | 'componentSpec'>): string {
-  const t = p.title.trim().replace(/\.$/, '');
-  return `${suggestionSubject(p)}: ${t.charAt(0).toLowerCase()}${t.slice(1)}`;
+  const names = [...(p.docs ?? []).map((d) => d.component), ...(p.componentSpec?.component ? [p.componentSpec.component] : [])];
+  return subjectTitle(suggestionSubject(p), p.title, names);
 }
 
 /**
@@ -384,9 +394,38 @@ export function suggestionStatus(i: SuggestionStatusInput): SuggestionStatus {
   return i.review ?? 'needs-review';
 }
 
-/** The state label a status keeps on the issue, or null when none should stay (closed, outdated). */
+/**
+ * Outdated wins over the review state once main moved under a suggestion and its change no longer applies (the dry run
+ * of planSuggestionApply found a conflict: the value it changes is not the one it was suggested from). Being applied,
+ * applied and declined stay as they are.
+ */
+export function withOutdated(status: SuggestionStatus, outdated: boolean | null | undefined): SuggestionStatus {
+  return outdated && (status === 'needs-review' || status === 'changes-requested' || status === 'approved') ? 'outdated' : status;
+}
+
+/**
+ * The status label a suggestion keeps on the issue: one open state label while it is open, the final label once it is
+ * applied or declined, none while it is outdated (the review label then stays as it was).
+ */
 export function suggestionStateLabel(status: SuggestionStatus): string | null {
+  if (status === 'applied' || status === 'declined') return SUGGESTION_FINAL_LABELS[status];
   return status in SUGGESTION_STATE_LABELS ? SUGGESTION_STATE_LABELS[status as SuggestionState] : null;
+}
+
+/** Every status label Bridge manages on a suggestion issue (open states and final ones). */
+export const SUGGESTION_STATUS_LABELS: readonly string[] = [...Object.values(SUGGESTION_STATE_LABELS), ...Object.values(SUGGESTION_FINAL_LABELS)];
+
+/**
+ * The status labels to add and remove so the issue carries exactly the one its status calls for: an applied and
+ * closed suggestion loses "needs review" and "applying" and gains "applied". Outdated keeps the labels it has.
+ */
+export function suggestionLabelChanges(labels: readonly string[], status: SuggestionStatus): { add: string[]; remove: string[] } {
+  if (status === 'outdated') return { add: [], remove: [] };
+  const want = suggestionStateLabel(status);
+  return {
+    add: want && !labels.includes(want) ? [want] : [],
+    remove: SUGGESTION_STATUS_LABELS.filter((l) => l !== want && labels.includes(l)),
+  };
 }
 
 // ---------------------------------------------------------------------------------------------------------------

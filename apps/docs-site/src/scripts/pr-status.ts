@@ -10,11 +10,12 @@ import { fileSignals, type FileSignals } from '../lib/work-nature';
 import { badgeHtml, tooltipAttributes } from '@bridge-ds/react/dom';
 import { currentViewer, ghGet, hasWorkingToken, prefersSignIn, readRepo } from './github-session';
 import { ghAction } from '../lib/gh-wording';
-import { needFromStatus, pendingApprovals, statusTone, whoActs, type ApprovalRole, type WhoActs } from '../lib/changes';
+import { needFromStatus, pendingApprovals, statusPill, whoActs, type ApprovalRole, type WhoActs } from '../lib/changes';
 import { developerOnlyFailures } from '../lib/check-explain';
 import { guestActivity } from './guest-activity';
 import { planStatusReads, statusCacheKey, type CachedStatus } from '../lib/status-budget';
-import type { TeamStates } from '@bridge-ds/core';
+import { canOverride, DEFAULT_OVERRIDE, type OverridePolicy, type TeamStates } from '@bridge-ds/core';
+import { siteConfig } from './repo-context';
 import { loadTeams, siteApprovalRules, siteApproverEntries, siteApprovers, siteShipPolicy, teamSnapshot } from './teams';
 import {
   parseTier,
@@ -29,7 +30,6 @@ import {
   type ReviewStatusKind,
   type StatusLike,
   type Tier,
-  REVIEW_STATUS,
 } from '../lib/review-rules';
 
 export interface PullForStatus {
@@ -185,25 +185,42 @@ export function statusChip(s: ReviewStatus | null, opts: { skipped?: boolean } =
  */
 type RowFacts = { author: string; approvers?: string[]; changesRequested?: string[]; failing?: number; failingChecks?: string[]; pending?: ApprovalRole[]; skipped?: boolean };
 
-/** Who acts now on a list row (lib/changes whoActs), or null while its status is unknown. Shared by the chip and the opener. */
+/** governance.override from bridge.config.json, as the layout embeds it (none when the site has no config). */
+function overridePolicy(): OverridePolicy {
+  try {
+    return (siteConfig() as { override?: OverridePolicy }).override ?? DEFAULT_OVERRIDE;
+  } catch {
+    return DEFAULT_OVERRIDE;
+  }
+}
+
+/**
+ * Who acts now on a list row (lib/changes whoActs), or null while its status is unknown. Shared by the chip, the
+ * opener and the home, with the same people as the branch page (who may use the owner override), so a row and the
+ * page header say the same thing.
+ */
 export function rowWho(kind: ReviewStatusKind | null, o: RowFacts): WhoActs | null {
   if (o.skipped || !kind) return null;
+  const viewer = currentViewer()?.login ?? null;
+  const policy = overridePolicy();
   return whoActs(needFromStatus(kind, { failing: o.failing, changesRequestedBy: o.changesRequested, developerOnly: developerOnlyFailures(o.failingChecks), pending: o.pending }), {
     owners: owners(),
     shippers: shippers(),
     ...teamPeople(),
     author: o.author,
-    viewer: currentViewer()?.login ?? null,
+    viewer,
     approvers: o.approvers,
+    overrideBy: policy.allowed,
+    overridable: canOverride(viewer, policy),
   });
 }
 
 export function whoChip(kind: ReviewStatusKind | null, o: RowFacts): string {
   const who = rowWho(kind, o);
   if (!who || !kind) return statusChip(null, { skipped: o.skipped });
-  const label = who.short ?? REVIEW_STATUS[kind].label;
+  const { label, tone } = statusPill(kind, who);
   return badgeHtml(label, {
-    tone: statusTone(kind),
+    tone,
     size: 'sm',
     className: 'rv-status',
     attributes: { 'data-status': kind, 'data-yours': who.yourTurn, ...(who.short ? tooltipAttributes(who.sentence, { focusable: true }) : {}) },

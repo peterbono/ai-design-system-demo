@@ -9,10 +9,11 @@
 // top and the account at the bottom.
 // Mounted by layouts/Layout.astro on every Studio page, both modes: a self-hosted Studio is its own one team.
 import { useCallback, useEffect, useState } from 'react';
-import { ChevronsUpDown, Plus, UserPlus } from 'lucide-react';
+import { ChevronsUpDown, Plus, UserPlus, X } from 'lucide-react';
 import { Avatar, Badge, Button, Icon, Menu, MenuContent, MenuGroup, MenuItem, MenuSeparator, MenuTrigger } from '@bridge-ds/react';
 import type { RepoAccessState } from '@bridge-ds/core';
-import { chipIdentity, isDemoTeam, ownerAvatarUrl, parseRecentTeams, pushRecentTeam, RECENT_TEAMS_KEY } from '../../../lib/access-view';
+import { chipIdentity, isDemoTeam, ownerAvatarUrl } from '../../../lib/access-view';
+import { forgetRecentTeam, loadRecentTeams, noteTeamAccess } from '../../../lib/recent-teams';
 import { studioHref, teamHref } from '../../../lib/team-path';
 import { ghButton } from '../../../lib/gh-wording';
 import NewTeamDialog, { type TeamAccessCheck } from './NewTeamDialog';
@@ -26,13 +27,7 @@ export interface TeamChipProps {
   launcher?: boolean;
 }
 
-function readRecent(): string[] {
-  try {
-    return parseRecentTeams(localStorage.getItem(RECENT_TEAMS_KEY));
-  } catch {
-    return [];
-  }
-}
+const others = (list: readonly string[], team: string | null) => list.filter((t) => t.toLowerCase() !== (team ?? '').toLowerCase());
 
 export default function TeamChip({ repo: built = null, launcher = false }: TeamChipProps) {
   const [name, setName] = useState<string | null>(built);
@@ -52,17 +47,8 @@ export default function TeamChip({ repo: built = null, launcher = false }: TeamC
       const team = `${r.owner}/${r.repo}`;
       setName(team);
       setHosted(r.hosted);
-      // A team page remembers itself for the chip menu of the next one.
-      let list = readRecent();
-      if (r.hosted) {
-        list = pushRecentTeam(list, team);
-        try {
-          localStorage.setItem(RECENT_TEAMS_KEY, JSON.stringify(list));
-        } catch {
-          /* storage blocked: the menu lists none */
-        }
-      }
-      setRecent(list.filter((t) => t.toLowerCase() !== team.toLowerCase()));
+      // The stored list, cleaned of placeholders. This team joins it only once its page read the repository (below).
+      setRecent(others(loadRecentTeams(), team));
       setSignInApp(session.prefersSignIn());
       session.initGitHubConnect((v) => {
         setSignedIn(Boolean(v));
@@ -74,6 +60,15 @@ export default function TeamChip({ repo: built = null, launcher = false }: TeamC
       live = false;
     };
   }, []);
+
+  // A team page remembers itself for the chip menu of the next one, only once GitHub showed it the repository: never
+  // for an address someone typed that leads nowhere. A 404 drops it from the list.
+  useEffect(() => {
+    if (!hosted || !name || !access) return;
+    setRecent(others(noteTeamAccess(name, access), name));
+  }, [hosted, name, access]);
+
+  const forget = (team: string) => setRecent(others(forgetRecentTeam(team), name));
 
   const [owner = ''] = (name ?? '').split('/');
   const chip = chipIdentity(name, { demo: isDemoTeam(name, hosted), state: access, signedIn });
@@ -137,10 +132,28 @@ export default function TeamChip({ repo: built = null, launcher = false }: TeamC
               <MenuGroup label="Recent teams">
                 {recent.map((t) => {
                   const [o = '', r = ''] = t.split('/');
+                  // Two sibling menu items on one row (proximity), never a button inside an item: arrow keys reach
+                  // the team, then its remove action, and the menu stays open so the list updates in place.
                   return (
-                    <MenuItem key={t} icon={<Avatar name={o} src={ownerAvatarUrl(o, 32)} size="xs" decorative />} onClick={() => go(teamHref(o, r, null))}>
-                      <span className="mono">{t}</span>
-                    </MenuItem>
+                    <div key={t} className="tc-recent">
+                      <MenuItem
+                        className="tc-recent-open"
+                        label={t}
+                        icon={<Avatar name={o} src={ownerAvatarUrl(o, 32)} size="xs" decorative />}
+                        onClick={() => go(teamHref(o, r, null))}
+                      >
+                        <span className="mono">{t}</span>
+                      </MenuItem>
+                      <MenuItem
+                        className="tc-recent-remove"
+                        icon={X}
+                        label={`Remove ${t}`}
+                        aria-label={`Remove ${t} from recent teams`}
+                        title="Remove from recent teams"
+                        closeOnClick={false}
+                        onClick={() => forget(t)}
+                      />
+                    </div>
                   );
                 })}
               </MenuGroup>

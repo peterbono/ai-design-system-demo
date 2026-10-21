@@ -253,12 +253,17 @@ describe('who acts now', () => {
     expect(whoActs(detail({ state: 'draft', exploration: true }), { owners, author: 'ann' }).action).toBe('promote');
   });
 
-  it('says Checking while GitHub computes whether it fits, never an approval it may not need yet', () => {
+  it('names the missing approval while GitHub computes whether it fits, and checks the merge only once approved', () => {
     const a = approvals();
     const gate = mergeGate({ tier: 3, ci: green, approvals: a, draft: false, mergeable: null, state: 'open' });
     const need = needFromDetail({ state: 'open', ci: green, gate, changesRequestedBy: [], mergeable: null });
-    expect(need.kind).toBe('checking-merge');
-    expect(whoActs(need, { owners, author: 'ann' }).sentence).toBe('Checking that it fits main. Then the design owner (@dana) approves.');
+    // The same as the list chip (core reviewStatusKind): a missing approval is missing either way.
+    expect(need).toEqual({ kind: 'approve', roles: ['design', 'tech'] });
+    const both = approvals({ approvers: ['dana', 'theo'], design: true, tech: true });
+    const approved = mergeGate({ tier: 3, ci: green, approvals: both, draft: false, mergeable: null, state: 'open' });
+    const checking = needFromDetail({ state: 'open', ci: green, gate: approved, changesRequestedBy: [], mergeable: null });
+    expect(checking.kind).toBe('checking-merge');
+    expect(whoActs(checking, { owners, author: 'ann' }).sentence).toBe('Checking that it fits main.');
     // A known conflict wins, in the detail as in the list.
     const conflict = mergeGate({ tier: 3, ci: green, approvals: a, draft: false, mergeable: false, state: 'open' });
     expect(needFromDetail({ state: 'open', ci: green, gate: conflict, changesRequestedBy: [], mergeable: false }).kind).toBe('resolve-conflict');

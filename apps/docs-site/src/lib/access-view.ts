@@ -274,12 +274,35 @@ export const NO_ACCESS_LINE = 'People without access see a screen that helps the
 export const RECENT_TEAMS_KEY = 'bridge.recentTeams';
 export const RECENT_TEAMS_MAX = 5;
 
-/** The stored list, dropping anything that is not "owner/repo". */
+const TEAM_NAME = /^([A-Za-z0-9][A-Za-z0-9-]{0,38})\/([A-Za-z0-9._-]{1,100})$/;
+
+/**
+ * A real-looking "owner/repo": GitHub's owner and repository syntax, and not a placeholder someone typed while trying
+ * the launcher ("owner/repo", "owner/design", anything owned by "owner").
+ */
+export function isRecentTeamName(team: string): boolean {
+  const m = TEAM_NAME.exec(team);
+  if (!m) return false;
+  const [, owner = '', repo = ''] = m;
+  if (owner.toLowerCase() === 'owner') return false;
+  if (owner.endsWith('-') || owner.includes('--')) return false;
+  return repo !== '.' && repo !== '..';
+}
+
+/** The stored list, dropping anything that is not a real "owner/repo", duplicates (case-insensitive) included. */
 export function parseRecentTeams(text: string | null): string[] {
   if (!text) return [];
   try {
     const v = JSON.parse(text) as unknown;
-    return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && /^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9._-]{1,100}$/.test(x)).slice(0, RECENT_TEAMS_MAX) : [];
+    if (!Array.isArray(v)) return [];
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const x of v) {
+      if (typeof x !== 'string' || !isRecentTeamName(x) || seen.has(x.toLowerCase())) continue;
+      seen.add(x.toLowerCase());
+      out.push(x);
+    }
+    return out.slice(0, RECENT_TEAMS_MAX);
   } catch {
     return [];
   }
@@ -287,5 +310,24 @@ export function parseRecentTeams(text: string | null): string[] {
 
 /** The list with `team` first, once (GitHub names are case-insensitive), at most RECENT_TEAMS_MAX. */
 export function pushRecentTeam(list: readonly string[], team: string): string[] {
+  if (!isRecentTeamName(team)) return [...list];
   return [team, ...list.filter((t) => t.toLowerCase() !== team.toLowerCase())].slice(0, RECENT_TEAMS_MAX);
+}
+
+/** The list without `team` (case-insensitive). */
+export function removeRecentTeam(list: readonly string[], team: string): string[] {
+  return list.filter((t) => t.toLowerCase() !== team.toLowerCase());
+}
+
+/**
+ * The page read its repository: the team is real and worth remembering. Never on a 404 (no-access,
+ * anonymous-unknown), an App that is not set up there, or an access not known yet.
+ */
+export function remembersTeam(state: RepoAccessState | null | undefined): boolean {
+  return state === 'anonymous-public' || state === 'reader' || state === 'writer' || state === 'admin' || state === 'outside-contributor';
+}
+
+/** The page found nothing at that address (GitHub answered 404): drop it from the recent teams. */
+export function forgetsTeam(state: RepoAccessState | null | undefined): boolean {
+  return state === 'no-access' || state === 'anonymous-unknown';
 }

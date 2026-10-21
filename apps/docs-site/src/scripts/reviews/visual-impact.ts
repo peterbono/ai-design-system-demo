@@ -2,7 +2,7 @@
 // commit, then shows each changed story or screen with a before/after slider and a diff toggle. Returns what the
 // collapsed section header shows: the number of changed screens and a small before/after thumbnail.
 import { badgeHtml } from '@bridge-ds/react/dom';
-import { VISUAL_CHECK_LABEL } from '@bridge-ds/core';
+import { hasVisualWorkflow, VISUAL_CHECK_LABEL, VISUAL_CHECKS_DOCS } from '@bridge-ds/core';
 import { changeLabel, facet, filterShots, modeLabel, VISUAL_BRANCH, visualAsk, visualBase, visualState, type VisualFilter, type VisualManifest, type VisualShot } from '../../lib/visual-impact';
 import { attrUrl } from '../../lib/html';
 import { esc, GitHubError, ghGet, ghWrite, hasWorkingToken, onAccess, showGhError } from '../github-session';
@@ -47,6 +47,27 @@ export async function impactOf(owner: string, repo: string, pr: number, sha: str
   }
 }
 
+const workflowReads = new Map<string, Promise<boolean | null>>();
+
+/**
+ * Whether the repo has the visual impact workflow (core hasVisualWorkflow over .github/workflows), read once per page.
+ * False when the folder or the file is not there; null when GitHub could not say (the ask then shows as before).
+ */
+export function visualWorkflowPresent(owner: string, repo: string): Promise<boolean | null> {
+  const key = `${owner}/${repo}`;
+  let p = workflowReads.get(key);
+  if (!p) {
+    p = ghGet<{ name: string; path: string }[]>(`/repos/${owner}/${repo}/contents/.github/workflows`)
+      .then((f) => (Array.isArray(f.data) ? hasVisualWorkflow(f.data.map((x) => x.path)) : null))
+      .catch((err) => (err instanceof GitHubError && err.status === 404 ? false : null));
+    workflowReads.set(key, p);
+  }
+  return p;
+}
+
+/** The quiet line where the before and after would be, on a repo without visual checks: a link to set them up. */
+const SET_UP_LINE = `<p class="cg-line rv-what-quiet">This repo has no visual checks yet. <a href="${attrUrl(VISUAL_CHECKS_DOCS)}" target="_blank" rel="noopener">Set up visual checks</a></p>`;
+
 export interface VisualSummary {
   /** Changed screens and stories; null when the workflow has not run for this commit (or could not be read). */
   changed: number | null;
@@ -86,6 +107,11 @@ export async function loadVisualImpact(
   }
   const state = visualState(manifest);
   if (state.kind === 'not-computed') {
+    // No workflow: no label to add and nothing that runs again, only how to set it up.
+    if ((await visualWorkflowPresent(o.owner, o.repo)) === false) {
+      (topSlot ?? slot).innerHTML = SET_UP_LINE;
+      return { changed: null, thumb: '', paintedTop: Boolean(topSlot) };
+    }
     const onTop = Boolean(topSlot) && visualMode() === 'on-demand';
     const asked = await notRun(onTop ? topSlot! : slot, o);
     return { changed: null, thumb: '', asked, paintedTop: onTop };

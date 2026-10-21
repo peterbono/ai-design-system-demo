@@ -64,6 +64,7 @@ export * from './token-proposal';
 export * from './figma-push';
 export * from './figma-push-github';
 export * from './suggestions';
+export * from './titles';
 export * from './suggestion-review';
 export * from './suggestions-github';
 export * from './suggestion-apply';
