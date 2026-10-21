@@ -123,6 +123,7 @@ const changes = changesInConfig(config);
           repo={repoName}
           prefix={config.governance?.branchPrefix ?? ''}
           protectedBranches={config.governance?.protectedBranches ?? ['main', 'master']}
+          suggestApp={signInConfig()?.suggestApp ?? null}
         />
       </div>
     </section>
