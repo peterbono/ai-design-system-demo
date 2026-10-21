@@ -8,6 +8,7 @@ import '../styles/studio-app.css';
 import '../styles/ds-library.css';
 import '../styles/ds-studio.css';
 import '../styles/brand.css';
+import '../styles/team-access.css';
 import GitHubAccount from '../components/GitHubAccount.astro';
 import GitHubDialog from '../components/GitHubDialog.astro';
 import ScriptDialog from '../components/ds/ScriptDialog.astro';
@@ -16,7 +17,9 @@ import Logo from '../components/Logo.astro';
 import ViewAsChange from '../components/ViewAsChange.astro';
 import { shellMarker, studioPathOfShell } from '../lib/team-shells';
 import { COMPARE, LANDING, LIBRARY_HOME, SPACE_LABEL, STUDIO_HOME, locate, navFor, type Space } from '../lib/nav';
-import { siteRepoJson } from '../lib/config';
+import { siteRepo, siteRepoJson } from '../lib/config';
+import TeamChip from '../components/ds/studio/TeamChip';
+import { TeamAccessGate } from '../components/ds/studio/NoAccess';
 import { signInConfig } from '../lib/signin-config';
 import { GITHUB_URL, STORYBOOK_URL, sourceUrl } from '../lib/repo';
 import { humanDate } from '../lib/stats';
@@ -77,6 +80,10 @@ const crumbItems = trail.map((c, i) => (c.href && i < trail.length - 1 ? { label
 const files = sources.filter((s) => s !== 'git log');
 const logged = sources.includes('git log');
 const searchLabel = isStudio ? 'Search tokens, components, branches' : 'Search tokens, components, pages';
+// The team chip names the repository: from the build on the self-hosted Studio, from the address on a team shell.
+const builtRepo = hosted ? null : `${siteRepo().owner}/${siteRepo().repo}`;
+// The hosted deployment (BRIDGE_HOSTED, multi-team plan 4.3) opens other teams: the chip menu offers it.
+const hostedSite = process.env.BRIDGE_HOSTED === '1' || process.env.BRIDGE_HOSTED === 'true';
 const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Bridge') : `${title} | ${SPACE_LABEL[space] === 'Library' ? 'Bridge' : `Bridge ${SPACE_LABEL[space]}`}`;
 ---
 
@@ -166,6 +173,13 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
           <Logo />
           <IconButton icon={X} label="Close navigation" id="rail-close" />
         </div>
+        {
+          isStudio && (
+            <div class="rail-chip">
+              <TeamChip client:load repo={builtRepo} launcher={hostedSite} />
+            </div>
+          )
+        }
         <ul class="nav">
           {
             nav.map((entry, n) => {
@@ -239,6 +253,14 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
       <div class="scrim" id="scrim" hidden></div>
 
       <main id="main" tabindex="-1" class:list={[{ wide, 'has-toc': showToc }]}>
+        {
+          // A team's Bridge: what GitHub lets this visitor do (components/ds/studio/NoAccess.tsx), over the page.
+          hosted && (
+            <div class="team-gate" data-team-gate>
+              <TeamAccessGate client:only="react" />
+            </div>
+          )
+        }
         {
           showCrumbs && (
             <Breadcrumb items={crumbItems} className="shell-crumbs" />
@@ -333,7 +355,10 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
     <script type="application/json" id="bridge-repo" set:html={hosted ? '{}' : siteRepoJson()} />
     <script>
       import { initShell } from '../scripts/shell';
+      import { fillTeamShell } from '../scripts/team-links';
       initShell();
+      // The account block names the team in the address on a team shell (a no-op elsewhere).
+      if (document.documentElement.hasAttribute('data-hosted')) fillTeamShell();
     </script>
   </body>
 </html>

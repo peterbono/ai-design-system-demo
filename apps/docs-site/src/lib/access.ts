@@ -22,13 +22,18 @@ export interface RepoAccess {
   reach?: boolean;
   /** GitHub said the repository is private. Absent when it did not show the repository. */
   private?: boolean;
+  /**
+   * Bridge is not set up on the repository (not-installed) and GitHub says this account administers it: it sees the
+   * "Install Bridge" link (lib/access-view.ts). Absent otherwise (`admin` says it once Bridge is set up).
+   */
+  repoAdmin?: boolean;
 }
 
 /** How long a resolved access is reused before GitHub is asked again (memory and sessionStorage). */
 export const ACCESS_MAX_AGE_MS = 10 * 60 * 1000;
 
 /** The Studio's view of core's access result. `app`: the token is a Sign in with GitHub token. */
-export function accessView(a: Pick<CoreRepoAccess, 'state' | 'private' | 'installationId'>, app: boolean): RepoAccess {
+export function accessView(a: Pick<CoreRepoAccess, 'state' | 'private' | 'installationId'> & { permissions?: CoreRepoAccess['permissions'] }, app: boolean): RepoAccess {
   const { state } = a;
   const closed = state === 'not-installed' || state === 'no-access';
   const reach = closed ? false : app && (a.installationId !== undefined || (a.private === true && accessAtLeast(state, 'reader'))) ? true : undefined;
@@ -38,6 +43,8 @@ export function accessView(a: Pick<CoreRepoAccess, 'state' | 'private' | 'instal
     admin: state === 'admin',
     ...(reach !== undefined ? { reach } : {}),
     ...(typeof a.private === 'boolean' ? { private: a.private } : {}),
+    // Only where it says more than `admin`: Bridge is not set up, but this account could install it.
+    ...(state === 'not-installed' && a.permissions?.admin === true ? { repoAdmin: true } : {}),
   };
 }
 

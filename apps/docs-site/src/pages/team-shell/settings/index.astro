@@ -1,6 +1,23 @@
 ---
 // Team shell of Studio Settings (lib/team-shells.ts): served for /studio/<owner>/<repo>/settings/ by the vercel.json rewrite.
+// Your team (the team link and who can do what) already reads the team from the address and GitHub; the rest of
+// Settings is not rendered from the team yet, so the empty state with the demo link follows it.
 import TeamShell from '../../../components/TeamShell.astro';
+import { Card, CardBody } from '@bridge-ds/react';
+import { TeamLinkLive } from '../../../components/ds/studio/TeamLink';
+import TeamShellEmpty from '../../../components/ds/studio/TeamShellEmpty';
+import { studioHref } from '../../../lib/team-path';
 ---
 
-<TeamShell route="settings/" title="Settings" what="settings and roles" description="GitHub connection, roles and approvals for this team's design system." />
+<TeamShell route="settings/" title="Settings" what="settings and roles" description="GitHub connection, roles and approvals for this team's design system.">
+  <section class="ts-band" id="team" aria-labelledby="ts-team">
+    <h2 id="ts-team" class="ts-h">Your team</h2>
+    <p class="ts-intro">Share one link. GitHub decides who gets in and what each person can do.</p>
+    <Card>
+      <CardBody>
+        <TeamLinkLive client:only="react" />
+      </CardBody>
+    </Card>
+  </section>
+  <TeamShellEmpty what="settings and roles" demoHref={studioHref('settings/')} />
+</TeamShell>

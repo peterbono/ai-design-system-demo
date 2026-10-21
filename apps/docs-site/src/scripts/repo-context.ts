@@ -91,6 +91,8 @@ export function siteConfig(): Partial<SiteRepo> {
 export function rememberRepo(owner: string, repo: string, facts: { defaultBranch?: string; site?: SiteRepo }) {
   const k = key(owner, repo);
   runtime.set(k, { ...runtime.get(k), ...facts });
+  // Readers that painted before the team's settings were known (the team chip, Settings > Your team) repaint.
+  if (typeof document !== 'undefined') document.dispatchEvent(new CustomEvent('bridge:team-model', { detail: { owner, repo } }));
 }
 
 /** Where a team model came from: this browser's cache, the team's published snapshot, or the repository itself. */

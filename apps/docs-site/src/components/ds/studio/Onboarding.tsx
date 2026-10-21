@@ -1,25 +1,30 @@
 // Studio onboarding (rules and words in lib/onboarding.ts), mounted by pages/studio/index.astro:
-//   - Onboarding: the first run. The six steps on the left (the open one highlighted, any row opens its step), the
+//   - Onboarding: the first run. The seven steps on the left (the open one highlighted, any row opens its step), the
 //     open step in one card on the right. Opens on "How changes reach your code" while bridge.config.json does not
 //     say it. Every step after sign-in can wait: "Do this later" goes to the home.
-//   - FinishConnecting: on the home once the first run is behind, "4 of 6 connected" opens the steps left as a
+//   - FinishConnecting: on the home once the first run is behind, "4 of 7 connected" opens the steps left as a
 //     compact checklist. "Hide checklist" puts it away for this browser.
-// Step 2 (your design system): this Studio is built for one repository, so it is connected from the start. The
-// Storybook quick start (StorybookField) reads a published Storybook and keeps it in this browser; once added, the
-// card says how many components it found and links to them.
-import { useState, type ReactNode } from 'react';
-import { Check, ChevronDown } from 'lucide-react';
-import type { ChangesMode } from '@bridge-ds/core';
+// Step 2 (your design system): a self-hosted Studio is built for one repository, so it is connected from the start.
+// On a team's Bridge (hosted, HostedOnboarding below) it says what GitHub said: connected, read only, or "Install
+// Bridge" (admins) / "Ask an admin to install Bridge" (everyone else) while Bridge is not set up on the repository.
+// The Storybook quick start (StorybookField) reads a published Storybook and keeps it in this browser; once added,
+// the card says how many components it found and links to them.
+// Step 4 (Invite your team): the team link and "Who can do what" (TeamLink.tsx); copying the link marks it done.
+import { useEffect, useState, type ReactNode } from 'react';
+import { Check, ChevronDown, Copy } from 'lucide-react';
+import { bridgeMcpInstallCommand, type ChangesMode, type RepoAccessState } from '@bridge-ds/core';
 import { Badge, Button, Card, CardBody, CodeBlock, Icon, Input, Link, Popover, PopoverContent, PopoverTrigger, Progress } from '@bridge-ds/react';
 import { Drawing } from './Drawing';
 import ButtonLink from '../ButtonLink';
 import { ChangesChoices, DevelopersGet } from './ChangesMode';
 import { StorybookField } from './StorybookField';
+import { TeamLink, useCopy } from './TeamLink';
+import { askInstallMessage, installUrl } from '../../../lib/access-view';
 import type { WorkspaceStorybook } from '../../../lib/workspace';
-import { doneCount, doneSummary, firstRunTitle, progressLabel, STEP_TITLE, type Step, type StepId } from '../../../lib/onboarding';
+import { doneCount, doneSummary, firstRunTitle, onboardingKey, onboardingSteps, parseMemory, progressLabel, readMemoryText, STEP_IDS, STEP_LINE, STEP_TITLE, type OnboardingMemory, type Step, type StepId } from '../../../lib/onboarding';
 import { CHANGES_CHOICE } from '../../../lib/settings-view';
 import { VOCAB } from '../../../lib/vocabulary';
-import { studioHref } from '../../../lib/team-path';
+import { STUDIO_ROOT, studioHref } from '../../../lib/team-path';
 
 export interface OnboardingContext {
   repo: string;
@@ -33,6 +38,17 @@ export interface OnboardingContext {
   /** Where the Figma plugin is installed from, and the Claude set-up page. */
   figmaHref: string;
   claudeHref: string;
+  /** Step "Invite your team": the team link and what decides who can do what. */
+  team: {
+    owner: string;
+    repo: string;
+    link: string;
+    access: RepoAccessState | null;
+    changes: ChangesMode | null;
+    owners?: { design?: string[]; tech?: string[] };
+  };
+  /** A team's Bridge (hosted): what GitHub said, for step 2. Absent on the self-hosted site. */
+  hosted?: { access: RepoAccessState | null; admin: boolean } | null;
 }
 
 export interface OnboardingActions {
@@ -116,8 +132,69 @@ function Feature({ children }: { children: ReactNode }) {
   );
 }
 
+/** Step 2 on a team's Bridge: the repository as GitHub sees it for this viewer, with the one action it needs. */
+function HostedRepo({ ctx, step }: { ctx: OnboardingContext; step: Step }) {
+  const { copied, said, copy } = useCopy(3000);
+  const access = ctx.hosted?.access ?? null;
+  const connected = step.state === 'done';
+  return (
+    <section className="onb-way" aria-labelledby="onb-way-repo" data-selected={connected ? '' : undefined}>
+      <p className="onb-way-tags">
+        <Badge tone={connected ? 'success' : access === 'not-installed' ? 'warning' : 'neutral'} size="sm" dot>
+          {step.status}
+        </Badge>
+      </p>
+      <h3 id="onb-way-repo" className="onb-h3">
+        The repository
+      </h3>
+      <p className="onb-repo">
+        <span className="mono">{ctx.repo}</span>
+      </p>
+      {access === 'not-installed' ? (
+        ctx.hosted?.admin ? (
+          <>
+            <p className="onb-quiet">Bridge is not set up on it yet. Install it once, for the whole team. GitHub asks which repositories it may read.</p>
+            <p>
+              <ButtonLink variant="primary" href={installUrl()} target="_blank" rel="noopener noreferrer">
+                Install Bridge
+              </ButtonLink>
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="onb-quiet">Bridge is not set up on it yet. An admin of the repository installs it once, for the whole team.</p>
+            <p>
+              <Button variant="secondary" iconStart={copied ? Check : Copy} onClick={() => void copy(askInstallMessage(ctx.repo, ctx.team.link), 'Message copied. Paste it to an admin.')}>
+                {copied ? 'Message copied' : 'Ask an admin to install Bridge'}
+              </Button>
+            </p>
+            <p className="sr-only" role="status" aria-live="polite">
+              {said}
+            </p>
+          </>
+        )
+      ) : (
+        <>
+          <p className="onb-quiet">{access === 'outside-contributor' ? 'You are not on this team on GitHub: you can look around and send suggestions.' : ctx.storybook ? 'Everything in your Storybook, plus' : 'Bridge reads from it'}</p>
+          {connected && access !== 'outside-contributor' && (
+            <ul className="onb-features">
+              <Feature>Tokens and contrast checks</Feature>
+              <Feature>The Figma fidelity check</Feature>
+              <Feature>Adoption across your products</Feature>
+              <Feature>Tracking what explorations change</Feature>
+            </ul>
+          )}
+        </>
+      )}
+      <p className="onb-quiet">
+        Not this one? <Link href={STUDIO_ROOT}>Create a new team</Link>
+      </p>
+    </section>
+  );
+}
+
 /** Step 2: the Storybook quick start and the repository this Studio reads. */
-function LibraryStep({ ctx }: { ctx: OnboardingContext }) {
+function LibraryStep({ ctx, step }: { ctx: OnboardingContext; step: Step }) {
   return (
     <div className="onb-ways">
       <section className="onb-way" aria-labelledby="onb-way-sb" data-selected={ctx.quickStart ? '' : undefined}>
@@ -146,6 +223,9 @@ function LibraryStep({ ctx }: { ctx: OnboardingContext }) {
           </ul>
         </div>
       </section>
+      {ctx.hosted ? (
+        <HostedRepo ctx={ctx} step={step} />
+      ) : (
       <section className="onb-way" aria-labelledby="onb-way-repo" data-selected="">
         <p className="onb-way-tags">
           <Badge tone="success" size="sm" dot>
@@ -169,6 +249,7 @@ function LibraryStep({ ctx }: { ctx: OnboardingContext }) {
           <Feature>Tracking what explorations change</Feature>
         </ul>
       </section>
+      )}
     </div>
   );
 }
@@ -232,10 +313,36 @@ export function Onboarding({ steps, name, initial, ctx, actions }: OnboardingPro
         <Panel step={step} total={total} title="Sign in with GitHub" lead={step.state === 'done' ? `${step.detail}. Your sign-in stays in this browser.` : 'Bridge works as you on GitHub.'} footer={nav()} />
       );
       break;
-    case 'library':
+    case 'library': {
+      // Installing Bridge is this step's one primary action; Continue steps back.
+      const install = ctx.hosted?.access === 'not-installed' && ctx.hosted.admin;
       panel = (
-        <Panel step={step} total={total} title="Connect your design system" lead="Two ways in. Storybook is the quick start; the repository unlocks the checks." footer={nav()}>
-          <LibraryStep ctx={ctx} />
+        <Panel
+          step={step}
+          total={total}
+          title="Connect your design system"
+          lead="Two ways in. Storybook is the quick start; the repository unlocks the checks."
+          footer={nav(install ? <Button variant="secondary" onClick={next}>Continue</Button> : undefined)}
+        >
+          <LibraryStep ctx={ctx} step={step} />
+        </Panel>
+      );
+      break;
+    }
+    case 'team':
+      panel = (
+        // Copy link is this step's one primary action; Continue steps back.
+        <Panel step={step} total={total} title={STEP_TITLE.team} lead={STEP_LINE.team} footer={nav(<Button variant="secondary" onClick={next}>Continue</Button>)}>
+          <TeamLink
+            id="onb-team-link"
+            owner={ctx.team.owner}
+            repo={ctx.team.repo}
+            link={ctx.team.link}
+            access={ctx.team.access}
+            changes={ctx.team.changes}
+            owners={ctx.team.owners}
+            onCopied={() => actions.mark('team')}
+          />
         </Panel>
       );
       break;
@@ -393,7 +500,10 @@ export interface FinishConnectingProps {
   onHide: () => void;
 }
 
-/** "4 of 6 connected": the steps left, behind one button on the home. */
+/** The link word of a step left in the checklist. */
+const actionWord = (s: Step) => (s.state === 'waiting' ? 'See' : s.id === 'changes' ? 'Choose' : s.id === 'team' ? 'Invite' : 'Set up');
+
+/** "4 of 7 connected": the steps left, behind one button on the home. */
 export function FinishConnecting({ steps, onOpen, onHide }: FinishConnectingProps) {
   const left = steps.filter((s) => s.state !== 'done');
   const summary = doneSummary(steps);
@@ -418,8 +528,8 @@ export function FinishConnecting({ steps, onOpen, onHide }: FinishConnectingProp
             <li key={s.id} className="onb-pop-row">
               <StepMark s={s} />
               <StepText s={s} />
-              <Button variant="link" onClick={() => onOpen(s.id)} aria-label={`${s.id === 'changes' ? 'Choose' : 'Set up'}: ${s.title}`}>
-                {s.state === 'waiting' ? 'See' : s.id === 'changes' ? 'Choose' : 'Set up'}
+              <Button variant="link" onClick={() => onOpen(s.id)} aria-label={`${actionWord(s)}: ${s.title}`}>
+                {actionWord(s)}
               </Button>
             </li>
           ))}
@@ -431,5 +541,113 @@ export function FinishConnecting({ steps, onOpen, onHide }: FinishConnectingProp
         </div>
       </PopoverContent>
     </Popover>
+  );
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// A team's Bridge (hosted): the steps on the team's home, opened with ?setup=<step>
+
+/** The step asked for in the address (?setup=team), null for none or an unknown one. */
+export function setupStepFromUrl(search: string): StepId | null {
+  const asked = new URLSearchParams(search).get('setup');
+  return asked && (STEP_IDS as readonly string[]).includes(asked) ? (asked as StepId) : null;
+}
+
+export interface HostedOnboardingProps {
+  gate: { owner: string; repo: string; login: string | null; access: RepoAccessState | null; repoAdmin: boolean };
+  /** The team link. */
+  link: string;
+  initial: StepId;
+  /** Leaves the steps for the page. */
+  onLeave: () => void;
+}
+
+/**
+ * The onboarding of a team's Bridge, with what this browser remembers of that repository
+ * (bridge.onboarding.<owner>/<repo>) and the team's settings once read (scripts/repo-context.ts siteConfig).
+ */
+export function HostedOnboarding({ gate, link, initial, onLeave }: HostedOnboardingProps) {
+  const repo = `${gate.owner}/${gate.repo}`;
+  const key = onboardingKey(repo);
+  const load = (): OnboardingMemory => {
+    try {
+      return parseMemory(readMemoryText(localStorage, repo, null));
+    } catch {
+      return parseMemory(null);
+    }
+  };
+  const [memory, setMemory] = useState<OnboardingMemory>(load);
+  const save = (next: OnboardingMemory) => {
+    setMemory(next);
+    try {
+      localStorage.setItem(key, JSON.stringify(next));
+    } catch {
+      /* private mode: kept for this visit only */
+    }
+  };
+  const [cfg, setCfg] = useState<{ changes: ChangesMode | null; owners?: { design: string[]; tech: string[] }; products: { name: string; path?: string }[]; storybook: string | null }>({
+    changes: null,
+    products: [],
+    storybook: null,
+  });
+  useEffect(() => {
+    let live = true;
+    const read = () =>
+      void import('../../../scripts/repo-context').then(({ siteConfig }) => {
+        if (!live) return;
+        const c = siteConfig();
+        setCfg({
+          changes: c.changes ?? null,
+          owners: c.owners,
+          products: (c.products ?? []).map((p) => ({ name: p.name, path: p.path })),
+          storybook: null,
+        });
+      });
+    read();
+    document.addEventListener('bridge:team-model', read);
+    return () => {
+      live = false;
+      document.removeEventListener('bridge:team-model', read);
+    };
+  }, []);
+
+  const admin = gate.access === 'admin' || gate.repoAdmin;
+  const steps = onboardingSteps({
+    login: gate.login,
+    repo,
+    storybook: cfg.storybook,
+    products: cfg.products.map((p) => p.name),
+    changes: cfg.changes,
+    proposed: cfg.changes ? null : memory.proposed,
+    marked: memory.marked,
+    hosted: { access: gate.access, admin },
+  });
+  return (
+    <Onboarding
+      steps={steps}
+      name={gate.login}
+      initial={initial}
+      ctx={{
+        repo,
+        repoUrl: `https://github.com/${repo}`,
+        storybook: cfg.storybook,
+        products: cfg.products,
+        mcpCommand: bridgeMcpInstallCommand(repo),
+        figmaHref: '/install/#figma-plugin',
+        claudeHref: '/agents/#claude-code',
+        team: { owner: gate.owner, repo: gate.repo, link, access: gate.access, changes: cfg.changes, owners: cfg.owners },
+        hosted: { access: gate.access, admin },
+      }}
+      actions={{
+        propose: async (mode) => {
+          const { proposeChangesMode } = await import('../../../scripts/roles');
+          const pr = await proposeChangesMode(mode);
+          save({ ...memory, proposed: { pr: pr.number, mode } });
+          return pr;
+        },
+        mark: (id) => save({ ...memory, marked: [...new Set([...memory.marked, id])] }),
+        later: onLeave,
+      }}
+    />
   );
 }

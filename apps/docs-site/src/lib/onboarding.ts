@@ -1,27 +1,30 @@
-// Studio onboarding: the six steps that connect a design system to Bridge, as a checklist (components/ds/studio/
+// Studio onboarding: the seven steps that connect a design system to Bridge, as a checklist (components/ds/studio/
 // Onboarding.tsx). Pure rules and words, covered by onboarding.test.ts. No DOM, no fetch.
 //
 //   1. Sign in with GitHub          done once the viewer is known.
-//   2. Your design system           this Studio is built for one repository (bridge.config.json at build time), so
-//                                   it is connected from the start. The Storybook quick start reads a published
-//                                   Storybook and keeps its address in this browser (lib/workspace.ts); the step
-//                                   says how many components it found.
-//   3. Products                     the apps listed in bridge.config.json `products`, found with the repo.
-//   4. How changes reach your code  done when bridge.config.json sets `changes`; waiting while the pull request that
+//   2. Your design system           self-hosted: this Studio is built for one repository (bridge.config.json at build
+//                                   time), so it is connected from the start. Hosted (a team's Bridge, multi-team plan
+//                                   7.2): connected once GitHub says the viewer can use Bridge on the repository;
+//                                   "Install Bridge" while it is not set up there. The Storybook quick start reads a
+//                                   published Storybook and keeps its address in this browser (lib/workspace.ts).
+//   3. How changes reach your code  done when bridge.config.json sets `changes`; waiting while the pull request that
 //                                   sets it is open; otherwise the current step (suggestions by default).
-//   5. Figma plugin, 6. Claude AI   nothing on GitHub says they are set up: the viewer marks them done in this
+//   4. Invite your team             share the team link. Done once the viewer copied it (this browser remembers);
+//                                   next after step 3 in the first run, "Later is fine" otherwise.
+//   5. Products                     the apps listed in bridge.config.json `products`, found with the repo.
+//   6. Figma plugin, 7. Claude AI   nothing on GitHub says they are set up: the viewer marks them done in this
 //                                   browser, and "Later is fine" until then.
-// Every step after sign-in can wait: the first run opens on step 4 only while `changes` is unset, and "Do this later"
+// Every step after sign-in can wait: the first run opens on step 3 only while `changes` is unset, and "Do this later"
 // moves the rest into a compact "Finish connecting" checklist on the home.
-import type { ChangesMode } from '@bridge-ds/core';
+import type { ChangesMode, RepoAccessState } from '@bridge-ds/core';
 import { CHANGES_SHORT } from './settings-view';
 
-export type StepId = 'signin' | 'library' | 'products' | 'changes' | 'figma' | 'claude';
+export type StepId = 'signin' | 'library' | 'changes' | 'team' | 'products' | 'figma' | 'claude';
 
 /** done, the one step open now, waiting on a review, or one that can wait. */
 export type StepState = 'done' | 'current' | 'waiting' | 'later';
 
-export const STEP_IDS: readonly StepId[] = ['signin', 'library', 'products', 'changes', 'figma', 'claude'];
+export const STEP_IDS: readonly StepId[] = ['signin', 'library', 'changes', 'team', 'products', 'figma', 'claude'];
 
 /** The steps Bridge asks for on the first run. Products come with the repo; the others say "Later is fine". */
 const CORE: readonly StepId[] = ['signin', 'library', 'changes'];
@@ -31,6 +34,7 @@ export const STEP_TITLE: Record<StepId, string> = {
   library: 'Your design system',
   products: 'Products',
   changes: 'How changes reach your code',
+  team: 'Invite your team',
   figma: 'Figma plugin',
   claude: 'Claude AI (MCP)',
 };
@@ -41,6 +45,7 @@ export const STEP_LINE: Record<StepId, string> = {
   library: 'Storybook URL or the repository',
   products: 'The apps that use your library',
   changes: 'Suggestions or pull requests',
+  team: 'Share one link. GitHub decides who gets in.',
   figma: 'Keeps the Figma kit in step with code',
   claude: 'Lets Claude AI build with your library',
 };
@@ -60,8 +65,13 @@ export interface OnboardingFacts {
   changes: ChangesMode | null;
   /** The open pull request that sets `changes`, proposed from this browser. */
   proposed?: { pr: number; mode: ChangesMode } | null;
-  /** Steps the viewer marked done in this browser (Figma plugin, Claude AI). */
+  /** Steps the viewer marked done in this browser (Figma plugin, Claude AI, the team link copied). */
   marked?: readonly StepId[];
+  /**
+   * A team's Bridge on the hosted site: the viewer's access to the repository (null while GitHub is asked). Absent on
+   * the self-hosted site, where the repository is connected at build time.
+   */
+  hosted?: { access: RepoAccessState | null; admin?: boolean } | null;
 }
 
 export interface Step {
@@ -79,7 +89,26 @@ export interface Step {
   pr?: number;
 }
 
-const MARKABLE: readonly StepId[] = ['figma', 'claude'];
+const MARKABLE: readonly StepId[] = ['team', 'figma', 'claude'];
+
+/** Step 2 on a team's Bridge: what GitHub says about the viewer and the repository. */
+function hostedLibraryStep(f: OnboardingFacts, access: RepoAccessState | null, admin: boolean): Pick<Step, 'detail' | 'code' | 'state' | 'status'> {
+  const lead = f.storybook || f.quickStart ? 'Storybook and' : 'Repository';
+  switch (access) {
+    case null:
+      return { detail: 'Checking your access to', code: f.repo, state: 'later', status: 'Checking' };
+    case 'reader':
+    case 'writer':
+    case 'admin':
+      return { detail: lead, code: f.repo, state: 'done', status: 'Connected' };
+    case 'outside-contributor':
+      return { detail: 'Read only on', code: f.repo, state: 'done', status: 'Read only' };
+    case 'not-installed':
+      return { detail: 'Bridge is not set up on', code: f.repo, state: 'later', status: admin ? 'Install Bridge' : 'Ask an admin' };
+    default:
+      return { detail: 'No access to', code: f.repo, state: 'later', status: 'No access' };
+  }
+}
 
 function changesStep(f: OnboardingFacts): Pick<Step, 'detail' | 'state' | 'status' | 'pr'> {
   if (f.changes) return { detail: CHANGES_SHORT[f.changes], state: 'done', status: 'Chosen' };
@@ -87,7 +116,7 @@ function changesStep(f: OnboardingFacts): Pick<Step, 'detail' | 'state' | 'statu
   return { detail: STEP_LINE.changes, state: 'later', status: 'Later is fine' };
 }
 
-/** The six steps with their state. The current step is the first core step not done, once signed in. */
+/** The seven steps with their state. The current step is the first core step not done, once signed in. */
 export function onboardingSteps(f: OnboardingFacts): Step[] {
   const marked = new Set((f.marked ?? []).filter((m) => MARKABLE.includes(m)));
   const steps: Step[] = STEP_IDS.map((id, i) => {
@@ -98,13 +127,19 @@ export function onboardingSteps(f: OnboardingFacts): Step[] {
           ? { ...base, detail: `Signed in as @${f.login}`, state: 'done', status: 'Done' }
           : { ...base, detail: STEP_LINE.signin, state: 'later', status: 'To do' };
       case 'library':
-        return { ...base, detail: f.storybook || f.quickStart ? 'Storybook and' : 'Repository', code: f.repo, state: 'done', status: 'Connected' };
+        return f.hosted
+          ? { ...base, ...hostedLibraryStep(f, f.hosted.access, f.hosted.admin === true) }
+          : { ...base, detail: f.storybook || f.quickStart ? 'Storybook and' : 'Repository', code: f.repo, state: 'done', status: 'Connected' };
       case 'products':
         return f.products.length
           ? { ...base, detail: f.products.join(', '), state: 'done', status: 'Connected' }
           : { ...base, detail: STEP_LINE.products, state: 'later', status: 'Found with the repo' };
       case 'changes':
         return { ...base, ...changesStep(f) };
+      case 'team':
+        return marked.has('team')
+          ? { ...base, detail: 'Team link shared', state: 'done', status: 'Done' }
+          : { ...base, detail: STEP_LINE.team, state: 'later', status: 'Later is fine' };
       default:
         return marked.has(id)
           ? { ...base, detail: 'Set up, you said so', state: 'done', status: 'Done' }
@@ -112,7 +147,8 @@ export function onboardingSteps(f: OnboardingFacts): Step[] {
     }
   });
   const current = currentStepId(steps);
-  return steps.map((s) => (s.id === current ? { ...s, state: 'current', status: 'Current' } : s));
+  // A hosted step 2 keeps its own words (Install Bridge, Ask an admin): they say what to do.
+  return steps.map((s) => (s.id === current ? { ...s, state: 'current', status: s.id === 'library' && f.hosted ? s.status : 'Current' } : s));
 }
 
 function currentStepId(steps: Step[]): StepId | null {
@@ -122,7 +158,7 @@ function currentStepId(steps: Step[]): StepId | null {
 
 export const doneCount = (steps: Step[]) => steps.filter((s) => s.state === 'done').length;
 
-/** "4 of 6 connected" */
+/** "4 of 7 connected" */
 export const progressLabel = (steps: Step[]) => `${doneCount(steps)} of ${steps.length} connected`;
 
 /** The first run opens full screen only for a signed-in viewer with a core step left, until "Do this later". */
@@ -146,6 +182,7 @@ export function doneSummary(steps: Step[]): string | null {
     library: 'design system',
     products: 'products',
     changes: 'how changes reach your code',
+    team: 'team invited',
     figma: 'Figma plugin',
     claude: 'Claude AI',
   };
@@ -158,7 +195,26 @@ export function doneSummary(steps: Step[]): string | null {
 // ---------------------------------------------------------------------------------------------------------------
 // What this browser remembers (per viewer conveniences only; the repository stays the source of truth)
 
+/** The key before onboarding was kept per repository; it belonged to the build repository (the demo). */
 export const ONBOARDING_KEY = 'bridge.onboarding';
+
+/** What this browser remembers of one repository's onboarding: bridge.onboarding.<owner>/<repo> (lower case). */
+export const onboardingKey = (repo: string) => `${ONBOARDING_KEY}.${repo.toLowerCase()}`;
+
+/**
+ * The stored text of one repository's onboarding, moving the old shared key onto `legacyRepo` (the build repository
+ * of the self-hosted site) the first time it is read. `storage` is localStorage, swapped in tests.
+ */
+export function readMemoryText(storage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>, repo: string, legacyRepo: string | null): string | null {
+  const own = storage.getItem(onboardingKey(repo));
+  if (own !== null) return own;
+  if (!legacyRepo || legacyRepo.toLowerCase() !== repo.toLowerCase()) return null;
+  const old = storage.getItem(ONBOARDING_KEY);
+  if (old === null) return null;
+  storage.setItem(onboardingKey(repo), old);
+  storage.removeItem(ONBOARDING_KEY);
+  return old;
+}
 
 export interface OnboardingMemory {
   /** "Do this later" on the first run. */
