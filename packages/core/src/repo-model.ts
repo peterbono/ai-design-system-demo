@@ -154,8 +154,8 @@ export interface RepoModel {
 export interface RepoModelOptions {
   /** Scan components (3-4 files per component). Default true. */
   components?: boolean;
-  /** Docs link of a token's CSS variable (the caller's routing). Default: none. */
-  href?: (cssVar: string, type: string, tier: TokenRowTier) => string | undefined;
+  /** Docs link of a token's CSS variable (the caller's routing), given its type, tier and token path. Default: none. */
+  href?: (cssVar: string, type: string, tier: TokenRowTier, path: string) => string | undefined;
   /** Requests in flight. Default 8. */
   concurrency?: number;
 }
@@ -227,7 +227,7 @@ export async function loadRepoModel(source: RepoSource, options: RepoModelOption
   const index = tokenRowIndex(rows);
   const describeVar = (cssVar: string) => {
     const hit = index.get(cssVar);
-    return hit ? { path: hit.path, kind: hit.kind, href: options.href?.(cssVar, hit.type, hit.kind) } : undefined;
+    return hit ? { path: hit.path, kind: hit.kind, href: options.href?.(cssVar, hit.type, hit.kind, hit.path) } : undefined;
   };
   const comps = config.components ?? { dir: REPO_MODEL_DEFAULTS.componentsDir, docsSuffix: '.docs.json', styleSuffix: '.module.css' };
   const specsPath = comps.specs ?? REPO_MODEL_DEFAULTS.componentSpecs;

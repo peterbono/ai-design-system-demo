@@ -7,7 +7,7 @@ const config = siteConfig();
 // The demo is built backwards from the current files, and a step whose "before" equals today's value drops out.
 // Pin the three values the demo steps touch, so a designer editing them in Studio never breaks these tests.
 const files = Object.fromEntries(
-  applyTokenEdits(new LayeredTokenSet(config, new Map(Object.entries(currentTokenFiles(config)))), [
+  applyTokenEdits(new LayeredTokenSet(config, new Map(Object.entries(currentTokenFiles()))), [
     { op: 'set', path: 'color.text.muted', file: 'semantic/light.tokens.json', value: '{palette.neutral.600}' },
     { op: 'set', path: 'button.radius', file: 'components/button.tokens.json', value: '{radius.control}' },
     { op: 'set', path: 'alert.radius', file: 'components/feedback.tokens.json', description: 'Inline alerts are containers.' },

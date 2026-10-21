@@ -2,22 +2,12 @@
 // read from local git (first parent of HEAD), and a separate demo history built over the current files. Both go to
 // /studio/versions/data.json; the browser never mixes them. A shallow clone (CI, Vercel) or a missing git simply gives fewer
 // real entries, and the page says so.
-import {
-  demoHistory,
-  layoutOptions,
-  loadConfig,
-  parseContrastChecks,
-  selectTokenFiles,
-  type BridgeConfig,
-  type HistoryEntry,
-  type HistoryReport,
-} from '@bridge-ds/core';
+import { demoHistory, layoutOptions, parseContrastChecks, type BridgeConfig, type HistoryEntry, type HistoryReport } from '@bridge-ds/core';
 import { loadLocalHistory, localGitHistoryBackend } from '@bridge-ds/core/node';
-import { readdirSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
 import { reviewTokenChange, type TokenReview } from './token-review';
 import { demoBeforeFiles } from './history-view';
-import { exists, git, readText, repoPath, ROOT } from './repo';
+import { repoModel } from './model';
+import { exists, git, readText, ROOT } from './repo';
 
 export interface HistoryData {
   generatedAt: string;
@@ -33,26 +23,11 @@ export interface HistoryData {
   reviews: Record<string, TokenReview>;
 }
 
-export function siteConfig(): BridgeConfig {
-  return loadConfig(exists('bridge.config.json') ? readText('bridge.config.json') : '{}');
-}
+/** bridge.config.json of this build, parsed once by the repo model. */
+export const siteConfig = (): BridgeConfig => repoModel.config;
 
-export function currentTokenFiles(config: BridgeConfig): Record<string, string> {
-  const root = config.tokens.root.replace(/\/$/, '');
-  const abs = repoPath(root);
-  const all: string[] = [];
-  const walk = (dir: string) => {
-    for (const name of readdirSync(dir)) {
-      const full = join(dir, name);
-      if (statSync(full).isDirectory()) walk(full);
-      else all.push(relative(ROOT, full));
-    }
-  };
-  if (exists(root)) walk(abs);
-  const out: Record<string, string> = {};
-  for (const f of selectTokenFiles(config, all)) out[f] = readText(`${root}/${f}`);
-  return out;
-}
+/** Token files of this build, relative to tokens.root (the repo model's). */
+export const currentTokenFiles = (): Record<string, string> => repoModel.tokens.files;
 
 let cached: Promise<HistoryData> | null = null;
 
@@ -63,7 +38,7 @@ export function historyData(): Promise<HistoryData> {
 
 async function build(): Promise<HistoryData> {
   const config = siteConfig();
-  const files = currentTokenFiles(config);
+  const files = currentTokenFiles();
   const checks = config.contrast && exists(config.contrast.path) ? readText(config.contrast.path) : '';
   const pairs = parseContrastChecks(checks || undefined);
   const opts = layoutOptions(config);
@@ -95,5 +70,5 @@ async function build(): Promise<HistoryData> {
     after = before;
   }
 
-  return { generatedAt: new Date().toISOString(), config: exists('bridge.config.json') ? JSON.parse(readText('bridge.config.json')) : {}, files, checks, real, realNote, demo, reviews };
+  return { generatedAt: new Date().toISOString(), config: repoModel.configText === null ? {} : JSON.parse(repoModel.configText), files, checks, real, realNote, demo, reviews };
 }

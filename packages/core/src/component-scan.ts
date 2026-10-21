@@ -176,15 +176,19 @@ export function parseComponentTsx(
     }
   }
 
+  // The JSDoc block that ends right before the match: the last comment of what precedes it, only when it opens with
+  // "/**". Matching the whole prefix used to start at the first JSDoc of the file, so the JSDoc of a props interface
+  // and the code after it leaked into the component description.
   const docBefore = (re: RegExp) => {
     const idx = src.search(re);
     if (idx < 0) return undefined;
-    const doc = src
-      .slice(0, idx)
-      .trimEnd()
-      .match(/\/\*\*([\s\S]*?)\*\/$/);
-    return doc?.[1]
-      ?.replace(/^\s*\*\s?/gm, '')
+    const before = src.slice(0, idx).trimEnd();
+    if (!before.endsWith('*/')) return undefined;
+    const start = before.lastIndexOf('/*', before.length - 2);
+    if (start < 0 || before[start + 2] !== '*') return undefined;
+    return before
+      .slice(start + 3, -2)
+      .replace(/^\s*\*\s?/gm, '')
       .replace(/\s+/g, ' ')
       .trim();
   };

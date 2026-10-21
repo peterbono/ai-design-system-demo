@@ -24,8 +24,8 @@ import XpKeys from './XpKeys.astro';
 import { CATEGORY_LABEL, CATEGORY_ORDER, STUDIO_TIER_NAMES, SYNTAX_LABEL, modeName } from '../../lib/explorer/format';
 import { modesOf } from '../../lib/explorer/model';
 import { tokenFiles } from '../../lib/explorer';
-import { exists, readText } from '../../lib/repo';
-import { TIER_NAMES, TIER_ORDER, buildTokenSet, layoutOptions, loadConfig } from '@bridge-ds/core';
+import { repoModel } from '../../lib/model';
+import { TIER_NAMES, TIER_ORDER, buildTokenSet, layoutOptions } from '@bridge-ds/core';
 import { Fragment as RFragment, createElement } from 'react';
 
 interface Props {
@@ -39,7 +39,7 @@ const { mode, focus } = Astro.props;
 const app = mode === 'edit';
 // The brand and density selectors render here, statically, from the same token set the browser builds
 // (scripts/explorer/data.ts); the script only shows, hides and selects them.
-const modes = modesOf(buildTokenSet(tokenFiles(), layoutOptions(loadConfig(exists('bridge.config.json') ? readText('bridge.config.json') : '{}'))));
+const modes = modesOf(buildTokenSet(tokenFiles(), layoutOptions(repoModel.config)));
 const combos = modes.brands.length * modes.themes.length;
 // Lens segments carry a count the script fills in.
 const lensLabel = (text: string) => createElement(RFragment, null, `${text} `, createElement('span', { className: 'xp-lens-n', 'data-lens-n': '' }));
