@@ -57,6 +57,21 @@
   flex: none;
 }
 
+/* The demo's mark: the Bridge drawing on a quiet tile the size of the avatar it replaces. Square corners say "a design
+   system", not a person. */
+.tc-mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-6);
+  height: var(--size-6);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-inset);
+  background-color: var(--color-surface-default);
+  color: var(--color-text-default);
+}
+
 .tc-chev {
   flex: none;
   color: var(--color-text-muted);

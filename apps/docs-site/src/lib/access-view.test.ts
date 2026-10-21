@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import type { RepoAccessState } from '@bridge-ds/core';
 import {
   accessBadge,
+  chipIdentity,
+  isDemoTeam,
   accessScreen,
   accessSummary,
   askAccessMessage,
@@ -95,7 +97,20 @@ describe('the team chip', () => {
     expect(accessBadge('reader', true).label).toBe('Can suggest');
     expect(accessBadge('no-access', true)).toEqual({ label: 'No access', tone: 'danger' });
     expect(accessBadge(null, true).label).toBe('Checking');
-    expect(accessBadge(null, false).label).toBe('Signed out');
+    expect(accessBadge(null, false).label).toBe('Guest');
+    expect(accessBadge('anonymous-public', false).label).toBe('Guest');
+  });
+
+  it('shows the demo as a design system to explore, never as signed out', () => {
+    const anon = chipIdentity('peterbono/ai-design-system-demo', { demo: true, state: null, signedIn: false });
+    expect(anon).toMatchObject({ kind: 'demo', name: 'Bridge demo', badge: { label: 'Explore freely' } });
+    expect(anon.title).toContain('peterbono/ai-design-system-demo');
+    expect(chipIdentity('peterbono/ai-design-system-demo', { demo: true, state: 'admin', signedIn: true }).badge.label).toBe('Admin');
+    expect(chipIdentity('acme/ds', { demo: false, state: 'anonymous-public', signedIn: false })).toMatchObject({ kind: 'team', name: 'acme/ds', badge: { label: 'Guest' } });
+    expect(chipIdentity('acme/ds', { demo: false, state: 'writer', signedIn: true }).badge.label).toBe('Can edit');
+    expect(isDemoTeam('Peterbono/AI-design-system-demo', false)).toBe(true);
+    expect(isDemoTeam('peterbono/ai-design-system-demo', true)).toBe(false);
+    expect(isDemoTeam('acme/ds', false)).toBe(false);
   });
 
   it('remembers at most five recent teams, newest first, once each', () => {
