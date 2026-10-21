@@ -65,8 +65,54 @@ export function libraryRewrites(): { source: string; destination: string }[] {
   ];
 }
 
-/** The shells themselves are never indexed (a team's address decides in the page, with library.public). */
-export const libraryNoindexSources = (): string[] => [`${shell}/(.*)`];
+/** Problems with the public Library allow-list (hosted/public-libraries.json): each entry an "owner/repo" pair, once. */
+export function publicLibraryProblems(list: unknown): string[] {
+  if (!Array.isArray(list)) return ['"libraries" must be an array of "owner/repo" strings.'];
+  const problems: string[] = [];
+  const seen = new Set<string>();
+  for (const entry of list) {
+    const [owner, repo, extra] = typeof entry === 'string' ? entry.split('/') : [];
+    if (!owner || !repo || extra !== undefined || !isTeamName(owner, repo)) problems.push(`${JSON.stringify(entry)} is not an "owner/repo" pair GitHub accepts.`);
+    else if (seen.has(entry.toLowerCase())) problems.push(`${entry} is listed twice.`);
+    else seen.add(entry.toLowerCase());
+  }
+  return problems;
+}
+
+// Owner and repository names only hold letters, digits, '-', '_' and '.', so '.' is the one regex character to escape.
+const escapeRegex = (s: string) => s.replace(/\./g, '\\.');
+
+/**
+ * Header rule sources that answer X-Robots-Tag: noindex for team Libraries. The shells are never indexed. Every team
+ * Library address is noindex too, except the teams in the allow-list (hosted/public-libraries.json): their pair is
+ * excluded by a lookahead on the owner group, so no rule matches them and the page decides (library.public). Two
+ * rules per address, the trailing slash one first, as for the rewrites. Vercel matches headers on the address
+ * requested, before the rewrite, so the shell rule never reaches a team address.
+ */
+export function libraryNoindexSources(publicLibraries: readonly string[] = []): string[] {
+  const pairs = [...new Set(publicLibraries)].sort().map((p) => escapeRegex(p));
+  const owner = pairs.length ? `(?!(?:${pairs.join('|')})(?:/|$))${OWNER_PATTERN}` : OWNER_PATTERN;
+  const base = `${LIBRARY_ROOT}:owner(${owner})/:repo(${REPO_PATTERN})`;
+  return [`${shell}/(.*)`, `${base}/:path*/`, `${base}/:path*`];
+}
+
+type HeaderRule = { source: string; headers: { key: string; value: string }[] };
+const NOINDEX = { key: 'X-Robots-Tag', value: 'noindex' };
+
+/**
+ * What is wrong with the Library noindex rules of vercel.json against the allow-list: a missing rule, or a stale one
+ * (a team Library rule that the allow-list no longer implies). The build and library-shells.test.ts both run it.
+ */
+export function checkLibraryHeaders(headers: readonly HeaderRule[], publicLibraries: unknown): string[] {
+  const problems = publicLibraryProblems(publicLibraries);
+  if (problems.length) return problems.map((p) => `hosted/public-libraries.json: ${p}`);
+  const want = libraryNoindexSources(publicLibraries as string[]);
+  const missing = want.filter((source) => !headers.some((h) => h.source === source && h.headers.some((x) => x.key === NOINDEX.key && x.value === NOINDEX.value)));
+  const stale = headers.filter((h) => h.source.startsWith(`${LIBRARY_ROOT}:owner`) && !want.includes(h.source));
+  if (!missing.length && !stale.length) return [];
+  const rules = want.map((source) => `    ${JSON.stringify({ source, headers: [NOINDEX] })}`).join(',\n');
+  return [`vercel.json does not carry the Library noindex rules of hosted/public-libraries.json${stale.length ? ` (remove ${stale.map((h) => h.source).join(', ')})` : ''}. Its Library header rules must be:\n${rules}`];
+}
 
 const htmlTag = (html: string) => /<html\b[^>]*>/i.exec(html)?.[0] ?? '';
 

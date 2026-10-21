@@ -10,7 +10,7 @@ import { REDIRECTS, redirectScript } from './src/lib/redirects.ts';
 import { INLINE_SCRIPT_HASHES, inlineScripts } from './src/lib/csp.ts';
 import { RESERVED_PATHS_URL, reservedFromFiles } from './src/lib/team-path.ts';
 import { checkTeamShells } from './src/lib/team-shells.ts';
-import { checkLibraryShells } from './src/lib/library-shells.ts';
+import { checkLibraryHeaders, checkLibraryShells } from './src/lib/library-shells.ts';
 
 /**
  * Astro writes a meta refresh page for each redirect, which drops the query string and the hash. Old deep links
@@ -68,7 +68,8 @@ const cspHashes = {
  * built Studio folder (not a hand-kept list) and written to /team-shell/reserved.json for the launcher, then the
  * build fails when a shell is missing or malformed, or when a page links to a Studio path that no file serves (the
  * rewrite would open it as a team instead of a 404). Library shells (src/lib/library-shells.ts) are checked too, and
- * no file may sit at /library/<owner>/<repo>/ (it would take that team's Library address).
+ * no file may sit at /library/<owner>/<repo>/ (it would take that team's Library address). vercel.json must carry the
+ * Library noindex rules that hosted/public-libraries.json implies (the error prints them).
  */
 const teamShells = {
   name: 'bridge-team-shells',
@@ -85,7 +86,10 @@ const teamShells = {
       mkdirSync(dirname(out), { recursive: true });
       writeFileSync(out, `${JSON.stringify(reserved)}\n`);
       const read = (f) => readFileSync(join(root, f), 'utf8');
-      const problems = [...checkTeamShells(files, read), ...checkLibraryShells(files, read)];
+      // The noindex header rules of team Libraries follow the committed allow-list (hosted/public-libraries.json).
+      const vercelJson = JSON.parse(readFileSync(new URL('./vercel.json', import.meta.url), 'utf8'));
+      const publicLibraries = JSON.parse(readFileSync(new URL('./hosted/public-libraries.json', import.meta.url), 'utf8')).libraries;
+      const problems = [...checkTeamShells(files, read), ...checkLibraryShells(files, read), ...checkLibraryHeaders(vercelJson.headers, publicLibraries)];
       if (problems.length) throw new Error(`Team shells:\n${problems.map((p) => `  - ${p}`).join('\n')}`);
       logger.info(`Team shells: checked (Studio and Library); ${reserved.pairs.length} reserved owner/repo pairs written to ${RESERVED_PATHS_URL}.`);
     },

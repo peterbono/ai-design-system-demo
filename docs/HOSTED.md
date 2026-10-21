@@ -96,15 +96,30 @@ it reads like Studio: the snapshot when it matches the default branch head, else
 repository's Library needs a sign-in with access.
 
 **Search engines.** Every team Library page is `noindex` by default: it shows content Bridge does not control under
-the Bridge domain. A team that wants its Library indexed opts in, on a public repository only:
+the Bridge domain. Two locks keep it that way, and a Library is indexed only when both open:
 
-```json
-{ "library": { "public": true } }
-```
+1. **The server.** Every `/library/<owner>/<repo>/...` address answers `X-Robots-Tag: noindex` (a `vercel.json`
+   header, so crawlers that never run JavaScript see it too), and so does every `/library-shell/...` page. The only
+   exceptions are the teams listed in [`apps/docs-site/hosted/public-libraries.json`](../apps/docs-site/hosted/public-libraries.json),
+   a committed allow-list that changes by pull request, reviewed by Bridge maintainers. There is no database, so the
+   list is the record of who opted in.
+2. **The team.** Its repository is public and its `bridge.config.json` says:
 
-The page adds the `noindex` tag first and removes it once it has read this setting.
+   ```json
+   { "library": { "public": true } }
+   ```
+
+   The page adds a `noindex` tag first and removes it once it has read this setting, so a listed team that turns the
+   setting off (or makes its repository private) is out of the index again without a Bridge change.
+
+To list a team: add `"owner/repo"` to `libraries` in the allow-list, then build. The build fails until `vercel.json`
+carries the matching rules and prints them to paste: the listed pairs are excluded by a lookahead on the owner group
+of the two Library noindex rules (`/library/:owner((?!(?:acme/ds)(?:/|$))...)/:repo(...)/:path*/` and the form
+without the trailing slash). `library-shells.test.ts` checks the same thing in CI. Vercel matches header rules on the
+address requested, before the rewrite, so the shell's own rule never reaches a team address.
 
 **Routing.** Each page is built once, without team data, at `/library-shell/<route>`; `vercel.json` rewrites
 `/library/<owner>/<repo>/...` to it (two rules, the trailing slash one first). Bridge's own Library home stays at
 `/library/`, and the build fails if a file would ever take a `/library/<owner>/<repo>/` address.
-`node scripts/hosted-smoke.mjs <deployment>` checks the routes on a deployment.
+`node scripts/hosted-smoke.mjs <deployment>` checks the routes on a deployment, and the `X-Robots-Tag` of each team
+Library against the allow-list (on production only: Vercel marks every preview response `noindex`).

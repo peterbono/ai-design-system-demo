@@ -1,6 +1,6 @@
 // The judging of the hosted smoke test (scripts/hosted-smoke.mjs), without a network.
 import { describe, expect, it } from 'vitest';
-import { assetCases, CASES, judge, parseCurlOutput, servedBy } from './hosted-smoke.mjs';
+import { assetCases, CASES, judge, parseCurlOutput, PUBLIC_LIBRARIES, servedBy } from './hosted-smoke.mjs';
 
 const page = (attrs) => `<!DOCTYPE html><html lang="en"${attrs}><head></head></html>`;
 
@@ -28,11 +28,26 @@ describe('hosted smoke', () => {
 
   it('tells a team Library shell apart, and refuses a static noindex there (library.public decides)', () => {
     expect(servedBy(page(' data-library-shell="tokens" data-theme="light"'))).toBe('library:tokens');
-    const lib = CASES.find((c) => c.path === '/library/peterbono/ai-design-system-demo/tokens');
+    const lib = { ...CASES.find((c) => c.path === '/library/peterbono/ai-design-system-demo/tokens'), noindex: false };
     expect(judge(lib, { status: 200, body: page(' data-library-shell="tokens"'), robots: null, type: 'text/html' })).toEqual([]);
     expect(judge(lib, { status: 200, body: '<html data-library-shell="tokens"><head><meta name="robots" content="noindex"></head>', robots: null })).toEqual(['a static noindex tag: the page decides (library.public)']);
     expect(judge(lib, { status: 200, body: page(' data-theme="light"'), robots: null })).toEqual(['served by studio, expected library:tokens']);
     expect(CASES.map((c) => c.path)).toEqual(expect.arrayContaining(['/library/', '/library/peterbono/ai-design-system-demo', '/library/peterbono/ai-design-system-demo/', '/library/-bad/ds/']));
+  });
+
+  it('wants X-Robots-Tag: noindex on a team Library unless it is in the allow-list', () => {
+    const libs = CASES.filter((c) => c.path.startsWith('/library/') && c.status === 200 && c.shell?.startsWith('library:'));
+    expect(libs.length).toBeGreaterThan(5);
+    for (const c of libs) {
+      const pair = c.path.split(/[/?]/).slice(2, 4).join('/').toLowerCase();
+      expect(c.noindex === true, c.path).toBe(!PUBLIC_LIBRARIES.has(pair));
+    }
+    const unlisted = CASES.find((c) => c.path === '/library/acme/ds.v2/tokens/');
+    expect(judge(unlisted, { status: 200, body: page(' data-library-shell="tokens"'), robots: null })).toEqual(['no X-Robots-Tag: noindex']);
+    const listed = { path: '/library/acme/ds/', status: 200, shell: 'library:home', indexable: true, publicLibrary: true };
+    expect(judge(listed, { status: 200, body: page(' data-library-shell="home"'), robots: 'noindex' })).toEqual(['X-Robots-Tag: noindex on a Library in hosted/public-libraries.json']);
+    expect(judge(listed, { status: 200, body: page(' data-library-shell="home"'), robots: 'noindex' }, { preview: true })).toEqual([]);
+    expect(judge(listed, { status: 200, body: page(' data-library-shell="home"'), robots: null })).toEqual([]);
   });
 
   it('picks the built bundles of a page as asset cases', () => {

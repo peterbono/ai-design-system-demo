@@ -5,17 +5,29 @@
 //
 // Each case requests one address and checks the status, which page answered (a Studio page of this build, the
 // team shell for a route: <html data-shell="...">, or a team Library shell: <html data-library-shell="..."> read as
-// "library:<route>"), and the X-Robots-Tag header of team addresses. A team Library decides indexing in the page
-// (noindex unless its bridge.config.json says library.public), so its shell must not carry a static noindex tag. Static files win
-// over the vercel.json rewrites, so the existing Studio pages must still answer as themselves.
+// "library:<route>"), and the X-Robots-Tag header of team addresses. A team Library answers X-Robots-Tag: noindex
+// unless it is in the allow-list apps/docs-site/hosted/public-libraries.json; a listed one must not, and then decides
+// in the page (library.public), so no Library shell carries a static noindex tag. Static files win over the vercel.json
+// rewrites, so the existing Studio pages must still answer as themselves.
 // A preview behind Vercel Deployment Protection: add --vercel-curl to send each request through `vercel curl` (your
 // Vercel login, from a folder linked to the project), or set VERCEL_AUTOMATION_BYPASS_SECRET (sent as
 // x-vercel-protection-bypass). Exit 1 when a case fails.
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const DEMO = '/studio/peterbono/ai-design-system-demo';
 const LIB = '/library/peterbono/ai-design-system-demo';
+
+/** The team Libraries search engines may index (lower case "owner/repo"). */
+export const PUBLIC_LIBRARIES = new Set(JSON.parse(readFileSync(new URL('../apps/docs-site/hosted/public-libraries.json', import.meta.url), 'utf8')).libraries.map((l) => l.toLowerCase()));
+
+/** A team Library case: X-Robots-Tag: noindex unless the team is in the allow-list, then the header must be absent. */
+const lib = (path, shell, list = PUBLIC_LIBRARIES) => {
+  const [, , owner, repo] = path.split(/[/?]/);
+  const listed = list.has(`${owner}/${repo}`.toLowerCase());
+  return { path, status: 200, shell, indexable: true, ...(listed ? { publicLibrary: true } : { noindex: true }) };
+};
 
 /**
  * shell: the route marker of the team shell expected (data-shell), 'studio' for a page of this build that is not
@@ -58,16 +70,19 @@ export const CASES = [
   // Bridge's own Library home stays itself; a team's Library opens its shell on every route (multi-team PR 4a).
   { path: '/library/', status: 200, shell: 'studio' },
   { path: '/library', status: 200, shell: 'studio' },
-  { path: `${LIB}/`, status: 200, shell: 'library:home', indexable: true },
-  { path: LIB, status: 200, shell: 'library:home', indexable: true },
-  { path: `${LIB}/foundations/`, status: 200, shell: 'library:foundations', indexable: true },
-  { path: `${LIB}/components/`, status: 200, shell: 'library:components', indexable: true },
-  { path: `${LIB}/components/?c=button`, status: 200, shell: 'library:components', indexable: true },
-  { path: `${LIB}/tokens`, status: 200, shell: 'library:tokens', indexable: true },
-  { path: '/library/acme/ds.v2/tokens/', status: 200, shell: 'library:tokens', indexable: true },
+  ...[
+    [`${LIB}/`, 'library:home'],
+    [LIB, 'library:home'],
+    [`${LIB}/foundations/`, 'library:foundations'],
+    [`${LIB}/components/`, 'library:components'],
+    [`${LIB}/components/?c=button`, 'library:components'],
+    [`${LIB}/tokens`, 'library:tokens'],
+    ['/library/acme/ds.v2/tokens/', 'library:tokens'],
+  ].map(([path, shell]) => lib(path, shell)),
   { path: '/library/-bad/ds/', status: 404 },
   { path: `${LIB}/nope/`, status: 404 },
   { path: '/library-shell/', status: 200, shell: 'library:home', noindex: true },
+  { path: '/library-shell/tokens/', status: 200, shell: 'library:tokens', noindex: true },
   // Assets.
   { path: '/tokens.css', status: 200, type: 'text/css' },
   { path: '/favicon.svg', status: 200, type: 'image/svg+xml' },
@@ -84,8 +99,9 @@ export function servedBy(body) {
   return shell ?? (/\sdata-hosted[\s>=]/.test(tag) ? 'hosted' : 'studio');
 }
 
-/** The problems of one response against its case; [] when it passes. */
-export function judge(c, res) {
+/** The problems of one response against its case; [] when it passes. `preview`: Vercel marks every response of a
+ * preview deployment noindex, so a listed Library cannot be told apart there. */
+export function judge(c, res, { preview = false } = {}) {
   const problems = [];
   if (res.status !== c.status) return [`status ${res.status}, expected ${c.status}`];
   if (c.status !== 200) return problems;
@@ -96,6 +112,7 @@ export function judge(c, res) {
   if (c.type && !(res.type ?? '').includes(c.type)) problems.push(`content-type ${res.type}, expected ${c.type}`);
   const robots = (res.robots ?? '').toLowerCase().includes('noindex');
   if (c.noindex && !robots) problems.push('no X-Robots-Tag: noindex');
+  if (c.publicLibrary && robots && !preview) problems.push('X-Robots-Tag: noindex on a Library in hosted/public-libraries.json');
   if (c.indexable && /<meta name="robots" content="noindex"/i.test(res.body)) problems.push('a static noindex tag: the page decides (library.public)');
   return problems;
 }
@@ -143,6 +160,9 @@ async function main() {
   }
   const headers = process.env.VERCEL_AUTOMATION_BYPASS_SECRET ? { 'x-vercel-protection-bypass': process.env.VERCEL_AUTOMATION_BYPASS_SECRET } : {};
   const home = await request(base, '/studio/', headers, viaVercel);
+  // Vercel answers X-Robots-Tag: noindex on every response of a preview deployment, so there the noindex checks
+  // cannot tell the vercel.json rules apart; only a production deployment proves them.
+  const preview = ((await request(base, '/tokens.css', headers, viaVercel)).robots ?? '').includes('noindex');
   const cases = [
     ...CASES,
     ...assetCases(home.body),
@@ -155,7 +175,7 @@ async function main() {
     let res;
     try {
       res = await request(base, c.path, headers, viaVercel);
-      problems = judge(c, res);
+      problems = judge(c, res, { preview });
     } catch (err) {
       problems = [`request failed: ${err.message}`];
     }
@@ -163,10 +183,7 @@ async function main() {
     const what = res ? `${res.status} ${c.shell ? servedBy(res.body) ?? '-' : (res.type ?? '').split(';')[0]}${res.robots ? ' noindex' : ''}` : 'error';
     console.log(`${problems.length ? 'FAIL' : 'ok  '}  ${c.path.padEnd(58)} ${what}${problems.length ? `  (${problems.join('; ')})` : ''}`);
   }
-  // Vercel answers X-Robots-Tag: noindex on every response of a preview deployment, so there the noindex checks
-  // cannot tell the vercel.json rules apart; only a production deployment proves them.
-  const asset = await request(base, '/tokens.css', headers, viaVercel);
-  if ((asset.robots ?? '').includes('noindex')) console.log('\nnote: this deployment marks every response noindex (a Vercel preview): the noindex checks only prove something on production.');
+  if (preview) console.log('\nnote: this deployment marks every response noindex (a Vercel preview): the noindex checks only prove something on production.');
   console.log(`\n${cases.length - failed} of ${cases.length} passed on ${base}`);
   process.exit(failed ? 1 : 0);
 }

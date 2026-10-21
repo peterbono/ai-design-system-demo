@@ -4,7 +4,8 @@
 //
 // Indexing: a team page shows content Bridge does not control under the Bridge domain, so it is noindex unless the
 // team's bridge.config.json says "library": { "public": true } (and the repository is public). The robots tag is
-// added here first thing, then removed once the team's config opts in.
+// added here first thing, then removed once the team's config opts in. The server lock comes first: vercel.json answers
+// X-Robots-Tag: noindex on every team Library not in hosted/public-libraries.json (lib/library-shells.ts).
 import { libraryIsPublic } from '@bridge-ds/core';
 import { LIBRARY_SHELL_ROOT, libraryFromPath, libraryHref } from '../lib/library-shells';
 import { RESERVED_PATHS_URL, STUDIO_ROOT, teamHref, type ReservedPaths } from '../lib/team-path';
