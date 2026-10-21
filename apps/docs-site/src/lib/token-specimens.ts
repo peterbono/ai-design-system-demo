@@ -68,8 +68,11 @@ function pick(rows: AnyRow[], match: (r: AnyRow) => boolean, limit: number): Spe
   return out;
 }
 
-/** Specimens of a model at its default brand and first theme: semantic and brand tokens first, primitives as fallback. */
-export function tokenSpecimens(model: Pick<RepoModel, 'tokens'>): SpecimenSet {
+/**
+ * Specimens of a model at its default brand and first theme: semantic and brand tokens first, primitives as fallback.
+ * `limits`: how many of each kind (the Studio band's glimpse by default; the Library's Foundations page draws more).
+ */
+export function tokenSpecimens(model: Pick<RepoModel, 'tokens'>, limits: Record<SpecimenKind, number> = SPECIMEN_LIMITS): SpecimenSet {
   const rows = model.tokens.rows;
   const brand = rows.defaultBrand;
   const theme = rows.themes[0] ?? 'light';
@@ -84,11 +87,11 @@ export function tokenSpecimens(model: Pick<RepoModel, 'tokens'>): SpecimenSet {
     return fromRoles.length ? fromRoles : pick(prims, match, limit);
   };
   const dim = (r: AnyRow) => r.type === 'dimension';
-  const color = either((r) => r.type === 'color', SPECIMEN_LIMITS.color);
-  const type = either((r) => dim(r) && has(r.segments, 'font', 'typography', 'text', 'type') && has(r.segments, 'size'), SPECIMEN_LIMITS.type);
+  const color = either((r) => r.type === 'color', limits.color);
+  const type = either((r) => dim(r) && has(r.segments, 'font', 'typography', 'text', 'type') && has(r.segments, 'size'), limits.type);
   const family = either((r) => r.type === 'fontFamily', 1)[0]?.value;
-  const radius = either((r) => dim(r) && has(r.segments, 'radius', 'radii', 'rounded'), SPECIMEN_LIMITS.radius);
-  const space = either((r) => dim(r) && has(r.segments, 'space', 'spacing', 'gap'), SPECIMEN_LIMITS.space);
-  const shadow = either((r) => r.type === 'shadow', SPECIMEN_LIMITS.shadow);
+  const radius = either((r) => dim(r) && has(r.segments, 'radius', 'radii', 'rounded'), limits.radius);
+  const space = either((r) => dim(r) && has(r.segments, 'space', 'spacing', 'gap'), limits.space);
+  const shadow = either((r) => r.type === 'shadow', limits.shadow);
   return { brand, theme, color, type, family, radius, space, shadow, total: color.length + type.length + radius.length + space.length + shadow.length };
 }

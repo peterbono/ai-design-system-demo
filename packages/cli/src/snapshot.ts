@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { basename, join, relative, resolve } from 'node:path';
 import type { AuditReport } from '@bridge-ds/core/audit';
-import { auditId, buildSnapshot, loadRepoModel, recordingSource, snapshotAudit, SNAPSHOT_AUDITS_DIR, SNAPSHOT_FILE, SNAPSHOT_MAX_BYTES, type RepoSnapshot, type SnapshotAudit } from '@bridge-ds/core';
+import { auditId, buildSnapshot, loadRepoModel, recordingSource, snapshotAudit, snapshotLlmsTxt, SNAPSHOT_AUDITS_DIR, SNAPSHOT_FILE, SNAPSHOT_LLMS_FILE, SNAPSHOT_MAX_BYTES, type RepoSnapshot, type SnapshotAudit } from '@bridge-ds/core';
 import { fsSource, runAudit } from '@bridge-ds/core/node';
 
 export interface SnapshotOptions {
@@ -97,7 +97,9 @@ export async function writeSnapshot(opts: SnapshotOptions): Promise<SnapshotResu
   rmSync(join(opts.out, SNAPSHOT_AUDITS_DIR), { recursive: true, force: true });
   mkdirSync(opts.out, { recursive: true });
   writeFileSync(join(opts.out, SNAPSHOT_FILE), text);
-  const written = [SNAPSHOT_FILE];
+  // The same design system as plain text for agents; the hosted Library links to it.
+  writeFileSync(join(opts.out, SNAPSHOT_LLMS_FILE), snapshotLlmsTxt(model, snapshot));
+  const written = [SNAPSHOT_FILE, SNAPSHOT_LLMS_FILE];
   if (audits.size) mkdirSync(join(opts.out, SNAPSHOT_AUDITS_DIR), { recursive: true });
   for (const { summary, report } of audits.values()) {
     writeFileSync(join(opts.out, summary.path), `${JSON.stringify(report)}\n`);

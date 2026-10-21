@@ -1,0 +1,9 @@
+---
+// Library shell, Tokens (lib/library-shells.ts): served for /library/<owner>/<repo>/tokens/.
+import LibraryShell from '../../../components/LibraryShell.astro';
+import LibraryTokens from '../../../components/ds/library/LibraryTokens';
+---
+
+<LibraryShell title="Tokens" description="Every token of a team's design system, with its value per theme and its CSS variable.">
+  <LibraryTokens client:load />
+</LibraryShell>

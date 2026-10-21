@@ -6,10 +6,15 @@
 //
 // One load per page (memoized); Refresh and Try again start a new one. The snapshot is also read on its own for
 // what only it carries (adoption audits), even when the model came from the cache.
-import { parseSnapshot, SNAPSHOT_BRANCH, SNAPSHOT_FILE, SNAPSHOT_MAX_BYTES, storybookUrl, type GitHubClient, type RepoModel, type RepoSnapshot } from '@bridge-ds/core';
+//
+// A team's Library (/library/<owner>/<repo>/..., multi-team PR 4a) reads the same way when signed in. Signed out, it
+// reads the published snapshot first, straight from the raw host: no GitHub API call at all, so an anonymous reader
+// never spends the 60 requests an hour GitHub gives an address. Only a team without a snapshot is read live.
+import { loadRepoModel, parseSnapshot, SNAPSHOT_BRANCH, SNAPSHOT_FILE, SNAPSHOT_LLMS_FILE, SNAPSHOT_MAX_BYTES, snapshotSource, storybookUrl, type GitHubClient, type RepoModel, type RepoSnapshot } from '@bridge-ds/core';
 import { getToken, hasWorkingToken, studioClient } from './github-session';
 import { loadTeamModel, type SnapshotReader, type TeamModelSource } from './repo-context';
 import { repoFromPath } from '../lib/team-path';
+import { libraryFromPath } from '../lib/library-shells';
 import { TEAM_PROGRESS_START, teamProgress, type TeamLoadEvent, type TeamProgress } from '../lib/load-progress';
 
 export interface TeamData {
@@ -25,11 +30,30 @@ export interface TeamData {
   storybook: string | undefined;
   /** The client the data was read with (the visitor's token, or anonymous). */
   client: GitHubClient;
+  /**
+   * When the snapshot read was published (its commit date, else when it was written). Set on a signed-out Library
+   * read, which takes the snapshot as published without asking GitHub for the head.
+   */
+  published?: string;
 }
 
-/** The team in this page's address, null off a team address. */
+/** The team in this page's address (a Studio or a Library team address), null off a team address. */
 export function teamOfPage(): { owner: string; repo: string } | null {
-  return typeof location === 'undefined' ? null : repoFromPath(location.pathname);
+  return typeof location === 'undefined' ? null : (repoFromPath(location.pathname) ?? libraryFromPath(location.pathname));
+}
+
+/** True on a team's Library page (/library/<owner>/<repo>/...). */
+export const onLibraryPage = (): boolean => typeof location !== 'undefined' && libraryFromPath(location.pathname) !== null;
+
+/**
+ * The snapshot a team published, read anonymously from the raw host (no API quota), null when there is none, it is
+ * not this repository's (a fork keeps its parent's bridge-data branch), too large or broken.
+ */
+async function readPublishedSnapshot(client: GitHubClient, team: { owner: string; repo: string }): Promise<RepoSnapshot | null> {
+  const snap = await readTeamSnapshot(client, { private: false }).catch(() => null);
+  if (!snap) return null;
+  const same = snap.repo.owner.toLowerCase() === team.owner.toLowerCase() && snap.repo.name.toLowerCase() === team.repo.toLowerCase();
+  return same ? snap : null;
 }
 
 /** A client for the team, with the visitor's token when it works. */
@@ -83,6 +107,25 @@ export function loadTeamData(): Promise<TeamData> {
     const team = teamOfPage();
     if (!team) throw Object.assign(new Error('This page is not a team address.'), { status: 404 });
     const client = teamClient(team);
+    if (onLibraryPage() && !client.canWrite) {
+      const published = await readPublishedSnapshot(client, team);
+      if (published) {
+        report({ step: 'snapshot' });
+        snapshot ??= Promise.resolve(published);
+        const model = await loadRepoModel(snapshotSource(published));
+        return {
+          ...team,
+          model,
+          sha: published.sourceSha,
+          defaultBranch: published.repo.branch,
+          private: false,
+          source: 'snapshot' as const,
+          storybook: storybookUrl(model.config),
+          client,
+          published: published.committedAt ?? published.generatedAt,
+        };
+      }
+    }
     const read = await loadTeamModel(client, { snapshot: readTeamSnapshot, onProgress: report });
     if (read.snapshot) snapshot ??= Promise.resolve(read.snapshot);
     if (!read.cached) {
@@ -114,8 +157,27 @@ export function loadTeamSnapshot(): Promise<RepoSnapshot | null> {
   return snapshot;
 }
 
+let llms: Promise<boolean> | null = null;
+
+/**
+ * Whether the team published an llms.txt next to its snapshot (`bridge snapshot` writes it; older snapshots lack it).
+ * Public repositories: a HEAD on the raw host, no API quota. Private ones: one contents API read with the visitor's
+ * token. Never rejects.
+ */
+export function loadTeamLlms(): Promise<boolean> {
+  llms ??= loadTeamData()
+    .then(async (d) => {
+      if (d.private) return d.client.canWrite ? Boolean(await d.client.getRawText(SNAPSHOT_LLMS_FILE, SNAPSHOT_BRANCH)) : false;
+      const url = `https://raw.githubusercontent.com/${encodeURIComponent(d.owner)}/${encodeURIComponent(d.repo)}/${SNAPSHOT_BRANCH}/${SNAPSHOT_LLMS_FILE}`;
+      return (await fetch(url, { method: 'HEAD' })).ok;
+    })
+    .catch(() => false);
+  return llms;
+}
+
 /** Forgets this page's load: the next loadTeamData reads the head again (Refresh, Try again). */
 export function resetTeamData() {
   pending = null;
   snapshot = null;
+  llms = null;
 }

@@ -11,6 +11,7 @@ import {
   recordingSource,
   snapshotAudit,
   snapshotIsFresh,
+  snapshotLlmsTxt,
   snapshotSource,
   SnapshotError,
   SNAPSHOT_SCHEMA_VERSION,
@@ -142,4 +143,18 @@ test('audits: a summary in snapshot.json, the report in audits/<id>.json', () =>
   assert.equal(auditId('../..'), 'audit');
   const report = { schemaVersion: 1, label: 'Admin', generatedAt: '2026-10-21T00:00:00Z', target: { path: 'apps/admin/src', files: 3, skipped: 0 }, metrics: { tokenAdoption: 90 }, files: [] } as unknown as AuditReport;
   assert.deepEqual(snapshotAudit('admin', report), { id: 'admin', path: 'audits/admin.json', label: 'Admin', generatedAt: '2026-10-21T00:00:00Z', target: { path: 'apps/admin/src', files: 3 }, metrics: { tokenAdoption: 90 } });
+});
+
+test('llms.txt: the design system as plain text, repo text kept on one line', async () => {
+  const files = { ...TEAM, 'src/ui/Button/Button.docs.json': json({ summary: 'Starts an action\n# Not a heading', whenToUse: ['Saving a form'], whenNotToUse: ['Going to another page'], dos: [{ title: 'Name the outcome', text: 'Publish, not OK' }], donts: [], accessibility: ['Native button'] }) };
+  const { snapshot, live } = await teamSnapshot(files);
+  const text = snapshotLlmsTxt(live, snapshot);
+  assert.match(text, /^# acme\/design design system\n/);
+  assert.match(text, /read at c0ffee on trunk \(2026-10-20\)/);
+  assert.match(text, /- `color\.text\.default` \(`--color-text-default`, semantic color\): light #0a1f44, dark #ffffff\. Body text/);
+  assert.match(text, /### Button\n\nStarts an action # Not a heading\n/);
+  assert.match(text, /- Use it for:\n {2}- Saving a form/);
+  assert.match(text, /- Do: Name the outcome\. Publish, not OK/);
+  assert.ok(!/\n# Not a heading/.test(text), 'repo text cannot open a heading');
+  assert.ok(text.endsWith('\n') && !text.includes('\n\n\n'));
 });

@@ -1,0 +1,19 @@
+---
+// A team's Library shell page (src/pages/library-shell/, lib/library-shells.ts): the Library page `route` for the team
+// in the address, /library/<owner>/<repo>/<route>. Built once, without any team data; the island in the default slot
+// reads the team's published snapshot (or the repository, signed in) in the browser (scripts/team-data.ts), and
+// scripts/library-team.ts points the build-time links at the team and decides indexing.
+import '../styles/team-pages.css';
+import '../styles/library-team.css';
+import Layout from '../layouts/Layout.astro';
+
+interface Props {
+  title: string;
+  description: string;
+}
+const { title, description } = Astro.props;
+---
+
+<Layout title={title} description={description} library wide>
+  <slot />
+</Layout>

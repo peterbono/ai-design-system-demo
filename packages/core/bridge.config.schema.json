@@ -683,6 +683,18 @@
         }
       }
     },
+    "library": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The team's hosted Bridge Library (/library/<owner>/<repo>/), read from the bridge-data snapshot.",
+      "properties": {
+        "public": {
+          "type": "boolean",
+          "default": false,
+          "description": "true lets search engines index the hosted Library of a public repository. Default false: every Library page says noindex."
+        }
+      }
+    },
     "visualImpact": {
       "type": "object",
       "additionalProperties": false,

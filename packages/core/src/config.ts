@@ -39,6 +39,12 @@ export interface StorybookConfig {
   url: string;
 }
 
+/** The team's hosted Library (/library/<owner>/<repo>/). */
+export interface LibraryConfig {
+  /** True lets search engines index the hosted Library of a public repository. Default false: noindex. */
+  public?: boolean;
+}
+
 export interface RepoRef {
   owner: string;
   name: string;
@@ -193,6 +199,8 @@ export interface BridgeConfig {
   changes: ChangesMode;
   /** The Storybook set in the file. Read it through storybookUrl(), which falls back to previews.production.storybook. */
   storybook?: StorybookConfig | undefined;
+  /** The hosted Library. Read it through libraryIsPublic(). */
+  library?: LibraryConfig | undefined;
 }
 
 type Partialish<T> = { [K in keyof T]?: T[K] | undefined };
@@ -228,6 +236,7 @@ export interface BridgeConfigInput {
   products?: ProductConfig[];
   changes?: ChangesMode;
   storybook?: { url: string };
+  library?: LibraryConfig;
 }
 
 export const DEFAULT_TOKEN_PATHS: TokenPaths = {
@@ -388,6 +397,7 @@ export function defineConfig(input: BridgeConfigInput): BridgeConfig {
     products: input.products?.length ? input.products.map((p) => ({ ...p })) : DEFAULT_PRODUCTS.map((p) => ({ ...p })),
     changes: input.changes === 'direct' ? 'direct' : DEFAULT_CHANGES_MODE,
     ...(input.storybook?.url ? { storybook: { url: input.storybook.url.trim().replace(/\/+$/, '') } } : {}),
+    ...(input.library?.public === true ? { library: { public: true } } : {}),
     ...(input.audit ? { audit: { ...input.audit } } : {}),
     ...(input.visualImpact ? { visualImpact: { mode: input.visualImpact.mode === 'on-demand' ? 'on-demand' : 'auto' } } : {}),
     ...(input.integrations ? { integrations: { ...input.integrations } } : {}),
@@ -527,6 +537,14 @@ export function loadConfig(source: string | unknown): BridgeConfig {
     else if (!/^https:\/\/[^\s/]+/.test(sb.url.trim())) problems.push('"storybook.url" must start with https://, for example https://storybook.example.com');
     else for (const k of Object.keys(sb)) if (k !== 'url') problems.push(`"storybook.${k}" is not a known key`);
   }
+  const lib = d.library;
+  if (lib !== undefined) {
+    if (!isObj(lib)) problems.push('"library" must be an object, for example { "public": true }');
+    else {
+      if (lib.public !== undefined && typeof lib.public !== 'boolean') problems.push('"library.public" must be true or false');
+      for (const k of Object.keys(lib)) if (k !== 'public') problems.push(`"library.${k}" is not a known key`);
+    }
+  }
   problems.push(...productProblems(d.products));
   const audit = d.audit;
   if (audit !== undefined) {
@@ -580,6 +598,13 @@ export function storybookUrl(config: Pick<BridgeConfig, 'storybook' | 'previews'
   return prod && /^https:\/\//.test(prod) && !/\{\w+\}/.test(prod) ? prod.replace(/\/+$/, '') : undefined;
 }
 
+/**
+ * True when the team opted in to search engines for its hosted Library (`"library": { "public": true }`). Off by
+ * default: a Library page under the Bridge domain shows content Bridge does not control, so it is noindex unless the
+ * team asks.
+ */
+export const libraryIsPublic = (config: Pick<BridgeConfig, 'library'> | null | undefined): boolean => config?.library?.public === true;
+
 /** Plain-JSON form of a config, in the canonical shape (what `bridge init` writes). */
 export function toConfigJson(config: BridgeConfig, schema = './packages/core/bridge.config.schema.json'): Record<string, unknown> {
   return {
@@ -599,6 +624,7 @@ export function toConfigJson(config: BridgeConfig, schema = './packages/core/bri
     ...(config.visualImpact ? { visualImpact: config.visualImpact } : {}),
     changes: changesMode(config),
     ...(config.storybook ? { storybook: config.storybook } : {}),
+    ...(config.library ? { library: config.library } : {}),
     ...(config.products && !sameProducts(config.products, DEFAULT_PRODUCTS) ? { products: config.products } : {}),
   };
 }
