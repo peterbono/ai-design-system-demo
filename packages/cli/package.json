@@ -1,6 +1,6 @@
 {
   "name": "@bridge-ds/cli",
-  "version": "0.11.1",
+  "version": "0.11.2",
   "type": "module",
   "description": "bridge CLI: set up Bridge in a design system repo, check tokens in CI, search and diff tokens, propose changes, start the MCP server.",
   "license": "MIT",
@@ -43,8 +43,8 @@
     "build:package": "node ../../scripts/build-packages.mjs cli"
   },
   "dependencies": {
-    "@bridge-ds/mcp": "^0.8.2",
-    "@bridge-ds/visual": "^0.3.9",
+    "@bridge-ds/mcp": "^0.8.4",
+    "@bridge-ds/visual": "^0.3.11",
     "typescript": "5.9.3"
   },
   "devDependencies": {
