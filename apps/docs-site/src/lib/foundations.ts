@@ -1,12 +1,12 @@
 // Build-time data of the Library foundation pages: one row per token with the same usage the token explorer shows.
 // Components come from the explorer's own flow (the token and every token that aliases it, @bridge-ds/core token set),
 // "in use" from the shared tokenUsage() definition (lib/stats.ts), so a row never contradicts the detail panel.
-import { buildTokenSet, layoutOptions, loadConfig, type TokenSet } from '@bridge-ds/core';
+import { buildTokenSet, layoutOptions, type TokenSet } from '@bridge-ds/core';
 import { explorerTokens, tokenFiles } from './explorer';
 import { componentsUsing, transitiveDependents } from './explorer/flow';
 import type { ComponentLink, UsageMap } from './explorer/model';
 import { aliasSummary, copyValue, COPY_FORMATS, roleOf, usageChip, type CopyFormat, type UsageChip } from './library-rows';
-import { exists, readText } from './repo';
+import { repoModel } from './model';
 import { globalStyleVars, libraryTokenUsage } from './stats';
 import { loadTokens, MODES, type Mode, type Tier } from './tokens';
 
@@ -32,8 +32,7 @@ export interface FoundationRow {
 let setCache: TokenSet | null = null;
 function headSet(): TokenSet {
   if (setCache) return setCache;
-  const config = loadConfig(exists('bridge.config.json') ? readText('bridge.config.json') : '{}');
-  return (setCache = buildTokenSet(tokenFiles(), layoutOptions(config)));
+  return (setCache = buildTokenSet(tokenFiles(), layoutOptions(repoModel.config)));
 }
 
 let usageCache: UsageMap | null = null;

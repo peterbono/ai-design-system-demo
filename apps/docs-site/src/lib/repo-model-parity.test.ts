@@ -1,6 +1,7 @@
-// Golden parity: the repo model @bridge-ds/core computes from this checkout through the local source (fsSource)
-// equals what the docs site builds today from its own readers (tokens.ts, components.ts, contrast.ts, config.ts,
-// explorer.ts, figma-coverage.ts, repo.ts). Guards the move of the site onto loadRepoModel (multi-team plan, PR 2a).
+// Golden parity: a repo model computed fresh from this checkout (loadRepoModel over fsSource) equals what every docs
+// site lib hands the pages (tokens.ts, components.ts, contrast.ts, config.ts, explorer.ts, figma-coverage.ts,
+// repo.ts). Since PR 2a of the multi-team plan these libs read lib/model.ts instead of their own parsers, so this
+// guards that no lib reshapes, filters or mutates the model on its way to a page.
 import { loadRepoModel, type RepoModel } from '@bridge-ds/core';
 import { fsSource } from '@bridge-ds/core/node';
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -9,13 +10,14 @@ import { contrastPairs } from './contrast';
 import { siteRepo } from './config';
 import { tokenFiles } from './explorer';
 import { loadComponentSpecs, loadFigmaCoverage } from './figma-coverage';
+import { tokenHref } from './model';
 import { DEFAULT_BRANCH, GITHUB_URL, PREVIEW_APPS, PREVIEW_PACKAGES, PRODUCTION_APPS, ROOT } from './repo';
-import { BRAND_LABEL, BRANDS, DEFAULT_BRAND, DEFAULT_DENSITY, DENSITIES, hrefForVar, loadTokens, MODES, TOKEN_SOURCE_FILES } from './tokens';
+import { BRAND_LABEL, BRANDS, DEFAULT_BRAND, DEFAULT_DENSITY, DENSITIES, loadTokens, MODES, TOKEN_SOURCE_FILES } from './tokens';
 
 let model: RepoModel;
 
 beforeAll(async () => {
-  model = await loadRepoModel(fsSource(ROOT), { href: (cssVar, type) => hrefForVar(cssVar, type) });
+  model = await loadRepoModel(fsSource(ROOT), { href: tokenHref });
 });
 
 describe('repo model parity with the docs site (local source)', () => {

@@ -59,8 +59,16 @@ test('parseComponentTsx reads props, defaults, JSDoc, the native element and sub
   assert.equal(out.inherits, 'span');
   assert.deepEqual(out.omitted, ['color', 'title']);
   assert.deepEqual(out.subcomponents, ['ChipGroup']);
-  // The description is the JSDoc right before the component (the props above must not carry JSDoc for it to read).
+  // The description is the JSDoc right before the component.
   assert.equal(parseComponentTsx('Tag', '/** A small label. */\nexport function Tag() {}').description, 'A small label.');
+});
+
+test('parseComponentTsx reads only the JSDoc right before the component, not the one of the props above', () => {
+  const src = `/** Props of Tag. */\nexport interface TagProps {\n  /** Visible text. */\n  label: string;\n}\n\n/** A small label. */\nexport function Tag({ label }: TagProps) {}`;
+  assert.equal(parseComponentTsx('Tag', src).description, 'A small label.');
+  // A plain comment or code right before the component: no description, even with JSDoc higher up.
+  assert.equal(parseComponentTsx('Tag', '/** Props. */\ninterface TagProps {}\n/* not docs */\nexport function Tag() {}').description, undefined);
+  assert.equal(parseComponentTsx('Tag', '/** Props. */\ninterface TagProps {}\nexport function Tag() {}').description, undefined);
 });
 
 test('parseComponentCss maps selectors to tokens, labels states and skips keyframes and runtime vars', () => {
