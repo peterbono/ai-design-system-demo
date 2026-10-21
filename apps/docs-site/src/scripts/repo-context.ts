@@ -10,7 +10,18 @@
 // Every browser reader of the repository or its settings goes through repoContext() and siteConfig() here, never
 // through #bridge-repo directly, so the same Studio code serves both modes.
 
-import { gitHubSource, GitHubError, loadRepoModel, type GitHubClient, type RepoModel, type RepoModelOptions, type SiteRepo } from '@bridge-ds/core';
+import {
+  gitHubSource,
+  GitHubError,
+  loadRepoModel,
+  snapshotIsFresh,
+  snapshotSource,
+  type GitHubClient,
+  type RepoModel,
+  type RepoModelOptions,
+  type RepoSnapshot,
+  type SiteRepo,
+} from '@bridge-ds/core';
 import { blobCacheFor, getCachedModel, putCachedModel } from './repo-cache';
 import { isHosted, repoFromPath } from '../lib/team-path';
 
@@ -82,6 +93,9 @@ export function rememberRepo(owner: string, repo: string, facts: { defaultBranch
   runtime.set(k, { ...runtime.get(k), ...facts });
 }
 
+/** Where a team model came from: this browser's cache, the team's published snapshot, or the repository itself. */
+export type TeamModelSource = 'cache' | 'snapshot' | 'live';
+
 export interface TeamModel {
   model: RepoModel;
   /** The default branch head the model was read at. */
@@ -90,7 +104,16 @@ export interface TeamModel {
   private: boolean;
   /** Served from this browser's cache (no file read). */
   cached: boolean;
+  source: TeamModelSource;
+  /** The snapshot the model was computed from, when it was (source "snapshot"). */
+  snapshot?: RepoSnapshot;
 }
+
+/**
+ * Reads the team's published snapshot (bridge-data branch), null when there is none or it cannot be used. Called only
+ * on a cache miss, with what GET /repos said, so a private repository can read it through the API.
+ */
+export type SnapshotReader = (client: GitHubClient, repo: { private: boolean }) => Promise<RepoSnapshot | null>;
 
 /** Where loadTeamModel keeps models and bodies. Swapped in tests. */
 export interface ModelCache {
@@ -109,9 +132,9 @@ const indexedDbCache: ModelCache = { get: getCachedModel, put: putCachedModel, b
  */
 export async function loadTeamModel(
   client: GitHubClient,
-  opts: RepoModelOptions & { cache?: ModelCache } = {},
+  opts: RepoModelOptions & { cache?: ModelCache; snapshot?: SnapshotReader } = {},
 ): Promise<TeamModel> {
-  const { cache = indexedDbCache, ...modelOptions } = opts;
+  const { cache = indexedDbCache, snapshot: readSnapshot, ...modelOptions } = opts;
   const repo = `${client.owner}/${client.name}`;
   const info = await client.getRepo();
   const sha = await client.getBranchSha(info.defaultBranch);
@@ -122,11 +145,20 @@ export async function loadTeamModel(
   const kept = await cache.get(repo, sha);
   if (kept) {
     remember(kept);
-    return { model: kept, sha, defaultBranch: info.defaultBranch, private: info.private, cached: true };
+    return { model: kept, sha, defaultBranch: info.defaultBranch, private: info.private, cached: true, source: 'cache' };
+  }
+  // The team's snapshot first, when it was computed from this very head: one raw read instead of the tree and
+  // every body. A missing, broken or older snapshot falls through to the live read.
+  const snap = readSnapshot ? await readSnapshot(client, { private: info.private }).catch(() => null) : null;
+  if (snap && snapshotIsFresh(snap, sha)) {
+    const model = await loadRepoModel(snapshotSource(snap), modelOptions);
+    await cache.put(repo, sha, model, { private: info.private });
+    remember(model);
+    return { model, sha, defaultBranch: info.defaultBranch, private: info.private, cached: false, source: 'snapshot', snapshot: snap };
   }
   const source = gitHubSource(client, sha, { blobCache: cache.blobs(repo, { private: info.private }) });
   const model = await loadRepoModel(source, modelOptions);
   await cache.put(repo, sha, model, { private: info.private });
   remember(model);
-  return { model, sha, defaultBranch: info.defaultBranch, private: info.private, cached: false };
+  return { model, sha, defaultBranch: info.defaultBranch, private: info.private, cached: false, source: 'live' };
 }

@@ -51,7 +51,7 @@ async function fill(path: string, section: HTMLElement) {
   const banner = demo ? `<p class="hs-banner"><strong>${esc(DEMO_BANNER)}</strong></p>` : '';
   const body = n
     ? `<ol class="hs-token-list">${items.map((it, i) => itemHtml(it, i, demo)).join('')}</ol>`
-    : `<p class="tx-empty-line">${demo ? 'No demo change touches this token. The demo history changes color.text.muted, button.radius and alert.radius.' : report ? 'No recorded change to this token in the history Bridge can read. Changes merged from now on show up here.' : 'History is not available in this build.'}</p>`;
+    : `<p class="tx-empty-line">${demo ? 'No demo change touches this token. The demo history changes color.text.muted, button.radius and alert.radius.' : report ? 'No recorded change to this token in the history Bridge can read. Changes merged from now on show up here.' : esc(L.data.realNote ?? 'History is not available in this build.')}</p>`;
   section.innerHTML = `<h3>History <span class="tx-d-n">${n}</span></h3>${banner}${body}<div class="hs-panel-foot">${toggle}<a class="small" href="${studioHref('changes/?view=history')}">See the whole history</a></div>`;
 }
 
