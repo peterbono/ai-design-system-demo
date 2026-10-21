@@ -51,9 +51,12 @@ import type { SuggestionReviewProps, NextCard } from '../components/ds/studio/Su
 /** RequestDecide's DECLINE_EVENT, spelled here so the shell (the nav badge) does not load the dialog's code. */
 const DECLINE_EVENT = 'bridge:request-decline';
 
-const repo = readRepo();
-const REPO_KEY = `${repo.owner}/${repo.repo}`;
-const client = (): GitHubClient => studioClient(REPO_KEY, getToken() ?? '');
+// Read when used, never at import: server-rendered pages import this module through scripts/home-data.ts.
+const repoKey = () => {
+  const r = readRepo();
+  return `${r.owner}/${r.repo}`;
+};
+const client = (): GitHubClient => studioClient(repoKey(), getToken() ?? '');
 
 let write = false;
 onAccess((a) => (write = Boolean(a?.write)));
@@ -185,7 +188,7 @@ async function planOnMain(gh: GitHubClient, d: SuggestionDetail): Promise<{ plan
   if (!d.parsed.ok) return null;
   const cfg = await mainConfig(gh);
   if (!cfg) return null;
-  const ref = d.parsed.payload.base.ref || repo.defaultBranch;
+  const ref = d.parsed.payload.base.ref || readRepo().defaultBranch;
   const mainSha = (await gh.getBranchSha(ref)) ?? ref;
   let files: string[] | null = null;
   const plan = await planSuggestionApply({
@@ -258,14 +261,14 @@ export async function openSuggestion(n: number, host: SuggestionHost): Promise<v
   el.hidden = false;
   paint(el, { loading: true, crumbs: host.crumbs });
   host.opened?.(null);
-  const url = `https://github.com/${REPO_KEY}/issues/${n}`;
+  const url = `https://github.com/${repoKey()}/issues/${n}`;
   const gh = client();
   let d: SuggestionDetail;
   try {
     d = await getSuggestionOnGitHub(gh, n, await governance());
   } catch (err) {
     if (mine !== seq) return;
-    const why = (err as { status?: number }).status === 404 ? `#${n} was not found in ${REPO_KEY}.` : `GitHub could not be read: ${(err as Error).message}`;
+    const why = (err as { status?: number }).status === 404 ? `#${n} was not found in ${repoKey()}.` : `GitHub could not be read: ${(err as Error).message}`;
     paint(el, { error: why, crumbs: host.crumbs, url });
     return;
   }
