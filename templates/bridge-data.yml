@@ -26,8 +26,8 @@ permissions:
 
 env:
   DATA_BRANCH: bridge-data
-  # bridge snapshot needs @bridge-ds/cli 0.10.0 or later.
-  BRIDGE_CLI: '@bridge-ds/cli@^0.10.0'
+  # bridge snapshot needs @bridge-ds/cli 0.11.0 or later.
+  BRIDGE_CLI: '@bridge-ds/cli@^0.11.0'
 
 jobs:
   snapshot:
