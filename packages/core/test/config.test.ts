@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'vitest';
-import { changesMode, ConfigError, defineConfig, loadConfig, storybookUrl, toConfigJson } from '../src/config';
+import { changesMode, ConfigError, defineConfig, libraryIsPublic, loadConfig, storybookUrl, toConfigJson } from '../src/config';
 import { buildTokenSet, detectLayout, layoutOptions } from '../src/token-set';
 import { realConfig, realFiles } from './helpers';
 
@@ -107,10 +107,32 @@ test('storybook.url: explicit, else the production Storybook from previews; http
   }
 });
 
+test('library.public: off by default, true only when the file says so', () => {
+  assert.equal(libraryIsPublic(loadConfig({ repo: 'acme/ds' })), false);
+  assert.equal(libraryIsPublic(loadConfig({ repo: 'acme/ds', library: {} })), false);
+  assert.equal(libraryIsPublic(loadConfig({ repo: 'acme/ds', library: { public: false } })), false);
+  const open = loadConfig({ repo: 'acme/ds', library: { public: true } });
+  assert.equal(libraryIsPublic(open), true);
+  assert.deepEqual(toConfigJson(open).library, { public: true });
+  assert.equal(libraryIsPublic(null), false);
+  for (const [library, msg] of [
+    [{ public: 'yes' }, /"library\.public" must be true or false/],
+    [true, /"library" must be an object/],
+    [{ public: true, robots: 'all' }, /"library\.robots" is not a known key/],
+  ] as [unknown, RegExp][]) {
+    assert.throws(
+      () => loadConfig({ repo: 'acme/ds', library }),
+      (err: ConfigError) => err.problems.some((p) => msg.test(p)),
+    );
+  }
+});
+
 test('the JSON schema lists changes and storybook like the parser', () => {
   const schema = JSON.parse(readFileSync(new URL('../bridge.config.schema.json', import.meta.url), 'utf8'));
   assert.deepEqual(schema.properties.changes.enum, ['suggest', 'direct']);
   assert.equal(schema.properties.changes.default, 'suggest');
   assert.deepEqual(schema.properties.storybook.required, ['url']);
   assert.equal(schema.properties.storybook.properties.url.pattern, '^https://');
+  assert.equal(schema.properties.library.properties.public.type, 'boolean');
+  assert.equal(schema.properties.library.properties.public.default, false);
 });

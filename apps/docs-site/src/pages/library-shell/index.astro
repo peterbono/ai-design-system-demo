@@ -1,0 +1,9 @@
+---
+// Library shell, Home (lib/library-shells.ts): served for /library/<owner>/<repo>/ by the vercel.json rewrite.
+import LibraryShell from '../../components/LibraryShell.astro';
+import LibraryHome from '../../components/ds/library/LibraryHome';
+---
+
+<LibraryShell title="Home" description="A team's design system, published with Bridge: foundations, tokens, components and how to use them.">
+  <LibraryHome client:load />
+</LibraryShell>

@@ -12,6 +12,7 @@ const page = (path: string, hosted: boolean) => {
     <a id="brand" href="/studio/brands/new/">New brand</a>
     <a id="cb" href="/studio/auth/callback/">Callback</a>
     <a id="lib" href="/library/">Library</a>
+    <a id="libopen" class="lib-open" href="/library/">Library</a>
     <a id="island" href="/studio/acme/ds/quality/">Quality</a>
     <a id="demo" href="/studio/tokens/" data-demo-link>Demo</a>
     <span data-team-name>owner/repo</span>
@@ -33,6 +34,8 @@ describe('pointLinksAtTeam', () => {
     expect(href('brand')).toBe('/studio/acme/ds/brands/new/');
     expect(href('cb')).toBe('/studio/auth/callback/');
     expect(href('lib')).toBe('/library/');
+    // The header's Library button opens the team's Library.
+    expect(href('libopen')).toBe('/library/acme/ds/');
     expect(href('island')).toBe('/studio/acme/ds/quality/');
     expect(href('demo')).toBe('/studio/tokens/');
     // Twice is the same as once.
@@ -51,6 +54,7 @@ describe('pointLinksAtTeam', () => {
     page('/studio/acme/ds/', false);
     expect(pointLinksAtTeam()).toBe(0);
     expect(href('pr')).toBe('/studio/changes/?pr=12');
+    expect(href('libopen')).toBe('/library/');
   });
 
   it('names the team and links its repository on the empty state', () => {

@@ -199,7 +199,13 @@ describe('bridge snapshot', () => {
     const r = bridge(REPO, 'snapshot', '--out', out, '--audit', `${APPS}/clean-app=Clean app`, '--audit-report', 'apps/docs-site/src/data/audits/admin-after.json', '--json');
     expect(r.code, r.err).toBe(0);
     const res = JSON.parse(r.out) as { written: string[]; bytes: number; sourceSha: string; summary: { tokens: number; components: number; contrast: { failing: number }; figma: { inFigma: number } | null } };
-    expect(res.written).toEqual(['snapshot.json', 'audits/admin-after.json', 'audits/clean-app.json']);
+    expect(res.written).toEqual(['snapshot.json', 'llms.txt', 'audits/admin-after.json', 'audits/clean-app.json']);
+    // llms.txt for agents, linked from the hosted Library.
+    const llms = readFileSync(join(out, 'llms.txt'), 'utf8');
+    expect(llms).toMatch(/^# peterbono\/ai-design-system-demo design system\n/);
+    expect(llms).toContain('`--color-bg-default`');
+    expect(llms).toContain('### Button');
+    expect(llms).not.toContain('\u2014');
     // component-specs.json is over 1 MB; the snapshot carries its coverage only.
     expect(res.bytes).toBeLessThan(1_000_000);
     expect(res.summary.contrast.failing).toBe(0);

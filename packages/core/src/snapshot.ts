@@ -229,3 +229,72 @@ export function buildSnapshot(input: BuildSnapshotInput): RepoSnapshot {
     problems: [...model.problems],
   };
 }
+
+/** llms.txt next to snapshot.json on the bridge-data branch: the published design system in plain text, for agents. */
+export const SNAPSHOT_LLMS_FILE = 'llms.txt';
+
+/** Above this many tokens, llms.txt lists the first ones and points at snapshot.json for the rest. */
+export const LLMS_MAX_TOKENS = 600;
+
+/** One line of repo text: whitespace collapsed, so a value cannot open a heading or a list of its own. */
+const line = (text: unknown): string => (typeof text === 'string' ? text.replace(/\s+/g, ' ').trim() : '');
+const strings = (list: unknown): string[] => (Array.isArray(list) ? list.map(line).filter(Boolean) : []);
+
+/**
+ * The design system of a snapshot as llms.txt (https://llmstxt.org): what it is, every token with its CSS variable and
+ * values per theme, and every component with its usage guidance. Written by `bridge snapshot`; the hosted Library
+ * links to it. Pure: the model the snapshot was computed from goes in, text comes out.
+ */
+export function snapshotLlmsTxt(model: RepoModel, snapshot: Pick<RepoSnapshot, 'repo' | 'sourceSha' | 'committedAt' | 'generatedAt'>): string {
+  const { owner, name, branch } = snapshot.repo;
+  const date = (snapshot.committedAt ?? snapshot.generatedAt).slice(0, 10);
+  const rows = model.tokens.rows;
+  const tokens = rows.all.filter((t) => !t.deprecated);
+  const shown = tokens.slice(0, LLMS_MAX_TOKENS);
+  const comps = model.components?.list ?? [];
+  const out: string[] = [
+    `# ${owner}/${name} design system`,
+    '',
+    `> Tokens, components and usage guidance of the design system in github.com/${owner}/${name}, read at ${snapshot.sourceSha.slice(0, 7)} on ${branch} (${date}). Published by Bridge for AI agents and people.`,
+    '',
+    `- Source: https://github.com/${owner}/${name}/tree/${snapshot.sourceSha}`,
+    `- Every file Bridge read, as JSON: ${SNAPSHOT_FILE}, next to this file on the ${SNAPSHOT_BRANCH} branch.`,
+    `- Themes: ${rows.themes.join(', ') || 'none'}. Brands: ${rows.brands.join(', ') || 'none'}. Densities: ${rows.densities.join(', ') || 'none'}.`,
+    '',
+    '## Tokens',
+    '',
+    `${tokens.length} tokens (brand, semantic, density and component tiers) on top of ${rows.primitives.length} primitives. Use the semantic tokens in product code, never the primitives. Values are for the default brand${rows.defaultBrand ? ` (${rows.defaultBrand})` : ''}.`,
+    '',
+  ];
+  for (const t of shown) {
+    const values = Object.entries(t.modes)
+      .map(([theme, v]) => `${theme} ${line(v.css)}`)
+      .join(', ');
+    const note = line(t.description);
+    out.push(`- \`${t.path}\` (\`${t.cssVar}\`, ${t.tier} ${t.type}): ${values || 'no value'}${note ? `. ${note}` : ''}`);
+  }
+  if (tokens.length > shown.length) out.push('', `${tokens.length - shown.length} more tokens are in ${SNAPSHOT_FILE}.`);
+  out.push('', '## Components', '');
+  if (!comps.length) out.push('No components were read (components.dir in bridge.config.json names the folder).');
+  for (const c of comps) {
+    const d = c.docs;
+    out.push(`### ${line(c.name)}`, '');
+    const summary = line(d?.summary) || line(c.description);
+    if (summary) out.push(summary, '');
+    out.push(`- Family: ${line(c.category)}${c.docs?.status && c.docs.status !== 'stable' ? `, ${c.docs.status}` : ''}`);
+    if (c.allTokenPaths.length) out.push(`- Tokens: ${c.allTokenPaths.slice(0, 40).join(', ')}${c.allTokenPaths.length > 40 ? ', ...' : ''}`);
+    for (const [label, list] of [
+      ['Use it for', strings(d?.whenToUse)],
+      ['Not for', strings(d?.whenNotToUse)],
+      ['Accessibility', strings(d?.accessibility)],
+    ] as const) {
+      if (list.length) out.push(`- ${label}:`, ...list.map((x) => `  - ${x}`));
+    }
+    const dos = Array.isArray(d?.dos) ? d!.dos : [];
+    const donts = Array.isArray(d?.donts) ? d!.donts : [];
+    for (const g of dos) if (line(g?.title)) out.push(`- Do: ${line(g.title)}${line(g.text) ? `. ${line(g.text)}` : ''}`);
+    for (const g of donts) if (line(g?.title)) out.push(`- Don't: ${line(g.title)}${line(g.text) ? `. ${line(g.text)}` : ''}`);
+    out.push('');
+  }
+  return `${out.join('\n').replace(/\n{3,}/g, '\n\n').trim()}\n`;
+}

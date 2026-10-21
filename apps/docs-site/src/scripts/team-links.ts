@@ -2,6 +2,7 @@
 // team is unknown, so they say /studio/<path>. On a team shell this points each of them at the team in the address
 // (studioHref), before anyone can click. Links the islands render go through studioHref already and are left alone.
 import { isHosted, repoFromPath, STUDIO_ROOT, studioBase, studioHref } from '../lib/team-path';
+import { libraryHref } from '../lib/library-shells';
 
 /** The sign-in callback is one address for every team (lib/github-signin.ts CALLBACK_PATH). */
 const SHARED = `${STUDIO_ROOT}auth/`;
@@ -18,6 +19,9 @@ export function pointLinksAtTeam(root: ParentNode = document): number {
     a.setAttribute('href', studioHref(href));
     n++;
   }
+  // The header's Library button opens the team's own Library (/library/<owner>/<repo>/), not Bridge's.
+  const team = repoFromPath(location.pathname);
+  if (team) for (const a of root.querySelectorAll<HTMLAnchorElement>('a.lib-open')) a.setAttribute('href', libraryHref(team.owner, team.repo));
   return n;
 }
 

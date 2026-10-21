@@ -1,0 +1,9 @@
+---
+// Library shell, Foundations (lib/library-shells.ts): served for /library/<owner>/<repo>/foundations/.
+import LibraryShell from '../../../components/LibraryShell.astro';
+import LibraryFoundations from '../../../components/ds/library/LibraryFoundations';
+---
+
+<LibraryShell title="Foundations" description="Color, type, space, radius and shadow of a team's design system, drawn from its tokens.">
+  <LibraryFoundations client:load />
+</LibraryShell>

@@ -3,8 +3,10 @@
 //
 //   node scripts/hosted-smoke.mjs https://<deployment>.vercel.app
 //
-// Each case requests one address and checks the status, which page answered (a Studio page of this build, or the
-// team shell for a route: <html data-shell="...">), and the X-Robots-Tag header of team addresses. Static files win
+// Each case requests one address and checks the status, which page answered (a Studio page of this build, the
+// team shell for a route: <html data-shell="...">, or a team Library shell: <html data-library-shell="..."> read as
+// "library:<route>"), and the X-Robots-Tag header of team addresses. A team Library decides indexing in the page
+// (noindex unless its bridge.config.json says library.public), so its shell must not carry a static noindex tag. Static files win
 // over the vercel.json rewrites, so the existing Studio pages must still answer as themselves.
 // A preview behind Vercel Deployment Protection: add --vercel-curl to send each request through `vercel curl` (your
 // Vercel login, from a folder linked to the project), or set VERCEL_AUTOMATION_BYPASS_SECRET (sent as
@@ -13,6 +15,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const DEMO = '/studio/peterbono/ai-design-system-demo';
+const LIB = '/library/peterbono/ai-design-system-demo';
 
 /**
  * shell: the route marker of the team shell expected (data-shell), 'studio' for a page of this build that is not
@@ -52,6 +55,19 @@ export const CASES = [
   // The shells themselves and the reserved list, never indexed.
   { path: '/team-shell/', status: 200, shell: 'home', noindex: true },
   { path: '/team-shell/reserved.json', status: 200, type: 'application/json', noindex: true },
+  // Bridge's own Library home stays itself; a team's Library opens its shell on every route (multi-team PR 4a).
+  { path: '/library/', status: 200, shell: 'studio' },
+  { path: '/library', status: 200, shell: 'studio' },
+  { path: `${LIB}/`, status: 200, shell: 'library:home', indexable: true },
+  { path: LIB, status: 200, shell: 'library:home', indexable: true },
+  { path: `${LIB}/foundations/`, status: 200, shell: 'library:foundations', indexable: true },
+  { path: `${LIB}/components/`, status: 200, shell: 'library:components', indexable: true },
+  { path: `${LIB}/components/?c=button`, status: 200, shell: 'library:components', indexable: true },
+  { path: `${LIB}/tokens`, status: 200, shell: 'library:tokens', indexable: true },
+  { path: '/library/acme/ds.v2/tokens/', status: 200, shell: 'library:tokens', indexable: true },
+  { path: '/library/-bad/ds/', status: 404 },
+  { path: `${LIB}/nope/`, status: 404 },
+  { path: '/library-shell/', status: 200, shell: 'library:home', noindex: true },
   // Assets.
   { path: '/tokens.css', status: 200, type: 'text/css' },
   { path: '/favicon.svg', status: 200, type: 'image/svg+xml' },
@@ -63,6 +79,8 @@ export function servedBy(body) {
   const tag = /<html\b[^>]*>/i.exec(body)?.[0];
   if (!tag) return /<meta http-equiv="refresh"/i.test(body) ? 'redirect' : null;
   const shell = /\sdata-shell="([^"]*)"/.exec(tag)?.[1];
+  const library = /\sdata-library-shell="([^"]*)"/.exec(tag)?.[1];
+  if (library) return `library:${library}`;
   return shell ?? (/\sdata-hosted[\s>=]/.test(tag) ? 'hosted' : 'studio');
 }
 
@@ -78,6 +96,7 @@ export function judge(c, res) {
   if (c.type && !(res.type ?? '').includes(c.type)) problems.push(`content-type ${res.type}, expected ${c.type}`);
   const robots = (res.robots ?? '').toLowerCase().includes('noindex');
   if (c.noindex && !robots) problems.push('no X-Robots-Tag: noindex');
+  if (c.indexable && /<meta name="robots" content="noindex"/i.test(res.body)) problems.push('a static noindex tag: the page decides (library.public)');
   return problems;
 }
 
@@ -124,7 +143,12 @@ async function main() {
   }
   const headers = process.env.VERCEL_AUTOMATION_BYPASS_SECRET ? { 'x-vercel-protection-bypass': process.env.VERCEL_AUTOMATION_BYPASS_SECRET } : {};
   const home = await request(base, '/studio/', headers, viaVercel);
-  const cases = [...CASES, ...assetCases(home.body), ...assetCases((await request(base, `${DEMO}/`, headers, viaVercel)).body).map((c) => ({ ...c, from: 'team shell' }))];
+  const cases = [
+    ...CASES,
+    ...assetCases(home.body),
+    ...assetCases((await request(base, `${DEMO}/`, headers, viaVercel)).body).map((c) => ({ ...c, from: 'team shell' })),
+    ...assetCases((await request(base, `${LIB}/`, headers, viaVercel)).body).map((c) => ({ ...c, from: 'library shell' })),
+  ];
   let failed = 0;
   for (const c of cases) {
     let problems;

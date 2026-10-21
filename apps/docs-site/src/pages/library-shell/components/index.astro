@@ -1,0 +1,10 @@
+---
+// Library shell, Components (lib/library-shells.ts): served for /library/<owner>/<repo>/components/, and for one
+// component at /library/<owner>/<repo>/components/?c=<slug>.
+import LibraryShell from '../../../components/LibraryShell.astro';
+import LibraryComponents from '../../../components/ds/library/LibraryComponents';
+---
+
+<LibraryShell title="Components" description="Every component of a team's design system, with its usage guidance and live stories.">
+  <LibraryComponents client:load />
+</LibraryShell>

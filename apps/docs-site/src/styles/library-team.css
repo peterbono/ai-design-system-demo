@@ -1,0 +1,280 @@
+/* A team's Library (components/ds/library/*, multi-team PR 4a): the four pages share one column, sections spaced as
+   on Bridge's own Library, cards in a grid, the tokens table, and the line for AI agents. Tokens only. The page
+   header reuses the Library's Harbor zone (brand.css .lib-zone) and Home reuses home.css. */
+
+.ltm {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-8);
+  min-width: 0;
+}
+
+.ltm-muted {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.ltm-eyebrow {
+  margin: 0 0 var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+  overflow-wrap: anywhere;
+}
+
+.ltm-hero .hm-hero-copy > .ltm-eyebrow + h1 {
+  margin-top: 0;
+}
+
+.ltm-topics {
+  margin-top: 0;
+}
+
+/* Home: the hero and the cards read as one region, closer than the page's section gap. */
+.ltm-hero + .ltm-topics,
+.ltm-hero + .lp,
+.ltm-hero + .lp-wait {
+  margin-top: calc(var(--space-4) * -1);
+}
+
+.ltm-source {
+  padding-top: var(--space-4);
+  border-top: var(--border-width-default) solid var(--color-border-subtle);
+}
+
+.ltm-section {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.ltm-section-head {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.ltm-h2 {
+  margin: 0;
+  font-size: var(--typography-h3-size);
+  font-weight: var(--typography-h3-weight);
+  line-height: var(--typography-h3-line-height);
+}
+
+.tsp-colors.ltm-colors {
+  grid-template-columns: repeat(auto-fill, minmax(var(--size-40), 1fr));
+}
+
+.tsp-group.ltm-list {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--size-60)), 1fr));
+}
+
+/* For AI agents: one card, the action on the same line as what it acts on. */
+.ltm-agents {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-6);
+}
+
+.ltm-agents-icon {
+  flex: none;
+  color: var(--color-text-muted);
+}
+
+.ltm-agents-text {
+  display: grid;
+  flex: 1 1 var(--size-60);
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.ltm-agents-title {
+  margin: 0;
+  font-size: var(--typography-body-size);
+  font-weight: var(--typography-h3-weight);
+  line-height: var(--typography-body-line-height);
+}
+
+/* Components: one card per component, a whole-card link. */
+.ltm-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--size-64)), 1fr));
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ltm-cards > li {
+  display: grid;
+  margin: 0;
+}
+
+.ltm-card {
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+  min-height: var(--size-20);
+  padding: var(--space-5);
+}
+
+.ltm-card-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ltm-card-name {
+  font-size: var(--typography-body-size);
+  font-weight: var(--typography-h3-weight);
+  line-height: var(--typography-body-line-height);
+}
+
+.ltm-card-text {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.ltm-card-meta {
+  color: var(--color-text-muted);
+  font-size: var(--typography-caption-size);
+  line-height: var(--typography-caption-line-height);
+}
+
+/* One component */
+.ltm-crumbs {
+  margin-bottom: calc(var(--space-4) * -1);
+}
+
+.ltm-meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.tcm-d-frame.ltm-frame iframe {
+  height: var(--size-96);
+}
+
+.ltm-frame-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+}
+
+.ltm-usage {
+  display: grid;
+  gap: var(--space-8);
+  min-width: 0;
+}
+
+.ltm-usage h2 {
+  margin: 0 0 var(--space-4);
+}
+
+.ltm-token-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--typography-ui-size);
+}
+
+/* Tokens table */
+.ltm-token {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.ltm-token-path {
+  font-size: var(--typography-ui-size);
+}
+
+.ltm-token-desc {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: var(--typography-caption-size);
+  line-height: var(--typography-caption-line-height);
+}
+
+.ltm-values {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ltm-value {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.ltm-swatch {
+  flex: none;
+  width: var(--size-4);
+  height: var(--size-4);
+  border: var(--border-width-default) solid var(--color-border-subtle);
+  border-radius: var(--radius-inset);
+}
+
+.ltm-value-label {
+  flex: none;
+  min-width: var(--size-10);
+  color: var(--color-text-muted);
+  font-size: var(--typography-caption-size);
+}
+
+.ltm-value-text,
+.ltm-var {
+  overflow-wrap: anywhere;
+  font-size: var(--typography-caption-size);
+}
+
+.ltm-more {
+  justify-self: start;
+}
+
+/* Long token paths wrap instead of widening the page on a phone. */
+.ltm .tsp-label {
+  min-width: 0;
+}
+
+.ltm .tsp-path,
+.ltm .tsp-value {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+/* The header zone keeps the page's own gap below it. */
+.ltm > .lib-zone {
+  margin-bottom: 0;
+}
+
+/* A large space token draws wider than a phone: clip it inside its track. */
+.ltm .tsp-space-track {
+  flex: 1 1 0;
+  min-width: var(--size-10);
+  max-width: var(--size-120);
+}
+
+.ltm .tsp-row > .tsp-label {
+  flex: 0 1 auto;
+  min-width: var(--size-20);
+}

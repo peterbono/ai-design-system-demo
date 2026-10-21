@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { checkTeamShells, noindexSources, shellMarker, studioPathOfShell, TEAM_SHELL_ROUTES, vercelRewrites } from './team-shells';
 import { studioNav } from './nav';
+import { libraryRewrites } from './library-shells';
 
 const vercel = JSON.parse(readFileSync(new URL('../../vercel.json', import.meta.url), 'utf8')) as {
   rewrites?: { source: string; destination: string }[];
@@ -14,7 +15,8 @@ const vercel = JSON.parse(readFileSync(new URL('../../vercel.json', import.meta.
 
 describe('vercel.json', () => {
   it('rewrites team addresses to the shells: two rules per form, the trailing slash first', () => {
-    expect(vercel.rewrites).toEqual(vercelRewrites());
+    // Studio's rules, then the team Library's (lib/library-shells.ts): no address matches both.
+    expect(vercel.rewrites).toEqual([...vercelRewrites(), ...libraryRewrites()]);
     expect(vercel.rewrites?.[0]?.source.endsWith('/:path*/')).toBe(true);
   });
 
