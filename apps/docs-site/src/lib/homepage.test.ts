@@ -2,31 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ROOT } from './repo';
-import { FAQ, STEP_MS, fitScale, heroKeyTarget, heroSnap, heroValueText, panoramaFit, stepForKey, stepTick } from './homepage';
-
-describe('hero bridge', () => {
-  it('says where the bridge is', () => {
-    expect(heroValueText(0)).toBe('Kept in your design system');
-    expect(heroValueText(30)).toBe('Mostly design system');
-    expect(heroValueText(50)).toBe('Half exploration, half design system');
-    expect(heroValueText(70)).toBe('Mostly exploration');
-    expect(heroValueText(100)).toBe('All exploration');
-  });
-
-  it('snaps to the closer side, the middle back to the exploration', () => {
-    expect(heroSnap(49)).toBe(0);
-    expect(heroSnap(50)).toBe(100);
-    expect(heroSnap(80)).toBe(100);
-  });
-
-  it('moves all the way with keys', () => {
-    expect(heroKeyTarget('ArrowLeft')).toBe(0);
-    expect(heroKeyTarget('Home')).toBe(0);
-    expect(heroKeyTarget('ArrowUp')).toBe(100);
-    expect(heroKeyTarget('End')).toBe(100);
-    expect(heroKeyTarget('Tab')).toBeNull();
-  });
-});
+import { FAQ, STEP_MS, panoramaFit, stepForKey, stepTick } from './homepage';
 
 describe('step tabs', () => {
   it('moves with arrows, wrapping, and jumps with Home and End', () => {
@@ -46,11 +22,6 @@ describe('step tabs', () => {
 });
 
 describe('drawings', () => {
-  it('scales a drawing to its column', () => {
-    expect(fitScale(270, 540)).toBe(0.5);
-    expect(fitScale(0, 540)).toBe(1);
-  });
-
   it('centres the panorama and keeps it at 62% or more', () => {
     expect(panoramaFit(1440)).toEqual({ x: 0, scale: 1, height: 332 });
     const phone = panoramaFit(390);
@@ -77,6 +48,18 @@ describe('questions teams ask', () => {
 describe('homepage sections', () => {
   const page = readFileSync(join(ROOT, 'apps/docs-site/src/pages/index.astro'), 'utf8');
   const footer = readFileSync(join(ROOT, 'apps/docs-site/src/components/site/SiteFooter.astro'), 'utf8');
+
+  it('tells the hero as a drawn story, with no slider left, and keeps one call to action', () => {
+    expect(page).toContain('<HpHeroScene />');
+    expect(page).not.toMatch(/type="range"|data-range|data-hero|Drag: your|HpPencil|HpGhost|HpProfile/);
+    expect(page).toContain('>Get started</ButtonLink>');
+    expect(page).toContain('explore the demo</Link>, no account needed.');
+    const scene = readFileSync(join(ROOT, 'apps/docs-site/src/components/home/HpHeroScene.astro'), 'utf8');
+    expect(scene).toMatch(/role="img" aria-label="Dana[^"]+Profile header[^"]+code and the Figma kit follow\."/);
+    expect(scene).not.toMatch(/#[0-9a-f]{6}\b|\u2014/i);
+    const css = readFileSync(join(ROOT, 'apps/docs-site/src/styles/home-hero.css'), 'utf8');
+    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s+\.hp-hxsv \.hp-fa \{\s+animation: none;/);
+  });
 
   it('starts in Bridge, then ships, then the system everyone can trust', () => {
     const titles = [...page.matchAll(/<HpStepSection[\s\S]*?title="([^"]+)"/g)].map((m) => m[1]);

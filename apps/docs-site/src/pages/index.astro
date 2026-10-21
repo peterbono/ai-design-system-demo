@@ -1,21 +1,20 @@
 ---
-// The homepage, ported from the owner's validated test page (2026-10-21): one promise you can drag ("Keep what works":
-// move the bridge to keep the profile header your exploration added), two step-tab sections (start in Bridge, ship) and
-// "One system everyone can trust", the design system lead's queue, and the Horizon closing (Florian carries the kept card across
-// the bridge). Every drawing is decorative markup with a spoken label; the controls are DS components, except the
-// hero range input and the step tabs (see their audit comments). Behaviour: scripts/homepage.ts, pure parts in
-// lib/homepage.ts. The Library home is at /library/ (lib/nav LIBRARY_HOME).
+// The homepage, ported from the owner's validated test page (2026-10-21): the promise with its story drawn (Dana keeps
+// the new Profile header of her AI exploration in the design system, then code and the Figma kit follow), two step-tab
+// sections (start in Bridge, ship) and "One system everyone can trust", the design system lead's queue, and the Horizon
+// closing (Florian carries the kept card across the bridge). Every drawing is decorative markup with a spoken label; the
+// controls are DS components, except the step tabs (see their audit comments). Behaviour: scripts/homepage.ts, pure
+// parts in lib/homepage.ts. The Library home is at /library/ (lib/nav LIBRARY_HOME).
 import '../styles/homepage.css';
 import '../styles/home-illus.css';
+import '../styles/home-hero.css';
 import '../styles/home-compare.css';
 import Landing from '../layouts/Landing.astro';
 import ButtonLink from '../components/ds/ButtonLink';
 import { Link } from '@bridge-ds/react';
 import { ArrowRight } from 'lucide-react';
 import HpSprite from '../components/home/HpSprite.astro';
-import HpPencil from '../components/home/HpPencil.astro';
-import HpGhost from '../components/home/HpGhost.astro';
-import HpProfile from '../components/home/HpProfile.astro';
+import HpHeroScene from '../components/home/HpHeroScene.astro';
 import HpShipMerge from '../components/home/HpShipMerge.astro';
 import HpShipCode from '../components/home/HpShipCode.astro';
 import HpShipPlugin from '../components/home/HpShipPlugin.astro';
@@ -33,12 +32,6 @@ import HpPanorama from '../components/home/HpPanorama.astro';
 import HpWalkers from '../components/home/HpWalkers.astro';
 import { DEMO, STUDIO_HOME } from '../lib/nav';
 
-const handles = [
-  [157, 33],
-  [376, 33],
-  [157, 132],
-  [376, 132],
-];
 ---
 
 <Landing
@@ -48,8 +41,8 @@ const handles = [
   <div class="hp">
     <HpSprite />
 
-    <!-- Hero: the promise, then the bridge you drag to keep the piece. -->
-    <section class="hp-hero hp-wrap" aria-labelledby="hp-title" data-hero>
+    <!-- Hero: the promise, then the story drawn: Dana keeps the new piece of her exploration in the design system. -->
+    <section class="hp-hero hp-wrap" aria-labelledby="hp-title">
       <div class="hp-hero-text">
         <h1 id="hp-title" class="hp-h1">
           <span class="hp-hl">Explore with AI. </span><span class="hp-hl hp-hk"><span class="hp-keep">Keep<svg class="hp-ul" viewBox="0 0 150 18" preserveAspectRatio="none" aria-hidden="true"><path d="M3 12C28 6 66 3.5 104 6.5S140 11 147 7" pathLength="1"></path></svg></span> what works </span><span class="hp-hl">in your design system.</span>
@@ -62,30 +55,8 @@ const handles = [
         <p class="hp-alt">Or <Link href={DEMO}>explore the demo</Link>, no account needed.</p>
       </div>
       <div class="hp-hero-vis">
-        <div class="hp-fit" data-fit="540">
-          <div class="hp-stage" data-stage>
-            <HpPencil />
-            <div class="hp-crr">
-              <HpGhost />
-              <HpProfile card class="hp-stage-card" />
-              <span class="hp-hsel" aria-hidden="true"></span>
-              {handles.map(([l, t]) => <span class="hp-hh" style={`--l: ${l}; --t: ${t}`} aria-hidden="true" />)}
-              <span class="hp-tag hp-htag" aria-hidden="true"><svg><use href="#hp-comp" /></svg>Profile header</span>
-              <span class="hp-hlib" aria-hidden="true"><svg><use href="#hp-lib" /></svg>Library</span>
-              <span class="hp-stamp" aria-hidden="true"><svg><use href="#hp-check" /></svg>Kept</span>
-            </div>
-            <div class="hp-handle" aria-hidden="true">
-              <span class="hp-ln"></span>
-              <span class="hp-kn"><svg viewBox="0 0 24 24"><path d="M9 7l-5 5 5 5M15 7l5 5-5 5"></path></svg></span>
-              <span class="hp-ln"></span>
-            </div>
-            <!-- bridge-audit-ignore-next-line: the whole drawing is the slider: an invisible native range input over the before and after stage, with the bridge handle as its visible thumb; the DS Slider is a track with its own thumb and would need its internals restyled (Slider "compare" appearance requested in the PR) -->
-            <input class="hp-rng" type="range" min="0" max="100" step="1" value="50" aria-label="Keep the profile header: move the bridge left to keep it in your design system" aria-valuetext="Half exploration, half design system" data-range />
-          </div>
-        </div>
-        <p class="hp-hcap" aria-live="polite"><span class="hp-d">Drag: your explorations / your design system</span><span class="hp-k">Kept in your design system.</span></p>
+        <HpHeroScene />
       </div>
-      <span class="hp-kline" aria-hidden="true" data-kline></span>
     </section>
 
     <div id="steps">
