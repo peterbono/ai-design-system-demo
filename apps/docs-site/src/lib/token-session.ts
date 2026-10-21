@@ -1,7 +1,7 @@
 // Studio GitHub session state, pure (no DOM, no storage): what the sidebar account block shows, when the token
 // must be checked again, and what a write action says when GitHub refuses the token. The browser glue lives in
 // scripts/github-session.ts.
-import { GitHubError, missingPermissionMessage, permissionLabel, TOKEN_SETTINGS_URL } from '@bridge-ds/core';
+import { GitHubError, missingPermissionMessage, permissionLabel, TOKEN_SETTINGS_URL, type RepoAccessState } from '@bridge-ds/core';
 
 /** none: no token. checking: first check running. connected: GitHub accepts it. rejected: GitHub refused it (401). */
 export type SessionState = 'none' | 'checking' | 'connected' | 'rejected';
@@ -26,6 +26,8 @@ export interface TokenCheck {
   write?: boolean | null;
   /** Signed in with the GitHub App: whether the app reaches the repository for this account, once read. */
   reach?: boolean | null;
+  /** The access state last read, and the repository ("owner/repo") it is for (write and reach above are its flags). */
+  access?: { repo: string; state: RepoAccessState } | null;
 }
 
 /** A token is checked again once its last check is older than this (one call per hour at most). */

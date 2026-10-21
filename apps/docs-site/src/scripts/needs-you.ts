@@ -13,6 +13,7 @@ import { loadTeams } from './teams';
 import { loadSuggestionNeeds } from './suggestions';
 import { agentMade, workNature, type VisualSignal } from '../lib/work-nature';
 import { rowLifecycle } from '../lib/change-status';
+import { siteConfig } from './repo-context';
 
 export interface QueuePullFull extends PullForStatus {
   state: string;
@@ -26,7 +27,7 @@ export const MINE_COUNT_KEY = 'bridge.reviews.mine';
 
 const overrideBy = (): string[] => {
   try {
-    return (JSON.parse(document.getElementById('bridge-repo')?.textContent || '{}') as { override?: { allowed?: string[] } }).override?.allowed ?? [];
+    return (siteConfig() as { override?: { allowed?: string[] } }).override?.allowed ?? [];
   } catch {
     return [];
   }
