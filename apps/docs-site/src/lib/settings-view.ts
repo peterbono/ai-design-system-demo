@@ -7,7 +7,7 @@
 //   may do on the repository, and the format-preserving edit of `changes` in bridge.config.json.
 import { fromPlain, getEntry, parseJson, serializeJson, toPlain, type ChangesMode, type JsonObject } from '@bridge-ds/core';
 import type { TierSummary } from './governance';
-import { noReachText, readOnlyText } from './github-signin';
+import { noReachText, readOnlyText, type SignInApp } from './github-signin';
 
 export interface ApprovalRule {
   tier: number;
@@ -196,6 +196,19 @@ export const CHANGES_SHORT: Record<ChangesMode, string> = {
  */
 export const INTERIM_APP_TEXT = "Bridge's GitHub App can still write code on this repo. Suggest mode is a Bridge rule until the read-only app ships.";
 
+/** With the read-only app configured, GitHub itself keeps suggest mode: Studio signs in with an app that cannot write code. */
+export const READ_ONLY_APP_TEXT = "In this mode Studio signs in with Bridge's read-only GitHub App: it can read code and create issues, never write code.";
+
+/**
+ * The line Settings shows about suggest mode, from the app Studio signs in with in that mode (SignInConfig.suggestApp):
+ * the read-only app, the interim sentence for the one write app, nothing without a GitHub App (a pasted token).
+ */
+export function suggestAppText(app: SignInApp | null | undefined): string | null {
+  if (app === 'suggest') return READ_ONLY_APP_TEXT;
+  if (app === 'direct') return INTERIM_APP_TEXT;
+  return null;
+}
+
 /** `changes` as the file says it: null when the key is absent (Bridge then sends suggestions, the default). */
 export function changesInConfig(raw: { changes?: unknown } | null | undefined): ChangesMode | null {
   const v = raw?.changes;
@@ -252,7 +265,8 @@ export interface ChangesProposal {
 }
 
 /** Branch, title, body and commit message of the pull request that sets `changes`. */
-export function changesProposal(mode: ChangesMode, opts: { date: Date; prefix?: string; tierLabel: string }): ChangesProposal {
+export function changesProposal(mode: ChangesMode, opts: { date: Date; prefix?: string; tierLabel: string; suggestApp?: SignInApp | null }): ChangesProposal {
+  const appLine = mode === 'suggest' ? suggestAppText(opts.suggestApp) : null;
   const stamp = opts.date.toISOString().slice(0, 10).replace(/-/g, '');
   const c = CHANGES_CHOICE[mode];
   const title = mode === 'suggest' ? 'chore(config): send kept changes as suggestions' : 'chore(config): open pull requests for kept changes';
@@ -263,7 +277,7 @@ export function changesProposal(mode: ChangesMode, opts: { date: Date; prefix?: 
     '',
     `- ${c.title}. ${c.lead ? `${c.lead} ` : ''}${c.text}`,
     `- ${c.needs}.`,
-    ...(mode === 'suggest' ? [`- ${INTERIM_APP_TEXT}`] : []),
+    ...(appLine ? [`- ${appLine}`] : []),
     '',
     `**Risk:** ${opts.tierLabel}. Configuration only: no token, component or package changes.`,
     '',
