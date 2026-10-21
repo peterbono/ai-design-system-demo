@@ -5,7 +5,8 @@ import { useEffect, useState } from 'react';
 import { Lock } from 'lucide-react';
 import { bridgeMcpInstallCommand, type ChangesMode } from '@bridge-ds/core';
 import { Alert, Badge, Button, Card, CardBody, ChoiceCard, ChoiceCardGroup, CodeBlock, Icon, Link } from '@bridge-ds/react';
-import { appReach, CHANGES_CHOICE, CHANGES_ORDER, effectiveChanges, INTERIM_APP_TEXT, type AppReach } from '../../../lib/settings-view';
+import { appReach, CHANGES_CHOICE, CHANGES_ORDER, effectiveChanges, suggestAppText, type AppReach } from '../../../lib/settings-view';
+import type { SignInApp } from '../../../lib/github-signin';
 import { ghAction } from '../../../lib/gh-wording';
 import { VOCAB } from '../../../lib/vocabulary';
 import { currentViewer, getToken, initGitHubConnect, prefersSignIn, type Viewer } from '../../../scripts/github-session';
@@ -84,11 +85,15 @@ export interface ChangesModeSettingProps {
   repo: string;
   prefix?: string;
   protectedBranches?: string[];
+  /** The app Studio signs in with in suggest mode (SignInConfig.suggestApp); null without a GitHub App. */
+  suggestApp?: SignInApp | null;
 }
 
 /** Settings > How changes reach your code: the mode in force, what the GitHub App may do, and the switch. */
-export default function ChangesModeSetting({ set, repo, prefix, protectedBranches }: ChangesModeSettingProps) {
+export default function ChangesModeSetting({ set, repo, prefix, protectedBranches, suggestApp = null }: ChangesModeSettingProps) {
   const current = effectiveChanges(set);
+  // Interim sentence only while suggest mode runs on the write app; the read-only line once Bridge has both apps.
+  const appNote = suggestAppText(suggestApp);
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState<ChangesMode>(current);
   const [busy, setBusy] = useState(false);
@@ -167,9 +172,11 @@ export default function ChangesModeSetting({ set, repo, prefix, protectedBranche
               <ChangesChoices value={value} onChange={setValue} />
               {value === 'suggest' && (
                 <>
-                  <Alert tone="info" className="cm-interim">
-                    {INTERIM_APP_TEXT}
-                  </Alert>
+                  {appNote && (
+                    <Alert tone="info" className="cm-interim">
+                      {appNote}
+                    </Alert>
+                  )}
                   <DevelopersGet repo={repo} />
                 </>
               )}
@@ -184,9 +191,9 @@ export default function ChangesModeSetting({ set, repo, prefix, protectedBranche
             </div>
           )}
         </div>
-        {!editing && current === 'suggest' && (
+        {!editing && current === 'suggest' && appNote && (
           <Alert tone="info" className="cm-interim">
-            {INTERIM_APP_TEXT}
+            {appNote}
           </Alert>
         )}
         {editing && (
