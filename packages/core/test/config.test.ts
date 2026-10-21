@@ -107,6 +107,24 @@ test('storybook.url: explicit, else the production Storybook from previews; http
   }
 });
 
+test('demo: a persona, kept as written, refused when malformed', () => {
+  assert.equal(loadConfig({ repo: 'acme/ds' }).demo, undefined);
+  const demo = loadConfig({ repo: 'acme/ds', demo: { viewer: ' Dana ', role: 'DS lead' } });
+  assert.deepEqual(demo.demo, { viewer: 'Dana', role: 'DS lead' });
+  assert.deepEqual(toConfigJson(demo).demo, { viewer: 'Dana', role: 'DS lead' });
+  assert.deepEqual(loadConfig({ repo: 'acme/ds', demo: { viewer: 'Dana' } }).demo, { viewer: 'Dana' });
+  for (const [d, msg] of [
+    [{ role: 'DS lead' }, /"demo" must be \{ "viewer" \}/],
+    [{ viewer: 'Dana', role: 3 }, /"demo\.role" must be a string/],
+    [{ viewer: 'Dana', avatar: 'x' }, /"demo\.avatar" is not a known key/],
+  ] as [unknown, RegExp][]) {
+    assert.throws(
+      () => loadConfig({ repo: 'acme/ds', demo: d }),
+      (err: ConfigError) => err.problems.some((p) => msg.test(p)),
+    );
+  }
+});
+
 test('library.public: off by default, true only when the file says so', () => {
   assert.equal(libraryIsPublic(loadConfig({ repo: 'acme/ds' })), false);
   assert.equal(libraryIsPublic(loadConfig({ repo: 'acme/ds', library: {} })), false);

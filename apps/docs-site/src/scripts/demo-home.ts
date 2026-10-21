@@ -9,7 +9,8 @@
 import { SUGGESTION_LABEL } from '@bridge-ds/core';
 import { ghGet, RateLimitError, readRepo } from './github-session';
 import { personOf, thumbOf } from './home-data';
-import { owners } from './pr-status';
+import { currentViewer } from './github-session';
+import { siteConfig } from './repo-context';
 import { demoLogins, leadQueue, teamBranches, type DemoPull, type DemoSuggestion } from '../lib/demo-home';
 import { AVATARS_SHOWN, contrastNeed, person, guidanceNeed, NEEDS_SHOWN, sortBranches, sortNeeds, type BranchCard, type NeedRow, type Person } from '../lib/home-model';
 import type { ThumbSpec } from '../lib/branch-thumb';
@@ -43,8 +44,13 @@ export interface DemoHomeData {
   needs: NeedRow[];
   /** The team's explorations and branches. */
   branches: BranchCard[];
-  /** The DS lead whose seat the visitor takes: the first design owner in the settings. */
+  /**
+   * The persona whose seat the visitor takes (bridge.config.json "demo": { "viewer", "role" }), for a visitor without
+   * an account. Null when the settings name none: the home greets without a name.
+   */
   lead: Person | null;
+  /** The persona's role ("DS lead"), when the settings give one. */
+  role: string | null;
   /** GitHub could not be read: what to tell the visitor. */
   failed: string | null;
 }
@@ -60,10 +66,12 @@ const CARDS_SHOWN = 4;
 
 export async function loadDemoHome(stat: DemoStatic, onUpdate: (d: DemoHomeData) => void): Promise<void> {
   const now = Date.now();
-  const staticNeeds = (): NeedRow[] => [...(contrastNeed(stat.contrastFail) ? [contrastNeed(stat.contrastFail)!] : []), ...stat.guidance.map((g) => guidanceNeed(g, now))];
-  const leadLogin = owners().design[0] ?? null;
-  let lead: Person | null = leadLogin ? person(leadLogin, null, `https://github.com/${leadLogin}.png?size=64`) : null;
-  onUpdate({ loading: true, needs: sortNeeds(staticNeeds()), branches: [], lead, failed: null });
+  const staticNeeds = (): NeedRow[] => [...(contrastNeed(stat.contrastFail) ? [contrastNeed(stat.contrastFail)!] : []), ...stat.guidance.map((g) => guidanceNeed(g, now))].map((r) => ({ ...r, sample: true }));
+  // The persona: only on a demo repository (this loader runs nowhere else) and only for a visitor without an account.
+  const persona = currentViewer() ? undefined : siteConfig().demo;
+  const lead: Person | null = persona ? { login: `~${persona.viewer.toLowerCase()}`, name: persona.viewer, avatar: null } : null;
+  const role = persona?.role ?? null;
+  onUpdate({ loading: true, needs: sortNeeds(staticNeeds()), branches: [], lead, role, failed: null });
   let activity: DemoActivity;
   try {
     activity = await readDemoActivity();
@@ -73,6 +81,7 @@ export async function loadDemoHome(stat: DemoStatic, onUpdate: (d: DemoHomeData)
       needs: sortNeeds(staticNeeds()),
       branches: [],
       lead,
+      role,
       failed: err instanceof RateLimitError ? 'GitHub is busy right now. The queue comes back in a few minutes.' : 'GitHub could not be reached. Reload the page to try again.',
     });
     return;
@@ -82,17 +91,15 @@ export async function loadDemoHome(stat: DemoStatic, onUpdate: (d: DemoHomeData)
   const opts = { thumbs, people };
   const needs = () => sortNeeds([...staticNeeds(), ...leadQueue(activity.open, activity.suggestions, now, opts)]);
   const branches = () => sortBranches(teamBranches(activity.open, opts));
-  const paint = () => onUpdate({ loading: false, needs: needs(), branches: branches(), lead, failed: null });
+  const paint = () => onUpdate({ loading: false, needs: needs(), branches: branches(), lead, role, failed: null });
   paint();
 
   // Display names: from the source when it has them, else once per person shown (the avatars and the first rows).
   const logins = demoLogins(activity.open, activity.suggestions);
   const named = activity.names ?? {};
-  if (leadLogin) logins.unshift(leadLogin.toLowerCase());
   await Promise.all(
     [...new Set(logins)].slice(0, AVATARS_SHOWN + NEEDS_SHOWN).map(async (l) => people.set(l, named[l] ? person(l, named[l], `https://github.com/${l}.png?size=64`) : await personOf(l))),
   );
-  if (leadLogin) lead = people.get(leadLogin.toLowerCase()) ?? lead;
   paint();
 
   // The before/after of what shows first only (three rows, the first cards): each costs reads, and they are scarce.

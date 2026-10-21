@@ -75,6 +75,16 @@
   gap: var(--space-3);
 }
 
+/* The sentence sits beside the avatars and wraps on its own lines, never under them. */
+.sh-waiting > span:not(.sh-stack, .sh-oldest) {
+  flex: 1 1 var(--size-60);
+  min-width: 0;
+}
+
+.sh-waiting > .sh-stack {
+  flex: none;
+}
+
 /* Signed out: the side nav foot already holds the button where the side nav shows. */
 .sh-connect {
   display: flex;
@@ -153,6 +163,36 @@
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
+}
+
+/* One line (the home's Needs you, BranchRow compact): "Title · who asks" ellipsed, the chips and the button at the end. */
+.sh-row-compact .sh-row-text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sh-row-compact .sh-row-title {
+  display: inline;
+}
+
+.sh-row-chips {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  margin-inline-start: auto;
+}
+
+.sh-row-body > .sh-row-chips + .sh-row-action {
+  margin-inline-start: 0;
+}
+
+/* "Sample" on the demo's rows and cards: an outlined label, quieter than a status. */
+.sh-sample {
+  border: var(--border-width-default) solid var(--color-border-default);
+  background-color: transparent;
 }
 
 .sh-row-line {
@@ -274,6 +314,14 @@
   padding: var(--space-3) var(--space-4) var(--space-4);
 }
 
+/* The card's title and, on the demo, "Sample" at its end (board D1). */
+.sh-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
 .sh-card-status {
   display: inline-flex;
   flex-wrap: wrap;
@@ -367,8 +415,14 @@
     flex: 1 1 100%;
   }
 
-  .sh-row-line {
+  .sh-row-line,
+  .sh-row-compact .sh-row-text,
+  .sh-row-compact .sh-row-text > .sh-row-title {
     white-space: normal;
+  }
+
+  .sh-row-chips {
+    margin-inline-start: 0;
   }
 
   .sh-choice-body {

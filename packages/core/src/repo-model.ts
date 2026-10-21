@@ -4,7 +4,7 @@
 // docs.json) and the Figma coverage of component-specs.json. Every path comes from the config; the defaults are
 // the paths this repo used before the config named them. Pure: no Node, no DOM.
 
-import { ConfigError, defineConfig, loadConfig, tokensPath, CONFIG_FILE, DEFAULT_CHANGES_MODE, DEFAULT_OVERRIDE, type BridgeConfig, type BridgeConfigInput, type ChangesMode } from './config';
+import { ConfigError, defineConfig, loadConfig, tokensPath, CONFIG_FILE, DEFAULT_CHANGES_MODE, DEFAULT_OVERRIDE, type BridgeConfig, type BridgeConfigInput, type ChangesMode, type DemoConfig } from './config';
 import { scanComponents, parseComponentFamilies, type ScannedComponent } from './component-scan';
 import { parseComponentSpecs, type ComponentSpecsFile, type SpecCoverage } from './component-spec';
 import { evaluateContrastPairs, parseContrastSpecs, type ContrastPairResult, type ContrastPairSpec } from './contrast-model';
@@ -51,6 +51,8 @@ export interface SiteRepo {
   products: ProductConfig[];
   /** How changes reach the code: "suggest" (default) or "direct". */
   changes: ChangesMode;
+  /** A public demo's persona (config "demo"), when set. */
+  demo?: DemoConfig;
 }
 
 type LegacyRaw = { owner?: unknown; defaultBranch?: unknown; owners?: { design?: string[]; tech?: string[] }; governance?: { owners?: unknown } } | null | undefined;
@@ -80,6 +82,7 @@ export function siteRepoFromConfig(
     integrations: config.integrations ?? {},
     products: config.products.length ? config.products : DEFAULT_PRODUCTS.map((p) => ({ ...p })),
     changes: config.changes ?? DEFAULT_CHANGES_MODE,
+    ...(config.demo ? { demo: { ...config.demo } } : {}),
   };
 }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEMO_REPOS, DEMO_WORDS, demoWaiting, exploresDemo, isDemoRepo, tourSteps } from './demo';
+import { DEMO_REPOS, DEMO_WORDS, demoTour, demoWaiting, exploresDemo, isDemoRepo, tourSteps } from './demo';
 
 describe('the demo', () => {
   it('is the self-hosted repository and the hosted demo team, any case', () => {
@@ -39,4 +39,11 @@ describe('the demo', () => {
     expect(tourSteps({ rows: true, more: false, branches: true })).toEqual(['rows', 'branches']);
   });
 
+});
+
+describe('the tour', () => {
+  it("names the persona's role on its first step", () => {
+    expect(demoTour('rows', 'DS lead').title).toBe('Changes wait for the DS lead');
+    expect(demoTour('rows', null).title).toBe('Changes wait for the lead');
+  });
 });

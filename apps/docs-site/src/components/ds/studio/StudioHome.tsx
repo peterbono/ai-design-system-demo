@@ -39,7 +39,7 @@ import { studioHref } from '../../../lib/team-path';
 import { demoWaiting } from '../../../lib/demo';
 
 /** One Needs you row: before/after, who, what and why, the status on the right (the shared BranchRow). */
-export function NeedRowItem({ row, selected, onSelect, action }: { row: NeedRow; selected?: boolean; onSelect?: (row: NeedRow) => void; action?: 'primary' | 'secondary' }) {
+export function NeedRowItem({ row, selected, onSelect, action, compact }: { row: NeedRow; selected?: boolean; onSelect?: (row: NeedRow) => void; action?: 'primary' | 'secondary'; compact?: boolean }) {
   const click = onSelect
     ? (e: MouseEvent<HTMLAnchorElement>) => {
         if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
@@ -57,6 +57,8 @@ export function NeedRowItem({ row, selected, onSelect, action }: { row: NeedRow;
       selected={selected}
       line={row.line}
       pill={row.pill}
+      compact={compact}
+      tags={row.sample ? <SampleTag /> : undefined}
       end={
         action && (
           <ButtonLink variant={action} href={row.href} className="sh-row-action" tabIndex={-1} aria-hidden="true">
@@ -68,11 +70,20 @@ export function NeedRowItem({ row, selected, onSelect, action }: { row: NeedRow;
   );
 }
 
-export function NeedList({ rows, selectedKey, onSelect, label = 'Needs you', action }: { rows: NeedRow[]; selectedKey?: string | null; onSelect?: (row: NeedRow) => void; label?: string; action?: 'primary' | 'secondary' }) {
+/** "Sample": demo data, said on every row and card of the demo so a visitor never takes it for real work. */
+export function SampleTag() {
+  return (
+    <Badge tone="neutral" size="sm" className="sh-sample">
+      Sample
+    </Badge>
+  );
+}
+
+export function NeedList({ rows, selectedKey, onSelect, label = 'Needs you', action, compact }: { rows: NeedRow[]; selectedKey?: string | null; onSelect?: (row: NeedRow) => void; label?: string; action?: 'primary' | 'secondary'; compact?: boolean }) {
   return (
     <ul className="sh-rows" aria-label={label}>
       {rows.map((r) => (
-        <NeedRowItem key={r.key} row={r} selected={selectedKey === r.key} onSelect={onSelect} action={action} />
+        <NeedRowItem key={r.key} row={r} selected={selectedKey === r.key} onSelect={onSelect} action={action} compact={compact} />
       ))}
     </ul>
   );
@@ -110,7 +121,7 @@ function Waiting({ needs, now, lead }: { needs: NeedRow[]; now: number; lead?: P
         </span>
       )}
       {oldest && (
-        <Badge tone="warning" size="md">
+        <Badge tone="warning" size="md" className="sh-oldest">
           {oldest}
         </Badge>
       )}
@@ -158,7 +169,7 @@ function Needs({ needs, now, snoozed, demo, tour }: { needs: NeedRow[]; now: num
     <>
       {/* One item: its button is the page's primary. Two or three: secondary buttons. More: no row buttons, "Review all"
           acts. The demo (board D1b) keeps a Review button on each row, beside "Review all (N)". */}
-      <NeedList rows={shown} action={demo ? 'secondary' : more ? undefined : shown.length === 1 ? 'primary' : 'secondary'} />
+      <NeedList rows={shown} compact action={demo ? 'secondary' : more ? undefined : shown.length === 1 ? 'primary' : 'secondary'} />
       {tour?.('rows')}
       {more && (
         <div className="sh-more">
@@ -184,9 +195,12 @@ function BranchCardItem({ b, now }: { b: BranchCard; now: number }) {
       <Card interactive padding="none" className="sh-card">
         <BranchThumb spec={b.thumb} size="card" />
         <div className="sh-card-body">
-          <Link href={b.href} variant="subtle" className="t-body sh-card-title" data-card-primary>
-            <span className="sh-strong">{b.title}</span>
-          </Link>
+          <span className="sh-card-head">
+            <Link href={b.href} variant="subtle" className="t-body sh-card-title" data-card-primary>
+              <span className="sh-strong">{b.title}</span>
+            </Link>
+            {b.sample && <SampleTag />}
+          </span>
           <span className="t-ui t-muted sh-card-status">
             <span className="sh-card-stage">{s.stage}</span> ·{' '}
             {b.stage === 'ready' && b.reviewer && !b.status && !b.statusLine ? (

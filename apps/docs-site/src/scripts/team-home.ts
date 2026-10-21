@@ -95,6 +95,7 @@ export function initTeamHome(el: HTMLElement, sourceEl: HTMLElement | null) {
           health: health(),
           failed: demoData?.failed ?? null,
             lead: demoData?.lead ?? null,
+            role: demoData?.role ?? null,
           now: Date.now(),
           components: stat.components,
           startHrefs: stat.startHrefs,

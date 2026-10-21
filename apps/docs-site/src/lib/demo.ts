@@ -63,7 +63,7 @@ export function demoWaiting(n: number, people: { names: string; rest: string } |
 
 export type TourAt = 'rows' | 'more' | 'branches';
 
-export const DEMO_TOUR: Record<TourAt, { title: string; text: string }> = {
+const DEMO_TOUR: Record<TourAt, { title: string; text: string }> = {
   rows: {
     title: 'Changes wait for the lead',
     text: 'Each row is a change a teammate or Claude AI opened. Bridge shows it before and after, so the lead reviews the look, not the code.',
@@ -77,6 +77,12 @@ export const DEMO_TOUR: Record<TourAt, { title: string; text: string }> = {
     text: 'Explorations try a product screen with Claude AI; branches change the library. Nothing reaches it until it is reviewed and merged.',
   },
 };
+
+/** One step's words; the first names the persona's role when the settings give one ("Changes wait for the DS lead"). */
+export function demoTour(at: TourAt, role?: string | null): { title: string; text: string } {
+  const w = DEMO_TOUR[at];
+  return at === 'rows' && role ? { ...w, title: `Changes wait for the ${role}` } : w;
+}
 
 /** The steps the page can point at, in order: the grouped row only when there is one. */
 export function tourSteps(x: { rows: boolean; more: boolean; branches: boolean }): TourAt[] {

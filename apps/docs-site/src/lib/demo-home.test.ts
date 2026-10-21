@@ -32,6 +32,25 @@ describe("the DS lead's queue on the demo", () => {
     expect(rows[2]).toMatchObject({ title: 'Raise contrast', line: 'dana suggests a change' });
   });
 
+  it('shows who asked, as Bridge recorded it, before the account that opened it', () => {
+    const rows = leadQueue(
+      [
+        pull(1, { labels: [{ name: 'source: mcp' }], body: 'Why.\n\nRequested by Ann Leroy.\n' }),
+        pull(2, { body: 'Requested by Leo Martin (@leom).' }),
+      ],
+      [{ number: 30, title: 'Tokens: raise contrast', user: { login: 'bot' }, created_at: at(3), body: 'Requested by Sofia Reyes.' }],
+      now,
+    );
+    expect(rows.map((r) => [r.person?.name, r.line])).toEqual([
+      ['Ann', 'Ann asks for your review'],
+      ['Leo', 'Leo asks for your review'],
+      ['Sofia', 'Sofia suggests a change'],
+    ]);
+    expect(rows[0]!.person).toMatchObject({ login: '~ann-leroy', avatar: null });
+    expect(rows[1]!.person?.login).toBe('leom');
+    expect(rows.every((r) => r.sample)).toBe(true);
+  });
+
   it('names Claude AI on agent work', () => {
     const [row] = leadQueue([pull(1, { labels: [{ name: 'source: mcp' }] })], [], now);
     expect(row!.person?.agent).toBe(true);
@@ -60,5 +79,6 @@ describe("the DS lead's queue on the demo", () => {
       [15, 'draft', { stage: 'Library branch', detail: 'draft' }],
     ]);
     expect(cards[1]!.reviewer?.login).toBe('dana');
+    expect(cards.every((c) => c.sample)).toBe(true);
   });
 });

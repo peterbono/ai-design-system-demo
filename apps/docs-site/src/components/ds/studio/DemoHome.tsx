@@ -11,7 +11,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { useState, type ReactNode } from 'react';
 import { Button, Popover, PopoverContent, PopoverTrigger } from '@bridge-ds/react';
 import { StudioHome, type HealthLine, type HomeComponent, type StudioHomeProps } from './StudioHome';
-import { DEMO_TOUR, DEMO_WORDS, tourSteps, type TourAt } from '../../../lib/demo';
+import { DEMO_WORDS, demoTour, tourSteps, type TourAt } from '../../../lib/demo';
 import { greeting, shortName, splitNeeds, type BranchCard, type NeedRow, type Person } from '../../../lib/home-model';
 import '../../../styles/demo-home.css';
 
@@ -19,8 +19,10 @@ export interface DemoHomeProps {
   loading: boolean;
   needs: NeedRow[];
   branches: BranchCard[];
-  /** The DS lead whose seat the visitor takes. */
+  /** The persona whose seat the visitor takes (bridge.config.json "demo"), null for none. */
   lead: Person | null;
+  /** The persona's role ("DS lead"). */
+  role: string | null;
   health: HealthLine | null;
   /** GitHub could not be read. */
   failed: string | null;
@@ -42,8 +44,8 @@ function tourDone(): boolean {
 }
 
 /** One step of the tour: a DS Popover anchored where the step points. */
-function TourStep({ n, total, at, onNext, onFinish, onClose }: { n: number; total: number; at: TourAt; onNext: () => void; onFinish: () => void; onClose: () => void }) {
-  const words = DEMO_TOUR[at];
+function TourStep({ n, total, at, role, onNext, onFinish, onClose }: { n: number; total: number; at: TourAt; role: string | null; onNext: () => void; onFinish: () => void; onClose: () => void }) {
+  const words = demoTour(at, role);
   const last = n === total;
   return (
     <Popover open onOpenChange={(o) => !o && onClose()}>
@@ -82,8 +84,9 @@ export function DemoHome(p: DemoHomeProps) {
     setStep(null);
   };
   const tour = (at: TourAt): ReactNode =>
-    !p.loading && step !== null && steps[step] === at ? <TourStep key={at} n={step + 1} total={steps.length} at={at} onNext={() => setStep(step + 1)} onFinish={finish} onClose={() => setStep(null)} /> : null;
+    !p.loading && step !== null && steps[step] === at ? <TourStep key={at} n={step + 1} total={steps.length} at={at} role={p.role} onNext={() => setStep(step + 1)} onFinish={finish} onClose={() => setStep(null)} /> : null;
   const leadName = p.lead ? (shortName(p.lead.name) ?? p.lead.name) : null;
+  // "Good morning, Dana." with a persona; "Good morning." without one.
   return (
     <StudioHome
       state={p.loading && !p.needs.length ? 'loading' : 'busy'}
