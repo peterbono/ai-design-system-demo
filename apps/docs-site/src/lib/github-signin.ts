@@ -1,3 +1,4 @@
+import { studioHref } from './team-path';
 // Sign in with GitHub for the Studio, pure helpers (no DOM, no storage), covered by github-signin.test.ts.
 //
 // The flow is the GitHub App user-to-server flow with state and PKCE:
@@ -182,7 +183,7 @@ export function authorizeUrl(o: { clientId: string; redirectUri: string; state: 
 
 /** Only a same-site path is a place to come back to ("/studio/changes/?pr=3"). Anything else: Studio home. */
 export function safeReturnTo(path: string | null | undefined): string {
-  if (!path || !path.startsWith('/') || path.startsWith('//') || path.includes('\\') || path.startsWith(CALLBACK_PATH)) return '/studio/';
+  if (!path || !path.startsWith('/') || path.startsWith('//') || path.includes('\\') || path.startsWith(CALLBACK_PATH)) return studioHref();
   return path;
 }
 
@@ -227,7 +228,7 @@ export function callbackStep(params: URLSearchParams, here: string, pending: Pen
   const state = params.get('state');
   const decoded = decodeState(state);
   if (decoded && decoded.origin !== here) {
-    if (!originAllowed(decoded.origin, cfg, here)) return { kind: 'error', message: SIGNIN_TEXT.unknownOrigin, returnTo: '/studio/' };
+    if (!originAllowed(decoded.origin, cfg, here)) return { kind: 'error', message: SIGNIN_TEXT.unknownOrigin, returnTo: studioHref() };
     const fwd = new URLSearchParams();
     for (const k of ['code', 'state', 'error', 'error_description']) {
       const v = params.get(k);

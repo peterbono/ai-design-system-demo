@@ -16,6 +16,7 @@ import type { WhoActs } from './changes';
 import { blockerOf, type TodoChange } from './overview-todo';
 import { isDsChange } from './release-view';
 import { explorationMakerLine, makerOf, type Maker, type WorkNature } from './work-nature';
+import { studioHref } from './team-path';
 
 export type ColumnId = 'exploring' | 'review' | 'ready' | 'release';
 
@@ -97,10 +98,10 @@ const other = (login: string | null | undefined, viewer: string | null) => (logi
 
 const LABEL: Record<ColumnId, string> = { exploring: 'Exploring', review: 'In review', ready: 'Ready to merge', release: 'Next release' };
 const HREF: Record<ColumnId, string> = {
-  exploring: '/studio/changes/?view=explorations',
-  review: '/studio/changes/',
-  ready: '/studio/changes/',
-  release: '/studio/changes/?view=history',
+  exploring: studioHref('changes/?view=explorations'),
+  review: studioHref('changes/'),
+  ready: studioHref('changes/'),
+  release: studioHref('changes/?view=history'),
 };
 const EMPTY: Record<ColumnId, string> = {
   exploring: 'No exploration running.',
@@ -113,7 +114,7 @@ const YOU: CardStatus = { tone: 'you', label: 'You' };
 
 /** The card of a change in review: the blocker on the card, else who acts now. */
 function reviewCard(c: BoardChange, viewer: string | null, loading: boolean): BoardCard {
-  const base = { key: `change-${c.number}`, title: c.title, who: other(c.author, viewer), href: `/studio/changes/?pr=${c.number}` };
+  const base = { key: `change-${c.number}`, title: c.title, who: other(c.author, viewer), href: studioHref(`changes/?pr=${c.number}`) };
   const who: WhoActs | null = c.who;
   if (!who) return { ...base, note: loading ? 'Checking what it needs.' : 'Open it to see what it needs.', status: null };
   // Approved, waiting for code (lib/change-status): not blocked for designers, a developer finishes it.
@@ -140,7 +141,7 @@ function readyCard(c: BoardChange, viewer: string | null): BoardCard {
     key: `change-${c.number}`,
     title: c.title,
     who: other(c.author, viewer),
-    href: `/studio/changes/?pr=${c.number}`,
+    href: studioHref(`changes/?pr=${c.number}`),
     note: yours ? 'Approved and tested. Merge it to put it in the next release.' : `Approved and tested. ${c.who?.sentence.replace(/^Ready to merge: /, '') ?? ''}`.trim(),
     status: yours ? YOU : null,
   };
@@ -173,7 +174,7 @@ function allCards(input: BoardInput): [ColumnId, Natured[]][] {
     // Developer work: who is on it, no next step for a designer.
     note: e.nature === 'developer' ? explorationMakerLine(e.maker ?? makerOf({ author: e.author, viewer })) : explorationNote(e, viewer),
     status: null,
-    href: `/studio/changes/?exploration=${e.number}`,
+    href: studioHref(`changes/?exploration=${e.number}`),
     nature: e.nature ?? 'design',
   }));
   const release = input.release
@@ -184,7 +185,7 @@ function allCards(input: BoardInput): [ColumnId, Natured[]][] {
       who: other(r.author, viewer),
       note: 'Merged, goes out in the next release.',
       status: null,
-      href: '/studio/changes/?view=history',
+      href: studioHref('changes/?view=history'),
       nature: 'design',
     }));
   return [
@@ -280,10 +281,10 @@ export type StartChoice = 'look' | 'variant' | 'wrong' | 'new';
  * component opens the exploration start form.
  */
 export function startChangeHref(choice: StartChoice, slug?: string): string {
-  if (choice === 'look') return '/studio/tokens/';
-  if (choice === 'new') return '/studio/changes/?view=explorations&start=new';
+  if (choice === 'look') return studioHref('tokens/');
+  if (choice === 'new') return studioHref('changes/?view=explorations&start=new');
   const p = new URLSearchParams({ ...(slug ? { c: slug } : {}), intent: choice });
-  return `/studio/components/?${p.toString()}`;
+  return studioHref(`components/?${p.toString()}`);
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -346,7 +347,7 @@ export function healthFigures(input: HealthInput): HealthFigure[] {
     detail: contrast.fail ? `${passing} of ${contrast.total} pass. The token build waits until every pair passes.` : `${contrast.total} checked ${where}.`,
     split: null,
     tone: contrast.fail ? 'fail' : null,
-    href: '/studio/quality/',
+    href: studioHref('quality/'),
   });
   const a = combinedAdoption(input.adoption);
   if (a) {
@@ -359,7 +360,7 @@ export function healthFigures(input: HealthInput): HealthFigure[] {
       detail: a.before === null ? `Across ${across}.` : `Up from ${pct(a.before)} before Bridge, across ${across}.`,
       split: parts.length > 1 ? `${parts.join(', ')}.` : null,
       tone: null,
-      href: '/studio/quality/#ql-adoption',
+      href: studioHref('quality/#ql-adoption'),
     });
   }
   const left: string[] = [];
@@ -372,7 +373,7 @@ export function healthFigures(input: HealthInput): HealthFigure[] {
     detail: left.length ? `${left.join(', ')}.`.replace(/^./, (c) => c.toUpperCase()) : 'Every component is documented.',
     split: null,
     tone: null,
-    href: '/studio/quality/#ql-findings',
+    href: studioHref('quality/#ql-findings'),
   });
   return out;
 }

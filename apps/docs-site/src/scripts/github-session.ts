@@ -51,6 +51,7 @@ import {
   TOKEN_ENDPOINT,
   type TokenResponse,
 } from '../lib/github-signin';
+import { studioHref } from '../lib/team-path';
 
 export { GitHubError };
 
@@ -398,7 +399,7 @@ export function showGhError(el: HTMLElement, err: unknown, fallback: string, act
 
 /** "See the branch" and "Open on GitHub" links for a pull request GitHub just created (number and url from the API). */
 export function prLinksHtml(pr: { number: number; url: string }): string {
-  return `<a href="/studio/changes/?pr=${Number(pr.number)}">See the branch</a> · <a href="${attrUrl(pr.url)}" target="_blank" rel="noopener">Open on GitHub</a>`;
+  return `<a href="${studioHref(`changes/?pr=${Number(pr.number)}`)}">See the branch</a> · <a href="${attrUrl(pr.url)}" target="_blank" rel="noopener">Open on GitHub</a>`;
 }
 
 export class RateLimitError extends Error {

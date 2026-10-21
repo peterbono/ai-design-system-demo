@@ -35,11 +35,12 @@ const labelOn = (hex?: string) => (hex && luminance(hex) > 0.36 ? 'var(--color-n
 const semanticUsing = (primitivePath: string) =>
   colors.filter((s) => MODES.some((m) => s.modes[m].chain.includes(primitivePath))).map((s) => s.path);
 import LibraryHeader from '../../components/LibraryHeader.astro';
+import { studioHref } from '../../lib/team-path';
 ---
 
 <Layout title="Color" description="Semantic color tokens shown in context in light and dark, and the primitive palette behind them." sources={PAGE_SOURCES.color} updated={updated}>
   <div data-fd-page>
-    <LibraryHeader title="Color" art="paint" updated={updated} studio="/studio/tokens/?focus=color">
+    <LibraryHeader title="Color" art="paint" updated={updated} studio={studioHref('tokens/?focus=color')}>
       Every color has a job. Each group shows its tokens at work in both themes, then lists them. Design and build with these semantic tokens.
     </LibraryHeader>
 

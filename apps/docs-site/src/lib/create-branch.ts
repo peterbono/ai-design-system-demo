@@ -4,6 +4,7 @@
 // for a product: an exploration with the product's label (productMarks from @bridge-ds/core), handed to Claude with
 // one sentence to say. Pure: the dialog and its tests share it.
 import { defaultProduct, findProduct, parseJiraKey, type ProductConfig } from '@bridge-ds/core';
+import { studioHref } from './team-path';
 
 export type WorkKind = 'feature' | 'library';
 
@@ -76,4 +77,4 @@ export function claudePrompt(x: { sentence: string; product: ProductConfig; numb
 }
 
 /** Where the person lands once the feature started: the branch in place on the Branches page. */
-export const featureHref = (n: number) => `/studio/changes/?exploration=${n}`;
+export const featureHref = (n: number) => studioHref(`changes/?exploration=${n}`);

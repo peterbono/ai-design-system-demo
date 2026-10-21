@@ -7,6 +7,7 @@
 import type { StatusGroup } from './changes';
 import type { GuidanceState } from './components';
 import type { Issue } from './stats';
+import { studioHref } from './team-path';
 
 export type Severity = 'fail' | 'warn' | 'note' | 'pass';
 
@@ -163,7 +164,7 @@ export interface AdoptionRow {
 
 export const APP_SHORT: Record<string, string> = { admin: 'Admin demo', 'bridge-site': 'Bridge itself' };
 
-export const auditHref = (id: string) => `/studio/quality/audits/${id}/`;
+export const auditHref = (id: string) => studioHref(`quality/audits/${id}/`);
 
 interface Metrics {
   tokenAdoption: number | null;

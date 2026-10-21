@@ -15,9 +15,10 @@ import type { Lifecycle, LifecycleTone } from './change-status';
 import { LIFECYCLE, lifecycleTone } from './change-status';
 import { oneLineTitle } from './markdown';
 import { humanTitle } from './pr-title';
+import { studioHref } from './team-path';
 
 /** The Studio pages that can show a change. Everything else reads the latest library and drops ?change=. */
-export const VIEW_PAGES = ['/studio/tokens/', '/studio/components/', '/studio/quality/'] as const;
+export const VIEW_PAGES = [studioHref('tokens/'), studioHref('components/'), studioHref('quality/')] as const;
 
 const norm = (path: string) => path.replace(/\/?$/, '/');
 
@@ -52,7 +53,7 @@ export function scopeOf(search: string, path: string): LibraryScope {
   const list = parseChangeList(params.get('change'));
   if (!list.length) return LATEST;
   if (list.length > 1) return { kind: 'view', change: list[0]!, changes: list, use: params.get('use') || null };
-  const edit = params.get('edit') === '1' && norm(path) === '/studio/tokens/';
+  const edit = params.get('edit') === '1' && norm(path) === studioHref('tokens/');
   return { kind: edit ? 'edit' : 'view', change: list[0]! };
 }
 
@@ -109,14 +110,14 @@ export function keepScopeHref(href: string, scope: LibraryScope, base: string): 
   return url.pathname + (q ? `?${q}` : '') + url.hash;
 }
 
-export const viewInChangeHref = (n: number, path = '/studio/tokens/') => `${norm(path)}?change=${n}`;
+export const viewInChangeHref = (n: number, path = studioHref('tokens/')) => `${norm(path)}?change=${n}`;
 /** Studio Tokens (or another view page) showing several changes together, with the picks (core encodePicks). */
-export const viewTogetherHref = (numbers: number[], use: string, path = '/studio/tokens/') =>
+export const viewTogetherHref = (numbers: number[], use: string, path = studioHref('tokens/')) =>
   scopeHref({ pathname: norm(path), search: '' }, { kind: 'view', change: numbers[0]!, changes: numbers, use: use || null });
 /** Studio Tokens scoped to a change for editing ("Edit tokens in this change"). */
-export const editInChangeHref = (n: number) => `/studio/tokens/?change=${n}&edit=1`;
+export const editInChangeHref = (n: number) => studioHref(`tokens/?change=${n}&edit=1`);
 /** The change page. */
-export const changePageHref = (n: number) => `/studio/changes/?pr=${n}`;
+export const changePageHref = (n: number) => studioHref(`changes/?pr=${n}`);
 
 // ---------------------------------------------------------------------------------------------------------------
 // The selector: "Viewing: Latest library", then the open changes with their status.
@@ -381,7 +382,7 @@ export type ViewPage = 'tokens' | 'components' | 'quality';
 
 export function pageOf(path: string): ViewPage | null {
   const p = norm(path);
-  return p === '/studio/tokens/' ? 'tokens' : p === '/studio/components/' ? 'components' : p === '/studio/quality/' ? 'quality' : null;
+  return p === studioHref('tokens/') ? 'tokens' : p === studioHref('components/') ? 'components' : p === studioHref('quality/') ? 'quality' : null;
 }
 
 /** The banner's title: the one sentence of the mode, the same on every page. */

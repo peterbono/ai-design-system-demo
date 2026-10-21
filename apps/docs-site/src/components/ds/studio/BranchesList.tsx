@@ -22,6 +22,7 @@ import type { FileSignals } from '../../../lib/work-nature';
 import type { Lifecycle } from '../../../lib/change-status';
 import { VOCAB } from '../../../lib/vocabulary';
 import type { ProductConfig } from '@bridge-ds/core';
+import { studioHref } from '../../../lib/team-path';
 
 export interface ListRow {
   number: number;
@@ -187,7 +188,7 @@ export function BranchesList(p: BranchesListProps) {
         <p className="t-ui t-muted bl-note">
           {p.tierLabel ? `Showing ${p.tierLabel} only.` : onlyLine(finished.only)}{' '}
           <Link
-            href="/studio/changes/"
+            href={studioHref('changes/')}
             onClick={(e) => {
               if (p.tierLabel) return;
               e.preventDefault();

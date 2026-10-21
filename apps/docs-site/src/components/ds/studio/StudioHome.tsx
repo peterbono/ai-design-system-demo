@@ -35,6 +35,7 @@ import {
   type Person,
 } from '../../../lib/home-model';
 import { VOCAB } from '../../../lib/vocabulary';
+import { studioHref } from '../../../lib/team-path';
 
 /** One Needs you row: before/after, who, what and why, the status on the right (the shared BranchRow). */
 export function NeedRowItem({ row, selected, onSelect, action }: { row: NeedRow; selected?: boolean; onSelect?: (row: NeedRow) => void; action?: 'primary' | 'secondary' }) {
@@ -128,7 +129,7 @@ function OnlyReviewerHint({ needs, snoozed }: { needs: NeedRow[]; snoozed: boole
   return (
     <p className="t-ui t-muted sh-hint">
       <span>{line.text}</span>
-      <Link href="/studio/settings/#roles">Add a reviewer</Link>
+      <Link href={studioHref('settings/#roles')}>Add a reviewer</Link>
       <Button variant="ghost" size="sm" onClick={notNow}>
         Not now
       </Button>
@@ -148,7 +149,7 @@ function Needs({ needs, now, snoozed }: { needs: NeedRow[]; now: number; snoozed
             <b className="sh-strong">{more.label}</b>
             {more.parts && <span className="t-muted"> · {more.parts}</span>}
           </p>
-          <ButtonLink variant="primary" href="/studio/review/" className="sh-more-btn">
+          <ButtonLink variant="primary" href={studioHref('review/')} className="sh-more-btn">
             Review all
           </ButtonLink>
         </div>

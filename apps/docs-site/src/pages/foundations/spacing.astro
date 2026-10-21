@@ -13,11 +13,12 @@ const steps = primitiveRows('space').sort((a, b) => num(a.values.light) - num(b.
 const DENSITY = ['layout.inset', 'layout.gap', 'control.gap', 'control.padding-x.sm', 'control.padding-x.md', 'control.padding-x.lg', 'table.cell-padding-x'];
 const density = DENSITY.map((p) => foundationRow(p));
 import LibraryHeader from '../../components/LibraryHeader.astro';
+import { studioHref } from '../../lib/team-path';
 ---
 
 <Layout title="Spacing" description="The 4 px spacing scale and the density tokens built on it, shown in a real layout." sources={PAGE_SOURCES.spacing} updated={updated}>
   <div data-fd-page>
-    <LibraryHeader title="Spacing" art="foundations" updated={updated} studio="/studio/tokens/?focus=space">
+    <LibraryHeader title="Spacing" art="foundations" updated={updated} studio={studioHref('tokens/?focus=space')}>
       A 4 px base scale: step n is n &times; 4 px, with half steps where controls need them. Tight inside groups, generous between them. Fewer choices means more consistent screens.
     </LibraryHeader>
 

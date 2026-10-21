@@ -8,6 +8,7 @@
 import { resolveInheritedTokens, type ComponentCssRule, type ComponentDocs, type ComponentProp, type ExampleNode, type GuidanceItem, type ScannedComponent } from '@bridge-ds/core';
 import { repoModel } from './model';
 import { BRANDS, loadTokens, MODES } from './tokens';
+import { studioHref } from './team-path';
 
 const scan = repoModel.components!;
 
@@ -40,7 +41,7 @@ export function tokenCountLabel(c: Pick<ComponentInfo, 'tokenPaths' | 'inherited
 
 /** Studio Tokens filtered on the tokens a component paints with (own and inherited), or undefined when none. */
 export const editTokensHref = (c: Pick<ComponentInfo, 'slug' | 'allTokenPaths'>): string | undefined =>
-  c.allTokenPaths.length ? `/studio/tokens/?component=${encodeURIComponent(c.slug)}` : undefined;
+  c.allTokenPaths.length ? studioHref(`tokens/?component=${encodeURIComponent(c.slug)}`) : undefined;
 
 /**
  * Component slug -> name, token paths (own and inherited) and the components it inherits from, embedded for the

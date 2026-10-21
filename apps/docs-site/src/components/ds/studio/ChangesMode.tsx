@@ -11,6 +11,7 @@ import { ghAction } from '../../../lib/gh-wording';
 import { VOCAB } from '../../../lib/vocabulary';
 import { currentViewer, getToken, initGitHubConnect, prefersSignIn, type Viewer } from '../../../scripts/github-session';
 import { proposeChangesMode, readAppPermissions } from '../../../scripts/roles';
+import { studioHref } from '../../../lib/team-path';
 
 function ChoiceText({ mode }: { mode: ChangesMode }) {
   const c = CHANGES_CHOICE[mode];
@@ -220,7 +221,7 @@ export default function ChangesModeSetting({ set, repo, prefix, protectedBranche
               <strong>Review requested.</strong> It applies once your team approves and merges the branch.
             </p>
             <p>
-              <Link href={`/studio/changes/?pr=${done.number}`}>See the branch</Link> ·{' '}
+              <Link href={studioHref(`changes/?pr=${done.number}`)}>See the branch</Link> ·{' '}
               <Link href={done.url} external>
                 {VOCAB.openOnGitHub}
               </Link>

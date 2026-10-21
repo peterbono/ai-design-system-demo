@@ -20,6 +20,7 @@ import { agentMade } from '../../lib/work-nature';
 import { knownNames, paintPeople, personHtml } from '../people';
 import { markLogins, personName } from '../../lib/people';
 import { attrUrl } from '../../lib/html';
+import { studioHref } from '../../lib/team-path';
 
 /** Claude made the change when its description carries an AI agent marker (lib/work-nature). */
 const agentOf = (e: HistoryEntry) => agentMade({ body: e.pr?.body ?? null });
@@ -31,7 +32,7 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getEleme
 /** The Token filter field. The DS Input's Field gives the input its own id, so the page marks it with an attribute. */
 const tokenField = () => document.querySelector<HTMLInputElement>('[data-hs-token]')!;
 let L: Loaded | null = null;
-const BASE = '/studio/changes/?view=history';
+const BASE = studioHref('changes/?view=history');
 
 const repoUrl = () => {
   const r = L?.config.repo;
@@ -194,12 +195,12 @@ function paintNextRelease() {
   const viewer = hasWorkingToken() ? currentViewer()?.login : null;
   const mine = Boolean(viewer && holders.some((h) => h.toLowerCase() === viewer.toLowerCase()));
   const cta = $<HTMLAnchorElement>('hs-next-cta');
-  cta.href = `/studio/changes/?pr=${release.number}`;
+  cta.href = studioHref(`changes/?pr=${release.number}`);
   cta.dataset.openPr = String(release.number);
   cta.hidden = !mine;
   const who = $('hs-next-who');
   who.hidden = mine;
-  who.innerHTML = markLogins(`${holders.length ? `${esc(at(holders))} can publish it.` : 'An owner can publish it.'} <a href="/studio/changes/?pr=${esc(String(release.number))}" data-open-pr="${esc(String(release.number))}">See what it holds</a>`);
+  who.innerHTML = markLogins(`${holders.length ? `${esc(at(holders))} can publish it.` : 'An owner can publish it.'} <a href="${studioHref(`changes/?pr=${esc(String(release.number))}`)}" data-open-pr="${esc(String(release.number))}">See what it holds</a>`);
   void paintPeople(who);
 }
 

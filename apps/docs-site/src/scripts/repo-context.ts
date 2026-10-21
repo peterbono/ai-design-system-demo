@@ -12,6 +12,7 @@
 
 import { gitHubSource, GitHubError, loadRepoModel, type GitHubClient, type RepoModel, type RepoModelOptions, type SiteRepo } from '@bridge-ds/core';
 import { blobCacheFor, getCachedModel, putCachedModel } from './repo-cache';
+import { isHosted, repoFromPath } from '../lib/team-path';
 
 export interface RepoContext {
   owner: string;
@@ -24,34 +25,8 @@ export interface RepoContext {
 /** The repository a page without any context works on (the demo), as readRepo always did. */
 export const FALLBACK_REPO = { owner: 'peterbono', repo: 'ai-design-system-demo', defaultBranch: 'main' } as const;
 
-// GitHub's own limits: an owner is 1-39 alphanumerics or single hyphens, not starting with one; a repository name is
-// 1-100 of letters, digits, '.', '-', '_' (and never "." or "..").
-const OWNER = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/;
-const REPO = /^[A-Za-z0-9._-]{1,100}$/;
-
-/**
- * Owner and repository from a team address: /studio/<owner>/<repo>/... or /studio/~/<owner>/<repo>/... (the escape
- * form for an owner that shadows a Studio page). Null for any other path or an invalid name.
- */
-export function repoFromPath(pathname: string): { owner: string; repo: string } | null {
-  const parts = pathname.split('/').filter(Boolean);
-  if (parts[0] !== 'studio') return null;
-  const [owner, repo] = parts[1] === '~' ? [parts[2], parts[3]] : [parts[1], parts[2]];
-  if (!owner || !repo) return null;
-  let o: string;
-  let r: string;
-  try {
-    o = decodeURIComponent(owner);
-    r = decodeURIComponent(repo);
-  } catch {
-    return null;
-  }
-  if (!OWNER.test(o) || !REPO.test(r) || r === '.' || r === '..') return null;
-  return { owner: o, repo: r };
-}
-
-/** True on a team shell (the layout sets <html data-hosted>). */
-export const isHosted = (): boolean => typeof document !== 'undefined' && document.documentElement.hasAttribute('data-hosted');
+// The address parsing lives in lib/team-path.ts (pure, shared with studioHref); re-exported for existing callers.
+export { isHosted, repoFromPath };
 
 /** The settings a team shell learned from GitHub (loadTeamModel), keyed by "owner/repo" (lower case). */
 const runtime = new Map<string, { defaultBranch?: string; site?: SiteRepo }>();

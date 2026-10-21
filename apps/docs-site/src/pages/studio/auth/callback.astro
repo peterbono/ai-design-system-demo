@@ -9,6 +9,7 @@ import { Button, Link } from '@bridge-ds/react';
 import { GitHubMark } from '../../../components/ds/studio/brand-icons';
 import { signInConfig } from '../../../lib/signin-config';
 import { lastUpdated } from '../../../lib/repo';
+import { studioHref } from '../../../lib/team-path';
 
 const signIn = Boolean(signInConfig());
 const updated = lastUpdated(['apps/docs-site/src/pages/studio/auth/callback.astro', 'apps/docs-site/src/scripts/github-signin.ts', 'apps/docs-site/src/scripts/github-session.ts']);
@@ -22,7 +23,7 @@ const updated = lastUpdated(['apps/docs-site/src/pages/studio/auth/callback.astr
       <p class="auth-cb-sub" data-auth-sub role="status">{signIn ? 'Finishing the sign-in with GitHub.' : 'Sign in with GitHub is not set up on this site. Use a token from Settings instead.'}</p>
       <div class="auth-cb-actions st-hideable" data-auth-actions hidden>
         <Button variant="primary" iconStart={GitHubMark} data-gh-open data-gh-signin>Sign in again</Button>
-        <Link href="/studio/" data-auth-back>Back to Studio</Link>
+        <Link href={studioHref()} data-auth-back>Back to Studio</Link>
       </div>
     </div>
   </section>

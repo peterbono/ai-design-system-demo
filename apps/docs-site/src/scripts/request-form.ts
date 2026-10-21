@@ -19,6 +19,7 @@ import { INTENT_EVENT, INTENT_SET_EVENT, type IntentSetDetail } from '../compone
 import { currentViewer, esc, getToken, hasWorkingToken, initGitHubConnect, prefersSignIn, readRepo, setButtonBusy, setButtonLabel, showGhError, studioClient } from './github-session';
 import { explorationsConfig, startLinkedExploration } from './exploration-start';
 import { forgetRequests, integrations } from './requests';
+import { studioHref } from '../lib/team-path';
 
 const q = <T extends HTMLElement>(root: ParentNode, sel: string) => root.querySelector<T>(sel);
 
@@ -161,7 +162,7 @@ function showIntent(drawer: HTMLElement, intent: ChangeIntent | null) {
   if (foot) foot.hidden = Boolean(mode);
   if (look) {
     look.hidden = intent !== 'look';
-    look.href = drawer.dataset.tokensHref || '/studio/tokens/';
+    look.href = drawer.dataset.tokensHref || studioHref('tokens/');
     setButtonLabel(look, `Edit ${drawer.dataset.component ?? 'its'} tokens`);
   }
   if (mode) paintMode(drawer, form, mode);
@@ -336,7 +337,7 @@ export function initChangeFlow(drawer: HTMLElement) {
       if (mode !== 'explore') {
         resetChangeFlow(drawer);
         done.innerHTML = `<p><strong>${esc(sentLine(mode, created.number))}</strong></p>
-          <p><a href="/studio/changes/?request=${created.number}">See the request</a></p>`;
+          <p><a href="${studioHref(`changes/?request=${created.number}`)}">See the request</a></p>`;
         done.hidden = false;
         return;
       }
@@ -348,14 +349,14 @@ export function initChangeFlow(drawer: HTMLElement) {
       const warn = link && 'error' in link ? ` <span class="cg-muted">The request could not be linked to it: ${esc(link.error)}</span>` : '';
       resetChangeFlow(drawer);
       done.innerHTML = `<p><strong>${esc(s.lead)}</strong> ${esc(s.next)}${warn}</p>
-        <p><a href="/studio/changes/?exploration=${started.pr}">Open the exploration</a></p>`;
+        <p><a href="${studioHref(`changes/?exploration=${started.pr}`)}">Open the exploration</a></p>`;
       done.hidden = false;
     } catch (err) {
       if (sent !== null) {
         // The request exists: sending again would ask twice. Say so, and lead to the start from the request.
         resetChangeFlow(drawer);
         done.innerHTML = `<p><strong>Request #${sent} sent, but the exploration did not start.</strong> ${esc((err as Error).message)}</p>
-          <p><a href="/studio/changes/?view=explorations&amp;for=${sent}">Start the exploration from the request</a></p>`;
+          <p><a href="${studioHref(`changes/?view=explorations&amp;for=${sent}`)}">Start the exploration from the request</a></p>`;
         done.hidden = false;
         return;
       }

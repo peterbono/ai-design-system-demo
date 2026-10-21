@@ -5,6 +5,7 @@
 // that says how to fix it and a Sign in again button.
 import { callbackStep, type PendingSignIn, SIGNIN_TEXT } from '../lib/github-signin';
 import { PENDING_KEY, postToken, readSignInConfig, saveSignIn } from './github-session';
+import { studioHref } from '../lib/team-path';
 
 function readPending(): PendingSignIn | null {
   try {
@@ -43,7 +44,7 @@ export async function runCallback(): Promise<void> {
 
   const cfg = readSignInConfig();
   if (!cfg) {
-    fail(SIGNIN_TEXT.notConfigured, '/studio/settings/#connection');
+    fail(SIGNIN_TEXT.notConfigured, studioHref('settings/#connection'));
     return;
   }
   const step = callbackStep(params, location.origin, readPending(), cfg, Date.now());

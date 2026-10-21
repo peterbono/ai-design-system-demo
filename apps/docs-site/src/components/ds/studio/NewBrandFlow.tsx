@@ -42,6 +42,7 @@ import { ghAuthFailure, hasWorkingToken, tokenRejected } from '../../../scripts/
 import { type ProposedBrand, proposeBrand } from '../../../scripts/new-brand';
 import { ghAction, SEE_SUGGESTION, sendButton, sendGoal, SUGGEST_NEXT, SUGGESTION_SENT, suggestionSentLine } from '../../../lib/gh-wording';
 import { parseJiraKey, VOCAB } from '../../../lib/vocabulary';
+import { studioHref } from '../../../lib/team-path';
 
 export interface NewBrandFlowProps {
   files: Record<string, string>;
@@ -194,7 +195,7 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
           </h2>
           <p className="nb-lead">{draft.name} stays a draft on its own branch until design and tech approve it. The Library shows it once it is merged into main.</p>
           <div className="nb-actions">
-            <Button variant="primary" iconStart={GitBranch} render={<a href={`/studio/changes/?pr=${done.number}`} />}>
+            <Button variant="primary" iconStart={GitBranch} render={<a href={studioHref(`changes/?pr=${done.number}`)} />}>
               Open the branch
             </Button>
           </div>
@@ -435,7 +436,7 @@ export default function NewBrandFlow({ files, configText, contrastText, signIn =
 
       <div className="nb-actions">
         {draft.step === 0 ? (
-          <Button variant="secondary" render={<a href="/studio/tokens/" />}>
+          <Button variant="secondary" render={<a href={studioHref('tokens/')} />}>
             Cancel
           </Button>
         ) : (

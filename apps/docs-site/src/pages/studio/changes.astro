@@ -51,6 +51,7 @@ import { ghAction, ghButton } from '../../lib/gh-wording';
 import { signInConfig } from '../../lib/signin-config';
 import { REQUEST_TRIAGE_IN_STUDIO } from '../../lib/studio-flags';
 import { VOCAB } from '../../lib/vocabulary';
+import { studioHref } from '../../lib/team-path';
 
 const r = siteRepo();
 const checks = jsonForScript(readText(CONTRAST_FILE), { parse: true });
@@ -86,8 +87,8 @@ const signIn = Boolean(signInConfig());
     <div id="cg-main">
       <StudioHeader title="Branches">
         <Fragment slot="actions">
-          <Link href="/studio/changes/?view=history" id="cg-history-link" data-cg-view="history">History</Link>
-          <Link href="/studio/changes/" id="cg-back-link" data-back hidden>All {VOCAB.branches}</Link>
+          <Link href={studioHref('changes/?view=history')} id="cg-history-link" data-cg-view="history">History</Link>
+          <Link href={studioHref('changes/')} id="cg-back-link" data-back hidden>All {VOCAB.branches}</Link>
           <span class="cg-create" data-greet><StartChange client:load components={startComponents} /></span>
         </Fragment>
       </StudioHeader>
@@ -96,7 +97,7 @@ const signIn = Boolean(signInConfig());
         <div class="cg-draft" id="cg-draft" hidden>
           <Icon icon={siteIcon('draft')} size="md" className="icon" />
           <p><strong>Your draft:</strong> <span id="cg-draft-n">token edits</span>, only in this browser. <span id="cg-draft-dest"></span></p>
-          <ButtonLink size="sm" href="/studio/tokens/#review" data-keep-branch>{VOCAB.requestReview}</ButtonLink>
+          <ButtonLink size="sm" href={studioHref('tokens/#review')} data-keep-branch>{VOCAB.requestReview}</ButtonLink>
         </div>
         <p class="cg-muted" id="cg-asof" role="status" hidden></p>
 
@@ -109,7 +110,7 @@ const signIn = Boolean(signInConfig());
         <div class="cg-empty" id="cg-empty" hidden>
           <Illustration name="review" width={200} />
           <p class="cg-empty-title">No open {VOCAB.branch}.</p>
-          <p class="cg-muted">Create one, or start from <Link href="/studio/tokens/" data-keep-branch>Tokens</Link>: every {VOCAB.branch} in progress lands here.</p>
+          <p class="cg-muted">Create one, or start from <Link href={studioHref('tokens/')} data-keep-branch>Tokens</Link>: every {VOCAB.branch} in progress lands here.</p>
         </div>
       </section>
 
@@ -145,7 +146,7 @@ const signIn = Boolean(signInConfig());
           <Illustration name="guide" width={200} />
           <p class="cg-empty-title">No component change request yet.</p>
           <p class="cg-muted rq-empty-text">
-            Designers ask for a new component or a change from the Push tab of the DS Bridge Figma plugin, or from a component in <Link href="/studio/components/">Components</Link>.
+            Designers ask for a new component or a change from the Push tab of the DS Bridge Figma plugin, or from a component in <Link href={studioHref('components/')}>Components</Link>.
             Developers see each request where they work, on GitHub.
           </p>
         </div>
@@ -225,7 +226,7 @@ const signIn = Boolean(signInConfig());
           <p class="cg-open-sentence" id="hs-next-title">{historyLine}</p>
           <ul class="hs-next-lines" id="hs-next-lines" hidden></ul>
           <p class="cg-asof" id="hs-next-who" hidden></p>
-          <ButtonLink variant="primary" href="/studio/changes/" id="hs-next-cta" hidden>Review and publish</ButtonLink>
+          <ButtonLink variant="primary" href={studioHref('changes/')} id="hs-next-cta" hidden>Review and publish</ButtonLink>
         </section>
         <div class="cg-hs-head">
           <p class="cg-hs-line">Token changes, by release</p>

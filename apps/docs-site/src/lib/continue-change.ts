@@ -5,6 +5,7 @@
 import { addedComment as coreAddedComment, canAddTo, changeKind, changesetBump, composeChangeset, threeWayDiff, type AcceptedChange, type ChangesetOptions, type TokenSet } from '@bridge-ds/core';
 import type { Draft } from './editor-model';
 import { withoutJiraKey } from './vocabulary';
+import { studioHref } from './team-path';
 
 /** The fields of a GitHub pull request these rules read (REST shape). */
 export interface ChangePullLike {
@@ -172,7 +173,7 @@ export function dropEdits<D extends Draft>(draft: D, paths: string[]): D {
 }
 
 /** The change page, where both values show (its token diff) and the library conflict flow lives. */
-export const conflictHref = (n: number) => `/studio/changes/?pr=${n}`;
+export const conflictHref = (n: number) => studioHref(`changes/?pr=${n}`);
 
 // ---------------------------------------------------------------------------------------------------------------
 // Words

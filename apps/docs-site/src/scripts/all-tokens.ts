@@ -2,6 +2,7 @@
 // Rows are static HTML; this only hides, selects and fills the panel. Copy buttons use the shell's [data-copy].
 import { matchesRow, normalizeQuery, rowForLink, type AllModeValue, type AllType } from '../lib/all-tokens';
 import { announce } from './shell';
+import { studioHref } from '../lib/team-path';
 
 interface PanelToken {
   cssVar: string;
@@ -168,7 +169,7 @@ export function initAllTokens() {
         elsewhere.hidden = false;
         const name = elsewhere.querySelector('[data-at-elsewhere-name]');
         if (name) name.textContent = link;
-        elsewhere.querySelector('[data-at-elsewhere-link]')?.setAttribute('href', `/studio/tokens/?focus=${encodeURIComponent(link)}`);
+        elsewhere.querySelector('[data-at-elsewhere-link]')?.setAttribute('href', studioHref(`tokens/?focus=${encodeURIComponent(link)}`));
         q.addEventListener('input', () => (elsewhere.hidden = true), { once: true });
       }
     }

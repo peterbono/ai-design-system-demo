@@ -19,6 +19,7 @@ import type { WorkspaceStorybook } from '../../../lib/workspace';
 import { doneCount, doneSummary, firstRunTitle, progressLabel, STEP_TITLE, type Step, type StepId } from '../../../lib/onboarding';
 import { CHANGES_CHOICE } from '../../../lib/settings-view';
 import { VOCAB } from '../../../lib/vocabulary';
+import { studioHref } from '../../../lib/team-path';
 
 export interface OnboardingContext {
   repo: string;
@@ -292,7 +293,7 @@ export function Onboarding({ steps, name, initial, ctx, actions }: OnboardingPro
             <p className="onb-done">
               <Icon icon={Check} size="sm" />
               <span>
-                Chosen: <b className="onb-strong">{step.detail}</b>. <Link href="/studio/settings/#changes">Change it in Settings</Link>
+                Chosen: <b className="onb-strong">{step.detail}</b>. <Link href={studioHref('settings/#changes')}>Change it in Settings</Link>
               </span>
             </p>
           ) : sent || step.state === 'waiting' ? (
@@ -301,7 +302,7 @@ export function Onboarding({ steps, name, initial, ctx, actions }: OnboardingPro
                 <strong>Review requested{sent ? `, #${sent.number}` : ''}.</strong> {sent ? CHANGES_CHOICE[mode].title : step.detail}. It applies once your team approves and merges the branch.
               </p>
               <p>
-                <Link href={`/studio/changes/?pr=${sent?.number ?? step.pr ?? ''}`}>See the branch</Link>
+                <Link href={studioHref(`changes/?pr=${sent?.number ?? step.pr ?? ''}`)}>See the branch</Link>
               </p>
             </div>
           ) : (

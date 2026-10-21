@@ -19,9 +19,10 @@ import type { ThumbSpec, ThumbToken } from './branch-thumb';
 import { branchThumb } from './branch-thumb';
 import type { ShownValue } from './token-review';
 import { waitingLabel, type NeedRow, type Person } from './home-model';
+import { studioHref } from './team-path';
 
 /** Where a suggestion opens in Studio: Branches, in place (pages/studio/changes.astro). */
-export const suggestionHref = (n: number) => `/studio/changes/?suggestion=${n}`;
+export const suggestionHref = (n: number) => studioHref(`changes/?suggestion=${n}`);
 
 /** The queue key of a suggestion row (lib/queue-nav keyFromSearch reads it back from ?item=). */
 export const suggestionKey = (n: number) => `suggestion-${n}`;

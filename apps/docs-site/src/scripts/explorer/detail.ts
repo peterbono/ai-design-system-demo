@@ -7,7 +7,7 @@ import { contextLabel, TIER_NAMES, tokenHistory } from '@bridge-ds/core';
 import { contrastMeta, definedIn, splitDescription, summarySentence, usedByRows, type UsedByRow } from '../../lib/explorer/detail-summary';
 import { aliasLabel, bezierPath, CATEGORY_LABEL, codeSyntax, colorAlpha, isForeground, numericValue, STUDIO_TIER_NAMES, SYNTAX_LABEL, type Syntax } from '../../lib/explorer/format';
 import { componentsUsing, contrastFor, stylesUsing, usedByLine, directDependents, introducedIn, transitiveDependents, upstreamLanes, type PairRow } from '../../lib/explorer/flow';
-import { cellValue, pairedBackground, studioHref, type CellValue, type Column } from '../../lib/explorer/model';
+import { cellValue, pairedBackground, tokenFocusHref, type CellValue, type Column } from '../../lib/explorer/model';
 import { activeReport, loadHistory } from '../history/state';
 import type { ExplorerData, ExplorerState, View } from './types';
 import { swatchLabel } from '../../lib/explorer/swatch-ramp';
@@ -329,7 +329,7 @@ function renderLibraryDetail(host: HTMLElement, d: ExplorerData, view: View, pat
         ${named}
       </div>
     </div>
-    <div class="xp-d-editbar xp-dd-editbar" data-maintainer-only><a class="btn btn-primary xp-dd-edit" href="${esc(studioHref(path))}" data-xp-studio>${icon('pencil', 16)}Edit in Studio</a></div>`;
+    <div class="xp-d-editbar xp-dd-editbar" data-maintainer-only><a class="btn btn-primary xp-dd-edit" href="${esc(tokenFocusHref(path))}" data-xp-studio>${icon('pencil', 16)}Edit in Studio</a></div>`;
   host.querySelectorAll<HTMLElement>('[data-xp-more]').forEach((b) =>
     b.addEventListener('click', (e) => {
       e.stopPropagation();

@@ -18,6 +18,7 @@ import LibraryHeader from '../components/LibraryHeader.astro';
 import VersionMenu from '../components/ds/VersionMenu';
 import ReleaseEntries, { KINDS, type EntryRow } from '../components/ds/ReleaseEntries';
 import '../styles/process.css';
+import { studioHref } from '../lib/team-path';
 
 const all = releases();
 const updated = all.find((r) => r.date)?.date ?? freshness(PAGE_SOURCES.changelog);
@@ -42,7 +43,7 @@ const latest = all.find((r) => !r.pending);
 <Layout title="Changelog" description="What changed in the design system, what it means for you, and a message ready to post." sources={['CHANGELOG.md', '.changeset']} updated={updated}>
   <LibraryHeader title="Changelog" art="guide" updated={updated}>
     What changed in each release of the design system and what it means for you, with an announcement ready to paste
-    into Slack or an email. For the token-by-token history, open <Link href="/studio/changes/?view=history">History in the Studio</Link>.
+    into Slack or an email. For the token-by-token history, open <Link href={studioHref('changes/?view=history')}>History in the Studio</Link>.
     <Fragment slot="actions">
       <VersionMenu
         client:idle

@@ -17,7 +17,7 @@ import {
   modesOf,
   planColumns,
   resolveFocus,
-  studioHref,
+  tokenFocusHref,
   varyingOf,
   type Selection,
   type UsageMap,
@@ -39,6 +39,7 @@ import { selectSegment } from '../shell';
 import { buildTokenSet, contrastScope, evaluatePairs, formatValue, layoutOptions, loadConfig } from '@bridge-ds/core';
 import { bannerBody, changedTokens, isTogether } from '../../lib/view-scope';
 import { currentPull, pageScope, readFailure, scopeLibrary, setBannerBody, setBannerError } from '../view-change';
+import { studioHref } from '../../lib/team-path';
 
 const NARROW = '(max-width: 1099px)';
 let historyPanelReady = false;
@@ -235,7 +236,7 @@ export function initTokenExplorer() {
     const door = document.querySelector<HTMLAnchorElement>('[data-xp-studio-link]');
     if (door) {
       const f = s.selected ?? (sel.lens === 'collections' ? sel.group : undefined);
-      door.href = f ? studioHref(f) : '/studio/tokens/';
+      door.href = f ? tokenFocusHref(f) : studioHref('tokens/');
     }
     try {
       history.replaceState(null, '', `${location.pathname}?${p.toString()}`);
