@@ -47,6 +47,7 @@ import {
 import { badgeHtml, closeDialog, openDialog, tokenValueHtml } from '@bridge-ds/react/dom';
 import { pullEntry, type BranchesConfig } from '../lib/branches';
 import type { Root } from 'react-dom/client';
+import { cssValue } from '../lib/html';
 import { currentViewer, esc, ghGet, GitHubError, studioClient, hasWorkingToken, initGitHubConnect, prefersSignIn, RateLimitError, readRepo, showGhError } from './github-session';
 import { ghAction, ghVerb } from '../lib/gh-wording';
 import { analyzeTokenFiles, isTokenFile, type TokenReview } from './reviews/token-review';
@@ -103,6 +104,7 @@ import type { BranchesListProps, ListRow } from '../components/ds/studio/Branche
 import { conflictLine, conflictRows, freshness, libraryLine, nextSteps, resolveLabel, type CompareLike, type Freshness } from '../lib/library-sync';
 import { bringInLatest, checkGuardrail, commitResolution, readCompare, readConflicts, readDismissStale, waitForNewHead } from './reviews/library-sync';
 import { AGENT_NAME, isClaudeLogin } from '../lib/people';
+import { safeUrl } from '../lib/html';
 
 interface User {
   login: string;
@@ -636,7 +638,7 @@ export async function openPr(n: number, push = true) {
             const state: VisualView['state'] = v.error ? 'error' : v.changed === null ? 'not-run' : v.changed === 0 ? 'no-change' : 'changes';
             const base = productPreviewOf(pull, comments, statuses);
             const screen = topScreen(v.shots);
-            repaint({ visual: { state, shots: v.shots ?? [], base: v.base, error: v.error, ask: Boolean(v.paintedTop) }, tryUrl: base && state === 'changes' ? tryInProductUrl(base, pull.number, screen) : null, actions: { ...view!.actions, menu: { ...view!.actions.menu, share: view!.actions.menu.share && state === 'changes' } } });
+            repaint({ visual: { state, shots: v.shots ?? [], base: v.base, error: v.error, ask: Boolean(v.paintedTop) }, tryUrl: base && state === 'changes' ? safeUrl(tryInProductUrl(base, pull.number, screen)) || null : null, actions: { ...view!.actions, menu: { ...view!.actions.menu, share: view!.actions.menu.share && state === 'changes' } } });
           })
           .catch((err) => repaint({ visual: { state: 'error', shots: [], error: (err as Error).message } }));
     }
@@ -654,7 +656,8 @@ async function productPreviewFor(n: number): Promise<string | null> {
     const p = (await ghGet<Pull>(`${R}/pulls/${n}`)).data;
     const statuses = await ghGet<{ statuses: { context: string; state: string; target_url?: string | null }[] }>(`${R}/commits/${p.head.sha}/status`).then((f) => f.data.statuses).catch(() => []);
     const base = productPreviewOf(p, [], statuses);
-    return base ? tryInProductUrl(base, p.number, null) : null;
+    // Rendered by React 18 as an href: a javascript: or data: preview URL from a comment or status is dropped.
+    return base ? safeUrl(tryInProductUrl(base, p.number, null)) || null : null;
   } catch {
     return null;
   }
@@ -1294,7 +1297,7 @@ export function renderTokenReview(review: TokenReview): string {
   const rows = review.changes
     .map(
       (c) => `<tr>
-        <th scope="row"><span class="mono">${esc(c.path)}</span><span class="rv-kind-tag is-${c.kind}">${c.kind}</span>${c.context ? `<span class="muted small">${esc(c.context)}</span>` : ''}</th>
+        <th scope="row"><span class="mono">${esc(c.path)}</span><span class="rv-kind-tag is-${esc(c.kind)}">${esc(c.kind)}</span>${c.context ? `<span class="muted small">${esc(c.context)}</span>` : ''}</th>
         <td>${valueCell(c.before, true)}</td>
         <td><span class="rv-arrow"><span aria-hidden="true">→</span><span class="sr-only">becomes</span></span></td>
         <td>${valueCell(c.after)}</td>
@@ -1307,11 +1310,11 @@ export function renderTokenReview(review: TokenReview): string {
   const contrastTable = `<div class="table-wrap"><table class="rv-table rv-contrast"><thead><tr><th scope="col">Pair</th><th scope="col">Where</th><th scope="col">Before</th><th scope="col">After</th><th scope="col">Min</th></tr></thead><tbody>${review.contrast
          .map(
            (p) => `<tr class="${p.after < p.min ? 'is-fail' : p.after < p.before ? 'is-down' : ''}">
-          <th scope="row"><span class="rv-pair"><span class="rv-aa" style="background-color:${esc(p.bgHexAfter)};color:${esc(p.fgHexAfter)}">Aa</span><span class="mono small">${esc(p.fg)}<br><span class="muted">on</span> ${esc(p.bg)}</span></span></th>
+          <th scope="row"><span class="rv-pair"><span class="rv-aa" style="background-color:${cssValue(p.bgHexAfter)};color:${cssValue(p.fgHexAfter)}">Aa</span><span class="mono small">${esc(p.fg)}<br><span class="muted">on</span> ${esc(p.bg)}</span></span></th>
           <td class="small">${esc(p.where)}</td>
           <td class="num">${p.before.toFixed(2)}:1</td>
           <td class="num"><strong>${p.after.toFixed(2)}:1</strong> ${p.after < p.min ? badgeHtml('Fails', { tone: 'danger', size: 'sm' }) : p.after >= p.before ? '' : badgeHtml('Lower', { tone: 'warning', size: 'sm' })}</td>
-          <td class="num">${p.min}:1</td></tr>`,
+          <td class="num">${esc(String(p.min))}:1</td></tr>`,
          )
          .join('')}</tbody></table></div>`;
   const contrast = !n

@@ -17,6 +17,7 @@
 //   "Open on GitHub" link on its Account line.
 // The old Repository, Governance and Integrations pages redirect to these anchors (lib/redirects.ts); the anchors of
 // the former developer section (#developer, #tiers-and-modes, #mcp...) land on the section that now says it.
+import { jsonForScript } from '../../../lib/html';
 import '../../../styles/settings.css';
 import '../../../styles/requests.css';
 import '../../../styles/onboarding.css';
@@ -59,11 +60,11 @@ const roles = roleRows(r.owners, r.rights);
 const solo = soloOwnerRow(r);
 const mode = r.visualImpact.mode;
 const choices = (['design', 'tech', 'both'] as RightChoice[]).map((c) => ({ value: c, label: CHOICE_LABEL[c] }));
-const rolesData = JSON.stringify({
+const rolesData = jsonForScript({
   prefix: config.governance?.branchPrefix ?? '',
   protectedBranches: config.governance?.protectedBranches ?? ['main', 'master'],
   owners: r.owners,
-}).replace(/</g, '\\u003c');
+});
 
 // Figma and Claude rows.
 const plugin = pluginListing(exists(pluginReadme) ? readText(pluginReadme) : '');
@@ -82,12 +83,12 @@ const workflowFile = '.github/workflows/bridge-jira.yml';
 const workflowUrl = `${ghRepo}/blob/${r.defaultBranch}/${workflowFile}`;
 // How the Jira mirror works, for whoever adds the credentials: docs/REQUESTS.md on GitHub.
 const jiraHelpUrl = `${ghRepo}/blob/${r.defaultBranch}/docs/REQUESTS.md`;
-const intData = JSON.stringify({
+const intData = jsonForScript({
   prefix: config.governance?.branchPrefix ?? '',
   protectedBranches: config.governance?.protectedBranches ?? ['main', 'master'],
   workflowUrl,
   secretsUrl,
-}).replace(/</g, '\\u003c');
+});
 const signIn = Boolean(signInConfig());
 const changes = changesInConfig(config);
 ---

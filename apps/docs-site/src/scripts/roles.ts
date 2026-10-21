@@ -11,7 +11,7 @@
 import { classifyRisk, DEFAULT_RIGHTS, type Owners, type Rights, type VisualImpactMode } from '@bridge-ds/core';
 import { choiceOf, groupsOf, roleRows, rolesProposal, sameOwners, withRoles, type RightChoice } from '../lib/roles-view';
 import { selectSegment } from './shell';
-import { esc, getToken, ghGet, prefersSignIn, readRepo, readSignInConfig, sessionMode, setButtonBusy, setButtonDisabled, showGhError, studioClient } from './github-session';
+import { getToken, ghGet, prefersSignIn, readRepo, readSignInConfig, sessionMode, setButtonBusy, setButtonDisabled, prLinksHtml, showGhError, studioClient } from './github-session';
 import { ghAction } from '../lib/gh-wording';
 import { changesProposal, withChanges, type AppPermissions } from '../lib/settings-view';
 import { installationFor, type InstallationLike } from '../lib/github-signin';
@@ -144,7 +144,7 @@ function initForm(form: HTMLFormElement) {
       const pr = await gh.createPullRequest({ title: p.title, head: branch, base: repo.defaultBranch, body: p.body, draft: false });
       await gh.addLabels(pr.number, ['config', 'source: bridge-web', `tier-${risk.tier}`]).catch(() => false);
       done.innerHTML = `<p><strong>Review requested.</strong> It applies once your team approves and merges the branch.</p>
-        <p><a href="/studio/changes/?pr=${pr.number}">See the branch</a> · <a href="${esc(pr.url)}" target="_blank" rel="noopener">Open on GitHub</a></p>`;
+        <p>${prLinksHtml(pr)}</p>`;
       setEditing(false);
       done.hidden = false;
     } catch (err) {

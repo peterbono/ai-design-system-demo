@@ -19,6 +19,7 @@ import { jiraKeyOf, VOCAB, withoutJiraKey } from '../../lib/vocabulary';
 import { agentMade } from '../../lib/work-nature';
 import { knownNames, paintPeople, personHtml } from '../people';
 import { markLogins, personName } from '../../lib/people';
+import { attrUrl } from '../../lib/html';
 
 /** Claude made the change when its description carries an AI agent marker (lib/work-nature). */
 const agentOf = (e: HistoryEntry) => agentMade({ body: e.pr?.body ?? null });
@@ -62,7 +63,7 @@ const jiraOf = (e: HistoryEntry) => jiraKeyOf(e.title) ?? jiraKeyOf(historySumma
 
 /** A row: summary and #, what approval it needed in plain words (or Demo), the date. Counts live in the detail. */
 function row(e: HistoryEntry, demo: boolean): string {
-  const num = e.pr ? ` <span class="cg-num">#${e.pr.number}</span>` : '';
+  const num = e.pr ? ` <span class="cg-num">#${esc(String(e.pr.number))}</span>` : '';
   const key = jiraOf(e);
   const tag = `<span class="cg-need">${e.bulk ? 'Import' : `${demo ? 'Demo, ' : ''}${approvalNeedLabel(e.tier)}`}</span>`;
   return `<li class="cg-row"><a class="cg-row-link" href="${entryHref(e)}" data-hs-open="${esc(e.id)}">
@@ -127,7 +128,7 @@ function paintDetail(e: HistoryEntry, demo: boolean) {
   // The developer view of it (the merged branch, else what landed on main) is one quiet link on the author line.
   const ref = demo
     ? '<span>Fixture change</span>'
-    : `<a class="cg-gh" href="${esc(e.pr ? (e.pr.url ?? `${repoUrl()}/pull/${e.pr.number}`) : `${repoUrl()}/commit/${e.sha}`)}" target="_blank" rel="noopener">${VOCAB.openOnGitHub}<span class="sr-only"> (opens in a new tab)</span></a>`;
+    : `<a class="cg-gh" href="${attrUrl(e.pr ? (e.pr.url ?? `${repoUrl()}/pull/${e.pr.number}`) : `${repoUrl()}/commit/${e.sha}`)}" target="_blank" rel="noopener">${VOCAB.openOnGitHub}<span class="sr-only"> (opens in a new tab)</span></a>`;
   const facts = [e.bulk ? 'Import' : approvalNeedLabel(e.tier), e.breaking ? 'breaking' : '', e.version && e.version !== 'Unreleased' ? e.version : 'next release'].filter(Boolean).join(', ');
   $('hs-detail').innerHTML = `<nav class="cg-crumbs" aria-label="Breadcrumb"><a href="${BASE}" data-hs-back>History</a><span aria-hidden="true">/</span><span>${esc(e.pr ? `#${e.pr.number}` : title(e))}</span></nav>
     <header class="zone cg-pr-open">
@@ -198,7 +199,7 @@ function paintNextRelease() {
   cta.hidden = !mine;
   const who = $('hs-next-who');
   who.hidden = mine;
-  who.innerHTML = markLogins(`${holders.length ? `${esc(at(holders))} can publish it.` : 'An owner can publish it.'} <a href="/studio/changes/?pr=${release.number}" data-open-pr="${release.number}">See what it holds</a>`);
+  who.innerHTML = markLogins(`${holders.length ? `${esc(at(holders))} can publish it.` : 'An owner can publish it.'} <a href="/studio/changes/?pr=${esc(String(release.number))}" data-open-pr="${esc(String(release.number))}">See what it holds</a>`);
   void paintPeople(who);
 }
 

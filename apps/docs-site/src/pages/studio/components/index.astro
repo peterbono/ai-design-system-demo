@@ -8,6 +8,7 @@
 // leads to her component's tokens, to an exploration Claude builds from her Figma frame, or to a mismatch report
 // (scripts/request-form.ts, lib/change-intent.ts). No developer fold: the code is one "Open on GitHub" link on the
 // summary line, next to "Open in the Library".
+import { jsonForScript } from '../../../lib/html';
 import '../../../styles/studio.css';
 import '../../../styles/components-studio.css';
 import '../../../styles/requests.css';
@@ -64,7 +65,7 @@ const primary = componentsPrimary(rows, docsEditHref);
 const docsLabel = (g: string) => (g === 'missing' ? 'Add guidance' : g === 'review' ? 'Review guidance' : 'Edit docs');
 // Add a variant or option starts an exploration: the repository and its preview settings, as Changes embeds them.
 const site = siteRepo();
-const branchesJson = JSON.stringify({ owner: site.owner, repo: site.repo, defaultBranch: site.defaultBranch, apps: PREVIEW_APPS, packages: PREVIEW_PACKAGES }).replace(/</g, '\\u003c');
+const branchesJson = jsonForScript({ owner: site.owner, repo: site.repo, defaultBranch: site.defaultBranch, apps: PREVIEW_APPS, packages: PREVIEW_PACKAGES });
 const signIn = Boolean(signInConfig());
 ---
 

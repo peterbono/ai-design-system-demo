@@ -70,6 +70,7 @@ import { addToChange, loadChangeTokens, readChange, readTargets } from './contin
 import { scopeHref, scopeOf } from '../lib/view-scope';
 import { ConflictNotice, ScopeBanner, TargetChoice as TargetChoiceView, mountInto, unmountFrom } from '../components/ds/studio/ContinueChange';
 import { createElement } from 'react';
+import { attrUrl } from '../lib/html';
 
 /** Components that paint with a token (build-time usage embedded by the explorer), for the docs notes of a proposal. */
 function usedByComponents(path: string): string[] {
@@ -229,7 +230,7 @@ function paintTray() {
       (moves.length
         ? `<li class="ed-tray-contrast"><p class="small"><strong>Contrast moves</strong></p><ul>${moves
             .slice(0, 10)
-            .map((m) => `<li class="${m.after < m.min ? 'is-fail' : ''}"><span class="mono small">${esc(m.fg)} on ${esc(m.bg)}</span> <span class="small muted">${esc(m.where)}</span> <span class="num small">${m.before?.toFixed(2) ?? '?'} -> ${m.after.toFixed(2)} (min ${m.min})</span></li>`)
+            .map((m) => `<li class="${m.after < m.min ? 'is-fail' : ''}"><span class="mono small">${esc(m.fg)} on ${esc(m.bg)}</span> <span class="small muted">${esc(m.where)}</span> <span class="num small">${m.before?.toFixed(2) ?? '?'} -> ${m.after.toFixed(2)} (min ${esc(String(m.min))})</span></li>`)
             .join('')}</ul></li>`
         : '') +
       (S.checks.blocking.length
@@ -925,7 +926,7 @@ function showSent(sent: Extract<Sent, { kind: 'suggestion' }>) {
     setButtonLabel(close, 'Done');
   }
   const out = $('ed-propose-status');
-  if (out) out.innerHTML = `${esc(suggestionSentLine(sent.number))} <a href="${esc(sent.url)}" target="_blank" rel="noopener">${esc(SEE_SUGGESTION)}</a>${sent.warnings.length ? ` <span class="muted">${esc(sent.warnings.join(' '))}</span>` : ''}`;
+  if (out) out.innerHTML = `${esc(suggestionSentLine(sent.number))} <a href="${attrUrl(sent.url)}" target="_blank" rel="noopener">${esc(SEE_SUGGESTION)}</a>${sent.warnings.length ? ` <span class="muted">${esc(sent.warnings.join(' '))}</span>` : ''}`;
 }
 
 /** Back to the send state after a suggestion was shown (the next open of the dialog). */

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mdTitleHtml, mdTitleText, oneLineTitle, truncateWords } from './markdown';
+import { inline, mdTitleHtml, mdTitleText, oneLineTitle, truncateWords } from './markdown';
 
 describe('mdTitleText', () => {
   it('drops backticks, bold markers and link targets', () => {
@@ -59,5 +59,40 @@ describe('truncateWords', () => {
   });
   it('cuts a single long word hard', () => {
     expect(truncateWords('abcdefghijklmnopqrstuvwxyz', 10)).toBe('abcdefghi…');
+  });
+});
+
+describe('inline (XSS)', () => {
+  it('keeps safe links and marks external ones as user content', () => {
+    expect(inline('See [the guide](/docs/guide/) or [GitHub](https://github.com/a/b)')).toBe(
+      'See <a href="/docs/guide/">the guide</a> or <a href="https://github.com/a/b" rel="noopener noreferrer nofollow ugc">GitHub</a>',
+    );
+  });
+  it('renders javascript:, data: and vbscript: links as plain text', () => {
+    for (const url of ['javascript:void%200', 'JaVaScRiPt:alert`1`', 'data:text/html;base64,PHNjcmlwdD4=', 'vbscript:msgbox'])
+      expect(inline(`[click](${url})`)).toBe('click');
+    // The target ends at the first closing parenthesis: still no link.
+    expect(inline('[click](javascript:alert(1))')).toBe('click)');
+  });
+  it('cannot break out of the href attribute', () => {
+    const out = inline('[x](https://a.dev/"onmouseover="alert(1))');
+    expect(out).not.toContain('"onmouseover');
+    expect(out).toContain('&quot;onmouseover=&quot;alert(1');
+    expect(inline(`[x](/a'onclick='alert(1))`)).not.toContain(`'onclick`);
+  });
+  it('escapes raw HTML in text, code and bold', () => {
+    const out = inline('<img src=x onerror=alert(1)> `<script>` **<b>**');
+    expect(out).toBe('&lt;img src=x onerror=alert(1)&gt; <code>&lt;script&gt;</code> <strong>&lt;b&gt;</strong>');
+  });
+  it('keeps escaped entities in a link target as the literal URL', () => {
+    expect(inline('[q](https://x.dev/?a=1&b=2)')).toContain('href="https://x.dev/?a=1&amp;b=2"');
+  });
+});
+
+describe('mdTitleHtml (XSS)', () => {
+  it('drops links and escapes HTML from PR and changeset titles', () => {
+    const out = mdTitleHtml('[x](javascript:alert(1)) <img src=x onerror=alert(1)> `"><svg onload=alert(1)>`');
+    expect(out).not.toMatch(/<(img|svg|a)\b/);
+    expect(out).not.toContain('javascript:');
   });
 });

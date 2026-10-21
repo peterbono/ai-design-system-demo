@@ -9,6 +9,7 @@ import { Avatar, Badge, Button, Card, CardBody } from '@bridge-ds/react';
 import { GitHubMark } from './brand-icons';
 import { accountView, type AccountState } from '../../../lib/settings-view';
 import { currentViewer, getToken, initGitHubConnect, onAccess, sessionMode, tokenRejected, type Viewer } from '../../../scripts/github-session';
+import { safeUrl } from '../../../lib/html';
 
 export interface SettingsAccountProps {
   /** owner/repo, as the page reads it. */
@@ -81,7 +82,7 @@ export default function SettingsAccount({ repo, children, signIn = false }: Sett
     <Card data-state={state}>
       <CardBody>
         <div className="set-account" aria-live="polite">
-          {viewer && <Avatar name={viewer.name || viewer.login} src={`${viewer.avatar_url}${viewer.avatar_url.includes('?') ? '&' : '?'}s=64`} size="md" decorative />}
+          {viewer && <Avatar name={viewer.name || viewer.login} src={safeUrl(viewer.avatar_url) ? `${viewer.avatar_url}${viewer.avatar_url.includes('?') ? '&' : '?'}s=64` : undefined} size="md" decorative />}
           <div className="set-account-text">
             <p className="set-account-title">
               {view.title}
