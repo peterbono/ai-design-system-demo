@@ -338,12 +338,16 @@ export const REVIEW_STATUS_ORDER: Record<ReviewStatusKind, number> = {
 };
 
 /**
- * One status chip for a pull request, from real data. Same rules and order as the pull request header
- * (lib/changes needFromDetail): lifecycle, draft, CI failing, changes requested, merge conflict, CI running, then
- * missing approvals (Tier 3 by default), then ready. `mergeable` null means GitHub has not computed it yet: the chip
- * reads "Checking" instead of an approval or "Ready to ship", so a list never says something the detail contradicts.
- * Undefined means it was not read: no conflict known. `ready` is returned only when mergeGate allows the merge.
- * Unknown CI or reviews (null, still loading or failed) never read as ready.
+ * The one status of a pull request, from real data: every surface (the Studio list, the branch page, the home, the
+ * MCP server and the CLI) derives it here, so the same branch never reads two ways. Same rules and order as the merge
+ * gate: lifecycle, draft, CI failing, changes requested, merge conflict, CI running, then missing approvals (Tier 3 by
+ * default), then ready.
+ *
+ * A repo with no automated checks (`ci.state` "none") is a calm state of its own, never "Checking" or unknown: the
+ * status comes from the approvals, as for any branch. `mergeable` null means GitHub has not computed whether it merges
+ * cleanly yet: that never hides a missing approval (it is missing either way), it only keeps "Ready to merge" back
+ * ("checking") until GitHub answers. Undefined means it was not read: no conflict known. `ready` is returned only when
+ * mergeGate allows the merge. Unknown CI or reviews (null: the read failed) never read as ready.
  */
 export function reviewStatusKind(input: {
   state?: string;
@@ -364,15 +368,43 @@ export function reviewStatusKind(input: {
   if (input.mergeable === false) return out('conflict');
   if (input.ci?.state === 'pending') return out('ci-running');
   if (!input.ci || !input.approvals) return out('unknown');
-  if (input.mergeable === null) return out('checking');
   const tier = input.tier ?? 3;
   if (tier >= 2) {
     if (!input.approvals.design) return out('needs-design');
     if (!input.approvals.tech) return out('needs-tech');
   } else if (!input.approvals.approvers.length) return out('needs-approval');
+  if (input.mergeable === null) return out('checking');
   const gate = mergeGate({ tier: input.tier, ci: input.ci, approvals: input.approvals, draft: Boolean(input.draft), mergeable: input.mergeable, state: input.state ?? 'open', merged_at: input.merged_at });
   return gate.allowed ? out('ready') : out('unknown');
 }
+
+/**
+ * The words of each status, the same in Studio, the MCP server and the CLI. "checking" only ever means GitHub is still
+ * working out whether an approved branch merges cleanly; it never stands for missing tests.
+ */
+export const REVIEW_STATUS_LABEL: Record<ReviewStatusKind, string> = {
+  merged: 'Merged',
+  closed: 'Closed',
+  draft: 'Draft',
+  'ci-failing': 'Blocked by tests',
+  'changes-requested': 'Changes requested',
+  'ci-running': 'Tests running',
+  'needs-design': 'Needs design approval',
+  'needs-tech': 'Needs tech approval',
+  'needs-approval': 'Needs approval',
+  conflict: 'Conflict with main',
+  checking: 'Checking for conflicts',
+  ready: 'Ready to merge',
+  unknown: 'Status unknown',
+};
+
+/** The words of a CI summary. A repo without automated checks reads as that, calmly, never as pending or unknown. */
+export const CI_STATE_LABEL: Record<CiState, string> = {
+  pass: 'Tests pass',
+  fail: 'Tests fail',
+  pending: 'Tests running',
+  none: 'No automated checks',
+};
 
 // ---------------------------------------------------------------------------------------------------------------
 // The review queue: which open pull requests wait for a review. Left out: running explorations (tried, never merged

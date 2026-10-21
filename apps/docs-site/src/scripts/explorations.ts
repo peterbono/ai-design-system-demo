@@ -10,6 +10,7 @@ import {
   closeExplorationOnGitHub,
   promoteExplorationOnGitHub,
   requestIssueTitle,
+  subjectTitle,
   type ExplorationUseCase,
 } from '@bridge-ds/core';
 import { loadTeams, siteApproverEntries } from './teams';
@@ -360,7 +361,7 @@ export function renderExplorationDetail(r: ExplorationRow, opts: { connected: bo
   const resolved = explorationPreviews(r, CFG.apps);
   const previews = resolved.length ? `<div id="ex-previews" aria-live="polite">${previewList(resolved)}</div>` : '<p class="cg-muted">Previews are not set up for this library yet.</p>';
   const reqs = r.requests.length
-    ? `<ul class="rq-prs">${r.requests.map((q) => `<li><a href="?request=${q.number}" data-open-request="${q.number}">${esc(q.component)}: ${esc(q.title)}</a> <span class="cg-muted">#${q.number}, ${esc(q.statusLabel)}</span></li>`).join('')}</ul>`
+    ? `<ul class="rq-prs">${r.requests.map((q) => `<li><a href="?request=${q.number}" data-open-request="${q.number}">${esc(subjectTitle(q.component, q.title))}</a> <span class="cg-muted">#${q.number}, ${esc(q.statusLabel)}</span></li>`).join('')}</ul>`
     : '<p class="cg-muted">No request is built on this exploration yet.</p>';
   const purpose = purposeLine(r.name, r.purpose);
   const key = jiraKeyOf(pullsBy.get(r.number)?.title ?? '');

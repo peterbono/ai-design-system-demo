@@ -325,3 +325,30 @@ describe('docs, settings, Figma coverage', () => {
     await expect(studio.figmaCoverage(await ro(), { component: 'Nope' })).rejects.toThrow(/not in the coverage list/);
   });
 });
+
+describe('one status, the same in what needs me and branch status (core reviewStatusKind)', () => {
+  /** A repo with no CI at all, where GitHub has not computed whether pull requests merge cleanly yet. */
+  const noChecks = (fetch: typeof globalThis.fetch): typeof globalThis.fetch =>
+    (async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
+      if (/\/commits\/[^/]+\/check-runs/.test(url)) return json({ total_count: 0, check_runs: [] });
+      if (/\/commits\/[^/]+\/status$/.test(url)) return json({ state: 'pending', statuses: [] });
+      const r = await fetch(input, init);
+      if ((init?.method ?? 'GET') === 'GET' && /\/pulls\/\d+$/.test(url) && r.ok) return json({ ...(await r.json()), mergeable: null });
+      return r;
+    }) as typeof globalThis.fetch;
+
+  it('no checks and mergeable not computed: needs design approval everywhere, never "Checking" or unknown', async () => {
+    const { gh, rw } = setup();
+    await ops.proposeTokenChange(await rw(), { title: 'Darken muted text', edits: [edit()] });
+    gh.pulls[0]!.draft = false;
+    gh.viewer.login = 'peterbono';
+    const ctx = await BridgeContext.create({ repo: 'acme/ds', token: 't', fetch: noChecks(gh.fetch) });
+    const needs = (await branches.whatNeedsMe(ctx, {})) as any;
+    expect(needs.branches[0]).toMatchObject({ pr: 1, status: 'needs-design', statusLabel: 'Needs design approval' });
+    const one = (await branches.branchStatus(ctx, { pr: 1 })) as any;
+    expect(one.status).toEqual({ kind: 'needs-design', label: 'Needs design approval' });
+    expect(one.tests).toMatchObject({ state: 'none', label: 'No automated checks' });
+  });
+});

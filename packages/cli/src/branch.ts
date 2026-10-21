@@ -88,6 +88,7 @@ export async function runBranch(a: RequestArgs, root: string, io: RequestIO = de
         io.print(`#${r.pr} ${r.title} (${r.product.name})`);
         io.print(`${r.status.label}. ${r.approvalNeeded} needed; approved by ${r.approvals.approvedBy.map((x: string) => `@${x}`).join(', ') || 'nobody yet'}.`);
         if (r.approvals.soloOwner) io.print(r.approvals.soloOwner);
+        io.print(`${r.tests.label}.`);
         if (r.merge.blockedBy?.length) for (const x of r.merge.blockedBy) io.print(`  ${x}`);
         io.print(`Next: ${r.next}`);
         io.print(r.url);
