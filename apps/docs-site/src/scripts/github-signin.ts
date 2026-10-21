@@ -58,8 +58,9 @@ export async function runCallback(): Promise<void> {
     return;
   }
   try {
-    const token = await postToken({ grant: 'code', code: step.code, code_verifier: step.verifier, redirect_uri: step.redirectUri });
-    saveSignIn(token);
+    // The app this site signs in with (Bridge, or Bridge Direct in direct mode) trades the code and later renews it.
+    const token = await postToken({ grant: 'code', code: step.code, code_verifier: step.verifier, redirect_uri: step.redirectUri, client_id: cfg.clientId });
+    saveSignIn(token, { clientId: cfg.clientId });
     location.replace(step.returnTo);
   } catch (err) {
     fail((err as Error).message || SIGNIN_TEXT.failed, step.returnTo);
