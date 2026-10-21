@@ -7,6 +7,7 @@ import { Check, ChevronLeft, Circle, CircleAlert, CircleDot, CircleX, Ellipsis, 
 import { Button, Icon, IconButton, Input, Kbd, Link, Menu, MenuContent, MenuItem, MenuSubmenu, MenuTrigger, Progress, SidebarNav, SidebarNavItem, SidebarNavSection, ToastProvider, Tooltip, useToast, type UseToastReturn } from '@bridge-ds/react';
 import { positionLabel, queueWindow, type QueueOutcome } from '../../../lib/queue-nav';
 import { Who, type Face } from './faces';
+import { studioHref } from '../../../lib/team-path';
 
 export interface QueueRow {
   key: string;
@@ -37,7 +38,7 @@ export function QueueList({ rows, selected, outcomes, onSelect }: QueueListProps
   const done = rows.filter((r) => outcomes.has(r.key)).length;
   return (
     <div className="rq-list">
-      <Link variant="subtle" href="/studio/" className="rq-home">
+      <Link variant="subtle" href={studioHref()} className="rq-home">
         <Icon icon={ChevronLeft} /> Home
       </Link>
       <p className="rq-count">

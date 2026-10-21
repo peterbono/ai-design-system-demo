@@ -27,6 +27,7 @@ import { tokenFiles } from '../../lib/explorer';
 import { repoModel } from '../../lib/model';
 import { TIER_NAMES, TIER_ORDER, buildTokenSet, layoutOptions } from '@bridge-ds/core';
 import { Fragment as RFragment, createElement } from 'react';
+import { studioHref } from '../../lib/team-path';
 
 interface Props {
   mode: 'read' | 'edit';
@@ -99,7 +100,7 @@ const lensLabel = (text: string) => createElement(RFragment, null, `${text} `, c
                     <SegmentedControl label="Brand" data-vanilla data-xp-brand size="sm" fullWidth defaultValue={modes.brands[0]} items={modes.brands.map((b) => ({ value: b, label: modeName(b) }))} />
                   </div>
                   <div class="xp-opt-newbrand">
-                    <ButtonLink variant="ghost" size="sm" iconStart={Plus} href="/studio/brands/new/" title="Draft a brand in this browser. Proposing it needs GitHub.">New brand</ButtonLink>
+                    <ButtonLink variant="ghost" size="sm" iconStart={Plus} href={studioHref('brands/new/')} title="Draft a brand in this browser. Proposing it needs GitHub.">New brand</ButtonLink>
                   </div>
                   <div class="xp-menu-field" data-xp-mode-field="density" hidden>
                     <span aria-hidden="true">Density</span>

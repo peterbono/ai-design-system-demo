@@ -19,6 +19,7 @@ import type { Draft } from '../lib/editor-model';
 import { addableChanges, defaultTarget, draftDestination, type ChangePullLike } from '../lib/continue-change';
 import { currentViewer, initGitHubConnect, onAccess, readRepo } from './github-session';
 import { REQUEST_TRIAGE_IN_STUDIO } from '../lib/studio-flags';
+import { studioHref } from '../lib/team-path';
 
 type View = 'review' | 'requests' | 'explorations' | 'history';
 
@@ -104,7 +105,7 @@ function showSuggestion(n: number, push: boolean) {
   if (push) history.pushState({ suggestion: n }, '', `?suggestion=${n}`);
   window.scrollTo({ top: 0 });
   const el = sgHost();
-  if (el) void openSuggestion(n, { el, crumbs: [{ label: 'Branches', href: '/studio/changes/' }, { label: `Suggestion #${n}` }] });
+  if (el) void openSuggestion(n, { el, crumbs: [{ label: 'Branches', href: studioHref('changes/') }, { label: `Suggestion #${n}` }] });
 }
 
 function showView(view: View) {

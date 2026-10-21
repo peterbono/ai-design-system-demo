@@ -22,6 +22,7 @@ import { todoBadge, type Lifecycle, type LifecycleTone } from './change-status';
 import { VOCAB } from './vocabulary';
 
 import { REQUEST_TRIAGE_IN_STUDIO } from './studio-flags';
+import { studioHref } from './team-path';
 
 /**
  * Request triage (decide, assign, decline component change requests) is off in Studio: teams triage in Jira. The
@@ -142,8 +143,8 @@ const norm = (x: string) => x.trim().toLowerCase().replace(/^@/, '');
 const same = (a: string | null | undefined, b: string | null | undefined) => Boolean(a && b && norm(a) === norm(b));
 const handle = (x: string) => `@${x.replace(/^@/, '')}`;
 const at = (xs: string[]) => (xs.length <= 2 ? xs.map(handle).join(' or ') : `${handle(xs[0]!)} or ${xs.length - 1} more`);
-const changeHref = (n: number) => `/studio/changes/?pr=${n}`;
-const requestHref = (n: number) => `/studio/changes/?request=${n}`;
+const changeHref = (n: number) => studioHref(`changes/?pr=${n}`);
+const requestHref = (n: number) => studioHref(`changes/?request=${n}`);
 
 /** The changeset check, the only failing check a designer can read in plain words: "the release note is missing". */
 const isReleaseNoteCheck = (name: string) => /changeset/i.test(name);
@@ -305,7 +306,7 @@ export function overviewTodo(input: TodoInput): Todo {
     groups[group].push(row);
   }
 
-  if (input.unprotected && owner) groups.mine.push({ key: 'protect', kind: 'setup', task: 'setup', title: 'Protect your library', why: 'Anyone can change it without a review. Protecting it asks for one first.', action: 'Protect it', href: '/studio/settings/#protection' });
+  if (input.unprotected && owner) groups.mine.push({ key: 'protect', kind: 'setup', task: 'setup', title: 'Protect your library', why: 'Anyone can change it without a review. Protecting it asks for one first.', action: 'Protect it', href: studioHref('settings/#protection') });
 
   for (const r of (input.requestTriage ?? REQUEST_TRIAGE_IN_STUDIO) ? input.requests : []) {
     // In progress: its change is in the list above. Done and declined wait for nobody.

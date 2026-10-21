@@ -12,6 +12,7 @@ import { versionInfo } from '../../lib/changelog';
 import { PAGE_SOURCES, freshness } from '../../lib/sources';
 import { loadTokens } from '../../lib/tokens';
 import { createElement } from 'react';
+import { studioHref } from '../../lib/team-path';
 
 const updated = freshness(PAGE_SOURCES.explorer);
 const rows = allTokenRows(loadTokens().all);
@@ -114,7 +115,7 @@ const panelData = Object.fromEntries(rows.map((r) => [r.path, { cssVar: r.cssVar
         </ul>
         <p class="at-empty" data-at-empty hidden>
           No token matches this filter. Try a name like <span class="mono">bg.zone</span>, a CSS variable or a hex.
-          <span data-at-elsewhere hidden> <span class="mono" data-at-elsewhere-name></span> is not a semantic token: <Link href="/studio/tokens/" data-at-elsewhere-link>see it in Studio Tokens</Link>.</span>
+          <span data-at-elsewhere hidden> <span class="mono" data-at-elsewhere-name></span> is not a semantic token: <Link href={studioHref('tokens/')} data-at-elsewhere-link>see it in Studio Tokens</Link>.</span>
         </p>
       </section>
 

@@ -3,6 +3,7 @@
 // values per column, search and filters. The DOM side lives in src/scripts/explorer/. Tested in model.test.ts.
 import { TIER_AXIS, TIER_NAMES, TIER_ORDER, resolve, valueIn, type LogicalToken, type Tier, type TokenSet } from '@bridge-ds/core';
 import { CATEGORY_LABEL, CATEGORY_ORDER, aliasOf, colorHex, cssText, cssVarName, modeName, typeCategory, valueLine, type TypeCategory } from './format';
+import { studioHref } from '../team-path';
 
 export type Axis = 'brand' | 'theme' | 'density';
 export const AXES: Axis[] = ['brand', 'theme', 'density'];
@@ -382,7 +383,7 @@ export function componentScope<T extends { path: string }>(tokens: T[], paths: r
 }
 
 /** Studio Tokens, focused on a token or a group: the door from every Library "Edit in Studio" link. */
-export const studioHref = (focus: string) => `/studio/tokens/?focus=${encodeURIComponent(focus)}`;
+export const tokenFocusHref = (focus: string) => studioHref(`tokens/?focus=${encodeURIComponent(focus)}`);
 
 export type FocusTarget = { kind: 'token'; path: string; tier: Tier } | { kind: 'group'; group: string; tier: Tier };
 

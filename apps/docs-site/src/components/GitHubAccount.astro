@@ -18,6 +18,7 @@ import { LogOut, Pencil, Settings } from 'lucide-react';
 import { siteRepo } from '../lib/config';
 import { signInConfig } from '../lib/signin-config';
 import { ghButton } from '../lib/gh-wording';
+import { studioHref } from '../lib/team-path';
 
 const r = siteRepo();
 const signIn = Boolean(signInConfig());
@@ -61,7 +62,7 @@ const signIn = Boolean(signInConfig());
       <p class="menu-help" data-gh-perm-help hidden>This token can read but not write. Reviews and token proposals need Contents and Pull requests write access.</p>
       <div class="menu-actions">
         {!signIn && <Button variant="ghost" size="sm" iconStart={Pencil} className="st-hideable" data-gh-open data-gh-token-only>Reconnect GitHub</Button>}
-        <ButtonLink variant="ghost" size="sm" iconStart={Settings} href="/studio/settings/#connection" data-keep-branch>Settings</ButtonLink>
+        <ButtonLink variant="ghost" size="sm" iconStart={Settings} href={studioHref('settings/#connection')} data-keep-branch>Settings</ButtonLink>
         <Button variant="ghost" size="sm" iconStart={LogOut} data-gh-forget><span data-gh-forget-label>Disconnect</span></Button>
       </div>
     </div>

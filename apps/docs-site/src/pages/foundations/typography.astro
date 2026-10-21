@@ -46,11 +46,12 @@ const families = [...groupRows('font.family'), ...primitiveRows('font.family')];
 const px = (css: string) => css.replace('px', ' px');
 const lh = (name: string) => primitiveRows('font.line-height').find((r) => r.path.endsWith(`.${name}`))?.values.light ?? '';
 import LibraryHeader from '../../components/LibraryHeader.astro';
+import { studioHref } from '../../lib/team-path';
 ---
 
 <Layout title="Typography" description="The type scale at every step, weights, line heights, tracking and font families." sources={PAGE_SOURCES.typography} updated={updated}>
   <div data-fd-page>
-    <LibraryHeader title="Typography" art="foundations" updated={updated} studio="/studio/tokens/?focus=font">
+    <LibraryHeader title="Typography" art="foundations" updated={updated} studio={studioHref('tokens/?focus=font')}>
       Fraunces for display and page titles, Instrument Sans for reading and interface text, IBM Plex Mono for code and token names. Seven roles set size, line height and weight together; a screen uses four sizes at most. If a design needs a step that is not here, propose a token instead of picking a value by eye.
     </LibraryHeader>
 

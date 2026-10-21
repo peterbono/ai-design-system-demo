@@ -14,6 +14,10 @@ import type { IconName } from '../brand/icons';
 import { loadComponents } from './components';
 import { VOCAB } from './vocabulary';
 
+// Studio links in both modes (self-hosted /studio/, team shells /studio/<owner>/<repo>/). Browser code imports it from
+// lib/team-path directly: this module reads the repository at build time.
+export { studioHref } from './team-path';
+
 export type Space = 'library' | 'studio';
 
 export interface NavItem {

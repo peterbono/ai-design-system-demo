@@ -14,6 +14,7 @@
 import type { ThumbSpec } from './branch-thumb';
 import { VOCAB } from './vocabulary';
 import { isClaudeLogin } from './people';
+import { studioHref } from './team-path';
 
 /** Rows of the Needs you list before the grouped row. */
 export const NEEDS_SHOWN = 3;
@@ -266,7 +267,7 @@ export interface ChangeFacts {
   onlyReviewer?: boolean;
 }
 
-const changeHref = (n: number) => `/studio/changes/?pr=${n}`;
+const changeHref = (n: number) => studioHref(`changes/?pr=${n}`);
 
 /** One Needs you row for a change. */
 export function changeNeed(c: ChangeFacts, now: number): NeedRow {
@@ -316,7 +317,7 @@ export function contrastNeed(fail: number): NeedRow | null {
     key: 'health-contrast',
     kind: 'health',
     title: `${plural(fail, 'contrast check fails', 'contrast checks fail')} on ${VOCAB.main}`,
-    href: '/studio/quality/',
+    href: studioHref('quality/'),
     person: null,
     line: 'The token build waits until every pair passes',
     since: null,
@@ -332,7 +333,7 @@ export function protectNeed(): NeedRow {
     key: 'setup-protect',
     kind: 'setup',
     title: 'Protect your library',
-    href: '/studio/settings/#safety',
+    href: studioHref('settings/#safety'),
     person: null,
     line: 'Anyone can change it without a review',
     since: null,

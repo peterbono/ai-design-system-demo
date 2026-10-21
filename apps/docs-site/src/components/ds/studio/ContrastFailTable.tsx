@@ -1,6 +1,7 @@
 // The failing contrast checks, one row per pair and brand/theme combination, as a DS Table. Rows stack on a phone,
 // each value beside its column name (labels set per cell: the page is static).
 import { Link, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@bridge-ds/react';
+import { studioHref } from '../../../lib/team-path';
 
 export interface ContrastFailRow {
   id: string;
@@ -12,7 +13,7 @@ export interface ContrastFailRow {
   needs: string;
 }
 
-const focusHref = (path: string) => `/studio/tokens/?focus=${encodeURIComponent(path)}`;
+const focusHref = (path: string) => studioHref(`tokens/?focus=${encodeURIComponent(path)}`);
 
 export default function ContrastFailTable({ rows }: { rows: ContrastFailRow[] }) {
   return (

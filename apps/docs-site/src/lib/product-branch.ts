@@ -19,6 +19,7 @@ import {
   type PiecesRecord,
   type ProductConfig,
 } from '@bridge-ds/core';
+import { studioHref } from './team-path';
 
 /** A branch started for a product (Create branch, A feature in a product): its label names a product other than the library. */
 export function isProductBranch(labels: readonly (string | { name?: string })[] | null | undefined, products: readonly ProductConfig[]): ProductConfig | null {
@@ -120,7 +121,7 @@ export function whyItShows(rows: PieceRowView[]): { title: string; text: string 
 
 /** "Branches · Admin demo · DS-87": the way back and where the branch belongs. */
 export function productCrumbs(product: string, jira: string | null, title: string): { label: string; href?: string }[] {
-  return [{ label: 'Branches', href: '/studio/changes/' }, { label: product, href: '/studio/changes/' }, { label: jira ?? title }];
+  return [{ label: 'Branches', href: studioHref('changes/') }, { label: product, href: studioHref('changes/') }, { label: jira ?? title }];
 }
 
 /** What a developer needs, in the "For developers" fold: the branch, the commands that check it and open library branches. */

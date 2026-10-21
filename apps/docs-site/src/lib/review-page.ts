@@ -6,6 +6,7 @@
 import type { CheckStory } from './check-explain';
 import { PRODUCTS, productOf } from './branches-page';
 import type { Lifecycle } from './change-status';
+import { studioHref } from './team-path';
 
 // ---------------------------------------------------------------------------------------------------------------
 // Breadcrumb
@@ -14,8 +15,8 @@ import type { Lifecycle } from './change-status';
 export function reviewCrumbs(files: readonly string[] | null, title: string): { label: string; href?: string }[] {
   const group = PRODUCTS.find((p) => p.key === productOf(files))!;
   return [
-    { label: 'Branches', href: '/studio/changes/' },
-    { label: group.label, href: '/studio/changes/' },
+    { label: 'Branches', href: studioHref('changes/') },
+    { label: group.label, href: studioHref('changes/') },
     { label: title },
   ];
 }
@@ -548,4 +549,4 @@ export function reviewActions(x: ActionInput): ReviewActions {
 }
 
 /** The Studio address of a branch review ("Link to this review"). */
-export const reviewLink = (origin: string, pr: number) => `${origin}/studio/changes/?pr=${pr}`;
+export const reviewLink = (origin: string, pr: number) => `${origin}${studioHref(`changes/?pr=${pr}`)}`;

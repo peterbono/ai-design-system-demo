@@ -29,6 +29,7 @@ import { exists, GITHUB_URL, PREVIEW_APPS, PREVIEW_PACKAGES, PRODUCTION_APPS, re
 import { bridgeMcpInstallCommand } from '@bridge-ds/core';
 import { changesInConfig } from '../../lib/settings-view';
 import type { BranchesConfig } from '../../lib/branches';
+import { studioHref } from '../../lib/team-path';
 
 const s = dashboard();
 const comps = loadComponents();
@@ -52,7 +53,7 @@ const homeStatic = {
   contrastFail: s.contrast.fail,
   adoptionDrop: drop,
   components: comps.map((c) => ({ name: c.name, slug: c.slug, family: c.category })).sort((a, b) => a.name.localeCompare(b.name)),
-  startHrefs: { tokens: startChangeHref('look'), component: startChangeHref('variant'), guidance: firstMissing ? docsEditHref(firstMissing.slug) : '/studio/components/' },
+  startHrefs: { tokens: startChangeHref('look'), component: startChangeHref('variant'), guidance: firstMissing ? docsEditHref(firstMissing.slug) : studioHref('components/') },
   signIn: Boolean(signInConfig()),
 };
 // Create branch > A feature in a product starts an exploration: its preview settings, as the Branches page embeds them.
@@ -105,6 +106,7 @@ const onboarding = {
   <script type="application/json" id="home-guidance" set:html={jsonForScript({ drafted: guidance })} />
 
   <script>
+    import { studioHref } from '../../lib/team-path';
     import { createRoot, type Root } from 'react-dom/client';
     import { currentViewer, getToken, initGitHubConnect, prefersSignIn } from '../../scripts/github-session';
     import { setReviewCount } from '../../scripts/shell';
@@ -177,9 +179,9 @@ const onboarding = {
     let stepsOpen = false;
 
     function health(): HealthLine | null {
-      if (stat.adoptionDrop) return { text: adoptionDropLine(stat.adoptionDrop), tone: 'drop', href: '/studio/quality/#ql-adoption', link: 'Open Quality' };
+      if (stat.adoptionDrop) return { text: adoptionDropLine(stat.adoptionDrop), tone: 'drop', href: studioHref('quality/#ql-adoption'), link: 'Open Quality' };
       // A failing contrast check is a Needs you row; otherwise one quiet line.
-      return stat.contrastFail ? null : { text: 'Library healthy.', tone: 'ok', href: '/studio/quality/', link: 'Open Quality' };
+      return stat.contrastFail ? null : { text: 'Library healthy.', tone: 'ok', href: studioHref('quality/'), link: 'Open Quality' };
     }
 
     function paint() {

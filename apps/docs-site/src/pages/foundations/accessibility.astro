@@ -27,6 +27,7 @@ import {
 } from '../../lib/a11y-checks';
 import { PAGE_SOURCES, freshness } from '../../lib/sources';
 import { BRAND_LABEL, BRANDS, DEFAULT_BRAND, MODES } from '../../lib/tokens';
+import { studioHref } from '../../lib/team-path';
 
 const pairs = pagePairs(import.meta.env.DEV);
 const updated = freshness(PAGE_SOURCES.accessibility);
@@ -50,7 +51,7 @@ const matrixRows = (g: (typeof groups)[number]): MatrixRow[] =>
 ---
 
 <Layout title="Accessibility" description="What Bridge commits to for accessibility, and every gated color pair checked in every brand and theme." sources={PAGE_SOURCES.accessibility} updated={updated}>
-  <LibraryHeader title="Accessibility" art="foundations" updated={updated} studio="/studio/quality/" studioLabel="Open in Studio">
+  <LibraryHeader title="Accessibility" art="foundations" updated={updated} studio={studioHref('quality/')} studioLabel="Open in Studio">
     <p class="a11y-status" data-state={summary.failing ? 'fail' : 'pass'}>
       <Icon icon={summary.failing ? CircleAlert : CircleCheck} size="md" className="a11y-status-icon" />
       <span>{statusSentence(summary)}</span>
@@ -186,7 +187,7 @@ const matrixRows = (g: (typeof groups)[number]): MatrixRow[] =>
         <li>Until the fix is merged, avoid that pair in new places.</li>
       </ul>
       <p data-maintainer-only>
-        <Link href="/studio/quality/" variant="standalone">See every check in Studio Quality</Link>
+        <Link href={studioHref('quality/')} variant="standalone">See every check in Studio Quality</Link>
       </p>
     </div>
   </details>

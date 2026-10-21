@@ -31,6 +31,7 @@ import {
   type Person,
   type TimelineEvent,
 } from '../lib/home-model';
+import { studioHref } from '../lib/team-path';
 
 export interface HomePull extends QueuePullFull {
   html_url: string;
@@ -254,7 +255,7 @@ export async function loadHome(stat: HomeStatic, onUpdate: (d: HomeData) => void
         const st = statuses.get(p.number);
         const c = todoChange(p, st);
         const stage = c.lifecycle === 'waiting' ? 'waiting' : p.draft || c.lifecycle === 'draft' ? 'draft' : 'ready';
-        return { number: p.number, title: c.title, href: `/studio/changes/?pr=${p.number}`, stage, updated: p.updated_at, reviewer: pick(reviewerLogin(p, st)), thumb: resolved.get(p.number) ?? { kind: 'icon', icon: 'branch' } };
+        return { number: p.number, title: c.title, href: studioHref(`changes/?pr=${p.number}`), stage, updated: p.updated_at, reviewer: pick(reviewerLogin(p, st)), thumb: resolved.get(p.number) ?? { kind: 'icon', icon: 'branch' } };
       });
     needs.push(...suggestions);
     const sorted = sortNeeds(needs);

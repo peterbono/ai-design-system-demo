@@ -9,8 +9,9 @@ import { loadStorybook, StorybookLoadError, type LoadedStorybook } from '../../.
 import { clearStorybook, saveStorybook } from '../../../scripts/workspace';
 import { storybookErrorLine, storybookRows } from '../../../lib/storybook-view';
 import { storybookHost, type WorkspaceStorybook } from '../../../lib/workspace';
+import { studioHref } from '../../../lib/team-path';
 
-export const STORYBOOK_PAGE = '/studio/components/storybook/';
+export const STORYBOOK_PAGE = studioHref('components/storybook/');
 
 /** What a loaded Storybook saves to the workspace. */
 export function toWorkspace(loaded: LoadedStorybook, now = new Date()): WorkspaceStorybook {

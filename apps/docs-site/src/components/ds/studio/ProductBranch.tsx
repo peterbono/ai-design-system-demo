@@ -32,6 +32,7 @@ import {
 } from '@bridge-ds/react';
 import ButtonLink from '../ButtonLink';
 import type { PieceActionKind, PieceRowView } from '../../../lib/product-branch';
+import { studioHref } from '../../../lib/team-path';
 
 export interface ProductBranchProps {
   number: number;
@@ -127,7 +128,7 @@ export function ProductBranch(p: ProductBranchProps) {
   return (
     <div className="pb">
       <Breadcrumb items={p.crumbs} className="pb-crumbs" />
-      <Link variant="subtle" href={p.crumbs[0]!.href ?? '/studio/changes/'} className="pb-crumbs-phone" data-back="">
+      <Link variant="subtle" href={p.crumbs[0]!.href ?? studioHref('changes/')} className="pb-crumbs-phone" data-back="">
         <Icon icon={ChevronLeft} size="sm" /> {p.crumbs[0]!.label}
       </Link>
       <header className="pb-head">

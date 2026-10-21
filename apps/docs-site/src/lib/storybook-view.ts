@@ -2,6 +2,7 @@
 // (components/ds/studio/StorybookComponents.tsx) and of onboarding step 2. Pure, covered by storybook-view.test.ts.
 // Everything shown comes from the Storybook's own index: titles, story names, docs pages, tags. Nothing is guessed.
 import type { StorybookComponent, StorybookErrorCode, StorybookIndex } from '@bridge-ds/core';
+import { studioHref } from './team-path';
 
 /** Whether the Storybook lets Bridge show a story in a frame: read by /api/storybook, unknown on a direct read. */
 export type FrameVerdict = 'allowed' | 'blocked' | 'unknown';
@@ -91,7 +92,7 @@ export function frameLine(frame: FrameVerdict): string | null {
 /** What quick start does not have: the features that read the repository, said once, calmly. */
 export const LOCKED_FEATURES = ['Tokens', 'contrast checks', 'suggestions'] as const;
 export const LOCKED_LINE = 'Tokens, contrast checks and suggestions need the repository connected.';
-export const CONNECT_REPO = { label: 'Connect the repository', href: '/studio/?setup=library' } as const;
+export const CONNECT_REPO = { label: 'Connect the repository', href: studioHref('?setup=library') } as const;
 
 /** "Checked 5 minutes ago" for the saved Storybook. */
 export function checkedAgo(iso: string, now: number): string {

@@ -26,6 +26,7 @@ import { Badge, Card, CardBody, EmptyState, Icon, Link } from '@bridge-ds/react'
 import { ShieldCheck } from 'lucide-react';
 import { dashboard } from '../../../lib/stats';
 import { BRAND_LABEL, TOKEN_SOURCE_FILES, type Brand } from '../../../lib/tokens';
+import { studioHref } from '../../../lib/team-path';
 
 const s = dashboard();
 const combos: ComboResult[] = s.contrast.byCombo.map((c) => ({ label: `${BRAND_LABEL[c.brand as Brand]} ${c.mode}`, pass: c.pass, total: c.total }));
@@ -78,7 +79,7 @@ const tone = (g: keyof typeof GROUP_TONE) => GROUP_TONE[g];
   <div class="ql">
     <StudioHeader title="Quality">
       <div slot="actions" data-latest-only>
-        <QualityShare client:load figures={figures} sentence={sentence} path="/studio/quality/" />
+        <QualityShare client:load figures={figures} sentence={sentence} path={studioHref('quality/')} />
       </div>
     </StudioHeader>
     <div class="view-banner" data-view-banner hidden></div>
@@ -87,12 +88,12 @@ const tone = (g: keyof typeof GROUP_TONE) => GROUP_TONE[g];
         one line that points to the branch's own checks (html[data-view-change], set before the page paints). */}
     <section class="ql-view" data-change-only aria-label="Quality of this branch">
       <EmptyState icon={ShieldCheck} title={QUALITY_IN_CHECKS} description={QUALITY_IN_CHECKS_BODY} headingLevel={2} align="start">
-        <ButtonLink slot="actions" variant="primary" href="/studio/changes/" data-change-href>See its checks</ButtonLink>
+        <ButtonLink slot="actions" variant="primary" href={studioHref('changes/')} data-change-href>See its checks</ButtonLink>
       </EmptyState>
     </section>
     <section class="ql-view" data-together-only aria-label="Quality of these branches together">
       <EmptyState icon={ShieldCheck} title={QUALITY_TOGETHER} description={QUALITY_TOGETHER_BODY} headingLevel={2} align="start">
-        <ButtonLink slot="actions" variant="primary" href="/studio/changes/">Go to Branches</ButtonLink>
+        <ButtonLink slot="actions" variant="primary" href={studioHref('changes/')}>Go to Branches</ButtonLink>
       </EmptyState>
     </section>
 

@@ -5,6 +5,7 @@ import { contrastPairs } from './contrast';
 import { cssVarsIn, tokenUsage, type TokenUsage } from '@bridge-ds/core';
 import { git, listDir, readText } from './repo';
 import { BRANDS, DENSITIES, loadTokens, MODES, hrefForVar, type Primitive, type Semantic } from './tokens';
+import { studioHref } from './team-path';
 
 export interface Slice {
   key: string;
@@ -149,7 +150,7 @@ function compute() {
           severity: 'fail' as const,
           title: `${p.fg} on ${p.bg}`,
           detail: `${bad.map(({ b, m }) => `${p.brands[b][m].ratio.toFixed(2)}:1 in ${b} ${m}`).join(', ')}. Needs ${p.min}:1 (${p.usage === 'text' ? 'text' : 'UI'}).`,
-          href: '/studio/quality/',
+          href: studioHref('quality/'),
         };
       }),
     ...unknownRefs.map((u) => ({

@@ -50,6 +50,7 @@ import {
   type SectionId,
 } from '../lib/library-edit-model';
 import type { DraftScope, DraftWay } from '../scripts/docs-ai';
+import { studioHref } from '../lib/team-path';
 
 export interface LibraryEditModeProps {
   name: string;
@@ -1238,7 +1239,7 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
       {branch?.continues && branch.author && branch.pr && (
         <p className="le-bar-note">
           {continueLine(branch.author, viewer)}{' '}
-          <Link href={`/studio/changes/?pr=${branch.pr}`}>See the review</Link>
+          <Link href={studioHref(`changes/?pr=${branch.pr}`)}>See the review</Link>
         </p>
       )}
       {drafting && (
@@ -1378,7 +1379,7 @@ export default function LibraryEditMode(p: LibraryEditModeProps) {
               </p>
             ) : sent ? (
               <p className="le-sent">
-                {sent.continued ? 'Added to the open proposal. ' : ''}Your team can review it in Studio: <Link href={sent.pr ? `/studio/changes/?pr=${sent.pr}` : '/studio/changes/'}>{sent.title}</Link>.
+                {sent.continued ? 'Added to the open proposal. ' : ''}Your team can review it in Studio: <Link href={sent.pr ? studioHref(`changes/?pr=${sent.pr}`) : studioHref('changes/')}>{sent.title}</Link>.
               </p>
             ) : (
               <div className="le-send">

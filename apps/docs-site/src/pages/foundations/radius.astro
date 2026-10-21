@@ -14,11 +14,12 @@ const radii = primitiveRows('radius');
 const widths = [...groupRows('border-width'), ...primitiveRows('border.width')];
 const focus = groupRows('focus').filter((r) => r.type !== 'color');
 import LibraryHeader from '../../components/LibraryHeader.astro';
+import { studioHref } from '../../lib/team-path';
 ---
 
 <Layout title="Radius and borders" description="Radius roles by rank, the radius scale, border widths and the focus ring width." sources={PAGE_SOURCES.radius} updated={updated}>
   <div data-fd-page>
-    <LibraryHeader title="Radius and borders" art="foundations" updated={updated} studio="/studio/tokens/?focus=radius">
+    <LibraryHeader title="Radius and borders" art="foundations" updated={updated} studio={studioHref('tokens/?focus=radius')}>
       Radius tells you what kind of object you are looking at: small parts inside controls get the smallest, controls a little more, containers and overlays more again, pills are round. Design with the roles; brands set their values.
     </LibraryHeader>
 

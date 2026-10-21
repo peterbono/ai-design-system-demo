@@ -10,11 +10,12 @@ const updated = freshness(PAGE_SOURCES.elevation);
 const elevation = groupRows('elevation');
 const shadows = primitiveRows('shadow');
 import LibraryHeader from '../../components/LibraryHeader.astro';
+import { studioHref } from '../../lib/team-path';
 ---
 
 <Layout title="Elevation" description="Elevation levels on real surfaces in light and dark, and the shadow primitives behind them." sources={PAGE_SOURCES.elevation} updated={updated}>
   <div data-fd-page>
-    <LibraryHeader title="Elevation" art="foundations" updated={updated} studio="/studio/tokens/?focus=shadow">
+    <LibraryHeader title="Elevation" art="foundations" updated={updated} studio={studioHref('tokens/?focus=shadow')}>
       Things that float cast shadows; things that sit do not. Cards and panels are flat plates with a hairline edge. Only popovers, menus, dialogs, drawers and toasts get elevation, and dark mode uses darker, tighter shadows so edges stay visible.
     </LibraryHeader>
 

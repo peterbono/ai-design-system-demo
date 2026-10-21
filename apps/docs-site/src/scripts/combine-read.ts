@@ -5,6 +5,7 @@
 // memory per version of each change, so checking and unchecking never reads GitHub twice. Nothing is written.
 import { layoutOptions, loadConfig, parseContrastChecks, readCombineBranch, type ChangeEdits, type ContrastPair, type LayoutOptions } from '@bridge-ds/core';
 import { hasWorkingToken, readRepo, studioClient } from './github-session';
+import { studioHref } from '../lib/team-path';
 
 export interface TogetherPull {
   number: number;
@@ -49,7 +50,7 @@ let latest: Promise<LatestLibrary> | null = null;
 
 /** This build's token files, layout and contrast pairs: the latest library the changes are combined on. */
 export function readLatestLibrary(): Promise<LatestLibrary> {
-  latest ??= fetch('/studio/library-files.json')
+  latest ??= fetch(studioHref('library-files.json'))
     .then((r) => {
       if (!r.ok) throw new Error('The latest library could not be read. Reload the page to try again.');
       return r.json() as Promise<{ files: Record<string, string>; config: string; tokensRoot: string }>;

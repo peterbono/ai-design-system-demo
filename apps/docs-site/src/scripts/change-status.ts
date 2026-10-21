@@ -32,6 +32,7 @@ import { currentViewer, esc, GitHubError, ghGet, readRepo, studioClient } from '
 import { siteApprovers } from './teams';
 import { teamPeople } from './pr-status';
 import { tokenSetsOf } from './reviews/token-review';
+import { studioHref } from '../lib/team-path';
 
 export interface StatusPull {
   number: number;
@@ -143,7 +144,7 @@ async function restart(pull: StatusPull): Promise<string> {
     throw new Error('This browser does not keep drafts (private mode or storage full). Allow site storage, then try again.');
   }
   document.dispatchEvent(new CustomEvent('bridge:draft'));
-  setTimeout(() => location.assign('/studio/tokens/#review'), 1200);
+  setTimeout(() => location.assign(studioHref('tokens/#review')), 1200);
   return line.text;
 }
 

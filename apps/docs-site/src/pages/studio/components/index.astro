@@ -35,6 +35,7 @@ import { siteRepo } from '../../../lib/config';
 import { ghAction } from '../../../lib/gh-wording';
 import { signInConfig } from '../../../lib/signin-config';
 import { PAGE_SOURCES, freshness } from '../../../lib/sources';
+import { studioHref } from '../../../lib/team-path';
 
 const components = loadComponents();
 const updated = freshness(PAGE_SOURCES.components);
@@ -93,7 +94,7 @@ const signIn = Boolean(signInConfig());
     </StudioHeader>
     <div class="view-banner" data-view-banner hidden></div>
     <p class="sbq-quiet cm-sb-line" data-cm-storybook hidden>
-      <span data-cm-storybook-text></span> <Link href="/studio/components/storybook/">See them</Link>
+      <span data-cm-storybook-text></span> <Link href={studioHref('components/storybook/')}>See them</Link>
     </p>
 
     <div class="cm-tools" role="search">
@@ -193,7 +194,7 @@ const signIn = Boolean(signInConfig());
     <section class="cm-req cm-chg" id="cm-chg" data-cm-chg aria-label="Change this component" hidden>
       <ChangeIntent client:load />
       <div class="rq-actions" data-cm-chg-foot>
-        <ButtonLink variant="primary" href="/studio/tokens/" iconStart={Pencil} data-cm-look data-keep-branch="" hidden>Edit its tokens</ButtonLink>
+        <ButtonLink variant="primary" href={studioHref('tokens/')} iconStart={Pencil} data-cm-look data-keep-branch="" hidden>Edit its tokens</ButtonLink>
         <Button variant="ghost" data-cm-chg-cancel>Cancel</Button>
       </div>
       <form class="rq-form cm-chg-form" id="cm-req-form" data-cm-req-form aria-labelledby="cm-chg-form-title" novalidate hidden>

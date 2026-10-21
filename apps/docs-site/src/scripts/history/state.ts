@@ -2,11 +2,12 @@
 // reports stay separate; the toggle only picks which one a view shows, and every demo view carries a banner.
 import { layoutOptions, loadConfig, parseContrastChecks, type BridgeConfig, type ContrastPair, type HistoryReport } from '@bridge-ds/core';
 import type { HistoryData } from '../../lib/history';
+import { studioHref } from '../../lib/team-path';
 
 let data: Promise<HistoryData> | null = null;
 
 export function loadHistoryData(): Promise<HistoryData> {
-  data ??= fetch('/studio/versions/data.json').then((r) => {
+  data ??= fetch(studioHref('versions/data.json')).then((r) => {
     if (!r.ok) throw new Error(`History data is missing (${r.status}). Rebuild the site.`);
     return r.json() as Promise<HistoryData>;
   });

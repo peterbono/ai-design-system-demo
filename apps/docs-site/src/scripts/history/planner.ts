@@ -28,6 +28,7 @@ import { suggestFilesOnGitHub } from '../suggest-files';
 import { VOCAB } from '../../lib/vocabulary';
 import { loadHistory, type Loaded } from './state';
 import { attrUrl } from '../../lib/html';
+import { studioHref } from '../../lib/team-path';
 
 type Request =
   | { kind: 'revert'; entry: HistoryEntry; report: HistoryReport; demo: boolean }
@@ -265,7 +266,7 @@ function wire() {
     try {
       const sent = await propose();
       if (sent.kind === 'branch') {
-        location.href = `/studio/changes/?pr=${sent.number}`;
+        location.href = studioHref(`changes/?pr=${sent.number}`);
         return;
       }
       // The suggestion is out: say so on the line of the action, keep the dialog's one primary off.

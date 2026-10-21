@@ -13,6 +13,7 @@ import { siteRepo } from '../lib/config';
 import { agentRules, approvals, reviewGates, reviewingAgentPrs, riskTiers } from '../lib/governance';
 import { inline } from '../lib/markdown';
 import { PAGE_SOURCES, freshness } from '../lib/sources';
+import { studioHref } from '../lib/team-path';
 
 const sources = PAGE_SOURCES.governance;
 const updated = freshness(sources);
@@ -63,7 +64,7 @@ const allowed = r.override.allowed.map((l) => `@${l}`).join(', ');
 ---
 
 <Layout title="How review works" description="Risk tiers, review gates, the owner override and the rules the AI agent follows. Same gates for every change, whoever writes it." sources={sources} updated={updated}>
-  <LibraryHeader title="How review works" art="guide" updated={updated} studio="/studio/settings/#approvals" studioLabel="Open in Studio">
+  <LibraryHeader title="How review works" art="guide" updated={updated} studio={studioHref('settings/#approvals')} studioLabel="Open in Studio">
     Every change goes through the same gates, whoever writes it: a designer, an engineer or an AI agent. The riskier the change, the more review it gets.
   </LibraryHeader>
 
@@ -126,7 +127,7 @@ const allowed = r.override.allowed.map((l) => `@${l}`).join(', ');
       <summary><h2>Explorations</h2><span class="rw-n">3 steps</span></summary>
       <p>
         An exploration tries experimental variables and components in a real product staging branch without touching main. Follow them in{' '}
-        <Link href="/studio/changes/?view=explorations">Studio Branches, Explorations</Link>, or in GitHub by the <code>exploration</code> label.
+        <Link href={studioHref('changes/?view=explorations')}>Studio Branches, Explorations</Link>, or in GitHub by the <code>exploration</code> label.
       </p>
       <ol class="rw-steps">
         {

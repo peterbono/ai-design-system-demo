@@ -29,6 +29,7 @@ import { branchOf, keyDecision, keyFromSearch, keyMove, moveIndex, nextOpen, out
 import { reviewLink } from '../lib/review-page';
 import { ghAction, ghButton } from '../lib/gh-wording';
 import type { NeedKind, NeedRow } from '../lib/home-model';
+import { studioHref } from '../lib/team-path';
 
 /** The link of a row that does not open a branch review, by kind. */
 const OPEN_LABEL: Record<NeedKind, string> = {
@@ -309,12 +310,12 @@ export function initReviewQueue() {
       title: 'Nothing waits on you.',
       description: failed ?? (signedIn ? 'New reviews, usage guidance drafts and library checks land here.' : `${ghAction('see what waits on you', signIn)}.`),
       actions: signedIn
-        ? h(ButtonLink, { variant: 'primary', href: '/studio/' }, 'Back to Home')
+        ? h(ButtonLink, { variant: 'primary', href: studioHref() }, 'Back to Home')
         : h(
             Fragment,
             null,
             h(Button, { variant: 'primary', 'data-gh-open': '', 'data-gh-signin': signIn ? '' : undefined } as ComponentProps<typeof Button>, ghButton(signIn)),
-            h(ButtonLink, { variant: 'secondary', href: '/studio/' }, 'Back to Home'),
+            h(ButtonLink, { variant: 'secondary', href: studioHref() }, 'Back to Home'),
           ),
     });
   }

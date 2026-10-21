@@ -18,7 +18,7 @@ import {
   planColumns,
   resolveFocus,
   sectionsFor,
-  studioHref,
+  tokenFocusHref,
   varyingOf,
   type ViewState,
 } from './model';
@@ -294,6 +294,6 @@ describe('focus deep links', () => {
     expect(resolveFocus(toks, '')).toBeNull();
   });
   it('links the Library to Studio Tokens with ?focus=', () => {
-    expect(studioHref('color.text.muted')).toBe('/studio/tokens/?focus=color.text.muted');
+    expect(tokenFocusHref('color.text.muted')).toBe('/studio/tokens/?focus=color.text.muted');
   });
 });

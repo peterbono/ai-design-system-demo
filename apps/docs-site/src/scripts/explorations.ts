@@ -47,6 +47,7 @@ import { setSelect } from '../lib/select-bridge';
 import { jiraKeyOf, parseJiraKey, VOCAB } from '../lib/vocabulary';
 import { isProductBranch } from '../lib/product-branch';
 import { attrUrl } from '../lib/html';
+import { studioHref } from '../lib/team-path';
 
 // The use case menu of Start an exploration (BridgedSelect id).
 const USE_CASE = 'ex-use-case';
@@ -313,7 +314,7 @@ function section(id: string, title: string, meta: string, body: string, open = f
   return `<details class="cg-sec" id="${id}"${open ? ' open' : ''}><summary class="cg-sec-head"><span class="cg-sec-title">${title}</span><span class="cg-sec-meta">${meta}</span><span class="cg-sec-chev" aria-hidden="true"></span></summary><div class="cg-sec-body">${body}</div></details>`;
 }
 
-const crumbs = (n: number) => `<nav class="cg-crumbs" aria-label="Breadcrumb"><a href="/studio/changes/" data-back>Branches</a><span aria-hidden="true">/</span><span class="mono">#${n}</span></nav>`;
+const crumbs = (n: number) => `<nav class="cg-crumbs" aria-label="Breadcrumb"><a href="${studioHref('changes/')}" data-back>Branches</a><span aria-hidden="true">/</span><span class="mono">#${n}</span></nav>`;
 
 /** The preview rows: one per app, a link with its designer name, or what is missing on the same line. */
 export function previewList(previews: BranchPreview[]): string {
