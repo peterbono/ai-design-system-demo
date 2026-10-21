@@ -35,10 +35,10 @@ export interface AvatarProps extends HTMLAttributes<HTMLSpanElement> {
   illustration?: string;
   /** `person` (default), or `agent`: an AI acting in the product, so people can tell its work from a person's. */
   kind?: AvatarKind;
-  /** With `kind="agent"`: `claude` names the agent "Claude AI" and shows the Bridge agent mark on its tile. */
+  /** With `kind="agent"`: `claude` names the agent "Claude AI" and shows the Bridge agent mark, the Field Guide robot, on its tile. */
   brand?: AvatarAgentBrand;
   /**
-   * With `kind="agent"`: replaces the Bridge agent mark, for example with a vendor logo (an SVG that fills its box).
+   * With `kind="agent"`: replaces the Bridge agent mark (the Field Guide robot), for example with a vendor logo (an SVG that fills its box).
    * Only for a logo you have the brand owner's approval to use. Decorative: the name stays the accessible name.
    */
   mark?: ReactNode;
@@ -53,14 +53,16 @@ export type AvatarAgentProps = Omit<AvatarProps, 'kind' | 'brand'> & { kind: 'ag
 export const AVATAR_AGENT_NAMES: Record<AvatarAgentBrand, string> = { claude: 'Claude AI' };
 
 /**
- * The agent mark: a prompt chevron and a cursor line in the Bridge Field Guide line style (a stroke in currentColor,
- * round caps, no fill). Bridge draws its own mark instead of shipping a vendor logo: company logos are trademarks
- * that need their owner's approval for each use. A team with that approval can pass its logo to the `mark` prop.
+ * The agent mark: the Field Guide robot (a rounded head with an antenna, two dot eyes, a smile, side ears and two legs)
+ * in the Bridge line style: one stroke in currentColor, round caps, no fill, so the tile shows through in light and
+ * dark. The eyes and the antenna tip are tiny circles the stroke fills in, so the whole robot is one path that reads
+ * from 16px up. Bridge draws its own mark instead of shipping a vendor logo: company logos are trademarks that need
+ * their owner's approval for each use. A team with that approval can pass its logo to the `mark` prop.
  */
 export const AGENT_MARK = {
-  viewBox: '0 0 24 24',
-  path: 'M4.4 6.2Q7.6 9.1 10.8 12Q7.7 15 4.6 17.8M13.3 17.8Q16.7 17.5 19.8 17.8',
-  strokeWidth: 2.2,
+  viewBox: '0 -0.8 24 24',
+  path: 'M11.4 2.4a0.6 0.6 0 1 0 1.2 0a0.6 0.6 0 1 0 -1.2 0M12 3V6.1M6.2 6.4C9.6 5.9 14.6 6 17.9 6.5C19.1 6.7 19.6 7.6 19.6 8.9L19.4 15.6C19.3 17 18.6 17.7 17.3 17.8C13.9 18.1 9.8 18.1 6.6 17.8C5.3 17.7 4.6 17 4.5 15.6L4.4 8.9C4.4 7.5 5 6.6 6.2 6.4ZM8.6 11.2a0.6 0.6 0 1 0 1.2 0a0.6 0.6 0 1 0 -1.2 0M14.2 11.2a0.6 0.6 0 1 0 1.2 0a0.6 0.6 0 1 0 -1.2 0M9.6 14.6Q12 15.8 14.4 14.6M4.4 10.6H2.9M19.6 10.6H21.1M8.6 18V20.6M15.4 18V20.6',
+  strokeWidth: 1.8,
   color: 'currentColor',
 } as const;
 
@@ -110,8 +112,8 @@ const AvatarBase = forwardRef<HTMLSpanElement, AvatarProps>(function Avatar(
           </span>
         ) : (
           // The path is AGENT_MARK.path written out (a test keeps them equal), so the Figma specs can read the drawing.
-          <svg className={styles.mark} viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
-            <path className={styles.line} d="M4.4 6.2Q7.6 9.1 10.8 12Q7.7 15 4.6 17.8M13.3 17.8Q16.7 17.5 19.8 17.8" />
+          <svg className={styles.mark} viewBox="0 -0.8 24 24" fill="none" aria-hidden="true" focusable="false">
+            <path className={styles.line} d="M11.4 2.4a0.6 0.6 0 1 0 1.2 0a0.6 0.6 0 1 0 -1.2 0M12 3V6.1M6.2 6.4C9.6 5.9 14.6 6 17.9 6.5C19.1 6.7 19.6 7.6 19.6 8.9L19.4 15.6C19.3 17 18.6 17.7 17.3 17.8C13.9 18.1 9.8 18.1 6.6 17.8C5.3 17.7 4.6 17 4.5 15.6L4.4 8.9C4.4 7.5 5 6.6 6.2 6.4ZM8.6 11.2a0.6 0.6 0 1 0 1.2 0a0.6 0.6 0 1 0 -1.2 0M14.2 11.2a0.6 0.6 0 1 0 1.2 0a0.6 0.6 0 1 0 -1.2 0M9.6 14.6Q12 15.8 14.4 14.6M4.4 10.6H2.9M19.6 10.6H21.1M8.6 18V20.6M15.4 18V20.6" />
           </svg>
         )
       ) : (
