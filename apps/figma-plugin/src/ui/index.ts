@@ -4,8 +4,8 @@
 // what the primary button will do (or why it is disabled).
 
 import type { ConflictChoice, DiffEntry } from '@bridge-ds/core';
-import { type Analysis, type PullProposal, type PushBrand, type PushProposal, analyze, buildPull, buildPush } from '../sync/flows';
-import { GitHubClient, type PullRequest, parseRepo } from '@bridge-ds/core';
+import { type Analysis, type PullProposal, type PushBrand, type PushProposal, analyze, buildPull, buildPush, changesModeOf } from '../sync/flows';
+import { type ChangesMode, GitHubClient, type PullRequest, changesMode, loadConfig, parseRepo } from '@bridge-ds/core';
 import type { RenameSuggestion } from '@bridge-ds/core';
 import { affectedContrast, defaultTitle } from '@bridge-ds/core';
 import { type PathIndex, type ResolveContext, resolve } from '@bridge-ds/core';
@@ -25,6 +25,7 @@ import { type FigmaPushStatus, figmaPushStatusesOnGitHub } from '@bridge-ds/core
 import { type ComponentReview, onlyComponent, reviewUpdates } from '../sync/component-review';
 import type { ComponentSignature } from '../sync/components';
 import { type ComponentPush, ROUTE_TAG, componentPushes } from '../sync/component-push';
+import { IMAGES_NEED_WRITE, type SentComponentPush, sendLabel, sentTitle, suggestionLines, tokenHelp } from '../sync/publish';
 import { type Destination, type PublishItem, type PublishResult, sendComponentPush, applyDestination, componentKey, defaultUnchecked, experimentalTokenIds, groupState, heldTokenIds, isChecked, publish, publishItems, setGroup, variableIdsOf, variableKey } from '../sync/publish';
 import { type ComponentsReadProblem, NEW_TOKEN_REFUSED, TOKEN_REJECTED_CALLOUT, TOKEN_REJECTED_DETAIL, TOKEN_SETTINGS_URL, type TokenProblem, checkToken, componentsReadProblem, errorText, tokenProblem } from '../sync/token-health';
 import { type ExplorationChoice, explorationTestBuild, newExplorationProblems, runningExplorations, shareMessage, startExploration, targetOf, TestBuildPoller, tryItLinks } from '../sync/explorations';
@@ -776,7 +777,8 @@ function scanPush(keep?: PushState, then?: () => void): void {
       const items = publishItems(analysis, experimental, (components?.changed ?? []).filter((x) => sendable(pushes, x)));
       // A new scan starts like Figma's publish dialog: everything checked but experimental items. A re-scan from this
       // screen (a confirmed rename, a new mark) keeps what the designer unchecked.
-      const destination = keep?.destination ?? 'review';
+      // Suggest mode has no explorations (they are branches): every push goes for review as a suggestion.
+      const destination = changesModeOf(analysis) === 'suggest' ? 'review' : (keep?.destination ?? 'review');
       const unchecked = keep ? new Set([...keep.unchecked].filter((k) => items.some((i) => i.key === k))) : defaultUnchecked(items, destination);
       if (keep && destination === 'review') for (const i of items) if (i.experimental && !keep.items.some((x) => x.key === i.key && x.experimental)) unchecked.add(i.key);
       // A change that showed up with this re-scan starts like on a first scan (an optional part already covers it).
@@ -861,8 +863,9 @@ function submitPush(): void {
   if (!r) return;
   const withPr = Object.keys(r.proposal.files).length + r.proposal.brandFiles.length > 0;
   const toExploration = r.destination === 'exploration';
+  const mode = modeOf(r);
   void run(
-    toExploration ? (r.exploreTarget === 'new' ? 'Starting the exploration' : 'Sending to the exploration') : withPr ? (r.appendToOpen && r.openPr ? 'Adding to the branch' : 'Creating the branch') : 'Sending the requests',
+    toExploration ? (r.exploreTarget === 'new' ? 'Starting the exploration' : 'Sending to the exploration') : mode === 'suggest' ? 'Sending the suggestion' : withPr ? (r.appendToOpen && r.openPr ? 'Adding to the branch' : 'Creating the branch') : 'Sending the requests',
     async () => {
       let exploration: ExplorationChoice | undefined;
       if (toExploration) {
@@ -890,7 +893,8 @@ function submitPush(): void {
         title: r.title,
         fileName: state.init!.fileName,
         fileKey: r.fileKey,
-        appendTo: !toExploration && r.appendToOpen ? r.openPr : undefined,
+        appendTo: !toExploration && mode === 'direct' && r.appendToOpen ? r.openPr : undefined,
+        mode,
         exploration: exploration ? targetOf(exploration) : undefined,
         coded: r.components?.coded ?? [],
         image: async (nodeId) => (await request('export-image', { nodeId }).catch(() => null))?.base64,
@@ -904,7 +908,8 @@ function submitPush(): void {
       cancelMine(r.assist, false);
       // What was sent exists now; local bookkeeping failures must not hide that.
       try {
-        if (result.pr?.tags.length) await request('tag-variables', { tags: result.pr.tags });
+        const tags = result.pr?.tags ?? result.tags ?? [];
+        if (tags.length) await request('tag-variables', { tags });
         // "Add to open pull request" follows review pull requests only; an exploration is picked in its own select.
         if (result.pr && !exploration) await request('save-sync', { sync: { lastPrBranch: result.pr.branch, lastPrUrl: result.pr.pr.url } });
         // A request is the new reference for its component: the next scan compares against what was asked for.
@@ -912,13 +917,20 @@ function submitPush(): void {
         for (const x of result.requests) r.sent.unshift({ component: x.component, number: x.number, url: x.url });
         // A library branch from Figma: the set remembers it, so a pull rebuilds it from the reviewed code once it ships.
         for (const x of result.branches) await afterBranch(r, x);
+        // A component change sent as a suggestion: its new baseline, and the issue in the "sent" list.
+        for (const x of result.suggestions) {
+          if (x.nodeId) await request('rebaseline', { nodeId: x.nodeId }).catch(() => undefined);
+          r.sent.unshift({ component: x.component ?? x.title ?? 'Variables', number: x.number, url: x.url, what: 'Suggestion' });
+        }
         await loadInit();
       } catch (err) {
         state.error = { message: `Sent, but saving the links in this file failed: ${err instanceof Error ? err.message : String(err)}` };
       }
       const parts = exploration
         ? [`Sent to ${exploration.name}`]
-        : [result.pr ? (result.pr.appended ? 'Branch updated' : 'Branch created') : '', result.requests.length ? `${plural(result.requests.length, 'request')} opened` : '', result.branches.length ? `${plural(result.branches.length, 'component')} sent` : ''].filter(Boolean);
+        : mode === 'suggest'
+          ? [result.suggestions.length ? sentTitle(result, mode) : '', result.requests.length ? `${plural(result.requests.length, 'request')} opened` : ''].filter(Boolean)
+          : [result.pr ? (result.pr.appended ? 'Branch updated' : 'Branch created') : '', result.requests.length ? `${plural(result.requests.length, 'request')} opened` : '', result.branches.length ? `${plural(result.branches.length, 'component')} sent` : ''].filter(Boolean);
       void request('notify', { message: parts.join(', ') });
     },
     submitPush,
@@ -945,6 +957,20 @@ function markExperimental(r: PushState, item: PublishItem, value: boolean): void
   );
 }
 
+/** How the push of this scan reaches the code: bridge.config.json "changes" (default suggest). */
+const modeOf = (r: PushState): ChangesMode => changesModeOf(r.analysis);
+
+/** "changes" in the repo's bridge.config.json at `branch` (no config: direct, the plugin's behaviour without one). */
+async function repoChangesMode(gh: GitHubClient, branch: string): Promise<ChangesMode> {
+  const text = await gh.getFileText('bridge.config.json', branch).catch(() => undefined);
+  if (!text) return 'direct';
+  try {
+    return changesMode(loadConfig(text));
+  } catch {
+    return 'direct';
+  }
+}
+
 function saveSettings(): void {
   const draft = state.settingsDraft;
   state.settingsMessage = undefined;
@@ -968,13 +994,18 @@ function saveSettings(): void {
           }
           throw err;
         });
+        // Read-only on code is enough when the repo takes suggestions (issues only); direct mode needs to write.
+        let readOnly = false;
         if (info.permissions && info.permissions.push === false) {
-          throw new Error(`This token can read ${info.fullName} but cannot write to it. Give it "Contents", "Pull requests" and "Issues" set to "Read and write".`);
+          if ((await repoChangesMode(gh, draft.branch.trim())) === 'direct') {
+            throw new Error(`This token can read ${info.fullName} but cannot write to it. Give it "Contents", "Pull requests" and "Issues" set to "Read and write".`);
+          }
+          readOnly = true;
         }
         if (!(await gh.getBranchSha(draft.branch.trim()))) throw new Error(`Branch "${draft.branch.trim()}" does not exist in ${info.fullName}.`);
         if (newToken) await request('save-token', { token: newToken });
         else setTokenState('ok');
-        message = `Connected to ${info.fullName}.${newToken ? ' The token is saved on this computer only.' : ''}`;
+        message = `Connected to ${info.fullName}.${newToken ? ' The token is saved on this computer only.' : ''}${readOnly ? ' It sends suggestions (issues) only; screenshots need "Contents: Read and write".' : ''}`;
       }
       state.tokenDraft = '';
       state.expanded.delete('repo-edit');
@@ -2008,7 +2039,9 @@ function sendRequest(r: PushState): void {
         baseBranch: state.init!.settings.branch,
         config: a.headFiles.config,
         coded,
+        imagesNeedWrite: modeOf(r) === 'suggest',
       });
+      if (res.imagesSkipped) state.error = { message: IMAGES_NEED_WRITE };
       r.sent.unshift({ component: d.component.trim(), number: res.issue.number, url: res.issue.url });
       // Sent: the pending drafts file for the designer's Claude is done.
       cancelMine(f.assist, false);
@@ -2274,7 +2307,13 @@ function routeNote(r: PushState, item: ComponentChangeItem): Child {
 }
 
 /** After a library branch opens: the set remembers it (pull rebuilds it once it ships), its new baseline, a status line. */
-async function afterBranch(r: PushState, x: PublishResult['branches'][number]): Promise<void> {
+async function afterBranch(r: PushState, x: SentComponentPush): Promise<void> {
+  if (x.suggested) {
+    // A suggestion has no library branch to follow yet: only the new baseline and the "sent" line.
+    await request('rebaseline', { nodeId: x.nodeId }).catch(() => undefined);
+    r.sent.unshift({ component: x.component, number: x.number, url: x.url, what: 'Suggestion' });
+    return;
+  }
   await request('mark-pushed', { nodeId: x.nodeId, mark: JSON.stringify({ number: x.number, url: x.url, route: x.route, at: new Date().toISOString() }) }).catch(() => undefined);
   await request('rebaseline', { nodeId: x.nodeId }).catch(() => undefined);
   r.sent.unshift({ component: x.component, number: x.number, url: x.url, what: x.route === 'token-change' ? 'Exact token change' : 'Library branch for Claude AI' });
@@ -2288,10 +2327,11 @@ function sendCandidate(r: PushState, item: ComponentChangeItem): void {
     `Sending ${item.component} to Claude AI`,
     async () => {
       const draft: RequestDraft = { component: item.component, kind: item.kind, title: titleOf(r, item), summary: r.descriptionSource === 'user' && r.description.trim() ? r.description : suggestSummary(item), line: lineOf(r, item), changes: item.changes, nodeId: item.nodeId, nodeName: item.figmaName };
-      const x = await sendComponentPush(getClient(), { analysis: r.analysis, fileKey: r.fileKey, image: async (nodeId) => (await request('export-image', { nodeId }).catch(() => null))?.base64 }, push, draft);
+      const x = await sendComponentPush(getClient(), { analysis: r.analysis, fileKey: r.fileKey, mode: modeOf(r), image: async (nodeId) => (await request('export-image', { nodeId }).catch(() => null))?.base64 }, push, draft);
       await afterBranch(r, x);
       if (r.components) r.components.candidates = r.components.candidates.filter((c) => c.nodeId !== item.nodeId);
-      void request('notify', { message: `${item.component} sent: library branch #${x.number}, waiting for Claude AI` });
+      if (x.imagesSkipped) state.error = { message: IMAGES_NEED_WRITE };
+      void request('notify', { message: x.suggested ? `Suggestion #${x.number} sent to your DS lead` : `${item.component} sent: library branch #${x.number}, waiting for Claude AI` });
     },
     () => sendCandidate(r, item),
   );
@@ -2796,16 +2836,20 @@ function viewPush(): View {
             : { ...github, secondary: { label: 'Scan again', onClick: () => scanPush() } },
       };
     }
+    const mode = modeOf(r);
     const text = [
+      ...suggestionLines(res),
       pr ? `${pr.appended ? 'Added to your branch' : 'Branch created as a draft'}. Checks run, then a design owner and a tech owner approve before it is merged.` : '',
       res.requests.length ? `${plural(res.requests.length, 'request')} opened for ${res.requests.map((x) => x.component).join(', ')}.` : '',
       ...res.branches.map((x) => (x.route === 'token-change' ? `${x.component}: exact token change #${x.number}, checked for contrast.` : `${x.component}: library branch #${x.number}, waiting for Claude AI to draft the code.`)),
       res.held.length ? `Not sent, fix in Figma first: ${res.held.map((x) => x.component).join(', ')}.` : '',
       prop.held.length ? `${plural(prop.held.length, 'unchecked variable edit')} stay${prop.held.length === 1 ? 's' : ''} in Figma.` : '',
     ].filter(Boolean);
-    const first = pr?.pr.url ?? res.branches[0]?.url ?? res.requests[0]?.url;
+    const first = pr?.pr.url ?? res.suggestions[0]?.url ?? res.branches[0]?.url ?? res.requests[0]?.url;
+    const images = res.imagesSkipped ? h('div', { class: 'callout warn', role: 'status' }, h('div', { class: 'callout-title' }, icon('alert'), 'Screenshots not attached'), h('p', null, IMAGES_NEED_WRITE)) : null;
+    if (images && mode === 'suggest') (images as HTMLElement).append(h('div', { class: 'inline-actions' }, h('button', { class: 'btn', onClick: openTokenSettings }, icon('external'), 'Edit token on GitHub')));
     return {
-      body: [intro({ title: 'Sent for review', text: text.join(' '), meta: pr ? h('span', { class: 'url' }, pr.pr.url) : undefined, art: 'review' }), failed, requestLine(r)],
+      body: [intro({ title: sentTitle(res, mode), text: text.join(' '), meta: pr ? h('span', { class: 'url' }, pr.pr.url) : res.suggestions[0] ? h('span', { class: 'url' }, res.suggestions[0].url) : undefined, art: 'review' }), images, failed, requestLine(r)],
       bar: r.form ? undefined : first
         ? { label: 'Open on GitHub', onClick: () => void request('open-url', { url: first }), secondary: { label: 'Scan again', onClick: () => scanPush() } }
         : { label: 'Scan again', onClick: () => scanPush() },
@@ -2890,7 +2934,11 @@ function viewPush(): View {
   for (const b of prop.brands) body.push(newBrandCard(r, b));
   if (r.items.length) {
     body.push(h('h2', { class: 'section-title' }, 'Changes'));
-    body.push(destinationControl(r));
+    body.push(
+      modeOf(r) === 'suggest'
+        ? h('p', { class: 'muted' }, 'Sent as a suggestion: your DS lead reviews it, then a developer applies it. Nothing reaches the code before that.')
+        : destinationControl(r),
+    );
   }
   body.push(variablesGroup(r));
   body.push(
@@ -2967,7 +3015,7 @@ function viewPush(): View {
           draftedNote('push-description', r.descriptionSource),
         ),
         assistStatus(r.assist, pushAssist(r)),
-        !exploring && prFiles && r.openPr
+        !exploring && prFiles && r.openPr && modeOf(r) === 'direct'
           ? h(
               'label',
               { class: 'check' },
@@ -2980,7 +3028,7 @@ function viewPush(): View {
           ? h(
               'details',
               { class: 'notes', open: r.titleSource === 'claude' },
-              h('summary', null, 'Branch title'),
+              h('summary', null, modeOf(r) === 'suggest' ? 'Suggestion title' : 'Branch title'),
               h('input', {
                 type: 'text',
                 'aria-label': 'Branch title',
@@ -2997,7 +3045,7 @@ function viewPush(): View {
           : null,
         // What the push sends is summed up once, in the bar ("2 variables, 1 request"); this only says how it goes.
         prFiles
-          ? h('p', { class: 'muted' }, exploring ? 'Owners review it only if the exploration is promoted.' : 'Token changes need two approvals: a design owner and a tech owner.')
+          ? h('p', { class: 'muted' }, exploring ? 'Owners review it only if the exploration is promoted.' : modeOf(r) === 'suggest' ? 'Token changes need two approvals on the suggestion: a design owner and a tech owner.' : 'Token changes need two approvals: a design owner and a tech owner.')
           : null,
       ),
     );
@@ -3025,7 +3073,7 @@ function viewPush(): View {
     bar: nothing
       ? { label: 'Scan again', onClick: () => scanPush(r) }
       : {
-          label: exploring ? 'Send to exploration' : 'Request review',
+          label: exploring ? 'Send to exploration' : sendLabel(modeOf(r)),
           onClick: submitPush,
           disabled: !!open || !!blocked || none || !!waiting,
           hint,
@@ -3110,7 +3158,7 @@ function viewSettings(): View {
             'section',
             { class: 'card' },
             h('div', { class: 'group-head' }, h('h2', null, 'GitHub token'), h('button', { class: 'btn ghost', onClick: () => void request('open-url', { url: 'https://github.com/settings/personal-access-tokens/new' }) }, 'Create one on GitHub')),
-            h('p', { class: 'lede' }, 'A fine-grained token for this repository only, with "Contents", "Pull requests" and "Issues" set to "Read and write".'),
+            h('p', { class: 'lede' }, tokenHelp(state.push ? changesModeOf(state.push.analysis) : undefined)),
             tokenInput('Fine-grained token', 'Stays on this computer, never in the file, never shown again.'),
           ),
       state.settingsMessage
