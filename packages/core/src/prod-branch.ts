@@ -2,7 +2,9 @@
 // labeled `product: <key>`) built on the real components. What the branch invents outside the library (a colour
 // written by hand, a component restyled into a new tone, a component the library lacks) are "missing pieces". Each
 // one becomes a library branch linked to the product branch: a token change, a library exploration for a variant, or
-// a component request. Once the library ships it, the product branch switches to the real version.
+// a component request. In suggest mode (config `changes`), a token piece becomes a suggestion (an issue a developer
+// applies) and a variant a component request, so nothing needs write access to the code. Once the library ships it,
+// the product branch switches to the real version.
 //
 // Pure and browser safe: the pieces record kept in the product branch body, the "needed by" mark on the library side,
 // the status and preview sentences Studio, the CLI and the MCP server all show, and what each piece opens. Finding the
@@ -11,7 +13,9 @@
 
 import type { Exploration } from './explorations';
 import { slugify } from './pr-composer';
+import type { ChangesMode } from './config';
 import type { ComponentChangeRequest } from './requests';
+import type { SuggestionStatus } from './suggestions';
 import type { TokenEdit } from './token-edits';
 
 /** What the library lacks: a token value, a variant of an existing component, or a component. */
@@ -62,14 +66,14 @@ export interface MissingPiece {
   token?: { path: string; type: string; value: string; files: string[] } | undefined;
 }
 
-/** Where the library side of a piece lives. */
-export type LibraryLinkKind = 'token-change' | 'exploration' | 'request';
+/** Where the library side of a piece lives. A suggestion is an issue holding the exact token change (suggestions.ts). */
+export type LibraryLinkKind = 'token-change' | 'exploration' | 'request' | 'suggestion';
 
 export interface LibraryLink {
   /** The piece id. */
   piece: string;
   kind: LibraryLinkKind;
-  /** Pull request number (token change, exploration) or issue number (request). */
+  /** Pull request number (token change, exploration) or issue number (request, suggestion). */
   number: number;
   url: string;
   title: string;
@@ -113,7 +117,7 @@ const readHidden = <T>(mark: string, body: string | null | undefined): T | undef
   }
 };
 
-const KIND_WORD: Record<LibraryLinkKind, string> = { 'token-change': 'token change', exploration: 'library exploration', request: 'component request' };
+const KIND_WORD: Record<LibraryLinkKind, string> = { 'token-change': 'token change', exploration: 'library exploration', request: 'component request', suggestion: 'suggested token change' };
 
 /** The record in a product branch body, or undefined when the branch was never checked. */
 export function parsePiecesRecord(body: string | null | undefined): PiecesRecord | undefined {
@@ -236,11 +240,13 @@ const forLine = (b: ProductBranchRef) => `${b.productName} needs it for "${b.tit
 
 /**
  * What a piece opens in the library, honestly labelled by what Bridge can write:
- * - a token piece: a token change (the new token, a draft for review, the usual gate);
- * - a variant: a library exploration (a branch and a draft for the component work, with a brief for Claude);
+ * - a token piece: a token change (the new token, a draft for review, the usual gate); in suggest mode the same
+ *   change is filed as a suggestion;
+ * - a variant: a library exploration (a branch and a draft for the component work, with a brief for Claude); in
+ *   suggest mode a component request, since an exploration is a branch;
  * - a new component: a component request (an issue): it needs design work before code.
  */
-export function libraryBranchPlan(piece: MissingPiece, branch: ProductBranchRef, opts: { source?: ComponentChangeRequest['source']; requestedBy?: string | undefined } = {}): LibraryBranchPlan {
+export function libraryBranchPlan(piece: MissingPiece, branch: ProductBranchRef, opts: { source?: ComponentChangeRequest['source']; requestedBy?: string | undefined; mode?: ChangesMode | undefined } = {}): LibraryBranchPlan {
   const neededBy: NeededBy = {
     pr: branch.pr,
     title: branch.title,
@@ -266,6 +272,18 @@ export function libraryBranchPlan(piece: MissingPiece, branch: ProductBranchRef,
       ...(file ? { file } : {}),
     }));
     return { kind: 'token-change', title: `Add ${t.path}`, summary: `${forLine(branch)}: ${piece.summary}${near}`, edits, neededBy };
+  }
+  if (piece.kind === 'variant' && piece.component && opts.mode === 'suggest') {
+    const request: ComponentChangeRequest = {
+      component: piece.component,
+      kind: 'new-variant',
+      title: piece.title,
+      summary: `${forLine(branch)}: ${piece.summary}${near}`,
+      changes: piece.values.slice(0, 6).map((v) => ({ field: v.property ?? v.category, after: v.value })),
+      source: opts.source ?? 'mcp',
+      ...(opts.requestedBy ? { requestedBy: opts.requestedBy } : {}),
+    };
+    return { kind: 'request', title: piece.title, request, neededBy };
   }
   if (piece.kind === 'variant' && piece.component) {
     const values = piece.values.map((v) => `${v.property ?? v.category} ${v.value}`).join(', ');
@@ -301,7 +319,7 @@ export function libraryBranchPlan(piece: MissingPiece, branch: ProductBranchRef,
 // ---------------------------------------------------------------------------------------------------------------
 // Where a linked library branch stands
 
-export type LinkStatusKey = 'draft' | 'in-review' | 'changes' | 'approved' | 'shipped' | 'closed' | 'exploring' | 'requested' | 'in-progress' | 'done' | 'declined';
+export type LinkStatusKey = 'draft' | 'in-review' | 'changes' | 'approved' | 'shipped' | 'closed' | 'exploring' | 'requested' | 'in-progress' | 'done' | 'declined' | 'outdated';
 
 export interface LinkStatus {
   key: LinkStatusKey;
@@ -325,6 +343,7 @@ const STATUS_LABEL: Record<LinkStatusKey, string> = {
   'in-progress': 'In progress',
   done: 'Done',
   declined: 'Declined',
+  outdated: 'Outdated',
 };
 
 /** Badge tone of a status: status colours only for status. */
@@ -340,24 +359,42 @@ export const LINK_STATUS_TONE: Record<LinkStatusKey, 'neutral' | 'info' | 'warni
   'in-progress': 'info',
   done: 'success',
   declined: 'neutral',
+  outdated: 'warning',
 };
 
 const names = (people: string[]) => (people.length <= 2 ? people.map((p) => `@${p}`).join(' and ') : `@${people[0]} and ${people.length - 1} more`);
 
+/** The link status of each suggestion status: review states read like a pull request's, applied like shipped. */
+const SUGGESTION_LINK_STATUS: Record<SuggestionStatus, LinkStatusKey> = {
+  'needs-review': 'in-review',
+  'changes-requested': 'changes',
+  approved: 'approved',
+  applying: 'in-progress',
+  applied: 'shipped',
+  declined: 'declined',
+  outdated: 'outdated',
+};
+
 /**
  * Where a library branch stands, from what GitHub says: a pull request (state, draft, labels, requested reviewers,
- * latest review per person) or a request issue (state, reason, assignees, whether a pull request implements it).
+ * latest review per person), a request issue (state, reason, assignees, whether a pull request implements it) or a
+ * suggestion (its status, suggestionStatus in suggestions.ts, and who it is assigned to).
  */
 export function linkStatus(
   x:
     | { kind: 'token-change' | 'exploration'; state: string; draft: boolean; labels?: readonly string[] | undefined; requestedReviewers?: readonly string[] | undefined; reviews?: readonly { user?: string | undefined; state: string }[] | undefined }
-    | { kind: 'request'; state: 'open' | 'closed'; stateReason?: string | null | undefined; assignees?: readonly string[] | undefined; implemented?: boolean | undefined },
+    | { kind: 'request'; state: 'open' | 'closed'; stateReason?: string | null | undefined; assignees?: readonly string[] | undefined; implemented?: boolean | undefined }
+    | { kind: 'suggestion'; status: SuggestionStatus; assignees?: readonly string[] | undefined },
 ): LinkStatus {
   const make = (key: LinkStatusKey, people: string[] = [], verb = 'reviews'): LinkStatus => {
     const label = STATUS_LABEL[key];
     const tail = people.length ? ` · ${names(people)} ${people.length === 1 ? verb : verb.replace(/s$/, '')}` : '';
     return { key, label, people, line: `${label}${tail}` };
   };
+  if (x.kind === 'suggestion') {
+    const key = SUGGESTION_LINK_STATUS[x.status];
+    return make(key, key === 'in-progress' ? [...(x.assignees ?? [])] : [], 'builds');
+  }
   if (x.kind === 'request') {
     if (x.state === 'closed') return make(x.stateReason === 'not_planned' ? 'declined' : 'done');
     return x.implemented ? make('in-progress', [...(x.assignees ?? [])], 'builds') : make('requested', [...(x.assignees ?? [])], 'builds');
@@ -409,6 +446,11 @@ export function libraryPreviewState(x: {
   behindMain: number | null;
   nearest?: string | undefined;
 }): LibraryPreviewState {
+  if (x.kind === 'suggestion') {
+    if (x.lifecycle === 'closed') return { key: 'declined', sentence: `The library declined this suggestion.${x.nearest ? ` Ask Claude to use ${x.nearest} instead.` : ''}`, action: null };
+    if (x.lifecycle === 'merged') return x.behindMain === 0 ? { key: 'switched', sentence: 'Your branch uses the published version.', action: null } : { key: 'published', sentence: 'The library applied the suggestion. Switch your branch to the published version.', action: { kind: 'switch', label: 'Switch to the published version' } };
+    return { key: 'nothing-yet', sentence: 'Nothing to preview yet: owners review the suggestion, then a developer applies it. Your branch keeps its own value until then.', action: null };
+  }
   if (x.kind === 'request') {
     if (x.lifecycle === 'closed') return { key: 'declined', sentence: `The library declined this request.${x.nearest ? ` Ask Claude to use ${x.nearest} instead.` : ''}`, action: null };
     if (x.lifecycle === 'merged') return x.behindMain === 0 ? { key: 'switched', sentence: 'Your branch uses the published version.', action: null } : { key: 'published', sentence: 'The library built it. Switch your branch to the published version, then ask Claude to use it.', action: { kind: 'switch', label: 'Switch to the published version' } };
