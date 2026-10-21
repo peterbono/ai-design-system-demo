@@ -2,15 +2,17 @@
 // in mono and your access on it as a badge ("Can edit", "Can suggest", "No access"), then a chevron. It is the nav's
 // first focus stop and a full-width target. The name stays on one line (ellipsis, the full name in its title). Its
 // menu: Invite your team, then on the hosted site the teams opened in this browser (max 5) and "Create a new team",
-// which opens the launcher to connect another design system. Who you are stays at the bottom of the nav
-// (components/GitHubAccount.astro): proximity keeps the team at the top and the account at the bottom.
+// which opens a dialog over the page (NewTeamDialog.tsx) to connect another design system: the person keeps their
+// place. Who you are stays at the bottom of the nav (components/GitHubAccount.astro): proximity keeps the team at the
+// top and the account at the bottom.
 // Mounted by layouts/Layout.astro on every Studio page, both modes: a self-hosted Studio is its own one team.
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ChevronsUpDown, Plus, UserPlus } from 'lucide-react';
 import { Avatar, Badge, Button, Icon, Menu, MenuContent, MenuGroup, MenuItem, MenuSeparator, MenuTrigger } from '@bridge-ds/react';
 import type { RepoAccessState } from '@bridge-ds/core';
 import { accessBadge, ownerAvatarUrl, parseRecentTeams, pushRecentTeam, RECENT_TEAMS_KEY } from '../../../lib/access-view';
-import { STUDIO_ROOT, studioHref, teamHref } from '../../../lib/team-path';
+import { studioHref, teamHref } from '../../../lib/team-path';
+import NewTeamDialog, { type TeamAccessCheck } from './NewTeamDialog';
 
 export interface TeamChipProps {
   /** owner/repo known at build time (self-hosted). Null on a team shell: read from the address. */
@@ -33,6 +35,7 @@ export default function TeamChip({ repo: built = null, launcher = false }: TeamC
   const [signedIn, setSignedIn] = useState(false);
   const [recent, setRecent] = useState<string[]>([]);
   const [hosted, setHosted] = useState(false);
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -68,53 +71,62 @@ export default function TeamChip({ repo: built = null, launcher = false }: TeamC
   const [owner = '', repo = ''] = (name ?? '').split('/');
   const badge = accessBadge(access, signedIn);
   const go = (href: string) => location.assign(href);
+  // The dialog's live line: the session's access resolver (cached per repository; signed out, one anonymous read).
+  const check = useCallback<TeamAccessCheck>(async (o, r) => {
+    const { resolveAccess } = await import('../../../scripts/github-session');
+    const a = await resolveAccess({ owner: o, repo: r }, { anonymous: true, probe: true });
+    return a && { state: a.state, repoAdmin: a.repoAdmin };
+  }, []);
   const label = name ? `${name}, ${badge.label}. Team menu` : 'Team menu';
   return (
-    <Menu>
-      <MenuTrigger
-        render={<Button variant="ghost" fullWidth className="tc-trigger" aria-label={label} />}
-      >
-        <Avatar name={owner || 'Team'} src={owner ? ownerAvatarUrl(owner) : undefined} size="sm" decorative className="tc-avatar" />
-        <span className="tc-text">
-          <span className="tc-name mono" title={name ?? undefined}>
-            {name ?? 'Your team'}
+    <>
+      <Menu>
+        <MenuTrigger
+          render={<Button variant="ghost" fullWidth className="tc-trigger" aria-label={label} />}
+        >
+          <Avatar name={owner || 'Team'} src={owner ? ownerAvatarUrl(owner) : undefined} size="sm" decorative className="tc-avatar" />
+          <span className="tc-text">
+            <span className="tc-name mono" title={name ?? undefined}>
+              {name ?? 'Your team'}
+            </span>
+            <Badge size="sm" tone={badge.tone} dot className="tc-badge">
+              {badge.label}
+            </Badge>
           </span>
-          <Badge size="sm" tone={badge.tone} dot className="tc-badge">
-            {badge.label}
-          </Badge>
-        </span>
-        <Icon icon={ChevronsUpDown} size="sm" className="tc-chev" />
-      </MenuTrigger>
-      <MenuContent className="tc-menu" align="start">
-        <MenuItem icon={UserPlus} onClick={() => go(studioHref('?setup=team'))}>
-          Invite your team
-        </MenuItem>
-        {(launcher || hosted) && (
-          <>
-            {recent.length > 0 && (
-              <>
-                <MenuSeparator />
-                <MenuGroup label="Recent teams">
-                  {recent.map((t) => {
-                    const [o = '', r = ''] = t.split('/');
-                    return (
-                      <MenuItem key={t} icon={<Avatar name={o} src={ownerAvatarUrl(o, 32)} size="xs" decorative />} onClick={() => go(teamHref(o, r, null))}>
-                        <span className="mono">{t}</span>
-                      </MenuItem>
-                    );
-                  })}
-                </MenuGroup>
-              </>
-            )}
-            <MenuSeparator />
-            {/* The launcher on the hosted Studio home: connect another design system by its repository. */}
-            <MenuItem icon={Plus} onClick={() => go(STUDIO_ROOT)}>
-              Create a new team
-            </MenuItem>
-          </>
-        )}
-      </MenuContent>
-    </Menu>
+          <Icon icon={ChevronsUpDown} size="sm" className="tc-chev" />
+        </MenuTrigger>
+        <MenuContent className="tc-menu" align="start">
+          <MenuItem icon={UserPlus} onClick={() => go(studioHref('?setup=team'))}>
+            Invite your team
+          </MenuItem>
+          {(launcher || hosted) && (
+            <>
+              {recent.length > 0 && (
+                <>
+                  <MenuSeparator />
+                  <MenuGroup label="Recent teams">
+                    {recent.map((t) => {
+                      const [o = '', r = ''] = t.split('/');
+                      return (
+                        <MenuItem key={t} icon={<Avatar name={o} src={ownerAvatarUrl(o, 32)} size="xs" decorative />} onClick={() => go(teamHref(o, r, null))}>
+                          <span className="mono">{t}</span>
+                        </MenuItem>
+                      );
+                    })}
+                  </MenuGroup>
+                </>
+              )}
+              <MenuSeparator />
+              {/* A dialog over the page: connect another design system by its repository, without leaving this one. */}
+              <MenuItem icon={Plus} onClick={() => setCreating(true)}>
+                Create a new team
+              </MenuItem>
+            </>
+          )}
+        </MenuContent>
+      </Menu>
+      {(launcher || hosted) && <NewTeamDialog open={creating} onOpenChange={setCreating} signedIn={signedIn} check={check} />}
+    </>
   );
 }
 
