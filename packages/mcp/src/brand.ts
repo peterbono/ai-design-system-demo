@@ -1,10 +1,11 @@
 // New brands for the MCP server and the CLI: list, plan (dry run) and propose (local branch or draft PR).
 // The planner is @bridge-ds/core planNewBrand, the same one the Studio and the Figma plugin use.
-import { baseBranchOf, composeNewBrandBody, listBrands as coreListBrands, planNewBrand, protectedBranchesOf, RADIUS_PRESETS, type BrandRadiusInput, type BrandSource, type NewBrandInput, type NewBrandPlan } from '@bridge-ds/core';
+import { baseBranchOf, composeNewBrandBody, type ChangesMode, listBrands as coreListBrands, planNewBrand, protectedBranchesOf, RADIUS_PRESETS, type BrandRadiusInput, type BrandSource, type NewBrandInput, type NewBrandPlan } from '@bridge-ds/core';
 import { branchExists, commitToNewLocalBranch, currentBranch } from '@bridge-ds/core/node';
 import type { BridgeContext } from './context.js';
 import { CONFIG_FILE } from './config.js';
 import { readTokenFiles } from './core-adapter.js';
+import { changesFor, fileSuggestion, filesSuggestionPayload } from './suggestions.js';
 
 export interface BrandArgs {
   slug: string;
@@ -97,7 +98,7 @@ export async function planBrand(ctx: BridgeContext, a: BrandArgs) {
   return { status: 'plan', ...summary(plan, a.notes) };
 }
 
-export async function proposeBrand(ctx: BridgeContext, a: BrandArgs & { dryRun?: boolean }) {
+export async function proposeBrand(ctx: BridgeContext, a: BrandArgs & { dryRun?: boolean; changes?: ChangesMode | undefined; source?: 'mcp' | 'cli' | undefined }) {
   const { config } = await ctx.config();
   const plan = planNewBrand(await brandSource(ctx), toInput(a));
   const report = summary(plan, a.notes);
@@ -110,6 +111,18 @@ export async function proposeBrand(ctx: BridgeContext, a: BrandArgs & { dryRun?:
   const prefix = config.governance.branchPrefix;
   const stem = `${prefix}brand-${plan.slug}`;
   let branch = stem;
+  // Suggest mode: one suggestion issue with the brand files, applied by a developer after design and tech approval.
+  if ((await changesFor(ctx, a.changes)) === 'suggest') {
+    const summary = a.notes?.trim() || `New brand "${plan.slug}", started from ${plan.from}. ${report.contrast.line} (${plan.contrast.themes.join(' and ')}).`;
+    const r = await fileSuggestion(
+      ctx,
+      (base, by) => filesSuggestionPayload(ctx, { kind: 'brand', title: plan.title, summary, files, tier: { tier: plan.risk.tier, bump: plan.risk.bump }, base, source: a.source ?? 'mcp', suggestedBy: by }),
+      { labels: ['tokens'], details: report.prBody, dryRun: a.dryRun },
+    );
+    if (r.status === 'dry-run') return { status: 'dry-run', ...report, changesMode: 'suggest', suggestion: r.suggestion, fileContents: files };
+    if (r.status === 'preview') return { status: 'preview', message: r.message, ...report, changesMode: 'suggest', fileContents: files };
+    return { status: 'suggested', ...report, changesMode: 'suggest', number: r.number, url: r.url, version: r.sha.slice(0, 7), labels: r.labels, ...(r.warnings.length ? { warnings: r.warnings } : {}), next: r.next };
+  }
   if (a.dryRun) return { status: 'dry-run', ...report, branch, fileContents: files };
   const message = `feat(tokens): add the ${plan.name} brand\n\nNew brand "${plan.slug}", started from ${plan.from}. ${report.contrast.line} (${plan.contrast.themes.join(' and ')}).\n\nTier 3. Proposed through Bridge MCP (source: mcp).`;
 

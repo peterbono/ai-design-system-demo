@@ -13,8 +13,12 @@ import {
   recordPiecesOnGitHub,
   switchToPublishedOnGitHub,
   useLibraryPreviewOnGitHub,
+  suggestTokenProposalOnGitHub,
   writeTokenProposalOnGitHub,
+  type ChangesMode,
+  type GitHubClient,
   type LibraryBranchPlan,
+  type LibraryTokenWrite,
   type MissingPiece,
 } from '@bridge-ds/core';
 import { missingPieces } from '@bridge-ds/core/audit';
@@ -22,6 +26,7 @@ import { branchNumber, reader, viewerOf, writer } from './branches.js';
 import type { BridgeContext } from './context.js';
 import { core } from './core-adapter.js';
 import { settingsOf } from './explorations.js';
+import { appliedNext, changesFor, SUGGEST_RIGHTS, suggestionBase } from './suggestions.js';
 import { designSystemIndex } from './ops.js';
 
 const NEED = 'Contents, Pull requests and Issues: read and write';
@@ -70,14 +75,22 @@ export async function missingPiecesOp(ctx: BridgeContext, a: { pr: number | stri
   };
 }
 
-/** The token change of a token piece, from the library's token files on the default branch: the same write as bridge_propose_token_change. */
-function tokenWriter(ctx: BridgeContext, gh: Awaited<ReturnType<typeof writer>>, source: PiecesSource) {
-  return async (plan: Extract<LibraryBranchPlan, { kind: 'token-change' }>) => {
+/**
+ * The token change of a token piece, from the library's token files on the default branch: the same write as
+ * bridge_propose_token_change. Suggest mode files it as a suggestion that says which product branch needs it.
+ */
+function tokenWriter(ctx: BridgeContext, gh: GitHubClient, source: PiecesSource, viewer: string | null) {
+  return async (plan: Extract<LibraryBranchPlan, { kind: 'token-change' }>, how: { mode: ChangesMode }): Promise<LibraryTokenWrite> => {
     const { config } = await ctx.config();
     const [before, pairs] = await Promise.all([ctx.tokens(), core.readContrastPairs(ctx.source, config).catch(() => [])]);
     const p = planTokenProposal({ before, pairs, edits: plan.edits, title: plan.title, summary: plan.summary, config, tool: source === 'mcp' ? 'Bridge MCP' : 'the bridge CLI' });
     if (!p) throw new Error('The token already exists with that value: nothing to add.');
-    if (p.blocked) throw new Error(`The library branch was not opened: ${p.blocked}. Change the value (bridge_propose_token_change with dryRun shows why).`);
+    if (p.blocked) throw new Error(`The library ${how.mode === 'suggest' ? 'suggestion was not sent' : 'branch was not opened'}: ${p.blocked}. Change the value (bridge_propose_token_change with dryRun shows why).`);
+    if (how.mode === 'suggest') {
+      const base = await suggestionBase(ctx, gh, config);
+      const s = await suggestTokenProposalOnGitHub(gh, p, { base: base.ref, baseSha: base.sha, source, ...(viewer ? { suggestedBy: viewer } : {}), labels: config.governance.labels, labelsAfter: [NEEDED_BY_LABEL], neededBy: plan.neededBy });
+      return { status: 'suggested', number: s.number, url: s.url };
+    }
     const opened = await writeTokenProposalOnGitHub(gh, p, { base: baseBranchOf(config), branchPrefix: config.governance.branchPrefix, labels: config.governance.labels, labelsAfter: [NEEDED_BY_LABEL], tool: source === 'mcp' ? 'Bridge MCP (source: mcp)' : 'the bridge CLI' });
     return { number: opened.pr, url: opened.url, branch: opened.branch };
   };
@@ -88,10 +101,14 @@ function tokenWriter(ctx: BridgeContext, gh: Awaited<ReturnType<typeof writer>>,
  * ways. A token opens a token change (and the product branch takes its preview), a variant a library exploration with
  * the brief to build it, a new component a request.
  */
-export async function openLibraryBranchOp(ctx: BridgeContext, a: { pr: number | string; piece: string; usePreview?: boolean | undefined; dryRun?: boolean | undefined; source?: PiecesSource | undefined }) {
+export async function openLibraryBranchOp(
+  ctx: BridgeContext,
+  a: { pr: number | string; piece: string; usePreview?: boolean | undefined; dryRun?: boolean | undefined; source?: PiecesSource | undefined; changes?: ChangesMode | undefined },
+) {
   const n = branchNumber(a.pr);
   const source = a.source ?? 'mcp';
-  const gh = a.dryRun ? await reader(ctx) : await writer(ctx, 'Opening a library branch', NEED);
+  const mode = await changesFor(ctx, a.changes);
+  const gh = a.dryRun ? await reader(ctx) : mode === 'suggest' ? await writer(ctx, 'Suggesting a library change', SUGGEST_RIGHTS) : await writer(ctx, 'Opening a library branch', NEED);
   const { config } = await ctx.config();
   const viewer = await viewerOf(ctx, gh);
   const s = settingsOf(config);
@@ -101,7 +118,8 @@ export async function openLibraryBranchOp(ctx: BridgeContext, a: { pr: number | 
     base: s.base,
     products: productsOf(config),
     exploration: { packages: s.packages, apps: s.apps },
-    writeTokens: tokenWriter(ctx, gh, source),
+    writeTokens: tokenWriter(ctx, gh, source, viewer),
+    mode,
     ...(viewer ? { openedBy: viewer } : {}),
     ...(source === 'mcp' ? { agent: 'claude' } : {}),
     source,
@@ -109,10 +127,12 @@ export async function openLibraryBranchOp(ctx: BridgeContext, a: { pr: number | 
     dryRun: a.dryRun,
   });
   const plan = r.plan;
-  const what = plan.kind === 'token-change' ? 'token change' : plan.kind === 'exploration' ? 'library exploration' : 'component request';
+  const what = plan.kind === 'token-change' ? (mode === 'suggest' ? 'token suggestion' : 'token change') : plan.kind === 'exploration' ? 'library exploration' : 'component request';
   const next =
     r.status === 'dry-run'
       ? `Run it without dryRun to open the ${what}.`
+      : r.status === 'suggested' && r.link
+        ? appliedNext(r.link.number)
       : plan.kind === 'exploration'
         ? `Build it on ${r.link?.branch}: ${plan.brief} Then bridge_use_library_preview { pr: ${n}, piece: "${a.piece}" } so the product branch shows it.`
         : plan.kind === 'request'
@@ -129,6 +149,7 @@ export async function openLibraryBranchOp(ctx: BridgeContext, a: { pr: number | 
     ...(plan.kind === 'token-change' ? { edits: plan.edits } : {}),
     ...(plan.kind === 'exploration' ? { exploration: plan.exploration.name, brief: plan.brief } : {}),
     ...(plan.kind === 'request' ? { request: plan.request.title } : {}),
+    changesMode: mode,
     neededBy: `${plan.neededBy.title} (#${plan.neededBy.pr}) in ${plan.neededBy.productName}`,
     ...(r.link ? { library: { kind: r.link.kind, number: r.link.number, url: r.link.url, ...(r.link.branch ? { branch: r.link.branch } : {}) } } : {}),
     ...(r.preview ? { preview: r.preview } : {}),

@@ -5,13 +5,14 @@ import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { buildAuditReport, compareWithBaseline, DesignSystemIndex, type AuditReport } from '@bridge-ds/core/audit';
 import { auditSnippet } from './audit.js';
 import { cssVarsUsed, getComponent, listComponentNames, listComponents, scaffoldComponent, type ScaffoldInput } from './components.js';
-import { approverEntries, reviewOnGitHub, baseBranchOf, planTokenProposal, writeTokenProposalOnGitHub, branchWithJiraKey, parseJiraKey, productsOf, cssModuleClasses, docsPrompt, entryLabel, expandOwners, prefillDocs, protectedBranchesOf, shipPolicy, TeamDirectory, unreadableTeams, whoCanShipSentence, type BridgeConfig, type DocsContrastInput, type GitHubClient } from '@bridge-ds/core';
+import { approverEntries, changesMode, reviewOnGitHub, baseBranchOf, planTokenProposal, writeTokenProposalOnGitHub, suggestTokenProposalOnGitHub, suggestionIssueTitle, type ChangesMode, branchWithJiraKey, parseJiraKey, productsOf, cssModuleClasses, docsPrompt, entryLabel, expandOwners, prefillDocs, protectedBranchesOf, shipPolicy, TeamDirectory, unreadableTeams, whoCanShipSentence, type BridgeConfig, type DocsContrastInput, type GitHubClient } from '@bridge-ds/core';
 import { branchExists, collectAuditFiles, commitToNewLocalBranch, currentBranch, git, loadAllowlist } from '@bridge-ds/core/node';
 import { core, type Combo, type Issue, type PairInput, type TokenEdit, type TokenSet } from './core-adapter.js';
 import { bullets, findSection, toc } from './markdown.js';
 import { GitHubSource, GitRefSource, type RepoSource } from './source.js';
 import { explorationContext, explorationRules, writeToExploration } from './explorations.js';
-import { addableBranch, branchNumber, productMarks, resolveProduct } from './branches.js';
+import { addableBranch, branchNumber, productMarks, resolveProduct, viewerOf } from './branches.js';
+import { appliedNext, changesFor, noSuggestionAccess, suggestionBase } from './suggestions.js';
 import { BridgeContext } from './context.js';
 
 const prefixPath = (set: TokenSet, f: string) => set.repoPath(f);
@@ -37,6 +38,10 @@ export async function getConfig(ctx: BridgeContext) {
     source: ctx.describe(),
     configOrigin: origin === 'file' ? 'bridge.config.json' : 'detected (no bridge.config.json; run `bridge init` to pin it)',
     write: ctx.mode === 'local' ? (ctx.isGit ? 'local branches only (never pushes)' : 'none (not a git repo)') : ctx.canWriteRemote ? 'pull requests on new bridge/* branches' : 'read-only (set GITHUB_TOKEN to open PRs)',
+    changes:
+      changesMode(config) === 'suggest'
+        ? `suggest: token, docs, brand, revert and Figma changes are filed as suggestions (GitHub issues a developer applies with bridge apply or bridge_apply_suggestion)${ctx.canWriteRemote ? '' : '; filing one needs GITHUB_TOKEN with Issues write'}. Pass changes "direct" to a tool to open a branch instead.`
+        : 'direct: changes open branches and pull requests. Pass changes "suggest" to a tool to file a suggestion instead.',
     repo: gh ? gh.fullName : null,
     tokenFiles: set.fileNames.length,
     tokens: set.allPaths().length,
@@ -382,7 +387,20 @@ export async function getGuidelines(ctx: BridgeContext, a: { section?: string })
 
 export async function proposeTokenChange(
   ctx: BridgeContext,
-  a: { edits: TokenEdit[]; title: string; summary?: string; dryRun?: boolean; branch?: string | undefined; pr?: number | string | undefined; jira?: string | undefined; product?: string | undefined },
+  a: {
+    edits: TokenEdit[];
+    title: string;
+    summary?: string;
+    dryRun?: boolean;
+    branch?: string | undefined;
+    pr?: number | string | undefined;
+    jira?: string | undefined;
+    product?: string | undefined;
+    /** "suggest" or "direct" for this call; default: `changes` in bridge.config.json, else "suggest". */
+    changes?: ChangesMode | undefined;
+    /** Who sends it: the MCP server (an AI agent) or the CLI (the person). */
+    source?: 'mcp' | 'cli' | undefined;
+  },
 ) {
   if (!a.edits?.length) throw new Error('Pass at least one edit.');
   if (a.pr !== undefined && a.branch) throw new Error('Pass pr (a branch in review) or branch (an exploration), not both.');
@@ -414,6 +432,27 @@ export async function proposeTokenChange(
   };
   if (newErrors.length || newFailures.length) {
     return { status: 'blocked', why: [newErrors.length ? `${newErrors.length} new validation error(s)` : '', newFailures.length ? `${newFailures.length} contrast pair(s) would fail` : ''].filter(Boolean).join(' and '), newErrors, ...report, hint: 'Fix the edits (or add edits for the aliases they break). Bridge never opens a PR that breaks the gate.' };
+  }
+  // Suggest mode (not for an exploration or a branch in review: those name the branch to write to): an issue with the
+  // exact edits that the owners approve and a developer applies, never a branch.
+  if (!target && (await changesFor(ctx, a.changes)) === 'suggest') {
+    const source = a.source ?? 'mcp';
+    const shown = { ...report, changesMode: 'suggest' as const, files: files.map((f) => f.path) };
+    const gh = await ctx.github();
+    if (a.dryRun) return { status: 'dry-run', ...shown, suggestion: { title: suggestionIssueTitle({ kind: 'token-change', title: a.title }), body }, fileContents: files };
+    if (!gh || !ctx.canWriteRemote) return { status: 'preview', message: noSuggestionAccess(ctx, gh), ...shown, fileContents: files };
+    const base = await suggestionBase(ctx, gh, config);
+    const viewer = await viewerOf(ctx, gh);
+    const s = await suggestTokenProposalOnGitHub(gh, plan, {
+      base: base.ref,
+      baseSha: base.sha,
+      source,
+      ...(viewer ? { suggestedBy: viewer } : {}),
+      labels: config.governance.labels,
+      labelsAfter: marks.labels,
+      assignees: config.integrations?.requests?.assignees ?? [],
+    });
+    return { status: 'suggested', ...shown, number: s.number, url: s.url, version: s.sha.slice(0, 7), labels: s.labels, ...(s.warnings.length ? { warnings: s.warnings } : {}), product: product.name, next: appliedNext(s.number) };
   }
   let branch = target ? target.branch : branchWithJiraKey(`${config.governance.branchPrefix}${slugTitle}`, jira);
   const preview = { ...report, branch, files: files.map((f) => f.path), prBody: body };

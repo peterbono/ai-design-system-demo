@@ -14,11 +14,14 @@ import {
   parseComponentSpecs,
   planTokenProposal,
   specsUsage,
+  suggestTokenProposalOnGitHub,
   writeTokenProposalOnGitHub,
+  type ChangesMode,
   type ComponentPushDiff,
   type PushTokenContext,
 } from '@bridge-ds/core';
-import { branchNumber, reader, writer } from './branches.js';
+import { branchNumber, reader, viewerOf, writer } from './branches.js';
+import { appliedNext, changesFor, SUGGEST_RIGHTS, suggestionBase } from './suggestions.js';
 import type { BridgeContext } from './context.js';
 import { core, type TokenSet } from './core-adapter.js';
 
@@ -84,7 +87,7 @@ export async function markFigmaDraftedOp(ctx: BridgeContext, a: { pr: number | s
  * the swap moves); anything that needs code opens a draft branch with the spec for Claude AI; what cannot be read is
  * listed with what to do. dryRun shows the route.
  */
-export async function pushFigmaComponentOp(ctx: BridgeContext, a: { diff: ComponentPushDiff; dryRun?: boolean | undefined; source?: FigmaSource | undefined }) {
+export async function pushFigmaComponentOp(ctx: BridgeContext, a: { diff: ComponentPushDiff; dryRun?: boolean | undefined; source?: FigmaSource | undefined; changes?: ChangesMode | undefined }) {
   const d = a.diff;
   if (!d || d.v !== 1 || typeof d.component !== 'string' || !Array.isArray(d.changes)) throw new Error('The diff is not a Bridge component diff (v 1): see the spec of a branch from bridge_get_figma_change for its shape.');
   const source = a.source ?? 'mcp';
@@ -92,7 +95,10 @@ export async function pushFigmaComponentOp(ctx: BridgeContext, a: { diff: Compon
   const { config } = await ctx.config();
   const set = await ctx.tokens();
   const tokens = await tokenFacts(ctx, set, d.component);
-  const gh = a.dryRun ? await reader(ctx) : await writer(ctx, 'Sending a component change from Figma', NEED);
+  const mode = await changesFor(ctx, a.changes);
+  const gh = a.dryRun ? await reader(ctx) : mode === 'suggest' ? await writer(ctx, 'Suggesting a component change from Figma', SUGGEST_RIGHTS) : await writer(ctx, 'Sending a component change from Figma', NEED);
+  const viewer = a.dryRun ? null : await viewerOf(ctx, gh);
+  const base = a.dryRun || mode !== 'suggest' ? null : await suggestionBase(ctx, gh, config);
   const pairs = await core.readContrastPairs(ctx.source, config).catch(() => []);
   const aliasOfPath = (p: string) => aliasOf(set.defsOf(p)[0]?.value) ?? undefined;
   const r = await openComponentPushOnGitHub(gh, {
@@ -103,11 +109,19 @@ export async function pushFigmaComponentOp(ctx: BridgeContext, a: { diff: Compon
     labels: [...config.governance.labels, `source: ${source}`],
     tool,
     dryRun: a.dryRun,
-    writeTokens: async ({ edits, title, summary, bodyExtra }) => {
+    mode,
+    ...(viewer ? { suggestedBy: viewer } : {}),
+    ...(base ? { base: base.ref, baseSha: base.sha } : {}),
+    writeTokens: async ({ edits, title, summary, bodyExtra, mode: how, figma }) => {
       const all = [...pairs, ...componentContrastPairs(edits, pairs, { aliasOf: aliasOfPath, paths: set.allPaths() })];
       const p = planTokenProposal({ before: set, pairs: all, edits, title, summary, config, tool, bodyExtra });
       if (!p) throw new Error('The library already paints it this way: nothing to send.');
       if (p.blocked) throw new Error(`Not sent: ${p.blocked}. Pick another variable.`);
+      if (how === 'suggest') {
+        const b = base ?? (await suggestionBase(ctx, gh, config));
+        const s = await suggestTokenProposalOnGitHub(gh, p, { base: b.ref, baseSha: b.sha, source, ...(viewer ? { suggestedBy: viewer } : {}), labels: config.governance.labels, labelsAfter: [`source: ${source}`], links: { figma } });
+        return { status: 'suggested' as const, number: s.number, url: s.url };
+      }
       const opened = await writeTokenProposalOnGitHub(gh, p, { base: baseBranchOf(config), branchPrefix: config.governance.branchPrefix, labels: config.governance.labels, labelsAfter: [`source: ${source}`], tool: `${tool} (source: ${source})` });
       return { number: opened.pr, url: opened.url, branch: opened.branch };
     },
@@ -121,12 +135,16 @@ export async function pushFigmaComponentOp(ctx: BridgeContext, a: { diff: Compon
     ...(plan.edits.length ? { edits: plan.edits } : {}),
     ...(plan.reasons.length ? { reasons: plan.reasons } : {}),
     ...(plan.issues.length ? { fixInFigma: plan.issues } : {}),
+    changesMode: mode,
     ...(r.link ? { library: r.link } : {}),
+    ...(r.suggestion ? { suggestion: r.suggestion } : {}),
     next:
       r.status === 'dry-run'
-        ? 'Run it without dryRun to open the library branch.'
+        ? `Run it without dryRun to ${mode === 'suggest' ? 'file the suggestion' : 'open the library branch'}.`
         : r.status === 'not-sent'
           ? 'Nothing was sent: fix these in Figma, then push again.'
+          : r.suggestion
+            ? `${r.suggestion.route === 'claude-draft' ? 'A component spec suggestion: Claude AI drafts the code from it once a developer applies it (bridge_apply_suggestion writes the spec file and returns the brief). ' : ''}${appliedNext(r.suggestion.number)}`
           : plan.route === 'claude-draft'
             ? `Draft the code: bridge_get_figma_change { pr: ${r.link!.number} }.`
             : 'Design and tech owners review the token change. Once it ships, a pull in the DS Bridge plugin rebuilds the component.',

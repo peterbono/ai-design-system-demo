@@ -197,7 +197,7 @@ export async function createRequest(ctx: BridgeContext, a: CreateRequestInput) {
   const issue = marks.labels.length ? { ...composed, body: `${composed.body}\n\n${marks.line}`, labels: [...composed.labels, ...marks.labels] } : composed;
   if (a.dryRun) return { status: 'dry-run' as const, issue };
   const gh = await requireGitHub(ctx);
-  if (!ctx.canWriteRemote) throw new Error('Creating a request needs GITHUB_TOKEN (issues: write on this repository). Without it Bridge is read-only.');
+  if (!ctx.canWriteRemote) throw new Error('Creating a request needs GITHUB_TOKEN with Issues: read and write on this repository (Contents: read is enough, like for suggestions). Without it Bridge is read-only.');
   const created = await gh.createIssue(issue);
   return {
     status: 'created' as const,
