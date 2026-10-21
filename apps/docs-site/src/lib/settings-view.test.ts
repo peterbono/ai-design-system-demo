@@ -1,7 +1,7 @@
 // Studio Settings: approvals in plain words and the Claude connect command.
 import { describe, expect, it } from 'vitest';
 import { tierSummaries } from './governance';
-import { accountView, approvalRules, overrideText, plainApprovals, ruleSentence } from './settings-view';
+import { accountView, appReach, approvalRules, changesInConfig, changesProposal, effectiveChanges, INTERIM_APP_TEXT, overrideText, plainApprovals, ruleSentence, withChanges } from './settings-view';
 
 const GOVERNANCE = `# Governance
 
@@ -121,5 +121,37 @@ describe('owner override', () => {
 
   it('says what happens when nobody may override', () => {
     expect(overrideText({ allowed: [] })).toEqual({ on: false, text: 'Every branch waits for its approvals before it is merged.' });
+  });
+});
+
+describe('how changes reach your code', () => {
+  const FILE = '{\n  "$schema": "./schema.json",\n  "version": 1,\n  "repo": { "owner": "acme", "name": "ds" }\n}\n';
+
+  it('reads the mode from the file, suggestions when it is absent', () => {
+    expect(changesInConfig({ changes: 'direct' })).toBe('direct');
+    expect(changesInConfig({ changes: 'nope' })).toBeNull();
+    expect(changesInConfig({})).toBeNull();
+    expect(effectiveChanges(null)).toBe('suggest');
+  });
+
+  it('adds `changes` after version and keeps everything else byte for byte', () => {
+    const next = withChanges(FILE, 'suggest');
+    expect(next).toBe('{\n  "$schema": "./schema.json",\n  "version": 1,\n  "changes": "suggest",\n  "repo": { "owner": "acme", "name": "ds" }\n}\n');
+    expect(withChanges(next, 'direct')).toBe(next.replace('"suggest"', '"direct"'));
+    expect(withChanges(next, 'suggest')).toBe(next);
+  });
+
+  it('says what the GitHub App may do on the repo', () => {
+    expect(appReach({ contents: 'write', pull_requests: 'write', issues: 'write' })).toEqual({ writesCode: true, text: 'Can write code, open pull requests and create issues on this repo.' });
+    expect(appReach({ contents: 'read', issues: 'write' })).toEqual({ writesCode: false, text: 'Can read code and create issues on this repo.' });
+  });
+
+  it('proposes the switch as a configuration pull request, saying plainly what the app can still do', () => {
+    const p = changesProposal('suggest', { date: new Date('2026-10-21T10:00:00Z'), prefix: 'bridge/', tierLabel: 'Tier 3' });
+    expect(p.branch).toBe('bridge/changes-suggest-20261021');
+    expect(p.body).toContain('Sets `changes` to `"suggest"`');
+    expect(p.body).toContain(INTERIM_APP_TEXT);
+    expect(changesProposal('direct', { date: new Date(), tierLabel: 'Tier 3' }).body).not.toContain(INTERIM_APP_TEXT);
+    expect(INTERIM_APP_TEXT).toBe("Bridge's GitHub App can still write code on this repo. Suggest mode is a Bridge rule until the read-only app ships.");
   });
 });

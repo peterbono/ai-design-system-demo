@@ -6,7 +6,7 @@
 //   - Nothing at all: three ways to start, each with its drawing.
 // NeedList is shared with the review queue (pages/studio/review.astro), so a row reads the same in both places.
 import { createRoot, type Root } from 'react-dom/client';
-import { useState, type MouseEvent } from 'react';
+import { useState, type MouseEvent, type ReactNode } from 'react';
 import { Check, CircleAlert, CircleCheck, TriangleAlert } from 'lucide-react';
 import { Who } from './faces';
 import { AvatarGroup, Badge, Button, Card, CardBody, Icon, Link, SegmentedControl, Skeleton } from '@bridge-ds/react';
@@ -274,6 +274,8 @@ export interface StudioHomeProps {
   /** GitHub could not be read. */
   failed: string | null;
   startHrefs: Record<'tokens' | 'component' | 'guidance', string>;
+  /** Signed in with setup steps left: "4 of 6 connected" and its checklist (Onboarding.tsx), by the greeting. */
+  setup?: ReactNode;
 }
 
 /** The review drawing without its empty sky: the scene only, so it never makes the greeting taller than its text. */
@@ -308,6 +310,7 @@ export function StudioHome(p: StudioHomeProps) {
       <div className="sh">
         <section className="zone sh-zone sh-zone-empty" aria-labelledby="sh-hello">
           <div className="sh-head-text">
+            {p.setup && <div className="sh-setup">{p.setup}</div>}
             <p className="t-body">
               {p.greeting} Nothing needs you{p.failed ? '' : ', and you have no branch in progress'}.
             </p>
@@ -328,9 +331,12 @@ export function StudioHome(p: StudioHomeProps) {
       <section className="zone sh-zone" aria-labelledby="sh-hello" aria-busy={loading || undefined}>
         <div className="sh-head">
           <div className="sh-head-text">
-            <h1 id="sh-hello" className="sh-hello">
-              {p.greeting}
-            </h1>
+            <div className="sh-hello-row">
+              <h1 id="sh-hello" className="sh-hello">
+                {p.greeting}
+              </h1>
+              {p.setup && <div className="sh-setup">{p.setup}</div>}
+            </div>
             {loading ? <p className="t-body">Checking what needs you.</p> : p.needs.some((r) => r.waitsOnYou) ? <Waiting needs={p.needs} now={p.now} /> : <p className="t-body">{p.needs.length ? 'Your branches need you.' : 'Nothing needs you.'}</p>}
           </div>
           <Drawing name="review" width={220} crop={REVIEW_CROP} className="sh-art" />
