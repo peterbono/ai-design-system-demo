@@ -6,7 +6,7 @@
   "whenToUse": [
     "Short free text: a name, a URL, a search query, a value with a unit.",
     "prefix for an icon or a currency, suffix for a unit or a keyboard hint.",
-    "size follows density: sm in toolbars and filters, md in forms, lg only on sparse screens."
+    "size follows density: md in forms and in a page's filter bar, sm only in dense toolbars, menus and panels, lg only on sparse screens. In a filter bar the search field, its Select and its SegmentedControl share one size, so the row reads as one height."
   ],
   "whenNotToUse": [
     "More than one line: use Textarea.",

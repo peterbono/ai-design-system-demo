@@ -99,6 +99,7 @@ const signIn = Boolean(signInConfig());
         label="Family"
         hideLabel
         className="cm-fam"
+        size="md"
         value=""
         options={[{ value: '', label: 'All families', count: rows.length }, ...families.map((f) => ({ value: f.name, label: f.name, count: f.n }))]}
       />
