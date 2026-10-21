@@ -13,9 +13,11 @@ const allPages = vercel.headers.find((h) => h.source === '/(.*)');
 const header = (key: string) => allPages?.headers.find((h) => h.key === key)?.value;
 
 describe('Content-Security-Policy', () => {
-  it('vercel.json ships the policy of lib/csp.ts as Report-Only on every path', () => {
-    expect(header('Content-Security-Policy-Report-Only')).toBe(cspHeader());
-    expect(header('Content-Security-Policy')).toBeUndefined();
+  it('vercel.json enforces the policy of lib/csp.ts on every path, and keeps reporting', () => {
+    expect(header('Content-Security-Policy')).toBe(cspHeader());
+    expect(header('Content-Security-Policy-Report-Only')).toBeUndefined();
+    expect(vercel.headers.filter((h) => h.headers.some((x) => /^content-security-policy/i.test(x.key)))).toEqual([allPages]);
+    expect(CSP_DIRECTIVES['report-uri']).toEqual(['/api/csp-report']);
     expect(header('X-Content-Type-Options')).toBe('nosniff');
     expect(header('Referrer-Policy')).toBe('strict-origin-when-cross-origin');
   });
