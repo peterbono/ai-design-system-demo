@@ -283,6 +283,22 @@ reviewSuggestionOnGitHub(gh, n, { event, role?, message?, payloadSha? }, gov); l
 declineSuggestionOnGitHub(gh, n, reason, by?); syncSuggestionStateLabel(gh, n, labels, status);
 ```
 
+## storybook (storybook.ts)
+
+Reads a deployed or built Storybook without the repo: `index.json` (v4 for Storybook 7, v5 for 8 and later), else
+`stories.json` (v3). Entries are grouped by title into components (name = last title segment); test entries stay out
+of `stories`. A 404, an HTML answer from a host that falls back to `index.html`, or a body with no entries moves on to
+the next file. Errors carry a code: `invalid-url`, `not-found`, `not-json`, `private` (sign-in wall, Chromatic login
+answer, 401/403), `empty`, `http`, `network`. Pure, with an injected `fetch`; `@bridge-ds/visual` uses the parser for
+`storybook-static/index.json` and the iframe URL builder for its captures.
+
+```ts
+fetchStorybookIndex(base, { fetch?, signal? }): Promise<{ version; source: 'index.json' | 'stories.json'; entries; components }>;
+parseStorybookIndex(json, source?); groupStorybookComponents(entries): { title; name; group; stories; docs; tags }[];
+normalizeStorybookUrl(pasted): string;   // https only (http on localhost), drops ?path=, /index.html, /iframe.html
+storybookIframeUrl(base, id, { viewMode?, globals?, args? }); storybookManagerUrl(base, id, viewMode?); storybookIndexUrls(base);
+```
+
 ## history (history.ts, history-github.ts, history-demo.ts)
 
 What changed in the tokens, when, who changed it and why, and how to undo it safely.

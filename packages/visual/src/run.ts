@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, readFile, rm, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
-import { buildUsageIndex, diffLayered, loadConfig, LayeredTokenSet, selectTokenFiles, comboKey, type BridgeConfig } from '@bridge-ds/core';
+import { buildUsageIndex, diffLayered, loadConfig, LayeredTokenSet, parseStorybookIndex, selectTokenFiles, comboKey, type BridgeConfig } from '@bridge-ds/core';
 import { git, listFilesAt, showFile } from '@bridge-ds/core/node';
 import { launch, newContext, newPage, shoot, switchStory } from './capture.js';
 import { composite } from './composite.js';
@@ -87,11 +87,10 @@ export function changedTokens(before: LayeredTokenSet, after: LayeredTokenSet): 
     .sort((a, b) => Number(a.kind === 'alias') - Number(b.kind === 'alias') || a.path.localeCompare(b.path));
 }
 
+/** Story entries of a built Storybook (storybook-static/index.json), parsed by core like a deployed one. */
 async function readIndexJson(dir: string): Promise<StoryEntry[]> {
-  const raw = JSON.parse(await readFile(join(dir, 'index.json'), 'utf8')) as { entries: Record<string, { type: string; id: string; title: string; name: string; importPath: string }> };
-  return Object.values(raw.entries)
-    .filter((e) => e.type === 'story')
-    .map(({ id, title, name, importPath }) => ({ id, title, name, importPath }));
+  const index = parseStorybookIndex(JSON.parse(await readFile(join(dir, 'index.json'), 'utf8')), 'index.json');
+  return index.entries.filter((e) => e.type === 'story').map(({ id, title, name, importPath }) => ({ id, title, name, importPath }));
 }
 
 export interface Plan {
