@@ -383,9 +383,9 @@ a.skip:focus {
   border-radius: var(--radius-control);
 }
 
-/* Top bar, three zones: logo on the start side, search on the true center axis, reader controls then the team
-   entry on the end side. Library: theme, GitHub, a hairline, "Open Studio" (with the avatar in one pill for a
-   signed-in reader). Studio: "Bridge Studio" on a soft ground, theme, then the account in the same far-right slot. */
+/* Top bar, three zones: logo on the start side, search on the true center axis, reader controls then the
+   Library <-> Studio switch on the end side (styles/space-switch.css), in the same far-right slot in both spaces.
+   Studio: "Bridge Studio" on a soft ground. */
 
 .topbar {
   position: sticky;
@@ -432,42 +432,6 @@ a.topbar-brand {
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-1);
-}
-
-/* A hairline and some air fence the team entry off the reader controls. */
-.topbar-rule {
-  width: var(--border-width-default);
-  height: var(--size-6);
-  margin: 0 var(--space-3);
-  background-color: var(--color-border-default);
-}
-
-.team {
-  display: inline-flex;
-  align-items: center;
-}
-
-/* Signed in: "Open Studio" and the avatar share one pill. */
-:root[data-signed-in] .team {
-  gap: var(--space-1);
-  padding-right: var(--space-0-5);
-  border: var(--border-width-default) solid var(--color-border-default);
-  border-radius: var(--radius-control);
-  background-color: var(--color-surface-default);
-}
-
-:root[data-signed-in] .team-open {
-  border-color: transparent;
-}
-
-a.team-avatar {
-  display: inline-flex;
-  padding-left: var(--space-1);
-  border-left: var(--border-width-default) solid var(--color-border-default);
-}
-
-.team-avatar[hidden] {
-  display: none;
 }
 
 /* The photo scripts/avatar.ts lays over a static DS Avatar's initials once the viewer is known. */

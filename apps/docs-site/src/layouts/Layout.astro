@@ -9,12 +9,16 @@ import '../styles/ds-library.css';
 import '../styles/ds-studio.css';
 import '../styles/brand.css';
 import '../styles/team-access.css';
+import '../styles/space-switch.css';
 import GitHubAccount from '../components/GitHubAccount.astro';
 import GitHubDialog from '../components/GitHubDialog.astro';
 import ScriptDialog from '../components/ds/ScriptDialog.astro';
 import PaletteField from '../components/ds/PaletteField';
 import Logo from '../components/Logo.astro';
 import ViewAsChange from '../components/ViewAsChange.astro';
+import SpaceSwitch from '../components/SpaceSwitch';
+import { switchTarget } from '../lib/space-switch';
+import { loadComponents } from '../lib/components';
 import { shellMarker, studioPathOfShell } from '../lib/team-shells';
 import { LIBRARY_SHELL_ROOT, LIBRARY_TEAM_NAV, libraryShellMarker, routeOfShell } from '../lib/library-shells';
 import { COMPARE, LANDING, LIBRARY_HOME, SPACE_LABEL, STUDIO_HOME, locate, navFor, type Space } from '../lib/nav';
@@ -25,9 +29,9 @@ import { signInConfig } from '../lib/signin-config';
 import { GITHUB_URL, STORYBOOK_URL, sourceUrl } from '../lib/repo';
 import { humanDate } from '../lib/stats';
 import { BRANDS, DEFAULT_BRAND } from '../lib/tokens';
-import { Avatar, Breadcrumb, Button, Icon, IconButton, Kbd, Link } from '@bridge-ds/react';
+import { Breadcrumb, Button, Icon, IconButton, Kbd, Link } from '@bridge-ds/react';
 import { siteIcon } from '../brand/site-icons';
-import { BookOpen, Menu as MenuIcon, Moon, Search, X } from 'lucide-react';
+import { Menu as MenuIcon, Moon, Search, X } from 'lucide-react';
 import ButtonLink from '../components/ds/ButtonLink';
 import { GitHubMark } from '../components/ds/studio/brand-icons';
 
@@ -95,6 +99,15 @@ const builtRepo = hosted ? null : `${siteRepo().owner}/${siteRepo().repo}`;
 const ghApp = signInConfig(hosted || library)?.app ?? '';
 // The hosted deployment (BRIDGE_HOSTED, multi-team plan 4.3) opens other teams: the chip menu offers it.
 const hostedSite = process.env.BRIDGE_HOSTED === '1' || process.env.BRIDGE_HOSTED === 'true';
+// The header switch's build-time target: the same page in the other space (lib/space-switch.ts). The browser resolves
+// it again where the query or the team decides it (scripts/space-switch.ts).
+const componentNames = new Map(loadComponents().map((c) => [c.slug, c.name]));
+const switchTo = switchTarget({
+  space,
+  pathname: library ? Astro.url.pathname : path,
+  libraryRoute: library ? libraryRoute ?? '' : undefined,
+  nameOf: (slug) => componentNames.get(slug),
+});
 const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Bridge') : `${title} | ${SPACE_LABEL[space] === 'Library' ? 'Bridge' : `Bridge ${SPACE_LABEL[space]}`}`;
 ---
 
@@ -155,25 +168,8 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
         {viewAware && <ViewAsChange />}
         {/* Same place in the Library and in Studio, so people find it in both. */}
         <IconButton icon={Moon} size="sm" label="Dark theme" id="theme-toggle" data-theme-toggle aria-pressed="false" title="Dark theme" className="shell-wide" />
-        {
-          isStudio ? (
-            <>
-              <ButtonLink variant="secondary" size="sm" className="team-open lib-open" href={LIBRARY_HOME} iconStart={BookOpen} aria-label="View published library" title="View published library">
-                <span class="hd-label">Library</span>
-              </ButtonLink>
-            </>
-          ) : (
-            <>
-              <div class="team shell-wide" data-team>
-                <ButtonLink variant="secondary" size="sm" className="team-open" href={STUDIO_HOME}>Open Studio</ButtonLink>
-                <Link variant="subtle" className="team-avatar" href={STUDIO_HOME} data-team-avatar hidden>
-                  <Avatar name="Studio" size="sm" decorative data-team-avatar-img />
-                  <span class="sr-only" data-team-avatar-label>Your Studio</span>
-                </Link>
-              </div>
-            </>
-          )
-        }
+        {/* Library <-> Studio: one link that names the space you are in and carries the page's item across. */}
+        <SpaceSwitch space={space} href={switchTo.href} item={switchTo.item} />
         <span class="rail-toggle-slot"><IconButton icon={MenuIcon} size="sm" label="Open navigation" id="rail-toggle" aria-controls="rail" aria-expanded="false" /></span>
       </div>
     </header>
@@ -374,9 +370,11 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
       import { initShell } from '../scripts/shell';
       import { fillTeamShell } from '../scripts/team-links';
       import { initLibraryTeam } from '../scripts/library-team';
+      import { initSpaceSwitch } from '../scripts/space-switch';
       // A team's Library: noindex first, then its links, name and data (a no-op elsewhere).
       if (document.documentElement.hasAttribute('data-library-shell')) initLibraryTeam();
       initShell();
+      initSpaceSwitch();
       // The account block names the team in the address on a team shell (a no-op elsewhere).
       if (document.documentElement.hasAttribute('data-hosted')) fillTeamShell();
     </script>
