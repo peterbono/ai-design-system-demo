@@ -11,7 +11,7 @@
 import { classifyRisk, DEFAULT_RIGHTS, type Owners, type Rights, type VisualImpactMode } from '@bridge-ds/core';
 import { choiceOf, groupsOf, roleRows, rolesProposal, sameOwners, withRoles, type RightChoice } from '../lib/roles-view';
 import { selectSegment } from './shell';
-import { esc, getToken, ghGet, prefersSignIn, readRepo, sessionMode, setButtonBusy, setButtonDisabled, showGhError, studioClient } from './github-session';
+import { esc, getToken, ghGet, prefersSignIn, readRepo, readSignInConfig, sessionMode, setButtonBusy, setButtonDisabled, showGhError, studioClient } from './github-session';
 import { ghAction } from '../lib/gh-wording';
 import { changesProposal, withChanges, type AppPermissions } from '../lib/settings-view';
 import { installationFor, type InstallationLike } from '../lib/github-signin';
@@ -174,7 +174,7 @@ export async function proposeChangesMode(mode: ChangesMode, opts: { prefix?: str
   const next = withChanges(current, mode);
   if (next === current) throw new Error('This is already the current setting. Nothing to review.');
   const risk = classifyRisk({ files: [{ path: FILE, status: 'modified' }] });
-  const p = changesProposal(mode, { date: new Date(), prefix: opts.prefix, tierLabel: `Tier ${risk.tier}${risk.reasons[0] ? ` (${risk.reasons[0]})` : ''}` });
+  const p = changesProposal(mode, { date: new Date(), prefix: opts.prefix, suggestApp: readSignInConfig()?.suggestApp ?? null, tierLabel: `Tier ${risk.tier}${risk.reasons[0] ? ` (${risk.reasons[0]})` : ''}` });
   let branch = p.branch;
   for (let i = 2; await gh.getBranchSha(branch); i++) branch = `${p.branch}-${i}`;
   await gh.commitToNewBranch({ base: repo.defaultBranch, branch, message: p.message, files: [{ path: FILE, content: next }] });

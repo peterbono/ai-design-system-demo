@@ -34,6 +34,11 @@ export interface SignInConfig {
   clientId: string;
   /** Which of the two apps that client ID belongs to. Token storage keys carry it. */
   app: SignInApp;
+  /**
+   * The app Studio signs in with once `changes` is "suggest": 'suggest' when the read-only app is configured, else
+   * 'direct' (the one app this site has). Settings uses it to say whether suggest mode is enforced by GitHub.
+   */
+  suggestApp: SignInApp;
   /** Production origin, whose callback is the one registered on GitHub. Null: the current origin's callback. */
   productionOrigin: string | null;
   /** Preview origin pattern with {branch} (bridge.config.json previews.apps.docs). Null: no previews. */
@@ -78,6 +83,7 @@ export function signInConfigFrom(
   const preview = previews?.apps?.docs?.trim();
   return {
     ...picked,
+    suggestApp: pickSignInApp(env, 'suggest')!.app,
     productionOrigin: prod && /^https:\/\/[^/]+\/?$/.test(prod) ? trimSlash(prod) : null,
     previewPattern: preview && preview.includes('{branch}') && preview.startsWith('https://') ? trimSlash(preview) : null,
   };
