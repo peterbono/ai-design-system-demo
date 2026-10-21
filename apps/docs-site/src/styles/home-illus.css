@@ -2961,8 +2961,9 @@
   width: calc(var(--_u) * 40);
   height: calc(var(--_u) * 40);
   border-radius: 50%;
+  box-sizing: border-box;
+  border: var(--border-width-strong) solid var(--color-surface-raised);
   background: var(--color-illustration-surface);
-  box-shadow: var(--elevation-raised);
   overflow: hidden;
 }
 
