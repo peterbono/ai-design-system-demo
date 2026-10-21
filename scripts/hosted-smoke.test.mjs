@@ -1,6 +1,6 @@
 // The judging of the hosted smoke test (scripts/hosted-smoke.mjs), without a network.
 import { describe, expect, it } from 'vitest';
-import { assetCases, CASES, judge, servedBy } from './hosted-smoke.mjs';
+import { assetCases, CASES, judge, parseCurlOutput, servedBy } from './hosted-smoke.mjs';
 
 const page = (attrs) => `<!DOCTYPE html><html lang="en"${attrs}><head></head></html>`;
 
@@ -28,5 +28,11 @@ describe('hosted smoke', () => {
 
   it('picks the built bundles of a page as asset cases', () => {
     expect(assetCases('<link href="/_astro/a.B1.css"><script src="/_astro/page.C2.js"></script>').map((c) => c.path)).toEqual(['/_astro/a.B1.css', '/_astro/page.C2.js']);
+  });
+
+  it('reads curl -i output, past a 100 Continue', () => {
+    const out = 'HTTP/1.1 100 Continue\r\n\r\nHTTP/2 200\r\ncontent-type: text/html; charset=utf-8\r\nx-robots-tag: noindex\r\n\r\n<html data-shell="home">';
+    expect(parseCurlOutput(out)).toEqual({ status: 200, type: 'text/html; charset=utf-8', robots: 'noindex', body: '<html data-shell="home">' });
+    expect(parseCurlOutput('HTTP/2 404\nserver: Vercel\n\nnot found')).toMatchObject({ status: 404, robots: null, body: 'not found' });
   });
 });

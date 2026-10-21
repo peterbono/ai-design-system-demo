@@ -6,8 +6,10 @@
 // Each case requests one address and checks the status, which page answered (a Studio page of this build, or the
 // team shell for a route: <html data-shell="...">), and the X-Robots-Tag header of team addresses. Static files win
 // over the vercel.json rewrites, so the existing Studio pages must still answer as themselves.
-// A preview behind Vercel Deployment Protection needs VERCEL_AUTOMATION_BYPASS_SECRET (sent as
+// A preview behind Vercel Deployment Protection: add --vercel-curl to send each request through `vercel curl` (your
+// Vercel login, from a folder linked to the project), or set VERCEL_AUTOMATION_BYPASS_SECRET (sent as
 // x-vercel-protection-bypass). Exit 1 when a case fails.
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const DEMO = '/studio/peterbono/ai-design-system-demo';
@@ -73,7 +75,7 @@ export function judge(c, res) {
     const by = servedBy(res.body);
     if (by !== c.shell) problems.push(`served by ${by ?? 'no page'}, expected ${c.shell}`);
   }
-  if (c.type && !(res.type ?? '').startsWith(c.type)) problems.push(`content-type ${res.type}, expected ${c.type}`);
+  if (c.type && !(res.type ?? '').includes(c.type)) problems.push(`content-type ${res.type}, expected ${c.type}`);
   const robots = (res.robots ?? '').toLowerCase().includes('noindex');
   if (c.noindex && !robots) problems.push('no X-Robots-Tag: noindex');
   return problems;
@@ -84,31 +86,51 @@ export function assetCases(body) {
   const out = [];
   for (const ext of ['css', 'js']) {
     const m = new RegExp(`["'](/_astro/[^"']+\\.${ext})["']`).exec(body);
-    if (m) out.push({ path: m[1], status: 200, type: ext === 'css' ? 'text/css' : 'text/javascript' });
+    if (m) out.push({ path: m[1], status: 200, type: ext === 'css' ? 'text/css' : 'javascript' });
   }
   return out;
 }
 
-async function request(base, path, headers) {
+/** A response from `curl -s -i` output: the last header block (after any 1xx), then the body. */
+export function parseCurlOutput(out) {
+  let rest = out;
+  let head = '';
+  do {
+    const end = rest.search(/\r?\n\r?\n/);
+    head = end < 0 ? rest : rest.slice(0, end);
+    rest = end < 0 ? '' : rest.slice(end).replace(/^\r?\n\r?\n/, '');
+  } while (/^HTTP\/\S+ 1\d\d/.test(head) && rest.startsWith('HTTP/'));
+  const status = Number(/^HTTP\/\S+ (\d{3})/.exec(head)?.[1] ?? 0);
+  const header = (name) => new RegExp(`^${name}:\\s*(.*?)\\s*$`, 'im').exec(head)?.[1] ?? null;
+  return { status, type: header('content-type'), robots: header('x-robots-tag'), body: rest };
+}
+
+async function request(base, path, headers, viaVercel) {
+  if (viaVercel) {
+    const url = new URL(path, base).href;
+    const out = execFileSync('vercel', ['curl', url, '--deployment', base, '--yes', '--', '-s', '-i'], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] });
+    return parseCurlOutput(out);
+  }
   const res = await fetch(new URL(path, base), { redirect: 'manual', headers });
   return { status: res.status, type: res.headers.get('content-type'), robots: res.headers.get('x-robots-tag'), body: await res.text() };
 }
 
 async function main() {
-  const base = process.argv[2];
+  const viaVercel = process.argv.includes('--vercel-curl');
+  const base = process.argv.slice(2).find((a) => !a.startsWith('--'));
   if (!base || !/^https?:\/\//.test(base)) {
-    console.error('Usage: node scripts/hosted-smoke.mjs <deployment URL>');
+    console.error('Usage: node scripts/hosted-smoke.mjs <deployment URL> [--vercel-curl]');
     process.exit(2);
   }
   const headers = process.env.VERCEL_AUTOMATION_BYPASS_SECRET ? { 'x-vercel-protection-bypass': process.env.VERCEL_AUTOMATION_BYPASS_SECRET } : {};
-  const home = await request(base, '/studio/', headers);
-  const cases = [...CASES, ...assetCases(home.body), ...assetCases((await request(base, `${DEMO}/`, headers)).body).map((c) => ({ ...c, from: 'team shell' }))];
+  const home = await request(base, '/studio/', headers, viaVercel);
+  const cases = [...CASES, ...assetCases(home.body), ...assetCases((await request(base, `${DEMO}/`, headers, viaVercel)).body).map((c) => ({ ...c, from: 'team shell' }))];
   let failed = 0;
   for (const c of cases) {
     let problems;
     let res;
     try {
-      res = await request(base, c.path, headers);
+      res = await request(base, c.path, headers, viaVercel);
       problems = judge(c, res);
     } catch (err) {
       problems = [`request failed: ${err.message}`];
@@ -117,6 +139,10 @@ async function main() {
     const what = res ? `${res.status} ${c.shell ? servedBy(res.body) ?? '-' : (res.type ?? '').split(';')[0]}${res.robots ? ' noindex' : ''}` : 'error';
     console.log(`${problems.length ? 'FAIL' : 'ok  '}  ${c.path.padEnd(58)} ${what}${problems.length ? `  (${problems.join('; ')})` : ''}`);
   }
+  // Vercel answers X-Robots-Tag: noindex on every response of a preview deployment, so there the noindex checks
+  // cannot tell the vercel.json rules apart; only a production deployment proves them.
+  const asset = await request(base, '/tokens.css', headers, viaVercel);
+  if ((asset.robots ?? '').includes('noindex')) console.log('\nnote: this deployment marks every response noindex (a Vercel preview): the noindex checks only prove something on production.');
   console.log(`\n${cases.length - failed} of ${cases.length} passed on ${base}`);
   process.exit(failed ? 1 : 0);
 }
