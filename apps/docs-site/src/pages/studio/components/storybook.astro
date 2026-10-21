@@ -1,0 +1,29 @@
+---
+// Studio Components, Storybook quick start (plan section 5): the components of the Storybook added in this browser,
+// read from its index at runtime (components/ds/studio/StorybookComponents.tsx). No repository needed, so nothing here
+// is read at build time except this library's own Storybook address, offered when nothing is added yet.
+import '../../../styles/studio.css';
+import '../../../styles/components-studio.css';
+import '../../../styles/storybook-quick.css';
+import Layout from '../../../layouts/Layout.astro';
+import StorybookComponents from '../../../components/ds/studio/StorybookComponents';
+import { exists, PRODUCTION_APPS, readJson } from '../../../lib/repo';
+import { PAGE_SOURCES } from '../../../lib/sources';
+
+let configured: string | null = null;
+try {
+  configured = (exists('bridge.config.json') ? readJson<{ storybook?: { url?: string } }>('bridge.config.json').storybook?.url : null) ?? PRODUCTION_APPS.storybook ?? null;
+} catch {
+  configured = PRODUCTION_APPS.storybook ?? null;
+}
+const suggestion = configured && /^https:\/\//.test(configured) ? configured.replace(/\/+$/, '') : null;
+---
+
+<Layout
+  title="Components from Storybook"
+  description="The components of your published Storybook, with live previews of their stories, read without the repository."
+  sources={PAGE_SOURCES.storybook}
+  wide
+>
+  <StorybookComponents client:only="react" suggestion={suggestion} />
+</Layout>

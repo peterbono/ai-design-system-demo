@@ -5,14 +5,17 @@
 //   - FinishConnecting: on the home once the first run is behind, "4 of 6 connected" opens the steps left as a
 //     compact checklist. "Hide checklist" puts it away for this browser.
 // Step 2 (your design system): this Studio is built for one repository, so it is connected from the start. The
-// Storybook quick start is shown as coming, with its field disabled: nothing pretends to read a Storybook yet.
+// Storybook quick start (StorybookField) reads a published Storybook and keeps it in this browser; once added, the
+// card says how many components it found and links to them.
 import { useState, type ReactNode } from 'react';
-import { Check, ChevronDown, Eye } from 'lucide-react';
+import { Check, ChevronDown } from 'lucide-react';
 import type { ChangesMode } from '@bridge-ds/core';
 import { Badge, Button, Card, CardBody, CodeBlock, Icon, Input, Link, Popover, PopoverContent, PopoverTrigger, Progress } from '@bridge-ds/react';
 import { Drawing } from './Drawing';
 import ButtonLink from '../ButtonLink';
 import { ChangesChoices, DevelopersGet } from './ChangesMode';
+import { StorybookField } from './StorybookField';
+import type { WorkspaceStorybook } from '../../../lib/workspace';
 import { doneCount, doneSummary, firstRunTitle, progressLabel, STEP_TITLE, type Step, type StepId } from '../../../lib/onboarding';
 import { CHANGES_CHOICE } from '../../../lib/settings-view';
 import { VOCAB } from '../../../lib/vocabulary';
@@ -21,6 +24,8 @@ export interface OnboardingContext {
   repo: string;
   repoUrl: string;
   storybook: string | null;
+  /** The Storybook added in this browser with the quick start (scripts/workspace.ts). */
+  quickStart?: WorkspaceStorybook | null;
   products: { name: string; path?: string }[];
   /** The one-time command that adds the Bridge MCP to Claude Code for this repository. */
   mcpCommand: string;
@@ -110,24 +115,35 @@ function Feature({ children }: { children: ReactNode }) {
   );
 }
 
-/** Step 2: the Storybook quick start (coming) and the repository this Studio reads. */
+/** Step 2: the Storybook quick start and the repository this Studio reads. */
 function LibraryStep({ ctx }: { ctx: OnboardingContext }) {
   return (
     <div className="onb-ways">
-      <section className="onb-way" aria-labelledby="onb-way-sb">
+      <section className="onb-way" aria-labelledby="onb-way-sb" data-selected={ctx.quickStart ? '' : undefined}>
         <p className="onb-way-tags">
-          <Badge size="sm">Coming soon</Badge>
-          <span className="onb-quiet">Quick start</span>
+          {ctx.quickStart ? (
+            <Badge tone="success" size="sm" dot>
+              Added
+            </Badge>
+          ) : (
+            <Badge size="sm">
+              Quick start
+            </Badge>
+          )}
+          <span className="onb-quiet">About 2 minutes</span>
         </p>
         <h3 id="onb-way-sb" className="onb-h3">
           Paste your Storybook URL
         </h3>
         <p className="onb-quiet">See your components in Bridge in about 2 minutes, without the repository.</p>
-        <Input label="Storybook URL" type="url" placeholder="https://storybook.your-company.com" disabled hint="Not available yet. Until then, Bridge reads the repository." />
-        <p className="onb-note">
-          <Icon icon={Eye} size="sm" />
-          Read only. No access to your code.
-        </p>
+        <StorybookField saved={ctx.quickStart ?? null} variant="secondary" id="onb-sb-url" />
+        <div className="onb-get">
+          <p className="onb-quiet">You get</p>
+          <ul className="onb-features">
+            <Feature>Your components in Bridge, with their stories</Feature>
+            <Feature>A live preview of every story</Feature>
+          </ul>
+        </div>
       </section>
       <section className="onb-way" aria-labelledby="onb-way-repo" data-selected="">
         <p className="onb-way-tags">

@@ -12,6 +12,7 @@ import '../../../styles/studio.css';
 import '../../../styles/components-studio.css';
 import '../../../styles/requests.css';
 import '../../../styles/preview-frames.css';
+import '../../../styles/storybook-quick.css';
 import Layout from '../../../layouts/Layout.astro';
 import StudioHeader from '../../../components/StudioHeader.astro';
 import ButtonLink from '../../../components/ds/ButtonLink';
@@ -90,6 +91,9 @@ const signIn = Boolean(signInConfig());
       {primary && <Fragment slot="actions"><ButtonLink variant="primary" href={primary.href} iconStart={FileText} data-latest-only>{primary.label}</ButtonLink></Fragment>}
     </StudioHeader>
     <div class="view-banner" data-view-banner hidden></div>
+    <p class="sbq-quiet cm-sb-line" data-cm-storybook hidden>
+      <span data-cm-storybook-text></span> <Link href="/studio/components/storybook/">See them</Link>
+    </p>
 
     <div class="cm-tools" role="search">
       <ComponentsSearch />
@@ -229,6 +233,20 @@ const signIn = Boolean(signInConfig());
   </aside>
 
   <script type="application/json" id="bridge-branches" set:html={branchesJson} />
+  <script>
+    // The Storybook added with the quick start (scripts/workspace.ts): one quiet line that leads to its components.
+    import { readWorkspace } from '../../../scripts/workspace';
+    import { storybookHost } from '../../../lib/workspace';
+    {
+      const sb = readWorkspace().storybook;
+      const line = document.querySelector<HTMLElement>('[data-cm-storybook]');
+      const text = line?.querySelector<HTMLElement>('[data-cm-storybook-text]');
+      if (sb && line && text) {
+        text.textContent = `Also in this browser: ${sb.components} ${sb.components === 1 ? 'component' : 'components'} from your Storybook, ${storybookHost(sb.url)}.`;
+        line.hidden = false;
+      }
+    }
+  </script>
   <script>
     import { initComponentsStudio } from '../../../scripts/components-studio';
     initComponentsStudio();
