@@ -30,6 +30,7 @@ import HpFaq from '../components/home/HpFaq';
 import HpFaqArt from '../components/home/HpFaqArt.astro';
 import HpPanorama from '../components/home/HpPanorama.astro';
 import HpWalkers from '../components/home/HpWalkers.astro';
+import HpConnectCard from '../components/home/HpConnectCard';
 import { DEMO, STUDIO_HOME } from '../lib/nav';
 
 ---
@@ -160,14 +161,7 @@ import { DEMO, STUDIO_HOME } from '../lib/nav';
           <div class="hp-walk">
             <div class="hp-bob">
               <HpWalkers />
-              <div class="hp-fgcard">
-                <span class="hp-av hp-av-lg">FG</span>
-                <span class="hp-pt">
-                  <strong>Florian Gouloubi</strong>
-                  <small>Senior Product Designer</small>
-                  <ButtonLink variant="primary" size="sm" href="https://www.linkedin.com/in/floriangouloubi/" target="_blank" rel="noopener" aria-label="Connect with Florian Gouloubi on LinkedIn (opens in a new tab)" className="hp-connect">Connect</ButtonLink>
-                </span>
-              </div>
+              <HpConnectCard />
             </div>
           </div>
         </div>

@@ -18,8 +18,8 @@ export function initHomepage() {
   const panoStage = $('[data-pano-stage]');
   const fitPano = () => {
     if (!pano || !panoStage) return;
-    const { x, scale, height } = panoramaFit(pano.clientWidth);
-    panoStage.style.transform = `translate(${x}px, 40px) scale(${scale})`;
+    const { x, y, scale, height } = panoramaFit(pano.clientWidth);
+    panoStage.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
     pano.style.height = `${height}px`;
   };
 

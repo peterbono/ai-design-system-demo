@@ -11,12 +11,14 @@ export interface ButtonLinkProps extends Omit<AnchorHTMLAttributes<HTMLAnchorEle
   size?: ButtonSize;
   iconStart?: LucideIcon;
   iconEnd?: LucideIcon;
+  /** Fill the width of the container (Button fullWidth). */
+  fullWidth?: boolean;
   children?: ReactNode;
 }
 
-export default function ButtonLink({ href, variant = 'secondary', size = 'md', iconStart, iconEnd, children, ...rest }: ButtonLinkProps) {
+export default function ButtonLink({ href, variant = 'secondary', size = 'md', iconStart, iconEnd, fullWidth, children, ...rest }: ButtonLinkProps) {
   return (
-    <Button variant={variant} size={size} iconStart={iconStart} iconEnd={iconEnd} render={<a href={href} />} {...(rest as object)}>
+    <Button variant={variant} size={size} iconStart={iconStart} iconEnd={iconEnd} fullWidth={fullWidth} render={<a href={href} />} {...(rest as object)}>
       {children}
     </Button>
   );

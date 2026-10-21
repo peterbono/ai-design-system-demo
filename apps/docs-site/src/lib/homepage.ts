@@ -21,10 +21,17 @@ export function stepTick(elapsed: number, dt: number, current: number, paused: b
   return next >= STEP_MS ? { elapsed: 0, step: (current + 1) % count } : { elapsed: next, step: current };
 }
 
-/** The closing panorama (1440 x 292) centred in a band `width` px wide, never smaller than 62%. */
-export function panoramaFit(width: number): { x: number; scale: number; height: number } {
+/**
+ * Room above the panorama, in drawing px: the profile card the walkers hold up rises about 58 px above the stage, plus
+ * its hover lift and shadow.
+ */
+export const PANO_HEADROOM = 72;
+
+/** The closing panorama (1440 x 292) centred in a band `width` px wide, never smaller than 62%, with its headroom. */
+export function panoramaFit(width: number): { x: number; y: number; scale: number; height: number } {
   const scale = Math.max(width / 1440, 0.62);
-  return { x: (width - 1440 * scale) / 2, scale, height: 292 * scale + 40 };
+  const y = Math.round(PANO_HEADROOM * scale);
+  return { x: (width - 1440 * scale) / 2, y, scale, height: 292 * scale + y };
 }
 
 /** "Questions teams ask.": only what is true today. */
