@@ -23,7 +23,7 @@ describe('the demo', () => {
   it('says what the action needs, in designer words', () => {
     expect(makeItYoursLead('create branches')).toBe('In the demo you can look around and try everything. To create branches, connect your own design system: it takes two steps.');
     expect(makeItYoursLead(null)).toMatch(/^Bring your own design system into Bridge in two steps\./);
-    for (const s of [makeItYoursLead('x'), makeItYoursLead(null)]) expect(s).not.toMatch(/—|pull request|repository access|token/);
+    for (const s of [makeItYoursLead('x'), makeItYoursLead(null)]) expect(s).not.toMatch(/\u2014|pull request|repository access|token/);
   });
 
   it('counts what waits for a review', () => {
