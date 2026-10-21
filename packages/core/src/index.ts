@@ -66,3 +66,4 @@ export * from './figma-push-github';
 export * from './suggestions';
 export * from './suggestion-review';
 export * from './suggestions-github';
+export * from './suggestion-apply';

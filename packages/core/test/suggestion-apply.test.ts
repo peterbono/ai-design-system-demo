@@ -9,13 +9,17 @@ import {
   gitBlobSha,
   loadConfig,
   parseSuggestionIssue,
+  planSuggestionApply,
   SUGGESTION_SCHEMA,
+  suggestionAppliedComment,
+  suggestionApplyTable,
   suggestionPayloadSha,
   type BridgeConfig,
   type SuggestionCommentLike,
   type SuggestionPayloadV1,
+  type SuggestionWorkspace,
 } from '../src/index';
-import { applySuggestionLocally, planSuggestionApply, suggestionAppliedComment, suggestionApplyTable, type SuggestionWorkspace } from '../src/node/index';
+import { applySuggestionLocally } from '../src/node/index';
 
 // A small design system: two primitives files, light and dark semantic files, one contrast pair, two owners.
 const CONFIG = {
