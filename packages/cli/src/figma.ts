@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { BridgeContext, branches, figma } from '@bridge-ds/mcp';
 import { defaultIO, RequestUsageError, type RequestArgs, type RequestIO } from './request.js';
+import { changesFlag } from './suggest.js';
 
 export const FIGMA_HELP = `bridge figma: component changes sent from Figma
 
@@ -77,12 +78,14 @@ export async function runFigma(a: RequestArgs, root: string, io: RequestIO = def
       } catch (err) {
         throw new RequestUsageError(`${file} could not be read as JSON: ${(err as Error).message}`);
       }
-      const r = await figma.pushFigmaComponentOp(ctx, { diff: diff as never, dryRun: has(a, 'dry-run'), source: 'cli' });
+      const changes = changesFlag(a);
+      const r = await figma.pushFigmaComponentOp(ctx, { diff: diff as never, dryRun: has(a, 'dry-run'), source: 'cli', ...(changes ? { changes } : {}) });
       return out(r, () => {
         io.print(`${r.component}: ${r.route}. ${r.said}`);
         for (const x of r.reasons ?? []) io.print(`  ${x}`);
         for (const x of r.fixInFigma ?? []) io.print(`  Fix in Figma: ${x.what} ${x.todo}`);
         if (r.library) io.print(`  #${r.library.number} ${r.library.url}`);
+        if (r.suggestion) io.print(`  suggestion #${r.suggestion.number} ${r.suggestion.url}`);
         io.print(`Next: ${r.next}`);
       });
     }

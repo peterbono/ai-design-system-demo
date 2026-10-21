@@ -4,6 +4,7 @@
 // bridge_propose_token_change: a new local bridge/* branch, or a PR on a new bridge/* branch. Never main.
 import {
   type ChangePlan,
+  type ChangesMode,
   type HistoryEntry,
   type HistoryReport,
   type RevertResolution,
@@ -20,6 +21,7 @@ import type { BridgeContext } from './context.js';
 import { core, type TokenSet } from './core-adapter.js';
 import { normalizeTokenPath } from './ops.js';
 import { GitRefSource } from './source.js';
+import { changesFor, fileSuggestion, filesSuggestionPayload } from './suggestions.js';
 
 const cache = new WeakMap<BridgeContext, { at: number; limit: number; report: HistoryReport }>();
 
@@ -239,11 +241,23 @@ export async function planRevertOp(ctx: BridgeContext, a: PlanArgs & { includeBo
 }
 
 /** Plans, then commits to a new local bridge/* branch or opens a PR on a new bridge/* branch. Never main. */
-export async function proposeRevert(ctx: BridgeContext, a: PlanArgs & { dryRun?: boolean }) {
+export async function proposeRevert(ctx: BridgeContext, a: PlanArgs & { dryRun?: boolean; changes?: ChangesMode | undefined; source?: 'mcp' | 'cli' | undefined }) {
   const { config } = await ctx.config();
   const plan = await buildPlan(ctx, a, ctx.mode === 'local' ? 'the bridge CLI' : 'Bridge MCP');
   const report = planReport(plan);
   if (plan.status !== 'ready') return { ...report, hint: plan.status === 'blocked' ? 'Bridge never opens a change that breaks the gate.' : 'Nothing to propose.' };
+  // Suggest mode: the revert's files in one suggestion issue, applied by a developer once approved.
+  if ((await changesFor(ctx, a.changes)) === 'suggest') {
+    const summary = plan.commitMessage.split('\n').slice(1).join('\n').trim() || plan.prTitle;
+    const r = await fileSuggestion(
+      ctx,
+      (base, by) => filesSuggestionPayload(ctx, { kind: 'revert', title: plan.prTitle, summary, files: plan.files, tier: { tier: plan.tier.tier, bump: plan.tier.bump }, base, source: a.source ?? 'mcp', suggestedBy: by, checks: { newErrors: plan.newErrors.length } }),
+      { labels: [plan.kind === 'revert' ? 'revert' : 'restore', ...(plan.tier.tier === 3 ? ['tokens'] : []), ...(plan.tier.bump === 'major' ? ['breaking'] : [])], details: plan.prBody, dryRun: a.dryRun },
+    );
+    if (r.status === 'dry-run') return { ...report, status: 'dry-run', changesMode: 'suggest', suggestion: r.suggestion, fileContents: plan.files };
+    if (r.status === 'preview') return { ...report, status: 'preview', message: r.message, changesMode: 'suggest', fileContents: plan.files };
+    return { ...report, status: 'suggested', changesMode: 'suggest', number: r.number, url: r.url, version: r.sha.slice(0, 7), labels: r.labels, ...(r.warnings.length ? { warnings: r.warnings } : {}), next: r.next };
+  }
   if (a.dryRun) return { ...report, status: 'dry-run', prBody: plan.prBody, fileContents: plan.files };
   const prefix = config.governance.branchPrefix;
   let branch = plan.branch;

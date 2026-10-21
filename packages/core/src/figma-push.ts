@@ -326,12 +326,19 @@ export function parseFigmaSpec(text: string | null | undefined): (ComponentPushD
  * What Claude gets to draft the code on the branch (MCP `bridge_get_figma_change`, CLI `bridge figma show`): the change,
  * the spec, the exact token swaps to make too, the rules, and how to say it is drafted.
  */
-export function figmaDraftBrief(d: ComponentPushDiff & { tokenEdits?: TokenEdit[] | undefined; reasons?: string[] | undefined }, ctx: { pr: number; branch: string; specPath: string; componentsDir?: string | undefined; agentsFile?: string | undefined }): string {
+export function figmaDraftBrief(
+  d: ComponentPushDiff & { tokenEdits?: TokenEdit[] | undefined; reasons?: string[] | undefined },
+  ctx: { pr: number; branch: string; specPath: string; componentsDir?: string | undefined; agentsFile?: string | undefined } | { suggestion: true; specPath: string; componentsDir?: string | undefined; agentsFile?: string | undefined },
+): string {
   const dir = `${(ctx.componentsDir ?? 'packages/react/src/components').replace(/\/+$/, '')}/${d.component}`;
+  // A suggestion has no branch yet: the developer starts one by applying it, and the pull request closes the issue.
+  const suggested = 'suggestion' in ctx;
   const variants = Object.entries(d.variantAxes).map(([axis, values]) => `${axis}: ${values.join(', ')}`);
   const props = d.properties.filter((p) => p.type !== 'VARIANT').map((p) => `${p.name} (${p.type.toLowerCase().replace('_', ' ')}, default ${p.default || 'empty'})`);
   return [
-    `Draft the code for a component change made in Figma, on the library branch ${ctx.branch} (draft pull request #${ctx.pr}).`,
+    suggested
+      ? 'Draft the code for a component change made in Figma, sent as a Bridge suggestion (this issue).'
+      : `Draft the code for a component change made in Figma, on the library branch ${ctx.branch} (draft pull request #${ctx.pr}).`,
     '',
     d.coded ? `Component: ${d.component} (${dir})` : `New component: ${d.component} (create ${dir})`,
     `Kind: ${kindLabel(d.kind)}`,
@@ -345,20 +352,22 @@ export function figmaDraftBrief(d: ComponentPushDiff & { tokenEdits?: TokenEdit[
     ...(props.length ? ['Properties in Figma:', ...props.map((p) => `- ${p}`), ''] : []),
     ...(d.tokenEdits?.length ? ['Token swaps to make too (exact, with bridge_propose_token_change on this branch or by hand in the token files):', ...d.tokenEdits.map((e) => `- ${e.path} -> ${String(e.value)}`), ''] : []),
     ...(d.reasons?.length ? ['Why this needs code:', ...d.reasons.map((r) => `- ${r}`), ''] : []),
-    `Spec: ${ctx.specPath} on the branch has the bound variables of every variant (token paths), the layers of every variant and what code gave Figma before.`,
+    `Spec: ${ctx.specPath} ${suggested ? 'in the suggestion' : 'on the branch'} has the bound variables of every variant (token paths), the layers of every variant and what code gave Figma before.`,
     ...(d.figma?.url ? [`Design: ${d.figma.url}`] : []),
     ...(d.images?.length ? ['Screenshot:', ...d.images.map((u) => `- ${u}`)] : []),
     '',
     'Steps:',
-    `1. git fetch origin && git checkout ${ctx.branch}`,
+    'suggestion' in ctx ? '1. Apply the suggestion on a new branch: bridge apply <this issue number> (it writes the spec file), or start a branch from the default branch.' : `1. git fetch origin && git checkout ${ctx.branch}`,
     `2. Write the change in ${dir}: the TSX on Base UI, the CSS module with tokens only (the bound variables of the spec, as token paths), the stories (examples), docs.json and a changeset. Follow ${ctx.agentsFile ?? 'AGENTS.md'}.`,
     '3. Run npm run specs so component-specs.json matches the code, then npm test.',
-    `4. Commit and push to ${ctx.branch}, then call bridge_mark_figma_change_drafted { pr: ${ctx.pr} } (CLI: bridge figma drafted ${ctx.pr}). The branch is then labelled ${DRAFTED_BY_CLAUDE_LABEL} and a person reviews it.`,
+    'suggestion' in ctx
+      ? '4. Commit, push and open a pull request that says "Closes #<this issue number>", so the suggestion closes when it ships. A person reviews it.'
+      : `4. Commit and push to ${ctx.branch}, then call bridge_mark_figma_change_drafted { pr: ${ctx.pr} } (CLI: bridge figma drafted ${ctx.pr}). The branch is then labelled ${DRAFTED_BY_CLAUDE_LABEL} and a person reviews it.`,
     '',
     'Rules:',
     '- Never invent a token or a value: use the variables the spec lists. A value the library lacks is a token change, said in the pull request.',
     '- Keep every existing variant and prop unchanged unless the spec changes it.',
-    '- If the spec is unclear, comment on the pull request instead of guessing.',
+    `- If the spec is unclear, comment on the ${suggested ? 'suggestion' : 'pull request'} instead of guessing.`,
   ].join('\n');
 }
 

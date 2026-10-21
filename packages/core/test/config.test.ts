@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { test } from 'vitest';
-import { ConfigError, defineConfig, loadConfig } from '../src/config';
+import { changesMode, ConfigError, defineConfig, loadConfig, storybookUrl, toConfigJson } from '../src/config';
 import { buildTokenSet, detectLayout, layoutOptions } from '../src/token-set';
 import { realConfig, realFiles } from './helpers';
 
@@ -55,4 +56,61 @@ test('custom tier folders and mode order are honored', () => {
   assert.deepEqual(layout.overrides, [{ brand: 'b', theme: 'dark', file: 'brand/b.dark.tokens.json' }]);
   assert.deepEqual(layout.densities.map((d) => d.mode), ['tight', 'roomy']);
   assert.deepEqual(layout.componentFiles, ['comp/button.tokens.json']);
+});
+
+test('changes: "suggest" by default, "direct" when set, anything else refused', () => {
+  const plain = loadConfig({ repo: 'acme/ds' });
+  assert.equal(plain.changes, 'suggest');
+  assert.equal(changesMode(plain), 'suggest');
+  assert.equal(changesMode(undefined), 'suggest');
+  assert.equal(toConfigJson(plain).changes, 'suggest');
+  const direct = loadConfig({ repo: 'acme/ds', changes: 'direct' });
+  assert.equal(changesMode(direct), 'direct');
+  assert.equal(toConfigJson(direct).changes, 'direct');
+  assert.equal(loadConfig(toConfigJson(realConfig())).changes, 'direct');
+  assert.equal(loadConfig({ repo: 'acme/ds', changes: 'suggest' }).changes, 'suggest');
+  for (const bad of ['Direct', 'pr', true, null]) {
+    assert.throws(
+      () => loadConfig({ repo: 'acme/ds', changes: bad }),
+      (err: ConfigError) => err.problems.some((p) => /"changes" must be "suggest" or "direct"/.test(p)),
+    );
+  }
+  // This repo keeps opening branches until the owner switches it.
+  assert.equal(realConfig().changes, 'direct');
+});
+
+test('storybook.url: explicit, else the production Storybook from previews; https only', () => {
+  assert.equal(storybookUrl(loadConfig({ repo: 'acme/ds' })), undefined);
+  const explicit = loadConfig({ repo: 'acme/ds', storybook: { url: 'https://storybook.acme.dev/' } });
+  assert.deepEqual(explicit.storybook, { url: 'https://storybook.acme.dev' });
+  assert.equal(storybookUrl(explicit), 'https://storybook.acme.dev');
+  assert.deepEqual(toConfigJson(explicit).storybook, { url: 'https://storybook.acme.dev' });
+  const fromPreviews = loadConfig({ repo: 'acme/ds', previews: { production: { storybook: 'https://sb.acme.dev/' } } });
+  assert.equal(fromPreviews.storybook, undefined);
+  assert.equal(storybookUrl(fromPreviews), 'https://sb.acme.dev');
+  assert.ok(!('storybook' in toConfigJson(fromPreviews)));
+  // The explicit one wins; an http production URL is not used.
+  assert.equal(storybookUrl(loadConfig({ repo: 'acme/ds', storybook: { url: 'https://a.dev' }, previews: { production: { storybook: 'https://b.dev' } } })), 'https://a.dev');
+  assert.equal(storybookUrl(loadConfig({ repo: 'acme/ds', previews: { production: { storybook: 'http://sb.acme.dev' } } })), undefined);
+  assert.equal(storybookUrl(realConfig()), 'https://bridge-storybook.floriangouloubi.com');
+  const bad: [unknown, RegExp][] = [
+    [{ url: 'http://sb.acme.dev' }, /must start with https/],
+    [{ url: '' }, /"storybook" must be \{ "url" \}/],
+    ['https://sb.acme.dev', /"storybook" must be \{ "url" \}/],
+    [{ url: 'https://sb.acme.dev', token: 'x' }, /"storybook\.token" is not a known key/],
+  ];
+  for (const [value, msg] of bad) {
+    assert.throws(
+      () => loadConfig({ repo: 'acme/ds', storybook: value }),
+      (err: ConfigError) => err.problems.some((p) => msg.test(p)),
+    );
+  }
+});
+
+test('the JSON schema lists changes and storybook like the parser', () => {
+  const schema = JSON.parse(readFileSync(new URL('../bridge.config.schema.json', import.meta.url), 'utf8'));
+  assert.deepEqual(schema.properties.changes.enum, ['suggest', 'direct']);
+  assert.equal(schema.properties.changes.default, 'suggest');
+  assert.deepEqual(schema.properties.storybook.required, ['url']);
+  assert.equal(schema.properties.storybook.properties.url.pattern, '^https://');
 });

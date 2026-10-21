@@ -1,11 +1,16 @@
 // Component docs (docs.json) proposed as a reviewable change, shared by the Library edit mode in Bridge Studio, the MCP
 // server and the CLI: what blocks a docs.json (validateDocs), the editor's cleaning, and one pull request per set of
 // docs edits (Tier 1 under the shared classifier, a patch changeset), at most one open per component (a new send
-// continues the open one), and an author line that says who wrote the text. The GitHub writes use the core client.
+// continues the open one), and an author line that says who wrote the text. In suggest mode the same edits are filed
+// as a suggestion (an issue with the cleaned docs, applied by a developer) instead. The GitHub writes use the core client.
+import type { ChangesMode } from './config';
 import { formatDocsJson, missingProse, patchDocsJson, type ComponentDocsJson } from './docs-draft';
 import type { GitHubClient, PullRequestSummary } from './github-client';
+import type { RequestSource } from './requests';
 import { classifyRisk, type RiskResult } from './risk';
 import { branchWithJiraKey, titleWithJiraKey } from './jira';
+import { createSuggestionOnGitHub } from './suggestions-github';
+import { gitBlobSha, SUGGESTION_SCHEMA, type SuggestionPayloadV1 } from './suggestions';
 
 /** One component's docs.json, before (null: a new file) and after, at its repo path. */
 export interface DocsFileEdit {
@@ -270,37 +275,141 @@ export function docsProposal(
 }
 
 
+export interface ProposeDocsOptions {
+  base: string;
+  title?: string | undefined;
+  notes?: string | undefined;
+  jira?: string | null | undefined;
+  date?: Date | undefined;
+  origin?: DocsOrigin | undefined;
+  extraLabels?: string[] | undefined;
+  commitNote?: string | undefined;
+  /** Who wrote the text (docsAuthorLine). Without it, the origin's footer, never "no AI" over a Claude draft. */
+  authorLine?: string | undefined;
+  /** Default true: continue the component's open proposal. False always opens a new one. Direct mode only. */
+  continueOpen?: boolean | undefined;
+  /**
+   * "direct" (default here, so existing callers keep their behaviour): a branch and a pull request. "suggest": a
+   * suggestion issue with the cleaned docs, no branch. Callers pass changesMode(config).
+   */
+  mode?: ChangesMode | undefined;
+  /** Suggest mode: where it was sent from (default from the origin: Studio, or MCP) and who sent it. */
+  source?: RequestSource | undefined;
+  suggestedBy?: string | undefined;
+  /** Suggest mode: commit sha of `base`, when the caller already read it. */
+  baseSha?: string | undefined;
+}
+
+export interface ProposedDocs {
+  status: 'opened' | 'continued';
+  number: number;
+  url: string;
+  branch: string;
+  title: string;
+  continued: boolean;
+  unchanged: boolean;
+}
+
+export interface SuggestedDocs {
+  status: 'suggested';
+  /** The suggestion issue. */
+  number: number;
+  url: string;
+  title: string;
+  /** sha256 of the payload: what approvals bind to. */
+  sha: string;
+  warnings: string[];
+}
+
+/** The source a docs origin stands for, as suggestions name it. */
+const docsSource = (origin: DocsOrigin): RequestSource => (origin.label === DOCS_MCP_ORIGIN.label ? 'mcp' : 'studio');
+
+/**
+ * The suggestion payload (bridge.suggestion/1, kind docs) of a set of docs edits: the cleaned docs object of each
+ * component (re-written at apply time as a minimal diff of the current file) and the patch changeset. Pure.
+ */
+export function docsSuggestionPayload(
+  edits: DocsFileEdit[],
+  opts: {
+    base: { ref: string; sha: string };
+    title?: string | undefined;
+    notes?: string | undefined;
+    date?: Date | undefined;
+    origin?: DocsOrigin | undefined;
+    source?: RequestSource | undefined;
+    suggestedBy?: string | undefined;
+    packageName?: string | undefined;
+    changesetDir?: string | undefined;
+  },
+): SuggestionPayloadV1 {
+  const origin = opts.origin ?? DOCS_EDITOR_ORIGIN;
+  const date = opts.date ?? new Date();
+  const p = docsProposal(edits, { title: opts.title, date, origin, packageName: opts.packageName, changesetDir: opts.changesetDir });
+  const names = edits.map((e) => e.component);
+  const list = names.length === 1 ? names[0]! : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+  const docs = edits.map((e) => {
+    let after: ComponentDocsJson;
+    try {
+      after = JSON.parse(e.after) as ComponentDocsJson;
+    } catch {
+      throw new Error(`${e.path} is not valid JSON: fix it before sending.`);
+    }
+    return { component: e.component, path: e.path, after: cleanDocs(after) };
+  });
+  const docPaths = new Set(edits.map((e) => e.path));
+  const files = p.files.filter((f) => !docPaths.has(f.path)).map((f) => ({ path: f.path, beforeSha: null, afterSha: gitBlobSha(f.content), content: f.content }));
+  const by = opts.suggestedBy?.replace(/^@/, '');
+  return {
+    schema: SUGGESTION_SCHEMA,
+    kind: 'docs',
+    title: opts.title?.trim() || (names.length === 1 ? 'Usage guidance' : `Usage guidance for ${list}`),
+    summary: [`Usage guidance for ${list}, written ${origin.where}.`, opts.notes?.trim() ?? ''].filter(Boolean).join('\n\n'),
+    source: opts.source ?? docsSource(origin),
+    ...(by ? { suggestedBy: by } : {}),
+    createdAt: date.toISOString(),
+    base: opts.base,
+    tier: { tier: p.risk.tier, bump: 'patch' },
+    docs,
+    files,
+    checks: { newErrors: 0, contrast: [], blocked: null, impact: 0 },
+  };
+}
+
+/**
+ * Files docs edits as a suggestion (suggest mode): one issue with the cleaned docs of each component and the patch
+ * changeset, the author line in its description, labelled docs. Needs Issues write only.
+ */
+async function suggestDocsOnGitHub(gh: GitHubClient, edits: DocsFileEdit[], opts: ProposeDocsOptions): Promise<SuggestedDocs> {
+  if (!edits.length) throw new Error('No docs edits in the draft.');
+  const sha = opts.baseSha ?? (await gh.getBranchSha(opts.base));
+  if (!sha) throw new Error(`Branch ${opts.base} not found.`);
+  const origin = opts.origin ?? DOCS_EDITOR_ORIGIN;
+  const payload = docsSuggestionPayload(edits, { base: { ref: opts.base, sha }, title: opts.title, notes: opts.notes, date: opts.date, origin, source: opts.source, suggestedBy: opts.suggestedBy });
+  const p = docsProposal(edits, { date: opts.date ?? new Date(), origin });
+  const rows = p.body.split('\n').filter((l) => l.startsWith('- `'));
+  const details = [...rows, '', opts.authorLine?.trim() || defaultDocsFooter(edits, origin)].join('\n');
+  const created = await createSuggestionOnGitHub(gh, payload, { labels: ['docs', ...(opts.extraLabels ?? [])], details });
+  return { status: 'suggested', number: created.number, url: created.url, title: payload.title, sha: created.sha, warnings: created.warnings };
+}
+
 /**
  * Opens one pull request with the docs edits from the default branch, the Jira key first in the title and the branch
  * name (Jira's GitHub integration links them). Returns its number, link and branch. Labels are best effort.
  * One open proposal per component: when the component already has one, the edit goes there as a new commit
  * (`continued`; `unchanged` when it already says this) instead of a second pull request.
+ * In suggest mode (`mode: 'suggest'`) it files a suggestion instead: no branch, no pull request (`status: 'suggested'`).
  */
-export async function proposeDocsOnGitHub(
-  gh: GitHubClient,
-  edits: DocsFileEdit[],
-  opts: {
-    base: string;
-    title?: string | undefined;
-    notes?: string | undefined;
-    jira?: string | null | undefined;
-    date?: Date | undefined;
-    origin?: DocsOrigin | undefined;
-    extraLabels?: string[] | undefined;
-    commitNote?: string | undefined;
-    /** Who wrote the text (docsAuthorLine). Without it, the origin's footer, never "no AI" over a Claude draft. */
-    authorLine?: string | undefined;
-    /** Default true: continue the component's open proposal. False always opens a new one. */
-    continueOpen?: boolean | undefined;
-  },
-): Promise<{ number: number; url: string; branch: string; title: string; continued: boolean; unchanged: boolean }> {
+export function proposeDocsOnGitHub(gh: GitHubClient, edits: DocsFileEdit[], opts: ProposeDocsOptions & { mode?: 'direct' | undefined }): Promise<ProposedDocs>;
+export function proposeDocsOnGitHub(gh: GitHubClient, edits: DocsFileEdit[], opts: ProposeDocsOptions): Promise<ProposedDocs | SuggestedDocs>;
+export async function proposeDocsOnGitHub(gh: GitHubClient, edits: DocsFileEdit[], opts: ProposeDocsOptions): Promise<ProposedDocs | SuggestedDocs> {
+  if (opts.mode === 'suggest') return suggestDocsOnGitHub(gh, edits, opts);
   if (opts.continueOpen !== false && edits.length === 1) {
     const e = edits[0]!;
     // A failed read does not block the send: it opens a new proposal, as before.
     const open = await findOpenDocsProposalOnGitHub(gh, { name: e.component, slug: e.slug }, opts.base).catch(() => null);
     if (open) {
       const sha = await continueDocsProposalOnGitHub(gh, open, e, { authorLine: opts.authorLine?.trim() || defaultDocsFooter(edits, opts.origin ?? DOCS_EDITOR_ORIGIN) });
-      return { number: open.number, url: open.url, branch: open.branch, title: open.title, continued: true, unchanged: !sha };
+      return { status: 'continued', number: open.number, url: open.url, branch: open.branch, title: open.title, continued: true, unchanged: !sha };
     }
   }
   const p = docsProposal(edits, { title: opts.title, notes: opts.notes, date: opts.date ?? new Date(), origin: opts.origin, authorLine: opts.authorLine });
@@ -313,7 +422,7 @@ export async function proposeDocsOnGitHub(
   await gh.createBranch(branch, commit);
   const pr = await gh.createPullRequest({ title: prTitle, head: branch, base: opts.base, body: p.body, draft: false });
   await gh.addLabels(pr.number, [...p.labels, ...(opts.extraLabels ?? [])]).catch(() => false);
-  return { number: pr.number, url: pr.url, branch, title: prTitle, continued: false, unchanged: false };
+  return { status: 'opened', number: pr.number, url: pr.url, branch, title: prTitle, continued: false, unchanged: false };
 }
 
 /**

@@ -14,6 +14,7 @@ import * as branches from './branches.js';
 import * as studio from './studio.js';
 import * as pieces from './pieces.js';
 import * as figma from './figma.js';
+import * as suggestions from './suggestions.js';
 import { DRAFT_LINE_MAX, DRAFT_PHRASE, DRAFT_TITLE_MAX, EXPLORATION_USE_CASES, REQUEST_KINDS } from '@bridge-ds/core';
 
 declare const __BRIDGE_MCP_VERSION__: string | undefined;
@@ -48,6 +49,11 @@ const EditArg = z.object({
 
 const RO = { readOnlyHint: true, openWorldHint: false } as const;
 
+const ChangesArg = z
+  .enum(['suggest', 'direct'])
+  .optional()
+  .describe('How this change reaches the code: "suggest" files a suggestion (a GitHub issue the owners approve and a developer applies, Issues write only), "direct" opens a branch and a pull request. Default: "changes" in bridge.config.json, else "suggest". Only set it when the person asked.');
+
 export function createServer(ctx: BridgeContext): McpServer {
   const server = new McpServer(
     { name: 'bridge', version: VERSION },
@@ -55,6 +61,7 @@ export function createServer(ctx: BridgeContext): McpServer {
       instructions: [
         'Bridge exposes a design system repo (DTCG tokens, components, docs) to you.',
         'Every write goes through a branch and a pull request, never straight to the default branch: the library only changes through reviewed pull requests, and on a protected repo GitHub refuses direct pushes anyway.',
+        'How changes reach the code is the "changes" setting of bridge.config.json (bridge_get_config says which): "suggest" (the default) files token, docs, brand, revert, missing piece and Figma changes as suggestions, GitHub issues with the exact change that the owners approve (bridge_review_suggestion) and a developer applies (bridge_apply_suggestion, or `bridge apply <n>`); "direct" opens branches and pull requests. Writing tools take "changes" to pick one for a call; only pass it when the person asked. When the person says "Apply Bridge suggestion #n", call bridge_apply_suggestion with mode "dry-run" first, show the result, then apply it on a branch.',
         'Read before you write: bridge_get_guidelines for the repo rules, bridge_search_tokens / bridge_get_token before using or proposing a token.',
         'Never hardcode a value in UI code when a token exists; never invent a token name (check it with bridge_get_token).',
         'bridge_audit measures how a product codebase adopts the design system (hardcoded values, foreign UI components) and suggests the tokens and components to use.',
@@ -214,7 +221,7 @@ export function createServer(ctx: BridgeContext): McpServer {
     {
       title: 'Propose token change',
       description:
-        'Propose token edits as a reviewable change. Applies edits with minimal JSON diffs, validates, runs the contrast gate before/after, computes the risk tier and semver bump, writes a changeset and a designer-friendly PR body. Blocked (nothing written) if it adds validation errors or breaks a contrast pair. Local repo: commits to a new local bridge/* branch without touching your working tree (never pushes). GitHub with token: new branch + draft PR labelled "source: mcp" and its tier. Never writes to main. Use dryRun to preview. Tell the user token changes are Tier 3.',
+        'Propose token edits as a reviewable change. Applies edits with minimal JSON diffs, validates, runs the contrast gate before/after, computes the risk tier and semver bump, writes a changeset and a designer-friendly PR body. Blocked (nothing written) if it adds validation errors or breaks a contrast pair. Suggest mode (the default unless bridge.config.json says "changes": "direct"): files a suggestion, a GitHub issue with the exact edits, the checks and the tier, status "suggested" with its number; owners approve it and a developer applies it (bridge_apply_suggestion). Direct mode: local repo, commits to a new local bridge/* branch without touching your working tree (never pushes); GitHub with token, new branch + draft PR labelled "source: mcp" and its tier. With branch or pr it writes to that branch whatever the mode. Never writes to main. Use dryRun to preview. Tell the user token changes are Tier 3.',
       inputSchema: {
         title: z.string().min(3).describe('Short imperative title, e.g. "Darken muted text in dark theme". Becomes the branch name and PR title.'),
         summary: z.string().optional().describe('Why: the problem and the intent, for the reviewers. Plain sentences, no em dash.'),
@@ -224,10 +231,11 @@ export function createServer(ctx: BridgeContext): McpServer {
         pr: z.union([z.number().int().positive(), z.string().min(1)]).optional().describe('A branch already in review (12 or "#12") to add the edits to, as "Edit tokens in this branch" in Studio: one commit there and a comment for the reviewers. Its author or someone with write access; needs GITHUB_TOKEN.'),
         jira: z.string().optional().describe('Jira key like DS-42, as in Studio\'s Create branch: first in the branch name and title so Jira links them.'),
         product: z.string().optional().describe('Product key or name (bridge_list_products) the change is for. Default: the product of the current folder or repo. Ask the person when it is not obvious.'),
+        changes: ChangesArg,
       },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     },
-    run((a) => ops.proposeTokenChange(ctx, a)),
+    run((a) => ops.proposeTokenChange(ctx, { ...a, source: 'mcp' })),
   );
 
   const Hue = z.union([z.string(), z.number()]);
@@ -270,11 +278,11 @@ export function createServer(ctx: BridgeContext): McpServer {
     {
       title: 'Propose a new brand',
       description:
-        'Propose a new brand as a reviewable change. Same plan as bridge_plan_brand; blocked (nothing written) when an input is invalid or a contrast pair fails. Local repo: commits to a new local bridge/brand-<slug> branch without touching your working tree (never pushes). GitHub with token: new branch + draft PR labelled "source: mcp", "tier: 3" and "tokens". Never writes to main. Tell the user a new brand is Tier 3: it needs design and tech owner approval.',
-      inputSchema: { ...BrandArgs, dryRun: z.boolean().optional().describe('Return the plan and file contents without writing.') },
+        'Propose a new brand as a reviewable change. Same plan as bridge_plan_brand; blocked (nothing written) when an input is invalid or a contrast pair fails. Local repo: commits to a new local bridge/brand-<slug> branch without touching your working tree (never pushes). GitHub with token: new branch + draft PR labelled "source: mcp", "tier: 3" and "tokens". Never writes to main. Suggest mode (the default unless bridge.config.json says "changes": "direct"): one suggestion issue with the brand files instead, applied by a developer once approved. Tell the user a new brand is Tier 3: it needs design and tech owner approval.',
+      inputSchema: { ...BrandArgs, dryRun: z.boolean().optional().describe('Return the plan and file contents without writing.'), changes: ChangesArg },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     },
-    run((a) => brand.proposeBrand(ctx, a)),
+    run((a) => brand.proposeBrand(ctx, { ...a, source: 'mcp' })),
   );
 
   server.registerTool(
@@ -377,17 +385,18 @@ export function createServer(ctx: BridgeContext): McpServer {
     'bridge_propose_revert',
     {
       title: 'Propose a revert',
-      description: 'Plans the revert (or restore) like bridge_plan_revert, then: local repo, commits to a new local bridge/* branch without touching your working tree (never pushes); GitHub with token, new bridge/* branch and a PR labelled revert and its tier (draft for Tier 2 and 3). Blocked when it would add validation errors or break a contrast pair. Never writes to main. Show the user the plan and its conflicts first.',
+      description: 'Plans the revert (or restore) like bridge_plan_revert, then: local repo, commits to a new local bridge/* branch without touching your working tree (never pushes); GitHub with token, new bridge/* branch and a PR labelled revert and its tier (draft for Tier 2 and 3). Blocked when it would add validation errors or break a contrast pair. Never writes to main. Suggest mode (the default unless bridge.config.json says "changes": "direct"): one suggestion issue with the files instead, applied by a developer once approved. Show the user the plan and its conflicts first.',
       inputSchema: {
         target: z.string().optional(),
         restore: RestoreArg.optional(),
         resolutions: ResolutionsArg.optional(),
         restoreConflicts: z.boolean().optional(),
         dryRun: z.boolean().optional(),
+        changes: ChangesArg,
       },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     },
-    run((a) => history.proposeRevert(ctx, a)),
+    run((a) => history.proposeRevert(ctx, { ...a, source: 'mcp' })),
   );
 
   server.registerTool(
@@ -665,8 +674,8 @@ export function createServer(ctx: BridgeContext): McpServer {
     {
       title: 'Open a library branch for a missing piece',
       description:
-        'Turn one recorded missing piece into a library branch linked to the product branch, as Bridge Studio does: a token piece opens a token change (same gate and body as bridge_propose_token_change, a draft for design and tech review) and the product branch takes its preview; a variant opens a library exploration with the brief to build it (build it there, then bridge_use_library_preview); a new component opens a component request. Both sides link: the library side says "Needed by" the product branch (label needed-by-product), the product branch records it. Needs GITHUB_TOKEN (contents, pull requests and issues: write). dryRun shows what it would open. Only when the person asked.',
-      inputSchema: { pr: Pr, piece: Piece, usePreview: z.boolean().optional().describe('Merge the new library branch into the product branch when it already changes something (default true).'), dryRun: z.boolean().optional() },
+        'Turn one recorded missing piece into a library branch linked to the product branch, as Bridge Studio does: a token piece opens a token change (same gate and body as bridge_propose_token_change, a draft for design and tech review) and the product branch takes its preview; a variant opens a library exploration with the brief to build it (build it there, then bridge_use_library_preview); a new component opens a component request. Both sides link: the library side says "Needed by" the product branch (label needed-by-product), the product branch records it. Suggest mode (the default unless bridge.config.json says "changes": "direct"): a token piece becomes a suggestion and a variant a component request, no branch; needs Issues write. Direct mode needs GITHUB_TOKEN (contents, pull requests and issues: write). dryRun shows what it would open. Only when the person asked.',
+      inputSchema: { pr: Pr, piece: Piece, usePreview: z.boolean().optional().describe('Merge the new library branch into the product branch when it already changes something (default true).'), dryRun: z.boolean().optional(), changes: ChangesArg },
       annotations: WRITE,
     },
     run((a) => pieces.openLibraryBranchOp(ctx, { ...a, source: 'mcp' })),
@@ -744,11 +753,11 @@ export function createServer(ctx: BridgeContext): McpServer {
     {
       title: 'Send a component change from Figma',
       description:
-        'What the DS Bridge plugin Push tab does, from a structured diff of a Figma component (the v 1 spec shape: component, figmaName, coded, kind, title, summary, changes, rebinds, needsCode, unknown, variantAxes, properties, bindings, anatomy). An exact token swap on a component token used nowhere else opens a token change (contrast gated, reviewed like any token change); anything that needs code opens a draft branch with the spec, waiting for Claude AI; detached layers, raw values and variables the library lacks are listed with what to do and never sent. dryRun shows the route. Needs GITHUB_TOKEN (contents and pull requests: write). Only when the person asked.',
-      inputSchema: { diff: z.record(z.string(), z.unknown()).describe('The structured component diff (v 1).'), dryRun: z.boolean().optional() },
+        'What the DS Bridge plugin Push tab does, from a structured diff of a Figma component (the v 1 spec shape: component, figmaName, coded, kind, title, summary, changes, rebinds, needsCode, unknown, variantAxes, properties, bindings, anatomy). An exact token swap on a component token used nowhere else opens a token change (contrast gated, reviewed like any token change); anything that needs code opens a draft branch with the spec, waiting for Claude AI; detached layers, raw values and variables the library lacks are listed with what to do and never sent. Suggest mode (the default unless bridge.config.json says "changes": "direct"): a token suggestion or a component spec suggestion instead of a branch, Issues write only. dryRun shows the route. Direct mode needs GITHUB_TOKEN (contents and pull requests: write). Only when the person asked.',
+      inputSchema: { diff: z.record(z.string(), z.unknown()).describe('The structured component diff (v 1).'), dryRun: z.boolean().optional(), changes: ChangesArg },
       annotations: WRITE,
     },
-    run((a) => figma.pushFigmaComponentOp(ctx, { diff: a.diff as never, dryRun: a.dryRun, source: 'mcp' })),
+    run((a) => figma.pushFigmaComponentOp(ctx, { diff: a.diff as never, dryRun: a.dryRun, source: 'mcp', changes: a.changes })),
   );
 
   server.registerTool(
@@ -960,7 +969,7 @@ export function createServer(ctx: BridgeContext): McpServer {
     {
       title: 'Save component docs',
       description:
-        "Save a component's usage guidance (docs.json sections: summary, whenToUse, whenNotToUse, dos, donts, accessibility, contentGuidelines, anatomy, preview) the way the Library edit mode does: merged into the docs on the branch, cleaned and checked (a summary, no empty items, no em dash). Without pr: a new branch sent for review (docs only: one approval, patch release note), with an optional Jira key and product. With pr: one commit on that open branch. dryRun returns the file. Needs GITHUB_TOKEN (contents and pull requests: write). Prose you drafted carries \"draftedBy\": \"claude\" and \"needsReview\": true so a reviewer accepts it in Studio.",
+        "Save a component's usage guidance (docs.json sections: summary, whenToUse, whenNotToUse, dos, donts, accessibility, contentGuidelines, anatomy, preview) the way the Library edit mode does: merged into the docs on the branch, cleaned and checked (a summary, no empty items, no em dash). Without pr: a new branch sent for review (docs only: one approval, patch release note), with an optional Jira key and product. With pr: one commit on that open branch. Suggest mode (the default unless bridge.config.json says \"changes\": \"direct\"), without pr: a docs suggestion issue instead of a branch (Issues write only). dryRun returns the file. Direct mode needs GITHUB_TOKEN (contents and pull requests: write). Prose you drafted carries \"draftedBy\": \"claude\" and \"needsReview\": true so a reviewer accepts it in Studio.",
       inputSchema: {
         component: z.string().min(1).describe('Component name, e.g. Button.'),
         docs: z.record(z.string(), z.unknown()).describe('The sections to set, in docs.json shapes: summary a string; whenToUse, whenNotToUse, accessibility, contentGuidelines lists of strings; dos and donts lists of {"title","text"}.'),
@@ -970,10 +979,112 @@ export function createServer(ctx: BridgeContext): McpServer {
         jira: z.string().optional().describe('Jira key like DS-42: first in the branch name and title so Jira links them.'),
         product: z.string().optional().describe('Product key or name (bridge_list_products). Default: the product of the current folder or repo.'),
         dryRun: z.boolean().optional(),
+        changes: ChangesArg,
       },
       annotations: WRITE,
     },
-    run((a) => studio.saveDocs(ctx, a)),
+    run((a) => studio.saveDocs(ctx, { ...a, source: 'mcp' })),
+  );
+
+  // --- suggestions: changes filed as issues, approved by the owners, applied by a developer (packages/mcp/src/suggestions.ts) ---
+  const SuggestionNumber = z.union([z.number().int().positive(), z.string().min(1)]).describe('The suggestion issue number (42 or "#42"), or its link.');
+  server.registerTool(
+    'bridge_list_suggestions',
+    {
+      title: 'List suggestions',
+      description:
+        'Suggestions in the repo: GitHub issues labeled bridge-suggestion, each an exact change (tokens, docs, a component spec, a brand, a revert, settings) that the owners approve and a developer applies. Each row has the number, title, kind, tier, status (needs-review, changes-requested, approved, applying, applied, declined, outdated) and linked pull requests. Statuses here come from labels; bridge_get_suggestion counts the approvals.',
+      inputSchema: {
+        status: z.enum(['needs-review', 'changes-requested', 'approved', 'applying', 'applied', 'declined', 'outdated', 'all']).optional().describe('Default all open ones.'),
+        state: z.enum(['open', 'closed', 'all']).optional().describe('Issue state. Default: open, or closed for applied and declined.'),
+        kind: z.enum(['token-change', 'docs', 'component-spec', 'brand', 'revert', 'config']).optional(),
+        limit: z.number().int().min(1).max(100).optional().describe('Default 100.'),
+      },
+      annotations: READ,
+    },
+    run((a) => suggestions.listSuggestionsOp(ctx, a)),
+  );
+
+  server.registerTool(
+    'bridge_get_suggestion',
+    {
+      title: 'Get a suggestion',
+      description:
+        'One suggestion: the change (tokens before and after, docs, component spec, files), the checks when suggested, links, its version (payloadSha: what approvals bind to), who approved it, which approvals are missing for its tier, reviews that no longer count (an older version, or not an owner), whether the machine-readable block was edited by hand, linked pull requests, and for a component spec the brief to implement it.',
+      inputSchema: { number: SuggestionNumber },
+      annotations: READ,
+    },
+    run((a) => suggestions.getSuggestionOp(ctx, a)),
+  );
+
+  server.registerTool(
+    'bridge_create_suggestion',
+    {
+      title: 'Create a suggestion',
+      description:
+        'File any change as a suggestion from its payload (schema bridge.suggestion/1: kind, title, summary, and tokens edits, docs, componentSpec or files). Missing schema, source, date, base commit and checks are filled. The paths are checked against what the kind may change and the guardrail files before anything is sent. For token, docs, brand, revert and Figma changes prefer their own tools, which plan and check the change first. Needs GITHUB_TOKEN with Issues write. dryRun returns the issue. Only when the person asked.',
+      inputSchema: {
+        payload: z.record(z.string(), z.unknown()).describe('The suggestion payload (bridge.suggestion/1).'),
+        labels: z.array(z.string()).optional().describe('More labels for the issue.'),
+        dryRun: z.boolean().optional().describe('Return the issue title, body and labels without creating it.'),
+      },
+      annotations: WRITE,
+    },
+    run((a) => suggestions.createSuggestionOp(ctx, a)),
+  );
+
+  server.registerTool(
+    'bridge_review_suggestion',
+    {
+      title: 'Review a suggestion',
+      description:
+        'Approve, request changes on, comment on or decline a suggestion, as the person whose GitHub token the server has. Approvals and requested changes count only from the owners in bridge.config.json (read from the default branch) and only on the version reviewed: pass payloadSha from bridge_get_suggestion so a newer version is never approved by mistake. Request changes and decline need a message. Decline closes the issue as not planned. Needs GITHUB_TOKEN (Issues: read and write). Only when the person asked, with the decision they asked for.',
+      inputSchema: {
+        number: SuggestionNumber,
+        event: z.enum(['approve', 'request-changes', 'comment', 'decline']),
+        message: z.string().optional().describe('What should change, why it is declined, or the comment. Plain sentences, no em dash.'),
+        role: z.enum(['design', 'tech', 'approval']).optional().describe('The role you approve for, shown in the comment. Informative: what counts is who you are in the owner lists.'),
+        payloadSha: z.string().optional().describe('The version you reviewed (payloadSha or version from bridge_get_suggestion).'),
+      },
+      annotations: WRITE,
+    },
+    run((a) => suggestions.reviewSuggestionOp(ctx, a)),
+  );
+
+  server.registerTool(
+    'bridge_apply_suggestion',
+    {
+      title: 'Apply a suggestion',
+      description:
+        'Apply a Bridge suggestion to today\'s code ("Apply Bridge suggestion #42"). Bridge checks the paths, the approvals of the owners on its current version, re-applies token edits on the current tokens, merges files, re-runs validation, contrast and the tier, and stops on a conflict, a missing approval or a check that would fail. Local repo: mode "dry-run" (the plan and the diff, nothing written; run it first), "branch" (default: one commit on a new local branch, working tree untouched, never pushes), "write" (into the working tree, refused over uncommitted changes) or "patch" (a git format-patch text). Remote repo: the plan and the files to write yourself. Once a branch or files exist, it records on the issue that it is being applied (needs Issues write). Then push and open a pull request whose body says "Closes #<n>", and call bridge_link_suggestion. acceptEdited and forceUnapproved only when the person asked.',
+      inputSchema: {
+        number: SuggestionNumber,
+        mode: z.enum(['dry-run', 'branch', 'write', 'patch']).optional().describe('Default branch. Run dry-run first.'),
+        acceptEdited: z.boolean().optional().describe('Apply even though the machine-readable block was edited by hand after Bridge wrote it (check it first).'),
+        forceUnapproved: z.boolean().optional().describe('Apply without every approval, or with a tier that went up. Recorded on the issue.'),
+        base: z.string().optional().describe('Local mode, branch and patch: the ref to build on. Default HEAD.'),
+        branch: z.string().optional().describe('Local mode, branch: the branch name. Default <branchPrefix>suggestion-<n>-<slug>.'),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    },
+    run((a) => suggestions.applySuggestionOp(ctx, a)),
+  );
+
+  server.registerTool(
+    'bridge_link_suggestion',
+    {
+      title: 'Link the pull request that applies a suggestion',
+      description:
+        'Record the pull request (or branch, or commit) that applies a suggestion: a comment on the issue and the "suggestion: applying" label. Warns when the pull request does not say "Closes #<n>": add it so the suggestion closes when it merges. Needs GITHUB_TOKEN (Issues: read and write).',
+      inputSchema: {
+        number: SuggestionNumber,
+        pr: z.number().int().positive().optional().describe('The pull request number.'),
+        branch: z.string().optional(),
+        commit: z.string().optional(),
+      },
+      annotations: WRITE,
+    },
+    run((a) => suggestions.linkSuggestionOp(ctx, a)),
   );
 
   // --- resources ---

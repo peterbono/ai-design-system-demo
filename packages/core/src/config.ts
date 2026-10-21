@@ -24,6 +24,21 @@ import { DEFAULT_PRODUCTS, productProblems, sameProducts, type ProductConfig } f
 /** File name Bridge looks for at the repository root. */
 export const CONFIG_FILE = 'bridge.config.json';
 
+/**
+ * How Bridge sends a change to the code. "suggest": a GitHub issue that holds the exact change (suggestions.ts);
+ * owners approve it and a developer applies it with their own access. "direct": Bridge opens branches and pull
+ * requests itself. Absent from the file: "suggest".
+ */
+export type ChangesMode = 'suggest' | 'direct';
+export const CHANGES_MODES: readonly ChangesMode[] = ['suggest', 'direct'];
+export const DEFAULT_CHANGES_MODE: ChangesMode = 'suggest';
+
+/** The deployed Storybook Bridge reads the component list and previews from. */
+export interface StorybookConfig {
+  /** Root URL (where index.json and iframe.html are served), https only, no trailing slash. */
+  url: string;
+}
+
 export interface RepoRef {
   owner: string;
   name: string;
@@ -167,6 +182,10 @@ export interface BridgeConfig {
   visualImpact?: VisualImpactConfig | undefined;
   /** Apps that consume the design system, the default one being the library (see products.ts). Default DEFAULT_PRODUCTS. */
   products: ProductConfig[];
+  /** How changes reach the code: suggestions (default) or branches and pull requests. See changesMode(). */
+  changes: ChangesMode;
+  /** The Storybook set in the file. Read it through storybookUrl(), which falls back to previews.production.storybook. */
+  storybook?: StorybookConfig | undefined;
 }
 
 type Partialish<T> = { [K in keyof T]?: T[K] | undefined };
@@ -199,6 +218,8 @@ export interface BridgeConfigInput {
   integrations?: IntegrationsConfig;
   visualImpact?: Partial<VisualImpactConfig>;
   products?: ProductConfig[];
+  changes?: ChangesMode;
+  storybook?: { url: string };
 }
 
 export const DEFAULT_TOKEN_PATHS: TokenPaths = {
@@ -356,6 +377,8 @@ export function defineConfig(input: BridgeConfigInput): BridgeConfig {
       ...(g.rights ? { rights: normalizeRights(g.rights) } : {}),
     },
     products: input.products?.length ? input.products.map((p) => ({ ...p })) : DEFAULT_PRODUCTS.map((p) => ({ ...p })),
+    changes: input.changes === 'direct' ? 'direct' : DEFAULT_CHANGES_MODE,
+    ...(input.storybook?.url ? { storybook: { url: input.storybook.url.trim().replace(/\/+$/, '') } } : {}),
     ...(input.audit ? { audit: { ...input.audit } } : {}),
     ...(input.visualImpact ? { visualImpact: { mode: input.visualImpact.mode === 'on-demand' ? 'on-demand' : 'auto' } } : {}),
     ...(input.integrations ? { integrations: { ...input.integrations } } : {}),
@@ -487,6 +510,13 @@ export function loadConfig(source: string | unknown): BridgeConfig {
     }
   }
   problems.push(...visualImpactProblems(d.visualImpact));
+  if (d.changes !== undefined && !(CHANGES_MODES as readonly unknown[]).includes(d.changes)) problems.push(`"changes" must be "suggest" or "direct" (got ${JSON.stringify(d.changes)})`);
+  const sb = d.storybook;
+  if (sb !== undefined) {
+    if (!isObj(sb) || !isStr(sb.url)) problems.push('"storybook" must be { "url" } with the deployed Storybook address');
+    else if (!/^https:\/\/[^\s/]+/.test(sb.url.trim())) problems.push('"storybook.url" must start with https://, for example https://storybook.example.com');
+    else for (const k of Object.keys(sb)) if (k !== 'url') problems.push(`"storybook.${k}" is not a known key`);
+  }
   problems.push(...productProblems(d.products));
   const audit = d.audit;
   if (audit !== undefined) {
@@ -526,6 +556,20 @@ export const protectedBranchesOf = (config: BridgeConfig): string[] => [...new S
 /** The base branch proposals target. */
 export const baseBranchOf = (config: BridgeConfig): string => config.repo?.defaultBranch ?? 'main';
 
+/** How changes reach the code for this repo: the config's mode ("suggest" when the file does not say). */
+export const changesMode = (config: Pick<BridgeConfig, 'changes'> | null | undefined): ChangesMode => (config?.changes === 'direct' ? 'direct' : DEFAULT_CHANGES_MODE);
+
+/**
+ * The Storybook to read: `storybook.url`, else the production Storybook of `previews` when it is https. Undefined
+ * when neither is set. No trailing slash.
+ */
+export function storybookUrl(config: Pick<BridgeConfig, 'storybook' | 'previews'> | null | undefined): string | undefined {
+  const explicit = config?.storybook?.url?.trim();
+  if (explicit) return explicit.replace(/\/+$/, '');
+  const prod = config?.previews?.production?.storybook?.trim();
+  return prod && /^https:\/\//.test(prod) && !/\{\w+\}/.test(prod) ? prod.replace(/\/+$/, '') : undefined;
+}
+
 /** Plain-JSON form of a config, in the canonical shape (what `bridge init` writes). */
 export function toConfigJson(config: BridgeConfig, schema = './packages/core/bridge.config.schema.json'): Record<string, unknown> {
   return {
@@ -543,6 +587,8 @@ export function toConfigJson(config: BridgeConfig, schema = './packages/core/bri
     ...(config.audit ? { audit: config.audit } : {}),
     ...(config.previews ? { previews: config.previews } : {}),
     ...(config.visualImpact ? { visualImpact: config.visualImpact } : {}),
+    changes: changesMode(config),
+    ...(config.storybook ? { storybook: config.storybook } : {}),
     ...(config.products && !sameProducts(config.products, DEFAULT_PRODUCTS) ? { products: config.products } : {}),
   };
 }

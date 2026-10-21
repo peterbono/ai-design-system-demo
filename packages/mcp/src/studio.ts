@@ -30,10 +30,12 @@ import {
   whoCanShipSentence,
   defaultProduct,
   DEFAULT_OVERRIDE,
+  type ChangesMode,
   type ComponentDocsJson,
   type FigmaReferenceManifest,
 } from '@bridge-ds/core';
-import { branchNumber, productMarks, resolveProduct, RIGHTS } from './branches.js';
+import { branchNumber, productMarks, resolveProduct, RIGHTS, viewerOf } from './branches.js';
+import { appliedNext, changesFor, noSuggestionAccess, suggestionBase } from './suggestions.js';
 import type { BridgeContext } from './context.js';
 
 const DOC_KEYS = ['summary', 'preview', 'whenToUse', 'whenNotToUse', 'dos', 'donts', 'accessibility', 'contentGuidelines', 'anatomy'] as const;
@@ -45,7 +47,19 @@ const DOC_KEYS = ['summary', 'preview', 'whenToUse', 'whenNotToUse', 'dos', 'don
  */
 export async function saveDocs(
   ctx: BridgeContext,
-  a: { component: string; docs: Record<string, unknown>; pr?: number | string | undefined; title?: string | undefined; notes?: string | undefined; jira?: string | undefined; product?: string | undefined; dryRun?: boolean | undefined },
+  a: {
+    component: string;
+    docs: Record<string, unknown>;
+    pr?: number | string | undefined;
+    title?: string | undefined;
+    notes?: string | undefined;
+    jira?: string | undefined;
+    product?: string | undefined;
+    dryRun?: boolean | undefined;
+    /** "suggest" or "direct" for this call; default: `changes` in bridge.config.json, else "suggest". */
+    changes?: ChangesMode | undefined;
+    source?: 'mcp' | 'cli' | undefined;
+  },
 ) {
   const { config } = await ctx.config();
   if (!config.components) throw new Error('No components.dir in bridge.config.json: Bridge does not know where component docs live.');
@@ -73,8 +87,10 @@ export async function saveDocs(
   };
 
   const gh = await ctx.github();
+  // Suggest mode files new docs as a suggestion; `pr` still names a branch to commit on.
+  const mode = a.pr === undefined ? await changesFor(ctx, a.changes) : 'direct';
   // One open docs proposal per component (same rule as the Library editor): without `pr`, an open one is continued.
-  const open = a.pr === undefined && gh ? await findOpenDocsProposalOnGitHub(gh, { name, slug: docsSlug(name) }, ctx.ref ?? baseBranchOf(config)).catch(() => null) : null;
+  const open = a.pr === undefined && gh && mode === 'direct' ? await findOpenDocsProposalOnGitHub(gh, { name, slug: docsSlug(name) }, ctx.ref ?? baseBranchOf(config)).catch(() => null) : null;
   const target = a.pr ?? open?.number;
   if (target !== undefined) {
     const n = branchNumber(target);
@@ -111,7 +127,36 @@ export async function saveDocs(
       path,
       content: text,
       product: product.name,
-      ...(a.dryRun ? {} : { said: `Nothing sent: saving docs for review needs a GitHub token with ${RIGHTS.docs}. Set GITHUB_TOKEN, or write the file yourself on a branch.` }),
+      changesMode: mode,
+      ...(a.dryRun ? {} : { said: mode === 'suggest' ? noSuggestionAccess(ctx, gh) : `Nothing sent: saving docs for review needs a GitHub token with ${RIGHTS.docs}. Set GITHUB_TOKEN, or write the file yourself on a branch.` }),
+    };
+  }
+  if (mode === 'suggest') {
+    const base = await suggestionBase(ctx, gh, config);
+    const viewer = await viewerOf(ctx, gh);
+    const r = await proposeDocsOnGitHub(gh, [edit], {
+      base: base.ref,
+      baseSha: base.sha,
+      mode: 'suggest',
+      title: a.title,
+      notes,
+      jira,
+      origin: DOCS_MCP_ORIGIN,
+      extraLabels: marks.labels,
+      source: a.source ?? 'mcp',
+      ...(viewer ? { suggestedBy: viewer } : {}),
+    });
+    return {
+      status: 'suggested' as const,
+      number: r.number,
+      url: r.url,
+      title: r.title,
+      path,
+      product: product.name,
+      changesMode: mode,
+      ...('warnings' in r && r.warnings.length ? { warnings: r.warnings } : {}),
+      said: `Suggested the ${name} docs as #${r.number}. Docs only: one approval, then a developer applies it.`,
+      next: appliedNext(r.number),
     };
   }
   const r = await proposeDocsOnGitHub(gh.withBranchPrefix('docs/'), [edit], {

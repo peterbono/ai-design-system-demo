@@ -187,7 +187,28 @@ override away.
 
 **Token permissions.** A fine-grained token limited to the repo, with Contents read and write (merge), Pull
 requests read and write (reviews, PR comments, close), Commit statuses read and Checks read (CI), and
-Metadata read (always on).
+Metadata read (always on). Suggestions need less: Contents read and Issues read and write (file, review and
+decline them); the developer who applies one pushes and opens the pull request with their own access.
+
+## Suggestions: approved on the issue, applied by a developer
+
+With `"changes": "suggest"` in `bridge.config.json` (the default when the key is absent), Bridge files token, docs,
+brand, revert, missing piece and Figma changes as suggestions: GitHub issues labeled `bridge-suggestion` with the
+exact change, never a branch (see [REQUESTS.md](REQUESTS.md#suggestions)). `"direct"` keeps branches and pull
+requests. Every writing tool and command can pick the other mode for one call (`changes` in the MCP tools,
+`--suggest` or `--direct` in the CLI). Switching the setting is a change to `bridge.config.json`, a guardrail file:
+Tier 3.
+
+- **Who approves.** The same tiers and owners as pull requests. A review is a comment with a hidden record; it
+  counts only when its author is in `governance.owners` (or holds the approve rights), read from the default branch,
+  never from the suggestion. With no owner set, repository owners, members and collaborators count. The person who
+  suggested it never approves it.
+- **Bound to the version.** Each review names the version (the sha256 of the change) it saw. When the change is
+  edited, earlier approvals stop counting, like stale pull request reviews.
+- **Applying.** `bridge apply <n>` and `bridge_apply_suggestion` check the paths (inside the folders the kind may
+  change, never a guardrail file except `bridge.config.json` for settings and brands), the approvals, then re-apply
+  the change on today's code and re-run validation, contrast and the tier. A tier that went up needs a new approval.
+- **The pull request** that applies it says `Closes #<n>` and goes through the usual gates above.
 
 ## Who approves what
 

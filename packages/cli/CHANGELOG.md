@@ -1,5 +1,30 @@
 # @bridge-ds/cli
 
+## 0.8.0
+
+### Minor Changes
+
+- d193898: Suggestions from Claude and the terminal. How a change reaches the code now follows `"changes"` in `bridge.config.json`: with `"suggest"` (the default when the key is absent) the writing tools file a suggestion, a GitHub issue with the exact change that the owners approve and a developer applies, instead of a branch and a pull request; `"direct"` keeps branches and pull requests. `bridge_propose_token_change`, `bridge_save_docs`, `bridge_propose_brand`, `bridge_propose_revert`, `bridge_open_library_branch` and `bridge_push_figma_component` take `changes` (`"suggest"` or `"direct"`) for one call and return `status: "suggested"` with the issue number in suggest mode; the CLI commands take `--suggest` or `--direct` (`bridge propose`, `bridge brand create`, `bridge revert`, `bridge docs save`, `bridge pieces open`, `bridge figma push`). Writing to an exploration or a branch in review (`branch`, `pr`) is unchanged. `bridge_get_config` says which mode the repo uses.
+
+  New MCP tools (67 in all): `bridge_list_suggestions`, `bridge_get_suggestion` (the change, its checks, its version and the approvals still missing), `bridge_create_suggestion` (any payload, paths checked first), `bridge_review_suggestion` (approve, request changes, comment or decline; counts only for owners read from the default branch, on the version reviewed), `bridge_apply_suggestion` ("Apply Bridge suggestion #42": dry run, a new local branch, the working tree or a patch on a local checkout, the files to write on a remote repo; records on the issue that it is being applied) and `bridge_link_suggestion` (the pull request that applies it). New CLI commands: `bridge suggestions [list | show <n> | link <n> --pr <m>]`, `bridge apply <n> [--write | --patch] [--dry-run] [--accept-edited] [--force-unapproved]` (exit 0 applied or already applied, 1 not approved, blocked or refused, 2 usage, 3 conflict) and `bridge review <n> --approve | --request-changes | --decline`. The token hints say what each mode needs: Issues read and write for suggestions and requests, Contents and Pull requests for direct changes.
+
+### Patch Changes
+
+- Updated dependencies [d193898]
+  - @bridge-ds/mcp@0.7.0
+
+## 0.7.0
+
+### Minor Changes
+
+- 22e53c7: Components changed in Figma go back to the library as library branches. The DS Bridge plugin's Push tab reads the diff Pull reads in "Review updates" the other way round and routes each changed component (`planComponentPush`): a token swap on a component token that paints only the changed variants becomes an exact token change, no AI (the shared `planTokenProposal` and `writeTokenProposalOnGitHub`, with the contrast gate run again on the component tokens that alias a checked pair, `componentContrastPairs`, and the other components that share the token named); a new variant, property, layer, swapped instance or component, or a swap a token alone cannot say, opens a draft branch carrying the spec (`.bridge/figma/<name>.json`: variant matrix, properties, bound variables and layers per variant, screenshot) labelled `waiting-for-claude` until Claude AI writes the code there and it becomes `drafted-by-claude`; detached layers, values set by hand, styles and variables the library lacks are listed under "Fix in Figma first" with what to do, never sent. Every branch starts with "From Figma" (`parseFigmaOrigin`) and carries `from-figma`. The set remembers its branch: once it ships or closes, the next Pull rebuilds the set from the reviewed code, so Figma never diverges. MCP: `bridge_figma_changes`, `bridge_get_figma_change`, `bridge_mark_figma_change_drafted`, `bridge_push_figma_component` (61 tools). CLI: `bridge figma`, `bridge figma show <n> [--draft]`, `bridge figma drafted <n>`, `bridge figma push <diff.json>`.
+
+### Patch Changes
+
+- Updated dependencies [22e53c7]
+  - @bridge-ds/mcp@0.6.0
+  - @bridge-ds/visual@0.3.4
+
 ## 0.6.0
 
 ### Minor Changes

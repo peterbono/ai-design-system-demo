@@ -142,6 +142,23 @@ describe('a library branch per piece, linked both ways', () => {
     expect(view.linked.find((l: any) => l.library.number === r.library!.number)!.preview).toBe('Your branch uses the published version.');
   });
 
+  it('suggest mode: a token piece becomes a suggestion that says who needs it, no branch and no preview', async () => {
+    const { gh, rw, productBranch } = setup();
+    const n = productBranch(PRODUCT);
+    const found = await pieces.missingPiecesOp(await rw(), { pr: n, record: true });
+    const id = found.pieces.find((p: any) => p.kind === 'token')!.id;
+    const pullsBefore = gh.pulls.length;
+    const r = await pieces.openLibraryBranchOp(await rw(), { pr: n, piece: id, changes: 'suggest' });
+    expect(r).toMatchObject({ status: 'suggested', opens: 'token suggestion', changesMode: 'suggest', library: { kind: 'suggestion' } });
+    expect(r.preview).toBeUndefined();
+    const issue = gh.issues.find((i) => i.number === r.library!.number)!;
+    expect(issue.labels.map((l: any) => l.name)).toEqual(expect.arrayContaining(['bridge-suggestion', 'suggestion: token-change', 'needed-by-product']));
+    expect(parseNeededBy(issue.body)?.pr).toBe(n);
+    expect(gh.pulls.length).toBe(pullsBefore);
+    expect(parsePiecesRecord(gh.pulls[n - 1]!.body)!.links[0]).toMatchObject({ kind: 'suggestion', number: issue.number });
+    expect(r.next).toMatch(/bridge_apply_suggestion/);
+  });
+
   it('a new component opens a request, and the CLI says the same', async () => {
     // The CLI runs in this repository: its config names the GitHub repository the fake stands for.
     const { gh, rw, productBranch } = setup('peterbono', 'ai-design-system-demo');

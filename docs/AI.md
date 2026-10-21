@@ -89,13 +89,13 @@ the code you are changing.
 
 ## What Claude can do
 
-61 tools: 6 for tokens (config, browse, read, search, contrast, validation), 7 for components and guidance
+67 tools: 6 for tokens (config, browse, read, search, contrast, validation), 7 for components and guidance
 (docs saved for review included), 5 for proposals and reviews (visual impact included), 3 for brands, 4 for
 history and revert, 1 for adoption audits, 3 for component change requests, 4 for explorations, 2 for change
 texts from Figma, 14 for branches in review (the Studio actions, see [Studio parity](#studio-parity)), 3 for
 products, settings and Figma coverage, 5 for product branches and the library (see
-[Product branches and the library](#product-branches-and-the-library)), and 4 for components from Figma (see
-[Components from Figma](#components-from-figma)).
+[Product branches and the library](#product-branches-and-the-library)), 4 for components from Figma (see
+[Components from Figma](#components-from-figma)), and 6 for suggestions (see [Suggestions](#suggestions)).
 
 | Tool | Use it to |
 | --- | --- |
@@ -111,7 +111,7 @@ products, settings and Figma coverage, 5 for product branches and the library (s
 | `bridge_draft_docs` | Start or refresh a component's docs.json: what the code tells (props, tokens, anatomy, contrast, changelog line) plus a prompt for you to write the prose (see [Docs drafts](#docs-drafts)) |
 | `bridge_get_design_language` | Read the relevant section of the design language |
 | `bridge_get_guidelines` | Read the agent rules (always, ask before, never) and the risk tiers |
-| `bridge_propose_token_change` | Turn token edits into a branch (local) or a draft PR (GitHub), with a designer-friendly body, for a `product` and with a `jira` key; with `branch`, commit them to an exploration; with `pr`, add them to a branch already in review |
+| `bridge_propose_token_change` | Turn token edits into a suggestion (an issue a developer applies, the default) or, in direct mode, a branch (local) or a draft PR (GitHub), with a designer-friendly body, for a `product` and with a `jira` key; with `branch`, commit them to an exploration; with `pr`, add them to a branch already in review |
 | `bridge_list_brands` | See the brands: slug, name, default, primary action color, theme overrides |
 | `bridge_plan_brand` | Dry run of a new brand: generated ramps, every contrast pair in light and dark, files, tier, PR body |
 | `bridge_propose_brand` | Turn that plan into a `bridge/brand-<slug>` branch (local) or a draft PR (GitHub), never `main` |
@@ -140,6 +140,12 @@ products, settings and Figma coverage, 5 for product branches and the library (s
 | `bridge_get_figma_change` | One of them: its spec (variant matrix, properties, bound variables and layers per variant, exact token swaps) and the brief to draft the code on its branch |
 | `bridge_mark_figma_change_drafted` | Once the code is pushed to that branch: label it `drafted-by-claude` for a person to review (refused while the branch only carries the spec) |
 | `bridge_push_figma_component` | The plugin's push from a structured component diff: an exact token change (contrast gated), a draft branch with the spec for Claude AI, or what to fix in Figma; `dryRun` shows the route |
+| `bridge_list_suggestions` | List suggestions (issues labeled `bridge-suggestion`): kind, tier, status (needs review, changes requested, approved, being applied, applied, declined, outdated) and linked pull requests |
+| `bridge_get_suggestion` | Read one: the change, the checks when suggested, its version, who approved it and which approvals are missing, and for a component spec the brief to implement it |
+| `bridge_create_suggestion` | File any change as a suggestion from its payload (`bridge.suggestion/1`); paths checked against the kind's folders and the guardrails first; `dryRun` previews it |
+| `bridge_review_suggestion` | Approve, request changes, comment or decline, as the token's owner; counts only for owners, on the version you read (`payloadSha`) |
+| `bridge_apply_suggestion` | "Apply Bridge suggestion #42": re-applies it on today's code and re-runs the checks; `dry-run` first, then a new local branch (default), the working tree (`write`) or a `patch`; on a remote repo, the files to write |
+| `bridge_link_suggestion` | Record the pull request that applies a suggestion (it must say `Closes #n`) |
 | `bridge_list_products` | See the products (`products` in `bridge.config.json`) and the one the current folder or repo belongs to |
 | `bridge_what_needs_me` | The review queue as Studio counts it, with the branches where you act now first |
 | `bridge_branch_status` | One branch: product, status, approvals, tests, how it stands against main, whether you may merge it, next step |
@@ -391,6 +397,26 @@ a reviewer accepts it.
   needs review" badge: Accept commits `"needsReview": false` to the branch, Edit opens the docs editor. Studio
   Quality lists every docs file that still needs review. A docs-only change is Tier 1 (patch).
 
+## Suggestions
+
+How a change reaches the code is `"changes"` in `bridge.config.json`. With `"suggest"` (the default), the writing
+tools (`bridge_propose_token_change`, `bridge_save_docs`, `bridge_propose_brand`, `bridge_propose_revert`,
+`bridge_open_library_branch`, `bridge_push_figma_component`) file a **suggestion**: a GitHub issue labeled
+`bridge-suggestion` with the exact change, its checks and its tier, and return `status: "suggested"` with its number.
+The owners approve it on the issue; a developer applies it. With `"direct"` they open branches and pull requests as
+before. Each tool takes `changes` (`"suggest"` or `"direct"`) for one call, and the CLI `--suggest` or `--direct`.
+See [REQUESTS.md](REQUESTS.md#suggestions).
+
+```sh
+bridge suggestions --status approved     # ready to apply
+bridge apply 42 --dry-run                # the plan on today's code
+bridge apply 42                          # a new local branch bridge/suggestion-42-<slug>, nothing pushed
+bridge review 42 --approve               # as an owner
+```
+
+Ask Claude: "Which suggestions are approved?", "Apply Bridge suggestion #42." Claude runs `bridge_apply_suggestion`
+as a dry run first, then on a branch, and opens the pull request that says `Closes #42`.
+
 ## Component change requests
 
 Variables are pull requests people approve. Components need code, so a change to one (new component, structure,
@@ -625,8 +651,12 @@ bridge audit ../my-app/src --allowlist known.json  # leave known file:line viola
   to ship), under your GitHub account; the owner override skips missing approvals only, with your reason
   posted on the branch first. Reviews, comments and closes are explicit tools too, never side effects of a
   read.
-- **Tokens.** Use a fine-grained GitHub token limited to the one repo, with contents and pull requests
-  read and write. Bridge sends it only to `api.github.com`.
+- **Suggestions write issues, not code.** In suggest mode the writing tools only create issues; applying one
+  checks its paths, the owners' approvals on its current version and the gates on today's code, and commits to a
+  new local branch (never pushes).
+- **Tokens.** Use a fine-grained GitHub token limited to the one repo: Contents read and Issues read and write is
+  enough for suggestions; direct mode needs contents and pull requests read and write. Bridge sends it only to
+  `api.github.com`.
 
 ## How it compares
 

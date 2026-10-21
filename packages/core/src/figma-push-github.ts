@@ -1,10 +1,14 @@
 // Components pushed from Figma, on GitHub: open the library branch a component change goes to (a token change through
 // the shared token proposal write, or a Claude draft branch carrying the spec), list them with where each stands, read
 // one back as Claude's brief, and say when Claude has drafted the code. Shared by the DS Bridge Figma plugin, the MCP
-// server and the CLI. The routing rules are in figma-push.ts.
+// server and the CLI. In suggest mode the same change is filed as a suggestion (an issue) instead of a branch. The
+// routing rules are in figma-push.ts.
 
+import type { ChangesMode } from './config';
 import { GitHubError, type GitHubClient } from './github-client';
-import { REQUEST_LABEL } from './requests';
+import { REQUEST_LABEL, type RequestSource } from './requests';
+import { createSuggestionOnGitHub } from './suggestions-github';
+import { SUGGESTION_SCHEMA, type SuggestionPayloadV1 } from './suggestions';
 import type { TokenEdit } from './token-edits';
 import {
   DRAFTED_BY_CLAUDE_LABEL,
@@ -30,8 +34,20 @@ import {
   type PushTokenContext,
 } from './figma-push';
 
-/** Opens the token change of an exact push: the caller plans it on the library's token files (planTokenProposal). */
-export type FigmaTokenWriter = (input: { edits: TokenEdit[]; title: string; summary: string; bodyExtra: string[] }) => Promise<{ number: number; url: string; branch: string }>;
+/**
+ * Opens the token change of an exact push: the caller plans it on the library's token files (planTokenProposal). In
+ * suggest mode (`mode`), it files a suggestion instead (suggestTokenProposalOnGitHub with `links: { figma }`) and
+ * returns its result: a result with `status: 'suggested'` is reported as a suggestion.
+ */
+export type FigmaTokenWriter = (input: {
+  edits: TokenEdit[];
+  title: string;
+  summary: string;
+  bodyExtra: string[];
+  mode: ChangesMode;
+  /** The Figma component, for the suggestion's links. */
+  figma: { fileKey?: string | undefined; nodeId?: string | undefined; url?: string | undefined };
+}) => Promise<{ number: number; url: string; branch: string; status?: undefined } | { status: 'suggested'; number: number; url: string }>;
 
 export interface OpenComponentPushInput {
   diff: ComponentPushDiff;
@@ -49,13 +65,57 @@ export interface OpenComponentPushInput {
   /** "the DS Bridge Figma plugin", "Bridge MCP". */
   tool?: string | undefined;
   dryRun?: boolean | undefined;
+  /**
+   * "direct" (default here, so existing callers keep their behaviour): a branch and a pull request. "suggest": a
+   * suggestion issue (a token change, or a component spec for Claude), no branch. Callers pass changesMode(config).
+   */
+  mode?: ChangesMode | undefined;
+  /** Who sends it (a GitHub login), recorded on a suggestion. Defaults to the diff's requestedBy. */
+  suggestedBy?: string | undefined;
+  /** Commit sha of `base`, when the caller already read it (a component spec suggestion records it). */
+  baseSha?: string | undefined;
 }
 
 export interface OpenedComponentPush {
-  status: 'opened' | 'dry-run' | 'not-sent';
+  status: 'opened' | 'suggested' | 'dry-run' | 'not-sent';
   plan: ComponentPushPlan;
-  /** The library branch: a token change or a Claude draft branch (a draft pull request). */
+  /** The library branch: a token change or a Claude draft branch (a draft pull request). Null when suggested. */
   link: { route: 'token-change' | 'claude-draft'; number: number; url: string; branch: string } | null;
+  /** The suggestion issue (status 'suggested'): a token change, or a component spec Claude drafts the code from. */
+  suggestion?: { route: 'token-change' | 'claude-draft'; number: number; url: string } | undefined;
+}
+
+/** The source of a push, as suggestions name it: the diff's own when it is one, else Figma. */
+const pushSource = (d: ComponentPushDiff): RequestSource => (['figma', 'studio', 'cli', 'mcp'].includes(d.source as string) ? (d.source as RequestSource) : 'figma');
+
+/** Tier of a component spec: new parts of the API are tier 2 minor, other code changes tier 2 patch. */
+const specTier = (d: ComponentPushDiff): SuggestionPayloadV1['tier'] => ({ tier: 2, bump: d.kind === 'new-component' || d.kind === 'new-variant' || d.kind === 'prop-change' ? 'minor' : 'patch' });
+
+/** The suggestion payload (bridge.suggestion/1, kind component-spec) of a push that needs code. Pure. */
+export function componentSpecSuggestionPayload(
+  d: ComponentPushDiff,
+  plan: Pick<ComponentPushPlan, 'edits' | 'reasons' | 'issues'>,
+  ctx: { base: { ref: string; sha: string }; suggestedBy?: string | undefined; createdAt?: string | undefined; componentsDir?: string | undefined },
+): SuggestionPayloadV1 {
+  const specPath = figmaSpecPath(d);
+  const spec = JSON.parse(formatFigmaSpec(d, plan)) as unknown;
+  const brief = figmaDraftBrief({ ...d, tokenEdits: plan.edits, reasons: plan.reasons }, { suggestion: true, specPath, componentsDir: ctx.componentsDir });
+  const by = (ctx.suggestedBy ?? d.requestedBy)?.replace(/^@/, '');
+  const figma = d.figma?.fileKey || d.figma?.nodeId || d.figma?.url ? { ...(d.figma.fileKey ? { fileKey: d.figma.fileKey } : {}), ...(d.figma.nodeId ? { nodeId: d.figma.nodeId } : {}), ...(d.figma.url ? { url: d.figma.url } : {}) } : undefined;
+  return {
+    schema: SUGGESTION_SCHEMA,
+    kind: 'component-spec',
+    title: d.title,
+    summary: d.summary.trim() || d.title,
+    source: pushSource(d),
+    ...(by ? { suggestedBy: by } : {}),
+    createdAt: ctx.createdAt ?? new Date().toISOString(),
+    base: ctx.base,
+    tier: specTier(d),
+    componentSpec: { component: d.component, specPath, spec, brief },
+    checks: { newErrors: 0, contrast: [], blocked: null, impact: 0 },
+    ...(figma ? { links: { figma } } : {}),
+  };
 }
 
 /**
@@ -63,6 +123,8 @@ export interface OpenedComponentPush {
  * swap opens a token change (the shared proposal write: contrast gate, tier, changeset); anything that needs code opens
  * a draft pull request carrying the spec (`.bridge/figma/<slug>.json`), labelled waiting for Claude. A manual change
  * opens nothing: its issues say what to do in Figma.
+ * In suggest mode: the token swap is a token suggestion (through `writeTokens`), the code change a component spec
+ * suggestion (the spec inside the payload, labelled from Figma and waiting for Claude). Issues write only.
  */
 export async function openComponentPushOnGitHub(gh: GitHubClient, input: OpenComponentPushInput): Promise<OpenedComponentPush> {
   const d = input.diff;
@@ -70,7 +132,8 @@ export async function openComponentPushOnGitHub(gh: GitHubClient, input: OpenCom
   const plan = input.plan ?? planComponentPush(d, input.tokens!);
   if (plan.route === 'manual') return { status: 'not-sent', plan, link: null };
   if (input.dryRun) return { status: 'dry-run', plan, link: null };
-  if (!gh.canWrite) throw new GitHubError(401, 'Sending a component change needs a GitHub token (contents and pull requests: write).');
+  const mode: ChangesMode = input.mode ?? 'direct';
+  if (!gh.canWrite) throw new GitHubError(401, mode === 'suggest' ? 'Suggesting a component change needs a GitHub token (issues: write).' : 'Sending a component change needs a GitHub token (contents and pull requests: write).');
   const origin: FigmaOrigin = {
     component: d.component,
     figmaName: d.figmaName,
@@ -83,9 +146,18 @@ export async function openComponentPushOnGitHub(gh: GitHubClient, input: OpenCom
   };
   if (plan.route === 'token-change') {
     if (!input.writeTokens) throw new GitHubError(422, 'This change is a token change: send it where the token files are read (the DS Bridge plugin, bridge_push_figma_component or `bridge figma push`).');
-    const r = await input.writeTokens({ edits: plan.edits, title: figmaBranchTitle(d), summary: d.summary.trim() || d.title, bodyExtra: [figmaOriginSection(origin)] });
+    const figma = { ...(origin.fileKey ? { fileKey: origin.fileKey } : {}), ...(origin.nodeId ? { nodeId: origin.nodeId } : {}), ...(origin.url ? { url: origin.url } : {}) };
+    const r = await input.writeTokens({ edits: plan.edits, title: figmaBranchTitle(d), summary: d.summary.trim() || d.title, bodyExtra: [figmaOriginSection(origin)], mode, figma });
     await gh.addLabels(r.number, [FROM_FIGMA_LABEL]);
+    if (r.status === 'suggested') return { status: 'suggested', plan, link: null, suggestion: { route: 'token-change', number: r.number, url: r.url } };
     return { status: 'opened', plan, link: { route: 'token-change', number: r.number, url: r.url, branch: r.branch } };
+  }
+  if (mode === 'suggest') {
+    const sha = input.baseSha ?? (await gh.getBranchSha(input.base));
+    if (!sha) throw new GitHubError(404, `Branch ${input.base} not found. Check the default branch in bridge.config.json.`);
+    const payload = componentSpecSuggestionPayload(d, plan, { base: { ref: input.base, sha }, suggestedBy: input.suggestedBy });
+    const created = await createSuggestionOnGitHub(gh, payload, { labels: [...(input.labels ?? []), WAITING_FOR_CLAUDE_LABEL] });
+    return { status: 'suggested', plan, link: null, suggestion: { route: 'claude-draft', number: created.number, url: created.url } };
   }
   const spec = figmaSpecPath(d);
   const o: FigmaOrigin = { ...origin, spec, status: 'spec' };

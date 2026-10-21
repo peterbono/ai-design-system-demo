@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { BridgeContext, branches, studio } from '@bridge-ds/mcp';
 import { defaultIO, RequestUsageError, type RequestArgs, type RequestIO } from './request.js';
+import { changesFlag } from './suggest.js';
 
 export const BRANCH_HELP = `bridge branch: branches in review, the same actions as Bridge Studio
 
@@ -215,6 +216,7 @@ export async function runDocsSave(a: RequestArgs, root: string, io: RequestIO = 
   }
   const ctx = await context(root, io);
   const pr = flag(a, 'pr');
+  const changes = changesFlag(a);
   const r = (await studio.saveDocs(ctx, {
     component,
     docs,
@@ -223,9 +225,11 @@ export async function runDocsSave(a: RequestArgs, root: string, io: RequestIO = 
     ...(flag(a, 'notes') ? { notes: flag(a, 'notes') } : {}),
     ...(flag(a, 'jira') ? { jira: flag(a, 'jira') } : {}),
     ...(flag(a, 'product') ? { product: flag(a, 'product') } : {}),
+    ...(changes ? { changes } : {}),
+    source: 'cli',
     dryRun: has(a, 'dry-run'),
   })) as Record<string, unknown>;
   if (has(a, 'json')) io.print(JSON.stringify(r, null, 2));
-  else io.print(r.status === 'dry-run' || r.status === 'preview' ? `${r.said ?? 'Dry run, nothing written.'}\n\n${r.path}:\n${r.content}` : String(r.said));
+  else io.print(r.status === 'dry-run' || r.status === 'preview' ? `${r.said ?? 'Dry run, nothing written.'}\n\n${r.path}:\n${r.content}` : `${String(r.said)}${r.next ? `\n${String(r.next)}` : ''}`);
   return 0;
 }

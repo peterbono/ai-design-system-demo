@@ -3,6 +3,7 @@
 // as Bridge Studio. Reads work without a token on a public repo; writes need one.
 import { BridgeContext, branches, pieces } from '@bridge-ds/mcp';
 import { defaultIO, RequestUsageError, type RequestArgs, type RequestIO } from './request.js';
+import { changesFlag } from './suggest.js';
 
 export const PIECES_HELP = `bridge pieces: a product branch and the library
 
@@ -60,9 +61,10 @@ export async function runPieces(a: RequestArgs, root: string, io: RequestIO = de
     }
     case 'open': {
       const usage = 'bridge pieces open <n> <piece>';
-      const r = await pieces.openLibraryBranchOp(ctx, { pr: number(a, 2, usage), piece: piece(a, 3, usage), usePreview: !has(a, 'no-preview'), dryRun: has(a, 'dry-run'), source: 'cli' });
+      const changes = changesFlag(a);
+      const r = await pieces.openLibraryBranchOp(ctx, { pr: number(a, 2, usage), piece: piece(a, 3, usage), usePreview: !has(a, 'no-preview'), dryRun: has(a, 'dry-run'), source: 'cli', ...(changes ? { changes } : {}) });
       return out(r, () => {
-        io.print(`${r.status === 'dry-run' ? 'Would open' : r.status === 'already-linked' ? 'Already linked' : 'Opened'} a ${r.opens}: ${r.title}, needed by ${r.neededBy}.`);
+        io.print(`${r.status === 'dry-run' ? 'Would open' : r.status === 'already-linked' ? 'Already linked' : r.status === 'suggested' ? 'Suggested' : 'Opened'} a ${r.opens}: ${r.title}, needed by ${r.neededBy}.`);
         if (r.library) io.print(`  #${r.library.number} ${r.library.url}`);
         if (r.preview) io.print(`  ${r.preview.said}`);
         for (const w of r.warnings ?? []) io.print(`  ${w}`);

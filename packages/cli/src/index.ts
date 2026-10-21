@@ -13,6 +13,7 @@ import { runExplore } from './explore.js';
 import { runBranch, runDocsSave, runStudioRead } from './branch.js';
 import { runPieces } from './pieces.js';
 import { runFigma } from './figma.js';
+import { changesFlag, runApply, runReview, runSuggestions } from './suggest.js';
 import { defaultIO } from './request.js';
 import { protectionReport, type ProtectionReport } from './protection.js';
 import { rolesReport, type RolesReport } from './roles.js';
@@ -35,8 +36,10 @@ Usage:
   bridge diff <base> [--json|--md]    designer-readable token diff: working tree vs <base> (git ref)
   bridge propose --title "..." --set path=value [--set ...] [--file f | --mode theme=dark]
                  [--edits edits.json] [--summary "..."] [--branch explore/<name>] [--pr <n>]
-                 [--product <key>] [--jira DS-42] [--dry-run]
-                                      validate + contrast + new local bridge/* branch (never pushes).
+                 [--product <key>] [--jira DS-42] [--suggest | --direct] [--dry-run]
+                                      validate + contrast, then a suggestion (a GitHub issue a developer
+                                      applies with bridge apply) or, with "changes": "direct" in
+                                      bridge.config.json or --direct, a new local bridge/* branch (never pushes).
                                       --branch: write the edits to the checked-out exploration instead.
                                       --pr: add them to that branch in review (GitHub token).
                                       --product: the product it is for (bridge products); --jira: the
@@ -44,9 +47,10 @@ Usage:
   bridge brand list [--json]          brands: slug, name, default, primary action color, theme overrides
   bridge brand create <slug> --from bridge --primary <hex|hue> --neutral <hex|hue>
                  [--name "Acme"] [--accent x] [--link x] [--radius soft|balanced|crisp|i,c,co,o]
-                 [--heading font] [--text font] [--notes "..."] [--dry-run] [--json]
-                                      new brand: generated ramps, contrast gate for every theme,
-                                      new local bridge/brand-<slug> branch (never pushes, never main).
+                 [--heading font] [--text font] [--notes "..."] [--suggest | --direct] [--dry-run] [--json]
+                                      new brand: generated ramps, contrast gate for every theme, then a
+                                      suggestion, or in direct mode a new local bridge/brand-<slug> branch
+                                      (never pushes, never main).
                                       Exit 1 when blocked
   bridge impact [--base main] [--head HEAD] [--out dir] [--only stories|app] [--threshold 0.03]
                  [--plan] [--json] [--image-base url] [--artifact-url url] [--keep-unchanged]
@@ -60,9 +64,9 @@ Usage:
                                       Needs Chrome installed
   bridge history [token] [--json] [--limit n] [--author a] [--tier n] [--version v]
                                       token history: versions, merged changes, who, when, why
-  bridge revert <pr|commit|id> [--dry-run] [--restore-conflicts] [--use-before path@file] [--json]
-                                      undo a merged token change against HEAD: conflicts shown,
-                                      new local bridge/* branch (never pushes, never main)
+  bridge revert <pr|commit|id> [--dry-run] [--restore-conflicts] [--use-before path@file] [--suggest | --direct] [--json]
+                                      undo a merged token change against HEAD: conflicts shown, then a
+                                      suggestion, or in direct mode a new local bridge/* branch (never pushes)
   bridge audit <path> [--json [out.json]] [--md [out.md]] [--fail-under 80] [--baseline prev.json]
                [--label "..."] [--ds dir] [--no-regress] [--allowlist known.json]
                                       design system adoption in a product folder: token and component
@@ -105,6 +109,17 @@ Usage:
                                       a product branch and the library (\`bridge pieces help\`): what it adds
                                       that the library lacks, the library branch each piece opens (linked
                                       both ways), its preview in the product branch, the published version
+  bridge suggestions [list | show <n> | link <n> --pr <m>] [--status approved] [--json]
+                                      suggestions: changes filed as GitHub issues (label bridge-suggestion)
+                                      that the owners approve and a developer applies (\`bridge suggestions help\`)
+  bridge apply <n> [--write | --patch] [--dry-run] [--accept-edited] [--force-unapproved] [--json]
+                                      apply suggestion #n on today's code: a new local branch (working tree
+                                      untouched, nothing pushed), --write into the working tree, --patch for
+                                      git am. Exit 0 applied or already applied, 1 not approved or blocked,
+                                      2 usage, 3 conflict
+  bridge review <n> --approve | --request-changes --message "..." | --decline --message "..."
+                                      review a suggestion as its owner (counts only for owners in
+                                      bridge.config.json, on the version you saw)
   bridge figma [show <n> | drafted <n> | push <diff.json>]
                                       component changes sent from Figma (\`bridge figma help\`): exact token
                                       changes and branches Claude AI drafts from the spec
@@ -118,8 +133,11 @@ Usage:
 Options:
   --root <dir>   repo root (default: current directory)
   --ds <dir>     audit: design system repo with bridge.config.json (default: --root, or the nearest one above)
-  GITHUB_TOKEN   env, optional: lets the MCP server open PRs on a remote repo, and bridge request create
-                 file issues (else \`gh auth token\`). Never needed for local token work.
+  GITHUB_TOKEN   env, optional: lets bridge file suggestions and requests (Issues: read and write) and the
+                 MCP server open PRs on a remote repo in direct mode (else \`gh auth token\`). Never needed for
+                 local token work in direct mode.
+  --suggest | --direct   how a change reaches the code for this command (propose, brand create, revert,
+                 docs save, pieces open, figma push). Default: "changes" in bridge.config.json, else suggest.
 `;
 
 interface Args {
@@ -135,7 +153,7 @@ function parse(argv: string[]): Args {
       const next = argv[i + 1];
       // --json and --md print to stdout, or write a file when followed by one (bridge audit).
       const fileArg = (k === 'json' && /\.json$/i.test(next ?? '')) || (k === 'md' && /\.(md|markdown)$/i.test(next ?? ''));
-      const takesValue = inline === undefined && next !== undefined && !next.startsWith('--') && (fileArg || !['force', 'json', 'md', 'strict', 'dry-run', 'help', 'fix', 'write', 'no-regress', 'plan', 'keep-unchanged', 'restore-conflicts', 'breaking', 'claude', 'all', 'offline', 'approve'].includes(k));
+      const takesValue = inline === undefined && next !== undefined && !next.startsWith('--') && (fileArg || !['force', 'json', 'md', 'strict', 'dry-run', 'help', 'fix', 'write', 'no-regress', 'plan', 'keep-unchanged', 'restore-conflicts', 'breaking', 'claude', 'all', 'offline', 'approve', 'patch', 'accept-edited', 'force-unapproved', 'suggest', 'direct'].includes(k));
       (out.flags[k] ??= []).push(inline ?? (takesValue ? argv[++i]! : 'true'));
     } else out._.push(a);
   }
@@ -145,6 +163,17 @@ const flag = (a: Args, k: string) => a.flags[k]?.[a.flags[k]!.length - 1];
 const has = (a: Args, k: string) => Boolean(a.flags[k]);
 const print = (s: string) => process.stdout.write(`${s}\n`);
 const modeArg = (s?: string) => (s ? Object.fromEntries(s.split(',').map((kv) => kv.split('=') as [string, string])) : undefined);
+/** The GitHub token the GitHub commands use: GITHUB_TOKEN, BRIDGE_GITHUB_TOKEN, else `gh auth token`. */
+const githubToken = () => process.env.BRIDGE_GITHUB_TOKEN || process.env.GITHUB_TOKEN || defaultIO().ghToken();
+/** Where a change went: the suggestion filed, the branch opened, or why nothing was sent. */
+function printSent(r: Record<string, any>) {
+  if (r.status === 'suggested') print(`suggestion: #${r.number} ${r.url}`);
+  if (r.message) print(String(r.message));
+  if (r.branch && r.status !== 'suggested') print(`branch: ${r.branch}`);
+  for (const w of r.warnings ?? []) print(`warning: ${w}`);
+  if (r.next) print(String(r.next));
+  if (r.hint) print(String(r.hint));
+}
 
 async function init(a: Args, root: string) {
   const cfgPath = join(root, CONFIG_FILE);
@@ -300,8 +329,9 @@ async function propose(a: Args, root: string): Promise<number> {
   if (editsFile) edits.push(...(JSON.parse(await readFile(resolve(editsFile), 'utf8')) as Record<string, unknown>[]));
   if (!edits.length) throw new UsageError('Give at least one --set path=value or --edits file.json');
   const pr = flag(a, 'pr');
-  // Adding to a branch in review writes on GitHub: the token the other GitHub commands use.
-  const token = pr ? process.env.BRIDGE_GITHUB_TOKEN || process.env.GITHUB_TOKEN || defaultIO().ghToken() : undefined;
+  const changes = changesFlag(a);
+  // Adding to a branch in review and filing a suggestion write on GitHub: the token the other GitHub commands use.
+  const token = pr || changes !== 'direct' ? githubToken() : undefined;
   const ctx = await BridgeContext.create({ root, ...(token ? { token } : {}) });
   const summary = flag(a, 'summary');
   const branch = flag(a, 'branch');
@@ -315,24 +345,26 @@ async function propose(a: Args, root: string): Promise<number> {
     ...(pr ? { pr } : {}),
     ...(jira ? { jira } : {}),
     ...(product ? { product } : {}),
+    ...(changes ? { changes } : {}),
+    source: 'cli',
     dryRun: has(a, 'dry-run'),
-  })) as Record<string, unknown>;
+  })) as Record<string, any>;
   if (has(a, 'json')) print(JSON.stringify(r, null, 2));
   else {
     print(`status: ${r.status}${r.why ? ` (${r.why})` : ''}`);
     if (r.tier) print(`tier ${r.tier}, ${r.bump}`);
     for (const c of (r.changes as { kind: string; path: string; before?: string; after?: string }[]) ?? []) print(`  ${c.kind} ${c.path}: ${c.before ?? ''} -> ${c.after ?? ''}`);
-    if (r.branch) print(`branch: ${r.branch}`);
-    if (r.next) print(String(r.next));
-    if (r.hint) print(String(r.hint));
-    if (r.status === 'dry-run') print(`\n${r.prBody}`);
+    printSent(r);
+    if (r.status === 'dry-run') print(`\n${r.suggestion?.body ?? r.prBody}`);
   }
   return r.status === 'blocked' ? 1 : 0;
 }
 
 async function brandCmd(a: Args, root: string): Promise<number> {
   const sub = a._[1];
-  const ctx = await BridgeContext.create({ root });
+  const changes = changesFlag(a);
+  const token = sub === 'create' && changes !== 'direct' ? githubToken() : undefined;
+  const ctx = await BridgeContext.create({ root, ...(token ? { token } : {}) });
   if (sub === 'list') {
     const r = await brand.listBrands(ctx);
     if (has(a, 'json')) print(JSON.stringify(r.brands, null, 2));
@@ -355,6 +387,8 @@ async function brandCmd(a: Args, root: string): Promise<number> {
     ...(opt('radius') ? { radius: opt('radius')! } : {}),
     ...(Object.keys(fonts).length ? { fonts } : {}),
     ...(opt('notes') ? { notes: opt('notes')! } : {}),
+    ...(changes ? { changes } : {}),
+    source: 'cli',
     dryRun: has(a, 'dry-run'),
   })) as Record<string, any>;
   if (has(a, 'json')) {
@@ -372,9 +406,7 @@ async function brandCmd(a: Args, root: string): Promise<number> {
   for (const i of r.issues as { level: string; message: string }[]) print(`  ${i.level}: ${i.message}`);
   print('files:');
   for (const f of r.files as { path: string; action: string }[]) print(`  ${f.action} ${f.path}`);
-  if (r.branch) print(`branch: ${r.branch}`);
-  if (r.next) print(String(r.next));
-  if (r.hint) print(String(r.hint));
+  printSent(r);
   return r.status === 'blocked' ? 1 : 0;
 }
 
@@ -483,9 +515,11 @@ async function historyCmd(a: Args, root: string): Promise<number> {
 async function revertCmd(a: Args, root: string): Promise<number> {
   const target = a._[1];
   if (!target) throw new UsageError('bridge revert <pr|commit|id> [--dry-run]   (ids from `bridge history`)');
-  const ctx = await BridgeContext.create({ root });
+  const changes = changesFlag(a);
+  const token = changes !== 'direct' ? githubToken() : undefined;
+  const ctx = await BridgeContext.create({ root, ...(token ? { token } : {}) });
   const resolutions = Object.fromEntries((a.flags['use-before'] ?? []).map((k) => [k, 'use-before' as const]));
-  const r = (await hist.proposeRevert(ctx, { target, resolutions, restoreConflicts: has(a, 'restore-conflicts'), dryRun: has(a, 'dry-run') })) as Record<string, any>;
+  const r = (await hist.proposeRevert(ctx, { target, resolutions, restoreConflicts: has(a, 'restore-conflicts'), dryRun: has(a, 'dry-run'), ...(changes ? { changes } : {}), source: 'cli' })) as Record<string, any>;
   if (has(a, 'json')) {
     print(JSON.stringify(r, null, 2));
     return r.status === 'blocked' ? 1 : 0;
@@ -501,9 +535,8 @@ async function revertCmd(a: Args, root: string): Promise<number> {
   }
   for (const s of r.skipped ?? []) print(`  skipped   ${s}`);
   if (r.contrast?.moved) print(`contrast: ${r.contrast.moved} pair(s) move, ${r.contrast.newFailures.length} new failure(s)`);
-  if (r.branch) print(`branch: ${r.branch}`);
-  if (r.next) print(String(r.next));
-  if (r.status === 'dry-run') print(`\n${r.prBody}`);
+  printSent(r);
+  if (r.status === 'dry-run') print(`\n${r.suggestion?.body ?? r.prBody}`);
   return r.status === 'blocked' ? 1 : 0;
 }
 
@@ -636,6 +669,9 @@ async function main(): Promise<number> {
   if (cmd === 'branch') return runBranch(a, root);
   if (cmd === 'pieces') return runPieces(a, root);
   if (cmd === 'figma') return runFigma(a, root);
+  if (cmd === 'suggestions' || cmd === 'suggest') return runSuggestions(a, root);
+  if (cmd === 'apply') return runApply(a, root);
+  if (cmd === 'review') return runReview(a, root);
   if (cmd === 'products' || cmd === 'settings' || cmd === 'coverage') return runStudioRead(cmd, a, root);
   if (cmd === 'docs' && a._[1] === 'save') return runDocsSave(a, root);
   if (!cmd || has(a, 'help') || cmd === 'help') {
