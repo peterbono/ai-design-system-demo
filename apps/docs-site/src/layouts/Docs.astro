@@ -1,0 +1,63 @@
+---
+// The product documentation ("/docs/*"): the site header and footer (layouts/Landing.astro), a left nav of the guides
+// and their sections, and one reading column. An early version: each page says so in a quiet tag. Meant to grow into
+// a full product guide (getting started, Studio, the plugin, the CLI and MCP).
+import '../styles/docs.css';
+import Landing from './Landing.astro';
+import { Link, Tag } from '@bridge-ds/react';
+import { DOCS_FIGMA_PLUGIN, DOCS_HOME } from '../lib/nav';
+
+export interface DocsSection {
+  id: string;
+  label: string;
+}
+interface Props {
+  title: string;
+  description: string;
+  /** The page's sections, listed under it in the nav. */
+  sections: DocsSection[];
+}
+const { title, description, sections } = Astro.props;
+const path = Astro.url.pathname.replace(/\/?$/, '/');
+const guides = [
+  { href: DOCS_HOME, label: 'Getting started' },
+  { href: DOCS_FIGMA_PLUGIN, label: 'Figma plugin' },
+];
+---
+
+<Landing title={`${title} | Bridge docs`} description={description}>
+  <div class="dc-wrap">
+    <nav class="dc-nav" aria-label="Docs">
+      <p class="dc-nav-h">Bridge docs</p>
+      <ul>
+        {
+          guides.map((g) => (
+            <li>
+              <Link variant="subtle" className="dc-guide" href={g.href} aria-current={path === g.href ? 'page' : undefined}>
+                {g.label}
+              </Link>
+              {path === g.href && (
+                <ul class="dc-sections">
+                  {sections.map((s) => (
+                    <li>
+                      <Link variant="subtle" className="dc-section" href={`#${s.id}`}>
+                        {s.label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+    <article class="dc-body">
+      <header class="dc-head">
+        <Tag>Early version</Tag>
+        <h1 class="dc-title">{title}</h1>
+      </header>
+      <slot />
+    </article>
+  </div>
+</Landing>

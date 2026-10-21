@@ -1,7 +1,8 @@
 // The revert and restore planner: plans with @bridge-ds/core against main (live from GitHub when a token is
 // connected, else the files this site was built from), shows conflicts with the later change that explains each,
 // the designer diff and contrast impact from Reviews, the tier and the files. "Propose" opens a pull request on a
-// new bridge/* branch with the user's token, like the token editor; main is never written. Without a token the
+// new bridge/* branch with the user's token, like the token editor, or in suggest mode (bridge.config.json
+// "changes") sends the files as one suggestion, no branch; main is never written. Without a token the
 // plan downloads as a patch JSON and the PR text as Markdown.
 import {
   LayeredTokenSet,
@@ -21,7 +22,9 @@ import { reviewTokenChange, type TokenReview } from '../../lib/token-review';
 import { undoSentence } from '../../lib/changes';
 import { humanAuthored, laterThan, shortDate } from '../../lib/history-view';
 import { esc, getToken, hasWorkingToken, prefersSignIn, readRepo, setButtonDisabled, setButtonLabel, showGhError, studioClient, tokenRejected } from '../github-session';
-import { ghAction, ghVerb } from '../../lib/gh-wording';
+import { ghAction, ghVerb, notSentLine, SEE_SUGGESTION, sendButton, sendGoal, sendingLine, suggestionSentLine } from '../../lib/gh-wording';
+import { changesModeOnPage } from '../changes-mode';
+import { suggestFilesOnGitHub } from '../suggest-files';
 import { VOCAB } from '../../lib/vocabulary';
 import { loadHistory, type Loaded } from './state';
 
@@ -182,30 +185,34 @@ function syncFoot() {
   const status = $('hp-status');
   const ready = plan?.status === 'ready';
   const token = hasWorkingToken();
+  const mode = changesModeOnPage();
   if (go) {
-    setButtonLabel(go, VOCAB.requestReview);
+    setButtonLabel(go, mode === 'suggest' ? sendButton('revert', mode) : VOCAB.requestReview);
     go.hidden = !token && !req?.demo;
     setButtonDisabled(go, !ready || Boolean(req?.demo));
   }
   if (connect) {
     connect.hidden = token || Boolean(req?.demo);
-    setButtonLabel(connect, ghAction('request review', prefersSignIn(), tokenRejected()));
+    setButtonLabel(connect, ghAction(sendGoal('revert', mode), prefersSignIn(), tokenRejected()));
   }
   if (status) {
     status.textContent = req?.demo
-      ? 'Demo plans cannot go to review: the change never happened in this repository.'
+      ? `Demo plans cannot ${mode === 'suggest' ? 'be sent' : 'go to review'}: the change never happened in this repository.`
       : !token
         ? tokenRejected()
           ? 'Your GitHub token stopped working.'
           : 'Read only until connected.'
         : base && !base.live
-          ? 'Could not read main from GitHub; this plan uses the files the site was built from. Bridge re-reads main when you propose.'
+          ? `Could not read main from GitHub; this plan uses the files the site was built from. Bridge re-reads main when you ${mode === 'suggest' ? 'send it' : 'propose'}.`
           : '';
   }
 }
 
 
-async function propose(): Promise<number> {
+/** What a send made: a pull request (direct mode) or a suggestion (suggest mode). */
+type Sent = { kind: 'branch'; number: number } | { kind: 'suggestion'; number: number; url: string };
+
+async function propose(): Promise<Sent> {
   if (!req || !ctx || req.demo) throw new Error('Demo plans cannot be proposed.');
   const token = getToken();
   if (!token) throw new Error(`${ghVerb(prefersSignIn())} first.`);
@@ -216,14 +223,24 @@ async function propose(): Promise<number> {
   const p = plan;
   if (!p || p.status !== 'ready') throw new Error(p?.why ?? 'The plan is not ready on the latest main.');
   const { owner, name, defaultBranch } = repoOf(ctx);
+  if (changesModeOnPage() === 'suggest') {
+    // One suggestion with the plan's files, planned on main's head: no branch, no pull request.
+    const gh = studioClient(`${owner}/${name}`, token);
+    const sha = await gh.getBranchSha(defaultBranch);
+    if (!sha) throw new Error(`Branch ${defaultBranch} not found.`);
+    const summary = p.commitMessage.split('\n').slice(1).join('\n').trim() || p.prTitle;
+    const labels = ['tokens', p.kind, `tier: ${p.tier.tier}`, ...(p.tier.bump === 'major' ? ['breaking'] : [])];
+    const r = await suggestFilesOnGitHub(gh, ctx.config, { kind: 'revert', title: p.prTitle, summary, files: p.files, tier: { tier: p.tier.tier, bump: p.tier.bump }, base: { ref: defaultBranch, sha }, checks: { newErrors: p.newErrors.length }, labels, details: p.prBody });
+    return { kind: 'suggestion', number: r.number, url: r.url };
+  }
   const gov = ctx.config.governance;
   const client = studioClient(`${owner}/${name}`, token, { protectedBranches: [...new Set([...gov.protectedBranches, 'main', 'master', defaultBranch])], branchPrefix: gov.branchPrefix });
   let branch = p.branch;
   for (let i = 2; await client.getBranchSha(branch); i++) branch = `${p.branch}-${i}`;
   await client.commitToNewBranch({ base: defaultBranch, branch, message: p.commitMessage, files: p.files });
   const pr = await client.createPullRequest({ title: p.prTitle, head: branch, base: defaultBranch, body: p.prBody, draft: p.tier.tier >= 2 });
-  await client.addLabels(pr.number, ['tokens', 'source: bridge-web', `tier-${p.tier.tier}`, p.kind, ...(p.tier.bump === 'major' ? ['breaking'] : [])]).catch(() => false);
-  return pr.number;
+  await client.addLabels(pr.number, ['tokens', 'source: bridge-web', `tier: ${p.tier.tier}`, p.kind, ...(p.tier.bump === 'major' ? ['breaking'] : [])]).catch(() => false);
+  return { kind: 'branch', number: pr.number };
 }
 
 function wire() {
@@ -239,12 +256,19 @@ function wire() {
     const go = $<HTMLButtonElement>('hp-propose')!;
     const out = $('hp-status')!;
     setButtonDisabled(go, true);
-    out.textContent = 'Reading main, creating the branch and requesting a review';
+    const mode = changesModeOnPage();
+    out.textContent = mode === 'suggest' ? `Reading main. ${sendingLine(mode)}` : 'Reading main, creating the branch and requesting a review';
     try {
-      const n = await propose();
-      location.href = `/studio/changes/?pr=${n}`;
+      const sent = await propose();
+      if (sent.kind === 'branch') {
+        location.href = `/studio/changes/?pr=${sent.number}`;
+        return;
+      }
+      // The suggestion is out: say so on the line of the action, keep the dialog's one primary off.
+      go.hidden = true;
+      out.innerHTML = `${esc(suggestionSentLine(sent.number))} <a href="${esc(sent.url)}" target="_blank" rel="noopener">${esc(SEE_SUGGESTION)}</a>`;
     } catch (err) {
-      showGhError(out, err, `No branch created: ${(err as Error).message}`, 'create branches');
+      showGhError(out, err, mode === 'suggest' ? notSentLine(mode, (err as Error).message) : `No branch created: ${(err as Error).message}`, mode === 'suggest' ? 'send suggestions' : 'create branches');
       setButtonDisabled(go, false);
     }
   });

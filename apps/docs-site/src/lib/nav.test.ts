@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { allPages, COMPARE, HOW_REVIEW_WORKS, LANDING, LIBRARY_HOME, locate, navFor, SETTINGS_HOME, SETTINGS_SECTIONS, spaceOf } from './nav';
+import { ABOUT, allPages, COMPARE, DEMO, DOCS_FIGMA_PLUGIN, DOCS_HOME, HOW_REVIEW_WORKS, LANDING, LIBRARY_HOME, locate, navFor, SETTINGS_HOME, SETTINGS_SECTIONS, spaceOf } from './nav';
 import { REDIRECTS, redirectScript, redirectTarget } from './redirects';
 import { ROOT } from './repo';
 
@@ -63,6 +63,23 @@ describe('routing: the landing at /, the Library home at /library/', () => {
     expect(pageFile(LANDING)).toMatch(/pages\/index\.astro$/);
     expect(pageFile(COMPARE)).toMatch(/pages\/compare\.astro$/);
     expect(allPages().map((p) => p.href)).not.toContain(LANDING);
+  });
+
+  it('serves About and the docs pages the header and footer link to, outside the side nav', () => {
+    expect(pageFile(ABOUT)).toMatch(/pages\/about\.astro$/);
+    expect(pageFile(DOCS_HOME)).toMatch(/pages\/docs\/index\.astro$/);
+    expect(pageFile(DOCS_FIGMA_PLUGIN)).toMatch(/pages\/docs\/figma-plugin\.astro$/);
+    const hrefs = allPages().map((p) => p.href);
+    for (const href of [ABOUT, DOCS_HOME, DOCS_FIGMA_PLUGIN]) expect(hrefs).not.toContain(href);
+  });
+
+  it('points the header and the homepage at routes that exist', () => {
+    const header = readFileSync(join(ROOT, 'apps/docs-site/src/components/site/SiteHeader.astro'), 'utf8');
+    const footer = readFileSync(join(ROOT, 'apps/docs-site/src/components/site/SiteFooter.astro'), 'utf8');
+    for (const name of ['ABOUT', 'DOCS_HOME', 'DOCS_FIGMA_PLUGIN', 'STUDIO_HOME']) expect(header).toContain(name);
+    for (const name of ['ABOUT', 'COMPARE', 'DOCS_HOME', 'DOCS_FIGMA_PLUGIN', 'STUDIO_HOME']) expect(footer).toContain(name);
+    // The read-only demo has no route of its own yet: Studio reads the public repo without sign-in.
+    expect(pageFile(DEMO)).not.toBeNull();
   });
 
   it('moves only the Library home: its entry, breadcrumbs and deep links stay', () => {

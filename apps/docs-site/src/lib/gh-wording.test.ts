@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ghAction, ghButton, ghVerb, rateLimitedLine } from './gh-wording';
+import { ghAction, ghButton, ghVerb, notSentLine, rateLimitedLine, SEE_SUGGESTION, sendButton, sendDialogTitle, sendGoal, sendingLine, SUGGEST_NEXT, suggestionSentLine, SUGGESTION_SENT, suggestOnlyLine } from './gh-wording';
 
 describe('gh-wording', () => {
   it('says Sign in when the site has a GitHub App', () => {
@@ -21,5 +21,39 @@ describe('gh-wording', () => {
   it('words the rate limit for each way in', () => {
     expect(rateLimitedLine(true)).toBe('GitHub limits anonymous reads to 60 an hour and this browser has used them. Sign in, or try again later.');
     expect(rateLimitedLine(false)).toMatch(/Connect GitHub, or try again later\.$/);
+  });
+});
+
+describe('send words per mode', () => {
+  it('says suggestion in suggest mode, never issue', () => {
+    expect(sendButton('tokens', 'suggest')).toBe('Send suggestion');
+    expect(sendButton('piece', 'suggest')).toBe('Suggest to the library');
+    expect(sendButton('docs', 'suggest')).toBe('Suggest docs change');
+    expect(sendGoal('tokens', 'suggest')).toBe('send a suggestion');
+    expect(ghAction(sendGoal('brand', 'suggest'), true)).toBe('Sign in to send a suggestion');
+    expect(sendDialogTitle('suggest')).toBe('Send a suggestion');
+    expect(sendingLine('suggest')).toBe('Sending your suggestion');
+    expect(suggestionSentLine(42)).toBe('Suggestion #42 sent to your DS lead. A developer applies it once it is approved.');
+    expect(notSentLine('suggest', 'no access.')).toBe('Not sent: no access.');
+    const all = [SUGGEST_NEXT, SUGGESTION_SENT, SEE_SUGGESTION, suggestOnlyLine('add to branches', 'Send it as a suggestion.'), ...(['tokens', 'piece', 'docs', 'brand', 'revert'] as const).flatMap((w) => [sendButton(w, 'suggest'), sendGoal(w, 'suggest')])];
+    for (const line of all) {
+      expect(line).not.toMatch(/\bissue|pull request|commit\b/i);
+      expect(line).not.toContain(String.fromCharCode(0x2014));
+    }
+  });
+
+  it('keeps the branch words in direct mode', () => {
+    expect(sendButton('tokens', 'direct')).toBe('Request review');
+    expect(sendButton('brand', 'direct')).toBe('Create branch');
+    expect(sendGoal('tokens', 'direct')).toBe('request review');
+    expect(sendGoal('brand', 'direct')).toBe('create the branch');
+    expect(sendDialogTitle('direct')).toBe('Create branch');
+    expect(sendingLine('direct')).toBe('Creating the branch');
+    expect(notSentLine('direct', 'no access.')).toBe('Not created: no access.');
+  });
+
+  it('says why a branch action is not offered', () => {
+    expect(suggestOnlyLine('add to branches')).toBe('This design system takes suggestions, so Bridge does not add to branches here.');
+    expect(suggestOnlyLine('add to branches', 'Send your edits as a suggestion instead.')).toBe('This design system takes suggestions, so Bridge does not add to branches here. Send your edits as a suggestion instead.');
   });
 });
