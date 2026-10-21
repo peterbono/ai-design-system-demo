@@ -12,6 +12,7 @@ import { currentViewer, ghGet, hasWorkingToken, prefersSignIn, readRepo } from '
 import { ghAction } from '../lib/gh-wording';
 import { needFromStatus, pendingApprovals, statusTone, whoActs, type ApprovalRole, type WhoActs } from '../lib/changes';
 import { developerOnlyFailures } from '../lib/check-explain';
+import { guestActivity } from './guest-activity';
 import { planStatusReads, statusCacheKey, type CachedStatus } from '../lib/status-budget';
 import type { TeamStates } from '@bridge-ds/core';
 import { loadTeams, siteApprovalRules, siteApproverEntries, siteApprovers, siteShipPolicy, teamSnapshot } from './teams';
@@ -242,7 +243,9 @@ export async function loadStatuses(
   onStatus: (p: PullForStatus, status: PullStatus | null, skipped: boolean) => void,
 ): Promise<void> {
   const connected = hasWorkingToken();
-  const plan = planStatusReads(pulls, { connected, read: readCached, now: Date.now() });
+  // A guest whose team published fresh activity reads every row from it (no API request): no budget then.
+  const recorded = !connected && (await guestActivity())?.fresh === true;
+  const plan = planStatusReads(pulls, { connected: connected || recorded, read: readCached, now: Date.now() });
   const byNumber = new Map(pulls.map((p) => [p.number, p]));
   for (const [n, st] of plan.cached) onStatus(byNumber.get(n)!, st, false);
   for (const n of plan.skipped) onStatus(byNumber.get(n)!, null, true);
@@ -252,6 +255,6 @@ export async function loadStatuses(
     if (!connected) writeCached(p, st);
     onStatus(p, st, false);
   };
-  if (connected) await Promise.all(plan.fetch.map(read));
+  if (connected || recorded) await Promise.all(plan.fetch.map(read));
   else for (const n of plan.fetch) await read(n);
 }

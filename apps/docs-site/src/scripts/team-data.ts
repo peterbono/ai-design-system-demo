@@ -126,7 +126,19 @@ export function loadTeamData(): Promise<TeamData> {
         };
       }
     }
-    const read = await loadTeamModel(client, { snapshot: readTeamSnapshot, onProgress: report });
+    let read: Awaited<ReturnType<typeof loadTeamModel>>;
+    try {
+      read = await loadTeamModel(client, { snapshot: readTeamSnapshot, onProgress: report });
+    } catch (err) {
+      // A guest past GitHub's hourly limit: the published snapshot still opens the team (it costs no API request),
+      // as the Library reads it. The views that need GitHub say so on their own.
+      const published = !client.canWrite && (err as { status?: number }).status === 429 ? await readPublishedSnapshot(client, team) : null;
+      if (!published) throw err;
+      report({ step: 'snapshot' });
+      snapshot ??= Promise.resolve(published);
+      const model = await loadRepoModel(snapshotSource(published));
+      return { ...team, model, sha: published.sourceSha, defaultBranch: published.repo.branch, private: false, source: 'snapshot' as const, storybook: storybookUrl(model.config), client, published: published.committedAt ?? published.generatedAt };
+    }
     if (read.snapshot) snapshot ??= Promise.resolve(read.snapshot);
     if (!read.cached) {
       report({ step: 'ready' });

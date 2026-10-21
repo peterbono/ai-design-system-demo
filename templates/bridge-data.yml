@@ -1,42 +1,67 @@
 # Bridge data: copy this file to .github/workflows/bridge-data.yml in your design system repository.
 #
-# On every push to the default branch, it writes the Bridge snapshot of the repository (`bridge snapshot`) and
-# publishes it to the orphan branch `bridge-data`: snapshot.json (the token, contrast and component files Bridge
-# reads, Figma coverage, contrast results) and audits/<id>.json (adoption audits, when you ask for them below).
-# Hosted Bridge (https://bridge.floriangouloubi.com/studio/<owner>/<repo>/) reads it from raw.githubusercontent.com:
-# pages open faster, visitors spend no GitHub API quota, and the adoption band shows your audits.
-# Bridge works without it; it reads your repository live when the snapshot is missing or older than the head.
+# It writes the Bridge snapshot of the repository (`bridge snapshot --activity`) and publishes it to the orphan branch
+# `bridge-data`:
+# - snapshot.json: the token, contrast and component files Bridge reads, Figma coverage, contrast results;
+# - activity.json: the team's open branches and their pages, open suggestions, component requests, recent merges and
+#   token history, read from GitHub with the run token;
+# - audits/<id>.json: adoption audits, when you ask for them below.
+# Hosted Bridge (https://bridge.floriangouloubi.com/studio/<owner>/<repo>/) reads them from raw.githubusercontent.com:
+# pages open faster, and a visitor who is not signed in spends none of the 60 GitHub requests an hour GitHub gives
+# them. Bridge works without it; it reads your repository live when the files are missing or old.
 #
-# Token: only the GITHUB_TOKEN of this run, with `contents: write` to push the bridge-data branch. No secret to add.
-# The branch is never merged; delete it to start over. Docs: https://github.com/peterbono/ai-design-system-demo/blob/main/docs/HOSTED.md
+# It runs on every push to the default branch, when a pull request, an issue or a comment changes (what Branches,
+# suggestions and requests show), and every 30 minutes, so the activity stays fresh. Runs queue: one at a time.
+#
+# Token: only the GITHUB_TOKEN of this run, with `contents: write` to push the bridge-data branch and read access to
+# pull requests, issues and checks. No secret to add. The branch holds one commit with the latest files and is never
+# merged; delete it to start over. Docs: https://github.com/peterbono/ai-design-system-demo/blob/main/docs/HOSTED.md
 
 name: Bridge data
 
 on:
   push:
     branches: [main] # your default branch
+  pull_request:
+    types: [opened, synchronize, closed, labeled]
+  issues:
+  issue_comment:
+  schedule:
+    - cron: '*/30 * * * *'
   workflow_dispatch:
 
 concurrency:
+  # One publish at a time; a newer event waits (GitHub keeps only the newest waiting run).
   group: bridge-data
   cancel-in-progress: false
 
 permissions:
-  contents: write # push to the bridge-data branch, nothing else
+  contents: write # push to the bridge-data branch
+  pull-requests: read # open branches, their files, reviews and comments
+  issues: read # suggestions and requests
+  checks: read # the checks of each branch
+  statuses: read # previews and commit statuses
 
 env:
   DATA_BRANCH: bridge-data
-  # bridge snapshot needs @bridge-ds/cli 0.11.0 or later.
-  BRIDGE_CLI: '@bridge-ds/cli@^0.11.0'
+  # bridge snapshot --activity needs @bridge-ds/cli 0.12.0 or later.
+  BRIDGE_CLI: '@bridge-ds/cli@^0.12.0'
 
 jobs:
   snapshot:
     name: Publish the Bridge snapshot
-    if: github.ref_name == github.event.repository.default_branch
+    # A manual run from another branch would publish another branch's snapshot. A pull request from a fork gets a
+    # read-only token, so it cannot publish: the next push or scheduled run picks its changes up.
+    if: >-
+      (!(github.event_name == 'push' || github.event_name == 'workflow_dispatch') || github.ref_name == github.event.repository.default_branch)
+      && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      # Always the default branch: on a pull request or issue event too, the snapshot is of the library as it is.
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
 
       - uses: actions/setup-node@v4
         with:
@@ -46,7 +71,9 @@ jobs:
         # Adoption audits (optional): add one --audit per app folder that uses the design system, in this
         # repository, with an optional label: --audit "apps/web/src=Web app". Reports already written by
         # `bridge audit --json` can be carried with --audit-report <file or folder>.
-        run: npx --yes "$BRIDGE_CLI" snapshot --out "$RUNNER_TEMP/bridge-data" | tee -a "$GITHUB_STEP_SUMMARY"
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: npx --yes "$BRIDGE_CLI" snapshot --activity --out "$RUNNER_TEMP/bridge-data" | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Publish to the bridge-data branch
         env:
@@ -56,23 +83,21 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           dir="$RUNNER_TEMP/bridge-data-branch"
+          head=$(git rev-parse HEAD)
           publish() {
             rm -rf "$dir"
             git worktree prune
-            if git ls-remote --exit-code --heads origin "$DATA_BRANCH" > /dev/null; then
-              git fetch -q --depth 1 origin "$DATA_BRANCH"
-              git worktree add -q --detach "$dir" FETCH_HEAD
-            else
-              git worktree add -q --detach "$dir" HEAD
-              git -C "$dir" checkout -q --orphan "$DATA_BRANCH"
-            fi
-            # The branch holds the latest snapshot only: replace everything.
+            # One commit with the latest files, replaced on every run: activity.json changes every 30 minutes, and a
+            # growing history of it would only weigh on clones.
+            git branch -D "$DATA_BRANCH-next" > /dev/null 2>&1 || true
+            git worktree add -q --detach "$dir" HEAD
+            git -C "$dir" checkout -q --orphan "$DATA_BRANCH-next"
             git -C "$dir" rm -rfq --ignore-unmatch .
             cp -R "$OUT/." "$dir/"
-            printf '# bridge-data\n\nBridge snapshot of %s at %s, written by .github/workflows/bridge-data.yml.\n' "$GITHUB_REPOSITORY" "${GITHUB_SHA:0:7}" > "$dir/README.md"
+            printf '# bridge-data\n\nBridge snapshot of %s at %s, written by .github/workflows/bridge-data.yml.\n' "$GITHUB_REPOSITORY" "${head:0:7}" > "$dir/README.md"
             git -C "$dir" add -A
-            git -C "$dir" commit -qm "bridge data: ${GITHUB_SHA:0:7}" || { echo "Nothing new to publish"; return 0; }
-            git -C "$dir" push -q origin "HEAD:refs/heads/$DATA_BRANCH"
+            git -C "$dir" commit -qm "bridge data: ${head:0:7}"
+            git -C "$dir" push -q --force origin "HEAD:refs/heads/$DATA_BRANCH"
           }
           for i in 1 2 3; do
             if publish; then exit 0; fi

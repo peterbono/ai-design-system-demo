@@ -3,7 +3,8 @@
 // in-place reviews (?pr=N: the branch review; ?suggestion=N: the suggestion review). The team's repo model is read
 // first (scripts/team-data.ts, with its progress) because reviews.ts reads the team's settings (owners, rights,
 // products) when it loads. The views the self-hosted page reaches by address work for the team too, with the same
-// modules: History (scripts/history/page.ts, read from the team's GitHub history when signed in), a component change
+// modules: History (scripts/history/page.ts, read from the team's GitHub history when signed in, from its published
+// activity.json for a guest), a component change
 // request in place (scripts/requests.ts, the team's request issues), Requests when triage is on in Studio, and the
 // exploration start form (scripts/explorations.ts, against the team's repository, following its "changes" mode; in
 // direct mode the first write asks for Bridge Direct's OK, scripts/github-session.ts).

@@ -148,7 +148,8 @@
   line-height: var(--typography-ui-line-height);
 }
 
-.na-quiet {
+.na-quiet,
+.na-updated {
   color: var(--color-text-muted);
 }
 

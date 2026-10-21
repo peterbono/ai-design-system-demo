@@ -1,12 +1,14 @@
 // History data in the browser: one fetch of /studio/versions/data.json per page, and the demo toggle. Real and demo
 // reports stay separate; the toggle only picks which one a view shows, and every demo view carries a banner.
 // On a team shell (multi-team PR 3b) there is no build-time history: it is read from GitHub with core
-// loadGitHubHistory, lazily (only when a view asks), signed in only (it costs a few reads per change).
+// loadGitHubHistory, lazily (only when a view asks), when signed in (it costs a few reads per change); a guest reads
+// the history the team's CI published in activity.json (scripts/guest-activity.ts).
 import { buildReport, gitHubHistoryBackend, layoutOptions, loadConfig, loadGitHubHistory, parseContrastChecks, type BridgeConfig, type ContrastPair, type HistoryEntry, type HistoryReport } from '@bridge-ds/core';
 import { reviewTokenChange, type TokenReview } from '../../lib/token-review';
 import type { HistoryData } from '../../lib/history';
 import { isHosted, studioHref } from '../../lib/team-path';
 import { loadTeamData } from '../team-data';
+import { guestHistory } from '../guest-activity';
 import { explorerConfig } from '../explorer/data';
 
 /** Changes read from a team's repository: each costs a few GitHub reads (its pull request, its token files). */
@@ -41,7 +43,11 @@ async function teamHistoryData(): Promise<HistoryData> {
     demo: { ...empty('demo'), demo: true },
     reviews: {},
   };
-  if (!d.client.canWrite) return { ...base, real: null, realNote: TEAM_HISTORY_SIGN_IN };
+  if (!d.client.canWrite) {
+    // A guest reads the history the team's CI published (activity.json), whatever its age: no API request.
+    const real = await guestHistory();
+    return real ? { ...base, real, realNote: real.truncated ? teamHistoryCapNote(TEAM_HISTORY_LIMIT) : null } : { ...base, real: null, realNote: TEAM_HISTORY_SIGN_IN };
+  }
   const real = await loadGitHubHistory(d.client, loadConfig(config), { ref: d.defaultBranch, limit: TEAM_HISTORY_LIMIT });
   return { ...base, real, realNote: real.truncated ? teamHistoryCapNote(TEAM_HISTORY_LIMIT) : null };
 }

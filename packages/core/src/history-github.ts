@@ -17,6 +17,9 @@ export function gitHubHistoryBackend(client: GitHubClient, config: BridgeConfig,
     }
     return t;
   };
+  // Without a token (a guest on a public repository) bodies come from the raw host by commit and path, which costs no
+  // API request; a private or missing file there falls back to the blobs API.
+  const body = async (sha: string, e: TreeEntry): Promise<string> => (!client.canWrite ? await client.readRawFile(e.path, sha).catch(() => undefined) : undefined) ?? client.getBlobText(e.sha);
   const root = config.tokens.root.replace(/\/$/, '');
   const prefix = root === '.' || !root ? '' : `${root}/`;
   const limit = Math.max(1, opts.concurrency ?? 4);
@@ -74,7 +77,7 @@ export function gitHubHistoryBackend(client: GitHubClient, config: BridgeConfig,
       const blobs = entries.filter((e) => e.type === 'blob' && e.path.startsWith(prefix));
       const picked = new Set(selectTokenFiles(config, blobs.map((e) => e.path)));
       const wanted = blobs.filter((e) => picked.has(prefix ? e.path.slice(prefix.length) : e.path));
-      const texts = await pool(wanted, async (e) => [prefix ? e.path.slice(prefix.length) : e.path, await client.getBlobText(e.sha)] as const);
+      const texts = await pool(wanted, async (e) => [prefix ? e.path.slice(prefix.length) : e.path, await body(sha, e)] as const);
       return new Map(texts);
     },
     async changesetPaths(sha) {
@@ -84,7 +87,7 @@ export function gitHubHistoryBackend(client: GitHubClient, config: BridgeConfig,
     },
     async readFile(sha, path) {
       const e = (await tree(sha)).find((x) => x.type === 'blob' && x.path === path);
-      return e ? client.getBlobText(e.sha) : null;
+      return e ? body(sha, e) : null;
     },
   };
 }
