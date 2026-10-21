@@ -43,10 +43,11 @@ describe('sign-in config', () => {
   });
 
   it('reads the production origin and the preview pattern from bridge.config.json previews', () => {
-    expect(cfg).toEqual({ clientId: 'Iv23liAbCdEf', app: 'direct', productionOrigin: PROD, previewPattern: 'https://bridge-docs-git-{branch}-acme.vercel.app' });
+    expect(cfg).toEqual({ clientId: 'Iv23liAbCdEf', app: 'direct', suggestApp: 'direct', productionOrigin: PROD, previewPattern: 'https://bridge-docs-git-{branch}-acme.vercel.app' });
     expect(signInConfigFrom({ GITHUB_APP_CLIENT_ID: 'Iv23liAbCdEf' }, null)).toEqual({
       clientId: 'Iv23liAbCdEf',
       app: 'direct',
+      suggestApp: 'direct',
       productionOrigin: null,
       previewPattern: null,
     });
@@ -58,6 +59,9 @@ describe('sign-in config', () => {
     expect(pickSignInApp(both, 'suggest')).toEqual({ clientId: 'Iv23liSuggest', app: 'suggest' });
     expect(pickSignInApp(both, 'direct')).toEqual({ clientId: 'Iv23liDirect', app: 'direct' });
     expect(signInConfigFrom(both, PREVIEWS, 'direct')).toMatchObject({ clientId: 'Iv23liDirect', app: 'direct', productionOrigin: PROD });
+    // Settings needs the app suggest mode would use, whatever the mode in force today.
+    expect(signInConfigFrom(both, PREVIEWS, 'direct')?.suggestApp).toBe('suggest');
+    expect(signInConfigFrom({ GITHUB_APP_CLIENT_ID: 'Iv23liDirect' }, PREVIEWS, 'direct')?.suggestApp).toBe('direct');
   });
 
   it('falls back to the one configured app', () => {
