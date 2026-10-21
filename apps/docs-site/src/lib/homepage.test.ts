@@ -22,10 +22,12 @@ describe('step tabs', () => {
 });
 
 describe('drawings', () => {
-  it('centres the panorama and keeps it at 62% or more', () => {
-    expect(panoramaFit(1440)).toEqual({ x: 0, scale: 1, height: 332 });
+  it('centres the panorama, keeps it at 62% or more, with headroom for the carried card', () => {
+    expect(panoramaFit(1440)).toEqual({ x: 0, y: 72, scale: 1, height: 364 });
     const phone = panoramaFit(390);
     expect(phone.scale).toBe(0.62);
+    expect(phone.y).toBe(45);
+    expect(phone.height).toBeCloseTo(292 * 0.62 + 45);
     expect(phone.x).toBeCloseTo((390 - 1440 * 0.62) / 2);
   });
 });
@@ -59,6 +61,23 @@ describe('homepage sections', () => {
     expect(scene).not.toMatch(/#[0-9a-f]{6}\b|\u2014/i);
     const css = readFileSync(join(ROOT, 'apps/docs-site/src/styles/home-hero.css'), 'utf8');
     expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s+\.hp-hxsv \.hp-fa \{\s+animation: none;/);
+  });
+
+  it('closes on a DS profile card that is one link to LinkedIn, with the facts unchanged', () => {
+    expect(page).toContain('<HpConnectCard />');
+    const card = readFileSync(join(ROOT, 'apps/docs-site/src/components/home/HpConnectCard.tsx'), 'utf8');
+    expect(card).toContain("const NAME = 'Florian Gouloubi';");
+    expect(card).toContain("const ROLE = 'Senior Product Designer';");
+    expect(card).toContain("const LINKEDIN = 'https://www.linkedin.com/in/floriangouloubi/';");
+    expect(card).toMatch(/<Card interactive/);
+    expect(card).toMatch(/<Avatar name=\{NAME\} size="lg" decorative \/>/);
+    // One interactive element: the Connect link, stretched over the card; its name starts with its visible text.
+    expect(card.match(/<ButtonLink\b/g)).toHaveLength(1);
+    expect(card).not.toMatch(/<(a|button|Button|Link)\b/);
+    expect(card).toContain('data-card-primary');
+    expect(card).toContain('aria-label={`Connect on LinkedIn with ${NAME} (opens in a new tab)`}');
+    expect(card).toMatch(/>\s+Connect on LinkedIn\s+</);
+    expect(card).not.toMatch(/\u2014/);
   });
 
   it('starts in Bridge, then ships, then the system everyone can trust', () => {

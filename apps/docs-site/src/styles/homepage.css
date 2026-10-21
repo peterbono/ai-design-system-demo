@@ -597,28 +597,6 @@
   background-color: var(--_paper);
 }
 
-/* A person's name and role (the closing card). */
-.hp-pt {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  min-width: 0;
-}
-
-.hp-pt strong {
-  font-size: var(--font-size-300);
-  font-weight: var(--font-weight-semibold);
-  line-height: var(--font-leading-20);
-  white-space: nowrap;
-}
-
-.hp-pt small {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-200);
-  line-height: var(--font-leading-20);
-  white-space: nowrap;
-}
-
 /* A panel's drawing, centred in its column. */
 .hp-sc {
   position: relative;
@@ -1691,33 +1669,75 @@
   height: 100%;
 }
 
-.hp-fgcard {
+/*
+ * The profile card the pair carries (components/home/HpConnectCard.tsx): a DS Card, interactive, laid out at its real
+ * size (padding, avatar, type and control from the scales), then scaled into the drawing. It rests on the four raised
+ * hands: centred on the pair, its bottom edge a hair below the hands (the walkers' arms end at 3.7 drawing px), so
+ * the hands grip the lower edge. It is drawn at 92% (was 80% of a smaller plate): about 20% wider than before.
+ */
+.hp-walk .hp-fgcard {
+  --_scale: 0.92;
+
   position: absolute;
-  left: calc(var(--_u) * -43);
-  top: calc(var(--_u) * -64);
+  left: 50%;
+  bottom: calc(100% - var(--_u) * 6.4);
   box-sizing: border-box;
+  gap: var(--space-3);
+  width: var(--size-64);
+  padding: var(--space-4);
+  border-color: var(--color-border-emphasis);
+  box-shadow: var(--elevation-raised);
+  text-align: left;
+  translate: -50% 0;
+  scale: var(--_scale);
+  transform-origin: 50% 100%;
+}
+
+/* The lift reads at the scene's size: the overlay shadow, and the edge firms up (the Card's own hover). */
+@media (hover: hover) {
+  .hp-walk .hp-fgcard:hover {
+    box-shadow: var(--elevation-overlay);
+  }
+}
+
+/* Avatar and the name it belongs to on one line; the avatar is as tall as the two lines of text. */
+.hp-fg-id {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  width: calc(var(--_u) * 248);
-  height: calc(var(--_u) * 88);
-  padding: 0 var(--space-4);
-  border: var(--border-width-default) solid var(--color-text-default);
-  border-radius: var(--radius-xl);
-  background-color: var(--_paper);
-  box-shadow: var(--elevation-raised);
-  text-align: left;
-  transform: scale(0.8);
-  transform-origin: 0 0;
+  min-width: 0;
 }
 
-.hp-av-lg {
-  width: var(--size-11);
-  height: var(--size-11);
+.hp-pt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
+  min-width: 0;
 }
 
-a.hp-connect {
-  margin-top: var(--space-1);
+.hp-pt strong {
+  color: var(--color-text-default);
+  font-size: var(--font-size-300);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--font-leading-20);
+  white-space: nowrap;
+}
+
+.hp-pt small {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-200);
+  line-height: var(--font-leading-16);
+  white-space: nowrap;
+}
+
+/*
+ * The action fills the card's width (fullWidth), below what it acts on. It is the card's one link: static so its stretched hit
+ * area (the Card's data-card-primary layer) covers the whole plate, and hovering anywhere on the card is hovering it,
+ * so its own hover fill shows. It keeps the secondary button's text color.
+ */
+.hp-walk a.hp-connect {
+  position: static;
+  color: var(--button-secondary-text);
 }
 
 /* ---------- reduced motion: everything rests ---------- */
