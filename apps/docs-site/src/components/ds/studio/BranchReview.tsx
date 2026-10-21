@@ -159,7 +159,7 @@ export interface BranchReviewProps {
 // ---------------------------------------------------------------------------------------------------------------
 
 /** Who asks, who wrote: their photo, else their drawn face (seeded by login), and Claude as Claude (faces.tsx). */
-function Face({ person, size = 'sm' }: { person: PersonRef | null; size?: 'xs' | 'sm' | 'md' }) {
+export function Face({ person, size = 'sm' }: { person: PersonRef | null; size?: 'xs' | 'sm' | 'md' }) {
   if (!person) return null;
   const avatarUrl = person.avatarUrl ? `${person.avatarUrl}${person.avatarUrl.includes('?') ? '&' : '?'}s=64` : null;
   return <Who p={person.agent ? { login: 'claude', name: 'Claude AI', agent: true } : { ...person, avatarUrl }} size={size} className="br-face" />;
@@ -340,7 +340,7 @@ function GuidanceBody({ view, canEdit, onSave }: { view: GuidanceView; canEdit: 
 
 const TOKEN_LIMIT = 6;
 
-function Sample({ v }: { v: ShownValue | null }) {
+export function Sample({ v }: { v: ShownValue | null }) {
   if (!v?.css) return <span className="br-sample is-none" aria-hidden="true" />;
   if (v.hex) return <span className="br-sample" aria-hidden="true" style={{ backgroundColor: v.hex }} />;
   const px = /^(-?\d+(?:\.\d+)?)px$/.exec(v.css);
@@ -358,7 +358,8 @@ function themesLine(contexts: string[]): string {
   return /^(light|dark)$/i.test(contexts[0]!) ? `${cap(contexts[0]!)} theme only` : `${cap(contexts[0]!)} only`;
 }
 
-function TokenRows({ rows }: { rows: TokenRowView[] }) {
+/** The token rows of a review: name, before, arrow, after, modes (also the suggestion review, SuggestionReview). */
+export function TokenRows({ rows }: { rows: TokenRowView[] }) {
   const [all, setAll] = useState(false);
   const shown = all ? rows : rows.slice(0, TOKEN_LIMIT);
   return (

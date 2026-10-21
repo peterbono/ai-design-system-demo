@@ -1,6 +1,6 @@
 ---
 // Library, Use: How review works. The governance prose that used to sit in Studio Settings: risk tiers at rest,
-// then collapsible sections (the journey of a change, component change requests, explorations, review gates, owner override, approvals by area, the AI
+// then collapsible sections (the journey of a change, component change requests, suggestions, explorations, review gates, owner override, approvals by area, the AI
 // agent's rules, what reviewers check on an agent's pull request). Read from docs/GOVERNANCE.md and AGENTS.md so
 // the page never drifts from the rules people and agents follow.
 import '../styles/library.css';
@@ -49,6 +49,11 @@ const requestSteps: { title: string; text: string }[] = [
   { title: 'Implement', text: 'A developer, or Claude with `bridge request implement <number>` or the `bridge_get_request` MCP tool, changes the code in a pull request that says `Closes #<number>`.' },
   { title: 'Review and merge', text: 'The pull request goes through the same tiers and gates as any other change. When it merges, the request closes as done.' },
 ];
+const suggestionSteps: { title: string; text: string }[] = [
+  { title: 'Suggest', text: 'When the team works in suggestion mode, a designer sends the change from Studio, the Figma plugin or Claude. It becomes a GitHub issue labeled `bridge-suggestion`: what changes, its checks, and a machine-readable block a developer applies. Nobody needs write access to the code.' },
+  { title: 'Review', text: 'Owners decide in Studio (Branches and the review queue) or on GitHub: Approve, Suggest changes or Decline. Only owners listed in `bridge.config.json` count, and an approval counts for the version they saw: when the suggestion changes, earlier approvals stop counting and Studio says so.' },
+  { title: 'Apply', text: 'A developer runs `npx bridge apply <number>` or asks Claude to "Apply Bridge suggestion #<number>". Bridge checks it again against main as it is now and stops on a conflict. The pull request says `Closes #<number>` and goes through the same tiers and gates.' },
+];
 const exploreSteps: { title: string; text: string }[] = [
   { title: 'Start', text: 'From Studio Branches, Explorations, `bridge explore start <name>` or Claude (`bridge_start_exploration`): a branch `explore/<name>` from main and a draft pull request labeled `exploration`. Token edits and requests filed on it land there, never on main.' },
   { title: 'Try it in a product staging branch', text: 'Every push publishes snapshot packages (`npm i @bridge-ds/react@<snapshot>`) and per-branch previews: a coded prototype for a user test, a stakeholder demo or an A/B idea on real screens.' },
@@ -90,6 +95,24 @@ const allowed = r.override.allowed.map((l) => `@${l}`).join(', ');
       <ol class="rw-steps">
         {
           requestSteps.map((s) => (
+            <li>
+              <p class="rw-step-title">{s.title}</p>
+              <p set:html={inline(s.text)} />
+            </li>
+          ))
+        }
+      </ol>
+    </details>
+
+    <details class="rw-sec" id="suggestions">
+      <summary><h2>Suggestions</h2><span class="rw-n">3 steps</span></summary>
+      <p>
+        A suggestion is a change filed as an issue instead of a branch, for teams where designers do not write to the code. The tier decides who approves it, as for a branch.
+        Follow them in GitHub by the <code>bridge-suggestion</code> label; Studio lists the ones that wait on you on Home and in the review queue.
+      </p>
+      <ol class="rw-steps">
+        {
+          suggestionSteps.map((s) => (
             <li>
               <p class="rw-step-title">{s.title}</p>
               <p set:html={inline(s.text)} />

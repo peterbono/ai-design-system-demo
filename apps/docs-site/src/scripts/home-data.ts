@@ -1,11 +1,13 @@
 // What the Studio home and the review queue read from GitHub, in one place, so both show the same rows. Reads the
-// open branches once, their statuses (scripts/pr-status, the same rules as the change detail), then for the rows that
+// open branches once, the suggestions that wait on the viewer (scripts/suggestions.ts, the same list the nav badge
+// counts), their statuses (scripts/pr-status, the same rules as the change detail), then for the rows that
 // wait on the viewer who asked and since when (the timeline), the display names (GET /users), and for what is shown
 // the before/after (the token diff, else the visual impact run). Paints progressively through `onUpdate`. The rules
 // are pure in lib/home-model.ts and lib/branch-thumb.ts.
 import { currentViewer, ghGet, hasWorkingToken, readRepo, RateLimitError } from './github-session';
 import { loadStatuses, owners, type PullStatus } from './pr-status';
 import { loadTeams } from './teams';
+import { loadSuggestionNeeds } from './suggestions';
 import { siteOwners, todoChange, type QueuePullFull } from './needs-you';
 import { reviewQueue } from '../lib/review-queue';
 import { byUrgency } from '../lib/changes';
@@ -180,6 +182,11 @@ export async function loadHome(stat: HomeStatic, onUpdate: (d: HomeData) => void
     return;
   }
   await loadTeams();
+  // Suggestions wait next to branches: read in parallel, painted when they land.
+  let suggestions: NeedRow[] = [];
+  const suggestionsRead = loadSuggestionNeeds(personOf)
+    .then((rows) => (suggestions = rows))
+    .catch(() => (suggestions = []));
   const queue = reviewQueue(pulls);
   const statuses = new Map<number, PullStatus | null>(queue.map((p) => [p.number, null]));
   const timelines = new Map<number, TimelineEvent[] | null>();
@@ -249,14 +256,18 @@ export async function loadHome(stat: HomeStatic, onUpdate: (d: HomeData) => void
         const stage = c.lifecycle === 'waiting' ? 'waiting' : p.draft || c.lifecycle === 'draft' ? 'draft' : 'ready';
         return { number: p.number, title: c.title, href: `/studio/changes/?pr=${p.number}`, stage, updated: p.updated_at, reviewer: pick(reviewerLogin(p, st)), thumb: resolved.get(p.number) ?? { kind: 'icon', icon: 'branch' } };
       });
+    needs.push(...suggestions);
     const sorted = sortNeeds(needs);
     onUpdate({ viewer, loading, settled, failed: null, needs: sorted, branches, decisions: sorted.filter((r) => r.kind === 'review').length });
   };
 
   paint();
-  await loadStatuses(queue, (p, st) => {
-    statuses.set(p.number, st);
-  });
+  await Promise.all([
+    loadStatuses(queue, (p, st) => {
+      statuses.set(p.number, st);
+    }),
+    suggestionsRead,
+  ]);
   loading = false;
   paint();
 

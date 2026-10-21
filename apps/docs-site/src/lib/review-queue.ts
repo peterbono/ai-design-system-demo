@@ -1,4 +1,4 @@
-// The review queue: which open pull requests wait for a review, and the words a designer reads about them. One
+// The review queue: which open pull requests and suggestions wait for a review, and the words a designer reads about them. One
 // source for every count in the Studio (Overview hero, the nav badge, the In review tab and History), so they never
 // disagree. Pure: no DOM, no fetch. Unit tested in review-queue.test.ts.
 //
@@ -37,9 +37,15 @@ export function approvalNeedLong(tier: Tier | null | undefined): string {
 // ---------------------------------------------------------------------------------------------------------------
 // The queue in one or two sentences (Overview hero)
 
-type Bucket = 'design' | 'tech' | 'approval' | 'ready' | 'author' | 'developer' | 'draft' | 'checking';
+type Bucket = 'design' | 'tech' | 'approval' | 'ready' | 'apply' | 'applying' | 'author' | 'developer' | 'draft' | 'checking';
 
-const BUCKET: Partial<Record<ReviewStatusKind, Bucket>> = {
+/**
+ * What the queue counts: a branch by its review status, a suggestion by lib/suggestions-view suggestionQueueKind (the
+ * same approval buckets, plus "ready to apply" and "being applied", the two steps a branch does not have).
+ */
+export type QueueKind = ReviewStatusKind | 'ready-to-apply' | 'applying';
+
+const BUCKET: Partial<Record<QueueKind, Bucket>> = {
   'needs-design': 'design',
   'needs-tech': 'tech',
   'needs-approval': 'approval',
@@ -48,15 +54,19 @@ const BUCKET: Partial<Record<ReviewStatusKind, Bucket>> = {
   'ci-failing': 'developer',
   conflict: 'developer',
   draft: 'draft',
+  'ready-to-apply': 'apply',
+  applying: 'applying',
 };
 
-const ORDER: Bucket[] = ['design', 'tech', 'approval', 'ready', 'author', 'developer', 'draft', 'checking'];
+const ORDER: Bucket[] = ['design', 'tech', 'approval', 'ready', 'apply', 'applying', 'author', 'developer', 'draft', 'checking'];
 
 const VERB: Record<Bucket, [one: string, many: string]> = {
   design: ['waits for design approval', 'wait for design approval'],
   tech: ['waits for tech approval', 'wait for tech approval'],
   approval: ['waits for one approval', 'wait for one approval'],
   ready: ['is ready to merge', 'are ready to merge'],
+  apply: ['is approved and ready to apply', 'are approved and ready to apply'],
+  applying: ['is being applied by a developer', 'are being applied by a developer'],
   author: ['waits for its author to answer a review', 'wait for their authors to answer a review'],
   developer: ['is blocked on the developer side', 'are blocked on the developer side'],
   draft: ['is still a draft', 'are still drafts'],
@@ -64,7 +74,7 @@ const VERB: Record<Bucket, [one: string, many: string]> = {
 };
 
 /** How many changes sit in each state, from their status kinds (null: not read yet). */
-export function queueBuckets(kinds: (ReviewStatusKind | null | undefined)[]): { bucket: Bucket; n: number }[] {
+export function queueBuckets(kinds: (QueueKind | null | undefined)[]): { bucket: Bucket; n: number }[] {
   const counts = new Map<Bucket, number>();
   for (const k of kinds) {
     const b = (k && BUCKET[k]) || 'checking';
@@ -77,7 +87,7 @@ export function queueBuckets(kinds: (ReviewStatusKind | null | undefined)[]): { 
  * "3 branches wait for design approval. 1 is blocked on the developer side." The first sentence names the noun,
  * the next ones only the count. At most three sentences; the rest folds into the last one ("2 more are ...").
  */
-export function queueSentence(kinds: (ReviewStatusKind | null | undefined)[]): string {
+export function queueSentence(kinds: (QueueKind | null | undefined)[]): string {
   if (!kinds.length) return 'Nothing waits for a review.';
   const parts = queueBuckets(kinds);
   const shown = parts.length > 3 ? parts.slice(0, 2) : parts;

@@ -53,8 +53,8 @@ export function afterApprove<T>(items: readonly T[], index: number): { items: T[
 
 // The list with outcomes: what the viewer did to each row here, and which rows show.
 
-/** What the viewer did to a row in this visit. Approved and suggested rows stay listed, marked. */
-export type QueueOutcome = 'approved' | 'suggested' | 'asked';
+/** What the viewer did to a row in this visit. Approved and suggested rows stay listed, marked. Declined: a suggestion. */
+export type QueueOutcome = 'approved' | 'suggested' | 'asked' | 'declined';
 
 /** How many rows to do show after the current one before "and N more". */
 export const QUEUE_AHEAD = 3;
@@ -70,7 +70,8 @@ export function queueWindow(length: number, index: number, min = 5): { end: numb
 
 /** "Approved Darker default background", the toast after a decision. */
 export function outcomeLine(outcome: QueueOutcome, title: string): string {
-  return `${outcome === 'approved' ? 'Approved' : outcome === 'suggested' ? 'Suggested changes on' : 'Asked someone else to review'} ${title}`;
+  const verb = { approved: 'Approved', suggested: 'Suggested changes on', asked: 'Asked someone else to review', declined: 'Declined' }[outcome];
+  return `${verb} ${title}`;
 }
 
 /** Where the queue goes after a decision: the next row without an outcome after `index`, else before it; null when done. */

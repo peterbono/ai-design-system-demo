@@ -1,13 +1,15 @@
 // Studio Branches page controller: the list (every branch, explorations included), the views the header and old
 // addresses reach (History ?view=history, the exploration start form ?view=explorations&start=new or &for=N, Requests
 // ?view=requests when request triage is on in Studio, lib/studio-flags), a branch opened in place (?pr=N), a component
-// change request opened in place (?request=N), the local draft strip, and the routes old pages redirect to
+// change request opened in place (?request=N), a suggestion opened in place (?suggestion=N, scripts/suggestions.ts),
+// the local draft strip, and the routes old pages redirect to
 // (#other-branches, ?branch=). The header names the view: "Branches" with a History link, or the view's own name with
 // a link back to all branches.
 import { initWorkFilter } from './work-filter';
 import { closePr, initReviewAuth, loadList, openPr } from './reviews';
 import { initHistory } from './history/page';
 import { initRequests, loadRequests, openRequest } from './requests';
+import { closeSuggestion, onViewerChange, openSuggestion } from './suggestions';
 import { initExplorations, loadExplorations, openExploration, paintExplorationCount, startForRequest } from './explorations';
 import type { ExplorationPullLike } from '../lib/explorations-view';
 import type { PullLike } from '../lib/requests-view';
@@ -92,8 +94,22 @@ function paintDestination(edits: number) {
   });
 }
 
+/** The suggestion review host (pages/studio/changes.astro), beside #rv-detail. */
+const sgHost = () => document.getElementById('sg-detail');
+
+/** Opens suggestion `n` in place, with the way back to all branches. */
+function showSuggestion(n: number, push: boolean) {
+  closePr();
+  $('cg-main').hidden = true;
+  if (push) history.pushState({ suggestion: n }, '', `?suggestion=${n}`);
+  window.scrollTo({ top: 0 });
+  const el = sgHost();
+  if (el) void openSuggestion(n, { el, crumbs: [{ label: 'Branches', href: '/studio/changes/' }, { label: `Suggestion #${n}` }] });
+}
+
 function showView(view: View) {
   closePr();
+  closeSuggestion(sgHost());
   $('cg-main').hidden = false;
   selectTab(view);
   if (view === 'history') initHistory();
@@ -105,6 +121,12 @@ function showView(view: View) {
 
 function route() {
   const params = new URLSearchParams(location.search);
+  const sg = Number(params.get('suggestion'));
+  if (sg) {
+    showSuggestion(sg, false);
+    return;
+  }
+  closeSuggestion(sgHost());
   const n = Number(params.get('pr'));
   if (n) {
     $('cg-main').hidden = true;
@@ -174,13 +196,21 @@ export function initChanges() {
     const pr = t.closest<HTMLAnchorElement>('[data-open-pr]');
     if (pr) {
       e.preventDefault();
+      closeSuggestion(sgHost());
       $('cg-main').hidden = true;
       void openPr(Number(pr.dataset.openPr));
+      return;
+    }
+    const sg = t.closest<HTMLAnchorElement>('[data-open-suggestion]');
+    if (sg) {
+      e.preventDefault();
+      showSuggestion(Number(sg.dataset.openSuggestion), true);
       return;
     }
     const rq = t.closest<HTMLAnchorElement>('[data-open-request]');
     if (rq) {
       e.preventDefault();
+      closeSuggestion(sgHost());
       $('cg-main').hidden = true;
       void openRequest(Number(rq.dataset.openRequest), true, openPullsForRequests());
       return;
@@ -196,6 +226,7 @@ export function initChanges() {
     const ex = t.closest<HTMLAnchorElement>('[data-open-exploration]');
     if (ex) {
       e.preventDefault();
+      closeSuggestion(sgHost());
       $('cg-main').hidden = true;
       void openExploration(Number(ex.dataset.openExploration));
       return;
@@ -222,6 +253,11 @@ export function initChanges() {
   });
 
   window.addEventListener('popstate', route);
+  // What the viewer may do on a suggestion depends on who is connected.
+  onViewerChange(() => {
+    const sg = Number(new URLSearchParams(location.search).get('suggestion'));
+    if (sg) showSuggestion(sg, false);
+  });
   route();
   paintDraft();
 }

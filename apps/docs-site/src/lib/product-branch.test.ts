@@ -78,6 +78,8 @@ describe('rows', () => {
     // Promoted to review: it opens as a branch in review.
     expect(libraryHref({ kind: 'exploration', number: 4 }, { key: 'in-review' })).toBe('?pr=4');
     expect(libraryHref({ kind: 'request', number: 101 })).toBe('?request=101');
+    expect(libraryHref({ kind: 'suggestion', number: 42 })).toBe('?suggestion=42');
+    expect(libraryHref({ kind: 'suggestion', number: 42 }, { key: 'in-review' })).toBe('?suggestion=42');
   });
 
   it('status lines name people and the right verb', () => {

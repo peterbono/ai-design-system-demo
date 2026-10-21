@@ -28,11 +28,15 @@ export function isProductBranch(labels: readonly (string | { name?: string })[] 
   return p.key === defaultProduct(products).key ? null : p;
 }
 
-export type OpensAs = 'pr' | 'exploration' | 'request';
+export type OpensAs = 'pr' | 'exploration' | 'request' | 'suggestion';
 
-/** How a library branch opens in Studio: a branch in review (a promoted exploration too), an exploration, a request. */
+/**
+ * How a library branch opens in Studio: a branch in review (a promoted exploration too), an exploration, a request,
+ * a suggestion (an issue a developer applies, ?suggestion=N).
+ */
 export function opensAs(link: Pick<LibraryLink, 'kind'>, status?: Pick<LinkStatus, 'key'> | null): OpensAs {
   if (link.kind === 'request') return 'request';
+  if (link.kind === 'suggestion') return 'suggestion';
   if (link.kind === 'exploration' && (!status || status.key === 'exploring')) return 'exploration';
   return 'pr';
 }
@@ -123,7 +127,7 @@ export function productCrumbs(product: string, jira: string | null, title: strin
 export function developerLines(input: { number: number; branch: string; links: Pick<LibraryLink, 'kind' | 'number' | 'branch'>[] }): { label: string; value: string }[] {
   return [
     { label: 'Product branch', value: `${input.branch} (#${input.number})` },
-    ...input.links.map((l) => ({ label: l.kind === 'request' ? 'Library request' : 'Library branch', value: l.branch ? `${l.branch} (#${l.number})` : `#${l.number}` })),
+    ...input.links.map((l) => ({ label: l.kind === 'request' ? 'Library request' : l.kind === 'suggestion' ? 'Library suggestion' : 'Library branch', value: l.branch ? `${l.branch} (#${l.number})` : `#${l.number}` })),
     { label: 'Check it again', value: `bridge pieces ${input.number} --record` },
     { label: 'With Claude', value: `bridge_missing_pieces { pr: ${input.number}, record: true }` },
   ];
