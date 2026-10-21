@@ -14,6 +14,8 @@ import { type ProposalValidation, type TypeChange, shadowedEdits, validatePropos
 import { CONTRAST_CHECKS_FILE, type ContrastPair, parseContrastChecks } from '@bridge-ds/core';
 import { aliasTarget, isAlias } from '@bridge-ds/core';
 import { type Issue, type NewBrandPlan, composeNewBrandBody, newBrandSection, planNewBrand, slugify } from '@bridge-ds/core';
+import { type ChangesMode, type SuggestionPayloadV1, type TokenEdit, SUGGESTION_SCHEMA, changesMode, createSuggestionOnGitHub, gitBlobSha, planTokenProposal, suggestTokenProposalOnGitHub } from '@bridge-ds/core';
+import { libraryTokens } from './component-push';
 
 export interface Analysis {
   settings: RepoSettings;
@@ -481,3 +483,152 @@ export function buildPull(a: Analysis, choices: Map<string, ConflictChoice>, opt
   });
   return { plan, skipped, kept, restored, unresolvedConflicts };
 }
+
+// ---------------------------------------------------------------------------------------------
+// Push as a suggestion ("changes": "suggest" in bridge.config.json, the default): the checked variable edits become a
+// token suggestion (an issue holding the exact edits, owners approve, a developer applies), new brands a brand
+// suggestion. Issues write only: no branch, no commit, no pull request.
+
+/**
+ * How this repo takes changes: bridge.config.json "changes" (absent: "suggest"). A repo with no bridge.config.json
+ * stays "direct": a suggestion is applied against the config, so there would be nothing to apply it with.
+ */
+export function changesModeOf(a: Pick<Analysis, 'headFiles'>): ChangesMode {
+  return a.headFiles.config ? changesMode(a.headFiles.config) : 'direct';
+}
+
+const same = (x: unknown, y: unknown) => JSON.stringify(x) === JSON.stringify(y);
+
+/**
+ * The checked variable edits as semantic token edits (set, add, remove, rename per token file), what a suggestion
+ * stores and a developer re-applies on the current tokens. Pure.
+ */
+export function tokenEditsOf(changes: AcceptedChange[]): TokenEdit[] {
+  const out: TokenEdit[] = [];
+  for (const { target, current } of changes) {
+    if (!target && current) {
+      for (const file of new Set(Object.values(current.files))) out.push({ op: 'remove', path: current.path, file });
+      continue;
+    }
+    if (!target) continue;
+    if (!current) {
+      const byFile = new Map<string, string>();
+      for (const m of Object.keys(target.values)) byFile.set(target.files[m] ?? '', m);
+      for (const [file, m] of byFile) out.push({ op: 'add', path: target.path, value: target.values[m], type: target.type, ...(target.description ? { description: target.description } : {}), ...(file ? { file } : {}) });
+      continue;
+    }
+    if (current.path !== target.path) out.push({ op: 'rename', path: current.path, newPath: target.path });
+    const described = (target.description ?? '') !== (current.description ?? '');
+    const typed = target.type !== current.type;
+    const done = new Set<string>();
+    for (const m of Object.keys(target.values)) {
+      const file = current.files[m] ?? target.files[m];
+      if (!file || done.has(file)) continue;
+      const known = Object.values(current.files).includes(file);
+      if (!known) {
+        done.add(file);
+        out.push({ op: 'add', path: target.path, value: target.values[m], type: target.type, ...(target.description ? { description: target.description } : {}), file });
+        continue;
+      }
+      if (!same(target.values[m], current.values[m]) || described || typed) {
+        done.add(file);
+        out.push({ op: 'set', path: target.path, value: target.values[m], ...(typed ? { type: target.type } : {}), ...(described ? { description: target.description ?? '' } : {}), file });
+      }
+    }
+    for (const [m, file] of Object.entries(current.files)) if (!(m in target.values) && !done.has(file)) out.push({ op: 'remove', path: target.path, file });
+  }
+  return out;
+}
+
+export interface SuggestOptions {
+  title: string;
+  notes: string;
+  fileName: string;
+  fileKey?: string | undefined;
+  /** GitHub login of the designer. */
+  suggestedBy?: string | undefined;
+  now?: Date | undefined;
+}
+
+export interface SentSuggestion {
+  kind: 'token-change' | 'brand';
+  number: number;
+  url: string;
+  title: string;
+}
+
+export interface SuggestResult {
+  suggestions: SentSuggestion[];
+  /** Plugin data to store on variables so the next diff matches them by id. */
+  tags: VariableTag[];
+}
+
+function variableTags(a: Analysis, p: PushProposal): VariableTag[] {
+  const tags: VariableTag[] = [];
+  for (const c of p.changes) {
+    if (!c.target) continue;
+    for (const variableId of a.figma.variableIds.get(c.target.id) ?? []) {
+      tags.push({ variableId, pluginData: { id: c.target.id, dtcgType: c.target.type, file: isMultiMode(c.target.tier) ? undefined : c.target.files[SINGLE_MODE] } });
+    }
+  }
+  return tags;
+}
+
+/** The Figma file, for a suggestion's links (no node: variables live in the file, not on a node). */
+const fileLink = (opts: Pick<SuggestOptions, 'fileKey'>) => (opts.fileKey ? { figma: { fileKey: opts.fileKey, url: `https://www.figma.com/design/${opts.fileKey}/` } } : undefined);
+
+/** The checked variable edits as a token suggestion, and each included new brand as a brand suggestion. */
+export async function sendSuggestion(client: GitHubClient, a: Analysis, p: PushProposal, opts: SuggestOptions): Promise<SuggestResult> {
+  if (p.unresolvedConflicts.length) throw new Error('Resolve every conflict before you send a suggestion.');
+  if (p.validation.blocking.length) throw new Error('Fix the blocking problems before you send a suggestion.');
+  if (!Object.keys(p.files).length && !p.brandFiles.length) throw new Error('Nothing to send: the Figma variables match main.');
+  const lib = libraryTokens(a.headFiles);
+  if (!lib) throw new Error('This repo has no bridge.config.json, so DS Bridge cannot send a suggestion. Add the config (bridge init).');
+  const plans = p.brands.flatMap((b) => (b.plan ? [b.plan] : []));
+  const title = opts.title.trim() || (p.changes.length ? defaultTitle(p.changes) : plans.map((x) => x.title).join(', '));
+  const origin = `Sent from Figma (${opts.fileName || 'a Figma file'}) with the DS Bridge plugin. A human designer set these values; no AI involved.`;
+  const out: SentSuggestion[] = [];
+  if (p.changes.length) {
+    const plan = planTokenProposal({ before: lib.before, pairs: a.pairs, edits: tokenEditsOf(p.changes), title, summary: opts.notes, config: lib.config, tool: 'the DS Bridge Figma plugin', bodyExtra: [origin] });
+    if (plan) {
+      const links = fileLink(opts);
+      const r = await suggestTokenProposalOnGitHub(client, plan, { base: a.settings.branch, baseSha: a.headSha, source: 'figma', suggestedBy: opts.suggestedBy, labelsAfter: ['source: figma'], ...(links ? { links } : {}) });
+      out.push({ kind: 'token-change', number: r.number, url: r.url, title });
+    }
+  }
+  for (const plan of plans) {
+    const files = brandFilesOf(a, p, plan);
+    const links = fileLink(opts);
+    const payload: SuggestionPayloadV1 = {
+      schema: SUGGESTION_SCHEMA,
+      kind: 'brand',
+      title: plan.title,
+      summary: opts.notes.trim() || `New brand ${plan.name} (${plan.slug}) from a Figma Brand mode.`,
+      source: 'figma',
+      ...(opts.suggestedBy ? { suggestedBy: opts.suggestedBy.replace(/^@/, '') } : {}),
+      createdAt: (opts.now ?? new Date()).toISOString(),
+      base: { ref: a.settings.branch, sha: a.headSha },
+      tier: { tier: 3, bump: 'minor' },
+      files,
+      checks: { newErrors: plan.issues.filter((i) => i.level === 'error').length, contrast: [], blocked: null, impact: 0 },
+      ...(links ? { links } : {}),
+    };
+    const r = await createSuggestionOnGitHub(client, payload, { labels: ['tokens'], details: newBrandSection(plan) });
+    out.push({ kind: 'brand', number: r.number, url: r.url, title: plan.title });
+  }
+  if (!out.length) throw new Error('Nothing to send: the Figma variables match main.');
+  return { suggestions: out, tags: variableTags(a, p) };
+}
+
+/** The whole files of one new brand, with the git blob sha of each file on main (null: a new file). */
+function brandFilesOf(a: Analysis, p: PushProposal, plan: NewBrandPlan): SuggestionPayloadV1['files'] {
+  const prefix = `${a.headFiles.tokensPath}/`;
+  const mine = new Set(plan.files.map((f) => f.path));
+  return p.brandFiles
+    .filter((f) => mine.has(f.path))
+    .map((f) => {
+      const before = f.path === 'bridge.config.json' ? a.headFiles.configText : f.path.startsWith(prefix) ? a.headFiles.files[f.path.slice(prefix.length)] : undefined;
+      return { path: f.path, beforeSha: before === undefined ? null : gitBlobSha(before), afterSha: gitBlobSha(f.content), content: f.content };
+    });
+}
+
