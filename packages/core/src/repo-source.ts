@@ -61,16 +61,30 @@ export function memorySource(files: Record<string, string>, ref: Partial<RepoSou
 
 /**
  * Reads many files with a few requests in flight (4 by default, like loadRepoFiles), keyed by the path asked for.
- * A missing file maps to null.
+ * A missing file maps to null. `onError` decides about a read that throws: return null to skip the file, or throw
+ * (the default) to fail the whole read.
  */
-export async function readRepoTexts(source: RepoSource, paths: string[], concurrency = 4): Promise<Map<string, string | null>> {
+export async function readRepoTexts(
+  source: RepoSource,
+  paths: string[],
+  concurrency = 4,
+  onError: (path: string, err: unknown) => null = (_path, err) => {
+    throw err;
+  },
+): Promise<Map<string, string | null>> {
   const unique = [...new Set(paths)];
   const out = new Map<string, string | null>();
   let next = 0;
   const worker = async () => {
     while (next < unique.length) {
       const path = unique[next++]!;
-      out.set(path, await source.text(path));
+      let body: string | null;
+      try {
+        body = await source.text(path);
+      } catch (err) {
+        body = onError(path, err);
+      }
+      out.set(path, body);
     }
   };
   await Promise.all(Array.from({ length: Math.max(1, Math.min(concurrency, unique.length)) }, worker));

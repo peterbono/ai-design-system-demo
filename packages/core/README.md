@@ -306,11 +306,13 @@ Everything the docs site and Studio read from a design system repo, from one `Re
 checkout) and the browser (any team's repo on GitHub) run the same code. `bridge.config.json` is parsed once; every
 folder comes from it (`tokens.root` and tier folders, `contrast.path`, `components.dir|index|specs`,
 `tokens.usage`), with this repo's former paths as defaults (`REPO_MODEL_DEFAULTS`). Repo content never throws: a bad
-config, docs.json or alias lands in `problems`.
+config, docs.json or alias, or a file the source refuses as too large (413), lands in `problems`; a rate limit or
+network error still throws so the caller can retry.
 
 ```ts
 interface RepoSource { ref: { owner; repo; sha }; list(prefix?): Promise<string[]>; text(path): Promise<string | null> }
-memorySource(files, ref?); readRepoTexts(source, paths, concurrency?);   // fsSource(root, ref?) in @bridge-ds/core/node
+memorySource(files, ref?); readRepoTexts(source, paths, concurrency?, onError?);   // fsSource(root, ref?) in @bridge-ds/core/node
+// gitHubSource(client, sha, opts?) (repo-source-github.ts) is the same RepoSource over GitHub; every list() is sorted.
 loadRepoModel(source, { components?, href?, concurrency? }): Promise<RepoModel>;
 // RepoModel: { ref, configText, config, site: SiteRepo, problems, tokens: { root, files, rows, usage },
 //              contrast: { path, specs, pairs }, components: { dir, index, families, list } | null, specs: { path, file, coverage } }

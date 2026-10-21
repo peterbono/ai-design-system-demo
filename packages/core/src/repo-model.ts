@@ -165,10 +165,18 @@ const emptyRows = (config: BridgeConfig): TokenRows => ({ ...tokenRowAxes(config
 /** Reads a repo through `source` and computes its model. Never throws on repo content: see `problems`. */
 export async function loadRepoModel(source: RepoSource, options: RepoModelOptions = {}): Promise<RepoModel> {
   const concurrency = options.concurrency ?? 8;
+  const problems: string[] = [];
+  // A file the source refuses as too large (status 413) is a problem of the repo, not a failure of the read.
+  // Anything else (rate limit, network) still throws, so the caller can retry.
+  const tooLarge = (path: string, err: unknown): null => {
+    if ((err as { status?: unknown } | null)?.status !== 413) throw err;
+    problems.push(`${path}: ${(err as Error).message}`);
+    return null;
+  };
   const configText = await source.text(CONFIG_FILE);
   const parsed = parseModelConfig(configText);
   const { config } = parsed;
-  const problems = [...parsed.problems];
+  problems.push(...parsed.problems);
   const fallbackRepo = source.ref.owner && source.ref.repo ? { owner: source.ref.owner, repo: source.ref.repo, defaultBranch: REPO_MODEL_DEFAULTS.repo.defaultBranch } : REPO_MODEL_DEFAULTS.repo;
   const site = siteRepoFromConfig(config, parsed.raw, fallbackRepo);
 
@@ -179,7 +187,7 @@ export async function loadRepoModel(source: RepoSource, options: RepoModelOption
   const contrastPath = config.contrast?.path;
   const usagePath = tokensPath(config, config.tokens.usage ?? REPO_MODEL_DEFAULTS.tokensUsage);
   const tokenPaths = tokenRel.map((f) => tokensPath(config, f));
-  const bodies = await readRepoTexts(source, [...tokenPaths, ...(contrastPath ? [contrastPath] : []), usagePath], concurrency);
+  const bodies = await readRepoTexts(source, [...tokenPaths, ...(contrastPath ? [contrastPath] : []), usagePath], concurrency, tooLarge);
   const read = (p: string) => bodies.get(p) ?? undefined;
   const files: Record<string, string> = {};
   tokenRel.forEach((rel, i) => {
@@ -237,7 +245,7 @@ export async function loadRepoModel(source: RepoSource, options: RepoModelOption
     });
     extra.push(...wanted, indexPath);
   }
-  const more = await readRepoTexts(source, extra, concurrency);
+  const more = await readRepoTexts(source, extra, concurrency, tooLarge);
   const readMore = (p: string) => more.get(p) ?? undefined;
   if (options.components !== false) {
     const indexText = readMore(indexPath);

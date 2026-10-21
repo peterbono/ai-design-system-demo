@@ -5,6 +5,9 @@ import { loadConfig, toConfigJson, ConfigError } from '../src/config';
 import { fsSource } from '../src/node/fs-source';
 import { loadRepoModel, REPO_MODEL_DEFAULTS, siteRepoFromConfig } from '../src/repo-model';
 import { memorySource, readRepoTexts } from '../src/repo-source';
+import { GitHubClient } from '../src/github-client';
+import { gitHubSource } from '../src/repo-source-github';
+import { fakeGitHub, noSleep } from './fake-github';
 
 const color = (hex: string) => ({ $type: 'color', $value: { colorSpace: 'srgb', components: [0, 0, 0].map((_, i) => parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16) / 255), hex } });
 const dim = (value: number) => ({ $type: 'dimension', $value: { value, unit: 'px' } });
@@ -155,7 +158,7 @@ test('tokens.usage is an optional config key, written back by toConfigJson', () 
   assert.throws(() => loadConfig({ tokens: { usages: 'x' } }), /not a known key/);
 });
 
-test('this repo: the model is the same whatever source serves the files', async () => {
+test('this repo: the model is the same through the local, memory and GitHub sources', async () => {
   const root = join(__dirname, '../../..');
   const fs = fsSource(root, { owner: 'peterbono', repo: 'ai-design-system-demo', sha: 'local' });
   const fromFs = await loadRepoModel(fs);
@@ -174,4 +177,22 @@ test('this repo: the model is the same whatever source serves the files', async 
   const files = Object.fromEntries([...bodies].filter((e): e is [string, string] => e[1] !== null));
   const fromMemory = await loadRepoModel(memorySource(files, fs.ref));
   assert.deepEqual(fromMemory, fromFs);
+
+  // The same bytes through the GitHub source (a fake api.github.com tree + raw host, anonymous, public repo).
+  const sha = 'b'.repeat(40);
+  const blobs = Object.keys(files).map((path, i) => ({ path, type: 'blob', sha: i.toString(16).padStart(40, '0'), mode: '100644', size: files[path]!.length }));
+  const gh = fakeGitHub({
+    routes: { [`GET /repos/peterbono/ai-design-system-demo/git/trees/${sha}?recursive=1`]: { body: { truncated: false, tree: blobs } } },
+    raw: Object.fromEntries(Object.entries(files).map(([path, body]) => [`peterbono/ai-design-system-demo/${sha}/${path}`, body])),
+  });
+  const client = new GitHubClient('peterbono/ai-design-system-demo', '', gh.fetchImpl, noSleep);
+  // component-specs.json is over the source's default 1 MB cap: raise it for the parity check.
+  const fromGitHub = await loadRepoModel(gitHubSource(client, sha, { maxFileBytes: 5_000_000 }));
+  assert.deepEqual({ ...fromGitHub, ref: fs.ref }, fromFs);
+  assert.equal(gh.apiCalls().length, 1, 'one tree call; bodies from the raw host');
+  // With the default cap, the file too large is a problem of the model, not a failed read.
+  const capped = await loadRepoModel(gitHubSource(client, sha));
+  assert.equal(capped.specs.file, null);
+  assert.deepEqual(capped.problems, [`${fromFs.specs.path}: ${fromFs.specs.path} is ${Math.round(files[fromFs.specs.path]!.length / 1000)} KB; Bridge reads files up to 1000 KB.`]);
+  assert.deepEqual(capped.tokens.rows, fromFs.tokens.rows);
 });

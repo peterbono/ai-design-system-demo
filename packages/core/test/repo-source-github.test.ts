@@ -45,7 +45,7 @@ test('lists every blob with one tree call, filtered by folder prefix', async () 
   const src = gitHubSource(client, SHA);
   assert.deepEqual(src.ref, { owner: 'acme', repo: 'ds', sha: SHA });
   assert.equal((await src.list()).length, 6, 'folders are not files');
-  const tokens = ['packages/tokens/src/semantic/light.tokens.json', 'packages/tokens/src/semantic/dark.tokens.json'];
+  const tokens = ['packages/tokens/src/semantic/dark.tokens.json', 'packages/tokens/src/semantic/light.tokens.json'];
   assert.deepEqual(await src.list('packages/tokens'), tokens, 'a folder prefix, not a string prefix');
   assert.deepEqual(await src.list('packages/tokens/src/'), tokens);
   assert.deepEqual(await src.list('/packages/tokens-extra'), ['packages/tokens-extra/x.json']);
