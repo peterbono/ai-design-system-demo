@@ -73,6 +73,8 @@ export interface TokenConfig extends TokenPaths {
   /** Tier name -> directories or files relative to root. First match wins. */
   tiers: Record<string, string[]>;
   layers: TokenLayer[];
+  /** Optional notes per token group ({ "color.action": "Buttons and links" }), relative to root. Default usage.json when present. */
+  usage?: string | undefined;
 }
 
 export interface ModeAxis {
@@ -207,6 +209,7 @@ export interface BridgeConfigInput {
     exclude?: string[];
     tiers?: Record<string, string | string[]>;
     layers?: (string | { files: string; optional?: boolean })[];
+    usage?: string;
   };
   modes?:
     | (Partial<Omit<ModeConfig, 'defaults'>> & { defaults?: ModeConfig['defaults'] })
@@ -247,7 +250,7 @@ export const DEFAULT_GOVERNANCE: GovernanceConfig = {
 };
 
 const FLAT_TOKEN_KEYS = ['primitives', 'brands', 'semantic', 'base', 'density', 'components', 'contrastChecks'] as const;
-const CANONICAL_TOKEN_KEYS = ['root', 'include', 'exclude', 'tiers', 'layers'];
+const CANONICAL_TOKEN_KEYS = ['root', 'include', 'exclude', 'tiers', 'layers', 'usage'];
 const FLAT_MODE_KEYS = ['brands', 'themes', 'densities', 'defaults'];
 const AXIS_OF: Record<string, 'brand' | 'theme' | 'density'> = { brands: 'brand', themes: 'theme', densities: 'density' };
 
@@ -346,7 +349,7 @@ export function defineConfig(input: BridgeConfigInput): BridgeConfig {
   const contrastFile = contrastPath ?? [root === '.' ? '' : root, paths.contrastChecks].filter(Boolean).join('/');
   return {
     repo: parseRepoInput(input.repo, input.branch),
-    tokens: { ...paths, include: input.tokens?.include ?? ['**/*.tokens.json'], exclude: input.tokens?.exclude ?? [], tiers, layers },
+    tokens: { ...paths, include: input.tokens?.include ?? ['**/*.tokens.json'], exclude: input.tokens?.exclude ?? [], tiers, layers, ...(t.usage ? { usage: trimSlashes(t.usage) } : {}) },
     axes,
     modes,
     contrast: { path: contrastFile, modes: input.contrast?.modes },
@@ -436,7 +439,7 @@ export function loadConfig(source: string | unknown): BridgeConfig {
     if (!isObj(tokens)) problems.push('"tokens" must be an object');
     else
       for (const [k, v] of Object.entries(tokens)) {
-        if ((FLAT_TOKEN_KEYS as readonly string[]).includes(k) || k === 'root') {
+        if ((FLAT_TOKEN_KEYS as readonly string[]).includes(k) || k === 'root' || k === 'usage') {
           if (!isStr(v)) problems.push(`"tokens.${k}" must be a non-empty string`);
         } else if (k === 'include' || k === 'exclude') {
           if (!isStrList(v)) problems.push(`"tokens.${k}" must be a list of globs`);
@@ -583,7 +586,7 @@ export function toConfigJson(config: BridgeConfig, schema = './packages/core/bri
     $schema: schema,
     version: 1,
     ...(config.repo ? { repo: config.repo } : {}),
-    tokens: { root: config.tokens.root, include: config.tokens.include, ...(config.tokens.exclude.length ? { exclude: config.tokens.exclude } : {}), tiers: config.tokens.tiers, layers: config.tokens.layers.map((l) => (l.optional ? l : { files: l.files })) },
+    tokens: { root: config.tokens.root, include: config.tokens.include, ...(config.tokens.exclude.length ? { exclude: config.tokens.exclude } : {}), tiers: config.tokens.tiers, layers: config.tokens.layers.map((l) => (l.optional ? l : { files: l.files })), ...(config.tokens.usage ? { usage: config.tokens.usage } : {}) },
     modes: Object.fromEntries(Object.entries(config.axes).map(([k, a]) => [k, a.parity ? a : { values: a.values, default: a.default }])),
     ...(config.contrast ? { contrast: config.contrast.modes ? config.contrast : { path: config.contrast.path } } : {}),
     ...(config.components ? { components: Object.fromEntries(Object.entries(config.components).filter(([, v]) => v !== undefined)) } : {}),

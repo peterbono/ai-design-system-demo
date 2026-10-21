@@ -83,7 +83,8 @@ function composeProposalBody(input); function changeTable(changes); function con
 ```
 
 `@bridge-ds/core/node` (Node only): `git`, `isGitRepo`, `currentBranch`, `branchExists`, `showFile`, `listFilesAt`,
-`originRepo`, `commitToNewLocalBranch` (plumbing commit on a new branch; working tree, index and checkout untouched).
+`originRepo`, `commitToNewLocalBranch` (plumbing commit on a new branch; working tree, index and checkout untouched),
+`fsSource(root, ref?)` and `localRepoRef(root)` (a `RepoSource` over a checkout, see repo model).
 
 ## types
 
@@ -297,6 +298,27 @@ fetchStorybookIndex(base, { fetch?, signal? }): Promise<{ version; source: 'inde
 parseStorybookIndex(json, source?); groupStorybookComponents(entries): { title; name; group; stories; docs; tags }[];
 normalizeStorybookUrl(pasted): string;   // https only (http on localhost), drops ?path=, /index.html, /iframe.html
 storybookIframeUrl(base, id, { viewMode?, globals?, args? }); storybookManagerUrl(base, id, viewMode?); storybookIndexUrls(base);
+```
+
+## repo model (repo-source.ts, repo-model.ts, token-rows.ts, contrast-model.ts, component-scan.ts)
+
+Everything the docs site and Studio read from a design system repo, from one `RepoSource`, so the build (a local
+checkout) and the browser (any team's repo on GitHub) run the same code. `bridge.config.json` is parsed once; every
+folder comes from it (`tokens.root` and tier folders, `contrast.path`, `components.dir|index|specs`,
+`tokens.usage`), with this repo's former paths as defaults (`REPO_MODEL_DEFAULTS`). Repo content never throws: a bad
+config, docs.json or alias lands in `problems`.
+
+```ts
+interface RepoSource { ref: { owner; repo; sha }; list(prefix?): Promise<string[]>; text(path): Promise<string | null> }
+memorySource(files, ref?); readRepoTexts(source, paths, concurrency?);   // fsSource(root, ref?) in @bridge-ds/core/node
+loadRepoModel(source, { components?, href?, concurrency? }): Promise<RepoModel>;
+// RepoModel: { ref, configText, config, site: SiteRepo, problems, tokens: { root, files, rows, usage },
+//              contrast: { path, specs, pairs }, components: { dir, index, families, list } | null, specs: { path, file, coverage } }
+siteRepoFromConfig(config, raw?, fallback?); parseModelConfig(text);
+buildTokenRows(config, readText, listFiles); tokenRowIndex(rows); tokenRowAxes(config, readText?); tokenRowFiles(config);
+parseContrastSpecs(text); evaluateContrastPairs(specs, rows); hexContrastRatio(a, b);
+scanComponents(input); parseComponentTsx(name, src); parseComponentCss(src, labels, describeVar);
+parseComponentStories(src); parseComponentFamilies(indexSrc, componentsRel?); resolveInheritedTokens(list);
 ```
 
 ## history (history.ts, history-github.ts, history-demo.ts)

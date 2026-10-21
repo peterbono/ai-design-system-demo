@@ -68,3 +68,8 @@ export * from './suggestion-review';
 export * from './suggestions-github';
 export * from './suggestion-apply';
 export * from './storybook';
+export * from './repo-source';
+export * from './token-rows';
+export * from './contrast-model';
+export * from './component-scan';
+export * from './repo-model';
