@@ -60,7 +60,7 @@ export interface DirectApp {
 }
 
 /** Bridge Direct's slug on GitHub when GITHUB_APP_DIRECT_SLUG is not set. */
-export const DIRECT_APP_SLUG = 'bridge-direct';
+export const DIRECT_APP_SLUG = 'bridge-design-studio';
 
 /** The env vars Sign in with GitHub reads at build time. */
 export interface SignInEnv {
