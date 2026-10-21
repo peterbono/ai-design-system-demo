@@ -1,5 +1,0 @@
----
-"@bridge-ds/docs-site": minor
----
-
-Studio sends follow how changes reach the code (`"changes"` in bridge.config.json). In suggest mode (the default when the key is absent) the token editor, the docs editor, the new brand flow, the undo and restore planner and a product branch's missing pieces send a suggestion through @bridge-ds/core: "Send suggestion", "Suggest docs change", "Suggest to the library", then "Suggestion #42 sent to your DS lead. A developer applies it once it is approved." with one link to it. The token editor turns its draft into core token edits, so a developer re-applies the exact edits on the tokens of the day. Until the read-only GitHub App ships, suggest mode is enforced in Studio: adding to an open branch, saving docs to a branch, switching a product branch or using a preview, sending it for review and closing it refuse with a plain sentence before any GitHub call. Direct mode keeps today's branches and pull requests (this repo sets `"changes": "direct"`), and Studio's token, brand and revert pull requests now use the `tier: N` label like the rest of Bridge.

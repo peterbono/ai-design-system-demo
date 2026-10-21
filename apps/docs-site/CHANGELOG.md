@@ -1,5 +1,35 @@
 # @bridge-ds/docs-site
 
+## 0.11.0
+
+### Minor Changes
+
+- d278a6c: A new homepage at "/", ported from the validated test page: drag the bridge to keep what your exploration added; "Start it in Bridge", "Ship it everywhere at once" and "One system everyone can trust", each step drawn as an animated Field Guide illustration; "Decide in seconds" for the design system lead; "How Bridge compares" (a short table, every feature on demand); the questions teams ask; and the Horizon closing. A new site header (Product, Resources, About, Sign in; one sheet on phones) and footer on every product page, an About page, and first versions of the docs at /docs/ (Getting started with Bridge) and /docs/figma-plugin/ (DS Bridge Figma plugin). Light and dark themes; under reduced motion the drawings rest.
+- 5f370ba: Studio: how changes reach your code, and the setup steps. Settings has a new band, How changes reach your code: the mode in force (suggestions your developers apply, or pull requests Bridge opens, from `changes` in `bridge.config.json`, suggestions when the key is absent), what Bridge's GitHub App may do on the repo when you signed in with it, and Change, which sends the switch for review as a pull request on `bridge.config.json` like the other settings. In suggest mode it says plainly that Bridge's GitHub App can still write code on the repo: suggest mode is a Bridge rule until the read-only app ships. "See what your developers get" shows how a developer applies a suggestion: `bridge apply <issue number>`, or "Apply Bridge suggestion" in Claude Code with the Bridge MCP, with the one-time install command for this repo.
+
+  The Studio home has the setup steps: sign in, your design system, products, how changes reach your code, the Figma plugin and Claude AI. While `bridge.config.json` does not say how changes reach the code, a signed-in viewer lands on that step first, with every other step a click away and "Do this later" back to the home. After that, "4 of 6 connected" by the greeting opens what is left (Finish connecting), until the viewer hides it. The Storybook quick start shows as coming soon: this Studio reads the repository it is built for.
+
+- 77710b5: Studio sends follow how changes reach the code (`"changes"` in bridge.config.json). In suggest mode (the default when the key is absent) the token editor, the docs editor, the new brand flow, the undo and restore planner and a product branch's missing pieces send a suggestion through @bridge-ds/core: "Send suggestion", "Suggest docs change", "Suggest to the library", then "Suggestion #42 sent to your DS lead. A developer applies it once it is approved." with one link to it. The token editor turns its draft into core token edits, so a developer re-applies the exact edits on the tokens of the day. Until the read-only GitHub App ships, suggest mode is enforced in Studio: adding to an open branch, saving docs to a branch, switching a product branch or using a preview, sending it for review and closing it refuse with a plain sentence before any GitHub call. Direct mode keeps today's branches and pull requests (this repo sets `"changes": "direct"`), and Studio's token, brand and revert pull requests now use the `tier: N` label like the rest of Bridge.
+- 877b928: Studio signs in through two GitHub Apps: "Bridge" (read only on code, Issues write) by default, and "Bridge Direct"
+  when bridge.config.json has `"changes": "direct"`. The token function picks the app from an allow-list of the two
+  configured client IDs, tokens are stored per app, and a sign-in made with the other app is removed with a prompt to
+  sign in again. Sites with one app keep signing in as before.
+
+### Patch Changes
+
+- c96cdc2: Page filter bars use one control size, md, like the Library tokens page. Studio Components (search and family
+  Select), the Show filter of change requests and explorations, the History filters and the branch filter on Studio
+  home moved from sm to md, so the search, Select and SegmentedControl in a bar share one height. The Input, Select and
+  SegmentedControl guidance now says md for a page's filter bar and keeps sm for dense toolbars, menus and panels.
+- 8b2ff82: Homepage, "One system everyone can trust", third tab: a new drawing for adoption quality. A magnifier sweeps a page of the Docs site and flags three off-system pieces (a one-off card, a raw hex colour, an odd button); each snaps into its Harbor system version and the components and tokens in use go from 81.7%, before the audit, to 100%. It replaces the jar drawing. Light and dark from tokens; under reduced motion it rests on the audited page.
+- a265dbd: Settings, How changes reach your code: the interim sentence "Bridge's GitHub App can still write code on this repo..."
+  now shows only when suggest mode runs on the Direct app (the only one configured). With both apps, suggest mode says
+  Studio signs in with Bridge's read-only GitHub App instead. The mode switch pull request body follows the same rule.
+- 9e6c14e: Homepage: "Decide in seconds." shows Ann and Dana with the design system's own illustrated avatars again (Notionists faces, seeds `ann` and `dana`, drawn at build time on the Harbor circle), and the Before and After panes stay still while the stack and the Approve pulse keep moving. "How Bridge compares." reads "What each tool covers, from their public pages." on one line, and its table matches the validated test page: one card holding the short table, the legend and "Compare every feature" centred, with the test page's type sizes, row heights and column widths. Copy for designers: "Your DS lead approves just the change" (tokens, components and docs, before they reach the library), "A change that breaks contrast cannot go in", "Tokens in the W3C standard format", "Two-way sync between Figma variables and code", "Works with AI agents, through MCP", and the FAQ setup answer no longer says DTCG or repo.
+- Updated dependencies [d1e0bc5]
+- Updated dependencies [c96cdc2]
+  - @bridge-ds/react@1.7.0
+
 ## 0.10.0
 
 ### Minor Changes
