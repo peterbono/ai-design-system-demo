@@ -1,6 +1,6 @@
 {
   "name": "@bridge-ds/visual",
-  "version": "0.3.9",
+  "version": "0.3.10",
   "type": "module",
   "description": "Bridge visual impact analysis: screenshots the stories and app screens a design system change touches, at the base and head refs, and pixel-diffs them into before/after/diff images and a JSON manifest.",
   "license": "MIT",
@@ -47,7 +47,7 @@
     "build:package": "node ../../scripts/build-packages.mjs visual"
   },
   "dependencies": {
-    "@bridge-ds/core": "^0.15.0",
+    "@bridge-ds/core": "^0.16.0",
     "pixelmatch": "7.1.0",
     "playwright-core": "1.63.0",
     "pngjs": "7.0.0"
