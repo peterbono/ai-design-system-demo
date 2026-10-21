@@ -45,6 +45,16 @@ describe('bridge CLI', () => {
     expect(bridge(REPO).code).toBe(2);
   });
 
+  it('--version prints the CLI package version, not @bridge-ds/mcp\'s', () => {
+    const { version } = JSON.parse(readFileSync(join(REPO, 'packages/cli/package.json'), 'utf8')) as { version: string };
+    for (const args of [['--version'], ['version']]) {
+      const r = bridge(REPO, ...args);
+      expect(r.code).toBe(0);
+      expect(r.out.trim()).toBe(version);
+    }
+    expect(bridge(REPO, '--help').out).toContain(`bridge ${version}:`);
+  });
+
   it('--help and help print the usage and exit 0', () => {
     for (const args of [['--help'], ['help']]) {
       const r = bridge(REPO, ...args);

@@ -18,7 +18,11 @@ import { changesFlag, runApply, runReview, runSuggestions } from './suggest.js';
 import { defaultIO } from './request.js';
 import { protectionReport, type ProtectionReport } from './protection.js';
 import { rolesReport, type RolesReport } from './roles.js';
-import { brand, BridgeContext, CONFIG_FILE, core, detectConfig, GitRefSource, history as hist, LocalSource, ops, optionsFromArgv, serveStdio, toConfigJson, VERSION, type BridgeConfig } from '@bridge-ds/mcp';
+import { brand, BridgeContext, CONFIG_FILE, core, detectConfig, GitRefSource, history as hist, LocalSource, ops, optionsFromArgv, serveStdio, toConfigJson, type BridgeConfig } from '@bridge-ds/mcp';
+
+declare const __BRIDGE_CLI_VERSION__: string | undefined;
+/** This package's version, set at build time (build.mjs). Audit reports and snapshots record it: the CLI produces them. */
+const VERSION = typeof __BRIDGE_CLI_VERSION__ === 'string' ? __BRIDGE_CLI_VERSION__ : 'dev';
 
 /** The MCP server on npm, written into .mcp.json by `bridge init`. */
 const MCP_PACKAGE = '@bridge-ds/mcp';
@@ -694,12 +698,13 @@ async function main(): Promise<number> {
   if (cmd === 'review') return runReview(a, root);
   if (cmd === 'products' || cmd === 'settings' || cmd === 'coverage') return runStudioRead(cmd, a, root);
   if (cmd === 'docs' && a._[1] === 'save') return runDocsSave(a, root);
+  // `--version` parses as a flag (no command); `history --version v` keeps its own meaning.
+  if (cmd === 'version' || (!cmd && has(a, 'version'))) return print(VERSION), 0;
   if (!cmd || has(a, 'help') || cmd === 'help') {
     print(HELP);
     // Asked for (`help`, `--help`): exit 0. No command at all is a usage error: exit 2.
     return cmd || has(a, 'help') ? 0 : 2;
   }
-  if (cmd === '--version' || cmd === 'version') return print(VERSION), 0;
   switch (cmd) {
     case 'init':
       await init(a, root);
