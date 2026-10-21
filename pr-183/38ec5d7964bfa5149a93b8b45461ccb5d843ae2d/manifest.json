@@ -1,15 +1,15 @@
 {
   "version": 1,
   "tool": "@bridge-ds/visual",
-  "createdAt": "2026-10-21T01:33:28.157Z",
-  "durationMs": 178545,
+  "createdAt": "2026-10-21T01:37:52.540Z",
+  "durationMs": 177277,
   "base": {
     "ref": "74b00deac9b1b6d19535228821bb54b97e8e518b",
-    "sha": "191be31dd9682242a7e5f931971b82b21570cea9"
+    "sha": "74b00deac9b1b6d19535228821bb54b97e8e518b"
   },
   "head": {
-    "ref": "d1e0bc5f4199d1a6f0a3f139751824a7f17930b2",
-    "sha": "d1e0bc5f4199d1a6f0a3f139751824a7f17930b2"
+    "ref": "38ec5d7964bfa5149a93b8b45461ccb5d843ae2d",
+    "sha": "38ec5d7964bfa5149a93b8b45461ccb5d843ae2d"
   },
   "options": {
     "only": [
@@ -66,8 +66,8 @@
   },
   "summary": {
     "shots": 40,
-    "changed": 5,
-    "unchanged": 35,
+    "changed": 4,
+    "unchanged": 36,
     "added": 0,
     "removed": 0,
     "errors": 0,
@@ -585,18 +585,11 @@
       "storyId": "data-display-avatar--broken-image",
       "brand": "ocean",
       "theme": "dark",
-      "status": "changed",
-      "changedPixels": 732,
+      "status": "unchanged",
+      "changedPixels": 0,
       "totalPixels": 815104,
-      "percent": 0.09,
-      "boxes": [
-        {
-          "x": 32,
-          "y": 720,
-          "width": 48,
-          "height": 32
-        }
-      ],
+      "percent": 0,
+      "boxes": [],
       "size": {
         "before": {
           "width": 1024,
@@ -607,12 +600,7 @@
           "height": 796
         }
       },
-      "images": {
-        "before": "before/story__data-display-avatar--broken-image__ocean-dark.png",
-        "after": "after/story__data-display-avatar--broken-image__ocean-dark.png",
-        "diff": "diff/story__data-display-avatar--broken-image__ocean-dark.png",
-        "composite": "composite/story__data-display-avatar--broken-image__ocean-dark.png"
-      }
+      "images": {}
     },
     {
       "key": "app__dashboard__northwind__light",
