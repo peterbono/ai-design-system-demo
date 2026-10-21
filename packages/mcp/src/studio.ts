@@ -4,6 +4,8 @@
 // (validateDocs, the editor's cleaning, one pull request), component-spec (figmaCell), protection, rights.
 import {
   approverEntries,
+  soloOwnerOf,
+  soloOwnerSentence,
   baseBranchOf,
   cleanDocs,
   commitFileOnGitHub,
@@ -183,6 +185,7 @@ export async function getSettings(ctx: BridgeContext) {
   const protection = gh ? await loadProtection(gh, baseBranchOf(config)).catch(() => null) : null;
   const products = productsOf(config);
   const unreadable = teams ? unreadableTeams(teams) : [];
+  const solo = soloOwnerOf(config.governance, teams);
   return {
     repo: config.repo ? `${config.repo.owner}/${config.repo.name}` : (gh?.fullName ?? null),
     main: baseBranchOf(config),
@@ -190,6 +193,7 @@ export async function getSettings(ctx: BridgeContext) {
       designApproval: entries.design.map((e) => entryLabel(e, teams)),
       techApproval: entries.tech.map((e) => entryLabel(e, teams)),
       ship: ship ? whoCanShipSentence(ship) : 'Anyone with write access can merge.',
+      ...(solo ? { soloOwner: soloOwnerSentence(solo) } : {}),
       ...(unreadable.length ? { teamsNotRead: unreadable.map((t) => t.message) } : {}),
     },
     ownerOverride: override.allowed.length

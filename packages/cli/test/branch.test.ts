@@ -1,10 +1,12 @@
 // bridge branch, products, settings, coverage and docs save: the Studio actions from the terminal, with an in-memory
 // GitHub. Same operations as the MCP tools (packages/mcp/test/branches.test.ts covers the rules in depth).
+import { readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { BridgeContext, ops } from '@bridge-ds/mcp';
 import { runBranch, runDocsSave, runStudioRead } from '../src/branch.js';
 import type { RequestIO } from '../src/request.js';
-import { fakeGitHub, pinStart, readTree, REAL_PATHS, REPO, tempGitRepo } from '../../mcp/test/helpers.js';
+import { fakeGitHub, pinStart, readTree, REAL_PATHS, REPO, tempGitRepo, withoutSoloOwner } from '../../mcp/test/helpers.js';
 
 const OWNER = 'peterbono';
 const NAME = 'ai-design-system-demo';
@@ -32,8 +34,15 @@ const args = (...argv: string[]) => {
 describe('bridge branch', () => {
   const dir = tempGitRepo(REPO, [...REAL_PATHS, 'packages/react/component-specs.json']);
 
+  const soloOffRepo = () => {
+    const d = tempGitRepo(REPO, [...REAL_PATHS, 'packages/react/component-specs.json']);
+    const cfg = join(d, 'bridge.config.json');
+    writeFileSync(cfg, withoutSoloOwner({ 'bridge.config.json': readFileSync(cfg, 'utf8') })['bridge.config.json']!);
+    return d;
+  };
+
   async function withBranch() {
-    const gh = fakeGitHub(OWNER, NAME, pinStart(readTree(REPO, [...REAL_PATHS, 'packages/react/component-specs.json'])));
+    const gh = fakeGitHub(OWNER, NAME, withoutSoloOwner(pinStart(readTree(REPO, [...REAL_PATHS, 'packages/react/component-specs.json']))));
     const ctx = await BridgeContext.create({ repo: `${OWNER}/${NAME}`, token: 't', fetch: gh.fetch });
     await ops.proposeTokenChange(ctx, { title: 'Darken muted text', edits: [edit] });
     return gh;
@@ -51,6 +60,8 @@ describe('bridge branch', () => {
   });
 
   it('send for review, what needs me, status, approve, merge with the owner override', async () => {
+    // The default rule (one owner covers design only): this repo's soloOwnerCanApproveBoth left out.
+    const dir = soloOffRepo();
     const gh = await withBranch();
     gh.viewer.login = 'agent';
     const ready = io(gh);

@@ -23,7 +23,7 @@ import {
   type SuggestionStatus,
 } from '@bridge-ds/core';
 import { currentViewer, getToken, hasWorkingToken, initGitHubConnect, onAccess, prefersSignIn, readRepo, studioClient, ghGet } from './github-session';
-import { loadTeams, siteApprovers, siteRoles } from './teams';
+import { loadTeams, siteApprovers, siteRoles, siteSoloOwner } from './teams';
 import { ghAction } from '../lib/gh-wording';
 import { person, type NeedRow, type Person } from '../lib/home-model';
 import {
@@ -63,8 +63,8 @@ onAccess((a) => (write = Boolean(a?.write)));
 
 /** Owners and rights as the layout embeds them (bridge.config.json on the default branch), teams once read. */
 async function governance(): Promise<SuggestionGovernance> {
-  const { owners, rights } = siteRoles();
-  return { owners, rights, teams: await loadTeams() };
+  const { owners, rights, soloOwnerCanApproveBoth } = siteRoles();
+  return { owners, rights, teams: await loadTeams(), soloOwnerCanApproveBoth };
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -293,7 +293,7 @@ export async function openSuggestion(n: number, host: SuggestionHost): Promise<v
 
   const render = (said?: string) => {
     if (mine !== seq) return;
-    const gate = suggestionGate({ status, viewer, author: d.issue.author, owners, tier: payload.tier.tier, approvals: d.approvals, collaborator: write, names: nameMap, signInLine: ghAction('review', prefersSignIn()) });
+    const gate = suggestionGate({ status, viewer, author: d.issue.author, owners, tier: payload.tier.tier, approvals: d.approvals, collaborator: write, names: nameMap, signInLine: ghAction('review', prefersSignIn()), soloOwner: siteSoloOwner() });
     const opened: OpenedSuggestion = { number: n, title, sha, role: gate.role, status, canApprove: gate.canApprove, canRequestChanges: gate.canRequestChanges };
     const props: SuggestionReviewProps = {
       n,
@@ -337,7 +337,7 @@ export async function openSuggestion(n: number, host: SuggestionHost): Promise<v
   };
 
   const review = async (event: 'approve' | 'request-changes', text: string): Promise<string> => {
-    const role = suggestionGate({ status, viewer, author: d.issue.author, owners, tier: payload.tier.tier, approvals: d.approvals, collaborator: write, signInLine: '' }).role;
+    const role = suggestionGate({ status, viewer, author: d.issue.author, owners, tier: payload.tier.tier, approvals: d.approvals, collaborator: write, signInLine: '', soloOwner: siteSoloOwner() }).role;
     const r = await reviewSuggestionOnGitHub(gh, n, { event, role: event === 'approve' ? (role ?? undefined) : undefined, message: text || undefined, payloadSha: sha, by: viewer ?? undefined }, await governance());
     forgetSuggestions();
     await refresh();

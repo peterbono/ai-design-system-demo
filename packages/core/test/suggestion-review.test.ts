@@ -62,6 +62,23 @@ describe('approvals on a suggestion', () => {
     expect(a).toMatchObject({ design: true, tech: false });
   });
 
+  it('lets the only owner cover design and tech when governance.soloOwnerCanApproveBoth is on', () => {
+    const solo = { owners: { design: ['peterbono'], tech: ['@PeterBono'] } };
+    const off = summarizeSuggestionApprovals([review('peterbono', 'approve')], solo, { payloadSha: SHA, author: 'ana' });
+    expect(off).toMatchObject({ design: true, tech: false });
+    expect(suggestionReviewState(3, off)).toBe('needs-review');
+    const on = summarizeSuggestionApprovals([review('peterbono', 'approve')], { ...solo, soloOwnerCanApproveBoth: true }, { payloadSha: SHA, author: 'ana' });
+    expect(on).toMatchObject({ design: true, tech: true });
+    expect(suggestionReviewState(2, on)).toBe('approved');
+    expect(suggestionReviewState(3, on)).toBe('approved');
+    // The author still never approves their own suggestion.
+    const own = summarizeSuggestionApprovals([review('peterbono', 'approve')], { ...solo, soloOwnerCanApproveBoth: true }, { payloadSha: SHA, author: 'peterbono' });
+    expect(own).toMatchObject({ approvers: [], design: false, tech: false });
+    // Two owners: the rule does not apply, one person still covers one part.
+    const two = summarizeSuggestionApprovals([review('dana', 'approve')], { owners: { design: ['dana'], tech: ['dana', 'teo'] }, soloOwnerCanApproveBoth: true }, { payloadSha: SHA });
+    expect(two).toMatchObject({ design: true, tech: false });
+  });
+
   it('never counts the author, and needs collaborators when no owner is set', () => {
     const own = summarizeSuggestionApprovals([review('dana', 'approve')], gov, { payloadSha: SHA, author: 'Dana' });
     expect(own.approvers).toEqual([]);

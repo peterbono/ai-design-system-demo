@@ -1,7 +1,7 @@
 // Studio Settings: approvals in plain words and the Claude connect command.
 import { describe, expect, it } from 'vitest';
 import { tierSummaries } from './governance';
-import { accountView, appReach, approvalRules, changesInConfig, changesProposal, effectiveChanges, INTERIM_APP_TEXT, overrideText, READ_ONLY_APP_TEXT, suggestAppText, plainApprovals, ruleSentence, withChanges } from './settings-view';
+import { accountView, appReach, approvalRules, changesInConfig, changesProposal, effectiveChanges, INTERIM_APP_TEXT, overrideText, READ_ONLY_APP_TEXT, soloOwnerRow, suggestAppText, plainApprovals, ruleSentence, withChanges } from './settings-view';
 
 const GOVERNANCE = `# Governance
 
@@ -107,6 +107,15 @@ describe('account', () => {
         expect(JSON.stringify(accountView(s, { login: 'a', write: false, repo, ...extra }))).not.toContain('\u2014');
       }
     }
+  });
+});
+
+describe('only owner', () => {
+  it('shows the line only when the rule is on and one person holds both roles', () => {
+    const owners = { design: ['peterbono'], tech: ['peterbono'] };
+    expect(soloOwnerRow({ owners, rights: null, soloOwnerCanApproveBoth: true })).toEqual({ label: 'Only owner', help: 'A design system run by one person.', value: 'As the only owner, @peterbono approves design and code in one review.' });
+    expect(soloOwnerRow({ owners, rights: null, soloOwnerCanApproveBoth: false })).toBeNull();
+    expect(soloOwnerRow({ owners: { design: ['dana'], tech: ['theo'] }, rights: null, soloOwnerCanApproveBoth: true })).toBeNull();
   });
 });
 

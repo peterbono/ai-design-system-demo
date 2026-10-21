@@ -437,6 +437,11 @@
             }
           }
         },
+        "soloOwnerCanApproveBoth": {
+          "type": "boolean",
+          "description": "For a design system run by one person. When true and the owners resolve to exactly one person who holds both roles, that person's approval counts as the design and the tech approval, so Tier 2 and Tier 3 changes can be approved. The author of a change still never approves it. Default false: one person never covers both approvals alone.",
+          "default": false
+        },
         "rights": {
           "type": "object",
           "additionalProperties": false,

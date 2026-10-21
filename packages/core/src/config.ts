@@ -142,6 +142,11 @@ export interface GovernanceConfig {
    * and anyone with write access may ship, as before the field existed.
    */
   rights?: Rights | undefined;
+  /**
+   * A design system run by one person: when the owners resolve to exactly one person holding both roles, that
+   * person's approval counts for design and tech. Default false: one person never covers both approvals alone.
+   */
+  soloOwnerCanApproveBoth?: boolean | undefined;
 }
 
 /** `bridge audit` settings: how product code that consumes the design system is measured. */
@@ -375,6 +380,7 @@ export function defineConfig(input: BridgeConfigInput): BridgeConfig {
           }
         : {}),
       ...(g.rights ? { rights: normalizeRights(g.rights) } : {}),
+      ...(g.soloOwnerCanApproveBoth === true ? { soloOwnerCanApproveBoth: true } : {}),
     },
     products: input.products?.length ? input.products.map((p) => ({ ...p })) : DEFAULT_PRODUCTS.map((p) => ({ ...p })),
     changes: input.changes === 'direct' ? 'direct' : DEFAULT_CHANGES_MODE,
@@ -507,6 +513,7 @@ export function loadConfig(source: string | unknown): BridgeConfig {
         }
       }
       problems.push(...rightsProblems(gov.rights));
+      if (gov.soloOwnerCanApproveBoth !== undefined && typeof gov.soloOwnerCanApproveBoth !== 'boolean') problems.push('"governance.soloOwnerCanApproveBoth" must be true or false');
     }
   }
   problems.push(...visualImpactProblems(d.visualImpact));

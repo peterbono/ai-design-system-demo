@@ -4,15 +4,16 @@
 import { describe, expect, it } from 'vitest';
 import { BridgeContext, branches, ops, studio } from '../dist/lib.js';
 import { previewComment } from '@bridge-ds/core';
-import { fakeGitHub, pinStart, pinValue, readTree, REAL_PATHS, REPO } from './helpers.js';
+import { fakeGitHub, pinStart, pinValue, readTree, REAL_PATHS, REPO, withoutSoloOwner } from './helpers.js';
 
 const LIGHT = 'packages/tokens/src/semantic/light.tokens.json';
 const MUTED = ['color', 'text', 'muted'];
-const files = () => pinStart(readTree(REPO, [...REAL_PATHS, 'packages/react/component-specs.json']));
+const repoFiles = () => pinStart(readTree(REPO, [...REAL_PATHS, 'packages/react/component-specs.json']));
+const files = () => withoutSoloOwner(repoFiles());
 const edit = (value = '{palette.neutral.700}') => ({ op: 'set' as const, path: 'color.text.muted', value, mode: { theme: 'light' } });
 
-function setup() {
-  const gh = fakeGitHub('acme', 'ds', files());
+function setup(tree = files()) {
+  const gh = fakeGitHub('acme', 'ds', tree);
   const ro = () => BridgeContext.create({ repo: 'acme/ds', fetch: gh.fetch });
   const rw = () => BridgeContext.create({ repo: 'acme/ds', token: 't', fetch: gh.fetch });
   /** A commit straight on main (someone else's change merged meanwhile). */
@@ -93,6 +94,22 @@ describe('a branch in review, from draft to merged', () => {
     expect(gh.pulls[0]).toMatchObject({ state: 'closed', merged: true, merge_method: 'squash' });
     expect(gh.comments.get(1)![0]).toMatch(/^\*\*Bridge owner override\*\*\n\nOwner override by @peterbono: Release blocker, tech owner on leave this week\. Missing: tech approval\. Merged from Bridge\./);
     expect(gh.fileAt('main', LIGHT)).toBe(gh.fileAt('bridge/darken-muted-text', LIGHT));
+  });
+
+  it('lets the only owner approve design and tech with governance.soloOwnerCanApproveBoth (this repo)', async () => {
+    const { gh, rw } = setup(repoFiles());
+    await ops.proposeTokenChange(await rw(), { title: 'Darken muted text', edits: [edit()] });
+    gh.viewer.login = 'agent';
+    await branches.sendForReview(await rw(), { pr: 1 });
+    gh.viewer.login = 'peterbono';
+    const s0 = (await branches.branchStatus(await rw(), { pr: 1 })) as any;
+    expect(s0.approvals.soloOwner).toBe('As the only owner, your approval covers design and code.');
+    await branches.reviewBranch(await rw(), { pr: 1, decision: 'approve' });
+    const s1 = (await branches.branchStatus(await rw(), { pr: 1 })) as any;
+    expect(s1.approvals).toMatchObject({ approvedBy: ['peterbono'], design: true, tech: true });
+    expect(s1.status.kind).toBe('ready');
+    expect(s1.merge.allowed).toBe(true);
+    expect((await studio.getSettings(await rw())).roles).toMatchObject({ soloOwner: 'As the only owner, @peterbono approves design and code in one review.' });
   });
 
   it('refuses the override to people it does not name, and a plain merge passes once every rule passes', async () => {

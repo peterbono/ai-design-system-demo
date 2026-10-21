@@ -340,6 +340,18 @@ describe('approval rows', () => {
     expect(approvalRows({ tier: 3, approvals: approvals(), people: { owners, author: 'ann', viewer: 'dana' }, open: false })[0]!.canAct).toBe(false);
   });
 
+  it('lets the only owner approve both parts with one review once the team opted in', () => {
+    const solo = { owners: { design: ['pat'], tech: ['pat'] }, author: 'ann', viewer: 'pat', soloOwner: 'pat' };
+    const rows = approvalRows({ tier: 3, approvals: approvals(), people: solo, open: true });
+    expect(rows.map((r) => [r.canAct, r.actionLabel, r.text])).toEqual([
+      [true, 'Approve', 'Waiting for you'],
+      [false, 'Approve', 'Covered by your approval'],
+    ]);
+    expect(whoActs({ kind: 'approve', roles: ['design', 'tech'] }, solo)).toMatchObject({ yourTurn: true, action: 'approve', sentence: 'Your turn: approve. As the only owner, your approval covers design and code.' });
+    // Their own change: never their turn to approve.
+    expect(whoActs({ kind: 'approve', roles: ['design', 'tech'] }, { ...solo, author: 'pat' }).yourTurn).toBe(false);
+  });
+
   it('shows one Approval row below Tier 3', () => {
     const rows = approvalRows({ tier: 1, approvals: approvals({ approvers: ['zoe'] }), people: { owners, author: 'ann' }, open: true });
     expect(rows).toEqual([expect.objectContaining({ label: 'Approval', state: 'approved', text: 'Approved by @zoe' })]);

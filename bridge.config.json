@@ -62,6 +62,7 @@
     ],
     "owners": { "design": ["peterbono"], "tech": ["peterbono"] },
     "rights": { "approveDesign": ["design"], "approveTech": ["tech"], "ship": ["tech"] },
+    "soloOwnerCanApproveBoth": true,
     "override": { "allowed": ["peterbono"], "requireReason": true, "minReasonLength": 20 }
   },
   "changes": "direct",

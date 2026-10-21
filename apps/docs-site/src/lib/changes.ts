@@ -12,7 +12,7 @@ import { CONFLICT_REASON, mergeGate, type ApprovalSummary, type CiSummary, type 
 import type { TokenReview } from './token-review';
 import { ghAction } from './gh-wording';
 import { branchCount, VOCAB } from './vocabulary';
-import { eligibleReviewers, entriesFor, pendingApprovals, requiredApprovals, type ApprovalRole, type TeamStates } from '@bridge-ds/core';
+import { eligibleReviewers, entriesFor, pendingApprovals, requiredApprovals, soloOwnerSentence, type ApprovalRole, type TeamStates } from '@bridge-ds/core';
 
 export type StatusGroup = 'blocked' | 'waiting' | 'ready' | 'neutral';
 
@@ -294,6 +294,8 @@ export interface People {
   overrideBy?: string[];
   /** mergeGate says the viewer may merge past the missing approvals. */
   overridable?: boolean;
+  /** The only owner whose approval covers design and tech (governance.soloOwnerCanApproveBoth, core soloOwnerOf). */
+  soloOwner?: string | null;
 }
 
 export type WhoAction =
@@ -341,6 +343,11 @@ function listedFor(role: ApprovalRole, owners: People['owners']): string[] {
  */
 export function eligibleFor(role: ApprovalRole, p: People): { open: boolean; logins: string[]; listed: string[] } {
   return eligibleReviewers(role, { owners: p.owners, author: p.author, approvers: p.approvers });
+}
+
+/** The viewer is the only owner and the team opted in: one approval covers the design and the tech parts still missing. */
+function soloCovers(roles: readonly ApprovalRole[], p: People): boolean {
+  return Boolean(p.soloOwner && same(p.viewer, p.soloOwner) && roles.includes('design') && roles.includes('tech'));
 }
 
 /** Whether the viewer can give this approval now. */
@@ -425,6 +432,7 @@ export function whoActs(need: Need, p: People): WhoActs {
     case 'approve': {
       // The viewer first: the first role they can give.
       const mine = need.roles.find((r) => viewerCanApprove(r, p));
+      if (mine && soloCovers(need.roles, p)) return { who: 'you', logins: [p.viewer!], yourTurn: true, action: 'approve', sentence: `Your turn: approve. ${soloOwnerSentence(p.viewer!, true)}`, short: YOUR_SHORT.approval };
       if (mine) return { who: 'you', logins: p.viewer ? [p.viewer] : [], yourTurn: true, action: APPROVE_ACTION[mine], sentence: `Your turn: ${YOUR_APPROVAL[mine]}.`, short: YOUR_SHORT[mine] };
       const role = need.roles[0]!;
       const e = eligibleFor(role, p);
@@ -481,6 +489,8 @@ const ROW_ACTION: Record<ApprovalRole, string> = { design: 'Approve design', tec
 export function approvalRows(input: { tier: Tier | null; approvals: ApprovalSummary; people: People; open: boolean }): ApprovalRow[] {
   const { approvals: a, people: p } = input;
   const covered: Record<ApprovalRole, boolean> = { design: a.design, tech: a.tech, approval: a.approvers.length > 0 };
+  // The only owner covers both parts with one review: the first row carries "Approve", the other says so.
+  const solo = input.open && soloCovers((['design', 'tech'] as const).filter((r) => !covered[r]), { ...p, approvers: a.approvers }) && viewerCanApprove('design', { ...p, approvers: a.approvers });
   let acted = false;
   return requiredApprovals(input.tier).map((role) => {
     const listed = listedFor(role, p.owners);
@@ -491,11 +501,13 @@ export function approvalRows(input: { tier: Tier | null; approvals: ApprovalSumm
     const canAct = input.open && !covered[role] && !acted && viewerCanApprove(role, { ...p, approvers: a.approvers });
     if (canAct) acted = true;
     const e = eligibleFor(role, { ...p, approvers: a.approvers });
-    const base = { role, label: ROW_LABEL[role], canAct, actionLabel: ROW_ACTION[role] };
+    const base = { role, label: ROW_LABEL[role], canAct, actionLabel: solo ? ROW_ACTION.approval : ROW_ACTION[role] };
     if (covered[role]) return { ...base, state: 'approved' as const, text: by.length ? `Approved by @${by.join(', @')}` : 'Approved' };
     if (asked.length) return { ...base, state: 'changes' as const, text: `Changes requested by @${asked.join(', @')}` };
     const text = canAct
       ? 'Waiting for you'
+      : solo && role !== 'approval'
+        ? 'Covered by your approval'
       : e.logins.length
         ? `Waiting for ${namesFor(role, e.logins, p)}`
         : e.open

@@ -14,7 +14,7 @@ import { needFromStatus, pendingApprovals, statusTone, whoActs, type ApprovalRol
 import { developerOnlyFailures } from '../lib/check-explain';
 import { planStatusReads, statusCacheKey, type CachedStatus } from '../lib/status-budget';
 import type { TeamStates } from '@bridge-ds/core';
-import { loadTeams, siteApproverEntries, siteApprovers, siteShipPolicy, teamSnapshot } from './teams';
+import { loadTeams, siteApprovalRules, siteApproverEntries, siteApprovers, siteShipPolicy, teamSnapshot } from './teams';
 import {
   parseTier,
   pullState,
@@ -141,7 +141,7 @@ export async function pullStatus(p: PullForStatus, opts: { lean?: boolean } = {}
           .then((f) => f.data)
           .catch(() => null),
   ]);
-  const approvals = reviews ? summarizeApprovals(reviews, owners(), p.user.login) : null;
+  const approvals = reviews ? summarizeApprovals(reviews, owners(), p.user.login, siteApprovalRules()) : null;
   const tier = effectiveTier(p.labels ?? [], p.body, files);
   const before = reviewStatus({ state: p.state, draft: p.draft, merged_at: p.merged_at, ci, approvals, tier });
   // Only an open change that nothing else blocks needs to know whether it merges cleanly.

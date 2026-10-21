@@ -5,7 +5,7 @@
 // `governance.rights` (rights.ts). Moved from the docs site (apps/docs-site/src/lib/review-rules.ts re-exports it).
 import type { OverridePolicy } from './config';
 import { isActiveExploration } from './explorations';
-import { canShip, unreadableShipTeams, whoCanShipSentence, type ShipPolicy } from './rights';
+import { canShip, soloApprover, unreadableShipTeams, whoCanShipSentence, type ShipPolicy } from './rights';
 import { classifyRisk, type RiskTier } from './risk';
 
 export interface LabelLike {
@@ -121,8 +121,16 @@ export interface ApprovalSummary {
   tech: boolean;
 }
 
+export interface ApprovalRules {
+  /**
+   * `governance.soloOwnerCanApproveBoth`: when the owners resolve to one person holding both roles, that person's
+   * approval counts for design and tech. Default false. The author still never approves their own change.
+   */
+  soloOwnerCanApproveBoth?: boolean | undefined;
+}
+
 /** Latest decisive review per person (comments do not reset an approval), then owner coverage. */
-export function summarizeApprovals(reviews: ReviewLike[], owners: { design: string[]; tech: string[] }, author?: string): ApprovalSummary {
+export function summarizeApprovals(reviews: ReviewLike[], owners: { design: string[]; tech: string[] }, author?: string, rules: ApprovalRules = {}): ApprovalSummary {
   const latest = new Map<string, string>();
   const sorted = [...reviews].sort((a, b) => String(a.submitted_at ?? '').localeCompare(String(b.submitted_at ?? '')));
   for (const r of sorted) {
@@ -140,8 +148,10 @@ export function summarizeApprovals(reviews: ReviewLike[], owners: { design: stri
   let tech: boolean;
   if (d.length || t.length) {
     design = d.length ? a.some((x) => d.includes(x)) : a.length > 0;
-    // One person holding both roles cannot cover both approvals alone.
-    const soloBoth = (x: string) => a.length === 1 && d.includes(x);
+    // One person holding both roles cannot cover both approvals alone, unless the team opted in and that person is
+    // the only owner (governance.soloOwnerCanApproveBoth).
+    const solo = rules.soloOwnerCanApproveBoth ? soloApprover(owners) : null;
+    const soloBoth = (x: string) => a.length === 1 && d.includes(x) && x !== solo;
     tech = t.length ? a.some((x) => t.includes(x) && !soloBoth(x)) : a.length > 1;
   } else {
     // No owners configured: two distinct approvers stand in for design and tech.

@@ -275,7 +275,7 @@ parseSuggestionIssue(body, { comments?, author? }): { ok: true; payload; sha; ma
 suggestionPayloadSha(payload); canonicalJson(value); sha256Hex(text); gitBlobSha(text);
 suggestionLabels(payload, { state?, labels? }); suggestionIssueTitle(payload); suggestionStatus({ state, stateReason?, linkedPrs?, review?, applied?, outdated? });
 suggestionPathProblems(payload, config): string[];    unsafePathProblem(path): string | null;
-summarizeSuggestionApprovals(comments, { owners, rights?, teams? }, { payloadSha, author? }); suggestionReviewState(tier, approvals);
+summarizeSuggestionApprovals(comments, { owners, rights?, teams?, soloOwnerCanApproveBoth? }, { payloadSha, author? }); suggestionReviewState(tier, approvals);
 composeSuggestionReviewComment(record); parseSuggestionReviewComment(body); composeSuggestionAppliedComment(record); parseSuggestionAppliedComment(body);
 // GitHub (Issues read and write only)
 createSuggestionOnGitHub(gh, payload, opts); listSuggestionsOnGitHub(gh, { state? }); getSuggestionOnGitHub(gh, n, gov, { outdated? });

@@ -85,6 +85,35 @@ export function approverEntries(owners: Owners, rights: Rights | null | undefine
   return { design: holdersOf('approveDesign', owners, rights), tech: holdersOf('approveTech', owners, rights) };
 }
 
+/**
+ * The one person who holds both approver places, or null: the design and tech lists (after rights, teams expanded)
+ * name exactly one login between them, and it sits in both. A team, read or not, never counts as one person.
+ */
+export function soloApprover(owners: { design: string[]; tech: string[] }): string | null {
+  const d = [...new Set(owners.design.map(norm))];
+  const t = [...new Set(owners.tech.map(norm))];
+  if (d.length !== 1 || t.length !== 1 || d[0] !== t[0] || !d[0] || d[0].includes('/')) return null;
+  return d[0];
+}
+
+/**
+ * The only owner whose approval covers design and tech, or null when the rule is off or does not apply:
+ * `governance.soloOwnerCanApproveBoth` is true and the approver lists (after rights, teams expanded) name one person
+ * in both places. Studio Settings, the review screens, the MCP server and the CLI word it from this.
+ */
+export function soloOwnerOf(
+  gov: { owners: Owners; rights?: Rights | null | undefined; soloOwnerCanApproveBoth?: boolean | undefined },
+  teams?: TeamStates | null,
+): string | null {
+  if (!gov.soloOwnerCanApproveBoth) return null;
+  return soloApprover(approverLists(gov.owners, gov.rights ?? null, teams));
+}
+
+/** The rule in one sentence, for Settings, the CLI and the MCP server. `you`: the viewer is that owner. */
+export function soloOwnerSentence(login: string, you = false): string {
+  return you ? 'As the only owner, your approval covers design and code.' : `As the only owner, @${norm(login)} approves design and code in one review.`;
+}
+
 /** Who may ship, or null when nobody is singled out (no `rights`, or its groups list no logins): anyone with write access. */
 export interface ShipPolicy {
   /** Logins allowed to ship: people, and team members once read. A team not read keeps its "@org/slug" key. */

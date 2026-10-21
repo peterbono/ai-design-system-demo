@@ -51,6 +51,8 @@ import {
   shipPolicy,
   stateSentence,
   summarizeApprovals,
+  soloApprover,
+  soloOwnerSentence,
   summarizeCi,
   TeamDirectory,
   tryInProductUrl,
@@ -111,7 +113,7 @@ async function people(gh: GitHubClient, config: BridgeConfig) {
   const { owners, rights } = config.governance;
   const teams = await new TeamDirectory(gh).resolve(owners).catch(() => undefined);
   const lists = expandOwners(approverEntries(owners, rights), teams);
-  return { lists, ship: shipPolicy(owners, rights, teams) };
+  return { lists, ship: shipPolicy(owners, rights, teams), solo: config.governance.soloOwnerCanApproveBoth ? soloApprover(lists) : null };
 }
 
 /** The viewer of the token, or null without one (or when GitHub does not say). */
@@ -142,6 +144,7 @@ export async function branchFacts(ctx: BridgeContext, gh: GitHubClient, n: numbe
     reviews.map((r) => ({ user: r.user ? { login: r.user } : null, state: r.state, submitted_at: r.submittedAt ?? null })),
     who.lists,
     pr.author,
+    { soloOwnerCanApproveBoth: Boolean(who.solo) },
   );
   const tier = effectiveTier(labels, pr.body, files);
   const merged = pr.state === 'merged';
@@ -151,7 +154,7 @@ export async function branchFacts(ctx: BridgeContext, gh: GitHubClient, n: numbe
   const status: ReviewStatusKind = reviewStatusKind({ ...pullLike, ci, approvals, tier, mergeable: pr.mergeable });
   const fresh = freshness({ compare: compare ? { behind_by: compare.behindBy, merge_base_commit: compare.mergeBase ? { sha: compare.mergeBase } : null } : null, mergeable: pr.mergeable, open: pr.state === 'open' });
   const product = productOfBranch(productsOf(config), { files: files.map((f) => f.filename), labels: pr.labels });
-  return { config, pr, files, ci, approvals, tier, gate, status, fresh, compare, exploration, product, lifecycle: pullState(pullLike), write: repo ? hasWriteAccess(repo.permissions) : null, repo };
+  return { config, pr, files, ci, approvals, tier, gate, status, fresh, compare, exploration, product, lifecycle: pullState(pullLike), write: repo ? hasWriteAccess(repo.permissions) : null, repo, solo: who.solo };
 }
 
 const STATUS_WORDS: Record<ReviewStatusKind, string> = {
@@ -187,7 +190,7 @@ export async function branchStatus(ctx: BridgeContext, a: { pr: number | string 
     lifecycle: f.lifecycle,
     status: { kind: f.status, label: STATUS_WORDS[f.status] },
     approvalNeeded: f.tier === 1 ? 'One approval' : 'Design and tech approval',
-    approvals: { approvedBy: f.approvals.approvers, changesRequestedBy: f.approvals.changesRequested, design: f.approvals.design, tech: f.approvals.tech },
+    approvals: { approvedBy: f.approvals.approvers, changesRequestedBy: f.approvals.changesRequested, design: f.approvals.design, tech: f.approvals.tech, ...(f.solo && (f.tier ?? 3) > 1 ? { soloOwner: soloOwnerSentence(f.solo, Boolean(viewer && viewer.toLowerCase() === f.solo)) } : {}) },
     tests: { state: f.ci.state, failing: f.ci.failed.map((x) => x.name), running: f.ci.pending.map((x) => x.name) },
     main: { state: f.fresh.state, behindBy: f.fresh.behindBy },
     merge: {
