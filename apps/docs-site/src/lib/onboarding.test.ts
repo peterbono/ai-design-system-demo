@@ -65,3 +65,11 @@ describe('onboarding memory', () => {
     expect(parseMemory(JSON.stringify({ proposed: { pr: 9, mode: 'direct' } })).proposed).toEqual({ pr: 9, mode: 'direct' });
   });
 });
+
+describe('step 2 with the Storybook quick start', () => {
+  it('names the Storybook added in this browser with the repository', () => {
+    const steps = onboardingSteps({ ...base, storybook: null, quickStart: { url: 'https://sb.example.com', components: 12 } });
+    expect(steps.find((s) => s.id === 'library')).toMatchObject({ detail: 'Storybook and', code: 'acme/design-system', state: 'done' });
+    expect(onboardingSteps({ ...base, storybook: null }).find((s) => s.id === 'library')!.detail).toBe('Repository');
+  });
+});

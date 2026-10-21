@@ -3,8 +3,9 @@
 //
 //   1. Sign in with GitHub          done once the viewer is known.
 //   2. Your design system           this Studio is built for one repository (bridge.config.json at build time), so
-//                                   it is connected from the start. The Storybook quick start is not wired yet: the
-//                                   step shows it as coming, never as working.
+//                                   it is connected from the start. The Storybook quick start reads a published
+//                                   Storybook and keeps its address in this browser (lib/workspace.ts); the step
+//                                   says how many components it found.
 //   3. Products                     the apps listed in bridge.config.json `products`, found with the repo.
 //   4. How changes reach your code  done when bridge.config.json sets `changes`; waiting while the pull request that
 //                                   sets it is open; otherwise the current step (suggestions by default).
@@ -51,6 +52,8 @@ export interface OnboardingFacts {
   repo: string;
   /** The deployed Storybook from bridge.config.json, when there is one. */
   storybook: string | null;
+  /** The Storybook added in this browser with the quick start, and the components found there. */
+  quickStart?: { url: string; components: number } | null;
   /** Product names from bridge.config.json `products`. */
   products: string[];
   /** `changes` as bridge.config.json says it; null when the key is absent. */
@@ -95,7 +98,7 @@ export function onboardingSteps(f: OnboardingFacts): Step[] {
           ? { ...base, detail: `Signed in as @${f.login}`, state: 'done', status: 'Done' }
           : { ...base, detail: STEP_LINE.signin, state: 'later', status: 'To do' };
       case 'library':
-        return { ...base, detail: f.storybook ? 'Storybook and' : 'Repository', code: f.repo, state: 'done', status: 'Connected' };
+        return { ...base, detail: f.storybook || f.quickStart ? 'Storybook and' : 'Repository', code: f.repo, state: 'done', status: 'Connected' };
       case 'products':
         return f.products.length
           ? { ...base, detail: f.products.join(', '), state: 'done', status: 'Connected' }
