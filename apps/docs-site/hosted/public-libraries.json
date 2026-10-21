@@ -1,0 +1,4 @@
+{
+  "about": "Team Libraries that search engines may index, as \"owner/repo\". Every other /library/<owner>/<repo>/ address answers X-Robots-Tag: noindex. Add a team by pull request, once its repository is public and its bridge.config.json says \"library\": { \"public\": true }; then copy the rules the build prints into vercel.json. See docs/HOSTED.md.",
+  "libraries": []
+}
