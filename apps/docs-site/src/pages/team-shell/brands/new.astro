@@ -1,6 +1,21 @@
 ---
-// Team shell of Studio New brand (lib/team-shells.ts): served for /studio/<owner>/<repo>/brands/new/ by the vercel.json rewrite.
+// Team shell of Studio New brand (lib/team-shells.ts): served for /studio/<owner>/<repo>/brands/new/ by the vercel.json
+// rewrite. The self-hosted four-step flow (components/ds/studio/NewBrandFlow), fed from the team's repository in the
+// browser (components/ds/studio/TeamNewBrand.tsx): it sends to the team as a suggestion or a branch, as the team's
+// bridge.config.json "changes" says.
+import '../../../styles/new-brand.css';
+import '../../../styles/load-progress.css';
 import TeamShell from '../../../components/TeamShell.astro';
+import TeamNewBrand from '../../../components/ds/studio/TeamNewBrand';
+import { signInConfig } from '../../../lib/signin-config';
 ---
 
-<TeamShell route="brands/new/" title="New brand" what="brands" description="Draft a brand for this team's design system and check it with real components." />
+<TeamShell
+  route="brands/new/"
+  title="New brand"
+  what="brands"
+  subtitle="Draft it in this browser and check it in light and dark before it goes for review."
+  description="Draft a brand for this team's design system and check it with real components."
+>
+  <TeamNewBrand client:load signIn={Boolean(signInConfig(true))} />
+</TeamShell>

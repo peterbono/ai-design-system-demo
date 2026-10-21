@@ -6,7 +6,6 @@
 // onboarding of hosted teams, multi-team PR 3c).
 import { createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import type { RepoModel } from '@bridge-ds/core';
 import { currentViewer, getToken, initGitHubConnect, prefersSignIn } from './github-session';
 import { setReviewCount } from './shell';
 import { rememberMine } from './needs-you';
@@ -20,22 +19,15 @@ import { signedOutLine } from '../lib/overview-todo';
 import { ghButton } from '../lib/gh-wording';
 import { studioHref } from '../lib/team-path';
 import { fileUrl, teamFailure } from '../lib/team-load';
+import { contrastFailures, teamGuidance } from '../lib/team-facts';
 
 export interface TeamHomeStatic extends HomeStatic {
   components: HomeComponent[];
   startHrefs: StudioHomeProps['startHrefs'];
 }
 
-/** Failing contrast checks of a model: one per pair, brand and theme, as the build gate counts them. */
-export function contrastFailures(model: Pick<RepoModel, 'contrast'>): number {
-  let fail = 0;
-  for (const p of model.contrast.pairs) {
-    const brands = Object.values(p.brands);
-    const results = brands.length ? brands.flatMap((b) => Object.values(b)) : Object.values(p.modes);
-    fail += results.filter((r) => r.ratio < p.min).length;
-  }
-  return fail;
-}
+// The contrast count lives in lib/team-facts.ts (shared with team Review); re-exported for existing callers.
+export { contrastFailures };
 
 /** The repo facts of Studio Home for a team (what /studio/ embeds as #home-static), from its repo model. Pure. */
 export function teamHomeStatic(data: Pick<TeamData, 'owner' | 'repo' | 'sha' | 'model'>): TeamHomeStatic {
@@ -45,7 +37,7 @@ export function teamHomeStatic(data: Pick<TeamData, 'owner' | 'repo' | 'sha' | '
     contrastFail: contrastFailures(data.model),
     components: comps.map((c) => ({ name: c.name, slug: c.slug, family: c.category })).sort((a, b) => a.name.localeCompare(b.name)),
     // Drafted guidance waits for review: the row opens the draft on GitHub (the docs editor is the demo Library's).
-    guidance: comps.filter((c) => c.docs?.needsReview).map((c) => ({ name: c.name, href: fileUrl(data.owner, data.repo, data.sha, c.files.docs), since: null })),
+    guidance: teamGuidance(data),
     startHrefs: {
       tokens: startChangeHref('look'),
       component: startChangeHref('variant'),

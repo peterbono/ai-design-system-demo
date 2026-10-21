@@ -65,6 +65,9 @@ export function brandFacts(source: BrandSource, slug: string): BrandFacts {
 
 export const DRAFT_KEY = 'bridge.brand-draft';
 
+/** Where a draft is kept: one per team on team pages ("owner/repo", lower case), the plain key on the self-hosted Studio. */
+export const draftKey = (scope?: string | null): string => (scope ? `${DRAFT_KEY}:${scope.toLowerCase()}` : DRAFT_KEY);
+
 export function emptyDraft(from = 'bridge', facts?: Partial<Pick<BrandFacts, 'radius' | 'heading' | 'text' | 'primary' | 'neutral'>>): BrandDraft {
   return { v: 1, step: 0, name: '', from, primary: facts?.primary ?? '', neutral: facts?.neutral ?? '', accent: '', link: '', radius: facts?.radius ?? 'soft', radiusRoles: {}, heading: facts?.heading ?? 'fraunces', text: facts?.text ?? 'instrument-sans' };
 }
@@ -135,18 +138,18 @@ export function parseDraft(text: string | null, brands: string[]): BrandDraft | 
   }
 }
 
-export function loadDraft(brands: string[]): BrandDraft | null {
+export function loadDraft(brands: string[], scope?: string | null): BrandDraft | null {
   try {
-    return parseDraft(localStorage.getItem(DRAFT_KEY), brands);
+    return parseDraft(localStorage.getItem(draftKey(scope)), brands);
   } catch {
     return null;
   }
 }
 
-export function saveDraft(d: BrandDraft | null) {
+export function saveDraft(d: BrandDraft | null, scope?: string | null) {
   try {
-    if (d) localStorage.setItem(DRAFT_KEY, JSON.stringify(d));
-    else localStorage.removeItem(DRAFT_KEY);
+    if (d) localStorage.setItem(draftKey(scope), JSON.stringify(d));
+    else localStorage.removeItem(draftKey(scope));
   } catch {
     /* private mode: the draft lives as long as the page */
   }
