@@ -1,6 +1,14 @@
 ---
 // Team shell of Studio Quality (lib/team-shells.ts): served for /studio/<owner>/<repo>/quality/ by the vercel.json rewrite.
+// The page renders in the browser from the team's repository (components/ds/studio/TeamQuality.tsx); the build
+// renders its loading skeleton.
+import '../../../styles/adoption.css';
+import '../../../styles/quality.css';
+import '../../../styles/team-quality.css';
 import TeamShell from '../../../components/TeamShell.astro';
+import TeamQuality from '../../../components/ds/studio/TeamQuality';
 ---
 
-<TeamShell route="quality/" title="Quality" what="contrast, token checks and docs completeness" description="Contrast gate, token validation and docs completeness for this team's design system." />
+<TeamShell route="quality/" title="Quality" what="contrast, token checks and docs completeness" description="Contrast gate, token validation and docs completeness for this team's design system.">
+  <TeamQuality client:load />
+</TeamShell>

@@ -1,9 +1,11 @@
 ---
 // A team shell page (src/pages/team-shell/, lib/team-shells.ts): the Studio page `route` for the team in the address,
 // /studio/<owner>/<repo>/<route>. Built once, without any team data; the team name and its GitHub link are filled in
-// the browser. Until the pages render from the team's repository (multi-team PR 3b), it says so and offers the same
-// page on the demo, so a team link never lands on a blank screen.
+// the browser. A page that renders from the team's repository (multi-team PR 3b) passes its island as the default
+// slot; a page that does not yet says so and offers the same page on the demo, so a team link never lands on a blank
+// screen. The "actions" slot goes to the end of the title line.
 import '../styles/team-shell.css';
+import '../styles/team-pages.css';
 import Layout from '../layouts/Layout.astro';
 import StudioHeader from './StudioHeader.astro';
 import TeamShellEmpty from './ds/studio/TeamShellEmpty';
@@ -27,8 +29,9 @@ const { route, title, what, description, wide = true } = Astro.props;
   <div class="ts" data-team-shell={route || 'home'}>
     <StudioHeader title={title}>
       <p class="ts-repo"><span class="mono" data-team-name>owner/repo</span></p>
+      {Astro.slots.has('actions') && <Fragment slot="actions"><slot name="actions" /></Fragment>}
     </StudioHeader>
-    <TeamShellEmpty what={what} demoHref={studioHref(route)} />
+    {Astro.slots.has('default') ? <slot /> : <TeamShellEmpty what={what} demoHref={studioHref(route)} />}
   </div>
   <script>
     import { fillTeamShell } from '../scripts/team-links';

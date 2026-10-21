@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
-import { GitHubClient, type FetchLike, type RepoModel } from '@bridge-ds/core';
+import { buildSnapshot, GitHubClient, loadRepoModel, recordingSource, type FetchLike, type RepoModel, type RepoSnapshot } from '@bridge-ds/core';
 import { FALLBACK_REPO, loadTeamModel, repoContext, repoFromPath, siteConfig, type ModelCache } from './repo-context';
 import { planEviction } from './repo-cache';
 
@@ -122,6 +122,51 @@ describe('loadTeamModel', () => {
     await loadTeamModel(client, { cache: memoryCache(), components: false });
     expect(repoContext()).toEqual({ owner: 'acme', repo: 'ds', defaultBranch: 'trunk', hosted: true });
     expect(siteConfig()).toMatchObject({ owner: 'acme', repo: 'ds', defaultBranch: 'trunk', changes: 'direct' });
+  });
+});
+
+describe('loadTeamModel with a snapshot', () => {
+  const files = { 'bridge.config.json': CONFIG, 'tokens/color.json': JSON.stringify({ color: { ink: { $type: 'color', $value: '#000000' } } }) };
+  // The snapshot bridge snapshot would publish for these files at `sha`.
+  async function snapshotAt(sha: string): Promise<RepoSnapshot> {
+    const rec = recordingSource({ ref: { owner: 'acme', repo: 'ds', sha }, list: async (prefix) => Object.keys(files).filter((p) => !prefix || p.startsWith(`${prefix}/`)), text: async (p) => files[p as keyof typeof files] ?? null });
+    const model = await loadRepoModel(rec.source, { components: false });
+    return buildSnapshot({ model, paths: rec.paths, files: rec.files, version: 'test', branch: 'trunk' });
+  }
+
+  it('reads a fresh snapshot instead of the tree and the bodies', async () => {
+    const { client, calls } = fakeRepo(files);
+    const snap = await snapshotAt(SHA);
+    const read = await loadTeamModel(client, { cache: memoryCache(), components: false, snapshot: async () => snap });
+    expect(read).toMatchObject({ source: 'snapshot', cached: false, sha: SHA });
+    expect(read.snapshot).toBe(snap);
+    expect(read.model.site.changes).toBe('direct');
+    // The same model a live read gives.
+    const live = await loadTeamModel(fakeRepo(files).client, { cache: memoryCache(), components: false });
+    expect(read.model.tokens).toEqual(live.model.tokens);
+    expect(read.model.config).toEqual(live.model.config);
+    // GET /repos and the branch head only: no tree, no body.
+    expect(calls).toEqual(['https://api.github.com/repos/acme/ds', 'https://api.github.com/repos/acme/ds/git/ref/heads/trunk']);
+  });
+
+  it('reads the repository live when the snapshot is older than the head, missing or broken', async () => {
+    const old = await snapshotAt('c'.repeat(40));
+    for (const reader of [async () => old, async () => null, async () => Promise.reject(new Error('boom'))]) {
+      const { client, calls } = fakeRepo(files);
+      const read = await loadTeamModel(client, { cache: memoryCache(), components: false, snapshot: reader });
+      expect(read.source).toBe('live');
+      expect(calls.some((u) => u.includes('/git/trees/'))).toBe(true);
+    }
+  });
+
+  it('serves the cache before asking for the snapshot', async () => {
+    const { client } = fakeRepo(files);
+    const cache = memoryCache();
+    await loadTeamModel(client, { cache, components: false });
+    let asked = 0;
+    const read = await loadTeamModel(client, { cache, components: false, snapshot: async () => (asked++, null) });
+    expect(read.source).toBe('cache');
+    expect(asked).toBe(0);
   });
 });
 

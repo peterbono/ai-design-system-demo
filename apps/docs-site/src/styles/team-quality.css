@@ -1,0 +1,11 @@
+/* Studio Quality for a team (components/ds/studio/TeamQuality.tsx): the rest is styles/quality.css. One line above the
+   opener: where the data was read (with Refresh) at the start, Share at the end. */
+
+.tq-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-5);
+}
