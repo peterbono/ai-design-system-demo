@@ -1,0 +1,16 @@
+/* Team shells (components/TeamShell.astro): the Studio page header with the team under the title, then one empty
+   state while team pages are not rendered from the repository yet. */
+
+.ts {
+  display: grid;
+  gap: var(--space-8);
+  max-width: var(--studio-page-max);
+}
+
+.ts-repo {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+  overflow-wrap: anywhere;
+}

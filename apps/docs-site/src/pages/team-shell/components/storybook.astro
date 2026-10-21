@@ -1,0 +1,15 @@
+---
+// Team shell of Studio Components from Storybook (lib/team-shells.ts): served for
+// /studio/<owner>/<repo>/components/storybook/ by the vercel.json rewrite. The Storybook quick start needs no
+// repository (it reads the Storybook added in this browser), so the shell is the real page, without the demo's
+// Storybook as a suggestion.
+import '../../../styles/studio.css';
+import '../../../styles/components-studio.css';
+import '../../../styles/storybook-quick.css';
+import Layout from '../../../layouts/Layout.astro';
+import StorybookComponents from '../../../components/ds/studio/StorybookComponents';
+---
+
+<Layout title="Components from Storybook" description="The components of your published Storybook, with live previews of their stories, read without the repository." hosted wide>
+  <StorybookComponents client:only="react" suggestion={null} />
+</Layout>

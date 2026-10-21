@@ -30,6 +30,12 @@ import { bridgeMcpInstallCommand } from '@bridge-ds/core';
 import { changesInConfig } from '../../lib/settings-view';
 import type { BranchesConfig } from '../../lib/branches';
 import { studioHref } from '../../lib/team-path';
+import TeamLauncher from '../../components/ds/studio/TeamLauncher';
+import '../../styles/team-launcher.css';
+
+// The hosted deployment (one site for every team, multi-team plan 4.3) opens other teams from here. A self-hosted
+// build leaves it out: its Studio is its own repository.
+const hostedSite = process.env.BRIDGE_HOSTED === '1' || process.env.BRIDGE_HOSTED === 'true';
 
 const s = dashboard();
 const comps = loadComponents();
@@ -92,6 +98,7 @@ const onboarding = {
   updated={freshness(PAGE_SOURCES.home)}
   wide
 >
+  {hostedSite && <TeamLauncher client:load />}
   <div class="sh-root" data-studio-home>
     <div class="sh">
       <section class="zone sh-zone" aria-busy="true" aria-label="Loading what needs you">
