@@ -122,7 +122,8 @@ export function getCachedModel(repo: string, sha: string): Promise<RepoModel | u
     const hit = (await done(store.get(modelKey(repo, sha)))) as ModelEntry | undefined;
     if (hit) store.put({ ...hit, at: Date.now() });
     await committed(tx);
-    return hit?.model;
+    // A model cached before the model read global stylesheets has no `styles`: read the repository again.
+    return hit?.model && 'styles' in hit.model ? hit.model : undefined;
   });
 }
 

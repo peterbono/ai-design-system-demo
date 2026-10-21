@@ -13,7 +13,8 @@ import { historySummary, parseReleaseBody, releaseCard } from '../../lib/release
 import { owners, shippers } from '../pr-status';
 import { loadTeams } from '../teams';
 import { openRevertPlanner } from './planner';
-import { activeReport, DEMO_EVENT, demoOn, loadHistory, setDemo, type Loaded } from './state';
+import { activeReport, DEMO_EVENT, demoOn, loadHistory, setDemo, teamEntryReview, type Loaded } from './state';
+import { isHosted } from '../../lib/team-path';
 import { onSelectPick, selectValue, setSelect } from '../../lib/select-bridge';
 import { jiraKeyOf, VOCAB, withoutJiraKey } from '../../lib/vocabulary';
 import { agentMade } from '../../lib/work-nature';
@@ -95,12 +96,26 @@ function paintList() {
   const paths = [...new Set(entries.filter((e) => !e.bulk).flatMap((e) => e.changes.map((c) => c.path)))].sort();
   $('hs-paths').innerHTML = paths.map((p) => `<option value="${esc(p)}"></option>`).join('');
 
+  // No report: why (signed out on a team page, or history that could not be read), with the one way forward.
+  const note = L?.data.realNote ?? null;
+  // Nothing to filter without a report: the line and the Filter button wait for one. Signing in is offered once, by
+  // the page (the guest banner and the side bar), not again here.
+  const head = document.querySelector<HTMLElement>('.cg-hs-head');
+  if (head) head.hidden = !report;
+  if (!report && note && !demo) {
+    $('hs-filters').hidden = true;
+    tl.innerHTML = `<div class="cg-empty"><p class="cg-muted">${esc(note)}</p></div>`;
+    $('hs-none').hidden = true;
+    return;
+  }
   if (!report || !entries.length) {
     tl.innerHTML = `<p class="cg-muted">No merged token change yet. Token changes land here once a branch from Tokens is merged.</p>`;
     $('hs-none').hidden = true;
     return;
   }
   const groups = viewTimeline(report, filter());
+  // A capped history (a team's, read from GitHub) says so under the list, with the way to the rest.
+  const cap = !demo && report.truncated && note ? `<p class="cg-muted hs-cap">${esc(note)} <a href="${attrUrl(`${repoUrl()}/commits`)}" target="_blank" rel="noopener">See every change on GitHub<span class="sr-only"> (opens in a new tab)</span></a></p>` : '';
   $('hs-none').hidden = groups.length > 0;
   tl.innerHTML = groups
     .map((g) => {
@@ -112,9 +127,12 @@ function paintList() {
       return `<section class="cg-rel" aria-label="${esc(name)}"><h2 class="cg-rel-h">${esc(name)} <span class="cg-rel-meta">${esc(facts)}</span></h2>
         <ul class="fg-card cg-list">${reviewable.map((e) => row(e, demo)).join('')}${importsRow(imports, demo)}</ul></section>`;
     })
-    .join('');
+    .join('') + cap;
   void paintPeople(tl);
 }
+
+/** A team's entries carry no diff from the build: it is read from GitHub when the entry opens. */
+const teamDiff = (e: HistoryEntry, demo: boolean) => !demo && isHosted() && !e.bulk && Boolean(e.baseSha);
 
 function paintDetail(e: HistoryEntry, demo: boolean) {
   const review = L!.data.reviews[`${demo ? 'demo' : 'real'}:${e.id}`];
@@ -125,7 +143,9 @@ function paintDetail(e: HistoryEntry, demo: boolean) {
         .join('')}</ul>`
     : review
       ? renderTokenReview(review)
-      : '<p class="cg-muted">No designer diff for this change.</p>';
+      : teamDiff(e, demo)
+        ? '<p class="cg-muted" role="status">Reading the token changes from GitHub</p>'
+        : '<p class="cg-muted">No designer diff for this change.</p>';
   // The developer view of it (the merged branch, else what landed on main) is one quiet link on the author line.
   const ref = demo
     ? '<span>Fixture change</span>'
@@ -142,6 +162,20 @@ function paintDetail(e: HistoryEntry, demo: boolean) {
       <details class="cg-sec" open><summary class="cg-sec-head"><span class="cg-sec-title">Token changes</span><span class="cg-sec-meta">${esc(countsLabel(e.counts))}</span><span class="cg-sec-chev" aria-hidden="true"></span></summary><div class="cg-sec-body">${diff}</div></details>
     </div>`;
   void paintPeople($('hs-detail'));
+  if (!review && teamDiff(e, demo) && L) {
+    const loaded = L;
+    teamEntryReview(e, loaded)
+      .then((r) => {
+        if (!r) return;
+        loaded.data.reviews[`real:${e.id}`] = r;
+        // Still on this entry: paint it again with its diff.
+        if (new URLSearchParams(location.search).get('entry') === e.id) paintDetail(e, demo);
+      })
+      .catch(() => {
+        const body = $('hs-detail').querySelector('.cg-sec-body');
+        if (body && new URLSearchParams(location.search).get('entry') === e.id) body.innerHTML = '<p class="cg-muted">GitHub did not send the token files of this change. Open it on GitHub to see them.</p>';
+      });
+  }
 }
 
 /** Paints the History view from the URL (?view=history, &entry=). */

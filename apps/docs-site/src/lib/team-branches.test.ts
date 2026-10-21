@@ -11,6 +11,21 @@ describe('teamBranchesRoute', () => {
     expect(teamBranchesRoute('?pr=abc')).toEqual({ view: 'list' });
     expect(teamBranchesRoute('?pr=-2')).toEqual({ view: 'list' });
   });
+
+  it('opens History, a request in place and the exploration start form, like the self-hosted page', () => {
+    expect(teamBranchesRoute('?view=history')).toEqual({ view: 'history' });
+    expect(teamBranchesRoute('?view=history&entry=abc')).toEqual({ view: 'history' });
+    expect(teamBranchesRoute('?request=9')).toEqual({ view: 'request', n: 9 });
+    expect(teamBranchesRoute('?view=explorations&start=new')).toEqual({ view: 'explorations', forRequest: null });
+    expect(teamBranchesRoute('?view=explorations&for=9')).toEqual({ view: 'explorations', forRequest: 9 });
+    // Explorations are rows of the list: the view opens only to start one.
+    expect(teamBranchesRoute('?view=explorations')).toEqual({ view: 'list' });
+  });
+
+  it('opens Requests only when request triage is on in Studio', () => {
+    expect(teamBranchesRoute('?view=requests', false)).toEqual({ view: 'list' });
+    expect(teamBranchesRoute('?view=requests', true)).toEqual({ view: 'requests' });
+  });
 });
 
 const item = (over: Partial<SuggestionListItem>): SuggestionListItem => ({

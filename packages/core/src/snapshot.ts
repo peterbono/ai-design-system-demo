@@ -67,6 +67,11 @@ export interface RepoSnapshot {
   audits: SnapshotAudit[];
   /** What could not be read when the snapshot was written. */
   problems: string[];
+  /**
+   * The global stylesheet globs the model read (components.styles), their files among `files`. Absent from a snapshot
+   * written before Bridge read global stylesheets: a reader then reads those files from the repository.
+   */
+  styles?: string[];
 }
 
 export class SnapshotError extends Error {}
@@ -227,6 +232,7 @@ export function buildSnapshot(input: BuildSnapshotInput): RepoSnapshot {
     contrast: { ...(model.contrast.path ? { path: model.contrast.path } : {}), pairs: model.contrast.pairs.map(({ fgToken: _fg, bgToken: _bg, ...rest }) => rest) },
     audits: input.audits ?? [],
     problems: [...model.problems],
+    styles: [...model.styles.globs],
   };
 }
 

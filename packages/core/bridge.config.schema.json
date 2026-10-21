@@ -286,6 +286,11 @@
           "type": "string",
           "description": "Generated component specs (npm run specs) the Figma plugin pulls as component sets, repo-relative.",
           "default": "packages/react/component-specs.json"
+        },
+        "styles": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Global stylesheets that ship with the library (base styles, theme), as repo-relative globs. Their var(--token) reads count as token usage. Default: every .css file under the styles/ and theme/ folders next to dir."
         }
       }
     },

@@ -4,7 +4,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { loadConfig } from '@bridge-ds/core';
 import { repoModel } from '../../lib/model';
-import { tokenFiles } from '../../lib/explorer';
+import { explorerTokens, tokenFiles } from '../../lib/explorer';
 import { explorerConfig, explorerInputFromModel, loadExplorerData, writeExplorerData } from './data';
 import { fillSegments } from './team-bootstrap';
 
@@ -33,6 +33,14 @@ describe('explorer data from a repo model', () => {
     // Writing again replaces the blocks instead of adding a second set.
     writeExplorerData(input);
     expect(document.querySelectorAll('#xp-files')).toHaveLength(1);
+  });
+
+  it('counts the global stylesheets: the same "in use" and the same stylesheet names as the build-time blocks', () => {
+    const input = explorerInputFromModel(repoModel, team);
+    const built = Object.fromEntries(explorerTokens().map((t) => [t.path, { used: t.used, styles: t.globalStyles }]));
+    for (const [path, u] of Object.entries(input.usage)) expect({ path, used: u.used, styles: u.styles }).toEqual({ path, ...built[path] });
+    // color.bg.default is read by base.css only: in use on a team page too.
+    expect(input.usage['color.bg.default']).toMatchObject({ used: true, styles: ['base.css'] });
   });
 
   it('keeps hostile repo text inert: blocks are text nodes, never parsed as HTML', () => {

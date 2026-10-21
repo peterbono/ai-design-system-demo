@@ -72,14 +72,22 @@ export function explorerInputFromModel(model: RepoModel, team: { owner: string; 
   const rows = model.tokens.rows;
   const byVar: Record<string, string[]> = {};
   for (const c of comps) for (const t of c.tokensUsed) (byVar[t.name] ??= []).push(c.name);
+  // The team's global stylesheets (components.styles) read tokens too: base.css alone keeps color.bg.default in use.
+  // A model cached before they were read has none.
+  const globalVars = model.styles?.vars ?? {};
+  const stylesOf = (cssVar: string) =>
+    Object.entries(globalVars)
+      .filter(([, vars]) => vars.includes(cssVar))
+      .map(([file]) => file.slice(file.lastIndexOf('/') + 1))
+      .sort();
   const refs = (t: (typeof rows.all)[number]) =>
     Object.values(t.brands)
       .flatMap((themes) => Object.values(themes).flatMap((m) => m.chain))
       .concat(t.densities ? Object.values(t.densities).flatMap((d) => d.chain) : []);
-  const { used } = tokenUsage([...rows.primitives.map((p) => ({ path: p.path, cssVar: p.cssVar, refs: [] })), ...rows.all.map((t) => ({ path: t.path, cssVar: t.cssVar, refs: refs(t) }))], { byVar, globalVars: {} });
+  const { used } = tokenUsage([...rows.primitives.map((p) => ({ path: p.path, cssVar: p.cssVar, refs: [] })), ...rows.all.map((t) => ({ path: t.path, cssVar: t.cssVar, refs: refs(t) }))], { byVar, globalVars });
   const usersOf = (cssVar: string) => comps.filter((c) => c.tokensUsed.some((t) => t.name === cssVar)).map((c) => ({ name: c.name, href: team.componentHref(c.dir) }));
   const usage: UsageMap = {};
-  for (const t of [...rows.primitives, ...rows.all]) usage[t.path] = { used: used.has(t.path), usedBy: usersOf(t.cssVar) };
+  for (const t of [...rows.primitives, ...rows.all]) usage[t.path] = { used: used.has(t.path), usedBy: usersOf(t.cssVar), styles: stylesOf(t.cssVar) };
 
   return {
     files: model.tokens.files,
