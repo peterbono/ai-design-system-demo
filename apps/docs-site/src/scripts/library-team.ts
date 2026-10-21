@@ -11,6 +11,7 @@ import { LIBRARY_SHELL_ROOT, libraryFromPath, libraryHref } from '../lib/library
 import { RESERVED_PATHS_URL, STUDIO_ROOT, teamHref, type ReservedPaths } from '../lib/team-path';
 import { llmsTxtUrl } from '../lib/library-view';
 import { loadTeamData, loadTeamLlms } from './team-data';
+import { refreshSpaceSwitch } from './space-switch';
 
 const ROBOTS = 'meta[name="robots"][data-library-robots]';
 
@@ -37,10 +38,13 @@ export function pointLibraryLinks(team: { owner: string; repo: string }, reserve
     a.setAttribute('href', libraryHref(team.owner, team.repo, href.slice(LIBRARY_SHELL_ROOT.length)));
   }
   const studio = teamHref(team.owner, team.repo, reserved);
-  for (const a of root.querySelectorAll<HTMLAnchorElement>(`a[href="${STUDIO_ROOT}"], a[data-team-studio]`)) {
+  for (const a of root.querySelectorAll<HTMLAnchorElement>(`a[href="${STUDIO_ROOT}"]:not([data-space-switch]), a[data-team-studio]`)) {
     a.setAttribute('href', studio);
     a.setAttribute('data-team-studio', '');
   }
+  // The header switch carries the page's item across (scripts/space-switch.ts): it gets the team's Studio as its root.
+  for (const a of root.querySelectorAll<HTMLAnchorElement>('a[data-space-switch]')) a.setAttribute('data-studio-root', studio);
+  refreshSpaceSwitch(root);
   const github = `https://github.com/${encodeURIComponent(team.owner)}/${encodeURIComponent(team.repo)}`;
   for (const a of root.querySelectorAll<HTMLAnchorElement>('a[data-team-github]')) a.href = github;
   for (const el of root.querySelectorAll<HTMLElement>('[data-team-name]')) el.textContent = `${team.owner}/${team.repo}`;

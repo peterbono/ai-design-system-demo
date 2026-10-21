@@ -274,12 +274,6 @@
   opacity: 0.55;
 }
 
-@media (max-width: 960px) {
-  .hd-label {
-    display: none;
-  }
-}
-
 @media (max-width: 640px) {
   :root:is([data-space="studio"], [data-space="settings"]) main {
     padding: var(--space-4) var(--space-4) var(--space-8);
