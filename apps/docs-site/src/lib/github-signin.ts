@@ -53,16 +53,20 @@ const validId = (id: string | undefined) => {
 };
 
 /**
- * Which app Studio signs in with: Direct when the repo's `changes` is "direct", else the read-only Bridge app. When
- * only one app is configured, that one (a site that never set up the suggest app keeps signing in as before).
+ * Which app a sign-in uses (multi-team plan 3.2). Identity first: every visitor signs in with the read-only Bridge app
+ * (suggest), whose token reads, comments and files suggestions on any repository it is installed on. Bridge Direct
+ * only when it is needed: the repository's `changes` is "direct" (read at runtime on a team shell) and the sign-in is
+ * for writing code (`need: 'write'`). When only one app is configured, that one (a site that never set up the
+ * suggest app keeps signing in as before).
  */
 export function pickSignInApp(
   env: { GITHUB_APP_CLIENT_ID?: string | undefined; GITHUB_APP_SUGGEST_CLIENT_ID?: string | undefined },
   changes?: string | null,
+  need: 'identity' | 'write' = 'identity',
 ): { clientId: string; app: SignInApp } | null {
   const direct = validId(env.GITHUB_APP_CLIENT_ID);
   const suggest = validId(env.GITHUB_APP_SUGGEST_CLIENT_ID);
-  if (changes === 'direct' && direct) return { clientId: direct, app: 'direct' };
+  if (need === 'write' && changes === 'direct' && direct) return { clientId: direct, app: 'direct' };
   if (suggest) return { clientId: suggest, app: 'suggest' };
   if (direct) return { clientId: direct, app: 'direct' };
   return null;
@@ -77,13 +81,15 @@ export function signInConfigFrom(
   previews?: { apps?: { docs?: string }; production?: { docs?: string } } | null,
   changes?: string | null,
 ): SignInConfig | null {
-  const picked = pickSignInApp(env, changes);
+  // The self-hosted site has one repository and signs in once: in direct mode its Studio writes code, so it asks for
+  // Bridge Direct up front, as before. Team shells sign in for identity and ask for Direct on demand (plan 3.2).
+  const picked = pickSignInApp(env, changes, 'write');
   if (!picked) return null;
   const prod = previews?.production?.docs?.trim();
   const preview = previews?.apps?.docs?.trim();
   return {
     ...picked,
-    suggestApp: pickSignInApp(env, 'suggest')!.app,
+    suggestApp: pickSignInApp(env)!.app,
     productionOrigin: prod && /^https:\/\/[^/]+\/?$/.test(prod) ? trimSlash(prod) : null,
     previewPattern: preview && preview.includes('{branch}') && preview.startsWith('https://') ? trimSlash(preview) : null,
   };
@@ -352,13 +358,16 @@ export interface SlotPlan {
 }
 
 /**
- * What to do with tokens saved by another app when the page loads (the repo moved between suggest and direct, or the
- * site got its second app). The current slot is the app this page signs in with ('' without a GitHub App).
- * - A sign-in of another app is removed, with a prompt to sign in again (only when this site signs in at all).
+ * What to do with tokens saved in other slots when the page loads. The current slot is the app this page signs in
+ * with ('' without a GitHub App). Token slots are global per app: a token of one app stays valid on every repository,
+ * so a page never removes the other app's sign-in because its repository's mode differs (multi-team plan 3.2).
+ * - The other app's sign-in is kept. When the current slot is empty, the page says that Bridge signs in with a
+ *   different app here (`switched`), so the visitor knows why they look signed out.
  * - A sign-in saved before the apps had slots ('') was made with today's Direct app: it moves to 'direct' when that is
- *   the current app and its client ID still matches.
+ *   the current app and its client ID still matches; on a suggest page it is removed (no app owns that slot).
  * - A pasted token belongs to no app: it moves to the current slot when that one is empty.
  * - The current slot's own sign-in is removed when its client ID is not the current one (the app was replaced).
+ * - On a site without a GitHub App ('') the app sign-ins are removed: nothing there can refresh or use them.
  */
 export function planSlots(slots: Partial<Record<StorageSlot, SlotContent>>, current: StorageSlot, clientId: string | null): SlotPlan {
   const plan: SlotPlan = { move: null, clear: [], switched: false };
@@ -369,6 +378,7 @@ export function planSlots(slots: Partial<Record<StorageSlot, SlotContent>>, curr
     plan.switched = true;
     filled = false;
   }
+  let otherApp = false;
   for (const slot of STORAGE_SLOTS) {
     if (slot === current) continue;
     const c = slots[slot];
@@ -379,8 +389,14 @@ export function planSlots(slots: Partial<Record<StorageSlot, SlotContent>>, curr
       filled = true;
       continue;
     }
+    // Another app's sign-in (or a pasted token kept there): valid for that app, kept for its pages.
+    if (slot !== '' && current !== '') {
+      if (c.session) otherApp = true;
+      continue;
+    }
     plan.clear.push(slot);
     if (c.session && current) plan.switched = true;
   }
+  if (otherApp && !filled) plan.switched = true;
   return plan;
 }

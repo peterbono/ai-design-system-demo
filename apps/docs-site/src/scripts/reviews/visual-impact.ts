@@ -6,6 +6,7 @@ import { VISUAL_CHECK_LABEL } from '@bridge-ds/core';
 import { changeLabel, facet, filterShots, modeLabel, VISUAL_BRANCH, visualAsk, visualBase, visualState, type VisualFilter, type VisualManifest, type VisualShot } from '../../lib/visual-impact';
 import { attrUrl } from '../../lib/html';
 import { esc, GitHubError, ghGet, ghWrite, hasWorkingToken, onAccess, showGhError } from '../github-session';
+import { siteConfig } from '../repo-context';
 
 const PAGE = 8;
 
@@ -175,7 +176,7 @@ export function renderTopChange(slot: HTMLElement, v: VisualSummary, allHref: st
 /** visualImpact.mode from bridge.config.json, embedded by the layout. */
 function visualMode(): 'auto' | 'on-demand' {
   try {
-    const site = JSON.parse(document.getElementById('bridge-repo')?.textContent || '{}') as { visualImpact?: { mode?: string } };
+    const site = siteConfig() as { visualImpact?: { mode?: string } };
     return site.visualImpact?.mode === 'on-demand' ? 'on-demand' : 'auto';
   } catch {
     return 'auto';

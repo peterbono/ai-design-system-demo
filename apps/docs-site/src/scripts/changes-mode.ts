@@ -1,13 +1,14 @@
-// How changes reach the code on this page: bridge.config.json "changes", embedded by the layout (#bridge-repo, from
-// lib/config.ts). Until the read-only GitHub App ships, suggest mode is a Bridge rule enforced here: every Studio send
+// How changes reach the code on this page: bridge.config.json "changes", from the repository settings (siteConfig in
+// scripts/repo-context.ts: the layout's #bridge-repo, or the team's config on a team shell). Until the read-only GitHub App ships, suggest mode is a Bridge rule enforced here: every Studio send
 // files a suggestion, and every branch or pull request write refuses with a plain sentence (assertBranchWrites).
 import { DEFAULT_CHANGES_MODE, type ChangesMode } from '@bridge-ds/core';
 import { suggestOnlyLine } from '../lib/gh-wording';
+import { siteConfig } from './repo-context';
 
 /** "suggest" (the default, also when the page says nothing) or "direct". */
 export function changesModeOnPage(): ChangesMode {
   try {
-    const site = JSON.parse(document.getElementById('bridge-repo')?.textContent || '{}') as { changes?: unknown };
+    const site = siteConfig() as { changes?: unknown };
     return site.changes === 'direct' ? 'direct' : DEFAULT_CHANGES_MODE;
   } catch {
     return DEFAULT_CHANGES_MODE;

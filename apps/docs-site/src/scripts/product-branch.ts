@@ -45,6 +45,7 @@ import type { ProductBranchProps } from '../components/ds/studio/ProductBranch';
 import { currentViewer, ghGet, hasWorkingToken, prefersSignIn, studioClient } from './github-session';
 import { explorationsConfig } from './exploration-start';
 import { loadVisualImpact, renderTopChange } from './reviews/visual-impact';
+import { siteConfig } from './repo-context';
 
 const CFG = explorationsConfig();
 const R = `/repos/${CFG.owner}/${CFG.repo}`;
@@ -267,10 +268,10 @@ function pieceActions(rows: PieceRowView[], mode: ChangesMode): PieceRowView[] {
   return rows.map((row) => (row.action?.kind === 'open' ? { ...row, action: { ...row.action, label: sendButton('piece', mode) } } : row.action ? { ...row, action: null } : row));
 }
 
-/** bridge.config.json products, embedded by the layout (#bridge-repo); the defaults when absent. */
+/** bridge.config.json products (repo-context siteConfig); the defaults when absent. */
 export function siteProducts(): ProductConfig[] {
   try {
-    const site = JSON.parse(document.getElementById('bridge-repo')?.textContent || '{}') as { products?: ProductConfig[] };
+    const site = siteConfig() as { products?: ProductConfig[] };
     return site.products?.length ? site.products : DEFAULT_PRODUCTS;
   } catch {
     return DEFAULT_PRODUCTS;
