@@ -158,6 +158,26 @@ export interface RepoModelOptions {
   href?: (cssVar: string, type: string, tier: TokenRowTier, path: string) => string | undefined;
   /** Requests in flight. Default 8. */
   concurrency?: number;
+  /**
+   * Hears how far the read has gone, in real file counts: once with every phase's total before the first body is
+   * read, then once per file settled. Phases run in order: tokens (token files, contrast checks, usage notes), then
+   * components (code, styles, stories, the index and the Figma specs), then docs (each component's docs file).
+   */
+  onProgress?: (progress: RepoModelProgress) => void;
+}
+
+/** The three reads of loadRepoModel, in the order they run. */
+export type RepoModelPhase = 'tokens' | 'components' | 'docs';
+
+export interface RepoModelProgress {
+  /** The phase being read. */
+  phase: RepoModelPhase;
+  /** Files of this phase settled so far, and in all (a phase with nothing to read reports 0 of 0). */
+  done: number;
+  total: number;
+  /** Across every phase: the bar of the whole read. `filesTotal` is known from the first report and never moves. */
+  filesDone: number;
+  filesTotal: number;
 }
 
 const emptyRows = (config: BridgeConfig): TokenRows => ({ ...tokenRowAxes(config), primitives: [], semantic: [], brand: [], density: [], component: [], all: [], sources: [] });
@@ -187,7 +207,49 @@ export async function loadRepoModel(source: RepoSource, options: RepoModelOption
   const contrastPath = config.contrast?.path;
   const usagePath = tokensPath(config, config.tokens.usage ?? REPO_MODEL_DEFAULTS.tokensUsage);
   const tokenPaths = tokenRel.map((f) => tokensPath(config, f));
-  const bodies = await readRepoTexts(source, [...tokenPaths, ...(contrastPath ? [contrastPath] : []), usagePath], concurrency, tooLarge);
+  const tokenRead = [...new Set([...tokenPaths, ...(contrastPath ? [contrastPath] : []), usagePath])];
+
+  // Every path of the components and docs phases is known from the listing, before any body: the progress total is
+  // exact from the first report.
+  const comps = config.components ?? { dir: REPO_MODEL_DEFAULTS.componentsDir, docsSuffix: '.docs.json', styleSuffix: '.module.css' };
+  const specsPath = comps.specs ?? REPO_MODEL_DEFAULTS.componentSpecs;
+  const indexPath = comps.index ?? (parentDir(comps.dir) ? `${parentDir(comps.dir)}/index.ts` : 'index.ts');
+  let compFiles: string[] = [];
+  const codeRead: string[] = [specsPath];
+  const docsRead: string[] = [];
+  if (options.components !== false) {
+    compFiles = await source.list(comps.dir);
+    for (const f of compFiles) {
+      const parts = f.slice(comps.dir.length + 1).split('/');
+      if (parts.length !== 2) continue;
+      const [n, file] = parts as [string, string];
+      if (file === `${n}${comps.docsSuffix}`) docsRead.push(f);
+      else if ([`${n}.tsx`, `${n}${comps.styleSuffix}`, `${n}.stories.tsx`].includes(file)) codeRead.push(f);
+    }
+    codeRead.push(indexPath);
+  }
+  // A path is read once, in the first phase that asks for it.
+  const seen = new Set<string>();
+  const fresh = (paths: string[]) =>
+    paths.filter((p) => {
+      if (seen.has(p)) return false;
+      seen.add(p);
+      return true;
+    });
+  const phases: [RepoModelPhase, string[]][] = [
+    ['tokens', fresh(tokenRead)],
+    ['components', fresh(codeRead)],
+    ['docs', fresh(docsRead)],
+  ];
+  const filesTotal = phases.reduce((n, [, paths]) => n + paths.length, 0);
+  let before = 0;
+  const readPhase = async (phase: RepoModelPhase, paths: string[]) => {
+    const offset = before;
+    const out = await readRepoTexts(source, paths, concurrency, tooLarge, (done, total) => options.onProgress?.({ phase, done, total, filesDone: offset + done, filesTotal }));
+    before += paths.length;
+    return out;
+  };
+  const bodies = await readPhase('tokens', phases[0]![1]);
   const read = (p: string) => bodies.get(p) ?? undefined;
   const files: Record<string, string> = {};
   tokenRel.forEach((rel, i) => {
@@ -229,24 +291,10 @@ export async function loadRepoModel(source: RepoSource, options: RepoModelOption
     const hit = index.get(cssVar);
     return hit ? { path: hit.path, kind: hit.kind, href: options.href?.(cssVar, hit.type, hit.kind, hit.path) } : undefined;
   };
-  const comps = config.components ?? { dir: REPO_MODEL_DEFAULTS.componentsDir, docsSuffix: '.docs.json', styleSuffix: '.module.css' };
-  const specsPath = comps.specs ?? REPO_MODEL_DEFAULTS.componentSpecs;
   let components: RepoModel['components'] = null;
-  const extra: string[] = [specsPath];
-  let compFiles: string[] = [];
-  const indexPath = comps.index ?? (parentDir(comps.dir) ? `${parentDir(comps.dir)}/index.ts` : 'index.ts');
-  if (options.components !== false) {
-    compFiles = await source.list(comps.dir);
-    const wanted = compFiles.filter((f) => {
-      const parts = f.slice(comps.dir.length + 1).split('/');
-      if (parts.length !== 2) return false;
-      const [n, file] = parts as [string, string];
-      return [`${n}.tsx`, `${n}${comps.styleSuffix}`, `${n}.stories.tsx`, `${n}${comps.docsSuffix}`].includes(file);
-    });
-    extra.push(...wanted, indexPath);
-  }
-  const more = await readRepoTexts(source, extra, concurrency, tooLarge);
-  const readMore = (p: string) => more.get(p) ?? undefined;
+  const code = await readPhase('components', phases[1]![1]);
+  const docs = await readPhase('docs', phases[2]![1]);
+  const readMore = (p: string) => code.get(p) ?? docs.get(p) ?? bodies.get(p) ?? undefined;
   if (options.components !== false) {
     const indexText = readMore(indexPath);
     const indexDir = parentDir(indexPath);

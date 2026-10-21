@@ -8,7 +8,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { Braces } from 'lucide-react';
 import { EmptyState, Link } from '@bridge-ds/react';
 import { buildTokenSet, layoutOptions, loadConfig } from '@bridge-ds/core';
-import { TeamLoadError, TeamSourceNote } from '../../components/ds/studio/TeamState';
+import { TeamLoadError, TeamLoadProgress, TeamSourceNote } from '../../components/ds/studio/TeamState';
 import { loadTeamData, resetTeamData, teamOfPage } from '../team-data';
 import { HOSTED_DOCS_URL, teamFailure } from '../../lib/team-load';
 import { modeName } from '../../lib/explorer/format';
@@ -48,10 +48,13 @@ export async function bootstrapTeamExplorer(start: () => void): Promise<void> {
   const name = team ? `${team.owner}/${team.repo}` : 'this repository';
   const paint = (node: ReturnType<typeof createElement>) => {
     state.removeAttribute('aria-busy');
-    state.classList.remove('tp-skel');
+    state.classList.remove('lp-wait');
     stateRoot ??= createRoot(state);
     stateRoot.render(node);
   };
+  // How far the read has gone, until the tokens are in (or it fails).
+  stateRoot ??= createRoot(state);
+  stateRoot.render(createElement(TeamLoadProgress, { label: "Reading the team's tokens" }));
 
   let data: Awaited<ReturnType<typeof loadTeamData>>;
   try {
@@ -116,6 +119,8 @@ export async function bootstrapTeamExplorer(start: () => void): Promise<void> {
       }),
     );
   }
+  stateRoot?.unmount();
+  stateRoot = null;
   (state.closest('[data-xp-team-wrap]') ?? state).remove();
   xp.hidden = false;
   start();

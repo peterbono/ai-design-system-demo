@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { buildSnapshot, GitHubClient, loadRepoModel, recordingSource, type FetchLike, type RepoModel, type RepoSnapshot } from '@bridge-ds/core';
 import { FALLBACK_REPO, loadTeamModel, repoContext, repoFromPath, siteConfig, type ModelCache } from './repo-context';
 import { planEviction } from './repo-cache';
+import type { TeamLoadEvent } from '../lib/load-progress';
 
 const SHA = 'a'.repeat(40);
 
@@ -116,6 +117,23 @@ describe('loadTeamModel', () => {
     expect(calls).toEqual(['https://api.github.com/repos/acme/ds', 'https://api.github.com/repos/acme/ds/git/ref/heads/trunk']);
   });
 
+  it('reports its steps: the head, then real file counts, then the cache on the next read', async () => {
+    const files = { 'bridge.config.json': CONFIG, 'tokens/color.json': JSON.stringify({ color: { ink: { $type: 'color', $value: '#000000' } } }) };
+    const { client } = fakeRepo(files);
+    const cache = memoryCache();
+    const steps: TeamLoadEvent[] = [];
+    await loadTeamModel(client, { cache, components: false, onProgress: (e) => steps.push(e) });
+    expect(steps[0]).toEqual({ step: 'head' });
+    const counts = steps.flatMap((e) => (e.step === 'files' ? [e.progress] : []));
+    expect(counts.length).toBeGreaterThan(1);
+    expect(counts.at(-1)!.filesDone).toBe(counts.at(-1)!.filesTotal);
+    expect(steps.some((e) => e.step === 'snapshot' || e.step === 'cache')).toBe(false);
+
+    steps.length = 0;
+    await loadTeamModel(client, { cache, components: false, onProgress: (e) => steps.push(e) });
+    expect(steps).toEqual([{ step: 'head' }, { step: 'cache' }]);
+  });
+
   it('gives a team shell its settings and default branch', async () => {
     page({ hosted: true, path: '/studio/acme/ds/' });
     const { client } = fakeRepo({ 'bridge.config.json': CONFIG });
@@ -139,6 +157,9 @@ describe('loadTeamModel with a snapshot', () => {
     const snap = await snapshotAt(SHA);
     const read = await loadTeamModel(client, { cache: memoryCache(), components: false, snapshot: async () => snap });
     expect(read).toMatchObject({ source: 'snapshot', cached: false, sha: SHA });
+    const steps: TeamLoadEvent[] = [];
+    await loadTeamModel(fakeRepo(files).client, { cache: memoryCache(), components: false, snapshot: async () => snap, onProgress: (e) => steps.push(e) });
+    expect(steps.slice(0, 2)).toEqual([{ step: 'head' }, { step: 'snapshot' }]);
     expect(read.snapshot).toBe(snap);
     expect(read.model.site.changes).toBe('direct');
     // The same model a live read gives.

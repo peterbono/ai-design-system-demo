@@ -195,3 +195,18 @@ test('refuses a branch name: bodies are pinned to a commit sha', () => {
   const { client } = setup();
   assert.throws(() => gitHubSource(client, 'main'), /full commit sha/);
 });
+
+test('onProgress hears the tree once, then each body with where it came from', async () => {
+  const { client } = setup({ token: '', publicRaw: true });
+  const events: unknown[] = [];
+  const store = new Map<string, string>([['c1', '{"cached":1}']]);
+  const src = gitHubSource(client, SHA, { blobCache: { get: (s) => store.get(s), set: (s, t) => void store.set(s, t) }, onProgress: (e) => events.push(e) });
+  await src.text('bridge.config.json');
+  await src.text('packages/tokens/src/semantic/dark.tokens.json');
+  await src.list();
+  assert.deepEqual(events, [
+    { kind: 'tree', files: 6 },
+    { kind: 'file', path: 'bridge.config.json', cached: true },
+    { kind: 'file', path: 'packages/tokens/src/semantic/dark.tokens.json', cached: false },
+  ]);
+});

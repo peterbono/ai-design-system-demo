@@ -2,13 +2,15 @@
 //   useTeamData()     the team of this page (scripts/team-data.ts), with retry and refresh
 //   TeamSourceNote    one line under the title: the commit it was read at, where from, and Refresh
 //   TeamLoadError     a calm full-width state that says what went wrong and the one way out (Try again)
-//   TeamSkeleton      rows of skeletons in the page's own shape while it loads
+//   TeamLoadProgress  how far the read has gone (LoadProgress), once it is not instant
 // Repo content never reaches HTML here: React text nodes only.
 import { useCallback, useEffect, useState } from 'react';
 import { CloudOff, FileWarning, RefreshCw, SearchX, Timer } from 'lucide-react';
-import { Button, EmptyState, IconButton, Link, Skeleton } from '@bridge-ds/react';
+import { Button, EmptyState, IconButton, Link } from '@bridge-ds/react';
 import ButtonLink from '../ButtonLink';
-import { loadTeamData, resetTeamData, teamOfPage, type TeamData } from '../../../scripts/team-data';
+import { loadTeamData, onTeamProgress, resetTeamData, teamOfPage, type TeamData } from '../../../scripts/team-data';
+import { LoadProgress } from './LoadProgress';
+import { TEAM_PROGRESS_START, teamProgressView, type TeamProgress } from '../../../lib/load-progress';
 import { commitUrl, SNAPSHOT_TEMPLATE_URL, sourceLine, teamFailure, type TeamFailure } from '../../../lib/team-load';
 
 export type TeamLoad = { status: 'loading' } | { status: 'ready'; data: TeamData; refreshing: boolean } | { status: 'error'; failure: TeamFailure };
@@ -87,15 +89,19 @@ export function TeamLoadError({ failure, onRetry }: { failure: TeamFailure; onRe
   );
 }
 
-/** Skeleton rows in the page's own shape: an opener band, then `rows` list rows. */
-export function TeamSkeleton({ rows = 6, label }: { rows?: number; label: string }) {
-  return (
-    <div className="tp-skel" aria-busy="true" aria-label={label}>
-      <Skeleton variant="text" width="40%" />
-      <Skeleton variant="rect" className="tp-skel-band" />
-      {Array.from({ length: rows }, (_, i) => (
-        <Skeleton key={i} variant="rect" className="tp-skel-row" />
-      ))}
-    </div>
-  );
+/** A read that settles within this is never shown (a cache hit costs two quick calls): no flash of progress. */
+const SHOW_AFTER_MS = 300;
+
+/** The team load of this page as a LoadProgress, once it is not instant. Until then, a quiet busy region. */
+export function TeamLoadProgress({ label }: { label: string }) {
+  const [p, setP] = useState<TeamProgress>(TEAM_PROGRESS_START);
+  const [waited, setWaited] = useState(false);
+  useEffect(() => onTeamProgress(setP), []);
+  useEffect(() => {
+    const t = setTimeout(() => setWaited(true), SHOW_AFTER_MS);
+    return () => clearTimeout(t);
+  }, []);
+  const shown = p.via !== null || (waited && p.step !== 'cache');
+  if (!shown) return <div className="lp-wait" aria-busy="true" aria-label={label} />;
+  return <LoadProgress view={teamProgressView(p)} label={label} />;
 }

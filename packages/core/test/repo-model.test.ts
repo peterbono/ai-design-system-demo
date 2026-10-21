@@ -137,6 +137,28 @@ test('components can be skipped (the browser scans them lazily)', async () => {
   assert.equal(model.tokens.rows.all.length, 4);
 });
 
+test('onProgress: tokens, then components, then docs, with an exact total from the first report', async () => {
+  const seen: { phase: string; done: number; total: number; filesDone: number; filesTotal: number }[] = [];
+  const model = await loadRepoModel(memorySource(TEAM), { onProgress: (p) => seen.push(p) });
+  assert.equal(model.components?.list.length, 1);
+  const total = seen[0]!.filesTotal;
+  // 7 token files + pairs + notes; Button.tsx, its CSS, the index and the specs; one docs file.
+  assert.equal(total, 9 + 4 + 1);
+  assert.ok(seen.every((p) => p.filesTotal === total), 'the total never moves');
+  assert.deepEqual([...new Set(seen.map((p) => p.phase))], ['tokens', 'components', 'docs']);
+  const done = seen.map((p) => p.filesDone);
+  assert.deepEqual(done, [...done].sort((a, b) => a - b), 'never goes back');
+  assert.deepEqual(seen.at(-1), { phase: 'docs', done: 1, total: 1, filesDone: total, filesTotal: total });
+  assert.deepEqual(
+    seen.filter((p) => p.done === p.total).map((p) => [p.phase, p.total]),
+    [
+      ['tokens', 9],
+      ['components', 4],
+      ['docs', 1],
+    ],
+  );
+});
+
 test('siteRepoFromConfig keeps the older top-level owners, owner and defaultBranch keys', () => {
   const raw = { repo: 'acme/design', owner: 'acme-org', defaultBranch: 'develop', owners: { design: ['ana'] } };
   const site = siteRepoFromConfig(loadConfig(raw), raw);

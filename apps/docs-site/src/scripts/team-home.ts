@@ -13,7 +13,7 @@ import { rememberMine } from './needs-you';
 import { loadHome, type HomeData, type HomeStatic } from './home-data';
 import { loadTeamData, resetTeamData, teamOfPage, type TeamData } from './team-data';
 import { paintStudioHome, type HealthLine, type HomeComponent, type StudioHomeProps } from '../components/ds/studio/StudioHome';
-import { TeamLoadError, TeamSourceNote } from '../components/ds/studio/TeamState';
+import { TeamLoadError, TeamLoadProgress, TeamSourceNote } from '../components/ds/studio/TeamState';
 import { greeting, homeState } from '../lib/home-model';
 import { startChangeHref } from '../lib/overview-board';
 import { signedOutLine } from '../lib/overview-todo';
@@ -112,6 +112,11 @@ export function initTeamHome(el: HTMLElement, sourceEl: HTMLElement | null) {
   }
 
   function start() {
+    // How far the read has gone, until the home can paint (a Refresh keeps the home on screen instead).
+    if (!stat) {
+      root ??= createRoot(el);
+      root.render(createElement(TeamLoadProgress, { label: "Reading this team's design system" }));
+    }
     loadTeamData().then(
       (team) => {
         stat = teamHomeStatic(team);

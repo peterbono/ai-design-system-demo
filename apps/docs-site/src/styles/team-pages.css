@@ -1,5 +1,5 @@
-/* Team pages (components/ds/studio/TeamState.tsx and the team islands): the source line under the title, the
-   loading skeletons and the error state. Everything else reuses the self-hosted page's own styles. */
+/* Team pages (components/ds/studio/TeamState.tsx and the team islands): the source line under the title and
+   the error state (the progress of a read: load-progress.css). Everything else reuses the self-hosted page's own styles. */
 
 .tp-source {
   display: flex;
@@ -11,22 +11,6 @@
   font-size: var(--typography-ui-size);
   line-height: var(--typography-ui-line-height);
   overflow-wrap: anywhere;
-}
-
-.tp-skel {
-  display: grid;
-  gap: var(--space-3);
-  max-width: var(--studio-page-max);
-}
-
-.tp-skel-band {
-  height: var(--size-120);
-  border-radius: var(--radius-container);
-}
-
-.tp-skel-row {
-  height: var(--size-12);
-  border-radius: var(--radius-inset);
 }
 
 .tp-error {
@@ -78,4 +62,9 @@
   display: grid;
   gap: var(--space-5);
   max-width: var(--studio-page-max);
+}
+
+/* Team Branches: a branch or a suggestion opened in place has its own title and way back (scripts/team-branches.ts). */
+.ts > .st-head[hidden] {
+  display: none;
 }

@@ -24,6 +24,7 @@ import {
 } from '@bridge-ds/core';
 import { blobCacheFor, getCachedModel, putCachedModel } from './repo-cache';
 import { isHosted, repoFromPath } from '../lib/team-path';
+import type { TeamLoadEvent } from '../lib/load-progress';
 
 export interface RepoContext {
   owner: string;
@@ -134,10 +135,11 @@ const indexedDbCache: ModelCache = { get: getCachedModel, put: putCachedModel, b
  */
 export async function loadTeamModel(
   client: GitHubClient,
-  opts: RepoModelOptions & { cache?: ModelCache; snapshot?: SnapshotReader } = {},
+  opts: Omit<RepoModelOptions, 'onProgress'> & { cache?: ModelCache; snapshot?: SnapshotReader; onProgress?: (event: TeamLoadEvent) => void } = {},
 ): Promise<TeamModel> {
-  const { cache = indexedDbCache, snapshot: readSnapshot, ...modelOptions } = opts;
+  const { cache = indexedDbCache, snapshot: readSnapshot, onProgress, ...modelOptions } = opts;
   const repo = `${client.owner}/${client.name}`;
+  onProgress?.({ step: 'head' });
   const info = await client.getRepo();
   const sha = await client.getBranchSha(info.defaultBranch);
   if (!sha) throw new GitHubError(404, `${repo} has no ${info.defaultBranch} branch.`);
@@ -146,6 +148,7 @@ export async function loadTeamModel(
 
   const kept = await cache.get(repo, sha);
   if (kept) {
+    onProgress?.({ step: 'cache' });
     remember(kept);
     return { model: kept, sha, defaultBranch: info.defaultBranch, private: info.private, cached: true, source: 'cache' };
   }
@@ -153,13 +156,15 @@ export async function loadTeamModel(
   // every body. A missing, broken or older snapshot falls through to the live read.
   const snap = readSnapshot ? await readSnapshot(client, { private: info.private }).catch(() => null) : null;
   if (snap && snapshotIsFresh(snap, sha)) {
+    onProgress?.({ step: 'snapshot' });
     const model = await loadRepoModel(snapshotSource(snap), modelOptions);
     await cache.put(repo, sha, model, { private: info.private });
     remember(model);
     return { model, sha, defaultBranch: info.defaultBranch, private: info.private, cached: false, source: 'snapshot', snapshot: snap };
   }
   const source = gitHubSource(client, sha, { blobCache: cache.blobs(repo, { private: info.private }) });
-  const model = await loadRepoModel(source, modelOptions);
+  // Real file counts, from the first listing on: the bar never runs ahead of the reads.
+  const model = await loadRepoModel(source, { ...modelOptions, ...(onProgress ? { onProgress: (progress) => onProgress({ step: 'files', progress }) } : {}) });
   await cache.put(repo, sha, model, { private: info.private });
   remember(model);
   return { model, sha, defaultBranch: info.defaultBranch, private: info.private, cached: false, source: 'live' };

@@ -10,6 +10,7 @@ import { parseSnapshot, SNAPSHOT_BRANCH, SNAPSHOT_FILE, SNAPSHOT_MAX_BYTES, stor
 import { getToken, hasWorkingToken, studioClient } from './github-session';
 import { loadTeamModel, type SnapshotReader, type TeamModelSource } from './repo-context';
 import { repoFromPath } from '../lib/team-path';
+import { TEAM_PROGRESS_START, teamProgress, type TeamLoadEvent, type TeamProgress } from '../lib/load-progress';
 
 export interface TeamData {
   owner: string;
@@ -54,14 +55,40 @@ export const readTeamSnapshot: SnapshotReader = async (client, repo) => {
 let pending: Promise<TeamData> | null = null;
 let snapshot: Promise<RepoSnapshot | null> | null = null;
 
+// How far this page's load has gone (lib/load-progress.ts), for every view that waits on it
+// (components/ds/studio/LoadProgress). Kept, so a view that mounts late starts from where the load is.
+let progress: TeamProgress = TEAM_PROGRESS_START;
+const listeners = new Set<(p: TeamProgress) => void>();
+function report(event: TeamLoadEvent) {
+  progress = teamProgress(progress, event);
+  for (const fn of listeners) fn(progress);
+}
+
+/** Hears the load's progress, starting with where it is now. Returns the way to stop. */
+export function onTeamProgress(fn: (p: TeamProgress) => void): () => void {
+  listeners.add(fn);
+  fn(progress);
+  return () => listeners.delete(fn);
+}
+
+/**
+ * How long "Ready" stays with a full bar before the page replaces it, after a read the visitor watched. A cache hit
+ * never shows the progress, so it never waits.
+ */
+export const READY_HOLD_MS = 400;
+
 /** The team of this page, read once per page. Rejects with the GitHub error (lib/team-load.ts teamFailure words it). */
 export function loadTeamData(): Promise<TeamData> {
   pending ??= (async () => {
     const team = teamOfPage();
     if (!team) throw Object.assign(new Error('This page is not a team address.'), { status: 404 });
     const client = teamClient(team);
-    const read = await loadTeamModel(client, { snapshot: readTeamSnapshot });
+    const read = await loadTeamModel(client, { snapshot: readTeamSnapshot, onProgress: report });
     if (read.snapshot) snapshot ??= Promise.resolve(read.snapshot);
+    if (!read.cached) {
+      report({ step: 'ready' });
+      await new Promise((r) => setTimeout(r, READY_HOLD_MS));
+    }
     return {
       ...team,
       model: read.model,
