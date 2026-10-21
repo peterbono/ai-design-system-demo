@@ -470,13 +470,9 @@
   align-items: center;
   justify-items: center;
   padding: var(--space-6) var(--space-3);
-  /* A white card on the white page (the raised surface: neutral 800 in dark, so it still lifts off the canvas).
-     The emphasis hairline is the one that reads on a raised surface in both themes (as popups use it); the card
-     elevation lifts it a little more. The drawings' white pieces all carry an ink outline. */
-  border: var(--border-width-default) solid var(--color-border-emphasis);
+  /* The drawing sits straight on the page: no border, no shadow (the drawings' white pieces carry an ink outline). */
   border-radius: var(--radius-container);
   background-color: var(--color-surface-raised);
-  box-shadow: var(--card-shadow);
 }
 
 .hp-ui {
