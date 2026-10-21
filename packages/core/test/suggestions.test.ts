@@ -102,7 +102,7 @@ describe('compose and parse', () => {
     expect(issue.body).toContain(`<!-- bridge-suggestion:v1 sha256=${issue.sha} -->`);
     expect(issue.body).toContain('```json\n{');
     expect(issue.body).toContain('bridge apply <this issue number>');
-    expect(issue.body).not.toMatch(/—/);
+    expect(issue.body).not.toMatch(/\u2014/);
     // The payload block is last, after everything people read.
     expect(issue.body.indexOf('## How to apply')).toBeLessThan(issue.body.indexOf('<details>'));
     expect(hasSuggestionBlock(issue.body)).toBe(true);
@@ -330,5 +330,35 @@ describe('path safety', () => {
   it('uses the defaults of a minimal config', () => {
     const c = defineConfig({ repo: { owner: 'acme', name: 'ds' }, changesets: { package: '@acme/tokens' } });
     expect(suggestionPathProblems(tokenSuggestion({ files: [{ path: 'tokens/semantic/light.tokens.json', beforeSha: 'a'.repeat(40), afterSha: 'b'.repeat(40), content: '{}' }] }), c)).toEqual([]);
+  });
+});
+
+describe('Figma node links (links.figma.nodes, optional)', () => {
+  const figma = { fileKey: 'FILEKEY', nodeId: '12:34', url: 'https://www.figma.com/design/FILEKEY/?node-id=12-34', nodes: [{ nodeId: '9:1', state: 'before' as const, name: 'Button (code)' }, { nodeId: '12:34', state: 'after' as const }] };
+
+  it('renders before and after node links and says Claude Code reads the design from Figma, no image hosting', () => {
+    const issue = composeSuggestionIssue(tokenSuggestion({ source: 'figma', links: { figma } }));
+    expect(issue.body).toContain('- Before (Button (code)): [node 9:1](https://www.figma.com/design/FILEKEY/?node-id=9-1)');
+    expect(issue.body).toContain('- After: [node 12:34](https://www.figma.com/design/FILEKEY/?node-id=12-34)');
+    expect(issue.body).toContain('Claude Code reads this design straight from Figma');
+    expect(issue.body).toContain('`GET https://api.figma.com/v1/files/FILEKEY/nodes?ids=9%3A1,12%3A34`');
+    expect(issue.body).toContain('No image hosting is needed.');
+    expect(issue.body).not.toContain('\u2014');
+  });
+
+  it('round-trips through the parser with the same sha; payloads without nodes are unchanged', () => {
+    const p = tokenSuggestion({ source: 'figma', links: { figma } });
+    const parsed = parseSuggestionIssue(composeSuggestionIssue(p).body);
+    expect(parsed.ok && parsed.payload.links?.figma?.nodes).toEqual(figma.nodes);
+    expect(parsed.ok && parsed.sha).toBe(suggestionPayloadSha(p));
+    const old = tokenSuggestion({ source: 'figma', links: { figma: { fileKey: 'FILEKEY', url: figma.url } } });
+    const oldParsed = parseSuggestionIssue(composeSuggestionIssue(old).body);
+    expect(oldParsed.ok && oldParsed.payload.links?.figma).toEqual({ fileKey: 'FILEKEY', url: figma.url });
+    expect(composeSuggestionIssue(old).body).not.toContain('Claude Code reads this design');
+  });
+
+  it('refuses nodes that are not a list of { nodeId }', () => {
+    const bad = tokenSuggestion({ links: { figma: { nodes: [{ id: 'x' }] as never } } });
+    expect(() => composeSuggestionIssue(bad)).toThrow(/links.figma.nodes/);
   });
 });

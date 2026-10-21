@@ -1,8 +1,8 @@
 // End-to-end: GitHub (fake) -> pull -> Figma (simulated) -> edits -> push -> PR, without Figma.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { parseTokenFile, readTokenAt, removeToken, serializeTokenFile, upsertToken } from '@bridge-ds/core';
-import { analyze, buildPull, buildPush, openPullRequest } from '../src/sync/flows';
+import { gitBlobSha, loadConfig, parseSuggestionIssue, parseTokenFile, readTokenAt, removeToken, serializeTokenFile, suggestionPathProblems, upsertToken } from '@bridge-ds/core';
+import { analyze, buildPull, buildPush, openPullRequest, sendSuggestion } from '../src/sync/flows';
 import type { RenameSuggestion } from '@bridge-ds/core';
 import { DEFAULT_SETTINGS, type FigmaSnapshot } from '../src/shared/messages';
 import { FakeGitHub } from './fake-github';
@@ -520,4 +520,28 @@ test('without bridge.config.json a new Brand mode cannot be created from Figma, 
   const push = buildPush(a, new Map(), new Set(['acme']));
   assert.deepEqual(push.brandFiles, []);
   assert.equal(push.brands[0]!.included, false);
+});
+
+test('suggest mode: an included new brand is a brand suggestion with its whole files, no branch (read-only token)', async () => {
+  const { gh, client, snapshot, sync } = await pulled();
+  addBrandMode(snapshot, 'Acme');
+  setBrandColor(snapshot, 'palette/primary/700', 'Acme', '#1F5F3A');
+  const a = await analyze(client, DEFAULT_SETTINGS, sync, snapshot);
+  const push = buildPush(a, new Map(), new Set(['acme']));
+  gh.readOnly();
+  const res = await sendSuggestion(client, a, push, { title: '', notes: 'Acme launch', fileName: 'Test', fileKey: 'FILEKEY' });
+  assert.deepEqual(gh.gitWrites, []);
+  assert.equal(gh.prs.length, 0);
+  assert.deepEqual(res.suggestions.map((s) => [s.kind, s.title]), [['brand', 'Add the Acme brand']]);
+  const issue = gh.issues[0]!;
+  assert.ok(issue.labels.includes('suggestion: brand') && issue.labels.includes('tier: 3') && issue.labels.includes('tokens'), issue.labels.join());
+  const parsed = parseSuggestionIssue(issue.body);
+  if (!parsed.ok) throw new Error(parsed.message);
+  const files = parsed.payload.files!;
+  assert.deepEqual(files.map((f) => f.path), push.brandFiles.map((f) => f.path));
+  const config = files.find((f) => f.path === 'bridge.config.json')!;
+  assert.equal(config.beforeSha, gitBlobSha(gh.filesAt('main')['bridge.config.json']!), 'the config is a change to the file on main');
+  assert.equal(files.find((f) => f.path.endsWith('brands/acme.tokens.json'))!.beforeSha, null, 'the brand file is new');
+  assert.deepEqual(suggestionPathProblems(parsed.payload, loadConfig(gh.filesAt('main')['bridge.config.json']!)), []);
+  assert.match(issue.body, /## New brand/);
 });

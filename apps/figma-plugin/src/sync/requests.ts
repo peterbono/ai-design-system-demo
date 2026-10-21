@@ -1,4 +1,5 @@
 // Sending a component change request from Figma: optional image on the requests branch, then one GitHub issue.
+// In suggest mode the image goes up only when the token can write contents; otherwise the Figma node link stands in.
 // Independent of the DOM and of figma.* (the UI wires it to both). Never writes code and never opens a pull request:
 // components need code, so people (or Claude) implement the issue in their own pull request.
 
@@ -9,6 +10,7 @@ import {
   type IssueSummary,
   REQUESTS_BRANCH,
   composeRequestIssue,
+  isMissingPermission,
   ensureRequestsBranch,
   requestImagePath,
 } from '@bridge-ds/core';
@@ -24,12 +26,19 @@ export interface SendRequestInput {
   config?: BridgeConfig | undefined;
   /** Whether the component already exists in code (adds a link to its folder). */
   coded?: boolean | undefined;
+  /**
+   * Suggest mode: images are stored only when the token can write contents (the bridge-requests branch). A read-only
+   * token sends the request with its Figma node link instead of failing. Direct mode (false): an upload error fails.
+   */
+  imagesNeedWrite?: boolean | undefined;
   now?: Date | undefined;
 }
 
 export interface SendRequestResult {
   issue: IssueSummary;
   images: string[];
+  /** Images were not stored: the token cannot write contents (suggest mode only). The Figma link stands in. */
+  imagesSkipped?: boolean | undefined;
 }
 
 /** Public URL of a file on the requests branch, as GitHub serves it to an issue body. */
@@ -44,14 +53,30 @@ export async function sendComponentRequest(client: GitHubClient, input: SendRequ
   if (!r.component.trim()) throw new Error('Pick the component this request is about.');
   if (!r.title.trim()) throw new Error('Add a title.');
   if (!r.summary.trim()) throw new Error('Add a summary: say what should change and why.');
-  const urls = await uploadImages(client, { component: r.component, images: input.images, baseBranch: input.baseBranch, now: input.now });
+  const up = { component: r.component, images: input.images, baseBranch: input.baseBranch, now: input.now };
+  const { urls, skipped } = input.imagesNeedWrite ? await uploadImagesIfAllowed(client, up) : { urls: await uploadImages(client, up), skipped: false };
   const request: ComponentChangeRequest = { ...r, ...(urls.length ? { images: [...(r.images ?? []), ...urls] } : {}) };
   const opts = input.config?.integrations?.requests;
   const dir = input.config?.components?.dir ?? DEFAULT_COMPONENTS_DIR;
   const componentUrl = input.coded && dir ? `https://github.com/${client.owner}/${client.name}/tree/${input.baseBranch}/${dir}/${r.component}` : undefined;
   const issue = composeRequestIssue(request, { labels: opts?.labels ?? [], assignees: opts?.assignees ?? [], ...(componentUrl ? { componentUrl } : {}) });
   const created = await client.createIssue(issue);
-  return { issue: created, images: urls };
+  return { issue: created, images: urls, ...(skipped ? { imagesSkipped: true } : {}) };
+}
+
+/**
+ * uploadImages when the token can write contents; with a read-only token (GitHub refuses the branch or the file
+ * for a missing permission) nothing is written and `skipped` says so: the Figma node links stand in for the images.
+ * Other errors (network, a rejected token) still fail.
+ */
+export async function uploadImagesIfAllowed(client: GitHubClient, input: Parameters<typeof uploadImages>[1]): Promise<{ urls: string[]; skipped: boolean }> {
+  if (!input.images?.length) return { urls: [], skipped: false };
+  try {
+    return { urls: await uploadImages(client, input), skipped: false };
+  } catch (err) {
+    if (isMissingPermission(err)) return { urls: [], skipped: true };
+    throw err;
+  }
 }
 
 /**

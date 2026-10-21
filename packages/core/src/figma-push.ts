@@ -68,7 +68,16 @@ export interface ComponentPushDiff {
   needsCode: boolean;
   /** Edits the scan cannot read with confidence: listed with what to do, never sent. */
   unknown: PushIssue[];
-  figma?: { fileKey?: string | undefined; nodeId?: string | undefined; nodeName?: string | undefined; url?: string | undefined } | undefined;
+  figma?:
+    | {
+        fileKey?: string | undefined;
+        nodeId?: string | undefined;
+        nodeName?: string | undefined;
+        url?: string | undefined;
+        /** A node that shows the design before the change, when the file keeps one (optional). */
+        before?: { nodeId: string; nodeName?: string | undefined; url?: string | undefined } | undefined;
+      }
+    | undefined;
   /** The component as Figma has it now: variant axes, properties, bound variables (token paths) per variant. */
   variantAxes: Record<string, string[]>;
   properties: { name: string; type: string; default: string }[];
@@ -354,6 +363,9 @@ export function figmaDraftBrief(
     ...(d.reasons?.length ? ['Why this needs code:', ...d.reasons.map((r) => `- ${r}`), ''] : []),
     `Spec: ${ctx.specPath} ${suggested ? 'in the suggestion' : 'on the branch'} has the bound variables of every variant (token paths), the layers of every variant and what code gave Figma before.`,
     ...(d.figma?.url ? [`Design: ${d.figma.url}`] : []),
+    ...(suggested && d.figma?.fileKey && d.figma.nodeId
+      ? [`Read the design straight from Figma: Figma MCP get_design_context { fileKey: "${d.figma.fileKey}", nodeId: "${d.figma.nodeId}" }${d.figma.before?.nodeId ? ` (before: node ${d.figma.before.nodeId})` : ''}, or the REST API GET https://api.figma.com/v1/files/${d.figma.fileKey}/nodes?ids=${encodeURIComponent(d.figma.nodeId)}.`]
+      : []),
     ...(d.images?.length ? ['Screenshot:', ...d.images.map((u) => `- ${u}`)] : []),
     '',
     'Steps:',
