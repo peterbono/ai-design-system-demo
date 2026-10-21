@@ -1,6 +1,6 @@
 {
   "name": "@bridge-ds/docs-site",
-  "version": "0.13.0",
+  "version": "0.14.0",
   "private": true,
   "type": "module",
   "description": "Human-facing documentation site. Every page is generated at build time from the tokens, components and docs in this repo.",
