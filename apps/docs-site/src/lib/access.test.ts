@@ -55,6 +55,10 @@ describe('resolveAccess states (plan 3.3) as the Studio sees them', () => {
     expect((await view({ 'GET /repos/acme/ds': repo({ push: true, pull: true }), ...NOT_INSTALLED })).a).toEqual({ state: 'not-installed', write: false, admin: false, reach: false, private: false });
   });
 
+  it('not installed, for an admin of the repository: may install Bridge', async () => {
+    expect((await view({ 'GET /repos/acme/ds': repo({ admin: true, push: true, pull: true }), ...NOT_INSTALLED })).a).toMatchObject({ state: 'not-installed', admin: false, repoAdmin: true });
+  });
+
   it('outside contributor: read only, never "not installed" (reach unknown)', async () => {
     const { a } = await view({ 'GET /repos/acme/ds': repo({ pull: true }), ...NOT_INSTALLED });
     expect(a).toEqual({ state: 'outside-contributor', write: false, admin: false, private: false });

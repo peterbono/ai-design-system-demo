@@ -82,12 +82,18 @@ only the name and the permissions (step 3) differ.
 
    Administration can be "Read only" if you prefer to turn protection on from GitHub yourself. Account permissions:
    none. A user can never do more through the app than their own access to the repository allows.
-4. **Where can this GitHub App be installed?**: **Only on this account**.
+4. **Where can this GitHub App be installed?**: **Any account**. The hosted Bridge serves every team's repository
+   (`/studio/<owner>/<repo>/`), so people from other accounts and organizations must be able to sign in and to
+   install it on their own repositories. A private app ("Only on this account") refuses their sign-in. An app that
+   is already private: its **Advanced** settings, **Make public**. Treat it as one way: once teams have installed it,
+   making it private again breaks their Bridge. Public only lists the app at `https://github.com/apps/<slug>`;
+   installing it stays free, per repository, and gives nobody more than their own access on GitHub.
 5. Click **Create GitHub App**.
 6. On the app's page, note the **Client ID** (it starts with `Iv`). Click **Generate a new client secret** and copy
    it straight into Vercel (step 2). Do not paste it anywhere else. You do not need a private key.
 7. In the app's left menu, click **Install App**, then **Install** next to your account, choose **Only select
-   repositories**, pick `ai-design-system-demo`, and click **Install**.
+   repositories**, pick `ai-design-system-demo`, and click **Install**. Other teams install it on their own
+   repositories themselves (see "A team's Bridge" below).
 
 ## 2. Set the environment variables on Vercel
 
@@ -113,8 +119,35 @@ Open Studio, signed out. Every Studio page shows **Sign in with GitHub** at the 
 Settings, Account says **Sign in with GitHub** too, with no token option. Click it, approve on GitHub, and you
 land back on Settings with "Connected as @you" and **Can edit**.
 
-To let a designer in: add them as a collaborator with write access on the repository. They click **Sign in with
-GitHub**; nothing else to set up on their side.
+To let a designer in: add them on GitHub (Settings, **Collaborators and teams** on the repository, or a GitHub team
+of the organization), then send them the team link (Studio, Settings, **Your team**, **Copy link**). They open it and
+click **Sign in with GitHub**; nothing else to set up on their side. Read access is enough to review and send
+suggestions; write access lets them start changes in direct mode.
+
+## A team's Bridge (hosted)
+
+The hosted site opens any repository at `https://bridge.floriangouloubi.com/studio/<owner>/<repo>/`. No Bridge account
+and no Bridge database: GitHub decides who gets in.
+
+1. An admin of the repository installs **Bridge** on it once:
+   [github.com/apps/bridge-ds/installations/new](https://github.com/apps/bridge-ds/installations/new), **Only select
+   repositories**, pick the design system. Studio shows this link to admins of a repository where Bridge is not set
+   up, and an "Ask your lead to install Bridge" message to everyone else.
+2. The admin shares the team link: Studio, Settings, **Your team** (or the onboarding step **Invite your team**, or
+   **Invite your team** in the team menu at the top of the side nav). "Who can do what" under the link says what each
+   GitHub access level gives in Bridge, and **Manage access on GitHub** opens the repository's access settings.
+3. Each person opens the link and signs in with GitHub.
+
+What each person sees, from what GitHub says:
+
+| Situation | Studio |
+| --- | --- |
+| Signed out, public repository | The Studio, read only, with "Sign in with GitHub to review changes and send suggestions" |
+| Signed out, private or unknown repository | "Sign in with GitHub to open owner/repo" (GitHub does not say which) |
+| Signed in, GitHub does not show the repository | "You do not have access to owner/repo yet", with **Ask your lead for access** (copies a message with the link and their GitHub name), **Sign in with another account**, and the invitation page for people already invited |
+| Bridge not set up on the repository | A banner: admins get **Install Bridge**, everyone else **Ask your lead to install Bridge** |
+| Public repository, not on the team | Read only; they can still send suggestions for the team to review |
+| Read, write or admin | The Studio as usual; the team chip says "Can suggest", "Can edit" or "Admin" |
 
 ## What people see when something is off
 

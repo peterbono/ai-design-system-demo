@@ -1,0 +1,267 @@
+/* A team's Bridge, who gets in (multi-team plan 7.1 to 7.3): the team chip at the top of the Studio side nav
+   (components/ds/studio/TeamChip.tsx), the access gate over a team page (NoAccess.tsx: a Harbor block or a banner),
+   and the team link with "Who can do what" (TeamLink.tsx, onboarding step Invite your team and Settings). */
+
+/* --- Team chip ---------------------------------------------------------------------------------------------- */
+
+.rail-chip {
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-4);
+  border-bottom: var(--border-width-default) solid var(--color-border-default);
+}
+
+.rail-chip .tc-trigger {
+  justify-content: flex-start;
+  height: auto;
+  min-height: var(--size-12);
+  padding-inline: var(--space-2);
+  text-align: start;
+}
+
+/* The DS Button wraps its children in one label span: lay the avatar, text and chevron out inside it. */
+.rail-chip .tc-trigger > span {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.tc-text {
+  display: grid;
+  flex: 1;
+  justify-items: start;
+  gap: var(--space-0-5);
+  min-width: 0;
+}
+
+/* The whole owner/repo stays readable: it wraps at any character, on two lines at most. */
+.tc-name {
+  display: -webkit-box;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--color-text-default);
+  font-size: var(--typography-ui-size);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--typography-ui-line-height);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.tc-avatar {
+  flex: none;
+}
+
+.tc-chev {
+  flex: none;
+  color: var(--color-text-muted);
+}
+
+/* --- Access gate -------------------------------------------------------------------------------------------- */
+
+.team-gate:empty {
+  display: none;
+}
+
+.team-gate:not(:empty) {
+  max-width: var(--studio-page-max);
+  margin-bottom: var(--space-8);
+}
+
+/* A block (no access, sign in first) or the onboarding takes the page: the page's own content steps aside. */
+:root[data-access-takeover] main > :not(.team-gate, script) {
+  display: none;
+}
+
+.na {
+  display: grid;
+  gap: var(--space-8);
+  padding: var(--space-12) var(--space-10);
+}
+
+@media (min-width: 900px) {
+  .na {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    gap: var(--space-12);
+  }
+}
+
+.na-art {
+  color: var(--color-text-default);
+}
+
+.na-text {
+  display: grid;
+  gap: var(--space-4);
+  max-width: 62ch;
+}
+
+.na-title {
+  margin: 0;
+  font-family: var(--typography-h1-family);
+  font-size: var(--typography-h1-size);
+  font-weight: var(--typography-h1-weight);
+  line-height: var(--typography-h1-line-height);
+  letter-spacing: var(--typography-h1-tracking);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.na-body {
+  margin: 0;
+  font-size: var(--typography-body-size);
+  line-height: var(--typography-body-line-height);
+}
+
+.na-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+.na-link,
+.na-quiet {
+  margin: 0;
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.na-quiet {
+  color: var(--color-text-muted);
+}
+
+@media (max-width: 640px) {
+  .na {
+    padding: var(--space-8) var(--space-5);
+  }
+
+  .na-title {
+    font-size: var(--typography-h2-size);
+    line-height: var(--typography-h2-line-height);
+  }
+
+  /* One full-width target per action on phones. */
+  .na-actions > * {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  .na-art svg {
+    width: var(--size-20);
+    height: auto;
+  }
+}
+
+/* --- Team link ---------------------------------------------------------------------------------------------- */
+
+.tlk,
+.tlk-live {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.tlk-field {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.tlk-field > :first-child {
+  flex: 1 1 var(--size-64);
+  min-width: 0;
+}
+
+.tlk-copy {
+  flex: none;
+}
+
+@media (max-width: 640px) {
+  .tlk-copy {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+}
+
+.tlk-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+}
+
+.tlk-quiet {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.tlk-rows {
+  display: grid;
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  list-style: none;
+}
+
+.tlk-row {
+  display: grid;
+  gap: var(--space-1) var(--space-6);
+  padding: var(--space-3) 0;
+  border-top: var(--border-width-default) solid var(--color-border-default);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.tlk-row:first-child {
+  border-top: 0;
+}
+
+@media (min-width: 720px) {
+  .tlk-row {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  }
+}
+
+.tlk-who {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: var(--font-weight-semibold);
+}
+
+.tlk-can {
+  color: var(--color-text-muted);
+}
+
+.tlk-admin {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+  margin: 0;
+  font-size: var(--typography-ui-size);
+}
+
+/* Settings on a team shell: the Your team band above the page's empty state. */
+.ts-band {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.ts-h {
+  margin: 0;
+  font-size: var(--typography-h3-size);
+  font-weight: var(--typography-h3-weight);
+  line-height: var(--typography-h3-line-height);
+}
+
+.ts-intro {
+  margin: 0 0 var(--space-2);
+  color: var(--color-text-muted);
+}

@@ -45,7 +45,7 @@ const signIn = Boolean(signInConfig());
       <Avatar name="GitHub" size="md" decorative className="gh-acct-avatar" data-gh-avatar hidden />
       <span class="gh-acct-text">
         <span class="gh-acct-login" data-gh-login></span>
-        <span class="gh-acct-repo mono">{r.owner}/{r.repo}</span>
+        <span class="gh-acct-repo mono" data-team-name>{r.owner}/{r.repo}</span>
       </span>
       <span class="scope-pick-chev" aria-hidden="true"><Icon icon={siteIcon('chevron')} size="xs" className="icon" /></span>
     </summary>
@@ -55,7 +55,7 @@ const signIn = Boolean(signInConfig());
         <dt>Signed in</dt>
         <dd data-gh-login-full></dd>
         <dt>Repository</dt>
-        <dd><Link href={`https://github.com/${r.owner}/${r.repo}`} className="mono">{r.owner}/{r.repo}</Link></dd>
+        <dd><Link href={`https://github.com/${r.owner}/${r.repo}`} className="mono" data-team-github><span data-team-name>{r.owner}/{r.repo}</span></Link></dd>
         <dt>Access</dt>
         <dd><span class="gh-perm" data-gh-perm>Checking</span></dd>
       </dl>
