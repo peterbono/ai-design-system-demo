@@ -16,6 +16,7 @@ import Logo from '../components/Logo.astro';
 import ViewAsChange from '../components/ViewAsChange.astro';
 import { COMPARE, LANDING, LIBRARY_HOME, SPACE_LABEL, STUDIO_HOME, locate, navFor, type Space } from '../lib/nav';
 import { siteRepoJson } from '../lib/config';
+import { signInConfig } from '../lib/signin-config';
 import { GITHUB_URL, STORYBOOK_URL, sourceUrl } from '../lib/repo';
 import { humanDate } from '../lib/stats';
 import { BRANDS, DEFAULT_BRAND } from '../lib/tokens';
@@ -71,7 +72,7 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
 ---
 
 <!doctype html>
-<html lang="en" data-theme="light" data-brand="bridge" data-density="comfortable" data-space={space} data-brands={[DEFAULT_BRAND, ...BRANDS.filter((b) => b !== DEFAULT_BRAND)].join(' ')}>
+<html lang="en" data-theme="light" data-brand="bridge" data-density="comfortable" data-space={space} data-gh-app={signInConfig()?.app ?? ''} data-brands={[DEFAULT_BRAND, ...BRANDS.filter((b) => b !== DEFAULT_BRAND)].join(' ')}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -98,7 +99,9 @@ const pageTitle = title === 'Home' ? (isStudio ? 'Bridge Studio' : 'Library | Br
         // Maintainer tools (Edit in Studio, View source, the avatar next to Open Studio) paint before first render
         // from the last check of this browser's GitHub token; scripts/maintainer.ts checks it again.
         try {
-          var tk = localStorage.getItem('bridge.github.token');
+          // The token key carries the GitHub App this site signs in with (scripts/github-session.ts, slotKey).
+          var ga = document.documentElement.getAttribute('data-gh-app');
+          var tk = localStorage.getItem('bridge.github.token' + (ga ? '.' + ga : ''));
           var m = JSON.parse(localStorage.getItem('bridge.gh.maintainer') || 'null');
           if (tk && m && m.key === tk.slice(-6)) {
             document.documentElement.setAttribute('data-signed-in', '');
