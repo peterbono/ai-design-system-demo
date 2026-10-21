@@ -42,6 +42,14 @@ describe('teamQuality on this repository (parity with the build-time dashboard)'
     expect(q.gate.action?.href).toBe(`https://github.com/acme/ds/blob/${SHA}/${repoModel.contrast.path}`);
   });
 
+  it('counts the same unused tokens, global stylesheets included', () => {
+    expect(q.unusedTotal).toBe(s.unusedSemantic.length + s.orphanPrimitives.length);
+    // Without the global stylesheets (a model cached before they were read), base.css readers would look unused.
+    const { styles: _styles, ...older } = repoModel;
+    const without = teamQuality({ model: older as typeof repoModel, ...team, audits: null });
+    expect(without.unusedTotal).toBeGreaterThan(q.unusedTotal);
+  });
+
   it('says there is no audit instead of a number, without a snapshot', () => {
     expect(q.adoption).toBeNull();
     expect(q.figures.map((f) => f.id)).toEqual(['contrast', 'adoption', 'guidance']);

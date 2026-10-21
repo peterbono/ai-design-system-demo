@@ -119,15 +119,17 @@ export function teamQuality(input: TeamQualityInput): TeamQuality {
     needs: `${p.min}:1 (${p.usage === 'text' ? 'text' : 'UI'})`,
   }));
 
-  // Usage: read by a component stylesheet, or aliased by a token in use (core tokenUsage). Teams have no global
-  // stylesheet list, so only component stylesheets count.
+  // Usage: read by a component stylesheet or a global stylesheet of the library (components.styles), or aliased by a
+  // token in use (core tokenUsage), the same definition as the self-hosted page. A model cached before global
+  // stylesheets were read has none.
+  const globalVars = model.styles?.vars ?? {};
   const byVar: Record<string, string[]> = {};
   for (const c of components) for (const t of c.tokensUsed) (byVar[t.name] ??= []).push(c.name);
   const refs = (t: (typeof all)[number]) =>
     brands.flatMap((b) => themes.flatMap((m) => t.brands[b]?.[m]?.chain ?? [])).concat(t.densities ? Object.values(t.densities).flatMap((d) => d.chain) : []);
-  const usage = tokenUsage([...primitives.map((p) => ({ path: p.path, cssVar: p.cssVar, refs: [] })), ...all.map((t) => ({ path: t.path, cssVar: t.cssVar, refs: refs(t) }))], { byVar });
-  // Nothing reads any token (no components scanned): every token would look unused, which says nothing.
-  const scanned = Object.keys(byVar).length > 0;
+  const usage = tokenUsage([...primitives.map((p) => ({ path: p.path, cssVar: p.cssVar, refs: [] })), ...all.map((t) => ({ path: t.path, cssVar: t.cssVar, refs: refs(t) }))], { byVar, globalVars });
+  // Nothing reads any token (no component or global stylesheet read): every token would look unused, which says nothing.
+  const scanned = Object.keys(byVar).length > 0 || Object.values(globalVars).some((v) => v.length > 0);
   const unusedSemantic = scanned ? semantic.filter((s) => !usage.used.has(s.path)) : [];
   const orphanPrimitives = scanned ? primitives.filter((p) => !usage.used.has(p.path)) : [];
 

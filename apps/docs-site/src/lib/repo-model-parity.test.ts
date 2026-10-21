@@ -11,6 +11,7 @@ import { siteRepo } from './config';
 import { tokenFiles } from './explorer';
 import { loadComponentSpecs, loadFigmaCoverage } from './figma-coverage';
 import { tokenHref } from './model';
+import { globalStyleVars } from './stats';
 import { DEFAULT_BRANCH, GITHUB_URL, PREVIEW_APPS, PREVIEW_PACKAGES, PRODUCTION_APPS, ROOT } from './repo';
 import { BRAND_LABEL, BRANDS, DEFAULT_BRAND, DEFAULT_DENSITY, DENSITIES, loadTokens, MODES, TOKEN_SOURCE_FILES } from './tokens';
 
@@ -73,6 +74,11 @@ describe('repo model parity with the docs site (local source)', () => {
     expect(model.components?.list.map((c) => c.name)).toEqual(site.map((c) => c.name));
     expect(model.components?.list).toEqual(site);
     expect(model.components?.families).toEqual(families());
+  });
+
+  it('reads the same global stylesheets as the token usage (components.styles, default styles/ and theme/)', () => {
+    expect(model.styles.vars).toEqual(globalStyleVars());
+    expect(model.styles.vars['packages/react/src/styles/base.css']).toContain('--color-bg-default');
   });
 
   it('reads the same component specs and Figma coverage', () => {

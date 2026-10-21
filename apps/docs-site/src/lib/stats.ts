@@ -2,8 +2,9 @@
 // if a number is on screen, it is derived here from token files, component sources, contrast pairs or git.
 import { loadComponents } from './components';
 import { contrastPairs } from './contrast';
-import { cssVarsIn, tokenUsage, type TokenUsage } from '@bridge-ds/core';
-import { git, listDir, readText } from './repo';
+import { tokenUsage, type TokenUsage } from '@bridge-ds/core';
+import { repoModel } from './model';
+import { git } from './repo';
 import { BRANDS, DENSITIES, loadTokens, MODES, hrefForVar, type Primitive, type Semantic } from './tokens';
 import { studioHref } from './team-path';
 
@@ -50,17 +51,13 @@ export interface Issue {
   href: string;
 }
 
-/** Library stylesheets outside the component folders that ship with it: base styles and theme (stories excluded). */
-const GLOBAL_STYLE_DIRS = ['packages/react/src/styles', 'packages/react/src/theme'];
-
-let globalCache: Record<string, string[]> | null = null;
-/** Global stylesheet -> CSS custom properties it reads (base styles, theme), for tokenUsage and the Library rows. */
+/**
+ * Global stylesheet -> CSS custom properties it reads (base styles, theme), for tokenUsage and the Library rows. From
+ * the repo model (components.styles in bridge.config.json, default styles/ and theme/ next to the components), the
+ * same list a team page reads from GitHub.
+ */
 export function globalStyleVars(): Record<string, string[]> {
-  if (globalCache) return globalCache;
-  const out: Record<string, string[]> = {};
-  for (const dir of GLOBAL_STYLE_DIRS)
-    for (const f of listDir(dir).filter((n) => n.endsWith('.css'))) out[`${dir}/${f}`] = cssVarsIn(readText(`${dir}/${f}`));
-  return (globalCache = out);
+  return repoModel.styles.vars;
 }
 
 let usageCache: TokenUsage | null = null;

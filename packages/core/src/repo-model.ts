@@ -8,11 +8,12 @@ import { ConfigError, defineConfig, loadConfig, tokensPath, CONFIG_FILE, DEFAULT
 import { scanComponents, parseComponentFamilies, type ScannedComponent } from './component-scan';
 import { parseComponentSpecs, type ComponentSpecsFile, type SpecCoverage } from './component-spec';
 import { evaluateContrastPairs, parseContrastSpecs, type ContrastPairResult, type ContrastPairSpec } from './contrast-model';
-import { selectTokenFiles } from './layered';
+import { globToRegExp, selectTokenFiles } from './layered';
 import { DEFAULT_PRODUCTS, type ProductConfig } from './products';
 import { readRepoTexts, parentDir, type RepoSource, type RepoSourceRef } from './repo-source';
 import type { IntegrationsConfig } from './requests';
 import type { Rights, VisualImpactMode } from './rights';
+import { cssVarsIn } from './usage';
 import { buildTokenRows, tokenRowAxes, tokenRowIndex, type TokenRows, type TokenRowTier } from './token-rows';
 
 /** Paths used when bridge.config.json does not name them: where this repo kept them before the config did. */
@@ -22,6 +23,8 @@ export const REPO_MODEL_DEFAULTS = {
   componentSpecs: 'packages/react/component-specs.json',
   /** Optional token usage notes (group -> sentence), relative to tokens.root, when tokens.usage is not set. */
   tokensUsage: 'usage.json',
+  /** Most global stylesheets read (components.styles): a broad glob never turns into hundreds of reads. */
+  maxStylesheets: 50,
   repo: { owner: 'peterbono', repo: 'ai-design-system-demo', defaultBranch: 'main' },
 } as const;
 
@@ -78,6 +81,28 @@ export function siteRepoFromConfig(
     products: config.products.length ? config.products : DEFAULT_PRODUCTS.map((p) => ({ ...p })),
     changes: config.changes ?? DEFAULT_CHANGES_MODE,
   };
+}
+
+/**
+ * The global stylesheet globs of a config: components.styles, else every .css file under the styles/ and theme/
+ * folders next to the components folder (packages/react/src/styles, packages/react/src/theme here).
+ */
+export function styleGlobs(config: BridgeConfig): string[] {
+  if (config.components?.styles) return [...config.components.styles];
+  const parent = parentDir(config.components?.dir ?? REPO_MODEL_DEFAULTS.componentsDir);
+  const at = (dir: string) => (parent ? `${parent}/${dir}/**/*.css` : `${dir}/**/*.css`);
+  return [at('styles'), at('theme')];
+}
+
+/** The folder to list for a glob: its segments before the first wildcard ('' for the whole repository). */
+export function globBase(glob: string): string {
+  const segs = glob.split('/');
+  const fixed: string[] = [];
+  for (const seg of segs.slice(0, -1)) {
+    if (/[*?[{]/.test(seg)) break;
+    fixed.push(seg);
+  }
+  return fixed.join('/');
 }
 
 /** Fills the paths a config leaves out with REPO_MODEL_DEFAULTS (tokens.root, components.dir). */
@@ -142,6 +167,14 @@ export interface RepoModel {
     families: { name: string; members: string[] }[];
     list: ScannedComponent[];
   } | null;
+  /**
+   * Global stylesheets of the library (components.styles): the globs read, and each matching file with the CSS custom
+   * properties it reads (`var(--x)`), so a token read only by base styles counts as in use.
+   */
+  styles: {
+    globs: string[];
+    vars: Record<string, string[]>;
+  };
   specs: {
     path: string;
     /** Parsed component-specs.json, null when missing or of another version. */
@@ -161,7 +194,7 @@ export interface RepoModelOptions {
   /**
    * Hears how far the read has gone, in real file counts: once with every phase's total before the first body is
    * read, then once per file settled. Phases run in order: tokens (token files, contrast checks, usage notes), then
-   * components (code, styles, stories, the index and the Figma specs), then docs (each component's docs file).
+   * components (code, styles, stories, the index, the global stylesheets and the Figma specs), then docs (each component's docs file).
    */
   onProgress?: (progress: RepoModelProgress) => void;
 }
@@ -228,6 +261,18 @@ export async function loadRepoModel(source: RepoSource, options: RepoModelOption
     }
     codeRead.push(indexPath);
   }
+  // Global stylesheets (components.styles): one listing per glob folder, files under the components folder left to
+  // the component scan.
+  const globs = styleGlobs(config);
+  const matchers = globs.map(globToRegExp);
+  const bases = [...new Set(globs.map(globBase))].filter((b, _, all) => !all.some((o) => o !== b && (o === '' || b.startsWith(`${o}/`))));
+  const listed = (await Promise.all(bases.map((b) => source.list(b)))).flat();
+  let stylePaths = [...new Set(listed)].filter((p) => matchers.some((re) => re.test(p)) && !p.startsWith(`${comps.dir}/`)).sort();
+  if (stylePaths.length > REPO_MODEL_DEFAULTS.maxStylesheets) {
+    problems.push(`components.styles matches ${stylePaths.length} files: Bridge reads the first ${REPO_MODEL_DEFAULTS.maxStylesheets}. Narrow the globs to the stylesheets the library ships.`);
+    stylePaths = stylePaths.slice(0, REPO_MODEL_DEFAULTS.maxStylesheets);
+  }
+  codeRead.push(...stylePaths);
   // A path is read once, in the first phase that asks for it.
   const seen = new Set<string>();
   const fresh = (paths: string[]) =>
@@ -303,6 +348,12 @@ export async function loadRepoModel(source: RepoSource, options: RepoModelOption
     components = { dir: comps.dir, index: indexText === undefined ? undefined : indexPath, families: indexText === undefined ? [] : parseComponentFamilies(indexText, indexRel), list };
   }
 
+  const styleVars: Record<string, string[]> = {};
+  for (const p of stylePaths) {
+    const text = readMore(p);
+    if (text !== undefined) styleVars[p] = cssVarsIn(text);
+  }
+
   const specsText = readMore(specsPath);
   let specsFile: ComponentSpecsFile | null = null;
   let coverage: SpecCoverage[] = [];
@@ -328,6 +379,7 @@ export async function loadRepoModel(source: RepoSource, options: RepoModelOption
     tokens: { root, files, rows, usage },
     contrast: { path: contrastPath, specs, pairs },
     components,
+    styles: { globs, vars: styleVars },
     specs: { path: specsPath, file: specsFile, coverage },
   };
 }

@@ -109,6 +109,11 @@ export interface ComponentsConfig {
   index?: string | undefined;
   /** Generated component specs the Figma plugin pulls (default packages/react/component-specs.json). */
   specs?: string | undefined;
+  /**
+   * Global stylesheets that ship with the library (base styles, theme), as repo-relative globs. Their `var(--token)`
+   * reads count as token usage. Default: every .css file under the styles/ and theme/ folders next to `dir`.
+   */
+  styles?: string[] | undefined;
 }
 
 /**
@@ -370,6 +375,7 @@ export function defineConfig(input: BridgeConfigInput): BridgeConfig {
           reference: input.components.reference,
           index: input.components.index,
           specs: input.components.specs,
+          ...(input.components.styles ? { styles: input.components.styles.map(trimSlashes) } : {}),
         }
       : undefined,
     docs: { ...input.docs },
@@ -505,6 +511,7 @@ export function loadConfig(source: string | unknown): BridgeConfig {
     problems.push('"contrast" must be { "path", "modes"? }');
   const comps = d.components;
   if (comps !== undefined && (!isObj(comps) || !isStr(comps.dir))) problems.push('"components.dir" must be a non-empty string');
+  if (isObj(comps) && comps.styles !== undefined && !isStrList(comps.styles)) problems.push('"components.styles" must be a list of globs');
   const cs = d.changeset;
   if (cs !== undefined && (!isObj(cs) || !isStr(cs.package))) problems.push('"changeset.package" must be a non-empty string');
   const css = d.changesets;

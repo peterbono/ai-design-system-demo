@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'vitest';
 import { loadConfig, toConfigJson, ConfigError } from '../src/config';
 import { fsSource } from '../src/node/fs-source';
-import { loadRepoModel, REPO_MODEL_DEFAULTS, siteRepoFromConfig } from '../src/repo-model';
+import { globBase, loadRepoModel, REPO_MODEL_DEFAULTS, siteRepoFromConfig, styleGlobs } from '../src/repo-model';
 import { memorySource, readRepoTexts } from '../src/repo-source';
 import { GitHubClient } from '../src/github-client';
 import { gitHubSource } from '../src/repo-source-github';
@@ -159,6 +160,65 @@ test('onProgress: tokens, then components, then docs, with an exact total from t
   );
 });
 
+test('global stylesheets: the default globs next to the components folder, their var() reads per file', async () => {
+  const files = {
+    ...TEAM,
+    'src/styles/base.css': 'body { color: var(--color-text-default); background: var( --color-bg-default ); }',
+    'src/styles/print/print.css': 'a { color: var(--color-text-default); }',
+    'src/theme/theme.css': ':root { --x: var(--control-height); }',
+    'src/styles/notes.md': 'var(--not-css)',
+    'other/global.css': 'body { color: var(--color-other); }',
+  };
+  const model = await loadRepoModel(memorySource(files));
+  assert.deepEqual(model.problems, []);
+  assert.deepEqual(model.styles.globs, ['src/styles/**/*.css', 'src/theme/**/*.css']);
+  assert.deepEqual(model.styles.vars, {
+    'src/styles/base.css': ['--color-text-default', '--color-bg-default'],
+    'src/styles/print/print.css': ['--color-text-default'],
+    'src/theme/theme.css': ['--control-height'],
+  });
+  // The component stylesheet stays with its component, never counted as global.
+  assert.ok(!Object.keys(model.styles.vars).some((p) => p.startsWith('src/ui/')));
+});
+
+test('global stylesheets: components.styles globs replace the defaults, in the config and the schema', async () => {
+  const config = JSON.parse(TEAM['bridge.config.json']!) as { components: Record<string, unknown> };
+  config.components.styles = ['other/*.css', 'src/**/*.css'];
+  const files = {
+    ...TEAM,
+    'bridge.config.json': json(config),
+    'src/styles/base.css': 'body { color: var(--color-text-default); }',
+    'other/global.css': 'body { color: var(--color-bg-default); }',
+    'other/deep/skip.css': 'body { color: var(--nope); }',
+  };
+  const model = await loadRepoModel(memorySource(files));
+  assert.deepEqual(model.problems, []);
+  assert.deepEqual(model.config.components?.styles, ['other/*.css', 'src/**/*.css']);
+  // src/ui/Button/Button.module.css matches src/**/*.css but belongs to the component scan.
+  assert.deepEqual(Object.keys(model.styles.vars), ['other/global.css', 'src/styles/base.css']);
+  assert.deepEqual((toConfigJson(model.config).components as { styles?: string[] }).styles, ['other/*.css', 'src/**/*.css']);
+  assert.throws(() => loadConfig({ components: { dir: 'src/ui', styles: 'src/*.css' } }), /components\.styles/);
+  const schema = JSON.parse(readFileSync(join(__dirname, '../bridge.config.schema.json'), 'utf8'));
+  assert.equal(schema.properties.components.properties.styles.type, 'array');
+});
+
+test('global stylesheets: a glob that matches too many files reads the first ones and says so', async () => {
+  const config = JSON.parse(TEAM['bridge.config.json']!) as { components: Record<string, unknown> };
+  config.components.styles = ['**/*.css'];
+  const many = Object.fromEntries(Array.from({ length: REPO_MODEL_DEFAULTS.maxStylesheets + 5 }, (_, i) => [`css/f${String(i).padStart(3, '0')}.css`, 'a { color: var(--color-text-default); }']));
+  const model = await loadRepoModel(memorySource({ ...TEAM, 'bridge.config.json': json(config), ...many }));
+  assert.equal(Object.keys(model.styles.vars).length, REPO_MODEL_DEFAULTS.maxStylesheets);
+  assert.match(model.problems.join('\n'), /components\.styles matches 55 files/);
+});
+
+test('globBase and styleGlobs', () => {
+  assert.equal(globBase('packages/react/src/styles/**/*.css'), 'packages/react/src/styles');
+  assert.equal(globBase('**/*.css'), '');
+  assert.equal(globBase('base.css'), '');
+  assert.equal(globBase('a/b/c.css'), 'a/b');
+  assert.deepEqual(styleGlobs(loadConfig({ components: { dir: 'ui' } })), ['styles/**/*.css', 'theme/**/*.css']);
+});
+
 test('siteRepoFromConfig keeps the older top-level owners, owner and defaultBranch keys', () => {
   const raw = { repo: 'acme/design', owner: 'acme-org', defaultBranch: 'develop', owners: { design: ['ana'] } };
   const site = siteRepoFromConfig(loadConfig(raw), raw);
@@ -194,6 +254,7 @@ test('this repo: the model is the same through the local, memory and GitHub sour
     ...(await fs.list(fromFs.config.components!.dir)),
     fromFs.config.components!.index!,
     fromFs.specs.path,
+    ...Object.keys(fromFs.styles.vars),
   ];
   const bodies = await readRepoTexts(fs, paths);
   const files = Object.fromEntries([...bodies].filter((e): e is [string, string] => e[1] !== null));
@@ -211,6 +272,9 @@ test('this repo: the model is the same through the local, memory and GitHub sour
   // component-specs.json is over the source's default 1 MB cap: raise it for the parity check.
   const fromGitHub = await loadRepoModel(gitHubSource(client, sha, { maxFileBytes: 5_000_000 }));
   assert.deepEqual({ ...fromGitHub, ref: fs.ref }, fromFs);
+  // This repo's global stylesheet (the default globs: styles/ and theme/ next to the components folder) is read.
+  assert.deepEqual(fromFs.styles.globs, ['packages/react/src/styles/**/*.css', 'packages/react/src/theme/**/*.css']);
+  assert.ok(fromFs.styles.vars['packages/react/src/styles/base.css']!.length > 0);
   assert.equal(gh.apiCalls().length, 1, 'one tree call; bodies from the raw host');
   // With the default cap, the file too large is a problem of the model, not a failed read.
   const capped = await loadRepoModel(gitHubSource(client, sha));
