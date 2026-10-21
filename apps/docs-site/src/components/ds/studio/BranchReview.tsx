@@ -793,12 +793,12 @@ function DecisionBar({ p, leftLine, inputRef }: { p: BranchReviewProps; leftLine
           </div>
         )}
         {a.comment && !a.suggest && !primary && (
-          <Button variant="secondary" size="lg" loading={busy === 'comment'} disabled={!text.trim()} onClick={() => void run('comment')}>
+          <Button variant="secondary" size="lg" loading={busy === 'comment'} disabled={!text.trim()} onClick={() => void run('comment')} data-demo-write="comment on changes">
             Comment
           </Button>
         )}
         {a.suggest && (
-          <Button variant="secondary" size="lg" loading={busy === 'suggest'} onClick={() => void run('suggest')}>
+          <Button variant="secondary" size="lg" loading={busy === 'suggest'} onClick={() => void run('suggest')} data-demo-write="review changes">
             Suggest changes
           </Button>
         )}
@@ -810,6 +810,7 @@ function DecisionBar({ p, leftLine, inputRef }: { p: BranchReviewProps; leftLine
             onClick={() => go(primary.kind)}
             {...(primary.kind === 'approve' || primary.kind === 'approve-merge' ? { 'data-act': 'APPROVE' } : {})}
             {...(primary.kind === 'connect' ? { 'data-gh-open': '' } : {})}
+            data-demo-write="review changes"
           >
             {primary.label}
           </Button>

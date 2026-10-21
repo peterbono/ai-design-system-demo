@@ -325,12 +325,12 @@ function Decide({ p }: { p: SuggestionReviewProps }) {
           {more && (
             <>
               {g.canRequestChanges && (
-                <Button variant="secondary" size="lg" data-sg-suggest="" disabled={busy !== null} onClick={() => setAsking(true)}>
+                <Button variant="secondary" size="lg" data-sg-suggest="" data-demo-write="review suggestions" disabled={busy !== null} onClick={() => setAsking(true)}>
                   {SUGGESTION_WORDS.requestChanges}
                 </Button>
               )}
               {g.canApprove && (
-                <Button variant="primary" size="lg" className="sg-approve" data-sg-approve="" iconEnd={Check} loading={busy === 'approve'} disabled={busy !== null} onClick={() => void run('approve')}>
+                <Button variant="primary" size="lg" className="sg-approve" data-sg-approve="" data-demo-write="review suggestions" iconEnd={Check} loading={busy === 'approve'} disabled={busy !== null} onClick={() => void run('approve')}>
                   {p.approveLabel}
                 </Button>
               )}

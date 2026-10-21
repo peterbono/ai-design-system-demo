@@ -22,7 +22,7 @@ const mode = siteRepo().changes;
   <div class="hp-foot" slot="footer">
     <p class="hp-status" id="hp-status" role="status" aria-live="polite"></p>
     <Button variant="secondary" data-dialog-close>Cancel</Button>
-    <Button variant="primary" className="st-hideable" data-gh-open id="hp-connect" hidden>{ghAction(sendGoal('revert', mode), signIn)}</Button>
+    <Button variant="primary" className="st-hideable" data-gh-open data-demo-write="undo a change" id="hp-connect" hidden>{ghAction(sendGoal('revert', mode), signIn)}</Button>
     <Button variant="primary" className="st-hideable" id="hp-propose">{mode === 'suggest' ? sendButton('revert', mode) : VOCAB.requestReview}</Button>
   </div>
 </ScriptDialog>

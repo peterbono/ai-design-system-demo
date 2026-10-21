@@ -358,11 +358,11 @@ export default function StartChange({ components, appearance = 'menu' }: StartCh
       <DialogTrigger
         render={
           card ? (
-            <Button variant="ghost" iconStart={Plus} fullWidth className="sh-create-btn" data-start-change>
+            <Button variant="ghost" iconStart={Plus} fullWidth className="sh-create-btn" data-start-change data-demo-write="create branches">
               {VOCAB.createBranch}
             </Button>
           ) : (
-            <Button variant={look.variant} iconStart={Plus} fullWidth data-start-change>
+            <Button variant={look.variant} iconStart={Plus} fullWidth data-start-change data-demo-write="create branches">
               {VOCAB.createBranch}
             </Button>
           )

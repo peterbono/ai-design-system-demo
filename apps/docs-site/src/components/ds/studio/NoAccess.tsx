@@ -19,6 +19,7 @@ import { useCopy } from './TeamLink';
 import { HostedOnboarding, setupStepFromUrl } from './Onboarding';
 import { accessScreen, teamLink, type AccessAction, type AccessScreen } from '../../../lib/access-view';
 import { studioBase } from '../../../lib/team-path';
+import { isDemoRepo } from '../../../lib/demo';
 
 /** The attributes the shared GitHub session listens for (scripts/github-session.ts). */
 const SESSION_ATTRS = {
@@ -166,7 +167,9 @@ export function TeamAccessGate() {
     };
   }, []);
 
-  const screen = g?.access ? accessScreen(g.access, { owner: g.owner, repo: g.repo, login: g.login, link, admin: g.repoAdmin }) : null;
+  // The demo greets a guest itself ("You're exploring the Bridge demo", lib/demo.ts): no guest banner over it.
+  const guestOnDemo = g?.access === 'anonymous-public' && isDemoRepo(`${g.owner}/${g.repo}`);
+  const screen = g?.access && !guestOnDemo ? accessScreen(g.access, { owner: g.owner, repo: g.repo, login: g.login, link, admin: g.repoAdmin }) : null;
   const block = screen?.layout === 'block';
   const setup = Boolean(g?.login && setupAt && !block);
   useTakeover(Boolean(block || setup));

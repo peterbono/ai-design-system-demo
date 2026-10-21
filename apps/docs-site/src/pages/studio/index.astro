@@ -32,6 +32,9 @@ import type { BranchesConfig } from '../../lib/branches';
 import { studioHref } from '../../lib/team-path';
 import TeamLauncher from '../../components/ds/studio/TeamLauncher';
 import '../../styles/team-launcher.css';
+import '../../styles/demo-home.css';
+import { isDemoRepo } from '../../lib/demo';
+import { glanceFigures } from '../../lib/demo-home';
 
 // The hosted deployment (one site for every team, multi-team plan 4.3) opens other teams from here. A self-hosted
 // build leaves it out: its Studio is its own repository.
@@ -61,6 +64,9 @@ const homeStatic = {
   components: comps.map((c) => ({ name: c.name, slug: c.slug, family: c.category })).sort((a, b) => a.name.localeCompare(b.name)),
   startHrefs: { tokens: startChangeHref('look'), component: startChangeHref('variant'), guidance: firstMissing ? docsEditHref(firstMissing.slug) : studioHref('components/') },
   signIn: Boolean(signInConfig()),
+  // The demo, for a visitor who cannot change it (components/ds/studio/DemoHome.tsx): the library at a glance.
+  glance: glanceFigures({ components: comps.length, tokens: s.total, contrast: { total: s.contrast.total, fail: s.contrast.fail }, adoption: adoption?.now ?? null }),
+  launcher: hostedSite,
 };
 // Create branch > A feature in a product starts an exploration: its preview settings, as the Branches page embeds them.
 const repo = siteRepo();
@@ -75,6 +81,8 @@ try {
   rawCfg = {};
 }
 const repoName = `${repo.owner}/${repo.repo}`;
+// The demo opens on its own home for visitors (lib/demo.ts): the launcher moves into its greeting.
+const demo = isDemoRepo(repoName);
 const onboarding = {
   changes: changesInConfig(rawCfg),
   prefix: rawCfg.governance?.branchPrefix ?? '',
@@ -98,7 +106,7 @@ const onboarding = {
   updated={freshness(PAGE_SOURCES.home)}
   wide
 >
-  {hostedSite && <TeamLauncher client:load />}
+  {hostedSite && <div data-team-launcher hidden={demo}><TeamLauncher client:load /></div>}
   <div class="sh-root" data-studio-home>
     <div class="sh">
       <section class="zone sh-zone" aria-busy="true" aria-label="Loading what needs you">
@@ -133,12 +141,19 @@ const onboarding = {
     import { shortName } from '../../lib/home-model';
     import { proposeChangesMode } from '../../scripts/roles';
     import { onWorkspaceChange, readWorkspace } from '../../scripts/workspace';
+    import { exploresDemo } from '../../lib/demo';
+    import type { GlanceFigure } from '../../lib/demo-home';
+    import { loadDemoHome, type DemoHomeData } from '../../scripts/demo-home';
+    import { paintDemoHome } from '../../components/ds/studio/DemoHome';
+    import { openMakeItYours } from '../../scripts/demo-gate';
 
     interface Static extends HomeStatic {
       adoptionDrop: number | null;
       components: HomeComponent[];
       startHrefs: StudioHomeProps['startHrefs'];
       signIn: boolean;
+      glance: GlanceFigure[];
+      launcher: boolean;
     }
     const read = <T,>(id: string): T | null => {
       try {
@@ -153,6 +168,7 @@ const onboarding = {
     const el = document.querySelector<HTMLElement>('[data-studio-home]')!;
     let root: Root | null = null;
     let data: HomeData | null = null;
+    let demoData: DemoHomeData | null = null;
     let known = false;
     let run = 0;
 
@@ -202,11 +218,37 @@ const onboarding = {
       return stat.contrastFail ? null : { text: 'Library healthy.', tone: 'ok', href: studioHref('quality/'), link: 'Open Quality' };
     }
 
+    // The demo, for a visitor who cannot change it: its own home, read-only (lib/demo.ts).
+    const exploring = () => {
+      const v = currentViewer();
+      if (!known && getToken()) return false;
+      return exploresDemo({ repo: onb.ctx.repo, signedIn: Boolean(v), write: v ? (currentAccess()?.write ?? null) : false });
+    };
+    const launcherSlot = document.querySelector<HTMLElement>('[data-team-launcher]');
+
     function paint() {
       const now = Date.now();
       const v = currentViewer();
       const signedIn = Boolean(v) || (!known && Boolean(getToken()));
       const d = data;
+      const demo = exploring();
+      if (launcherSlot) launcherSlot.hidden = demo || !stat.launcher;
+      if (demo) {
+        root = paintDemoHome(
+          el,
+          {
+            loading: !demoData || demoData.loading,
+            waiting: demoData?.waiting ?? [],
+            recent: demoData?.recent ?? [],
+            figures: stat.glance,
+            failed: demoData?.failed ?? null,
+            launcher: stat.launcher,
+            onConnect: () => void openMakeItYours(null),
+          },
+          root,
+        );
+        return;
+      }
       const steps = onboardingSteps({
         login: v?.login ?? null,
         repo: onb.ctx.repo,
@@ -290,13 +332,30 @@ const onboarding = {
     }
 
     paint();
+    let demoRead = false;
+    const readDemo = () => {
+      if (demoRead) return;
+      demoRead = true;
+      void loadDemoHome(stat.guidance, (d) => {
+        demoData = d;
+        paint();
+      });
+    };
     onAccess(() => {
-      if (stepsOpen) paint();
+      if (stepsOpen || exploring()) {
+        if (exploring()) readDemo();
+        paint();
+      }
     });
     initGitHubConnect(() => {
       known = true;
       data = null;
       const mine = ++run;
+      if (exploring()) {
+        readDemo();
+        paint();
+        return;
+      }
       paint();
       void loadHome(stat, (d) => {
         if (mine !== run) return;

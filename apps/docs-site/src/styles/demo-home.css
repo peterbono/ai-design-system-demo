@@ -1,0 +1,96 @@
+/* The demo's Studio home for a visitor (components/ds/studio/DemoHome.tsx) and "Make it yours" (MakeItYours.tsx).
+   Built on the signed-in home (studio-home.css: the zone, the rows, the sections); only what is new lives here. */
+
+/* The greeting's actions: the one primary, Create branch beside it, then the launcher toggle as a quiet link. */
+.dh-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-block-start: var(--space-2);
+}
+
+/* The team launcher, revealed in the zone on demand: a plain plate, no margin of its own. */
+.dh-launcher .tl {
+  margin: 0;
+}
+
+/* --- The library at a glance ------------------------------------------------------------------------------- */
+
+.dh-figs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(var(--size-40), 1fr));
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dh-figs > li {
+  display: grid;
+  margin: 0;
+}
+
+.dh-fig {
+  display: grid;
+  align-content: start;
+  gap: var(--space-0-5);
+}
+
+.dh-fig-value {
+  font-family: var(--typography-h2-family);
+  font-size: var(--typography-h2-size);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--typography-h2-line-height);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--typography-h2-tracking);
+}
+
+.dh-fig.is-fail .dh-fig-value {
+  color: var(--color-feedback-danger-text);
+}
+
+.dh-fig-label {
+  font-weight: var(--font-weight-semibold);
+}
+
+/* --- Make it yours ------------------------------------------------------------------------------------------ */
+
+.miy-steps {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* One step per row: its mark, what it is, and its action on the same line (proximity). */
+.miy-step {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--control-height-lg);
+  padding: var(--space-3);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-control);
+  font-size: var(--typography-ui-size);
+  line-height: var(--typography-ui-line-height);
+}
+
+.miy-signin {
+  flex: none;
+}
+
+@media (max-width: 640px) {
+  .dh-actions > * {
+    flex: 1 1 100%;
+  }
+
+  .miy-step {
+    flex-wrap: wrap;
+  }
+
+  .miy-signin {
+    flex: 1 1 100%;
+  }
+}
