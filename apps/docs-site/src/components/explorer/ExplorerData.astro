@@ -3,6 +3,7 @@
 // files of this build, bridge.config.json, the contrast checks, build-time usage (which components and global
 // stylesheets read each token, from the CSS scan) and the tokens each component reads. Mount it once per page;
 // scripts/explorer/data.ts reads it.
+import { jsonForScript } from '../../lib/html';
 import { explorerTokens, tokenFiles } from '../../lib/explorer';
 import { readText, exists } from '../../lib/repo';
 import { CONTRAST_FILE } from '../../lib/contrast';
@@ -10,13 +11,12 @@ import { componentTokenIndex } from '../../lib/components';
 
 const files = tokenFiles();
 const usage = Object.fromEntries(explorerTokens().map((t) => [t.path, { used: t.used, usedBy: t.usedBy, styles: t.globalStyles }]));
-const safe = (s: string) => s.replace(/</g, '\\u003c');
-const filesJson = safe(JSON.stringify(files));
-const usageJson = safe(JSON.stringify(usage));
-const configJson = safe(exists('bridge.config.json') ? readText('bridge.config.json') : '{}');
-const checksJson = safe(readText(CONTRAST_FILE));
+const filesJson = jsonForScript(files);
+const usageJson = jsonForScript(usage);
+const configJson = jsonForScript(exists('bridge.config.json') ? readText('bridge.config.json') : '{}', { parse: true });
+const checksJson = jsonForScript(readText(CONTRAST_FILE), { parse: true });
 // Studio Tokens ?component=<slug>: the tokens each component reads (lib/components.ts tokenPaths).
-const componentsJson = safe(JSON.stringify(componentTokenIndex()));
+const componentsJson = jsonForScript(componentTokenIndex());
 ---
 
 <script type="application/json" id="xp-files" set:html={filesJson} />

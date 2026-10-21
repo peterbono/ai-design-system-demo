@@ -131,6 +131,7 @@ function renderNode(node: ExampleNode, key?: number): ReactNode {
 }
 
 function VerdictExample({ node, inert }: { node: ExampleNode; inert?: boolean }) {
+  // The read page's own example markup (React-rendered at build time, props sanitised by registry resolveProps).
   const html = useContext(ExampleHtml).get(JSON.stringify(node));
   const extra = inert ? ({ inert: '' } as object) : {};
   return html !== undefined ? (

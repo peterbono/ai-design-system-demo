@@ -44,7 +44,15 @@ export function redirectTarget(to: string, search: string, hash: string): string
   return `${path}${qs ? `?${qs}` : ''}${h ? `#${h}` : ''}`;
 }
 
-/** The one-line script of a redirect page: same rules as redirectTarget, inlined (no module on that page). */
+/**
+ * Body of the redirect page script: same rules as redirectTarget, inlined (no module on that page). One constant
+ * body for every redirect (the target rides on data-to), so the Content-Security-Policy needs one script hash.
+ */
+export const REDIRECT_SCRIPT_BODY = `(function(s,h){var t=document.currentScript.getAttribute('data-to'),a=t.split('#'),b=a[0].split('?'),q=new URLSearchParams(b[1]||'');new URLSearchParams(s).forEach(function(v,k){q.set(k,v)});var x=q.toString(),y=h&&h!=='#'?h.slice(1):(a[1]||'');location.replace(b[0]+(x?'?'+x:'')+(y?'#'+y:''))})(location.search,location.hash)`;
+
+const attr = (s: string) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+/** The one-line script of a redirect page. */
 export function redirectScript(to: string): string {
-  return `<script>(function(t,s,h){var a=t.split('#'),b=a[0].split('?'),q=new URLSearchParams(b[1]||'');new URLSearchParams(s).forEach(function(v,k){q.set(k,v)});var x=q.toString(),y=h&&h!=='#'?h.slice(1):(a[1]||'');location.replace(b[0]+(x?'?'+x:'')+(y?'#'+y:''))})(${JSON.stringify(to)},location.search,location.hash)</script>`;
+  return `<script data-to="${attr(to)}">${REDIRECT_SCRIPT_BODY}</script>`;
 }

@@ -4,6 +4,7 @@ import { ILLUSTRATIONS, type IllustrationName } from '../../../brand/illustratio
 
 /** `crop`: a tighter viewBox ("x y w h") when the drawing's own box has empty sky above the scene. */
 export function Drawing({ name, width, className, crop }: { name: IllustrationName; width?: number; className?: string; crop?: string }) {
+  // Constant SVG from brand/illustrations.ts only: never inline SVG read from a repository (use <img src> for that).
   const art = ILLUSTRATIONS[name];
   const box = crop ?? art.viewBox;
   const [, , bw, bh] = box.split(' ').map(Number);

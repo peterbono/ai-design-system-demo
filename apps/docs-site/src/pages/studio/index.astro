@@ -9,6 +9,7 @@
 // opens what is left.
 // Repo facts are read here at build time (usage guidance Claude drafted, contrast on main, adoption, the changelog);
 // GitHub facts in the browser (scripts/home-data.ts).
+import { jsonForScript } from '../../lib/html';
 import '../../styles/studio-home.css';
 import '../../styles/branch-thumb.css';
 import '../../styles/onboarding.css';
@@ -57,7 +58,7 @@ const homeStatic = {
 // Create branch > A feature in a product starts an exploration: its preview settings, as the Branches page embeds them.
 const repo = siteRepo();
 const branchesCfg: BranchesConfig = { owner: repo.owner, repo: repo.repo, defaultBranch: repo.defaultBranch, apps: PREVIEW_APPS, packages: PREVIEW_PACKAGES };
-const json = JSON.stringify(homeStatic).replace(/</g, '\\u003c');
+const json = jsonForScript(homeStatic);
 
 // Setup steps: facts from bridge.config.json as it is on this build (the repository stays the source of truth).
 let rawCfg: Record<string, any> = {};
@@ -99,9 +100,9 @@ const onboarding = {
     </div>
   </div>
   <script type="application/json" id="home-static" set:html={json} />
-  <script type="application/json" id="bridge-branches" set:html={JSON.stringify(branchesCfg).replace(/</g, '\\u003c')} />
-  <script type="application/json" id="home-onboarding" set:html={JSON.stringify(onboarding).replace(/</g, '\\u003c')} />
-  <script type="application/json" id="home-guidance" set:html={JSON.stringify({ drafted: guidance }).replace(/</g, '\\u003c')} />
+  <script type="application/json" id="bridge-branches" set:html={jsonForScript(branchesCfg)} />
+  <script type="application/json" id="home-onboarding" set:html={jsonForScript(onboarding)} />
+  <script type="application/json" id="home-guidance" set:html={jsonForScript({ drafted: guidance })} />
 
   <script>
     import { createRoot, type Root } from 'react-dom/client';

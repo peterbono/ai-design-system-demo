@@ -1,5 +1,6 @@
 // Which repository this Bridge workspace documents and reviews. Read from bridge.config.json at the repo root, so
 // the same site works on any design system repo; the demo repo is only the default.
+import { jsonForScript } from './html';
 import { DEFAULT_CHANGES_MODE, DEFAULT_PRODUCTS, normalizeRights, productProblems, type ChangesMode, type IntegrationsConfig, type ProductConfig, type Rights, type VisualImpactMode } from '@bridge-ds/core';
 import { exists, readJson } from './repo';
 
@@ -93,4 +94,4 @@ export function siteRepo(): SiteRepo {
 }
 
 /** JSON for client scripts (embedded once per page by the layout). */
-export const siteRepoJson = () => JSON.stringify(siteRepo()).replace(/</g, '\\u003c');
+export const siteRepoJson = () => jsonForScript(siteRepo());

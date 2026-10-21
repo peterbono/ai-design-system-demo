@@ -4,6 +4,7 @@
 import { badgeHtml } from '@bridge-ds/react/dom';
 import { VISUAL_CHECK_LABEL } from '@bridge-ds/core';
 import { changeLabel, facet, filterShots, modeLabel, VISUAL_BRANCH, visualAsk, visualBase, visualState, type VisualFilter, type VisualManifest, type VisualShot } from '../../lib/visual-impact';
+import { attrUrl } from '../../lib/html';
 import { esc, GitHubError, ghGet, ghWrite, hasWorkingToken, onAccess, showGhError } from '../github-session';
 
 const PAGE = 8;
@@ -89,7 +90,7 @@ export async function loadVisualImpact(
     return { changed: null, thumb: '', asked, paintedTop: onTop };
   }
   const m = state.manifest;
-  const head = `<p class="small muted">${m.summary.shots} screenshot${m.summary.shots === 1 ? '' : 's'} compared with main, threshold ${m.options.threshold}.${
+  const head = `<p class="small muted">${esc(String(m.summary.shots))} screenshot${m.summary.shots === 1 ? '' : 's'} compared with main, threshold ${esc(String(m.options.threshold))}.${
     m.selection.components.length ? ` Components in scope: ${m.selection.components.map((c) => esc(c.id)).join(', ')}.` : ''
   }${m.selection.fallback ? ` ${esc(m.selection.fallback)}` : ''}</p>`;
   if (state.kind === 'no-change') {
@@ -166,7 +167,7 @@ export function renderTopChange(slot: HTMLElement, v: VisualSummary, allHref: st
   const t = v.top;
   // "Order edit, light": the screen and the theme; the shop is the same for every screen of a change.
   slot.innerHTML = `<div class="rv-what-head"><p class="cg-line">Drag the handle to compare before and after.</p>${
-    n > 1 ? `<a href="${esc(allHref)}" data-open-visual>See all ${n} screens</a>` : ''
+    n > 1 ? `<a href="${attrUrl(allHref)}" data-open-visual>See all ${n} screens</a>` : ''
   }</div>${shotCard(t, v.base, t.theme)}<p class="small muted rv-what-caption">${esc(t.kind === 'route' ? 'App screen' : 'Component examples')}: ${esc(t.label)}${t.theme ? `, ${esc(t.theme)}` : ''}. ${n > 1 ? `The screen that changes most of the ${n} that change.` : 'The only screen that changes.'}</p>`;
   wire(slot);
 }
@@ -187,14 +188,14 @@ function visualMode(): 'auto' | 'on-demand' {
  */
 async function notRun(slot: HTMLElement, o: { owner: string; repo: string; pr: number; sha: string; actionsUrl: string }): Promise<boolean> {
   const mode = visualMode();
-  const run = `<a href="${esc(o.actionsUrl)}" target="_blank" rel="noopener">Follow the run</a>`;
+  const run = `<a href="${attrUrl(o.actionsUrl)}" target="_blank" rel="noopener">Follow the run</a>`;
   let labels = mode === 'on-demand' ? await ghGet<{ name: string }[]>(`/repos/${o.owner}/${o.repo}/issues/${o.pr}/labels`).then((f) => f.data, () => null) : null;
   const paint = (canWrite: boolean) => {
     const ask = visualAsk({ mode, labels, canWrite, label: VISUAL_CHECK_LABEL });
     const lead = '<p class="cg-line">Your team shows the before and after on demand.</p>';
     slot.innerHTML =
       ask === 'auto'
-        ? `<p class="cg-line">Not run yet for the latest edits. <a href="${esc(o.actionsUrl)}" target="_blank" rel="noopener">Run it on GitHub</a></p>`
+        ? `<p class="cg-line">Not run yet for the latest edits. <a href="${attrUrl(o.actionsUrl)}" target="_blank" rel="noopener">Run it on GitHub</a></p>`
         : ask === 'asked'
           ? `<p class="cg-line">The before and after shows here once the run on GitHub finishes. ${run}</p>`
           : ask === 'ask'
@@ -235,17 +236,20 @@ const START = 25;
 /** One before/after card. `meta` replaces the mode line (the change view on top says the theme only). */
 function shotCard(s: VisualShot, base: string, meta: string = modeLabel(s)): string {
   const size = s.size.after ?? s.size.before ?? { width: 4, height: 3 };
+  // The manifest is a repo file: its sizes reach a style and width/height attributes, so they are numbers.
+  const w = Number(size.width);
+  const h = Number(size.height);
   const url = (p?: string) => (p ? `${base}/${p}` : '');
   const alt = `${s.label}, ${modeLabel(s)}`;
   const boxes = s.boxes
-    .map((b) => `<i style="left:${(b.x / size.width) * 100}%;top:${(b.y / size.height) * 100}%;width:${(b.width / size.width) * 100}%;height:${(b.height / size.height) * 100}%"></i>`)
+    .map((b) => `<i style="left:${(b.x / w) * 100}%;top:${(b.y / h) * 100}%;width:${(b.width / w) * 100}%;height:${(b.height / h) * 100}%"></i>`)
     .join('');
   const tone = s.status === 'error' ? 'danger' : 'neutral';
   const compare =
     s.images.before && s.images.after
-      ? `<div class="vi-compare" style="--pos:${START}%;aspect-ratio:${size.width} / ${size.height}">
-          <img class="vi-img" src="${esc(url(s.images.after))}" alt="After: ${esc(alt)}" loading="lazy" width="${size.width}" height="${size.height}" />
-          <div class="vi-before"><img class="vi-img" src="${esc(url(s.images.before))}" alt="Before: ${esc(alt)}" loading="lazy" width="${size.width}" height="${size.height}" /></div>
+      ? `<div class="vi-compare" style="--pos:${START}%;aspect-ratio:${w} / ${h}">
+          <img class="vi-img" src="${esc(url(s.images.after))}" alt="After: ${esc(alt)}" loading="lazy" width="${w}" height="${h}" />
+          <div class="vi-before"><img class="vi-img" src="${esc(url(s.images.before))}" alt="Before: ${esc(alt)}" loading="lazy" width="${w}" height="${h}" /></div>
           ${s.images.diff ? `<img class="vi-img vi-diffimg" src="${esc(url(s.images.diff))}" alt="Changed pixels: ${esc(alt)}" loading="lazy" hidden />` : ''}
           <div class="vi-boxes" aria-hidden="true">${boxes}</div>
           <span class="vi-handle" aria-hidden="true"></span>

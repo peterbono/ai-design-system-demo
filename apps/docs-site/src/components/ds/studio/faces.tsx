@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Avatar } from '@bridge-ds/react';
 import type { Person } from '../../../lib/home-model';
+import { safeUrl } from '../../../lib/html';
 
 /** A person as the home (`avatar`) or the branch review (`avatarUrl`) knows them; `agent` for Claude. */
 export type Face = Pick<Person, 'login' | 'name' | 'agent'> & { avatar?: string | null; avatarUrl?: string | null };
@@ -33,6 +34,6 @@ export function useFaces(): Draw | null {
 export function Who({ p, size = 'md', decorative = true, className }: { p: Face; size?: 'xs' | 'sm' | 'md'; decorative?: boolean; className?: string; /** For AvatarGroup's "+N" names. */ name?: string }) {
   const draw = useFaces();
   if (p.agent) return <Avatar kind="agent" brand="claude" name={p.name} size={size} decorative={decorative} className={className} />;
-  const src = p.avatar ?? p.avatarUrl ?? undefined;
+  const src = safeUrl(p.avatar ?? p.avatarUrl) || undefined;
   return <Avatar name={p.name} src={src} size={size} decorative={decorative} className={className} fallback="illustrated" seed={p.login} illustration={draw?.(p.login)} />;
 }

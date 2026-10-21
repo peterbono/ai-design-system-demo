@@ -6,7 +6,7 @@ import { aliasLabel, bezierPath, colorAlpha, cssText, isForeground, numericValue
 import { cellValue, pairedBackground, type CellValue, type Column } from '../../lib/explorer/model';
 import type { ExplorerData } from './types';
 import { swatchLabel } from '../../lib/explorer/swatch-ramp';
-import { copyButton, esc, icon, inkOn } from './util';
+import { copyButton, cssValue, esc, icon, inkOn } from './util';
 
 const CANVAS = 'color.bg.default';
 const SURFACE = 'color.surface.default';
@@ -29,8 +29,8 @@ function stageBg(d: ExplorerData, col: Column, path?: string): string {
 export function preview(d: ExplorerData, type: string, path: string, v: CellValue, col: Column, size: 'sm' | 'lg' = 'sm'): string {
   const cls = `xp-stage is-${size}`;
   if (v.resolved === undefined) return `<span class="${cls} is-broken" aria-hidden="true"></span>`;
-  const bg = stageBg(d, col, type === 'color' && isForeground(path) ? path : undefined);
-  const css = esc(v.css);
+  const bg = cssValue(stageBg(d, col, type === 'color' && isForeground(path) ? path : undefined));
+  const css = cssValue(v.css);
   switch (type) {
     case 'color': {
       if (isForeground(path)) return `<span class="${cls} is-aa" style="background-color:${bg};color:${css}" aria-hidden="true">Aa</span>`;
@@ -105,7 +105,7 @@ export function studioCellHtml(d: ExplorerData, path: string, col: Column, edite
   const v = cellValue(d.set, path, col.ctx);
   const lead =
     type === 'color'
-      ? `<span class="xp-ms${v.hex ? '' : ' is-broken'}${colorAlpha(v.resolved) < 0.9995 ? ' has-alpha' : ''}" aria-hidden="true"><i style="background-color:${esc(v.css)}"></i></span>`
+      ? `<span class="xp-ms${v.hex ? '' : ' is-broken'}${colorAlpha(v.resolved) < 0.9995 ? ' has-alpha' : ''}" aria-hidden="true"><i style="background-color:${cssValue(v.css)}"></i></span>`
       : preview(d, type, path, v, col);
   const main = v.alias ? swatchLabel(v.alias) : v.line || cssText(type, v.raw);
   const end = v.error ? 'Unresolved' : type === 'color' ? (v.hex ?? v.css) : v.alias ? v.line : '';

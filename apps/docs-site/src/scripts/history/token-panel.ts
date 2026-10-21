@@ -31,7 +31,7 @@ function itemHtml(it: TokenHistoryItem, i: number, demo: boolean): string {
   const editable = document.querySelector('[data-explorer-mode="edit"]') !== null;
   const canRestore = editable && it.after !== undefined && it.kind !== 'removed' && (it.kind !== 'changed' || it.fields.includes('value'));
   return `<li class="hs-ti">
-    <p class="hs-ti-head">${badgeHtml(it.modeLabel, { size: 'sm' })} <span class="small muted">${esc(shortDate(it.date))}, ${esc(it.author)}${it.pr ? `, #${it.pr.number}` : ''}</span></p>
+    <p class="hs-ti-head">${badgeHtml(it.modeLabel, { size: 'sm' })} <span class="small muted">${esc(shortDate(it.date))}, ${esc(it.author)}${it.pr ? `, #${esc(String(it.pr.number))}` : ''}</span></p>
     <p class="hs-ti-what">${what}</p>
     <p class="small">${title}</p>
     ${canRestore ? `<button type="button" class="btn btn-secondary btn-sm" data-hs-restore="${i}">Restore this value</button>` : ''}

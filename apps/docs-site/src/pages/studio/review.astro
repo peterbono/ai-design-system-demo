@@ -8,6 +8,7 @@
 // (components/ds/studio/SuggestionReview), with its own Approve and Suggest changes; Decline uses RequestDecide.
 // Usage guidance drafts, library health and setup rows show a short card with the link that handles them.
 // Script: scripts/review-queue-page.ts. Moves: lib/queue-nav.ts.
+import { jsonForScript } from '../../lib/html';
 import '../../styles/reviews.css';
 import '../../styles/branch-review.css';
 import '../../styles/product-branch.css';
@@ -41,7 +42,7 @@ const homeStatic = { contrastFail: s.contrast.fail };
 
 // What the branch review needs (pages/studio/changes.astro).
 const r = siteRepo();
-const checks = readText(CONTRAST_FILE).replace(/</g, '\\u003c');
+const checks = jsonForScript(readText(CONTRAST_FILE), { parse: true });
 const cfg: BranchesConfig = { owner: r.owner, repo: r.repo, defaultBranch: r.defaultBranch, apps: PREVIEW_APPS, packages: PREVIEW_PACKAGES };
 ---
 
@@ -91,10 +92,10 @@ const cfg: BranchesConfig = { owner: r.owner, repo: r.repo, defaultBranch: r.def
   </ScriptDialog>
   <PromoteToReview client:only="react" />
   <RequestDecide client:only="react" />
-  <script type="application/json" id="home-static" set:html={JSON.stringify(homeStatic)} />
-  <script type="application/json" id="home-guidance" set:html={JSON.stringify({ drafted: guidance }).replace(/</g, '\\u003c')} />
+  <script type="application/json" id="home-static" set:html={jsonForScript(homeStatic)} />
+  <script type="application/json" id="home-guidance" set:html={jsonForScript({ drafted: guidance })} />
   <script type="application/json" id="bridge-contrast" set:html={checks} />
-  <script type="application/json" id="bridge-branches" set:html={JSON.stringify(cfg).replace(/</g, '\\u003c')} />
+  <script type="application/json" id="bridge-branches" set:html={jsonForScript(cfg)} />
   <script>
     import { initReviewQueue } from '../../scripts/review-queue-page';
     initReviewQueue();

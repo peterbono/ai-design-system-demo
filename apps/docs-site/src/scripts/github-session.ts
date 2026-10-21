@@ -5,6 +5,7 @@
 // once. Either stays in this browser's localStorage, is only ever sent to api.github.com (and, for a refresh, to
 // this site's own /api/github/token), and is never part of the build.
 
+import { attrUrl, escapeHtml } from '../lib/html';
 import { classifyAuth, type FetchLike, GitHubClient, GitHubError, type ClientOptions, friendlyMessage } from '@bridge-ds/core';
 import {
   authFailure,
@@ -394,8 +395,13 @@ export function showGhError(el: HTMLElement, err: unknown, fallback: string, act
     a.kind === 'rejected'
       ? `${esc(a.text)} <button type="button" class="gh-inline-link" data-gh-open data-gh-signin>${mode === 'app' || prefersSignIn() ? 'Sign in again' : 'Reconnect'}</button>`
       : a.href
-        ? `${esc(a.text)} <a href="${esc(a.href)}" target="_blank" rel="noopener">Edit the token on GitHub</a>`
+        ? `${esc(a.text)} <a href="${attrUrl(a.href)}" target="_blank" rel="noopener">Edit the token on GitHub</a>`
         : esc(a.text);
+}
+
+/** "See the branch" and "Open on GitHub" links for a pull request GitHub just created (number and url from the API). */
+export function prLinksHtml(pr: { number: number; url: string }): string {
+  return `<a href="/studio/changes/?pr=${Number(pr.number)}">See the branch</a> · <a href="${attrUrl(pr.url)}" target="_blank" rel="noopener">Open on GitHub</a>`;
 }
 
 export class RateLimitError extends Error {
@@ -532,7 +538,8 @@ export function relativeTime(iso: string): string {
   return new Date(iso).toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-export const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+/** HTML escape for text and quoted attributes (& < > " '). Same helper as lib/html.ts. */
+export const esc = (s: string) => escapeHtml(s);
 
 export interface Viewer {
   login: string;

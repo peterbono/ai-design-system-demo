@@ -27,6 +27,7 @@ import { changesModeOnPage } from '../changes-mode';
 import { suggestFilesOnGitHub } from '../suggest-files';
 import { VOCAB } from '../../lib/vocabulary';
 import { loadHistory, type Loaded } from './state';
+import { attrUrl } from '../../lib/html';
 
 type Request =
   | { kind: 'revert'; entry: HistoryEntry; report: HistoryReport; demo: boolean }
@@ -128,17 +129,20 @@ function changesList(review: TokenReview): string {
     .join('')}</ul>`;
 }
 
-function pairsTable(review: TokenReview): string {
+/** A contrast sample color: a hex, else nothing (the declaration is dropped). */
+const hexOnly = (v: unknown) => (typeof v === 'string' && /^#[0-9a-f]{3,8}$/i.test(v) ? v : '');
+
+export function pairsTable(review: TokenReview): string {
   const n = review.contrast.length;
   if (!n) return '';
   const rows = review.contrast
     .map(
-      (p) => `<tr class="${p.after < p.min ? 'is-fail' : ''}"><th scope="row"><span class="hp-pair"><span class="rv-aa" style="background-color:${esc(p.bgHexAfter)};color:${esc(p.fgHexAfter)}" aria-hidden="true">Aa</span><span class="hp-pair-names"><span class="mono" title="${esc(p.fg)}">${esc(p.fg)}</span><span class="mono" title="${esc(p.bg)}"><span class="cg-muted">on</span> ${esc(p.bg)}</span></span></span></th>
+      (p) => `<tr class="${p.after < p.min ? 'is-fail' : ''}"><th scope="row"><span class="hp-pair"><span class="rv-aa" style="background-color:${esc(hexOnly(p.bgHexAfter))};color:${esc(hexOnly(p.fgHexAfter))}" aria-hidden="true">Aa</span><span class="hp-pair-names"><span class="mono" title="${esc(p.fg)}">${esc(p.fg)}</span><span class="mono" title="${esc(p.bg)}"><span class="cg-muted">on</span> ${esc(p.bg)}</span></span></span></th>
         <td>${esc(p.where)}</td><td class="num">${p.before.toFixed(2)} -> <strong>${p.after.toFixed(2)}</strong>${p.after < p.min ? ` ${badgeHtml('Fails', { tone: 'danger', size: 'sm' })}` : ''}</td></tr>`,
     )
     .join('');
   return `<details class="cg-sec"><summary class="cg-sec-head"><span class="cg-sec-title">Contrast pairs</span><span class="cg-sec-meta">${n}</span><span class="cg-sec-chev" aria-hidden="true"></span></summary>
-    <div class="cg-sec-body"><div class="table-wrap"><table class="rv-table hp-pairs"><thead><tr><th scope="col">Pair</th><th scope="col">Where</th><th scope="col">Ratio, min ${review.contrast[0]!.min}:1</th></tr></thead><tbody>${rows}</tbody></table></div></div></details>`;
+    <div class="cg-sec-body"><div class="table-wrap"><table class="rv-table hp-pairs"><thead><tr><th scope="col">Pair</th><th scope="col">Where</th><th scope="col">Ratio, min ${esc(String(review.contrast[0]!.min))}:1</th></tr></thead><tbody>${rows}</tbody></table></div></div></details>`;
 }
 
 const MODE_WORDS: Record<string, string> = { light: 'Light', dark: 'Dark' };
@@ -155,7 +159,7 @@ function paint() {
           .map((c, i) => {
             const canForce = c.reason === 'changed-later' || c.reason === 'removed-later' || c.reason === 'still-referenced';
             const later = c.later.length
-              ? `<p>Changed again in ${c.later.map((l) => `${l.pr ? `#${l.pr} ` : ''}<strong>${esc(l.title)}</strong> (${esc(shortDate(l.date))}, ${esc(l.author)})`).join(', ')}.</p>`
+              ? `<p>Changed again in ${c.later.map((l) => `${l.pr ? `#${esc(String(l.pr))} ` : ''}<strong>${esc(l.title)}</strong> (${esc(shortDate(l.date))}, ${esc(l.author)})`).join(', ')}.</p>`
               : '';
             return `<li class="hp-conflict">
               <p><span class="mono">${esc(c.path)}</span> <span class="cg-muted">${esc(modeLabel(fileModes(ctx!.config, c.file)))}</span></p>
@@ -266,7 +270,7 @@ function wire() {
       }
       // The suggestion is out: say so on the line of the action, keep the dialog's one primary off.
       go.hidden = true;
-      out.innerHTML = `${esc(suggestionSentLine(sent.number))} <a href="${esc(sent.url)}" target="_blank" rel="noopener">${esc(SEE_SUGGESTION)}</a>`;
+      out.innerHTML = `${esc(suggestionSentLine(sent.number))} <a href="${attrUrl(sent.url)}" target="_blank" rel="noopener">${esc(SEE_SUGGESTION)}</a>`;
     } catch (err) {
       showGhError(out, err, mode === 'suggest' ? notSentLine(mode, (err as Error).message) : `No branch created: ${(err as Error).message}`, mode === 'suggest' ? 'send suggestions' : 'create branches');
       setButtonDisabled(go, false);
