@@ -993,7 +993,7 @@ export function createServer(ctx: BridgeContext): McpServer {
     {
       title: 'List suggestions',
       description:
-        'Suggestions in the repo: GitHub issues labeled bridge-suggestion, each an exact change (tokens, docs, a component spec, a brand, a revert, settings) that the owners approve and a developer applies. Each row has the number, title, kind, tier, status (needs-review, changes-requested, approved, applying, applied, declined, outdated) and linked pull requests. Statuses here come from labels; bridge_get_suggestion counts the approvals.',
+        'Suggestions in the repo: GitHub issues labeled bridge-suggestion, each an exact change (tokens, docs, a component spec, a brand, a revert, settings) that the owners approve and a developer applies. Each row has the number, title, kind, tier, status (needs-review, changes-requested, approved, applying, applied, declined, outdated) and linked pull requests. Statuses here come from labels, except that an open one whose change no longer applies to main reads outdated; bridge_get_suggestion counts the approvals.',
       inputSchema: {
         status: z.enum(['needs-review', 'changes-requested', 'approved', 'applying', 'applied', 'declined', 'outdated', 'all']).optional().describe('Default all open ones.'),
         state: z.enum(['open', 'closed', 'all']).optional().describe('Issue state. Default: open, or closed for applied and declined.'),

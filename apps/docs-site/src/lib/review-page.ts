@@ -3,6 +3,7 @@
 // conversation without bots, the one line about checks, which actions the decision bar and its "More actions" menu
 // hold, and the "looked at" reading aid of a busy branch. components/ds/studio/BranchReview.tsx renders it;
 // scripts/reviews.ts reads GitHub and calls in. No DOM. Tested in review-page.test.ts.
+import { CI_STATE_LABEL } from '@bridge-ds/core';
 import type { CheckStory } from './check-explain';
 import { PRODUCTS, productOf } from './branches-page';
 import type { Lifecycle } from './change-status';
@@ -430,7 +431,8 @@ export interface ChecksLine {
 
 export function checksLine(story: CheckStory): ChecksLine {
   const rows = [story.design ? { label: 'Design rules', ...story.design } : null, story.developer ? { label: 'Developer tests', ...story.developer } : null].filter((r): r is NonNullable<typeof r> => Boolean(r));
-  if (!rows.length) return { state: 'none', text: 'No checks ran on this branch.', rows };
+  // No automated checks is a calm state of its own (core CI_STATE_LABEL): the approvals still say where it stands.
+  if (!rows.length) return { state: 'none', text: `${CI_STATE_LABEL.none}.`, rows };
   const fail = rows.filter((r) => r.state === 'fail');
   if (fail.length) return { state: 'fail', text: fail.map((r) => r.text).join(' '), rows };
   if (rows.some((r) => r.state === 'pending')) return { state: 'pending', text: rows.find((r) => r.state === 'pending')!.text, rows };

@@ -193,7 +193,7 @@ describe('suggestions on GitHub', () => {
     const { sha } = await createSuggestionOnGitHub(f.gh(), payload());
     await createSuggestionOnGitHub(f.gh(), { ...payload(), title: 'Second one' });
     f.as('dev');
-    expect(await linkSuggestionPrOnGitHub(f.gh(), 42, { pr: 88, by: 'dev', payloadSha: sha })).toEqual({ warnings: [] });
+    expect(await linkSuggestionPrOnGitHub(f.gh(), 42, { pr: 88, by: 'dev', payloadSha: sha })).toEqual({ warnings: [], status: 'applying' });
     expect(f.comments.get(42)!.at(-1)!.body).toMatch(/^Being applied in pull request #88 by @dev\./);
     expect(labelsOf(f, 42)).toContain('suggestion: applying');
     expect(labelsOf(f, 42)).not.toContain('suggestion: needs review');
@@ -210,7 +210,7 @@ describe('suggestions on GitHub', () => {
     await expect(declineSuggestionOnGitHub(f.gh(), 43, 'No.')).rejects.toThrow(/at least 10/);
     expect(await declineSuggestionOnGitHub(f.gh(), 43, 'We keep the current contrast for now.', 'teo')).toEqual({ warnings: [] });
     expect(f.issues.get(43)).toMatchObject({ state: 'closed', state_reason: 'not_planned' });
-    expect(labelsOf(f, 43).filter((l: string) => l.startsWith('suggestion: ') && l !== 'suggestion: token-change')).toEqual([]);
+    expect(labelsOf(f, 43).filter((l: string) => l.startsWith('suggestion: ') && l !== 'suggestion: token-change')).toEqual(['suggestion: declined']);
     expect((await getSuggestionOnGitHub(f.gh(), 43, gov)).status).toBe('declined');
   });
 

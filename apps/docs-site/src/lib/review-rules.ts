@@ -22,6 +22,7 @@ import {
   parseOverrideComment,
   parseTier,
   pullState,
+  REVIEW_STATUS_LABEL,
   REVIEW_STATUS_ORDER,
   reviewStatusKind,
   shipPolicy,
@@ -116,24 +117,24 @@ export interface ReviewStatus {
 }
 
 /**
- * Label and tone of each status. Color means status only (lib/changes.ts): red when something blocks the merge,
+ * Label (core REVIEW_STATUS_LABEL, the words the MCP server and the CLI use too) and tone of each status. Color means status only (lib/changes.ts): red when something blocks the merge,
  * violet while it waits for an approval, green when it is ready, grey for drafts, running checks, unknown, merged
  * and closed. Risk tiers never take a color.
  */
 export const REVIEW_STATUS: Record<ReviewStatusKind, { label: string; tone: StatusTone }> = {
-  merged: { label: 'Merged', tone: 'neutral' },
-  closed: { label: 'Closed', tone: 'neutral' },
-  draft: { label: 'Draft', tone: 'neutral' },
-  'ci-failing': { label: 'Blocked by tests', tone: 'danger' },
-  'changes-requested': { label: 'Changes requested', tone: 'danger' },
-  'ci-running': { label: 'Tests running', tone: 'neutral' },
-  'needs-design': { label: 'Needs design approval', tone: 'info' },
-  'needs-tech': { label: 'Needs tech approval', tone: 'info' },
-  'needs-approval': { label: 'Needs approval', tone: 'info' },
-  conflict: { label: 'Conflict', tone: 'danger' },
-  checking: { label: 'Checking', tone: 'neutral' },
-  ready: { label: 'Ready to merge', tone: 'success' },
-  unknown: { label: 'Status unknown', tone: 'neutral' },
+  merged: { label: REVIEW_STATUS_LABEL.merged, tone: 'neutral' },
+  closed: { label: REVIEW_STATUS_LABEL.closed, tone: 'neutral' },
+  draft: { label: REVIEW_STATUS_LABEL.draft, tone: 'neutral' },
+  'ci-failing': { label: REVIEW_STATUS_LABEL['ci-failing'], tone: 'danger' },
+  'changes-requested': { label: REVIEW_STATUS_LABEL['changes-requested'], tone: 'danger' },
+  'ci-running': { label: REVIEW_STATUS_LABEL['ci-running'], tone: 'neutral' },
+  'needs-design': { label: REVIEW_STATUS_LABEL['needs-design'], tone: 'info' },
+  'needs-tech': { label: REVIEW_STATUS_LABEL['needs-tech'], tone: 'info' },
+  'needs-approval': { label: REVIEW_STATUS_LABEL['needs-approval'], tone: 'info' },
+  conflict: { label: REVIEW_STATUS_LABEL.conflict, tone: 'danger' },
+  checking: { label: REVIEW_STATUS_LABEL.checking, tone: 'neutral' },
+  ready: { label: REVIEW_STATUS_LABEL.ready, tone: 'success' },
+  unknown: { label: REVIEW_STATUS_LABEL.unknown, tone: 'neutral' },
 };
 
 /** One status chip for a pull request, from real data (core reviewStatusKind, the same rules as the merge gate), with its DS Badge tone. */

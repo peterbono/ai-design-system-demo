@@ -244,10 +244,11 @@ describe('reviewStatus', () => {
     expect(st({ state: 'closed', merged_at: '2026-10-10T09:00:00Z', draft: true }).kind).toBe('merged');
   });
 
-  it('says Checking while GitHub has not computed whether it merges cleanly', () => {
+  it('says Checking for conflicts while GitHub has not computed whether an approved branch merges cleanly', () => {
     expect(st({ mergeable: null }).kind).toBe('checking');
-    expect(st({ mergeable: null, approvals: none }).kind).toBe('checking');
-    expect(st({ mergeable: null }).label).toBe('Checking');
+    expect(st({ mergeable: null }).label).toBe('Checking for conflicts');
+    // A missing approval is missing either way: the list never says "Checking" where the page says who approves.
+    expect(st({ mergeable: null, approvals: none }).kind).toBe('needs-design');
     expect(st({ mergeable: null, ci: red }).kind).toBe('ci-failing');
     // Not read at all (undefined): no conflict known, the approvals decide.
     expect(st({ mergeable: undefined, approvals: none }).kind).toBe('needs-design');

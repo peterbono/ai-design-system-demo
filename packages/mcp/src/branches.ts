@@ -28,6 +28,7 @@ import {
   MAX_TOGETHER,
   mergeGate,
   mergeOnGitHub,
+  markSuggestionsAppliedOnGitHub,
   MIN_TOGETHER,
   missingChoices,
   OverrideMergeError,
@@ -42,7 +43,9 @@ import {
   readLibraryConflicts,
   reopenEligibility,
   reopenOnGitHub,
+  REVIEW_STATUS_LABEL,
   REVIEW_STATUS_ORDER,
+  CI_STATE_LABEL,
   reviewOnGitHub,
   reviewQueue,
   reviewStatusKind,
@@ -157,21 +160,8 @@ export async function branchFacts(ctx: BridgeContext, gh: GitHubClient, n: numbe
   return { config, pr, files, ci, approvals, tier, gate, status, fresh, compare, exploration, product, lifecycle: pullState(pullLike), write: repo ? hasWriteAccess(repo.permissions) : null, repo, solo: who.solo };
 }
 
-const STATUS_WORDS: Record<ReviewStatusKind, string> = {
-  merged: 'Merged',
-  closed: 'Closed',
-  draft: 'Draft',
-  'ci-failing': 'Blocked by tests',
-  'changes-requested': 'Changes requested',
-  'ci-running': 'Tests running',
-  'needs-design': 'Needs design approval',
-  'needs-tech': 'Needs tech approval',
-  'needs-approval': 'Needs approval',
-  conflict: 'Conflict with main',
-  checking: 'Checking',
-  ready: 'Ready to merge',
-  unknown: 'Status unknown',
-};
+// The status words Studio shows too (core REVIEW_STATUS_LABEL): one derivation (reviewStatusKind), one vocabulary.
+const STATUS_WORDS = REVIEW_STATUS_LABEL;
 
 // --- reads -------------------------------------------------------------------------------------------------
 
@@ -191,7 +181,7 @@ export async function branchStatus(ctx: BridgeContext, a: { pr: number | string 
     status: { kind: f.status, label: STATUS_WORDS[f.status] },
     approvalNeeded: f.tier === 1 ? 'One approval' : 'Design and tech approval',
     approvals: { approvedBy: f.approvals.approvers, changesRequestedBy: f.approvals.changesRequested, design: f.approvals.design, tech: f.approvals.tech, ...(f.solo && (f.tier ?? 3) > 1 ? { soloOwner: soloOwnerSentence(f.solo, Boolean(viewer && viewer.toLowerCase() === f.solo)) } : {}) },
-    tests: { state: f.ci.state, failing: f.ci.failed.map((x) => x.name), running: f.ci.pending.map((x) => x.name) },
+    tests: { state: f.ci.state, label: CI_STATE_LABEL[f.ci.state], failing: f.ci.failed.map((x) => x.name), running: f.ci.pending.map((x) => x.name) },
     main: { state: f.fresh.state, behindBy: f.fresh.behindBy },
     merge: {
       allowed: f.gate.allowed,
@@ -245,6 +235,9 @@ export async function whatNeedsMe(ctx: BridgeContext, a: { limit?: number | unde
         else if (f.status === 'conflict') needsYou = 'Your branch conflicts with main';
         else if (f.status === 'ready' && f.gate.canShip) needsYou = 'Your branch is ready to merge';
       }
+      // Nobody else can give the missing approvals and the viewer may use the owner override: Studio says "Your turn:
+      // owner override" on the same branch.
+      if (viewer && !needsYou && f.gate.overridable && !reviewersToAsk({ tier: f.tier, approvals: f.approvals, owners: who.lists, author: p.author, viewer }).length) needsYou = 'Only the owner override can merge it';
       return { pr: p.number, title: p.title, url: p.url, author: p.author, product: f.product.name, status: f.status, statusLabel: STATUS_WORDS[f.status], yours: mine, needsYou };
     }),
   );
@@ -461,6 +454,9 @@ export async function listComments(ctx: BridgeContext, a: { pr: number | string 
   };
 }
 
+/** " Suggestion #8 is marked applied." after a merge that closes suggestions. */
+const appliedLine = (ns: number[]) => (ns.length ? ` ${ns.length === 1 ? 'Suggestion' : 'Suggestions'} ${ns.map((x) => `#${x}`).join(', ')} ${ns.length === 1 ? 'is' : 'are'} marked applied.` : '');
+
 /**
  * Merge, through the same gate as Studio's Merge button (tests, approvals for the tier, who may ship, conflicts,
  * drafts and explorations). With `overrideReason`, the owner override: only missing approvals are skipped, the reason is
@@ -477,7 +473,8 @@ export async function mergeBranch(ctx: BridgeContext, a: { pr: number | string; 
   if (f.gate.allowed) {
     if (a.dryRun) return { pr: n, status: 'would-merge' as const, said: 'Every rule passes: it can be merged.' };
     const r = await mergeOnGitHub(gh, { number: n, headSha: f.pr.headSha, method: 'squash' });
-    return { pr: n, status: 'merged' as const, sha: r.sha, said: 'Merged. It goes out with the next library release.' };
+    const s = await markSuggestionsAppliedOnGitHub(gh, f.pr);
+    return { pr: n, status: 'merged' as const, sha: r.sha, said: `Merged. It goes out with the next library release.${appliedLine(s.applied)}`, ...(s.warnings.length ? { warnings: s.warnings } : {}) };
   }
   if (!reason) {
     const hint = f.gate.overridable ? ` Only approvals are missing and @${viewer} may use the owner override: pass overrideReason (at least ${policy.minReasonLength} characters), it is posted on the branch.` : '';
@@ -491,7 +488,8 @@ export async function mergeBranch(ctx: BridgeContext, a: { pr: number | string; 
   const method = allowedMergeMethods(f.repo)[0] ?? 'squash';
   try {
     const r = await overrideMergeOnGitHub(gh, { number: n, headSha: f.pr.headSha, login: viewer, reason, missing: f.gate.missing, method });
-    return { pr: n, status: 'merged' as const, override: true, sha: r.sha, reasonUrl: r.commentUrl, said: `Merged as owner override. The reason is on #${n}.` };
+    const s = await markSuggestionsAppliedOnGitHub(gh, f.pr);
+    return { pr: n, status: 'merged' as const, override: true, sha: r.sha, reasonUrl: r.commentUrl, said: `Merged as owner override. The reason is on #${n}.${appliedLine(s.applied)}`, ...(s.warnings.length ? { warnings: s.warnings } : {}) };
   } catch (err) {
     if (err instanceof OverrideMergeError) throw new Error(err.message);
     throw err;

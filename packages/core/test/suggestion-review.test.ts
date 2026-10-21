@@ -142,11 +142,11 @@ describe('suggestion status', () => {
     expect(suggestionStatus({ state: 'open', outdated: true, linkedPrs: [{ state: 'open' }] })).toBe('applying');
   });
 
-  it('keeps one state label while open, none once closed or outdated', () => {
+  it('keeps one state label while open, the final label once closed, none while outdated', () => {
     expect(suggestionStateLabel('approved')).toBe('suggestion: approved');
     expect(suggestionStateLabel('applying')).toBe('suggestion: applying');
-    expect(suggestionStateLabel('applied')).toBeNull();
-    expect(suggestionStateLabel('declined')).toBeNull();
+    expect(suggestionStateLabel('applied')).toBe('suggestion: applied');
+    expect(suggestionStateLabel('declined')).toBe('suggestion: declined');
     expect(suggestionStateLabel('outdated')).toBeNull();
   });
 });
